@@ -1,7 +1,6 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { NotificationBadge } from "~/components/ui/notification-badge";
 import {
   PortalSidebar,
   PortalSidebarLink,
@@ -59,14 +58,11 @@ export function SchoolSidebar({
         newTab={item.newTab}
         data-school-nav-item={item.key}
         badge={
-          badge && (
-            <NotificationBadge
-              count={badge.count}
-              tone="staff"
-              ariaLabel={badge.ariaLabel}
-              className="ml-2"
-            />
-          )
+          badge && {
+            count: badge.count,
+            tone: "staff",
+            ariaLabel: badge.ariaLabel,
+          }
         }
       />
     );

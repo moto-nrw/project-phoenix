@@ -86,11 +86,22 @@ export function hostnameFromAuthority(authority: string): string | null {
  * so security boundaries must prefer the proxy-owned original-host header.
  */
 export function getOriginalRequestHost(request: NextRequest): string {
+  return originalHost(request.headers);
+}
+
+function originalHost(headers: HeaderReader): string {
   return (
-    firstHeaderValue(request.headers.get("x-moto-original-host")) ||
-    firstHeaderValue(request.headers.get("host")) ||
-    firstHeaderValue(request.headers.get("x-forwarded-host"))
+    firstHeaderValue(headers.get("x-moto-original-host")) ||
+    firstHeaderValue(headers.get("host")) ||
+    firstHeaderValue(headers.get("x-forwarded-host"))
   );
+}
+
+function forwardedProtocol(headers: HeaderReader): "http" | "https" | null {
+  const proto =
+    firstHeaderValue(headers.get("x-moto-original-proto")) ||
+    firstHeaderValue(headers.get("x-forwarded-proto"));
+  return proto === "http" || proto === "https" ? proto : null;
 }
 
 export function frontendOrigin(request: NextRequest): string {
@@ -100,39 +111,24 @@ export function frontendOrigin(request: NextRequest): string {
     return request.nextUrl.origin;
   }
 
-  const forwardedProto =
-    firstHeaderValue(request.headers.get("x-moto-original-proto")) ||
-    firstHeaderValue(request.headers.get("x-forwarded-proto"));
   const protocol =
-    forwardedProto === "http" || forwardedProto === "https"
-      ? forwardedProto
-      : request.nextUrl.protocol.replace(/:$/, "");
+    forwardedProtocol(request.headers) ??
+    request.nextUrl.protocol.replace(/:$/, "");
 
   return `${protocol}://${host}`;
 }
 
 /**
- * Extracts the real client IP and User-Agent from an incoming request
- * and returns headers that should be forwarded to the backend.
- *
- * When Next.js proxies requests to the Go backend over the Docker network,
- * the backend only sees the Docker-internal IP (e.g. 172.20.0.4) and
- * Node.js as the User-Agent. This helper preserves the original values
- * so the backend can log them for security auditing, and passes on the
- * browser's analytics session (#3602).
+ * The client identity of a backend call made for a browser request:
+ * `clientIdentityHeaders` plus the frontend origin the passkey ceremonies
+ * check. Every BFF call to the backend sends this one set.
  */
-export function getClientForwardHeaders(
+export function backendIdentityHeaders(
   request: NextRequest,
 ): Record<string, string> {
-  const forwardedFor = canonicalForwardedFor(request.headers);
-  const userAgent = request.headers.get("user-agent") ?? "unknown";
-
   return {
-    ...(forwardedFor && { "X-Forwarded-For": forwardedFor }),
+    ...clientIdentityHeaders(request.headers),
     "X-Moto-Frontend-Origin": frontendOrigin(request),
-    "User-Agent": userAgent,
-    ...analyticsSessionHeaders(request.headers),
-    ...requestIdHeaders(request.headers),
   };
 }
 
@@ -179,6 +175,33 @@ export async function incomingClientForwardHeaders(): Promise<
   } catch {
     return {};
   }
+}
+
+/**
+ * `backendIdentityHeaders` of the request being handled, for backend calls
+ * that do not receive the request, so every backend call of a request sends
+ * the same identity. The origin is left out when the incoming headers do not
+ * name host and protocol.
+ */
+export async function incomingBackendIdentityHeaders(): Promise<
+  Record<string, string>
+> {
+  let incoming: HeaderReader;
+  try {
+    const { headers } = await import("next/headers");
+    incoming = await headers();
+  } catch {
+    return {};
+  }
+  const host = originalHost(incoming);
+  const protocol = forwardedProtocol(incoming);
+  return {
+    ...clientIdentityHeaders(incoming),
+    ...(protocol &&
+      isSafeForwardedHost(host) && {
+        "X-Moto-Frontend-Origin": `${protocol}://${host}`,
+      }),
+  };
 }
 
 export function canonicalForwardedFor(headers: HeaderReader | null): string {

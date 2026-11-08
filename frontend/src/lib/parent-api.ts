@@ -584,12 +584,14 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
   return unwrapEnvelope((await response.json()) as ApiEnvelope<T>);
 }
 
+/** A DELETE without a result answers 204. */
 async function deleteJson<T>(url: string): Promise<T> {
   const response = await transportFetch(url, {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
   });
   if (!response.ok) await throwResponseError(url, response);
+  if (response.status === 204) return undefined as T;
   return unwrapEnvelope((await response.json()) as ApiEnvelope<T>);
 }
 
@@ -733,8 +735,7 @@ async function fetchEnrollmentEndpoint(
 /**
  * Fetches the parent's autofill payload for the embedded enrollment
  * form, scoped to a specific tenant slug. Returns null on 401 so the
- * form can render without prefill rather than failing. This matches the
- * public path's fetchMyEnrollmentProfile contract.
+ * form can render without prefill rather than failing.
  */
 export async function fetchParentEnrollmentProfile(
   tenantSlug: string,
@@ -2496,6 +2497,11 @@ export interface ParentDocument {
    * to the child grants the right (#4682). Absent when it may only read.
    */
   readonly can_end_contract?: boolean;
+  /**
+   * `can_end_contract` holds and the withdrawal period may still run: the
+   * inbox shows „Vertrag widerrufen“ (§ 356a BGB, #6105).
+   */
+  readonly can_withdraw_contract?: boolean;
 }
 
 /**

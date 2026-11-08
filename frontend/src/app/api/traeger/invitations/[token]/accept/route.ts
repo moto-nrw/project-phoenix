@@ -1,19 +1,10 @@
-import type { NextRequest } from "next/server";
-import { forwardJsonPost } from "~/lib/auth-proxy.server";
-import { encodePathSegment } from "~/lib/route-wrapper-utils.server";
-import { withPrivateNoStore } from "~/lib/private-no-store";
+import { createPublicJsonProxy } from "~/lib/backend-proxy-route.server";
 
 // Einladung ins Träger-Büro annehmen (#4650): neues Passwort oder das
 // Passwort des vorhandenen moto-Kontos.
-async function POSTHandler(
-  request: NextRequest,
-  context: { params: Promise<{ token: string }> },
-) {
-  const { token } = await context.params;
-  return forwardJsonPost(
-    request,
-    `/traeger/invitations/${encodePathSegment(token)}/accept`,
-  );
-}
-
-export const POST = withPrivateNoStore(POSTHandler);
+export const POST = createPublicJsonProxy({
+  method: "POST",
+  path: (_request, params) =>
+    `/traeger/invitations/${encodeURIComponent(String(params.token))}/accept`,
+  body: "optional-json",
+});

@@ -20,57 +20,36 @@ vi.mock("next/headers", () => ({
       cookie: state.cookie,
     }),
 }));
-vi.mock("~/server/auth/operator-config", async (original) => ({
-  operatorAuthConfig: {
-    ...(await original<typeof import("~/server/auth/operator-config")>())
-      .operatorAuthConfig,
-    secret: "synthetic-local-stage-three-session-secret",
-  },
-}));
-vi.mock("~/server/auth/school-config", async (original) => ({
-  schoolAuthConfig: {
-    ...(await original<typeof import("~/server/auth/school-config")>())
-      .schoolAuthConfig,
-    secret: "synthetic-local-stage-three-session-secret",
-  },
-}));
-vi.mock("~/server/auth/traeger-config", async (original) => ({
-  traegerAuthConfig: {
-    ...(await original<typeof import("~/server/auth/traeger-config")>())
-      .traegerAuthConfig,
-    secret: "synthetic-local-stage-three-session-secret",
-  },
-}));
-vi.mock("~/server/auth/caterer-config", async (original) => ({
-  catererAuthConfig: {
-    ...(await original<typeof import("~/server/auth/caterer-config")>())
-      .catererAuthConfig,
-    secret: "synthetic-local-stage-three-session-secret",
-  },
-}));
-vi.mock("~/server/auth/parent-config", async (original) => ({
-  parentAuthConfig: {
-    ...(await original<typeof import("~/server/auth/parent-config")>())
-      .parentAuthConfig,
-    secret: "synthetic-local-stage-three-session-secret",
-  },
-}));
-vi.mock("~/server/auth/tenant-config", async (original) => ({
-  tenantAuthConfig: {
-    ...(await original<typeof import("~/server/auth/tenant-config")>())
-      .tenantAuthConfig,
-    secret: "synthetic-local-stage-three-session-secret",
-  },
-}));
+vi.mock("~/server/auth/portal-config", async (original) => {
+  const { createPortalAuthConfig } =
+    await original<typeof import("~/server/auth/portal-config")>();
+  return {
+    createPortalAuthConfig: (
+      ...args: Parameters<typeof createPortalAuthConfig>
+    ) => ({
+      ...createPortalAuthConfig(...args),
+      secret: "synthetic-local-stage-three-session-secret",
+    }),
+  };
+});
 
-import { createPortalLoginRoute } from "~/lib/portal-login-route.server";
+import { createPortalLoginRoute } from "~/lib/login-route.server";
 import { POST as demo } from "../demo/access/sessions/route";
-import { operatorHandlers } from "~/server/auth/operator";
-import { schoolHandlers } from "~/server/auth/school";
-import { traegerHandlers } from "~/server/auth/traeger";
-import { catererHandlers } from "~/server/auth/caterer";
-import { parentHandlers } from "~/server/auth/parent";
-import { handlers as tenantHandlers } from "~/server/auth";
+import { operatorPortal } from "~/server/auth/operator";
+import { schoolPortal } from "~/server/auth/school";
+import { traegerPortal } from "~/server/auth/traeger";
+import { catererPortal } from "~/server/auth/caterer";
+import { parentPortal } from "~/server/auth/parent";
+import { tenantPortal } from "~/server/auth";
+import { stubPortalHostEnv } from "~/test/route-test-helpers";
+
+const LOGIN = {
+  tenant: tenantPortal,
+  operator: operatorPortal,
+  school: schoolPortal,
+  caterer: catererPortal,
+  traeger: traegerPortal,
+};
 
 const backend = vi.fn();
 const claims = (scope: string) => ({
@@ -118,14 +97,15 @@ function browserCookie(response: Response) {
 beforeEach(() => {
   backend.mockReset();
   vi.stubGlobal("fetch", backend);
+  stubPortalHostEnv();
 });
 afterEach(() => vi.unstubAllGlobals());
 
 const portals = [
-  ["operator", "platform", operatorHandlers, true],
-  ["school", "school", schoolHandlers, false],
-  ["traeger", "org", traegerHandlers, false],
-  ["caterer", "caterer", catererHandlers, true],
+  ["operator", "platform", operatorPortal.handlers, true],
+  ["school", "school", schoolPortal.handlers, false],
+  ["traeger", "org", traegerPortal.handlers, false],
+  ["caterer", "caterer", catererPortal.handlers, true],
 ] as const;
 describe.each(portals)(
   "%s BFF session",
@@ -166,7 +146,7 @@ describe.each(portals)(
           )
           .mockResolvedValueOnce(Response.json(claims(scope)));
         const response = await createPortalLoginRoute(
-          portal,
+          LOGIN[portal],
           step,
         )(
           request(
@@ -224,7 +204,10 @@ describe.each(portals)(
         );
         expect((await session.json()).user).toMatchObject({ id: "42", scope });
         // Other portal configs cannot consume this portal's cookie.
-        const other = portal === "operator" ? schoolHandlers : operatorHandlers;
+        const other =
+          portal === "operator"
+            ? schoolPortal.handlers
+            : operatorPortal.handlers;
         const otherPortal = portal === "operator" ? "school" : "operator";
         const foreign = await other.GET(
           new NextRequest(
@@ -241,7 +224,7 @@ describe.each(portals)(
       "rejects Origin %s before minting",
       async (origin) => {
         const response = await createPortalLoginRoute(
-          portal,
+          LOGIN[portal],
           "login",
         )(request(portal, {}, origin));
         expect(response.status).toBe(403);
@@ -253,7 +236,7 @@ describe.each(portals)(
       const problem = { code: "identity.use_parent_portal", status: 403 };
       backend.mockResolvedValueOnce(Response.json(problem, { status: 403 }));
       const response = await createPortalLoginRoute(
-        portal,
+        LOGIN[portal],
         "login",
       )(request(portal));
       expect(response.status).toBe(403);
@@ -266,7 +249,7 @@ describe.each(portals)(
         .mockResolvedValueOnce(Response.json(claims("wrong-portal")))
         .mockResolvedValueOnce(new Response(null, { status: 204 }));
       const response = await createPortalLoginRoute(
-        portal,
+        LOGIN[portal],
         "login",
       )(request(portal));
       expect(response.status).toBe(500);
@@ -303,7 +286,7 @@ describe.each(portals)(
           Response.json(wrap({ ...data, extra_token: "must-not-leak" })),
         );
         const response = await createPortalLoginRoute(
-          portal,
+          LOGIN[portal],
           "login",
         )(request(portal));
         expect(await response.json()).toEqual(wrap(data));
@@ -313,6 +296,31 @@ describe.each(portals)(
     );
   },
 );
+it("gives up on a password step the backend does not answer within the auth-step budget", async () => {
+  vi.useFakeTimers();
+  backend.mockImplementationOnce(
+    (_url: string, init: RequestInit) =>
+      new Promise((_resolve, reject) =>
+        init.signal?.addEventListener("abort", () =>
+          reject(init.signal?.reason),
+        ),
+      ),
+  );
+  let settled = false;
+  const pending = createPortalLoginRoute(
+    LOGIN.school,
+    "login",
+  )(request("school")).finally(() => {
+    settled = true;
+  });
+
+  await vi.advanceTimersByTimeAsync(9_999);
+  expect(settled).toBe(false);
+  await vi.advanceTimersByTimeAsync(1);
+
+  expect((await pending).status).toBe(503);
+  expect(backend).toHaveBeenCalledOnce();
+});
 it("allowlists Träger organization selection without disclosing credentials", async () => {
   backend.mockResolvedValueOnce(
     Response.json({
@@ -322,7 +330,7 @@ it("allowlists Träger organization selection without disclosing credentials", a
     }),
   );
   const response = await createPortalLoginRoute(
-    "traeger",
+    LOGIN.traeger,
     "login",
   )(request("traeger"));
   expect(await response.json()).toEqual({
@@ -333,8 +341,14 @@ it("allowlists Träger organization selection without disclosing credentials", a
 });
 
 describe.each([
-  ["parents", "parent", "parent", "parent.session-token", parentHandlers],
-  ["messe-demo", "lead", "", "authjs.session-token", tenantHandlers],
+  [
+    "parents",
+    "parent",
+    "parent",
+    "parent.session-token",
+    parentPortal.handlers,
+  ],
+  ["messe-demo", "lead", "", "authjs.session-token", tenantPortal.handlers],
 ] as const)("%s demo session", (host, role, scope, cookieName, handlers) => {
   it("installs the host's real session and returns allowlisted visit metadata only", async () => {
     backend

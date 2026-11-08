@@ -8,6 +8,6 @@
 //
 // The Go backend wraps responses in { status, data, message }. proxyGet
 // strips that envelope so route-wrapper does not double-wrap the payload.
-import { proxyGet } from "~/lib/route-proxy.server";
+import { proxyGet } from "~/lib/route-wrapper.server";
 
 export const GET = proxyGet("/api/timetable/conflicts");

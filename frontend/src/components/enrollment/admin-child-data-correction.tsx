@@ -1,5 +1,6 @@
 "use client";
 
+import { MAX_SUPPORTED_GRADE_LEVEL } from "~/lib/grade-level";
 import { useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { Pencil } from "lucide-react";
 import { Button } from "~/components/ui/button";
@@ -13,6 +14,9 @@ import {
   correctAdminChildData,
   type AdminRequestChild,
 } from "~/lib/enrollment-admin-api";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "AdminChildDataCorrection" });
 
 export function AdminChildDataCorrection({
   child,
@@ -97,6 +101,11 @@ export function AdminChildDataCorrection({
       setOpen(false);
       onSaved(correctedChild);
     } catch (err) {
+      logger.error("admin_child_data_correction_failed", {
+        error: err instanceof Error ? err.message : "unknown",
+        request_id: requestId,
+        child_id: child.id,
+      });
       await errors.show(err, {
         object: "die Korrektur",
         retry: () => void latestSubmitRef.current(),
@@ -207,7 +216,7 @@ export function AdminChildDataCorrection({
               error={errors.fieldError("target_grade_level")}
               type="number"
               min={1}
-              max={13}
+              max={MAX_SUPPORTED_GRADE_LEVEL}
               step={1}
               value={grade}
               onChange={(event) => setGrade(event.target.value)}

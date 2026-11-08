@@ -20,7 +20,7 @@ export const POST = createPostHandler<unknown, ResubmitBody>(
       throw new Error("Invalid absence id");
     }
     const response = await apiPost<{ data: unknown }>(
-      `/api/time-tracking/absences/${id}/resubmit`,
+      `/api/time-tracking/absences/${encodeURIComponent(id)}/resubmit`,
       token,
       body ?? {},
     );

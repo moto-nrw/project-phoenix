@@ -5,7 +5,8 @@ import { withPrivateNoStore } from "~/lib/private-no-store";
 const VALID_TYPE_PATTERN = /^[a-z0-9_]{1,64}$/;
 
 const forward = proxyPut<null, { enabled: boolean }>(
-  (params) => `/school/notifications/preferences/${params.type as string}`,
+  (params) =>
+    `/school/notifications/preferences/${encodeURIComponent(params.type as string)}`,
 );
 
 // Eine Entscheidung setzen (#2208). Der Typ ist ein Katalogschlüssel und

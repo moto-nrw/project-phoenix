@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 	"time"
@@ -84,7 +85,13 @@ func (n *Notifications) SchoolBrand(ctx context.Context, tenantID int64, baseURL
 		return brand, nil
 	}
 	school, err := n.deps.Schools.FindSchool(ctx, tenantID)
-	if err != nil || school == nil || school.Deleted {
+	if err != nil {
+		slog.WarnContext(ctx, "enrollment mail: school unreadable, branding without it",
+			slog.Int64("tenant_id", tenantID),
+			slog.String("error", err.Error()))
+		return brand, nil
+	}
+	if school == nil || school.Deleted {
 		return brand, nil
 	}
 	brand.SchoolName = school.Name

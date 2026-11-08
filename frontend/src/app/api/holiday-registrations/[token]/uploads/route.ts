@@ -1,11 +1,11 @@
 // Anonymous proxy for a proof of benefits a parent attaches to a public
 // holiday registration (#5238), like the uploads of the online registration
-// (#4783): no session, only the canonical client IP, which the backend's
-// upload limit buckets on. The body is bounded here before it is buffered;
+// (#4783): no session; the client IP the backend's upload limit buckets on
+// travels with the client identity of every backend call. The body is bounded here before it is buffered;
 // the backend checks size and kind by content again.
 
 import type { NextRequest } from "next/server";
-import { canonicalForwardedFor } from "~/lib/client-headers.server";
+import { sendBackend } from "~/lib/backend-client.server";
 import { problemResponse } from "~/lib/api-helpers.server";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import {
@@ -16,7 +16,6 @@ import {
 import { MAX_UPLOAD_MB } from "~/lib/enrollment-uploads";
 import { createLogger } from "~/lib/logger";
 import { captureBffException } from "~/lib/sentry-bff.server";
-import { getServerApiUrl } from "~/lib/server-api-url";
 import { withPrivateNoStore } from "~/lib/private-no-store";
 
 const logger = createLogger({ component: "HolidayProofUploadProxy" });
@@ -48,14 +47,14 @@ async function POSTHandler(
   const outgoing = new FormData();
   if (file instanceof File) outgoing.append("file", file, file.name);
 
-  const forwardedFor = canonicalForwardedFor(request.headers);
   try {
-    const response = await fetch(
-      `${getServerApiUrl()}/traeger/holiday-registrations/${encodeURIComponent(token)}/uploads`,
+    const response = await sendBackend(
+      `/traeger/holiday-registrations/${encodeURIComponent(token)}/uploads`,
+      null,
       {
         method: "POST",
-        headers: forwardedFor ? { "X-Forwarded-For": forwardedFor } : {},
         body: outgoing,
+        request,
       },
     );
     return forwardBackendResponse(response, request);

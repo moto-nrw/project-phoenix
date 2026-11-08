@@ -15,7 +15,10 @@ export const DELETE = createDeleteHandler<null>(
   ) => {
     const id = params.id as string;
     const absenceId = params.absenceId as string;
-    await apiDelete(`/api/staff/${id}/absences/${absenceId}`, token);
+    await apiDelete(
+      `/api/staff/${encodeURIComponent(id)}/absences/${encodeURIComponent(absenceId)}`,
+      token,
+    );
     return null;
   },
 );

@@ -5,7 +5,7 @@ import {
   gateSessionCookieWrites,
   type FamilyStates,
 } from "./session-cookie-writes";
-import type { ServerSession } from "./shared";
+import type { ServerSession } from "./session-types";
 
 /**
  * Every user field the browser may see (#5005). The type demands one entry

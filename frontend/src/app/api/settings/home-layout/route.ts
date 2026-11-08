@@ -1,4 +1,4 @@
-import { proxyGet, proxyPut, proxyDelete } from "~/lib/route-proxy.server";
+import { proxyGet, proxyPut, proxyDelete } from "~/lib/route-wrapper.server";
 
 // Persönliche Zusammenstellung der Startseite (#2875). Die Zeile hängt am
 // Konto aus dem Token, deshalb trägt der Pfad keine Kennung.

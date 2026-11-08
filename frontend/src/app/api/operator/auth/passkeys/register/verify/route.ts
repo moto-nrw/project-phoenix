@@ -1,11 +1,7 @@
-import { forwardJsonPost } from "~/lib/auth-proxy.server";
-import { withOperatorAuth } from "~/server/auth/operator-route";
-import type { ServerAuthRequest } from "~/server/auth/route-handler";
+import { createOperatorJsonProxy } from "~/lib/operator/route-wrapper.server";
 
-async function POSTHandler(request: ServerAuthRequest) {
-  return forwardJsonPost(request, "/operator/auth/passkeys/register/verify", {
-    sessionToken: request.auth?.user?.token ?? null,
-  });
-}
-
-export const POST = withOperatorAuth(POSTHandler);
+export const POST = createOperatorJsonProxy({
+  method: "POST",
+  path: "/operator/auth/passkeys/register/verify",
+  body: "optional-json",
+});

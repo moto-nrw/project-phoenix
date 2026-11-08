@@ -4,42 +4,29 @@ import type {
 } from "~/lib/email-delivery-status";
 import type { RosterImpactWire } from "~/lib/roster-impact";
 import { announceEnrollmentReadChange } from "~/lib/enrollment-unread-api";
-import { unavailableApiError, type ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
-import { readEnrollmentError } from "~/lib/enrollment-api-error";
 import type {
-  CareOfferingSelectionMode,
   PublicEnrollmentBootstrap,
   SubmitEnrollmentPayload,
   SubmitEnrollmentResult,
 } from "~/lib/enrollment-submission-api";
+import type { CareOfferingSelectionMode } from "~/lib/enrollment-phase-api";
 import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
 import type { EnrollmentSignature } from "~/lib/enrollment-submission-api";
+import {
+  enrollmentErrorReader,
+  readEnrollmentJSON,
+  sendEnrollmentRequest,
+} from "~/lib/enrollment-http";
+
+import type { ChangeRequestStatus, ChildStatus } from "~/lib/enrollment-status";
+
+import type { EnrollmentExportFormat } from "~/lib/enrollment-report-api";
 
 const logger = createLogger({ component: "EnrollmentAdminAPI" });
 
-export type ChildStatus =
-  | "submitted"
-  | "under_review"
-  | "approved"
-  | "waitlisted"
-  | "rejected"
-  | "withdrawn"
-  | "pending_renewal"
-  | "auto_renewed"
-  | "pending_admin_review";
-
 export type DecisionStatus =
   "approved" | "waitlisted" | "rejected" | "under_review";
-
-export type EnrollmentRequestExportFormat = "pdf" | "docx" | "xlsx";
-
-export type AdminEnrollmentChangeRequestStatus =
-  | "pending_review"
-  | "needs_parent_response"
-  | "approved"
-  | "rejected"
-  | "cancelled";
 
 type AdminEnrollmentChangeRequestMessageAuthor = "parent" | "staff" | "system";
 
@@ -118,7 +105,7 @@ export interface AdminEnrollmentChangeRequest {
   id: string;
   request_id: string;
   origin: "parent" | "admin";
-  status: AdminEnrollmentChangeRequestStatus;
+  status: ChangeRequestStatus;
   parent_note?: string | null;
   admin_decision_note?: string | null;
   base_snapshot: Record<string, unknown>;
@@ -351,49 +338,14 @@ export interface AdminRequestGuardian {
   phone?: string | null;
 }
 
-interface BackendEnvelope<T> {
-  status?: string;
-  data?: T;
-  message?: string;
-}
-
 const BASE = "/api/enrollment/admin/requests";
 const CHANGE_REQUEST_BASE = "/api/enrollment/admin/change-requests";
 const PHASE_BASE = "/api/enrollment/phases";
 
-async function readJSON<T>(response: Response): Promise<T> {
-  const raw = (await response.json()) as BackendEnvelope<T>;
-  if (
-    raw &&
-    typeof raw === "object" &&
-    "data" in raw &&
-    raw.data !== undefined
-  ) {
-    return raw.data as T;
-  }
-  return raw as unknown as T;
-}
-
-/** A request that never reached the API counts as unavailable (#2515). */
-async function send(input: string, init?: RequestInit): Promise<Response> {
-  try {
-    return await fetch(input, init);
-  } catch (error) {
-    throw unavailableApiError(error);
-  }
-}
-
-async function readError(
-  response: Response,
-  fallback: string,
-): Promise<ApiError> {
-  return readEnrollmentError(
-    response,
-    fallback,
-    logger,
-    "enrollment_admin_request_failed",
-  );
-}
+const readError = enrollmentErrorReader(
+  logger,
+  "enrollment_admin_request_failed",
+);
 
 export interface ListAdminRequestsFilters {
   phaseId?: string;
@@ -411,22 +363,25 @@ export async function listAdminRequests(
   if (filters.childStatus)
     url.searchParams.set("child_status", filters.childStatus);
   const path = `${url.pathname}${url.search}`;
-  const response = await send(path, { cache: "no-store" });
+  const response = await sendEnrollmentRequest(path, { cache: "no-store" });
   if (!response.ok) {
     throw await readError(response, "Anmeldungen konnten nicht geladen werden");
   }
-  const list = await readJSON<AdminRequestSummary[]>(response);
+  const list = await readEnrollmentJSON<AdminRequestSummary[]>(response);
   return Array.isArray(list) ? list : [];
 }
 
 export async function getAdminRequest(id: string): Promise<AdminRequestDetail> {
-  const response = await send(`${BASE}/${encodeURIComponent(id)}`, {
-    cache: "no-store",
-  });
+  const response = await sendEnrollmentRequest(
+    `${BASE}/${encodeURIComponent(id)}`,
+    {
+      cache: "no-store",
+    },
+  );
   if (!response.ok) {
     throw await readError(response, "Anmeldung konnte nicht geladen werden");
   }
-  return readJSON<AdminRequestDetail>(response);
+  return readEnrollmentJSON<AdminRequestDetail>(response);
 }
 
 /** Markiert eine Anmeldung für die Person als gelesen oder ungelesen. */
@@ -434,9 +389,12 @@ export async function setAdminRequestRead(
   id: string,
   read: boolean,
 ): Promise<void> {
-  const response = await send(`${BASE}/${encodeURIComponent(id)}/read`, {
-    method: read ? "PUT" : "DELETE",
-  });
+  const response = await sendEnrollmentRequest(
+    `${BASE}/${encodeURIComponent(id)}/read`,
+    {
+      method: read ? "PUT" : "DELETE",
+    },
+  );
   if (!response.ok) {
     throw await readError(
       response,
@@ -448,7 +406,9 @@ export async function setAdminRequestRead(
 
 /** Markiert alle ungelesenen Anmeldungen der Person als gelesen. */
 export async function markAllAdminRequestsRead(): Promise<void> {
-  const response = await send(`${BASE}/mark-all-read`, { method: "POST" });
+  const response = await sendEnrollmentRequest(`${BASE}/mark-all-read`, {
+    method: "POST",
+  });
   if (!response.ok) {
     throw await readError(
       response,
@@ -475,7 +435,7 @@ export interface AdminRequestMail {
 export async function getAdminRequestMails(
   requestId: string,
 ): Promise<AdminRequestMail[]> {
-  const response = await send(
+  const response = await sendEnrollmentRequest(
     `${BASE}/${encodeURIComponent(requestId)}/mails`,
     { cache: "no-store" },
   );
@@ -485,13 +445,13 @@ export async function getAdminRequestMails(
       "Der Stand der E-Mails konnte nicht geladen werden",
     );
   }
-  return (await readJSON<AdminRequestMail[] | null>(response)) ?? [];
+  return (await readEnrollmentJSON<AdminRequestMail[] | null>(response)) ?? [];
 }
 
 export async function getAdminRequestDeleteImpact(
   requestId: string,
 ): Promise<AdminEnrollmentDeletionImpact> {
-  const response = await send(
+  const response = await sendEnrollmentRequest(
     `${BASE}/${encodeURIComponent(requestId)}/delete-impact`,
     { cache: "no-store" },
   );
@@ -501,14 +461,14 @@ export async function getAdminRequestDeleteImpact(
       "Auswirkungen der Löschung konnten nicht geladen werden",
     );
   }
-  return readJSON<AdminEnrollmentDeletionImpact>(response);
+  return readEnrollmentJSON<AdminEnrollmentDeletionImpact>(response);
 }
 
 export async function getAdminChildDeleteImpact(
   requestId: string,
   childId: string,
 ): Promise<AdminEnrollmentDeletionImpact> {
-  const response = await send(
+  const response = await sendEnrollmentRequest(
     `${BASE}/${encodeURIComponent(requestId)}/children/${encodeURIComponent(childId)}/delete-impact`,
     { cache: "no-store" },
   );
@@ -518,22 +478,25 @@ export async function getAdminChildDeleteImpact(
       "Auswirkungen der Löschung konnten nicht geladen werden",
     );
   }
-  return readJSON<AdminEnrollmentDeletionImpact>(response);
+  return readEnrollmentJSON<AdminEnrollmentDeletionImpact>(response);
 }
 
 export async function deleteAdminRequest(
   requestId: string,
   reason: string,
 ): Promise<AdminEnrollmentDeletionImpact> {
-  const response = await send(`${BASE}/${encodeURIComponent(requestId)}`, {
-    method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ reason }),
-  });
+  const response = await sendEnrollmentRequest(
+    `${BASE}/${encodeURIComponent(requestId)}`,
+    {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason }),
+    },
+  );
   if (!response.ok) {
     throw await readError(response, "Anmeldung konnte nicht gelöscht werden");
   }
-  return readJSON<AdminEnrollmentDeletionImpact>(response);
+  return readEnrollmentJSON<AdminEnrollmentDeletionImpact>(response);
 }
 
 export interface AdminRestoreResult {
@@ -555,7 +518,7 @@ export interface AdminRestoreResult {
 export async function restoreAdminRequest(
   requestId: string,
 ): Promise<AdminRestoreResult> {
-  const response = await send(
+  const response = await sendEnrollmentRequest(
     `${BASE}/${encodeURIComponent(requestId)}/restore`,
     { method: "POST" },
   );
@@ -565,7 +528,7 @@ export async function restoreAdminRequest(
       "Anmeldung konnte nicht wiederhergestellt werden",
     );
   }
-  return readJSON<AdminRestoreResult>(response);
+  return readEnrollmentJSON<AdminRestoreResult>(response);
 }
 
 export async function deleteAdminChild(
@@ -573,7 +536,7 @@ export async function deleteAdminChild(
   childId: string,
   reason: string,
 ): Promise<AdminEnrollmentDeletionImpact> {
-  const response = await send(
+  const response = await sendEnrollmentRequest(
     `${BASE}/${encodeURIComponent(requestId)}/children/${encodeURIComponent(childId)}`,
     {
       method: "DELETE",
@@ -587,7 +550,7 @@ export async function deleteAdminChild(
       "Kind konnte nicht aus der Anmeldung gelöscht werden",
     );
   }
-  return readJSON<AdminEnrollmentDeletionImpact>(response);
+  return readEnrollmentJSON<AdminEnrollmentDeletionImpact>(response);
 }
 
 export interface CreateLateInviteInput {
@@ -612,7 +575,7 @@ export async function createLateInvite(
   phaseId: string,
   input: CreateLateInviteInput,
 ): Promise<CreateLateInviteResult> {
-  const response = await send(
+  const response = await sendEnrollmentRequest(
     `${PHASE_BASE}/${encodeURIComponent(phaseId)}/late-invites`,
     {
       method: "POST",
@@ -626,13 +589,13 @@ export async function createLateInvite(
       "Nachzügler-Link konnte nicht erstellt werden",
     );
   }
-  return readJSON<CreateLateInviteResult>(response);
+  return readEnrollmentJSON<CreateLateInviteResult>(response);
 }
 
 export async function fetchManualEnrollmentBootstrap(
   phaseId: string,
 ): Promise<PublicEnrollmentBootstrap> {
-  const response = await send(
+  const response = await sendEnrollmentRequest(
     `${PHASE_BASE}/${encodeURIComponent(phaseId)}/manual-bootstrap`,
     { cache: "no-store" },
   );
@@ -642,7 +605,7 @@ export async function fetchManualEnrollmentBootstrap(
       "Formularvorlage konnte nicht geladen werden",
     );
   }
-  return readJSON<PublicEnrollmentBootstrap>(response);
+  return readEnrollmentJSON<PublicEnrollmentBootstrap>(response);
 }
 
 export interface CreateManualApprovedEnrollmentInput extends SubmitEnrollmentPayload {
@@ -655,7 +618,7 @@ export async function createManualApprovedEnrollment(
   phaseId: string,
   input: CreateManualApprovedEnrollmentInput,
 ): Promise<SubmitEnrollmentResult> {
-  const response = await send(
+  const response = await sendEnrollmentRequest(
     `${PHASE_BASE}/${encodeURIComponent(phaseId)}/manual-approved-enrollments`,
     {
       method: "POST",
@@ -669,28 +632,28 @@ export async function createManualApprovedEnrollment(
       "Manuelle Anmeldung konnte nicht freigegeben werden",
     );
   }
-  return readJSON<SubmitEnrollmentResult>(response);
+  return readEnrollmentJSON<SubmitEnrollmentResult>(response);
 }
 
 export async function listStudentEnrollmentRequests(
   studentId: string,
 ): Promise<AdminRequestSummary[]> {
-  const response = await send(
+  const response = await sendEnrollmentRequest(
     `/api/enrollment/admin/students/${encodeURIComponent(studentId)}/requests`,
     { cache: "no-store" },
   );
   if (!response.ok) {
     throw await readError(response, "Anmeldungen konnten nicht geladen werden");
   }
-  const list = await readJSON<AdminRequestSummary[]>(response);
+  const list = await readEnrollmentJSON<AdminRequestSummary[]>(response);
   return Array.isArray(list) ? list : [];
 }
 
 export async function exportStudentEnrollmentRequests(
   studentId: string,
-  format: EnrollmentRequestExportFormat,
+  format: EnrollmentExportFormat,
 ): Promise<void> {
-  const response = await send(
+  const response = await sendEnrollmentRequest(
     `/api/enrollment/admin/students/${encodeURIComponent(studentId)}/requests/export`,
     {
       method: "POST",
@@ -713,7 +676,7 @@ export async function exportStudentEnrollmentRequests(
 export async function downloadAdminEnrollmentSignatureProof(
   requestId: string,
 ): Promise<void> {
-  const response = await send(
+  const response = await sendEnrollmentRequest(
     `${BASE}/${encodeURIComponent(requestId)}/signature-proof`,
     { cache: "no-store" },
   );
@@ -737,7 +700,7 @@ export async function decideAdminChild(
   // The deep dynamic /requests/[id]/children/[childId]/decide path
   // hits a Turbopack dev bug where the route disappears after cache
   // compaction; this collapsed shape keeps Next dev stable.
-  const response = await send(`/api/enrollment/admin/decide`, {
+  const response = await sendEnrollmentRequest(`/api/enrollment/admin/decide`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -759,7 +722,7 @@ export async function decideAdminChild(
       "Entscheidung konnte nicht gespeichert werden",
     );
   }
-  return readJSON<AdminRequestChild>(response);
+  return readEnrollmentJSON<AdminRequestChild>(response);
 }
 
 /** The corrected child with its effect on the Regeltermine (#5102). */
@@ -772,24 +735,28 @@ export async function updateAdminChildOfferings(
   childId: string,
   input: UpdateAdminChildOfferingsInput,
 ): Promise<AdminChildOfferingsUpdate> {
-  const response = await send(`/api/enrollment/admin/offerings`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      request_id: requestId,
-      child_id: childId,
-      offerings: input.offerings,
-      reason: input.reason,
-      complete_withdrawal_confirmed: input.completeWithdrawalConfirmed === true,
-    }),
-  });
+  const response = await sendEnrollmentRequest(
+    `/api/enrollment/admin/offerings`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        request_id: requestId,
+        child_id: childId,
+        offerings: input.offerings,
+        reason: input.reason,
+        complete_withdrawal_confirmed:
+          input.completeWithdrawalConfirmed === true,
+      }),
+    },
+  );
   if (!response.ok) {
     throw await readError(
       response,
       "Betreuungsangebote konnten nicht gespeichert werden",
     );
   }
-  return readJSON<AdminChildOfferingsUpdate>(response);
+  return readEnrollmentJSON<AdminChildOfferingsUpdate>(response);
 }
 
 export async function correctAdminChildData(
@@ -797,22 +764,25 @@ export async function correctAdminChildData(
   childId: string,
   input: CorrectAdminChildDataInput,
 ): Promise<AdminChildDataCorrectionResult> {
-  const response = await send(`/api/enrollment/admin/data-correction`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      request_id: requestId,
-      child_id: childId,
-      ...input,
-    }),
-  });
+  const response = await sendEnrollmentRequest(
+    `/api/enrollment/admin/data-correction`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        request_id: requestId,
+        child_id: childId,
+        ...input,
+      }),
+    },
+  );
   if (!response.ok) {
     throw await readError(
       response,
       "Anmeldedaten konnten nicht korrigiert werden",
     );
   }
-  return readJSON<AdminChildDataCorrectionResult>(response);
+  return readEnrollmentJSON<AdminChildDataCorrectionResult>(response);
 }
 
 export async function listAdminChildOfferingAdjustments(
@@ -825,7 +795,7 @@ export async function listAdminChildOfferingAdjustments(
   );
   url.searchParams.set("request_id", requestId);
   url.searchParams.set("child_id", childId);
-  const response = await send(`${url.pathname}${url.search}`, {
+  const response = await sendEnrollmentRequest(`${url.pathname}${url.search}`, {
     cache: "no-store",
   });
   if (!response.ok) {
@@ -834,13 +804,13 @@ export async function listAdminChildOfferingAdjustments(
       "Änderungshistorie konnte nicht geladen werden",
     );
   }
-  const list = await readJSON<AdminOfferingAdjustment[]>(response);
+  const list = await readEnrollmentJSON<AdminOfferingAdjustment[]>(response);
   return Array.isArray(list) ? list : [];
 }
 
 export interface ListAdminEnrollmentChangeRequestsFilters {
   requestId?: string;
-  status?: AdminEnrollmentChangeRequestStatus;
+  status?: ChangeRequestStatus;
 }
 
 export async function listAdminEnrollmentChangeRequests(
@@ -852,7 +822,7 @@ export async function listAdminEnrollmentChangeRequests(
   );
   if (filters.requestId) url.searchParams.set("request_id", filters.requestId);
   if (filters.status) url.searchParams.set("status", filters.status);
-  const response = await send(`${url.pathname}${url.search}`, {
+  const response = await sendEnrollmentRequest(`${url.pathname}${url.search}`, {
     cache: "no-store",
   });
   if (!response.ok) {
@@ -861,14 +831,15 @@ export async function listAdminEnrollmentChangeRequests(
       "Änderungsanfragen konnten nicht geladen werden",
     );
   }
-  const list = await readJSON<AdminEnrollmentChangeRequest[]>(response);
+  const list =
+    await readEnrollmentJSON<AdminEnrollmentChangeRequest[]>(response);
   return Array.isArray(list) ? list : [];
 }
 
 export async function getAdminEnrollmentChangeRequest(
   id: string,
 ): Promise<AdminEnrollmentChangeRequest> {
-  const response = await send(
+  const response = await sendEnrollmentRequest(
     `${CHANGE_REQUEST_BASE}/${encodeURIComponent(id)}`,
     { cache: "no-store" },
   );
@@ -878,14 +849,14 @@ export async function getAdminEnrollmentChangeRequest(
       "Änderungsanfrage konnte nicht geladen werden",
     );
   }
-  return readJSON<AdminEnrollmentChangeRequest>(response);
+  return readEnrollmentJSON<AdminEnrollmentChangeRequest>(response);
 }
 
 export async function askEnrollmentChangeRequestQuestion(
   id: string,
   body: string,
 ): Promise<AdminEnrollmentChangeRequest> {
-  const response = await send(
+  const response = await sendEnrollmentRequest(
     `${CHANGE_REQUEST_BASE}/${encodeURIComponent(id)}/question`,
     {
       method: "POST",
@@ -896,14 +867,14 @@ export async function askEnrollmentChangeRequestQuestion(
   if (!response.ok) {
     throw await readError(response, "Rückfrage konnte nicht gesendet werden");
   }
-  return readJSON<AdminEnrollmentChangeRequest>(response);
+  return readEnrollmentJSON<AdminEnrollmentChangeRequest>(response);
 }
 
 export async function approveEnrollmentChangeRequest(
   id: string,
   note: string,
 ): Promise<AdminEnrollmentChangeRequest> {
-  const response = await send(
+  const response = await sendEnrollmentRequest(
     `${CHANGE_REQUEST_BASE}/${encodeURIComponent(id)}/approve`,
     {
       method: "POST",
@@ -917,14 +888,14 @@ export async function approveEnrollmentChangeRequest(
       "Änderungsanfrage konnte nicht freigegeben werden",
     );
   }
-  return readJSON<AdminEnrollmentChangeRequest>(response);
+  return readEnrollmentJSON<AdminEnrollmentChangeRequest>(response);
 }
 
 export async function rejectEnrollmentChangeRequest(
   id: string,
   note: string,
 ): Promise<AdminEnrollmentChangeRequest> {
-  const response = await send(
+  const response = await sendEnrollmentRequest(
     `${CHANGE_REQUEST_BASE}/${encodeURIComponent(id)}/reject`,
     {
       method: "POST",
@@ -938,5 +909,5 @@ export async function rejectEnrollmentChangeRequest(
       "Änderungsanfrage konnte nicht abgelehnt werden",
     );
   }
-  return readJSON<AdminEnrollmentChangeRequest>(response);
+  return readEnrollmentJSON<AdminEnrollmentChangeRequest>(response);
 }

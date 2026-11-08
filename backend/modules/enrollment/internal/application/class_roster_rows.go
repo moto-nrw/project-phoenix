@@ -6,9 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
-
 	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
 )
 
 type classRosterApprovedEnrollment struct {
@@ -292,7 +291,7 @@ func classRosterCareDays(effectiveDays []string, offeringByID map[int64]*offerin
 	if (careOfferingsEnabled && classRosterHasActiveOfferings(offeringByID)) || len(effectiveDays) > 0 {
 		return effectiveDays
 	}
-	return sortedDayCodes([]string{"mon", "tue", "wed", "thu", "fri"})
+	return offeringContract.SchoolDayCodes()
 }
 
 func classRosterHasActiveOfferings(offeringByID map[int64]*offeringContract.CareOfferingRecord) bool {
@@ -388,7 +387,7 @@ func classRosterEnrollmentGuardians(req *Request, additional []*enrollmentNative
 		contacts = append(contacts, enrollmentNative.ClassRosterGuardian{
 			Name:  strings.TrimSpace(req.GuardianFirstName + " " + req.GuardianLastName),
 			Email: strings.TrimSpace(req.GuardianEmail),
-			Phone: stringPtrValue(req.GuardianPhone),
+			Phone: trimmedOptionalString(req.GuardianPhone),
 		})
 	}
 	for _, guardian := range additional {
@@ -397,8 +396,8 @@ func classRosterEnrollmentGuardians(req *Request, additional []*enrollmentNative
 		}
 		contacts = append(contacts, enrollmentNative.ClassRosterGuardian{
 			Name:  strings.TrimSpace(guardian.FirstName + " " + guardian.LastName),
-			Email: stringPtrValue(guardian.Email),
-			Phone: stringPtrValue(guardian.Phone),
+			Email: trimmedOptionalString(guardian.Email),
+			Phone: trimmedOptionalString(guardian.Phone),
 		})
 	}
 	return normalizeClassRosterGuardians(contacts)
@@ -425,13 +424,6 @@ func normalizeClassRosterGuardians(contacts []enrollmentNative.ClassRosterGuardi
 		out = append(out, contact)
 	}
 	return out
-}
-
-func stringPtrValue(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return strings.TrimSpace(*value)
 }
 
 func classRosterOfferingsByDay(offerings []enrollmentNative.CareUsageRowOffering) map[string][]string {

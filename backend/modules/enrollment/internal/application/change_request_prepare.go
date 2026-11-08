@@ -210,7 +210,7 @@ func (s *ChangeRequests) validateProposal(ctx context.Context, req *Request, edi
 // children whose identity the proposal rewrites (#1663). Trusted-source and
 // rollover-generated requests keep the exemption their creation had.
 func (s *ChangeRequests) validateProposalEligibility(ctx context.Context, req *Request, editReq SubmitRequest, children []*RequestChild, phase *enrollmentNative.Phase, opts proposalOptions) error {
-	if isTrustedEnrollmentSource(req.SubmissionSource) || hasRolloverGeneratedChild(children) {
+	if storedRequestEligibility(req.SubmissionSource, children) == eligibilityNone {
 		return nil
 	}
 	validationReq := changeRequestValidationSubmission(editReq, children, opts.lockTakenOverChildren)

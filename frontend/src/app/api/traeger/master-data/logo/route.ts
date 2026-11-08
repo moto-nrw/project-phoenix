@@ -15,6 +15,7 @@ export const GET = proxyFile("/traeger/master-data/logo", {
 export const PUT = proxyUpload(
   "/traeger/master-data/logo",
   TRAEGER_LOGO_MAX_BYTES,
+  { tooLargeCode: "traeger.logo_too_large" },
 );
 
 export const DELETE = proxyDelete("/traeger/master-data/logo");

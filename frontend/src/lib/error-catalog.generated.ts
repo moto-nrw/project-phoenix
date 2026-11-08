@@ -48,6 +48,8 @@ export const ERROR_CATALOG = {
         "Diesen Vertrag gibt es nicht. Bitte öffnen Sie ihn über „Verträge“.",
       "care_contract.contract_not_signable":
         "Dieser Vertrag ist schon unterschrieben oder wartet nicht auf eine Unterschrift. Bitte laden Sie die Seite neu.",
+      "care_contract.field_invalid":
+        "Einige Angaben stimmen nicht. Bitte prüfen Sie Ihre Eingaben.",
       "care_contract.letterhead_too_long":
         "Absender oder Fußzeile sind zu lang für den Vertrag. Bitte kürzen Sie sie unter „Briefkopf und Vorlagen“.",
       "care_contract.notice_end_not_open":
@@ -62,6 +64,8 @@ export const ERROR_CATALOG = {
         "Für diesen Vertrag fehlt eine E-Mail-Adresse. Ohne Adresse kann keine Bestätigung verschickt werden.",
       "care_contract.school_outside_traeger":
         "Diese Schule gehört nicht zu Ihrem Träger.",
+      "care_contract.selection_invalid":
+        "Diese Auswahl ist so nicht möglich. Bitte ändern Sie die Auswahl.",
       "care_contract.signature_invalid":
         "Die Unterschrift fehlt oder ist leer. Bitte unterschreiben Sie noch einmal.",
       "care_contract.signing_link_invalid":
@@ -1751,6 +1755,8 @@ export const ERROR_CATALOG = {
         "This contract does not exist. Please open it from “Contracts”.",
       "care_contract.contract_not_signable":
         "This contract is already signed or is not waiting for a signature. Please reload the page.",
+      "care_contract.field_invalid":
+        "Some details are not valid. Please check your entries.",
       "care_contract.letterhead_too_long":
         "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
       "care_contract.notice_end_not_open":
@@ -1765,6 +1771,8 @@ export const ERROR_CATALOG = {
         "This contract has no e-mail address. Without an address no confirmation can be sent.",
       "care_contract.school_outside_traeger":
         "This school does not belong to your provider.",
+      "care_contract.selection_invalid":
+        "This selection is not possible. Please change your selection.",
       "care_contract.signature_invalid":
         "The signature is missing or empty. Please sign again.",
       "care_contract.signing_link_invalid":
@@ -2339,6 +2347,8 @@ export const ERROR_CATALOG = {
         "This contract does not exist. Please open it from “Contracts”.",
       "care_contract.contract_not_signable":
         "Этот договор уже подписан или не ожидает подписи. Пожалуйста, обновите страницу.",
+      "care_contract.field_invalid":
+        "Некоторые данные указаны неверно. Проверьте введённые данные.",
       "care_contract.letterhead_too_long":
         "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
       "care_contract.notice_end_not_open":
@@ -2353,6 +2363,8 @@ export const ERROR_CATALOG = {
         "У этого договора нет адреса электронной почты. Без адреса подтверждение отправить нельзя.",
       "care_contract.school_outside_traeger":
         "This school does not belong to your provider.",
+      "care_contract.selection_invalid":
+        "Такой выбор невозможен. Измените выбор.",
       "care_contract.signature_invalid":
         "Подпись отсутствует или пуста. Пожалуйста, подпишите ещё раз.",
       "care_contract.signing_link_invalid":
@@ -2820,6 +2832,8 @@ export const ERROR_CATALOG = {
         "This contract does not exist. Please open it from “Contracts”.",
       "care_contract.contract_not_signable":
         "Kjo kontratë është nënshkruar tashmë ose nuk pret nënshkrim. Ju lutemi rifreskoni faqen.",
+      "care_contract.field_invalid":
+        "Disa të dhëna nuk janë të sakta. Kontrolloni të dhënat.",
       "care_contract.letterhead_too_long":
         "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
       "care_contract.notice_end_not_open":
@@ -2834,6 +2848,8 @@ export const ERROR_CATALOG = {
         "Kjo kontratë nuk ka adresë e-maili. Pa adresë nuk mund të dërgohet konfirmim.",
       "care_contract.school_outside_traeger":
         "This school does not belong to your provider.",
+      "care_contract.selection_invalid":
+        "Kjo zgjedhje nuk është e mundur. Ndryshoni zgjedhjen.",
       "care_contract.signature_invalid":
         "Nënshkrimi mungon ose është bosh. Ju lutemi nënshkruani përsëri.",
       "care_contract.signing_link_invalid":
@@ -3316,6 +3332,8 @@ export const ERROR_CATALOG = {
         "This contract does not exist. Please open it from “Contracts”.",
       "care_contract.contract_not_signable":
         "Ta umowa jest już podpisana lub nie czeka na podpis. Odśwież stronę.",
+      "care_contract.field_invalid":
+        "Niektóre dane są nieprawidłowe. Sprawdź wpisane dane.",
       "care_contract.letterhead_too_long":
         "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
       "care_contract.notice_end_not_open":
@@ -3330,6 +3348,8 @@ export const ERROR_CATALOG = {
         "Ta umowa nie ma adresu e-mail. Bez adresu nie można wysłać potwierdzenia.",
       "care_contract.school_outside_traeger":
         "This school does not belong to your provider.",
+      "care_contract.selection_invalid":
+        "Taki wybór nie jest możliwy. Zmień wybór.",
       "care_contract.signature_invalid":
         "Brak podpisu lub podpis jest pusty. Podpisz jeszcze raz.",
       "care_contract.signing_link_invalid":
@@ -3799,6 +3819,8 @@ export const ERROR_CATALOG = {
         "This contract does not exist. Please open it from “Contracts”.",
       "care_contract.contract_not_signable":
         "Bu sözleşme zaten imzalandı veya imza beklemiyor. Lütfen sayfayı yenileyin.",
+      "care_contract.field_invalid":
+        "Bazı bilgiler doğru değil. Girdiğiniz bilgileri kontrol edin.",
       "care_contract.letterhead_too_long":
         "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
       "care_contract.notice_end_not_open":
@@ -3813,6 +3835,8 @@ export const ERROR_CATALOG = {
         "Bu sözleşmenin e-posta adresi yok. Adres olmadan onay gönderilemez.",
       "care_contract.school_outside_traeger":
         "This school does not belong to your provider.",
+      "care_contract.selection_invalid":
+        "Bu seçim mümkün değil. Lütfen seçiminizi değiştirin.",
       "care_contract.signature_invalid":
         "İmza eksik veya boş. Lütfen tekrar imzalayın.",
       "care_contract.signing_link_invalid":
@@ -4288,6 +4312,8 @@ export const ERROR_CATALOG = {
         "This contract does not exist. Please open it from “Contracts”.",
       "care_contract.contract_not_signable":
         "Цей договір уже підписано або він не очікує підпису. Будь ласка, оновіть сторінку.",
+      "care_contract.field_invalid":
+        "Деякі дані вказано неправильно. Перевірте введені дані.",
       "care_contract.letterhead_too_long":
         "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
       "care_contract.notice_end_not_open":
@@ -4302,6 +4328,8 @@ export const ERROR_CATALOG = {
         "У цього договору немає адреси електронної пошти. Без адреси підтвердження надіслати не можна.",
       "care_contract.school_outside_traeger":
         "This school does not belong to your provider.",
+      "care_contract.selection_invalid":
+        "Такий вибір неможливий. Змініть вибір.",
       "care_contract.signature_invalid":
         "Підпис відсутній або порожній. Будь ласка, підпишіть ще раз.",
       "care_contract.signing_link_invalid":

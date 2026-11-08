@@ -51,11 +51,16 @@ type submissionPlan struct {
 	statusExpiresAt  time.Time
 	// signatureRequired: the parent signs this submission (#4786).
 	signatureRequired bool
+	// eligibility is the phase eligibility the payload passed; a trusted
+	// caller passes none.
+	eligibility eligibilityGate
 }
 
 func (s *Intake) submit(ctx context.Context, req SubmitRequest) (*submitOutcome, error) {
 	if !req.SkipRateLimit {
-		if err := s.enforceRateLimit(ctx, req); err != nil {
+		if err := s.enforceRateLimit(ctx, req.TenantID, func(ctx context.Context) error {
+			return s.countSubmissionAttempt(ctx, req)
+		}); err != nil {
 			return nil, err
 		}
 	}
@@ -165,25 +170,12 @@ func (s *Intake) planSubmissionContract(ctx context.Context, req *SubmitRequest,
 	if plan.legalBlocks, err = s.resolveSubmissionLegalBlocks(ctx, schema); err != nil {
 		return fmt.Errorf("submit: resolve legal blocks: %w", err)
 	}
-	if req.ExternalConsentConfirmed {
-		req.ConsentFlags = ensureRequiredConsentFlags(req.ConsentFlags, plan.legalBlocks)
-	}
-	if err := normalizeAdditionalGuardians(req); err != nil {
-		return err
-	}
-	if err := s.validateSubmission(ctx, *req, plan.legalBlocks, plan.capabilities); err != nil {
-		return err
-	}
-	if err := s.validateAndNormalizeSchoolClasses(ctx, plan.phase, req.Children); err != nil {
-		return err
-	}
-	// Eligibility runs after the class canonicalization, so it validates the
-	// stored class, not the raw client value (#1663).
-	if err := s.validatePhaseEligibility(ctx, plan.phase, *req); err != nil {
-		return err
-	}
-	req.ConsentFlags = filterConsentFlags(req.ConsentFlags, plan.legalBlocks)
-	if err := validateSubmittedFields(schema, *req, plan.openByID); err != nil {
+	plan.eligibility = submissionEligibility(*req)
+	if err := s.validateIntakePayload(ctx, req, intakePayload{
+		phase: plan.phase, schema: schema, legalBlocks: plan.legalBlocks,
+		capabilities: plan.capabilities, openByID: plan.openByID,
+		eligibility: plan.eligibility, consentConfirmed: req.ExternalConsentConfirmed,
+	}); err != nil {
 		return err
 	}
 	if schema != nil {
@@ -194,14 +186,14 @@ func (s *Intake) planSubmissionContract(ctx context.Context, req *SubmitRequest,
 
 // validateSubmittedFields runs the required-field, companion-note and
 // schedule checks of the form.
-func validateSubmittedFields(schema *enrollmentNative.FormSchema, req SubmitRequest, openByID map[int64]*offeringContract.CareOfferingRecord, existingChildren ...[]*RequestChild) error {
+func validateSubmittedFields(schema *enrollmentNative.FormSchema, req SubmitRequest, openByID map[int64]*offeringContract.CareOfferingRecord, existingChildren []*RequestChild) error {
 	if err := validateRequiredCustomFields(schema, req, openByID); err != nil {
 		return err
 	}
 	if err := validateAccompaniedCompanionNote(schema, req, openByID); err != nil {
 		return err
 	}
-	return validateConstrainedSchedules(schema, req, openByID, existingChildren...)
+	return validateConstrainedSchedules(schema, req, openByID, existingChildren)
 }
 
 // sanitizeSubmittedAnswers drops the answers of hidden and undeclared fields
@@ -238,7 +230,7 @@ func (s *Intake) planStatusToken(ctx context.Context, plan *submissionPlan) erro
 func (s *Intake) writeSubmission(ctx context.Context, req *SubmitRequest, plan *submissionPlan, outcome *submitOutcome) error {
 	// Serialize concurrent submits of one (phase, guardian email), so two
 	// parallel requests cannot both pass the duplicate check.
-	emailLC := lowerTrim(req.GuardianEmail)
+	emailLC := guardianEmailKey(req.GuardianEmail)
 	if err := s.deps.Requests.AcquireSubmissionDedupLock(ctx, plan.phase.ID, enrollmentNative.SubmissionDedupLockKey(emailLC)); err != nil {
 		return fmt.Errorf("submit: acquire dedup lock: %w", err)
 	}
@@ -338,7 +330,7 @@ func (s *Intake) createSubmittedRequest(ctx context.Context, req *SubmitRequest,
 	request := &Request{
 		SchemaID: schemaID, PhaseID: plan.phase.ID, GuardianAccountID: req.GuardianAccountID,
 		GuardianFirstName: textnorm.Name(req.GuardianFirstName), GuardianLastName: textnorm.Name(req.GuardianLastName),
-		GuardianEmail: lowerTrim(req.GuardianEmail), GuardianPhone: req.GuardianPhone,
+		GuardianEmail: guardianEmailKey(req.GuardianEmail), GuardianPhone: req.GuardianPhone,
 		ConsentFlags: req.ConsentFlags, CustomData: req.CustomData,
 		SubmissionSource: plan.submissionSource, SourceMetadata: plan.sourceMetadata,
 		StatusToken: plan.statusToken, StatusTokenExpires: &statusExpiresAt, SubmittedAt: time.Now(),
@@ -387,9 +379,9 @@ func (s *Intake) createSubmittedChildren(ctx context.Context, req *SubmitRequest
 		if err != nil {
 			return nil, err
 		}
-		// !AllowClosedPhase means the eligibility gate ran, so a vanished
-		// match is a race, not a fresh create (#1663).
-		if err := assertExistingStudentMatchResolved(plan.phase, matchedStudentID, !req.AllowClosedPhase, i); err != nil {
+		// After an eligibility gate a vanished match is a race, not a fresh
+		// create (#1663).
+		if err := assertExistingStudentMatchResolved(plan.phase, matchedStudentID, plan.eligibility != eligibilityNone, i); err != nil {
 			return nil, err
 		}
 		if err := s.assertGuardianMayReEnrollStudent(ctx, submitter, matchedStudentID, req.TenantID, i); err != nil {

@@ -8,6 +8,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"strings"
 	"testing"
 	"time"
 
@@ -79,7 +80,9 @@ func TestContractSigningInTheInboxNeedsTheOwnAddressAndTheChildsSubmitRight(t *t
 	var view signingViewBody
 	require.NoError(t, json.Unmarshal(raw, &view))
 	assert.Equal(t, "versendet", view.Status)
-	assert.Len(t, view.WithdrawalNotice, 4, "the parents read the withdrawal notice before they sign")
+	assert.Len(t, view.WithdrawalNotice, 6, "the parents read the model withdrawal notice before they sign (#6105)")
+	assert.Contains(t, strings.Join(view.WithdrawalNotice, " "), "ab dem Tag des Vertragsabschlusses",
+		"the signing page prints the notice of the PDF, not a wording of its own")
 	assert.Len(t, view.DocumentSHA256, 64, "the checksum of the PDF they sign")
 
 	_, err = portal.SignContract(ctx, chain.AccountID, organization, otherFamily, signature)

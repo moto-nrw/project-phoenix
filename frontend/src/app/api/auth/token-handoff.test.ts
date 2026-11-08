@@ -1,13 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import NextAuth from "next-auth";
 import { NextRequest } from "next/server";
-import { tenantAuthConfig } from "~/server/auth/tenant-config";
-import { operatorAuthConfig } from "~/server/auth/operator-config";
-import { parentAuthConfig } from "~/server/auth/parent-config";
-import { schoolAuthConfig } from "~/server/auth/school-config";
-import { catererAuthConfig } from "~/server/auth/caterer-config";
-import { traegerAuthConfig } from "~/server/auth/traeger-config";
 import { withServerSessionMutation } from "~/server/auth/session-mutation";
+import { createPortalAuthConfig } from "~/server/auth/portal-config";
+import { PORTALS } from "~/server/auth/portals";
+const tenantAuthConfig = createPortalAuthConfig(PORTALS.tenant);
+const operatorAuthConfig = createPortalAuthConfig(PORTALS.operator);
+const parentAuthConfig = createPortalAuthConfig(PORTALS.parent);
+const schoolAuthConfig = createPortalAuthConfig(PORTALS.school);
+const catererAuthConfig = createPortalAuthConfig(PORTALS.caterer);
+const traegerAuthConfig = createPortalAuthConfig(PORTALS.traeger);
 
 vi.mock("~/env", () => ({
   env: {
@@ -44,11 +46,7 @@ describe.each([
 ] as const)(
   "%s public Credentials boundary",
   (portal, config, provider, basePath) => {
-    async function submit(
-      token: string,
-      refreshToken = "valid-refresh",
-      extra: Record<string, string> = {},
-    ) {
+    async function submitForm(fields: Record<string, string>) {
       const { handlers } = NextAuth({
         ...config,
         basePath,
@@ -71,16 +69,50 @@ describe.each([
             cookie: cookies,
             "x-moto-server-session-mutation": "true",
           },
-          body: new URLSearchParams({
-            csrfToken: csrf.csrfToken,
-            internalRefresh: "true",
-            token,
-            refreshToken,
-            ...extra,
-          }),
+          body: new URLSearchParams({ csrfToken: csrf.csrfToken, ...fields }),
         }),
       );
     }
+
+    const submit = (
+      token: string,
+      refreshToken = "valid-refresh",
+      extra: Record<string, string> = {},
+    ) => submitForm({ internalRefresh: "true", token, refreshToken, ...extra });
+
+    // Only the parents' login page signs in with a password through Auth.js;
+    // every other portal logs in through its BFF login route (review L7), so
+    // a password posted to its callback is no second login entry.
+    it(
+      portal === "parent"
+        ? "takes a password sign-in to the parent login"
+        : "refuses a password sign-in without asking the backend",
+      async () => {
+        backend.mockImplementation(async () =>
+          Response.json(
+            { status: "error", code: "identity.invalid_credentials" },
+            { status: 401 },
+          ),
+        );
+        const response = await submitForm({
+          email: "local@example.test",
+          password: "synthetic-password",
+        });
+        expect(response.headers.get("location")).toContain(
+          "error=CredentialsSignin",
+        );
+        expect(response.headers.getSetCookie().join(";")).not.toContain(
+          "session-token=",
+        );
+        if (portal === "parent") {
+          expect(backend.mock.calls.map(([url]) => String(url))).toEqual([
+            "http://backend.test/parent/auth/login",
+          ]);
+        } else {
+          expect(backend).not.toHaveBeenCalled();
+        }
+      },
+    );
 
     const extraCredentials: Record<string, string>[] = [
       {},

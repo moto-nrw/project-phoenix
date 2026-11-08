@@ -6,6 +6,6 @@
 // Proxies the #1875 probe (backend edited_in_window.go): which planned
 // occurrences of a template were individually edited in the window, so the
 // planner can warn before a series re-plan discards them. Read-only.
-import { proxyGet } from "~/lib/route-proxy.server";
+import { proxyGet } from "~/lib/route-wrapper.server";
 
 export const GET = proxyGet("/api/timetable/instances/edited-in-window");

@@ -1,4 +1,4 @@
-import { createTenantJsonProxy } from "~/lib/backend-proxy-route.server";
+import { createTenantJsonProxy } from "~/lib/route-wrapper.server";
 import { problemResponse } from "~/lib/api-helpers.server";
 
 export const GET = createTenantJsonProxy({
@@ -15,7 +15,4 @@ export const GET = createTenantJsonProxy({
     }
     return `/api/enrollment/admin/requests/${encodeURIComponent(requestID)}/children/${encodeURIComponent(childID)}/offering-adjustments`;
   },
-  cache: "no-store",
-  contentTypeOnGet: false,
-  unauthorizedError: "Unauthenticated",
 });

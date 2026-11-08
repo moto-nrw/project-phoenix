@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
 )
 
 // validFormFieldTypes is the set of accepted FormFieldType values.
@@ -126,7 +128,7 @@ func (c CoreRequirements) Required(key string) bool {
 	return c[key]
 }
 
-// ReservedTargets is the canonical list of admin-pickable targets.
+// reservedTargets is the canonical list of admin-pickable targets.
 //
 // Photo consent and the guardian's phone number are intentionally NOT
 // in this list: both are already collected by the public base form
@@ -136,7 +138,7 @@ func (c CoreRequirements) Required(key string) bool {
 // Zusatzfeld entries for fields the parent already sees by default.
 //
 // Keep in sync with the frontend editor's reserved-targets picker.
-var ReservedTargets = map[string]ReservedTarget{
+var reservedTargets = map[string]ReservedTarget{
 	TargetStudentHealthInfo:            {Type: FormFieldTextarea, AppliesToChild: true, Label: "Gesundheitsinformationen"},
 	TargetStudentExtraInfo:             {Type: FormFieldTextarea, AppliesToChild: true, Label: "Hinweise an die Betreuung"},
 	TargetStudentAllowedDepartureModes: {Type: FormFieldWeekdayMultiMode, AppliesToChild: true, Label: "Erlaubte Heimwege"},
@@ -149,10 +151,10 @@ var ReservedTargets = map[string]ReservedTarget{
 	TargetStudentContacts:              {Type: FormFieldContactList, AppliesToChild: true, Label: "Weitere Kontakte / Abholberechtigte / Notfallkontakte"},
 }
 
-// CoreFieldKeys are reserved - the form_schemas.fields JSONB MUST NOT
+// coreFieldKeys are reserved - the form_schemas.fields JSONB MUST NOT
 // declare a custom field with one of these keys. The frontend already
 // renders these from dedicated columns on enrollment.requests / .request_children.
-var CoreFieldKeys = map[string]bool{
+var coreFieldKeys = map[string]bool{
 	"guardian_first_name": true,
 	"guardian_last_name":  true,
 	"guardian_email":      true,
@@ -185,7 +187,7 @@ func (f *FormField) Validate() error {
 			return invalidInputf(CodeFormFieldKeyInvalid, "key", "form field key %q must be lowercase letters, digits, or underscores", f.Key)
 		}
 	}
-	if CoreFieldKeys[f.Key] {
+	if coreFieldKeys[f.Key] {
 		return invalidInputf(CodeFormFieldKeyInvalid, "key", "form field key %q is reserved for a core field", f.Key)
 	}
 
@@ -357,7 +359,7 @@ func (f *FormField) validateTarget() error {
 	// is intentionally NOT constrained — admins may rename the question
 	// shown to parents while keeping the canonical target wiring.
 	if f.Target != "" {
-		spec, ok := ReservedTargets[f.Target]
+		spec, ok := reservedTargets[f.Target]
 		if !ok {
 			return invalidInputf(CodeFormFieldTargetInvalid, "target", "unknown form field target %q", f.Target)
 		}
@@ -381,9 +383,9 @@ func isStructuredFieldType(t FormFieldType) bool {
 	}
 }
 
-// ValidPhoneTypes mirrors the CHECK constraint on
+// validPhoneTypes mirrors the CHECK constraint on
 // users.guardian_phone_numbers.phone_type.
-var ValidPhoneTypes = map[string]bool{
+var validPhoneTypes = map[string]bool{
 	"mobile": true,
 	"home":   true,
 	"work":   true,
@@ -400,14 +402,14 @@ func (p *PhoneEntry) Validate() error {
 	if p.PhoneType == "" {
 		p.PhoneType = "other"
 	}
-	if !ValidPhoneTypes[p.PhoneType] {
+	if !validPhoneTypes[p.PhoneType] {
 		return fmt.Errorf("phone_type %q must be mobile/home/work/other", p.PhoneType)
 	}
 	return nil
 }
 
-// ValidWeekdayModes is the set of accepted WeekdayMode values.
-var ValidWeekdayModes = map[string]bool{
+// validWeekdayModes is the set of accepted WeekdayMode values.
+var validWeekdayModes = map[string]bool{
 	WeekdayModeAlone:       true,
 	WeekdayModeBus:         true,
 	WeekdayModePickup:      true,
@@ -417,10 +419,10 @@ var ValidWeekdayModes = map[string]bool{
 // Validate checks every entry is a known weekday with a known mode.
 func (w WeekdayMode) Validate() error {
 	for day, mode := range w {
-		if !ValidWeekdays[day] {
+		if !offeringContract.IsSchoolDayCode(day) {
 			return fmt.Errorf("weekday %q must be one of mon/tue/wed/thu/fri", day)
 		}
-		if !ValidWeekdayModes[mode] {
+		if !validWeekdayModes[mode] {
 			return fmt.Errorf("weekday %q mode %q must be one of alone/bus/pickup/accompanied", day, mode)
 		}
 	}
@@ -429,7 +431,7 @@ func (w WeekdayMode) Validate() error {
 
 func (w WeekdayMultiMode) Validate() error {
 	for day, modes := range w {
-		if !ValidWeekdays[day] {
+		if !offeringContract.IsSchoolDayCode(day) {
 			return fmt.Errorf("weekday %q must be one of mon/tue/wed/thu/fri", day)
 		}
 		if len(modes) == 0 {
@@ -437,7 +439,7 @@ func (w WeekdayMultiMode) Validate() error {
 		}
 		seen := map[string]bool{}
 		for _, mode := range modes {
-			if !ValidWeekdayModes[mode] {
+			if !validWeekdayModes[mode] {
 				return fmt.Errorf("weekday %q mode %q must be one of alone/bus/pickup/accompanied", day, mode)
 			}
 			if seen[mode] {
@@ -467,17 +469,10 @@ func (w WeekdayMultiMode) ValidateSingleSelection() error {
 	return nil
 }
 
-// ValidWeekdays mirrors the keys WeekdaySchedule accepts; aligns
-// with how schedule.student_pickup_schedules / arrival_schedules
-// encode their per-day rows.
-var ValidWeekdays = map[string]bool{
-	"mon": true, "tue": true, "wed": true, "thu": true, "fri": true,
-}
-
 // Validate checks every entry is a known weekday with a HH:MM time.
 func (w WeekdaySchedule) Validate() error {
 	for day, hhmm := range w {
-		if !ValidWeekdays[day] {
+		if !offeringContract.IsSchoolDayCode(day) {
 			return fmt.Errorf("weekday %q must be one of mon/tue/wed/thu/fri", day)
 		}
 		hhmm = strings.TrimSpace(hhmm)
@@ -519,7 +514,7 @@ func (w WeekdaySchedule) ValidateAllowed(allowed []string) error {
 
 func (w WeekdayBoolean) Validate() error {
 	for day := range w {
-		if !ValidWeekdays[day] {
+		if !offeringContract.IsSchoolDayCode(day) {
 			return fmt.Errorf("weekday %q must be one of mon/tue/wed/thu/fri", day)
 		}
 	}
@@ -528,7 +523,7 @@ func (w WeekdayBoolean) Validate() error {
 
 func (w WeekdayBoolean) HasAny() bool {
 	for day, selected := range w {
-		if !ValidWeekdays[day] {
+		if !offeringContract.IsSchoolDayCode(day) {
 			continue
 		}
 		if selected {

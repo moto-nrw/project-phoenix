@@ -5,6 +5,4 @@ import { invitationPath } from "./invitation-path";
 export const GET = createPublicJsonProxy({
   method: "GET",
   path: (_request, params) => invitationPath(params),
-  forwardClientHeaders: true,
-  cache: "no-store",
 });

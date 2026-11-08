@@ -38,12 +38,6 @@ const (
 	holidayChildMaxAgeYears = 18
 )
 
-// The abuse counters of the public link follow the online registration.
-const (
-	holidayRateLimitKeyIP    = "ip"
-	holidayRateLimitKeyEmail = "email"
-)
-
 // HolidayRegistrationStore persists the public registrations of a Träger.
 type HolidayRegistrationStore interface {
 	// FindHolidayRegistrationLink reads the Träger and the published period
@@ -52,7 +46,8 @@ type HolidayRegistrationStore interface {
 	// CountHolidayRegistrationAttempt counts one attempt in the bucket of
 	// value for the Träger and returns the attempts of its running window.
 	// The bucket keeps only a SHA-256 digest of value.
-	CountHolidayRegistrationAttempt(ctx context.Context, organizationID int64, keyType, value string, window time.Duration) (int, error)
+	// Counters whose window started before retention are deleted first.
+	CountHolidayRegistrationAttempt(ctx context.Context, organizationID int64, keyType, value string, window, retention time.Duration) (int, error)
 	// InsertHolidayRegistration stores the registration without its health
 	// information and asks seal, once the registration has its ID, for the
 	// sealed values to store with it (#4722).
@@ -186,32 +181,28 @@ func (h *HolidayRegistrations) CountHolidayRegistrationAttempt(ctx context.Conte
 	if organizationID <= 0 {
 		return errHolidayPeriodRequired
 	}
-	buckets := []struct {
-		keyType string
-		value   string
-		window  time.Duration
-		max     int
-	}{
-		{holidayRateLimitKeyIP, strings.TrimSpace(remoteIP), rateLimitWindowIP, rateLimitMaxAttemptsIP},
-		{holidayRateLimitKeyEmail, strings.ToLower(strings.TrimSpace(email)), rateLimitWindowEmail, rateLimitMaxAttemptsMail},
-	}
-	for _, bucket := range buckets {
-		if bucket.value == "" {
-			continue
-		}
-		attempts, err := h.deps.Registrations.CountHolidayRegistrationAttempt(ctx, organizationID, bucket.keyType, bucket.value, bucket.window)
-		if err != nil {
-			return fmt.Errorf("enrollment: count holiday registration attempt: %w", err)
-		}
-		if attempts > bucket.max {
-			h.deps.Logger.Info("holiday registration rate-limited",
-				slog.String("key_type", bucket.keyType),
-				slog.Int("attempts", attempts),
-				slog.Int64("organization_id", organizationID))
-			return enrollment.ErrRateLimited
+	for _, key := range submissionAttemptKeys(remoteIP, email) {
+		if err := h.countHolidayAttempt(ctx, organizationID, key); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+func (h *HolidayRegistrations) countHolidayAttempt(ctx context.Context, organizationID int64, key rateLimitKey) error {
+	bucket := key.bucket
+	attempts, err := h.deps.Registrations.CountHolidayRegistrationAttempt(ctx, organizationID, bucket.keyType, key.value, bucket.window, rateLimitRetention)
+	if err != nil {
+		return fmt.Errorf("enrollment: count holiday %s: %w", bucket.label, err)
+	}
+	refusal := bucket.refuse(attempts)
+	if refusal != nil {
+		h.deps.Logger.Info("holiday registration rate-limited",
+			slog.String("key_type", bucket.keyType),
+			slog.Int("attempts", attempts),
+			slog.Int64("organization_id", organizationID))
+	}
+	return refusal
 }
 
 // SubmitHolidayRegistration checks and stores a registration and enqueues
@@ -663,8 +654,9 @@ func limitHolidayText(errs validation.Errors, field, value string, maxLength int
 type HolidayRegistrationRetentionStore interface {
 	// DeleteHolidayRegistrationsEndedBefore deletes the registrations of the
 	// periods whose last week ended before cutoff, with their children,
-	// bookings and contacts, and the expired abuse counters.
-	DeleteHolidayRegistrationsEndedBefore(ctx context.Context, cutoff calendar.Date) (int, error)
+	// bookings and contacts, and the abuse counters whose window started
+	// before counterRetention.
+	DeleteHolidayRegistrationsEndedBefore(ctx context.Context, cutoff calendar.Date, counterRetention time.Duration) (int, error)
 	// DeleteExpiredHolidayRegistrationDeletions deletes the rows of the
 	// deletion log older than years.
 	DeleteExpiredHolidayRegistrationDeletions(ctx context.Context, years int) (int, error)
@@ -699,7 +691,7 @@ func NewHolidayRegistrationRetention(store HolidayRegistrationRetentionStore, to
 // proofs go with their registration.
 func (r *HolidayRegistrationRetention) DeleteExpiredHolidayRegistrations(ctx context.Context) (int, error) {
 	cutoff := r.today().AddDays(-enrollment.HolidayRegistrationRetentionDays)
-	deleted, err := r.store.DeleteHolidayRegistrationsEndedBefore(ctx, cutoff)
+	deleted, err := r.store.DeleteHolidayRegistrationsEndedBefore(ctx, cutoff, rateLimitRetention)
 	if err != nil {
 		return 0, fmt.Errorf("enrollment: delete ended holiday registrations: %w", err)
 	}

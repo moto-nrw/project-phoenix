@@ -124,17 +124,15 @@ func childDepartureAllowsAccompanied(schema *enrollmentNative.FormSchema, child 
 // weekday_schedule fields and the single departure mode of restricted grades
 // (#2381). A per-child schedule is checked only on the child's schedulable
 // days, because the other entries are pruned before persistence.
-// existingChildren, when given, lets an unchanged answer accepted before a
-// single-mode rule stand.
-func validateConstrainedSchedules(schema *enrollmentNative.FormSchema, req SubmitRequest, openByID map[int64]*offeringContract.CareOfferingRecord, existingChildren ...[]*RequestChild) error {
+// existingChildren are the stored children an edit pairs the submitted ones
+// with (nil for a new submission); they let an unchanged answer accepted
+// before a single-mode rule stand.
+func validateConstrainedSchedules(schema *enrollmentNative.FormSchema, req SubmitRequest, openByID map[int64]*offeringContract.CareOfferingRecord, existingChildren []*RequestChild) error {
 	if schema == nil {
 		return nil
 	}
 	byKey := buildFieldsByKey(schema)
-	var existingBySubmittedChild []*RequestChild
-	if len(existingChildren) > 0 {
-		existingBySubmittedChild = matchExistingChildrenBySubmittedIdentity(existingChildren[0], req.Children)
-	}
+	existingBySubmittedChild := matchExistingChildrenBySubmittedIdentity(existingChildren, req.Children)
 	guardianCtx := fieldVisibilityContext{guardianAnswers: req.CustomData, fieldsByKey: byKey}
 	for i := range schema.Fields {
 		f := &schema.Fields[i]

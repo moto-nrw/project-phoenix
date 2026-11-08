@@ -14,6 +14,10 @@ import {
   type PublicLegalBlock,
   type PublicLegalTexts,
 } from "~/lib/enrollment-form-schema-api";
+import {
+  agbDocumentSentence,
+  agbDocumentURL,
+} from "~/lib/enrollment-legal-blocks";
 
 import type { TranslationFn } from "./enrollment-form-shared";
 
@@ -203,25 +207,6 @@ function previewLegalTexts(schema: PublicFormSchema | null): PublicLegalTexts {
 function legalBlockText(
   block: NonNullable<PublicFormSchema["legal_blocks"]>[number],
 ) {
-  const documentURL = (block.document_url ?? "").trim();
-  if (
-    block.key === "agb" &&
-    block.display_mode === "pdf" &&
-    documentURL !== ""
-  ) {
-    return `Die AGB / Teilnahmebedingungen sind als PDF-Datei hinterlegt: [AGB-Dokument öffnen](${publicAGBDocumentURL(documentURL)})`;
-  }
-  return block.text;
-}
-
-function publicAGBDocumentURL(storedURL: string): string {
-  const globalPrefix = "/uploads/enrollment-legal-documents/";
-  if (storedURL.startsWith(globalPrefix)) {
-    return `/api/public/enrollment-legal-documents/${storedURL.slice(globalPrefix.length)}`;
-  }
-  const formPrefix = "/uploads/enrollment-form-legal-documents/";
-  if (storedURL.startsWith(formPrefix)) {
-    return `/api/public/enrollment-form-legal-documents/${storedURL.slice(formPrefix.length)}`;
-  }
-  return storedURL;
+  const documentURL = agbDocumentURL(block);
+  return documentURL !== "" ? agbDocumentSentence(documentURL) : block.text;
 }

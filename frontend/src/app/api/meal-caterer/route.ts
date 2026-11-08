@@ -1,4 +1,4 @@
-import { proxyGet } from "~/lib/route-proxy.server";
+import { proxyGet } from "~/lib/route-wrapper.server";
 
 // Der Caterer der Schule (ADR 0077): die laufende Belieferung und die
 // Einladungen. meals:manage erzwingt das Backend.

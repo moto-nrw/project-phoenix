@@ -10,21 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// allChildStatuses is every status the child model knows. Kept explicit so
-// a future status shows up as a compile-visible gap here rather than a
-// silently mis-counted preview.
-var allChildStatuses = []string{
-	enrollmentNative.ChildStatusSubmitted,
-	enrollmentNative.ChildStatusUnderReview,
-	enrollmentNative.ChildStatusApproved,
-	enrollmentNative.ChildStatusWaitlisted,
-	enrollmentNative.ChildStatusRejected,
-	enrollmentNative.ChildStatusWithdrawn,
-	enrollmentNative.ChildStatusPendingRenewal,
-	enrollmentNative.ChildStatusAutoRenewed,
-	enrollmentNative.ChildStatusPendingAdminReview,
-}
-
 // PreviewPhaseFromSource classifies the source phase's children without
 // writing anything. Shares classifyRolloverGrade with the create path,
 // so the numbers the admin confirms are the numbers the rollover
@@ -45,7 +30,7 @@ func (s *Rollovers) PreviewPhaseFromSource(ctx context.Context, sourcePhaseID in
 	if err != nil {
 		return nil, fmt.Errorf("rollover preview: resolve collect grade level: %w", err)
 	}
-	children, err := s.childrenByStatuses(ctx, sourcePhaseID, allChildStatuses)
+	children, err := s.childrenByStatuses(ctx, sourcePhaseID, enrollmentNative.ChildStatuses())
 	if err != nil {
 		return nil, fmt.Errorf("rollover preview: list source children: %w", err)
 	}

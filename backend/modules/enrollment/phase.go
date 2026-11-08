@@ -35,8 +35,6 @@ var validPhaseKinds = map[string]bool{
 }
 
 // PhaseCareOverflowMode values match enrollment.phases.care_overflow_mode.
-// PR 7's overflow logic in RequestService consumes this per-phase value
-// (not the deprecated tenant-wide setting).
 const (
 	PhaseCareOverflowWaitlist = "waitlist"
 	PhaseCareOverflowReject   = "reject"
@@ -126,8 +124,7 @@ var validPhaseAudiences = map[string]bool{
 // inside exactly one phase.
 //
 // Phases replaced the tenant-wide enrollment.open_window_* settings
-// and the per-offering application_window_* columns shipped in PR 6 -
-// see migration 1.15.68 for the cleanup. Behaviour parity:
+// and the per-offering application_window_* columns; see migration 1.15.68 for the cleanup. Behaviour parity:
 //   - the old tenant-wide setting `enrollment.show_status_reason_to_parent`
 //     now lives on phases.show_status_reason_to_parent
 //   - the old tenant-wide setting `enrollment.care_overflow_mode` now
@@ -166,7 +163,6 @@ type Phase struct {
 	// must decline). NULL when this isn't a rollover phase.
 	// RolloverAutoApprove — if true, the deadline worker promotes
 	// auto_renewed rows directly to approved instead of submitted.
-	// Not yet implemented in slice 1; the flag is reserved.
 	// RolloverDeadline — when the deadline worker should resolve
 	// pending_renewal / auto_renewed rows.
 	// RolloverBumpsGrade — true (default) for yearly cadence; set

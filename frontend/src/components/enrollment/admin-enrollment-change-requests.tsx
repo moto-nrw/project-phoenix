@@ -1,5 +1,6 @@
 "use client";
 
+import type { ChangeRequestStatus } from "~/lib/enrollment-status";
 import {
   useCallback,
   useEffect,
@@ -17,7 +18,6 @@ import {
   getAdminEnrollmentChangeRequest,
   rejectEnrollmentChangeRequest,
   type AdminEnrollmentChangeRequest,
-  type AdminEnrollmentChangeRequestStatus,
 } from "~/lib/enrollment-admin-api";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { createLogger } from "~/lib/logger";
@@ -28,7 +28,7 @@ import { TenantPage } from "~/components/ui/tenant-page";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EnrollmentChangeRequestDiff } from "~/components/enrollment/enrollment-change-request-diff";
-import { ENROLLMENT_CHANGE_REQUEST_STATUS_META } from "~/components/enrollment/enrollment-change-request-status";
+import { enrollmentChangeRequestStatusMeta } from "~/components/enrollment/enrollment-change-request-status";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import {
   useApiFormError,
@@ -487,14 +487,10 @@ function MessageThread({
 function ChangeRequestStatusBadge({
   status,
 }: {
-  readonly status: AdminEnrollmentChangeRequestStatus;
+  readonly status: ChangeRequestStatus;
 }) {
-  return (
-    <StatusBadge
-      label={ENROLLMENT_CHANGE_REQUEST_STATUS_META[status].label}
-      tone={ENROLLMENT_CHANGE_REQUEST_STATUS_META[status].tone}
-    />
-  );
+  const meta = enrollmentChangeRequestStatusMeta(status);
+  return <StatusBadge label={meta.label} tone={meta.tone} />;
 }
 
 function messageAuthorLabel(authorType: string): string {

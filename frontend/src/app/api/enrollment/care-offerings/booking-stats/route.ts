@@ -1,4 +1,4 @@
-import { createTenantJsonProxy } from "~/lib/backend-proxy-route.server";
+import { createTenantJsonProxy } from "~/lib/route-wrapper.server";
 import { problemResponse } from "~/lib/api-helpers.server";
 
 export const GET = createTenantJsonProxy({
@@ -10,7 +10,4 @@ export const GET = createTenantJsonProxy({
     }
     return `/api/enrollment/care-offerings/booking-stats?phase_id=${encodeURIComponent(phase)}`;
   },
-  cache: "no-store",
-  contentTypeOnGet: false,
-  unauthorizedError: "Unauthenticated",
 });

@@ -101,11 +101,25 @@ var (
 	ErrInboxDocumentNotFound = errors.New("contract not found in the inbox")
 )
 
+// ValidationError marks every refused input with its reason. Selection says
+// that the refusal concerns which or how many entries were chosen (count,
+// page size) rather than values the user typed into fields.
 type ValidationError struct {
-	Fields map[string]string
+	Fields    map[string]string
+	Selection bool
 }
 
-func (e *ValidationError) Error() string { return "the contract template is invalid" }
+// InvalidSelection refuses which or how many entries were chosen.
+func InvalidSelection(field, reason string) *ValidationError {
+	return &ValidationError{Fields: map[string]string{field: reason}, Selection: true}
+}
+
+func (e *ValidationError) Error() string {
+	if e.Selection {
+		return "the selection is invalid"
+	}
+	return "the input is invalid"
+}
 
 // Reviewer is the account of the Träger-Büro that acts, with its Träger.
 type Reviewer struct {
@@ -477,6 +491,11 @@ type InboxContract struct {
 	// needs (InboxReader.SigningChildren, parent_portal.enrollment.submit).
 	EndsOn *calendar.Date `json:"ends_on"`
 	CanEnd bool           `json:"can_end"`
+	// CanWithdraw tells that CanEnd holds and the withdrawal period may
+	// still run (#6105): the inbox then shows the withdrawal function
+	// „Vertrag widerrufen“ of § 356a BGB. The declaration page decides on
+	// the exact day.
+	CanWithdraw bool `json:"can_withdraw"`
 }
 
 // Inbox serves the contracts of one Träger in the parents' inbox (ADR 0088

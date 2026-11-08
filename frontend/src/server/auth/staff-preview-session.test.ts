@@ -2,10 +2,12 @@ import { withServerSessionMutation } from "./session-mutation";
 import { validateSessionToken } from "./token-validation";
 vi.mock("./token-validation", () => ({ validateSessionToken: vi.fn() }));
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { tenantAuthConfig as authConfig } from "./tenant-config";
-import { _resetRefreshState } from "./shared";
+import { _resetRefreshState } from "./token-refresh";
 import type { Session, User } from "next-auth";
 import type { JWT } from "next-auth/jwt";
+import { createPortalAuthConfig } from "./portal-config";
+import { PORTALS } from "./portals";
+const authConfig = createPortalAuthConfig(PORTALS.tenant);
 
 // Mock ~/env
 vi.mock("~/env", () => ({

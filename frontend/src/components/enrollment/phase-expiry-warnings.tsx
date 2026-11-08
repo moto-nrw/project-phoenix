@@ -9,9 +9,31 @@ import {
   type PhaseExpiryWarning,
 } from "~/lib/enrollment-phase-api";
 import { formatCalendarDate } from "~/lib/localized-date-format";
-import { useSWRAuth } from "~/lib/swr";
+import { useCallback } from "react";
+import { createLogger } from "~/lib/logger";
+import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { cn } from "~/lib/utils";
+
+const logger = createLogger({ component: "PhaseExpiryWarnings" });
+
+const PHASE_EXPIRY_WARNINGS_KEY = "enrollment-phase-expiry-warnings";
+
+/**
+ * Reloads the phase-end hints after a change that can resolve one (a new or
+ * changed phase, a rollover, a review decision). Silent on failure: the change
+ * itself is saved; only the hint box stays stale until the next visit.
+ */
+export function useRefreshPhaseExpiryWarnings(): () => void {
+  const tenantMutate = useTenantMutate();
+  return useCallback(() => {
+    void tenantMutate(PHASE_EXPIRY_WARNINGS_KEY).catch((err: unknown) => {
+      logger.error("phase_expiry_warning_refresh_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+  }, [tenantMutate]);
+}
 
 interface PhaseExpiryWarningsProps {
   readonly onCreateSuccessor?: (sourcePhaseId: string) => void;
@@ -134,7 +156,7 @@ export function PhaseExpiryWarnings({
 }: Readonly<PhaseExpiryWarningsProps>) {
   const tenantPath = useTenantAwarePath();
   const { data, error, mutate } = useSWRAuth(
-    "enrollment-phase-expiry-warnings",
+    PHASE_EXPIRY_WARNINGS_KEY,
     listPhaseExpiryWarnings,
   );
   // Die Hinweise liest das Backend mit config:manage, dem Recht, das die

@@ -1,6 +1,8 @@
-import { createGetHandler } from "@/lib/route-wrapper.server";
-import { apiGet, apiPut, problemResponse } from "~/lib/api-helpers.server";
-import { createTenantApiAdapter } from "~/lib/backend-proxy-route.server";
+import { apiGet, apiPut, bffError } from "~/lib/api-helpers.server";
+import {
+  createGetHandler,
+  createPostHandler,
+} from "~/lib/route-wrapper.server";
 
 export const GET = createGetHandler(async (request, token, _params) => {
   // Extract query parameters
@@ -20,22 +22,18 @@ export const GET = createGetHandler(async (request, token, _params) => {
   return await apiGet<{ data: unknown }>(url, token);
 });
 
-// POST handler for updating accounts
-export const POST = createTenantApiAdapter(
-  async (request, token) => {
-    let body: {
-      id: string;
-      [key: string]: unknown;
-    };
-    try {
-      body = (await request.json()) as typeof body;
-    } catch {
-      return problemResponse(400, "Invalid JSON", request);
-    }
+export const POST = createPostHandler<unknown, { id?: unknown }>(
+  async (_request, body, token) => {
     const { id, ...updateData } = body;
-    const response = await apiPut(`/auth/accounts/${id}`, token, updateData);
-    return Response.json(response);
+    if (typeof id !== "string" && typeof id !== "number") {
+      throw bffError(400, "id is required");
+    }
+    return Response.json(
+      await apiPut(
+        `/auth/accounts/${encodeURIComponent(String(id))}`,
+        token,
+        updateData,
+      ),
+    );
   },
-  (_error, request) =>
-    problemResponse(500, "Failed to update account", request),
 );

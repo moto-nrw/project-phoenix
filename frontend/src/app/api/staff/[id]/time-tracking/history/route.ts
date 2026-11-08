@@ -18,7 +18,7 @@ export const GET = createGetHandler(
     const to = searchParams.get("to");
 
     const response = await apiGet<{ data: unknown }>(
-      `/api/staff/${id}/time-tracking/history?from=${from}&to=${to}`,
+      `/api/staff/${encodeURIComponent(id)}/time-tracking/history?from=${from}&to=${to}`,
       token,
     );
     return response.data;
