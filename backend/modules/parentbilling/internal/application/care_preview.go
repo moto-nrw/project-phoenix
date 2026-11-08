@@ -116,28 +116,16 @@ func buildCareMonth(in careMonthInput) (careMonth, error) {
 	for _, invoice := range in.invoiced {
 		result.billedBySchool[invoice.SchoolID]++
 	}
-	uncounted := map[string]bool{}
+	uncounted := map[string][]int64{}
 	applyCareChain(chained, careChainInput{month: in.month, rules: in.rules, evidences: in.evidences,
 		familyChildren: familyChildrenIn(in.familyCounts, in.month), uncounted: uncounted})
 	result.uncounted = len(uncounted)
-	result.uncountedSchools = familySchools(chained, uncounted)
+	result.uncountedSchools = uncounted
 	slices.SortStableFunc(result.invoices, func(a, b parentbilling.CareInvoice) int {
 		return firstNonZero(compareOrdered(a.SchoolName, b.SchoolName), compareOrdered(a.ChildLastName, b.ChildLastName),
 			compareOrdered(a.ChildFirstName, b.ChildFirstName), compareOrdered(a.ContractID, b.ContractID))
 	})
 	return result, nil
-}
-
-// familySchools names per family of the set the schools of its invoices.
-func familySchools(entries []*careChainEntry, families map[string]bool) map[string][]int64 {
-	schools := map[string][]int64{}
-	for _, entry := range entries {
-		family := familyOf(entry)
-		if families[family] && !slices.Contains(schools[family], entry.invoice.SchoolID) {
-			schools[family] = append(schools[family], entry.invoice.SchoolID)
-		}
-	}
-	return schools
 }
 
 // familyChildrenIn keys the confirmed numbers valid in the month by family.

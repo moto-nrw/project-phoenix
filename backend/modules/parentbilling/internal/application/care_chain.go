@@ -37,9 +37,10 @@ type careChainInput struct {
 	// month per family (#5918); a sibling rule reads it only when it counts
 	// the family.
 	familyChildren map[string]int
-	// uncounted collects the families a rule that counts the family ranked
-	// without a confirmed number valid in the month; nil collects nothing.
-	uncounted map[string]bool
+	// uncounted collects, per family a rule that counts the family ranked
+	// without a confirmed number, the schools of its invoices the rule
+	// reduces; nil collects nothing.
+	uncounted map[string][]int64
 }
 
 // applyCareChain runs the chain over the invoices of one month and writes
@@ -314,12 +315,27 @@ func familySize(children []*rankedCareChild, rule *parentbilling.ContributionRul
 	stated, ok := in.familyChildren[family]
 	if !ok {
 		if in.uncounted != nil && !strings.HasPrefix(family, "contract:") {
-			in.uncounted[family] = true
+			noteUncounted(in.uncounted, family, children, rule)
 		}
 		return withContract, 0
 	}
 	total = max(stated, withContract)
 	return total, total - withContract
+}
+
+// noteUncounted records the schools of the family's invoices the rule
+// reduces: only there the missing number changes an amount.
+func noteUncounted(uncounted map[string][]int64, family string, children []*rankedCareChild, rule *parentbilling.ContributionRule) {
+	if _, ok := uncounted[family]; !ok {
+		uncounted[family] = []int64{}
+	}
+	for _, child := range children {
+		for _, entry := range child.entries {
+			if appliesAt(rule.SchoolIDs, entry) && !slices.Contains(uncounted[family], entry.invoice.SchoolID) {
+				uncounted[family] = append(uncounted[family], entry.invoice.SchoolID)
+			}
+		}
+	}
 }
 
 // applyCareCap lowers what a family pays at the rule's schools to the cap:

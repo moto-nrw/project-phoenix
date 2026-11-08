@@ -208,3 +208,50 @@ func TestUncountedFamiliesFollowTheRunAndItsFingerprint(t *testing.T) {
 	assert.NotEqual(t, before, previewFingerprint(run, parentbilling.MonthRuleVersionOnFirst, confirmed),
 		"the confirmation changes what the reviewer saw")
 }
+
+// Two confirmations in one month: the one in force on the first counts,
+// like an evidence; a confirmation from mid-month counts only when none
+// holds on the first.
+func TestFamilyChildrenConfirmedInTheMonthTakesTheFirstDay(t *testing.T) {
+	t.Parallel()
+	count := parentbilling.FamilyChildCount{ConfirmedChildren: ptr(2), ValidFrom: ptr(calendar.NewDate(2026, 11, 15)),
+		Confirmations: []parentbilling.FamilyChildConfirmation{
+			{Children: ptr(2), ValidFrom: ptr(calendar.NewDate(2026, 11, 15))},
+			{Children: ptr(3), ValidFrom: ptr(calendar.NewDate(2026, 9, 1))},
+		}}
+	children, ok := count.ConfirmedIn(calendar.NewDate(2026, 11, 1))
+	require.True(t, ok)
+	assert.Equal(t, 3, children, "3 held on 1 November")
+	children, ok = count.ConfirmedIn(calendar.NewDate(2026, 12, 1))
+	require.True(t, ok)
+	assert.Equal(t, 2, children, "from December the newer one")
+	first := parentbilling.FamilyChildCount{ConfirmedChildren: ptr(2), ValidFrom: ptr(calendar.NewDate(2026, 11, 15))}
+	children, ok = first.ConfirmedIn(calendar.NewDate(2026, 11, 1))
+	require.True(t, ok)
+	assert.Equal(t, 2, children, "a first confirmation from mid-month holds for it")
+}
+
+// A family with invoices at Ispringen and Birkenfeld, a rule that counts
+// the family only at Ispringen: the missing number concerns Ispringen
+// alone, so a run of Birkenfeld names no family.
+func TestUncountedFamiliesNameOnlyTheSchoolsOfTheCountingRule(t *testing.T) {
+	t.Parallel()
+	in := careMonthInput{month: day(t, billingMonth), rule: parentbilling.MonthRuleVersionOnFirst, tariffs: chainTariffs(t),
+		invoiced: map[int64]parentbilling.CareInvoice{}, recipients: map[int64]parentbilling.CareRecipient{},
+		rules: familySiblingRule(true)(t)}
+	for _, child := range []careChainChild{
+		{contractMia, schoolIspringen, familyEva, "2017-03-01", []parentbilling.CareContractService{mon1400}},
+		{contractNoah, schoolBirkenfeld, familyEva, "2015-03-01", []parentbilling.CareContractService{mon1400}},
+	} {
+		version := sjrVersion(t, child.contract, child.school, 1, billingMonth, "2027-01-31", child.booked...)
+		born := day(t, child.born)
+		version.ChildBirthDate = &born
+		in.versions = append(in.versions, version)
+		in.recipients[child.contract] = parentbilling.CareRecipient{FirstName: "Eva", LastName: "Beispiel", Email: child.family}
+	}
+	month, err := buildCareMonth(in)
+	require.NoError(t, err)
+	assert.Equal(t, map[string][]int64{familyEva: {schoolIspringen}}, month.uncountedSchools)
+	assert.Equal(t, 1, narrowMonth(month, []int64{schoolIspringen}, nil).uncounted)
+	assert.Zero(t, narrowMonth(month, []int64{schoolBirkenfeld}, nil).uncounted, "Birkenfeld has no counting rule")
+}

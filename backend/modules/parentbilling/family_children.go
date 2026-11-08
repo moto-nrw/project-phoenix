@@ -105,20 +105,17 @@ func (c FamilyChildCount) InForceOn(day calendar.Date) (confirmation FamilyChild
 	return FamilyChildConfirmation{}, false
 }
 
-// ConfirmedIn answers the confirmed number that holds on a day of the
-// month that starts on first. A newer confirmation replaces older ones
-// from its start onward, including after its expiry.
+// ConfirmedIn answers the confirmed number of the month that starts on
+// first, like an evidence (ADR 0164 point 6): the one in force on the first
+// day, else the first that starts within the month. A newer confirmation
+// replaces older ones from its start onward, including after its expiry.
 func (c FamilyChildCount) ConfirmedIn(first calendar.Date) (int, bool) {
-	confirmations := append([]FamilyChildConfirmation{{Children: c.ConfirmedChildren, ValidFrom: c.ValidFrom, ValidUntil: c.ValidUntil}}, c.Confirmations...)
 	end := calendar.NewDate(first.Year(), first.Month()+1, 1).AddDays(-1)
-	for _, confirmation := range confirmations {
-		if confirmation.Children == nil || confirmation.ValidFrom == nil || confirmation.ValidFrom.After(end) {
-			continue
+	for day := first; !day.After(end); day = day.AddDays(1) {
+		confirmation, started := c.InForceOn(day)
+		if started && (confirmation.ValidUntil == nil || !confirmation.ValidUntil.Before(day)) {
+			return *confirmation.Children, true
 		}
-		if confirmation.ValidUntil != nil && confirmation.ValidUntil.Before(first) {
-			return 0, false
-		}
-		return *confirmation.Children, true
 	}
 	return 0, false
 }

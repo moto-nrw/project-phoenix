@@ -592,6 +592,9 @@ func TestCareMonthRuleChainTable(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, issued, in.invoiced, "an issued invoice never changes")
 			assert.Equal(t, tc.uncounted, month.uncounted, "families a rule counts without a confirmed number")
+			for family, schools := range month.uncountedSchools {
+				assert.NotEmpty(t, schools, "family %s names the schools the rule reduces", family)
+			}
 			totals := map[int64]int64{}
 			for _, invoice := range month.invoices {
 				totals[invoice.ContractID] = invoice.TotalCents
