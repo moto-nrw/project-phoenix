@@ -99,7 +99,7 @@ ein Jahr (§ 58 Abs. 2 VwGO), deshalb wird ohne sie kein Bescheid ausgestellt.
 
 ## Register
 
-- Migration `1.15.815` (vom Orchestrator vergeben): Tabelle, zwei Spalten
+- Migration `1.15.818` (vom Orchestrator vergeben; 815 und 816 belegen #6163 und #6190): Tabelle, zwei Spalten
   der Dokumente, `traeger_document_templates.legal_remedy` mit Trigger.
 - `policy.json`: ein `data_object` (`parent_billing.document_kinds`) für
   `parent-billing`; keine neue Regel. Der Port

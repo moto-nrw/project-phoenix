@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const parentBillingDocumentKindsVersion = "1.15.815"
+const parentBillingDocumentKindsVersion = "1.15.818"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
