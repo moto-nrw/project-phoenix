@@ -197,9 +197,10 @@ func familyChildrenStatus(count *parentbilling.FamilyChildCount, today calendar.
 }
 
 // laterConfirmationStatus is the state of a family whose newest
-// confirmation starts after today: the earlier one in force decides. Has it
-// ended, the family has a gap now; does it end within the notice and leave a
-// gap before the later one, the family needs a check before it.
+// confirmation starts after today: the earlier ones in force decide. Has the
+// current one ended, the family has a gap now; does a chain of
+// confirmations from today leave a first day without one within the notice,
+// the family needs a check before it.
 func laterConfirmationStatus(count *parentbilling.FamilyChildCount, today calendar.Date) string {
 	current, started := count.InForceOn(today)
 	switch {
@@ -207,18 +208,28 @@ func laterConfirmationStatus(count *parentbilling.FamilyChildCount, today calend
 		return parentbilling.FamilyChildrenUpcoming
 	case current.ValidUntil.Before(today):
 		return parentbilling.FamilyChildrenExpired
-	case !current.ValidUntil.After(today.AddDays(parentbilling.FamilyChildrenExpiryNotice)) && gapAfter(count, *current.ValidUntil):
+	}
+	if gap, ok := firstGap(count, today); ok && !gap.After(today.AddDays(parentbilling.FamilyChildrenExpiryNotice+1)) {
 		return parentbilling.FamilyChildrenExpiring
 	}
 	return parentbilling.FamilyChildrenUpcoming
 }
 
-// gapAfter tells whether no confirmation holds on the day after end: a
-// confirmation in between, not only the newest, may close the gap.
-func gapAfter(count *parentbilling.FamilyChildCount, end calendar.Date) bool {
-	next := end.AddDays(1)
-	confirmation, started := count.InForceOn(next)
-	return !started || (confirmation.ValidUntil != nil && confirmation.ValidUntil.Before(next))
+// firstGap is the first day from day on without a confirmation in force,
+// following one confirmation to the next; none when the chain reaches one
+// without an end.
+func firstGap(count *parentbilling.FamilyChildCount, day calendar.Date) (calendar.Date, bool) {
+	for range len(count.Confirmations) + 2 {
+		confirmation, started := count.InForceOn(day)
+		if !started || (confirmation.ValidUntil != nil && confirmation.ValidUntil.Before(day)) {
+			return day, true
+		}
+		if confirmation.ValidUntil == nil {
+			return "", false
+		}
+		day = confirmation.ValidUntil.AddDays(1)
+	}
+	return day, true
 }
 
 // recordFamilyReads records the read of every number shown, on the contract

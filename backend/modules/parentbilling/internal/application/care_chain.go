@@ -41,6 +41,16 @@ type careChainInput struct {
 	// without a confirmed number, the schools of its invoices the rule
 	// reduces; nil collects nothing.
 	uncounted map[string][]int64
+	// unbilled are the contracts in force in the month without a draft in
+	// the chain (a missing price, a child billed twice): they bill nothing
+	// yet but still place their child at its school.
+	unbilled []careContractPlace
+}
+
+// careContractPlace is the school a child of a family has a contract at.
+type careContractPlace struct {
+	family, child string
+	school        int64
 }
 
 // applyCareChain runs the chain over the invoices of one month and writes
@@ -288,7 +298,7 @@ func applyCareSiblingRule(entries []*careChainEntry, rule *parentbilling.Contrib
 			counted = append(counted, entry)
 		}
 	}
-	elsewhere := childrenOnlyElsewhere(entries, counting)
+	elsewhere := childrenOnlyElsewhere(entries, in.unbilled, counting)
 	for _, children := range rankFamilies(counted, rule) {
 		total, ahead := familySize(children, rule, in, elsewhere[familyOf(children[0].entries[0])])
 		for index, child := range children {
@@ -332,16 +342,20 @@ func familySize(children []*rankedCareChild, rule *parentbilling.ContributionRul
 	return total, total - withContract
 }
 
-// childrenOnlyElsewhere counts per family the children whose invoices of
-// the month are all at schools outside counting: siblings with a contract
-// at another location.
-func childrenOnlyElsewhere(entries []*careChainEntry, counting []int64) map[string]int {
+// childrenOnlyElsewhere counts per family the children whose contracts of
+// the month, with a draft or not yet billable, are all at schools outside
+// counting: siblings with a contract at another location.
+func childrenOnlyElsewhere(entries []*careChainEntry, unbilled []careContractPlace, counting []int64) map[string]int {
+	places := slices.Clone(unbilled)
+	for _, entry := range entries {
+		places = append(places, careContractPlace{family: familyOf(entry), child: entry.child, school: entry.invoice.SchoolID})
+	}
 	type familyChild struct{ family, child string }
 	inside := map[familyChild]bool{}
 	outside := map[familyChild]bool{}
-	for _, entry := range entries {
-		key := familyChild{familyOf(entry), entry.child}
-		if appliesAt(counting, entry) {
+	for _, place := range places {
+		key := familyChild{place.family, place.child}
+		if slices.Contains(counting, place.school) {
 			inside[key] = true
 		} else {
 			outside[key] = true

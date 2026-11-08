@@ -1,6 +1,7 @@
 package application
 
 import (
+	"slices"
 	"testing"
 	"time"
 
@@ -169,6 +170,30 @@ func TestFamilyChildrenStatusShowsTheGapBeforeALaterConfirmation(t *testing.T) {
 	first := later
 	first.Confirmations = nil
 	assert.Equal(t, parentbilling.FamilyChildrenUpcoming, familyChildrenStatus(&first, today), "a first confirmation that starts later")
+}
+
+// Confirmations for September to November and for 1 to 10 December, then
+// one from January: 11 to 31 December have no number. On 20 November that
+// gap lies within the notice, behind the confirmation that follows the
+// current one: the family needs a check now, not on 1 December.
+func TestFamilyChildrenStatusFollowsTheConfirmationsToTheFirstGap(t *testing.T) {
+	t.Parallel()
+	confirmedAt := time.Date(2026, 11, 1, 9, 0, 0, 0, time.UTC)
+	count := parentbilling.FamilyChildCount{ConfirmedChildren: ptr(3), ValidFrom: ptr(calendar.NewDate(2027, 1, 1)), ConfirmedAt: &confirmedAt,
+		Confirmations: []parentbilling.FamilyChildConfirmation{
+			{Children: ptr(3), ValidFrom: ptr(calendar.NewDate(2027, 1, 1))},
+			{Children: ptr(2), ValidFrom: ptr(calendar.NewDate(2026, 12, 1)), ValidUntil: ptr(calendar.NewDate(2026, 12, 10))},
+			{Children: ptr(2), ValidFrom: ptr(calendar.NewDate(2026, 9, 1)), ValidUntil: ptr(calendar.NewDate(2026, 11, 30))},
+		}}
+	assert.Equal(t, parentbilling.FamilyChildrenExpiring, familyChildrenStatus(&count, calendar.NewDate(2026, 11, 20)),
+		"the gap from 11 December lies within the notice")
+	assert.Equal(t, parentbilling.FamilyChildrenUpcoming, familyChildrenStatus(&count, calendar.NewDate(2026, 10, 1)),
+		"the gap lies beyond the notice")
+	closed := count
+	closed.Confirmations = slices.Clone(count.Confirmations)
+	closed.Confirmations[1].ValidUntil = ptr(calendar.NewDate(2026, 12, 31))
+	assert.Equal(t, parentbilling.FamilyChildrenUpcoming, familyChildrenStatus(&closed, calendar.NewDate(2026, 11, 20)),
+		"the chain reaches the later confirmation without a gap")
 }
 
 // A family that stated its number on a contract not yet in force shows for

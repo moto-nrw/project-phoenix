@@ -88,14 +88,20 @@ func buildCareMonth(in careMonthInput) (careMonth, error) {
 	prices := newPriceBook(in.tariffs)
 	result := careMonth{invoices: []parentbilling.CareInvoice{}, unpriced: []parentbilling.CareUnpriced{}, duplicates: duplicates}
 	var chained []*careChainEntry
+	var unbilled []careContractPlace
 	childOf := childKeys(byContract, order)
 	for _, contractID := range order {
-		if _, issued := in.invoiced[contractID]; issued || held[contractID] {
+		if _, issued := in.invoiced[contractID]; issued {
+			continue
+		}
+		if held[contractID] {
+			unbilled = appendInForce(unbilled, in, byContract[contractID], entries[contractID], childOf[contractID])
 			continue
 		}
 		invoice, unpriced := billContract(in.month, in.rule, byContract[contractID], entries[contractID], prices)
 		if len(unpriced) > 0 {
 			result.unpriced = append(result.unpriced, unpriced...)
+			unbilled = appendInForce(unbilled, in, byContract[contractID], entries[contractID], childOf[contractID])
 			continue
 		}
 		if len(invoice.Positions) == 0 {
@@ -118,7 +124,7 @@ func buildCareMonth(in careMonthInput) (careMonth, error) {
 	}
 	uncounted := map[string][]int64{}
 	applyCareChain(chained, careChainInput{month: in.month, rules: in.rules, evidences: in.evidences,
-		familyChildren: familyChildrenIn(in.familyCounts, in.month), uncounted: uncounted})
+		familyChildren: familyChildrenIn(in.familyCounts, in.month), uncounted: uncounted, unbilled: unbilled})
 	result.uncounted = len(uncounted)
 	result.uncountedSchools = uncounted
 	slices.SortStableFunc(result.invoices, func(a, b parentbilling.CareInvoice) int {
@@ -126,6 +132,20 @@ func buildCareMonth(in careMonthInput) (careMonth, error) {
 			compareOrdered(a.ChildFirstName, b.ChildFirstName), compareOrdered(a.ContractID, b.ContractID))
 	})
 	return result, nil
+}
+
+// appendInForce adds the place of a contract that books care in the month
+// but gets no draft, so a sibling rule still sees its child at its school.
+func appendInForce(places []careContractPlace, in careMonthInput, versions []parentbilling.CareContractVersion, entry bool, child string) []careContractPlace {
+	if len(tracksOf(in.month, in.rule, versions, entry)) == 0 {
+		return places
+	}
+	head := versions[0]
+	family := parentbilling.FamilyKey(in.recipients[head.ContractID].Email)
+	if family == "" {
+		family = "contract:" + strconv.FormatInt(head.ContractID, 10)
+	}
+	return append(places, careContractPlace{family: family, child: child, school: head.SchoolID})
 }
 
 // familyChildrenIn keys the confirmed numbers valid in the month by family.

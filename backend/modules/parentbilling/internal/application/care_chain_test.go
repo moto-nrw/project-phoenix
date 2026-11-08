@@ -542,6 +542,33 @@ func TestCareMonthRuleChainTable(t *testing.T) {
 			totals:   map[int64]int64{contractMia: 4000, contractNoah: 4500},
 		},
 		{
+			// Noah books Tuesday at Birkenfeld, which has no price there: his
+			// contract gets no draft but still places him at Birkenfeld. Two
+			// stated less Noah: Mia stays the 1st at 40,00 €.
+			name: "a sibling at the other location without a price still does not count",
+			children: []careChainChild{
+				{contractMia, schoolIspringen, familyEva, "2017-03-01", []parentbilling.CareContractService{mon1400}},
+				{contractNoah, schoolBirkenfeld, familyEva, "2015-03-01", []parentbilling.CareContractService{tue1400}},
+			},
+			rules:    familySiblingRule(true),
+			families: confirmedFamily(familyEva, 2, "2026-09-01", nil),
+			totals:   map[int64]int64{contractMia: 4000},
+		},
+		{
+			// Noah has two contracts at Birkenfeld for the same Monday: both
+			// are held, yet he has a contract there. Mia stays the 1st.
+			name: "a sibling at the other location held for a double booking still does not count",
+			children: []careChainChild{
+				{contractMia, schoolIspringen, familyEva, "2017-03-01", []parentbilling.CareContractService{mon1400}},
+				{contractNoah, schoolBirkenfeld, familyEva, "2015-03-01", []parentbilling.CareContractService{mon1400}},
+				{contractLea, schoolBirkenfeld, familyEva, "2015-03-01", []parentbilling.CareContractService{mon1400}},
+			},
+			sameChild: map[int64]int64{contractLea: contractNoah},
+			rules:     familySiblingRule(true),
+			families:  confirmedFamily(familyEva, 2, "2026-09-01", nil),
+			totals:    map[int64]int64{contractMia: 4000},
+		},
+		{
 			// Three children stated: Mia, Noah at Birkenfeld and one sibling
 			// without a contract. At Ispringen 3 − 1 = 2 count, the sibling
 			// without a contract first: Mia is the 2nd, 40,00 − 50 % =
