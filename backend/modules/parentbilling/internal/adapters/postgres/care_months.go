@@ -119,15 +119,13 @@ type careInvoiceRow struct {
 	StudentID          *int64        `bun:"student_id"`
 	// The family, the recipient and the payment the release copied
 	// (#4689); NULL on invoices issued before.
-	FamilyEmail         *string        `bun:"family_email"`
-	RecipientKind       *string        `bun:"recipient_kind"`
-	RecipientSecondName *string        `bun:"recipient_second_name"`
-	RecipientStreet     *string        `bun:"recipient_address_street"`
-	RecipientPostalCode *string        `bun:"recipient_address_postal_code"`
-	RecipientCity       *string        `bun:"recipient_address_city"`
-	PaymentMethod       *string        `bun:"payment_method"`
-	DueOn               *calendar.Date `bun:"due_on,type:date"`
-	DueSource           *string        `bun:"due_source"`
+	FamilyEmail         *string `bun:"family_email"`
+	RecipientKind       *string `bun:"recipient_kind"`
+	RecipientSecondName *string `bun:"recipient_second_name"`
+	RecipientStreet     *string `bun:"recipient_address_street"`
+	RecipientPostalCode *string `bun:"recipient_address_postal_code"`
+	RecipientCity       *string `bun:"recipient_address_city"`
+	paymentSnapshot
 	// CostShares are the issued cost bearer shares (#4687), read in the same
 	// statement as the invoice.
 	CostShares []parentbilling.CareInvoiceCostShare `bun:"cost_shares,type:jsonb,scanonly"`
@@ -143,7 +141,7 @@ func (row careInvoiceRow) invoice(positions []parentbilling.CarePosition, reduct
 		Recipient: parentbilling.CareRecipient{FirstName: row.RecipientFirstName, LastName: row.RecipientLastName, Email: row.RecipientEmail,
 			Kind: textOf(row.RecipientKind), SecondName: textOf(row.RecipientSecondName)},
 		Positions: positions, Reductions: reductions, TotalCents: row.TotalCents,
-		FamilyEmail: textOf(row.FamilyEmail), Payment: paymentOf(row.PaymentMethod, row.DueOn, row.DueSource),
+		FamilyEmail: textOf(row.FamilyEmail), Payment: row.payment(),
 	}
 	if row.RecipientStreet != nil && row.RecipientPostalCode != nil && row.RecipientCity != nil {
 		invoice.Recipient.Address = &parentbilling.PostalAddress{Street: *row.RecipientStreet,
@@ -507,7 +505,7 @@ func (s *Store) IssueCareInvoices(ctx context.Context, organizationID int64, run
 		if address := invoice.Recipient.Address; address != nil {
 			rows[i].RecipientStreet, rows[i].RecipientPostalCode, rows[i].RecipientCity = &address.Street, &address.PostalCode, &address.City
 		}
-		rows[i].PaymentMethod, rows[i].DueOn, rows[i].DueSource = paymentColumns(invoice.Payment)
+		rows[i].paymentSnapshot = snapshotOf(invoice.Payment)
 	}
 	if _, err := db.NewInsert().Model(&rows).Returning("id").Exec(ctx); err != nil {
 		switch constraintOf(err) {

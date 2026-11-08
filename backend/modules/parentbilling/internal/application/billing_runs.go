@@ -269,6 +269,9 @@ func (b *BillingRuns) ReleaseBillingRun(ctx context.Context, reviewer parentbill
 	if len(current.documents) != release.DocumentCount || current.total() != release.TotalCents {
 		return parentbilling.BillingRunDetail{}, parentbilling.ErrBillingRunChanged
 	}
+	if slices.ContainsFunc(current.documents, func(document parentbilling.BillingDocument) bool { return debitBlocked(document.Payment) }) {
+		return parentbilling.BillingRunDetail{}, parentbilling.ErrDirectDebitWithoutMandate
+	}
 	issuedOn := b.today()
 	year := numberYear(pattern, issuedOn.Year())
 	first, err := b.store.ReserveNumbers(ctx, reviewer.OrganizationID, run.Service, year, len(current.documents))
@@ -429,6 +432,9 @@ func (b *BillingRuns) preview(ctx context.Context, reviewer parentbilling.Holida
 	}
 	result.dueDates = payments.run
 	if err := recordDeviationReads(ctx, b.store, reviewer, payments.deviationsRead()); err != nil {
+		return preview{}, err
+	}
+	if err := recordMandateReads(ctx, b.store, reviewer, payments.mandatesRead()); err != nil {
 		return preview{}, err
 	}
 	return result, nil

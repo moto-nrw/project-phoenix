@@ -210,11 +210,15 @@ func (d RunDueDates) InPaymentOrder() []RunDueDate {
 }
 
 // InvoicePayment is how an invoice is paid and by when, with where the
-// date came from.
+// date came from. A direct debit carries the mandate it is collected with
+// (ADR 0171); DebitGap names why a family that pays by direct debit is not
+// collected (ResolveDebit).
 type InvoicePayment struct {
-	Method    string        `json:"method"`
-	DueOn     calendar.Date `json:"due_on"`
-	DueSource string        `json:"due_source"`
+	Method    string          `json:"method"`
+	DueOn     calendar.Date   `json:"due_on"`
+	DueSource string          `json:"due_source"`
+	Mandate   *InvoiceMandate `json:"mandate,omitempty"`
+	DebitGap  string          `json:"debit_gap,omitempty"`
 }
 
 // ResolvePayment is the one rule for the payment of an invoice: the

@@ -32,6 +32,11 @@ type paymentTermsReader interface {
 	// InsertFamilyBillingEvents records one action for each deviation, with
 	// its contract, in one statement.
 	InsertFamilyBillingEvents(ctx context.Context, organizationID, accountID int64, action string, families []parentbilling.FamilyBilling) error
+	// InvoiceDebitTerms reads in one statement the creditor of the Träger
+	// (nil without one) and the SEPA mandates in force (#4695, ADR 0171).
+	InvoiceDebitTerms(ctx context.Context, organizationID int64) (*parentbilling.SEPACreditor, []parentbilling.SEPAMandate, error)
+	InsertSEPAMandateEvents(ctx context.Context, organizationID, accountID int64, action, source string, fields []string,
+		mandates []parentbilling.SEPAMandate) error
 }
 
 // TermsStore persists the terms, the deviations and the due dates.
@@ -371,6 +376,52 @@ type invoicePayments struct {
 	families map[string]*parentbilling.FamilyBilling
 	// used are the deviations the invoices took, by ID, for the trail.
 	used map[int64]parentbilling.FamilyBilling
+	// creditor and mandates decide a direct debit (#4695, ADR 0171); the
+	// mandates are those in force, by family. usedMandates are the ones
+	// the invoices took, by ID, for the trail.
+	creditor     parentbilling.SEPACreditor
+	mandates     map[string]*parentbilling.SEPAMandate
+	usedMandates map[int64]parentbilling.SEPAMandate
+}
+
+// mandatesRead are the mandates the invoices took.
+func (p invoicePayments) mandatesRead() []parentbilling.SEPAMandate {
+	read := make([]parentbilling.SEPAMandate, 0, len(p.usedMandates))
+	for _, mandate := range p.usedMandates {
+		read = append(read, mandate)
+	}
+	slices.SortFunc(read, func(a, b parentbilling.SEPAMandate) int { return compareOrdered(a.ID, b.ID) })
+	return read
+}
+
+// debit completes a payment by direct debit with the family's mandate and
+// notes its read (ResolveDebit).
+func (p invoicePayments) debit(payment parentbilling.InvoicePayment, terms parentbilling.ServiceTerms, family *parentbilling.FamilyBilling,
+	familyEmail string, issuedOn calendar.Date,
+) parentbilling.InvoicePayment {
+	if payment.Method != parentbilling.PaymentDirectDebit {
+		return payment
+	}
+	mandate := p.mandates[familyEmail]
+	if mandate != nil {
+		p.usedMandates[mandate.ID] = *mandate
+	}
+	return parentbilling.ResolveDebit(payment, terms, p.run, family, issuedOn, p.creditor, mandate)
+}
+
+// recordMandateReads records in the trail of each mandate that a run
+// showed its mask to the account (#4695).
+func recordMandateReads(ctx context.Context, store paymentTermsReader, reviewer parentbilling.HolidayReviewer, mandates []parentbilling.SEPAMandate) error {
+	if err := store.InsertSEPAMandateEvents(ctx, reviewer.OrganizationID, reviewer.AccountID, mandateRead, mandateFromRun, nil, mandates); err != nil {
+		return fmt.Errorf("parent billing: record the read of the SEPA mandates: %w", err)
+	}
+	return nil
+}
+
+// debitBlocked tells whether a payment stays a direct debit without a
+// mandate, which the release refuses (MissingMandateBlock).
+func debitBlocked(payment *parentbilling.InvoicePayment) bool {
+	return payment != nil && payment.Method == parentbilling.PaymentDirectDebit && payment.DebitGap != ""
 }
 
 // deviationsRead are the deviations the invoices took.
@@ -414,7 +465,20 @@ func readInvoicePayments(ctx context.Context, store paymentTermsReader, organiza
 	for i := range families {
 		byFamily[families[i].FamilyEmail] = &families[i]
 	}
-	return invoicePayments{terms: termsSetOf(stored), run: dates, families: byFamily, used: map[int64]parentbilling.FamilyBilling{}}, nil
+	creditor, mandates, err := store.InvoiceDebitTerms(ctx, organizationID)
+	if err != nil {
+		return invoicePayments{}, fmt.Errorf("parent billing: read the SEPA mandates: %w", err)
+	}
+	payments := invoicePayments{terms: termsSetOf(stored), run: dates, families: byFamily, used: map[int64]parentbilling.FamilyBilling{},
+		creditor: parentbilling.DefaultSEPACreditor(), mandates: make(map[string]*parentbilling.SEPAMandate, len(mandates)),
+		usedMandates: map[int64]parentbilling.SEPAMandate{}}
+	if creditor != nil {
+		payments.creditor = *creditor
+	}
+	for i := range mandates {
+		payments.mandates[mandates[i].FamilyEmail] = &mandates[i]
+	}
+	return payments, nil
 }
 
 // careInvoice sets the recipient and the payment of a monthly invoice.
@@ -430,7 +494,8 @@ func (p invoicePayments) careInvoice(invoice *parentbilling.CareInvoice, issuedO
 	if service == "" {
 		service = parentbilling.ServiceCare
 	}
-	payment := parentbilling.ResolvePayment(p.terms.Of(service), p.run, family, issuedOn)
+	terms := p.terms.Of(service)
+	payment := p.debit(parentbilling.ResolvePayment(terms, p.run, family, issuedOn), terms, family, invoice.FamilyEmail, issuedOn)
 	invoice.Payment = &payment
 }
 
@@ -443,6 +508,7 @@ func (p invoicePayments) holidayDocument(document *parentbilling.BillingDocument
 		LastName: document.RecipientLastName, Email: document.RecipientEmail, Address: document.RecipientAddress}, family)
 	document.RecipientFirstName, document.RecipientLastName, document.RecipientEmail = recipient.FirstName, recipient.LastName, recipient.Email
 	document.RecipientAddress, document.RecipientKind, document.RecipientSecondName = recipient.Address, recipient.Kind, recipient.SecondName
-	payment := parentbilling.ResolvePayment(p.terms.Of(parentbilling.ServiceHoliday), p.run, family, issuedOn)
+	terms := p.terms.Of(parentbilling.ServiceHoliday)
+	payment := p.debit(parentbilling.ResolvePayment(terms, p.run, family, issuedOn), terms, family, document.FamilyEmail, issuedOn)
 	document.Payment = &payment
 }

@@ -40,7 +40,9 @@ type careMonth struct {
 	// dueDates are the run's due dates the payments used (#4689).
 	dueDates parentbilling.RunDueDates
 	// deviations are the family deviations the invoices took (#4689).
-	deviations     []parentbilling.FamilyBilling
+	deviations []parentbilling.FamilyBilling
+	// mandates are the SEPA mandates the invoices took (#4695).
+	mandates       []parentbilling.SEPAMandate
 	invoices       []parentbilling.CareInvoice
 	unpriced       []parentbilling.CareUnpriced
 	duplicates     []parentbilling.CareDuplicate

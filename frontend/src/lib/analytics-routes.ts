@@ -208,6 +208,7 @@ export const TRACKED_TRAEGER_ROUTE_TEMPLATES = [
   "/abrechnung/familien/:id",
   "/abrechnung/kinderzahl",
   "/abrechnung/kostentraeger",
+  "/abrechnung/lastschrift",
   "/abrechnung/mensa",
   "/abrechnung/monatsbeitraege",
   "/abrechnung/monatsbeitraege/:id",

@@ -289,7 +289,8 @@ func paymentText(content letterContent) string {
 		reference = "Ihre Debitorennummer " + number
 	}
 	if isDirectDebit(content.document.Payment) {
-		return directDebitText(content.document.TotalCents, due, strings.TrimPrefix(strings.TrimPrefix(reference, "die "), "Ihre "))
+		return directDebitText(content.document.TotalCents, due, strings.TrimPrefix(strings.TrimPrefix(reference, "die "), "Ihre "),
+			paymentMandate(content.document.Payment))
 	}
 	if text := strings.TrimSpace(content.letterhead.PaymentText); text != "" {
 		return strings.NewReplacer(

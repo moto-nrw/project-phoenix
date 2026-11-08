@@ -445,6 +445,48 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "parent_billing.family_without_address"
+    },
+    {
+      "code": "parent_billing.sepa_creditor_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.sepa_creditor_invalid"
+    },
+    {
+      "code": "parent_billing.sepa_mandate_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.sepa_mandate_invalid"
+    },
+    {
+      "code": "parent_billing.sepa_mandate_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.sepa_mandate_not_found"
+    },
+    {
+      "code": "parent_billing.sepa_mandate_in_force",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.sepa_mandate_in_force"
+    },
+    {
+      "code": "parent_billing.sepa_mandate_reference_taken",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.sepa_mandate_reference_taken"
+    },
+    {
+      "code": "parent_billing.sepa_mandate_revoked",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.sepa_mandate_revoked"
+    },
+    {
+      "code": "parent_billing.direct_debit_without_mandate",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.direct_debit_without_mandate"
     }
   ]
 }

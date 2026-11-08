@@ -343,20 +343,51 @@ func textOf(value *string) string {
 	return *value
 }
 
-// paymentColumns are the copied payment of an invoice, all NULL without one.
-func paymentColumns(payment *parentbilling.InvoicePayment) (*string, *calendar.Date, *string) {
-	if payment == nil {
-		return nil, nil, nil
-	}
-	due := payment.DueOn
-	return textRef(payment.Method), &due, textRef(payment.DueSource)
+// paymentSnapshot is the payment an issued invoice copied: how and by when
+// it is paid (#4689) and, for a direct debit, the mandate it is collected
+// with or why it is not (#4695). Every column is NULL on an invoice issued
+// before; the mandate columns are NULL on any other payment.
+type paymentSnapshot struct {
+	PaymentMethod    *string        `bun:"payment_method"`
+	DueOn            *calendar.Date `bun:"due_on,type:date"`
+	DueSource        *string        `bun:"due_source"`
+	MandateID        *int64         `bun:"mandate_id"`
+	MandateReference *string        `bun:"mandate_reference"`
+	MandateSignedOn  *calendar.Date `bun:"mandate_signed_on,type:date"`
+	CreditorID       *string        `bun:"creditor_id"`
+	DebtorIBANMasked *string        `bun:"debtor_iban_masked"`
+	SequenceType     *string        `bun:"sequence_type"`
+	DebitGap         *string        `bun:"debit_gap"`
 }
 
-// paymentOf is the copied payment of an invoice, nil for one issued before
+// snapshotOf is the copy of a payment, all NULL without one.
+func snapshotOf(payment *parentbilling.InvoicePayment) paymentSnapshot {
+	if payment == nil {
+		return paymentSnapshot{}
+	}
+	due := payment.DueOn
+	snapshot := paymentSnapshot{PaymentMethod: textRef(payment.Method), DueOn: &due, DueSource: textRef(payment.DueSource),
+		DebitGap: textRef(payment.DebitGap)}
+	if mandate := payment.Mandate; mandate != nil {
+		id, signedOn := mandate.MandateID, mandate.SignedOn
+		snapshot.MandateID, snapshot.MandateReference, snapshot.MandateSignedOn = &id, textRef(mandate.Reference), &signedOn
+		snapshot.CreditorID, snapshot.DebtorIBANMasked = textRef(mandate.CreditorID), textRef(mandate.IBANMasked)
+		snapshot.SequenceType = textRef(mandate.SequenceType)
+	}
+	return snapshot
+}
+
+// payment is the copied payment of an invoice, nil for one issued before
 // #4689.
-func paymentOf(method *string, dueOn *calendar.Date, source *string) *parentbilling.InvoicePayment {
-	if method == nil || dueOn == nil || source == nil {
+func (s paymentSnapshot) payment() *parentbilling.InvoicePayment {
+	if s.PaymentMethod == nil || s.DueOn == nil || s.DueSource == nil {
 		return nil
 	}
-	return &parentbilling.InvoicePayment{Method: *method, DueOn: *dueOn, DueSource: *source}
+	payment := &parentbilling.InvoicePayment{Method: *s.PaymentMethod, DueOn: *s.DueOn, DueSource: *s.DueSource, DebitGap: textOf(s.DebitGap)}
+	if s.MandateID != nil && s.MandateSignedOn != nil {
+		payment.Mandate = &parentbilling.InvoiceMandate{MandateID: *s.MandateID, Reference: textOf(s.MandateReference),
+			SignedOn: *s.MandateSignedOn, CreditorID: textOf(s.CreditorID), IBANMasked: textOf(s.DebtorIBANMasked),
+			SequenceType: textOf(s.SequenceType)}
+	}
+	return payment
 }
