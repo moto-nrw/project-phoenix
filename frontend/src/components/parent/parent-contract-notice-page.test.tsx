@@ -147,6 +147,11 @@ describe("ParentContractNoticePage (#4682, § 312k BGB)", () => {
       screen.getByRole("heading", { level: 1, name: "Vertrag widerrufen" }),
     ).toBeInTheDocument();
     expect(
+      screen.getByText(
+        "Hier widerrufen Sie Ihren Betreuungsvertrag. Sie bekommen sofort eine Bestätigung.",
+      ),
+    ).toBeInTheDocument();
+    expect(
       screen.getByRole("button", { name: "Widerruf bestätigen" }),
     ).toBeInTheDocument();
   });

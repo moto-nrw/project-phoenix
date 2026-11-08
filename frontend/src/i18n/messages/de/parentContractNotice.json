@@ -2,6 +2,7 @@
   "title": "Vertrag kündigen",
   "titleWithdrawal": "Vertrag widerrufen",
   "description": "Hier kündigen Sie Ihren Betreuungsvertrag. Sie bekommen sofort eine Bestätigung.",
+  "descriptionWithdrawal": "Hier widerrufen Sie Ihren Betreuungsvertrag. Sie bekommen sofort eine Bestätigung.",
   "back": "Zurück zu den Dokumenten",
   "errorObject": "der Vertrag",
   "declareErrorObject": "die Kündigung",

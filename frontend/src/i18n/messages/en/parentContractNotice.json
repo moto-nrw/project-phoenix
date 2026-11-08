@@ -2,6 +2,7 @@
   "title": "Cancel contract",
   "titleWithdrawal": "Withdraw from contract",
   "description": "Cancel your care contract here. You get a confirmation right away.",
+  "descriptionWithdrawal": "Here you withdraw from your care contract. You get a confirmation right away.",
   "back": "Back to documents",
   "errorObject": "the contract",
   "declareErrorObject": "the cancellation",

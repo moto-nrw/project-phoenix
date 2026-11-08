@@ -125,7 +125,13 @@ export function ParentContractNoticePage({
               ? t("titleWithdrawal")
               : t("title")
         }
-        description={ended ? undefined : t("description")}
+        description={
+          ended
+            ? undefined
+            : withdrawal
+              ? t("descriptionWithdrawal")
+              : t("description")
+        }
         backHref={DOCUMENTS_HREF}
         backLabel={t("back")}
       />

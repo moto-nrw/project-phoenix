@@ -2,6 +2,7 @@
   "title": "Sözleşmeyi feshet",
   "titleWithdrawal": "Sözleşmeden cay",
   "description": "Bakım sözleşmenizi burada feshedersiniz. Hemen bir onay alırsınız.",
+  "descriptionWithdrawal": "Burada bakım sözleşmenizden cayarsınız. Hemen bir onay alırsınız.",
   "back": "Belgelere dön",
   "errorObject": "sözleşme",
   "declareErrorObject": "fesih",

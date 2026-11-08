@@ -2,6 +2,7 @@
   "title": "Ndërprit kontratën",
   "titleWithdrawal": "Tërhiqu nga kontrata",
   "description": "Këtu ndërpritni kontratën e kujdesit. Konfirmimin e merrni menjëherë.",
+  "descriptionWithdrawal": "Këtu tërhiqeni nga kontrata e kujdesit. Merrni menjëherë një konfirmim.",
   "back": "Kthehu te dokumentet",
   "errorObject": "kontrata",
   "declareErrorObject": "ndërprerja",

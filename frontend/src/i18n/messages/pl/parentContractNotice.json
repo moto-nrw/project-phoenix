@@ -2,6 +2,7 @@
   "title": "Wypowiedz umowę",
   "titleWithdrawal": "Odstąp od umowy",
   "description": "Tutaj wypowiesz umowę o opiekę. Od razu dostaniesz potwierdzenie.",
+  "descriptionWithdrawal": "Tutaj odstępujesz od umowy o opiekę. Od razu otrzymasz potwierdzenie.",
   "back": "Powrót do dokumentów",
   "errorObject": "umowa",
   "declareErrorObject": "wypowiedzenie",
