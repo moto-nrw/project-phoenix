@@ -1,11 +1,11 @@
 package application
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"net/http"
 	"slices"
 	"strings"
 
@@ -338,10 +338,21 @@ func logoDataURL(logo []byte) string {
 	if len(logo) == 0 {
 		return ""
 	}
-	mime := http.DetectContentType(logo)
-	switch mime {
-	case "image/png", "image/jpeg", "image/gif", "image/webp":
-		return "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(logo)
+	mime := logoMIME(logo)
+	if mime == "" {
+		return ""
+	}
+	return "data:" + mime + ";base64," + base64.StdEncoding.EncodeToString(logo)
+}
+
+// logoMIME names the image type by its magic number: PNG and JPEG, the
+// formats the letterhead stores.
+func logoMIME(logo []byte) string {
+	switch {
+	case bytes.HasPrefix(logo, []byte("\x89PNG\r\n\x1a\n")):
+		return "image/png"
+	case bytes.HasPrefix(logo, []byte{0xFF, 0xD8, 0xFF}):
+		return "image/jpeg"
 	}
 	return ""
 }

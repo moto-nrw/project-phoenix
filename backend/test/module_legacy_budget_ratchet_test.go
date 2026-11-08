@@ -318,7 +318,8 @@ var moduleComposeBudgets = map[string]int{
 	// Raised by ADR 0158: the monthly contribution constructor (+5);
 	// ADR 0165: the constructor of the monthly letters (+7);
 	// ADR 0167: the constructor of the payment terms (+5);
-	// ADR 0168: the Mensa of the monthly run (+7).
+	// ADR 0168: the Mensa of the monthly run (+7);
+	// ADR 0180: the constructor of the Jahresbescheide (+7).
 	"modules/parentbilling/compose":               81,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
