@@ -25,7 +25,7 @@ export const MANDATE_KIND_HINTS: Record<MandateKind, string> = {
   one_off: "Nur für eine Abbuchung.",
 };
 
-export const MANDATE_SEQUENCE_LABELS: Record<MandateSequence, string> = {
+const MANDATE_SEQUENCE_LABELS: Record<MandateSequence, string> = {
   first: "Erste Lastschrift",
   recurring: "Folgelastschrift",
 };

@@ -16,7 +16,6 @@ export type MandateAction = "create" | "update" | "revoke" | "read" | "reveal";
 /** Why an invoice of a family that pays by direct debit is not collected. */
 export type DebitGap = "mandate_missing" | "creditor_missing";
 
-export const DEFAULT_PRENOTIFICATION_DAYS = 14;
 export const MIN_PRENOTIFICATION_DAYS = 1;
 export const MAX_PRENOTIFICATION_DAYS = 30;
 
@@ -207,8 +206,8 @@ export async function fetchSepaMandates(
   return (mandates ?? []).map(mandateFromBackend);
 }
 
-/** The request body of a new mandate; exported for its test. */
-export function sepaMandateBody(input: SepaMandateInput) {
+/** The request body of a new mandate. */
+function sepaMandateBody(input: SepaMandateInput) {
   return {
     contract_id: Number(input.contractId),
     reference: input.reference.trim(),
