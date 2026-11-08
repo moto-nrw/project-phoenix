@@ -219,12 +219,21 @@ export default function TraegerCareRunLettersPage() {
         )
       )
         return;
+      // An open run of the month that bills the schools of this run takes
+      // the new invoices; else a new run of these schools (#5916).
       const open = (await fetchCareRuns()).runs.find(
         (other) =>
           other.status === "calculated" &&
-          other.billingMonth === run.billingMonth,
+          other.billingMonth === run.billingMonth &&
+          run.schoolIds.every((id) => other.schoolIds.includes(id)),
       );
-      const target = open ?? (await startCareRun(run.billingMonth));
+      const target =
+        open ??
+        (await startCareRun({
+          billingMonth: run.billingMonth,
+          schoolIds: run.schoolIds,
+          invoiceDate: null,
+        }));
       router.push(
         traegerPath(`/traeger/abrechnung/monatsbeitraege/${target.id}`),
       );

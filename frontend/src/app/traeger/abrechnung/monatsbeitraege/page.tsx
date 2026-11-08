@@ -2,8 +2,9 @@
 
 // Monatsbeiträge des Trägers (#4684): Ein Monatslauf rechnet jeden Monat
 // nach dem gültigen Betreuungsvertrag und der Preisliste ab. Die Abrechnung
-// prüft die Vorschau und gibt den Lauf frei. Nur die Rolle mit dem Recht
-// „Abrechnung“ sieht die Seite.
+// wählt Monat, Schulen und Rechnungsdatum (#5916), prüft die Vorschau und
+// gibt den Lauf frei. Nur die Rolle mit dem Recht „Abrechnung“ sieht die
+// Seite.
 
 import { CalendarRange, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -18,7 +19,8 @@ import {
   monthRange,
   invoiceCountLabel,
 } from "~/components/traeger/care-billing-format";
-import { RunStartModal } from "~/components/traeger/billing-run-start-modal";
+import { CareRunStartModal } from "~/components/traeger/care-run-start-modal";
+import { runSchoolsLabel } from "~/components/traeger/care-review-format";
 import { formatEuro } from "~/components/traeger/contribution-format";
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
@@ -32,6 +34,7 @@ import { createLogger } from "~/lib/logger";
 import {
   type CareRun,
   type CareRunList,
+  type CareSchool,
   type CareTariffs,
   fetchCareRuns,
   fetchCareTariffs,
@@ -41,55 +44,69 @@ import { traegerPath } from "~/lib/traeger-url";
 
 const logger = createLogger({ component: "TraegerMonatsbeitraegePage" });
 
-const COLUMNS: DataTableColumn<CareRun>[] = [
-  {
-    key: "month",
-    header: "Monat",
-    render: (run) => (
-      <span className="font-medium text-gray-900">
-        {formatMonth(run.billingMonth)}
-      </span>
-    ),
-    stacked: "title",
-  },
-  {
-    key: "status",
-    header: "Status",
-    render: (run) => (
-      <StatusBadge
-        label={CARE_RUN_STATUS_LABELS[run.status]}
-        tone={CARE_RUN_STATUS_TONES[run.status]}
-      />
-    ),
-    stacked: "meta",
-  },
-  {
-    key: "invoices",
-    header: "Rechnungen",
-    render: (run) =>
-      run.documentCount === null ? (
-        "–"
-      ) : (
-        <span className="tabular-nums">
-          {invoiceCountLabel(run.documentCount)} ·{" "}
-          {formatEuro(run.totalCents ?? 0)}
+function runColumns(
+  schools: readonly CareSchool[],
+): DataTableColumn<CareRun>[] {
+  return [
+    {
+      key: "month",
+      header: "Monat",
+      render: (run) => (
+        <span className="font-medium text-gray-900">
+          {formatMonth(run.billingMonth)}
         </span>
       ),
-    stacked: "meta",
-  },
-  {
-    key: "issued",
-    header: "Ausgestellt am",
-    render: (run) => (run.issuedOn ? formatDate(run.issuedOn) : "–"),
-    stacked: "meta",
-  },
-  {
-    key: "rule",
-    header: "Monatswechsel",
-    render: (run) => (run.monthRule ? MONTH_RULE_LABELS[run.monthRule] : "–"),
-    stacked: "meta",
-  },
-];
+      stacked: "title",
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (run) => (
+        <StatusBadge
+          label={CARE_RUN_STATUS_LABELS[run.status]}
+          tone={CARE_RUN_STATUS_TONES[run.status]}
+        />
+      ),
+      stacked: "meta",
+    },
+    {
+      key: "schools",
+      header: "Schulen",
+      render: (run) => (
+        <span className="text-gray-700">
+          {runSchoolsLabel(run.schoolIds, schools)}
+        </span>
+      ),
+      stacked: "meta",
+    },
+    {
+      key: "invoices",
+      header: "Rechnungen",
+      render: (run) =>
+        run.documentCount === null ? (
+          "–"
+        ) : (
+          <span className="tabular-nums">
+            {invoiceCountLabel(run.documentCount)} ·{" "}
+            {formatEuro(run.totalCents ?? 0)}
+          </span>
+        ),
+      stacked: "meta",
+    },
+    {
+      key: "issued",
+      header: "Ausgestellt am",
+      render: (run) => (run.issuedOn ? formatDate(run.issuedOn) : "–"),
+      stacked: "meta",
+    },
+    {
+      key: "rule",
+      header: "Monatswechsel",
+      render: (run) => (run.monthRule ? MONTH_RULE_LABELS[run.monthRule] : "–"),
+      stacked: "meta",
+    },
+  ];
+}
 
 /** Twelve months back and three ahead of the suggested month, latest first. */
 function startMonths(suggested: string) {
@@ -147,7 +164,7 @@ export default function TraegerMonatsbeitraegePage() {
   return (
     <TenantPage
       title="Abrechnung"
-      info="Hier rechnen Sie die Betreuung Monat für Monat ab. Der Beitrag ist die Summe der gebuchten Wochentage im Vertrag, mit den Preisen aus der Preisliste. Sie prüfen die Vorschau und geben den Lauf dann frei."
+      info="Hier rechnen Sie die Betreuung Monat für Monat ab. Der Beitrag ist die Summe der gebuchten Wochentage im Vertrag, mit den Preisen aus der Preisliste. Sie wählen Monat und Schulen, prüfen die Vorschau und geben den Lauf dann frei."
       stats={
         runs.length > 0 ? (
           <TenantPageStats
@@ -180,22 +197,13 @@ export default function TraegerMonatsbeitraegePage() {
       loading={!pageLoad.error && !data}
       overlays={
         data ? (
-          <RunStartModal
+          <CareRunStartModal
             isOpen={starting}
-            title="Monatslauf starten"
-            field={{
-              id: "care-run-month",
-              name: "billing_month",
-              label: "Monat",
-              missing: "Bitte wählen Sie einen Monat.",
-            }}
-            options={startMonths(data.list.suggestedMonth)}
-            initialValue={data.list.suggestedMonth}
-            hint="Der Lauf rechnet jedes Kind mit gültigem Vertrag in diesem Monat ab. Es zählen die gebuchten Tage, nicht die Anwesenheit. Sie prüfen zuerst die Vorschau."
-            object="der Monatslauf"
+            months={startMonths(data.list.suggestedMonth)}
+            initialMonth={data.list.suggestedMonth}
             onClose={() => setStarting(false)}
-            onStart={async (month) => {
-              const run = await startCareRun(month);
+            onStart={async (input) => {
+              const run = await startCareRun(input);
               setStarting(false);
               openRun(run);
             }}
@@ -221,7 +229,7 @@ export default function TraegerMonatsbeitraegePage() {
             />
           ) : null}
           <DataTable
-            columns={COLUMNS}
+            columns={runColumns(data.tariffs.schools)}
             rows={[...runs]}
             getRowKey={(run) => run.id}
             stackedOnMobile

@@ -48,6 +48,12 @@ const RUN: CareRunDetail = {
   previewCents: 9600,
   numberPattern: "MB-{NNNN}",
   numberRangeSet: true,
+  schoolIds: ["3"],
+  invoiceDate: null,
+  schools: [],
+  excludedCount: 0,
+  excludedCents: 0,
+  fingerprint: "",
 };
 const CANCELLATION: CareLetterMailing = {
   invoiceId: "41",
@@ -131,7 +137,11 @@ describe("monthly invoice reissue", () => {
         "/traeger/abrechnung/monatsbeitraege/8",
       ),
     );
-    expect(api.startCareRun).toHaveBeenCalledWith("2027-01-01");
+    expect(api.startCareRun).toHaveBeenCalledWith({
+      billingMonth: "2027-01-01",
+      schoolIds: ["3"],
+      invoiceDate: null,
+    });
   });
 
   it("does not create an empty run when another tab already issued the replacement", async () => {
