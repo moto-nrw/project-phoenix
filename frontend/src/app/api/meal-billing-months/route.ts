@@ -1,4 +1,4 @@
-import { proxyGet } from "~/lib/route-proxy.server";
+import { proxyGet } from "~/lib/route-wrapper.server";
 
 // Mensa-Monatsfreigabe (#4686): die letzten zwölf Monate mit ihrem Stand.
 // meals:manage und meals:orders erzwingt das Backend.

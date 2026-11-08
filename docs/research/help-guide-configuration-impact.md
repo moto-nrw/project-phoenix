@@ -308,7 +308,7 @@ Untersucht und bewusst ausgeschlossen:
 | `config:manage` | Einzige Planungsseite, die auch Nicht-Admins sehen: `Abrechnung` | `frontend/src/lib/planning-navigation.ts:77`; `frontend/src/components/dashboard/sidebar.tsx:491-497` |
 | Zusammengesetzte Regeln | `Anfragen` fasst mehrere Rechte zusammen (`users:update`, `users:absence`+`users:read`, `vacation:approve`) — als einfache Permission nicht ausdrückbar | `frontend/src/lib/change-request-access.ts:86-90`; `frontend/src/components/dashboard/sidebar.tsx:567` |
 
-**Mechanik:** Berechtigungen kommen aus den JWT-Claims in die Sitzung (`frontend/src/server/auth/shared.ts:764`) und werden mit reinen Funktionen geprüft — `hasPermission`, `hasRole`, `isAdmin`, `hasEffectiveAdminScope`, `isCaregiver` in `frontend/src/lib/auth-utils.ts:6-100`, inklusive der Wildcard-Regeln (`admin:*`, `*:*`). Einen Berechtigungs-Context oder `usePermissions`-Hook gibt es nicht.
+**Mechanik:** Berechtigungen kommen aus den JWT-Claims in die Sitzung (`frontend/src/server/auth/jwt-claims.ts`) und werden mit reinen Funktionen geprüft — `hasPermission`, `hasRole`, `isAdmin`, `hasEffectiveAdminScope`, `isCaregiver` in `frontend/src/lib/auth-utils.ts:6-100`, inklusive der Wildcard-Regeln (`admin:*`, `*:*`). Einen Berechtigungs-Context oder `usePermissions`-Hook gibt es nicht.
 
 ### 4.5 Portal-spezifische Unterschiede
 

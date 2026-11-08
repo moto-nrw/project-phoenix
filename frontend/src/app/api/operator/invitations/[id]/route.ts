@@ -1,11 +1,8 @@
-import { createOperatorProxyMethodHandler } from "~/lib/operator/route-wrapper.server";
+import { createOperatorJsonProxy } from "~/lib/operator/route-wrapper.server";
 
-/**
- * DELETE /api/operator/invitations/[id]
- * Proxies to backend DELETE /operator/invitations/{id}.
- * Forwards client IP and User-Agent for audit logging.
- */
-export const DELETE = createOperatorProxyMethodHandler(
-  "DELETE",
-  (params) => `/operator/invitations/${String(params.id)}`,
-);
+export const DELETE = createOperatorJsonProxy({
+  method: "DELETE",
+  path: (_request, params) =>
+    `/operator/invitations/${encodeURIComponent(String(params.id))}`,
+  body: "none",
+});

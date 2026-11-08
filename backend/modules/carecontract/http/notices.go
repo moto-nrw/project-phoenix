@@ -158,7 +158,7 @@ var noticeErrorRules = []struct {
 func renderNoticeError(w http.ResponseWriter, r *http.Request, err error) {
 	var invalid *carecontract.ValidationError
 	if errors.As(err, &invalid) {
-		common.RenderError(w, r, fieldsInvalid("the declaration is invalid", invalid, common.CodeCareContractContractInputInvalid))
+		common.RenderError(w, r, validationError(invalid))
 		return
 	}
 	for _, rule := range noticeErrorRules {

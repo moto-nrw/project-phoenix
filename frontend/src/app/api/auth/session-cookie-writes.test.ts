@@ -356,8 +356,8 @@ describe("gateSessionCookieWrites", () => {
 
 describe("BFF route of a portal (#5399)", () => {
   async function route() {
-    const { withParentAuth } = await import("~/server/auth/parent");
-    return withParentAuth(async (authRequest) =>
+    const { parentPortal } = await import("~/server/auth/parent");
+    return parentPortal.withAuth(async (authRequest) =>
       Response.json({ account: authRequest.auth?.user?.id ?? null }),
     );
   }

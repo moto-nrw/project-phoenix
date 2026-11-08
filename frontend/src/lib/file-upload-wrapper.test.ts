@@ -18,10 +18,10 @@ interface SuccessResponse<T> {
   data: T;
 }
 
-// Mock auth module
-vi.mock("../server/auth/index", () => ({
-  auth: vi.fn(),
-}));
+const { auth } = vi.hoisted(() => ({ auth: vi.fn() }));
+vi.mock("../server/auth/index", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", { auth }),
+);
 
 // Mock api-helpers module
 vi.mock("./api-helpers", () => ({
@@ -32,8 +32,6 @@ vi.mock("./api-helpers", () => ({
     );
   }),
 }));
-
-import { auth } from "../server/auth/index";
 
 describe("createFileUploadHandler", () => {
   beforeEach(() => {

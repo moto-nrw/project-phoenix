@@ -1,8 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getServerApiUrl } from "~/lib/server-api-url";
-import { clientIdentityHeaders } from "~/lib/client-headers.server";
+import { sendBackend } from "~/lib/backend-client.server";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { problemResponse } from "~/lib/api-helpers.server";
+import { handleApiError } from "~/lib/api-response-error.server";
 import { withPrivateNoStore } from "~/lib/private-no-store";
 
 interface RouteContext {
@@ -11,11 +11,16 @@ interface RouteContext {
 
 async function GETHandler(_request: NextRequest, context: RouteContext) {
   const { filename } = await context.params;
-  const backendUrl = `${getServerApiUrl()}/public/enrollment-form-legal-documents/${encodeURIComponent(filename)}`;
-  const response = await fetch(backendUrl, {
-    headers: clientIdentityHeaders(_request.headers),
-    cache: "no-store",
-  });
+  let response: Response;
+  try {
+    response = await sendBackend(
+      `/public/enrollment-form-legal-documents/${encodeURIComponent(filename)}`,
+      null,
+      { request: _request },
+    );
+  } catch (error) {
+    return handleApiError(error, _request);
+  }
 
   if (!response.ok) return forwardBackendResponse(response, _request);
   if (!response.body) return problemResponse(404, "Not found", _request);

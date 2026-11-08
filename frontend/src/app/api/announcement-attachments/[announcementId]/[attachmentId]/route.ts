@@ -2,7 +2,7 @@
 // die Mitteilung ein Entwurf ist — das Backend entscheidet und antwortet
 // sonst mit 409.
 
-import { proxyDelete } from "~/lib/route-proxy.server";
+import { proxyDelete } from "~/lib/route-wrapper.server";
 import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 export const DELETE = proxyDelete(

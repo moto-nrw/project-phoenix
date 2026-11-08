@@ -26,7 +26,6 @@ import {
 /**
  * Editor pieces of the `file` field type (#4783): the options block, the
  * rules a file field follows on save, and the Einkommenserklärung preset.
- * Kept out of enrollment-form-editor.tsx, which is already very long.
  */
 
 /**

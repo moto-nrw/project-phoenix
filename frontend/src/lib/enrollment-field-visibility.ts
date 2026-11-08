@@ -10,7 +10,7 @@ import type {
  * answers, grade level, and selected care offerings.
  *
  * Mirrors the backend evaluation semantics in
- * models/enrollment/form_schema.go (VisibilityCondition) + the
+ * backend/modules/enrollment/form_schema.go (VisibilityCondition) + the
  * guardian-level skip in modules/enrollment/internal/application/form_visibility.go.
  */
 export interface ConditionContext {

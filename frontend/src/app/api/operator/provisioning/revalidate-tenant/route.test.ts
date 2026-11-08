@@ -7,14 +7,18 @@ const { mockAuth, mockRevalidatePath, mockRevalidateTag } = vi.hoisted(() => ({
   mockRevalidateTag: vi.fn(),
 }));
 
-vi.mock("~/server/auth/operator", () => ({
-  operatorAuth: mockAuth,
-  uncachedOperatorAuth: mockAuth,
-}));
+vi.mock("~/server/auth/operator", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("operator", {
+    auth: mockAuth,
+    uncachedAuth: mockAuth,
+  }),
+);
 
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockAuth,
+  }),
+);
 
 vi.mock("next/cache", () => ({
   revalidatePath: mockRevalidatePath,
@@ -148,7 +152,7 @@ describe("POST /api/operator/provisioning/revalidate-tenant", () => {
     });
   });
 
-  it("returns 500 when request body is invalid JSON", async () => {
+  it("returns 400 when request body is invalid JSON", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
 
     const request = new NextRequest(
@@ -161,6 +165,7 @@ describe("POST /api/operator/provisioning/revalidate-tenant", () => {
     );
 
     const response = await POST(request, emptyContext);
-    expect(response.status).toBe(500);
+    // Contract: a malformed JSON body in a handler route answers 400 (was 500).
+    expect(response.status).toBe(400);
   });
 });

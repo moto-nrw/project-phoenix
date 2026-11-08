@@ -20,7 +20,7 @@ export const GET = createGetHandler(
       throw new Error("Thread ID is required");
     }
     const response = await apiGet<{ data: unknown }>(
-      `/api/staff-messages/threads/${threadID}`,
+      `/api/staff-messages/threads/${encodeURIComponent(threadID)}`,
       token,
     );
     return response.data;
@@ -43,7 +43,7 @@ export const POST = createPostHandler(
       throw new Error("Thread ID is required");
     }
     const response = await apiPost<{ data: unknown }>(
-      `/api/staff-messages/threads/${threadID}`,
+      `/api/staff-messages/threads/${encodeURIComponent(threadID)}`,
       token,
       body,
     );

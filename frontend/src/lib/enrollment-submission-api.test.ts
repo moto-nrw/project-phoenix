@@ -304,32 +304,6 @@ describe("enrollment-submission-api", () => {
     );
   });
 
-  it("omits credentials without adding a profile-enrichment query flag", async () => {
-    mockFetch.mockResolvedValueOnce(
-      jsonResponse({
-        data: {
-          phase: { id: "5", name: "Ferien" },
-          schema: null,
-          offerings: [],
-          care_offering_selection_mode: "optional",
-          care_required: false,
-          captcha_config: null,
-          legal_texts: { blocks: [] },
-        },
-      }),
-    );
-
-    await fetchPublicEnrollmentBootstrap("demo", "5", {
-      lateInviteToken: "invite token",
-      omitCredentials: true,
-    });
-
-    expect(mockFetch).toHaveBeenCalledWith(
-      "/api/enrollment/form-bootstrap/public/demo/5?late_invite=invite%20token",
-      { cache: "no-store", credentials: "omit" },
-    );
-  });
-
   it("returns null for unauthenticated profile requests", async () => {
     mockFetch.mockResolvedValueOnce(
       jsonResponse({ error: "unauthorized" }, { status: 401 }),

@@ -1,4 +1,4 @@
-import { proxyGet } from "~/lib/route-proxy.server";
+import { proxyGet } from "~/lib/route-wrapper.server";
 
 // Eigene Lohnarten, Zuschlagsregeln und die Zuordnung der Abwesenheitsarten
 // der Schule (#4807) für /payroll.

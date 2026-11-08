@@ -7,7 +7,7 @@ import type {
   PhaseResponseExclusion,
   PhaseResponseOverview as PhaseResponseOverviewData,
 } from "~/lib/enrollment-phase-api";
-import type { ChildStatus } from "~/lib/enrollment-admin-api";
+import type { ChildStatus } from "~/lib/enrollment-status";
 import { useParentAnnouncementsAvailable } from "~/lib/hooks/use-parent-announcements-available";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useTenantAwarePath } from "~/lib/tenant-path";

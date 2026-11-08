@@ -8,14 +8,18 @@ const { mockAuth, mockFetch, mockGetServerApiUrl } = vi.hoisted(() => ({
   mockGetServerApiUrl: vi.fn(() => "http://localhost:8080"),
 }));
 
-vi.mock("~/server/auth/operator", () => ({
-  operatorAuth: mockAuth,
-  uncachedOperatorAuth: mockAuth,
-}));
+vi.mock("~/server/auth/operator", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("operator", {
+    auth: mockAuth,
+    uncachedAuth: mockAuth,
+  }),
+);
 
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockAuth,
+  }),
+);
 
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: mockGetServerApiUrl,
@@ -110,7 +114,8 @@ describe("PUT /api/operator/provisioning/schools/[id]", () => {
     };
     const response = await PUT(request, context);
 
-    expect(response.status).toBe(500);
+    // A non-string route param is the request's mistake: 400.
+    expect(response.status).toBe(400);
   });
 
   it("forwards 404 not found from backend", async () => {

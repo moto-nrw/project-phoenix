@@ -1,6 +1,5 @@
 import { apiDelete } from "~/lib/api-helpers.server";
-import { proxyGet } from "~/lib/route-proxy.server";
-import { createDeleteHandler } from "~/lib/route-wrapper.server";
+import { createDeleteHandler, proxyGet } from "~/lib/route-wrapper.server";
 
 interface NotificationPreferencesResponse {
   tenant_enabled: boolean;

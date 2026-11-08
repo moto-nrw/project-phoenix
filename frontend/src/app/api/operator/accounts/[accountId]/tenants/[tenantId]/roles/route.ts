@@ -1,5 +1,5 @@
 import { operatorErrorResponse } from "~/lib/operator/route-wrapper.server";
-import { createOperatorJsonProxy } from "~/lib/backend-proxy-route.server";
+import { createOperatorJsonProxy } from "~/lib/operator/route-wrapper.server";
 
 export const GET = createOperatorJsonProxy({
   method: "GET",
@@ -14,6 +14,4 @@ export const GET = createOperatorJsonProxy({
     }
     return `/operator/accounts/${encodeURIComponent(accountId)}/tenants/${encodeURIComponent(tenantId)}/roles`;
   },
-  cache: "no-store",
-  contentTypeOnGet: false,
 });

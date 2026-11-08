@@ -10,5 +10,4 @@ export const GET = createPublicJsonProxy({
     }
     return `/auth/invitations/${encodeURIComponent(token)}`;
   },
-  contentTypeOnGet: false,
 });

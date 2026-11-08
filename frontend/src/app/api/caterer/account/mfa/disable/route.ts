@@ -12,7 +12,7 @@ interface DisableBody {
 export const POST = createCatererJsonProxy({
   method: "POST",
   path: "/caterer/account/mfa/disable",
-  forwardClientHeaders: true,
+  retry: { off: "a renewed session would send the current password twice" },
   mapJsonBody: (body) => ({
     current_password: (body as DisableBody).currentPassword ?? "",
   }),

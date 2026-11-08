@@ -16,9 +16,11 @@ const { mockAuth, mockApiGet } = vi.hoisted(() => ({
   mockApiGet: vi.fn(),
 }));
 
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockAuth,
+  }),
+);
 
 vi.mock("~/lib/api-helpers.server", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
@@ -49,7 +51,7 @@ describe("GET /api/groups/[id]/students", () => {
 
     expect(response.status).toBe(400);
     const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Group ID is required");
+    expect(json.detail).toBe("Invalid id parameter");
   });
 
   it("fetches students in group from backend", async () => {

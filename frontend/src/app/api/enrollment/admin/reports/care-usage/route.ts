@@ -1,4 +1,4 @@
-import { createTenantJsonProxy } from "~/lib/backend-proxy-route.server";
+import { createTenantJsonProxy } from "~/lib/route-wrapper.server";
 
 export const GET = createTenantJsonProxy({
   method: "GET",
@@ -25,7 +25,4 @@ export const GET = createTenantJsonProxy({
     const suffix = query.toString();
     return `/api/enrollment/admin/reports/care-usage${suffix ? `?${suffix}` : ""}`;
   },
-  cache: "no-store",
-  contentTypeOnGet: false,
-  unauthorizedError: "Unauthenticated",
 });

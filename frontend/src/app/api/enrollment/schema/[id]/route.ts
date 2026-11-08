@@ -1,4 +1,4 @@
-import { createTenantJsonProxy } from "~/lib/backend-proxy-route.server";
+import { createTenantJsonProxy } from "~/lib/route-wrapper.server";
 import { problemResponse } from "~/lib/api-helpers.server";
 
 const path = (
@@ -15,14 +15,10 @@ const path = (
 export const GET = createTenantJsonProxy({
   method: "GET",
   path,
-  cache: "no-store",
-  contentTypeOnGet: false,
-  unauthorizedError: "Unauthenticated",
 });
 export const PUT = createTenantJsonProxy({
   method: "PUT",
   path,
-  unauthorizedError: "Unauthenticated",
   mapJsonBody: (value) => {
     const body = value as Record<string, unknown>;
     return {
@@ -40,7 +36,6 @@ export const PUT = createTenantJsonProxy({
 export const PATCH = createTenantJsonProxy({
   method: "PATCH",
   path,
-  unauthorizedError: "Unauthenticated",
   mapJsonBody: (value) => {
     const body = value as Record<string, unknown>;
     return { name: body.name };
@@ -49,6 +44,4 @@ export const PATCH = createTenantJsonProxy({
 export const DELETE = createTenantJsonProxy({
   method: "DELETE",
   path,
-  contentTypeOnDelete: false,
-  unauthorizedError: "Unauthenticated",
 });

@@ -7,7 +7,7 @@
 //
 // The Go backend wraps responses in { status, data, message }. proxyPost
 // strips that envelope so route-wrapper does not double-wrap the payload.
-import { proxyPost } from "~/lib/route-proxy.server";
+import { proxyPost } from "~/lib/route-wrapper.server";
 import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 export const POST = proxyPost(

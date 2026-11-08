@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { GET } from "./route";
 import {
   type ExtendedSession,
+  createMockContext,
   createMockRequest,
   defaultSession,
 } from "~/test/route-test-helpers";
@@ -17,9 +18,11 @@ const { mockAuth } = vi.hoisted(() => ({
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockAuth,
+  }),
+);
 
 vi.mock("~/env", () => ({
   env: {
@@ -50,34 +53,32 @@ describe("GET /api/import/students/template", () => {
     mockAuth.mockResolvedValueOnce(null);
 
     const request = createMockRequest("/api/import/students/template");
-    const response = await GET(request);
+    const response = await GET(request, createMockContext());
 
     expect(response.status).toBe(401);
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it("downloads CSV template by default", async () => {
-    const csvBlob = new Blob(["first_name,second_name,class_name\n"], {
-      type: "text/csv",
-    });
-
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      headers: new Headers({
-        "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition":
-          'attachment; filename="schueler-import-vorlage.csv"',
+    mockFetch.mockResolvedValueOnce(
+      new Response("first_name,second_name,class_name\n", {
+        status: 200,
+        headers: {
+          "Content-Type": "text/csv; charset=utf-8",
+          "Content-Disposition":
+            'attachment; filename="schueler-import-vorlage.csv"',
+        },
       }),
-      blob: async () => csvBlob,
-    });
+    );
 
     const request = createMockRequest("/api/import/students/template");
-    const response = await GET(request);
+    const response = await GET(request, createMockContext());
 
+    // Without a format the BFF forwards none; the backend defaults to CSV.
     expect(mockFetch).toHaveBeenCalledWith(
-      "http://server:8080/api/import/students/template?format=csv",
+      "http://server:8080/api/import/students/template",
       expect.objectContaining({
+        method: "GET",
         headers: expect.objectContaining({
           Authorization: "Bearer test-token",
         }) as Record<string, string>,
@@ -91,29 +92,26 @@ describe("GET /api/import/students/template", () => {
     expect(response.headers.get("Content-Disposition")).toBe(
       'attachment; filename="schueler-import-vorlage.csv"',
     );
+    expect(await response.text()).toBe("first_name,second_name,class_name\n");
   });
 
   it("supports custom format parameter", async () => {
-    const xlsxBlob = new Blob(["mock excel data"], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
-
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      headers: new Headers({
-        "Content-Type":
-          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition":
-          'attachment; filename="schueler-import-vorlage.xlsx"',
+    mockFetch.mockResolvedValueOnce(
+      new Response("mock excel data", {
+        status: 200,
+        headers: {
+          "Content-Type":
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "Content-Disposition":
+            'attachment; filename="schueler-import-vorlage.xlsx"',
+        },
       }),
-      blob: async () => xlsxBlob,
-    });
+    );
 
     const request = createMockRequest(
       "/api/import/students/template?format=xlsx",
     );
-    const response = await GET(request);
+    const response = await GET(request, createMockContext());
 
     expect(mockFetch).toHaveBeenCalledWith(
       "http://server:8080/api/import/students/template?format=xlsx",
@@ -132,7 +130,7 @@ describe("GET /api/import/students/template", () => {
     );
 
     const request = createMockRequest("/api/import/students/template");
-    const response = await GET(request);
+    const response = await GET(request, createMockContext());
 
     expect(response.status).toBe(500);
     expect(await response.json()).toMatchObject({
@@ -146,7 +144,7 @@ describe("GET /api/import/students/template", () => {
     mockFetch.mockResolvedValueOnce(new Response("", { status: 503 }));
 
     const request = createMockRequest("/api/import/students/template");
-    const response = await GET(request);
+    const response = await GET(request, createMockContext());
 
     expect(response.status).toBe(503);
     expect(await response.json()).toMatchObject({
@@ -160,25 +158,21 @@ describe("GET /api/import/students/template", () => {
     mockFetch.mockRejectedValueOnce(new Error("Network error"));
 
     const request = createMockRequest("/api/import/students/template");
-    const response = await GET(request);
+    const response = await GET(request, createMockContext());
 
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Internal Server Error");
+    // Contract change: an unreachable backend answers 503 general.unavailable.
+    expect(response.status).toBe(503);
+    const json = await parseJsonResponse<{ code: string }>(response);
+    expect(json.code).toBe("general.unavailable");
   });
 
   it("uses default headers when backend doesn't provide them", async () => {
-    const csvBlob = new Blob(["test"]);
-
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      headers: new Headers({}),
-      blob: async () => csvBlob,
-    });
+    const backend = new Response("test", { status: 200 });
+    backend.headers.delete("Content-Type");
+    mockFetch.mockResolvedValueOnce(backend);
 
     const request = createMockRequest("/api/import/students/template");
-    const response = await GET(request);
+    const response = await GET(request, createMockContext());
 
     expect(response.headers.get("Content-Type")).toBe(
       "text/csv; charset=utf-8",

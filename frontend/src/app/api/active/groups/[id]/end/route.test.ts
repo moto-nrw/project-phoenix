@@ -16,9 +16,11 @@ const { mockAuth, mockApiPost } = vi.hoisted(() => ({
   mockApiPost: vi.fn(),
 }));
 
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockAuth,
+  }),
+);
 
 vi.mock("~/lib/api-helpers.server", async () => {
   const { mockHandleApiError } =
@@ -98,12 +100,13 @@ describe("POST /api/active/groups/[id]/end", () => {
     expect(json.data).toEqual(mockEndedGroup);
   });
 
-  it("returns 500 when id parameter is invalid", async () => {
+  it("returns 400 when id parameter is invalid", async () => {
     const request = createMockRequest("/api/active/groups/invalid/end", {
       method: "POST",
     });
     const response = await POST(request, createMockContext({ id: undefined }));
 
-    expect(response.status).toBe(500);
+    // An invalid route param is the request's mistake: a coded 400.
+    expect(response.status).toBe(400);
   });
 });

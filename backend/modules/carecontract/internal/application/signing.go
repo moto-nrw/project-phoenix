@@ -410,7 +410,7 @@ func (s *Signatures) view(ctx context.Context, organizationID int64, record Cont
 	return carecontract.SigningView{
 		ContractID: record.Summary.ID, OrganizationID: organizationID, Status: record.Summary.Status,
 		TraegerName: traeger, PartyName: fullName(party.FirstName, party.LastName), Version: signingContract(record.Version),
-		DocumentSHA256: document.SHA256, WithdrawalNotice: withdrawalNotice(partner, letterhead),
+		DocumentSHA256: document.SHA256, WithdrawalNotice: withdrawalNoticeParagraphs(signingContact(partner, letterhead)),
 	}, nil
 }
 

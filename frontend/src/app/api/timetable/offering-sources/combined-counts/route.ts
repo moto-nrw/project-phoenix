@@ -5,6 +5,6 @@
 //   (Mehrfach-Quelle, follow-up to #2137): a child enrolled in two selected
 //   Angebote counts once, so the Regeltermin editor previews the exact
 //   roster size the union would seed.
-import { proxyGet } from "~/lib/route-proxy.server";
+import { proxyGet } from "~/lib/route-wrapper.server";
 
 export const GET = proxyGet("/api/timetable/offering-sources/combined-counts");

@@ -58,6 +58,7 @@ describe("GET /api/invitations/validate", () => {
 
     expect(mockFetch).toHaveBeenCalledWith(
       "http://server:8080/auth/invitations/abc123",
+      expect.objectContaining({ method: "GET", cache: "no-store" }),
     );
     expect(response.status).toBe(200);
     const json = await parseJsonResponse(response);
@@ -79,6 +80,7 @@ describe("GET /api/invitations/validate", () => {
 
     expect(mockFetch).toHaveBeenCalledWith(
       "http://server:8080/auth/invitations/abc%20def%2Fghi%3D",
+      expect.objectContaining({ method: "GET", cache: "no-store" }),
     );
   });
 });

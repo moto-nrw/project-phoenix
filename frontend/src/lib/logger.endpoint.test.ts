@@ -5,8 +5,8 @@ vi.unmock("~/lib/logger");
 const { createLogger } = await import("./logger");
 
 // Each portal ships client logs to the route that can verify its session
-// cookie. Before, the parents portal posted to the tenant-only /api/logs and
-// every guardian's log was rejected with 401.
+// cookie. On the school and Träger hosts the proxy answered the tenant
+// /api/logs with 404, and on the operator host it needed a tenant cookie.
 describe("client logger endpoint", () => {
   let originalFetch: typeof globalThis.fetch;
   let originalHref: string;
@@ -19,7 +19,11 @@ describe("client logger endpoint", () => {
       .fn<typeof fetch>()
       .mockResolvedValue(new Response(null, { status: 200 }));
     globalThis.fetch = fetchMock;
+    vi.stubEnv("NEXT_PUBLIC_OPERATOR_HOSTNAME", "operator.moto-app.de");
     vi.stubEnv("NEXT_PUBLIC_PARENTS_HOSTNAME", "eltern.moto-app.de");
+    vi.stubEnv("NEXT_PUBLIC_SCHOOL_HOSTNAME", "schule.moto-app.de");
+    vi.stubEnv("NEXT_PUBLIC_CATERER_HOSTNAME", "caterer.moto-app.de");
+    vi.stubEnv("NEXT_PUBLIC_TRAEGER_HOSTNAME", "traeger.moto-app.de");
   });
 
   afterEach(() => {
@@ -35,15 +39,16 @@ describe("client logger endpoint", () => {
     return fetchMock.mock.calls[0]?.[0];
   }
 
-  it("ships to the parent route on the parents host", async () => {
-    window.location.href = "https://eltern.moto-app.de/news";
+  it.each([
+    ["operator.moto-app.de", "/api/operator/logs"],
+    ["eltern.moto-app.de", "/api/parent/logs"],
+    ["schule.moto-app.de", "/api/school/logs"],
+    ["caterer.moto-app.de", "/api/caterer/logs"],
+    ["traeger.moto-app.de", "/api/traeger/logs"],
+    ["ogs-wissingen.moto-app.de", "/api/logs"],
+  ])("ships from %s to %s", async (host, logPath) => {
+    window.location.href = `https://${host}/`;
 
-    expect(await shipOneEntry()).toBe("/api/parent/logs");
-  });
-
-  it("ships to the tenant route on a school subdomain", async () => {
-    window.location.href = "https://ogs-wissingen.moto-app.de/home";
-
-    expect(await shipOneEntry()).toBe("/api/logs");
+    expect(await shipOneEntry()).toBe(logPath);
   });
 });

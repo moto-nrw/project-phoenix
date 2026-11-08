@@ -23,9 +23,11 @@ const { mockAuth, mockApiGet, mockApiPost, mockApiPut } = vi.hoisted(() => ({
   mockApiPut: vi.fn(),
 }));
 
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockAuth,
+  }),
+);
 
 vi.mock("@sentry/nextjs", () => ({ captureException: vi.fn() }));
 

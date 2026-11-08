@@ -1,8 +1,8 @@
 "use client";
 
 // Gemeinsame Bausteine des Formular-Baukastens (#5198): eine Frage
-// bearbeiten, ihre Sichtbarkeitsregel setzen und das Elternformular als
-// Vorschau zeigen. Der Schul-Editor der Online-Anmeldung und das
+// bearbeiten und ihre Sichtbarkeitsregel setzen; die Vorschau des
+// Elternformulars steht in form-preview.tsx. Der Schul-Editor der Online-Anmeldung und das
 // Anmeldeformular eines Ferienzeitraums im Träger-Portal nutzen dieselben
 // Bausteine; welche Feldtypen und Bedingungsquellen eine Seite anbietet,
 // bestimmt sie über Props.
@@ -15,17 +15,13 @@ import {
   useMemo,
   useRef,
   useState,
-  type ReactNode,
 } from "react";
 import { Alert } from "~/components/ui/alert";
 import { InsetPanel } from "~/components/ui/inset-panel";
 import {
   ArrowDown,
   ArrowUp,
-  ChevronDown,
-  Eye,
   GripVertical,
-  HelpCircle,
   Info,
   Lock,
   Plus,
@@ -35,13 +31,12 @@ import { StatusBadge } from "~/components/ui/status-badge";
 import { AttachmentEditor } from "~/components/enrollment/attachment-editor";
 import {
   FileFieldOptionsEditor,
-  FilePreviewInput,
   fieldTypeChangePatch,
 } from "~/components/enrollment/file-field-editor";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
 import { CheckboxCard } from "~/components/ui/checkbox-card";
-import { FieldLabel, RequiredMark } from "~/components/ui/field-label";
+import { FieldLabel } from "~/components/ui/field-label";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -51,12 +46,17 @@ import {
   RESERVED_TARGETS,
   type ConditionOperator,
   type ConditionSource,
-  type FormAttachment,
   type FormField,
   type FormFieldType,
   type VisibilityCondition,
 } from "~/lib/enrollment-form-schema-api";
-import { getStableObjectKey } from "~/lib/stable-object-key";
+import {
+  canAskPerChild,
+  canControlVisibility,
+  hasControllingType,
+  normalizeFieldKey,
+} from "~/lib/enrollment-form-field-rules";
+import { isSupportedGradeLevel } from "~/lib/grade-level";
 
 export const fieldTypeLabels: Record<FormFieldType, string> = {
   boolean: "Ja/Nein",
@@ -131,46 +131,6 @@ export function fieldErrorProps(
   } as const;
 }
 
-// Snake-case-ify a free-form label into a schema-safe field key.
-//
-// Implementation is character-loop based on purpose: the regex form
-// would need `+` / `*` quantifiers on character classes, which are the
-// shape static analysis flags as potentially super-linear under
-// backtracking. The patterns here aren't actually catastrophic (single
-// char classes, no overlapping alternation), but the loop has the same
-// O(n) cost and sidesteps the question. Inputs are also capped \u2014 admin
-// labels never legitimately exceed a few hundred chars.
-export function normalizeFieldKey(value: string): string {
-  const MAX_INPUT = 256;
-  const source = value
-    .slice(0, MAX_INPUT)
-    .trim()
-    .toLowerCase()
-    .normalize("NFD");
-
-  let out = "";
-  let pendingUnderscore = false;
-  for (let i = 0; i < source.length; i++) {
-    const code = source.charCodeAt(i);
-    // Combining diacritical marks introduced by NFD \u2014 skip.
-    if (code >= 0x0300 && code <= 0x036f) continue;
-    const isLower = code >= 0x61 && code <= 0x7a; // a-z
-    const isDigit = code >= 0x30 && code <= 0x39; // 0-9
-    if (isLower || isDigit) {
-      if (pendingUnderscore && out.length > 0) {
-        out += "_";
-      }
-      out += source[i];
-      pendingUnderscore = false;
-    } else {
-      // Any other character \u2192 collapse into a single underscore
-      // (deferred so we don't leave a trailing one).
-      pendingUnderscore = true;
-    }
-  }
-  return out;
-}
-
 function getRequiredHint(field: FormField): string {
   if (field.type === "boolean") {
     return "Eltern müssen Ja oder Nein auswählen.";
@@ -201,11 +161,6 @@ function getRequiredHint(field: FormField): string {
     return "Eltern müssen mindestens eine Datei hochladen.";
   }
   return "Eltern müssen diese Frage beantworten.";
-}
-
-export interface PreviewFieldLabel {
-  label: string;
-  required?: boolean;
 }
 
 interface FieldEditorRowProps {
@@ -346,9 +301,8 @@ export function FieldEditorRow({
       ),
   );
   // Signature of the allowed_times we last pushed up via onChange. Used to
-  // tell an *external* change (a schema/template switch reusing this row at
-  // the same index — the row is keyed by index, not field identity, so the
-  // component instance is not remounted) from a *self-induced* one (our own
+  // tell an *external* change (times written into this field from outside
+  // the row) from a *self-induced* one (our own
   // commit echoing back through field.allowed_times). Only the former resets
   // the local rows; the latter must not, or a half-filled empty row would be
   // wiped on every keystroke.
@@ -420,7 +374,7 @@ export function FieldEditorRow({
         value
           .split(/[,;\s]+/)
           .map((part) => Number(part))
-          .filter((n) => Number.isInteger(n) && n >= 1 && n <= 13),
+          .filter(isSupportedGradeLevel),
       ),
     );
     onChange({ single_mode_grades: grades });
@@ -813,12 +767,12 @@ export function FieldEditorRow({
                     }
                     label="Pro Kind abfragen"
                     hint={
-                      field.type === "file"
-                        ? "Dateien gelten immer für die ganze Anmeldung."
-                        : "Für Fragen zum Kind, etwa zu Allergien oder zum Schwimmen. Die Frage erscheint dann für jedes angemeldete Kind."
+                      canAskPerChild(field)
+                        ? "Für Fragen zum Kind, etwa zu Allergien oder zum Schwimmen. Die Frage erscheint dann für jedes angemeldete Kind."
+                        : "Dateien gelten immer für die ganze Anmeldung."
                     }
                     disabled={
-                      disabled || isTargetField || field.type === "file"
+                      disabled || isTargetField || !canAskPerChild(field)
                     }
                   />
                   {healthToggle ? (
@@ -931,10 +885,7 @@ function ConditionEditor({
 
   const controllers = allFields.filter(
     (f, i) =>
-      i !== index &&
-      f.key.trim() !== "" &&
-      (f.type === "boolean" || f.type === "select") &&
-      (field.applies_to_child || !f.applies_to_child),
+      i !== index && f.key.trim() !== "" && canControlVisibility(f, field),
   );
 
   const sources: ConditionSource[] = [];
@@ -956,16 +907,11 @@ function ConditionEditor({
   if (!canEnable && !condition) {
     const hasQuestionWithoutText = allFields.some(
       (f, i) =>
-        i !== index &&
-        (f.type === "boolean" || f.type === "select") &&
-        (field.applies_to_child || !f.applies_to_child) &&
-        f.key.trim() === "",
+        i !== index && f.key.trim() === "" && canControlVisibility(f, field),
     );
     const hasChildQuestion = allFields.some(
       (f, i) =>
-        i !== index &&
-        (f.type === "boolean" || f.type === "select") &&
-        f.applies_to_child,
+        i !== index && hasControllingType(f) && Boolean(f.applies_to_child),
     );
     const description = hasQuestionWithoutText
       ? "Schreiben Sie zuerst den Fragetext der anderen Ja/Nein- oder Auswahlfrage. Diese Frage kann dann von deren Antwort abhängen."
@@ -1263,256 +1209,5 @@ function ConditionOfferingControls({
         Sichtbar, wenn ein gewähltes Betreuungsangebot diesen Namen trägt.
       </span>
     </div>
-  );
-}
-
-export function PreviewSection({
-  title,
-  description,
-  fields,
-}: Readonly<{
-  title: string;
-  /** One line under the title: where the shown answers come from. */
-  description?: string;
-  fields: readonly (string | PreviewFieldLabel)[];
-}>) {
-  return (
-    <section>
-      <h4 className="text-sm font-semibold text-gray-900">{title}</h4>
-      {description ? (
-        <p className="mt-1 text-xs leading-5 text-gray-500">{description}</p>
-      ) : null}
-      <div className="mt-3 grid gap-2">
-        {fields.map((entry) => {
-          const field = typeof entry === "string" ? { label: entry } : entry;
-          return (
-            <InsetPanel key={field.label} tone="white" padding="compact">
-              <span className="block text-sm font-medium text-gray-500">
-                {field.label}
-                {field.required && <RequiredMark />}
-              </span>
-              <span className="mt-1 block h-2 w-2/3 rounded-full bg-gray-100" />
-            </InsetPanel>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-function ConditionalBadge({ field }: Readonly<{ field: FormField }>) {
-  if (!field.visible_when) return null;
-  return <StatusBadge tone="blue" compact label="bedingt" />;
-}
-
-export function PreviewAttachmentNames({
-  attachments,
-}: Readonly<{ attachments?: FormAttachment[] }>) {
-  if (!attachments?.length) return null;
-  return (
-    <ul className="mt-2 space-y-1 text-sm text-gray-600">
-      {attachments.map((attachment) => (
-        <li key={attachment.document_url}>PDF: {attachment.label}</li>
-      ))}
-    </ul>
-  );
-}
-
-function PreviewCustomField({
-  field,
-  badge,
-}: Readonly<{ field: FormField; badge?: ReactNode }>) {
-  if (field.type === "information") {
-    return (
-      <Alert
-        type="info"
-        size="compact"
-        announce="off"
-        actionLayout="inline"
-        action={
-          field.visible_when ? <ConditionalBadge field={field} /> : undefined
-        }
-        title={field.label.trim() || "Infotext"}
-        message={
-          field.content?.trim() ? (
-            <p className="leading-5 whitespace-pre-line">{field.content}</p>
-          ) : (
-            <p className="leading-5 italic opacity-70">
-              Noch kein Text hinterlegt.
-            </p>
-          )
-        }
-        details={<PreviewAttachmentNames attachments={field.attachments} />}
-      />
-    );
-  }
-
-  return (
-    <InsetPanel tone="white" padding="compact">
-      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
-        <span className="min-w-0 text-sm font-medium break-words text-gray-900">
-          {field.label.trim() || "Neue Zusatzfrage"}
-        </span>
-        <div className="flex flex-wrap items-center gap-1.5">
-          {badge}
-          <ConditionalBadge field={field} />
-          {field.required ? (
-            <StatusBadge tone="gray" compact label="Pflicht" />
-          ) : null}
-        </div>
-      </div>
-      {field.help_text ? (
-        <p className="mt-1 text-xs leading-5 text-gray-500">
-          {field.help_text}
-        </p>
-      ) : null}
-      <PreviewInput field={field} />
-    </InsetPanel>
-  );
-}
-
-function PreviewInput({ field }: Readonly<{ field: FormField }>) {
-  if (field.type === "boolean") {
-    return (
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <span className="flex h-9 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-xs font-medium text-gray-500">
-          Ja
-        </span>
-        <span className="flex h-9 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-xs font-medium text-gray-500">
-          Nein
-        </span>
-      </div>
-    );
-  }
-
-  if (field.type === "select") {
-    const firstOption = field.options?.[0]?.label ?? "Bitte wählen";
-    return (
-      // oxlint-disable-next-line ui-kit/no-hand-rolled-surface -- Nachbildung eines Auswahlfelds in der Formularvorschau, keine Fläche; trägt den Radius der Bedienelemente (#6137)
-      <div className="mt-3 flex h-10 items-center justify-between rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-500 shadow-sm">
-        <span className="min-w-0 truncate">{firstOption}</span>
-        <ChevronDown
-          className="h-4 w-4 shrink-0 text-gray-400"
-          aria-hidden="true"
-        />
-      </div>
-    );
-  }
-
-  if (field.type === "file") {
-    return <FilePreviewInput field={field} />;
-  }
-
-  if (field.type === "textarea") {
-    return (
-      <div className="mt-3 h-16 rounded-lg border border-gray-200 bg-gray-50" />
-    );
-  }
-
-  return (
-    <div className="mt-3 h-9 rounded-lg border border-gray-200 bg-gray-50" />
-  );
-}
-/**
- * The parent form as a preview: a header above it, the sections in it and
- * the send button at its end. Each page decides which fixed sections and
- * which questions it shows.
- */
-export function FormPreview({
-  header,
-  title,
-  intro = "Bitte füllen Sie das Formular vollständig aus.",
-  submitLabel = "Anmeldung absenden",
-  sticky = true,
-  children,
-}: Readonly<{
-  header: ReactNode;
-  title: string;
-  intro?: string;
-  submitLabel?: string;
-  sticky?: boolean;
-  children: ReactNode;
-}>) {
-  return (
-    <div className={sticky ? "sticky top-6 space-y-4" : "space-y-4"}>
-      {header}
-      <SectionCard padding="none">
-        <div className="border-b border-gray-100 px-4 py-4">
-          <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
-          <p className="mt-1 text-sm leading-6 text-gray-500">{intro}</p>
-        </div>
-
-        <div className="space-y-5 p-4">
-          {children}
-          <Button type="button" variant="primary" size="md" className="w-full">
-            {submitLabel}
-          </Button>
-        </div>
-      </SectionCard>
-    </div>
-  );
-}
-
-/** The heading of the preview with its eye icon and an optional status. */
-export function FormPreviewHeading({
-  title,
-  status,
-  hint,
-}: Readonly<{ title: string; status?: ReactNode; hint: string }>) {
-  return (
-    <div className="flex items-start justify-between gap-4">
-      <div>
-        <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-base font-semibold text-gray-900">{title}</h2>
-          {status}
-        </div>
-        <p className="mt-1 max-w-sm text-xs leading-5 text-gray-500">{hint}</p>
-      </div>
-      <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
-        <Eye className="h-4 w-4" aria-hidden="true" />
-      </span>
-    </div>
-  );
-}
-
-/** The questions of a form in the preview, or a hint when there are none. */
-export function PreviewFieldsSection({
-  title,
-  fields,
-  emptyTitle,
-  emptyText,
-  fieldBadge,
-}: Readonly<{
-  title: string;
-  fields: readonly FormField[];
-  emptyTitle: string;
-  emptyText: string;
-  fieldBadge?: (field: FormField) => ReactNode;
-}>) {
-  return (
-    <section>
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h4 className="text-sm font-semibold text-gray-900">{title}</h4>
-        <StatusBadge tone="gray" compact label={String(fields.length)} />
-      </div>
-      {fields.length === 0 ? (
-        <EmptyState
-          variant="dashed"
-          icon={<HelpCircle className="h-5 w-5" />}
-          title={emptyTitle}
-          description={emptyText}
-        />
-      ) : (
-        <div className="space-y-3">
-          {fields.map((field) => (
-            <PreviewCustomField
-              key={getStableObjectKey(field, "preview-field")}
-              field={field}
-              badge={fieldBadge?.(field)}
-            />
-          ))}
-        </div>
-      )}
-    </section>
   );
 }

@@ -46,7 +46,11 @@ export const PUT = createPutHandler(
     if (!VALID_KEY_PATTERN.test(key)) {
       throw bffError(400, "Invalid settings key format");
     }
-    const result = await apiPut(`/api/settings/values/${key}`, token, body);
+    const result = await apiPut(
+      `/api/settings/values/${encodeURIComponent(key)}`,
+      token,
+      body,
+    );
     revalidateTenantIfNeeded(request, key);
     return result;
   },
@@ -62,7 +66,10 @@ export const DELETE = createDeleteHandler(
     if (!VALID_KEY_PATTERN.test(key)) {
       throw bffError(400, "Invalid settings key format");
     }
-    const result = await apiDelete(`/api/settings/values/${key}`, token);
+    const result = await apiDelete(
+      `/api/settings/values/${encodeURIComponent(key)}`,
+      token,
+    );
     revalidateTenantIfNeeded(request, key);
     return result;
   },

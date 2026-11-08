@@ -1,4 +1,4 @@
-import { proxyGet } from "~/lib/route-proxy.server";
+import { proxyGet } from "~/lib/route-wrapper.server";
 
 /**
  * Proxy GET /api/messages/group-threads/audience → backend (#4784). The

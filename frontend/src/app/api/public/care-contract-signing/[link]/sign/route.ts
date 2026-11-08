@@ -7,7 +7,6 @@ import { isCareContractSigningLink } from "~/lib/care-contract-signing-link";
 
 export const POST = createPublicJsonProxy({
   method: "POST",
-  cache: "no-store",
   path: (request, params) => {
     const link = params.link;
     if (typeof link !== "string" || !isCareContractSigningLink(link)) {

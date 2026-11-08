@@ -23,6 +23,4 @@ export const GET = createPublicJsonProxy({
       ? `${path}?late_invite=${encodeURIComponent(lateInvite)}`
       : path;
   },
-  cache: "no-store",
-  contentTypeOnGet: false,
 });
