@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { SidebarAccordionSection } from "./sidebar-accordion-section";
 
 const meta = {
-  title: "components/dashboard/SidebarAccordionSection",
+  title: "components/ui/SidebarAccordionSection",
   component: SidebarAccordionSection,
   args: {
     icon: "M12 6v6m0 0v6m0-6h6m-6 0H6",

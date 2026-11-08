@@ -4,7 +4,7 @@ import { SECTION_LABEL_CLASS } from "~/components/ui/section-label";
 import type { ReactNode } from "react";
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 
-import { UnreadBadge } from "~/components/messaging/unread-badge";
+import { NotificationBadge } from "~/components/ui/notification-badge";
 import { Button } from "~/components/ui/button";
 import { NavSceneIcon } from "~/components/ui/nav-scene-icon/nav-scene-icon";
 import {
@@ -96,7 +96,11 @@ export function SidebarGroup({
                 aria-hidden={!labelsVisible}
                 className={`ml-2 shrink-0 motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-100" : "opacity-0"}`}
               >
-                <UnreadBadge count={badgeCount} tone={badgeTone} />
+                <NotificationBadge
+                  count={badgeCount}
+                  tone={badgeTone}
+                  ariaLabel={`${badgeCount} ungelesene Nachrichten`}
+                />
               </span>
             )}
             <svg
@@ -120,7 +124,11 @@ export function SidebarGroup({
             aria-hidden={labelsVisible}
             className={`absolute top-0 right-1 motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-0" : "opacity-100"}`}
           >
-            <UnreadBadge count={badgeCount} tone={badgeTone} />
+            <NotificationBadge
+              count={badgeCount}
+              tone={badgeTone}
+              ariaLabel={`${badgeCount} ungelesene Nachrichten`}
+            />
           </span>
         )}
       </Button>
