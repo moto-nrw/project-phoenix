@@ -402,7 +402,7 @@ function MonthPeriodSummary({
           </p>
         ))}
         {hasMissingDays && (
-          <p className="text-moto-amber-strong text-sm">
+          <p className="text-moto-amber-strong text-xs">
             Einige Tage haben keinen aktiven Zeitraum.
           </p>
         )}
