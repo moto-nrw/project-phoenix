@@ -4747,26 +4747,39 @@ const NAV_ROW_ARROWS = new Set([
   "ChevronRightIcon",
 ]);
 
-/** Kinder einer Zeile, auch hinter `&&`, `?:` und einer lokalen Konstante. */
-function navRowChildren(element, constants) {
-  const direct = [...flatJsxChildren(element)];
-  for (const child of element.children ?? []) {
-    if (
-      child.type === "JSXExpressionContainer" &&
-      child.expression.type === "Identifier"
-    ) {
-      const init = constants.get(child.expression.name);
-      if (init?.type === "JSXElement") direct.push(init);
-    }
+/** Pfeile auch in bedingten, lokalen `trailing`-Knoten einer Zeile finden. */
+function containsNavRowArrow(node, constants, seen = new Set()) {
+  if (!node) return false;
+  if (node.type === "JSXElement") {
+    if (NAV_ROW_ARROWS.has(jsxName(node.openingElement.name))) return true;
+    return node.children.some((child) =>
+      containsNavRowArrow(child, constants, seen),
+    );
   }
-  return direct;
-}
-
-function isNavRowArrow(element) {
-  if (NAV_ROW_ARROWS.has(jsxName(element.openingElement.name))) return true;
-  return element.children.some(
-    (inner) => inner.type === "JSXText" && inner.value.trim() === "›",
-  );
+  if (node.type === "JSXText") return node.value.trim() === "›";
+  if (node.type === "JSXFragment") {
+    return node.children.some((child) =>
+      containsNavRowArrow(child, constants, seen),
+    );
+  }
+  if (node.type === "JSXExpressionContainer") {
+    return containsNavRowArrow(node.expression, constants, seen);
+  }
+  if (node.type === "Identifier") {
+    if (seen.has(node.name)) return false;
+    seen.add(node.name);
+    return containsNavRowArrow(constants.get(node.name), constants, seen);
+  }
+  if (node.type === "LogicalExpression") {
+    return containsNavRowArrow(node.right, constants, seen);
+  }
+  if (node.type === "ConditionalExpression") {
+    return (
+      containsNavRowArrow(node.consequent, constants, seen) ||
+      containsNavRowArrow(node.alternate, constants, seen)
+    );
+  }
+  return false;
 }
 
 const noHandRolledNavRow = makeRatchetRule({
@@ -4792,8 +4805,9 @@ const noHandRolledNavRow = makeRatchetRule({
       if (!tokens.includes("w-full") && !tokens.includes("justify-between")) {
         return;
       }
-      const arrow = navRowChildren(node, constants).find(isNavRowArrow);
-      if (arrow) found(node);
+      if (node.children.some((child) => containsNavRowArrow(child, constants))) {
+        found(node);
+      }
     },
   }),
 });

@@ -15,7 +15,7 @@
 // selbst aus und zeigt deshalb nie einen Block, dessen Öffnen mit 403
 // scheitern würde.
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import {
   Fragment,
@@ -313,12 +313,6 @@ function TagesplanRow({
       <StatusColorBadge label="Läuft" color={LOCATION_COLORS.GROUP_ROOM} />
     </span>
   ) : null;
-  const chevron = (
-    <ChevronRight
-      className="h-4 w-4 shrink-0 text-gray-400"
-      aria-hidden="true"
-    />
-  );
   const startButton = startable ? (
     <Button
       type="button"
@@ -340,34 +334,32 @@ function TagesplanRow({
   // In einer schmalen Spalte stehen Zeit, Inhalt und Aktion untereinander;
   // Badge, Chevron und Starten-Knopf rücken zusammen ans Ende.
   if (parallel) {
-    const trailing =
-      badge || openable || startButton ? (
-        <span className="flex shrink-0 items-center gap-3">
-          {badge}
-          {openable ? chevron : null}
-          {startButton}
-        </span>
-      ) : null;
     const inner =
       "flex h-full w-full flex-col items-start gap-2 px-3 py-3 @xs:flex-row @xs:items-center @xs:gap-3 @xs:px-4 @xs:py-3.5";
     return (
       <li
-        className="@container border-b border-l-4 border-gray-100"
-        style={{ ...edgeStyle, ...placement }}
+        className={`@container border-b border-gray-100 last:border-b-0 ${
+          openable ? "" : "border-l-4"
+        }`}
+        style={openable ? placement : { ...edgeStyle, ...placement }}
       >
         {openable ? (
-          <button
-            type="button"
+          <ListRowLink
             onClick={() => onOpenSession(instance.activeGroupId as string)}
-            className={`${inner} text-left transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none focus-visible:ring-inset`}
-          >
-            {body}
-            {trailing}
-          </button>
+            icon={timeColumn}
+            title={<span className="font-semibold">{titleContent}</span>}
+            subtitle={detailLines}
+            badge={badge}
+            accent={blockEdgeColor(instance)}
+            accentTint={mine && !cancelled}
+            contentClassName="w-full @xs:w-auto"
+            className="h-full flex-col items-start gap-2 px-3 py-3 @xs:flex-row @xs:items-center @xs:gap-3 @xs:px-4 @xs:py-3.5"
+          />
         ) : (
           <div className={inner}>
             {body}
-            {trailing}
+            {badge}
+            {startButton}
           </div>
         )}
       </li>

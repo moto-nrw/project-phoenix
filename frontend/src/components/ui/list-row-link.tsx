@@ -55,6 +55,8 @@ type ListRowLinkProps = ListRowLinkTarget & {
    * bleibt Legenden und Plänen vorbehalten (ADR 0149).
    */
   readonly unread?: boolean;
+  /** Layout-Klassen für den Textteil, etwa bei einer schmalen Planungsspalte. */
+  readonly contentClassName?: string;
   /** Als einzelne Karte statt als Zeile einer `FramedList`. */
   readonly framed?: boolean;
   /** Führt die Zeile nicht auf eine andere Seite, entfällt der Pfeil. */
@@ -96,6 +98,7 @@ export function ListRowLink({
   accent,
   accentTint = false,
   unread = false,
+  contentClassName,
   framed = false,
   chevron = true,
   className,
@@ -115,7 +118,7 @@ export function ListRowLink({
   ) : null;
 
   const text = stacked ? (
-    <span className="min-w-0 flex-1 space-y-0.5">
+    <span className={cn("min-w-0 flex-1 space-y-0.5", contentClassName)}>
       <span className="flex min-w-0 items-center justify-between gap-2">
         <span className="min-w-0 truncate text-xs font-medium text-gray-500">
           {overline}
@@ -155,7 +158,7 @@ export function ListRowLink({
       ) : null}
     </span>
   ) : (
-    <span className="min-w-0 flex-1">
+    <span className={cn("min-w-0 flex-1", contentClassName)}>
       <span
         className={cn(
           "block text-sm text-gray-900",
@@ -179,22 +182,31 @@ export function ListRowLink({
     </span>
   );
 
+  const chevronIcon = chevron ? (
+    <ChevronRight
+      className={cn(
+        "shrink-0",
+        stacked ? "h-5 w-5" : "h-4 w-4",
+        selected ? "text-moto-green" : "text-gray-400",
+        framed && "group-hover:text-gray-700",
+      )}
+      aria-hidden="true"
+    />
+  ) : null;
+  // In einer schmalen Planungsspalte bleiben Status und Pfeil zusammen.
+  const trailing = stacked ? (
+    chevronIcon
+  ) : marker || chevronIcon ? (
+    <span className="flex shrink-0 items-center gap-3">
+      {marker}
+      {chevronIcon}
+    </span>
+  ) : null;
   const body = (
     <>
       {icon}
       {text}
-      {stacked ? null : marker}
-      {chevron ? (
-        <ChevronRight
-          className={cn(
-            "shrink-0",
-            stacked ? "h-5 w-5" : "h-4 w-4",
-            selected ? "text-moto-green" : "text-gray-400",
-            framed && "group-hover:text-gray-700",
-          )}
-          aria-hidden="true"
-        />
-      ) : null}
+      {trailing}
     </>
   );
 
