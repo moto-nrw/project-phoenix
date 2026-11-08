@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"testing"
 
@@ -65,4 +66,37 @@ func TestSubmissionMailSavepointControlFailureAborts(t *testing.T) {
 
 	err := intake.enqueueSubmissionEmails(context.Background(), 1, &Request{}, nil, "")
 	require.ErrorIs(t, err, controlErr)
+}
+
+// The staff manual enrollment suppresses the submission mails, the opt-in
+// admin notification included (#3780); an ordinary submission sends them.
+func TestNotifySubmissionHonoursSuppression(t *testing.T) {
+	t.Parallel()
+	for _, suppressed := range []bool{false, true} {
+		t.Run(fmt.Sprintf("suppressed=%t", suppressed), func(t *testing.T) {
+			t.Parallel()
+			outbox := &decisionOutboxStub{}
+			intake := NewIntake(IntakeDependencies{
+				Notifications: newNotificationsForTest(NotificationDependencies{}),
+				Outbox:        outbox, Settings: mailSettings{},
+				Logger: slog.New(slog.DiscardHandler),
+				Runtime: Runtime{
+					Savepoint:          func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) },
+					IsSavepointControl: func(error) bool { return false },
+				},
+			})
+			req := &SubmitRequest{TenantID: 7, SuppressSubmissionEmails: suppressed}
+			outcome := &submitOutcome{Request: &Request{GuardianEmail: "parent@example.org"}}
+
+			require.NoError(t, intake.notifySubmission(context.Background(), req, &submissionPlan{}, outcome, false))
+
+			if suppressed {
+				assert.Empty(t, outbox.mails, "a suppressed submission enqueues no mail")
+				return
+			}
+			require.NotEmpty(t, outbox.mails)
+			assert.Equal(t, enrollment.MailKindSubmitted, outbox.mails[0].Kind)
+			assert.Equal(t, enrollment.MailKindAdminNotification, outbox.mails[len(outbox.mails)-1].Kind)
+		})
+	}
 }

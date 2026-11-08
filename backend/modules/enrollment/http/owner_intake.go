@@ -68,28 +68,24 @@ type SubmitRequest struct {
 	// DisplayedFormSchemaID is the form version the parent's form showed
 	// (#4680). Versions never change, so the snapshot proves the shown legal
 	// texts are the stored ones only when it equals the version in force.
-	DisplayedFormSchemaID    int64
-	TenantID                 int64
-	PhaseID                  int64
-	RemoteIP                 string
-	LateInviteToken          string
-	SkipRateLimit            bool
-	AllowClosedPhase         bool
-	SuppressSubmissionEmails bool
-	ExternalConsentConfirmed bool
-	SubmissionSource         string
-	SourceMetadata           map[string]any
-	GuardianFirstName        string
-	GuardianLastName         string
-	GuardianEmail            string
-	GuardianPhone            *string
-	ConsentFlags             map[string]any
-	CustomData               map[string]any
-	GuardianAccountID        *int64
-	GuardianSubmitEligible   bool
-	Children                 []SubmitChild
-	AdditionalGuardians      []SubmitGuardian
-	Signature                *capability.SubmitSignature
+	DisplayedFormSchemaID  int64
+	TenantID               int64
+	PhaseID                int64
+	RemoteIP               string
+	LateInviteToken        string
+	SubmissionSource       string
+	SourceMetadata         map[string]any
+	GuardianFirstName      string
+	GuardianLastName       string
+	GuardianEmail          string
+	GuardianPhone          *string
+	ConsentFlags           map[string]any
+	CustomData             map[string]any
+	GuardianAccountID      *int64
+	GuardianSubmitEligible bool
+	Children               []SubmitChild
+	AdditionalGuardians    []SubmitGuardian
+	Signature              *capability.SubmitSignature
 }
 
 // SubmitChild is one child of a submission with its answers decoded.
@@ -227,8 +223,6 @@ type intakeService struct {
 func encodeSubmitRequest(in SubmitRequest) (capability.SubmitRequest, error) {
 	out := capability.SubmitRequest{
 		TenantID: in.TenantID, PhaseID: in.PhaseID, RemoteIP: in.RemoteIP, LateInviteToken: in.LateInviteToken,
-		SkipRateLimit: in.SkipRateLimit, AllowClosedPhase: in.AllowClosedPhase,
-		SuppressSubmissionEmails: in.SuppressSubmissionEmails, ExternalConsentConfirmed: in.ExternalConsentConfirmed,
 		SubmissionSource: in.SubmissionSource, GuardianFirstName: in.GuardianFirstName,
 		GuardianLastName: in.GuardianLastName, GuardianEmail: in.GuardianEmail, GuardianPhone: in.GuardianPhone,
 		GuardianAccountID: in.GuardianAccountID, GuardianSubmitEligible: in.GuardianSubmitEligible,

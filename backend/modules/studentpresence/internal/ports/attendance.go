@@ -51,4 +51,7 @@ type AttendanceStore interface {
 	// DeleteAttendanceBefore deletes the tenant's attendance dated before
 	// cutoff (#3957).
 	DeleteAttendanceBefore(context.Context, Date) (Stats, error)
+	// AttendanceDeletedBefore reads how far the retention deleted the
+	// tenant's attendance; false while it deleted nothing (#4686).
+	AttendanceDeletedBefore(context.Context) (Date, bool, Stats, error)
 }

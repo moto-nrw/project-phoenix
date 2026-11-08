@@ -108,6 +108,14 @@ type CareContractSchoolSettings interface {
 	ResolveString(ctx context.Context, key string) (string, error)
 }
 
+// TraegerSchoolSettings are the settings of the schools the Träger routes
+// read: the contract mode of a school and, for the Mensa of the monthly
+// run, the attendance retention of its schools (#4686).
+type TraegerSchoolSettings interface {
+	CareContractSchoolSettings
+	owners.MealAttendanceSchoolSettings
+}
+
 // careContractModes binds how a school concludes its contracts to the
 // setting care_contract.conclusion_mode (#4680). An unknown value is an
 // error, never the default: the registry admits only the two values.

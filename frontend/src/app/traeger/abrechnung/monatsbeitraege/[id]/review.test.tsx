@@ -42,6 +42,7 @@ function invoice(child: string, contractId: string): CareInvoice {
     number: "",
     issuedOn: null,
     contractId,
+    service: "care",
     schoolId: "3",
     schoolName: "Grundschule Ispringen",
     childFirstName: child,
@@ -52,6 +53,7 @@ function invoice(child: string, contractId: string): CareInvoice {
     costShares: [],
     totalCents: 7750,
     exclusion: null,
+    mealPositions: [],
   };
 }
 
@@ -93,6 +95,9 @@ const RUN: CareRunDetail = {
   excludedCount: 1,
   excludedCents: 7750,
   fingerprint: "f1",
+  mealGaps: [],
+  mealUnbilled: [],
+  mealChanged: [],
   costBearers: [],
 };
 

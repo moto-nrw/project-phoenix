@@ -25,6 +25,7 @@ import {
   CareUnpricedCard,
 } from "~/components/traeger/care-run-invoices";
 import { CareLettersSummaryCard } from "~/components/traeger/care-letters-summary-card";
+import { CareRunMealsCard } from "~/components/traeger/care-run-meals";
 import { runDueDatesText } from "~/components/traeger/billing-payment-format";
 import { invoiceDateLabel } from "~/components/traeger/care-review-format";
 import {
@@ -409,7 +410,7 @@ export default function TraegerCareRunPage() {
                 </span>
               </DataField>
               <DataField label="Abgerechnet wird">
-                Nach Vertrag, nicht nach Anwesenheit
+                Module nach Vertrag, Mensa nach Freigabe der Schule
               </DataField>
               <DataField label="Vertrag ändert sich im Monat">
                 {run.monthRule ? MONTH_RULE_LABELS[run.monthRule] : "–"}
@@ -470,6 +471,13 @@ export default function TraegerCareRunPage() {
           ) : null}
           <CareDuplicatesCard duplicates={run.duplicates} released={!preview} />
           {preview ? <CareUnpricedCard unpriced={run.unpriced} /> : null}
+          {preview ? (
+            <CareRunMealsCard
+              gaps={run.mealGaps}
+              unbilled={run.mealUnbilled}
+              changed={run.mealChanged}
+            />
+          ) : null}
           {preview ? (
             <CareExcludedCard
               invoices={excluded}

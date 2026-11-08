@@ -98,3 +98,15 @@ func TestFamilyKeyIsTheTrimmedLowerCaseAddress(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, "eva@example.org", parentbilling.FamilyKey("  Eva@Example.org "))
 }
+
+// The Mensa travels on the care's invoice unless the Träger bills it apart;
+// a bundling BillingServices does not allow is an invoice of its own (#4686).
+func TestInvoiceServiceOfTheMensa(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, parentbilling.ServiceCare, parentbilling.TermsSet{}.InvoiceService(parentbilling.ServiceMeal), "the default")
+	apart := parentbilling.TermsSet{parentbilling.ServiceMeal: {Service: parentbilling.ServiceMeal, BundleWith: ""}}
+	assert.Equal(t, parentbilling.ServiceMeal, apart.InvoiceService(parentbilling.ServiceMeal))
+	holiday := parentbilling.TermsSet{parentbilling.ServiceMeal: {Service: parentbilling.ServiceMeal, BundleWith: parentbilling.ServiceHoliday}}
+	assert.Equal(t, parentbilling.ServiceMeal, holiday.InvoiceService(parentbilling.ServiceMeal), "the holiday care carries no Mensa")
+	assert.Equal(t, parentbilling.ServiceCare, parentbilling.TermsSet{}.InvoiceService(parentbilling.ServiceCare))
+}

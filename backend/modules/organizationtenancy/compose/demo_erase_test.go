@@ -74,6 +74,12 @@ var visitorTraceCounts = map[string]string{
 	// (ADR 0158 E5); the visitor's child carries the visitor's last name.
 	"parent_billing.care_run_holds": `SELECT count(*) FROM parent_billing.care_run_holds
 		WHERE school_ids @> ARRAY[?0]::bigint[] AND child_last_name = '` + visitorLast + `'`,
+	// The Mensa month the school released (#4686) copies the names of its
+	// children; the visitor's child carries the visitor's last name. It
+	// belongs to the Träger and outlives the school.
+	"schedule.meal_billing_month_children": `SELECT count(*) FROM schedule.meal_billing_month_children AS child
+		JOIN schedule.meal_billing_months AS month ON month.organization_id = child.organization_id AND month.id = child.month_id
+		WHERE month.school_id = ?0 AND child.last_name = '` + visitorLast + `'`,
 	// A holiday registration belongs to the Träger and outlives the school
 	// too; the visitor reaches it through the public holiday link (#6015).
 	// It names the school only as the home school of a child.
@@ -233,6 +239,21 @@ func leaveVisitorTraces(t *testing.T, db *bun.DB, schoolID int64) visitorAccount
 			jsonb_build_array(jsonb_build_object('contract_id', invoice.care_contract_id, 'school_id', ?0, 'school_name', 'OGS')),
 			'[{"module_name":"Betreuung bis 14:00 Uhr","weekday":"mon"}]'::jsonb
 		FROM parent_billing.care_invoices AS invoice WHERE invoice.school_id = ?0`,
+		// The OGS released March for the Mensa (#4686): the visitor's child
+		// with its name and a child row without one, and the Träger billed
+		// the month on the invoice.
+		`WITH month AS (
+			INSERT INTO schedule.meal_billing_months (organization_id, school_id, billing_month, child_count, meal_count)
+			SELECT organization_id, ?0, DATE '2026-03-01', 2, 2 FROM platform.schools WHERE id = ?0
+			RETURNING id, organization_id)
+		INSERT INTO schedule.meal_billing_month_children (organization_id, month_id, student_id, first_name, last_name,
+			registered_days, meal_days)
+		SELECT organization_id, id, ?1, 'Mia', '` + visitorLast + `', 3, 2 FROM month
+		UNION ALL SELECT organization_id, id, ?1 + 1, '', '', 1, 0 FROM month`,
+		`INSERT INTO parent_billing.care_meal_positions (organization_id, invoice_id, position, school_id, student_id, meal_month,
+			mode, quantity, unit_cents, amount_cents, net_cents)
+		SELECT organization_id, id, 1, ?0, ?1, DATE '2026-03-01', 'per_meal', 2, 480, 960, 960
+		FROM parent_billing.care_invoices WHERE school_id = ?0`,
 	} {
 		_, err := db.NewRaw(statement, schoolID, student.ID, guardian.ID, parent.ID).Exec(ctx)
 		require.NoError(t, err, statement)
@@ -1005,4 +1026,44 @@ func TestDemoSchoolQueueErasesTheMonthlyRowsOfTheRetiredSchool(t *testing.T) {
 	assert.Zero(t, remainingRows(t, db, "parent_billing.care_run_events", reads), "no read naming its contracts")
 	assert.Equal(t, len(openPositions), remainingRows(t, db, "parent_billing.care_invoice_positions", openPositions))
 	assert.Equal(t, len(openReads), remainingRows(t, db, "parent_billing.care_run_events", openReads))
+}
+
+// mealMonthRows are the Mensa rows of the school that name no one or only
+// by ID (#4686): its releases, their children and the Mensa positions of
+// its invoices.
+func mealMonthRows(t *testing.T, db *bun.DB, schoolID int64) (months, children, positions []int64) {
+	t.Helper()
+	require.NoError(t, db.NewRaw(`SELECT id FROM schedule.meal_billing_months WHERE school_id = ? ORDER BY id`, schoolID).Scan(t.Context(), &months))
+	require.NoError(t, db.NewRaw(`SELECT child.id FROM schedule.meal_billing_month_children AS child
+		JOIN schedule.meal_billing_months AS month ON month.organization_id = child.organization_id AND month.id = child.month_id
+		WHERE month.school_id = ? ORDER BY child.id`, schoolID).Scan(t.Context(), &children))
+	require.NoError(t, db.NewRaw(`SELECT id FROM parent_billing.care_meal_positions WHERE school_id = ? ORDER BY id`, schoolID).Scan(t.Context(), &positions))
+	return months, children, positions
+}
+
+// The Mensa months a retired demo school released, their children with and
+// without a name and the Mensa positions of its invoices go with the
+// visitor (1.15.811). A school of the same Träger that is still open keeps
+// them.
+func TestDemoSchoolQueueErasesTheMealMonthsOfTheRetiredSchool(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	openID := schoolOfOrganization(t, db, schoolID, false)
+	accounts := leaveVisitorTraces(t, db, schoolID)
+	leaveVisitorTraces(t, db, openID)
+	months, children, positions := mealMonthRows(t, db, schoolID)
+	require.Len(t, months, 1, "the fixture leaves a release")
+	require.Len(t, children, 2, "with a named child and one without a name")
+	require.Len(t, positions, 1, "and a Mensa position")
+	openMonths, openChildren, openPositions := mealMonthRows(t, db, openID)
+
+	retireVisitorOrder(t, db, schoolID, accounts)
+
+	assert.Zero(t, remainingRows(t, db, "schedule.meal_billing_months", months), "no release of the retired school")
+	assert.Zero(t, remainingRows(t, db, "schedule.meal_billing_month_children", children), "no child of it, named or not")
+	assert.Zero(t, remainingRows(t, db, "parent_billing.care_meal_positions", positions), "no Mensa position of its invoices")
+	assert.Equal(t, len(openMonths), remainingRows(t, db, "schedule.meal_billing_months", openMonths))
+	assert.Equal(t, len(openChildren), remainingRows(t, db, "schedule.meal_billing_month_children", openChildren))
+	assert.Equal(t, len(openPositions), remainingRows(t, db, "parent_billing.care_meal_positions", openPositions))
 }

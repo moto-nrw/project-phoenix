@@ -52,6 +52,14 @@
   ],
   "data_objects": [
     {
+      "name": "schedule.meal_billing_months",
+      "write_owner": "meal-plan"
+    },
+    {
+      "name": "schedule.meal_billing_month_children",
+      "write_owner": "meal-plan"
+    },
+    {
       "name": "schedule.meal_plan_entries",
       "write_owner": "meal-plan"
     },
