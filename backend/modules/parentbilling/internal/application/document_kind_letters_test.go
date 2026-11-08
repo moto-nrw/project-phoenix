@@ -191,6 +191,7 @@ func TestCareFeeNoticeFillsTheTemplateAndItsLegalRemedy(t *testing.T) {
 		assert.Contains(t, text, want)
 	}
 	assert.Empty(t, missingLetterValuesOf(templateKindOf(parentbilling.DocumentKindFeeNotice), careNoticeValues(content)))
+	assert.NotContains(t, text, "Rechnungsnummer", "a notice names no invoice number")
 
 	cancellation := parentbilling.CareCancellation{Number: "MB-2027-0009", Reason: "Vertrag endete", TotalCents: -5401,
 		IssuedOn: *content.invoice.IssuedOn}

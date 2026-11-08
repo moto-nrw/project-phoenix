@@ -270,7 +270,7 @@ func careNoticeValues(content careLetterContent) map[string]templates.Value {
 		"positionen":      {Rows: rows},
 		"summe":           text(formatEuro(invoice.TotalCents)),
 		// The built-in sentence names the number of the notice (#4688).
-		"zahlungshinweis": text(strings.ReplaceAll(carePaymentText(content), "die Rechnungsnummer ", "die Bescheidnummer ")),
+		"zahlungshinweis": text(strings.ReplaceAll(carePaymentText(content), "Rechnungsnummer", "Bescheidnummer")),
 		"datum":           {},
 		"zahlen_bis":      {},
 	}
