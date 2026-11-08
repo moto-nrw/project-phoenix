@@ -473,9 +473,13 @@ Die Annahmen des Entwurfs gelten mit diesen Abweichungen:
    Erfolg ersetzen. Punkt 2 und Punkt 5 (F8) regeln das.
 9. **Zeilenergebnisse überleben den Savepoint.** `determineImportAction`
    trägt Zeilenfehler wie `already_exists` und `not_found` sofort in das
-   Chunk-Ergebnis ein (`import_service.go:428–443`). Der Entwurf setzt beim
-   Rollback nur die Config zurück. Ein Ergebnis aus Schritt 2 bliebe stehen
-   und würde beim Replay ein zweites Mal gezählt. Punkt 2 regelt das.
+   Chunk-Ergebnis ein (`import_service.go:428–443`), bei einer Zeile mit
+   Validierungswarnung in place in deren bestehenden Eintrag
+   (`appendRowErrors`, `:317–321`). Der Entwurf setzt beim Rollback nur die
+   Config zurück. Ein Ergebnis aus Schritt 2 bliebe stehen oder würde beim
+   Replay ein zweites Mal gezählt; ein Rücksetzen über Längen und Zähler
+   fängt den In-place-Fall nicht. Punkt 2 regelt das (Invariante
+   Chunk-Rollback).
 
 ### Entscheidung
 
@@ -516,33 +520,81 @@ Die Annahmen des Entwurfs gelten mit diesen Abweichungen:
    liefert die neue Suche für Zeile 2 im Update-Modus `not_found`, wie im
    heutigen Zeilenpfad.
 
+   **Invariante Chunk-Rollback.** Nach einem Chunk-Rollback ist der gesamte
+   Ergebniszustand des Imports bytegleich mit dem Zustand vor dem Chunk.
+   Gemeint sind alle Zeilenergebnisse, Fehler und Warnungen, auch die in
+   place geänderten Einträge, ihre Reihenfolge und Zeitstempel, alle Zähler
+   und der Zustand der Config. Der Replay beginnt also auf genau dem Stand,
+   auf dem heute der Zeilenpfad den Chunk beginnt, und das Ergebnis danach
+   entspricht exakt dem sequenziellen Lauf.
+
+   Ablauf je Chunk, nach Import-Lock, Checkpoint und Vorlast
+   (`batches.go:284–298`):
+
+   0. `SAVEPOINT chunk`, einmal vor dem ersten Segment.
+
    Segmente mit weniger als zwei Zeilen nehmen den Zeilenpfad. Je endgültig
-   unabhängigem Segment:
-   1. `ResolveChunk` als geschützter Read (Savepoint, wie
+   unabhängigem Segment, nacheinander im selben Savepoint:
+   1. `ResolveChunk` als geschützter Read (eigener Savepoint, wie
       `student_import_preview.go:70`); scheitert er, gilt `FindExisting` je
       Zeile wie heute.
    2. `determineImportAction` je Zeile in Verarbeitungsreihenfolge,
       unverändert.
-   3. `SAVEPOINT chunk`, Batch-Kommandos, `RELEASE`.
-   4. Jeder Fehler in Schritt 3, auch `40P01`/`40001`: `ROLLBACK TO
-      SAVEPOINT chunk`, Zeilenergebnisse und Zähler zurücksetzen (unten),
-      Speicherzustand der Config verwerfen (Namenskonsum, Staff-Index,
-      `rolesByID`, Command-Observations), erneut `PreloadReferenceData`,
-      dann das Segment in derselben Transaktion im Zeilenpfad wiederholen
-      (Replay). Der Replay bestimmt das Ergebnis.
+   3. Batch-Kommandos des Segments.
+   4. Jeder Fehler in Schritt 1 bis 3, auch `40P01`/`40001`, in irgendeinem
+      Segment: `ROLLBACK TO SAVEPOINT chunk`, Ergebniszustand nach der
+      Invariante wiederherstellen (unten), dann den ganzen Chunk in derselben
+      Transaktion im Zeilenpfad wiederholen (Replay). Der Replay bestimmt das
+      Ergebnis.
 
-   **Zurücksetzen der Zeilenergebnisse.** Vor Schritt 1 hält der Executor den
-   Stand des Chunk-Ergebnisses fest: `Errors` (Länge), `ErrorCount`,
-   `WarningCount`, `CreatedCount`, `UpdatedCount`. Beim Rollback setzt er
-   genau auf diesen Stand zurück. Damit fällt alles weg, was Schritt 1 bis 3
-   dieses Segments eingetragen haben, auch `duplicate_check_failed`,
-   `already_exists` und `not_found`; die Validierungsfehler des Chunks
-   (`importValidationSlice`, `batches.go:413–431`) und die Ergebnisse
-   früherer Segmente bleiben. Der Replay trägt dann jede Zeile genau einmal
-   ein. Danach entspricht das Chunk-Ergebnis in Inhalt, Reihenfolge und
-   Zählern exakt dem sequenziellen Lauf.
+   Nach dem letzten Segment `RELEASE SAVEPOINT chunk`, dann der Checkpoint
+   wie heute.
 
-   **Retry-Budget.** Ein `40P01`/`40001` aus Schritt 3 verlässt die
+   **Mechanismus: Puffer je Chunk neu aufbauen.** Das Chunk-Ergebnis ist
+   heute schon ein Puffer: `execute` baut es je Versuch mit
+   `importValidationSlice` neu aus den Validierungsergebnissen
+   (`batches.go:300`, `:413–431`; die Fehlerlisten werden dabei kopiert,
+   `:428`), und `writeBatches` übernimmt es erst nach dem Commit in das
+   Gesamtergebnis (`:256`; bei Abbruch nur mit Zählern 0, `:248–251`). Beim
+   Chunk-Rollback verwirft der Executor diesen Puffer und baut ihn auf
+   dieselbe Weise neu, wie es die Wiederholung einer Transaktion schon tut.
+   Die Config baut er ebenfalls neu: `BatchWriteConfig` erneut bzw. die
+   unveränderte Config, dann `PreloadReferenceData`. Das ist einfacher als
+   ein tiefer Snapshot, der jede Struktur einzeln kopieren und vollständig
+   bleiben müsste, und als ein Puffer je Segment, der Einträge mit dem
+   Eintrag derselben Zeile zusammenführen müsste (`appendRowErrors` hält
+   einen Eintrag je Zeile, `import_service.go:312–330`). Ein Rücksetzen über
+   Längen und Zähler genügt nicht: `appendRowErrors` ergänzt einen
+   bestehenden Eintrag in place (`import_service.go:317–321`). Hat Zeile 2
+   eine Warnung aus der Validierung und erhält in Schritt 2 `already_exists`,
+   bliebe der Fehler stehen, obwohl der Replay Zeile 2 nach dem Fehler in
+   Zeile 1 nie erreicht.
+
+   **Schreibstellen auf den Ergebniszustand.** Der Neuaufbau deckt sie alle
+   ab, weil keine davon in einen Zustand außerhalb des Chunk-Puffers oder
+   der neu gebauten Config schreibt:
+
+   | Zustand | Schreibstelle |
+   |---|---|
+   | Eintrag einer Zeile in `Errors`, in place ergänzt (Fehlerliste und `Timestamp`) oder neu angelegt | `import_service.go:317–321`, `:324–329` (`appendRowErrors`); Aufrufer `recordWarnings` `:333–335`, `recordBlockingErrors` `:338–341`, `countChildQuota` `:377–384`, `recordWillUpdateInfo` `:394–401`, `recordDuplicateCheckError` `:474–483`, `recordAlreadyExistsError` `:485–494`, `recordNotFoundError` `:496–505`, `recordCreationError` `:507–516`, `recordUpdateError` `:518–527` |
+   | `ErrorCount` | `import_service.go:340`, `:383`, `:481`, `:492`, `:503`, `:514`, `:525`; `batches.go:425` |
+   | `WarningCount` | `import_service.go:282` (Validierung); `batches.go:427` |
+   | `CreatedCount`, `UpdatedCount` | `batches.go:402`, `:409`; `import_service.go:357`, `:362`, `:459`, `:469` (Vorschau und Legacy-`Import()`) |
+   | `ChildQuotaRequested` | `import_service.go:387` (nur Vorschau) |
+   | `StartedAt`, `CompletedAt` des Chunks | `batches.go:301`, `:306`; Gesamtergebnis `:253`, `:264`, `mergeImportBatch` `:464–474` |
+   | `BulkActions` | `batches.go:265` (nach allen Chunks) |
+   | Config: Namenskonsum der Student-Anlage | `student_import_write_batch.go:50–53` (`delete(persons.names, …)`) |
+   | Config: Staff-Index | `staff_import_owner.go:74–107` (`indexStaff`/`unindexStaff`), Aufrufe `:250`, `:430–431` |
+   | Config: Rollen | `staff_import_owner.go:26–30`; `staff_import_config.go:618–621` |
+   | Config: Anfangssalden | `opening_balance_import_config.go:60–89` (nur in `PreloadReferenceData`) |
+
+   Keine Schreibstelle hält einen Zeiger auf `r.validated` oder auf das
+   Gesamtergebnis. Kommt eine hinzu, gilt die Invariante auch für sie; der
+   Regressionstest unten fällt sonst. Die Observation (`batches.go:137–146`,
+   `:281`) ist Telemetrie, kein Ergebniszustand: Sie behält die Kommandos
+   des abgebrochenen Batches und erhält `batch_fallback`.
+
+   **Retry-Budget.** Ein `40P01`/`40001` aus Schritt 1 bis 3 verlässt die
    Transaktion nicht: Der Executor fängt ihn wie jeden anderen Fehler im
    Savepoint ab (`ROLLBACK TO SAVEPOINT` hebt den abgebrochenen Teil auf und
    gibt dessen Sperren frei), merkt sich am Versuchsobjekt, das die Laufzeit
@@ -614,7 +666,7 @@ Die Annahmen des Entwurfs gelten mit diesen Abweichungen:
    | F2 Import-Lock, Checkpoint, Vorlast im Chunk | 500 `import.import_batch_failed` | gleich, unverändert vor dem Segment | frühere Chunks |
    | F3 `ResolveChunk` scheitert | – (gibt es heute nicht) | kein Ausgang: Rollback des Read-Savepoints, dann `FindExisting` je Zeile wie heute | – |
    | F4 Match-Fehler je Zeile, `already_exists`, `not_found` | Zeilenfehler, Chunk läuft weiter | gleich, gleiche Reihenfolge | wie heute |
-   | F5 Batch-Kommando scheitert (SQL-Fehler, `BusinessRejection`, Owner-Fehler) | – | kein Ausgang: `ROLLBACK TO SAVEPOINT chunk`, Zeilenergebnisse auf den Stand vor dem Segment, dann Replay | – |
+   | F5 Batch-Kommando scheitert (SQL-Fehler, `BusinessRejection`, Owner-Fehler) | – | kein Ausgang: `ROLLBACK TO SAVEPOINT chunk`, Ergebniszustand nach der Invariante wiederhergestellt, dann Replay des Chunks | – |
    | F6 Replay scheitert in Zeile k | 500 `import.import_batch_failed`; 409 mit `details.rejection` bei `BusinessRejection` | gleich: dieselbe erste Fehlerzeile, derselbe Zeilenfehler, dieselben Details (etwa `occupied_places`, `requested_places`), dieselben bestätigten Zähler | frühere Chunks; vom Chunk nichts |
    | F7 Replay gelingt | – | Chunk committet wie heute; Observation `batch_fallback` | frühere Chunks und dieser Chunk |
    | F8 `40P01`/`40001` im Batchpfad | – | wie F5, im selben Versuch; kein Versuch verbraucht; der Chunk bleibt für alle Wiederholungen im Zeilenpfad (Punkt 2, Retry-Budget) | wie heute |
@@ -793,13 +845,19 @@ Jeder Schritt prüft:
 - **Fehler in Zeile k:** k = 1, 5, 10 von 10 und k = 1, 55, 101, 110 von 110
   per Trigger, je Owner-Tabelle; Status, Code, Zeilenfehler, bestätigte
   Zähler und Persistenz wie im Zeilenpfad.
-- **Zeilenergebnisse:** Zeile 2 ist `already_exists` (bzw. `not_found` im
-  Update), das Batch-Kommando scheitert an Zeile 1. Nach dem Replay sind
-  `Errors` (Inhalt, Reihenfolge), `ErrorCount`, `WarningCount`,
-  `CreatedCount` und `UpdatedCount` identisch mit dem erzwungenen
-  Zeilenpfad; kein Zeilenfehler doppelt, keiner verloren. Dasselbe mit einem
-  `duplicate_check_failed` aus `ResolveChunk` und mit zwei Segmenten im
-  Chunk, von denen das zweite zurückrollt.
+- **Invariante Chunk-Rollback (Regressionstest):** Zeile 2 trägt aus der
+  Validierung eine Warnung (etwa `no_login` beim Staff ohne E-Mail) und
+  erhält in Schritt 2 `already_exists`; Zeile 1 scheitert per Trigger im
+  Batch und im Replay. Verglichen mit dem erzwungenen Zeilenpfad sind
+  `Errors` (Einträge, Fehlerlisten, Reihenfolge), `ErrorCount`,
+  `WarningCount`, `CreatedCount`, `UpdatedCount`, Antwort-JSON ohne
+  Timestamps und Receipt gleich: Zeile 2 trägt nur die Warnung, weil der
+  Replay sie nie erreicht. Gegenprobe: Gegen eine Variante, die nur
+  `len(Errors)` und die Zähler zurücksetzt, wird der Test rot; der PR
+  belegt das mit der Ausgabe. Dasselbe mit `not_found` im Update, mit
+  `duplicate_check_failed` aus `ResolveChunk` und mit zwei Segmenten, deren
+  zweites scheitert. Bei erfolgreichem Replay (Fehler nur im Batch) gilt
+  derselbe Vergleich.
 - **Sperren, parallele Schreiber (E10, Auflage 5):** Real-DB-Tests mit zwei
   Verbindungen und PostgreSQL-Sperrbeobachtung. (a) Ein blockierender,
   aufsteigend sperrender Schreiber (Student-Edit mit Begleitern,
