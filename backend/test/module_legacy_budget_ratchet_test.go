@@ -231,7 +231,10 @@ var moduleLegacyFileBudgets = map[string]int{
 // modules/parentbilling/compose adds exactly 5 LOC.
 // ADR 0163: the office's decision of the parents' changes of
 // modules/carecontract/compose (+5) adds exactly 5 LOC.
-const moduleComposeBudgetTotal = 13081
+// ADR 0166: the Mensa-Monatsfreigabe of modules/mealplan/compose (+31) and
+// the Mensa of the monthly run of modules/parentbilling/compose (+7) add
+// exactly 38 LOC.
+const moduleComposeBudgetTotal = 13119
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -284,7 +287,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/guardianlinkview/compose":             8,
 	// Raised by ADR 0106: the Träger-Büro account management (+24).
 	"modules/identityaccess/compose": 1371, // raised by ADR 0077
-	"modules/mealplan/compose":       74,   // raised by ADR 0078
+	"modules/mealplan/compose":       105,  // raised by ADR 0078 and ADR 0166
 	// ADR 0097: the isolated tenant return constructor, no retained logic moved.
 	// Raised by ADR 0112: the Träger master data constructor (+13).
 	// Raised by ADR 0148: the demo school file erasure constructor (+10).
@@ -304,7 +307,7 @@ var moduleComposeBudgets = map[string]int{
 	// termination (+35); ADR 0163: the office's decision of the parents' changes (+5).
 	"modules/carecontract/compose": 178,
 	// Raised by ADR 0158: the monthly contribution constructor (+5).
-	"modules/parentbilling/compose":               55,
+	"modules/parentbilling/compose":               62, // raised by ADR 0166
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	"modules/peopledirectory/compose":    973,

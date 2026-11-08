@@ -98,16 +98,18 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/traeger/billing-runs/{id}/documents/{documentID}/credits"}:      notCaptured,
 	// The monthly contribution of the care contract (#4684): the price list
 	// and the monthly runs of a Träger, no school to count it for.
-	{http.MethodPut, "/traeger/care-tariffs/"}:                          notCaptured,
-	{http.MethodDelete, "/traeger/care-tariffs/{schoolID}/{validFrom}"}: notCaptured,
-	{http.MethodPost, "/traeger/care-billing-runs/"}:                    notCaptured,
-	{http.MethodPost, "/traeger/care-billing-runs/{id}/release"}:        notCaptured,
-	{http.MethodPost, "/traeger/care-rules/"}:                           notCaptured,
-	{http.MethodPut, "/traeger/care-rules/{id}"}:                        notCaptured,
-	{http.MethodDelete, "/traeger/care-rules/{id}"}:                     notCaptured,
-	{http.MethodPost, "/traeger/care-evidences/"}:                       notCaptured,
-	{http.MethodPut, "/traeger/care-evidences/{id}"}:                    notCaptured,
-	{http.MethodDelete, "/traeger/care-evidences/{id}"}:                 notCaptured,
+	{http.MethodPut, "/traeger/care-tariffs/"}:                               notCaptured,
+	{http.MethodDelete, "/traeger/care-tariffs/{schoolID}/{validFrom}"}:      notCaptured,
+	{http.MethodPost, "/traeger/care-billing-runs/"}:                         notCaptured,
+	{http.MethodPost, "/traeger/care-billing-runs/{id}/release"}:             notCaptured,
+	{http.MethodPut, "/traeger/care-meal-tariffs/"}:                          notCaptured,
+	{http.MethodDelete, "/traeger/care-meal-tariffs/{schoolID}/{validFrom}"}: notCaptured,
+	{http.MethodPost, "/traeger/care-rules/"}:                                notCaptured,
+	{http.MethodPut, "/traeger/care-rules/{id}"}:                             notCaptured,
+	{http.MethodDelete, "/traeger/care-rules/{id}"}:                          notCaptured,
+	{http.MethodPost, "/traeger/care-evidences/"}:                            notCaptured,
+	{http.MethodPut, "/traeger/care-evidences/{id}"}:                         notCaptured,
+	{http.MethodDelete, "/traeger/care-evidences/{id}"}:                      notCaptured,
 	// The care contracts and their templates (#4678, ADR 0153) belong to
 	// the Träger, not to a school.
 	{http.MethodPost, "/traeger/contracts/"}:       notCaptured,

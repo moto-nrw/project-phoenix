@@ -167,7 +167,7 @@ type traegerMealRow struct {
 
 // TraegerMonths reads the released months of the Träger up to until. The
 // function answers only in the Träger transaction of the Träger it names.
-func (s *BillingMonthStore) TraegerMonths(ctx context.Context, organizationID int64, until calendar.Date) ([]mealplan.ReleasedMealMonth, error) {
+func (s *BillingMonthStore) TraegerMonths(ctx context.Context, organizationID int64, until calendar.Date) ([]domain.ReleasedMealRow, error) {
 	db, err := s.traeger(ctx, organizationID)
 	if err != nil {
 		return nil, err
@@ -177,18 +177,32 @@ func (s *BillingMonthStore) TraegerMonths(ctx context.Context, organizationID in
 		FROM schedule.traeger_meal_billing_children(?)`, until).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("read the released meal months of the Träger: %w", err)
 	}
-	result := []mealplan.ReleasedMealMonth{}
-	for _, row := range rows {
-		last := len(result) - 1
-		if last < 0 || result[last].SchoolID != row.SchoolID || result[last].Month != row.BillingMonth {
-			result = append(result, mealplan.ReleasedMealMonth{SchoolID: row.SchoolID, Month: row.BillingMonth,
-				ReleasedAt: row.ReleasedAt, Children: []mealplan.ReleasedMealChild{}})
-			last++
-		}
+	result := make([]domain.ReleasedMealRow, len(rows))
+	for i, row := range rows {
+		result[i] = domain.ReleasedMealRow{SchoolID: row.SchoolID, Month: row.BillingMonth, ReleasedAt: row.ReleasedAt}
 		if row.StudentID.Valid {
-			result[last].Children = append(result[last].Children, mealplan.ReleasedMealChild{StudentID: row.StudentID.Int64,
-				FirstName: row.FirstName.String, LastName: row.LastName.String, MealDays: int(row.MealDays.Int64)})
+			result[i].Child = &domain.ReleasedMealChild{StudentID: row.StudentID.Int64, FirstName: row.FirstName.String,
+				LastName: row.LastName.String, MealDays: int(row.MealDays.Int64)}
 		}
 	}
 	return result, nil
+}
+
+// NewTraegerDatabase resolves the Träger transaction of organizationID from
+// the runtime's accessors; any other transaction is an error.
+func NewTraegerDatabase(transactionFromContext func(context.Context) (any, bool), traegerOf func(context.Context) int64) TraegerDatabase {
+	return func(ctx context.Context, organizationID int64) (bun.IDB, error) {
+		if organizationID <= 0 || traegerOf(ctx) != organizationID {
+			return nil, errors.New("meal plan postgres: the Träger transaction of this Träger is required")
+		}
+		transaction, ok := transactionFromContext(ctx)
+		if !ok {
+			return nil, errors.New("meal plan postgres: transaction is required")
+		}
+		tx, ok := transaction.(bun.Tx)
+		if !ok {
+			return nil, fmt.Errorf("meal plan postgres: unsupported transaction %T", transaction)
+		}
+		return tx, nil
+	}
 }

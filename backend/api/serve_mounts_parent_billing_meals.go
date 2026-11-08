@@ -11,7 +11,9 @@ import (
 
 // parentBillingCareMeals translates the released Mensa months of Meal Plan
 // for the monthly run (#4686). Both run in the caller's Träger transaction.
-type parentBillingCareMeals struct{ months mealplanModule.TraegerMealMonths }
+type parentBillingCareMeals struct {
+	months mealplanModule.TraegerMealMonths
+}
 
 func newParentBillingCareMeals() parentBillingCareMeals {
 	return parentBillingCareMeals{months: mealplanCompose.NewTraegerMealMonths()}

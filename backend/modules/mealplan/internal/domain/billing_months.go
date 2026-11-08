@@ -24,3 +24,20 @@ type StoredBillingMonth struct {
 	MealCount  int
 	Children   []BillingChild
 }
+
+// ReleasedMealChild is a child of a release as the Träger reads it.
+type ReleasedMealChild struct {
+	StudentID int64
+	FirstName string
+	LastName  string
+	MealDays  int
+}
+
+// ReleasedMealRow is one row of the Träger's read: a released month of a
+// school and one of its children, nil for a release without children.
+type ReleasedMealRow struct {
+	SchoolID   int64
+	Month      calendar.Date
+	ReleasedAt time.Time
+	Child      *ReleasedMealChild
+}

@@ -304,6 +304,7 @@ func billContract(month calendar.Date, rule string, versions []parentbilling.Car
 	invoice := parentbilling.CareInvoice{
 		ContractID: head.ContractID, SchoolID: head.SchoolID, SchoolName: head.SchoolName,
 		ChildFirstName: head.ChildFirstName, ChildLastName: head.ChildLastName, Positions: []parentbilling.CarePosition{},
+		MealPositions: []parentbilling.CareMealPosition{},
 	}
 	daysInMonth := month.DaysUntil(monthEnd(month)) + 1
 	var unpriced []parentbilling.CareUnpriced

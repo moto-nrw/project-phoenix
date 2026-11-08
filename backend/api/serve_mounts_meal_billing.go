@@ -11,6 +11,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	mealplanAPI "github.com/moto-nrw/project-phoenix/modules/mealplan/http"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/roots/owners"
 )
 
 // mealBillingErrorRules name the refusals of the Mensa-Monatsfreigabe
@@ -22,6 +25,17 @@ var mealBillingErrorRules = append([]apiCommon.ErrorRule{
 	{Target: mealplanModule.ErrBillingMonthNoTraeger, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorConflictWithCode, errors.New(mealplanModule.ErrBillingMonthNoTraeger.Detail), apiCommon.CodeMealsBillingMonthNoTraeger)},
 	{Target: mealplanModule.ErrInvalidBillingMonth, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorInvalidRequestWithCode, errors.New(mealplanModule.ErrInvalidBillingMonth.Detail), apiCommon.CodeMealsBillingMonthInvalid)},
 }, mealPlanErrorRules...)
+
+// mountMealBillingMonths builds the Mensa-Monatsfreigabe over the Meal
+// Plan, the school calendar and the attendance and mounts it.
+func mountMealBillingMonths(tenant chi.Router, mealPlan mealplanModule.Capability, days schoolcalendar.Days, attendance studentpresence.Owner) error {
+	months, err := owners.BuildMealBillingMonths(mealPlan, days, attendance)
+	if err != nil {
+		return err
+	}
+	tenant.Mount("/meal-billing-months", newMealBillingMonthResource(months).Router())
+	return nil
+}
 
 // newMealBillingMonthResource serves the Mensa-Monatsfreigabe at
 // /meal-billing-months in the school transaction.

@@ -205,36 +205,51 @@ func mealTariffOn(tariffs []parentbilling.CareMealTariff, schoolID int64, month 
 func billMeals(month *careMonth, in careMealInput) {
 	month.mealGaps, month.mealUnbilled = []parentbilling.CareMealGap{}, []parentbilling.CareMealUnbilled{}
 	from := calendar.NewDate(in.month.Year(), in.month.Month()-(careMealHorizon-1), 1)
-	released := map[[2]any]parentbilling.CareMealRelease{}
+	released := map[CareMealKey]parentbilling.CareMealRelease{}
 	for _, release := range in.releases {
-		released[[2]any{release.SchoolID, release.Month}] = release
+		released[CareMealKey{SchoolID: release.SchoolID, Month: release.Month}] = release
 	}
 	for _, school := range mealSchools(in.tariffs) {
 		for m := from; !m.After(in.month); m = monthEnd(m).AddDays(1) {
-			if _, priced := mealTariffOn(in.tariffs, school, m); !priced {
+			tariff, priced := mealTariffOn(in.tariffs, school, m)
+			if !priced {
 				continue
 			}
-			release, ok := released[[2]any{school, m}]
+			release, ok := released[CareMealKey{SchoolID: school, Month: m}]
 			if !ok {
-				if monthEnd(m).Before(in.today) {
-					month.mealGaps = append(month.mealGaps, parentbilling.CareMealGap{SchoolID: school, SchoolName: in.schools[school], Month: m})
-				}
+				addMealGap(month, in, school, m)
 				continue
 			}
-			tariff, _ := mealTariffOn(in.tariffs, school, m)
-			for _, child := range release.Children {
-				key := CareMealKey{SchoolID: school, StudentID: child.StudentID, Month: m}
-				if in.billed[key] {
-					continue
-				}
-				position, ok := mealPosition(tariff, key, child)
-				if !ok {
-					continue
-				}
-				placeMeal(month, in, position, child, in.schools[school])
-			}
+			billRelease(month, in, tariff, release)
 		}
 	}
+	sortMealInvoices(month)
+}
+
+// addMealGap names an ended month a school bills its Mensa for without a
+// release.
+func addMealGap(month *careMonth, in careMealInput, school int64, m calendar.Date) {
+	if monthEnd(m).Before(in.today) {
+		month.mealGaps = append(month.mealGaps, parentbilling.CareMealGap{SchoolID: school, SchoolName: in.schools[school], Month: m})
+	}
+}
+
+// billRelease bills each child of a release not billed for its month yet.
+func billRelease(month *careMonth, in careMealInput, tariff parentbilling.CareMealTariff, release parentbilling.CareMealRelease) {
+	for _, child := range release.Children {
+		key := CareMealKey{SchoolID: release.SchoolID, StudentID: child.StudentID, Month: release.Month}
+		if in.billed[key] {
+			continue
+		}
+		if position, ok := mealPosition(tariff, key, child); ok {
+			placeMeal(month, in, position, child, in.schools[release.SchoolID])
+		}
+	}
+}
+
+// sortMealInvoices orders the Mensa months of each invoice and the invoices
+// as the preview does.
+func sortMealInvoices(month *careMonth) {
 	for i := range month.invoices {
 		slices.SortFunc(month.invoices[i].MealPositions, func(a, b parentbilling.CareMealPosition) int { return a.MealMonth.Compare(b.MealMonth) })
 	}

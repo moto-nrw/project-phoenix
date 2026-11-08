@@ -151,6 +151,8 @@ var seedCoverageTransient = map[string]string{
 	"parent_billing.care_run_holds":          "children a release held back for a duplicate contract (#4684, ADR 0158 E5); present only after a release that found one, which the seed's contracts never are",
 	"parent_billing.care_invoice_positions":  "positions of the monthly invoices above (#4684); present exactly when an invoice is",
 	"parent_billing.care_invoice_reductions": "reductions of the monthly invoices above (#4685); present once an issued invoice has one, which needs the invoices above",
+	"schedule.meal_billing_month_children":   "children of a released Mensa month (#4686); a month is released only after its end, and the seed's meal registrations start in the current week, so the month the seed releases has none until a seed of the next month",
+	"parent_billing.care_meal_positions":     "Mensa months on the monthly invoices (#4686); present once an issued invoice bills a released month with meals, which needs the children above",
 	"platform.push_outbox":                   "transient delivery state that requires an honest browser/VAPID-bound push subscription, which the server-side seed cannot create",
 	"platform.email_suppressions":            "addresses that bounced for good or complained (#5932); the local mail catcher never refuses an address",
 	"platform.email_delivery_events":         "events a mail provider reports after sending (#5932); the seed stack sends to the local mail catcher, which reports none",

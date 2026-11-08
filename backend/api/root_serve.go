@@ -557,13 +557,8 @@ func composeServeRoot(
 				membership, classListEntries, databaseStats, dataImports, persons, gradeTransition, enrollmentResource, env.Config.AppEnv, weekProtocolSeed, env.HealthData)
 			mountPeopleRoutes(tenant, db, logger, reports, renderer, persons, services.Guardian, identity, caller, feedback, mealPlan,
 				birthdays, emergency, settings.Service, GuardianEmailDelivery{Outcomes: delivery.Runtime.EmailOutcomes, Suppressions: delivery.Runtime.EmailReconciliation}, audit.Persistence.DataAccessLog)
-			billingMonths, err := owners.BuildMealBillingMonths(mealPlan, calendar, presence.Presence)
-			if err != nil {
-				return err
-			}
-			tenant.Mount("/meal-billing-months", newMealBillingMonthResource(billingMonths).Router())
 			mountCalendarRoutes(router, tenant, logger, calendarApp)
-			return errors.Join(mountCommunicationRoutes(tenant, chat, announcements, reminders, deliveryDevices, communication),
+			return errors.Join(mountMealBillingMonths(tenant, mealPlan, calendar, presence.Presence), mountCommunicationRoutes(tenant, chat, announcements, reminders, deliveryDevices, communication),
 				mountDeliveryRoutes(router, tenant, logger, fileStore, parent, hub, caller, identity))
 		},
 		func() error { return mountCatererPortal(router, tenant, limiters, identity, mealPlan, organizations) },

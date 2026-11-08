@@ -1,17 +1,6 @@
 {
   "entries": [
     {
-      "adr": "0098",
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.BillingMonth",
-      "classification": "platform",
-      "effect": "scope",
-      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.BillingMonth",
-      "reason": "Platform protocol participation (scope): the Mensa-Monatsfreigabe (#4686) reaches tenant.TransactionRunner.RunInTx (tenant-runtime) and joins the caller's school transaction; transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
-      "source_owner": "meal-plan",
-      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
-      "target_owner": "tenant-runtime"
-    },
-    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.BillingMonth",
       "classification": "query",
       "effect": "query",
@@ -51,28 +40,6 @@
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListAttendance",
       "target_owner": "student-presence"
-    },
-    {
-      "adr": "0098",
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.BillingMonthOverview",
-      "classification": "platform",
-      "effect": "scope",
-      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.BillingMonthOverview",
-      "reason": "Platform protocol participation (scope): the Mensa-Monatsfreigabe (#4686) reaches tenant.TransactionRunner.RunInTx (tenant-runtime) and joins the caller's school transaction; transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
-      "source_owner": "meal-plan",
-      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "adr": "0098",
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.ReleaseBillingMonth",
-      "classification": "platform",
-      "effect": "scope",
-      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.ReleaseBillingMonth",
-      "reason": "Platform protocol participation (scope): the Mensa-Monatsfreigabe (#4686) reaches tenant.TransactionRunner.RunInTx (tenant-runtime) and joins the caller's school transaction; transaction, savepoint and lock-order correctness stay with the platform behavior tests (ADR 0098).",
-      "source_owner": "meal-plan",
-      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
-      "target_owner": "tenant-runtime"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.ReleaseBillingMonth",

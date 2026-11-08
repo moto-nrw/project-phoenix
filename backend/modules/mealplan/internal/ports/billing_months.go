@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/mealplan"
 	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -25,5 +24,5 @@ type BillingMonthStore interface {
 	InsertRelease(ctx context.Context, organizationID, accountID int64, month domain.StoredBillingMonth) (time.Time, error)
 	// TraegerMonths reads the released months up to until of the Träger in
 	// its Träger transaction.
-	TraegerMonths(ctx context.Context, organizationID int64, until calendar.Date) ([]mealplan.ReleasedMealMonth, error)
+	TraegerMonths(ctx context.Context, organizationID int64, until calendar.Date) ([]domain.ReleasedMealRow, error)
 }

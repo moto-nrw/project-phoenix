@@ -23,11 +23,7 @@ func BuildMealBillingMonths(mealPlan mealplanModule.Capability, calendarRecords 
 	if mealPlan == nil || calendarRecords == nil || attendance == nil {
 		return nil, errors.New("meal billing months: the meal plan, the school calendar and the attendance are required")
 	}
-	return mealplanCompose.NewBillingMonths(mealplanCompose.BillingMonthDependencies{
-		Meals:    mealPlan,
-		Calendar: mealPlanCalendar(calendarRecords),
-		Presence: mealBillingPresence(attendance),
-	})
+	return mealplanCompose.NewBillingMonths(mealPlan, mealPlanCalendar(calendarRecords), mealBillingPresence(attendance))
 }
 
 // mealBillingPresence names per day the children with an attendance row,

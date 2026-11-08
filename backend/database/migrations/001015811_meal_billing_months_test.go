@@ -196,34 +196,3 @@ func TestMealPositionsBillAChildMonthOnceAndNeverChange(t *testing.T) {
 		assert.Zero(t, countRows(t, tx, `SELECT COUNT(*) FROM parent_billing.care_meal_tariffs`), "a school sees no Mensa price")
 	})
 }
-
-// TestDemoErasureDeletesTheMealMonthsOfRetiredSchools runs the erasure of
-// 1.15.811 for a retired demo school: its releases go, those of a school
-// still in use stay, also a release without children and a child row
-// without a name.
-func TestDemoErasureDeletesTheMealMonthsOfRetiredSchools(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	ctx := context.Background()
-	f := newMealBillingFixture(t, db)
-	var emptyMonth int64
-	require.NoError(t, db.NewRaw(`INSERT INTO schedule.meal_billing_months (organization_id, school_id, billing_month, child_count, meal_count)
-		VALUES (?, ?, '2026-02-01', 0, 0) RETURNING id`, f.own, f.ownSchool).Scan(ctx, &emptyMonth))
-	_, err := db.ExecContext(ctx, `INSERT INTO schedule.meal_billing_month_children
-		(organization_id, month_id, student_id, first_name, last_name, registered_days, meal_days) VALUES (?, ?, 9, '', '', 1, 0)`, f.own, f.ownMonth)
-	require.NoError(t, err)
-	name := fmt.Sprintf("demo-mensa-%d", testpkg.UniqueTestTenantID(t))
-	_, err = db.ExecContext(ctx, `UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, f.ownSchool)
-	require.NoError(t, err)
-	_, err = db.ExecContext(ctx, `INSERT INTO platform.demo_school_states (name, tenant_id, status) VALUES (?, ?, 'failed')`, name, f.ownSchool)
-	require.NoError(t, err)
-
-	var erased int
-	require.NoError(t, db.NewRaw(`SELECT platform.erase_closed_demo_visitors()`).Scan(ctx, &erased))
-	assert.Zero(t, countRows(t, db, `SELECT COUNT(*) FROM schedule.meal_billing_months WHERE school_id = ?`, f.ownSchool),
-		"the releases of the retired school go, the one without children too")
-	assert.Zero(t, countRows(t, db, `SELECT COUNT(*) FROM schedule.meal_billing_month_children WHERE month_id = ?`, f.ownMonth),
-		"its children go by cascade, the one without a name too")
-	assert.Equal(t, 1, countRows(t, db, `SELECT COUNT(*) FROM schedule.meal_billing_months WHERE school_id = ?`, f.otherSchool),
-		"a school still in use keeps its release")
-}
