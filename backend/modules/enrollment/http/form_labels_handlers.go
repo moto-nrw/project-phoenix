@@ -13,9 +13,10 @@ import (
 )
 
 // FormLabelsResponse names a request's answers with the questions of the
-// form version it is pinned to (#6142). The change request view keys its
-// rows by field and consent key; without these it could only show the keys.
-// Both lists are empty when the request has no pinned version.
+// form version and legal texts it displayed (#6142). The change request view
+// keys its rows by field and consent key; without these it could only show the
+// keys. Both lists are empty when the request has neither snapshot nor form
+// version.
 type FormLabelsResponse struct {
 	Fields      []FormLabelField      `json:"fields"`
 	LegalBlocks []FormLabelLegalBlock `json:"legal_blocks"`

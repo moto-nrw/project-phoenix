@@ -1608,6 +1608,9 @@ function useLocalizedFormLabels(
   locale: string,
 ): EnrollmentFormLabels | null {
   const [labels, setLabels] = useState<EnrollmentFormLabels | null>(null);
+  useLayoutEffect(() => {
+    setLabels(null);
+  }, [token, enabled]);
   useEffect(() => {
     if (!enabled) return;
     let cancelled = false;

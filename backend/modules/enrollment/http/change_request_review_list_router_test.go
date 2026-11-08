@@ -42,6 +42,8 @@ type reviewListEnv struct {
 	requestID int64
 	childIDs  []int64
 	accountID int64
+	schemas   capability.FormSchemaAdministration
+	schemaID  int64
 	token     string
 	// statusToken is the family's status link token of the request.
 	statusToken string
@@ -170,6 +172,8 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 		requestID:   submitted.Request.ID,
 		childIDs:    []int64{submitted.Children[0].ID, submitted.Children[1].ID},
 		accountID:   accountID,
+		schemas:     schemaSvc,
+		schemaID:    schema.ID,
 		statusToken: submitted.Request.StatusToken,
 	}
 	claims := sessiontoken.AppClaims{

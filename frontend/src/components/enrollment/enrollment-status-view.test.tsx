@@ -262,6 +262,46 @@ describe("EnrollmentStatusView", () => {
     expect(mockGetEnrollmentFormLabels).toHaveBeenCalledWith("tok");
   });
 
+  it("clears labels from the previous status link when the next load fails", async () => {
+    mockFetchStatus.mockResolvedValueOnce(status());
+    mockListEnrollmentChangeRequests.mockResolvedValueOnce([
+      changeRequest({
+        base_snapshot: { children: [{ custom_data: { allergies: "keine" } }] },
+        proposed_snapshot: {
+          children: [{ custom_data: { allergies: "Nüsse" } }],
+        },
+        diff: { changed: ["children"] },
+      }),
+    ]);
+    mockGetEnrollmentFormLabels.mockResolvedValueOnce({
+      fields: [
+        { key: "allergies", label: "Allergien", applies_to_child: true },
+      ],
+      legal_blocks: [],
+    });
+
+    const view = render(<EnrollmentStatusView token="tok" />);
+    expect(await screen.findByText("Kind 1 · Allergien")).toBeInTheDocument();
+
+    mockFetchStatus.mockResolvedValueOnce(status());
+    mockListEnrollmentChangeRequests.mockResolvedValueOnce([
+      changeRequest({
+        base_snapshot: { children: [{ custom_data: { allergies: "keine" } }] },
+        proposed_snapshot: {
+          children: [{ custom_data: { allergies: "Nüsse" } }],
+        },
+        diff: { changed: ["children"] },
+      }),
+    ]);
+    mockGetEnrollmentFormLabels.mockRejectedValueOnce(new Error("offline"));
+    view.rerender(<EnrollmentStatusView token="other-token" />);
+
+    expect(
+      await screen.findByText("Kind 1 · Zusatzangaben · allergies"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Kind 1 · Allergien")).not.toBeInTheDocument();
+  });
+
   it("keeps open change requests visible but hides second creation", async () => {
     mockFetchStatus.mockResolvedValueOnce(
       status({

@@ -219,6 +219,37 @@ describe("AdminEnrollmentChangeRequestDetail", () => {
     expect(screen.getByText("Neuer Hinweis")).toBeInTheDocument();
   });
 
+  it("clears labels from a previous request when loading the next request fails", async () => {
+    mocks.getAdminEnrollmentChangeRequest.mockResolvedValueOnce(
+      baseChangeRequest,
+    );
+    mocks.getAdminEnrollmentFormLabels.mockResolvedValueOnce({
+      fields: [{ key: "note", label: "Hinweis für die OGS" }],
+      legal_blocks: [],
+    });
+
+    const view = render(
+      <AdminEnrollmentChangeRequestDetail changeRequestId="42" />,
+    );
+    expect(await screen.findByText("Hinweis für die OGS")).toBeInTheDocument();
+
+    mocks.getAdminEnrollmentChangeRequest.mockResolvedValueOnce({
+      ...baseChangeRequest,
+      id: "43",
+      request_id: "8",
+      base_snapshot: { custom_data: { note: "Alter Hinweis" } },
+      proposed_snapshot: { custom_data: { note: "Neuer Hinweis" } },
+      diff: { changed: ["custom_data"] },
+    });
+    mocks.getAdminEnrollmentFormLabels.mockRejectedValueOnce(
+      new Error("offline"),
+    );
+    view.rerender(<AdminEnrollmentChangeRequestDetail changeRequestId="43" />);
+
+    expect(await screen.findByText("note")).toBeInTheDocument();
+    expect(screen.queryByText("Hinweis für die OGS")).not.toBeInTheDocument();
+  });
+
   it("renders admin corrections as read-only audit entries", async () => {
     mocks.getAdminEnrollmentChangeRequest.mockResolvedValueOnce({
       ...baseChangeRequest,

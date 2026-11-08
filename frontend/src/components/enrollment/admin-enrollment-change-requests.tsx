@@ -107,8 +107,11 @@ export function AdminEnrollmentChangeRequestDetail({
   const [formLabels, setFormLabels] = useState<EnrollmentFormLabels | null>(
     null,
   );
+  useLayoutEffect(() => {
+    setFormLabels(null);
+  }, [changeRequestId, requestId]);
   useEffect(() => {
-    if (!requestId) return;
+    if (!requestId || data?.id !== changeRequestId) return;
     let cancelled = false;
     getAdminEnrollmentFormLabels(requestId)
       .then((labels) => {
@@ -124,7 +127,7 @@ export function AdminEnrollmentChangeRequestDetail({
     return () => {
       cancelled = true;
     };
-  }, [requestId]);
+  }, [changeRequestId, data?.id, requestId]);
 
   const handleQuestion = async () => {
     const body = question.trim();

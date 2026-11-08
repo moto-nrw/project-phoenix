@@ -2,20 +2,18 @@ package enrollment
 
 import "context"
 
-// RequestFormLabels name a request's answers with the questions the parent
-// answered (#6142). Fields come from the form version the request is pinned
-// to, empty when it has none. LegalBlocks are the consents the request is
-// validated against, followed by the pinned version's switched-off blocks,
-// so a consent stored before the school switched it off keeps its title.
+// RequestFormLabels name a request's answers with the questions and consents
+// the parent saw (#6142). Fields and legal blocks come from the latest
+// submission snapshot when available; legacy requests fall back to their
+// pinned form version and current legal texts.
 type RequestFormLabels struct {
 	Fields      []FormField
 	LegalBlocks []LegalBlock
 }
 
 // IntakeFormLabels reads the labels of a request. A change request compares
-// answers of the same request, and the change form renders the same pinned
-// version, so the labels stay those of the snapshot even after the school
-// edits its form.
+// answers of the same request, so historical labels must remain stable after
+// the school edits its form or legal texts.
 type IntakeFormLabels interface {
 	// FormLabels loads the labels of a request of the school in context.
 	// The caller runs it in its tenant transaction; a request of another

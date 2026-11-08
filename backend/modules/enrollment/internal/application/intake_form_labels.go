@@ -40,25 +40,37 @@ func (s *Intake) FormLabelsByStatusToken(ctx context.Context, token string) (*en
 }
 
 func (s *Intake) requestFormLabels(ctx context.Context, req *Request) (*enrollmentNative.RequestFormLabels, error) {
+	snapshot, hasSnapshot := latestLegalBlocksSnapshot(req)
 	var schema *enrollmentNative.FormSchema
-	if req.SchemaID != nil {
-		loaded, err := s.intakeSchema(ctx, *req.SchemaID)
+	if schemaID := formLabelsSchemaID(req, snapshot); schemaID != nil {
+		loaded, err := s.intakeSchema(ctx, *schemaID)
 		if err != nil {
-			return nil, fmt.Errorf("form labels: load pinned schema: %w", err)
+			return nil, fmt.Errorf("form labels: load displayed schema: %w", err)
 		}
 		schema = loaded
 	}
-	blocks, err := s.resolveSubmissionLegalBlocks(ctx, schema)
-	if err != nil {
-		return nil, fmt.Errorf("form labels: resolve legal blocks: %w", err)
+	labels := &enrollmentNative.RequestFormLabels{}
+	if hasSnapshot {
+		// The snapshot is immutable evidence of what the parent saw. In
+		// particular, tenant-wide legal texts cannot be reconstructed after a
+		// school changes them.
+		labels.LegalBlocks = snapshotLegalBlocks(snapshot.Blocks)
+	} else {
+		blocks, err := s.resolveSubmissionLegalBlocks(ctx, schema)
+		if err != nil {
+			return nil, fmt.Errorf("form labels: resolve legal blocks: %w", err)
+		}
+		labels.LegalBlocks = blocks
 	}
-	labels := &enrollmentNative.RequestFormLabels{LegalBlocks: blocks}
 	if schema == nil {
 		return labels, nil
 	}
 	labels.Fields = schema.Fields
-	seen := make(map[string]bool, len(blocks))
-	for _, b := range blocks {
+	if hasSnapshot {
+		return labels, nil
+	}
+	seen := make(map[string]bool, len(labels.LegalBlocks))
+	for _, b := range labels.LegalBlocks {
 		seen[b.Key] = true
 	}
 	for _, b := range schema.LegalBlocks {
@@ -71,4 +83,54 @@ func (s *Intake) requestFormLabels(ctx context.Context, req *Request) (*enrollme
 		})
 	}
 	return labels, nil
+}
+
+func latestLegalBlocksSnapshot(req *Request) (LegalBlocksSnapshotEntry, bool) {
+	if req == nil || len(req.LegalBlocksSnapshot) == 0 {
+		return LegalBlocksSnapshotEntry{}, false
+	}
+	return req.LegalBlocksSnapshot[len(req.LegalBlocksSnapshot)-1], true
+}
+
+// formLabelsSchemaID selects the form version the parent saw. Earlier
+// snapshots did not record that version, so their request schema remains the
+// best available fallback.
+func formLabelsSchemaID(req *Request, snapshot LegalBlocksSnapshotEntry) *int64 {
+	if snapshot.DisplayedFormSchemaID != 0 {
+		id := snapshot.DisplayedFormSchemaID
+		return &id
+	}
+	if req == nil {
+		return nil
+	}
+	return req.SchemaID
+}
+
+func snapshotLegalBlocks(blocks []LegalBlockSnapshot) []enrollmentNative.LegalBlock {
+	if len(blocks) == 0 {
+		return nil
+	}
+	labels := make([]enrollmentNative.LegalBlock, 0, len(blocks))
+	for _, block := range blocks {
+		labels = append(labels, enrollmentNative.LegalBlock{
+			Key: block.Key, Title: block.Title,
+			Translations: snapshotTranslations(block.Translations),
+		})
+	}
+	return labels
+}
+
+func snapshotTranslations(values map[string]map[string]string) enrollmentNative.Translations {
+	if len(values) == 0 {
+		return nil
+	}
+	translations := make(enrollmentNative.Translations, len(values))
+	for locale, attributes := range values {
+		translated := make(map[string]enrollmentNative.TranslatedText, len(attributes))
+		for attribute, text := range attributes {
+			translated[attribute] = enrollmentNative.TranslatedText{Text: text}
+		}
+		translations[locale] = translated
+	}
+	return translations
 }
