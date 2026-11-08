@@ -340,3 +340,22 @@ type PendingAccountWideWipe struct {
 	Reason    string
 	CreatedAt time.Time
 }
+
+// SessionKind is the rules the refresh token's session follows; a scope no
+// persisted portal carries has none.
+func (c RefreshClaims) SessionKind() (SessionKind, bool) {
+	portal, ok := PortalOfClaim(c.Scope)
+	if !ok || !portal.Persisted {
+		return "", false
+	}
+	return SessionKindOf(portal, c.OrgID > 0), true
+}
+
+// SessionKind is the rules the access token's session follows.
+func (c SessionClaims) SessionKind() (SessionKind, bool) {
+	portal, ok := PortalOfClaim(c.Scope)
+	if !ok || !portal.Persisted {
+		return "", false
+	}
+	return SessionKindOf(portal, c.ViaTraeger), true
+}

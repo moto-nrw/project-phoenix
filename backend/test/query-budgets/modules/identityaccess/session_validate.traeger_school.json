@@ -1,0 +1,6 @@
+{
+  "scenario": "identity.session_validate.traeger_school",
+  "max": 13,
+  "exact": true,
+  "description": "modules/identityaccess — POST /auth/session/validate without a refresh token, which the BFF asks on every page view (#5399). One administrative transaction (BEGIN, SET LOCAL ROLE, ..., COMMIT) reads, without row locks and without claims, the family, the account, then the session policy's facts through the definitions the refresh's guard reads under its locks (sessionPolicy.check), the MFA floor and the school the refresh keeps the session at. Facts: the Träger memberships, the Träger roles (right \"In OGS wechseln\") and the school of the Träger (4). MFA floor (school policy): permissions, global and school override, security.mfa_mode (4; the session is a tenant session of the school). "
+}

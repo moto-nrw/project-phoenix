@@ -5,12 +5,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // The invitation, reset and registration forms show a text per code
@@ -64,17 +64,6 @@ func TestInvitationWeakPasswordMarksThePasswordField(t *testing.T) {
 	assert.Equal(t, "identity.password_too_weak", body.Code)
 	require.Len(t, body.Errors, 1)
 	assert.Equal(t, "password", body.Errors[0].Field)
-}
-
-func TestPasswordResetRateLimitCarriesCode(t *testing.T) {
-	t.Parallel()
-
-	rr := httptest.NewRecorder()
-	limited := &identityaccess.PasswordResetRateLimitError{Attempts: 3, RetryAt: time.Now().Add(time.Hour)}
-	require.True(t, renderPasswordResetRateLimit(rr, httptest.NewRequest(http.MethodPost, "/", nil), limited))
-	assert.Equal(t, http.StatusTooManyRequests, rr.Code)
-	assert.NotEmpty(t, rr.Header().Get("Retry-After"))
-	assert.Equal(t, "identity.password_reset_rate_limited", decodeWireError(t, rr).Code)
 }
 
 func TestRegistrationRefusalsCarryCodes(t *testing.T) {

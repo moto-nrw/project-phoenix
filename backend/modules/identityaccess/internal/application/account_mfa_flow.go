@@ -514,10 +514,10 @@ func (f *AccountMFAFlows) RevokeTrustedDevice(ctx context.Context, accountID, te
 	return identityaccess.ErrMFAPermissionDenied
 }
 
-// challengeDeviceHint is the remember-device line of a code mail. A Träger
-// challenge has no school and remembers no device, so its mail offers none.
+// challengeDeviceHint is the remember-device line of a code mail; a portal
+// that remembers no device offers none.
 func (f *AccountMFAFlows) challengeDeviceHint(ctx context.Context, tenantID int64, scope string) (bool, int) {
-	if scope == domain.PortalOrg.Name {
+	if portal, ok := domain.PortalNamed(scope); !ok || !portal.TrustedDevice {
 		return false, 0
 	}
 	return f.trustedDeviceHint(ctx, tenantID)
@@ -606,7 +606,7 @@ func (f *AccountMFAFlows) recordAuthEvent(ctx context.Context, event domain.Auth
 type schoolLedgerKey struct{}
 
 func schoollessMFAContext(ctx context.Context, scope string) context.Context {
-	if scope != domain.PortalOrg.Name && scope != domain.PortalCaterer.Name {
+	if portal, ok := domain.PortalNamed(scope); !ok || !portal.Schoolless() {
 		return ctx
 	}
 	return withoutSchoolLedgerContext(ctx)

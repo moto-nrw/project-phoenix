@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"sort"
 	"strings"
 	"time"
@@ -117,7 +118,7 @@ func (s *OperatorAuthentication) loginWithMFAGate(ctx context.Context, email, pa
 		trusted = ok
 	}
 	if !trusted {
-		challenge, err := s.mfa.StartChallenge(ctx, operator.ID, ipAddress)
+		challenge, err := s.mfa.StartChallenge(ctx, operator.ID, net.ParseIP(strings.TrimSpace(ipAddress)))
 		if err != nil {
 			return nil, fmt.Errorf("start operator mfa challenge: %w", err)
 		}
@@ -168,11 +169,11 @@ func (s *OperatorAuthentication) validateCredentials(ctx context.Context, email,
 }
 
 func (s *OperatorAuthentication) authenticatedResult(ctx context.Context, operator domain.Operator, ipAddress string) (*domain.OperatorLoginResult, error) {
-	access, refresh, err := s.issueTokenPair(ctx, operator, ipAddress)
+	issued, access, refresh, err := s.issueTokenPair(ctx, operator.ID, ipAddress)
 	if err != nil {
 		return nil, err
 	}
-	return &domain.OperatorLoginResult{Status: domain.LoginStatusAuthenticated, AccessToken: access, RefreshToken: refresh, Operator: &operator}, nil
+	return &domain.OperatorLoginResult{Status: domain.LoginStatusAuthenticated, AccessToken: access, RefreshToken: refresh, Operator: &issued}, nil
 }
 
 // IssueTokensForAuthenticatedOperator mints a token pair for an operator
@@ -185,30 +186,26 @@ func (s *OperatorAuthentication) IssueTokensForAuthenticatedOperator(ctx context
 		return "", "", errOperatorAuthenticationUnavailable
 	}
 	defer func() { err = operatorError(err) }()
-	ctx = bindRuntime(s.attach, ctx)
-	operator, err := s.operators.findOperatorByID(ctx, operatorID)
-	if errors.Is(err, identityaccess.ErrOperatorNotFound) {
-		return "", "", identityaccess.ErrOperatorNotFound
-	}
-	if err != nil {
-		return "", "", fmt.Errorf("failed to find operator: %w", err)
-	}
-	if !operator.Active {
-		return "", "", identityaccess.ErrOperatorInactive
-	}
-	return s.issueTokenPair(ctx, operator, ipAddress)
+	_, access, refresh, err := s.issueTokenPair(bindRuntime(s.attach, ctx), operatorID, ipAddress)
+	return access, refresh, err
 }
 
-// issueTokenPair persists the refresh session, stamps the login and writes
-// the login audit row in one administrative transaction, and signs the pair
-// inside it: a login that cannot be recorded issues no session.
-func (s *OperatorAuthentication) issueTokenPair(ctx context.Context, operator domain.Operator, ipAddress string) (access, refresh string, err error) {
-	session := s.newRefreshSession(operator.ID, "", 0)
+// issueTokenPair re-reads the operator, persists the refresh session, stamps
+// the login and writes the login audit row in one administrative
+// transaction, and signs the pair inside it: an operator deactivated after
+// the credential check gets no session, and a login that cannot be recorded
+// issues none either.
+func (s *OperatorAuthentication) issueTokenPair(ctx context.Context, operatorID int64, ipAddress string) (operator domain.Operator, access, refresh string, err error) {
+	session := s.newRefreshSession(operatorID, "", 0)
 	entry := domain.OperatorAuditEntry{
-		OperatorID: operator.ID, Action: domain.OperatorAuditActionLogin, ResourceType: domain.OperatorAuditResourceOperator,
-		ResourceID: &operator.ID, IPAddress: ipAddress,
+		OperatorID: operatorID, Action: domain.OperatorAuditActionLogin, ResourceType: domain.OperatorAuditResourceOperator,
+		ResourceID: &operatorID, IPAddress: ipAddress,
 	}
 	err = s.sessionUnit(ctx, func(txCtx context.Context) error {
+		var err error
+		if operator, err = s.activeOperator(txCtx, operatorID); err != nil {
+			return err
+		}
 		if _, err := s.operators.CreateOperatorSession(txCtx, ports.OperatorSession(session)); err != nil {
 			return fmt.Errorf("failed to persist operator refresh token: %w", err)
 		}
@@ -218,14 +215,13 @@ func (s *OperatorAuthentication) issueTokenPair(ctx context.Context, operator do
 		if err := s.audit.RecordOperatorAction(txCtx, entry); err != nil {
 			return fmt.Errorf("failed to create audit log: %w", err)
 		}
-		var err error
 		access, refresh, err = s.mintTokenPair(operator, session)
 		return err
 	})
 	if err != nil {
-		return "", "", err
+		return domain.Operator{}, "", "", err
 	}
-	return access, refresh, nil
+	return operator, access, refresh, nil
 }
 
 func (s *OperatorAuthentication) newRefreshSession(operatorID int64, familyID string, generation int) domain.OperatorSession {
@@ -692,7 +688,7 @@ func (s *OperatorAuthentication) rotateOperatorRefresh(txCtx context.Context, op
 	if err != nil || rejectAfterCommit {
 		return accessToken, refreshToken, recovered, rejectAfterCommit, err
 	}
-	operator, err := s.activeOperatorForRefresh(txCtx, operatorID)
+	operator, err := s.activeOperator(txCtx, operatorID)
 	if err != nil {
 		return accessToken, refreshToken, recovered, rejectAfterCommit, err
 	}
@@ -700,7 +696,9 @@ func (s *OperatorAuthentication) rotateOperatorRefresh(txCtx context.Context, op
 	return accessToken, refreshToken, recovered, rejectAfterCommit, err
 }
 
-func (s *OperatorAuthentication) activeOperatorForRefresh(txCtx context.Context, operatorID int64) (domain.Operator, error) {
+// activeOperator re-reads the operator inside a session transaction and
+// refuses a missing or deactivated one.
+func (s *OperatorAuthentication) activeOperator(txCtx context.Context, operatorID int64) (domain.Operator, error) {
 	operator, err := s.operators.findOperatorByID(txCtx, operatorID)
 	if errors.Is(err, identityaccess.ErrOperatorNotFound) {
 		return domain.Operator{}, identityaccess.ErrOperatorNotFound

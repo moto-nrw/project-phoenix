@@ -84,6 +84,10 @@ func (f *OperatorMFAFlows) HasEnrollment(ctx context.Context, operatorID int64) 
 	return found && credential.ID > 0, nil
 }
 
+// Configured reports flows composed with the second factor; the operator
+// login issues the token pair directly without them.
+func (f *OperatorMFAFlows) Configured() bool { return f != nil }
+
 // TrustedDeviceDays is the fixed operator remember-device lifetime in days.
 func (f *OperatorMFAFlows) TrustedDeviceDays() int {
 	return int(domain.OperatorMFATrustedDeviceDuration.Hours() / 24)

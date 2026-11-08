@@ -5,8 +5,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 )
 
-// Engine is the Identity & Access owner value compose fills. The type keeps
-// its unexported name, which the command-effect inventory records.
+// Engine is the Identity & Access owner value compose fills. It stays an
+// alias: the command-effect inventory keys its reviewed bindings, the two
+// cross-owner coordination exceptions of AcceptSchoolInvitation included, by
+// the type's name (application.engine). The base comparison counts a renamed
+// exception as a new one that needs an approval ADR
+// (internal/architecture/command_effect_base.go, effectBaseFailures).
 type Engine = engine
 
 // engine is the Identity & Access owner value. Each

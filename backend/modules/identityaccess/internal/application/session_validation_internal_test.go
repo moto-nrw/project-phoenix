@@ -69,7 +69,7 @@ func TestValidateSessionTokensPreservesLookupErrors(t *testing.T) {
 						f.store.findSessionErrs = map[string]error{"handle": errDB}
 					}
 				case "mapping":
-					f.store.lockMappingErr = errDB
+					f.store.hasMappingErr = errDB
 				case "membership":
 					portal, claims.Scope, claims.TenantID, claims.OrgID = domain.PortalOrg.Claim, domain.PortalOrg.Claim, 0, 7
 					f.auth.traeger = validationMemberships{err: errDB}
@@ -99,14 +99,30 @@ func TestValidateSessionTokensPreservesLookupErrors(t *testing.T) {
 				_, err = f.auth.ValidateSessionTokens(context.Background(), access, refresh, portal)
 				require.ErrorIs(t, err, errDB, "lookup=%s refresh=%t", lookup, withRefresh)
 				require.NotErrorIs(t, err, identityaccess.ErrInvalidToken)
+				require.Equal(t, identityaccess.SessionUnclassified, identityaccess.SessionOutcomeOf(err), "a failed read is no refusal")
 			}
 		})
 	}
 }
 
+// Validation asks what the refresh decides, so it refuses every session the
+// refresh would end, with the refresh's own sentinel: also a school session
+// whose school portal role was revoked and a caterer session of an account
+// that left its caterer.
 func TestValidateSessionTokensRefusesMissingAccess(t *testing.T) {
 	t.Parallel()
-	for _, missing := range []string{"account", "operator", "mapping", "membership", "switch-membership", "school", "account-session", "operator-session"} {
+	for missing, refusal := range map[string]error{
+		"account":            identityaccess.ErrInvalidToken,
+		"operator":           identityaccess.ErrInvalidToken,
+		"mapping":            identityaccess.ErrTenantAccessDenied,
+		"membership":         identityaccess.ErrNoTraegerMembership,
+		"switch-membership":  identityaccess.ErrNoTraegerMembership,
+		"school":             identityaccess.ErrTraegerSchoolNotFound,
+		"account-session":    identityaccess.ErrInvalidToken,
+		"operator-session":   identityaccess.ErrInvalidToken,
+		"school-portal-role": identityaccess.ErrTenantAccessDenied,
+		"caterer-account":    identityaccess.ErrAccountNotCaterer,
+	} {
 		t.Run(missing, func(t *testing.T) {
 			t.Parallel()
 			f := newAuthFixture(t)
@@ -130,6 +146,11 @@ func TestValidateSessionTokensRefusesMissingAccess(t *testing.T) {
 				if missing == "switch-membership" {
 					f.auth.traeger = validationMemberships{absent: true}
 				}
+			case "school-portal-role":
+				portal, claims.Scope = domain.PortalSchool.Name, domain.PortalSchool.Claim
+				f.schools.add(10, 7, "school-10", true, false)
+			case "caterer-account":
+				portal, claims.Scope, claims.TenantID = domain.PortalCaterer.Name, domain.PortalCaterer.Claim, 0
 			}
 			f.auth.store = validationStore{fakeStore: f.store}
 			expiry := time.Now().Add(time.Hour)
@@ -144,7 +165,25 @@ func TestValidateSessionTokensRefusesMissingAccess(t *testing.T) {
 				refresh = pairRefresh
 			}
 			_, err = f.auth.ValidateSessionTokens(context.Background(), access, refresh, portal)
-			require.ErrorIs(t, err, identityaccess.ErrInvalidToken)
+			require.ErrorIs(t, err, refusal)
+			require.Equal(t, identityaccess.SessionEnded, identityaccess.SessionOutcomeOf(err), "the refresh would end this session too")
 		})
 	}
+}
+
+// An operator hand-off with its refresh token reads the session row without
+// locking it: validation writes nothing.
+func TestValidateSessionTokensLocksNoOperatorSession(t *testing.T) {
+	t.Parallel()
+	f := newAuthFixture(t)
+	f.store.addOperator(1, "operator@example.com", "unused", true)
+	expiry := time.Now().Add(time.Hour)
+	f.store.operatorTokens[1] = domain.OperatorSession{ID: 1, OperatorID: 1, Token: "handle", FamilyID: "family", Expiry: expiry}
+	claims := domain.SessionClaims{AccountID: 1, Scope: "platform", FamilyID: "family", ExpiresAt: expiry.Unix()}
+	access, refresh, err := (fakeCodec{}).IssueTokenPair(claims, domain.RefreshClaims{AccountID: 1, Scope: "platform", Token: "handle", ExpiresAt: expiry.Unix()})
+	require.NoError(t, err)
+
+	_, err = f.auth.ValidateSessionTokens(context.Background(), access, refresh, "platform")
+	require.NoError(t, err)
+	require.NotContains(t, f.store.recorded(), "FindOperatorSessionByToken(forUpdate)")
 }

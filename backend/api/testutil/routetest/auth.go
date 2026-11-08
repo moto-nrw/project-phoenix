@@ -16,11 +16,6 @@ type (
 	MFAEnrollmentClaims = testpkg.MFAEnrollmentClaims
 )
 
-const (
-	MFAEnrollmentScopeTenant   = testpkg.MFAEnrollmentScopeTenant
-	MFAEnrollmentScopePlatform = testpkg.MFAEnrollmentScopePlatform
-)
-
 var (
 	TestTokenAuth            = testpkg.TestTokenAuth
 	DefaultTestClaims        = testpkg.DefaultTestClaims

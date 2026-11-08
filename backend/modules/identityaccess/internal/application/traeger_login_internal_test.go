@@ -35,7 +35,7 @@ func runTraegerMintGuard(t *testing.T, f *authFixture, presented domain.LoginAcc
 	})
 	require.NoError(t, err)
 	minted, err := auth.mintAccountSession(context.Background(), mintRequest{
-		portal: domain.PortalOrg, account: presented, orgID: 7, eligible: auth.traegerEligibility(7),
+		portal: domain.PortalOrg, account: presented, orgID: 7,
 	})
 	return minted.claims, err
 }
