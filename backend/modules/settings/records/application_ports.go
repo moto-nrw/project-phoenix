@@ -18,6 +18,7 @@ type TenantOperationsRuntime interface {
 // application code to the transaction, ORM, or authorization adapters.
 type Runtime interface {
 	TenantID(context.Context) int64
+	IsTraegerTransaction(context.Context) bool
 	HasTransaction(context.Context) bool
 	WithinTenant(context.Context, int64, func(context.Context) error) error
 	WithinAdmin(context.Context, func(context.Context) error) error

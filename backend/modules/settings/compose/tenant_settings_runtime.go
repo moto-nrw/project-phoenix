@@ -26,6 +26,11 @@ func NewTenantSettingsRuntime(db *bun.DB, unit *tenant.UnitOfWork) TenantSetting
 
 func (r TenantSettingsRuntime) TenantID(ctx context.Context) int64 { return tenant.FromContext(ctx) }
 
+// IsTraegerTransaction distinguishes a Träger unit from a school or admin read.
+func (r TenantSettingsRuntime) IsTraegerTransaction(ctx context.Context) bool {
+	return tenant.TraegerTransactionFromContext(ctx) > 0
+}
+
 func (r TenantSettingsRuntime) HasTransaction(ctx context.Context) bool {
 	return app.SettingTransactionPresent(ctx, tenant.TransactionFromContext)
 }

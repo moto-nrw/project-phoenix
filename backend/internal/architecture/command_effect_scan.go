@@ -51,7 +51,7 @@ type effectScanner struct {
 	callables   map[types.Object][]string
 	// Port-independent summaries of the owner's own functions (M3).
 	ownSummaries map[*types.Func]ownEffectSummary
-	ownCallables map[*types.Func][]types.Object
+	ownCallables map[*types.Func]ownReach
 	// Port-independent callable resolutions, replayed for every port.
 	capture        *effectCapture
 	callableSites  map[string]*effectCapture
@@ -87,7 +87,7 @@ func discoverCommandEffects(policy *Policy, loaded []*packages.Package) []comman
 }
 
 func newEffectScanner(policy *Policy, loaded []*packages.Package) *effectScanner {
-	s := &effectScanner{ownerKinds: map[string]string{}, policy: policy.packageMap(), bindings: collectEffectBindings(loaded), values: collectEffectValues(loaded), bodies: map[*types.Func]effectBody{}, sites: map[string]commandEffectSite{}, evidence: map[string]map[string]bool{}, callables: map[types.Object][]string{}, ownSummaries: map[*types.Func]ownEffectSummary{}, ownCallables: map[*types.Func][]types.Object{}, callableSites: map[string]*effectCapture{}, callableActive: map[string]bool{}}
+	s := &effectScanner{ownerKinds: map[string]string{}, policy: policy.packageMap(), bindings: collectEffectBindings(loaded), values: collectEffectValues(loaded), bodies: map[*types.Func]effectBody{}, sites: map[string]commandEffectSite{}, evidence: map[string]map[string]bool{}, callables: map[types.Object][]string{}, ownSummaries: map[*types.Func]ownEffectSummary{}, ownCallables: map[*types.Func]ownReach{}, callableSites: map[string]*effectCapture{}, callableActive: map[string]bool{}}
 	for _, owner := range policy.Owners {
 		s.ownerKinds[owner.ID] = owner.Kind
 	}
@@ -168,9 +168,12 @@ func (s *effectScanner) resolve(port, binding string, receiver types.Type, name 
 	}
 	owner := s.receiverOwner(receiver)
 	if owner == s.sourceOwner {
-		if effectInterface(receiver) != nil {
+		switch {
+		case effectInterface(receiver) != nil:
 			s.resolveInterface(port, binding, receiver, name, seen, trail)
-		} else {
+		case s.ownCompositionAdapter(receiver):
+			s.resolveAdapter(port, binding, receiver, name, seen, trail)
+		default:
 			s.resolveOwnMethod(port, binding, receiver, name, seen, trail)
 		}
 		return
@@ -203,6 +206,14 @@ func (s *effectScanner) receiverOwner(receiver types.Type) string {
 		return ""
 	}
 	return s.policy[named.Obj().Pkg().Path()].Owner
+}
+
+// Owners compose themselves (ADR 0068): an adapter type of the owner's
+// composition package binds runtime and platform values into the owner's
+// ports like a root adapter does, so its body is binding evidence (#6125).
+func (s *effectScanner) ownCompositionAdapter(receiver types.Type) bool {
+	named := namedEffectType(receiver)
+	return named != nil && named.Obj().Pkg() != nil && s.policy[named.Obj().Pkg().Path()].Role == "compose"
 }
 
 func (s *effectScanner) recordTerminal(port, binding string, receiver types.Type, name, owner string, trail []string) {
@@ -360,7 +371,7 @@ func (s *effectScanner) resolveFunction(port, binding string, fn *types.Func, se
 	if classification.Owner == s.sourceOwner {
 		// A root body calling the owner's own function hands it callables;
 		// follow those it invokes, never the owner's other effects.
-		s.resolveOwnCallables(port, binding, s.ownReachable(fn.Origin()), seen, trail)
+		s.resolveOwnReach(port, binding, s.ownReachable(fn.Origin()), seen, trail)
 		return
 	}
 	if classification.Owner == "" {
