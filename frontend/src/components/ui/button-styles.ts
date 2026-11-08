@@ -117,8 +117,10 @@ export function buttonStyles({
       "h-10 rounded-2xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 aria-expanded:border-moto-blue aria-expanded:bg-moto-blue aria-expanded:text-white aria-expanded:hover:bg-moto-blue data-filters-active:ring-2 data-filters-active:ring-moto-blue data-filters-active:ring-offset-1",
     // Teil einer gerahmten Knopfgruppe (Zeitnavigation der Planungsleiste,
     // #6182): kein eigener Radius, füllt die Höhe der Gruppe, sonst `ghost`.
+    // Ein Symbol-Segment bleibt quadratisch: mit Polster und Trennlinie würde
+    // es 1 px breiter als hoch.
     segment:
-      "h-full rounded-none px-3 bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900 active:bg-gray-200",
+      "h-full rounded-none px-3 data-icon-only:px-0 bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900 active:bg-gray-200",
     // Einklapp-Knopf im Kopf einer Karte (#6182): wie `ghost`, tönt aber
     // auch, wenn die Maus über dem übrigen Kopf liegt, weil der ganze Kopf
     // schaltet (`SectionCollapseHead`, #5021).

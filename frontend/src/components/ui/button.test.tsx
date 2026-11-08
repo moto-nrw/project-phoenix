@@ -285,6 +285,18 @@ describe("Button", () => {
     expect(classes).not.toContain("rounded-md");
   });
 
+  it("keeps an icon segment square: no side padding beside the divider", () => {
+    render(
+      <Button variant="segment" size="icon" aria-label="Zurück">
+        ‹
+      </Button>,
+    );
+
+    const button = screen.getByRole("button", { name: "Zurück" });
+    expect(button).toHaveAttribute("data-icon-only");
+    expect(button.className.split(" ")).toContain("data-icon-only:px-0");
+  });
+
   it("renders disclosure as ghost that also tints on hover of its card head", () => {
     render(
       <Button variant="disclosure" size="icon" aria-label="Einklappen">
