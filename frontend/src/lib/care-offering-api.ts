@@ -1,7 +1,10 @@
-import { type ApiError, unavailableApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
-import { readEnrollmentError } from "~/lib/enrollment-api-error";
 import type { Translations } from "~/lib/enrollment-translations";
+import {
+  enrollmentErrorReader,
+  readEnrollmentJSON,
+  sendEnrollmentRequest,
+} from "~/lib/enrollment-http";
 
 const logger = createLogger({ component: "CareOfferingAPI" });
 
@@ -98,47 +101,9 @@ export interface CareOfferingInput {
   translations?: Translations;
 }
 
-interface BackendEnvelope<T> {
-  status?: string;
-  data?: T;
-  message?: string;
-}
-
 const BASE = "/api/enrollment/care-offerings";
 
-async function readJSON<T>(response: Response): Promise<T> {
-  const raw = (await response.json()) as BackendEnvelope<T>;
-  if (
-    raw &&
-    typeof raw === "object" &&
-    "data" in raw &&
-    raw.data !== undefined
-  ) {
-    return raw.data as T;
-  }
-  return raw as unknown as T;
-}
-
-/** A request that never reached the API counts as unavailable (#2515). */
-async function send(input: string, init?: RequestInit): Promise<Response> {
-  try {
-    return await fetch(input, init);
-  } catch (cause) {
-    throw unavailableApiError(cause);
-  }
-}
-
-async function readError(
-  response: Response,
-  fallback: string,
-): Promise<ApiError> {
-  return readEnrollmentError(
-    response,
-    fallback,
-    logger,
-    "care_offering_request_failed",
-  );
-}
+const readError = enrollmentErrorReader(logger, "care_offering_request_failed");
 
 export async function listCareOfferings(
   phaseId?: string | null,
@@ -151,21 +116,21 @@ export async function listCareOfferings(
     url.searchParams.set("phase_id", phaseId);
   }
   const path = `${url.pathname}${url.search}`;
-  const response = await send(path, { cache: "no-store" });
+  const response = await sendEnrollmentRequest(path, { cache: "no-store" });
   if (!response.ok) {
     throw await readError(
       response,
       "Betreuungsangebote konnten nicht geladen werden",
     );
   }
-  const list = await readJSON<CareOffering[]>(response);
+  const list = await readEnrollmentJSON<CareOffering[]>(response);
   return Array.isArray(list) ? list : [];
 }
 
 export async function createCareOffering(
   input: CareOfferingInput,
 ): Promise<CareOffering> {
-  const response = await send(BASE, {
+  const response = await sendEnrollmentRequest(BASE, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
@@ -176,31 +141,37 @@ export async function createCareOffering(
       "Betreuungsangebot konnte nicht angelegt werden",
     );
   }
-  return readJSON<CareOffering>(response);
+  return readEnrollmentJSON<CareOffering>(response);
 }
 
 export async function updateCareOffering(
   id: string,
   input: CareOfferingInput,
 ): Promise<CareOffering> {
-  const response = await send(`${BASE}/${encodeURIComponent(id)}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
+  const response = await sendEnrollmentRequest(
+    `${BASE}/${encodeURIComponent(id)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+  );
   if (!response.ok) {
     throw await readError(
       response,
       "Betreuungsangebot konnte nicht gespeichert werden",
     );
   }
-  return readJSON<CareOffering>(response);
+  return readEnrollmentJSON<CareOffering>(response);
 }
 
 export async function deleteCareOffering(id: string): Promise<void> {
-  const response = await send(`${BASE}/${encodeURIComponent(id)}`, {
-    method: "DELETE",
-  });
+  const response = await sendEnrollmentRequest(
+    `${BASE}/${encodeURIComponent(id)}`,
+    {
+      method: "DELETE",
+    },
+  );
   if (response.status === 204) return;
   if (!response.ok) {
     throw await readError(
@@ -218,13 +189,16 @@ export async function cloneCareOffering(
   id: string,
   input: CloneCareOfferingInput,
 ): Promise<CareOffering> {
-  const response = await send(`${BASE}/${encodeURIComponent(id)}/clone`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
+  const response = await sendEnrollmentRequest(
+    `${BASE}/${encodeURIComponent(id)}/clone`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+  );
   if (!response.ok) {
     throw await readError(response, "Klonen fehlgeschlagen");
   }
-  return readJSON<CareOffering>(response);
+  return readEnrollmentJSON<CareOffering>(response);
 }

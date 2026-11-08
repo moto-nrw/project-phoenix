@@ -1,5 +1,7 @@
 "use client";
 
+import { phaseHasPublicForm } from "~/lib/enrollment-phase-rules";
+import type { CareOfferingSelectionMode } from "~/lib/enrollment-phase-api";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   useCallback,
@@ -34,7 +36,6 @@ import {
   type PhaseInput,
   type PhaseKind,
   type PhaseCareOverflowMode,
-  type PhaseCareOfferingSelectionMode,
   type RolloverResult,
   createPhase,
   deletePhase,
@@ -60,7 +61,7 @@ import {
 import { createLogger } from "~/lib/logger";
 import { RolloverForm } from "./rollover-form";
 import { useTenant } from "~/lib/tenant-context";
-import { isSupportedGradeLevelMax } from "~/lib/grade-level";
+import { supportedGradeLevelMax } from "~/lib/grade-level";
 import {
   useApiErrorDisplay,
   useApiFormError,
@@ -127,7 +128,7 @@ const OVERFLOW_LABELS: Record<PhaseCareOverflowMode, string> = {
   allow: "Ohne Hinweis akzeptieren",
 };
 
-const CARE_SELECTION_LABELS: Record<PhaseCareOfferingSelectionMode, string> = {
+const CARE_SELECTION_LABELS: Record<CareOfferingSelectionMode, string> = {
   optional: "Optional",
   at_least_one: "Mindestens ein Angebot",
   exactly_one: "Genau ein Angebot",
@@ -305,9 +306,7 @@ export function PhasesEditor() {
   const [highlightActions, setHighlightActions] = useState(false);
   const { tenantSlug, tenant } = useTenant();
   const resolvedGradeLevelMax = tenant?.gradeLevelMax;
-  const gradeLevelMax = isSupportedGradeLevelMax(resolvedGradeLevelMax)
-    ? resolvedGradeLevelMax
-    : null;
+  const gradeLevelMax = supportedGradeLevelMax(resolvedGradeLevelMax);
   const tenantPath = useTenantAwarePath();
   const toast = useToast();
   const tenantMutate = useTenantMutate();
@@ -1235,17 +1234,7 @@ function PhaseActions({
     }
   };
   const hasReviewList = tenantSlug && phase.rollover_source_phase_id;
-  // Audience-restricted phases are never publicly reachable: the anonymous form
-  // gate refuses BOTH linked_parents and existing_students, so the plain
-  // /anmeldung/{id} URL 404s for either unless it carries a valid late-invite
-  // token. The untokenized public actions ("Formular ansehen", the copy-link
-  // button) would hand out a dead link, so hide them for both audiences while
-  // keeping the tokenized "Nachzügler-Link erstellen" action, which appends the
-  // accepted token (#1663). Those parents reach the form through the parents
-  // portal picker instead.
-  const hasNoPublicForm =
-    phase.audience === "linked_parents" ||
-    phase.audience === "existing_students";
+  const hasNoPublicForm = !phaseHasPublicForm(phase);
   const phaseUrl = useEnrollmentPublicUrl({ tenantSlug, phaseId: phase.id });
   const enrollmentsHref = tenantPath(
     `/admin/enrollments/phases/${encodeURIComponent(phase.id)}`,
@@ -1714,8 +1703,7 @@ function PhaseForm(props: PhaseFormProps) {
           value={draft.care_offering_selection_mode}
           onChange={(value) =>
             update({
-              care_offering_selection_mode:
-                value as PhaseCareOfferingSelectionMode,
+              care_offering_selection_mode: value as CareOfferingSelectionMode,
             })
           }
           className="py-2"

@@ -1,5 +1,18 @@
 "use client";
 
+import { phaseHasPublicForm } from "~/lib/enrollment-phase-rules";
+import {
+  APPROVAL_WITHOUT_OFFERING_COPY,
+  approvalNeedsOfferingConfirm,
+} from "~/components/enrollment/approval-without-offering";
+import {
+  countChildStatuses,
+  isTerminalChildStatus,
+} from "~/lib/enrollment-status";
+import type { ChildStatus } from "~/lib/enrollment-status";
+import { SCHOOL_WEEKDAY_CODES, weekdayShortLabel } from "~/lib/weekdays";
+import { gradeLevelLabel } from "~/lib/grade-level";
+import { enrolledClassLabel } from "~/lib/school-class-label";
 import {
   useCallback,
   useEffect,
@@ -11,7 +24,6 @@ import {
 import { Check, Clock, ExternalLink, Inbox, X } from "lucide-react";
 import {
   type AdminRequestSummary,
-  type ChildStatus,
   type DecisionStatus,
   decideAdminChild,
   listAdminRequests,
@@ -34,18 +46,15 @@ import {
 import { PhaseResponseOverview as PhaseResponseOverviewPanel } from "~/components/enrollment/phase-response-overview";
 import { PhaseOfferingOccupancy } from "~/components/enrollment/phase-offering-occupancy";
 import {
-  type EnrollmentExportFormat,
-  exportPhaseRegistrations,
-} from "~/lib/enrollment-export-api";
-import {
   type CareUsageFilters,
   type CareUsageReport,
   type CareUsageRow,
-  type EnrollmentReportFormat,
+  type EnrollmentExportFormat,
   type EnrollmentReportLayout,
   type EnrollmentReportStatus,
   exportCareUsageReport,
   exportPhaseClassRoster,
+  exportPhaseRegistrations,
   getCareUsageReport,
 } from "~/lib/enrollment-report-api";
 import {
@@ -102,42 +111,11 @@ const ALL_STATUS_FILTER = "all";
 const ALL_VALUE = "all";
 const DAY_COUNT_OPTIONS = [0, 1, 2, 3, 4, 5] as const;
 
-const OPEN_STATUSES = new Set<ChildStatus>([
-  "submitted",
-  "under_review",
-  "pending_admin_review",
-]);
-
 interface Props {
   readonly phaseId: string;
 }
 
-interface PhaseRequestStats {
-  readonly total: number;
-  readonly open: number;
-  readonly approved: number;
-  readonly rejected: number;
-}
-
-const TERMINAL_STATUSES = new Set<ChildStatus>([
-  "approved",
-  "rejected",
-  "withdrawn",
-]);
-
 const ENROLLMENT_EXPORT_OPTIONS = exportFormatOptions(["pdf", "docx", "xlsx"]);
-
-const DAY_LABELS: Record<string, string> = {
-  mon: "Mo",
-  tue: "Di",
-  wed: "Mi",
-  thu: "Do",
-  fri: "Fr",
-  sat: "Sa",
-  sun: "So",
-};
-
-const CARE_USAGE_WEEKDAYS = ["mon", "tue", "wed", "thu", "fri"] as const;
 
 export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   const careOfferingsEnabled = useCareOfferingsEnabled();
@@ -186,7 +164,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
     null,
   );
   const [exportingClassRosterFormat, setExportingClassRosterFormat] =
-    useState<EnrollmentReportFormat | null>(null);
+    useState<EnrollmentExportFormat | null>(null);
   const phaseUrl = useEnrollmentPublicUrl({ tenantSlug, phaseId });
   useSetBreadcrumb({ pageTitle: phase?.name ?? "Anmeldephase" });
 
@@ -326,7 +304,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
 
   const handleReportExport = useCallback(
     async (
-      format: EnrollmentReportFormat,
+      format: EnrollmentExportFormat,
       layout: EnrollmentReportLayout = "detailed",
     ) => {
       setExportingReportKey(`${format}-${layout}`);
@@ -353,7 +331,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   );
 
   const handleClassRosterExport = useCallback(
-    async (format: EnrollmentReportFormat) => {
+    async (format: EnrollmentExportFormat) => {
       setExportingClassRosterFormat(format);
       try {
         await exportPhaseClassRoster(
@@ -427,7 +405,10 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
     };
   }, [loadData]);
 
-  const stats = useMemo(() => calculateRequestStats(requests), [requests]);
+  const stats = useMemo(
+    () => countChildStatuses(requests.flatMap((request) => request.children)),
+    [requests],
+  );
   const childQuotaHeldIds = useMemo(
     () =>
       new Set(
@@ -452,7 +433,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
           ? requests
               .filter((request) =>
                 request.children.some(
-                  (child) => !TERMINAL_STATUSES.has(child.status),
+                  (child) => !isTerminalChildStatus(child.status),
                 ),
               )
               .map((request) => request.id)
@@ -518,10 +499,12 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   const requestQuickDecision = useCallback(
     (row: CareUsageRow, status: DecisionStatus) => {
       if (
-        status === "approved" &&
-        careOfferingsEnabled &&
-        phase?.care_offering_selection_mode === "optional" &&
-        row.offerings.length === 0
+        approvalNeedsOfferingConfirm({
+          status,
+          careOfferingsEnabled,
+          selectionMode: phase?.care_offering_selection_mode,
+          bookedOfferings: row.offerings.length,
+        })
       ) {
         setApprovalWithoutOfferingRow(row);
         return;
@@ -546,11 +529,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
               {row.child_first_name} {row.child_last_name}
             </p>
             <p className="text-xs text-gray-500">
-              {row.target_school_class
-                ? row.target_school_class
-                : row.target_grade_level
-                  ? `${row.target_grade_level}. Klasse`
-                  : "Keine Klassenstufe"}
+              {enrolledClassLabel(row) || "Keine Klassenstufe"}
             </p>
           </div>
         ),
@@ -727,7 +706,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
           { value: ALL_VALUE, label: "Alle Klassen" },
           ...(report?.filter_options.grade_levels ?? []).map((grade) => ({
             value: String(grade),
-            label: `${grade}. Klasse`,
+            label: gradeLevelLabel(grade),
           })),
         ],
       },
@@ -739,9 +718,9 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         onChange: (value) => setWeekday(value as string),
         options: [
           { value: ALL_VALUE, label: "Alle Tage" },
-          ...CARE_USAGE_WEEKDAYS.map((day) => ({
+          ...SCHOOL_WEEKDAY_CODES.map((day) => ({
             value: day,
-            label: DAY_LABELS[day] ?? day,
+            label: weekdayShortLabel(day),
           })),
         ],
       },
@@ -802,14 +781,14 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
     if (gradeLevel !== ALL_VALUE) {
       entries.push({
         id: "grade-level",
-        label: `${gradeLevel}. Klasse`,
+        label: gradeLevelLabel(gradeLevel),
         onRemove: () => setGradeLevel(ALL_VALUE),
       });
     }
     if (weekday !== ALL_VALUE) {
       entries.push({
         id: "weekday",
-        label: `Wochentag: ${DAY_LABELS[weekday] ?? weekday}`,
+        label: `Wochentag: ${weekdayShortLabel(weekday)}`,
         onRemove: () => setWeekday(ALL_VALUE),
       });
     }
@@ -903,18 +882,20 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
               bleibt neben dem Titel. */}
           <div className="flex flex-wrap items-center gap-2">
             <DataTableStatusBadge active={phase.is_active} />
-            <ButtonLink
-              href={tenantPath(`/anmeldung/${encodeURIComponent(phase.id)}`)}
-              target="_blank"
-              rel="noreferrer"
-              variant="primary"
-              size="md"
-              className="inline-flex items-center justify-center gap-2"
-            >
-              Elternansicht öffnen
-              <ExternalLink className="h-4 w-4" aria-hidden="true" />
-            </ButtonLink>
-            {phaseUrl ? (
+            {phaseHasPublicForm(phase) ? (
+              <ButtonLink
+                href={tenantPath(`/anmeldung/${encodeURIComponent(phase.id)}`)}
+                target="_blank"
+                rel="noreferrer"
+                variant="primary"
+                size="md"
+                className="inline-flex items-center justify-center gap-2"
+              >
+                Elternansicht öffnen
+                <ExternalLink className="h-4 w-4" aria-hidden="true" />
+              </ButtonLink>
+            ) : null}
+            {phaseHasPublicForm(phase) && phaseUrl ? (
               <PublicLinkCopyButton
                 url={phaseUrl}
                 componentId={`AdminEnrollmentPhaseDetail:${phaseId}`}
@@ -1068,12 +1049,12 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
               setApprovalWithoutOfferingRow(null);
               if (row !== null) void handleQuickDecision(row, "approved");
             }}
-            title="Anmeldung bestätigen"
-            confirmText="Trotzdem bestätigen"
+            title={APPROVAL_WITHOUT_OFFERING_COPY.title}
+            confirmText={APPROVAL_WITHOUT_OFFERING_COPY.confirmText}
           >
             <Alert
               type="warning"
-              message="Für dieses Kind ist kein Betreuungsangebot gebucht. Das Kind wird trotzdem in die OGS aufgenommen."
+              message={APPROVAL_WITHOUT_OFFERING_COPY.message}
             />
           </ConfirmationModal>
         </>
@@ -1092,8 +1073,8 @@ function ClassRosterExportPanel({
   schoolClassOptions: string[];
   selectedSchoolClass: string;
   onSelectedSchoolClassChange: (value: string) => void;
-  exportingFormat: EnrollmentReportFormat | null;
-  onExport: (format: EnrollmentReportFormat) => void;
+  exportingFormat: EnrollmentExportFormat | null;
+  onExport: (format: EnrollmentExportFormat) => void;
 }>) {
   return (
     <SectionCard overflow="visible" className="relative z-10">
@@ -1145,7 +1126,7 @@ function ReportStats({
   loading: boolean;
   exportingKey: string | null;
   onExport: (
-    format: EnrollmentReportFormat,
+    format: EnrollmentExportFormat,
     layout: EnrollmentReportLayout,
   ) => void;
 }>) {
@@ -1196,13 +1177,13 @@ function DeploymentPlanningStats({
         </p>
       </div>
       <div className="mt-3 grid gap-2 md:grid-cols-5">
-        {CARE_USAGE_WEEKDAYS.map((day) => (
+        {SCHOOL_WEEKDAY_CODES.map((day) => (
           <div
             key={day}
             className="moto-content-surface rounded-xl border px-3 py-2"
           >
             <p className="text-xs font-semibold text-gray-500">
-              {DAY_LABELS[day]}
+              {weekdayShortLabel(day)}
             </p>
             <div className="mt-2 flex flex-col gap-1">
               {loading ? (
@@ -1267,7 +1248,7 @@ function ReportExportCard({
 }: Readonly<{
   exportingKey: string | null;
   onExport: (
-    format: EnrollmentReportFormat,
+    format: EnrollmentExportFormat,
     layout: EnrollmentReportLayout,
   ) => void;
 }>) {
@@ -1311,13 +1292,13 @@ function OfferingList({ row }: Readonly<{ row: CareUsageRow }>) {
 }
 
 function formatDays(days: string[]): string {
-  return days.map((day) => DAY_LABELS[day] ?? day).join(", ");
+  return days.map((day) => weekdayShortLabel(day)).join(", ");
 }
 
 function formatPickupByDay(pickupByDay: Record<string, string>): string {
-  return CARE_USAGE_WEEKDAYS.map((day) => {
+  return SCHOOL_WEEKDAY_CODES.map((day) => {
     const time = pickupByDay[day];
-    return time ? `${DAY_LABELS[day]} ${time}` : "";
+    return time ? `${weekdayShortLabel(day)} ${time}` : "";
   })
     .filter(Boolean)
     .join("; ");
@@ -1372,26 +1353,6 @@ function coerceSchoolClassOptions(value: unknown): string[] {
     );
 }
 
-function calculateRequestStats(
-  requests: AdminRequestSummary[],
-): PhaseRequestStats {
-  let total = 0;
-  let open = 0;
-  let approved = 0;
-  let rejected = 0;
-
-  for (const request of requests) {
-    for (const child of request.children) {
-      total += 1;
-      if (OPEN_STATUSES.has(child.status)) open += 1;
-      if (child.status === "approved") approved += 1;
-      if (child.status === "rejected") rejected += 1;
-    }
-  }
-
-  return { total, open, approved, rejected };
-}
-
 function PhaseChildActions({
   row,
   href,
@@ -1409,7 +1370,7 @@ function PhaseChildActions({
   canToggleRead: boolean;
   onToggleRead: (read: boolean) => void;
 }>) {
-  const terminal = TERMINAL_STATUSES.has(row.status);
+  const terminal = isTerminalChildStatus(row.status);
   return (
     <div className="flex flex-wrap justify-end gap-2">
       {!terminal ? (

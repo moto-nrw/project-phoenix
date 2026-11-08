@@ -223,7 +223,7 @@ describe("TraegerVertragPage", () => {
   it("marks and focuses a refused paper signing date", async () => {
     api.recordPaperSignature.mockRejectedValue(
       new ApiError("invalid date", 400, {
-        code: "care_contract.template_invalid",
+        code: "care_contract.field_invalid",
         errors: [{ field: "signed_on", reason: "invalid" }],
       }),
     );
