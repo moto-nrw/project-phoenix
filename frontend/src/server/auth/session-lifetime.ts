@@ -1,5 +1,6 @@
 import "server-only";
 import { env } from "~/env";
+import { parseJwtPayload } from "./jwt-claims";
 
 /** Nanoseconds per unit, as Go's time.ParseDuration knows them. */
 const UNIT_NS: Record<string, number> = {
@@ -64,7 +65,7 @@ export function parseDurationToMs(
   return ms;
 }
 
-export const accessTokenExpiry = parseDurationToMs(
+const accessTokenExpiry = parseDurationToMs(
   "AUTH_JWT_EXPIRY",
   env.AUTH_JWT_EXPIRY,
 );
@@ -75,3 +76,12 @@ export const refreshTokenExpiry = parseDurationToMs(
 
 /** Access tokens inside this window are refreshed by the JWT callback. */
 export const ACCESS_TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
+
+/**
+ * When an access token expires: its own `exp` claim, which the backend set,
+ * or the configured lifetime for a token without one.
+ */
+export function accessTokenExpiresAt(accessToken: string): number {
+  const exp = parseJwtPayload(accessToken)?.exp;
+  return typeof exp === "number" ? exp * 1000 : Date.now() + accessTokenExpiry;
+}

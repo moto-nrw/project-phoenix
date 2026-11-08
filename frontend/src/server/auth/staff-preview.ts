@@ -7,7 +7,7 @@ import {
   syncTokenFromPayload,
 } from "./jwt-claims";
 import type { BackendEndpoint } from "./portals";
-import { accessTokenExpiry } from "./session-lifetime";
+import { accessTokenExpiresAt } from "./session-lifetime";
 import {
   applyRotation,
   getRefreshAuditHeaders,
@@ -210,7 +210,7 @@ export async function maintainPreviewSession(
     if (rotation.status === "success") {
       adminAccessToken = applyRotation(token, rotation);
       token.previewAdminToken = adminAccessToken;
-      token.previewAdminTokenExpiry = Date.now() + accessTokenExpiry;
+      token.previewAdminTokenExpiry = accessTokenExpiresAt(adminAccessToken);
     } else if (rotation.status === "terminal") {
       // The admin session itself is gone — everything ends, preview included.
       await endPreviewOnSessionLoss(token);

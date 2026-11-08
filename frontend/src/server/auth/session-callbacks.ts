@@ -10,7 +10,7 @@ import type { PortalDescriptor } from "./portals";
 import { isServerSessionMutation } from "./session-mutation";
 import {
   ACCESS_TOKEN_REFRESH_BUFFER_MS,
-  accessTokenExpiry,
+  accessTokenExpiresAt,
   refreshTokenExpiry,
 } from "./session-lifetime";
 import type { AuthUser, ServerSession } from "./session-types";
@@ -55,11 +55,7 @@ function signIn(token: JWT, user: AuthUser): void {
   token.orgId = user.orgId;
   token.scope = user.scope;
   token.viaTraeger = user.viaTraeger;
-  const accessClaims = user.token ? parseJwtPayload(user.token) : null;
-  token.tokenExpiry =
-    typeof accessClaims?.exp === "number"
-      ? accessClaims.exp * 1000
-      : Date.now() + accessTokenExpiry;
+  token.tokenExpiry = accessTokenExpiresAt(user.token ?? "");
   token.refreshTokenExpiry = Date.now() + refreshTokenExpiry;
   token.refreshRecoveryProof = createRefreshRecoveryProof();
   token.error = undefined;
@@ -144,7 +140,7 @@ async function maintainSession(
   if (rotation.status === "success") {
     const accessToken = applyRotation(token, rotation);
     token.token = accessToken;
-    token.tokenExpiry = Date.now() + accessTokenExpiry;
+    token.tokenExpiry = accessTokenExpiresAt(accessToken);
     token.error = undefined;
     token.needsRefresh = undefined;
     const payload = parseJwtPayload(accessToken);

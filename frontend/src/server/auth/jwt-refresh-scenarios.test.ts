@@ -366,6 +366,33 @@ describe("JWT callback — refresh scenarios", () => {
     expect(result?.error).toBeUndefined();
   });
 
+  // The backend sets the access lifetime; a frontend lifetime that differs
+  // (15m here) must not move the next renewal.
+  it("takes the renewed access token's expiry from its exp claim", async () => {
+    const exp = Math.floor(Date.now() / 1000) + 40 * 60;
+    const accessToken = `${Buffer.from("{}").toString("base64url")}.${Buffer.from(
+      JSON.stringify({ id: 7, exp }),
+    ).toString("base64url")}.sig`;
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        access_token: accessToken,
+        refresh_token: refreshJwt("next-refresh"),
+      }),
+    });
+
+    const result = await callJwt({
+      id: "7",
+      token: "old-access",
+      refreshToken: "old-refresh",
+      tokenExpiry: Date.now() + 3 * 60 * 1000,
+      refreshTokenExpiry: Date.now() + 60 * 60 * 1000,
+    });
+
+    expect(result?.token).toBe(accessToken);
+    expect(result?.tokenExpiry).toBe(exp * 1000);
+  });
+
   // ── Scenario 12: Missing tokenExpiry field ────────────────────────
   it("scenario 12: no tokenExpiry — no fetch, token unchanged", async () => {
     const token = {
