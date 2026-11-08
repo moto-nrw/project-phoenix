@@ -26,6 +26,8 @@ type careMonthInput struct {
 	// invoice is its base price.
 	rules     []parentbilling.ContributionRule
 	evidences []parentbilling.CareEvidence
+	// costShares split the contribution with the cost bearers (#4687).
+	costShares []parentbilling.CareCostShare
 	// familyCounts are the numbers of the families (#5918); a sibling rule
 	// that counts the family reads the one confirmed for the month.
 	familyCounts []parentbilling.FamilyChildCount
@@ -124,6 +126,7 @@ func buildCareMonth(in careMonthInput) (careMonth, error) {
 	}
 	uncounted := map[string][]int64{}
 	applyCareChain(chained, careChainInput{month: in.month, rules: in.rules, evidences: in.evidences,
+		costShares:     in.costShares,
 		familyChildren: familyChildrenIn(in.familyCounts, in.month), uncounted: uncounted, unbilled: unbilled})
 	result.uncounted = len(uncounted)
 	result.uncountedSchools = uncounted

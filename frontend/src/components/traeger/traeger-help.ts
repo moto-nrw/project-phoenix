@@ -59,6 +59,9 @@ export function getTraegerHelpTopicForPath(pathname: string): HelpTopicId {
   ) {
     return HELP_TOPICS.traegerCareReductions;
   }
+  if (onPage(page, "/abrechnung/kostentraeger")) {
+    return HELP_TOPICS.traegerCareCostShares;
+  }
   if (onPage(page, "/abrechnung")) return HELP_TOPICS.traegerBillingRun;
   if (onPage(page, "/vertraege")) return HELP_TOPICS.traegerCareContracts;
   if (onPage(page, "/zeitvergleich"))
