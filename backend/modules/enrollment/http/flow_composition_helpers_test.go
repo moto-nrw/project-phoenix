@@ -212,7 +212,7 @@ func (r requestFixtureRoot) Submit(ctx context.Context, req enrollmentAPI.Submit
 	err = tenant.WithinTenant(ctx, id, func(txCtx context.Context) error { value, err = r.RequestService.Submit(txCtx, req); return err })
 	return value, err
 }
-func (r requestFixtureRoot) GetByStatusToken(ctx context.Context, token string) (value *enrollmentAPI.Request, children []*enrollmentAPI.RequestChild, err error) {
+func (r requestFixtureRoot) GetByStatusToken(ctx context.Context, token string) (value *enrollmentNative.Request, children []*enrollmentNative.RequestChild, err error) {
 	err = fixturePublicTokenRoot(ctx, func(txCtx context.Context) error {
 		value, children, err = r.RequestService.GetByStatusToken(txCtx, token)
 		return err

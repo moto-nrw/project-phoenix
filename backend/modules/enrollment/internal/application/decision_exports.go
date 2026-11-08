@@ -44,34 +44,6 @@ func (d *Decisions) ExportStudent(ctx context.Context, studentID, actorAccountID
 	return data, nil
 }
 
-// exportRequests lists and decodes the requests an export covers, bounding
-// the in-memory payload: the renderers assemble the whole document at once,
-// so a pathologically large set is rejected up front rather than allocating
-// an unbounded file. The cap is well above any real OGS phase.
-func (d *Decisions) exportRequests(ctx context.Context, filters enrollmentNative.RequestListFilters) ([]*enrollmentNative.Request, []*Request, error) {
-	requests, err := d.deps.Requests.AdminRequests(ctx, filters)
-	if err != nil {
-		return nil, nil, err
-	}
-	decoded, err := requestValues(requests)
-	if err != nil {
-		return nil, nil, err
-	}
-	return requests, decoded, nil
-}
-
-// exportChildren lists and decodes the children of the exported requests.
-func (d *Decisions) exportChildren(ctx context.Context, requestIDs []int64) ([]*enrollmentNative.RequestChild, error) {
-	children, err := d.deps.Children.ChildrenForRequests(ctx, requestIDs)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := childValues(children); err != nil {
-		return nil, err
-	}
-	return children, nil
-}
-
 // exportData assembles the whole phase in a fixed number of queries:
 // the phase's requests, the phase, their children, the children's offering
 // links, the phase's care-offering catalog, the co-guardians and each
@@ -82,7 +54,7 @@ func (d *Decisions) exportData(ctx context.Context, phaseID int64, childStatusFi
 	if phaseID <= 0 {
 		return nil, fmt.Errorf("decision: export: phase_id required")
 	}
-	requests, decoded, err := d.exportRequests(ctx, enrollmentNative.RequestListFilters{PhaseID: phaseID})
+	requests, err := d.deps.Requests.AdminRequests(ctx, enrollmentNative.RequestListFilters{PhaseID: phaseID})
 	if err != nil {
 		return nil, fmt.Errorf("decision: export list requests: %w", err)
 	}
@@ -97,7 +69,7 @@ func (d *Decisions) exportData(ctx context.Context, phaseID int64, childStatusFi
 		return nil, fmt.Errorf("decision: export load phase %d: %w", phaseID, enrollmentNative.ErrPhaseNotFound)
 	}
 	reqIDs := requestIDsOf(requests)
-	children, err := d.exportChildren(ctx, reqIDs)
+	children, err := d.deps.Children.ChildrenForRequests(ctx, reqIDs)
 	if err != nil {
 		return nil, fmt.Errorf("decision: export load children: %w", err)
 	}
@@ -115,7 +87,7 @@ func (d *Decisions) exportData(ctx context.Context, phaseID int64, childStatusFi
 	}
 	// Fail closed: missing schema labels would silently omit custom answers
 	// from a GDPR export while still recording a complete disclosure.
-	schemas, err := loadReportSchemas(ctx, d.deps.Schemas, decoded)
+	schemas, err := loadReportSchemas(ctx, d.deps.Schemas, requests)
 	if err != nil {
 		d.logger().Error("decision: export schema lookup failed, aborting export", slog.String("error", err.Error()))
 		return nil, fmt.Errorf("decision: export load schemas: %w", err)
@@ -196,7 +168,7 @@ func (d *Decisions) exportStudentData(ctx context.Context, studentID int64) (*en
 	if err := d.checkExportStudent(ctx, studentID); err != nil {
 		return nil, err
 	}
-	requests, decoded, err := d.exportRequests(ctx, enrollmentNative.RequestListFilters{CreatedStudentID: studentID})
+	requests, err := d.deps.Requests.AdminRequests(ctx, enrollmentNative.RequestListFilters{CreatedStudentID: studentID})
 	if err != nil {
 		return nil, fmt.Errorf("decision: export student list requests: %w", err)
 	}
@@ -205,7 +177,7 @@ func (d *Decisions) exportStudentData(ctx context.Context, studentID int64) (*en
 			studentID, len(requests), maxExportRequests, enrollmentNative.ErrExportTooLarge)
 	}
 	reqIDs := requestIDsOf(requests)
-	children, err := d.exportChildren(ctx, reqIDs)
+	children, err := d.deps.Children.ChildrenForRequests(ctx, reqIDs)
 	if err != nil {
 		return nil, fmt.Errorf("decision: export student load children: %w", err)
 	}
@@ -220,7 +192,7 @@ func (d *Decisions) exportStudentData(ctx context.Context, studentID int64) (*en
 	}
 	links = filterOfferingsAtPhaseDate(d.todayDate(), links, childrenByIDOf(studentChildren), requestsByIDOf(requests), phases)
 	offeringsByChild := groupOfferingsByChild(links, offeringByID, len(studentChildren))
-	schemas, err := loadReportSchemas(ctx, d.deps.Schemas, decoded)
+	schemas, err := loadReportSchemas(ctx, d.deps.Schemas, requests)
 	if err != nil {
 		return nil, fmt.Errorf("decision: export student load schemas: %w", err)
 	}

@@ -3,6 +3,7 @@ package enrollmenthttp_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -71,8 +72,10 @@ func TestEnrollmentAdminChangeCasesMatchScalarDetails(t *testing.T) {
 	require.Equal(t, listed[:1], filtered)
 }
 
-// The bulk request/child results must not decode a later request before an
-// earlier request's children. Messages and phase reads come after both.
+// A corrupt stored request or child fails the whole list. The owner's adapter
+// decodes each batch as it reads it (ADR 0173), so the request batch, read
+// before the children, reports its corrupt row first, naming row and column. Messages and phase
+// reads come after both.
 func TestEnrollmentAdminChangeCasesKeepDecodeErrorOrder(t *testing.T) {
 	t.Parallel()
 	env := setupRequestTest(t)
@@ -84,7 +87,7 @@ func TestEnrollmentAdminChangeCasesKeepDecodeErrorOrder(t *testing.T) {
 	require.NoError(t, err)
 	svc := adminCaseService(env, env.repos.Enrollment(), env.repos.Enrollment(), failingChangeRequestCatalog{IntakeCatalog: env.repos.Enrollment()})
 	_, err = testpkg.TenantQuery1(t, ctx, env.db, svc.ListAdmin, enrollmenthttp.ChangeRequestFilters{})
-	require.EqualError(t, err, "change request: list aggregate children: json: cannot unmarshal array into Go value of type map[string]interface {}")
+	require.EqualError(t, err, fmt.Sprintf("decode enrollment request %d custom_data: json: cannot unmarshal array into Go value of type map[string]interface {}", rows[2].RequestID))
 }
 
 type omittedAdminCaseRequests struct {

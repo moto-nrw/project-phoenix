@@ -59,7 +59,7 @@ func (s *ChangeRequests) loadPublicCase(ctx context.Context, id int64, readMessa
 	if err != nil {
 		return nil, err
 	}
-	children, err := decodedChildrenOfRequest(ctx, s.deps.Children, req.ID, false)
+	children, err := s.deps.Children.ChildrenForRequest(ctx, req.ID, false)
 	if err != nil {
 		return nil, fmt.Errorf("change request: list aggregate children: %w", err)
 	}

@@ -99,7 +99,7 @@ func (r *Store) DueWeeklyPlans(ctx context.Context, asOf enrollment.Date) ([]enr
 }
 
 func weeklyPlanFromRow(row *requestChildRow) enrollment.WeeklyPlan {
-	plan := enrollment.WeeklyPlan{RequestChildID: row.ID, On: *row.WeeklyPlanOn, Replace: row.WeeklyPlanReplaces}
+	plan := enrollment.WeeklyPlan{RequestChildID: row.ID, On: enrollment.Date(*row.WeeklyPlanOn), Replace: row.WeeklyPlanReplaces}
 	if row.WeeklyPlanAuthor != nil {
 		plan.AuthorStaffID = *row.WeeklyPlanAuthor
 	}

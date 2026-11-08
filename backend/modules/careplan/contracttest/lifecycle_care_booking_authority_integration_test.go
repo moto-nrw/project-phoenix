@@ -138,7 +138,7 @@ func createCareBookingSource(
 	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), owner.InsertRequest, request))
 	child := &enrollmentFixture.RequestChild{
 		RequestID: request.ID, FirstName: "Test", LastName: "Kind",
-		DateOfBirth: enrollmentFixture.Date(calendar.TodayDate().AddDays(-2500)), Status: enrollmentFixture.ChildStatusApproved,
+		DateOfBirth: calendar.TodayDate().AddDays(-2500), Status: enrollmentFixture.ChildStatusApproved,
 		CreatedStudentID: &studentID,
 	}
 	child.TenantID = scope.TenantID

@@ -116,7 +116,7 @@ func pdfUpload(name string) enrollmentNative.UploadInput {
 
 func (e *uploadFlowEnv) submission(t *testing.T, answers map[string]any) enrollmentAPI.SubmitRequest {
 	req := validSubmission(t, e.phaseID)
-	req.CustomData = answers
+	req.CustomData = testFormValues(answers)
 	return req
 }
 
@@ -164,8 +164,8 @@ func TestEnrollmentUploads_SubmitClaimsUploadAndRefusesReuse(t *testing.T) {
 	result, err := env.svc.Submit(ctx, env.submission(t, answers))
 	require.NoError(t, err)
 
-	stored, ok := result.Request.CustomData[uploadNachweisKey].([]any)
-	require.True(t, ok, "the stored answer is a list: %#v", result.Request.CustomData[uploadNachweisKey])
+	stored, ok := testFormValue(result.Request.CustomData, uploadNachweisKey).([]any)
+	require.True(t, ok, "the stored answer is a list: %#v", testFormValue(result.Request.CustomData, uploadNachweisKey))
 	require.Len(t, stored, 1)
 	item := stored[0].(map[string]any)
 	assert.Equal(t, strconv.FormatInt(prepared.Upload.ID, 10), item["upload_id"])
@@ -201,7 +201,8 @@ func TestEnrollmentUploads_RequiredFileFollowsCondition(t *testing.T) {
 
 	result, err := env.svc.Submit(ctx, env.submission(t, map[string]any{uploadStufeKey: "voll"}))
 	require.NoError(t, err, "the full fee needs no proof")
-	assert.NotContains(t, result.Request.CustomData, uploadNachweisKey)
+	_, hasProof := result.Request.CustomData.Lookup(uploadNachweisKey)
+	assert.False(t, hasProof)
 }
 
 func TestEnrollmentUploads_OpenRecordsAccessOrRefuses(t *testing.T) {

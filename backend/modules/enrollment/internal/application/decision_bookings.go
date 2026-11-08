@@ -60,7 +60,7 @@ func (d *Decisions) resyncMultiSourceTemplatesForChild(ctx context.Context, requ
 
 // syncOfferingPickupAfterApproval refreshes projected-pickup consumers after
 // an approved child has been linked to a student. It writes no weekly rows.
-func (d *Decisions) syncOfferingPickupAfterApproval(ctx context.Context, child *RequestChild) error {
+func (d *Decisions) syncOfferingPickupAfterApproval(ctx context.Context, child *enrollment.RequestChild) error {
 	if d.deps.Bookings == nil || child == nil {
 		return nil
 	}
@@ -106,9 +106,6 @@ func (d *Decisions) adjustChildOfferings(ctx context.Context, input enrollment.U
 	}
 	child, err := d.deps.Children.ChildByID(ctx, result.RequestChildID)
 	if err != nil {
-		return nil, err
-	}
-	if _, err := childValue(child); err != nil {
 		return nil, err
 	}
 	return &enrollment.ChildOfferingsUpdate{Child: child, RosterImpact: rosterImpactOf(result.RosterImpact)}, nil

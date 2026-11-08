@@ -110,21 +110,21 @@ func guardianReachFields(email, phone string) []lists.Field {
 
 // submissionFields is one submission: when it came in or was withdrawn, the
 // consents, and the guardian-level answers of the form.
-func submissionFields(req *Request, guardianCustoms []capability.FormField) []lists.Field {
+func submissionFields(req *capability.Request, guardianCustoms []capability.FormField) []lists.Field {
 	fields := []lists.Field{{Label: "Eingereicht am", Value: submittedAtLabel(req)}}
 	if req.WithdrawnAt != nil {
 		fields = append(fields, lists.Field{Label: "Zurückgezogen am", Value: timeOrEmpty(req.WithdrawnAt)})
 	}
 	fields = append(fields, lists.Field{Label: "Zustimmungen", Value: consentSummary(req.ConsentFlags)})
 	for _, cf := range guardianCustoms {
-		if v, ok := req.CustomData[cf.Key]; ok {
+		if v, ok := req.CustomData.Lookup(cf.Key); ok {
 			fields = append(fields, lists.Field{Label: cf.Label, Value: formatCustomValue(cf, v)})
 		}
 	}
 	return fields
 }
 
-func submittedAtLabel(req *Request) string {
+func submittedAtLabel(req *capability.Request) string {
 	return req.SubmittedAt.Format("02.01.2006 15:04")
 }
 
@@ -212,7 +212,7 @@ func customColumns(prefix string, fields []capability.FormField) []lists.Column 
 
 // submissionRowValues is one submission in a table row, the counterpart of
 // submissionFields.
-func submissionRowValues(req *Request, guardianCustoms []capability.FormField) map[lists.ColumnID]string {
+func submissionRowValues(req *capability.Request, guardianCustoms []capability.FormField) map[lists.ColumnID]string {
 	values := map[lists.ColumnID]string{
 		"submitted_at":            submittedAtLabel(req),
 		"withdrawn_at":            timeOrEmpty(req.WithdrawnAt),
@@ -222,7 +222,7 @@ func submissionRowValues(req *Request, guardianCustoms []capability.FormField) m
 		"consent_photo":           consentLabel(req.ConsentFlags, capability.ConsentKeyPhoto),
 	}
 	for _, cf := range guardianCustoms {
-		if v, ok := req.CustomData[cf.Key]; ok {
+		if v, ok := req.CustomData.Lookup(cf.Key); ok {
 			values[lists.ColumnID("custom_g_"+cf.Key)] = formatCustomValue(cf, v)
 		}
 	}

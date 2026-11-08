@@ -95,16 +95,16 @@ func TestGradeLabel(t *testing.T) {
 func TestActivationSummary(t *testing.T) {
 	t.Parallel()
 
-	scheduled := &RequestChild{ActivationMode: capability.ChildActivationScheduled}
+	scheduled := &capability.RequestChild{ActivationMode: capability.ChildActivationScheduled}
 	if got := activationSummary(scheduled); got != "Geplant" {
 		t.Errorf("scheduled w/o date = %q, want Geplant", got)
 	}
-	immediate := &RequestChild{ActivationMode: capability.ChildActivationImmediate}
+	immediate := &capability.RequestChild{ActivationMode: capability.ChildActivationImmediate}
 	if got := activationSummary(immediate); got != "Sofort" {
 		t.Errorf("immediate = %q, want Sofort", got)
 	}
 	on := calendar.Date("2026-08-01")
-	dated := &RequestChild{ActivationMode: capability.ChildActivationScheduled, ActivateOn: &on}
+	dated := &capability.RequestChild{ActivationMode: capability.ChildActivationScheduled, ActivateOn: &on}
 	if got := activationSummary(dated); got != "Geplant (01.08.2026)" {
 		t.Errorf("dated = %q, want 'Geplant (01.08.2026)'", got)
 	}

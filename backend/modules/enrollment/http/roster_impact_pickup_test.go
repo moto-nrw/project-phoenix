@@ -35,9 +35,9 @@ func childWithEnteredPickups(t *testing.T, serviceStart calendar.Date) (env *dec
 		TenantID: testpkg.Tenant(t), PhaseID: env.sourcePhase.ID,
 		GuardianFirstName: "Eltern", GuardianLastName: "Gehzeit",
 		GuardianEmail: "gehzeit-hand@example.com",
-		ConsentFlags: map[string]any{
+		ConsentFlags: testFormValues(map[string]any{
 			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
-		},
+		}),
 		Children: []enrollmentAPI.SubmitChild{{
 			FirstName: "Mateo", LastName: "Gehzeit",
 			DateOfBirth:      calendar.NewDate(2019, 3, 4),

@@ -116,10 +116,7 @@ func (s *Intake) createManualApprovedEnrollment(ctx context.Context, input enrol
 	if s.deps.ManualDecider == nil {
 		return nil, errors.New("manual enrollment decider is not configured")
 	}
-	req, err := decodeSubmitRequest(input.Request)
-	if err != nil {
-		return nil, err
-	}
+	req := decodeSubmitRequest(input.Request)
 	req.SkipRateLimit, req.AllowClosedPhase = true, true
 	req.SuppressSubmissionEmails, req.ExternalConsentConfirmed = true, true
 	req.SubmissionSource = enrollment.RequestSourceAdminManual
@@ -144,10 +141,7 @@ func (s *Intake) createManualApprovedEnrollment(ctx context.Context, input enrol
 	if err != nil {
 		return nil, err
 	}
-	request, err := requestInput(submitted.Request)
-	if err != nil {
-		return nil, err
-	}
+	request := submitted.Request
 	return &enrollment.ManualApprovedEnrollmentResult{
 		Request: request, Child: decided.Child, StatusURL: submitted.StatusURL,
 	}, nil

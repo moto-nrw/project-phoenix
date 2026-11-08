@@ -71,7 +71,7 @@ func TestAccountLinkedCoGuardianPhoneLookupFailureIsNotInvalidInput(t *testing.T
 	lookupErr := errors.New("phone store unavailable")
 	svc := guardrailService(stubGuardrailPhones{err: lookupErr})
 
-	err := svc.validateAccountLinkedGuardianEdits(context.Background(), &Request{}, guardrailEdit())
+	err := svc.validateAccountLinkedGuardianEdits(context.Background(), &enrollmentNative.Request{}, guardrailEdit())
 
 	require.ErrorIs(t, err, lookupErr)
 	assert.NotErrorIs(t, err, enrollmentNative.ErrChangeRequestInvalidData)
@@ -80,9 +80,9 @@ func TestAccountLinkedCoGuardianPhoneLookupFailureIsNotInvalidInput(t *testing.T
 func TestAccountLinkedCoGuardianPhoneMustMatchProfile(t *testing.T) {
 	t.Parallel()
 	matching := guardrailService(stubGuardrailPhones{rows: []*GuardianPhone{{PhoneNumber: " 0170 1234 "}}})
-	require.NoError(t, matching.validateAccountLinkedGuardianEdits(context.Background(), &Request{}, guardrailEdit()))
+	require.NoError(t, matching.validateAccountLinkedGuardianEdits(context.Background(), &enrollmentNative.Request{}, guardrailEdit()))
 
 	differing := guardrailService(stubGuardrailPhones{rows: []*GuardianPhone{{PhoneNumber: "0170 9999"}}})
-	err := differing.validateAccountLinkedGuardianEdits(context.Background(), &Request{}, guardrailEdit())
+	err := differing.validateAccountLinkedGuardianEdits(context.Background(), &enrollmentNative.Request{}, guardrailEdit())
 	require.ErrorIs(t, err, enrollmentNative.ErrChangeRequestInvalidData)
 }
