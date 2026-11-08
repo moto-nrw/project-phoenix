@@ -26,7 +26,7 @@ const firstCareFromNext = `first_care_from = CASE
 	WHEN ?1::text = 'active' OR ?2::date IS NULL THEN LEAST(?2::date, ?0::date)
 	ELSE ?2::date END`
 
-// careRestart is true when a write restarts an ended care (#6073, ADR 0179):
+// careRestart is true when a write restarts an ended care (#6073, ADR 0180):
 // the row's end has passed, and the next interval reaches today or later. ?0
 // is the application's today, ?1 the next end. Correcting an end to another
 // past day is no restart.
