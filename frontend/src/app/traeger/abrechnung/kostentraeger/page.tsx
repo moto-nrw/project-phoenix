@@ -93,7 +93,7 @@ function ShareCell({ share }: Readonly<{ share: CareCostShare }>) {
         </span>
         <ShareStatus share={share} />
       </p>
-      <p className="mt-0.5 text-xs text-gray-600">
+      <p className="mt-0.5 text-xs wrap-anywhere text-gray-600">
         {sharePeriod(share)} · {share.reference} · geprüft am{" "}
         {formatDate(share.checkedOn)}
       </p>

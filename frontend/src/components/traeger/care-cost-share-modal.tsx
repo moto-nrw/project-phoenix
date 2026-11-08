@@ -246,8 +246,19 @@ export function CareCostShareModal({
             void submit();
           }}
         >
-          <div className="space-y-2">
-            <FieldLabel required>Wer zahlt mit?</FieldLabel>
+          <div
+            className="space-y-2"
+            role="group"
+            aria-labelledby="care-cost-share-kind-label"
+            aria-describedby={
+              formErrors.fieldError("kind")
+                ? "care-cost-share-kind-error"
+                : undefined
+            }
+          >
+            <FieldLabel id="care-cost-share-kind-label" required>
+              Wer zahlt mit?
+            </FieldLabel>
             <SegmentedControl
               ariaLabel="Art des Anteils"
               fullWidth
