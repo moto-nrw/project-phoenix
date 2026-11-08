@@ -102,8 +102,12 @@ func TestReleaseBillingMonthGuards(t *testing.T) {
 func TestReleaseBillingMonthStoresWhatTheLeitungSaw(t *testing.T) {
 	t.Parallel()
 	store := &releaseStore{organization: 7}
-	month, err := releaseMonths(store).ReleaseBillingMonth(context.Background(),
-		mealplan.BillingMonthRelease{Month: "2026-03-01", AccountID: 42, ChildCount: 1, MealCount: 1})
+	months := releaseMonths(store)
+	seen, err := months.BillingMonth(context.Background(), "2026-03-01")
+	require.NoError(t, err)
+	require.NotEmpty(t, seen.Fingerprint)
+	month, err := months.ReleaseBillingMonth(context.Background(),
+		mealplan.BillingMonthRelease{Month: "2026-03-01", AccountID: 42, ChildCount: 1, MealCount: 1, Fingerprint: seen.Fingerprint})
 	require.NoError(t, err)
 	require.Len(t, store.inserted, 1)
 	assert.Equal(t, []domain.BillingChild{{StudentID: 1, FirstName: "Mia", LastName: "Albers", RegisteredDays: 1, MealDays: 1}}, store.inserted[0].Children)
@@ -160,4 +164,34 @@ func TestBillingMonthBeforeTheAttendanceWindowShowsAsExpired(t *testing.T) {
 	assert.Equal(t, mealplan.BillingMonthExpired, month.Status)
 	assert.Empty(t, month.Children)
 	assert.Zero(t, month.MealCount)
+}
+
+// A correction that moves a meal from one child to another keeps both
+// totals; the fingerprint of what the OGS-Leitung saw still refuses the
+// release, so no child is billed with counts nobody looked at (#4686).
+func TestReleaseBillingMonthRefusesAMealMovedBetweenChildren(t *testing.T) {
+	t.Parallel()
+	mia := mealplan.DailyParticipant{StudentID: 1, FirstName: "Mia", LastName: "Albers"}
+	ben := mealplan.DailyParticipant{StudentID: 2, FirstName: "Ben", LastName: "Brandt"}
+	present := map[calendar.Date]map[int64]bool{"2026-03-02": {1: true}}
+	store := &releaseStore{organization: 7}
+	months := releaseMonths(store)
+	months.weeks = func(_ context.Context, monday mealplan.Date) (mealplan.WeeklyList, error) {
+		if monday == "2026-03-02" {
+			return mealplan.WeeklyList{WeekStart: monday, Days: []mealplan.DailyList{
+				{Date: "2026-03-02", Participants: []mealplan.DailyParticipant{mia, ben}}}}, nil
+		}
+		return mealplan.WeeklyList{WeekStart: monday}, nil
+	}
+	months.presence = func(context.Context, calendar.Date, calendar.Date) (map[calendar.Date]map[int64]bool, error) {
+		return present, nil
+	}
+	seen, err := months.BillingMonth(context.Background(), "2026-03-01")
+	require.NoError(t, err)
+
+	present["2026-03-02"] = map[int64]bool{2: true}
+	_, err = months.ReleaseBillingMonth(context.Background(), mealplan.BillingMonthRelease{Month: "2026-03-01", AccountID: 42,
+		ChildCount: seen.ChildCount, MealCount: seen.MealCount, Fingerprint: seen.Fingerprint})
+	require.ErrorIs(t, err, mealplan.ErrBillingMonthChanged)
+	assert.Empty(t, store.inserted, "a refused release stores nothing")
 }

@@ -65,6 +65,10 @@ type BillingMonth struct {
 	MealCount    int                 `json:"meal_count"`
 	AbsenceCount int                 `json:"absence_count"`
 	Children     []BillingMonthChild `json:"children"`
+	// Fingerprint names the children and their counts as computed; the
+	// release sends it back, so a count moved between children since the
+	// OGS-Leitung looked refuses the release. Empty once released.
+	Fingerprint string `json:"fingerprint"`
 }
 
 // BillingMonthSummary is a month of the overview without children.
@@ -78,10 +82,11 @@ type BillingMonthSummary struct {
 
 // BillingMonthRelease names what the OGS-Leitung saw when it released.
 type BillingMonthRelease struct {
-	Month      Date
-	AccountID  int64
-	ChildCount int
-	MealCount  int
+	Month       Date
+	AccountID   int64
+	ChildCount  int
+	MealCount   int
+	Fingerprint string
 }
 
 // ReleasedMealChild is a child of a release as the Träger reads it: the

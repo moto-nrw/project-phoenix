@@ -36,6 +36,8 @@ export interface MealBillingMonth {
   readonly mealCount: number;
   readonly absenceCount: number;
   readonly children: readonly MealBillingChild[];
+  /** The computed state the release sends back; empty once released. */
+  readonly fingerprint: string;
 }
 
 interface BackendSummary {
@@ -54,6 +56,7 @@ interface BackendMonth {
   child_count: number;
   meal_count: number;
   absence_count: number;
+  fingerprint?: string;
   children:
     | {
         student_id: number;
@@ -90,6 +93,7 @@ function monthFromBackend(body: BackendMonth): MealBillingMonth {
     childCount: body.child_count,
     mealCount: body.meal_count,
     absenceCount: body.absence_count,
+    fingerprint: body.fingerprint ?? "",
     children: (body.children ?? []).map((child) => ({
       studentId: String(child.student_id),
       firstName: child.first_name,
@@ -124,7 +128,10 @@ export async function fetchMealBillingMonth(
 
 /** Releases the month the OGS-Leitung checked: its children and meals. */
 export async function releaseMealBillingMonth(
-  month: Pick<MealBillingMonth, "month" | "childCount" | "mealCount">,
+  month: Pick<
+    MealBillingMonth,
+    "month" | "childCount" | "mealCount" | "fingerprint"
+  >,
 ): Promise<MealBillingMonth> {
   return monthFromBackend(
     await request<BackendMonth>(
@@ -135,6 +142,7 @@ export async function releaseMealBillingMonth(
         body: JSON.stringify({
           child_count: month.childCount,
           meal_count: month.mealCount,
+          fingerprint: month.fingerprint,
         }),
       },
     ),

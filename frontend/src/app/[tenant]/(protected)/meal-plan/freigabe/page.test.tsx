@@ -47,6 +47,7 @@ const MARCH: MealBillingMonth = {
   childCount: 2,
   mealCount: 5,
   absenceCount: 1,
+  fingerprint: "m3",
   children: [
     {
       studentId: "1",

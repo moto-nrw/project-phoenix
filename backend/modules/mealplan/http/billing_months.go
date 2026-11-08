@@ -43,16 +43,18 @@ func (rs *BillingMonthResource) Router() chi.Router {
 	return router
 }
 
-// BillingMonthReleaseRequest names the counts the OGS-Leitung saw.
+// BillingMonthReleaseRequest names the counts and the fingerprint of the
+// month the OGS-Leitung saw.
 type BillingMonthReleaseRequest struct {
-	ChildCount *int `json:"child_count"`
-	MealCount  *int `json:"meal_count"`
+	ChildCount  *int   `json:"child_count"`
+	MealCount   *int   `json:"meal_count"`
+	Fingerprint string `json:"fingerprint"`
 }
 
-// Bind requires both counts.
+// Bind requires both counts and the fingerprint.
 func (req *BillingMonthReleaseRequest) Bind(*http.Request) error {
-	if req.ChildCount == nil || req.MealCount == nil {
-		return errors.New("child_count and meal_count are required")
+	if req.ChildCount == nil || req.MealCount == nil || req.Fingerprint == "" {
+		return errors.New("child_count, meal_count and fingerprint are required")
 	}
 	return nil
 }
@@ -83,7 +85,7 @@ func (rs *BillingMonthResource) release(w http.ResponseWriter, r *http.Request) 
 	}
 	month, err := rs.months.ReleaseBillingMonth(r.Context(), mealplanModule.BillingMonthRelease{
 		Month: mealplanModule.Date(chi.URLParam(r, "month")), AccountID: rs.runtime.CurrentAccountID(r.Context()),
-		ChildCount: *req.ChildCount, MealCount: *req.MealCount,
+		ChildCount: *req.ChildCount, MealCount: *req.MealCount, Fingerprint: req.Fingerprint,
 	})
 	if err != nil {
 		rs.runtime.ModuleFailure(w, r, err, "failed to release the Mensa month")

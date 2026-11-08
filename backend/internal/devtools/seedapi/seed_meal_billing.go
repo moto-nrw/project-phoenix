@@ -27,9 +27,10 @@ type seedMealMonthSummary struct {
 }
 
 type seedMealMonth struct {
-	Status     string `json:"status"`
-	ChildCount int    `json:"child_count"`
-	MealCount  int    `json:"meal_count"`
+	Status      string `json:"status"`
+	ChildCount  int    `json:"child_count"`
+	MealCount   int    `json:"meal_count"`
+	Fingerprint string `json:"fingerprint"`
 }
 
 func (seedMealBillingStep) Run(_ context.Context, rt *Runtime) error {
@@ -149,7 +150,7 @@ func seedReleaseMealMonth(client *Client, month string) error {
 		return fmt.Errorf("read the Mensa month %s: %w", month, err)
 	}
 	if _, err := client.Post("/api/meal-billing-months/"+month+"/release", map[string]any{
-		"child_count": detail.Data.ChildCount, "meal_count": detail.Data.MealCount,
+		"child_count": detail.Data.ChildCount, "meal_count": detail.Data.MealCount, "fingerprint": detail.Data.Fingerprint,
 	}); err != nil {
 		return fmt.Errorf("release the Mensa month %s: %w", month, err)
 	}

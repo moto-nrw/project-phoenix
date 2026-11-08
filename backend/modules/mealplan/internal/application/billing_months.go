@@ -2,8 +2,11 @@ package application
 
 import (
 	"context"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"hash/fnv"
 	"slices"
 	"strings"
 
@@ -164,7 +167,8 @@ func (b *BillingMonths) ReleaseBillingMonth(ctx context.Context, release mealpla
 	if err != nil {
 		return mealplan.BillingMonth{}, err
 	}
-	if computed.ChildCount != release.ChildCount || computed.MealCount != release.MealCount {
+	if computed.ChildCount != release.ChildCount || computed.MealCount != release.MealCount ||
+		computed.Fingerprint != release.Fingerprint {
 		return mealplan.BillingMonth{}, mealplan.ErrBillingMonthChanged
 	}
 	stored := storedMonth(month, computed)
@@ -257,7 +261,27 @@ func (b *BillingMonths) compute(ctx context.Context, month calendar.Date) (mealp
 	}
 	result := countBillingMonth(month, days, holidays, present)
 	result.Status = b.statusOf(month)
+	result.Fingerprint = monthFingerprint(result)
 	return result, nil
+}
+
+// monthFingerprint names a computed month as the OGS-Leitung sees it: each
+// child with its class, its registered days, its meals and its absences.
+// The release compares it, so the totals alone cannot hide a meal that
+// moved from one child to another.
+func monthFingerprint(month mealplan.BillingMonth) string {
+	state, err := json.Marshal(struct {
+		Month    mealplan.Date                `json:"month"`
+		Children []mealplan.BillingMonthChild `json:"children"`
+	}{month.Month, month.Children})
+	if err != nil {
+		// A month always marshals; no fingerprint matches no release.
+		return ""
+	}
+	// A change detector, not a secret: as the monthly run's review (#5916).
+	hash := fnv.New128a()
+	_, _ = hash.Write(state)
+	return hex.EncodeToString(hash.Sum(nil))
 }
 
 // countBillingMonth counts the month (#4686): a school day is a day of the
