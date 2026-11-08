@@ -10,7 +10,7 @@ export function traegerCareNoticesTopic(): HelpTopic {
       "Ein Jahresbescheid setzt den Beitrag für mehrere Monate eines Jahres fest. Jede Familie bekommt je Vertrag einen Bescheid mit Monatsraten. Die Raten sind jeweils am 1. des Monats fällig. Für Monate mit Bescheid berechnet der Monatslauf keine Betreuung erneut. Essen rechnet er weiterhin ab.",
     group: "anmeldeverwaltung",
     audience: "traeger",
-    icon: "Repeat",
+    icon: "CalendarDays",
     requirements: [
       "Ihre Rolle im Träger-Büro ist Abrechnung.",
       "Die Preisliste hat Preise für die Monate. Der Bescheid rechnet wie der Monatslauf.",
