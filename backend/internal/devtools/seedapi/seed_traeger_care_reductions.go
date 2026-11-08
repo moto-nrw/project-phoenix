@@ -2,8 +2,8 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -13,6 +13,19 @@ import (
 // pages „Ermäßigungen“ and „Nachweise“ and the reductions on the invoices
 // are filled on every dev machine. The amounts are placeholders, no
 // customer's prices.
+
+// The registered codes of a rule or an evidence another seed of the same
+// Träger kept a moment earlier.
+const (
+	seedCareRuleOverlap     = "parent_billing.contribution_rule_overlap"
+	seedCareEvidenceOverlap = "parent_billing.care_evidence_overlap"
+)
+
+// seedConflictCode reports a 409 with the given registered code.
+func seedConflictCode(err error, code string) bool {
+	var apiErr *APIError
+	return errors.As(err, &apiErr) && apiErr.StatusCode == 409 && apiErr.Code == code
+}
 
 type seedCareRuleSet struct {
 	Rules []struct {
@@ -74,8 +87,7 @@ func seedCareReductions(client *Client, auth AuthRef, month calendar.Date) (int,
 			rule["valid_from"], rule["school_ids"] = month.String(), schools
 			// Demo schools of one Träger seed in parallel: another seed may
 			// have kept the rule of this kind for the same schools already.
-			if _, err := client.PostWithAuth(auth, "/traeger/care-rules/", rule); err != nil &&
-				!strings.Contains(err.Error(), "parent_billing.contribution_rule_overlap") {
+			if _, err := client.PostWithAuth(auth, "/traeger/care-rules/", rule); err != nil && !seedConflictCode(err, seedCareRuleOverlap) {
 				return 0, 0, fmt.Errorf("keep the care rule %q: %w", rule["name"], err)
 			}
 		}
@@ -112,8 +124,7 @@ func seedCareEvidences(client *Client, auth AuthRef, month calendar.Date) (int, 
 		}
 		body := kinds[added]
 		body["contract_id"], body["valid_from"], body["checked_on"] = contract.ContractID, month.String(), calendar.TodayDate().String()
-		if _, err := client.PostWithAuth(auth, "/traeger/care-evidences/", body); err != nil &&
-			!strings.Contains(err.Error(), "parent_billing.care_evidence_overlap") {
+		if _, err := client.PostWithAuth(auth, "/traeger/care-evidences/", body); err != nil && !seedConflictCode(err, seedCareEvidenceOverlap) {
 			return added, fmt.Errorf("keep a care evidence: %w", err)
 		}
 		added++
