@@ -1,6 +1,6 @@
 "use client";
 
-import type { MouseEvent, ReactNode } from "react";
+import type { CSSProperties, MouseEvent, ReactNode } from "react";
 import { useId, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -121,12 +121,12 @@ export function SectionCollapseToggle({
   return (
     <Button
       type="button"
-      variant="ghost"
-      size="icon"
-      data-section-collapse-toggle=""
       // Zeigt die Rückmeldung auch, wenn die Maus über dem übrigen Kopf liegt:
       // der ganze Kopf schaltet (#5021).
-      className="shrink-0 group-hover/collapse-head:bg-gray-100 group-hover/collapse-head:text-gray-900"
+      variant="disclosure"
+      size="icon"
+      data-section-collapse-toggle=""
+      className="shrink-0"
       aria-label={
         collapsed
           ? `${title ?? "Abschnitt"} ausklappen`
@@ -262,6 +262,7 @@ export function SectionCard({
   hoverElevated = false,
   children,
   id,
+  style,
 }: Readonly<{
   kicker?: string;
   /**
@@ -348,6 +349,11 @@ export function SectionCard({
   hoverElevated?: boolean;
   children?: ReactNode;
   id?: string;
+  /**
+   * Inline-Stil der Fläche, für CSS-Variablen, die der Inhalt liest (die
+   * Spaltenvorlage eines Rasters). Nicht für Farbe oder Maß der Karte.
+   */
+  style?: CSSProperties;
 }>) {
   const [collapsedState, setCollapsedState] = useState(defaultCollapsed);
   const collapsed = collapsedProp ?? collapsedState;
@@ -388,6 +394,7 @@ export function SectionCard({
   return (
     <SectionCardSurface
       id={id}
+      style={style}
       data-testid={testId}
       aria-labelledby={namedRegion && title != null ? headingId : undefined}
       bare={bare}
