@@ -223,9 +223,8 @@ export function debitHints(invoices: readonly CareInvoice[]): DebitHint[] {
  * missing applies to every row and stands once above the list.
  */
 export function CareDebitHintsCard({
-  runId,
   invoices,
-}: Readonly<{ runId: string; invoices: readonly CareInvoice[] }>) {
+}: Readonly<{ invoices: readonly CareInvoice[] }>) {
   const [expanded, setExpanded] = useState(false);
   const hints = debitHints(invoices);
   if (hints.length === 0) return null;
@@ -279,7 +278,7 @@ export function CareDebitHintsCard({
             <div className="flex w-full flex-col gap-2 min-[480px]:w-auto min-[480px]:flex-row sm:justify-end">
               <ButtonLink
                 href={traegerPath(
-                  `/traeger/abrechnung/monatsbeitraege/${runId}/empfaenger/${invoice.contractId}`,
+                  `/traeger/abrechnung/lastschrift/${invoice.contractId}`,
                 )}
                 variant="surface"
                 size="compact"

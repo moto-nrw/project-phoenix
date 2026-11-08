@@ -370,7 +370,9 @@ export function SepaMandatesCard({
             sortValue: (mandate: SepaMandate) => mandateFamily(mandate),
             render: (mandate: SepaMandate) => (
               <NavigationLink
-                href={traegerPath(`/traeger/vertraege/${mandate.contractId}`)}
+                href={traegerPath(
+                  `/traeger/abrechnung/lastschrift/${mandate.contractId}`,
+                )}
                 className="font-medium text-gray-900 underline-offset-2 hover:underline"
               >
                 {mandateFamily(mandate)}
@@ -486,7 +488,7 @@ export function SepaMandatesCard({
       description={
         forFamily
           ? "Damit buchen Sie den Beitrag dieser Familie ab. Die IBAN sehen Sie nur verdeckt."
-          : "Alle Mandate Ihrer Familien. Neue Mandate erfassen Sie beim Vertrag der Familie."
+          : "Alle Mandate Ihrer Familien. Ein neues Mandat erfassen Sie beim Vertrag der Familie unter „Mandat erfassen“."
       }
       actions={createAction}
       loading={mandates === null && !own.error}

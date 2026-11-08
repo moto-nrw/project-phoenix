@@ -5,7 +5,7 @@
 // Vertrags; eine eigene Seite, damit die Seite des Laufs das Formular nicht
 // lädt. Die gespeicherte Abweichung wird bei jedem Öffnen frisch gelesen.
 
-import dynamic from "next/dynamic";
+import { SepaMandateStatusCard } from "~/components/traeger/sepa-mandate-status-card";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { findFamilyBilling } from "~/components/traeger/billing-payment-format";
@@ -26,16 +26,6 @@ import {
   fetchCareRun,
 } from "~/lib/traeger-care-billing-api";
 import { traegerPath } from "~/lib/traeger-url";
-
-// The SEPA mandate of the family (#4695) loads on its own, so the page does
-// not carry its dialogs.
-const SepaMandatesCard = dynamic(
-  () =>
-    import("~/components/traeger/sepa-mandates-card").then(
-      (module) => module.SepaMandatesCard,
-    ),
-  { ssr: false },
-);
 
 const logger = createLogger({ component: "TraegerFamilyBillingPage" });
 
@@ -134,12 +124,7 @@ export default function TraegerFamilyBillingPage() {
           />
         </SectionCard>
       ) : null}
-      {loaded ? (
-        <SepaMandatesCard
-          contractId={contractId}
-          holder={`${loaded.invoice.recipient.firstName} ${loaded.invoice.recipient.lastName}`.trim()}
-        />
-      ) : null}
+      {loaded ? <SepaMandateStatusCard contractId={contractId} /> : null}
     </TenantPage>
   );
 }

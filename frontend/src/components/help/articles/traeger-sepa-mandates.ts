@@ -36,7 +36,8 @@ export function traegerSepaMandatesTopic(): HelpTopic {
           "Je Familie gilt ein Mandat. Es gilt auch für Geschwister mit derselben E-Mail-Adresse im Vertrag.",
         steps: [
           "Öffnen Sie den Vertrag des Kindes unter `Verträge`. Oder öffnen Sie im Monatslauf bei der Rechnung das Menü mit den drei Punkten und dann `Empfänger und Zahlung`.",
-          "Wählen Sie in der Karte `SEPA-Lastschriftmandat` den Knopf `Mandat erfassen`.",
+          "Wählen Sie in der Karte `SEPA-Lastschriftmandat` den Knopf `Mandat erfassen`. Es öffnet sich die Seite des Mandats.",
+          "Wählen Sie dort `Mandat erfassen`.",
           "Übernehmen Sie `Kontoinhaber`, `IBAN` und `Unterschrieben am` aus dem unterschriebenen Mandat. Die `BIC` brauchen Sie nur bei Konten außerhalb der EU.",
           "Tragen Sie die `Mandatsreferenz` ein. Lassen Sie das Feld leer, vergibt moto eine.",
           "Wählen Sie die `Art`: `Dauermandat` für jeden Monat oder `Einzelmandat` für eine Abbuchung.",
@@ -47,6 +48,7 @@ export function traegerSepaMandatesTopic(): HelpTopic {
       {
         title: "Mandat widerrufen",
         steps: [
+          "Öffnen Sie unter `Abrechnung` im Reiter `Lastschrift` die Familie. Oder wählen Sie beim Vertrag `Mandat ansehen`.",
           "Wählen Sie beim Mandat das Menü mit den drei Punkten und dann `Widerrufen`.",
           "Wählen Sie bei `Widerruf erhalten am` den Tag, an dem der Widerruf kam.",
           "Wählen Sie `Widerrufen`.",
