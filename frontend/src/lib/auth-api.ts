@@ -1,5 +1,6 @@
 // lib/auth-api.ts
 import { ApiError, apiErrorFromBody, transportFetch } from "./api-error";
+import { portalAuthPath } from "./portal-paths";
 export { handleAuthFailure, refreshToken } from "./auth-failure";
 import { createLogger } from "~/lib/logger";
 import { parseRetryAfter } from "./retry-after";
@@ -80,13 +81,19 @@ async function requestPasswordResetAt(
 export async function requestPasswordReset(
   email: string,
 ): Promise<{ message: string }> {
-  return requestPasswordResetAt("/api/auth/password-reset", email);
+  return requestPasswordResetAt(
+    portalAuthPath("tenant", "password-reset"),
+    email,
+  );
 }
 
 export async function requestParentPasswordReset(
   email: string,
 ): Promise<{ message: string }> {
-  return requestPasswordResetAt("/api/parent/auth/password-reset", email);
+  return requestPasswordResetAt(
+    portalAuthPath("parent", "password-reset"),
+    email,
+  );
 }
 
 /**
@@ -97,7 +104,10 @@ export async function requestParentPasswordReset(
 export async function requestSchoolPasswordReset(
   email: string,
 ): Promise<{ message: string }> {
-  return requestPasswordResetAt("/api/school/auth/password-reset", email);
+  return requestPasswordResetAt(
+    portalAuthPath("school", "password-reset"),
+    email,
+  );
 }
 
 /**
@@ -131,7 +141,7 @@ export async function confirmParentPasswordReset(
 ): Promise<{ message: string }> {
   try {
     const response = await transportFetch(
-      "/api/parent/auth/password-reset/confirm",
+      portalAuthPath("parent", "password-reset/confirm"),
       {
         method: "POST",
         headers: {
@@ -167,7 +177,7 @@ export async function confirmSchoolPasswordReset(
   confirmPassword: string,
 ): Promise<{ message: string }> {
   return confirmPasswordResetAt(
-    "/api/school/auth/password-reset/confirm",
+    portalAuthPath("school", "password-reset/confirm"),
     token,
     password,
     confirmPassword,
@@ -178,7 +188,10 @@ export async function confirmSchoolPasswordReset(
 export async function requestCatererPasswordReset(
   email: string,
 ): Promise<{ message: string }> {
-  return requestPasswordResetAt("/api/caterer/auth/password-reset", email);
+  return requestPasswordResetAt(
+    portalAuthPath("caterer", "password-reset"),
+    email,
+  );
 }
 
 export async function confirmCatererPasswordReset(
@@ -187,7 +200,7 @@ export async function confirmCatererPasswordReset(
   confirmPassword: string,
 ): Promise<{ message: string }> {
   return confirmPasswordResetAt(
-    "/api/caterer/auth/password-reset/confirm",
+    portalAuthPath("caterer", "password-reset/confirm"),
     token,
     password,
     confirmPassword,
@@ -198,7 +211,10 @@ export async function confirmCatererPasswordReset(
 export async function requestTraegerPasswordReset(
   email: string,
 ): Promise<{ message: string }> {
-  return requestPasswordResetAt("/api/traeger/auth/password-reset", email);
+  return requestPasswordResetAt(
+    portalAuthPath("traeger", "password-reset"),
+    email,
+  );
 }
 
 export async function confirmTraegerPasswordReset(
@@ -207,7 +223,7 @@ export async function confirmTraegerPasswordReset(
   confirmPassword: string,
 ): Promise<{ message: string }> {
   return confirmPasswordResetAt(
-    "/api/traeger/auth/password-reset/confirm",
+    portalAuthPath("traeger", "password-reset/confirm"),
     token,
     password,
     confirmPassword,

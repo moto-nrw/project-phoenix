@@ -4,6 +4,7 @@ import {
   PORTAL_SESSION_COOKIE_NAMES,
   tenantSessionCookieName,
 } from "~/lib/session-cookie-exit.server";
+import { PORTAL_AUTH_BASE_PATHS, type PortalKey } from "~/lib/portal-paths";
 import {
   exactOriginRedirect,
   parentDomainRedirect,
@@ -19,8 +20,7 @@ import {
  * token kinds) is described in docs/agents/contracts.md.
  */
 
-export type PortalKey =
-  "tenant" | "operator" | "parent" | "school" | "caterer" | "traeger";
+export type { PortalKey } from "~/lib/portal-paths";
 
 /** The portal name POST /auth/session/validate expects. */
 export type ValidationPortal =
@@ -153,7 +153,7 @@ export const PORTALS = {
     identity: "account",
     providerId: "credentials",
     providerName: "Credentials",
-    basePath: "/api/auth",
+    basePath: PORTAL_AUTH_BASE_PATHS.tenant,
     signInPage: "/",
     cookieNames: tenantCookies(),
     redirect: parentDomainRedirect,
@@ -175,7 +175,7 @@ export const PORTALS = {
     identity: "operator",
     providerId: "operator-credentials",
     providerName: "Operator Credentials",
-    basePath: "/api/operator/auth",
+    basePath: PORTAL_AUTH_BASE_PATHS.operator,
     signInPage: "/operator/login",
     cookieNames: hostOnlyCookies(PORTAL_SESSION_COOKIE_NAMES.operator, "lax"),
     redirect: subdomainRedirect,
@@ -199,7 +199,7 @@ export const PORTALS = {
     identity: "account",
     providerId: "parent-credentials",
     providerName: "Parent Credentials",
-    basePath: "/api/parent/auth",
+    basePath: PORTAL_AUTH_BASE_PATHS.parent,
     signInPage: "/parents/login",
     // Strict: the portal handles guardian PII and has no cross-site flow
     // that needs the cookie; login is POST-only.
@@ -230,7 +230,7 @@ export const PORTALS = {
     identity: "account",
     providerId: "school-credentials",
     providerName: "School Credentials",
-    basePath: "/api/school/auth",
+    basePath: PORTAL_AUTH_BASE_PATHS.school,
     signInPage: "/school/login",
     cookieNames: hostOnlyCookies(PORTAL_SESSION_COOKIE_NAMES.school, "strict"),
     redirect: exactOriginRedirect,
@@ -262,7 +262,7 @@ export const PORTALS = {
     identity: "account",
     providerId: "caterer-credentials",
     providerName: "Caterer Credentials",
-    basePath: "/api/caterer/auth",
+    basePath: PORTAL_AUTH_BASE_PATHS.caterer,
     signInPage: "/caterer/login",
     cookieNames: hostOnlyCookies(PORTAL_SESSION_COOKIE_NAMES.caterer, "strict"),
     redirect: exactOriginRedirect,
@@ -287,7 +287,7 @@ export const PORTALS = {
     identity: "account",
     providerId: "traeger-credentials",
     providerName: "Träger Credentials",
-    basePath: "/api/traeger/auth",
+    basePath: PORTAL_AUTH_BASE_PATHS.traeger,
     signInPage: "/traeger/login",
     cookieNames: hostOnlyCookies(PORTAL_SESSION_COOKIE_NAMES.traeger, "strict"),
     redirect: exactOriginRedirect,

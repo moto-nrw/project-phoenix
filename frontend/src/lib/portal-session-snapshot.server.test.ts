@@ -1,6 +1,7 @@
 import type { Session } from "next-auth";
 import { encode } from "next-auth/jwt";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { env } from "~/env";
 
 const { requestHeaders } = vi.hoisted(() => ({
   requestHeaders: { current: new Headers() },
@@ -305,6 +306,31 @@ const [tenant, , school, caterer, operator, traeger] = PORTALS as [
 ];
 
 describe("portal-specific claims", () => {
+  // Without TENANT_DOMAIN the tenant keeps Auth.js' default name, which
+  // Auth.js prefixes with __Secure- on https.
+  it("reads the tenant's __Secure- cookie on https without TENANT_DOMAIN", async () => {
+    const mutableEnv = env as { NEXTAUTH_URL: string; TENANT_DOMAIN?: string };
+    expect(mutableEnv.TENANT_DOMAIN).toBeUndefined();
+    const previous = mutableEnv.NEXTAUTH_URL;
+    mutableEnv.NEXTAUTH_URL = "https://moto.example";
+    try {
+      const secureCookie = `__Secure-${TENANT_COOKIE}`;
+      sendCookies({
+        [secureCookie]: await cookieValue(claimsFor(tenant), secureCookie),
+      });
+      await expect(readTenantSessionSnapshot()).resolves.toMatchObject({
+        user: { id: "41" },
+      });
+
+      sendCookies({
+        [TENANT_COOKIE]: await cookieValue(claimsFor(tenant), TENANT_COOKIE),
+      });
+      await expect(readTenantSessionSnapshot()).resolves.toBeNull();
+    } finally {
+      mutableEnv.NEXTAUTH_URL = previous;
+    }
+  });
+
   it("requires the school of a tenant session", async () => {
     await sendPortalCookie(tenant, { tenantId: undefined });
 

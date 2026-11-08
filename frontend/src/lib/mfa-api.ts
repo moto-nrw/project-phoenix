@@ -1,7 +1,7 @@
 import { ApiError, apiErrorFromBody, transportFetch } from "./api-error";
+import { portalAuthPath, type PortalKey } from "./portal-paths";
 
-export type LoginScope =
-  "tenant" | "operator" | "school" | "traeger" | "caterer";
+export type LoginScope = Exclude<PortalKey, "parent">;
 
 interface MFARequiredLoginResponse {
   status: "mfa_required";
@@ -56,33 +56,15 @@ function isOperator(scope: LoginScope): boolean {
 }
 
 function loginUrl(scope: LoginScope): string {
-  switch (scope) {
-    case "operator":
-      return "/api/operator/auth/login";
-    case "school":
-      return "/api/school/auth/login";
-    default:
-      return "/api/auth/login";
-  }
+  return portalAuthPath(scope, "login");
 }
 
+/**
+ * Every portal's MFA routes answer top-level JSON except the operator's,
+ * which wraps it in an envelope (`isOperator`).
+ */
 function mfaUrl(scope: LoginScope, suffix: string): string {
-  switch (scope) {
-    case "operator":
-      return `/api/operator/auth/mfa/${suffix}`;
-    case "school":
-      // School MFA endpoints answer top-level JSON like the tenant ones
-      // (no operator envelope), so only the URL differs.
-      return `/api/school/auth/mfa/${suffix}`;
-    case "traeger":
-      return `/api/traeger/auth/mfa/${suffix}`;
-    case "caterer":
-      // The caterer portal's second factor is voluntary (#4497); its
-      // endpoints answer top-level JSON like the tenant ones.
-      return `/api/caterer/auth/mfa/${suffix}`;
-    default:
-      return `/api/auth/mfa/${suffix}`;
-  }
+  return portalAuthPath(scope, `mfa/${suffix}`);
 }
 
 interface PostJsonOptions {
@@ -318,14 +300,7 @@ export interface TrustedDeviceDTO {
 }
 
 function trustedDevicesUrl(scope: LoginScope, suffix = ""): string {
-  switch (scope) {
-    case "operator":
-      return `/api/operator/auth/mfa/trusted-devices${suffix}`;
-    case "caterer":
-      return `/api/caterer/auth/mfa/trusted-devices${suffix}`;
-    default:
-      return `/api/auth/mfa/trusted-devices${suffix}`;
-  }
+  return portalAuthPath(scope, `mfa/trusted-devices${suffix}`);
 }
 
 export async function listTrustedDevices(
