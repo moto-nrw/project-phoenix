@@ -79,9 +79,36 @@ func careReviewTable(detail parentbilling.CareRunDetail) ExportTable {
 	if detail.InvoiceDate != nil {
 		invoiceDate = detail.InvoiceDate.Format("02.01.2006")
 	}
+	rows, total := reviewInvoiceRows(detail.Invoices, invoiceDate)
+	rows = append(rows, reviewHeldRows(detail, invoiceDate)...)
+	rows = append(rows, map[string]string{"position": "Summe, die ausgestellt wird", "amount": formatAmount(total)})
+	if detail.ExcludedCount > 0 {
+		rows = append(rows, map[string]string{
+			"position": "Ausgeschlossen, nicht in der Summe (" + invoiceCount(detail.ExcludedCount) + ")",
+			"amount":   formatAmount(detail.ExcludedCents),
+		})
+	}
+	schools := make([]string, len(detail.Schools))
+	for i, school := range detail.Schools {
+		schools[i] = school.Name
+	}
+	return ExportTable{
+		Title: "Prüfliste Monatsbeitrag", Subtitle: parentbilling.CareMonthName(detail.BillingMonth),
+		Lines: []string{
+			"Rechnungsdatum: " + invoiceDate,
+			"Schulen: " + strings.Join(schools, ", "),
+			"Vorschau ohne Rechnungsnummern. Die Nummern gibt erst die Ausstellung.",
+		},
+		Columns: careReviewColumns, Rows: rows,
+	}
+}
+
+// reviewInvoiceRows writes one row per position and reduction of every
+// invoice of the preview and sums the invoices the release issues.
+func reviewInvoiceRows(invoices []parentbilling.CareInvoice, invoiceDate string) ([]map[string]string, int64) {
 	rows := []map[string]string{}
 	var total int64
-	for _, invoice := range detail.Invoices {
+	for _, invoice := range invoices {
 		status := reviewStatusIssue
 		if invoice.Exclusion != nil {
 			status = reviewStatusExcluded + invoice.Exclusion.Reason
@@ -107,6 +134,13 @@ func careReviewTable(detail parentbilling.CareRunDetail) ExportTable {
 			}))
 		}
 	}
+	return rows, total
+}
+
+// reviewHeldRows writes the bookings the run does not bill: without a price
+// or with a duplicate contract.
+func reviewHeldRows(detail parentbilling.CareRunDetail, invoiceDate string) []map[string]string {
+	rows := []map[string]string{}
 	for _, unpriced := range detail.Unpriced {
 		rows = append(rows, map[string]string{
 			"invoice_date": invoiceDate, "school": unpriced.SchoolName,
@@ -125,26 +159,7 @@ func careReviewTable(detail parentbilling.CareRunDetail) ExportTable {
 			"position": duplicate.ModuleName, "weekdays": germanWeekdays[duplicate.Weekday], "status": reviewStatusDouble,
 		})
 	}
-	rows = append(rows, map[string]string{"position": "Summe, die ausgestellt wird", "amount": formatAmount(total)})
-	if detail.ExcludedCount > 0 {
-		rows = append(rows, map[string]string{
-			"position": "Ausgeschlossen, nicht in der Summe (" + invoiceCount(detail.ExcludedCount) + ")",
-			"amount":   formatAmount(detail.ExcludedCents),
-		})
-	}
-	schools := make([]string, len(detail.Schools))
-	for i, school := range detail.Schools {
-		schools[i] = school.Name
-	}
-	return ExportTable{
-		Title: "Prüfliste Monatsbeitrag", Subtitle: parentbilling.CareMonthName(detail.BillingMonth),
-		Lines: []string{
-			"Rechnungsdatum: " + invoiceDate,
-			"Schulen: " + strings.Join(schools, ", "),
-			"Vorschau ohne Rechnungsnummern. Die Nummern gibt erst die Ausstellung.",
-		},
-		Columns: careReviewColumns, Rows: rows,
-	}
+	return rows
 }
 
 // reviewWeekdays writes the booked weekdays of a position: "Mo, Di".

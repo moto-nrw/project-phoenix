@@ -30,7 +30,7 @@ import {
   CareExcludedCard,
   CareReviewExport,
   exclusionColumn,
-} from "~/components/traeger/care-run-review";
+} from "~/components/traeger/care-run-review-lazy";
 import { formatEuro } from "~/components/traeger/contribution-format";
 import { HolidayHeadFacts } from "~/components/traeger/holiday-period-head";
 import { Alert } from "~/components/ui/alert";

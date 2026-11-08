@@ -4,12 +4,12 @@
 // A): das Menü „Ausschließen“ je Rechnung, die Karte der ausgeschlossenen
 // Rechnungen mit dem Weg zurück und die Prüfliste als Excel oder CSV. Eine
 // ausgeschlossene Rechnung bekommt bei der Freigabe keine Nummer; ihr Kind
-// kommt im nächsten Lauf desselben Monats wieder. Die Dialoge lädt die
-// Seite erst, wenn jemand sie öffnet.
+// kommt im nächsten Lauf desselben Monats wieder. Die Laufseite lädt diese
+// Datei erst in der Prüfphase (care-run-review-lazy.tsx), die Dialoge erst,
+// wenn jemand sie öffnet.
 
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
-import type { DataTableColumn } from "~/components/ui/data-table";
 import {
   type ExportMenuOption,
   ExportMenu,
@@ -28,7 +28,6 @@ import {
   downloadCareRunReview,
 } from "~/lib/traeger-care-review-api";
 import { invoiceCountLabel } from "./care-billing-format";
-import type { CareInvoiceRow } from "./care-run-invoices";
 import { formatEuro } from "./contribution-format";
 
 const logger = createLogger({ component: "CareRunReview" });
@@ -43,30 +42,26 @@ function childName(invoice: CareInvoice): string {
 }
 
 /** The row menu of a preview invoice: leave it out of the release. */
-export function exclusionColumn(
-  onExclude: (invoice: CareInvoice) => void,
-): DataTableColumn<CareInvoiceRow> {
-  return {
-    key: "actions",
-    header: "",
-    align: "right",
-    stacked: "meta",
-    stackedLabel: false,
-    className: "w-12 align-top",
-    render: ({ invoice }) => (
-      <OverflowMenu
-        ariaLabel={`Aktionen für die Rechnung von ${childName(invoice)}`}
-        triggerSize="sm"
-        items={[
-          {
-            label: "Ausschließen",
-            description: "Bekommt bei der Freigabe keine Nummer",
-            onClick: () => onExclude(invoice),
-          },
-        ]}
-      />
-    ),
-  };
+export function ExclusionMenu({
+  invoice,
+  onExclude,
+}: Readonly<{
+  invoice: CareInvoice;
+  onExclude: (invoice: CareInvoice) => void;
+}>) {
+  return (
+    <OverflowMenu
+      ariaLabel={`Aktionen für die Rechnung von ${childName(invoice)}`}
+      triggerSize="sm"
+      items={[
+        {
+          label: "Ausschließen",
+          description: "Bekommt bei der Freigabe keine Nummer",
+          onClick: () => onExclude(invoice),
+        },
+      ]}
+    />
+  );
 }
 
 /** „Prüfliste“: the preview as Excel or CSV, without invoice numbers. */

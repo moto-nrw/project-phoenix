@@ -354,3 +354,39 @@ func excludedContracts(invoices []parentbilling.CareInvoice) []int64 {
 	}
 	return ids
 }
+
+// issueReviewed checks the review again in the release's transaction (the
+// schools, the exclusions, the invoice date and every invoice must be what
+// the reviewer saw) and issues the invoices on the invoice date of the run,
+// or today without one. A run whose invoices are all excluded issues none
+// and takes no number.
+func (c *CareBilling) issueReviewed(ctx context.Context, organizationID int64, run parentbilling.CareRun,
+	release parentbilling.CareRelease,
+) (string, reviewedMonth, calendar.Date, error) {
+	rule, month, err := c.reviewed(ctx, organizationID, run)
+	if err != nil {
+		return "", reviewedMonth{}, "", err
+	}
+	if len(month.invoices) == 0 && len(month.excluded) == 0 {
+		return "", reviewedMonth{}, "", parentbilling.ErrBillingRunEmpty
+	}
+	if len(month.invoices) != release.DocumentCount || month.total() != release.TotalCents ||
+		month.fingerprint == "" || month.fingerprint != release.Fingerprint {
+		return "", reviewedMonth{}, "", parentbilling.ErrBillingRunChanged
+	}
+	issuedOn := c.today()
+	if run.InvoiceDate != nil {
+		issuedOn = *run.InvoiceDate
+	}
+	if len(month.invoices) == 0 {
+		return rule, month, issuedOn, nil
+	}
+	pattern, err := numberPatternOf(ctx, c.store, organizationID, parentbilling.ServiceCare)
+	if err != nil {
+		return "", reviewedMonth{}, "", err
+	}
+	if err := c.issue(ctx, organizationID, run, rule, pattern, issuedOn, month.invoices); err != nil {
+		return "", reviewedMonth{}, "", err
+	}
+	return rule, month, issuedOn, nil
+}

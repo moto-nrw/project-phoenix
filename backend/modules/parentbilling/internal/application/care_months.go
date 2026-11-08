@@ -434,33 +434,9 @@ func (c *CareBilling) ReleaseCareRun(ctx context.Context, reviewer parentbilling
 	if run.Status != parentbilling.RunCalculated {
 		return parentbilling.CareRunDetail{}, parentbilling.ErrBillingRunReleased
 	}
-	// The review is checked again in this transaction: the schools, the
-	// exclusions, the invoice date and every invoice must be what the
-	// reviewer saw (#5916).
-	rule, month, err := c.reviewed(ctx, reviewer.OrganizationID, run)
+	rule, month, issuedOn, err := c.issueReviewed(ctx, reviewer.OrganizationID, run, release)
 	if err != nil {
 		return parentbilling.CareRunDetail{}, err
-	}
-	if len(month.invoices) == 0 && len(month.excluded) == 0 {
-		return parentbilling.CareRunDetail{}, parentbilling.ErrBillingRunEmpty
-	}
-	if len(month.invoices) != release.DocumentCount || month.total() != release.TotalCents ||
-		month.fingerprint == "" || month.fingerprint != release.Fingerprint {
-		return parentbilling.CareRunDetail{}, parentbilling.ErrBillingRunChanged
-	}
-	issuedOn := c.today()
-	if run.InvoiceDate != nil {
-		issuedOn = *run.InvoiceDate
-	}
-	// An all-excluded review closes without consuming invoice numbers.
-	if len(month.invoices) > 0 {
-		pattern, err := numberPatternOf(ctx, c.store, reviewer.OrganizationID, parentbilling.ServiceCare)
-		if err != nil {
-			return parentbilling.CareRunDetail{}, err
-		}
-		if err := c.issue(ctx, reviewer.OrganizationID, run, rule, pattern, issuedOn, month.invoices); err != nil {
-			return parentbilling.CareRunDetail{}, err
-		}
 	}
 	released, err := c.store.MarkCareRunReleased(ctx, reviewer.OrganizationID, run.ID, issuedOn,
 		len(month.invoices), month.total(), rule)

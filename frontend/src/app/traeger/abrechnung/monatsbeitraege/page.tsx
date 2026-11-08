@@ -7,6 +7,7 @@
 // Seite.
 
 import { CalendarRange, Plus } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { billingTabs } from "~/components/traeger/billing-family-format";
@@ -19,7 +20,6 @@ import {
   monthRange,
   invoiceCountLabel,
 } from "~/components/traeger/care-billing-format";
-import { CareRunStartModal } from "~/components/traeger/care-run-start-modal";
 import { runSchoolsLabel } from "~/components/traeger/care-review-format";
 import { formatEuro } from "~/components/traeger/contribution-format";
 import { Alert } from "~/components/ui/alert";
@@ -43,6 +43,15 @@ import {
 import { traegerPath } from "~/lib/traeger-url";
 
 const logger = createLogger({ component: "TraegerMonatsbeitraegePage" });
+
+// The start dialog loads when it opens (#5916).
+const CareRunStartModal = dynamic(
+  () =>
+    import("~/components/traeger/care-run-start-modal").then(
+      (module) => module.CareRunStartModal,
+    ),
+  { ssr: false },
+);
 
 function runColumns(
   schools: readonly CareSchool[],
