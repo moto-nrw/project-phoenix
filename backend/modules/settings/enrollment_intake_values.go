@@ -75,6 +75,10 @@ func (v EnrollmentIntakeValues) GradeLevelMax(ctx context.Context) (int, error) 
 	return v.source.ResolveInt(ctx, configModel.KeyEnrollmentGradeLevelMax)
 }
 
+func (v EnrollmentIntakeValues) CareFacilityTerm(ctx context.Context) (string, error) {
+	return v.source.ResolveString(ctx, configModel.KeyEnrollmentCareFacilityTerm)
+}
+
 // ChangeRequestMailsEnabled fails closed: a read failure sends no change
 // request mail.
 func (v EnrollmentIntakeValues) ChangeRequestMailsEnabled(ctx context.Context) bool {

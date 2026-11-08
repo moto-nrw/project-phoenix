@@ -1,5 +1,6 @@
 "use client";
 
+import { SectionLabel } from "~/components/ui/section-label";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Image from "next/image";
 import { Hammer, Quote, ShieldCheck, UsersRound } from "lucide-react";
@@ -131,7 +132,6 @@ interface AuthShellProps {
   readonly children: ReactNode;
   readonly variant: AuthShellVariant;
   readonly brand?: ReactNode;
-  readonly eyebrowClassName?: string;
   readonly titleClassName?: string;
   readonly footer?: ReactNode;
   readonly formMaxWidth?: string;
@@ -233,7 +233,6 @@ export function AuthShell({
   children,
   variant,
   brand = null,
-  eyebrowClassName,
   titleClassName,
   footer,
   formMaxWidth = "max-w-[29rem]",
@@ -247,14 +246,9 @@ export function AuthShell({
           <div className="moto-content-surface rounded-2xl border px-6 py-10 sm:p-8">
             {brand && <div className="mb-8 flex justify-center">{brand}</div>}
             <div className="mb-9 text-center">
-              <p
-                className={cn(
-                  "text-moto-blue mb-3 text-xs font-semibold tracking-[0.16em] uppercase",
-                  eyebrowClassName,
-                )}
-              >
+              <SectionLabel as="p" className="mb-3">
                 {eyebrow}
-              </p>
+              </SectionLabel>
               <h1
                 className={cn(
                   "text-3xl font-semibold tracking-normal text-gray-950 sm:text-4xl",

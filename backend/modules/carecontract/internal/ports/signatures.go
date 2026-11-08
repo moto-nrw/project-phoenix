@@ -64,7 +64,6 @@ type NewSignature struct {
 	RecordedByAccountID *int64
 }
 
-// StoredSignature is the signature of a contract version as stored.
 type StoredSignature struct {
 	VersionID           int64
 	DocumentID          *int64
@@ -77,7 +76,6 @@ type StoredSignature struct {
 	WithdrawalNoticeAt  *time.Time
 	EarlyStartRequested bool
 	PaperFilename       string
-	PaperSHA256         string
 	PaperIntact         bool
 	SignedOn            calendar.Date
 	SignedAt            time.Time

@@ -120,9 +120,11 @@ func (s *Service) dueOrders(ctx context.Context, rules domain.OrderingRules, sta
 }
 
 // fixDueOrders stores the due orders of [from, to]. The caller holds the
-// order lock.
+// order lock, so the due days' children and registrations are read after it,
+// together for all due days (#5839); each day still counts only the absences
+// reported by its order's deadline.
 func (s *Service) fixDueOrders(ctx context.Context, rules domain.OrderingRules, state domain.OrderState, days domain.CalendarDays, from, to domain.Date, now time.Time) (int, domain.OperationStats, error) {
-	due, stats, err := s.dueOrders(ctx, rules, state, days, from, to, now, nil)
+	due, stats, err := s.dueOrders(ctx, rules, state, days, from, to, now, dueRegistrations(rules, state, days, from, to, now))
 	if err != nil {
 		return 0, stats, err
 	}
@@ -134,6 +136,28 @@ func (s *Service) fixDueOrders(ctx context.Context, rules domain.OrderingRules, 
 		}
 	}
 	return len(due), stats, nil
+}
+
+// dueRegistrations prepares the date-set read of the open days of every
+// order dueOrders will lay out: no other day is read, and a closed day is
+// not read at all. Each day is read up to its absence cutoff, never before
+// its order's deadline.
+func dueRegistrations(rules domain.OrderingRules, state domain.OrderState, days domain.CalendarDays, from, to domain.Date, now time.Time) registrations {
+	seen := registrations{}
+	today := domain.DateFromInstant(now)
+	for start := from; !start.After(to); {
+		periodStart, periodEnd := domain.OrderPeriod(rules.Rhythm, start)
+		open, deadline := openDays(rules, state, periodStart, periodEnd, today)
+		if len(open) > 0 && !now.Before(deadline) {
+			for _, date := range open {
+				if !days.Closed[date] {
+					seen[date] = dayRegistration{until: rules.AbsenceCutoff(date)}
+				}
+			}
+		}
+		start = nextPeriod(rules.Rhythm, periodStart, periodEnd)
+	}
+	return seen
 }
 
 // nextPeriod is the first day after a period: the next day, or the next

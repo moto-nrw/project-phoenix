@@ -1,5 +1,6 @@
 "use client";
 
+import { StatusBadge } from "~/components/ui/status-badge";
 import { teacherHintKey, teacherHintText } from "~/lib/student-helpers";
 import { schoolClassLabel, schoolClassName } from "~/lib/school-class-label";
 import {
@@ -794,15 +795,11 @@ function TimetableRosterHeader({
                 Lehrkraft (#2527). Er heißt wie das Abzeichen im Seitenkopf
                 („Aktiv“ / „Beendet“, #4354). */}
             {showStatus ? (
-              <p
-                className={`text-xs font-semibold tracking-wide uppercase ${
-                  roster.instance.status === "completed"
-                    ? "text-gray-500"
-                    : "text-moto-green-strong"
-                }`}
-              >
-                {rosterRunState(roster.instance.status).label}
-              </p>
+              <StatusBadge
+                size="xs"
+                label={rosterRunState(roster.instance.status).label}
+                tone={rosterRunState(roster.instance.status).tone}
+              />
             ) : null}
             <h2 className="truncate text-base font-semibold text-gray-900">
               {roster.instance.title}

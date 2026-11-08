@@ -246,7 +246,6 @@ function LoginForm() {
     <>
       <AuthShell
         eyebrow="Schulportal"
-        eyebrowClassName="text-moto-blue"
         title="Willkommen im Schulportal"
         subtitle="Melden Sie sich mit Ihrem Konto für moto schule an."
         variant="tenant"
@@ -411,7 +410,6 @@ export default function SchoolLoginPage() {
       fallback={
         <AuthShell
           eyebrow="Schulportal"
-          eyebrowClassName="text-moto-blue"
           title="Willkommen im Schulportal"
           subtitle="Melden Sie sich mit Ihrem Konto für moto schule an."
           variant="tenant"

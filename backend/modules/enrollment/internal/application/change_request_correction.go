@@ -95,7 +95,7 @@ func (s *ChangeRequests) rejectOpenChangeRequestsForAdminCorrection(ctx context.
 	if len(rows) == 0 {
 		return nil
 	}
-	note := "Diese Änderungsanfrage wurde durch eine direkte Korrektur der OGS ersetzt. Grund: " + reason
+	note := "Die Schule hat die Daten direkt korrigiert. Diese Änderungsanfrage ist damit erledigt. Grund: " + reason
 	now := time.Now()
 	for _, row := range rows {
 		if err := s.deps.Requests.MarkChangeRequestReviewed(ctx, row.ID, enrollmentNative.ChangeRequestStatusRejected, &note, actorAccountID, now); err != nil {

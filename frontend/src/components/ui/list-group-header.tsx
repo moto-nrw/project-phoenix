@@ -18,6 +18,8 @@ interface ListGroupHeaderCollapsible {
 interface ListGroupHeaderProps {
   /** Name der Gruppe, etwa der Tag einer Agenda. */
   readonly title: ReactNode;
+  /** Kleiner Zusatz im Klapp-Knopf, der nicht mit dem Namen gekürzt wird. */
+  readonly titleAddon?: ReactNode;
   /** Kleiner Zusatz direkt nach dem Namen: ein Hinweis-Chip, ein Zähler. */
   readonly addon?: ReactNode;
   /** Kennzahl oder Steuerung am rechten Rand, etwa „3 Einträge“. */
@@ -37,6 +39,7 @@ interface ListGroupHeaderProps {
  */
 export function ListGroupHeader({
   title,
+  titleAddon,
   addon,
   meta,
   as = "h3",
@@ -44,6 +47,16 @@ export function ListGroupHeader({
   className,
 }: ListGroupHeaderProps) {
   const addonId = useId();
+  // Ohne Zusatz bleibt der Name, wie er ist, und bricht bei Bedarf um.
+  const staticTitle =
+    titleAddon === undefined ? (
+      title
+    ) : (
+      <span className="flex min-w-0 items-center gap-1.5">
+        <span className="min-w-0 truncate">{title}</span>
+        <span className="shrink-0">{titleAddon}</span>
+      </span>
+    );
   return (
     <div
       className={cn(
@@ -70,12 +83,23 @@ export function ListGroupHeader({
                   collapsible.expanded && "rotate-90",
                 )}
               />
-              <span className={cn("truncate", SECTION_LABEL_CLASS)}>
+              {/* Ohne `flex-1`: der Knopf ist so breit wie die Zeile, der
+                  Zusatz soll aber direkt nach dem Namen stehen, nicht am
+                  rechten Rand; `text-left` hebt die Mitte des Knopfs auf. */}
+              <span
+                className={cn(
+                  "min-w-0 truncate text-left",
+                  SECTION_LABEL_CLASS,
+                )}
+              >
                 {title}
               </span>
+              {titleAddon === undefined ? null : (
+                <span className="shrink-0">{titleAddon}</span>
+              )}
             </Button>
           ) : (
-            title
+            staticTitle
           )}
         </SectionLabel>
         {addon === undefined ? null : <span id={addonId}>{addon}</span>}

@@ -125,6 +125,7 @@ describe("tenant-api", () => {
         "/api/tenant/resolve?slug=demo-school",
       );
       expect(result).toEqual({
+        careFacilityTerm: "OGS",
         tenantId: 1,
         slug: "demo-school",
         name: "Demo School",
@@ -371,6 +372,32 @@ describe("tenant-api", () => {
       expect(severalSchools?.traegerName).toBe("Org T");
       expect(singleSchool?.organizationName).toBe("Org T");
       expect(singleSchool?.traegerName).toBeUndefined();
+    });
+
+    it("maps the school's care-facility term, OGS without one (#6042)", async () => {
+      const respond = (extra: Record<string, unknown>) =>
+        new Response(
+          JSON.stringify({
+            status: "success",
+            data: {
+              tenant_id: 4,
+              slug: "barnstorf",
+              name: "Grundschule Barnstorf",
+              subdomain: "barnstorf",
+              organization_id: 13,
+              organization_name: "Org B",
+              settings: {},
+              ...extra,
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      vi.mocked(global.fetch)
+        .mockResolvedValueOnce(respond({ care_facility_term: "GTS" }))
+        .mockResolvedValueOnce(respond({}));
+
+      expect((await resolveTenant("barnstorf"))?.careFacilityTerm).toBe("GTS");
+      expect((await resolveTenant("barnstorf"))?.careFacilityTerm).toBe("OGS");
     });
 
     it("derives nfcEnabled from the booked NFC module", async () => {

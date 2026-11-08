@@ -229,7 +229,9 @@ var moduleLegacyFileBudgets = map[string]int{
 // workflows/parentportal/compose (+1) add exactly 36 LOC.
 // ADR 0158: the monthly contribution constructor of
 // modules/parentbilling/compose adds exactly 5 LOC.
-const moduleComposeBudgetTotal = 13080
+// ADR 0163: the office's decision of the parents' changes of
+// modules/carecontract/compose (+5) adds exactly 5 LOC.
+const moduleComposeBudgetTotal = 13081
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -299,8 +301,8 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0156: the booked care read and the overrun evaluation (+19); #4681 lowers it by 2.
 	// ADR 0155: the signature, the paper contract and the reminders (+58),
 	// the test hook of the signing link (+17); ADR 0159: withdrawal and
-	// termination (+35).
-	"modules/carecontract/compose": 177,
+	// termination (+35); ADR 0163: the office's decision of the parents' changes (+5).
+	"modules/carecontract/compose": 178,
 	// Raised by ADR 0158: the monthly contribution constructor (+5).
 	"modules/parentbilling/compose":               55,
 	"modules/parentrequestfeedprojection/compose": 11,
