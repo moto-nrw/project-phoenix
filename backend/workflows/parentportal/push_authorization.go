@@ -20,3 +20,5 @@ type DocumentPushObjects = care.DocumentPushObjects
 type DocumentPushAuthorization interface {
 	AuthorizeDocumentPushes(context.Context, []DocumentPush) (map[int64]bool, error)
 }
+
+type DocumentPushAuthorizationDependencies = care.DocumentPushAuthorizationDependencies

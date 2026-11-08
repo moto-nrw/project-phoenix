@@ -25,6 +25,9 @@ const validContractPushesSQL = `SELECT candidate.key
   AND newer.status IN ('` + carecontract.VersionEffective + `','` + carecontract.VersionSuperseded + `'))`
 
 func (Store) ValidContractPushes(ctx context.Context, organizationID int64, candidates []carecontract.DocumentPushCandidate) (map[int64]bool, error) {
+	if len(candidates) == 0 {
+		return map[int64]bool{}, nil
+	}
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return nil, err

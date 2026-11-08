@@ -90,9 +90,7 @@ type GuardianTenantAccess struct {
 // ErrAccountNotFound for an unknown account; e-mail matching is
 // case-insensitive.
 // AccountBatchQuery resolves current, active account addresses in one read.
-type AccountBatchQuery interface {
-	FindActiveAccounts(context.Context, []int64) (map[int64]Account, error)
-}
+type AccountBatchQuery func(context.Context, []int64) (map[int64]Account, error)
 
 type GuardianAccessQuery interface {
 	FindAccount(ctx context.Context, id int64) (Account, error)
@@ -346,7 +344,6 @@ type AccountSessionAccess interface {
 // every public capability above, the role check the staff membership binds
 // and the demo-only capability.
 type Owner interface {
-	AccountBatchQuery
 	StaffCalendarFeeds
 	ParentCalendarFeeds
 	SchoolAccountListings

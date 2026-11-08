@@ -165,18 +165,3 @@ func (s *Service) run(
 	s.observe(ports.Observation{Operation: operation, Duration: time.Since(started), Stats: stats, Err: err})
 	return err
 }
-
-// FindActiveAccounts excludes deactivated and erased accounts, and records one
-// observation for the batch. It joins the caller's platform transaction.
-func (s *Service) FindActiveAccounts(ctx context.Context, ids []int64) (map[int64]identityaccess.Account, error) {
-	result := make(map[int64]identityaccess.Account)
-	err := s.run(ctx, s.tx.RunPlatform, "find_active_accounts", func(txCtx context.Context, stats *domain.OperationStats) error {
-		rows, measured, err := s.store.FindActiveAccounts(txCtx, ids)
-		stats.Add(measured)
-		for id, row := range rows {
-			result[id] = identityaccess.Account(row)
-		}
-		return err
-	})
-	return result, MapError(err)
-}

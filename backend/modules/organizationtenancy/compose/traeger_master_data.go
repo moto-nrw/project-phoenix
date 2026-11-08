@@ -27,8 +27,3 @@ func NewTraegerDocuments(dependencies organizationtenancy.TraegerDocumentPorts) 
 func NewSharedTraegerDocuments() *postgres.TraegerDocumentStore {
 	return postgres.NewTraegerDocumentStore()
 }
-
-// NewReleasePushValidity checks current release identity and audience in batch.
-func NewReleasePushValidity() organizationtenancy.ReleasePushValidity {
-	return application.NewReleasePushValidity(postgres.NewTraegerDocumentStore())
-}

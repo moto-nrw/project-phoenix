@@ -17,6 +17,7 @@ type Inbox struct {
 	// InboxNotices is the store's check for the push of a sent contract
 	// (#5941): it records no read, so it needs no layer of its own.
 	carecontract.InboxNotices
+	carecontract.DocumentPushValidity
 }
 
 var (
@@ -25,11 +26,14 @@ var (
 )
 
 // NewInbox builds the contracts of the parents' inbox.
-func NewInbox(store Store) *Inbox {
+func NewInbox(store interface {
+	Store
+	carecontract.DocumentPushValidity
+}) *Inbox {
 	if store == nil {
 		panic("care contract: the store is required")
 	}
-	return &Inbox{store: store, InboxNotices: store}
+	return &Inbox{store: store, InboxNotices: store, DocumentPushValidity: store}
 }
 
 // InboxContracts lists the sent contracts addressed to the reader and

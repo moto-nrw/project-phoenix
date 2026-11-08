@@ -23,6 +23,9 @@ const validReleasePushesSQL = `SELECT candidate.key
    AND (older.group_id IS NULL OR older.group_id IN (SELECT value::bigint FROM jsonb_array_elements_text(candidate.group_ids))))))`
 
 func (s *TraegerDocumentStore) ValidReleasePushes(ctx context.Context, organizationID int64, candidates []organizationtenancy.ReleasePushCandidate) (map[int64]bool, error) {
+	if len(candidates) == 0 {
+		return map[int64]bool{}, nil
+	}
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return nil, err

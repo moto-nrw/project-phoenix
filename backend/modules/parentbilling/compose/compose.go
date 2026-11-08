@@ -40,7 +40,7 @@ func NewBillingLetters(letterheads parentbilling.BillingLetterheads) parentbilli
 }
 
 // NewParentDocuments builds the inbox of the parents portal (#4671, ADR 0126) in the Träger transaction it opens.
-func NewParentDocuments() parentbilling.ParentDocuments {
+func NewParentDocuments() *application.ParentDocuments {
 	return application.NewParentDocuments(postgres.NewStore())
 }
 
@@ -52,10 +52,4 @@ func NewBillingFamilies() parentbilling.BillingFamilies {
 // NewCareBilling builds the monthly contribution of the care contract (#4684) over the contracts and settings the root binds.
 func NewCareBilling(contracts parentbilling.CareContracts, schools parentbilling.CareSchools, settings parentbilling.CareBillingSettings) parentbilling.CareBilling {
 	return application.NewCareBilling(postgres.NewStore(), contracts, schools, settings, calendar.TodayDate)
-}
-
-// NewDocumentPushValidity checks current document authority without reading
-// PDFs or adding user-access events for a worker's authorization lookup.
-func NewDocumentPushValidity() parentbilling.DocumentPushValidity {
-	return application.NewDocumentPushValidity(postgres.NewStore())
 }

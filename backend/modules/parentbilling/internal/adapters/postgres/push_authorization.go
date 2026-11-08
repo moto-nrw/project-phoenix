@@ -22,6 +22,9 @@ const validDocumentPushesSQL = `SELECT candidate.key
  AND ` + notCancelledSQL
 
 func (s *Store) ValidDocumentPushes(ctx context.Context, organizationID int64, candidates []parentbilling.DocumentPushCandidate) (map[int64]bool, error) {
+	if len(candidates) == 0 {
+		return map[int64]bool{}, nil
+	}
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return nil, err

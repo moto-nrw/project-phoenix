@@ -70,8 +70,3 @@ type OverrunPorts struct {
 	Access    carecontract.SchoolAccessLog
 	Runtime   carecontract.Runtime
 }
-
-// NewDocumentPushValidity checks the original mailing's version and child.
-func NewDocumentPushValidity() carecontract.DocumentPushValidity {
-	return application.NewDocumentPushValidity(postgres.Store{})
-}

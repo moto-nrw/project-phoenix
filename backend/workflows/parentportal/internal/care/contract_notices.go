@@ -120,7 +120,7 @@ func (s *Service) contractNotice(ctx context.Context, accountID, organizationID,
 	}
 	var access documentAccess
 	var email string
-	err := s.billingDocumentAccess(ctx, accountID, func(adminCtx context.Context, children []*ChildSummary) error {
+	err := s.accountDocumentAccess(ctx, accountID, func(adminCtx context.Context, children []*ChildSummary) error {
 		var err error
 		if access, err = s.documentAccessFor(adminCtx, children, GuardianPermissionEnrollmentSubmit); err != nil || len(access.traeger) == 0 {
 			return err
