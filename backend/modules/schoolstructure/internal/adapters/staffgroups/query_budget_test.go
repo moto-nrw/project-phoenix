@@ -55,5 +55,5 @@ func TestStaffGroupReadsQueryBudget(t *testing.T) {
 	small := read()
 	add(3)
 	require.Equal(t, small, read(), "statement count must not grow with the rows")
-	querybudgets.AssertQueryBudget(t, "modules.schoolstructure.staff_group_reads", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "modules.schoolstructure.staff_group_reads", counter.Measurement(counter.Queries()))
 }

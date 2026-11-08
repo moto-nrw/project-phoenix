@@ -1845,13 +1845,12 @@ function FormTemplateDetail({
                   : "In Anmeldephase auswählen"}
               </ButtonLink>
 
-              <a
+              <TileCard
                 href={tenantPath(
                   `/anmeldung/preview?schemaId=${encodeURIComponent(schema.id)}`,
                 )}
-                target="_blank"
-                rel="noreferrer"
-                className="moto-content-surface moto-hover-elevated flex items-start gap-3 rounded-2xl border p-3 text-left focus-visible:outline-2 focus-visible:outline-gray-400"
+                newTab
+                className="flex items-start gap-3"
               >
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
                   <ExternalLink className="h-4 w-4" aria-hidden="true" />
@@ -1864,7 +1863,7 @@ function FormTemplateDetail({
                     Öffnet die Formularvorschau in einem neuen Tab.
                   </span>
                 </span>
-              </a>
+              </TileCard>
 
               <InsetPanel tone="white" padding="md">
                 <h3 className="text-sm font-semibold text-gray-900">Status</h3>
@@ -3352,11 +3351,10 @@ function FormPreview({
           />
 
           {previewHref ? (
-            <a
+            <TileCard
               href={previewHref}
-              target="_blank"
-              rel="noreferrer"
-              className="moto-content-surface moto-hover-elevated flex items-start gap-3 rounded-2xl border p-3 text-left focus-visible:outline-2 focus-visible:outline-gray-400"
+              newTab
+              className="flex items-start gap-3"
             >
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
                 <ExternalLink className="h-4 w-4" aria-hidden="true" />
@@ -3369,7 +3367,7 @@ function FormPreview({
                   Öffnet diese Formularvorlage in einem neuen Tab.
                 </span>
               </span>
-            </a>
+            </TileCard>
           ) : onPreviewClick ? (
             <TileCard
               onClick={onPreviewClick}

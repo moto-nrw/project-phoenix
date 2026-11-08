@@ -158,7 +158,7 @@ export function CareContractNoticeCard({
           contractId={contractId}
           options={options}
           concludedAt={concludedAt}
-          onRecorded={(next) => {
+          onRecorded={(next: ContractNoticeOptions) => {
             setOptions(next);
             setOpen(false);
             onChanged();
@@ -171,7 +171,7 @@ export function CareContractNoticeCard({
           onClose={() => setEndOpen(false)}
           contractId={contractId}
           receivedOn={notice.receivedOn}
-          onSet={(next) => {
+          onSet={(next: ContractNoticeOptions) => {
             setOptions(next);
             setEndOpen(false);
             onChanged();
@@ -186,7 +186,7 @@ export function CareContractNoticeCard({
           reason={notice.reason ?? ""}
           receivedOn={notice.receivedOn}
           endsOn={options.reinterpretedEndsOn}
-          onRejected={(next) => {
+          onRejected={(next: ContractNoticeOptions) => {
             setOptions(next);
             setRejectOpen(false);
             onChanged();

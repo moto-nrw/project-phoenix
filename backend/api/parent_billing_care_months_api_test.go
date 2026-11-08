@@ -393,14 +393,14 @@ func TestCareMonthlyListsQueryBudgetIsFlat(t *testing.T) {
 	t.Parallel()
 	f := newCareBillingFixture(t, "Träger Monatsbeitrag Budget")
 	school := f.office.schools[0]
-	list := func(path string) []string {
+	list := func(path string) testpkg.QueryMeasurement {
 		counter := testpkg.CaptureQueriesForContext(t, f.db)
 		req := httptest.NewRequest(http.MethodGet, path, nil)
 		req.Header.Set("Authorization", "Bearer "+f.office.token)
 		rec := httptest.NewRecorder()
-		f.traeger.ServeHTTP(rec, req.WithContext(counter.Context(req.Context())))
+		testpkg.MeasuredHTTPRequest(counter, f.traeger, rec, req.WithContext(counter.Context(req.Context())))
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		return counter.Selects("")
+		return counter.Measurement(counter.Selects(""))
 	}
 	careContract(t, f.db, f.office.organization, school, "Mia", careMonth, sjrServices()...)
 	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careTariffsPath, carePriceList(school, "2029-09-01", 3200))
@@ -411,8 +411,8 @@ func TestCareMonthlyListsQueryBudgetIsFlat(t *testing.T) {
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careTariffsPath, carePriceList(f.office.schools[1], "2029-10-01", 2800))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	f.startRun(t, "2030-02-01")
-	assert.Len(t, list(careRunsPath), len(runs), "the list reads the same statements for any number of runs")
-	assert.Len(t, list(careTariffsPath), len(tariffs), "the price list reads the same statements for any number of prices")
+	assert.Len(t, list(careRunsPath).Statements, len(runs.Statements), "the list reads the same statements for any number of runs")
+	assert.Len(t, list(careTariffsPath).Statements, len(tariffs.Statements), "the price list reads the same statements for any number of prices")
 	querybudgets.AssertQueryBudget(t, "api.traeger.care_billing_runs", runs)
 	querybudgets.AssertQueryBudget(t, "api.traeger.care_tariffs", tariffs)
 }

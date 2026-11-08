@@ -2,5 +2,6 @@
   "scenario": "api.auth.permissions.list",
   "max": 4,
   "exact": true,
-  "description": "GET /auth/permissions/?resource=<unique>: complete protected resource request at 0/3/8 global catalogue rows, with persisted grants, signed JWT, tenant role/RLS frame and real stores; no tenant ownership invented for the global catalogue, no DML. Serve-host routing/session liveness excluded."
+  "description": "GET /auth/permissions/?resource=<unique>: complete protected resource request at 0/3/8 global catalogue rows, with persisted grants, signed JWT, tenant role/RLS frame and real stores; no tenant ownership invented for the global catalogue, no DML. Serve-host routing/session liveness excluded.",
+  "route": "GET /auth/permissions/"
 }

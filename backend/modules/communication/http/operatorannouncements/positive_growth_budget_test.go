@@ -111,7 +111,7 @@ func TestPlatformAnnouncementPositiveGrowthQueryBudget(t *testing.T) {
 		for _, entry := range []struct {
 			name, path string
 			router     chi.Router
-		}{{"unread", "/announcements/unread", platformRouter}, {"list", "/", operatorRouter}, {"views", fmt.Sprintf("/%d/views", viewedID), operatorRouter}} {
+		}{{"unread", "/announcements/unread", testpkg.MountedQueryBudgetRouter("/api/platform", platformRouter)}, {"list", "/", testpkg.MountedQueryBudgetRouter("/operator/announcements", operatorRouter)}, {"views", fmt.Sprintf("/%d/views", viewedID), testpkg.MountedQueryBudgetRouter("/operator/announcements", operatorRouter)}} {
 			req := httptest.NewRequest("GET", entry.path, nil).WithContext(counter.Context(ctx))
 			req.Header.Set("Authorization", "Bearer "+token)
 			counter.Reset()
@@ -158,11 +158,11 @@ func TestPlatformAnnouncementPositiveGrowthQueryBudget(t *testing.T) {
 			}
 			switch entry.name {
 			case "unread":
-				querybudgets.AssertQueryBudget(t, "communication.platform_announcements.unread.positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "communication.platform_announcements.unread.positive_growth", counter.Measurement(counter.Queries()))
 			case "list":
-				querybudgets.AssertQueryBudget(t, "communication.platform_announcements.list.positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "communication.platform_announcements.list.positive_growth", counter.Measurement(counter.Queries()))
 			case "views":
-				querybudgets.AssertQueryBudget(t, "communication.platform_announcements.views.positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "communication.platform_announcements.views.positive_growth", counter.Measurement(counter.Queries()))
 			}
 		}
 	}

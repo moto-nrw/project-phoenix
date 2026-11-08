@@ -414,7 +414,7 @@ func TestStaffListInboxQueryBudgetStaysFlat(t *testing.T) {
 		inbox, err := testpkg.TenantQuery1(t, ctx, db, svc.ListInbox, false)
 		require.NoError(t, err)
 		require.Len(t, inbox, 3)
-		querybudgets.AssertQueryBudget(t, "modules.communication.staff_messages.list_inbox", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "modules.communication.staff_messages.list_inbox", counter.Measurement(counter.Queries()))
 		return err
 	})
 	require.NoError(t, err)
@@ -444,7 +444,7 @@ func TestStaffListInboxGroupQueryBudgetStaysFlat(t *testing.T) {
 		inbox, err := testpkg.TenantQuery1(t, ctx, db, svc.ListInbox, false)
 		require.NoError(t, err)
 		require.Len(t, inbox, 6)
-		querybudgets.AssertQueryBudget(t, "modules.communication.staff_messages.list_inbox.group", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "modules.communication.staff_messages.list_inbox.group", counter.Measurement(counter.Queries()))
 		return err
 	})
 	require.NoError(t, err)

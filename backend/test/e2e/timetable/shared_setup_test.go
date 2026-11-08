@@ -152,7 +152,7 @@ func (s *scenario) do(method, path string, body any, claims timetableTestClaims)
 	req.Header.Set("Authorization", "Bearer "+token)
 
 	rr := httptest.NewRecorder()
-	testpkg.SessionVerifier(s.router).ServeHTTP(rr, req)
+	testpkg.MountedQueryBudgetRouter("/api/timetable", testpkg.SessionVerifier(s.router)).ServeHTTP(rr, req)
 	return rr
 }
 

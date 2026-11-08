@@ -57,15 +57,15 @@ func TestWorkforce20RebookGrowth(t *testing.T) {
 				require.Equal(t, wantAudit, auditCount)
 				if n == 3 {
 					if dryRun {
-						querybudgets.AssertQueryBudget(t, "workforce.workforce20.rebook_preview_n3", counter.Queries())
+						querybudgets.AssertQueryBudget(t, "workforce.workforce20.rebook_preview_n3", counter.Measurement(counter.Queries()))
 					} else {
-						querybudgets.AssertQueryBudget(t, "workforce.workforce20.rebook_apply_n3", counter.Queries())
+						querybudgets.AssertQueryBudget(t, "workforce.workforce20.rebook_apply_n3", counter.Measurement(counter.Queries()))
 					}
 				} else {
 					if dryRun {
-						querybudgets.AssertQueryBudget(t, "workforce.workforce20.rebook_preview_n8", counter.Queries())
+						querybudgets.AssertQueryBudget(t, "workforce.workforce20.rebook_preview_n8", counter.Measurement(counter.Queries()))
 					} else {
-						querybudgets.AssertQueryBudget(t, "workforce.workforce20.rebook_apply_n8", counter.Queries())
+						querybudgets.AssertQueryBudget(t, "workforce.workforce20.rebook_apply_n8", counter.Measurement(counter.Queries()))
 					}
 				}
 			}

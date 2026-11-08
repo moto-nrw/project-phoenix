@@ -45,7 +45,7 @@ func authExec(t *testing.T, tc *testContext, req *http.Request, claims testutil.
 	claims.Permissions = perms
 	req.Header.Set("Authorization", "Bearer "+testutil.MintTestJWT(t, claims))
 	r := api.NewOwnerHTTPTestRouter(tc.resource.Register, "")
-	return testutil.ExecuteRequestForTest(t, r, req)
+	return testutil.ExecuteRequestForTest(t, testpkg.MountedQueryBudgetRouter("/api/students", r), req)
 }
 func TestMain(m *testing.M) { testpkg.PerTestTenants(); testutil.SeedTestJWTConfig(); testpkg.Run(m) }
 

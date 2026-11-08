@@ -70,9 +70,9 @@ func runSchoolStaffRecipientsBudget(t *testing.T, populated bool) {
 		require.NoError(t, err)
 		t.Logf("school_staff_recipients populated=%t n=%d total=%d queries_json=%s", populated, target, counter.Total(), queries)
 		if populated && target > 0 {
-			querybudgets.AssertQueryBudget(t, "school.staff_messages.recipients.list", counter.Queries())
+			querybudgets.AssertQueryBudget(t, "school.staff_messages.recipients.list", counter.Measurement(counter.Queries()))
 		} else {
-			querybudgets.AssertQueryBudget(t, "school.staff_messages.recipients.empty", counter.Queries())
+			querybudgets.AssertQueryBudget(t, "school.staff_messages.recipients.empty", counter.Measurement(counter.Queries()))
 		}
 		switch target {
 		case 3:

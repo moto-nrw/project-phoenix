@@ -117,14 +117,14 @@ func TestOperatorTraegerMemberListQueryBudgetIsFlat(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("buero-%d@test.local", testpkg.UniqueTestTenantID(t)))
 		testpkg.CreateTestTraegerMember(t, db, organizationID, account.ID, "read_only")
 	}
-	list := func() []string {
+	list := func() testpkg.QueryMeasurement {
 		counter := testpkg.CaptureQueriesForContext(t, db)
 		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/organizations/%d/traeger-members", organizationID), nil)
 		req = req.WithContext(counter.Context(context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: int(operatorID), Scope: "platform"})))
 		rec := httptest.NewRecorder()
-		operator.ServeHTTP(rec, req)
+		testpkg.MeasuredHTTPRequest(counter, testpkg.MountedQueryBudgetRouter("/operator", operator), rec, req)
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		return counter.Selects("")
+		return counter.Measurement(counter.Selects(""))
 	}
 	for range 3 {
 		member()
@@ -132,7 +132,7 @@ func TestOperatorTraegerMemberListQueryBudgetIsFlat(t *testing.T) {
 	three := list()
 	member()
 	member()
-	assert.Len(t, list(), len(three), "the member list reads the same statements for any number of members")
+	assert.Len(t, list().Statements, len(three.Statements), "the member list reads the same statements for any number of members")
 	querybudgets.AssertQueryBudget(t, "api.operator.traeger_members", three)
 }
 
@@ -583,14 +583,14 @@ func TestOperatorTraegerInvitationListQueryBudgetIsFlat(t *testing.T) {
 			organizationID, fmt.Sprintf("budget-%d@test.local", testpkg.UniqueTestTenantID(t)), fmt.Sprintf("budget-%d", testpkg.UniqueTestTenantID(t)))
 		require.NoError(t, err)
 	}
-	list := func() []string {
+	list := func() testpkg.QueryMeasurement {
 		counter := testpkg.CaptureQueriesForContext(t, db)
 		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/organizations/%d/traeger-members/invitations", organizationID), nil)
 		req = req.WithContext(counter.Context(context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: int(operatorID), Scope: "platform"})))
 		rec := httptest.NewRecorder()
-		operator.ServeHTTP(rec, req)
+		testpkg.MeasuredHTTPRequest(counter, testpkg.MountedQueryBudgetRouter("/operator", operator), rec, req)
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		return counter.Selects("")
+		return counter.Measurement(counter.Selects(""))
 	}
 	for range 3 {
 		invite()
@@ -598,7 +598,7 @@ func TestOperatorTraegerInvitationListQueryBudgetIsFlat(t *testing.T) {
 	three := list()
 	invite()
 	invite()
-	assert.Len(t, list(), len(three), "the invitation list reads the same statements for any number of invitations")
+	assert.Len(t, list().Statements, len(three.Statements), "the invitation list reads the same statements for any number of invitations")
 	querybudgets.AssertQueryBudget(t, "api.operator.traeger_invitations", three)
 }
 

@@ -73,10 +73,10 @@ func TestWorkTimeModelDetailQueryBudgetIsFlat(t *testing.T) {
 		counter.Reset()
 		request := testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/api/work-time-models/%d", created.ID), nil, testutil.WithJWTBearer(token))
 		response := testutil.ExecuteRequestForTest(t, router, request)
-		queries := counter.Queries()
-		encoded, encodeErr := json.Marshal(queries)
+		queries := counter.Measurement(counter.Queries())
+		encoded, encodeErr := json.Marshal(queries.Statements)
 		require.NoError(t, encodeErr)
-		t.Logf("work_time_model_detail entries=%d statements=%d queries_json=%s", size, len(queries), encoded)
+		t.Logf("work_time_model_detail entries=%d statements=%d queries_json=%s", size, len(queries.Statements), encoded)
 		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 		require.Equal(t, "application/json", response.Header().Get("Content-Type"))
 		require.JSONEq(t, string(want), response.Body.String(), "preserve complete ordered DTO, HH:MM clocks, omitted clocks, empty entries and weekly totals")
@@ -84,16 +84,16 @@ func TestWorkTimeModelDetailQueryBudgetIsFlat(t *testing.T) {
 		require.Len(t, counter.Selects("config.work_time_models"), 1)
 		require.Len(t, counter.Selects("config.work_time_model_entries"), 1, "one read regardless of nested entry cardinality")
 		querybudgets.AssertQueryBudget(t, "api.workforce.work_time_models.detail", queries)
-		assertDetailTenantTransaction(t, queries)
+		assertDetailTenantTransaction(t, queries.Statements)
 	}
 	for _, id := range []int64{deleted.ID, foreignModel.ID} {
 		counter.Reset()
 		request := testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/api/work-time-models/%d", id), nil, testutil.WithJWTBearer(token))
 		response := testutil.ExecuteRequestForTest(t, router, request)
-		queries := counter.Queries()
-		encoded, encodeErr := json.Marshal(queries)
+		queries := counter.Measurement(counter.Queries())
+		encoded, encodeErr := json.Marshal(queries.Statements)
 		require.NoError(t, encodeErr)
-		t.Logf("work_time_model_detail missing_id=%d statements=%d body=%s queries_json=%s", id, len(queries), response.Body.String(), encoded)
+		t.Logf("work_time_model_detail missing_id=%d statements=%d body=%s queries_json=%s", id, len(queries.Statements), response.Body.String(), encoded)
 		require.Equal(t, http.StatusNotFound, response.Code, response.Body.String())
 		require.Equal(t, "application/json", response.Header().Get("Content-Type"))
 		require.JSONEq(t, `{"type":"https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen","title":"Not Found","status":404,"detail":"work time model not found","instance":"","code":"general.input"}`, response.Body.String())
@@ -101,7 +101,7 @@ func TestWorkTimeModelDetailQueryBudgetIsFlat(t *testing.T) {
 		require.Len(t, counter.Selects("config.work_time_models"), 1)
 		require.Empty(t, counter.Selects("config.work_time_model_entries"), "missing or foreign models must not load entries")
 		querybudgets.AssertQueryBudget(t, "api.workforce.work_time_models.detail.not_found", queries)
-		assertDetailTenantTransaction(t, queries)
+		assertDetailTenantTransaction(t, queries.Statements)
 	}
 }
 

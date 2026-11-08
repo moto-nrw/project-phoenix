@@ -87,7 +87,6 @@ export default function CatererInvitationPage() {
   if (loading) {
     return (
       <AuthShell
-        eyebrow="Einladung"
         title="Konto einrichten"
         subtitle="Wir prüfen Ihre Einladung."
         variant="tenant"
@@ -103,7 +102,6 @@ export default function CatererInvitationPage() {
 
   return (
     <AuthShell
-      eyebrow="Einladung"
       title={existing ? "Schule hinzufügen" : "Konto einrichten"}
       subtitle={
         invitation

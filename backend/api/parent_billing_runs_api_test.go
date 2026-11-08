@@ -414,21 +414,21 @@ func TestBillingRunListQueryBudgetIsFlat(t *testing.T) {
 	t.Parallel()
 	f := newReviewFixture(t, "Träger Budget Läufe")
 	billing := traegerColleague(t, f, identityaccess.TraegerRoleBilling)
-	list := func(path string) []string {
+	list := func(path string) testpkg.QueryMeasurement {
 		counter := testpkg.CaptureQueriesForContext(t, f.db)
 		req := httptest.NewRequest(http.MethodGet, path, nil)
 		req.Header.Set("Authorization", "Bearer "+billing)
 		rec := httptest.NewRecorder()
-		f.traeger.ServeHTTP(rec, req.WithContext(counter.Context(req.Context())))
+		testpkg.MeasuredHTTPRequest(counter, f.traeger, rec, req.WithContext(counter.Context(req.Context())))
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		return counter.Selects("")
+		return counter.Measurement(counter.Selects(""))
 	}
 	startBillingRun(t, f, billing, f.period.ID)
 	runs, periods := list(billingRunsPath), list(billingRunsPath+"/periods")
 	second := openHolidays(t, f.holidayRegistrationFixture, f.office)
 	startBillingRun(t, f, billing, second.ID)
-	assert.Len(t, list(billingRunsPath), len(runs), "the list reads the same statements for any number of runs")
-	assert.Len(t, list(billingRunsPath+"/periods"), len(periods), "the periods read the same statements for any number of periods")
+	assert.Len(t, list(billingRunsPath).Statements, len(runs.Statements), "the list reads the same statements for any number of runs")
+	assert.Len(t, list(billingRunsPath+"/periods").Statements, len(periods.Statements), "the periods read the same statements for any number of periods")
 	querybudgets.AssertQueryBudget(t, "api.traeger.billing_runs", runs)
 	querybudgets.AssertQueryBudget(t, "api.traeger.billing_run_periods", periods)
 }

@@ -68,7 +68,7 @@ func TestParentConferenceListsQueryBudget(t *testing.T) {
 	assert.Equal(t, smallFamily, largeFamily, "the family's offers do not grow with the days")
 
 	teacherRun()
-	querybudgets.AssertQueryBudget(t, "services.calendar.list_school_parent_conferences", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "services.calendar.list_school_parent_conferences", counter.Measurement(counter.Queries()))
 	familyRun()
-	querybudgets.AssertQueryBudget(t, "services.calendar.list_child_parent_conferences", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "services.calendar.list_child_parent_conferences", counter.Measurement(counter.Queries()))
 }

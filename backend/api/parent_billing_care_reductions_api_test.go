@@ -379,14 +379,14 @@ func TestCareReductionListsQueryBudgetIsFlat(t *testing.T) {
 	t.Parallel()
 	f := newCareBillingFixture(t, "Träger Ermäßigungen Budget")
 	school := f.office.schools[0]
-	list := func(path string) []string {
+	list := func(path string) testpkg.QueryMeasurement {
 		counter := testpkg.CaptureQueriesForContext(t, f.db)
 		req := httptest.NewRequest(http.MethodGet, path, nil)
 		req.Header.Set("Authorization", "Bearer "+f.office.token)
 		rec := httptest.NewRecorder()
 		f.traeger.ServeHTTP(rec, req.WithContext(counter.Context(req.Context())))
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		return counter.Queries()
+		return counter.Measurement(counter.Queries())
 	}
 	set := f.saveRule(t, careRule("income_level", "Stufe A", []int64{school}, map[string]any{"discount_cents": 100}))
 	level := ruleNamed(t, set, "Stufe A")
@@ -398,8 +398,8 @@ func TestCareReductionListsQueryBudgetIsFlat(t *testing.T) {
 	second := careContract(t, f.db, f.office.organization, f.office.schools[1], "Noah", careReductionStart, sjrServices()...)
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careEvidencesPath, careEvidence(second, "single_parent", nil))
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
-	assert.Len(t, list(careRulesPath), len(rules), "the rules read the same statements for any number of rules")
-	assert.Len(t, list(careEvidencesPath), len(evidences), "the evidences read the same statements for any number of contracts")
+	assert.Len(t, list(careRulesPath).Statements, len(rules.Statements), "the rules read the same statements for any number of rules")
+	assert.Len(t, list(careEvidencesPath).Statements, len(evidences.Statements), "the evidences read the same statements for any number of contracts")
 	querybudgets.AssertQueryBudget(t, "api.traeger.care_rules", rules)
 	querybudgets.AssertQueryBudget(t, "api.traeger.care_evidences", evidences)
 }
