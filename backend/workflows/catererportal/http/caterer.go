@@ -15,25 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/workflows/catererportal"
 )
 
-// TokenResponse is the session a caterer's sign-in starts.
-type TokenResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-}
-
-// LoginResponse is a caterer's password sign-in: the session, or, where the
-// caterer switched its second factor on, the challenge of the mailed code
-// (#4497).
-type LoginResponse struct {
-	Status               string `json:"status"`
-	AccessToken          string `json:"access_token,omitempty"`
-	RefreshToken         string `json:"refresh_token,omitempty"`
-	ChallengeToken       string `json:"challenge_token,omitempty"`
-	MaskedEmail          string `json:"masked_email,omitempty"`
-	TrustedDeviceEnabled bool   `json:"trusted_device_enabled,omitempty"`
-	TrustedDeviceDays    int    `json:"trusted_device_days,omitempty"`
-}
-
 // PreviewResponse is what the acceptance page shows.
 type PreviewResponse struct {
 	Email             string    `json:"email"`
@@ -102,17 +83,10 @@ type SchoolOrdersResponse struct {
 	Days            []DayResponse  `json:"days"`
 }
 
-type loginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
-
 type acceptRequest struct {
 	Password        string `json:"password"`
 	ConfirmPassword string `json:"confirm_password"`
 }
-
-var errLoginFieldsRequired = errors.New("email and password are required")
 
 func schoolResponse(school catererportal.School) SchoolResponse {
 	return SchoolResponse{ID: strconv.FormatInt(school.ID, 10), Name: school.Name}
@@ -141,35 +115,6 @@ func dayResponse(day mealplan.OrderDay) DayResponse {
 		response.Changes = append(response.Changes, ChangeResponse{Sequence: change.Sequence, Child: childResponse(change.Child), Delta: change.Delta, DetectedAt: change.DetectedAt})
 	}
 	return response
-}
-
-// login signs a caterer in to the caterer portal. A caterer that switched
-// its second factor on gets the challenge of a mailed code, unless the
-// browser presents a device it remembered.
-func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
-	var request loginRequest
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
-		return
-	}
-	request.Email = strings.ToLower(strings.TrimSpace(request.Email))
-	if request.Email == "" || request.Password == "" {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errLoginFieldsRequired))
-		return
-	}
-	result, err := rs.runtime.SignIn.LoginCaterer(r.Context(), identityaccess.CatererLoginRequest{
-		Email: request.Email, Password: request.Password, IPAddress: common.GetClientIPString(r),
-		UserAgent: r.UserAgent(), TrustedDeviceCookie: common.TrustedDevice(r),
-	})
-	if err != nil {
-		renderSecondFactorFailure(w, r, err)
-		return
-	}
-	common.Respond(w, r, http.StatusOK, LoginResponse{
-		Status: string(result.Status), AccessToken: result.AccessToken, RefreshToken: result.RefreshToken,
-		ChallengeToken: result.ChallengeToken, MaskedEmail: result.MaskedEmail,
-		TrustedDeviceEnabled: result.TrustedDeviceDays > 0, TrustedDeviceDays: result.TrustedDeviceDays,
-	}, "Login successful")
 }
 
 func invitationPath(r *http.Request) (int64, string, bool) {

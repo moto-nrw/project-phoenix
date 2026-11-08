@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 
 /**
  * Verfolgt eine CSS-Media-Query im Client.
@@ -29,6 +29,37 @@ export function useMediaQuery(query: string): boolean {
   }, [query]);
 
   return matches;
+}
+
+const noSubscription = () => () => undefined;
+const unknownOnServer = () => null;
+
+/**
+ * Wie `useMediaQuery`, aber ohne Vorgabe vor der Hydration: `null` heißt
+ * „noch unbekannt“. So kann ein Aufrufer bis dahin beide Darstellungen per
+ * CSS umschalten (kein Flackern, Server- und Client-Render gleich) und danach
+ * nur die passende im Dokument behalten. Bei einem Seitenwechsel im Client
+ * steht der Wert schon im ersten Render fest. Ohne `matchMedia` (jsdom)
+ * bleibt der Wert `null`.
+ */
+export function useResolvedMediaQuery(query: string): boolean | null {
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      if (typeof window.matchMedia !== "function") return noSubscription();
+      const mediaQuery = window.matchMedia(query);
+      mediaQuery.addEventListener("change", onChange);
+      return () => mediaQuery.removeEventListener("change", onChange);
+    },
+    [query],
+  );
+  const getSnapshot = useCallback(
+    () =>
+      typeof window.matchMedia === "function"
+        ? window.matchMedia(query).matches
+        : null,
+    [query],
+  );
+  return useSyncExternalStore(subscribe, getSnapshot, unknownOnServer);
 }
 
 /** Tailwinds `sm`-Grenze: alles darunter ist ein Telefon-Format. */

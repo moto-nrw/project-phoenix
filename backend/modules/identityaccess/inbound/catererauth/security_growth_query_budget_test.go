@@ -1,6 +1,6 @@
 //go:build testhooks
 
-package catererportalhttp_test
+package catererauth_test
 
 import (
 	"context"
@@ -10,20 +10,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/mealplan"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/catererauth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
-	"github.com/moto-nrw/project-phoenix/workflows/catererportal"
-	catererHTTP "github.com/moto-nrw/project-phoenix/workflows/catererportal/http"
 	"github.com/stretchr/testify/require"
 )
-
-// These two security routes never call the meal-order workflow or renderer.
-// An embedded nil interface deliberately panics if that boundary changes;
-// it supplies no surrogate rows to the measured security path.
-type unusedCatererOrders struct{ catererportal.Portal }
 
 func TestIdentityCatererSecurityPositiveGrowthQueryBudget(t *testing.T) {
 	t.Parallel()
@@ -42,16 +37,18 @@ func TestIdentityCatererSecurityPositiveGrowthQueryBudget(t *testing.T) {
 		_, err := db.ExecContext(context.Background(), "DELETE FROM auth.caterers WHERE id=?", catererID)
 		require.NoError(t, err)
 	})
-	resource := catererHTTP.NewResource(unusedCatererOrders{}, catererHTTP.Runtime{
-		CurrentAccountID: func(ctx context.Context) int64 { return int64(testutil.ClaimsFromContext(ctx).ID) },
-		RenderList: func(mealplan.ListExport, string) (catererHTTP.ExportFile, error) {
-			panic("security list must not render meal orders")
-		},
-		SignIn: caterers, SecondFactor: caterers,
+	// The session routes as the caterer router places them: in a caterer
+	// session, with no meal-order workflow or renderer on the measured path.
+	routes := catererauth.NewResource(caterers, caterers)
+	caterer := chi.NewRouter()
+	caterer.Use(render.SetContentType(render.ContentTypeJSON))
+	caterer.Group(func(r chi.Router) {
+		api.CatererSessionChain(r)
+		routes.MountSession(r)
 	})
 	router := testutil.NewTenantRouter(db)
 	router.Use(api.RequestSettingsCacheMiddleware, api.RequestIdentityCacheMiddleware)
-	router.Mount("/caterer", resource.CatererRouter(nil, api.CatererSessionChain))
+	router.Mount("/caterer", caterer)
 	claims := testutil.TenantUserTestClaims(int(account.ID), testpkg.Tenant(t))
 	claims.Scope = "caterer"
 	claims.TenantID = 0

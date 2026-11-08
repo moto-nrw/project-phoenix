@@ -1,4 +1,4 @@
-package catererportalhttp_test
+package catererauth_test
 
 import (
 	"testing"
