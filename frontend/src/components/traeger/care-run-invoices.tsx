@@ -15,13 +15,14 @@ import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { formatDate } from "~/lib/date-helpers";
-import type {
-  CareDuplicate,
-  CareInvoice,
-  CareLetterMailing,
-  CarePosition,
-  CareReduction,
-  CareUnpriced,
+import {
+  type CareDuplicate,
+  type CareInvoice,
+  type CareLetterMailing,
+  type CarePosition,
+  type CareReduction,
+  type CareUnpriced,
+  careContributionCents,
 } from "~/lib/traeger-care-billing-api";
 import { traegerPath } from "~/lib/traeger-url";
 import {
@@ -31,6 +32,10 @@ import {
   invoiceCountLabel,
 } from "./care-billing-format";
 import { formatEuro } from "./contribution-format";
+import {
+  COST_SHARE_KIND_LABELS,
+  costShareAmountText,
+} from "./care-cost-share-format";
 import { reductionExplanation } from "./care-reduction-format";
 import { MealPositionLine } from "./care-run-meals";
 import { InvoiceLine } from "./invoice-line";
@@ -117,6 +122,50 @@ function ReductionLine({ reduction }: Readonly<{ reduction: CareReduction }>) {
       amount={formatEuro(reduction.amountCents)}
       amountClassName="text-moto-green-strong"
     />
+  );
+}
+
+/**
+ * The cost bearer shares of an invoice (#4687): the contribution after the
+ * reductions, then what each cost bearer pays. The total column shows what
+ * the family pays.
+ */
+function CostShareLines({ invoice }: Readonly<{ invoice: CareInvoice }>) {
+  if (invoice.costShares.length === 0) return null;
+  const free = invoice.totalCents === 0;
+  return (
+    <>
+      <li className="flex items-baseline justify-between gap-4 py-1.5">
+        <p className="text-sm font-medium text-gray-900">Monatsbeitrag</p>
+        <span className="shrink-0 text-sm text-gray-900 tabular-nums">
+          {formatEuro(careContributionCents(invoice))}
+        </span>
+      </li>
+      {invoice.costShares.map((share) => (
+        <li
+          key={`${share.kind}-${share.costBearerId}`}
+          className="flex items-baseline justify-between gap-4 py-1.5"
+        >
+          <div className="min-w-0">
+            <p className="text-sm break-words hyphens-auto text-gray-900">
+              {share.costBearerName}
+            </p>
+            <p className="mt-0.5 text-xs text-gray-600">
+              übernimmt · {COST_SHARE_KIND_LABELS[share.kind]} ·{" "}
+              {costShareAmountText(share)}
+            </p>
+          </div>
+          <span className="text-moto-blue-strong shrink-0 text-sm tabular-nums">
+            {formatEuro(-share.amountCents)}
+          </span>
+        </li>
+      ))}
+      {free ? (
+        <li className="py-1.5">
+          <StatusBadge tone="blue" label="Beitragsfrei für die Familie" />
+        </li>
+      ) : null}
+    </>
   );
 }
 
@@ -273,7 +322,8 @@ function invoiceColumns(month: string): DataTableColumn<CareInvoiceRow>[] {
                 showAmount={
                   invoice.positions.length > 1 ||
                   invoice.reductions.length > 0 ||
-                  invoice.mealPositions.length > 0
+                  invoice.mealPositions.length > 0 ||
+                  invoice.costShares.length > 0
                 }
               />
             ))}
@@ -286,6 +336,7 @@ function invoiceColumns(month: string): DataTableColumn<CareInvoiceRow>[] {
             {invoice.mealPositions.map((position) => (
               <MealPositionLine key={position.mealMonth} position={position} />
             ))}
+            <CostShareLines invoice={invoice} />
           </ul>
         ),
     },

@@ -134,6 +134,7 @@ describe("CareRunInvoices", () => {
     positions: [],
     reductions: [],
     mealPositions: [],
+    costShares: [],
     totalCents: 7750,
   };
 

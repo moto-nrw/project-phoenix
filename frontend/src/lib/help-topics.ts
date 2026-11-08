@@ -231,6 +231,7 @@ export const HELP_TOPICS = {
   traegerCareMonths: "monatsbeitraege-abrechnen",
   traegerCareReductions: "ermaessigungen-im-monatsbeitrag",
   traegerCareMeals: "mensa-abrechnen",
+  traegerCareCostShares: "kostentraeger-im-monatsbeitrag",
   traegerBillingTerms: "zahlung-und-empfaenger-der-rechnungen",
   traegerAccessLog: "zugriffsprotokoll-des-traegers-lesen",
   traegerSettings: "traeger-einstellungen",

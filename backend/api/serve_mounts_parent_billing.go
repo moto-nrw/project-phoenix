@@ -67,6 +67,7 @@ func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganization
 	root.Mount("/traeger/care-rules", reductions.RuleRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/care-evidences", reductions.EvidenceRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/care-meal-tariffs", meals.Router(ProtectedTraegerRoutes))
+	root.Mount("/traeger/care-cost-shares", reductions.CostShareRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/family-children", familyChildren.Router(ProtectedTraegerRoutes))
 	terms := NewBillingTermsHTTP()
 	root.Mount("/traeger/billing-terms", terms.TermsRouter(ProtectedTraegerRoutes))

@@ -259,6 +259,9 @@ func splitMealInvoices(month *careMonth) {
 		}
 		meal := invoice
 		meal.Service, meal.Positions, meal.Reductions = parentbilling.ServiceMeal, []parentbilling.CarePosition{}, []parentbilling.CareReduction{}
+		// The shares the chain applied belong to the modules; those of the
+		// Mensa follow on this invoice (applyMealCostShares).
+		meal.CostShares = []parentbilling.CareInvoiceCostShare{}
 		meal.TotalCents = 0
 		for _, position := range invoice.MealPositions {
 			meal.TotalCents += position.AmountCents

@@ -105,6 +105,7 @@ func TestCareMonthGoldenSJR(t *testing.T) {
 		],
 		"reductions": [],
 		"meal_positions": [],
+		"cost_shares": [],
 		"service": "care",
 		"total_cents": 7750
 	}]`, string(got))

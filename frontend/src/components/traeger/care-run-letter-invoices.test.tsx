@@ -28,6 +28,7 @@ const invoice = (overrides: Partial<CareInvoice> = {}): CareInvoice => ({
   positions: [],
   reductions: [],
   mealPositions: [],
+  costShares: [],
   totalCents: 9600,
   ...overrides,
 });

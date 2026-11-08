@@ -55,6 +55,7 @@ const RUN: CareRunDetail = {
   excludedCount: 0,
   excludedCents: 0,
   fingerprint: "",
+  costBearers: [],
 };
 const CANCELLATION = { kind: "cancellation" } as CareLetterMailing;
 

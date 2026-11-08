@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -620,4 +621,66 @@ func TestCareMealReleaseAgainReachesTheReissueAfterAStorno(t *testing.T) {
 	require.NoError(t, db.NewRaw(`SELECT p.release_version FROM parent_billing.care_meal_positions AS p
 		JOIN parent_billing.care_invoices AS i ON i.id = p.invoice_id WHERE i.run_id = ?`, again.ID).Scan(context.Background(), &version))
 	assert.Equal(t, 2, version)
+}
+
+// A cost bearer share covers the modules, the Mensa or both (#4686, ADR 0168
+// point 12). Mia books Mon until 14:00 and Tue until 16:30 (77,50 €) and ate
+// 2 × 4,80 € = 9,60 € in December. Bildung und Teilhabe takes the lunch in
+// full, the Jugendamt half the care (38,75 €): the family pays 38,75 €. The
+// issued invoice keeps each share with its scope, and the list for Bildung
+// und Teilhabe shows the Mensa as its base.
+func TestCareCostSharesTakeTheMensaByTheirScope(t *testing.T) {
+	t.Parallel()
+	f := newCareBillingFixture(t, "Träger Mensa Kostenträger")
+	db := testpkg.SetupTestDB(t)
+	school := f.office.schools[0]
+	mia := careContract(t, f.db, f.office.organization, school, "Mia", careMonth, sjrServices()...)
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careTariffsPath, carePriceList(school, "2029-09-01", 3200))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careMealTariffsPath, mealPrice(school, "2029-12-01", "per_meal", 480))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	releaseMealMonth(t, db, f.office.organization, school, testpkg.UniqueTestTenantID(t), "2029-12-01", "Mia", 2)
+	jobcenter := f.costBearer(t, "Jobcenter Musterkreis")
+	youthOffice := f.costBearer(t, "Jugendamt Musterkreis")
+	f.saveCostShare(t, careCostShare(mia, "education_participation", jobcenter, map[string]any{"share_basis_points": 10000, "scope": "meal"}))
+	f.saveCostShare(t, careCostShare(mia, "youth_office", youthOffice, map[string]any{"share_basis_points": 5000}))
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careCostSharesPath,
+		careCostShare(mia, "other_subsidy", youthOffice, map[string]any{"share_basis_points": 100, "scope": "lunch"}))
+	require.Equal(t, http.StatusBadRequest, rec.Code, "an unknown scope is refused: %s", rec.Body.String())
+	assert.Contains(t, rec.Body.String(), "parent_billing.care_cost_share_invalid")
+
+	type scopedShare struct {
+		Kind        string `json:"kind"`
+		Scope       string `json:"scope"`
+		AmountCents int64  `json:"amount_cents"`
+	}
+	type scopedRun struct {
+		careRunBody
+		Invoices []struct {
+			Number     string        `json:"number"`
+			CostShares []scopedShare `json:"cost_shares"`
+			TotalCents int64         `json:"total_cents"`
+		} `json:"invoices"`
+	}
+	run := f.startRun(t, careMonth)
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodGet, careRunPath(run.ID, ""), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	preview := decodeSchoolPortalData[scopedRun](t, rec.Body.Bytes())
+	require.Len(t, preview.Invoices, 1)
+	want := []scopedShare{{"education_participation", "meal", 960}, {"youth_office", "care", 3875}}
+	assert.Equal(t, want, preview.Invoices[0].CostShares)
+	assert.Equal(t, int64(3875), preview.Invoices[0].TotalCents, "77,50 + 9,60 − 9,60 − 38,75")
+
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/release"), careRelease(preview.careRunBody))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	released := decodeSchoolPortalData[scopedRun](t, rec.Body.Bytes())
+	require.Len(t, released.Invoices, 1)
+	assert.Equal(t, want, released.Invoices[0].CostShares, "the issued invoice keeps the scope of each share")
+	assert.Equal(t, int64(3875), released.Invoices[0].TotalCents)
+
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodGet,
+		careRunPath(run.ID, "/cost-shares/"+strconv.FormatInt(jobcenter, 10)+"/export?format=csv"), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), released.Invoices[0].Number+";")
+	assert.Contains(t, rec.Body.String(), ";9,60;100 % für die Mensa;9,60;Ausgestellt")
 }

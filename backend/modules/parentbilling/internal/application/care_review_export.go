@@ -142,14 +142,28 @@ func reviewInvoiceRows(invoices []parentbilling.CareInvoice, invoiceDate string)
 				"position": reduction.Name, "amount": formatAmount(reduction.AmountCents),
 			}))
 		}
-		// The Mensa months (#4686), so the rows add up to the invoice.
-		for _, meal := range invoice.MealPositions {
-			rows = append(rows, withValues(base, map[string]string{
-				"position": mealPositionLabel(meal), "amount": formatAmount(meal.AmountCents),
-			}))
-		}
+		rows = append(rows, reviewMealAndShareRows(base, invoice)...)
 	}
 	return rows, total
+}
+
+// reviewMealAndShareRows writes the Mensa months (#4686), so the rows add up
+// to the invoice, and the cost bearer shares that come off what the family
+// pays (#4687).
+func reviewMealAndShareRows(base map[string]string, invoice parentbilling.CareInvoice) []map[string]string {
+	rows := []map[string]string{}
+	for _, meal := range invoice.MealPositions {
+		rows = append(rows, withValues(base, map[string]string{
+			"position": mealPositionLabel(meal), "amount": formatAmount(meal.AmountCents),
+		}))
+	}
+	for _, share := range invoice.CostShares {
+		rows = append(rows, withValues(base, map[string]string{
+			"position": "Übernimmt " + share.CostBearerName + " (" + costShareText(share) + ")",
+			"amount":   formatAmount(-share.AmountCents),
+		}))
+	}
+	return rows
 }
 
 // reviewHeldRows writes the bookings the run does not bill: without a price

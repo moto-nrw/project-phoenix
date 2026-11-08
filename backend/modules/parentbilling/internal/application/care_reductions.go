@@ -56,6 +56,7 @@ type CareReductionStore interface {
 	// contract.
 	InsertCareEvidenceEvents(ctx context.Context, organizationID, accountID int64, action string, evidenceID *int64, contractIDs []int64) error
 	CareTariffs(ctx context.Context, organizationID int64) ([]parentbilling.CareTariff, error)
+	CareCostShareStore
 }
 
 // CareReductions serves parentbilling.CareReductions.

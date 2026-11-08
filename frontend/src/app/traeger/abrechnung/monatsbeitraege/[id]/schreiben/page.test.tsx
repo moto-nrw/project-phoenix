@@ -55,6 +55,7 @@ const RUN: CareRunDetail = {
       recipient: { firstName: "Eva", lastName: "Beispiel", email: "" },
       positions: [],
       reductions: [],
+      costShares: [],
       totalCents: 9600,
       exclusion: null,
       mealPositions: [],
@@ -78,6 +79,7 @@ const RUN: CareRunDetail = {
   excludedCount: 0,
   excludedCents: 0,
   fingerprint: "",
+  costBearers: [],
 };
 const CANCELLATION: CareLetterMailing = {
   invoiceId: "41",

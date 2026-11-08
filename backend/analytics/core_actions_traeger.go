@@ -110,6 +110,9 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/traeger/care-evidences/"}:                            notCaptured,
 	{http.MethodPut, "/traeger/care-evidences/{id}"}:                         notCaptured,
 	{http.MethodDelete, "/traeger/care-evidences/{id}"}:                      notCaptured,
+	{http.MethodPost, "/traeger/care-cost-shares/"}:                          notCaptured,
+	{http.MethodPut, "/traeger/care-cost-shares/{id}"}:                       notCaptured,
+	{http.MethodDelete, "/traeger/care-cost-shares/{id}"}:                    notCaptured,
 	// Payment terms, family deviations and due dates of a run (#4689)
 	// belong to the Träger, no school to count them for.
 	{http.MethodPut, "/traeger/billing-terms/{service}"}:            notCaptured,

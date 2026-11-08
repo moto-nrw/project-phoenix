@@ -45,8 +45,9 @@ func careInvoiceLetter(content careLetterContent) Letter {
 		// A table follows a paragraph: the letter layout pulls it up by one
 		// paragraph spacing, so a heading alone would overlap its first row.
 		{Heading: heading, Text: careBasisText(invoice)},
-		{Facts: append(append(append(carePositionFacts(invoice.Positions, 1), careReductionFacts(invoice.Reductions, 1)...),
-			careMealFacts(invoice.MealPositions, 1)...), LetterFact{Label: "Summe", Value: formatEuro(invoice.TotalCents), Bold: true})},
+		{Facts: append(append(append(append(carePositionFacts(invoice.Positions, 1), careReductionFacts(invoice.Reductions, 1)...),
+			careMealFacts(invoice.MealPositions, 1)...), careCostShareFacts(invoice, 1)...),
+			LetterFact{Label: careTotalLabel(invoice), Value: formatEuro(invoice.TotalCents), Bold: true})},
 		{Text: carePaymentText(content), Bold: true},
 	}
 	if notes := strings.TrimSpace(content.input.Notes); notes != "" {
@@ -90,8 +91,9 @@ func careCancellationLetter(content careLetterContent) Letter {
 	letter.Blocks = []LetterBlock{
 		{Text: fmt.Sprintf("wir stornieren die Rechnung %s für %s. Grund: %s",
 			reference, carePeriodName(content.run.BillingMonth), sentence(cancellation.Reason))},
-		{Facts: append(append(append(carePositionFacts(invoice.Positions, -1), careReductionFacts(invoice.Reductions, -1)...),
-			careMealFacts(invoice.MealPositions, -1)...), LetterFact{Label: "Storno gesamt", Value: formatEuro(cancellation.TotalCents), Bold: true})},
+		{Facts: append(append(append(append(carePositionFacts(invoice.Positions, -1), careReductionFacts(invoice.Reductions, -1)...),
+			careMealFacts(invoice.MealPositions, -1)...), careCostShareFacts(invoice, -1)...),
+			LetterFact{Label: "Storno gesamt", Value: formatEuro(cancellation.TotalCents), Bold: true})},
 		{Text: "Diese Rechnung gilt nicht mehr. Sie müssen sie nicht bezahlen. Haben Sie schon bezahlt? Dann melden Sie sich bitte bei uns.", Bold: true},
 	}
 	if question := questionText(head); question != "" {
@@ -177,6 +179,9 @@ func isMonthEnd(date calendar.Date) bool {
 // which never prints a gap where the reference belongs.
 func carePaymentText(content careLetterContent) string {
 	invoice := content.invoice
+	if invoice.TotalCents == 0 && len(invoice.CostShares) > 0 {
+		return "Beitragsfrei: " + costBearerNames(invoice.CostShares) + " übernimmt Ihren Beitrag. Sie müssen für diesen Monat nichts bezahlen."
+	}
 	if invoice.TotalCents == 0 {
 		return "Sie müssen für diesen Monat nichts bezahlen."
 	}
@@ -242,4 +247,48 @@ func careRuleEffect(reduction parentbilling.CareReduction) string {
 		return formatEuro(*reduction.DiscountCents) + " weniger"
 	}
 	return ""
+}
+
+// careCostShareFacts prints the subtotal of the contribution and one line
+// per cost bearer share with its minus (#4687, ADR 0169); sign -1 prints the
+// amounts of a Storno. An invoice without a share prints nothing.
+func careCostShareFacts(invoice parentbilling.CareInvoice, sign int64) []LetterFact {
+	if len(invoice.CostShares) == 0 {
+		return nil
+	}
+	label := "Monatsbeitrag"
+	if len(invoice.MealPositions) > 0 {
+		// With the Mensa (#4686) the sum is more than the contribution.
+		label = "Zwischensumme"
+	}
+	facts := []LetterFact{{Label: label, Value: formatEuro(sign * invoice.ContributionCents())}}
+	for _, share := range invoice.CostShares {
+		facts = append(facts, LetterFact{
+			Label: fmt.Sprintf("Übernimmt %s (%s, %s)", strings.TrimSpace(share.CostBearerName),
+				costShareKindLabels[share.Kind], costShareText(share)),
+			Value: formatEuro(-sign * share.AmountCents),
+		})
+	}
+	return facts
+}
+
+// careTotalLabel names the sum of an invoice: what the family pays, which
+// is only a rest when a cost bearer pays a part.
+func careTotalLabel(invoice parentbilling.CareInvoice) string {
+	if len(invoice.CostShares) > 0 {
+		return "Ihr Anteil"
+	}
+	return "Summe"
+}
+
+// costBearerNames names the cost bearers of the shares: "A" or "A und B".
+func costBearerNames(shares []parentbilling.CareInvoiceCostShare) string {
+	names := []string{}
+	for _, share := range shares {
+		names = append(names, strings.TrimSpace(share.CostBearerName))
+	}
+	if len(names) == 1 {
+		return names[0]
+	}
+	return strings.Join(names[:len(names)-1], ", ") + " und " + names[len(names)-1]
 }

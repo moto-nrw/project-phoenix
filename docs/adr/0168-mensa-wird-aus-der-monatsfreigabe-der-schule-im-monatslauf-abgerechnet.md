@@ -114,6 +114,28 @@ ein. Sie führt keinen Owner und keinen zweiten Lauf ein.
    Tage nicht wieder abrechenbar. Schule und Träger zeigen solche Monate als
    „Nicht mehr abrechenbar“ ohne Knopf; der Träger liest den Löschstand je
    Schule in einer eigenen Schul-Transaktion (ADR 0105).
+12. **Kostenträger-Anteile wirken je Anteil auf Module, Mensa oder beides.**
+   ADR 0169 legt den Anteil auf den Beitrag nach der Regelkette fest, nennt
+   die Mensa aber nicht; Punkt 2 hält sie aus der Kette. Bei Bildung und
+   Teilhabe ist die Übernahme des Mittagessens der Normalfall, ein Jugendamt
+   übernimmt meist die Betreuung. Jeder Anteil trägt deshalb einen Geltungs-
+   bereich (`scope`: `care`, `meal`, `both`, Migration `1.15.817`); ein
+   Anteil ohne Angabe und jeder bestehende gilt für die Betreuung, wie vor
+   der Mensa. Die Kette (ADR 0169 Punkt 3) wendet nur die Anteile an, die die
+   Betreuung abdecken. Danach, wenn die Mensa auf den Rechnungen steht und
+   gegebenenfalls auf eine eigene Rechnung gewandert ist (ADR 0167), nimmt
+   `applyMealCostShares` den Anteil der Mensa-Positionen in derselben
+   Reihenfolge der Arten: Prozent vom vollen Mensa-Betrag, je Teil auf den
+   Cent gerundet; ein fester Betrag nur, was er im Monat beim Vertrag noch
+   nicht genommen hat (erst die Module, der Rest die Mensa, auch über zwei
+   Rechnungen); jeder höchstens den Rest. Die Mensa-Positionen bleiben
+   ungemindert (Punkt 2); nur `total_cents` ist der Rest der Familie. Eine
+   Mensa-Rechnung trägt nur die Anteile der Mensa. Die ausgestellte Rechnung
+   kopiert den Geltungsbereich mit dem Anteil (ADR 0169 Punkt 9), Brief und
+   Liste nennen ihn („100 % für die Mensa“), und die Liste des Kostenträgers
+   zeigt als Beitrag die Grundlage seines Anteils. Die Eingabe schlägt für
+   Bildung und Teilhabe „Mensa“ vor, für die anderen Arten „Betreuung“.
+   Handgerechnet: `TestCareCostSharesCoverTheModulesTheMensaOrBoth`.
 
 ## Verworfene Optionen
 
@@ -150,4 +172,4 @@ ein. Sie führt keinen Owner und keinen zweiten Lauf ein.
 - Aufbewahrung und Datenlebenszyklus: je fünf Einträge (der Löschstand ohne
   Personendaten, `tenantReference` über `school_id`). Die Schullöschung
   (`platform.school_erasure_*`) löscht den Löschstand mit seiner Schule.
-- Migration `1.15.811`.
+- Migrationen `1.15.811` und `1.15.817` (Geltungsbereich der Kostenträger-Anteile).

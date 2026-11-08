@@ -839,6 +839,12 @@ export const ERROR_CATALOG = {
         "Der Lauf ist schon freigegeben. Ausgestellte Rechnungen lassen sich nicht ändern.",
       "parent_billing.billing_terms_invalid":
         "Die Zahlungsbedingungen konnten nicht gespeichert werden. Bitte prüfen Sie Ihre Eingaben.",
+      "parent_billing.care_cost_share_invalid":
+        "Der Kostenträger-Anteil konnte nicht gespeichert werden. Bitte prüfen Sie die markierten Felder.",
+      "parent_billing.care_cost_share_not_found":
+        "Diesen Kostenträger-Anteil gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "parent_billing.care_cost_share_overlap":
+        "Für diese Zeit gibt es schon einen Anteil dieser Art. Beenden Sie zuerst den alten Anteil.",
       "parent_billing.care_evidence_invalid":
         "Der Nachweis konnte nicht gespeichert werden. Bitte prüfen Sie die markierten Felder.",
       "parent_billing.care_evidence_not_found":

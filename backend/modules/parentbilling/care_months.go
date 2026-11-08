@@ -233,7 +233,11 @@ type CareInvoice struct {
 	// (#4686). No rule of the chain reduces them; TotalCents adds them in
 	// full.
 	MealPositions []CareMealPosition `json:"meal_positions"`
-	TotalCents    int64              `json:"total_cents"`
+	// CostShares are the parts cost bearers pay of what the family would
+	// pay after the reductions (#4687, ADR 0169); TotalCents is the rest the
+	// family pays.
+	CostShares []CareInvoiceCostShare `json:"cost_shares"`
+	TotalCents int64                  `json:"total_cents"`
 }
 
 // CareUnpriced is a booked weekday of a module the price list has no price
@@ -324,6 +328,8 @@ type CareRunDetail struct {
 	MealChanged []CareMealChanged `json:"meal_changed"`
 	// DueDates are the due dates of the run per payment method (#4689).
 	DueDates []RunDueDate `json:"due_dates"`
+	// CostBearers are what each cost bearer pays of the invoices (#4687).
+	CostBearers []CareCostBearerTotal `json:"cost_bearers"`
 	// CareRunReviewState is the review of a calculated run (#5916).
 	CareRunReviewState
 }
