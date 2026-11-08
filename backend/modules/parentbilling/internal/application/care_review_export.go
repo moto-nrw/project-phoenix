@@ -143,6 +143,7 @@ func reviewInvoiceRows(invoices []parentbilling.CareInvoice, invoiceDate string)
 			}))
 		}
 		rows = append(rows, reviewMealAndShareRows(base, invoice)...)
+		rows = append(rows, reviewCorrectionRows(base, invoice)...)
 	}
 	return rows, total
 }

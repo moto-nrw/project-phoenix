@@ -98,10 +98,10 @@ func TestCareMonthGoldenSJR(t *testing.T) {
 		"positions": [
 			{"care_offering_id": 101, "module_name": "Betreuung bis 14:00 Uhr", "version_number": 1,
 			 "service_from": "2027-01-01", "service_until": "2027-01-31",
-			 "weekdays": [{"weekday": "mon", "monthly_cents": 3200, "amount_cents": 3200}], "amount_cents": 3200},
+			 "weekdays": [{"weekday": "mon", "monthly_cents": 3200, "amount_cents": 3200}], "amount_cents": 3200, "payable_cents": 3200},
 			{"care_offering_id": 102, "module_name": "Betreuung bis 16:30 Uhr", "version_number": 1,
 			 "service_from": "2027-01-01", "service_until": "2027-01-31",
-			 "weekdays": [{"weekday": "tue", "monthly_cents": 4550, "amount_cents": 4550}], "amount_cents": 4550}
+			 "weekdays": [{"weekday": "tue", "monthly_cents": 4550, "amount_cents": 4550}], "amount_cents": 4550, "payable_cents": 4550}
 		],
 		"reductions": [],
 		"meal_positions": [],

@@ -96,6 +96,8 @@ type CareMealPosition struct {
 	// ReleaseVersion is the version of the school's release the position
 	// bills (#4686); a later version shows the office it changed.
 	ReleaseVersion int `json:"release_version"`
+	// Key names the position for a change of the review (#6197).
+	Key string `json:"key,omitempty"`
 }
 
 // CareBilledMealPosition is a child's Mensa month an issued invoice bills:

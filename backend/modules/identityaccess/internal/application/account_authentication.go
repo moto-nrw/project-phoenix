@@ -31,7 +31,7 @@ type AccountAuthentication struct {
 	passwords      ports.PasswordVerifier
 	codec          ports.TokenCodec
 	mfa            ports.MFAGate
-	mfaLock        ports.MFAPolicyLock
+	mfaLock        identityPorts.MFAPolicyLock
 	audit          ports.AuthAudit
 	push           ports.PushSubscriptionCleanup
 	runtime        ports.Runtime
@@ -68,7 +68,7 @@ type AccountAuthenticationDependencies struct {
 	Passwords      ports.PasswordVerifier
 	Codec          ports.TokenCodec
 	MFA            ports.MFAGate
-	MFALock        ports.MFAPolicyLock
+	MFALock        identityPorts.MFAPolicyLock
 	Audit          ports.AuthAudit
 	Push           ports.PushSubscriptionCleanup
 	Runtime        ports.Runtime
@@ -247,101 +247,79 @@ func pendingWipes(values []identityaccess.PendingAccountWideWipe) []domain.Pendi
 }
 
 func (s *AccountAuthentication) LoginWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug, trustedDeviceCookie string) (*identityaccess.LoginResult, error) {
-	if s == nil {
-		return nil, errAccountAuthenticationUnavailable
-	}
-	result, err := s.loginWithMFAGate(bindRuntime(s.attach, ctx), email, password, ipAddress, userAgent, tenantSlug, trustedDeviceCookie)
-	return loginResult(result), authenticationError(err)
+	return runFlow(ctx, s.flow(), func(ctx context.Context) (*identityaccess.LoginResult, error) {
+		result, err := s.loginWithMFAGate(ctx, email, password, ipAddress, userAgent, tenantSlug, trustedDeviceCookie)
+		return loginResult(result), err
+	})
 }
 
 func (s *AccountAuthentication) ConfirmAccountPassword(ctx context.Context, accountID int64, password string) error {
-	if s == nil {
-		return errAccountAuthenticationUnavailable
-	}
-	return authenticationError(s.confirmAccountPassword(bindRuntime(s.attach, ctx), accountID, password))
+	return runFlowErr(ctx, s.flow(), func(ctx context.Context) error {
+		return s.confirmAccountPassword(ctx, accountID, password)
+	})
 }
 
 func (s *AccountAuthentication) LoginParentWithAudit(ctx context.Context, email, password, ipAddress, userAgent string) (string, string, error) {
-	if s == nil {
-		return "", "", errAccountAuthenticationUnavailable
-	}
-	access, refresh, err := s.loginParentWithAudit(bindRuntime(s.attach, ctx), email, password, ipAddress, userAgent)
-	return access, refresh, authenticationError(err)
+	return runFlow2(ctx, s.flow(), func(ctx context.Context) (string, string, error) {
+		return s.loginParentWithAudit(ctx, email, password, ipAddress, userAgent)
+	})
 }
 
 func (s *AccountAuthentication) RefreshTokenWithAudit(ctx context.Context, refreshToken, recoveryProof, ipAddress, userAgent string) (string, string, error) {
-	if s == nil {
-		return "", "", errAccountAuthenticationUnavailable
-	}
-	access, refresh, err := s.refreshTokenWithAudit(bindRuntime(s.attach, ctx), refreshToken, domain.NewRecoveryProof(recoveryProof), ipAddress, userAgent)
-	return access, refresh, authenticationError(err)
+	return runFlow2(ctx, s.flow(), func(ctx context.Context) (string, string, error) {
+		return s.refreshTokenWithAudit(ctx, refreshToken, domain.NewRecoveryProof(recoveryProof), ipAddress, userAgent)
+	})
 }
 
 func (s *AccountAuthentication) SwitchTenant(ctx context.Context, accountID int64, tenantSlug, presentedFamilyID, ipAddress, userAgent string) (string, string, error) {
-	if s == nil {
-		return "", "", errAccountAuthenticationUnavailable
-	}
-	access, refresh, err := s.switchTenant(bindRuntime(s.attach, ctx), accountID, tenantSlug, presentedFamilyID, ipAddress, userAgent)
-	return access, refresh, authenticationError(err)
+	return runFlow2(ctx, s.flow(), func(ctx context.Context) (string, string, error) {
+		return s.switchTenant(ctx, accountID, tenantSlug, presentedFamilyID, ipAddress, userAgent)
+	})
 }
 
 func (s *AccountAuthentication) CleanupExpiredTokens(ctx context.Context) (int, error) {
-	if s == nil {
-		return 0, errAccountAuthenticationUnavailable
-	}
-	count, err := s.cleanupExpiredTokens(bindRuntime(s.attach, ctx))
-	return count, authenticationError(err)
+	return runFlow(ctx, s.flow(), s.cleanupExpiredTokens)
 }
 
 func (s *AccountAuthentication) LoginSchoolWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*identityaccess.LoginResult, error) {
-	if s == nil {
-		return nil, errAccountAuthenticationUnavailable
-	}
-	result, err := s.loginSchoolWithMFAGate(bindRuntime(s.attach, ctx), email, password, ipAddress, userAgent, trustedDeviceCookie, "")
-	return loginResult(result), authenticationError(err)
+	return s.LoginSchoolAtTenantWithMFAGate(ctx, email, password, ipAddress, userAgent, trustedDeviceCookie, "")
 }
 
 func (s *AccountAuthentication) LoginSchoolAtTenantWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie, tenantSlug string) (*identityaccess.LoginResult, error) {
-	if s == nil {
-		return nil, errAccountAuthenticationUnavailable
-	}
-	result, err := s.loginSchoolWithMFAGate(bindRuntime(s.attach, ctx), email, password, ipAddress, userAgent, trustedDeviceCookie, tenantSlug)
-	return loginResult(result), authenticationError(err)
+	return runFlow(ctx, s.flow(), func(ctx context.Context) (*identityaccess.LoginResult, error) {
+		result, err := s.loginSchoolWithMFAGate(ctx, email, password, ipAddress, userAgent, trustedDeviceCookie, tenantSlug)
+		return loginResult(result), err
+	})
 }
 
 func (s *AccountAuthentication) LoadAccountClaims(ctx context.Context, accountID, tenantID int64) (identityaccess.AccountClaims, error) {
-	if s == nil {
-		return identityaccess.AccountClaims{}, errAccountAuthenticationUnavailable
-	}
-	payload, err := s.loadAccountClaims(bindRuntime(s.attach, ctx), accountID, tenantID)
-	if err != nil {
-		return identityaccess.AccountClaims{}, authenticationError(err)
-	}
-	roles := make([]identityaccess.AccountRole, 0, len(payload.Roles))
-	for _, role := range payload.Roles {
-		roles = append(roles, identityaccess.AccountRole{ID: role.RoleID, Name: role.Name, IsSystem: role.IsSystem, TenantID: role.TenantID, SchoolPortal: role.SchoolPortal})
-	}
-	return identityaccess.AccountClaims{
-		RoleNames: payload.RoleNames, Roles: roles, Permissions: payload.Permissions, Username: payload.Username,
-		FirstName: payload.FirstName, LastName: payload.LastName, IsAdmin: payload.IsAdmin,
-		TenantID: payload.TenantID, OrgID: payload.OrgID, Scope: payload.Scope,
-	}, nil
+	return runFlow(ctx, s.flow(), func(ctx context.Context) (identityaccess.AccountClaims, error) {
+		payload, err := s.loadAccountClaims(ctx, accountID, tenantID)
+		if err != nil {
+			return identityaccess.AccountClaims{}, err
+		}
+		roles := make([]identityaccess.AccountRole, 0, len(payload.Roles))
+		for _, role := range payload.Roles {
+			roles = append(roles, identityaccess.AccountRole{ID: role.RoleID, Name: role.Name, IsSystem: role.IsSystem, TenantID: role.TenantID, SchoolPortal: role.SchoolPortal})
+		}
+		return identityaccess.AccountClaims{
+			RoleNames: payload.RoleNames, Roles: roles, Permissions: payload.Permissions, Username: payload.Username,
+			FirstName: payload.FirstName, LastName: payload.LastName, IsAdmin: payload.IsAdmin,
+			TenantID: payload.TenantID, OrgID: payload.OrgID, Scope: payload.Scope,
+		}, nil
+	})
 }
 
 func (s *AccountAuthentication) FindGuardianTenant(ctx context.Context, accountID int64) (bool, int64, error) {
-	if s == nil {
-		return false, 0, errAccountAuthenticationUnavailable
-	}
-	found, tenantID, err := s.findGuardianTenant(bindRuntime(s.attach, ctx), accountID)
-	return found, tenantID, authenticationError(err)
+	return runFlow2(ctx, s.flow(), func(ctx context.Context) (bool, int64, error) {
+		return s.findGuardianTenant(ctx, accountID)
+	})
 }
 
 func (s *AccountAuthentication) FindSchoolPortalTenant(ctx context.Context, accountID int64) (bool, int64, error) {
-	if s == nil {
-		return false, 0, errAccountAuthenticationUnavailable
-	}
-	found, tenantID, err := s.findSchoolPortalTenant(bindRuntime(s.attach, ctx), accountID)
-	return found, tenantID, authenticationError(err)
+	return runFlow2(ctx, s.flow(), func(ctx context.Context) (bool, int64, error) {
+		return s.findSchoolPortalTenant(ctx, accountID)
+	})
 }
 
 // BindRuntime attaches the unit of work the session flows were composed with.

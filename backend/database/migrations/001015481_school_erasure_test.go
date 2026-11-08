@@ -128,6 +128,11 @@ func TestSchoolErasurePlanCoversCatalogAndDeleteTriggers(t *testing.T) {
 		// plan of a school.
 		"enrollment.holiday_week_time_models:enrollment.holiday_time_model_keeps_booked_history",
 		"enrollment.request_uploads:enrollment.queue_request_upload_cleanup",
+		// #6197: refuses to delete a correction of an issued monthly invoice
+		// unless its invoice is gone, so only the cascade from the invoice
+		// removes it (the demo erasure deletes the invoice). Träger data
+		// (scope organization), outside the plan of a school.
+		"parent_billing.care_invoice_corrections:parent_billing.refuse_care_invoice_correction_change",
 		// #5628: drops a sibling group of a Träger left with one holiday
 		// registration; Träger data, outside the plan of a school.
 		"parent_billing.holiday_sibling_group_members:parent_billing.drop_lone_holiday_sibling_group",

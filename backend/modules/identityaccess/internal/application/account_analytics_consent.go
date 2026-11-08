@@ -12,20 +12,18 @@ import (
 // the password change, it is the holder's business on the global account row
 // and runs on the global identity unit.
 func (a *AccountAdministration) FindAnalyticsConsent(ctx context.Context, accountID int64) (identityaccess.AnalyticsConsent, error) {
-	if a == nil {
-		return identityaccess.AnalyticsConsent{}, errAccountAdministrationUnavailable
-	}
-	ctx = bindRuntime(a.auth.attach, ctx)
-	var result domain.AnalyticsConsent
-	err := globalIdentityRead(ctx, a.runtime, func(txCtx context.Context) error {
-		value, found, _, err := a.store.FindAnalyticsConsent(txCtx, accountID)
-		result = value
-		return stateChange(found, err, domain.ErrAccountNotFound)
+	return runFlow(ctx, a.flow(), func(ctx context.Context) (identityaccess.AnalyticsConsent, error) {
+		var result domain.AnalyticsConsent
+		err := globalIdentityRead(ctx, a.runtime, func(txCtx context.Context) error {
+			value, found, _, err := a.store.FindAnalyticsConsent(txCtx, accountID)
+			result = value
+			return stateChange(found, err, domain.ErrAccountNotFound)
+		})
+		if err != nil {
+			return identityaccess.AnalyticsConsent{}, err
+		}
+		return identityaccess.AnalyticsConsent(result), nil
 	})
-	if err != nil {
-		return identityaccess.AnalyticsConsent{}, administrationError(err)
-	}
-	return identityaccess.AnalyticsConsent(result), nil
 }
 
 // DecideAnalyticsConsent records the holder's answer with the time it was
@@ -33,22 +31,20 @@ func (a *AccountAdministration) FindAnalyticsConsent(ctx context.Context, accoun
 // caller confirms what was persisted. Repeating an answer renews its time:
 // the latest decision is the evidence.
 func (a *AccountAdministration) DecideAnalyticsConsent(ctx context.Context, accountID int64, granted bool) (identityaccess.AnalyticsConsent, error) {
-	if a == nil {
-		return identityaccess.AnalyticsConsent{}, errAccountAdministrationUnavailable
-	}
-	ctx = bindRuntime(a.auth.attach, ctx)
-	var result domain.AnalyticsConsent
-	err := globalIdentityRead(ctx, a.runtime, func(txCtx context.Context) error {
-		written, _, err := a.store.SetAnalyticsConsent(txCtx, accountID, granted)
-		if err = stateChange(written, err, domain.ErrAccountNotFound); err != nil {
-			return err
+	return runFlow(ctx, a.flow(), func(ctx context.Context) (identityaccess.AnalyticsConsent, error) {
+		var result domain.AnalyticsConsent
+		err := globalIdentityRead(ctx, a.runtime, func(txCtx context.Context) error {
+			written, _, err := a.store.SetAnalyticsConsent(txCtx, accountID, granted)
+			if err = stateChange(written, err, domain.ErrAccountNotFound); err != nil {
+				return err
+			}
+			value, found, _, err := a.store.FindAnalyticsConsent(txCtx, accountID)
+			result = value
+			return stateChange(found, err, domain.ErrAccountNotFound)
+		})
+		if err != nil {
+			return identityaccess.AnalyticsConsent{}, err
 		}
-		value, found, _, err := a.store.FindAnalyticsConsent(txCtx, accountID)
-		result = value
-		return stateChange(found, err, domain.ErrAccountNotFound)
+		return identityaccess.AnalyticsConsent(result), nil
 	})
-	if err != nil {
-		return identityaccess.AnalyticsConsent{}, administrationError(err)
-	}
-	return identityaccess.AnalyticsConsent(result), nil
 }

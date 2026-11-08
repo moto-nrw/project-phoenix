@@ -15,13 +15,15 @@ import (
 )
 
 // mountReview adds the review of a calculated monthly run (#5916): the
-// invoice date, the exclusion of single invoices and the review list. Every
+// invoice date, the exclusion of single invoices, the changes of single
+// invoices (#6197) and the review list. Every
 // route needs the right "Abrechnung" and runs in the Träger transaction.
 func (rs *CareBillingResource) mountReview(billing chi.Router) {
 	billing.Get("/schools", rs.runSchools)
 	billing.Put("/{id}/invoice-date", rs.setInvoiceDate)
 	billing.Post("/{id}/exclusions", rs.exclude)
 	billing.Delete("/{id}/exclusions/{contractID}", rs.include)
+	billing.Post("/{id}/amendments", rs.amend)
 	billing.Get("/{id}/review-export", rs.reviewExport)
 	billing.Get("/{id}/cost-shares/{costBearerID}/export", rs.costShareExport)
 }

@@ -256,7 +256,7 @@ func normalizeFamilyBilling(input parentbilling.FamilyBillingInput) (parentbilli
 		if address, err := mail.ParseAddress(family.PayerEmail); err != nil || address.Address != family.PayerEmail || len(family.PayerEmail) > 320 {
 			errs["payer_email"] = errors.New("must be a valid e-mail address")
 		}
-		family.PayerAddress = normalizeAddress(errs, input.PayerAddress)
+		family.PayerAddress = normalizeAddress(errs, "payer_address", input.PayerAddress)
 	default:
 		errs["recipient_kind"] = errors.New("must be applicant, both or payer")
 	}
@@ -281,21 +281,23 @@ func requireName(errs validation.Errors, field, value string) {
 	}
 }
 
-func normalizeAddress(errs validation.Errors, address *parentbilling.PostalAddress) *parentbilling.PostalAddress {
+// normalizeAddress trims a postal address and checks it under the field
+// name of the request.
+func normalizeAddress(errs validation.Errors, field string, address *parentbilling.PostalAddress) *parentbilling.PostalAddress {
 	if address == nil {
-		errs["payer_address"] = errors.New("is required")
+		errs[field] = errors.New("is required")
 		return nil
 	}
 	normalized := &parentbilling.PostalAddress{Street: strings.TrimSpace(address.Street), PostalCode: strings.TrimSpace(address.PostalCode),
 		City: strings.TrimSpace(address.City)}
 	if normalized.Street == "" || len([]rune(normalized.Street)) > 100 {
-		errs["payer_address.street"] = errors.New("is required, at most 100 characters")
+		errs[field+".street"] = errors.New("is required, at most 100 characters")
 	}
 	if !postalCodePattern.MatchString(normalized.PostalCode) {
-		errs["payer_address.postal_code"] = errors.New("must be five digits")
+		errs[field+".postal_code"] = errors.New("must be five digits")
 	}
 	if normalized.City == "" || len([]rune(normalized.City)) > 100 {
-		errs["payer_address.city"] = errors.New("is required, at most 100 characters")
+		errs[field+".city"] = errors.New("is required, at most 100 characters")
 	}
 	return normalized
 }

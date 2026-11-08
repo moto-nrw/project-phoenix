@@ -1,6 +1,6 @@
 {
   "scenario": "operator.lists.school_devices",
-  "max": 15,
+  "max": 12,
   "exact": true,
   "description": "GET /operator/schools/{id}/devices; N additional devices in the primary school, its web-manual device preserved. N=3/8 positive body IDs and cardinality. Complete protected route-sized request: real owners, signed live operator session, mandatory access audit where mounted and owner transactions/RLS. Fixture setup/token issuance and outer Serve-host middleware excluded. Observed scenario count, not a universal floor.",
   "route": "GET /operator/schools/{id}/devices"

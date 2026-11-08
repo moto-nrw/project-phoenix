@@ -713,32 +713,28 @@ func (s *OperatorAuthentication) activeOperator(txCtx context.Context, operatorI
 }
 
 func (s *OperatorAuthentication) LoginOperatorWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*identityaccess.OperatorLoginResult, error) {
-	if s == nil {
-		return nil, errOperatorAuthenticationUnavailable
-	}
-	result, err := s.loginWithMFAGate(bindRuntime(s.attach, ctx), email, password, ipAddress, userAgent, trustedDeviceCookie)
-	return operatorLoginResult(result), operatorError(err)
+	return runFlow(ctx, s.flow(), func(ctx context.Context) (*identityaccess.OperatorLoginResult, error) {
+		result, err := s.loginWithMFAGate(ctx, email, password, ipAddress, userAgent, trustedDeviceCookie)
+		return operatorLoginResult(result), err
+	})
 }
 
 func (s *OperatorAuthentication) RefreshOperatorToken(ctx context.Context, refreshToken, recoveryProof string) (string, string, error) {
-	if s == nil {
-		return "", "", errOperatorAuthenticationUnavailable
-	}
-	access, refresh, err := s.RefreshToken(bindRuntime(s.attach, ctx), refreshToken, domain.NewRecoveryProof(recoveryProof))
-	return access, refresh, operatorError(err)
+	return runFlow2(ctx, s.flow(), func(ctx context.Context) (string, string, error) {
+		access, refresh, err := s.RefreshToken(ctx, refreshToken, domain.NewRecoveryProof(recoveryProof))
+		return access, refresh, err
+	})
 }
 
 func (s *OperatorAuthentication) UpdateOperatorProfile(ctx context.Context, operatorID int64, displayName string) (identityaccess.Operator, error) {
-	if s == nil {
-		return identityaccess.Operator{}, errOperatorAuthenticationUnavailable
-	}
-	operator, err := s.UpdateProfile(bindRuntime(s.attach, ctx), operatorID, displayName)
-	return identityaccess.Operator(operator), operatorError(err)
+	return runFlow(ctx, s.flow(), func(ctx context.Context) (identityaccess.Operator, error) {
+		operator, err := s.UpdateProfile(ctx, operatorID, displayName)
+		return identityaccess.Operator(operator), err
+	})
 }
 
 func (s *OperatorAuthentication) ChangeOperatorPassword(ctx context.Context, operatorID int64, currentPassword, newPassword string) error {
-	if s == nil {
-		return errOperatorAuthenticationUnavailable
-	}
-	return operatorError(s.ChangePassword(bindRuntime(s.attach, ctx), operatorID, currentPassword, newPassword))
+	return runFlowErr(ctx, s.flow(), func(ctx context.Context) error {
+		return s.ChangePassword(ctx, operatorID, currentPassword, newPassword)
+	})
 }

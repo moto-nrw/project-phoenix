@@ -138,11 +138,8 @@ func (s *service) AuthenticateStaffCalDAV(ctx context.Context, username, appPass
 }
 
 func (s *service) staffCalendarOwnerByToken(ctx context.Context, token string) (staffFeedOwner, error) {
-	if s.cfg.StaffFeedRepo == nil || s.cfg.AccountRepo == nil {
-		return staffFeedOwner{}, fmt.Errorf("%w: staff calendar feed not configured", ErrInvalidRequest)
-	}
-	if strings.TrimSpace(token) == "" {
-		return staffFeedOwner{}, ErrNotFound
+	if err := s.checkStaffFeedToken(token); err != nil {
+		return staffFeedOwner{}, err
 	}
 	var owner staffFeedOwner
 	bootstrap := s.cfg.Runtime.WithinAdmin
@@ -155,6 +152,18 @@ func (s *service) staffCalendarOwnerByToken(ctx context.Context, token string) (
 		return err
 	})
 	return owner, err
+}
+
+// checkStaffFeedToken refuses a staff token lookup before any statement: a
+// missing wiring is a configuration error, an empty token is unknown.
+func (s *service) checkStaffFeedToken(token string) error {
+	if s.cfg.StaffFeedRepo == nil || s.cfg.AccountRepo == nil {
+		return fmt.Errorf("%w: staff calendar feed not configured", ErrInvalidRequest)
+	}
+	if strings.TrimSpace(token) == "" {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (s *service) readStaffCalendarOwner(ctx context.Context, token string) (staffFeedOwner, error) {

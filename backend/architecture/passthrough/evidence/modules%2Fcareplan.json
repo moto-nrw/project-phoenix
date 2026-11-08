@@ -303,7 +303,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (p ExcusedParentRequests) GetExcusedBulkCandidate(ctx context.Context, requestID int64) (*ports.ExcusedBulkCandidate, error) {\n\tcandidate, err := p.Requests.GetExcusedBulkCandidate(ctx, requestID)\n\tif err != nil || candidate == nil {\n\t\treturn nil, ExcusedParentRequestError(err)\n\t}\n\treturn \u0026ports.ExcusedBulkCandidate{ID: candidate.ID, StudentID: candidate.StudentID, UpdatedAt: candidate.UpdatedAt, Eligible: candidate.Eligible}, nil\n}",
+      "evidence": "func (p ExcusedParentRequests) GetExcusedBulkCandidate(ctx context.Context, requestIDs []int64) (map[int64]ports.ExcusedBulkCandidate, error) {\n\tcandidates, err := p.Requests.GetExcusedBulkCandidate(ctx, requestIDs)\n\tif err != nil {\n\t\treturn nil, ExcusedParentRequestError(err)\n\t}\n\tresult := make(map[int64]ports.ExcusedBulkCandidate, len(candidates))\n\tfor id, candidate := range candidates {\n\t\tresult[id] = ports.ExcusedBulkCandidate{ID: candidate.ID, StudentID: candidate.StudentID, UpdatedAt: candidate.UpdatedAt, Eligible: candidate.Eligible}\n\t}\n\treturn result, nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/careplan/internal/application/ExcusedParentRequests.GetExcusedBulkCandidate",
       "owner": "modules/careplan"

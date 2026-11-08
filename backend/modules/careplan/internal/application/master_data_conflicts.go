@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -21,24 +20,49 @@ var (
 	_ ports.ConflictPort       = (*MasterDataDecisions)(nil)
 )
 
-// GetBulkCandidate reads one open request with the facts the bulk approval
-// validates: its version and whether it may be approved together with
-// others. A request the caller could not decide reads as not found.
-func (s *MasterDataDecisions) GetBulkCandidate(ctx context.Context, requestID int64) (*careplan.MasterDataReviewItem, error) {
-	return s.bulkCandidate(ctx, requestID)
+// GetBulkCandidate reads the named open requests with the facts the bulk
+// approval validates: their version and whether each may be approved
+// together with others (#5804). One read fetches the request rows; the
+// facts are then judged request by request in the given order, and the
+// first request the caller could not decide (gone, decided, outside the
+// scope, graduated, care ended) ends the pass. Nothing after it is read, so
+// a later request's facts can never turn that refusal into a failure. The
+// result holds the requests before it.
+func (s *MasterDataDecisions) GetBulkCandidate(ctx context.Context, requestIDs []int64) (map[int64]*careplan.MasterDataReviewItem, error) {
+	candidates := make(map[int64]*careplan.MasterDataReviewItem, len(requestIDs))
+	if len(requestIDs) == 0 {
+		return candidates, nil
+	}
+	rows, err := s.requests.ListStudentDataRequests(ctx, careplan.StudentDataRequestFilter{
+		IDs: requestIDs, Statuses: []string{masterdatarequests.StatusPending},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("review: load bulk candidates: %w", err)
+	}
+	byID := make(map[int64]careplan.StudentDataChangeRequest, len(rows))
+	for _, row := range rows {
+		byID[row.ID] = row
+	}
+	for _, id := range requestIDs {
+		row, found := byID[id]
+		if !found {
+			break
+		}
+		item, err := s.reviewBulkCandidate(ctx, row)
+		if err != nil {
+			return nil, err
+		}
+		if item == nil {
+			break
+		}
+		candidates[id] = item
+	}
+	return candidates, nil
 }
 
-func (s *MasterDataDecisions) bulkCandidate(ctx context.Context, requestID int64) (*careplan.MasterDataReviewItem, error) {
-	row, err := s.requests.FindStudentDataRequest(ctx, requestID, false)
-	if errors.Is(err, careplan.ErrStudentDataRequestNotFound) {
-		return nil, masterdatarequests.ErrReviewNotFound
-	}
-	if err != nil {
-		return nil, fmt.Errorf("review: load bulk candidate: %w", err)
-	}
-	if row.Status != masterdatarequests.StatusPending {
-		return nil, masterdatarequests.ErrReviewNotFound
-	}
+// reviewBulkCandidate reads one pending request's field facts and applies
+// the open queue's gate; nil means the caller may not decide it.
+func (s *MasterDataDecisions) reviewBulkCandidate(ctx context.Context, row careplan.StudentDataChangeRequest) (*careplan.MasterDataReviewItem, error) {
 	facts, err := s.people.ReviewFields(ctx, []careplan.MasterDataFieldChange{{
 		RequestID: row.ID, StudentID: row.StudentID, Target: row.Target, Field: row.FieldKey,
 		OldValue: row.OldValue, NewValue: row.NewValue,
@@ -50,17 +74,29 @@ func (s *MasterDataDecisions) bulkCandidate(ctx context.Context, requestID int64
 	if err != nil {
 		return nil, fmt.Errorf("review: resolve reviewer scope: %w", err)
 	}
-	// The same gate as the open queue: a graduate or a child whose care ended
-	// is not offered for a decision (#405 review, #2487).
+	// The same gate as the open queue: a graduate or a child whose care
+	// ended is not offered for a decision (#405 review, #2487).
 	fact := facts[row.ID]
 	if !scope.Allows(fact.Student) || fact.Student.Alumnus || fact.Student.CareEndedOn(s.today()) {
-		return nil, masterdatarequests.ErrReviewNotFound
+		return nil, nil
 	}
 	return &careplan.MasterDataReviewItem{
 		Request: &row, FirstName: fact.FirstName, LastName: fact.LastName,
 		BulkEligible: fact.BulkEligible, BulkIneligibleReason: fact.BulkIneligibleReason,
 		BulkIneligibleText: fact.BulkIneligibleText, CurrentValueChanged: fact.CurrentValueChanged,
 	}, nil
+}
+
+func (s *MasterDataDecisions) bulkCandidate(ctx context.Context, requestID int64) (*careplan.MasterDataReviewItem, error) {
+	candidates, err := s.GetBulkCandidate(ctx, []int64{requestID})
+	if err != nil {
+		return nil, err
+	}
+	item, found := candidates[requestID]
+	if !found {
+		return nil, masterdatarequests.ErrReviewNotFound
+	}
+	return item, nil
 }
 
 // LockBulkRequest takes the open request row FOR UPDATE.

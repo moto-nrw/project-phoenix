@@ -160,11 +160,25 @@ type CareInvoiceCostShare struct {
 }
 
 // ContributionCents is the contribution of the invoice before the cost
-// bearer shares: what the family pays plus what the cost bearers pay.
+// bearer shares: what the family pays plus what the cost bearers pay,
+// without the correction lines of the review (#6197), which come after the
+// shares.
 func (i CareInvoice) ContributionCents() int64 {
-	total := i.TotalCents
+	total := i.TotalCents - i.CorrectionCents()
 	for _, share := range i.CostShares {
 		total += share.AmountCents
+	}
+	return total
+}
+
+// CorrectionCents sums the correction lines the applied changes of the
+// review add to the total (#6197).
+func (i CareInvoice) CorrectionCents() int64 {
+	var total int64
+	for _, amendment := range i.Amendments {
+		if amendment.Applied() {
+			total += amendment.AmountCents
+		}
 	}
 	return total
 }

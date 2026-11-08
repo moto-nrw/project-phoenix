@@ -19,7 +19,8 @@ type PasswordVerifier interface {
 	VerifyPassword(password, hash string) (bool, error)
 }
 
-// MFAPolicyLock pins a school's MFA mode for the caller's transaction.
+// MFAPolicyLock pins a school's MFA mode for the rest of the caller's
+// transaction, in shared mode.
 type MFAPolicyLock interface {
 	LockMFAPolicySharedForTenant(ctx context.Context, tenantID int64) error
 }

@@ -461,23 +461,28 @@ func operatorSessions(values []domain.OperatorSession) []ports.OperatorSession {
 // VerifyOperatorSession refuses an inactive or unknown operator and an access
 // token whose refresh family is gone, expired or another operator's. Operator
 // tokens keep this check of their own; account tokens run AccessSessions.
+// Both reads share one administrative read unit (ADR 0161) in this order and
+// with these guards; it writes nothing, and a refusal ends it before the next
+// statement.
 func (s *Service) VerifyOperatorSession(ctx context.Context, operatorID int64, familyID string) error {
-	operator, err := s.FindOperator(ctx, operatorID)
-	if err != nil {
-		return err
-	}
-	if !operator.Active || familyID == "" {
-		return identityaccess.ErrOperatorInactive
-	}
-	session, err := s.LatestOperatorSessionInFamily(ctx, familyID)
-	if errors.Is(err, identityaccess.ErrOperatorSessionNotFound) {
-		return identityaccess.ErrOperatorInactive
-	}
-	if err != nil {
-		return err
-	}
-	if session.OperatorID != operatorID || !session.Expiry.After(time.Now()) {
-		return identityaccess.ErrOperatorInactive
-	}
-	return nil
+	return s.tx.RunAdmin(ctx, func(txCtx context.Context) error {
+		operator, err := s.FindOperator(txCtx, operatorID)
+		if err != nil {
+			return err
+		}
+		if !operator.Active || familyID == "" {
+			return identityaccess.ErrOperatorInactive
+		}
+		session, err := s.LatestOperatorSessionInFamily(txCtx, familyID)
+		if errors.Is(err, identityaccess.ErrOperatorSessionNotFound) {
+			return identityaccess.ErrOperatorInactive
+		}
+		if err != nil {
+			return err
+		}
+		if session.OperatorID != operatorID || !session.Expiry.After(time.Now()) {
+			return identityaccess.ErrOperatorInactive
+		}
+		return nil
+	})
 }
