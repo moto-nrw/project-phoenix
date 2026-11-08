@@ -70,8 +70,10 @@ export function SepaMandateStatusCard({
       title="SEPA-Lastschriftmandat"
       titleBadge={
         state.kind === "loaded" ? (
-          inForce ? (
+          inForce?.creditorCurrent ? (
             <StatusBadge tone="green" label="Gültig" />
+          ) : inForce ? (
+            <StatusBadge tone="orange" label="Neues Mandat nötig" />
           ) : (
             <StatusBadge tone="orange" label="Kein gültiges Mandat" />
           )
@@ -80,9 +82,11 @@ export function SepaMandateStatusCard({
       description={
         state.kind === "failed"
           ? "Der Stand des Mandats konnte nicht geladen werden."
-          : inForce
-            ? `Mandatsreferenz ${inForce.reference} · Konto ${inForce.ibanMasked}`
-            : "Ohne Mandat bekommt die Familie eine Rechnung zum Überweisen."
+          : inForce && !inForce.creditorCurrent
+            ? "Das Mandat gilt für Ihre frühere Gläubiger-ID. Bis ein neues da ist, bekommt die Familie eine Rechnung zum Überweisen."
+            : inForce
+              ? `Mandatsreferenz ${inForce.reference} · Konto ${inForce.ibanMasked}`
+              : "Ohne Mandat bekommt die Familie eine Rechnung zum Überweisen."
       }
       loading={state.kind === "loading"}
       actions={

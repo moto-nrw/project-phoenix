@@ -20,7 +20,7 @@ export function traegerSepaMandatesTopic(): HelpTopic {
       {
         title: "Gläubiger-ID eintragen",
         description:
-          "Die Gläubiger-ID bekommen Sie von der Bundesbank. Ohne sie gibt es keine Lastschrift.",
+          "Die Gläubiger-ID bekommen Sie von der Bundesbank. Ohne sie gibt es keine Lastschrift und kein Mandat. Ein Mandat gilt nur für die Gläubiger-ID, die beim Erfassen eingetragen war. Ändern Sie die Gläubiger-ID, brauchen alle Familien ein neues Mandat.",
         steps: [
           "Wählen Sie unten in der Navigation `Einstellungen` und dann `Abrechnungsvorgaben`.",
           "Wählen Sie in der Karte `Lastschrift` den Knopf `Ändern`.",

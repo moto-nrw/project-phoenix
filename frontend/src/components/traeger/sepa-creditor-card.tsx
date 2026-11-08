@@ -6,6 +6,7 @@
 // Gläubiger-ID auf jeder Vorabankündigung steht.
 
 import { useEffect, useRef, useState } from "react";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
@@ -146,6 +147,13 @@ function SepaCreditorModal({
           error={formErrors.fieldError("creditor_id") ?? undefined}
           onChange={(event) => setCreditorId(event.target.value)}
         />
+        {creditor.creditorId !== "" &&
+        compactCode(creditorId) !== creditor.creditorId ? (
+          <Alert
+            type="warning"
+            message="Bisherige Mandate gelten nur für die bisherige Gläubiger-ID. Nach dem Wechsel brauchen die Familien ein neues Mandat. Bis dahin bekommen sie eine Rechnung zum Überweisen."
+          />
+        ) : null}
         <Input
           controlSize="compact"
           id="sepa-prenotification-days"

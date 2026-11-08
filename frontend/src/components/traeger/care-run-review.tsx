@@ -22,6 +22,8 @@ import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
 import { downloadBlob } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
+import type { BillingDocument } from "~/lib/traeger-billing-api";
+import type { InvoicePayment } from "~/lib/traeger-billing-terms-api";
 import type { CareInvoice } from "~/lib/traeger-care-billing-api";
 import {
   type CareReviewFormat,
@@ -198,28 +200,43 @@ export function CareExcludedCard({
 const DEBIT_GAP_LABELS = {
   mandate_missing: "Kein gültiges Mandat",
   creditor_missing: "Gläubiger-ID fehlt",
+  creditor_changed: "Mandat für eine frühere Gläubiger-ID",
 } as const;
 
 /** At most this many hints show before „weitere anzeigen“. */
 const DEBIT_HINTS_SHOWN = 5;
 
+/** A family's invoice as the hints need it, from a care or a holiday run. */
+export interface DebitItem {
+  readonly key: string;
+  readonly name: string;
+  /** Names the family for screen readers. */
+  readonly family: string;
+  readonly detail?: string;
+  readonly totalCents: number;
+  readonly payment?: InvoicePayment | null;
+  /** Where its mandate is managed. */
+  readonly href: string;
+  readonly excluded?: boolean;
+}
+
 interface DebitHint {
-  readonly invoice: CareInvoice;
+  readonly item: DebitItem;
   readonly text: string;
 }
 
 /** The SEPA hints of a preview (#4695): direct debits without a valid
  * mandate or creditor identifier, and debits sooner than the
  * pre-notification days of the Träger. */
-export function debitHints(invoices: readonly CareInvoice[]): DebitHint[] {
+export function debitHints(items: readonly DebitItem[]): DebitHint[] {
   const hints: DebitHint[] = [];
-  for (const invoice of invoices) {
+  for (const item of items) {
     // An excluded invoice is not issued; one of 0 € collects nothing.
-    if (invoice.exclusion || invoice.totalCents <= 0) continue;
-    const payment = invoice.payment;
+    if (item.excluded || item.totalCents <= 0) continue;
+    const payment = item.payment;
     if (payment?.debitGap) {
       hints.push({
-        invoice,
+        item,
         text:
           payment.method === "transfer"
             ? `${DEBIT_GAP_LABELS[payment.debitGap]}. Geht als Überweisung, fällig am ${formatDate(payment.dueOn)}.`
@@ -227,7 +244,7 @@ export function debitHints(invoices: readonly CareInvoice[]): DebitHint[] {
       });
     } else if (payment?.mandate?.noticeShort) {
       hints.push({
-        invoice,
+        item,
         text: `Abbuchung schon am ${formatDate(payment.dueOn)}. Das ist früher als Ihre Vorabankündigung erlaubt.`,
       });
     }
@@ -235,19 +252,61 @@ export function debitHints(invoices: readonly CareInvoice[]): DebitHint[] {
   return hints;
 }
 
-/**
- * The families that pay by direct debit but cannot be collected as planned,
- * one row each with the way to their mandate. A creditor identifier that is
- * missing applies to every row and stands once above the list.
- */
+/** The invoices of a care run as debit items. */
+export function careDebitItems(invoices: readonly CareInvoice[]): DebitItem[] {
+  return invoices.map((invoice) => ({
+    key: `${invoice.contractId}-${invoice.service}`,
+    name: childName(invoice),
+    family: `Familie von ${childName(invoice)}`,
+    detail: invoice.schoolName,
+    totalCents: invoice.totalCents,
+    payment: invoice.payment,
+    href: `/traeger/abrechnung/lastschrift/${invoice.contractId}`,
+    excluded: Boolean(invoice.exclusion),
+  }));
+}
+
+/** The invoices of a holiday run as debit items: a holiday invoice has no
+ * contract, so its way leads to the mandate overview. */
+export function holidayDebitItems(
+  documents: readonly BillingDocument[],
+): DebitItem[] {
+  return documents
+    .filter((document) => document.kind === "invoice")
+    .map((document) => {
+      const name =
+        `${document.recipientFirstName} ${document.recipientLastName}`.trim();
+      return {
+        key: document.registrationId,
+        name,
+        family: name,
+        totalCents: document.totalCents,
+        payment: document.payment,
+        href: "/traeger/abrechnung/lastschrift",
+      };
+    });
+}
+
+/** The hints card of a holiday run preview. */
+export function HolidayDebitHintsCard({
+  documents,
+}: Readonly<{ documents: readonly BillingDocument[] }>) {
+  return <DebitHintsCard items={holidayDebitItems(documents)} />;
+}
+
+/** The hints card of a care run preview. */
 export function CareDebitHintsCard({
   invoices,
 }: Readonly<{ invoices: readonly CareInvoice[] }>) {
+  return <DebitHintsCard items={careDebitItems(invoices)} />;
+}
+
+function DebitHintsCard({ items }: Readonly<{ items: readonly DebitItem[] }>) {
   const [expanded, setExpanded] = useState(false);
-  const hints = debitHints(invoices);
+  const hints = debitHints(items);
   if (hints.length === 0) return null;
   const creditorMissing = hints.some(
-    (hint) => hint.invoice.payment?.debitGap === "creditor_missing",
+    (hint) => hint.item.payment?.debitGap === "creditor_missing",
   );
   const shown = expanded ? hints : hints.slice(0, DEBIT_HINTS_SHOWN);
   return (
@@ -276,31 +335,29 @@ export function CareDebitHintsCard({
       }
     >
       <ResponsiveActionList>
-        {shown.map(({ invoice, text }) => (
+        {shown.map(({ item, text }) => (
           <li
-            key={`${invoice.contractId}-${invoice.service}`}
+            key={item.key}
             className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center"
           >
             <div className="min-w-0">
               <p className="flex flex-wrap items-baseline gap-x-2 text-sm">
-                <span className="font-semibold text-gray-900">
-                  {childName(invoice)}
-                </span>
-                <span className="text-gray-600">{invoice.schoolName}</span>
+                <span className="font-semibold text-gray-900">{item.name}</span>
+                {item.detail ? (
+                  <span className="text-gray-600">{item.detail}</span>
+                ) : null}
                 <span className="text-gray-500 tabular-nums">
-                  {formatEuro(invoice.totalCents)}
+                  {formatEuro(item.totalCents)}
                 </span>
               </p>
               <p className="mt-0.5 text-sm text-gray-700">{text}</p>
             </div>
             <div className="flex w-full flex-col gap-2 min-[480px]:w-auto min-[480px]:flex-row sm:justify-end">
               <ButtonLink
-                href={traegerPath(
-                  `/traeger/abrechnung/lastschrift/${invoice.contractId}`,
-                )}
+                href={traegerPath(item.href)}
                 variant="surface"
                 size="compact"
-                aria-label={`Mandat prüfen: Familie von ${childName(invoice)}`}
+                aria-label={`Mandat prüfen: ${item.family}`}
               >
                 Mandat prüfen
               </ButtonLink>

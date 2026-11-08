@@ -27,6 +27,8 @@ const MANDATE: SepaMandate = {
   signedOn: "2026-09-01",
   kind: "recurring",
   sequence: "recurring",
+  creditorId: "DE98ZZZ09999999999",
+  creditorCurrent: true,
   accountHolder: "Eva Beispiel",
   ibanMasked: "DE•• •••• •••• •••• ••30 00",
   bic: "",
@@ -83,6 +85,18 @@ describe("SepaMandatesCard (#4695)", () => {
     expect(
       screen.queryByRole("button", { name: "Mandat erfassen" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("asks for a new mandate once the creditor identifier changed", async () => {
+    api.fetchSepaMandates.mockResolvedValue([
+      { ...MANDATE, creditorCurrent: false },
+    ]);
+    renderCard();
+    expect(
+      (await screen.findAllByText("Neues Mandat nötig")).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByText(/Gilt nicht mehr/)).toBeInTheDocument();
+    expect(screen.queryByText("Gültig")).not.toBeInTheDocument();
   });
 
   it("stays away for a role without the right „Abrechnung“", async () => {

@@ -12,7 +12,8 @@ export type MissingMandate = "transfer" | "block";
 export type MandateKind = "recurring" | "one_off";
 export type MandateSequence = "first" | "recurring";
 export type MandateSource = "office" | "import" | "parent";
-export type MandateAction = "create" | "update" | "revoke" | "read" | "reveal";
+export type MandateAction =
+  "create" | "update" | "revoke" | "read" | "reveal" | "collect";
 
 export const MIN_PRENOTIFICATION_DAYS = 1;
 export const MAX_PRENOTIFICATION_DAYS = 30;
@@ -37,6 +38,10 @@ export interface SepaMandate {
   readonly kind: MandateKind;
   readonly sequence: MandateSequence;
   readonly accountHolder: string;
+  /** The creditor identifier the mandate was given to. */
+  readonly creditorId: string;
+  /** False after the Träger changed its creditor identifier: a new mandate is needed. */
+  readonly creditorCurrent: boolean;
   /** The IBAN with only country and last four characters visible. */
   readonly ibanMasked: string;
   readonly bic: string;
@@ -64,6 +69,8 @@ export interface SepaMandateEvent {
   readonly source: MandateSource | "run";
   /** The fields a change touched, never their values. */
   readonly fields: readonly string[];
+  /** The account that acted; null once the account is deleted. */
+  readonly accountId: string | null;
   readonly occurredAt: string;
 }
 
@@ -85,6 +92,8 @@ interface BackendMandate {
   kind: MandateKind;
   sequence: MandateSequence;
   account_holder: string;
+  creditor_id: string;
+  creditor_current: boolean;
   iban_masked: string;
   bic: string;
   source: MandateSource;
@@ -97,6 +106,7 @@ interface BackendEvent {
   action: MandateAction;
   source: MandateSource | "run";
   fields: string[] | null;
+  account_id: number | null;
   occurred_at: string;
 }
 
@@ -121,6 +131,8 @@ function mandateFromBackend(mandate: BackendMandate): SepaMandate {
     kind: mandate.kind,
     sequence: mandate.sequence,
     accountHolder: mandate.account_holder,
+    creditorId: mandate.creditor_id,
+    creditorCurrent: mandate.creditor_current,
     ibanMasked: mandate.iban_masked,
     bic: mandate.bic,
     source: mandate.source,
@@ -220,6 +232,7 @@ export async function fetchSepaMandateHistory(
     action: event.action,
     source: event.source,
     fields: event.fields ?? [],
+    accountId: event.account_id === null ? null : String(event.account_id),
     occurredAt: event.occurred_at,
   }));
 }

@@ -42,6 +42,8 @@ var ibanLengths = map[string]int{
 	"IE": 22, "IS": 26, "IT": 27, "LI": 21, "LT": 20, "LU": 20,
 	"LV": 21, "MC": 27, "MT": 31, "NL": 18, "NO": 15, "PL": 28,
 	"PT": 25, "RO": 24, "SE": 24, "SI": 19, "SK": 24, "SM": 27, "VA": 22,
+	// SEPA countries outside the EEA that joined the scheme later (EPC).
+	"AL": 28, "ME": 22, "MK": 19, "MD": 24, "RS": 22,
 }
 
 // Compact removes white space and upper-cases an IBAN, a BIC or a creditor
@@ -73,7 +75,10 @@ func ValidIBAN(iban string) bool {
 
 // bicCountries are the SEPA countries outside the EEA: a debit from an
 // account there needs the BIC of its bank (EPC rulebook, AT-13).
-var bicCountries = map[string]bool{"AD": true, "CH": true, "GB": true, "GI": true, "MC": true, "SM": true, "VA": true}
+var bicCountries = map[string]bool{
+	"AD": true, "CH": true, "GB": true, "GI": true, "MC": true, "SM": true, "VA": true,
+	"AL": true, "ME": true, "MK": true, "MD": true, "RS": true,
+}
 
 // NeedsBIC reports whether a debit from the account of a compacted IBAN
 // needs its BIC.

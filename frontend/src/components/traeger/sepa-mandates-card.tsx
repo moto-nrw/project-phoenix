@@ -39,10 +39,12 @@ import {
   fetchSepaMandates,
   revokeSepaMandate,
 } from "~/lib/traeger-sepa-api";
+import { fetchTraegerBuero } from "~/lib/traeger-api";
 import { traegerPath } from "~/lib/traeger-url";
 import { SepaMandateModal } from "./sepa-mandate-modal";
 import {
   MANDATE_KIND_LABELS,
+  mandateEventActor,
   mandateEventLabel,
   mandateFamily,
   mandateState,
@@ -163,20 +165,46 @@ function HistoryModal({
   onClose,
 }: Readonly<{ mandate: SepaMandate | null; onClose: () => void }>) {
   const [events, setEvents] = useState<SepaMandateEvent[] | null>(null);
+  const [emails, setEmails] = useState<ReadonlyMap<string, string>>(new Map());
   const { show } = useApiErrorDisplay();
 
   useEffect(() => {
     if (!mandate) return;
+    // A trail that arrives after the dialog moved on to another mandate
+    // belongs to that one; it is dropped.
+    let current = true;
     setEvents(null);
     fetchSepaMandateHistory(mandate.id)
-      .then(setEvents)
+      .then((loaded) => {
+        if (current) setEvents(loaded);
+      })
       .catch((err: unknown) => {
         logger.error("sepa_mandate_history_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
+        if (!current) return;
         setEvents([]);
         void show(err, { object: "den Verlauf" });
       });
+    // The people of the Träger-Büro name the accounts; a role that may not
+    // read them sees the account number instead.
+    fetchTraegerBuero()
+      .then((buero) => {
+        if (!current) return;
+        setEmails(
+          new Map(
+            buero.members.map((member) => [member.accountId, member.email]),
+          ),
+        );
+      })
+      .catch((err: unknown) => {
+        logger.warn("sepa_mandate_history_people_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+    return () => {
+      current = false;
+    };
   }, [mandate, show]);
 
   return (
@@ -184,7 +212,7 @@ function HistoryModal({
       isOpen={mandate !== null}
       onClose={onClose}
       title={mandate ? `Verlauf: ${mandate.reference}` : "Verlauf"}
-      description="Jedes Ansehen und jede Änderung, ohne Kontodaten."
+      description="Wer das Mandat wann angesehen oder geändert hat, ohne Kontodaten."
       size="md"
     >
       {events === null ? (
@@ -198,7 +226,14 @@ function HistoryModal({
               key={event.id}
               className="flex items-baseline justify-between gap-4 py-2.5 text-sm"
             >
-              <span className="text-gray-900">{mandateEventLabel(event)}</span>
+              <span className="min-w-0">
+                <span className="block text-gray-900">
+                  {mandateEventLabel(event)}
+                </span>
+                <span className="block wrap-anywhere text-gray-500">
+                  {mandateEventActor(event, emails)}
+                </span>
+              </span>
               <span className="shrink-0 text-gray-500 tabular-nums">
                 {formatBerlinDate(event.occurredAt)},{" "}
                 {formatBerlinTime(event.occurredAt)} Uhr
@@ -287,6 +322,15 @@ function FamilyMandates({
               </DataField>
               <DataField label="Nächste Abbuchung">
                 {nextDebitLabel(inForce)}
+              </DataField>
+              <DataField label="Gläubiger-ID">
+                <span className="font-mono">{inForce.creditorId}</span>
+                {inForce.creditorCurrent ? null : (
+                  <span className="text-moto-red-strong block">
+                    Gilt nicht mehr: Ihre Gläubiger-ID hat sich geändert.
+                    Widerrufen Sie dieses Mandat und erfassen Sie das neue.
+                  </span>
+                )}
               </DataField>
             </DataGrid>
           </div>
@@ -479,7 +523,10 @@ export function SepaMandatesCard({
       titleBadge={
         forFamily && mandates !== null ? (
           inForce ? (
-            <StatusBadge tone="green" label="Gültig" />
+            <StatusBadge
+              tone={mandateState(inForce).tone}
+              label={mandateState(inForce).label}
+            />
           ) : (
             <StatusBadge tone="orange" label="Kein gültiges Mandat" />
           )

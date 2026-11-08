@@ -24,6 +24,12 @@ export const CareDebitHintsCard = dynamic(
   { ssr: false },
 );
 
+export const HolidayDebitHintsCard = dynamic(
+  () =>
+    import("./care-run-review").then((module) => module.HolidayDebitHintsCard),
+  { ssr: false },
+);
+
 const ExclusionMenu = dynamic(
   () => import("./care-run-review").then((module) => module.ExclusionMenu),
   { ssr: false },

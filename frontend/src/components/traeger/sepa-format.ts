@@ -54,6 +54,7 @@ const ACTION_LABELS: Record<MandateAction, string> = {
   revoke: "Widerrufen",
   read: "Angesehen",
   reveal: "Für die Lastschriftdatei geöffnet",
+  collect: "Abgebucht",
 };
 
 const FIELD_LABELS: Record<string, string> = {
@@ -68,9 +69,11 @@ export function mandateState(mandate: SepaMandate): {
   readonly label: string;
   readonly tone: StatusBadgeTone;
 } {
-  return mandate.revokedOn
-    ? { label: "Widerrufen", tone: "gray" }
-    : { label: "Gültig", tone: "green" };
+  if (mandate.revokedOn) return { label: "Widerrufen", tone: "gray" };
+  if (!mandate.creditorCurrent) {
+    return { label: "Neues Mandat nötig", tone: "orange" };
+  }
+  return { label: "Gültig", tone: "green" };
 }
 
 /** What the next collection of a mandate is. */
@@ -88,6 +91,16 @@ export function mandateEventLabel(event: SepaMandateEvent): string {
     .join(", ");
   const what = fields ? `${action}: ${fields}` : action;
   return `${what} ${SOURCE_LABELS[event.source]}`;
+}
+
+/** Who acted in a trail entry: the e-mail of a known account, else its
+ * number, and a deleted account as such. */
+export function mandateEventActor(
+  event: SepaMandateEvent,
+  emails: ReadonlyMap<string, string>,
+): string {
+  if (event.accountId === null) return "gelöschtes Konto";
+  return emails.get(event.accountId) ?? `Konto Nr. ${event.accountId}`;
 }
 
 /** The name of the family of a mandate. */
