@@ -104,7 +104,7 @@ Reihenfolge nicht auseinanderläuft: `Decisions.LockApprovalGates`. Die
 | Fällige Wochenpläne | `ApplyDueWeeklyPlans`, `LockApprovalGates` vor dem Lesen der Pläne | Klasse, Wiederholung, Pläne, Laufgemeinschaft, Kinder |
 | Phasenänderung (Start verschieben) | `Phases.update` → `validateCareOfferingPhaseUpdate` | Wiederholung, Phase, offene Pläne |
 | Phase löschen | `Phases.Delete` → `detachPhaseSourcedTemplates` | Wiederholung, Vorlagen, Phase |
-| Rollover anlegen | `createRolloverPhase`, `LockApprovalGates` nach der Eignungsprüfung, vor dem Einfügen der neuen Phase | Klassenabfrage-Sperre (nur bei Klassenbeschränkung), Klasse, Wiederholung, Quellphase erneut, neue Phase (`KEY SHARE` auf die Quellphase), Katalogkopie ([ADR 0178](0178-rollover-anlegen-nimmt-die-wiederholungssperre-vor-der-neuen-phase.md)) |
+| Rollover anlegen | `createRolloverPhase`, `LockApprovalGates` nach der Eignungsprüfung, vor dem Einfügen der neuen Phase | Klassenabfrage-Sperre (nur bei Klassenbeschränkung), Klasse, Wiederholung, Quellphase erneut, neue Phase (`KEY SHARE` auf die Quellphase), Katalogkopie ([ADR 0179](0179-rollover-anlegen-nimmt-die-wiederholungssperre-vor-der-neuen-phase.md)) |
 | Angebote anpassen | `UpdateChildOfferings` → Care Plan `AdjustOfferings` | Klasse, Wiederholung, Kind; die Anmeldung wird ungesperrt gelesen |
 | Angebotsverwaltung | Care Plan `CareOfferingCatalog` | Wiederholung, Angebote; keine Klassensperre danach |
 | Kind bearbeiten mit Klasse (Care Plan PUT) | `student_update_handlers.go` | Klasse, Wiederholung, Kind |

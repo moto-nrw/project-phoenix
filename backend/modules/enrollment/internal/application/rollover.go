@@ -288,7 +288,7 @@ func (s *Rollovers) createRolloverPhase(ctx context.Context, tenantID int64, req
 	return phase, nil
 }
 
-// lockGatesBeforeInsert takes the approval gates (ADR 0162, ADR 0178)
+// lockGatesBeforeInsert takes the approval gates (ADR 0162, ADR 0179)
 // before the follow-up phase insert holds KEY SHARE on the source phase. A
 // rollover that waited for the recurrence gate only in the catalog clone
 // after the insert deadlocked with a phase delete that holds the gate and
