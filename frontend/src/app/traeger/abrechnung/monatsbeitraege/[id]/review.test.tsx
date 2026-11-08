@@ -82,9 +82,13 @@ const RUN: CareRunDetail = {
   previewCents: 7750,
   numberPattern: "MB-{JJJJ}-{NNNN}",
   numberRangeSet: true,
-  schoolIds: ["3"],
   invoiceDate: "2026-10-30",
-  schools: [{ id: "3", name: "Grundschule Ispringen" }],
+  // Two of the Träger's schools; the run names them, never "Alle".
+  schoolIds: ["3", "4"],
+  schools: [
+    { id: "3", name: "Grundschule Ispringen" },
+    { id: "4", name: "Grundschule Birkenfeld" },
+  ],
   excludedCount: 1,
   excludedCents: 7750,
   fingerprint: "f1",
@@ -130,6 +134,9 @@ describe("monthly run review", () => {
     expect(school.getAllByText("Lea Beispiel").length).toBeGreaterThan(0);
     expect(school.queryAllByText("Mia Beispiel")).toHaveLength(0);
     expect(screen.getByText("30.10.2026")).toBeInTheDocument();
+    expect(
+      screen.getByText("Grundschule Ispringen, Grundschule Birkenfeld"),
+    ).toBeInTheDocument();
 
     fireEvent.click(
       excluded.getByRole("button", {

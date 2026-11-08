@@ -25,10 +25,7 @@ import {
   CareUnpricedCard,
 } from "~/components/traeger/care-run-invoices";
 import { CareLettersSummaryCard } from "~/components/traeger/care-letters-summary-card";
-import {
-  invoiceDateLabel,
-  runSchoolsLabel,
-} from "~/components/traeger/care-review-format";
+import { invoiceDateLabel } from "~/components/traeger/care-review-format";
 import {
   CareExcludedCard,
   CareReviewExport,
@@ -334,7 +331,7 @@ export default function TraegerCareRunPage() {
               </DataField>
               <DataField label="Schulen">
                 {preview
-                  ? runSchoolsLabel(run.schoolIds, run.schools)
+                  ? run.schools.map((school) => school.name).join(", ") || "–"
                   : run.schoolIds.length === 0
                     ? "–"
                     : run.schoolIds.length === 1
