@@ -680,7 +680,7 @@ export function TagesplanView() {
         ) : null}
 
         {!isLoading && !listError && groups.length > 0 ? (
-          <div className="moto-content-surface overflow-hidden rounded-2xl border">
+          <SectionCard padding="none">
             <ul>
               {groups.map((group, index) => (
                 <Fragment key={group.key}>
@@ -700,7 +700,7 @@ export function TagesplanView() {
                 <NowDivider nowHHMM={nowHHMM} />
               ) : null}
             </ul>
-          </div>
+          </SectionCard>
         ) : null}
       </SectionCard>
     </div>
