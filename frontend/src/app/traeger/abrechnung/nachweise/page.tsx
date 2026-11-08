@@ -40,6 +40,13 @@ const logger = createLogger({ component: "TraegerNachweisePage" });
 
 const KINDS: readonly CareEvidenceKind[] = ["income_level", "single_parent"];
 
+/** "ab 01.08.2026" or "01.08.2026 bis 31.07.2027". */
+function evidencePeriod(evidence: CareEvidence): string {
+  return evidence.validUntil
+    ? `${formatDate(evidence.validFrom)} bis ${formatDate(evidence.validUntil)}`
+    : `ab ${formatDate(evidence.validFrom)}`;
+}
+
 function EvidenceCell({
   evidence,
   data,
@@ -66,8 +73,7 @@ function EvidenceCell({
         {expired ? <StatusBadge tone="gray" label="Abgelaufen" /> : null}
       </p>
       <p className="mt-0.5 text-xs text-gray-600">
-        {formatDate(evidence.validFrom)} bis{" "}
-        {evidence.validUntil ? formatDate(evidence.validUntil) : "ohne Ende"}
+        {evidencePeriod(evidence)}
         {" · "}
         {evidence.evidence} · geprüft am {formatDate(evidence.checkedOn)}
       </p>
@@ -212,7 +218,7 @@ export default function TraegerNachweisePage() {
                 ]
               : []),
             ...existing.flatMap((evidence) => {
-              const description = `${formatDate(evidence.validFrom)} bis ${evidence.validUntil ? formatDate(evidence.validUntil) : "ohne Ende"}`;
+              const description = evidencePeriod(evidence);
               return [
                 {
                   label: `${EVIDENCE_KIND_LABELS[kind]} ändern`,
@@ -288,7 +294,7 @@ export default function TraegerNachweisePage() {
               title="Nachweis löschen?"
               description={
                 deleting
-                  ? `Der Nachweis für ${deleting.contract.childFirstName} ${deleting.contract.childLastName} vom ${formatDate(deleting.evidence.validFrom)} bis ${deleting.evidence.validUntil ? formatDate(deleting.evidence.validUntil) : "ohne Ende"} fällt weg. Neue Monatsläufe rechnen diesen Zeitraum ohne den Nachweis ab. Ausgestellte Rechnungen bleiben, wie sie sind.`
+                  ? `Der Nachweis für ${deleting.contract.childFirstName} ${deleting.contract.childLastName} (${evidencePeriod(deleting.evidence)}) fällt weg. Neue Monatsläufe rechnen diesen Zeitraum ohne den Nachweis ab. Ausgestellte Rechnungen bleiben, wie sie sind.`
                   : ""
               }
               confirmLabel="Löschen"
