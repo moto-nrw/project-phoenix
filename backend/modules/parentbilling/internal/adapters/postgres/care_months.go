@@ -128,6 +128,9 @@ type careInvoiceRow struct {
 	PaymentMethod       *string        `bun:"payment_method"`
 	DueOn               *calendar.Date `bun:"due_on,type:date"`
 	DueSource           *string        `bun:"due_source"`
+	// CostShares are the issued cost bearer shares (#4687), read in the same
+	// statement as the invoice.
+	CostShares []parentbilling.CareInvoiceCostShare `bun:"cost_shares,type:jsonb,scanonly"`
 }
 
 // invoice is the issued invoice of the row with its positions and reductions
@@ -149,6 +152,7 @@ func (row careInvoiceRow) invoice(positions []parentbilling.CarePosition, reduct
 	if invoice.Reductions == nil {
 		invoice.Reductions = []parentbilling.CareReduction{}
 	}
+	invoice.CostShares = []parentbilling.CareInvoiceCostShare{}
 	if invoice.Positions == nil {
 		invoice.Positions = []parentbilling.CarePosition{}
 	}
@@ -488,16 +492,12 @@ func (s *Store) IssueCareInvoices(ctx context.Context, organizationID int64, run
 			MonthRule: rule, TotalCents: invoice.TotalCents, ReplacesInvoiceID: replaced[invoice.ContractID],
 			StudentID: invoice.StudentID, FamilyEmail: textRef(invoice.FamilyEmail), RecipientKind: textRef(invoice.Recipient.Kind),
 			RecipientSecondName: textRef(invoice.Recipient.SecondName),
-			DocumentKind:        invoice.DocumentKind,
+			DocumentKind:        careDocumentKind(invoice.DocumentKind),
 		}
 		if address := invoice.Recipient.Address; address != nil {
 			rows[i].RecipientStreet, rows[i].RecipientPostalCode, rows[i].RecipientCity = &address.Street, &address.PostalCode, &address.City
 		}
 		rows[i].PaymentMethod, rows[i].DueOn, rows[i].DueSource = paymentColumns(invoice.Payment)
-		// An invoice without a kind of document is issued as before #4688.
-		if rows[i].DocumentKind == "" {
-			rows[i].DocumentKind = parentbilling.DocumentKindInvoice
-		}
 	}
 	if _, err := db.NewInsert().Model(&rows).Returning("id").Exec(ctx); err != nil {
 		switch constraintOf(err) {
@@ -515,7 +515,10 @@ func (s *Store) IssueCareInvoices(ctx context.Context, organizationID int64, run
 	if _, err := db.NewInsert().Model(&positions).Exec(ctx); err != nil {
 		return fmt.Errorf("insert care invoice positions: %w", err)
 	}
-	return insertCareReductions(ctx, db, organizationID, rows, invoices)
+	if err := insertCareReductions(ctx, db, organizationID, rows, invoices); err != nil {
+		return err
+	}
+	return insertCareCostShares(ctx, db, organizationID, rows, invoices)
 }
 
 func carePositionRows(organizationID int64, rows []careInvoiceRow, invoices []parentbilling.CareInvoice) ([]careInvoicePositionRow, error) {
@@ -570,8 +573,9 @@ func (s *Store) CareRunInvoices(ctx context.Context, organizationID, runID int64
 		return nil, err
 	}
 	var rows []careInvoiceRow
-	if err := db.NewSelect().Model(&rows).Where("organization_id = ?", organizationID).Where("run_id = ?", runID).
-		OrderExpr("number_sequence").Scan(ctx); err != nil {
+	if err := db.NewSelect().Model(&rows).ColumnExpr("?TableColumns").ColumnExpr(careInvoiceCostSharesColumn).
+		Where("care_invoice_row.organization_id = ?", organizationID).Where("care_invoice_row.run_id = ?", runID).
+		OrderExpr("care_invoice_row.number_sequence").Scan(ctx); err != nil {
 		return nil, fmt.Errorf("read care invoices: %w", err)
 	}
 	if len(rows) == 0 {
@@ -606,6 +610,9 @@ func (s *Store) CareRunInvoices(ctx context.Context, organizationID, runID int64
 	invoices := make([]parentbilling.CareInvoice, len(rows))
 	for i, row := range rows {
 		invoices[i] = row.invoice(byInvoice[row.ID], reductions[row.ID])
+		if len(row.CostShares) > 0 {
+			invoices[i].CostShares = row.CostShares
+		}
 	}
 	return invoices, nil
 }
@@ -674,4 +681,13 @@ func (s *Store) CareRunHolds(ctx context.Context, organizationID, runID int64) (
 			ChildLastName: row.ChildLastName, Contracts: row.Contracts, Slots: row.Slots}
 	}
 	return holds, nil
+}
+
+// careDocumentKind is the kind a monthly invoice is issued as; one without a
+// kind is issued as before #4688, an invoice.
+func careDocumentKind(kind string) string {
+	if kind == "" {
+		return parentbilling.DocumentKindInvoice
+	}
+	return kind
 }

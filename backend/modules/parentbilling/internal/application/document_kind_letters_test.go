@@ -494,3 +494,22 @@ func TestFeeNoticeGuardsRejectRemediesWithoutRenderedText(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, overview.LegalRemedySet)
 }
+
+// TestCareFeeNoticePrintsTheSharesOfCostBearers: a monthly fee notice names
+// what a cost bearer pays and sets the rest as the family's part (#4687,
+// #4688), like the monthly invoice.
+func TestCareFeeNoticePrintsTheSharesOfCostBearers(t *testing.T) {
+	t.Parallel()
+	content := careLetterSJR()
+	content.invoice.DocumentKind = parentbilling.DocumentKindFeeNotice
+	content.letterhead.Template = hardtNoticeTemplate()
+	basisPoints := 5000
+	content.invoice.CostShares = []parentbilling.CareInvoiceCostShare{{
+		Kind: parentbilling.CostShareYouthOffice, CostBearerName: "Jugendamt Enzkreis", ShareBasisPoints: &basisPoints, AmountCents: 2700,
+	}}
+	content.invoice.TotalCents = 2701
+	text := blockText(careNoticeLetter(content))
+	assert.Contains(t, text, "Monatsbeitrag: 54,01 €")
+	assert.Contains(t, text, "Übernimmt Jugendamt Enzkreis (Jugendamt, 50 %): -27,00 €")
+	assert.Contains(t, text, "Ihr Anteil: 27,01 €")
+}

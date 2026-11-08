@@ -26,6 +26,7 @@ const invoice = (overrides: Partial<CareInvoice> = {}): CareInvoice => ({
   recipient: { firstName: "Eva", lastName: "Beispiel", email: "eva@x.org" },
   positions: [],
   reductions: [],
+  costShares: [],
   totalCents: 9600,
   ...overrides,
 });

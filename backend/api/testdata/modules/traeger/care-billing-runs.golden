@@ -2,6 +2,7 @@ DELETE /traeger/care-billing-runs/{id}/exclusions/{contractID} -> basis
 GET /traeger/care-billing-runs/ -> basis
 GET /traeger/care-billing-runs/schools -> basis
 GET /traeger/care-billing-runs/{id} -> basis
+GET /traeger/care-billing-runs/{id}/cost-shares/{costBearerID}/export -> basis
 GET /traeger/care-billing-runs/{id}/invoices/{invoiceID}/letter -> basis
 GET /traeger/care-billing-runs/{id}/letters -> basis
 GET /traeger/care-billing-runs/{id}/letters/print -> basis

@@ -71,6 +71,14 @@ const CareExcludeModal = dynamic(
     ),
   { ssr: false },
 );
+// Only a run in which a cost bearer pays a part loads its card (#4687).
+const CareCostBearerCard = dynamic(
+  () =>
+    import("~/components/traeger/care-cost-bearer-card").then(
+      (module) => module.CareCostBearerCard,
+    ),
+  { ssr: false },
+);
 const CareInvoiceDateModal = dynamic(
   () =>
     import("~/components/traeger/care-run-review-modals").then(
@@ -499,6 +507,13 @@ export default function TraegerCareRunPage() {
               )}
               letters={letters}
               loadError={lettersLoad.error}
+            />
+          ) : null}
+          {run.costBearers.length > 0 ? (
+            <CareCostBearerCard
+              runId={run.id}
+              released={!preview}
+              totals={run.costBearers}
             />
           ) : null}
           <CareRunInvoices

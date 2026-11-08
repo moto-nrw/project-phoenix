@@ -48,6 +48,13 @@ type CareStore interface {
 	// ListContributionRules and CareEvidences feed the rule chain (#4685).
 	ListContributionRules(ctx context.Context, organizationID int64, service string) ([]parentbilling.ContributionRule, error)
 	CareEvidences(ctx context.Context, organizationID int64, contractIDs []int64) ([]parentbilling.CareEvidence, error)
+	// CareCostShares reads the cost bearer shares of the contracts with the
+	// name of their cost bearer, all when contractIDs is nil (#4687).
+	CareCostShares(ctx context.Context, organizationID int64, contractIDs []int64) ([]parentbilling.CareCostShare, error)
+	// CostBearer reads one cost bearer of the Träger.
+	CostBearer(ctx context.Context, organizationID, costBearerID int64) (parentbilling.CostBearer, error)
+	// CareRunCancellations reads the Stornos of the invoices of a run.
+	CareRunCancellations(ctx context.Context, organizationID, runID int64) ([]parentbilling.CareCancellation, error)
 	// FamilyChildCounts reads the numbers of the Träger's families (#5918).
 	FamilyChildCounts(ctx context.Context, organizationID int64) ([]parentbilling.FamilyChildCount, error)
 	ListNumberRanges(ctx context.Context, organizationID int64) ([]parentbilling.NumberRange, error)
@@ -525,12 +532,17 @@ func (c *CareBilling) monthWith(ctx context.Context, organizationID int64, run p
 	if err != nil {
 		return "", careMonth{}, err
 	}
+	costShares, err := c.store.CareCostShares(ctx, organizationID, versionContracts(versions))
+	if err != nil {
+		return "", careMonth{}, err
+	}
 	familyCounts, err := c.store.FamilyChildCounts(ctx, organizationID)
 	if err != nil {
 		return "", careMonth{}, err
 	}
 	month, err := buildCareMonth(careMonthInput{month: run.BillingMonth, rule: rule, versions: versions, tariffs: tariffs,
-		invoiced: invoiced, recipients: recipients, rules: rules, evidences: evidences, familyCounts: familyCounts})
+		invoiced: invoiced, recipients: recipients, rules: rules, evidences: evidences, costShares: costShares,
+		familyCounts: familyCounts})
 	if err != nil {
 		return rule, month, err
 	}
@@ -572,17 +584,22 @@ func (c *CareBilling) detail(ctx context.Context, reviewer parentbilling.Holiday
 			return parentbilling.CareRunDetail{}, err
 		}
 		detail.Duplicates = holdView(holds)
-		if len(invoices) > 0 {
-			detail.DocumentKind = invoices[0].DocumentKind
-		}
+		detail.DocumentKind = issuedCareDocumentKind(invoices)
 		// The dates of the release, which its invoices copied.
 		payments, err := readInvoicePayments(ctx, c.store, reviewer.OrganizationID, run.ID, 0)
 		if err != nil {
 			return parentbilling.CareRunDetail{}, err
 		}
 		detail.DueDates = payments.run.InPaymentOrder()
+		cancellations, err := c.store.CareRunCancellations(ctx, reviewer.OrganizationID, run.ID)
+		if err != nil {
+			return parentbilling.CareRunDetail{}, err
+		}
+		detail.CostBearers = careCostBearerTotals(invoices, cancelledInvoices(cancellations))
 	} else if err := c.reviewDetail(ctx, reviewer, &detail); err != nil {
 		return parentbilling.CareRunDetail{}, err
+	} else {
+		detail.CostBearers = careCostBearerTotals(detail.Invoices, nil)
 	}
 	detail.DuplicateChildren = duplicateChildren(detail.Duplicates)
 	for _, invoice := range detail.Invoices {
@@ -662,4 +679,13 @@ func shownContracts(detail parentbilling.CareRunDetail) []int64 {
 		}
 	}
 	return ids
+}
+
+// issuedCareDocumentKind is the kind a released monthly run froze: the kind
+// of its invoices, which one release issued together (#4688).
+func issuedCareDocumentKind(invoices []parentbilling.CareInvoice) string {
+	if len(invoices) == 0 {
+		return ""
+	}
+	return invoices[0].DocumentKind
 }

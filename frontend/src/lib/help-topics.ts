@@ -229,6 +229,7 @@ export const HELP_TOPICS = {
   traegerBillingRun: "ferien-abrechnen",
   traegerCareMonths: "monatsbeitraege-abrechnen",
   traegerCareReductions: "ermaessigungen-im-monatsbeitrag",
+  traegerCareCostShares: "kostentraeger-im-monatsbeitrag",
   traegerBillingTerms: "zahlung-und-empfaenger-der-rechnungen",
   traegerAccessLog: "zugriffsprotokoll-des-traegers-lesen",
   traegerSettings: "traeger-einstellungen",
