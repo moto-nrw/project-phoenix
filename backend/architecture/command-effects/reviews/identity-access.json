@@ -22150,28 +22150,6 @@
       "target_owner": "school-membership"
     },
     {
-      "adr": "0098",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.MFAPolicyLock.LockMFAPolicySharedForTenant",
-      "classification": "platform",
-      "effect": "lock",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.MFAPolicyLock.LockMFAPolicySharedForTenant",
-      "reason": "Platform protocol participation (lock): identity-access reaches modules/settings/records.BatchSettingsService.LockMFAPolicySharedForTenant (settings-platform) through modules/identityaccess/ports.MFAPolicyLock.LockMFAPolicySharedForTenant. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.LockMFAPolicySharedForTenant",
-      "target_owner": "settings-platform"
-    },
-    {
-      "adr": "0098",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.MFAPolicyLock.LockMFAPolicySharedForTenant",
-      "classification": "platform",
-      "effect": "lock",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.MFAPolicyLock.LockMFAPolicySharedForTenant",
-      "reason": "Platform protocol participation (lock): identity-access reaches modules/settings/records.SettingsService.LockMFAPolicySharedForTenant (settings-platform) through modules/identityaccess/ports.MFAPolicyLock.LockMFAPolicySharedForTenant. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.LockMFAPolicySharedForTenant",
-      "target_owner": "settings-platform"
-    },
-    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.MFASettings.LockoutDuration",
       "classification": "query",
       "effect": "query",

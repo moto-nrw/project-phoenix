@@ -999,11 +999,15 @@ func TestCoordinatorPortsTranslateTheWorkflowOutcomes(t *testing.T) {
 	require.ErrorIs(t, err, careplan.ErrExcusedRequestNotPending, "a decided request is no conflict candidate")
 	assert.Nil(t, candidate)
 
-	plan.findRequest = func(context.Context, int64, bool) (careplan.ExcusedAbsenceRequest, error) { return row, nil }
-	bulk, err := h.workflow.GetExcusedBulkCandidate(context.Background(), 5)
+	plan.listRequests = func(_ context.Context, filter careplan.ExcusedAbsenceRequestFilter) ([]careplan.ExcusedAbsenceRequest, error) {
+		assert.Equal(t, []int64{row.ID}, filter.IDs)
+		assert.Equal(t, []string{careplan.ExcusedRequestStatusPending}, filter.Statuses)
+		return []careplan.ExcusedAbsenceRequest{row}, nil
+	}
+	bulk, err := h.workflow.GetExcusedBulkCandidate(context.Background(), []int64{row.ID})
 	require.NoError(t, err)
-	require.NotNil(t, bulk)
-	assert.True(t, bulk.Eligible)
+	require.Contains(t, bulk, row.ID)
+	assert.True(t, bulk[row.ID].Eligible)
 
 	assert.ErrorIs(t, h.workflow.WriteStaffValue(context.Background(), careplan.ExcusedStaffValueWrite{Status: "unknown"}), careplan.ErrAbsenceRequestInvalidStatus)
 	assert.ErrorIs(t, h.workflow.WriteStaffValue(context.Background(), careplan.ExcusedStaffValueWrite{Status: careplan.StudentStatusDaySick}), careplan.ErrStaffValueUnsupported, "no request ids means no days to write")

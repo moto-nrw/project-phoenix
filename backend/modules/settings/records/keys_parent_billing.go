@@ -30,3 +30,14 @@ const KeyParentBillingCostTakeoverOrder = "parent_billing.cost_takeover_order"
 // month by the version on the first day, or every version for its days.
 // Only the Träger sets it (LevelTraeger).
 const KeyParentBillingCareMonthChange = "parent_billing.care_month_change"
+
+// The changes of a single invoice the review of a monthly run allows
+// (#6197): its amount, its recipient, its postal address and its positions.
+// The customer has not decided which it needs (SJR item 2); every switch is
+// on by default. Only the Träger sets them (LevelTraeger).
+const (
+	KeyParentBillingCareReviewAmount    = "parent_billing.care_review_amount"
+	KeyParentBillingCareReviewRecipient = "parent_billing.care_review_recipient"
+	KeyParentBillingCareReviewAddress   = "parent_billing.care_review_address"
+	KeyParentBillingCareReviewPositions = "parent_billing.care_review_positions"
+)

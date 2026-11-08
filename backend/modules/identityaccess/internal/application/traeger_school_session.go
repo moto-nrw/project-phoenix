@@ -28,47 +28,44 @@ import (
 // returns its refresh token. The Träger session of the request supplies the
 // second-factor proof; the Absprung is filed in the school's authentication
 // ledger in the same transaction.
-func (s *AccountAuthentication) StartTraegerSchoolSession(ctx context.Context, request identityaccess.TraegerSchoolSessionRequest) (_ string, err error) {
-	if s == nil {
-		return "", errAccountAuthenticationUnavailable
-	}
-	defer func() { err = authenticationError(err) }()
-	ctx = bindRuntime(s.attach, ctx)
-	if s.traeger == nil {
-		return "", failed("Träger school session", errTraegerMembershipsUnavailable)
-	}
-	if request.AccountID <= 0 || request.OrganizationID <= 0 || request.TraegerFamilyID == "" {
-		return "", failed("Träger school session", identityaccess.ErrInvalidToken)
-	}
-	if request.SchoolID <= 0 {
-		return "", failed("Träger school session", identityaccess.ErrTraegerSchoolNotFound)
-	}
-	account, err := s.authenticatedAccount(ctx, "Träger school session", request.AccountID)
-	if err != nil {
-		return "", err
-	}
-	// The proof is read first to stamp the session; the mint checks it
-	// again under the account lock MFA reset and logout take. Source
-	// lineage and its legacy deadline are inherited under that same lock.
-	var proof bool
-	if err := globalIdentityRead(ctx, s.runtime, func(txCtx context.Context) error {
-		var readErr error
-		proof, readErr = s.traegerSessionMFAProof(txCtx, account.ID, request.OrganizationID, request.TraegerFamilyID)
-		return readErr
-	}); err != nil {
-		return "", err
-	}
-	minted, err := s.mintAccountSession(ctx, mintRequest{
-		portal: domain.PortalTenant, account: account, tenantID: request.SchoolID, orgID: request.OrganizationID,
-		proof:              mintProof{kind: proofTraegerSession, traegerFamilyID: request.TraegerFamilyID, traegerVerified: proof},
-		sourceFamilyID:     request.TraegerFamilyID,
-		lifetime:           domain.TraegerSchoolHandoffTTL,
-		traegerSchoolAudit: &mintAudit{ipAddress: request.IPAddress, userAgent: request.UserAgent, schoolID: request.SchoolID},
+func (s *AccountAuthentication) StartTraegerSchoolSession(ctx context.Context, request identityaccess.TraegerSchoolSessionRequest) (string, error) {
+	return runFlow(ctx, s.flow(), func(ctx context.Context) (string, error) {
+		if s.traeger == nil {
+			return "", failed("Träger school session", errTraegerMembershipsUnavailable)
+		}
+		if request.AccountID <= 0 || request.OrganizationID <= 0 || request.TraegerFamilyID == "" {
+			return "", failed("Träger school session", identityaccess.ErrInvalidToken)
+		}
+		if request.SchoolID <= 0 {
+			return "", failed("Träger school session", identityaccess.ErrTraegerSchoolNotFound)
+		}
+		account, err := s.authenticatedAccount(ctx, "Träger school session", request.AccountID)
+		if err != nil {
+			return "", err
+		}
+		// The proof is read first to stamp the session; the mint checks it
+		// again under the account lock MFA reset and logout take. Source
+		// lineage and its legacy deadline are inherited under that same lock.
+		var proof bool
+		if err := globalIdentityRead(ctx, s.runtime, func(txCtx context.Context) error {
+			var readErr error
+			proof, readErr = s.traegerSessionMFAProof(txCtx, account.ID, request.OrganizationID, request.TraegerFamilyID)
+			return readErr
+		}); err != nil {
+			return "", err
+		}
+		minted, err := s.mintAccountSession(ctx, mintRequest{
+			portal: domain.PortalTenant, account: account, tenantID: request.SchoolID, orgID: request.OrganizationID,
+			proof:              mintProof{kind: proofTraegerSession, traegerFamilyID: request.TraegerFamilyID, traegerVerified: proof},
+			sourceFamilyID:     request.TraegerFamilyID,
+			lifetime:           domain.TraegerSchoolHandoffTTL,
+			traegerSchoolAudit: &mintAudit{ipAddress: request.IPAddress, userAgent: request.UserAgent, schoolID: request.SchoolID},
+		})
+		if err != nil {
+			return "", err
+		}
+		return minted.refreshToken, nil
 	})
-	if err != nil {
-		return "", err
-	}
-	return minted.refreshToken, nil
 }
 
 // requireTraegerSchoolSwitch checks the active membership and the right "In

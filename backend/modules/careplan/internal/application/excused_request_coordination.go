@@ -9,18 +9,28 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 )
 
-func (w *ExcusedRequests) GetExcusedBulkCandidate(ctx context.Context, requestID int64) (*careplan.ExcusedBulkCandidate, error) {
-	req, err := w.carePlan.FindExcusedAbsenceRequest(ctx, requestID, false)
-	if errors.Is(err, careplan.ErrExcusedRequestNotFound) {
-		return nil, nil
+// GetExcusedBulkCandidate reads the named requests of a bulk approval
+// before any lock (#5804): one request read, one student read and the
+// queue page's batched status and partial-absence facts. Each request is
+// still judged on its own, in the order of requestIDs. A request that is
+// gone, decided, outside the caller's scope or of a child no longer in care
+// is absent from the result.
+func (w *ExcusedRequests) GetExcusedBulkCandidate(ctx context.Context, requestIDs []int64) (map[int64]careplan.ExcusedBulkCandidate, error) {
+	candidates := make(map[int64]careplan.ExcusedBulkCandidate, len(requestIDs))
+	if len(requestIDs) == 0 {
+		return candidates, nil
 	}
-	if err != nil {
-		return nil, err
+	rows, err := w.carePlan.ListExcusedAbsenceRequests(ctx, careplan.ExcusedAbsenceRequestFilter{
+		IDs: requestIDs, Statuses: []string{careplan.ExcusedRequestStatusPending},
+	})
+	if err != nil || len(rows) == 0 {
+		return candidates, err
 	}
-	if req.Status != careplan.ExcusedRequestStatusPending {
-		return nil, nil
+	studentIDs := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		studentIDs = append(studentIDs, row.StudentID)
 	}
-	students, err := w.students.FindStudents(ctx, []int64{req.StudentID})
+	students, err := w.students.FindStudents(ctx, uniquePositive(studentIDs))
 	if err != nil {
 		return nil, err
 	}
@@ -28,19 +38,29 @@ func (w *ExcusedRequests) GetExcusedBulkCandidate(ctx context.Context, requestID
 	if err != nil {
 		return nil, err
 	}
-	student, ok := students[req.StudentID]
-	if !ok || !scope.Allows(&student) || student.Alumnus || student.CareEndedOn(w.today()) {
-		return nil, nil
+	today := w.today()
+	visible := visibleExcusedRequests(rows, students, scope, today)
+	facts := w.loadAbsenceReviewFacts(ctx, visible, students, today)
+	byID := make(map[int64]careplan.ExcusedAbsenceRequest, len(visible))
+	for _, row := range visible {
+		byID[row.ID] = row
 	}
-	view, err := w.currentStatusView(ctx, &req)
-	if err != nil {
-		return nil, err
+	for _, id := range requestIDs {
+		req, ok := byID[id]
+		if !ok {
+			continue
+		}
+		view, err := facts.statusView(ctx, w, &req)
+		if err != nil {
+			return nil, err
+		}
+		eligible, _, _, err := w.excusedBulkEligibility(ctx, &req, students[req.StudentID], view, today, facts)
+		if err != nil {
+			return nil, err
+		}
+		candidates[id] = careplan.ExcusedBulkCandidate{ID: req.ID, StudentID: req.StudentID, UpdatedAt: req.UpdatedAt, Eligible: eligible}
 	}
-	eligible, _, _, err := w.excusedBulkEligibility(ctx, &req, student, view, w.today(), absenceReviewFacts{})
-	if err != nil {
-		return nil, err
-	}
-	return &careplan.ExcusedBulkCandidate{ID: req.ID, StudentID: req.StudentID, UpdatedAt: req.UpdatedAt, Eligible: eligible}, nil
+	return candidates, nil
 }
 
 func (w *ExcusedRequests) LockExcusedBulkRequest(ctx context.Context, requestID int64) error {

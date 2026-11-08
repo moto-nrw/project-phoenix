@@ -8,9 +8,11 @@ import (
 )
 
 // MasterDataRequestRows is the slice of Care Plan's own request persistence a
-// Stammdaten decision needs: read, lock, decide and re-decide one row.
+// Stammdaten decision needs: read candidates, lock, decide and re-decide one
+// row.
 type MasterDataRequestRows interface {
 	FindStudentDataRequest(ctx context.Context, id int64, lock bool) (careplan.StudentDataChangeRequest, error)
+	ListStudentDataRequests(ctx context.Context, filter careplan.StudentDataRequestFilter) ([]careplan.StudentDataChangeRequest, error)
 	FindPendingStudentDataRequest(ctx context.Context, id int64) (careplan.StudentDataChangeRequest, error)
 	DecideStudentDataRequest(ctx context.Context, decision careplan.StudentDataRequestDecision) error
 	RedecideStudentDataRequest(ctx context.Context, decision careplan.StudentDataRequestDecision) error

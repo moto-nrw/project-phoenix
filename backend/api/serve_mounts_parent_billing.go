@@ -360,6 +360,24 @@ func (s parentBillingSettings) CareMonthRule(ctx context.Context, organizationID
 	return texts[configModels.KeyParentBillingCareMonthChange], nil
 }
 
+// CareAmendable reads which changes of a single invoice the review of a
+// monthly run allows (#6197): the Träger's switches or their defaults.
+func (s parentBillingSettings) CareAmendable(ctx context.Context, organizationID int64) (parentbilling.CareAmendable, error) {
+	values, err := s.settings.TraegerBools(ctx, organizationID, []string{
+		configModels.KeyParentBillingCareReviewAmount, configModels.KeyParentBillingCareReviewRecipient,
+		configModels.KeyParentBillingCareReviewAddress, configModels.KeyParentBillingCareReviewPositions,
+	})
+	if err != nil {
+		return parentbilling.CareAmendable{}, err
+	}
+	return parentbilling.CareAmendable{
+		Amount:    values[configModels.KeyParentBillingCareReviewAmount],
+		Recipient: values[configModels.KeyParentBillingCareReviewRecipient],
+		Address:   values[configModels.KeyParentBillingCareReviewAddress],
+		Positions: values[configModels.KeyParentBillingCareReviewPositions],
+	}, nil
+}
+
 // parentBillingLetterheads binds the letterhead of the letters to the
 // master data of Organisation & Tenancy, which logs the read of the
 // contact person and the bank accounts, to the branding settings and the

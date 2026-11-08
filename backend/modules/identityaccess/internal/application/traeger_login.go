@@ -24,12 +24,13 @@ var errTraegerMembershipsUnavailable = errors.New("identity access: Träger memb
 // factor is not composed. A member of several Träger without a choice gets
 // the list to choose from; a choice outside the memberships is refused like a
 // missing membership.
-func (s *AccountAuthentication) LoginTraeger(ctx context.Context, email, password, ipAddress, userAgent string, organizationID int64) (_ *identityaccess.TraegerLoginResult, err error) {
-	if s == nil {
-		return nil, errAccountAuthenticationUnavailable
-	}
-	defer func() { err = authenticationError(err) }()
-	ctx = bindRuntime(s.attach, ctx)
+func (s *AccountAuthentication) LoginTraeger(ctx context.Context, email, password, ipAddress, userAgent string, organizationID int64) (*identityaccess.TraegerLoginResult, error) {
+	return runFlow(ctx, s.flow(), func(ctx context.Context) (*identityaccess.TraegerLoginResult, error) {
+		return s.loginTraeger(ctx, email, password, ipAddress, userAgent, organizationID)
+	})
+}
+
+func (s *AccountAuthentication) loginTraeger(ctx context.Context, email, password, ipAddress, userAgent string, organizationID int64) (*identityaccess.TraegerLoginResult, error) {
 	if s.traeger == nil {
 		return nil, failed("Träger login", errTraegerMembershipsUnavailable)
 	}
@@ -93,34 +94,31 @@ func (s *AccountAuthentication) traegerSecondFactor(ctx context.Context, account
 // login resolved, or the only one of the account. The mint guard re-checks
 // the membership and the MFA reset generation under the account lock, so a
 // membership ended or a factor reset mid-challenge mints nothing.
-func (s *AccountAuthentication) IssueTraegerTokensForVerifiedMFA(ctx context.Context, proof identityaccess.VerifiedMFAChallenge, organizationID int64, ipAddress, userAgent string) (_ *identityaccess.TraegerLoginResult, err error) {
-	if s == nil {
-		return nil, errAccountAuthenticationUnavailable
-	}
-	defer func() { err = authenticationError(err) }()
-	ctx = bindRuntime(s.attach, ctx)
-	if s.traeger == nil {
-		return nil, failed("Träger login", errTraegerMembershipsUnavailable)
-	}
-	if proof.Scope != identityaccess.MFAChallengeScopeOrg {
-		return nil, failed("issue Träger tokens", identityaccess.ErrInvalidToken)
-	}
-	account, err := s.authenticatedAccount(ctx, "issue Träger tokens", proof.AccountID)
-	if err != nil {
-		return nil, err
-	}
-	organizations, err := s.listTraegerOrganizations(ctx, account.ID)
-	if err != nil {
-		return nil, failed("issue Träger tokens: list memberships", err)
-	}
-	if organizationID == 0 && len(organizations) == 1 {
-		organizationID = organizations[0].ID
-	}
-	if !containsTraeger(organizations, organizationID) {
-		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "No Träger membership at Träger token issue")
-		return nil, failed("issue Träger tokens", identityaccess.ErrNoTraegerMembership)
-	}
-	return s.mintTraegerSession(ctx, account, organizationID, &proof, ipAddress, userAgent)
+func (s *AccountAuthentication) IssueTraegerTokensForVerifiedMFA(ctx context.Context, proof identityaccess.VerifiedMFAChallenge, organizationID int64, ipAddress, userAgent string) (*identityaccess.TraegerLoginResult, error) {
+	return runFlow(ctx, s.flow(), func(ctx context.Context) (*identityaccess.TraegerLoginResult, error) {
+		if s.traeger == nil {
+			return nil, failed("Träger login", errTraegerMembershipsUnavailable)
+		}
+		if proof.Scope != identityaccess.MFAChallengeScopeOrg {
+			return nil, failed("issue Träger tokens", identityaccess.ErrInvalidToken)
+		}
+		account, err := s.authenticatedAccount(ctx, "issue Träger tokens", proof.AccountID)
+		if err != nil {
+			return nil, err
+		}
+		organizations, err := s.listTraegerOrganizations(ctx, account.ID)
+		if err != nil {
+			return nil, failed("issue Träger tokens: list memberships", err)
+		}
+		if organizationID == 0 && len(organizations) == 1 {
+			organizationID = organizations[0].ID
+		}
+		if !containsTraeger(organizations, organizationID) {
+			s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "No Träger membership at Träger token issue")
+			return nil, failed("issue Träger tokens", identityaccess.ErrNoTraegerMembership)
+		}
+		return s.mintTraegerSession(ctx, account, organizationID, &proof, ipAddress, userAgent)
+	})
 }
 
 // mintTraegerSession persists the Träger session and issues its pair. A

@@ -221,6 +221,18 @@ export default function TraegerCareRunPage() {
     );
   };
 
+  // One invoice is changed on its own page (#6197), so the run does not load
+  // the forms and the history.
+  const openAmend = (invoice: CareInvoice) => {
+    if (!run) return;
+    const service = invoice.service === "meal" ? "?leistung=mensa" : "";
+    router.push(
+      traegerPath(
+        `/traeger/abrechnung/monatsbeitraege/${run.id}/rechnung/${invoice.contractId}${service}`,
+      ),
+    );
+  };
+
   const preview = run?.status === "calculated";
   const canRelease =
     preview &&
@@ -229,6 +241,11 @@ export default function TraegerCareRunPage() {
       ? run.numberRangeSet
       : run.excludedCount > 0 || (run.freeOfCharge ?? 0) > 0);
   const issuable = run?.invoices.filter((invoice) => !invoice.exclusion) ?? [];
+  const conflicted = issuable.find((invoice) =>
+    (invoice.amendments ?? []).some(
+      (amendment) => amendment.revocation === null && amendment.conflict,
+    ),
+  );
   const excluded = run?.invoices.filter((invoice) => invoice.exclusion) ?? [];
 
   return (
@@ -340,7 +357,7 @@ export default function TraegerCareRunPage() {
             title="Monatslauf"
             description={
               preview
-                ? "Prüfen Sie die Vorschau. Neue Verträge und Preise kommen bis zur Freigabe dazu. Eine Rechnung, die noch nicht stimmt, schließen Sie über das Menü ihrer Zeile aus."
+                ? "Prüfen Sie die Vorschau. Neue Verträge und Preise kommen bis zur Freigabe dazu. Stimmt eine Rechnung noch nicht, ändern Sie sie oder schließen sie aus. Beides geht über das Menü ihrer Zeile."
                 : run.previewCount === 0
                   ? "Der Lauf ist ohne Rechnungen abgeschlossen. Die Schulen sind wieder frei."
                   : "Die Rechnungen sind ausgestellt und lassen sich nicht mehr ändern. Eine falsche Rechnung stornieren Sie auf der Seite „Schreiben“."
@@ -487,6 +504,24 @@ export default function TraegerCareRunPage() {
               }
             />
           ) : null}
+          {preview && (run.amendmentConflicts ?? 0) > 0 ? (
+            <Alert
+              type="warning"
+              message={`${run.amendmentConflicts === 1 ? "Eine Änderung einer Rechnung passt" : `${run.amendmentConflicts ?? 0} Änderungen von Rechnungen passen`} nicht mehr. Nehmen Sie sie auf der Seite der Rechnung zurück. Erst dann können Sie freigeben.`}
+              action={
+                conflicted ? (
+                  <Button
+                    type="button"
+                    variant="surface"
+                    size="compact"
+                    onClick={() => openAmend(conflicted)}
+                  >
+                    Rechnung öffnen
+                  </Button>
+                ) : undefined
+              }
+            />
+          ) : null}
           {preview && (run.uncountedFamilies ?? 0) > 0 ? (
             <Alert
               type="info"
@@ -542,7 +577,7 @@ export default function TraegerCareRunPage() {
             letters={released ? letters?.documents : undefined}
             letterColumns={
               preview
-                ? [exclusionColumn(setExcluding, openFamilyBilling)]
+                ? [exclusionColumn(setExcluding, openFamilyBilling, openAmend)]
                 : undefined
             }
             onFamilyBilling={preview ? undefined : openFamilyBilling}

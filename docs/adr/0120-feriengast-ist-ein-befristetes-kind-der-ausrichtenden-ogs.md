@@ -314,7 +314,8 @@ Nachtrag vom 03.11.2026 nicht mehr:
 - Die Live-Listen des People Directory, die ohne Teilnahme von Care Plan
   lesen (`currentCare`), ändert dieser Nachtrag nicht; ob vorgemerkte
   Kinder dort fehlen sollen, klärt
-  [#6050](https://github.com/moto-nrw/project-phoenix/issues/6050).
+  [#6050](https://github.com/moto-nrw/project-phoenix/issues/6050); die
+  Antwort steht im Nachtrag vom 08.11.2026.
 
 ### Vergangene Tage: neues und zurückkehrendes Kind (#6041, Review)
 
@@ -356,3 +357,37 @@ Raumbesuch gespeichert hat, wie die laufenden Listen ein tatsächlich
 anwesendes Kind behalten. Offen bleibt die Lücke zwischen früherem Ende und
 Wiederaufnahme eines zurückkehrenden Kindes
 ([#6073](https://github.com/moto-nrw/project-phoenix/issues/6073)).
+
+## Nachtrag 2026-11-08: Live-Listen des People Directory behalten vorgemerkte eigene Kinder (#6050)
+
+Entscheidung zu
+[#6050](https://github.com/moto-nrw/project-phoenix/issues/6050): Die
+Live-Listen des People Directory, die ohne Teilnahme von Care Plan lesen
+(`currentCare`), zeigen ein vorgemerktes eigenes Kind (Status `pending`,
+`enrolled_from` in der Zukunft) weiter vor seinem Beginn. Der Satz „Eigene
+Kinder mit späterem Start bleiben, wie sie sind“ aus dem Nachtrag vom
+03.11.2026 gilt für diese Leser fort. Keine dieser Listen zählt Betreuung
+oder ist eine laufende Betreuungsliste; jede dient der Vorbereitung oder dem
+Auflösen schon gespeicherter Daten:
+
+- **Armband-Zuordnung am Kiosk.** `FindAllWithGroups` und
+  `FindByTeacherStaffIDsWithGroups` speisen `GET /api/iot/students`, die
+  Kinderauswahl, mit der PyrePortal ein Armband zuordnet. Das Team gibt das
+  Armband vor dem ersten Tag aus, nicht erst am ersten Morgen.
+- **Empfängerauswahl im Kalender.** `FindAllWithGroups` liefert die Suche
+  nach Kindern für Kalendereinträge. Eltern eines Kindes mit späterem Start
+  brauchen vorher Informationen, etwa zum ersten Tag oder zu einem
+  Elternabend. In einer Suche stört der Eintrag nicht.
+- **Elternsprechtag.** `FindAllWithGroups` nennt nur die Namen schon
+  gebuchter Kinder. Fehlte das Kind dort, stünde eine bestehende Buchung
+  ohne Namen.
+- **Rückmeldungen der Anmeldephase.** `ListStudentRoster` markiert ein
+  vorgemerktes Kind als `NotActive`; Enrollment fragt es nicht nach einer
+  Wiederanmeldung, weil seine eigene Anmeldung noch läuft. Keine Änderung.
+- `FindByTeacherIDWithGroups` hat keinen Leser außerhalb von Port und
+  Dekorator.
+
+Feriengast und Ende der Betreuung bleiben, wie oben beschrieben. Zeigt sich,
+dass vorgemerkte Kinder die Armband-Auswahl am Kiosk unübersichtlich machen,
+bekommen sie dort einen Hinweis auf ihren Beginn statt einer Ausblendung;
+das ändert den Kiosk-Vertrag mit PyrePortal und braucht ein eigenes Issue.

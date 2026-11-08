@@ -66,6 +66,8 @@ type CareStore interface {
 	paymentTermsReader
 	// CareReviewStore keeps the review of a run (#5916).
 	CareReviewStore
+	// CareAmendmentStore keeps the changes of its invoices (#6197).
+	CareAmendmentStore
 	// DocumentKindStore keeps the kind of document of each service (#4688).
 	DocumentKindStore
 }
@@ -529,6 +531,7 @@ func (c *CareBilling) detail(ctx context.Context, reviewer parentbilling.Holiday
 		if err != nil {
 			return parentbilling.CareRunDetail{}, err
 		}
+		keyIssuedPositions(invoices)
 		detail.Invoices = invoices
 		// A released run shows what its release stored (E5): its invoices
 		// and the snapshot of the children it held back. It reads no
