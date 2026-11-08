@@ -104,7 +104,7 @@ Reihenfolge nicht auseinanderläuft: `Decisions.LockApprovalGates`. Die
 | Fällige Wochenpläne | `ApplyDueWeeklyPlans`, `LockApprovalGates` vor dem Lesen der Pläne | Klasse, Wiederholung, Pläne, Laufgemeinschaft, Kinder |
 | Phasenänderung (Start verschieben) | `Phases.update` → `validateCareOfferingPhaseUpdate` | Wiederholung, Phase, offene Pläne |
 | Phase löschen | `Phases.Delete` → `detachPhaseSourcedTemplates` | Wiederholung, Vorlagen, Phase |
-| Rollover anlegen | `runCreate` → Katalogkopie | neue Phase (unsichtbar), dann Wiederholung; keine bestehende Zeile gesperrt |
+| Rollover anlegen | `runCreate` → Katalogkopie | neue Phase, dabei `KEY SHARE` auf die Quellphase, dann Wiederholung; gegen „Phase löschen“ ein Zyklus, der schon vor dieser ADR bestand (#6168) |
 | Angebote anpassen | `UpdateChildOfferings` → Care Plan `AdjustOfferings` | Klasse, Wiederholung, Kind; die Anmeldung wird ungesperrt gelesen |
 | Angebotsverwaltung | Care Plan `CareOfferingCatalog` | Wiederholung, Angebote; keine Klassensperre danach |
 | Kind bearbeiten mit Klasse (Care Plan PUT) | `student_update_handlers.go` | Klasse, Wiederholung, Kind |
