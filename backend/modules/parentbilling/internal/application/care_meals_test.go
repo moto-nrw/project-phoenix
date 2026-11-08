@@ -323,6 +323,52 @@ func TestCareMealsJoinTheModuleInvoiceAndNoRuleReducesThem(t *testing.T) {
 	assert.Equal(t, int64(1600+960+4550+960), month.total(), "the release compares this sum")
 }
 
+// The family count of #5918 moves only the module ranks, never the Mensa
+// (ADR 0168). The same family states three children, one without a
+// contract, and the sibling rule counts the family: Noah ranks second
+// (45,50 − 22,75 = 22,75 €), Mia third (32,00 − 16,00 = 16,00 €). Both ate
+// 2 × 4,80 € = 9,60 €, in full: Noah 22,75 + 9,60 = 32,35 €, Mia
+// 16,00 + 9,60 = 25,60 €.
+func TestCareMealsStayInFullWhenTheRuleCountsTheFamily(t *testing.T) {
+	t.Parallel()
+	mon := booked("mon", moduleUntil1400, "Betreuung bis 14:00 Uhr", "14:00")
+	monLate := booked("mon", moduleUntil1630, "Betreuung bis 16:30 Uhr", "16:30")
+	versions := []parentbilling.CareContractVersion{
+		sjrVersion(t, contractMia, schoolIspringen, 1, mealRunMonth, "2026-04-30", mon),
+		sjrVersion(t, contractNoah, schoolIspringen, 1, mealRunMonth, "2026-04-30", monLate),
+	}
+	family := parentbilling.CareRecipient{FirstName: "Eva", LastName: "Beispiel", Email: familyEva}
+	recipients := map[int64]parentbilling.CareRecipient{contractMia: family, contractNoah: family}
+	from := day(t, "2026-01-01")
+	counts := []parentbilling.FamilyChildCount{{ContractID: contractMia, ConfirmedChildren: ptr(3), ValidFrom: &from,
+		FamilyEmail: parentbilling.FamilyKey(familyEva)}}
+	month, err := buildCareMonth(careMonthInput{month: day(t, mealRunMonth), rule: parentbilling.MonthRuleVersionOnFirst,
+		versions: versions, invoiced: map[int64]parentbilling.CareInvoice{}, recipients: recipients, familyCounts: counts,
+		tariffs: []parentbilling.CareTariff{price(t, schoolIspringen, moduleUntil1400, "Betreuung bis 14:00 Uhr", "mon", "2026-01-01", 3200),
+			price(t, schoolIspringen, moduleUntil1630, "Betreuung bis 16:30 Uhr", "mon", "2026-01-01", 4550)},
+		rules: []parentbilling.ContributionRule{careRule(t, ruleSiblingIspringen, parentbilling.RuleSibling, []int64{schoolIspringen},
+			func(rule *parentbilling.ContributionRule) {
+				halfFromSecond(rule)
+				rule.CountsFamilyChildren = true
+				rule.ValidFrom = from
+			})}})
+	require.NoError(t, err)
+	noah := parentbilling.CareMealChild{StudentID: contractNoah + 9000, FirstName: "Noah", LastName: "Beispiel", MealDays: 2}
+	billMeals(&month, careMealInput{month: day(t, mealRunMonth), today: day(t, mealToday), schools: map[int64]string{schoolIspringen: "Ispringen"},
+		tariffs:  []parentbilling.CareMealTariff{mealTariff(t, parentbilling.MealModePerMeal, "2026-03-01", 480)},
+		releases: []parentbilling.CareMealRelease{mealRelease(t, "2026-03-01", mia(2), noah)}, billed: map[CareMealKey]bool{},
+		versions: versions, invoiced: map[int64]parentbilling.CareInvoice{}, recipients: recipients})
+
+	totals := map[int64]int64{}
+	for _, invoice := range month.invoices {
+		totals[invoice.ContractID] = invoice.TotalCents
+		require.Len(t, invoice.MealPositions, 1)
+		assert.Equal(t, int64(960), invoice.MealPositions[0].AmountCents, "the family count leaves the Mensa in full")
+	}
+	assert.Equal(t, map[int64]int64{contractMia: 1600 + 960, contractNoah: 2275 + 960}, totals)
+	assert.Zero(t, month.uncounted, "the family has a confirmed number")
+}
+
 // A month that starts before the attendance the school still keeps can no
 // longer be released: the run names it as no longer billable instead of a
 // release that never comes. The other gaps stay open.

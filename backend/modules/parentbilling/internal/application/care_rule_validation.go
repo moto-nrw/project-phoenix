@@ -59,6 +59,7 @@ func normalizeCareRule(input parentbilling.CareRuleInput, schools []parentbillin
 func validateCareRuleKind(input *parentbilling.CareRuleInput, errs validation.Errors) {
 	if input.Kind != parentbilling.RuleSibling {
 		input.SiblingFromChild = nil
+		input.CountsFamilyChildren = false
 		if len(input.CountSchoolIDs) > 0 {
 			errs["count_school_ids"] = errors.New("only a sibling rule counts other schools")
 		}

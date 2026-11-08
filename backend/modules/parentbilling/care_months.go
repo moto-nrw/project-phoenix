@@ -304,7 +304,11 @@ type CareRunDetail struct {
 	Duplicates []CareDuplicate `json:"duplicates"`
 	// DuplicateChildren counts the children of Duplicates: the run, and its
 	// release, bills none of them.
-	DuplicateChildren int    `json:"duplicate_children"`
+	DuplicateChildren int `json:"duplicate_children"`
+	// UncountedFamilies counts the families a sibling rule that counts the
+	// family ranked without a confirmed number for the month (#5918): the
+	// rule counts their children with a contract alone.
+	UncountedFamilies int    `json:"uncounted_families"`
 	Billed            int    `json:"billed"`
 	PreviewCount      int    `json:"preview_count"`
 	PreviewCents      int64  `json:"preview_cents"`

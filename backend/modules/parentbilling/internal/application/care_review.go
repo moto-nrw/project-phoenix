@@ -70,6 +70,7 @@ func narrowMonth(month careMonth, schoolIDs []int64, exclusions map[int64]parent
 		duplicates: []parentbilling.CareDuplicate{}, mealGaps: []parentbilling.CareMealGap{},
 		mealUnbilled: []parentbilling.CareMealUnbilled{}, mealChanged: []parentbilling.CareMealChanged{}, dueDates: month.dueDates, deviations: month.deviations},
 		excluded: []parentbilling.CareInvoice{}}
+	review.uncounted = uncountedInRun(month.uncountedSchools, inRun)
 	for schoolID, count := range month.billedBySchool {
 		if inRun(schoolID) {
 			review.billed += count
@@ -123,6 +124,18 @@ func narrowMeals(review *reviewedMonth, month careMonth, inRun func(int64) bool)
 	}
 }
 
+// uncountedInRun counts the families without a confirmed number whose
+// invoices go to a school of the run (#5918).
+func uncountedInRun(families map[string][]int64, inRun func(int64) bool) int {
+	count := 0
+	for _, schools := range families {
+		if slices.ContainsFunc(schools, inRun) {
+			count++
+		}
+	}
+	return count
+}
+
 // fingerprintInvoice is what the fingerprint covers of an invoice the
 // review shows: the invoice as shown with its positions and reductions, the
 // child record and the payable cents the rule chain allocated.
@@ -167,12 +180,13 @@ func previewFingerprint(run parentbilling.CareRun, rule string, review reviewedM
 		Duplicates  []parentbilling.CareDuplicate    `json:"duplicates"`
 		Billed      int                              `json:"billed"`
 		DueDates    []parentbilling.RunDueDate       `json:"due_dates"`
+		Uncounted   int                              `json:"uncounted_families"`
 		MealGaps    []parentbilling.CareMealGap      `json:"meal_gaps"`
 		MealUnbill  []parentbilling.CareMealUnbilled `json:"meal_unbilled"`
 		MealChanged []parentbilling.CareMealChanged  `json:"meal_changed"`
 	}{run.ID, run.SchoolIDs, run.InvoiceDate, rule, fingerprintInvoices(review.invoices),
 		fingerprintInvoices(review.excluded), review.unpriced, review.duplicates, review.billed,
-		review.dueDates.InPaymentOrder(), review.mealGaps, review.mealUnbilled, review.mealChanged})
+		review.dueDates.InPaymentOrder(), review.uncounted, review.mealGaps, review.mealUnbilled, review.mealChanged})
 	if err != nil {
 		// Every value above marshals; a failure leaves no fingerprint a
 		// release could match.
@@ -377,6 +391,7 @@ func (c *CareBilling) reviewDetail(ctx context.Context, reviewer parentbilling.H
 	detail.MonthRule, detail.Unpriced, detail.Billed = rule, review.unpriced, review.billed
 	detail.Duplicates, detail.MealGaps, detail.MealUnbilled = review.duplicates, review.mealGaps, review.mealUnbilled
 	detail.MealChanged = review.mealChanged
+	detail.UncountedFamilies = review.uncounted
 	detail.Invoices = append(review.invoices, review.excluded...)
 	detail.Fingerprint = review.fingerprint
 	for _, invoice := range review.excluded {

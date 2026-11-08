@@ -41,5 +41,6 @@
   "terminatedOn": "Gekündigt zum {date}",
   "withdrawn": "Widerrufen",
   "showConfirmation": "Bestätigung ansehen",
-  "terminationInReview": "Gekündigt, Ende wird geprüft"
+  "terminationInReview": "Gekündigt, Ende wird geprüft",
+  "familyChildren": "Kinder in der Familie angeben"
 }

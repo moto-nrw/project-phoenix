@@ -66,5 +66,8 @@
   "family_billing_invalid": "Empfänger und Zahlung konnten nicht gespeichert werden. Bitte prüfen Sie Ihre Eingaben.",
   "family_billing_not_found": "Diese Abweichung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
   "family_unknown": "Für diesen Vertrag fehlt eine E-Mail-Adresse. Bitte tragen Sie sie im Vertrag ein.",
-  "due_dates_invalid": "Die Fälligkeiten konnten nicht gespeichert werden. Bitte prüfen Sie die Daten."
+  "due_dates_invalid": "Die Fälligkeiten konnten nicht gespeichert werden. Bitte prüfen Sie die Daten.",
+  "family_children_invalid": "Bitte geben Sie eine ganze Zahl von 1 bis 20 an.",
+  "family_children_not_found": "Zu diesem Vertrag gibt es keine Familie mehr. Bitte laden Sie die Seite neu.",
+  "family_without_address": "Die Rechnung dieses Vertrags hat keine E-Mail-Adresse. Tragen Sie zuerst im Vertrag eine Adresse ein."
 }

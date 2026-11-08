@@ -70,13 +70,16 @@ type ContributionRule struct {
 	// A care rule (#4685) has a name, the schools and modules it applies
 	// to, the schools whose children a sibling rule counts, a fixed end
 	// price or the cap of a family; a holiday rule has none of them.
-	Name            string    `json:"name"`
-	SchoolIDs       []int64   `json:"school_ids"`
-	CareOfferingIDs []int64   `json:"care_offering_ids"`
-	CountSchoolIDs  []int64   `json:"count_school_ids"`
-	PriceCents      *int64    `json:"price_cents"`
-	CapCents        *int64    `json:"cap_cents"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	Name            string  `json:"name"`
+	SchoolIDs       []int64 `json:"school_ids"`
+	CareOfferingIDs []int64 `json:"care_offering_ids"`
+	CountSchoolIDs  []int64 `json:"count_school_ids"`
+	PriceCents      *int64  `json:"price_cents"`
+	CapCents        *int64  `json:"cap_cents"`
+	// CountsFamilyChildren tells that a sibling rule of the care counts
+	// the children the family stated and the Abrechnung confirmed (#5918).
+	CountsFamilyChildren bool      `json:"counts_family_children"`
+	UpdatedAt            time.Time `json:"updated_at"`
 }
 
 // ContributionRuleInput is a rule as the Abrechnung writes it.

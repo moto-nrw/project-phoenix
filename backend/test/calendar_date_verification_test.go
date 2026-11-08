@@ -43,6 +43,11 @@ var unmappedDateColumns = map[string]string{
 	// through raw SQL in Student Presence as calendar.Date (ports.Date); no
 	// time.Time ever reaches the column.
 	"active.attendance_retention_marks.deleted_before": "#4686: Student Presence binds and scans calendar.Date, never time.Time",
+	// The trail of the children of a family (#5918) is written in one
+	// INSERT ... SELECT FROM unnest with *calendar.Date parameters and never
+	// read back into a model; no time.Time reaches the columns.
+	"parent_billing.family_child_count_events.valid_from":  "family trail binds *calendar.Date in raw SQL, never time.Time",
+	"parent_billing.family_child_count_events.valid_until": "family trail binds *calendar.Date in raw SQL, never time.Time",
 	// The Betreuungsvertrag (ADR 0153) binds the last day of a booked module
 	// as "YYYY-MM-DD" text cast to DATE and reads it back with to_char inside
 	// a JSON aggregate; carecontract.Service.LastDay is *calendar.Date and no
