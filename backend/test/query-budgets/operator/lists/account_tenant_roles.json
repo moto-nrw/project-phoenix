@@ -1,6 +1,6 @@
 {
   "scenario": "operator.lists.account_tenant_roles",
-  "max": 22,
+  "max": 19,
   "exact": true,
   "description": "GET /operator/accounts/{accountId}/tenants/{tenantId}/roles; N persisted assignable custom user-tier roles in the target school and N account school mappings; seeded roles preserved. N=3/8 positive body IDs and cardinality. Complete protected route-sized request: real owners, signed live operator session, mandatory access audit where mounted and owner transactions/RLS. Fixture setup/token issuance and outer Serve-host middleware excluded. Observed scenario count, not a universal floor.",
   "route": "GET /operator/accounts/{accountId}/tenants/{tenantId}/roles"
