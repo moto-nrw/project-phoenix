@@ -95,7 +95,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 
 | You need… | Use | Import from |
 |---|---|---|
-| Button / CTA | `Button` (actions), `ButtonLink` (navigation), `buttonClassName` (anything else that must look like a button) — rules in [Buttons](#buttons) below. | `~/components/ui/button` |
+| Button / CTA | `Button` (actions), `ButtonLink` (navigation), `buttonClassName` (anything else that must look like a button) — rules in [Buttons](#buttons) below. Pass `type="button"` outside forms. | `~/components/ui/button` |
 | Text input | `Input`, multiline `Textarea` (`autoGrow`): `required`/`aria-required` shows the star; `error` sets hint and `aria-invalid`; `type="password" revealable`: eye button | `~/components/ui/input`, `ui/textarea` |
 | Field label, hint | `label`/`hint` prop of `Input`, `Textarea`, `CustomSelect` (`ISODatePicker`: `label`); else `FieldLabel`. Never in Versalien. Field + button: `FormRow` | `~/components/ui/field-label`, `ui/form-row` |
 | Required field | `required` on the kit control. A control without its own label gets `FieldLabel required`, a required group `FormFieldset required`. Never a star in a label string or translation (#5217) | `~/components/ui/field-label` |
@@ -189,7 +189,7 @@ Decided in #5529, enforced since #5531. Not up for renegotiation: if code cannot
 | `fab` | Floating create button, round, 56 px, green |
 | `dashed` | Dashed add surface |
 | `link_tone` | `ghost_tone` underlined |
-| `filter`, `segment`, `disclosure`, `day_chip(_stacked)` | Kit only: `FilterButton`, button group, collapse, `PlanningDayChip` |
+| `filter`, `segment`, `disclosure`, `day_chip(_stacked)` | Only inside their kit parts (#6182) |
 
 **No grey buttons (#5574)**, no light-grey fill at rest. Value choice: `SegmentedControl`; on/off: `ToggleChip`; removal: `outline_danger`.
 

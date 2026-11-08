@@ -65,9 +65,10 @@ export function Toast({
           <Button
             type="button"
             variant="link_tone"
-            // Am Telefon in normaler Textgröße; die Fingerhöhe von 44 px
-            // bringt das Kit mit.
+            // Auf schmalen Ansichten in normaler Textgröße und 44 px hoch,
+            // unabhängig vom Zeiger (#5531).
             size={touchFriendly ? "md" : "compact"}
+            touchTarget={touchFriendly}
             aria-label={action.accessibleLabel}
             onClick={action.onClick}
             className="shrink-0 self-center"

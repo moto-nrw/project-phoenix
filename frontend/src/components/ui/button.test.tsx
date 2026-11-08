@@ -297,6 +297,19 @@ describe("Button", () => {
     expect(button.className.split(" ")).toContain("data-icon-only:px-0");
   });
 
+  it("gives a text button only the 44 px height as touch target, not a square", () => {
+    render(
+      <Button variant="link_tone" size="md" touchTarget>
+        Wiederholen
+      </Button>,
+    );
+
+    const classes = screen.getByRole("button").className.split(" ");
+    expect(classes).toContain("h-11");
+    expect(classes).not.toContain("w-11");
+    expect(classes).not.toContain("h-auto");
+  });
+
   it("renders disclosure as ghost that also tints on hover of its card head", () => {
     render(
       <Button variant="disclosure" size="icon" aria-label="Einklappen">

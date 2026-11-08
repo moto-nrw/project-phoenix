@@ -22,6 +22,10 @@ export type ButtonVariant =
 export type ButtonSize =
   "sm" | "md" | "field" | "base" | "lg" | "xl" | "compact" | "icon" | "card";
 
+// Ruhiger Knopf ohne Fläche; `segment` und `disclosure` bauen darauf auf.
+const GHOST =
+  "bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900 active:bg-gray-200";
+
 export function buttonStyles({
   variant,
   size,
@@ -83,8 +87,7 @@ export function buttonStyles({
     // dem Kopieren eines Links. Sie bleibt eine helle Fläche statt einer CTA.
     surface_success:
       "bg-moto-green/10 text-moto-green-strong ring-1 ring-moto-green/40 shadow-sm hover:bg-moto-green/15 hover:ring-moto-green/50 active:bg-moto-green/20",
-    ghost:
-      "bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900 active:bg-gray-200",
+    ghost: GHOST,
     // Leiser roter Knopf: Entfernen in einer Zeile oder einem Formular, wo
     // ein gefüllter roter Knopf zu laut wäre.
     ghost_danger:
@@ -119,14 +122,13 @@ export function buttonStyles({
     // #6182): kein eigener Radius, füllt die Höhe der Gruppe, sonst `ghost`.
     // Ein Symbol-Segment bleibt quadratisch: mit Polster und Trennlinie würde
     // es 1 px breiter als hoch.
-    segment:
-      "h-full rounded-none px-3 data-icon-only:px-0 bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900 active:bg-gray-200",
+    segment: `h-full rounded-none px-3 data-icon-only:px-0 ${GHOST}`,
     // Einklapp-Knopf im Kopf einer Karte (#6182): wie `ghost`, tönt aber
     // auch, wenn die Maus über dem übrigen Kopf liegt, weil der ganze Kopf
     // schaltet (`SectionCollapseHead`, #5021).
-    disclosure:
-      "bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900 active:bg-gray-200 group-hover/collapse-head:bg-gray-100 group-hover/collapse-head:text-gray-900",
-    // Tag einer Wochenleiste (`PlanningDayChip`, #6182): einzeilig, 36 px.
+    disclosure: `${GHOST} group-hover/collapse-head:bg-gray-100 group-hover/collapse-head:text-gray-900`,
+    // Tag einer Wochenleiste (`PlanningDayChip`, #6182): einzeilig, 36 px
+    // (per Finger 44 px wie jeder Kit-Knopf).
     // Der gewählte Tag (`aria-pressed`) ist dunkel gefüllt.
     day_chip:
       "h-9 gap-1 rounded-md px-2.5 py-0 text-sm font-normal bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-gray-900 aria-pressed:bg-gray-900 aria-pressed:text-white aria-pressed:hover:bg-gray-900 aria-pressed:hover:text-white",
@@ -149,7 +151,10 @@ export function buttonStyles({
     sizeStyles[size],
     textSizes[size],
     variantStyles[variant],
-    touchTarget && "h-11 w-11",
+    // Ausdrückliche 44-px-Zielgröße, wenn eine Ansicht sie unabhängig vom
+    // Zeiger verlangt (Toast auf schmalen Ansichten). Ein Textknopf behält
+    // seine Breite.
+    touchTarget && (size === "icon" ? "h-11 w-11" : "h-11"),
     className,
   ]
     .filter(Boolean)
