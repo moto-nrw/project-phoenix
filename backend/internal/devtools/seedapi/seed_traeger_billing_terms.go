@@ -89,10 +89,10 @@ func seedSEPAMandates(client *Client, auth AuthRef, invoices []struct {
 	}); err != nil {
 		return fmt.Errorf("keep the SEPA creditor: %w", err)
 	}
-	seeded, err := seededMandateFamilies(client, auth)
-	if err != nil {
-		return err
-	}
+	// Every monthly run seeds its families again: a family that has a
+	// mandate already keeps it (the backend answers in force or reference
+	// taken), and siblings share one.
+	seeded := map[string]bool{}
 	for i, invoice := range invoices {
 		if i == 0 || i == 2 || seeded[invoice.FamilyEmail] {
 			continue
@@ -104,6 +104,9 @@ func seedSEPAMandates(client *Client, auth AuthRef, invoices []struct {
 			"iban": demoIBAN(9000 + i),
 		}
 		raw, err := client.PostWithAuth(auth, "/traeger/sepa-mandates/", mandate)
+		if seedConflictCode(err, seedMandateInForce) || seedConflictCode(err, seedMandateReferenceTaken) {
+			continue
+		}
 		if err != nil {
 			return fmt.Errorf("keep the SEPA mandate of a family: %w", err)
 		}
@@ -116,28 +119,11 @@ func seedSEPAMandates(client *Client, auth AuthRef, invoices []struct {
 	return nil
 }
 
-// seededMandateFamilies names the families with a mandate already. Every
-// monthly run seeds its families again: a family that has a mandate, or one
-// of its siblings, keeps it.
-func seededMandateFamilies(client *Client, auth AuthRef) (map[string]bool, error) {
-	raw, err := client.GetWithAuth(auth, "/traeger/sepa-mandates/")
-	if err != nil {
-		return nil, fmt.Errorf("read the SEPA mandates: %w", err)
-	}
-	var existing struct {
-		Data []struct {
-			FamilyEmail string `json:"family_email"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(raw, &existing); err != nil {
-		return nil, fmt.Errorf("read the SEPA mandates: %w", err)
-	}
-	seeded := map[string]bool{}
-	for _, mandate := range existing.Data {
-		seeded[mandate.FamilyEmail] = true
-	}
-	return seeded, nil
-}
+// The refusals of a mandate a repeated seed meets (#4695).
+const (
+	seedMandateInForce        = "parent_billing.sepa_mandate_in_force"
+	seedMandateReferenceTaken = "parent_billing.sepa_mandate_reference_taken"
+)
 
 // seedReplacedMandate revokes the mandate just created and gives the family a
 // new one with another account, so the demo shows a mandate's history.
