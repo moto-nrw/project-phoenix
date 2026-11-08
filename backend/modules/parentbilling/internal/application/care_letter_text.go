@@ -162,12 +162,27 @@ func carePositionFacts(positions []parentbilling.CarePosition, sign int64) []Let
 		if len(weekdays) > 0 {
 			label += " (" + strings.Join(nonBlank(weekdays...), ", ") + ")"
 		}
+		// A module priced by a scale names its step (#6196).
+		if position.DaysPerWeek != nil {
+			label += ", " + daysPerWeekLabel(*position.DaysPerWeek)
+		}
+		if position.MealExtra {
+			label += ", ohne Essen"
+		}
 		if !position.ServiceFrom.IsZero() && position.ServiceFrom.Day() != 1 || !isMonthEnd(position.ServiceUntil) {
 			label += fmt.Sprintf(", %s bis %s", position.ServiceFrom.Format("02.01."), germanDate(position.ServiceUntil))
 		}
 		facts = append(facts, LetterFact{Label: label, Value: formatEuro(sign * position.AmountCents)})
 	}
 	return facts
+}
+
+// daysPerWeekLabel names a scale step: „1 Tag je Woche“, „3 Tage je Woche“.
+func daysPerWeekLabel(days int) string {
+	if days == 1 {
+		return "1 Tag je Woche"
+	}
+	return fmt.Sprintf("%d Tage je Woche", days)
 }
 
 func isMonthEnd(date calendar.Date) bool {
@@ -240,6 +255,8 @@ func careReductionReason(reduction parentbilling.CareReduction) string {
 
 func careRuleEffect(reduction parentbilling.CareReduction) string {
 	switch {
+	case reduction.TariffSiblingPrice:
+		return "Geschwisterpreis laut Preisliste"
 	case reduction.PriceCents != nil:
 		return "Preis " + formatEuro(*reduction.PriceCents)
 	case reduction.DiscountBasisPoints != nil:

@@ -224,7 +224,9 @@ export default function TraegerCareRunPage() {
   const canRelease =
     preview &&
     !(run.previewCount > 0 && run.legalRemedyMissing) &&
-    (run.previewCount > 0 ? run.numberRangeSet : run.excludedCount > 0);
+    (run.previewCount > 0
+      ? run.numberRangeSet
+      : run.excludedCount > 0 || (run.freeOfCharge ?? 0) > 0);
   const issuable = run?.invoices.filter((invoice) => !invoice.exclusion) ?? [];
   const excluded = run?.invoices.filter((invoice) => invoice.exclusion) ?? [];
 
@@ -433,6 +435,13 @@ export default function TraegerCareRunPage() {
                     {invoiceCountLabel(run.excludedCount)} ·{" "}
                     {formatEuro(run.excludedCents)}
                   </span>
+                </DataField>
+              ) : null}
+              {(run.freeOfCharge ?? 0) > 0 ? (
+                <DataField label="Beitragsfreier Monat">
+                  {run.freeOfCharge === 1
+                    ? "1 Vertrag ohne Rechnung"
+                    : `${run.freeOfCharge} Verträge ohne Rechnung`}
                 </DataField>
               ) : null}
               {run.billed > 0 ? (

@@ -235,6 +235,7 @@ func OwnTraegerContributionRules(tb testing.TB, db *bun.DB, organizationID int64
 			// An evidence holds its income level (#4685): it goes first.
 			"parent_billing.care_evidences",
 			"parent_billing.contribution_rules", "parent_billing.runs", "parent_billing.care_runs", "parent_billing.care_tariffs",
+			"parent_billing.care_price_lists",
 			// The Mensa prices and the schools' released Mensa months (#4686);
 			// the Mensa positions go with the runs.
 			"parent_billing.care_meal_tariffs", "schedule.meal_billing_months",

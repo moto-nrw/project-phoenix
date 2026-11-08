@@ -302,6 +302,7 @@ var tableRetentions = map[string]tableRetention{
 	"parent_billing.care_runs":                              notPersonal("monthly run of a Träger (#4684): month, status, issue date and sums, no person"),
 	"parent_billing.care_run_schools":                       notPersonal("schools a monthly run bills (#5916): school, month and whether the run is open, no person"),
 	"parent_billing.care_tariffs":                           notPersonal("monthly price of a care module per school and weekday (#4684), no person"),
+	"parent_billing.care_price_lists":                       notPersonal("head of a price list of a school with its free months (#6196), no person"),
 	"parent_billing.contribution_rules":                     notPersonal("contribution rule of a Träger (#4664): kind, parameters, validity and the note of an exemption, no person"),
 	"parent_billing.cost_bearers":                           notPersonal("body that pays the holiday contribution of a family in its place (#5627): name, address and file reference of an office, no person"),
 	"parent_billing.document_letters":                       parent("parent_billing.documents"),
