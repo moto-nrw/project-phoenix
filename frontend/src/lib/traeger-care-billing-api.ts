@@ -65,7 +65,7 @@ interface CareTariff {
   readonly monthlyCents: number;
 }
 
-interface CareSchool {
+export interface CareSchool {
   readonly id: string;
   readonly name: string;
 }
@@ -96,6 +96,10 @@ export interface CareRun {
   readonly totalCents: number | null;
   /** Empty until a released run records the rule it billed by. */
   readonly monthRule: CareMonthRule | "";
+  /** The schools the run bills (#5916). */
+  readonly schoolIds: readonly string[];
+  /** The invoice date of the run; null takes the day of the release. */
+  readonly invoiceDate: string | null;
 }
 
 export interface CareRunList {
@@ -149,6 +153,14 @@ export interface CareInvoice {
   /** The rules of the chain in their order (#4685); negative amounts. */
   readonly reductions: readonly CareReduction[];
   readonly totalCents: number;
+  /** Set on a preview invoice the release leaves out (#5916). */
+  readonly exclusion?: CareExclusion | null;
+}
+
+/** Why the release leaves an invoice of the preview out (#5916). */
+interface CareExclusion {
+  readonly reason: string;
+  readonly excludedAt: string;
 }
 
 /**
@@ -209,6 +221,12 @@ export interface CareRunDetail extends CareRun {
   readonly numberRangeSet: boolean;
   /** The due dates of the run per payment method (#4689). */
   readonly dueDates?: readonly RunDueDate[];
+  /** The review of a calculated run (#5916). */
+  readonly schools: readonly CareSchool[];
+  readonly excludedCount: number;
+  readonly excludedCents: number;
+  /** The reviewed state; the release sends it back. */
+  readonly fingerprint: string;
 }
 
 interface BackendModule {
@@ -249,6 +267,8 @@ interface BackendRun {
   document_count: number | null;
   total_cents: number | null;
   month_rule: CareMonthRule | "";
+  school_ids?: number[] | null;
+  invoice_date?: string | null;
 }
 
 interface BackendInvoice {
@@ -301,9 +321,10 @@ interface BackendInvoice {
       }[]
     | null;
   total_cents: number;
+  exclusion?: { reason: string; excluded_at: string } | null;
 }
 
-interface BackendRunDetail extends BackendRun {
+export interface BackendRunDetail extends BackendRun {
   invoices: BackendInvoice[] | null;
   unpriced:
     | {
@@ -335,6 +356,10 @@ interface BackendRunDetail extends BackendRun {
   number_pattern: string;
   number_range_set: boolean;
   due_dates?: BackendRunDueDate[] | null;
+  schools?: { id: number; name: string }[] | null;
+  excluded_count?: number;
+  excluded_cents?: number;
+  fingerprint?: string;
 }
 
 const TARIFFS_PATH = "/api/traeger/care-tariffs";
@@ -384,6 +409,8 @@ function runFromBackend(run: BackendRun): CareRun {
     documentCount: run.document_count,
     totalCents: run.total_cents,
     monthRule: run.month_rule,
+    schoolIds: (run.school_ids ?? []).map(id),
+    invoiceDate: run.invoice_date ?? null,
   };
 }
 
@@ -438,10 +465,16 @@ function invoiceFromBackend(invoice: BackendInvoice): CareInvoice {
       amountCents: reduction.amount_cents,
     })),
     totalCents: invoice.total_cents,
+    exclusion: invoice.exclusion
+      ? {
+          reason: invoice.exclusion.reason,
+          excludedAt: invoice.exclusion.excluded_at,
+        }
+      : null,
   };
 }
 
-function detailFromBackend(detail: BackendRunDetail): CareRunDetail {
+export function detailFromBackend(detail: BackendRunDetail): CareRunDetail {
   return {
     ...runFromBackend(detail),
     invoices: (detail.invoices ?? []).map(invoiceFromBackend),
@@ -473,6 +506,13 @@ function detailFromBackend(detail: BackendRunDetail): CareRunDetail {
     numberPattern: detail.number_pattern,
     numberRangeSet: detail.number_range_set,
     dueDates: runDueDatesFromBackend(detail.due_dates),
+    schools: (detail.schools ?? []).map((school) => ({
+      id: id(school.id),
+      name: school.name,
+    })),
+    excludedCount: detail.excluded_count ?? 0,
+    excludedCents: detail.excluded_cents ?? 0,
+    fingerprint: detail.fingerprint ?? "",
   };
 }
 
@@ -527,11 +567,24 @@ export async function fetchCareRuns(): Promise<CareRunList> {
   };
 }
 
-export async function startCareRun(billingMonth: string): Promise<CareRun> {
+/** What a new run bills (#5916): month, schools and invoice date. */
+export interface CareRunStartInput {
+  readonly billingMonth: string;
+  /** Empty: every school no open run of the month bills. */
+  readonly schoolIds: readonly string[];
+  /** Null takes the day of the release. */
+  readonly invoiceDate: string | null;
+}
+
+export async function startCareRun(input: CareRunStartInput): Promise<CareRun> {
   return runFromBackend(
     await traegerRequest<BackendRun>(RUNS_PATH, {
       method: "POST",
-      body: { billing_month: billingMonth },
+      body: {
+        billing_month: input.billingMonth,
+        school_ids: input.schoolIds.map(Number),
+        invoice_date: input.invoiceDate,
+      },
     }),
   );
 }
@@ -544,9 +597,15 @@ export async function fetchCareRun(runId: string): Promise<CareRunDetail> {
   );
 }
 
-/** Releases the preview the Abrechnung checked: its count and sum. */
+/**
+ * Releases the preview the Abrechnung checked: its count, sum and
+ * fingerprint. A preview that changed since is refused (#5916).
+ */
 export async function releaseCareRun(
-  run: Pick<CareRunDetail, "id" | "previewCount" | "previewCents">,
+  run: Pick<
+    CareRunDetail,
+    "id" | "previewCount" | "previewCents" | "fingerprint"
+  >,
 ): Promise<CareRunDetail> {
   return detailFromBackend(
     await traegerRequest<BackendRunDetail>(
@@ -556,6 +615,7 @@ export async function releaseCareRun(
         body: {
           document_count: run.previewCount,
           total_cents: run.previewCents,
+          fingerprint: run.fingerprint,
         },
       },
     ),

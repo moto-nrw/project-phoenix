@@ -741,7 +741,7 @@ export function SubstitutionSlideOver({
                       <div className="space-y-1 pt-1">
                         <SectionLabel as="h4">Aktuelle Vertretung</SectionLabel>
                         {canEdit && (
-                          <p className="mt-1 text-[11px] leading-5 text-gray-500">
+                          <p className="mt-1 text-sm leading-5 text-gray-500">
                             „Entfernen“ löscht die Vertretung nur aus diesem
                             Termin. Andere Termine bleiben unverändert.
                             {substitutes.some(

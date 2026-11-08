@@ -194,8 +194,8 @@ lg:flex-col`), sonst wächst nur die Hülle und die Fläche bleibt kurz.
     Werte, Sätze und Bedienelemente sind `text-sm` oder größer; die
     wichtigste Aussage einer Fläche ist ihre größte (`text-2xl` für die
     eine Antwort, `text-sm leading-6` für den Satz darunter — das
-    Eltern-Portal-Muster). `text-[9px]`…`text-[11px]` sind per Ratchet
-    gesperrt (`ui-kit/no-tiny-text`, Baseline shrink-only).
+    Eltern-Portal-Muster). `text-[9px]`…`text-[11px]` sind gesperrt
+    (`ui-kit/no-tiny-text`, hard-zero).
 17. **Eine Bedienhöhe: 40 px, unter sm 44 px.** `CONTROL_HEIGHT` im Gerüst
     zieht Knöpfe, Links in Button-Optik (`ButtonLink`), Felder und
     Auswahllisten der Kopfkarte auf 40 px (Telefon: 44 px, die

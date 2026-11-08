@@ -7,11 +7,11 @@ import {
 } from "~/lib/traeger-billing-terms-api";
 import {
   EMPTY_FAMILY_BILLING,
-  FamilyBillingModal,
+  FamilyBillingForm,
   type FamilyBillingTarget,
   familyBillingErrors,
   familyBillingInput,
-} from "./family-billing-modal";
+} from "./family-billing-form";
 
 const { saveFamilyBilling } = vi.hoisted(() => ({
   saveFamilyBilling: vi.fn(),
@@ -32,10 +32,10 @@ function renderModal(existing: FamilyBilling | null = null) {
   const onSaved = vi.fn();
   render(
     <ToastProvider>
-      <FamilyBillingModal
+      <FamilyBillingForm
         target={target}
         existing={existing}
-        onClose={vi.fn()}
+        onCancel={vi.fn()}
         onSaved={onSaved}
       />
     </ToastProvider>,
@@ -43,7 +43,7 @@ function renderModal(existing: FamilyBilling | null = null) {
   return { onSaved };
 }
 
-describe("FamilyBillingModal", () => {
+describe("FamilyBillingForm", () => {
   beforeEach(() => {
     saveFamilyBilling.mockReset();
   });

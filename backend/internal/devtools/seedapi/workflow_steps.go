@@ -260,7 +260,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			seedEnrollmentBookingsProfileStep{seeder: seeder},
 		)
 	}
-	steps = append(steps, seedStaffPersonMergeStep{}, seedTraegerBueroStep{}, seedTraegerHolidayPeriodStep{}, seedHolidayLegalStep{}, seedTraegerSettingsStep{}, seedTraegerMasterDataStep{}, seedTraegerCareContractsStep{}, seedTraegerCareContractSignaturesStep{}, seedTraegerCareMonthsStep{}, seedTraegerCareLettersStep{}, seedTraegerDocumentsStep{}, seedTraegerBillingLettersStep{}, seedTraegerBillingReissueStep{}, seedTraegerBillingCreditStep{}, seedTestTraegerStep{})
+	steps = append(append(steps, seedStaffPersonMergeStep{}), traegerSteps()...)
 	if !seeder.options.DeferHistory {
 		// Erst jetzt sind alle Kinder der Schule angelegt (#5031).
 		steps = append(steps, seedPresenceHistoryStep{seeder: seeder}, seedFeedbackHistoryStep{seeder: seeder}, seedChildQuotaStep{}, seedBillingKeyDateCountsStep{})
@@ -270,6 +270,13 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 	}
 	steps = append(steps, buildStateStep{seeder: seeder}, printSummaryStep{seeder: seeder})
 	return Workflow{Name: "full-demo", Steps: steps}
+}
+
+// traegerSteps are the steps of the Träger. They share the state of the
+// Träger with every other school seeded under it at the same time, so they
+// run one school at a time.
+func traegerSteps() []Step {
+	return traegerSerial(seedTraegerBueroStep{}, seedTraegerHolidayPeriodStep{}, seedHolidayLegalStep{}, seedTraegerSettingsStep{}, seedTraegerMasterDataStep{}, seedTraegerCareContractsStep{}, seedTraegerCareContractSignaturesStep{}, seedTraegerCareMonthsStep{}, seedTraegerCareLettersStep{}, seedTraegerDocumentsStep{}, seedTraegerBillingLettersStep{}, seedTraegerBillingReissueStep{}, seedTraegerBillingCreditStep{}, seedTestTraegerStep{})
 }
 
 func appendPayrollRuleSteps(steps []Step, seeder *Seeder) []Step {

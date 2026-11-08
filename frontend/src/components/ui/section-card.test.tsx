@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import type { CSSProperties } from "react";
 import userEvent from "@testing-library/user-event";
 import { createPortal } from "react-dom";
 import { describe, expect, it, vi } from "vitest";
@@ -385,5 +386,25 @@ describe("SectionCard as und hoverElevated (#5594)", () => {
     );
 
     expect(screen.getByTestId("bare")).not.toHaveClass("moto-hover-elevated");
+  });
+});
+
+// #6182: Ein Raster liest seine Spaltenvorlage aus CSS-Variablen der Karte;
+// ohne `style` baute das Wochenraster seine Kartenfläche selbst.
+describe("SectionCard style", () => {
+  it("reicht style an die Kartenfläche durch", () => {
+    render(
+      <SectionCard
+        testId="raster"
+        padding="none"
+        style={{ "--day-grid-cols": "repeat(5, 1fr)" } as CSSProperties}
+      >
+        Raster
+      </SectionCard>,
+    );
+
+    expect(
+      screen.getByTestId("raster").style.getPropertyValue("--day-grid-cols"),
+    ).toBe("repeat(5, 1fr)");
   });
 });

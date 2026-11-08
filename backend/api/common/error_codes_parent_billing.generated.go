@@ -21,6 +21,7 @@ const CodeParentBillingBillingTermsInvalid = "parent_billing.billing_terms_inval
 const CodeParentBillingCareEvidenceInvalid = "parent_billing.care_evidence_invalid"
 const CodeParentBillingCareEvidenceNotFound = "parent_billing.care_evidence_not_found"
 const CodeParentBillingCareEvidenceOverlap = "parent_billing.care_evidence_overlap"
+const CodeParentBillingCareExclusionConflict = "parent_billing.care_exclusion_conflict"
 const CodeParentBillingCareInvoiceCancelled = "parent_billing.care_invoice_cancelled"
 const CodeParentBillingCareInvoiceNotFound = "parent_billing.care_invoice_not_found"
 const CodeParentBillingCareRecipientChanged = "parent_billing.care_recipient_changed"
@@ -87,6 +88,7 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingCareEvidenceInvalid, "input"},
 	{CodeParentBillingCareEvidenceNotFound, "business_rejection"},
 	{CodeParentBillingCareEvidenceOverlap, "business_rejection"},
+	{CodeParentBillingCareExclusionConflict, "business_rejection"},
 	{CodeParentBillingCareInvoiceCancelled, "business_rejection"},
 	{CodeParentBillingCareInvoiceNotFound, "business_rejection"},
 	{CodeParentBillingCareRecipientChanged, "business_rejection"},

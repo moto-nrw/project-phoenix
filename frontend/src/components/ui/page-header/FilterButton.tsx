@@ -1,5 +1,7 @@
 "use client";
+import { Button } from "~/components/ui/button";
 import { NotificationBadge } from "~/components/ui/notification-badge";
+import { cn } from "~/lib/utils";
 
 interface FilterButtonProps {
   readonly isOpen: boolean;
@@ -20,7 +22,7 @@ export function FilterButton({
   onClick,
   hasActiveFilters,
   activeCount,
-  className = "",
+  className,
   testId,
 }: FilterButtonProps) {
   const showCountBadge =
@@ -30,19 +32,16 @@ export function FilterButton({
   const showRing = hasActiveFilters && !isOpen && activeCount === undefined;
 
   return (
-    <button
+    <Button
       type="button"
+      variant="filter"
+      size="icon"
       onClick={onClick}
       data-testid={testId}
       aria-label={showCountBadge ? `Filter (${activeCount} aktiv)` : "Filter"}
-      // `aspect-square` statt fester Breite: die Kopfkarte erzwingt die
-      // Bedienhöhe (40/44 px) per Nachfahren-Selektor — mit fester Breite
-      // wurde der runde Knopf dabei zum Oval. So folgt die Breite der Höhe.
-      className={`relative flex aspect-square h-10 items-center justify-center rounded-2xl transition-all duration-200 ${
-        isOpen
-          ? "border-moto-blue bg-moto-blue border text-white"
-          : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
-      } ${showRing ? "ring-moto-blue ring-2 ring-offset-1" : ""} ${className}`}
+      aria-expanded={isOpen}
+      data-filters-active={showRing ? "" : undefined}
+      className={cn("relative", className)}
     >
       <svg
         className="h-4 w-4"
@@ -66,6 +65,6 @@ export function FilterButton({
           className="absolute -top-1 -right-1 tabular-nums shadow-sm"
         />
       ) : null}
-    </button>
+    </Button>
   );
 }

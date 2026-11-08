@@ -441,6 +441,8 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentFutureScheduledBecom
 	refreshed, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(existing.ID))
 	require.NoError(t, err)
 	assert.Equal(t, peopledirectory.StudentStatusPending, refreshed.Status)
+	assert.Empty(t, membershipFirstCareFrom(t, existing.ID),
+		"a renewed child keeps its earlier care in reports (#6041)")
 
 	approved, err := testpkg.TenantQuery2(t, ctx, env.db, env.repos.Enrollment().ChildrenByPhaseStatuses, result.Phase.ID, []string{enrollmentNative.ChildStatusApproved})
 	require.NoError(t, err)

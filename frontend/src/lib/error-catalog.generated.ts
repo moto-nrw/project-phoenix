@@ -827,6 +827,8 @@ export const ERROR_CATALOG = {
         "Diesen Nachweis gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "parent_billing.care_evidence_overlap":
         "Für diese Zeit gibt es schon einen Nachweis dieser Art. Beenden Sie zuerst den alten Nachweis.",
+      "parent_billing.care_exclusion_conflict":
+        "Diese Rechnung hat sich gerade geändert. Bitte laden Sie die Seite neu.",
       "parent_billing.care_invoice_cancelled":
         "Diese Rechnung ist storniert. Sie wird nicht mehr verschickt.",
       "parent_billing.care_invoice_not_found":
@@ -839,7 +841,7 @@ export const ERROR_CATALOG = {
       "parent_billing.care_run_not_found":
         "Diesen Monatslauf gibt es nicht. Bitte öffnen Sie ihn über „Abrechnung“ und „Monatsbeiträge“.",
       "parent_billing.care_run_open":
-        "Für diesen Monat gibt es schon einen Lauf in der Vorschau. Bitte öffnen Sie diesen Lauf.",
+        "Eine gewählte Schule ist in diesem Monat schon in einem offenen Lauf. Öffnen Sie diesen Lauf oder wählen Sie andere Schulen.",
       "parent_billing.care_tariff_invalid":
         "Bitte prüfen Sie die Preise. Jeder Preis ist ein Betrag in Euro, nicht unter 0 €, und gilt ab dem 1. eines Monats.",
       "parent_billing.care_tariff_month_billed":

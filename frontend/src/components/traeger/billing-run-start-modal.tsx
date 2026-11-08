@@ -29,7 +29,7 @@ interface RunStartOption {
  * what the run bills, and the start. `onStart` starts the run; a refusal
  * shows at the top of the form.
  */
-export function RunStartModal({
+function RunStartModal({
   isOpen,
   title,
   field,

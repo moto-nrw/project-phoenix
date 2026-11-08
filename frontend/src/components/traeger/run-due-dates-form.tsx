@@ -5,10 +5,11 @@
 // Leistung ab dem Rechnungsdatum; eine Familie mit eigenem Zahltag behält
 // ihren Tag. Nach der Freigabe ändern sich die Daten nicht mehr.
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { EditActions } from "~/components/ui/edit-actions";
-import { FormModal } from "~/components/ui/form-modal";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { SectionCard } from "~/components/ui/section-card";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
@@ -19,7 +20,7 @@ import {
 } from "~/lib/traeger-billing-terms-api";
 import { PAYMENT_METHOD_LABELS } from "./billing-payment-format";
 
-const logger = createLogger({ component: "RunDueDatesModal" });
+const logger = createLogger({ component: "RunDueDatesForm" });
 
 type Draft = Record<PaymentMethod, string>;
 
@@ -29,33 +30,25 @@ function draftOf(dates: readonly RunDueDate[]): Draft {
   return draft;
 }
 
-export function RunDueDatesModal({
-  isOpen,
+/** The form of the due dates of a calculated run, on its own page. */
+export function RunDueDatesForm({
   kind,
   runId,
   dueDates,
-  onClose,
+  onCancel,
   onSaved,
 }: Readonly<{
-  isOpen: boolean;
   kind: "care" | "holiday";
   runId: string;
   dueDates: readonly RunDueDate[];
-  onClose: () => void;
+  onCancel: () => void;
   onSaved: (dates: RunDueDate[]) => void;
 }>) {
   const [draft, setDraft] = useState<Draft>(() => draftOf(dueDates));
   const [saving, setSaving] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
-  const { clear: clearErrors } = formErrors;
   const { success } = useToast();
-
-  useEffect(() => {
-    if (!isOpen) return;
-    setDraft(draftOf(dueDates));
-    clearErrors();
-  }, [isOpen, dueDates, clearErrors]);
 
   const submit = async () => {
     formErrors.clear();
@@ -81,22 +74,7 @@ export function RunDueDatesModal({
   };
 
   return (
-    <FormModal
-      isOpen={isOpen}
-      onClose={onClose}
-      closeDisabled={saving}
-      isBackdropDismissDisabled
-      title="Fälligkeiten ändern"
-      size="md"
-      error={formErrors.error}
-      footer={
-        <EditActions
-          onCancel={onClose}
-          onSave={() => formRef.current?.requestSubmit()}
-          saving={saving}
-        />
-      }
-    >
+    <SectionCard title="Fälligkeiten">
       <form
         ref={formRef}
         noValidate
@@ -126,7 +104,9 @@ export function RunDueDatesModal({
         <p className="text-sm text-gray-600">
           Familien mit eigenem Zahltag behalten ihren Tag.
         </p>
+        <FormErrorAlert message={formErrors.error} />
+        <EditActions onCancel={onCancel} saving={saving} />
       </form>
-    </FormModal>
+    </SectionCard>
   );
 }

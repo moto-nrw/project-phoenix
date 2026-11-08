@@ -213,18 +213,53 @@ export default function TraegerCareRunLettersPage() {
       // Another tab may already have released the replacement.
       const latest = await fetchCareLetters(run.id);
       setLetters(latest);
-      if (
-        !latest.documents.some(
-          (document) => document.kind === "cancellation" && !document.replaced,
-        )
-      )
-        return;
-      const open = (await fetchCareRuns()).runs.find(
-        (other) =>
-          other.status === "calculated" &&
-          other.billingMonth === run.billingMonth,
+      const cancelled = new Set(
+        latest.documents
+          .filter(
+            (document) =>
+              document.kind === "cancellation" && !document.replaced,
+          )
+          .map((document) => document.invoiceId),
       );
-      const target = open ?? (await startCareRun(run.billingMonth));
+      if (cancelled.size === 0) return;
+      const schoolIds = [
+        ...new Set(
+          run.invoices
+            .filter((invoice) => cancelled.has(invoice.id))
+            .map((invoice) => invoice.schoolId),
+        ),
+      ];
+      if (schoolIds.length === 0)
+        throw new Error("Cancelled invoices have no school in the run");
+      // Work through existing previews first, even if they cover only
+      // part of the outstanding cancellations. The remaining schools
+      // keep offering reissue after that preview has been released.
+      const findOpen = async () =>
+        (await fetchCareRuns()).runs.find(
+          (other) =>
+            other.status === "calculated" &&
+            other.billingMonth === run.billingMonth &&
+            schoolIds.some((id) => other.schoolIds.includes(id)),
+        );
+      let target = await findOpen();
+      if (!target) {
+        try {
+          target = await startCareRun({
+            billingMonth: run.billingMonth,
+            schoolIds,
+            invoiceDate: null,
+          });
+        } catch (err) {
+          if (
+            !(err instanceof ApiError) ||
+            err.code !== "parent_billing.care_run_open"
+          )
+            throw err;
+          // A parallel start may have reserved one of these schools.
+          target = await findOpen();
+          if (!target) throw err;
+        }
+      }
       router.push(
         traegerPath(`/traeger/abrechnung/monatsbeitraege/${target.id}`),
       );
@@ -232,13 +267,6 @@ export default function TraegerCareRunLettersPage() {
       logger.error("traeger_care_reissue_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      if (
-        err instanceof ApiError &&
-        err.code === "parent_billing.care_run_open"
-      ) {
-        router.push(traegerPath("/traeger/abrechnung/monatsbeitraege"));
-        return;
-      }
       void actionErrors.show(err, { object: "der neue Lauf" });
     } finally {
       setReissuing(false);

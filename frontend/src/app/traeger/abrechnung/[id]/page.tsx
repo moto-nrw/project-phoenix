@@ -30,7 +30,6 @@ import {
 } from "~/components/traeger/billing-format";
 import { runDueDatesText } from "~/components/traeger/billing-payment-format";
 import { formatEuro } from "~/components/traeger/contribution-format";
-import { RunDueDatesModal } from "~/components/traeger/run-due-dates-modal";
 import { formatDateRange } from "~/components/traeger/holiday-period-format";
 import { HolidayHeadFacts } from "~/components/traeger/holiday-period-head";
 import { Alert } from "~/components/ui/alert";
@@ -106,7 +105,6 @@ export default function TraegerBillingRunPage() {
     null,
   );
   const [confirmingRelease, setConfirmingRelease] = useState(false);
-  const [editingDueDates, setEditingDueDates] = useState(false);
   const router = useRouter();
   const reissueErrors = useApiErrorDisplay();
   const [releasing, setReleasing] = useState(false);
@@ -244,19 +242,6 @@ export default function TraegerBillingRunPage() {
       overlays={
         run ? (
           <>
-            {run.status === "calculated" ? (
-              <RunDueDatesModal
-                isOpen={editingDueDates}
-                kind="holiday"
-                runId={run.id}
-                dueDates={run.dueDates ?? []}
-                onClose={() => setEditingDueDates(false)}
-                onSaved={() => {
-                  setEditingDueDates(false);
-                  void load();
-                }}
-              />
-            ) : null}
             <BillingCorrectionModal
               runId={run.id}
               target={correcting}
@@ -306,14 +291,15 @@ export default function TraegerBillingRunPage() {
             description={runDescription(run)}
             actions={
               preview ? (
-                <Button
-                  type="button"
+                <ButtonLink
+                  href={traegerPath(
+                    `/traeger/abrechnung/${run.id}/faelligkeiten`,
+                  )}
                   variant="outline"
                   size="md"
-                  onClick={() => setEditingDueDates(true)}
                 >
                   Fälligkeiten ändern
-                </Button>
+                </ButtonLink>
               ) : undefined
             }
           >

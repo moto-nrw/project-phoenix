@@ -60,8 +60,9 @@ type termsRunBody struct {
 		PaymentMethod string `json:"payment_method"`
 		DueOn         string `json:"due_on"`
 	} `json:"due_dates"`
-	PreviewCount int   `json:"preview_count"`
-	PreviewCents int64 `json:"preview_cents"`
+	PreviewCount int    `json:"preview_count"`
+	PreviewCents int64  `json:"preview_cents"`
+	Fingerprint  string `json:"fingerprint"`
 }
 
 type termsDocumentBody struct {
@@ -87,6 +88,10 @@ func termsRun(t *testing.T, f careBillingFixture, token string, id int64) termsR
 	rec := traegerJSON(t, f.traeger, token, http.MethodGet, careRunPath(id, ""), nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	return decodeSchoolPortalData[termsRunBody](t, rec.Body.Bytes())
+}
+
+func termsRelease(run termsRunBody) map[string]any {
+	return map[string]any{"document_count": run.PreviewCount, "total_cents": run.PreviewCents, "fingerprint": run.Fingerprint}
 }
 
 func setTerms(t *testing.T, router http.Handler, token, service string, body map[string]any) {
@@ -183,8 +188,18 @@ func TestCareByDirectDebitAndHolidayByTransferStaySeparateInvoices(t *testing.T)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	holidayPreview := billingRun(t, f, billing, holiday.ID)
 
+	// The due dates are part of the reviewed state (#5916): a change after
+	// the review refuses the release, the reviewed state releases.
+	rec = traegerJSON(t, f.traeger, billing, http.MethodPut, runDueDatesPathOf("care", monthly.ID), dueDates("2030-01-02", "2030-01-05"))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rec = traegerJSON(t, f.traeger, billing, http.MethodPost, careRunPath(monthly.ID, "/release"), termsRelease(preview))
+	assert.Equal(t, http.StatusConflict, rec.Code, "a changed due date refuses the release: %s", rec.Body.String())
+	assert.Contains(t, rec.Body.String(), "parent_billing.billing_run_changed")
+	rec = traegerJSON(t, f.traeger, billing, http.MethodPut, runDueDatesPathOf("care", monthly.ID), dueDates("2030-01-02", "2030-01-04"))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, preview.Fingerprint, termsRun(t, care, billing, monthly.ID).Fingerprint, "the same dates give the same state")
 	rec = traegerJSON(t, f.traeger, billing, http.MethodPost, careRunPath(monthly.ID, "/release"),
-		map[string]any{"document_count": preview.PreviewCount, "total_cents": preview.PreviewCents})
+		termsRelease(preview))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	released := decodeSchoolPortalData[termsRunBody](t, rec.Body.Bytes())
 	rec = traegerJSON(t, f.traeger, billing, http.MethodPost, billingRunPath(holiday.ID, "/release"), releaseBody(holidayPreview))
@@ -282,7 +297,7 @@ func TestFamilyDeviationReachesTheNextReleaseOnly(t *testing.T) {
 	first := f.startRun(t, careMonth)
 	firstPreview := termsRun(t, f, f.office.token, first.ID)
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(first.ID, "/release"),
-		map[string]any{"document_count": firstPreview.PreviewCount, "total_cents": firstPreview.PreviewCents})
+		termsRelease(firstPreview))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	issued := decodeSchoolPortalData[termsRunBody](t, rec.Body.Bytes()).Invoices[0]
 	assert.Equal(t, "Eva", issued.Recipient.FirstName)
@@ -338,7 +353,7 @@ func TestFamilyDeviationReachesTheNextReleaseOnly(t *testing.T) {
 	assert.Equal(t, "direct_debit", invoice.Payment.Method)
 	assert.Equal(t, "family", invoice.Payment.DueSource)
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(next.ID, "/release"),
-		map[string]any{"document_count": preview.PreviewCount, "total_cents": preview.PreviewCents})
+		termsRelease(preview))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	var familyEmail, kind, street string
 	require.NoError(t, f.db.NewRaw(`SELECT family_email, recipient_kind, recipient_address_street FROM parent_billing.care_invoices

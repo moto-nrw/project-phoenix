@@ -277,7 +277,9 @@ export default function TraegerBillingFamilyPage() {
             <DataTable
               columns={COLUMNS}
               rows={[...family.documents]}
-              getRowKey={(document) => `${document.service}-${document.id}`}
+              getRowKey={(document) =>
+                `${document.service ?? "holiday"}-${document.id}`
+              }
               stackedOnMobile
               onRowClick={(document) =>
                 router.push(

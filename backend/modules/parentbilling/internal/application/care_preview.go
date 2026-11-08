@@ -35,11 +35,12 @@ type careMonth struct {
 	// dueDates are the run's due dates the payments used (#4689).
 	dueDates parentbilling.RunDueDates
 	// deviations are the family deviations the invoices took (#4689).
-	deviations []parentbilling.FamilyBilling
-	invoices   []parentbilling.CareInvoice
-	unpriced   []parentbilling.CareUnpriced
-	duplicates []parentbilling.CareDuplicate
-	billed     int
+	deviations     []parentbilling.FamilyBilling
+	invoices       []parentbilling.CareInvoice
+	unpriced       []parentbilling.CareUnpriced
+	duplicates     []parentbilling.CareDuplicate
+	billed         int
+	billedBySchool map[int64]int
 }
 
 func (m careMonth) total() int64 {
@@ -102,6 +103,10 @@ func buildCareMonth(in careMonthInput) (careMonth, error) {
 	}
 	chained = append(chained, issuedCareEntries(in.invoiced, childOf, byContract)...)
 	result.billed = len(in.invoiced)
+	result.billedBySchool = make(map[int64]int)
+	for _, invoice := range in.invoiced {
+		result.billedBySchool[invoice.SchoolID]++
+	}
 	applyCareChain(chained, careChainInput{month: in.month, rules: in.rules, evidences: in.evidences})
 	slices.SortStableFunc(result.invoices, func(a, b parentbilling.CareInvoice) int {
 		return firstNonZero(compareOrdered(a.SchoolName, b.SchoolName), compareOrdered(a.ChildLastName, b.ChildLastName),

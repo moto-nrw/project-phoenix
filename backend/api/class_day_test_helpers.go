@@ -80,7 +80,7 @@ func NewClassDayTestModuleWithRealtime(db transactionruntime.Database, unit tena
 	activeSettings := NewActiveTestSettings(db, unit, clocks...)
 	activeCaller := NewActiveTestCaller(db, unit, clocks...)
 	activeTimetable, _ := NewActiveTestTimetable(db, unit, clocks...)
-	care, _, err := NewCareLifecycleTestModule(db, unit)
+	care, _, err := NewCareLifecycleTestModule(db, unit, clocks...)
 	if err != nil {
 		return ClassDayTestModule{}, err
 	}

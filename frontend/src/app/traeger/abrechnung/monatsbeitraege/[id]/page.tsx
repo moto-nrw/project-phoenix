@@ -3,14 +3,14 @@
 // Ein Monatslauf (#4684): die Vorschau aller Rechnungen eines Monats nach
 // dem gültigen Vertrag und der Preisliste, und die Freigabe, die jede
 // Rechnung mit ihrer Nummer ausstellt. Danach ändern sich die Rechnungen
-// nicht mehr. Ein freigegebener Lauf zeigt den Stand seiner Schreiben an die
+// nicht mehr. Vor der Freigabe ist die Prüfphase (#5916): Rechnungsdatum
+// ändern, einzelne Rechnungen mit Grund ausschließen, Prüfliste laden. Die
+// Freigabe stellt genau den geprüften Stand aus. Ein freigegebener Lauf zeigt den Stand seiner Schreiben an die
 // Familien; Erstellen, Senden, Drucken und Stornieren liegen auf der Seite
 // „Schreiben“ ([id]/schreiben). Jedes Öffnen steht im Protokoll des Laufs.
-// Jede Rechnung zeigt Zahlungsweg und Fälligkeit; im Menü der Zeile stehen
-// Empfänger und Zahlung ihrer Familie. Die Fälligkeiten des Laufs lassen
-// sich bis zur Freigabe ändern (#4689).
 
-import { useParams } from "next/navigation";
+import dynamic from "next/dynamic";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import {
   CARE_RUN_STATUS_LABELS,
@@ -24,13 +24,14 @@ import {
   CareDuplicatesCard,
   CareUnpricedCard,
 } from "~/components/traeger/care-run-invoices";
-import { runDueDatesText } from "~/components/traeger/billing-payment-format";
-import {
-  FamilyBillingModal,
-  type FamilyBillingTarget,
-} from "~/components/traeger/family-billing-modal";
-import { RunDueDatesModal } from "~/components/traeger/run-due-dates-modal";
 import { CareLettersSummaryCard } from "~/components/traeger/care-letters-summary-card";
+import { runDueDatesText } from "~/components/traeger/billing-payment-format";
+import { invoiceDateLabel } from "~/components/traeger/care-review-format";
+import {
+  CareExcludedCard,
+  CareReviewExport,
+  exclusionColumn,
+} from "~/components/traeger/care-run-review-lazy";
 import { formatEuro } from "~/components/traeger/contribution-format";
 import { HolidayHeadFacts } from "~/components/traeger/holiday-period-head";
 import { Alert } from "~/components/ui/alert";
@@ -40,6 +41,7 @@ import { ConfirmationModal } from "~/components/ui/modal";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { WizardStepper } from "~/components/ui/wizard-stepper";
 import {
   useApiErrorDisplay,
   useApiLoadError,
@@ -48,11 +50,6 @@ import {
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
-  type FamilyBilling,
-  fetchFamilyBillings,
-} from "~/lib/traeger-billing-terms-api";
-import { findFamilyBilling } from "~/components/traeger/billing-payment-format";
-import {
   type CareInvoice,
   type CareLetters,
   type CareRunDetail,
@@ -60,9 +57,33 @@ import {
   fetchCareRun,
   releaseCareRun,
 } from "~/lib/traeger-care-billing-api";
+import { includeCareInvoice } from "~/lib/traeger-care-review-api";
 import { traegerPath } from "~/lib/traeger-url";
 
 const logger = createLogger({ component: "TraegerCareRunPage" });
+
+// The dialogs of the review load when one opens (#5916).
+const CareExcludeModal = dynamic(
+  () =>
+    import("~/components/traeger/care-run-review-modals").then(
+      (module) => module.CareExcludeModal,
+    ),
+  { ssr: false },
+);
+const CareInvoiceDateModal = dynamic(
+  () =>
+    import("~/components/traeger/care-run-review-modals").then(
+      (module) => module.CareInvoiceDateModal,
+    ),
+  { ssr: false },
+);
+
+/** The three steps of a monthly run; the page shows where it stands. */
+const RUN_STEPS = [
+  "Vorschau prüfen",
+  "Freigeben: Rechnungen bekommen ihre Nummer",
+  "An die Familien senden",
+] as const;
 
 /**
  * "1 Kind mit doppeltem Vertrag wird nicht abgerechnet.", after the release
@@ -77,6 +98,7 @@ function notBilledLabel(children: number, released = false): string {
 
 export default function TraegerCareRunPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const runId = params?.id ?? "";
   const [run, setRun] = useState<CareRunDetail | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -86,14 +108,12 @@ export default function TraegerCareRunPage() {
   const releaseErrors = useApiErrorDisplay();
   const { success } = useToast();
   const [letters, setLetters] = useState<CareLetters | null>(null);
+  const [excluding, setExcluding] = useState<CareInvoice | null>(null);
+  const [editingDate, setEditingDate] = useState(false);
+  const [returning, setReturning] = useState<string | null>(null);
+  const reviewErrors = useApiErrorDisplay();
   const lettersLoad = useApiLoadError();
   const { show: showLettersError, clear: clearLettersError } = lettersLoad;
-  const [editingDueDates, setEditingDueDates] = useState(false);
-  const [family, setFamily] = useState<{
-    target: FamilyBillingTarget;
-    existing: FamilyBilling | null;
-  } | null>(null);
-  const familyErrors = useApiErrorDisplay();
 
   const load = useCallback(async () => {
     try {
@@ -131,8 +151,8 @@ export default function TraegerCareRunPage() {
   }, [runId, clearLettersError, showLettersError]);
 
   useEffect(() => {
-    if (released) void loadLetters();
-  }, [released, loadLetters]);
+    if (released && run.previewCount > 0) void loadLetters();
+  }, [released, run?.previewCount, loadLetters]);
 
   const release = async () => {
     if (!run) return;
@@ -142,9 +162,11 @@ export default function TraegerCareRunPage() {
       setRun(released);
       setConfirming(false);
       success(
-        released.duplicateChildren > 0
-          ? `Der Lauf ist freigegeben. ${notBilledLabel(released.duplicateChildren, true)}`
-          : "Der Lauf ist freigegeben. Die Rechnungen sind ausgestellt.",
+        released.previewCount === 0
+          ? "Der Lauf ist ohne Rechnungen abgeschlossen."
+          : released.duplicateChildren > 0
+            ? `Der Lauf ist freigegeben. ${notBilledLabel(released.duplicateChildren, true)}`
+            : "Der Lauf ist freigegeben. Die Rechnungen sind ausgestellt.",
       );
     } catch (err) {
       logger.error("traeger_care_run_release_failed", {
@@ -158,39 +180,42 @@ export default function TraegerCareRunPage() {
     }
   };
 
-  // The family's deviation is read fresh each time, so the dialog shows
-  // what another person may have saved meanwhile.
-  const openFamilyBilling = async (invoice: CareInvoice) => {
+  const include = async (invoice: CareInvoice) => {
+    if (!run) return;
+    setReturning(invoice.contractId);
     try {
-      const families = await fetchFamilyBillings();
-      setFamily({
-        target: {
-          contractId: invoice.contractId,
-          applicantName:
-            invoice.recipient.kind === "payer"
-              ? ""
-              : `${invoice.recipient.firstName} ${invoice.recipient.lastName}`.trim(),
-          childName:
-            `${invoice.childFirstName} ${invoice.childLastName}`.trim(),
-          issued: invoice.number !== "",
-        },
-        existing: findFamilyBilling(families, {
-          contractId: invoice.contractId,
-          familyEmail: invoice.familyEmail,
-          recipientEmail: invoice.recipient.email,
-          recipientKind: invoice.recipient.kind,
-        }),
-      });
+      setRun(await includeCareInvoice(run.id, invoice.contractId));
+      success(
+        `Die Rechnung von ${invoice.childFirstName} ${invoice.childLastName} ist wieder im Lauf.`,
+      );
     } catch (err) {
-      logger.error("traeger_family_billing_load_failed", {
+      logger.error("traeger_care_invoice_include_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      void familyErrors.show(err, { object: "Empfänger und Zahlung" });
+      void reviewErrors.show(err, { object: "die Rechnung" });
+      void load();
+    } finally {
+      setReturning(null);
     }
   };
 
+  // Recipient and payment of a family are set on their own page, so the run
+  // does not load that form (#4689).
+  const openFamilyBilling = (invoice: CareInvoice) => {
+    if (!run) return;
+    router.push(
+      traegerPath(
+        `/traeger/abrechnung/monatsbeitraege/${run.id}/empfaenger/${invoice.contractId}`,
+      ),
+    );
+  };
+
   const preview = run?.status === "calculated";
-  const canRelease = preview && run.numberRangeSet && run.previewCount > 0;
+  const canRelease =
+    preview &&
+    (run.previewCount > 0 ? run.numberRangeSet : run.excludedCount > 0);
+  const issuable = run?.invoices.filter((invoice) => !invoice.exclusion) ?? [];
+  const excluded = run?.invoices.filter((invoice) => invoice.exclusion) ?? [];
 
   return (
     <TenantPage
@@ -232,80 +257,142 @@ export default function TraegerCareRunPage() {
       loading={!pageLoad.error && !run}
       overlays={
         run ? (
-          <>
-            <FamilyBillingModal
-              target={family?.target ?? null}
-              existing={family?.existing ?? null}
-              onClose={() => setFamily(null)}
-              onSaved={() => {
-                setFamily(null);
-                if (preview) void load();
-              }}
-            />
-            {preview ? (
-              <RunDueDatesModal
-                isOpen={editingDueDates}
-                kind="care"
-                runId={run.id}
-                dueDates={run.dueDates ?? []}
-                onClose={() => setEditingDueDates(false)}
-                onSaved={() => {
-                  setEditingDueDates(false);
-                  void load();
-                }}
-              />
-            ) : null}
-            <ConfirmationModal
-              isOpen={confirming}
-              title="Monatslauf freigeben?"
-              confirmText="Freigeben"
-              isConfirmLoading={releasing}
-              loadingText="Wird freigegeben …"
-              onClose={() => setConfirming(false)}
-              onConfirm={() => void release()}
-            >
-              <p className="text-sm text-gray-700">
-                {invoiceCountLabel(run.previewCount)} über{" "}
-                {formatEuro(run.previewCents)} für{" "}
-                {formatMonth(run.billingMonth)} bekommen ihre Nummer. Danach
-                lassen sie sich nicht mehr ändern.
+          <ConfirmationModal
+            isOpen={confirming}
+            title="Monatslauf freigeben?"
+            confirmText="Freigeben"
+            isConfirmLoading={releasing}
+            loadingText="Wird freigegeben …"
+            onClose={() => setConfirming(false)}
+            onConfirm={() => void release()}
+          >
+            <p className="text-sm text-gray-700">
+              {run.previewCount === 0 ? (
+                "Der Lauf wird ohne Rechnungen abgeschlossen. Die Schulen sind danach wieder frei."
+              ) : (
+                <>
+                  {invoiceCountLabel(run.previewCount)} über{" "}
+                  {formatEuro(run.previewCents)} für{" "}
+                  {formatMonth(run.billingMonth)} bekommen ihre Nummer und das
+                  Rechnungsdatum {invoiceDateLabel(run.invoiceDate)}. Danach
+                  lassen sie sich nicht mehr ändern.
+                </>
+              )}
+            </p>
+            {run.excludedCount > 0 ? (
+              <p className="mt-3 text-sm text-gray-700">
+                {run.excludedCount === 1
+                  ? "1 ausgeschlossene Rechnung bekommt keine Nummer."
+                  : `${run.excludedCount} ausgeschlossene Rechnungen bekommen keine Nummer.`}
               </p>
-              {run.duplicateChildren > 0 ? (
-                <p className="mt-3 text-sm text-gray-700">
-                  {notBilledLabel(run.duplicateChildren)} Das holen Sie mit
-                  einem neuen Lauf nach, wenn ein Vertrag beendet ist.
-                </p>
-              ) : null}
-            </ConfirmationModal>
-          </>
+            ) : null}
+            {run.duplicateChildren > 0 ? (
+              <p className="mt-3 text-sm text-gray-700">
+                {notBilledLabel(run.duplicateChildren)} Das holen Sie mit einem
+                neuen Lauf nach, wenn ein Vertrag beendet ist.
+              </p>
+            ) : null}
+          </ConfirmationModal>
         ) : null
       }
     >
       {run ? (
         <>
+          {preview ? (
+            <>
+              <CareExcludeModal
+                runId={run.id}
+                invoice={excluding}
+                onClose={() => setExcluding(null)}
+                onExcluded={(next) => {
+                  setRun(next);
+                  setExcluding(null);
+                  success("Die Rechnung ist ausgeschlossen.");
+                }}
+              />
+              <CareInvoiceDateModal
+                run={run}
+                isOpen={editingDate}
+                onClose={() => setEditingDate(false)}
+                onSaved={(next) => {
+                  setRun(next);
+                  setEditingDate(false);
+                  success("Das Rechnungsdatum ist gespeichert.");
+                }}
+              />
+            </>
+          ) : null}
           <SectionCard
             title="Monatslauf"
             description={
               preview
-                ? "Vorschau nach den Verträgen, die in diesem Monat gelten. Neue Verträge und Preise kommen bis zur Freigabe dazu."
-                : "Die Rechnungen sind ausgestellt und lassen sich nicht mehr ändern."
+                ? "Prüfen Sie die Vorschau. Neue Verträge und Preise kommen bis zur Freigabe dazu. Eine Rechnung, die noch nicht stimmt, schließen Sie über das Menü ihrer Zeile aus."
+                : run.previewCount === 0
+                  ? "Der Lauf ist ohne Rechnungen abgeschlossen. Die Schulen sind wieder frei."
+                  : "Die Rechnungen sind ausgestellt und lassen sich nicht mehr ändern. Eine falsche Rechnung stornieren Sie auf der Seite „Schreiben“."
             }
-            actions={
-              preview ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  onClick={() => setEditingDueDates(true)}
-                >
-                  Fälligkeiten ändern
-                </Button>
-              ) : undefined
-            }
+            action={preview ? <CareReviewExport runId={run.id} /> : undefined}
           >
+            <WizardStepper
+              steps={RUN_STEPS}
+              current={preview ? 0 : 1}
+              className="mb-5"
+            />
             <DataGrid columns={2}>
               <DataField label="Monat">
                 {formatMonth(run.billingMonth)}
+              </DataField>
+              <DataField label="Schulen">
+                {preview
+                  ? run.schools.map((school) => school.name).join(", ") || "–"
+                  : run.schoolIds.length === 0
+                    ? "–"
+                    : run.schoolIds.length === 1
+                      ? "1 Schule"
+                      : `${run.schoolIds.length} Schulen`}
+              </DataField>
+              <DataField label="Rechnungsdatum">
+                {preview ? (
+                  <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span>{invoiceDateLabel(run.invoiceDate)}</span>
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="md"
+                      aria-label="Rechnungsdatum ändern"
+                      onClick={() => setEditingDate(true)}
+                    >
+                      Ändern
+                    </Button>
+                  </span>
+                ) : run.issuedOn ? (
+                  formatDate(run.issuedOn)
+                ) : (
+                  "–"
+                )}
+              </DataField>
+              <DataField label="Fällig">
+                {preview ? (
+                  <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span>
+                      {runDueDatesText(run.dueDates ?? []) ??
+                        "Nach dem Zahlungsziel der Leistung"}
+                    </span>
+                    <ButtonLink
+                      href={traegerPath(
+                        `/traeger/abrechnung/monatsbeitraege/${run.id}/faelligkeiten`,
+                      )}
+                      variant="link"
+                      size="md"
+                      aria-label="Fälligkeiten ändern"
+                    >
+                      Ändern
+                    </ButtonLink>
+                  </span>
+                ) : (
+                  (runDueDatesText(run.dueDates ?? []) ??
+                  "Nach dem Zahlungsziel der Leistung")
+                )}
               </DataField>
               <DataField label="Rechnungen">
                 <span className="tabular-nums">
@@ -320,18 +407,20 @@ export default function TraegerCareRunPage() {
                 {run.monthRule ? MONTH_RULE_LABELS[run.monthRule] : "–"}
               </DataField>
               <DataField label="Rechnungsnummern">
-                {run.issuedOn ? (
-                  `Ausgestellt am ${formatDate(run.issuedOn)}`
-                ) : run.numberRangeSet ? (
+                {run.numberRangeSet ? (
                   <span className="font-mono">{run.numberPattern}</span>
                 ) : (
                   "Noch kein Muster"
                 )}
               </DataField>
-              <DataField label="Fällig">
-                {runDueDatesText(run.dueDates ?? []) ??
-                  "Nach dem Zahlungsziel der Leistung"}
-              </DataField>
+              {preview && run.excludedCount > 0 ? (
+                <DataField label="Ausgeschlossen">
+                  <span className="tabular-nums">
+                    {invoiceCountLabel(run.excludedCount)} ·{" "}
+                    {formatEuro(run.excludedCents)}
+                  </span>
+                </DataField>
+              ) : null}
               {run.billed > 0 ? (
                 <DataField label="Schon abgerechnet">
                   {run.billed === 1
@@ -341,7 +430,7 @@ export default function TraegerCareRunPage() {
               ) : null}
             </DataGrid>
           </SectionCard>
-          {preview && !run.numberRangeSet ? (
+          {preview && run.previewCount > 0 && !run.numberRangeSet ? (
             <Alert
               type="warning"
               message="Bevor Sie freigeben: Legen Sie das Muster der Rechnungsnummern für Monatsbeiträge fest."
@@ -358,7 +447,14 @@ export default function TraegerCareRunPage() {
           ) : null}
           <CareDuplicatesCard duplicates={run.duplicates} released={!preview} />
           {preview ? <CareUnpricedCard unpriced={run.unpriced} /> : null}
-          {released ? (
+          {preview ? (
+            <CareExcludedCard
+              invoices={excluded}
+              returning={returning}
+              onInclude={(invoice) => void include(invoice)}
+            />
+          ) : null}
+          {released && run.previewCount > 0 ? (
             <CareLettersSummaryCard
               href={traegerPath(
                 `/traeger/abrechnung/monatsbeitraege/${run.id}/schreiben`,
@@ -368,11 +464,16 @@ export default function TraegerCareRunPage() {
             />
           ) : null}
           <CareRunInvoices
-            invoices={run.invoices}
+            invoices={preview ? issuable : run.invoices}
             month={run.billingMonth}
             released={!preview}
             letters={released ? letters?.documents : undefined}
-            onFamilyBilling={(invoice) => void openFamilyBilling(invoice)}
+            letterColumns={
+              preview
+                ? [exclusionColumn(setExcluding, openFamilyBilling)]
+                : undefined
+            }
+            onFamilyBilling={preview ? undefined : openFamilyBilling}
           />
         </>
       ) : null}

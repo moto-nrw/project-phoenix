@@ -6,6 +6,15 @@
   "api/traeger/care-billing-runs/[id]": [
     "GET traeger /traeger/care-billing-runs/id%2F1"
   ],
+  "api/traeger/care-billing-runs/[id]/exclusions": [
+    "POST traeger /traeger/care-billing-runs/id%2F1/exclusions"
+  ],
+  "api/traeger/care-billing-runs/[id]/exclusions/[contractId]": [
+    "DELETE traeger /traeger/care-billing-runs/id%2F1/exclusions/contractId%2F1"
+  ],
+  "api/traeger/care-billing-runs/[id]/invoice-date": [
+    "PUT traeger /traeger/care-billing-runs/id%2F1/invoice-date"
+  ],
   "api/traeger/care-billing-runs/[id]/invoices/[invoiceId]/cancellation": [
     "POST traeger /traeger/care-billing-runs/id%2F1/invoices/invoiceId%2F1/cancellation"
   ],
@@ -24,5 +33,8 @@
   ],
   "api/traeger/care-billing-runs/[id]/release": [
     "POST traeger /traeger/care-billing-runs/id%2F1/release"
+  ],
+  "api/traeger/care-billing-runs/schools": [
+    "GET traeger /traeger/care-billing-runs/schools query=month"
   ]
 }

@@ -49,7 +49,7 @@ export interface BillingFamily extends BillingAmounts {
 export interface BillingFamilyDocument {
   readonly id: string;
   /** Holiday care or monthly care (#4689); the run belongs to it. */
-  readonly service: "holiday" | "care";
+  readonly service?: "holiday" | "care";
   readonly runId: string;
   readonly kind: BillingDocumentKind;
   readonly number: string;
