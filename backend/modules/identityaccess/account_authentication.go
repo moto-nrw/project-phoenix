@@ -125,7 +125,6 @@ type SessionClaims struct {
 	// the school and acts with the school's admin role through the Träger.
 	ViaTraeger bool
 	ExpiresAt  int64
-	IssuedAt   int64
 }
 
 // AccessSession names the refresh-token family a verified access token rests

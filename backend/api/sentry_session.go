@@ -5,14 +5,13 @@ import (
 	"strconv"
 
 	"github.com/getsentry/sentry-go"
-	"github.com/go-chi/jwtauth/v5"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // SentrySessionContext tags every Sentry event of a request with the session
 // it acts for (#3643), a panic event included. It runs after the root
 // verifier, which leaves a token only when its signature and expiry hold;
-// ParseClaims rejects MFA interim tokens. A request without a session
+// only a session token counts, MFA interim tokens do not. A request without a session
 // carries no user and no session tags.
 //
 // The data boundary of #3590 holds: user.id is the internal account ID and
@@ -31,9 +30,8 @@ func SentrySessionContext(next http.Handler) http.Handler {
 }
 
 func verifiedSession(r *http.Request) (sessiontoken.AppClaims, bool) {
-	var claims sessiontoken.AppClaims
-	token, raw, err := jwtauth.FromContext(r.Context())
-	if err != nil || token == nil || claims.ParseClaims(raw) != nil || claims.ID == 0 {
+	claims, ok := sessiontoken.VerifiedAccessClaims(r.Context())
+	if !ok || claims.ID == 0 {
 		return sessiontoken.AppClaims{}, false
 	}
 	return claims, true

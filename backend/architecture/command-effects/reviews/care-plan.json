@@ -14988,9 +14988,9 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/internal/ports.TokenCodec.Hash",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.OpaqueCapabilityFingerprint (identity-access) through modules/careplan/requestfeed/compose.tokenAdapter.Hash. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/tokenprimitives.OpaqueCapabilityFingerprint (identity-access) through modules/careplan/requestfeed/compose.tokenAdapter.Hash. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098); retargeted from the removed sessiontoken wrapper.",
       "source_owner": "care-plan",
-      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.OpaqueCapabilityFingerprint",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives.OpaqueCapabilityFingerprint",
       "target_owner": "identity-access"
     },
     {
@@ -14998,9 +14998,9 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/internal/ports.TokenCodec.New",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.NewOpaqueCapabilityToken (identity-access) through modules/careplan/requestfeed/compose.tokenAdapter.New. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/tokenprimitives.NewOpaqueCapabilityToken (identity-access) through modules/careplan/requestfeed/compose.tokenAdapter.New. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098); retargeted from the removed sessiontoken wrapper.",
       "source_owner": "care-plan",
-      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.NewOpaqueCapabilityToken",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives.NewOpaqueCapabilityToken",
       "target_owner": "identity-access"
     },
     {

@@ -1304,6 +1304,11 @@
       "decision": "0090",
       "id": "modules/identityaccess/internal/domain/SchoolInvitation.Redeemable",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0132",
+      "id": "modules/identityaccess/sessiontoken/TokenAuth.ParseAccessJWT",
+      "reason": "B3: verifies the signature, reads the claims through the one wire decoder and refuses expiry; shortened by the shared decoder, not a forward."
     }
   ]
 }

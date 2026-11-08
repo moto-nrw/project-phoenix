@@ -92,7 +92,7 @@ func TestMFAResendRejectsExpiredCredentialBeforeDelivery(t *testing.T) {
 	mailer := &cancelingMFAMailer{err: errors.New("must not be called")}
 	svc, _, db, tokenAuth := newSynchronousDeliveryMFAService(t, mailer)
 	account := testpkg.CreateTestAccount(t, db, "mfa-sync-expired-token")
-	expiredToken, err := tokentest.CreateMFAChallengeJWT(tokenAuth, sessiontoken.MFAChallengeClaims{
+	expiredToken, err := tokentest.CreateMFAChallengeJWT(tokenAuth, tokentest.MFAChallengeClaims{
 		AccountID:  account.ID,
 		Scope:      identityaccess.MFAChallengeScopeTenant,
 		MFAPending: true,

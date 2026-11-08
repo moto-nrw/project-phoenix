@@ -5,13 +5,11 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application/rotation"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
 )
 
 // TrustedDeviceCookieName mirrors the tenant-side constant. The operator
@@ -138,31 +136,18 @@ func (rs *Resource) Login(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// RefreshToken handles operator token refresh. The refresh JWT was verified
-// by the router's middleware; only operator-scoped tokens that name a
-// persisted session reach the capability.
+// RefreshToken handles operator token refresh. The router's middleware
+// verified the refresh JWT; the capability refuses every token that does not
+// name a persisted operator session.
 func (rs *Resource) RefreshToken(w http.ResponseWriter, r *http.Request) {
-	if sessiontoken.RefreshTokenFromCtx(r.Context()) == "" {
-		common.RenderError(w, r, rs.responses.Unauthorized())
-		return
-	}
-
-	var claims sessiontoken.RefreshClaims
-	_, rawClaims, _ := jwtauth.FromContext(r.Context())
-	if err := claims.ParseClaims(rawClaims); err != nil {
-		common.RenderError(w, r, rs.responses.Unauthorized())
-		return
-	}
-	// Pre-fix deterministic operator refresh tokens had no persisted session
-	// and no platform scope claim; reject them before the lookup, as well as
-	// every tenant or user token.
-	if claims.Scope != tokenprimitives.PlatformClaims.Claim || claims.Token == "" {
+	presented := sessiontoken.RefreshTokenFromCtx(r.Context())
+	if presented == "" {
 		common.RenderError(w, r, rs.responses.Unauthorized())
 		return
 	}
 
 	ctx := rotation.WithRecoveryProof(r.Context(), r.Header.Get(rotation.RecoveryProofHeader))
-	accessToken, refreshToken, err := rs.identity.RefreshOperatorToken(ctx, int64(claims.ID), claims.Token)
+	accessToken, refreshToken, err := rs.identity.RefreshOperatorToken(ctx, presented)
 	if err != nil {
 		common.RenderError(w, r, rs.authError(err))
 		return

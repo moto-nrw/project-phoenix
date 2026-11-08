@@ -162,8 +162,6 @@ func (e demoEnv) endCooldown(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func fingerprint(token string) string { return testutil.OpaqueCapabilityFingerprint(token) }
-
 func (e demoEnv) status(token string) *httptest.ResponseRecorder {
 	req := testutil.NewRequest(http.MethodGet, "/demo/access/status", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -185,7 +183,7 @@ func TestDemoAccessRequestStoresOnlyTheTokenFingerprint(t *testing.T) {
 	require.NoError(t, env.db.NewRaw(`SELECT email, source, contact_opt_in,
 			ROUND(EXTRACT(EPOCH FROM expires_at - created_at) / 86400)::int AS valid_days,
 			(SELECT COUNT(*) FROM auth.demo_accesses WHERE token_hash = ?)::int AS raw
-		FROM auth.demo_accesses WHERE token_hash = ?`, token, fingerprint(token)).Scan(context.Background(), &row))
+		FROM auth.demo_accesses WHERE token_hash = encode(sha256(?::bytea), 'hex')`, token, token).Scan(context.Background(), &row))
 	assert.Equal(t, env.address(), row.Email, "the address is stored trimmed and in lower case")
 	assert.Equal(t, "messe", row.Source)
 	assert.True(t, row.OptIn)
@@ -303,7 +301,7 @@ func TestDemoAccessRejectsUnknownAndExpiredTokens(t *testing.T) {
 	assert.Contains(t, rr.Body.String(), "identity.demo_access_unknown")
 
 	token := env.requestToken(t)
-	_, err := env.db.NewRaw(`UPDATE auth.demo_accesses SET expires_at = NOW() - INTERVAL '1 minute' WHERE token_hash = ?`, fingerprint(token)).Exec(context.Background())
+	_, err := env.db.NewRaw(`UPDATE auth.demo_accesses SET expires_at = NOW() - INTERVAL '1 minute' WHERE token_hash = encode(sha256(?::bytea), 'hex')`, token).Exec(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusGone, env.status(token).Code)
 	rr = env.post(t, "/demo/access/sessions", map[string]string{"token": token})

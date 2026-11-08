@@ -33,9 +33,6 @@ const (
 //   - `mfa_enrollment_pending` is the discriminator middleware uses to
 //     reject this token at any other endpoint — the security boundary that
 //     closes the "issue full session before MFA is set up" bypass.
-//
-// The shape mirrors MFAChallengeClaims so the wire format is consistent and
-// the two claim types stay parallel as new fields are added.
 type MFAEnrollmentClaims struct {
 	// AccountID is auth.accounts.id (tenant scope) or platform.operators.id
 	// (platform scope) of the user being enrolled.
@@ -59,31 +56,9 @@ type MFAEnrollmentClaims struct {
 	CommonClaims
 }
 
-// ParseClaims fills MFAEnrollmentClaims from a decoded JWT claim map.
-//
-// Defense-in-depth (mirrors AppClaims.ParseClaims and the symmetric
-// gate in MFAChallengeClaims): an enrollment token MUST NOT also carry
-// mfa_pending=true — that would be a malformed JWT that satisfies both
-// challenge and enrollment middleware. Rejecting the foreign flag up
-// front means a future bug in CreateMFA*JWT can't accidentally produce
-// a JWT both parsers accept. (#1430 review item #8)
-func (c *MFAEnrollmentClaims) ParseClaims(claims map[string]any) error {
-	accountID, tenantID, scope, err := parseMFAPendingClaims(claims, mfaPendingClaimsSpec{
-		foreignFlagKey: "mfa_pending",
-		foreignFlagErr: "token is a pending-MFA challenge, not an enrollment token",
-		scopeTenant:    MFAEnrollmentScopeTenant,
-		scopePlatform:  MFAEnrollmentScopePlatform,
-		scopeSchool:    MFAEnrollmentScopeSchool,
-		scopeOrg:       MFAEnrollmentScopeOrg,
-		pendingFlagKey: "mfa_enrollment_pending",
-		notPendingErr:  "token is not a pending-MFA-enrollment token",
-	}, &c.CommonClaims)
-	if err != nil {
-		return err
+func enrollmentClaimsOf(c tokenprimitives.EnrollmentClaims) MFAEnrollmentClaims {
+	return MFAEnrollmentClaims{
+		AccountID: c.AccountID, Scope: c.Scope, TenantID: c.TenantID, MFAEnrollmentPending: true,
+		CommonClaims: CommonClaims{ExpiresAt: c.ExpiresAt},
 	}
-	c.AccountID = accountID
-	c.TenantID = tenantID
-	c.Scope = scope
-	c.MFAEnrollmentPending = true
-	return nil
 }

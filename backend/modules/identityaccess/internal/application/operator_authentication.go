@@ -270,8 +270,16 @@ func (s *OperatorAuthentication) mintTokenPair(operator domain.Operator, session
 // lineage mismatch revoke the whole family with audit evidence and reject
 // after that revocation committed; a lookup that fails for infrastructure
 // reasons rolls back and stays retryable.
-func (s *OperatorAuthentication) RefreshToken(ctx context.Context, operatorID int64, refreshTokenValue string) (string, string, error) {
-	refreshTokenValue = strings.TrimSpace(refreshTokenValue)
+//
+// The signed token names the operator and the session handle. Tokens of
+// other portals and the stateless operator tokens from before persisted
+// sessions, which carry no platform scope, are refused before the lookup.
+func (s *OperatorAuthentication) RefreshToken(ctx context.Context, refreshJWT string) (string, string, error) {
+	claims, err := s.codec.ParseRefreshToken(refreshJWT)
+	if err != nil || claims.Scope != domain.PortalPlatform.Claim {
+		return "", "", identityaccess.ErrOperatorRefreshTokenInvalid
+	}
+	operatorID, refreshTokenValue := claims.AccountID, strings.TrimSpace(claims.Token)
 	if refreshTokenValue == "" {
 		return "", "", identityaccess.ErrOperatorRefreshTokenInvalid
 	}
@@ -280,7 +288,7 @@ func (s *OperatorAuthentication) RefreshToken(ctx context.Context, operatorID in
 		rejectAfterCommit         bool
 		recovered                 bool
 	)
-	err := s.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
+	err = s.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
 		var err error
 		accessToken, refreshToken, recovered, rejectAfterCommit, err = s.rotateOperatorRefresh(txCtx, operatorID, refreshTokenValue)
 		return err
@@ -755,11 +763,11 @@ func (s *OperatorAuthentication) LoginOperatorWithMFAGate(ctx context.Context, e
 	return operatorLoginResult(result), operatorError(err)
 }
 
-func (s *OperatorAuthentication) RefreshOperatorToken(ctx context.Context, operatorID int64, refreshToken string) (string, string, error) {
+func (s *OperatorAuthentication) RefreshOperatorToken(ctx context.Context, refreshToken string) (string, string, error) {
 	if s == nil {
 		return "", "", errOperatorAuthenticationUnavailable
 	}
-	access, refresh, err := s.RefreshToken(bindRuntime(s.attach, ctx), operatorID, refreshToken)
+	access, refresh, err := s.RefreshToken(bindRuntime(s.attach, ctx), refreshToken)
 	return access, refresh, operatorError(err)
 }
 

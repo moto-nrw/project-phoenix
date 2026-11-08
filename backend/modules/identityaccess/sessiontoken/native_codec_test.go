@@ -91,10 +91,10 @@ func TestNativeSessionCodecPreservesTokenWire(t *testing.T) {
 			decodedOld, err := native.ParseAccessToken(oldToken)
 			require.NoError(t, err)
 			decodedOld.ExpiresAt = decoded.ExpiresAt
-			// Old callers do not know the display-only role origin claim.
+			// The request projection carries no display-only role origin.
 			decoded.RoleIsSystem = nil
 			require.Equal(t, decoded, decodedOld)
-			oldRefresh, err := tokentest.CreateRefreshJWT(legacy, sessiontoken.RefreshClaims{ID: int(refresh.AccountID), Token: refresh.Token, TenantID: refresh.TenantID, Scope: scope, CommonClaims: sessiontoken.CommonClaims{ExpiresAt: refresh.ExpiresAt}})
+			oldRefresh, err := tokentest.CreateRefreshJWT(legacy, tokentest.RefreshClaims{ID: int(refresh.AccountID), Token: refresh.Token, TenantID: refresh.TenantID, Scope: scope, CommonClaims: sessiontoken.CommonClaims{ExpiresAt: refresh.ExpiresAt}})
 			require.NoError(t, err)
 			decodedRefresh, err = native.ParseRefreshToken(oldRefresh)
 			require.NoError(t, err)

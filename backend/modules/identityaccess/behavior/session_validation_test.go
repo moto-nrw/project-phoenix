@@ -65,7 +65,7 @@ func TestValidateSessionTokens(t *testing.T) {
 				tokenID = stored.ID
 			}
 			accessClaims := sessiontoken.AppClaims{ID: int(accountID), Sub: account.Email, Roles: []string{"user"}, Scope: scope, TenantID: tenantID, FamilyID: family}
-			refreshClaims := sessiontoken.RefreshClaims{ID: int(accountID), Token: handle, Scope: scope, TenantID: tenantID}
+			refreshClaims := tokentest.RefreshClaims{ID: int(accountID), Token: handle, Scope: scope, TenantID: tenantID}
 			access, refresh, err := tokentest.GenTokenPair(signer, accessClaims, refreshClaims)
 			require.NoError(t, err)
 			verified, err := service.ValidateSessionTokens(ctx, access, refresh, portal)
@@ -92,8 +92,7 @@ func TestValidateSessionTokens(t *testing.T) {
 			_, err = service.ValidateSessionTokens(ctx, forged, refresh, portal)
 			require.Error(t, err)
 			for _, flag := range []string{"mfa_pending", "mfa_enrollment_pending", "missing_expiry"} {
-				raw, err := tokentest.ParseStructToMap(accessClaims)
-				require.NoError(t, err)
+				raw := tokentest.AccessClaimMap(accessClaims)
 				raw["exp"] = time.Now().Add(time.Minute).Unix()
 				if flag == "missing_expiry" {
 					delete(raw, "exp")
@@ -112,8 +111,7 @@ func TestValidateSessionTokens(t *testing.T) {
 			require.Error(t, err)
 			accessClaims.FamilyID = family
 			accessClaims.ExpiresAt = time.Now().Add(-time.Minute).Unix()
-			rawClaims, err := tokentest.ParseStructToMap(accessClaims)
-			require.NoError(t, err)
+			rawClaims := tokentest.AccessClaimMap(accessClaims)
 			_, expired, err := signer.JwtAuth.Encode(rawClaims)
 			require.NoError(t, err)
 			_, err = service.ValidateSessionTokens(ctx, expired, refresh, portal)

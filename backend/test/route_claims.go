@@ -159,12 +159,6 @@ func WithEnrollmentClaims(ctx context.Context, claims MFAEnrollmentClaims) conte
 	return context.WithValue(ctx, sessiontoken.CtxEnrollmentClaims, claims)
 }
 
-// OpaqueCapabilityFingerprint returns the stored fingerprint of an opaque
-// capability token.
-func OpaqueCapabilityFingerprint(token string) string {
-	return sessiontoken.OpaqueCapabilityFingerprint(token)
-}
-
 // WithRefreshToken puts the raw refresh token on ctx the way the refresh
 // authenticator does, so a refresh handler exercised directly reads it
 // without the test naming the token package (#2736).

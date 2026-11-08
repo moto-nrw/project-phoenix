@@ -28,7 +28,7 @@ func TestDemoAccessRequestMailsTheLinkAndTheLead(t *testing.T) {
 	require.True(t, env.mails.WaitForMessages(2, 2*time.Second), env.mails.Templates())
 
 	var accessID int64
-	require.NoError(t, env.db.NewRaw(`SELECT id FROM auth.demo_accesses WHERE token_hash = ?`, fingerprint(token)).Scan(context.Background(), &accessID))
+	require.NoError(t, env.db.NewRaw(`SELECT id FROM auth.demo_accesses WHERE token_hash = encode(sha256(?::bytea), 'hex')`, token).Scan(context.Background(), &accessID))
 
 	link, ok := env.mails.MessageWithTemplate(demoAccessTemplate)
 	require.True(t, ok, env.mails.Templates())
@@ -115,7 +115,7 @@ func TestDemoAccessRequestOfAKnownAddressKeepsTheEarlierLink(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, false, content["ContactOptIn"])
 	var optIn bool
-	require.NoError(t, env.db.NewRaw(`SELECT contact_opt_in FROM auth.demo_accesses WHERE token_hash = ?`, fingerprint(third)).Scan(context.Background(), &optIn))
+	require.NoError(t, env.db.NewRaw(`SELECT contact_opt_in FROM auth.demo_accesses WHERE token_hash = encode(sha256(?::bytea), 'hex')`, third).Scan(context.Background(), &optIn))
 	assert.False(t, optIn, "the withdrawn consent is stored")
 }
 

@@ -46,6 +46,10 @@ type PortalClaims struct {
 	LegacyClaim string
 	Tenant      Shape
 	Org         Shape
+	// Challenge and Enrollment: the portal has its own MFA challenge or
+	// enrollment token, redeemable only there.
+	Challenge  bool
+	Enrollment bool
 }
 
 // Holds reports whether a token's school and Träger fit the portal. A
@@ -58,12 +62,12 @@ func (p PortalClaims) Holds(tenantID, orgID int64) bool {
 // otherwise their organization; parent and caterer tokens bind no school
 // (ADR 0077).
 var (
-	TenantClaims   = PortalClaims{Name: PortalTenant, Claim: "", LegacyClaim: PortalTenant, Tenant: Required, Org: Optional}
-	SchoolClaims   = PortalClaims{Name: PortalSchool, Claim: PortalSchool, Tenant: Required, Org: Optional}
+	TenantClaims   = PortalClaims{Name: PortalTenant, Claim: "", LegacyClaim: PortalTenant, Tenant: Required, Org: Optional, Challenge: true, Enrollment: true}
+	SchoolClaims   = PortalClaims{Name: PortalSchool, Claim: PortalSchool, Tenant: Required, Org: Optional, Challenge: true, Enrollment: true}
 	ParentClaims   = PortalClaims{Name: PortalParent, Claim: PortalParent}
-	CatererClaims  = PortalClaims{Name: PortalCaterer, Claim: PortalCaterer}
-	OrgClaims      = PortalClaims{Name: PortalOrg, Claim: PortalOrg, Tenant: Forbidden, Org: Required}
-	PlatformClaims = PortalClaims{Name: PortalPlatform, Claim: PortalPlatform, Tenant: Optional, Org: Optional}
+	CatererClaims  = PortalClaims{Name: PortalCaterer, Claim: PortalCaterer, Challenge: true}
+	OrgClaims      = PortalClaims{Name: PortalOrg, Claim: PortalOrg, Tenant: Forbidden, Org: Required, Challenge: true, Enrollment: true}
+	PlatformClaims = PortalClaims{Name: PortalPlatform, Claim: PortalPlatform, Tenant: Optional, Org: Optional, Challenge: true, Enrollment: true}
 
 	portalClaims = []PortalClaims{TenantClaims, SchoolClaims, ParentClaims, CatererClaims, OrgClaims, PlatformClaims}
 )
@@ -77,6 +81,16 @@ func AllPortalClaims() []PortalClaims {
 func PortalOfClaim(scope string) (PortalClaims, bool) {
 	for _, portal := range portalClaims {
 		if scope == portal.Claim || (portal.LegacyClaim != "" && scope == portal.LegacyClaim) {
+			return portal, true
+		}
+	}
+	return PortalClaims{}, false
+}
+
+// PortalNamed resolves a portal name.
+func PortalNamed(name string) (PortalClaims, bool) {
+	for _, portal := range portalClaims {
+		if name == portal.Name {
 			return portal, true
 		}
 	}

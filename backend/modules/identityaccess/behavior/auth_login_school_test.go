@@ -262,7 +262,7 @@ func TestRefreshToken_SchoolScopeWithoutTenant_RejectedBeforeRotation(t *testing
 	require.NoError(t, err)
 	var sessionToken string
 	require.NoError(t, decoded.Get("token", &sessionToken))
-	tenantlessRefresh, err := tokentest.CreateRefreshJWT(tokenAuth, sessiontoken.RefreshClaims{
+	tenantlessRefresh, err := tokentest.CreateRefreshJWT(tokenAuth, tokentest.RefreshClaims{
 		ID:    int(accountID),
 		Token: sessionToken,
 		Scope: schoolScope,
@@ -381,7 +381,7 @@ func TestLoginSchool_MFARequiredEnrolled_StartsSchoolScopedChallenge(t *testing.
 	require.NoError(t, err)
 	require.Equal(t, identityaccess.LoginStatusMFARequired, result.Status)
 	assert.Equal(t, "school-challenge-token", result.ChallengeToken)
-	assert.Equal(t, sessiontoken.MFAChallengeScopeSchool, startedScope,
+	assert.Equal(t, tokentest.MFAChallengeScopeSchool, startedScope,
 		"school login must start the challenge with the school scope")
 	assert.Equal(t, tenantID, startedTenantID)
 }
@@ -894,7 +894,7 @@ func TestLoginSchool_MFARequirementAppearingMidLogin_ChallengesInsteadOfMinting(
 	require.Equal(t, identityaccess.LoginStatusMFARequired, result.Status,
 		"the guard must send the login back to the second factor instead of minting")
 	assert.Equal(t, "school-race-challenge", result.ChallengeToken)
-	assert.Equal(t, sessiontoken.MFAChallengeScopeSchool, startedScope)
+	assert.Equal(t, tokentest.MFAChallengeScopeSchool, startedScope)
 	assert.Empty(t, result.RefreshToken, "no session may be issued for a login that owes a second factor")
 
 	count, err := db.NewSelect().

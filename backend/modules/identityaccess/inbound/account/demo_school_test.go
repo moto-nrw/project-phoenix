@@ -35,7 +35,7 @@ func (e demoEnv) requestOwnSchool(t *testing.T, address string) (token, slug str
 	t.Helper()
 	token = e.requestTokenWith(t, e.requestBodyFor(t, address))
 	require.NotEmpty(t, token)
-	require.NoError(t, e.db.NewRaw(`SELECT school_slug FROM auth.demo_accesses WHERE token_hash = ?`, fingerprint(token)).Scan(context.Background(), &slug))
+	require.NoError(t, e.db.NewRaw(`SELECT school_slug FROM auth.demo_accesses WHERE token_hash = encode(sha256(?::bytea), 'hex')`, token).Scan(context.Background(), &slug))
 	return token, slug
 }
 
@@ -87,8 +87,8 @@ func TestDemoAccessRequestQueuesTheVisitorsNamesUnchanged(t *testing.T) {
 		LastName   string `bun:"last_name"`
 		SchoolSlug string `bun:"school_slug"`
 	}
-	require.NoError(t, env.db.NewRaw(`SELECT first_name, last_name, school_slug FROM auth.demo_accesses WHERE token_hash = ?`,
-		fingerprint(token)).Scan(context.Background(), &access))
+	require.NoError(t, env.db.NewRaw(`SELECT first_name, last_name, school_slug FROM auth.demo_accesses WHERE token_hash = encode(sha256(?::bytea), 'hex')`,
+		token).Scan(context.Background(), &access))
 	assert.Equal(t, []string{"Anna Lena", "von Berg"}, []string{access.FirstName, access.LastName}, "whitespace is collapsed, nothing else")
 	var order struct {
 		FirstName string `bun:"first_name"`

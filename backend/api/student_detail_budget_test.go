@@ -41,9 +41,9 @@ func checkStudentDetailReadBudget(t *testing.T, runtime *goldenRuntime) {
 	for _, legacy := range []bool{true, false} {
 		t.Run(fmt.Sprintf("legacy_%t", legacy), func(t *testing.T) {
 			limiter := middleware.NewRateLimiter(0, 2)
-			limiter.SetKeyFunc(auth.RateLimitKey)
+			limiter.SetKeyFunc(sessiontoken.RateLimitKey)
 			limiter.SetBucketFunc(func(*http.Request) string { return "read" })
-			handler := limiter.Middleware()(runtime)
+			handler := auth.Verifier()(limiter.Middleware()(runtime))
 			get := func(path string) *httptest.ResponseRecorder {
 				req := httptest.NewRequest(http.MethodGet, "http://localhost"+path, nil)
 				req.Header.Set("Authorization", "Bearer "+token)

@@ -798,7 +798,7 @@ Backend paths in this section are relative to `backend/`:
   `TestSchoolScopeRejectedOnAllAPIRoutes` checks school-token rejection under `/api`.
 - MFA can insert a challenge between credentials and session. Inspect
   `modules/identityaccess/account_mfa.go`, `modules/identityaccess/inbound/account/mfa_handlers.go`, `modules/identityaccess/inbound/operator/mfa.go`,
-  the challenge/enrollment claims in `modules/identityaccess/sessiontoken/`, and trusted-device settings
+  the token wire schema in `modules/identityaccess/tokenprimitives/session_wire.go`, and trusted-device settings
   `security.mfa_*`. Include the school frontend's MFA chain when changing its login.
 
 #### Privileged MFA floor (#3841, slice 3841-f)

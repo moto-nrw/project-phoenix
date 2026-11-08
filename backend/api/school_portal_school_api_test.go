@@ -237,9 +237,9 @@ func TestSchoolMFAEndpoints_RejectForeignScopes(t *testing.T) {
 	_, accountID := registerLehrkraft(t, db, resource, tenantID, "school-foreign-scope")
 
 	tokenAuth := testutil.TestTokenAuth(t)
-	tenantChallenge, err := tokentest.CreateMFAChallengeJWT(tokenAuth, sessiontoken.MFAChallengeClaims{
+	tenantChallenge, err := tokentest.CreateMFAChallengeJWT(tokenAuth, tokentest.MFAChallengeClaims{
 		AccountID: accountID,
-		Scope:     sessiontoken.MFAChallengeScopeTenant,
+		Scope:     tokentest.MFAChallengeScopeTenant,
 		TenantID:  tenantID,
 	}, 5*time.Minute)
 

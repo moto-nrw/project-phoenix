@@ -99,7 +99,6 @@ type SessionClaims struct {
 	// section 5): its school access rests on the Träger, not on a mapping.
 	ViaTraeger bool
 	ExpiresAt  int64
-	IssuedAt   int64
 }
 
 // RefreshClaims is the parsed content of a refresh JWT. A Träger session

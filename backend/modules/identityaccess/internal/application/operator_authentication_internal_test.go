@@ -247,7 +247,7 @@ func TestOperatorRefresh_RotatesInsideOneAdminTransaction(t *testing.T) {
 	f.runtime.adminTxCount = 0 // Observe refresh, excluding the separately committed login counter.
 	ctx := withProof(context.Background(), "first-proof")
 
-	access, refresh, err := f.auth.RefreshToken(ctx, 42, handle)
+	access, refresh, err := f.auth.RefreshToken(ctx, operatorRefreshToken(42, handle))
 	require.NoError(t, err)
 	assert.NotEmpty(t, access)
 	successor := decodeRefresh(t, refresh).Token
@@ -270,14 +270,14 @@ func TestOperatorRefresh_RejectsBlankForeignAndUnknownHandles(t *testing.T) {
 	handle := login(t, f)
 	f.runtime.adminTxCount = 0 // Observe the refusal, excluding login.
 
-	_, _, err := f.auth.RefreshToken(context.Background(), 42, " \t ")
+	_, _, err := f.auth.RefreshToken(context.Background(), operatorRefreshToken(42, " \t "))
 	require.ErrorIs(t, err, identityaccess.ErrOperatorRefreshTokenInvalid)
 	assert.Equal(t, 0, f.runtime.adminTxCount, "a blank handle never opens a transaction")
 
-	_, _, err = f.auth.RefreshToken(context.Background(), 42, "no-such-handle")
+	_, _, err = f.auth.RefreshToken(context.Background(), operatorRefreshToken(42, "no-such-handle"))
 	require.ErrorIs(t, err, identityaccess.ErrOperatorRefreshTokenInvalid, "a handle without a row is stale or from the stateless scheme")
 
-	_, _, err = f.auth.RefreshToken(context.Background(), 43, handle)
+	_, _, err = f.auth.RefreshToken(context.Background(), operatorRefreshToken(43, handle))
 	require.ErrorIs(t, err, identityaccess.ErrOperatorRefreshTokenInvalid, "another operator's handle is refused")
 	assert.Len(t, f.store.operatorSessionsOf(42), 1, "a foreign presentation does not touch the family")
 }
@@ -289,11 +289,11 @@ func TestOperatorRefresh_InterruptedRotationRecoveredWithinGrace(t *testing.T) {
 	handle := login(t, f)
 	ctx := withProof(context.Background(), "recovery-proof")
 
-	firstAccess, firstRefresh, err := f.auth.RefreshToken(ctx, 42, handle)
+	firstAccess, firstRefresh, err := f.auth.RefreshToken(ctx, operatorRefreshToken(42, handle))
 	require.NoError(t, err)
 	current := currentHandle(t, f)
 
-	secondAccess, secondRefresh, err := f.auth.RefreshToken(ctx, 42, handle)
+	secondAccess, secondRefresh, err := f.auth.RefreshToken(ctx, operatorRefreshToken(42, handle))
 	require.NoError(t, err, "the lost rotation response is recovered while the grace lasts")
 	assert.NotEmpty(t, firstAccess)
 	assert.NotEmpty(t, firstRefresh)
@@ -309,14 +309,14 @@ func TestOperatorRefresh_RecoveryFollowsMultipleHandoffs(t *testing.T) {
 	f.seedOperator(42)
 	predecessor := login(t, f)
 	firstProof := withProof(context.Background(), "first-recovery-secret")
-	_, _, err := f.auth.RefreshToken(firstProof, 42, predecessor)
+	_, _, err := f.auth.RefreshToken(firstProof, operatorRefreshToken(42, predecessor))
 	require.NoError(t, err)
 	firstSuccessor := currentHandle(t, f)
-	_, _, err = f.auth.RefreshToken(withProof(context.Background(), "second-recovery-secret"), 42, firstSuccessor)
+	_, _, err = f.auth.RefreshToken(withProof(context.Background(), "second-recovery-secret"), operatorRefreshToken(42, firstSuccessor))
 	require.NoError(t, err)
 	secondSuccessor := currentHandle(t, f)
 
-	_, refresh, err := f.auth.RefreshToken(firstProof, 42, predecessor)
+	_, refresh, err := f.auth.RefreshToken(firstProof, operatorRefreshToken(42, predecessor))
 	require.NoError(t, err)
 	assert.Equal(t, secondSuccessor, decodeRefresh(t, refresh).Token, "a delayed predecessor recovers the current successor across hops")
 	assert.Len(t, f.store.operatorSessionsOf(42), 3, "multi-hop recovery preserves the family")
@@ -328,7 +328,7 @@ func TestOperatorRefresh_ReplayAfterGraceRevokesFamily(t *testing.T) {
 	f.seedOperator(42)
 	predecessor := login(t, f)
 	ctx := withProof(context.Background(), "recovery-proof")
-	_, _, err := f.auth.RefreshToken(ctx, 42, predecessor)
+	_, _, err := f.auth.RefreshToken(ctx, operatorRefreshToken(42, predecessor))
 	require.NoError(t, err)
 
 	// Age the hand-off past the recovery grace.
@@ -340,7 +340,7 @@ func TestOperatorRefresh_ReplayAfterGraceRevokesFamily(t *testing.T) {
 		}
 	}
 
-	_, _, err = f.auth.RefreshToken(ctx, 42, predecessor)
+	_, _, err = f.auth.RefreshToken(ctx, operatorRefreshToken(42, predecessor))
 	require.ErrorIs(t, err, identityaccess.ErrOperatorRefreshTokenInvalid)
 	assert.Empty(t, f.store.operatorSessionsOf(42), "replay outside the recovery boundary revokes the whole family")
 	revocations := f.audit.actions(domain.OperatorAuditActionTokenRevoked)
@@ -354,10 +354,10 @@ func TestOperatorRefresh_WrongRecoveryProofRevokesFamily(t *testing.T) {
 	f := newOperatorFixture(t)
 	f.seedOperator(42)
 	predecessor := login(t, f)
-	_, _, err := f.auth.RefreshToken(withProof(context.Background(), "the-real-proof"), 42, predecessor)
+	_, _, err := f.auth.RefreshToken(withProof(context.Background(), "the-real-proof"), operatorRefreshToken(42, predecessor))
 	require.NoError(t, err)
 
-	_, _, err = f.auth.RefreshToken(withProof(context.Background(), "attacker-proof"), 42, predecessor)
+	_, _, err = f.auth.RefreshToken(withProof(context.Background(), "attacker-proof"), operatorRefreshToken(42, predecessor))
 	require.ErrorIs(t, err, identityaccess.ErrOperatorRefreshTokenInvalid)
 	assert.Empty(t, f.store.operatorSessionsOf(42), "a failed possession proof revokes the family")
 }
@@ -372,7 +372,7 @@ func TestOperatorRefresh_ExpiredSessionRevokesFamily(t *testing.T) {
 		f.store.operatorTokens[id] = session
 	}
 
-	_, _, err := f.auth.RefreshToken(context.Background(), 42, handle)
+	_, _, err := f.auth.RefreshToken(context.Background(), operatorRefreshToken(42, handle))
 	require.ErrorIs(t, err, identityaccess.ErrOperatorRefreshTokenInvalid)
 	assert.Empty(t, f.store.operatorSessionsOf(42))
 	require.Len(t, f.audit.actions(domain.OperatorAuditActionTokenRevoked), 1)
@@ -392,7 +392,7 @@ func TestOperatorRefresh_LineageMismatchRevokesFamily(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, _, err = f.auth.RefreshToken(context.Background(), 42, handle)
+	_, _, err = f.auth.RefreshToken(context.Background(), operatorRefreshToken(42, handle))
 	require.ErrorIs(t, err, identityaccess.ErrOperatorRefreshTokenInvalid)
 	assert.Empty(t, f.store.operatorSessionsOf(42))
 	assert.Equal(t, "lineage_mismatch", f.audit.actions(domain.OperatorAuditActionTokenRevoked)[0].RevokedSessions.Reason)
@@ -404,11 +404,11 @@ func TestOperatorRefresh_HandoffLookupErrorDoesNotRevokeFamily(t *testing.T) {
 	f.seedOperator(42)
 	predecessor := login(t, f)
 	ctx := withProof(context.Background(), "recovery-proof")
-	_, _, err := f.auth.RefreshToken(ctx, 42, predecessor)
+	_, _, err := f.auth.RefreshToken(ctx, operatorRefreshToken(42, predecessor))
 	require.NoError(t, err)
 	f.store.findSessionErrs[currentHandle(t, f)] = errors.New("temporary database timeout")
 
-	_, _, err = f.auth.RefreshToken(ctx, 42, predecessor)
+	_, _, err = f.auth.RefreshToken(ctx, operatorRefreshToken(42, predecessor))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "temporary database timeout")
 	require.NotErrorIs(t, err, identityaccess.ErrOperatorRefreshTokenInvalid)
@@ -424,7 +424,7 @@ func TestOperatorRefresh_OperatorStateIsRechecked(t *testing.T) {
 		f.seedOperator(42)
 		handle := login(t, f)
 		delete(f.store.operators, 42)
-		_, _, err := f.auth.RefreshToken(context.Background(), 42, handle)
+		_, _, err := f.auth.RefreshToken(context.Background(), operatorRefreshToken(42, handle))
 		require.ErrorIs(t, err, identityaccess.ErrOperatorNotFound)
 	})
 	t.Run("operator deactivated", func(t *testing.T) {
@@ -435,7 +435,7 @@ func TestOperatorRefresh_OperatorStateIsRechecked(t *testing.T) {
 		operator := f.store.operators[42]
 		operator.Active = false
 		f.store.operators[42] = operator
-		_, _, err := f.auth.RefreshToken(context.Background(), 42, handle)
+		_, _, err := f.auth.RefreshToken(context.Background(), operatorRefreshToken(42, handle))
 		require.ErrorIs(t, err, identityaccess.ErrOperatorInactive)
 		assert.Len(t, f.store.operatorSessionsOf(42), 1, "the refusal rolls back, nothing is rotated")
 	})
@@ -445,7 +445,7 @@ func TestOperatorRefresh_OperatorStateIsRechecked(t *testing.T) {
 		f.seedOperator(42)
 		handle := login(t, f)
 		f.store.findOperatorErr = errDB
-		_, _, err := f.auth.RefreshToken(context.Background(), 42, handle)
+		_, _, err := f.auth.RefreshToken(context.Background(), operatorRefreshToken(42, handle))
 		require.ErrorIs(t, err, errDB)
 		assert.Contains(t, err.Error(), "failed to find operator")
 	})
@@ -543,4 +543,28 @@ func TestChangeOperatorPassword(t *testing.T) {
 		require.ErrorIs(t, err, errDB)
 		assert.Contains(t, err.Error(), "failed to invalidate email change tokens")
 	})
+}
+
+// operatorRefreshToken is the refresh token a login hands the operator for
+// the session handle.
+func operatorRefreshToken(operatorID int64, handle string) string {
+	return fakeCodec{}.encode("refresh:", domain.RefreshClaims{AccountID: operatorID, Token: handle, Scope: domain.PortalPlatform.Claim})
+}
+
+func TestOperatorRefresh_RefusesTokensOfOtherPortalsBeforeTheLookup(t *testing.T) {
+	t.Parallel()
+	f := newOperatorFixture(t)
+	f.seedOperator(42)
+	handle := login(t, f)
+	f.runtime.adminTxCount = 0
+
+	for _, scope := range []string{"", "tenant", "school", "org"} {
+		token := fakeCodec{}.encode("refresh:", domain.RefreshClaims{AccountID: 42, Token: handle, Scope: scope})
+		_, _, err := f.auth.RefreshToken(context.Background(), token)
+		require.ErrorIs(t, err, identityaccess.ErrOperatorRefreshTokenInvalid, scope)
+	}
+	_, _, err := f.auth.RefreshToken(context.Background(), "not-a-refresh-token")
+	require.ErrorIs(t, err, identityaccess.ErrOperatorRefreshTokenInvalid)
+	assert.Zero(t, f.runtime.adminTxCount, "a refused token opens no transaction")
+	assert.Len(t, f.store.operatorSessionsOf(42), 1, "nothing rotates")
 }

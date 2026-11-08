@@ -22,19 +22,18 @@ const (
 )
 
 var (
-	TestTokenAuth               = testpkg.TestTokenAuth
-	DefaultTestClaims           = testpkg.DefaultTestClaims
-	TeacherTestClaims           = testpkg.TeacherTestClaims
-	AdminTestClaims             = testpkg.AdminTestClaims
-	AdminTestClaimsForTenant    = testpkg.AdminTestClaimsForTenant
-	TenantUserTestClaims        = testpkg.TenantUserTestClaims
-	ParentTestClaims            = testpkg.ParentTestClaims
-	WithAuthenticatedContext    = testpkg.WithAuthenticatedContext
-	AuthenticationContext       = testpkg.AuthenticationContext
-	ClaimsFromContext           = testpkg.ClaimsFromContext
-	WithEnrollmentClaims        = testpkg.WithEnrollmentClaims
-	OpaqueCapabilityFingerprint = testpkg.OpaqueCapabilityFingerprint
-	WithRefreshToken            = testpkg.WithRefreshToken
+	TestTokenAuth            = testpkg.TestTokenAuth
+	DefaultTestClaims        = testpkg.DefaultTestClaims
+	TeacherTestClaims        = testpkg.TeacherTestClaims
+	AdminTestClaims          = testpkg.AdminTestClaims
+	AdminTestClaimsForTenant = testpkg.AdminTestClaimsForTenant
+	TenantUserTestClaims     = testpkg.TenantUserTestClaims
+	ParentTestClaims         = testpkg.ParentTestClaims
+	WithAuthenticatedContext = testpkg.WithAuthenticatedContext
+	AuthenticationContext    = testpkg.AuthenticationContext
+	ClaimsFromContext        = testpkg.ClaimsFromContext
+	WithEnrollmentClaims     = testpkg.WithEnrollmentClaims
+	WithRefreshToken         = testpkg.WithRefreshToken
 )
 
 // WithPermissions adds permissions to the request context.

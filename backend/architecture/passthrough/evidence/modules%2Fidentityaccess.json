@@ -1826,6 +1826,13 @@
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/domain/SchoolInvitation.Redeemable",
       "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a *TokenAuth) ParseAccessJWT(tokenString string) (*AppClaims, error) {\n\ttoken, err := a.JwtAuth.Decode(tokenString)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tdecoded := decode(token)\n\tif decoded.AccessErr != nil {\n\t\treturn nil, decoded.AccessErr\n\t}\n\tif decoded.access.ExpiresAt \u003e 0 \u0026\u0026 decoded.access.ExpiresAt \u003c time.Now().Unix() {\n\t\treturn nil, errors.New(\"access token expired\")\n\t}\n\treturn \u0026decoded.access, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/sessiontoken/TokenAuth.ParseAccessJWT",
+      "owner": "modules/identityaccess"
     }
   ]
 }

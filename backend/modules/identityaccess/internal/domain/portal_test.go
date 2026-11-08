@@ -10,9 +10,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
 )
 
-// The middleware reads the portals from tokenprimitives, the session flows
-// from this table; both must name the same portals with the same claims and
-// token shapes.
+// The middleware and the token codec read the portals from tokenprimitives,
+// the session flows from this table; both must name the same portals with the
+// same claims, token shapes and MFA token scopes.
 func TestPortalTableMatchesTheTokenGates(t *testing.T) {
 	t.Parallel()
 	shapes := map[Shape]tokenprimitives.Shape{
@@ -26,6 +26,7 @@ func TestPortalTableMatchesTheTokenGates(t *testing.T) {
 		assert.Equal(t, tokenprimitives.PortalClaims{
 			Name: portal.Name, Claim: portal.Claim, LegacyClaim: portal.LegacyClaim,
 			Tenant: shapes[portal.Tenant], Org: shapes[portal.Org],
+			Challenge: portal.Challenge, Enrollment: portal.Enrollment,
 		}, gate, portal.Name)
 	}
 }

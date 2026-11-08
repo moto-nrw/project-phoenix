@@ -29,6 +29,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	meAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/me"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	birthdaysAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/birthdays"
@@ -50,7 +51,7 @@ import (
 func mountRequestFeed(root, tenant chi.Router, db transactionruntime.Database, logger *slog.Logger, frontendURL string) error {
 	requestFeed, err := requestFeedCompose.New(requestFeedCompose.Dependencies{
 		DB: db.Pool(), Feed: newParentRequestFeed, FrontendURL: frontendURL, Now: time.Now,
-		NewToken: sessiontoken.NewOpaqueCapabilityToken, HashToken: sessiontoken.OpaqueCapabilityFingerprint,
+		NewToken: tokenprimitives.NewOpaqueCapabilityToken, HashToken: tokenprimitives.OpaqueCapabilityFingerprint,
 	})
 	if err != nil {
 		return err
