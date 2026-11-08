@@ -70,25 +70,25 @@ func AssertQueryBudget(tb testing.TB, scenario string, observed Measurement) {
 	if !ok {
 		tb.Fatalf("query budget %q is not registered in backend/test/query-budgets/", scenario)
 	}
-	assertQueryBudget(tb, scenario, budget, observed)
+	assertQueryBudget(tb, scenario, budget, observed, os.Getenv)
 }
 
-func assertQueryBudget(tb testing.TB, scenario string, budget queryBudget, observed Measurement) {
+func assertQueryBudget(tb testing.TB, scenario string, budget queryBudget, observed Measurement, getenv func(string) string) {
 	tb.Helper()
 	queries, route := observed.Statements, observed.Route
 	if observed.HTTPRequest && len(route) == 0 {
 		tb.Errorf("query budget %q: measured HTTP request has no resolved route", scenario)
 	}
-	if err := measuredRouteError(budget.route, route); err != nil && (len(budget.route) != 0 || os.Getenv("PHX_QUERY_BUDGET_CAPTURE_ROUTES") == "") {
+	if err := measuredRouteError(budget.route, route); err != nil && (len(budget.route) != 0 || getenv("PHX_QUERY_BUDGET_CAPTURE_ROUTES") == "") {
 		tb.Errorf("query budget %q: %v", scenario, err)
 	}
 
-	if path := os.Getenv("PHX_QUERY_BUDGET_CAPTURE_ROUTES"); path != "" {
+	if path := getenv("PHX_QUERY_BUDGET_CAPTURE_ROUTES"); path != "" {
 		if err := appendBudgetReport(path, budgetReport{Scenario: scenario, Route: route, Test: tb.Name(), Actual: len(queries), Max: budget.max, Exact: budget.exact}); err != nil {
 			tb.Errorf("capture budget route: %v", err)
 		}
 	}
-	emitQueryFeedback(tb, scenario, queries, budget, os.Getenv)
+	emitQueryFeedback(tb, scenario, queries, budget, getenv)
 	got := len(queries)
 	switch {
 	case got > budget.max:
