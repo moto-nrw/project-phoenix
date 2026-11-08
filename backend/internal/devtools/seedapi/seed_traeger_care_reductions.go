@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -71,7 +72,10 @@ func seedCareReductions(client *Client, auth AuthRef, month calendar.Date) (int,
 			{"kind": "cap", "name": "Höchstbetrag je Familie (Platzhalter)", "cap_cents": 25000},
 		} {
 			rule["valid_from"], rule["school_ids"] = month.String(), schools
-			if _, err := client.PostWithAuth(auth, "/traeger/care-rules/", rule); err != nil {
+			// Demo schools of one Träger seed in parallel: another seed may
+			// have kept the rule of this kind for the same schools already.
+			if _, err := client.PostWithAuth(auth, "/traeger/care-rules/", rule); err != nil &&
+				!strings.Contains(err.Error(), "parent_billing.contribution_rule_overlap") {
 				return 0, 0, fmt.Errorf("keep the care rule %q: %w", rule["name"], err)
 			}
 		}
@@ -108,7 +112,8 @@ func seedCareEvidences(client *Client, auth AuthRef, month calendar.Date) (int, 
 		}
 		body := kinds[added]
 		body["contract_id"], body["valid_from"], body["checked_on"] = contract.ContractID, month.String(), calendar.TodayDate().String()
-		if _, err := client.PostWithAuth(auth, "/traeger/care-evidences/", body); err != nil {
+		if _, err := client.PostWithAuth(auth, "/traeger/care-evidences/", body); err != nil &&
+			!strings.Contains(err.Error(), "parent_billing.care_evidence_overlap") {
 			return added, fmt.Errorf("keep a care evidence: %w", err)
 		}
 		added++
