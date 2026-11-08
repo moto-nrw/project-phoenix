@@ -144,6 +144,25 @@ describe("BankverbindungenPage", () => {
     expect(screen.queryByTestId("data-table-stacked")).not.toBeInTheDocument();
   });
 
+  it("narrows the phone list to the children still missing an IBAN", async () => {
+    setViewportWidth(PHONE_WIDTH);
+    mockFetchOverview.mockResolvedValue([
+      row({}),
+      row({ studentId: "2", studentName: "Lea Wolf", ibanMasked: "" }),
+    ]);
+
+    render(<BankverbindungenPage />);
+    await waitFor(() =>
+      expect(stacked().getByText("Mia Schneider")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Ohne IBAN (1)" }));
+
+    expect(stacked().queryByText("Mia Schneider")).not.toBeInTheDocument();
+    expect(stacked().getByText("Lea Wolf")).toBeInTheDocument();
+    expect(screen.queryByTestId("data-table-table")).not.toBeInTheDocument();
+  });
+
   it("downloads in the chosen format", async () => {
     mockFetchOverview.mockResolvedValue([row({})]);
     mockExport.mockResolvedValue(undefined);
