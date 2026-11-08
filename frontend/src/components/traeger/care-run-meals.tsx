@@ -49,12 +49,11 @@ export function MealPositionLine({
 function groupBySchool(
   gaps: readonly CareMealGap[],
 ): Map<string, CareMealGap[]> {
+  // Keyed by the school, not its name: two schools of a Träger may share
+  // a name and keep their months apart.
   const bySchool = new Map<string, CareMealGap[]>();
   for (const gap of gaps) {
-    bySchool.set(gap.schoolName, [
-      ...(bySchool.get(gap.schoolName) ?? []),
-      gap,
-    ]);
+    bySchool.set(gap.schoolId, [...(bySchool.get(gap.schoolId) ?? []), gap]);
   }
   return bySchool;
 }
@@ -189,7 +188,9 @@ export function CareRunMealsCard({
             key={`gap-${school}`}
             className="flex flex-col gap-1 py-3 first:pt-0 last:pb-0 sm:col-span-2"
           >
-            <p className="text-sm font-semibold text-gray-900">{school}</p>
+            <p className="text-sm font-semibold text-gray-900">
+              {months[0]?.schoolName}
+            </p>
             <p className="text-sm text-gray-600">
               Freigabe fehlt für{" "}
               {months.map((gap) => formatMonth(gap.month)).join(", ")}.
@@ -201,7 +202,9 @@ export function CareRunMealsCard({
             key={`expired-${school}`}
             className="flex flex-col gap-1 py-3 first:pt-0 last:pb-0 sm:col-span-2"
           >
-            <p className="text-sm font-semibold text-gray-900">{school}</p>
+            <p className="text-sm font-semibold text-gray-900">
+              {months[0]?.schoolName}
+            </p>
             <p className="text-sm text-gray-600">
               Nicht mehr abrechenbar:{" "}
               {months.map((gap) => formatMonth(gap.month)).join(", ")}. Die

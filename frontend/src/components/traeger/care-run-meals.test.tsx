@@ -156,4 +156,29 @@ describe("CareRunMealsCard", () => {
     ).toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
+
+  it("keeps the months of two schools with the same name apart", () => {
+    render(
+      <CareRunMealsCard
+        gaps={[
+          {
+            schoolId: "3",
+            schoolName: "OGS Nord",
+            month: "2026-01-01",
+            expired: false,
+          },
+          {
+            schoolId: "4",
+            schoolName: "OGS Nord",
+            month: "2026-01-01",
+            expired: false,
+          },
+        ]}
+        unbilled={[]}
+      />,
+    );
+    expect(screen.getAllByText("Freigabe fehlt für Januar 2026.")).toHaveLength(
+      2,
+    );
+  });
 });
