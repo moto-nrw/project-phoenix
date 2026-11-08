@@ -327,7 +327,9 @@ function ContractNoticeRow({
             variant="outline"
             size="md"
           >
-            {document.can_end_contract
+            {/* „angeben“ only where the relationship may state the number:
+                an active contract it may end or a sent one it may sign. */}
+            {document.can_end_contract || document.can_sign
               ? t("familyChildren")
               : familyText("title")}
           </ButtonLink>

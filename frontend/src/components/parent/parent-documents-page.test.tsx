@@ -258,6 +258,15 @@ describe("ParentDocumentsPage", () => {
       expect(
         screen.getByRole("button", { name: "Als PDF laden" }),
       ).toBeInTheDocument();
+      // Who may sign may also state the children of the family (#5918);
+      // the others only read the number.
+      expect(
+        screen.getByRole("link", {
+          name: canSign
+            ? deMessages.parentDocuments.familyChildren
+            : deMessages.parentFamilyChildren.title,
+        }),
+      ).toBeInTheDocument();
       if (canSign) {
         expect(
           screen.getByRole("link", {
