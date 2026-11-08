@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// maxSendBatch bounds a send of several contracts in one request.
 const maxSendBatch = 200
 
 // Contracts serves carecontract.Contracts. The writes run in the caller's
@@ -50,7 +49,6 @@ type ContractPorts struct {
 
 var _ carecontract.Contracts = (*Contracts)(nil)
 
-// NewContracts builds the contracts of the Träger-Büro.
 func NewContracts(store ContractStore, renderer LetterRenderer, ports ContractPorts, clock Clock, versions carecontract.ContractVersions) *Contracts {
 	if store == nil || renderer == nil || ports.Letterheads == nil || ports.Post == nil || ports.Runtime == nil || ports.Access == nil ||
 		ports.Ledger == nil || ports.Links.Tokens == nil || ports.Links.Fingerprint == nil || versions == nil {
@@ -179,11 +177,9 @@ func (c *Contracts) listContracts(ctx context.Context, reviewer carecontract.Rev
 		for i, contract := range contracts {
 			ids[i] = contract.ID
 		}
-		if err := c.store.InsertEvents(ctx, reviewer.OrganizationID, []Event{{
-			AccountID: reviewer.AccountID, Action: ActionRead,
-			Details: map[string]any{"view": "list", "contract_ids": ids},
-		}}); err != nil {
-			return carecontract.ContractList{}, fmt.Errorf("care contract: record list read: %w", err)
+		if err := trail(ctx, c.store, reviewer.OrganizationID, reviewer.AccountID, 0, 0, ActionRead,
+			map[string]any{"view": "list", "contract_ids": ids}); err != nil {
+			return carecontract.ContractList{}, err
 		}
 	}
 	return carecontract.ContractList{Contracts: contracts, Counts: counts, HasMore: hasMore}, nil
@@ -201,7 +197,7 @@ func (c *Contracts) contract(ctx context.Context, reviewer carecontract.Reviewer
 	if err != nil {
 		return carecontract.ContractDetail{}, err
 	}
-	if err := c.record(ctx, reviewer, record, ActionRead, map[string]any{"view": "detail"}); err != nil {
+	if err := trailContract(ctx, c.store, reviewer.OrganizationID, reviewer.AccountID, record, ActionRead, map[string]any{"view": "detail"}); err != nil {
 		return carecontract.ContractDetail{}, err
 	}
 	return detail, nil
@@ -223,6 +219,8 @@ func (c *Contracts) detail(ctx context.Context, reviewer carecontract.Reviewer, 
 	detail := carecontract.ContractDetail{
 		ContractSummary: record.Summary, Version: current, Parties: record.Parties,
 		Mailings: mailings, DocumentFrozen: record.DocumentID != nil, Versions: versions,
+		TermText: TermText(current.Terms, contractEnd(versions, current)), NoticeText: NoticeText(current.Terms),
+		FeeText: feeText(current),
 	}
 	return detail, c.addSignature(ctx, reviewer.OrganizationID, record, &detail)
 }
@@ -293,7 +291,7 @@ func (c *Contracts) contractDocument(ctx context.Context, reviewer carecontract.
 	if record.DocumentID == nil {
 		view = "preview"
 	}
-	if err := c.record(ctx, reviewer, record, ActionRead, map[string]any{"view": view}); err != nil {
+	if err := trailContract(ctx, c.store, reviewer.OrganizationID, reviewer.AccountID, record, ActionRead, map[string]any{"view": view}); err != nil {
 		return carecontract.File{}, 0, err
 	}
 	return file, record.Summary.SchoolID, nil
@@ -349,28 +347,43 @@ func (c *Contracts) sendContracts(ctx context.Context, reviewer carecontract.Rev
 	ctx = c.post.ShareMailBlockLimit(ctx)
 	for _, id := range ids {
 		err := c.send(ctx, reviewer, id, destination)
-		switch {
-		case err == nil:
+		if err == nil {
 			result.Sent = append(result.Sent, id)
-		case missingContractPartner(err):
-			result.Skipped = append(result.Skipped, carecontract.SendSkip{ID: id, Reason: carecontract.SkipPartnerMissing})
-		case errors.Is(err, carecontract.ErrRecipientMissing):
-			result.Skipped = append(result.Skipped, carecontract.SendSkip{ID: id, Reason: carecontract.SkipRecipientMissing})
-		case errors.Is(err, carecontract.ErrMailPending):
-			result.Skipped = append(result.Skipped, carecontract.SendSkip{ID: id, Reason: carecontract.SkipMailPending})
-		case errors.Is(err, carecontract.ErrMailDelayed):
-			result.Skipped = append(result.Skipped, carecontract.SendSkip{ID: id, Reason: carecontract.SkipMailDelayed})
-		case errors.Is(err, carecontract.ErrMailBlocked):
-			result.Skipped = append(result.Skipped, carecontract.SendSkip{ID: id, Reason: carecontract.SkipMailBlocked})
-		case errors.Is(err, carecontract.ErrMailBlockUnreadable):
-			result.Skipped = append(result.Skipped, carecontract.SendSkip{ID: id, Reason: carecontract.SkipMailBlockUnreadable})
-		case errors.Is(err, carecontract.ErrContractNotSendable):
-			result.Skipped = append(result.Skipped, carecontract.SendSkip{ID: id, Reason: carecontract.SkipNotSendable})
-		default:
+			continue
+		}
+		reason, skipped := sendSkipReason(err)
+		if !skipped {
 			return carecontract.SendResult{}, err
 		}
+		result.Skipped = append(result.Skipped, carecontract.SendSkip{ID: id, Reason: reason})
 	}
 	return result, nil
+}
+
+var sendSkips = []struct {
+	err    error
+	reason string
+}{
+	{carecontract.ErrRecipientMissing, carecontract.SkipRecipientMissing},
+	{carecontract.ErrMailPending, carecontract.SkipMailPending},
+	{carecontract.ErrMailDelayed, carecontract.SkipMailDelayed},
+	{carecontract.ErrMailBlocked, carecontract.SkipMailBlocked},
+	{carecontract.ErrMailBlockUnreadable, carecontract.SkipMailBlockUnreadable},
+	{carecontract.ErrContractNotSendable, carecontract.SkipNotSendable},
+}
+
+// sendSkipReason names a send failure that the Träger-Büro or the parents can
+// fix; any other error is no skip.
+func sendSkipReason(err error) (string, bool) {
+	if missingContractPartner(err) {
+		return carecontract.SkipPartnerMissing, true
+	}
+	for _, skip := range sendSkips {
+		if errors.Is(err, skip.err) {
+			return skip.reason, true
+		}
+	}
+	return "", false
 }
 
 func missingContractPartner(err error) bool {
@@ -420,9 +433,9 @@ func (c *Contracts) deliver(ctx context.Context, reviewer carecontract.Reviewer,
 	}
 	outboxID, err := c.post.EnqueueContractMail(ctx, carecontract.ContractMail{
 		OrganizationID: reviewer.OrganizationID, ContractID: contractID, Recipient: party.Email,
-		GuardianName: fullName(party.FirstName, party.LastName), TraegerName: firstLine(textLines(head.SenderText)),
+		GuardianName: fullName(party.FirstName, party.LastName), TraegerName: traegerName(head.SenderText, record.Version.Terms),
 		ChildName: fullName(record.Version.ChildFirstName, record.Version.ChildLastName),
-		Modules:   joinGerman(ModuleNames(record.Version.Services)), Filename: file.Filename, PDF: file.Data,
+		Modules:   carecontract.JoinNames(ModuleNames(record.Version.Services)), Filename: file.Filename, PDF: file.Data,
 		IdempotencyKey: fmt.Sprintf("care-contract:%d:%d", contractID, previousSends+1),
 		SigningURL:     link.url, LinkExpiresOn: link.expiresOn,
 		Concluded: record.Concluded != nil,
@@ -441,7 +454,7 @@ func (c *Contracts) deliver(ctx context.Context, reviewer carecontract.Reviewer,
 			return err
 		}
 	}
-	return c.record(ctx, reviewer, record, ActionSend, map[string]any{"document_id": documentID, "again": previousSends > 0})
+	return trailContract(ctx, c.store, reviewer.OrganizationID, reviewer.AccountID, record, ActionSend, map[string]any{"document_id": documentID, "again": previousSends > 0})
 }
 
 // deliveryParty keeps delivery corrections separate from the frozen party.
@@ -546,20 +559,9 @@ func (c *Contracts) DiscardContract(ctx context.Context, reviewer carecontract.R
 	if !deleted {
 		return carecontract.ErrContractNotDraft
 	}
-	return c.record(ctx, reviewer, record, ActionDiscard, map[string]any{"status": record.Summary.Status})
+	return trailContract(ctx, c.store, reviewer.OrganizationID, reviewer.AccountID, record, ActionDiscard, map[string]any{"status": record.Summary.Status})
 }
 
-func (c *Contracts) record(ctx context.Context, reviewer carecontract.Reviewer, record ContractRecord, action string, details map[string]any) error {
-	contractID, schoolID := record.Summary.ID, record.Summary.SchoolID
-	if err := c.store.InsertEvents(ctx, reviewer.OrganizationID, []Event{{
-		ContractID: &contractID, SchoolID: &schoolID, AccountID: reviewer.AccountID, Action: action, Details: details,
-	}}); err != nil {
-		return fmt.Errorf("care contract: record %s: %w", action, err)
-	}
-	return nil
-}
-
-// recipient is the first party with an address.
 func recipient(parties []carecontract.Party) (carecontract.Party, bool) {
 	for _, party := range parties {
 		if strings.TrimSpace(party.Email) != "" {
@@ -578,7 +580,7 @@ func checkReviewer(reviewer carecontract.Reviewer) error {
 
 func knownStatus(status string) bool {
 	return slices.Contains([]string{
-		carecontract.StatusDraft, carecontract.StatusSent, carecontract.StatusSigned,
+		carecontract.StatusDraft, carecontract.StatusSent,
 		carecontract.StatusActive, carecontract.StatusTerminated, carecontract.StatusWithdrawn, carecontract.StatusEnded,
 	}, status)
 }
@@ -595,4 +597,23 @@ func uniqueIDs(ids []int64) []int64 {
 	}
 	slices.Sort(result)
 	return result
+}
+
+// contractEnd is the last day of the contract: the end of its newest
+// effective version, by effective date. A version ends the day before a
+// module switch, which is no end of the contract (#4681).
+func contractEnd(versions []carecontract.Version, current carecontract.Version) *calendar.Date {
+	var newest *carecontract.Version
+	for i, version := range versions {
+		if version.Status != carecontract.VersionEffective && version.Status != carecontract.VersionSuperseded {
+			continue
+		}
+		if newest == nil || version.EffectiveFrom.After(newest.EffectiveFrom) {
+			newest = &versions[i]
+		}
+	}
+	if newest == nil {
+		return current.EndsOn
+	}
+	return newest.EndsOn
 }

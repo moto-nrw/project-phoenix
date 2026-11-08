@@ -18,14 +18,12 @@ import (
 // the drawn or typed signature (#4785); the contract keeps the checksums of
 // the version and of the PDF and how the signer was identified.
 
-// The methods of a signature.
 const (
 	SignatureDrawn = "drawn"
 	SignatureTyped = "typed"
 	SignaturePaper = "paper"
 )
 
-// The ways a signer was identified.
 const (
 	ChannelParentAccount = "parent_account"
 	ChannelMailLink      = "mail_link"
@@ -35,10 +33,8 @@ const (
 // SigningLinkLifetime is how long the link of a contract mail stays open.
 const SigningLinkLifetime = 30 * 24 * time.Hour
 
-// MaxReminders is how many reminders a contract gets at most.
 const MaxReminders = 3
 
-// PaperMaxBytes bounds the PDF of a paper contract.
 const PaperMaxBytes = 10 << 20
 
 var (
@@ -71,7 +67,6 @@ type SignatureInput struct {
 	EarlyStart         bool   `json:"early_start_requested"`
 }
 
-// PaperInput is a contract the parents signed on paper.
 type PaperInput struct {
 	SignerName string
 	SignedOn   calendar.Date
@@ -102,7 +97,6 @@ type ContractSignature struct {
 	Intact bool `json:"intact"`
 }
 
-// Reminder is one reminder mail of a contract.
 type Reminder struct {
 	Number    int       `json:"number"`
 	Recipient string    `json:"recipient"`
@@ -110,18 +104,38 @@ type Reminder struct {
 }
 
 // SigningView is what the parents read before they sign: the contract with
-// its booked care and terms, the party, the withdrawal notice and, once
-// signed, the signature.
+// its booked care, the party, the withdrawal notice and, once signed, the
+// signature. The link opens without an account, so the view carries only
+// what the signing page shows; the terms stand in the PDF.
 type SigningView struct {
 	ContractID       int64             `json:"contract_id"`
 	OrganizationID   int64             `json:"organization_id"`
 	Status           string            `json:"status"`
 	TraegerName      string            `json:"traeger_name"`
 	PartyName        string            `json:"party_name"`
-	Version          Version           `json:"version"`
+	Version          SigningContract   `json:"version"`
 	DocumentSHA256   string            `json:"document_sha256"`
 	WithdrawalNotice []string          `json:"withdrawal_notice"`
 	Signature        *SigningSignature `json:"signature"`
+}
+
+// SigningContract is the version the parents sign, as the page shows it.
+type SigningContract struct {
+	ChildFirstName string           `json:"child_first_name"`
+	ChildLastName  string           `json:"child_last_name"`
+	SchoolName     string           `json:"school_name"`
+	PhaseName      string           `json:"phase_name"`
+	EffectiveFrom  calendar.Date    `json:"effective_from"`
+	EndsOn         *calendar.Date   `json:"ends_on"`
+	PriceCents     *int64           `json:"price_cents"`
+	Services       []SigningService `json:"services"`
+}
+
+type SigningService struct {
+	Weekday    string         `json:"weekday"`
+	ModuleName string         `json:"module_name"`
+	EndsAt     string         `json:"ends_at"`
+	LastDay    *calendar.Date `json:"last_day"`
 }
 
 // SigningSignature is the signature as the parents see it after signing.
@@ -178,7 +192,6 @@ type ContractSignatureEntry struct {
 	Input           SignatureInput
 }
 
-// SignatureProof is a stored signature of the ledger.
 type SignatureProof struct {
 	SignerName     string
 	SignedAt       time.Time
@@ -230,7 +243,6 @@ type ReminderSettings interface {
 	SignatureReminderDays(ctx context.Context, organizationID int64) (int, error)
 }
 
-// The purposes of a contract mail.
 const (
 	MailPurposeContract = ""
 	MailPurposeReminder = "reminder"

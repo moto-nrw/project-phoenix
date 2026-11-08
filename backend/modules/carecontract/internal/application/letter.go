@@ -17,7 +17,6 @@ import (
 // always prints the terms of the version as a table, so a template text can
 // never drop what the parents agree to.
 
-// Letter is a contract letter in the parts of a letter.
 type Letter struct {
 	Title       string
 	AccentColor string
@@ -32,14 +31,12 @@ type Letter struct {
 	Footer      []string
 }
 
-// LetterFact is a label with its value.
 type LetterFact struct {
 	Label string
 	Value string
 	Bold  bool
 }
 
-// LetterBlock is a paragraph with an optional heading and table.
 type LetterBlock struct {
 	Heading string
 	Text    string
@@ -140,19 +137,12 @@ func letterValues(record ContractRecord, head carecontract.Letterhead) map[strin
 		"traeger":        text(firstLine(textLines(head.SenderText))),
 		"ansprechperson": text(head.ContactName),
 		"rueckfragen":    text(questionText(head)),
-		"angebot":        text(joinGerman(ModuleNames(version.Services))),
+		"angebot":        text(carecontract.JoinNames(ModuleNames(version.Services))),
 		"betreuungsort":  text(version.SchoolName),
 		"vertragsbeginn": text(germanDate(version.EffectiveFrom)),
 		"summe":          {},
 	}
-	switch {
-	case version.PriceCents != nil:
-		values["summe"] = text(formatEuro(*version.PriceCents))
-	case moduleCount(version.Services) > 1:
-		values["summe"] = text(feeByRules)
-	default:
-		values["summe"] = text(feeByStatute)
-	}
+	values["summe"] = text(feeText(version))
 	return values
 }
 
@@ -170,14 +160,7 @@ func termFacts(version carecontract.Version, head carecontract.Letterhead) []Let
 		LetterFact{Label: "Beginn", Value: germanDate(version.EffectiveFrom)},
 		LetterFact{Label: "Laufzeit", Value: TermText(terms, version.EndsOn)},
 	)
-	switch {
-	case version.PriceCents != nil:
-		facts = append(facts, LetterFact{Label: "Beitrag im Monat", Value: formatEuro(*version.PriceCents), Bold: true})
-	case moduleCount(version.Services) > 1:
-		facts = append(facts, LetterFact{Label: "Beitrag im Monat", Value: feeByRules})
-	default:
-		facts = append(facts, LetterFact{Label: "Beitrag im Monat", Value: feeByStatute})
-	}
+	facts = append(facts, LetterFact{Label: "Beitrag im Monat", Value: feeText(version), Bold: version.PriceCents != nil})
 	facts = append(facts,
 		LetterFact{Label: "Kündigung", Value: NoticeText(terms)},
 		LetterFact{Label: "Vertragspartner", Value: partner},
@@ -200,6 +183,23 @@ func contractPartner(terms carecontract.TemplateInput, head carecontract.Letterh
 	return firstLine(textLines(head.SenderText))
 }
 
+func feeText(version carecontract.Version) string {
+	switch {
+	case version.PriceCents != nil:
+		return formatEuro(*version.PriceCents)
+	case moduleCount(version.Services) > 1:
+		return feeByRules
+	default:
+		return feeByStatute
+	}
+}
+
+// traegerName is the Träger as the parents read it in a mail or on the
+// signing page: the first line of the letterhead, else the template's partner.
+func traegerName(letterhead string, terms carecontract.TemplateInput) string {
+	return strings.TrimSpace(firstText(firstLine(textLines(letterhead)), terms.ContractPartner))
+}
+
 // ServiceFacts is one row per weekday Monday to Friday, and Saturday or
 // Sunday when booked: the modules of the day with their end times, or
 // "keine Betreuung".
@@ -217,14 +217,13 @@ func ServiceFacts(services []carecontract.Service) []LetterFact {
 		}
 		value := "keine Betreuung"
 		if len(parts) > 0 {
-			value = joinGerman(parts)
+			value = carecontract.JoinNames(parts)
 		}
 		facts = append(facts, LetterFact{Label: weekdayNames[day], Value: value})
 	}
 	return facts
 }
 
-// ServiceText names one module of a day with its end time.
 func ServiceText(service carecontract.Service) string {
 	text := service.ModuleName
 	if service.EndsAt != "" {
@@ -258,7 +257,6 @@ func ModuleNames(services []carecontract.Service) []string {
 	return names
 }
 
-// TermText names the term of a contract.
 func TermText(terms carecontract.TemplateInput, endsOn *calendar.Date) string {
 	var text string
 	switch terms.TermKind {
@@ -326,13 +324,6 @@ func questionText(head carecontract.Letterhead) string {
 		return "Bei Fragen hilft Ihnen " + name + "."
 	}
 	return "Bei Fragen erreichen Sie " + name + " unter " + strings.Join(ways, " oder ") + "."
-}
-
-func joinGerman(names []string) string {
-	if len(names) <= 1 {
-		return strings.Join(names, "")
-	}
-	return strings.Join(names[:len(names)-1], ", ") + " und " + names[len(names)-1]
 }
 
 func formatEuro(cents int64) string {

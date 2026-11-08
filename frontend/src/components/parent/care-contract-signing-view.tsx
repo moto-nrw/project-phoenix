@@ -36,6 +36,7 @@ import {
   type SigningSource,
   type SigningView,
 } from "~/lib/care-contract-signing-api";
+import { contractWeekdays } from "~/lib/care-contract-weekdays";
 import { careContractsConcept } from "~/lib/concepts/careContracts";
 import {
   formatBerlinDate,
@@ -47,8 +48,6 @@ import type { SignatureValue } from "~/lib/signature";
 
 const logger = createLogger({ component: "ContractSigningView" });
 
-const WEEKDAYS = ["mon", "tue", "wed", "thu", "fri"] as const;
-
 const NOTICE_FIELD = "withdrawal_notice_acknowledged";
 const SIGNATURE_FIELD = "contract-signature";
 
@@ -58,15 +57,10 @@ function isLinkGone(err: unknown): boolean {
   );
 }
 
-/** The weekdays Monday to Friday with their modules; Saturday and Sunday only when booked. */
 function serviceDays(services: readonly SigningService[]) {
-  const booked = services.some(
-    (s) => s.weekday === "sat" || s.weekday === "sun",
-  );
-  const days = booked ? [...WEEKDAYS, "sat", "sun"] : [...WEEKDAYS];
-  return days.map((weekday) => ({
+  return contractWeekdays(services).map((weekday) => ({
     weekday,
-    services: services.filter((s) => s.weekday === weekday),
+    services: services.filter((service) => service.weekday === weekday),
   }));
 }
 
@@ -390,7 +384,7 @@ function SignedConfirmation({ view }: Readonly<{ view: SigningView }>) {
     <SectionCard
       icon={CheckCircle2}
       kicker={t("kicker", { traeger: view.traegerName })}
-      title={signature ? t("signedTitle") : t("alreadySigned")}
+      title={signature ? t("signedTitle") : t("alreadyInForce")}
     >
       <div className="space-y-4">
         {signature ? (

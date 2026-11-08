@@ -11,7 +11,6 @@ import (
 
 // The signature of a contract (#4679).
 
-// SignaturePorts are the ports the root binds for the signature.
 type SignaturePorts struct {
 	Ledger  carecontract.SignatureLedger
 	Links   carecontract.SigningLinks
@@ -41,7 +40,6 @@ func NewPaperSignatures(contractPorts ContractPorts, ports SignaturePorts) carec
 	return application.NewSignatures(store, application.SignaturePorts(ports), clock, contracts)
 }
 
-// ReminderPorts are the ports the root binds for the reminders.
 type ReminderPorts struct {
 	Organizations carecontract.TraegerOrganizations
 	Settings      carecontract.ReminderSettings

@@ -28,11 +28,7 @@ import {
   saveContractTemplate,
 } from "~/lib/traeger-care-contracts-api";
 import { formatEuro } from "./contribution-format";
-import {
-  NOTICE_TO_LABELS,
-  formatNotice,
-  formatTerm,
-} from "./care-contract-format";
+import { NOTICE_TO_LABELS } from "./care-contract-format";
 
 const logger = createLogger({ component: "CareContractConditions" });
 
@@ -146,8 +142,7 @@ export function CareContractConditions({
                         </span>
                         {offering.template ? (
                           <span className="mt-1 block text-sm text-gray-600">
-                            {formatTerm(offering.template)} ·{" "}
-                            {formatNotice(offering.template)}
+                            {offering.termText} · {offering.noticeText}
                           </span>
                         ) : null}
                       </span>
@@ -427,7 +422,6 @@ function ConditionsForm({
   );
 }
 
-/** Whether an offering has its conditions, as the list badge says it. */
 function conditionBadge(offering: OfferingTemplate): {
   tone: "green" | "gray" | "orange";
   label: string;

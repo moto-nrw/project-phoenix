@@ -10,7 +10,6 @@ import (
 // The ports of the Betreuungsvertrag. The root binds each one; none names
 // another owner's types.
 
-// School is a school of the Träger.
 type School struct {
 	ID   int64
 	Name string
@@ -87,7 +86,6 @@ type SchoolAccess struct {
 	RangeEnd   calendar.Date
 }
 
-// The data of a SchoolAccess.
 const (
 	// SchoolAccessApplications is a read of the school's accepted
 	// applications to create contracts.
@@ -110,7 +108,6 @@ type SchoolApplications interface {
 // SchoolBookings reads the bookings and the offerings of the school whose
 // tenant transaction the caller holds (Care Plan).
 type SchoolBookings interface {
-	// Bookings lists the bookings of the application children by child.
 	Bookings(ctx context.Context, requestChildIDs []int64) (map[int64][]Booking, error)
 	// Offerings lists the school's offerings; a non-empty ids keeps only
 	// those.
@@ -157,7 +154,6 @@ type Letterheads interface {
 	Letterhead(ctx context.Context, reviewer Reviewer) (Letterhead, error)
 }
 
-// MailState is the state of one mail of the outbox.
 type MailState struct {
 	OutboxID int64
 	State    string
