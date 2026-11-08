@@ -21,7 +21,7 @@ describe("Button", () => {
   it("shows loading text when isLoading is true", () => {
     render(<Button isLoading>Submit</Button>);
 
-    expect(screen.getByRole("button")).toHaveTextContent("Loading...");
+    expect(screen.getByRole("button")).toHaveTextContent("Wird geladen …");
     expect(screen.queryByText("Submit")).not.toBeInTheDocument();
   });
 
@@ -39,6 +39,26 @@ describe("Button", () => {
     render(<Button isLoading>Submit</Button>);
 
     expect(screen.getByRole("button")).toBeDisabled();
+  });
+
+  it("stays locked while loading even when the caller passes disabled={false}", () => {
+    const handleClick = vi.fn();
+    render(
+      <Button isLoading disabled={false} onClick={handleClick}>
+        Submit
+      </Button>,
+    );
+
+    const button = screen.getByRole("button");
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+    expect(handleClick).not.toHaveBeenCalled();
+  });
+
+  it("honours disabled without isLoading", () => {
+    render(<Button disabled>Submit</Button>);
+
+    expect(screen.getByRole("button", { name: "Submit" })).toBeDisabled();
   });
 
   it("calls onClick handler when clicked", () => {
