@@ -3,12 +3,11 @@ package migrations
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/uptrace/bun"
 )
 
-const parentBillingCareAmendmentsVersion = "1.15.820"
+const parentBillingCareAmendmentsVersion = "1.15.821"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
@@ -16,7 +15,7 @@ func init() {
 		Description: "Elternabrechnung: Rechnung in der Prüfphase ändern (Betrag, Empfänger, Anschrift, Positionen) mit angefügter Historie (#6197)",
 		DependsOn: []string{
 			parentBillingCareReviewVersion,     // the review whose invoices change
-			parentBillingCostShareScopeVersion, // the last parent billing migration before this one
+			parentBillingCarePriceFormsVersion, // the last parent billing migration before this one
 			mealBillingMonthsVersion,           // the erasure of 1.15.811 this one extends
 		},
 	})
@@ -165,11 +164,7 @@ DROP FUNCTION IF EXISTS parent_billing.refuse_care_run_amendment();
 const careAmendmentsErasureAnchor = "\t\t\t\t\tDELETE FROM care_contract.contract_events AS event\n"
 
 // careAmendmentsErasureStatement deletes the changes of the review that name
-// a contract of a retired demo school (#6197). A recipient or address change
-// copies a name, a mail address and a postal address; an amount or position
-// change names the contract with its reason, which may name the family. The
-// run stays, so nothing cascades: the entries go with their contract. The
-// corrections an issued invoice copied go with the invoice by cascade.
+// a contract of a retired demo school (demo_visitor_erasure_of_821.go).
 const careAmendmentsErasureStatement = "\t\t\t\t\t-- A change of an invoice in the review (#6197) names the\n" +
 	"\t\t\t\t\t-- contract and may copy a recipient; it goes with the contract.\n" +
 	"\t\t\t\t\tDELETE FROM parent_billing.care_run_amendments AS amendment\n" +
@@ -178,29 +173,11 @@ const careAmendmentsErasureStatement = "\t\t\t\t\t-- A change of an invoice in t
 	"\t\t\t\t\t\tAND amendment.organization_id = contract.organization_id\n" +
 	"\t\t\t\t\t\tAND amendment.care_contract_id = contract.id;\n"
 
-// demoVisitorErasureCareAmendmentsSQL is platform.erase_closed_demo_visitors
-// of 1.15.811 with the deletion of the changes of the review; the rest is
-// unchanged.
-func demoVisitorErasureCareAmendmentsSQL() (string, error) {
-	if count := strings.Count(demoVisitorErasureMealBillingSQL, careAmendmentsErasureAnchor); count != 1 {
-		return "", fmt.Errorf("the erasure of 1.15.811 has the anchor %d times, want once", count)
-	}
-	return strings.Replace(demoVisitorErasureMealBillingSQL, careAmendmentsErasureAnchor,
-		careAmendmentsErasureStatement+careAmendmentsErasureAnchor, 1), nil
-}
-
 func parentBillingCareAmendmentsUp(ctx context.Context, db *bun.DB) error {
 	if _, err := db.ExecContext(ctx, parentBillingCareAmendmentsUpSQL); err != nil {
 		return fmt.Errorf("add the changes of the review: %w", err)
 	}
-	erasure, err := demoVisitorErasureCareAmendmentsSQL()
-	if err != nil {
-		return err
-	}
-	if _, err := db.ExecContext(ctx, erasure); err != nil {
-		return fmt.Errorf("erase the changes of the review of retired demo schools: %w", err)
-	}
-	return nil
+	return installCareAmendmentsErasure(ctx, db)
 }
 
 func parentBillingCareAmendmentsDown(ctx context.Context, db *bun.DB) error {

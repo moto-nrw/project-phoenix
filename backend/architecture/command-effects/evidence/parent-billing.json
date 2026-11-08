@@ -137,6 +137,14 @@
       "target_owner": "organization-tenancy"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.CareAmendable",
+      "binding_digest": "992cfa26ede51a6f286173128605dd0e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareBillingSettings.CareAmendable",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerBools",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.CareMonthRule",
       "binding_digest": "27ee080577b52f26c26a8697338a6438",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareBillingSettings.CareMonthRule",

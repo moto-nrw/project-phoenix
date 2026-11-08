@@ -1099,7 +1099,7 @@ func careAmendmentRows(t *testing.T, db *bun.DB, schoolID int64) []int64 {
 }
 
 // The changes of the review of a retired demo school's contracts go with
-// the visitor (1.15.820), also an amount change that names no one but ties
+// the visitor (1.15.821), also an amount change that names no one but ties
 // the contract to its reason, and the revocation of it. A school of the
 // same Träger that is still open keeps its changes.
 func TestDemoSchoolQueueErasesTheReviewChangesOfTheRetiredSchool(t *testing.T) {

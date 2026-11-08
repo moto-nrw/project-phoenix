@@ -13,7 +13,7 @@ import (
 )
 
 // The changes of single invoices in the review of a monthly run (#6197).
-// The request role only appends entries; the trigger of 1.15.820 refuses an
+// The request role only appends entries; the trigger of 1.15.821 refuses an
 // update and an entry of a released run for every role. A release copies
 // what it applied onto the issued invoice (care_invoice_corrections), which
 // never changes.
