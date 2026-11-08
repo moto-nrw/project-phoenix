@@ -1525,7 +1525,11 @@ export function PickupTimeModal({
         )}
 
         {pending && (
-          <div className="bg-moto-orange-soft text-moto-orange-strong space-y-2 rounded-lg px-3 py-2.5">
+          <InsetPanel
+            tone="warning"
+            padding="compact"
+            className="text-moto-orange-strong space-y-2"
+          >
             {request.pickup_time && (
               <p className="text-base font-semibold tabular-nums">
                 {request.previous_pickup_time
@@ -1580,7 +1584,7 @@ export function PickupTimeModal({
                 isSelf={request.is_self === true}
               />
             )}
-          </div>
+          </InsetPanel>
         )}
         {request?.status === "approved" && (
           <InsetPanel as="p" framed className="text-sm text-gray-600">

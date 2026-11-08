@@ -9,8 +9,8 @@ import { studentKeys } from "~/lib/swr/portal-keys";
 // already record.
 //
 // Design follows the Anmeldungen/Planung surface language (same as the
-// Tagesauswertung): one calm content section with an uppercase kicker,
-// gray-50 stat blocks, plain tables, quiet white export buttons.
+// Tagesauswertung): one calm content section without a kicker, gray-50
+// stat blocks, plain tables, quiet white export buttons.
 
 import { Download, FileSpreadsheet, FileText } from "lucide-react";
 import Link from "~/components/ui/navigation-link";
