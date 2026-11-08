@@ -100,38 +100,48 @@ func narrowMonth(month careMonth, schoolIDs []int64, exclusions map[int64]parent
 }
 
 // fingerprintInvoice is what the fingerprint covers of an invoice the
-// release issues.
+// review shows: the invoice as shown with its positions and reductions, the
+// child record and the payable cents the rule chain allocated.
 type fingerprintInvoice struct {
 	Invoice   parentbilling.CareInvoice `json:"invoice"`
 	StudentID *int64                    `json:"student_id"`
 	Payable   []int64                   `json:"payable"`
 }
 
-// previewFingerprint names the reviewed state of a run: schools, invoice
-// date, month rule, the excluded contracts and every invoice the release
-// issues with its recipient, positions and reductions.
-func previewFingerprint(run parentbilling.CareRun, rule string, review reviewedMonth) string {
-	excluded := make([]int64, len(review.excluded))
-	for i, invoice := range review.excluded {
-		excluded[i] = invoice.ContractID
-	}
-	slices.Sort(excluded)
-	invoices := make([]fingerprintInvoice, len(review.invoices))
-	for i, invoice := range review.invoices {
+func fingerprintInvoices(invoices []parentbilling.CareInvoice) []fingerprintInvoice {
+	result := make([]fingerprintInvoice, len(invoices))
+	for i, invoice := range invoices {
 		payable := make([]int64, len(invoice.Positions))
 		for j, position := range invoice.Positions {
 			payable[j] = position.PayableCents
 		}
-		invoices[i] = fingerprintInvoice{Invoice: invoice, StudentID: invoice.StudentID, Payable: payable}
+		result[i] = fingerprintInvoice{Invoice: invoice, StudentID: invoice.StudentID, Payable: payable}
 	}
+	return result
+}
+
+// previewFingerprint names the reviewed state of a run: everything the
+// review shows. That is the schools, the invoice date and the month rule;
+// every invoice the release issues and every excluded one, each with its
+// recipient, positions and reductions (so a new evidence or rule changes
+// it); the bookings without a price; the children held back for a
+// duplicate contract; and the count of contracts already billed. A change
+// of any of them since the review makes the release refuse (#5916).
+// Whatever else a later change adds to the review (the Mensa of #4686)
+// belongs here too.
+func previewFingerprint(run parentbilling.CareRun, rule string, review reviewedMonth) string {
 	state, err := json.Marshal(struct {
-		Run         int64                `json:"run"`
-		Schools     []int64              `json:"schools"`
-		InvoiceDate *calendar.Date       `json:"invoice_date"`
-		Rule        string               `json:"rule"`
-		Excluded    []int64              `json:"excluded"`
-		Invoices    []fingerprintInvoice `json:"invoices"`
-	}{run.ID, run.SchoolIDs, run.InvoiceDate, rule, excluded, invoices})
+		Run         int64                         `json:"run"`
+		Schools     []int64                       `json:"schools"`
+		InvoiceDate *calendar.Date                `json:"invoice_date"`
+		Rule        string                        `json:"rule"`
+		Invoices    []fingerprintInvoice          `json:"invoices"`
+		Excluded    []fingerprintInvoice          `json:"excluded"`
+		Unpriced    []parentbilling.CareUnpriced  `json:"unpriced"`
+		Duplicates  []parentbilling.CareDuplicate `json:"duplicates"`
+		Billed      int                           `json:"billed"`
+	}{run.ID, run.SchoolIDs, run.InvoiceDate, rule, fingerprintInvoices(review.invoices),
+		fingerprintInvoices(review.excluded), review.unpriced, review.duplicates, review.billed})
 	if err != nil {
 		// Every value above marshals; a failure leaves no fingerprint a
 		// release could match.

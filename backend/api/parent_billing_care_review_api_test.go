@@ -430,3 +430,75 @@ func TestCareReviewAllExcludedRunClosesWithoutIssuing(t *testing.T) {
 	require.Len(t, issued.Invoices, 1)
 	assert.Regexp(t, `^MB-\d{4}-0001$`, issued.Invoices[0].Number, "the empty release consumed no number")
 }
+
+// changedSinceReview reviews a run with Lea (issued) and Mia (excluded),
+// lets change alter the month, and asserts that the release refuses the
+// review: everything the review shows is part of its fingerprint, not only
+// the invoices it issues (#5916).
+func changedSinceReview(t *testing.T, name string, change func(f careBillingFixture, school, mia int64)) {
+	t.Helper()
+	f := newCareBillingFixture(t, name)
+	school := f.office.schools[0]
+	careContract(t, f.db, f.office.organization, school, "Lea", careMonth, sjrServices()...)
+	mia := careContract(t, f.db, f.office.organization, school, "Mia", careMonth, sjrServices()...)
+	pricedSchools(t, f)
+	f.saveRule(t, careRule("income_level", "Stufe 2", []int64{school}, map[string]any{"discount_basis_points": 2000}))
+	run := f.startRun(t, careMonth)
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/exclusions"),
+		map[string]any{"contract_id": mia, "reason": "Rückfrage"})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	reviewed := f.review(t, run.ID)
+	require.Equal(t, 1, reviewed.PreviewCount)
+
+	change(f, school, mia)
+	after := f.review(t, run.ID)
+	assert.Equal(t, reviewed.PreviewCount, after.PreviewCount, "the invoices to issue stay the same")
+	assert.Equal(t, reviewed.PreviewCents, after.PreviewCents, "their sum too")
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/release"), careRelease(reviewed.careRunBody))
+	assert.Equal(t, http.StatusConflict, rec.Code, "the release refuses a review that changed: %s", rec.Body.String())
+}
+
+// A new contract without a price between review and release adds a booking
+// without a price to the review.
+func TestCareReviewReleaseRefusesANewBookingWithoutPrice(t *testing.T) {
+	t.Parallel()
+	changedSinceReview(t, "Träger Prüfphase neuer Vertrag ohne Preis", func(f careBillingFixture, school, _ int64) {
+		careContract(t, f.db, f.office.organization, school, "Noah", careMonth,
+			careService{"wed", 9199, "Spätbetreuung bis 17:00 Uhr", "17:00"})
+		require.Len(t, f.review(t, f.openRunID(t)).Unpriced, 1)
+	})
+}
+
+// Two new contracts of one child for the same module and day add a child
+// the release holds back.
+func TestCareReviewReleaseRefusesANewDuplicate(t *testing.T) {
+	t.Parallel()
+	changedSinceReview(t, "Träger Prüfphase neues Duplikat", func(f careBillingFixture, school, _ int64) {
+		careContract(t, f.db, f.office.organization, school, "Noah", careMonth, sjrServices()...)
+		careContract(t, f.db, f.office.organization, school, "Noah", careMonth, sjrServices()[0])
+		require.NotEmpty(t, f.review(t, f.openRunID(t)).Duplicates)
+	})
+}
+
+// A new evidence changes the reduction of the excluded invoice; the review
+// shows it, so the release must see it.
+func TestCareReviewReleaseRefusesAChangedReductionOfAnExcludedInvoice(t *testing.T) {
+	t.Parallel()
+	changedSinceReview(t, "Träger Prüfphase neuer Nachweis", func(f careBillingFixture, _, mia int64) {
+		var rule int64
+		require.NoError(t, f.db.NewRaw(`SELECT id FROM parent_billing.contribution_rules
+			WHERE organization_id = ? AND name = 'Stufe 2'`, f.office.organization).Scan(context.Background(), &rule))
+		rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careEvidencesPath, careEvidence(mia, "income_level", &rule))
+		require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	})
+}
+
+// openRunID names the open run of the fixture's month.
+func (f careBillingFixture) openRunID(t *testing.T) int64 {
+	t.Helper()
+	var id int64
+	require.NoError(t, f.db.NewRaw(`SELECT id FROM parent_billing.care_runs
+		WHERE organization_id = ? AND status = 'calculated' ORDER BY id DESC LIMIT 1`, f.office.organization).
+		Scan(context.Background(), &id))
+	return id
+}

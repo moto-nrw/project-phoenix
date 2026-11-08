@@ -306,9 +306,12 @@ berechnet.
   Muster des SJR wird nachträglich abgeglichen (E4).
 - **Ausstellung prüft erneut.** Die Freigabe sperrt Monatsabrechnung und Lauf,
   rechnet die Vorschau in derselben Transaktion neu und vergleicht Zahl, Summe
-  und einen Fingerabdruck des geprüften Stands (Schulen, Rechnungsdatum,
-  Monatsregel, Ausschlüsse, Empfänger, Positionen und Ermäßigungen jeder
-  Rechnung). Weicht etwas ab, lehnt sie ab (409
+  und einen Fingerabdruck des geprüften Stands: alles, was die Prüfung zeigt
+  (Schulen, Rechnungsdatum, Monatsregel; jede auszustellende und jede
+  ausgeschlossene Rechnung mit Empfänger, Positionen und Ermäßigungen, also
+  auch geänderte Regeln oder Nachweise; Buchungen ohne Preis; wegen eines
+  doppelten Vertrags zurückgehaltene Kinder; schon abgerechnete Verträge).
+  Kommen weitere Anzeigen dazu (Mensa, #4686), gehören sie ebenfalls hinein. Weicht etwas ab, lehnt sie ab (409
   `parent_billing.billing_run_changed`). Ausschluss und Rechnungsdatum halten
   dieselbe Sperre des Laufs.
 - **Storno vor dem Versand.** Präzisiert den Nachtrag vom 03.11.2026 für die
