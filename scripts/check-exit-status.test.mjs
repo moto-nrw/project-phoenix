@@ -126,7 +126,7 @@ function fixture(t) {
 // each failure must stop the chain, including tools that fail without output.
 for (const name of ['check', 'check:fresh']) {
   test(`${name} propagates each stage failure and stops before later tools`, async t => {
-    const stages = ['scripts/verify-locales.mjs', 'scripts/generate-help-index.mjs', 'test:source-contracts', 'scripts/verify-error-catalog.mjs', 'oxlint', './node_modules/typescript-native/bin/tsc'];
+    const stages = ['scripts/verify-locales.mjs', 'scripts/generate-help-index.mjs', 'scripts/generate-portal-pages.mjs', 'test:source-contracts', 'scripts/verify-error-catalog.mjs', 'oxlint', './node_modules/typescript-native/bin/tsc'];
     for (const failed of [...stages, '']) {
       await t.test(failed || 'passing tools with expected error logs', t => {
         const f = fixture(t);
