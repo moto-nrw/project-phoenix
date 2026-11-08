@@ -52,7 +52,7 @@ func pathID(r *http.Request, name string) (int64, bool) {
 func (rs *Resource) mfaStatus(w http.ResponseWriter, r *http.Request) {
 	state, err := rs.secondFactor.CatererMFAStatus(r.Context(), currentAccountID(r.Context()))
 	if err != nil {
-		renderSecondFactorFailure(w, r, err)
+		renderFailure(w, r, err)
 		return
 	}
 	render.JSON(w, r, MFAStatusResponse(state))
@@ -62,7 +62,7 @@ func (rs *Resource) mfaStatus(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) startMFA(w http.ResponseWriter, r *http.Request) {
 	challenge, err := rs.secondFactor.StartCatererMFA(r.Context(), currentAccountID(r.Context()), common.ParseClientIP(r))
 	if err != nil {
-		renderSecondFactorFailure(w, r, err)
+		renderFailure(w, r, err)
 		return
 	}
 	render.JSON(w, r, MFAChallengeResponse(challenge))
@@ -86,7 +86,7 @@ func (rs *Resource) confirmMFA(w http.ResponseWriter, r *http.Request) {
 		IPAddress: common.GetClientIPString(r), UserAgent: r.UserAgent(),
 	})
 	if err != nil {
-		renderSecondFactorFailure(w, r, err)
+		renderFailure(w, r, err)
 		return
 	}
 	render.JSON(w, r, portalauth.TokenResponse{AccessToken: session.AccessToken, RefreshToken: session.RefreshToken})
@@ -107,14 +107,14 @@ func (rs *Resource) disableMFA(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, identityaccess.ErrInvalidCredentials):
 		common.RenderError(w, r, common.ErrorUnauthorizedOnField(errCurrentPasswordWrong, common.CodeIdentityCurrentPasswordWrong, "current_password"))
 	default:
-		renderSecondFactorFailure(w, r, err)
+		renderFailure(w, r, err)
 	}
 }
 
 func (rs *Resource) listTrustedDevices(w http.ResponseWriter, r *http.Request) {
 	devices, err := rs.secondFactor.ListCatererTrustedDevices(r.Context(), currentAccountID(r.Context()))
 	if err != nil {
-		renderSecondFactorFailure(w, r, err)
+		renderFailure(w, r, err)
 		return
 	}
 	render.JSON(w, r, common.MapTrustedDevices(devices, func(d identityaccess.AccountTrustedDevice) common.TrustedDeviceRow {
@@ -132,7 +132,7 @@ func (rs *Resource) revokeTrustedDevice(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if err := rs.secondFactor.RevokeCatererTrustedDevice(r.Context(), currentAccountID(r.Context()), deviceID); err != nil {
-		renderSecondFactorFailure(w, r, err)
+		renderFailure(w, r, err)
 		return
 	}
 	common.RespondNoContent(w, r)
@@ -141,7 +141,7 @@ func (rs *Resource) revokeTrustedDevice(w http.ResponseWriter, r *http.Request) 
 func (rs *Resource) listPasskeys(w http.ResponseWriter, r *http.Request) {
 	passkeys, err := rs.secondFactor.ListCatererPasskeys(r.Context(), currentAccountID(r.Context()))
 	if err != nil {
-		renderSecondFactorFailure(w, r, err)
+		renderFailure(w, r, err)
 		return
 	}
 	render.JSON(w, r, passkeys)
@@ -154,7 +154,7 @@ func (rs *Resource) revokePasskey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := rs.secondFactor.RevokeCatererPasskey(r.Context(), currentAccountID(r.Context()), passkeyID); err != nil {
-		renderSecondFactorFailure(w, r, err)
+		renderFailure(w, r, err)
 		return
 	}
 	common.RespondNoContent(w, r)
@@ -164,7 +164,7 @@ func (rs *Resource) revokePasskey(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) passkeyEnrollmentChallenge(w http.ResponseWriter, r *http.Request) {
 	challenge, err := rs.secondFactor.StartCatererPasskeyEnrollment(r.Context(), currentAccountID(r.Context()), common.ParseClientIP(r))
 	if err != nil {
-		renderSecondFactorFailure(w, r, err)
+		renderFailure(w, r, err)
 		return
 	}
 	render.JSON(w, r, challenge)
@@ -180,7 +180,7 @@ func (rs *Resource) passkeyRegisterOptions(w http.ResponseWriter, r *http.Reques
 		AccountID: currentAccountID(r.Context()), ExpectedOrigin: common.PasskeyOrigin(r), Code: req.Code, Name: req.Name,
 	})
 	if err != nil {
-		renderSecondFactorFailure(w, r, err)
+		renderFailure(w, r, err)
 		return
 	}
 	render.JSON(w, r, options)
@@ -196,7 +196,7 @@ func (rs *Resource) passkeyRegisterVerify(w http.ResponseWriter, r *http.Request
 		AccountID: currentAccountID(r.Context()), SessionID: req.SessionID, CredentialResponse: req.Response, Name: req.Name,
 	})
 	if err != nil {
-		renderSecondFactorFailure(w, r, err)
+		renderFailure(w, r, err)
 		return
 	}
 	render.JSON(w, r, summary)

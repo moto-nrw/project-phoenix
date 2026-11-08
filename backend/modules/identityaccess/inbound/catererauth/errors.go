@@ -21,29 +21,29 @@ var catererRefusals = []common.ErrorRule{
 	{Target: identityaccess.ErrPasskeyFlowsUnavailable, Render: common.FixedRenderer(common.ErrorServiceUnavailable, identityaccess.ErrPasskeyFlowsUnavailable)},
 }
 
-// Rules classify a refused caterer sign-in, its second-factor code and the
+// rules classify a refused caterer sign-in, its second-factor code and the
 // caterer's management of its factor, passkeys and remembered devices: the
 // session refusals and the mint after a proven code first, so a wrong
 // password answers alike everywhere, then the code and passkey steps.
-var Rules = slices.Concat(catererRefusals, portalauth.ExchangeRules, portalauth.MFARules, portalauth.PasskeyRules)
+var rules = slices.Concat(catererRefusals, portalauth.ExchangeRules, portalauth.MFARules, portalauth.PasskeyRules)
 
-// PasskeyLoginRules answer every refused passkey sign-in with one code, an
+// passkeyLoginRules answer every refused passkey sign-in with one code, an
 // account that is no caterer's included.
-var PasskeyLoginRules = slices.Concat([]common.ErrorRule{{
+var passkeyLoginRules = slices.Concat([]common.ErrorRule{{
 	Target: identityaccess.ErrAccountNotCaterer,
 	Render: common.FixedCodedRenderer(common.ErrorUnauthorizedWithCode, identityaccess.ErrInvalidCredentials, common.CodeIdentityPasskeyLoginFailed),
-}}, portalauth.PasskeyLoginRules, Rules)
+}}, portalauth.PasskeyLoginRules, rules)
 
-// renderRefusal answers err by rules. An unclassified error answers 500
+// renderRefusal answers err by table. An unclassified error answers 500
 // with a fixed text and keeps its cause for the log only.
-func renderRefusal(w http.ResponseWriter, r *http.Request, err error, rules []common.ErrorRule, failed string) {
-	common.RenderError(w, r, portalauth.RendererOr(err, common.ErrorInternalServerRenderer(failed), rules))
+func renderRefusal(w http.ResponseWriter, r *http.Request, err error, table []common.ErrorRule, failed string) {
+	common.RenderError(w, r, portalauth.RendererOr(err, common.ErrorInternalServerRenderer(failed), table))
 }
 
-func renderSecondFactorFailure(w http.ResponseWriter, r *http.Request, err error) {
-	renderRefusal(w, r, err, Rules, "caterer second factor failed")
+func renderFailure(w http.ResponseWriter, r *http.Request, err error) {
+	renderRefusal(w, r, err, rules, "caterer second factor failed")
 }
 
 func renderPasskeyLoginFailure(w http.ResponseWriter, r *http.Request, err error) {
-	renderRefusal(w, r, err, PasskeyLoginRules, "caterer passkey sign-in failed")
+	renderRefusal(w, r, err, passkeyLoginRules, "caterer passkey sign-in failed")
 }

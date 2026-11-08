@@ -30,13 +30,13 @@ type Runtime struct {
 	CurrentAccountID func(context.Context) int64
 	RenderList       func(mealplan.ListExport, string) (ExportFile, error)
 	Resets           common.PasswordResetRoutes
-	SignIn           SignInRoutes
+	Auth             AuthRoutes
 }
 
-// SignInRoutes are the caterer's sign-in and second-factor routes. The
-// caterer router places them in its groups: the public sign-in and the
-// credential checks of a session behind the auth rate limit.
-type SignInRoutes interface {
+// AuthRoutes are the caterer's sign-in and the management of its second
+// factor. The caterer router places them in its groups: the public sign-in
+// and the credential checks of a session behind the auth rate limit.
+type AuthRoutes interface {
 	MountSignIn(chi.Router)
 	MountSession(chi.Router)
 	MountCredentialChecks(chi.Router)
@@ -51,8 +51,8 @@ type Resource struct {
 // NewResource builds the resource; the portal, the account and the
 // renderer are required.
 func NewResource(portal catererportal.Portal, runtime Runtime) *Resource {
-	if portal == nil || runtime.CurrentAccountID == nil || runtime.RenderList == nil || runtime.SignIn == nil {
-		panic("caterer portal HTTP: portal, account, renderer and sign-in are required")
+	if portal == nil || runtime.CurrentAccountID == nil || runtime.RenderList == nil || runtime.Auth == nil {
+		panic("caterer portal HTTP: portal, account, renderer and auth routes are required")
 	}
 	return &Resource{portal: portal, runtime: runtime}
 }
@@ -96,7 +96,7 @@ func (rs *Resource) CatererRouter(authRateLimiter func(http.Handler) http.Handle
 		// The sign-in with its second factor (#4497): the password, the
 		// code, its resend and the passkey. They check credentials, so they
 		// share the limit.
-		rs.runtime.SignIn.MountSignIn(r)
+		rs.runtime.Auth.MountSignIn(r)
 		r.Post("/auth/password-reset", rs.runtime.Resets.ServeInitiate)
 		r.Post("/auth/password-reset/confirm", rs.runtime.Resets.ServeConfirm)
 		r.Get("/invitations/{schoolId}/{token}", rs.previewInvitation)
@@ -110,14 +110,14 @@ func (rs *Resource) CatererRouter(authRateLimiter func(http.Handler) http.Handle
 		r.Post("/schools/{schoolId}/orders/{orderId}/confirm", rs.confirmOrder)
 		// The caterer's own second factor (#4497). The session routes stay
 		// leaves beside the public sign-in routes of the same prefix.
-		rs.runtime.SignIn.MountSession(r)
+		rs.runtime.Auth.MountSession(r)
 		// The current password is a credential check: it shares the
 		// sign-in's rate limit beside the account lock. Every mailed code
 		// and every code check shares it too.
 		r.Group(func(r chi.Router) {
 			limitCredentialChecks(r)
 			r.Post("/account/password", rs.changePassword)
-			rs.runtime.SignIn.MountCredentialChecks(r)
+			rs.runtime.Auth.MountCredentialChecks(r)
 		})
 	})
 	return router

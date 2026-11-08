@@ -52,7 +52,7 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 		UserAgent: r.UserAgent(), TrustedDeviceCookie: common.TrustedDevice(r),
 	})
 	if err != nil {
-		renderSecondFactorFailure(w, r, err)
+		renderFailure(w, r, err)
 		return
 	}
 	common.Respond(w, r, http.StatusOK, LoginResponse{
@@ -74,7 +74,7 @@ func (rs *Resource) verifyMFA(w http.ResponseWriter, r *http.Request) {
 		IPAddress: common.GetClientIPString(r), UserAgent: r.UserAgent(),
 	})
 	if err != nil {
-		renderSecondFactorFailure(w, r, err)
+		renderFailure(w, r, err)
 		return
 	}
 	common.SetTrustedDevice(w, session.TrustedDeviceCookie, session.TrustedDeviceExpiresAt)
@@ -90,7 +90,7 @@ func (rs *Resource) resendMFA(w http.ResponseWriter, r *http.Request) {
 	}
 	renewed, err := rs.signIn.ResendCatererMFA(r.Context(), req.ChallengeToken, common.ParseClientIP(r))
 	if err != nil {
-		renderSecondFactorFailure(w, r, err)
+		renderFailure(w, r, err)
 		return
 	}
 	render.JSON(w, r, common.MFAResendResponse{ChallengeToken: renewed})
