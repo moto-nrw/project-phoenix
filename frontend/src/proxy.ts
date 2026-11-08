@@ -285,7 +285,8 @@ interface PortalHost {
   /** First segments of the pages under app/<portal>/ (generated). */
   readonly pages: readonly string[];
   /** BFF routes the host serves: a string ending in "/" is a prefix, any
-   * other string an exact path. Every other /api/ path answers 404. */
+   * other string an exact path. Every other /api/ path answers 404. The
+   * portal's own prefix also carries its client log route (`portalLogPath`). */
   readonly api: readonly (string | RegExp)[];
   /** Parent-facing: the request may render in the parent's language. */
   readonly localized: boolean;
@@ -302,8 +303,7 @@ const OPERATOR_HOST: PortalHost = {
   hostname: OPERATOR_HOSTNAME,
   appPrefix: "/operator",
   pages: PORTAL_PAGES.operator,
-  // The client logger of the operator pages posts to /api/logs.
-  api: ["/api/operator/", "/api/logs"],
+  api: ["/api/operator/"],
   localized: false,
   help: true,
 };

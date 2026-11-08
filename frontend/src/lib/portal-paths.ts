@@ -19,3 +19,28 @@ export type PortalKey = keyof typeof PORTAL_AUTH_BASE_PATHS;
 export function portalAuthPath(portal: PortalKey, step: string): string {
   return `${PORTAL_AUTH_BASE_PATHS[portal]}/${step}`;
 }
+
+/**
+ * A portal's client log route, beside its auth routes: `/api/logs` for the
+ * tenant, `/api/<portal>/logs` for the others. It authenticates with that
+ * portal's session, so the tenant cookie is never needed for it.
+ */
+export function portalLogPath(portal: PortalKey): string {
+  return PORTAL_AUTH_BASE_PATHS[portal].replace(/\/auth$/, "/logs");
+}
+
+/**
+ * The portal of a browser host: a portal host or, for every other host, the
+ * tenant. Reads the inlined NEXT_PUBLIC_* names without failing on a missing
+ * one, so callers that must not throw (the logger) can use it.
+ */
+export function portalOfHost(host: string): PortalKey {
+  const hosts: [PortalKey, string | undefined][] = [
+    ["operator", process.env.NEXT_PUBLIC_OPERATOR_HOSTNAME],
+    ["parent", process.env.NEXT_PUBLIC_PARENTS_HOSTNAME],
+    ["school", process.env.NEXT_PUBLIC_SCHOOL_HOSTNAME],
+    ["caterer", process.env.NEXT_PUBLIC_CATERER_HOSTNAME],
+    ["traeger", process.env.NEXT_PUBLIC_TRAEGER_HOSTNAME],
+  ];
+  return hosts.find(([, hostname]) => hostname === host)?.[0] ?? "tenant";
+}

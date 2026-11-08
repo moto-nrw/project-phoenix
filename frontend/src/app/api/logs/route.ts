@@ -1,6 +1,6 @@
 /**
- * API endpoint for client-side log ingestion from the tenant (staff) portal.
- * The parents portal ships to /api/parent/logs with its own session.
+ * Client log ingestion from the tenant (staff) portal. Every other portal
+ * ships to its own route with its own session (`portalLogPath`).
  */
 
 import type { NextRequest } from "next/server";

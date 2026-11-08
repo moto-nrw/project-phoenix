@@ -246,7 +246,12 @@ describe("routes that must work with another account in the cookie", () => {
     ["school", "schule.localhost:3000", "/api/school/auth/logout"],
     ["caterer", "caterer.localhost:3000", "/api/caterer/auth/logout"],
     ["traeger", "traeger.localhost:3000", "/api/traeger/auth/logout"],
-  ] as const)("%s logout stays reachable", async (name, host, path) => {
+    ["operator", "operator.localhost:3000", "/api/operator/logs"],
+    ["parent", "eltern.localhost:3000", "/api/parent/logs"],
+    ["school", "schule.localhost:3000", "/api/school/logs"],
+    ["caterer", "caterer.localhost:3000", "/api/caterer/logs"],
+    ["traeger", "traeger.localhost:3000", "/api/traeger/logs"],
+  ] as const)("%s on %s: %s stays reachable", async (name, host, path) => {
     const portal = portals.find((entry) => entry.name === name)!;
 
     const response = await call(await portal.write(), {

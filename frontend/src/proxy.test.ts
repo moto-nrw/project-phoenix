@@ -1818,11 +1818,23 @@ describe("proxy", () => {
       "/api/auth/session",
     ];
 
-    it("serves the operator API and the client log on the operator host", () => {
+    // The browser logger posts to its portal's log route (portalLogPath); on a
+    // portal host the tenant's /api/logs would need the tenant cookie.
+    it.each([
+      [OPERATOR_HOSTNAME, "/api/operator/logs"],
+      [PARENTS_HOSTNAME, "/api/parent/logs"],
+      [SCHOOL_HOSTNAME, "/api/school/logs"],
+      [CATERER_HOSTNAME, "/api/caterer/logs"],
+      [TRAEGER_HOSTNAME, "/api/traeger/logs"],
+    ])("%s serves its client log route %s, not /api/logs", (host, logPath) => {
+      expect(status(host, logPath)).toBe(200);
+      expect(status(host, "/api/logs")).toBe(404);
+    });
+
+    it("serves the operator API on the operator host", () => {
       for (const apiPath of [
         "/api/operator/auth/session",
         "/api/operator/provisioning/schools",
-        "/api/logs",
       ]) {
         expect(status(OPERATOR_HOSTNAME, apiPath), apiPath).toBe(200);
       }
@@ -1843,7 +1855,6 @@ describe("proxy", () => {
       for (const apiPath of [
         "/api/parent/auth/session",
         "/api/parent/me/children",
-        "/api/parent/logs",
         "/api/tenant/resolve",
         "/api/public/care-contract-signing/abc",
         "/api/public/login-image/a.webp",
@@ -1862,7 +1873,6 @@ describe("proxy", () => {
     it("refuses tenant and other portals' routes on the parents host", () => {
       for (const apiPath of [
         ...tenantRoutes,
-        "/api/logs",
         "/api/parent-announcements",
         "/api/invitations",
         "/api/enrollment/school-a/submit",

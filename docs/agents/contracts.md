@@ -427,7 +427,10 @@ names another account than the cookie with 409
 (`frontend/src/server/auth/session-account-check.ts`). Account exemptions
 are independent of the school exemptions: only
 portal logout, `/api/auth/token` (cookie-only renewal, no token in the
-answer) and `/api/logs` pass. Tenant switching and preview-end must match
+answer) and every portal's client log route pass. The browser logger posts to
+the log route of its host's portal (`/api/logs` for the tenant,
+`/api/<portal>/logs` otherwise; `portalLogPath`), which authenticates with
+that portal's session. Tenant switching and preview-end must match
 the account; invitation acceptance does not use this wrapper. The refusal takes
 the path of the school refusal: the session cache wakes the provider,
 `TenantGuard` hides the page, and the provider's new account resets the SWR

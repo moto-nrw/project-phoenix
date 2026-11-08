@@ -1,4 +1,5 @@
 import "server-only";
+import { portalLogPath } from "~/lib/portal-paths";
 import { ALL_PORTALS } from "./portals";
 
 /**
@@ -22,14 +23,15 @@ export const MISMATCH_EXEMPT_PATHS: ReadonlySet<string> = new Set([
  * Account exemptions are deliberately independent of school exemptions.
  * Logout is an intentional exit from the browser's current cookie session,
  * even when another tab replaced it. Logs must still record reconciliation
- * failures, but do not read or mutate account data. Token renewal only
+ * failures, but do not read or mutate account data; that holds for every
+ * portal's log route. Token renewal only
  * persists the current cookie and returns no token or account data; it must
  * remain reachable for the existing 401 recovery path. Tenant switching
  * and preview-end act on the cookie's account and must match the
  * tab; invitation acceptance does not use the response-aware auth wrapper.
  */
 export const ACCOUNT_CHECK_EXEMPT_PATHS: ReadonlySet<string> = new Set([
-  "/api/logs",
+  ...ALL_PORTALS.map((portal) => portalLogPath(portal.key)),
   "/api/auth/token",
   // Each portal's BFF logout route, app/api/…/auth/logout/route.ts.
   ...ALL_PORTALS.map((portal) => `${portal.basePath}/logout`),
