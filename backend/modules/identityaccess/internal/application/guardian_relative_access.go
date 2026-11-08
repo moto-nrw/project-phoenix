@@ -600,17 +600,14 @@ func (l *AccountLifecycle) listPendingApprovalsDetailed(ctx context.Context) ([]
 	return views, nil
 }
 
-func (l *AccountLifecycle) RevokeAccess(ctx context.Context, req identityaccess.RevokeAccessRequest) (err error) {
-	if l == nil {
-		return errAccountLifecycleUnavailable
-	}
-	defer func() { err = lifecycleError(err) }()
-	ctx = bindRuntime(l.auth.attach, ctx)
-	return l.runtime.WithTenantTx(ctx, l.runtime.TenantID(ctx), func(txCtx context.Context) error {
-		if err := l.guardians.LockStudent(txCtx, req.StudentID); err != nil {
-			return failed(opGuardianRevokeAccess, err)
-		}
-		return l.revokeAccess(txCtx, domain.RevokeAccessRequest(req))
+func (l *AccountLifecycle) RevokeAccess(ctx context.Context, req identityaccess.RevokeAccessRequest) error {
+	return runFlowErr(ctx, l.flow(), func(ctx context.Context) error {
+		return l.runtime.WithTenantTx(ctx, l.runtime.TenantID(ctx), func(txCtx context.Context) error {
+			if err := l.guardians.LockStudent(txCtx, req.StudentID); err != nil {
+				return failed(opGuardianRevokeAccess, err)
+			}
+			return l.revokeAccess(txCtx, domain.RevokeAccessRequest(req))
+		})
 	})
 }
 

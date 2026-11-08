@@ -78,55 +78,52 @@ func NewPasswordReset(auth *AccountAuthentication, deps PasswordResetDependencie
 // unknown address, or an account without a role of the scope's portal,
 // yields no link and no error, so the response never reveals whether an
 // account exists. The rate limit counts only requests that would send.
-func (r *PasswordReset) InitiatePasswordReset(ctx context.Context, email string, portal identityaccess.PasswordResetScope) (_ *identityaccess.PasswordResetLink, err error) {
-	if r == nil {
-		return nil, errPasswordResetUnavailable
-	}
-	defer func() { err = passwordResetError(err) }()
-	ctx = bindRuntime(r.auth.attach, ctx)
-	scope := domain.PasswordResetScope(portal)
-	email = strings.TrimSpace(strings.ToLower(email))
-	account, found, _, err := findLoginAccountByEmail(ctx, r.runtime, r.logins, email)
-	if err != nil {
-		// The answer stays neutral, but a failing lookup is an incident, not
-		// an unknown address: it must be visible in the logs.
-		r.logger.Error("password reset: account lookup failed, answering neutrally",
-			slog.String("scope", string(scope)),
-			slog.Any("error", err),
-		)
-		return nil, nil
-	}
-	if !found {
-		return nil, nil
-	}
-	eligible, err := r.portalEligible(ctx, account.ID, scope)
-	if err != nil || !eligible {
-		return nil, err
-	}
-	// Rate-limit only after confirming a real, actionable account: keying the
-	// limiter on accounts that will be mailed keeps an unauthenticated caller
-	// from filling the table with arbitrary addresses. The IP-keyed limiter in
-	// front of the public routes bounds volumetric probing.
-	if err := r.checkRateLimit(ctx, email); err != nil {
-		return nil, err
-	}
-	r.logger.Info("password reset requested",
-		slog.String("scope", string(scope)))
+func (r *PasswordReset) InitiatePasswordReset(ctx context.Context, email string, portal identityaccess.PasswordResetScope) (*identityaccess.PasswordResetLink, error) {
+	return runFlow(ctx, r.flow(), func(ctx context.Context) (*identityaccess.PasswordResetLink, error) {
+		scope := domain.PasswordResetScope(portal)
+		email = strings.TrimSpace(strings.ToLower(email))
+		account, found, _, err := findLoginAccountByEmail(ctx, r.runtime, r.logins, email)
+		if err != nil {
+			// The answer stays neutral, but a failing lookup is an incident, not
+			// an unknown address: it must be visible in the logs.
+			r.logger.Error("password reset: account lookup failed, answering neutrally",
+				slog.String("scope", string(scope)),
+				slog.Any("error", err),
+			)
+			return nil, nil
+		}
+		if !found {
+			return nil, nil
+		}
+		eligible, err := r.portalEligible(ctx, account.ID, scope)
+		if err != nil || !eligible {
+			return nil, err
+		}
+		// Rate-limit only after confirming a real, actionable account: keying the
+		// limiter on accounts that will be mailed keeps an unauthenticated caller
+		// from filling the table with arbitrary addresses. The IP-keyed limiter in
+		// front of the public routes bounds volumetric probing.
+		if err := r.checkRateLimit(ctx, email); err != nil {
+			return nil, err
+		}
+		r.logger.Info("password reset requested",
+			slog.String("scope", string(scope)))
 
-	var token domain.PasswordResetToken
-	err = r.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		var issueErr error
-		token, issueErr = r.issueResetInAdmin(txCtx, account.ID, account.Email, scope)
-		return issueErr
+		var token domain.PasswordResetToken
+		err = r.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
+			var issueErr error
+			token, issueErr = r.issueResetInAdmin(txCtx, account.ID, account.Email, scope)
+			return issueErr
+		})
+		if err != nil {
+			return nil, failed("initiate password reset transaction", err)
+		}
+		r.logger.Info("password reset token created",
+			slog.Int64("account_id", account.ID))
+
+		link := PublicPasswordResetLink(token)
+		return &link, nil
 	})
-	if err != nil {
-		return nil, failed("initiate password reset transaction", err)
-	}
-	r.logger.Info("password reset token created",
-		slog.Int64("account_id", account.ID))
-
-	link := PublicPasswordResetLink(token)
-	return &link, nil
 }
 
 // issueResetInAdmin replaces the account's open links with a new one and
@@ -200,38 +197,35 @@ func (r *PasswordReset) checkRateLimitInTransaction(ctx context.Context, email s
 // ResetPassword sets the new password through a redeemable link. The
 // password change, the spent link and the revocation of every session at
 // the account's schools commit together.
-func (r *PasswordReset) ResetPassword(ctx context.Context, token, newPassword string) (err error) {
-	if r == nil {
-		return errPasswordResetUnavailable
-	}
-	defer func() { err = passwordResetError(err) }()
-	ctx = bindRuntime(r.auth.attach, ctx)
-	var link domain.PasswordResetToken
-	var found bool
-	err = globalIdentityRead(ctx, r.runtime, func(txCtx context.Context) error {
-		var lookupErr error
-		link, found, _, lookupErr = r.store.FindRedeemablePasswordResetToken(txCtx, token, r.now())
-		return lookupErr
+func (r *PasswordReset) ResetPassword(ctx context.Context, token, newPassword string) error {
+	return runFlowErr(ctx, r.flow(), func(ctx context.Context) (err error) {
+		var link domain.PasswordResetToken
+		var found bool
+		err = globalIdentityRead(ctx, r.runtime, func(txCtx context.Context) error {
+			var lookupErr error
+			link, found, _, lookupErr = r.store.FindRedeemablePasswordResetToken(txCtx, token, r.now())
+			return lookupErr
+		})
+		if err != nil || !found {
+			return failed("reset password", identityaccess.ErrInvalidToken)
+		}
+		if err := r.passwords.ValidatePasswordStrength(newPassword); err != nil {
+			return failed("reset password", err)
+		}
+		hash, err := r.passwords.HashPassword(newPassword)
+		if err != nil {
+			return failed("hash password", err)
+		}
+		// The flow runs before authentication, so it holds the administrative
+		// transaction: the session revocation touches RLS-guarded auth.tokens.
+		err = r.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
+			return r.redeemResetInAdmin(txCtx, link, hash)
+		})
+		if err != nil {
+			return failed("reset password transaction", err)
+		}
+		return nil
 	})
-	if err != nil || !found {
-		return failed("reset password", identityaccess.ErrInvalidToken)
-	}
-	if err := r.passwords.ValidatePasswordStrength(newPassword); err != nil {
-		return failed("reset password", err)
-	}
-	hash, err := r.passwords.HashPassword(newPassword)
-	if err != nil {
-		return failed("hash password", err)
-	}
-	// The flow runs before authentication, so it holds the administrative
-	// transaction: the session revocation touches RLS-guarded auth.tokens.
-	err = r.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		return r.redeemResetInAdmin(txCtx, link, hash)
-	})
-	if err != nil {
-		return failed("reset password transaction", err)
-	}
-	return nil
 }
 
 // redeemResetInAdmin sets the new password, spends the link and revokes the
@@ -259,24 +253,20 @@ func (r *PasswordReset) redeemResetInAdmin(txCtx context.Context, link domain.Pa
 
 // RecordPasswordResetDelivery stores the outcome of mailing a link.
 func (r *PasswordReset) RecordPasswordResetDelivery(ctx context.Context, id int64, delivery identityaccess.TokenDelivery) error {
-	if r == nil {
-		return errPasswordResetUnavailable
-	}
-	return passwordResetError(recordPasswordResetDelivery(bindRuntime(r.auth.attach, ctx), r.runtime, r.store, id, domain.TokenDelivery(delivery)))
+	return runFlowErr(ctx, r.flow(), func(ctx context.Context) error {
+		return recordPasswordResetDelivery(ctx, r.runtime, r.store, id, domain.TokenDelivery(delivery))
+	})
 }
 
 // DeleteSpentPasswordResetTokens removes expired and used links.
-func (r *PasswordReset) DeleteSpentPasswordResetTokens(ctx context.Context) (value0 int, err error) {
-	if r == nil {
-		return 0, errPasswordResetUnavailable
-	}
-	defer func() { err = passwordResetError(err) }()
-	ctx = bindRuntime(r.auth.attach, ctx)
-	err = r.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		value0, err = r.inUnitDeleteSpentPasswordResetTokens(txCtx)
-		return err
+func (r *PasswordReset) DeleteSpentPasswordResetTokens(ctx context.Context) (int, error) {
+	return runFlow(ctx, r.flow(), func(ctx context.Context) (deleted int, err error) {
+		err = r.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
+			deleted, err = r.inUnitDeleteSpentPasswordResetTokens(txCtx)
+			return err
+		})
+		return deleted, err
 	})
-	return
 }
 
 func (r *PasswordReset) inUnitDeleteSpentPasswordResetTokens(ctx context.Context) (int, error) {
@@ -288,17 +278,14 @@ func (r *PasswordReset) inUnitDeleteSpentPasswordResetTokens(ctx context.Context
 }
 
 // DeleteStalePasswordResetWindows removes rate-limit windows older than a day.
-func (r *PasswordReset) DeleteStalePasswordResetWindows(ctx context.Context) (value0 int, err error) {
-	if r == nil {
-		return 0, errPasswordResetUnavailable
-	}
-	defer func() { err = passwordResetError(err) }()
-	ctx = bindRuntime(r.auth.attach, ctx)
-	err = r.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		value0, err = r.inUnitDeleteStalePasswordResetWindows(txCtx)
-		return err
+func (r *PasswordReset) DeleteStalePasswordResetWindows(ctx context.Context) (int, error) {
+	return runFlow(ctx, r.flow(), func(ctx context.Context) (deleted int, err error) {
+		err = r.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
+			deleted, err = r.inUnitDeleteStalePasswordResetWindows(txCtx)
+			return err
+		})
+		return deleted, err
 	})
-	return
 }
 
 func (r *PasswordReset) inUnitDeleteStalePasswordResetWindows(ctx context.Context) (int, error) {

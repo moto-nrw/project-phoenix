@@ -410,46 +410,43 @@ func (s *AccountAuthentication) tenantAccessRefusal(ctx context.Context, account
 // (#5422); other logins, devices and portals keep their sessions. Logout
 // runs in an administrative transaction because auth.tokens is RLS-guarded
 // and the route carries no tenant.
-func (s *AccountAuthentication) LogoutWithAudit(ctx context.Context, refreshToken, ipAddress, userAgent string) (err error) {
-	if s == nil {
-		return errAccountAuthenticationUnavailable
-	}
-	defer func() { err = authenticationError(err) }()
-	ctx = bindRuntime(s.attach, ctx)
-	claims, err := s.codec.ParseRefreshToken(refreshToken)
-	if err != nil {
-		return failed("parse refresh token", identityaccess.ErrInvalidToken)
-	}
-	var (
-		revoked  *domain.AccountSession
-		sessions []domain.AccountSession
-	)
-	err = s.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		presented, found, err := s.logoutStart(txCtx, claims)
-		if err != nil || !found {
-			return err
+func (s *AccountAuthentication) LogoutWithAudit(ctx context.Context, refreshToken, ipAddress, userAgent string) error {
+	return runFlowErr(ctx, s.flow(), func(ctx context.Context) error {
+		claims, err := s.codec.ParseRefreshToken(refreshToken)
+		if err != nil {
+			return failed("parse refresh token", identityaccess.ErrInvalidToken)
 		}
-		// The account lock refresh takes first (#5194): a rotation that
-		// committed its successor before this lock is granted is deleted
-		// with the family below, one that waits for it finds no token.
-		if _, _, _, err := findLoginAccount(txCtx, s.runtime, s.store, presented.AccountID, true); err != nil {
-			return failed("lock account", err)
+		var (
+			revoked  *domain.AccountSession
+			sessions []domain.AccountSession
+		)
+		err = s.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
+			presented, found, err := s.logoutStart(txCtx, claims)
+			if err != nil || !found {
+				return err
+			}
+			// The account lock refresh takes first (#5194): a rotation that
+			// committed its successor before this lock is granted is deleted
+			// with the family below, one that waits for it finds no token.
+			if _, _, _, err := findLoginAccount(txCtx, s.runtime, s.store, presented.AccountID, true); err != nil {
+				return failed("lock account", err)
+			}
+			revokedChain, deleteErr := s.revokeSessionChain(txCtx, presented)
+			if deleteErr != nil {
+				return failed("delete token family", deleteErr)
+			}
+			sessions = revokedChain
+			revoked = &presented
+			return nil
+		})
+		if err == nil && revoked != nil {
+			// Every revoked family drops its push subscriptions, the families of
+			// the switch lineage included (#5422).
+			s.queuePushCleanup(ctx, revoked.AccountID, append([]domain.AccountSession{*revoked}, sessions...), "family")
+			s.auditLogout(ctx, *revoked, sessions, claims.TenantID, ipAddress, userAgent)
 		}
-		revokedChain, deleteErr := s.revokeSessionChain(txCtx, presented)
-		if deleteErr != nil {
-			return failed("delete token family", deleteErr)
-		}
-		sessions = revokedChain
-		revoked = &presented
-		return nil
+		return err
 	})
-	if err == nil && revoked != nil {
-		// Every revoked family drops its push subscriptions, the families of
-		// the switch lineage included (#5422).
-		s.queuePushCleanup(ctx, revoked.AccountID, append([]domain.AccountSession{*revoked}, sessions...), "family")
-		s.auditLogout(ctx, *revoked, sessions, claims.TenantID, ipAddress, userAgent)
-	}
-	return err
 }
 
 // logoutStart resolves the session a logout walks the chain from: the
