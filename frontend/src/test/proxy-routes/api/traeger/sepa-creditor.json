@@ -1,0 +1,6 @@
+{
+  "api/traeger/sepa-creditor": [
+    "GET traeger /traeger/sepa-creditor",
+    "PUT traeger /traeger/sepa-creditor"
+  ]
+}

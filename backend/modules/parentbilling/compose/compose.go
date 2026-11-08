@@ -79,3 +79,8 @@ func NewCareFeeNotices(contracts parentbilling.CareContracts, schools parentbill
 	billing := application.NewCareBilling(store, contracts, schools, settings, rendering.NewRenderer(), store, meals, letterheads, calendar.TodayDate)
 	return application.NewCareFeeNotices(billing, store, letterheads)
 }
+
+// NewSEPAMandates builds the SEPA mandates and the creditor of the Träger (#4695, ADR 0171) over the contracts and the field cipher the root binds.
+func NewSEPAMandates(contracts parentbilling.CareContracts, cipher parentbilling.BankDataCipher) parentbilling.SEPAMandates {
+	return application.NewSEPAMandates(postgres.NewStore(), contracts, cipher, calendar.TodayDate)
+}

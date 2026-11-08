@@ -82,5 +82,13 @@
   "care_notice_run_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "care_notice_run_open": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "care_notice_run_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
-  "care_notice_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан."
+  "care_notice_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "sepa_creditor_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "sepa_mandate_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "sepa_mandate_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "sepa_mandate_in_force": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "sepa_mandate_reference_taken": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "sepa_mandate_revoked": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "direct_debit_without_mandate": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "sepa_creditor_missing": "Не вдалося змінити: {object}. Перевірте поточний стан."
 }

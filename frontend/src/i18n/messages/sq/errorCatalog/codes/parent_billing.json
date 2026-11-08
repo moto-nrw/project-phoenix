@@ -82,5 +82,13 @@
   "care_notice_run_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "care_notice_run_open": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "care_notice_run_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-  "care_notice_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
+  "care_notice_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "sepa_creditor_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "sepa_mandate_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "sepa_mandate_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "sepa_mandate_in_force": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "sepa_mandate_reference_taken": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "sepa_mandate_revoked": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "direct_debit_without_mandate": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "sepa_creditor_missing": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
 }

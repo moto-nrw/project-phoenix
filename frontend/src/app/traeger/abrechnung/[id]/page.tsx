@@ -29,6 +29,7 @@ import {
   BILLING_RUN_STATUS_TONES,
 } from "~/components/traeger/billing-format";
 import { runDueDatesText } from "~/components/traeger/billing-payment-format";
+import { HolidayDebitHintsCard } from "~/components/traeger/care-run-review-lazy";
 import { formatEuro } from "~/components/traeger/contribution-format";
 import { formatDateRange } from "~/components/traeger/holiday-period-format";
 import { HolidayHeadFacts } from "~/components/traeger/holiday-period-head";
@@ -411,6 +412,7 @@ export default function TraegerBillingRunPage() {
               }
             />
           ) : null}
+          {preview ? <HolidayDebitHintsCard documents={run.documents} /> : null}
           {preview && run.unbilled > 0 ? (
             <Alert
               type="info"

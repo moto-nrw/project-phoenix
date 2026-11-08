@@ -82,5 +82,13 @@
   "care_notice_run_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "care_notice_run_open": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "care_notice_run_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-  "care_notice_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+  "care_notice_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "sepa_creditor_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "sepa_mandate_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "sepa_mandate_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "sepa_mandate_in_force": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "sepa_mandate_reference_taken": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "sepa_mandate_revoked": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "direct_debit_without_mandate": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "sepa_creditor_missing": "{object} değiştirilemedi. Güncel durumu kontrol edin."
 }

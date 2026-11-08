@@ -82,5 +82,13 @@
   "care_notice_run_not_found": "Diesen Jahreslauf gibt es nicht. Bitte öffnen Sie ihn über „Abrechnung“ und „Jahresbescheide“.",
   "care_notice_run_open": "Für dieses Jahr gibt es schon einen offenen Jahreslauf. Öffnen Sie ihn in der Liste und stellen Sie ihn aus.",
   "care_notice_run_invalid": "Bitte wählen Sie einen Monat des Jahres und mindestens eine Schule.",
-  "care_notice_not_found": "Diesen Bescheid gibt es in diesem Lauf nicht. Bitte öffnen Sie den Lauf noch einmal."
+  "care_notice_not_found": "Diesen Bescheid gibt es in diesem Lauf nicht. Bitte öffnen Sie den Lauf noch einmal.",
+  "sepa_creditor_invalid": "Die Angaben zur Lastschrift konnten nicht gespeichert werden. Bitte prüfen Sie die Eingaben.",
+  "sepa_mandate_invalid": "Das Mandat konnte nicht gespeichert werden. Bitte prüfen Sie die markierten Felder.",
+  "sepa_mandate_not_found": "Dieses Mandat gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+  "sepa_mandate_in_force": "Die Familie hat schon ein gültiges Mandat. Bitte widerrufen Sie es zuerst.",
+  "sepa_mandate_reference_taken": "Diese Mandatsreferenz gibt es schon. Bitte wählen Sie eine andere.",
+  "sepa_mandate_revoked": "Dieses Mandat ist widerrufen. Es lässt sich nicht mehr ändern.",
+  "direct_debit_without_mandate": "Einige Familien zahlen per Lastschrift, haben aber kein gültiges Mandat. Bitte erfassen Sie das Mandat oder ändern Sie den Zahlungsweg.",
+  "sepa_creditor_missing": "Bitte tragen Sie zuerst Ihre Gläubiger-ID unter Einstellungen → Abrechnung ein."
 }
