@@ -1,6 +1,5 @@
 "use client";
 
-import { SectionLabel } from "~/components/ui/section-label";
 import { ListRowLink } from "~/components/ui/list-row-link";
 import Image from "next/image";
 import Link from "next/link";
@@ -93,9 +92,11 @@ const GROUP_ORDER_BY_ROLE: Readonly<
   ],
 };
 
-// Wer die geoeffnete Anleitung liest. Steht ueber dem Titel der Startseite,
-// damit eine falsche Rolle sofort auffaellt.
-const ROLE_KICKER: Readonly<Record<HelpRole, string>> = {
+// Wer die geoeffnete Anleitung liest. Steht als Statuszeile unter dem Titel
+// der Startseite und der Bereichsseiten, damit eine falsche Rolle sofort
+// auffaellt. Ueber dem Titel stand sie als Kicker, den es ausserhalb des
+// Elternportals nicht mehr gibt (#5607).
+const ROLE_LINE: Readonly<Record<HelpRole, string>> = {
   caregiver: "Für Betreuungskräfte",
   lead: "Für die Leitung",
   parent: "Für Eltern",
@@ -414,10 +415,10 @@ function GroupOverview({
   const groupTopics = topics.filter((item) => item.group === group);
   return (
     <section className="max-w-4xl">
-      <SectionLabel as="p">{ROLE_KICKER[role]}</SectionLabel>
-      <h1 className="mt-2 text-4xl font-semibold tracking-tight text-gray-950 sm:text-5xl">
+      <h1 className="text-4xl font-semibold tracking-tight text-gray-950 sm:text-5xl">
         {helpGroupLabel(group, presenceMode, groupMode)}
       </h1>
+      <p className="mt-3 text-sm text-gray-600">{ROLE_LINE[role]}</p>
       <p className="mt-4 max-w-2xl text-lg leading-8 text-gray-600">
         {groupTopics.length === 1
           ? "Zu diesem Bereich gibt es eine Anleitung."
@@ -1171,10 +1172,10 @@ function HelpDocumentationShell({
           />
         ) : (
           <section className="max-w-4xl">
-            <SectionLabel as="p">{ROLE_KICKER[role]}</SectionLabel>
-            <h1 className="mt-2 text-4xl font-semibold tracking-tight text-gray-950 sm:text-5xl">
+            <h1 className="text-4xl font-semibold tracking-tight text-gray-950 sm:text-5xl">
               Was möchten Sie erledigen?
             </h1>
+            <p className="mt-3 text-sm text-gray-600">{ROLE_LINE[role]}</p>
             <p className="mt-4 max-w-2xl text-lg leading-8 text-gray-600">
               Wählen Sie ein Thema. Jede Seite erklärt eine Aufgabe.
             </p>

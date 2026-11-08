@@ -427,7 +427,6 @@ function LoginForm() {
   return (
     <>
       <AuthShell
-        eyebrow="Ihr OGS Portal"
         title={loginTitle}
         subtitle="Melden Sie sich mit Ihrem Konto an."
         variant="tenant"
@@ -676,7 +675,6 @@ export default function HomePage() {
     <Suspense
       fallback={
         <AuthShell
-          eyebrow="Ihr OGS Portal"
           title="Willkommen"
           subtitle="Melden Sie sich mit Ihrem Konto an."
           variant="tenant"
