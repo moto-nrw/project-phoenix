@@ -50,9 +50,9 @@ var (
 	// issued position already used.
 	ErrCareMealTariffMonthBilled = errors.New("an issued invoice already billed this Mensa price")
 	// ErrCareMealTariffNotFound reports a Mensa price that does not exist.
-	ErrCareMealTariffNotFound = errors.New("Mensa price not found")
+	ErrCareMealTariffNotFound = errors.New("care meal tariff not found")
 	// ErrCareMealTariffInvalid reports a Mensa price outside its bounds.
-	ErrCareMealTariffInvalid = errors.New("Mensa price is invalid")
+	ErrCareMealTariffInvalid = errors.New("care meal tariff is invalid")
 )
 
 // CareMealTariff is how a school's Mensa is billed from ValidFrom (the first
