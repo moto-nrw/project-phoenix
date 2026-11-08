@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
+import { SectionCard } from "~/components/ui/section-card";
 import { cn } from "~/lib/utils";
 import { useFillHeight } from "./use-fill-height";
 
@@ -41,14 +42,13 @@ export function DatabaseListLayout({
       className={cn("flex w-full flex-col", className)}
       data-testid="database-list-layout"
     >
-      <div
-        className={cn(
-          "moto-content-surface min-h-0 flex-1 overflow-hidden rounded-2xl border",
-          !isMobile && "moto-scroll-surface",
-        )}
+      <SectionCard
+        padding="none"
+        className={cn("min-h-0 flex-1", !isMobile && "moto-scroll-surface")}
+        bodyClassName="flex h-full flex-col"
       >
-        <div className="flex h-full flex-col">{children}</div>
-      </div>
+        {children}
+      </SectionCard>
     </div>
   );
 }

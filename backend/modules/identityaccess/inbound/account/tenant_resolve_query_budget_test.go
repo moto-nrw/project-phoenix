@@ -72,6 +72,6 @@ func TestResolveTenant_IssuesOneSettingValuesQuery(t *testing.T) {
 			"grade cap must still resolve correctly through the batch + cache path")
 		t.Logf("stored overrides N=%d: %d setting_values statements", n, len(queries))
 		// Tenant resolve must load config.setting_values once, not once per row.
-		querybudgets.AssertQueryBudget(t, "api.auth.tenant_resolve.setting_values", queries)
+		querybudgets.AssertQueryBudget(t, "api.auth.tenant_resolve.setting_values", counter.Measurement(queries))
 	}
 }

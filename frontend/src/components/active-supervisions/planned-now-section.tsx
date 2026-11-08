@@ -163,229 +163,233 @@ export function PlannedNowSection({
   const isSectionExpanded = sectionExpanded ?? hasActionableSlot;
 
   return (
-    <section
-      className="moto-content-surface mb-5 overflow-hidden rounded-2xl border"
-      data-setup-tour="supervision-next"
-    >
-      <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-        <button
-          type="button"
-          onClick={() =>
-            setSectionExpanded((current) => !(current ?? hasActionableSlot))
-          }
-          className="group focus-visible:ring-moto-blue/30 flex min-w-0 items-center gap-3 text-left focus-visible:ring-2 focus-visible:outline-none"
-          aria-expanded={isSectionExpanded}
-        >
-          <ConceptIconTile concept={carePlanConcept} size="sm" />
-          <span className="min-w-0">
-            <span className="block text-base font-semibold text-gray-900">
-              Als Nächstes
+    // Der Tour-Anker sitzt an der Hülle: SectionCard reicht keine
+    // data-Attribute durch, die Hülle hat dieselben Maße wie die Karte.
+    <div className="mb-5" data-setup-tour="supervision-next">
+      <SectionCard padding="none">
+        <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+          <button
+            type="button"
+            onClick={() =>
+              setSectionExpanded((current) => !(current ?? hasActionableSlot))
+            }
+            className="group focus-visible:ring-moto-blue/30 flex min-w-0 items-center gap-3 text-left focus-visible:ring-2 focus-visible:outline-none"
+            aria-expanded={isSectionExpanded}
+          >
+            <ConceptIconTile concept={carePlanConcept} size="sm" />
+            <span className="min-w-0">
+              <span className="block text-base font-semibold text-gray-900">
+                Als Nächstes
+              </span>
+              <span className="mt-0.5 block truncate text-sm text-gray-600">
+                {sortedPlanned[0]?.title}
+              </span>
             </span>
-            <span className="mt-0.5 block truncate text-sm text-gray-600">
-              {sortedPlanned[0]?.title}
-            </span>
-          </span>
-          <ChevronDown
-            className={`h-4 w-4 shrink-0 text-gray-400 transition-transform group-hover:text-gray-600 ${isSectionExpanded ? "rotate-180" : ""}`}
-            aria-hidden="true"
-          />
-        </button>
-        <div className="flex flex-wrap gap-2 sm:justify-end">
-          <SummaryPill
-            concept={carePlanConcept}
-            label={`${sortedPlanned.length} geplant`}
-            tone="info"
-          />
-          {showTimetableCounts && (
-            <SummaryPill
-              concept={childrenConcept}
-              label={`${expectedCount} Kinder`}
+            <ChevronDown
+              className={`h-4 w-4 shrink-0 text-gray-400 transition-transform group-hover:text-gray-600 ${isSectionExpanded ? "rotate-180" : ""}`}
+              aria-hidden="true"
             />
-          )}
-          {overdueCount > 0 ? (
+          </button>
+          <div className="flex flex-wrap gap-2 sm:justify-end">
             <SummaryPill
-              concept={emergencyConcept}
-              label={`${overdueCount} überfällig`}
-              tone="warning"
+              concept={carePlanConcept}
+              label={`${sortedPlanned.length} geplant`}
+              tone="info"
             />
-          ) : soonCount > 0 ? (
-            <SummaryPill
-              concept={careTimesConcept}
-              label={`${soonCount} startet gleich`}
-              tone="success"
-            />
-          ) : null}
-        </div>
-      </div>
-
-      {isSectionExpanded ? (
-        <div className="overflow-hidden">
-          <div className="grid gap-3 border-t border-gray-100 bg-gray-50/50 p-4 sm:p-5 xl:grid-cols-2">
-            {sortedPlanned.map((instance) => {
-              const isExpanded = expandedIds.has(instance.id);
-              const visibleRows = isExpanded
-                ? instance.rosterPreview
-                : instance.rosterPreview.slice(0, 4);
-              const hiddenCount = Math.max(
-                0,
-                instance.rosterPreview.length - visibleRows.length,
-              );
-
-              return (
-                <article
-                  key={instance.id}
-                  className="moto-content-surface overflow-hidden rounded-xl border"
-                  style={blockTintStyle(instance, instance.isAssigned)}
-                >
-                  <div className="p-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="truncate text-sm font-semibold text-gray-900">
-                            {instance.title}
-                            <OwnBlockHint mine={instance.isAssigned} />
-                          </h3>
-                          <SlotStatusBadge instance={instance} />
-                          <ResponsibilityBadge instance={instance} />
-                        </div>
-                        <div className="mt-2 flex flex-wrap gap-3 text-sm text-gray-600">
-                          <span className="inline-flex items-center gap-1.5">
-                            <MotoConceptIcon
-                              concept={careTimesConcept}
-                              size={16}
-                            />
-                            {blockTimeRange(instance)}
-                          </span>
-                          <span>
-                            <MotoConceptIcon
-                              concept={roomsConcept}
-                              size={14}
-                              className="mr-1 inline-block align-[-2px]"
-                            />
-                            {instance.roomName ?? `Raum ${instance.roomId}`}
-                          </span>
-                        </div>
-                      </div>
-
-                      <Button
-                        type="button"
-                        variant="primary"
-                        size="md"
-                        disabled={
-                          isStartingInstance === instance.id ||
-                          !canStartPlannedInstance(instance, now)
-                        }
-                        onClick={() => onStart(instance)}
-                        className="shrink-0 gap-2"
-                      >
-                        <Play className="h-4 w-4" aria-hidden="true" />
-                        {isStartingInstance === instance.id
-                          ? "Startet..."
-                          : canStartPlannedInstance(instance, now)
-                            ? "Starten"
-                            : instance.startAvailableAt
-                              ? `Starten ab ${new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit" }).format(new Date(instance.startAvailableAt))}`
-                              : "Nur für Eingeplante"}
-                      </Button>
-                    </div>
-
-                    <div
-                      className={`mt-4 grid gap-2 ${showTimetableCounts ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-1"}`}
-                    >
-                      {showTimetableCounts && (
-                        <>
-                          <StatCard
-                            label="Erwartet"
-                            value={instance.expectedStudentsCount}
-                            tone="neutral"
-                          />
-                          <StatCard
-                            label="Anwesend"
-                            value={
-                              instance.currentStudentsCount ??
-                              instance.presentStudentsCount
-                            }
-                            tone={
-                              (instance.currentStudentsCount ??
-                                instance.presentStudentsCount) > 0
-                                ? "green"
-                                : "neutral"
-                            }
-                          />
-                        </>
-                      )}
-                      <StatCard
-                        label="Betreuende"
-                        value={instance.assignedStaffIds.length}
-                        tone={instance.isAssigned ? "blue" : "neutral"}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="border-t border-gray-100 bg-gray-50/70 px-4 py-3">
-                    <button
-                      type="button"
-                      onClick={() => toggleExpanded(instance.id)}
-                      className="flex w-full items-center justify-between gap-3 text-left text-sm font-medium text-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                      aria-expanded={isExpanded}
-                    >
-                      <span className="inline-flex items-center gap-2">
-                        <MotoConceptIcon concept={childrenConcept} size={18} />
-                        Kinder
-                        <span className="text-xs font-normal text-gray-500">
-                          {rosterPreviewLabel(
-                            instance.rosterPreview.length,
-                            instance.expectedStudentsCount,
-                            instance.notScheduledStudentsCount,
-                            showTimetableCounts,
-                          )}
-                        </span>
-                      </span>
-                      <ChevronDown
-                        className={`h-4 w-4 text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`}
-                        aria-hidden="true"
-                      />
-                    </button>
-
-                    {instance.rosterPreview.length > 0 ? (
-                      <div className="mt-3 space-y-2">
-                        {instance.pickupTimesLoaded === false &&
-                        !instance.pickupTimesRedacted ? (
-                          <Alert
-                            type="warning"
-                            announce="polite"
-                            message="Die Gehzeiten konnten nicht geladen werden. Die Anwesenheitsliste bleibt verfügbar."
-                          />
-                        ) : null}
-                        {visibleRows.map((row) => (
-                          <RosterPreviewRow
-                            key={row.studentId}
-                            row={row}
-                            pickupTimesLoaded={instance.pickupTimesLoaded}
-                            pickupTimesRedacted={instance.pickupTimesRedacted}
-                          />
-                        ))}
-                        {hiddenCount > 0 ? (
-                          <button
-                            type="button"
-                            onClick={() => toggleExpanded(instance.id)}
-                            className="focus-visible:ring-moto-blue/30 text-moto-blue-hover hover:text-moto-blue-strong text-xs font-medium focus-visible:ring-2 focus-visible:outline-none"
-                          >
-                            {showTimetableCounts
-                              ? `${hiddenCount} weitere anzeigen`
-                              : "Weitere anzeigen"}
-                          </button>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </div>
-                </article>
-              );
-            })}
+            {showTimetableCounts && (
+              <SummaryPill
+                concept={childrenConcept}
+                label={`${expectedCount} Kinder`}
+              />
+            )}
+            {overdueCount > 0 ? (
+              <SummaryPill
+                concept={emergencyConcept}
+                label={`${overdueCount} überfällig`}
+                tone="warning"
+              />
+            ) : soonCount > 0 ? (
+              <SummaryPill
+                concept={careTimesConcept}
+                label={`${soonCount} startet gleich`}
+                tone="success"
+              />
+            ) : null}
           </div>
         </div>
-      ) : null}
-    </section>
+
+        {isSectionExpanded ? (
+          <div className="overflow-hidden">
+            <div className="grid gap-3 border-t border-gray-100 bg-gray-50/50 p-4 sm:p-5 xl:grid-cols-2">
+              {sortedPlanned.map((instance) => {
+                const isExpanded = expandedIds.has(instance.id);
+                const visibleRows = isExpanded
+                  ? instance.rosterPreview
+                  : instance.rosterPreview.slice(0, 4);
+                const hiddenCount = Math.max(
+                  0,
+                  instance.rosterPreview.length - visibleRows.length,
+                );
+
+                return (
+                  <article
+                    key={instance.id}
+                    className="moto-content-surface overflow-hidden rounded-xl border"
+                    style={blockTintStyle(instance, instance.isAssigned)}
+                  >
+                    <div className="p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="truncate text-sm font-semibold text-gray-900">
+                              {instance.title}
+                              <OwnBlockHint mine={instance.isAssigned} />
+                            </h3>
+                            <SlotStatusBadge instance={instance} />
+                            <ResponsibilityBadge instance={instance} />
+                          </div>
+                          <div className="mt-2 flex flex-wrap gap-3 text-sm text-gray-600">
+                            <span className="inline-flex items-center gap-1.5">
+                              <MotoConceptIcon
+                                concept={careTimesConcept}
+                                size={16}
+                              />
+                              {blockTimeRange(instance)}
+                            </span>
+                            <span>
+                              <MotoConceptIcon
+                                concept={roomsConcept}
+                                size={14}
+                                className="mr-1 inline-block align-[-2px]"
+                              />
+                              {instance.roomName ?? `Raum ${instance.roomId}`}
+                            </span>
+                          </div>
+                        </div>
+
+                        <Button
+                          type="button"
+                          variant="primary"
+                          size="md"
+                          disabled={
+                            isStartingInstance === instance.id ||
+                            !canStartPlannedInstance(instance, now)
+                          }
+                          onClick={() => onStart(instance)}
+                          className="shrink-0 gap-2"
+                        >
+                          <Play className="h-4 w-4" aria-hidden="true" />
+                          {isStartingInstance === instance.id
+                            ? "Startet..."
+                            : canStartPlannedInstance(instance, now)
+                              ? "Starten"
+                              : instance.startAvailableAt
+                                ? `Starten ab ${new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit" }).format(new Date(instance.startAvailableAt))}`
+                                : "Nur für Eingeplante"}
+                        </Button>
+                      </div>
+
+                      <div
+                        className={`mt-4 grid gap-2 ${showTimetableCounts ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-1"}`}
+                      >
+                        {showTimetableCounts && (
+                          <>
+                            <StatCard
+                              label="Erwartet"
+                              value={instance.expectedStudentsCount}
+                              tone="neutral"
+                            />
+                            <StatCard
+                              label="Anwesend"
+                              value={
+                                instance.currentStudentsCount ??
+                                instance.presentStudentsCount
+                              }
+                              tone={
+                                (instance.currentStudentsCount ??
+                                  instance.presentStudentsCount) > 0
+                                  ? "green"
+                                  : "neutral"
+                              }
+                            />
+                          </>
+                        )}
+                        <StatCard
+                          label="Betreuende"
+                          value={instance.assignedStaffIds.length}
+                          tone={instance.isAssigned ? "blue" : "neutral"}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="border-t border-gray-100 bg-gray-50/70 px-4 py-3">
+                      <button
+                        type="button"
+                        onClick={() => toggleExpanded(instance.id)}
+                        className="flex w-full items-center justify-between gap-3 text-left text-sm font-medium text-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                        aria-expanded={isExpanded}
+                      >
+                        <span className="inline-flex items-center gap-2">
+                          <MotoConceptIcon
+                            concept={childrenConcept}
+                            size={18}
+                          />
+                          Kinder
+                          <span className="text-xs font-normal text-gray-500">
+                            {rosterPreviewLabel(
+                              instance.rosterPreview.length,
+                              instance.expectedStudentsCount,
+                              instance.notScheduledStudentsCount,
+                              showTimetableCounts,
+                            )}
+                          </span>
+                        </span>
+                        <ChevronDown
+                          className={`h-4 w-4 text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                          aria-hidden="true"
+                        />
+                      </button>
+
+                      {instance.rosterPreview.length > 0 ? (
+                        <div className="mt-3 space-y-2">
+                          {instance.pickupTimesLoaded === false &&
+                          !instance.pickupTimesRedacted ? (
+                            <Alert
+                              type="warning"
+                              announce="polite"
+                              message="Die Gehzeiten konnten nicht geladen werden. Die Anwesenheitsliste bleibt verfügbar."
+                            />
+                          ) : null}
+                          {visibleRows.map((row) => (
+                            <RosterPreviewRow
+                              key={row.studentId}
+                              row={row}
+                              pickupTimesLoaded={instance.pickupTimesLoaded}
+                              pickupTimesRedacted={instance.pickupTimesRedacted}
+                            />
+                          ))}
+                          {hiddenCount > 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => toggleExpanded(instance.id)}
+                              className="focus-visible:ring-moto-blue/30 text-moto-blue-hover hover:text-moto-blue-strong text-xs font-medium focus-visible:ring-2 focus-visible:outline-none"
+                            >
+                              {showTimetableCounts
+                                ? `${hiddenCount} weitere anzeigen`
+                                : "Weitere anzeigen"}
+                            </button>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+      </SectionCard>
+    </div>
   );
 }
 

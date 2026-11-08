@@ -22,20 +22,20 @@ func TestOperatorStatsPositiveGrowthQueryBudget(t *testing.T) {
 	provisioning := buildOperatorProvisioning(t, db)
 	ctx := provisioningContext(t, db)
 	counter := testpkg.CaptureQueriesForContext(t, db)
-	read := func() (organizationtenancy.ProvisioningStats, []string) {
+	read := func() (organizationtenancy.ProvisioningStats, testpkg.QueryMeasurement) {
 		t.Helper()
 		request := httptest.NewRequest(http.MethodGet, "/operator/stats", nil).WithContext(counter.Context(ctx))
 		request.Header.Set("Authorization", "Bearer "+token)
 		response := httptest.NewRecorder()
 		counter.Reset()
-		router.ServeHTTP(response, request)
+		testpkg.MeasuredHTTPRequest(counter, router, response, request)
 		statements := counter.Queries()
 		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 		var body struct {
 			Data organizationtenancy.ProvisioningStats `json:"data"`
 		}
 		require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
-		return body.Data, statements
+		return body.Data, counter.Measurement(statements)
 	}
 	baseline, _ := read()
 	created := 0
@@ -52,7 +52,7 @@ func TestOperatorStatsPositiveGrowthQueryBudget(t *testing.T) {
 				KontenCount:  baseline.KontenCount,
 				GeraeteCount: baseline.GeraeteCount + n,
 			}, stats)
-			t.Logf("MEASURE operator.stats N%d statements=%d", n, len(statements))
+			t.Logf("MEASURE operator.stats N%d statements=%d", n, len(statements.Statements))
 			querybudgets.AssertQueryBudget(t, "operator.stats", statements)
 		})
 	}

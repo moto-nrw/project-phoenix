@@ -41,5 +41,5 @@ func TestSchedulerMinuteSnapshotReadsEverySchoolOnce(t *testing.T) {
 	assert.NotEmpty(t, endTime)
 
 	querybudgets.AssertQueryBudget(t, "services.scheduler.minute_snapshot.setting_values",
-		counter.Selects("config.setting_values"))
+		counter.Measurement(counter.Selects("config.setting_values")))
 }

@@ -1,6 +1,7 @@
 package application
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
@@ -11,6 +12,8 @@ import (
 // parents' wish that care begins within the withdrawal period (§ 356 Abs.
 // 4, § 357a Abs. 2 BGB). Both stand in the enrollment form, the school
 // copies them there from the conditions page, and in every contract PDF.
+
+var withdrawalDays = strconv.Itoa(carecontract.WithdrawalDays)
 
 // EarlyStartText is the block the parents tick in the enrollment form when
 // care shall begin within the withdrawal period. The conclusion at the
@@ -27,8 +30,8 @@ func WithdrawalNoticeText(partner string) string {
 		partner = "dem Träger"
 	}
 	return "Widerrufsbelehrung\n\n" +
-		"Widerrufsrecht: Sie haben das Recht, binnen 14 Tagen ohne Angabe von Gründen diesen Vertrag zu widerrufen. " +
-		"Die Widerrufsfrist beträgt 14 Tage ab dem Tag des Vertragsabschlusses. " +
+		"Widerrufsrecht: Sie haben das Recht, binnen " + withdrawalDays + " Tagen ohne Angabe von Gründen diesen Vertrag zu widerrufen. " +
+		"Die Widerrufsfrist beträgt " + withdrawalDays + " Tage ab dem Tag des Vertragsabschlusses. " +
 		"Die Frist beginnt erst, wenn Sie diese Belehrung erhalten haben.\n\n" +
 		"Um Ihr Widerrufsrecht auszuüben, müssen Sie uns (" + partner + ") mittels einer eindeutigen Erklärung " +
 		"(zum Beispiel per E-Mail, per Brief oder mit dem Knopf „Vertrag widerrufen“ in der moto Eltern-App) " +

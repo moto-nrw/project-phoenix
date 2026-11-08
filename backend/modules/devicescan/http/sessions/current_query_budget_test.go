@@ -20,7 +20,7 @@ func TestCurrentSessionPositiveQueryBudget(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, tc.db, "Polling", "Supervisor")
 	router := testutil.NewTenantRouter(tc.db)
 	router.Mount("/", tc.resource.Router())
-	start := testutil.ExecuteRequest(router, testutil.NewAuthenticatedRequest(t, "POST", "/start", map[string]any{
+	start := testutil.ExecuteRequest(testpkg.MountedQueryBudgetRouter("/api/iot/session", router), testutil.NewAuthenticatedRequest(t, "POST", "/start", map[string]any{
 		"activity_id": activity.ID, "room_id": room.ID, "supervisor_ids": []int64{staff.ID},
 	}, testutil.WithDeviceContext(device)))
 	require.Equal(t, 200, start.Code, start.Body.String())
@@ -34,7 +34,7 @@ func TestCurrentSessionPositiveQueryBudget(t *testing.T) {
 		request := testutil.NewAuthenticatedRequest(t, "GET", "/current", nil, testutil.WithDeviceContext(device))
 		request = request.WithContext(counter.Context(request.Context()))
 		counter.Reset()
-		response := testutil.ExecuteRequest(router, request)
+		response := testutil.ExecuteRequest(testpkg.MountedQueryBudgetRouter("/api/iot/session", router), request)
 		require.Equal(t, 200, response.Code, response.Body.String())
 		data := testutil.ParseJSONResponse(t, response.Body.Bytes())["data"].(map[string]any)
 		require.Equal(t, true, data["is_active"])
@@ -50,6 +50,6 @@ func TestCurrentSessionPositiveQueryBudget(t *testing.T) {
 			"display_name": "Polling Supervisor", "role": "supervisor",
 		}, supervisors[0])
 		t.Logf("students=%d statements=%d", n, counter.Total())
-		querybudgets.AssertQueryBudget(t, "api.iot.session.current.positive", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "api.iot.session.current.positive", counter.Measurement(counter.Queries()))
 	}
 }

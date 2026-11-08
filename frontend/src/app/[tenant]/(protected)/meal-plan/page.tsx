@@ -15,6 +15,7 @@ import { Button } from "~/components/ui/button";
 import { StickyActionBar } from "~/components/ui/sticky-action-bar";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { PlanningContextBar } from "~/components/ui/planning/planning-context-bar";
@@ -749,9 +750,11 @@ export default function MealPlanPage() {
 
                   <div className="flex flex-1 flex-col gap-3 p-3">
                     {rows.map((row, idx) => (
-                      <div
+                      <InsetPanel
                         key={row.clientId}
-                        className="group relative min-h-20 rounded-lg border border-gray-200 bg-white p-3.5 pr-10 transition focus-within:border-gray-300 focus-within:ring-1 focus-within:ring-gray-200 pointer-coarse:pr-12"
+                        tone="white"
+                        padding="md"
+                        className="group relative min-h-20 pr-10 focus-within:outline-2 focus-within:outline-gray-300 pointer-coarse:pr-12"
                       >
                         <Textarea
                           rows={1}
@@ -807,7 +810,7 @@ export default function MealPlanPage() {
                               <X className="h-4 w-4" aria-hidden />
                             </Button>
                           )}
-                      </div>
+                      </InsetPanel>
                     ))}
 
                     {canEdit && (

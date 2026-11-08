@@ -2,12 +2,15 @@ package test
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/moto-nrw/project-phoenix/architecture/querybudget"
 	"github.com/uptrace/bun"
 )
 
@@ -23,6 +26,7 @@ import (
 // must use CaptureQueriesForContext and pass counter.Context(ctx) to the
 // operation under test.
 type QueryCounter struct {
+	routeContexts      map[*chi.Context]bool
 	enabled            atomic.Bool
 	mu                 sync.Mutex
 	queries            []countedQuery
@@ -71,6 +75,15 @@ func CaptureQueriesForContext(tb testing.TB, db *bun.DB) *QueryCounter {
 // Context marks a request tree for a scoped counter. Values survive tenant
 // transaction wrapping.
 func (c *QueryCounter) Context(ctx context.Context) context.Context {
+	if chi.RouteContext(ctx) == nil {
+		ctx = context.WithValue(ctx, chi.RouteCtxKey, chi.NewRouteContext())
+	}
+	c.mu.Lock()
+	if c.routeContexts == nil {
+		c.routeContexts = map[*chi.Context]bool{}
+	}
+	c.routeContexts[chi.RouteContext(ctx)] = true
+	c.mu.Unlock()
 	if c.scope == 0 {
 		return ctx
 	}
@@ -92,6 +105,12 @@ func (c *QueryCounter) BeforeQuery(ctx context.Context, event *bun.QueryEvent) c
 		return ctx
 	}
 	c.mu.Lock()
+	if route := chi.RouteContext(ctx); route != nil {
+		if c.routeContexts == nil {
+			c.routeContexts = map[*chi.Context]bool{}
+		}
+		c.routeContexts[route] = true
+	}
 	deadline, _ := ctx.Deadline()
 	c.queries = append(c.queries, countedQuery{operation: event.Operation(), sql: event.Query, deadline: deadline, issuedAt: time.Now()})
 	c.mu.Unlock()
@@ -144,6 +163,7 @@ func (c *QueryCounter) Stop() { c.enabled.Store(false) }
 func (c *QueryCounter) Reset() {
 	c.mu.Lock()
 	c.queries = nil
+	c.routeContexts = nil
 	c.rowsAffected = 0
 	c.statementsWithRows = 0
 	c.writeRowsAffected = 0
@@ -215,4 +235,51 @@ func (c *QueryCounter) Matching(match func(sqlLower string) bool) []string {
 		}
 	}
 	return out
+}
+
+// Measurement snapshots the SQL bucket together with chi's final route pattern.
+// Call only after ServeHTTP returns, when mounted child patterns are complete.
+func (c *QueryCounter) Measurement(queries []string) querybudget.Measurement {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	routes := map[string]bool{}
+	result := querybudget.Measurement{Statements: queries}
+	for route := range c.routeContexts {
+		result.HTTPRequest = result.HTTPRequest || route.RouteMethod != ""
+		if pattern := completedQueryBudgetRoute(route); pattern != "" {
+			routes[route.RouteMethod+" "+pattern] = true
+		}
+	}
+	for route := range routes {
+		result.Route = append(result.Route, route)
+	}
+	slices.Sort(result.Route)
+	return result
+}
+
+// QueryMeasurement is a request-aware SQL bucket for query-budget assertions.
+type QueryMeasurement = querybudget.Measurement
+
+// RoutePattern intentionally strips a trailing slash in chi 5.5. The router
+// golden uses chi.Walk, which preserves a leaf "/". Restore only that actual
+// matched leaf suffix, never a suffix inferred from the concrete request URL.
+func completedQueryBudgetRoute(route *chi.Context) string {
+	// Opaque dispatchers can route the same leaf twice in one context.
+	// Unlike a mount, that repeated non-wildcard fragment adds no public path.
+	// Keep real repeated mount prefixes ("/foo/*") and mount stubs followed
+	// by their child "/", which chi.Walk preserves as a trailing slash.
+	matched := *route
+	matched.RoutePatterns = make([]string, 0, len(route.RoutePatterns))
+	for _, fragment := range route.RoutePatterns {
+		n := len(matched.RoutePatterns)
+		if n > 0 && fragment == matched.RoutePatterns[n-1] && !strings.Contains(fragment, "*") {
+			continue
+		}
+		matched.RoutePatterns = append(matched.RoutePatterns, fragment)
+	}
+	pattern := matched.RoutePattern()
+	if pattern != "" && len(matched.RoutePatterns) > 0 && strings.HasSuffix(matched.RoutePatterns[len(matched.RoutePatterns)-1], "/") && !strings.HasSuffix(pattern, "/") {
+		pattern += "/"
+	}
+	return pattern
 }

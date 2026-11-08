@@ -236,3 +236,94 @@ Betrag.
   und Aufbewahrung je ein Eintrag; die Zeile geht mit ihrem Lauf oder der
   Position. Zwei schreibende Routen im Route-Golden und in der Nutzungsanalyse
   als `notCaptured` (Träger, keine Schule). Migration `1.15.748`.
+
+## Nachtrag 2026-11-08: Storno vor dem Versand und Monatsrechnungen (#4684)
+
+Präzisiert den Nachtrag vom 03.11.2026 („Hat der Lauf seine Schreiben, bekommt
+Storno oder Gutschrift sein Schreiben sofort“) für die Monatsrechnungen nach
+dem SJR-Abgleich E1 A (Entscheidung D3 in #4684); die Ferienrechnungen bleiben
+unverändert.
+
+- **Prüfen vor dem Ausstellen, danach nur Storno.** Ausstellen und Senden
+  bleiben zwei Schritte. Was der SJR „nach der Erstellung ändern“ nennt,
+  geschieht vor der Freigabe (Prüfphase, #5916); nach der Freigabe gilt Storno
+  und Neuausstellung. Keine Rechnung wird nach der Ausstellung geändert.
+- **Kein Schreiben an die Familie für einen Storno vor dem Versand.** Wurde das
+  Schreiben einer Monatsrechnung nie gesendet, bekommt ihr Storno kein Schreiben,
+  die Rechnung wird nicht mehr gesendet, und weder Postfach noch Druck nennen
+  sie. Der Storno bleibt mit Nummer und Grund in Lauf und Spur. Wurde die
+  Rechnung gesendet, bekommt der Storno sofort sein Schreiben.
+- **Ein Nummernkreis.** Der Storno einer Monatsrechnung nimmt wie die
+  Ferienbelege die nächste Nummer aus Muster und Zähler seiner Leistung (`care`);
+  keine Nummer wiederholt eine Ferien- oder Monatsnummer des Trägers.
+- **Neuausstellung.** Der nächste Lauf des Monats rechnet den Vertrag einer
+  stornierten Rechnung neu ab und nennt sie (`replaces_invoice_id`). Details:
+  [ADR 0165](0165-monatsrechnungen-nehmen-schreiben-versand-und-storno-der-ferienrechnungen.md).
+
+## Nachtrag 2026-11-08: Prüfphase im Monatslauf (#5916)
+
+Setzt die Entscheidung D3 / SJR-Abgleich E1 A für die Monatsrechnungen um:
+Die Abrechnung prüft vor der Ausstellung, nicht danach. Kein Widerruf der
+Unveränderlichkeit (Punkt 7); keine gespeicherten, frei editierbaren
+Rechnungsentwürfe (Option B) und keine Änderung ausgestellter Rechnungen bis
+zum Versand (Option C). Punkt 2 bleibt: Die Vorschau wird bei jedem Lesen
+berechnet.
+
+- **Monat und Schulen.** Ein Monatslauf nennt seinen Monat und eine Auswahl der
+  Schulen des Trägers, vorbelegt mit allen Schulen ohne offenen Lauf des Monats
+  (`parent_billing.care_run_schools`). Eine Schule ist je Monat in höchstens
+  einem offenen Lauf; ein eindeutiger Index der offenen Schulen sichert das auch
+  beim gleichzeitigen Anlegen. Läufe mit getrennten Schulen dürfen nebeneinander
+  geprüft werden. Das ersetzt für den Monat „höchstens ein Lauf in der Vorschau“
+  aus ADR 0158 Punkt 5. Die Vorschau rechnet den ganzen Monat des Trägers, damit
+  Geschwister und Regelkette jedes Kind sehen, und zeigt dann nur die Schulen
+  des Laufs.
+- **Rechnungsdatum.** Das Rechnungsdatum ist ein Feld des Laufs (vom Ersten des
+  Vormonats bis zum Letzten des Folgemonats, also auch im Leistungsmonat, z. B.
+  Oktober mit 30.10.). Ohne Datum gilt der Tag der Freigabe. Die Freigabe setzt
+  es auf jede Rechnung und auf den Lauf; das Jahr der Nummer folgt ihm.
+- **Fälligkeiten.** Die Fälligkeit je Zahlungsweg (Überweisung, Lastschrift)
+  mit Abweichung der Familie kommt mit #4689 als Regel; die Prüfphase nimmt
+  dann ihre Eingabe auf. Bis dahin nennt erst das Schreiben das Zahlungsdatum
+  (ADR 0165 Punkt 2).
+- **Ausschluss.** Vor der Freigabe lässt sich die Rechnung eines Vertrags mit
+  Grund ausschließen und wieder aufnehmen. Beides wird nur angefügt: als Eintrag
+  `exclude` bzw. `include` der Laufspur mit Konto, Zeitpunkt, Vertrag und Grund.
+  Eine ausgeschlossene Rechnung wird nicht ausgestellt, bleibt in der Vorschau
+  sichtbar und zählt nicht zur Summe. Der Ausschluss gehört zu seinem Lauf: Der
+  nächste Lauf desselben Monats rechnet das Kind wieder ab, wenn es abrechenbar
+  ist. Es gibt keine dauerhafte Abrechnungssperre. Sind alle Rechnungen eines Laufs
+  ausgeschlossen, schließt die Freigabe ihn ohne Rechnung und ohne Nummer ab
+  (Zahl und Summe 0), damit seine Schulen für den nächsten Lauf frei werden.
+- **Prüfliste.** Die Vorschau eines offenen Laufs lässt sich als Excel oder CSV
+  laden, eine Zeile je Position und je Ermäßigung, mit Rechnungsdatum, Schule,
+  Kind, Empfänger, Modul, Wochentagen, Zeitraum, Betrag und Status
+  (ausgestellt, ausgeschlossen mit Grund, ohne Preis, doppelter Vertrag).
+  Ausgeschlossene Rechnungen sind gekennzeichnet und stehen außerhalb der
+  Summe. Die Liste braucht keine ausgestellte Rechnung und vergibt keine
+  Nummer; jeder Download steht mit den gezeigten Verträgen in der Laufspur.
+  Debitorennummer, Zahlungsweg und Fälligkeit folgen mit #4689 und #4694; das
+  Muster des SJR wird nachträglich abgeglichen (E4).
+- **Ausstellung prüft erneut.** Die Freigabe sperrt Monatsabrechnung und Lauf,
+  rechnet die Vorschau in derselben Transaktion neu und vergleicht Zahl, Summe
+  und einen Fingerabdruck des geprüften Stands: alles, was die Prüfung zeigt
+  (Schulen, Rechnungsdatum, Monatsregel; jede auszustellende und jede
+  ausgeschlossene Rechnung mit Empfänger, Positionen und Ermäßigungen, also
+  auch geänderte Regeln oder Nachweise; Buchungen ohne Preis; wegen eines
+  doppelten Vertrags zurückgehaltene Kinder; schon abgerechnete Verträge).
+  Kommen weitere Anzeigen dazu (Mensa, #4686), gehören sie ebenfalls hinein. Weicht etwas ab, lehnt sie ab (409
+  `parent_billing.billing_run_changed`). Ausschluss und Rechnungsdatum halten
+  dieselbe Sperre des Laufs.
+- **Storno vor dem Versand.** Präzisiert den Nachtrag vom 03.11.2026 für die
+  Monatsrechnungen wie der Nachtrag oben: Der Storno einer nie gesendeten und nie
+  zum Drucken geladenen Monatsrechnung erzeugt kein Schreiben, keine Mail und
+  keinen Eintrag im Postfach; Storno und Spur bleiben nachvollziehbar. Eine
+  gesendete Rechnung behält den bestehenden Korrekturweg. Belegt durch
+  `TestCareInvoiceCancelledBeforeTheSendReachesNoFamilyAndIsIssuedAgain` und
+  `TestCareInvoiceCancelledAfterTheSendGetsItsLetter`.
+- **Register.** Migration `1.15.814`; ein `data_object`
+  (`parent_billing.care_run_schools`) für `parent-billing`; Fehlercode
+  `parent_billing.care_exclusion_conflict`; Routen
+  `GET /traeger/care-billing-runs/schools`, `PUT …/{id}/invoice-date`,
+  `POST …/{id}/exclusions`, `DELETE …/{id}/exclusions/{contractID}`,
+  `GET …/{id}/review-export`.

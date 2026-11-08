@@ -30,6 +30,9 @@ type RequestChild struct {
 	SortOrder             int             `json:"sort_order"`
 	RolloverSourceChildID *int64          `json:"rollover_source_child_id,omitempty"`
 	ReviewReason          *string         `json:"review_reason,omitempty"`
+	// WeeklyPlanOn is the day an approved future renewal's weekly plan
+	// applies (#6043). Read-only: plans are written through WeeklyPlans.
+	WeeklyPlanOn *Date `json:"weekly_plan_on,omitempty"`
 }
 
 // PhaseResponseChild is a child selected for a phase response overview. A
@@ -132,6 +135,23 @@ type ClassSwitch struct {
 	From           string
 	To             string
 	On             Date
+}
+
+// WeeklyPlan is the weekly plan (pickup times, care days, Heimweg) an
+// approved re-enrollment applies on On, the start of its care (#6043).
+type WeeklyPlan struct {
+	RequestChildID int64
+	On             Date
+	// Replace: a confirmed replacing edit came in before the start, so the
+	// start applies the submission as the complete weekly plan and a field
+	// without a value clears its target. Otherwise the start applies it as
+	// the approval of a renewal whose care has started does.
+	Replace bool
+	// AuthorStaffID is the staff member the applied weekly rows name as their
+	// author: the approving reviewer, or the last confirmed edit's actor.
+	// Resolved when the plan is stored, so the start does not depend on that
+	// account still existing. 0 when it could not be resolved.
+	AuthorStaffID int64
 }
 
 // DueClassSwitch is a planned class switch whose day has come, with the

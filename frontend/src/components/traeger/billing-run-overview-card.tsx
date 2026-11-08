@@ -46,6 +46,8 @@ import {
   isCredited,
 } from "./billing-format";
 import { formatEuro } from "./contribution-format";
+import { recipientKindLabel } from "./billing-payment-format";
+import { InvoicePaymentLine } from "./invoice-payment-line";
 
 const logger = createLogger({ component: "BillingRunOverviewCard" });
 
@@ -235,11 +237,31 @@ export function BillingRunOverviewCard({
       key: "recipient",
       header: "Empfänger",
       // Nachname zuerst, wie in der Übersicht für die Kämmerei.
-      render: (document) => (
-        <span className="font-medium text-gray-900">
-          {`${document.recipientLastName}, ${document.recipientFirstName}`}
-        </span>
-      ),
+      render: (document) => {
+        const kind = recipientKindLabel(document.recipientKind);
+        const second =
+          document.recipientKind === "both"
+            ? document.recipientSecondName?.trim()
+            : "";
+        return (
+          <span className="block min-w-0">
+            <span className="block font-medium text-gray-900">
+              {`${document.recipientLastName}, ${document.recipientFirstName}`}
+            </span>
+            {second ? (
+              <span className="block text-sm text-gray-600">und {second}</span>
+            ) : null}
+            {kind ? (
+              <span className="mt-1 block">
+                <StatusBadge label={kind} tone="blue" />
+              </span>
+            ) : null}
+            {document.kind === "invoice" && document.payment ? (
+              <InvoicePaymentLine payment={document.payment} />
+            ) : null}
+          </span>
+        );
+      },
       sortValue: (document) => document.recipientLastName,
       stacked: "title",
     },

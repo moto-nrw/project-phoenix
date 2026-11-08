@@ -8,6 +8,8 @@ import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Checkbox } from "~/components/ui/checkbox";
 import { FieldLabel } from "~/components/ui/field-label";
+import { Input } from "~/components/ui/input";
+import { Textarea } from "~/components/ui/textarea";
 import { Button } from "~/components/ui/button";
 import { RemovableChip } from "~/components/ui/removable-chip";
 import { createLogger } from "~/lib/logger";
@@ -491,7 +493,6 @@ export function DatabaseForm<T = Record<string, unknown>>({
           htmlFor={field.name}
           required={field.required}
           invalid={hasError}
-          className="mb-1.5 text-xs"
         >
           {field.label}
         </FieldLabel>
@@ -541,7 +542,6 @@ export function DatabaseForm<T = Record<string, unknown>>({
           htmlFor={field.name}
           required={field.required}
           invalid={hasError}
-          className="mb-1.5 text-xs"
         >
           {field.label}
         </FieldLabel>
@@ -605,8 +605,6 @@ export function DatabaseForm<T = Record<string, unknown>>({
   const renderField = (field: FormField) => {
     const hasError = errorPath.fieldError(field.name) !== undefined;
 
-    const baseInputClasses = `w-full rounded-lg border ${hasError ? "border-moto-red/40" : "border-gray-300"} px-3 py-2 md:px-4 md:py-2 text-sm transition-all duration-200 focus:ring-2 focus:ring-moto-blue focus:outline-none`;
-
     switch (field.type) {
       case "custom": {
         if (!field.component) return null;
@@ -658,31 +656,19 @@ export function DatabaseForm<T = Record<string, unknown>>({
 
       case "textarea":
         return (
-          <div>
-            <FieldLabel
-              htmlFor={field.name}
-              required={field.required}
-              invalid={hasError}
-              className="mb-1.5 text-xs"
-            >
-              {field.label}
-            </FieldLabel>
-            {/* oxlint-disable-next-line ui-kit/no-raw-input -- DatabaseForm keeps its 38-px field until its visible change is approved (#5586) */}
-            <textarea
-              id={field.name}
-              name={field.name}
-              value={(formData[field.name] as string) ?? ""}
-              onChange={handleChange}
-              required={field.required}
-              placeholder={field.placeholder}
-              maxLength={field.maxLength ?? getDefaultMaxLength(field.type)}
-              rows={3}
-              className={baseInputClasses}
-            />
-            {field.helperText && (
-              <p className="mt-1 text-xs text-gray-500">{field.helperText}</p>
-            )}
-          </div>
+          <Textarea
+            id={field.name}
+            name={field.name}
+            label={field.label}
+            hint={field.helperText}
+            aria-invalid={hasError || undefined}
+            value={(formData[field.name] as string) ?? ""}
+            onChange={handleChange}
+            required={field.required}
+            placeholder={field.placeholder}
+            maxLength={field.maxLength ?? getDefaultMaxLength(field.type)}
+            rows={3}
+          />
         );
 
       case "select":
@@ -703,73 +689,42 @@ export function DatabaseForm<T = Record<string, unknown>>({
             : String(numberValue);
 
         return (
-          <div>
-            <FieldLabel
-              htmlFor={field.name}
-              required={field.required}
-              invalid={hasError}
-              className="mb-1.5 text-xs"
-            >
-              {field.label}
-            </FieldLabel>
-            {/* oxlint-disable-next-line ui-kit/no-raw-input -- DatabaseForm keeps its 38-px field until its visible change is approved (#5586) */}
-            <input
-              type="number"
-              id={field.name}
-              name={field.name}
-              value={displayValue}
-              onChange={handleChange}
-              required={field.required}
-              placeholder={field.placeholder}
-              min={field.min}
-              max={field.max}
-              aria-invalid={hasError}
-              aria-describedby={
-                field.helperText ? `${field.name}-helper` : undefined
-              }
-              className={baseInputClasses}
-            />
-            {field.helperText && (
-              <p
-                id={`${field.name}-helper`}
-                className="mt-1 text-xs text-gray-500"
-              >
-                {field.helperText}
-              </p>
-            )}
-          </div>
+          <Input
+            type="number"
+            id={field.name}
+            name={field.name}
+            label={field.label}
+            hint={field.helperText}
+            aria-invalid={hasError || undefined}
+            controlSize="compact"
+            value={displayValue}
+            onChange={handleChange}
+            required={field.required}
+            placeholder={field.placeholder}
+            min={field.min}
+            max={field.max}
+          />
         );
       }
 
       default:
         return (
-          <div>
-            <FieldLabel
-              htmlFor={field.name}
-              required={field.required}
-              invalid={hasError}
-              className="mb-1.5 text-xs"
-            >
-              {field.label}
-            </FieldLabel>
-            {/* oxlint-disable-next-line ui-kit/no-raw-input -- DatabaseForm keeps its 38-px field until its visible change is approved (#5586) */}
-            <input
-              type={field.type}
-              id={field.name}
-              name={field.name}
-              value={(formData[field.name] as string) ?? ""}
-              onChange={handleChange}
-              required={field.required}
-              placeholder={field.placeholder}
-              autoComplete={field.autoComplete}
-              maxLength={field.maxLength ?? getDefaultMaxLength(field.type)}
-              disabled={field.disabled}
-              className={baseInputClasses}
-            />
-            {field.helperText && (
-              <p className="mt-1 text-xs text-gray-500">{field.helperText}</p>
-            )}
-          </div>
+          <Input
+            type={field.type}
+            id={field.name}
+            name={field.name}
+            label={field.label}
+            hint={field.helperText}
+            aria-invalid={hasError || undefined}
+            controlSize="compact"
+            value={(formData[field.name] as string) ?? ""}
+            onChange={handleChange}
+            required={field.required}
+            placeholder={field.placeholder}
+            autoComplete={field.autoComplete}
+            maxLength={field.maxLength ?? getDefaultMaxLength(field.type)}
+            disabled={field.disabled}
+          />
         );
     }
   };

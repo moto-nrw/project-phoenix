@@ -224,8 +224,15 @@ describe("PlanningDayChip", () => {
       />,
     );
 
-    expect(screen.getByRole("button")).toHaveClass("bg-gray-900", "text-white");
-    expect(screen.getByRole("button")).toHaveClass("scroll-mx-1");
+    // #6182: Der gewählte Tag steht in `aria-pressed`; die Kit-Variante
+    // `day_chip` füllt ihn dunkel.
+    const chip = screen.getByRole("button", { pressed: true });
+    expect(chip).toHaveClass(
+      "aria-pressed:bg-gray-900",
+      "aria-pressed:text-white",
+    );
+    expect(chip).not.toHaveClass("bg-gray-100");
+    expect(chip).toHaveClass("scroll-mx-1");
   });
 
   it("fires onClick when clicked", () => {

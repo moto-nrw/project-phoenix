@@ -29,7 +29,7 @@ func checkMealPlanReadQueryBudgets(t *testing.T, api *goldenRuntime) {
 	t.Run("parent", func(t *testing.T) { checkParentMealPlanReadBudget(t, api) })
 }
 
-func captureMealRead(t *testing.T, api *goldenRuntime, counter *testpkg.QueryCounter, token, path string) (*httptest.ResponseRecorder, []string) {
+func captureMealRead(t *testing.T, api *goldenRuntime, counter *testpkg.QueryCounter, token, path string) (*httptest.ResponseRecorder, testpkg.QueryMeasurement) {
 	t.Helper()
 	counter.Reset()
 	response := checkpointRequest(api.queryBudgetHandler(counter), checkpointScenario{Method: http.MethodGet, Path: path, Authenticated: true}, token)
@@ -51,7 +51,7 @@ func captureMealRead(t *testing.T, api *goldenRuntime, counter *testpkg.QueryCou
 			assert.NotContains(t, upper, fragment)
 		}
 	}
-	return response, withoutSessionCheck(t, queries)
+	return response, counter.Measurement(withoutSessionCheck(t, queries))
 }
 
 func mealReadSnapshot(t *testing.T) []string {
@@ -100,7 +100,7 @@ func checkStaffMealPlanReadBudgets(t *testing.T, api *goldenRuntime) {
 	_, account := testpkg.CreateTestStaffWithAccountForTenant(t, db, tenantID, "Küche", "Budget")
 	token := testpkg.MintLiveSessionJWT(t, db, testutil.AdminTestClaimsForTenant(int(account.ID), tenantID))
 	counter := testpkg.CaptureQueriesForContext(t, api.db.Pool())
-	get := func(path string) (*httptest.ResponseRecorder, []string) {
+	get := func(path string) (*httptest.ResponseRecorder, testpkg.QueryMeasurement) {
 		return captureMealRead(t, api, counter, token, path)
 	}
 	monday := calendar.NewDate(2030, 3, 4)
@@ -125,7 +125,7 @@ func checkStaffMealPlanReadBudgets(t *testing.T, api *goldenRuntime) {
 			require.NoError(t, err)
 		}
 	}
-	recorded := map[string][]string{}
+	recorded := map[string]testpkg.QueryMeasurement{}
 	run := func(children int) map[string]int {
 		t.Helper()
 		before := mealReadSnapshot(t)
@@ -147,7 +147,7 @@ func checkStaffMealPlanReadBudgets(t *testing.T, api *goldenRuntime) {
 			assert.Equal(t, fmt.Sprintf("Gericht%02d", i), row.Dish)
 			assert.Empty(t, row.Allergens)
 		}
-		counts["api.mealplan.week"] = len(queries)
+		counts["api.mealplan.week"] = len(queries.Statements)
 		recorded["api.mealplan.week"] = queries
 		response, queries = get("/api/meal-plan/participants?date=" + monday.String() + "&include=all")
 		var daily struct {
@@ -174,7 +174,7 @@ func checkStaffMealPlanReadBudgets(t *testing.T, api *goldenRuntime) {
 			assert.Equal(t, "Essensbudget", row.Last)
 			assert.Equal(t, "2a", row.Class)
 		}
-		counts["api.mealplan.participants"] = len(queries)
+		counts["api.mealplan.participants"] = len(queries.Statements)
 		recorded["api.mealplan.participants"] = queries
 		response, queries = get(fmt.Sprintf("/api/meal-plan/participation/%d?from=%s&to=%s", studentIDs[0], monday, monday.AddDays(4)))
 		var participation struct {
@@ -197,7 +197,7 @@ func checkStaffMealPlanReadBudgets(t *testing.T, api *goldenRuntime) {
 			assert.True(t, day.Regular)
 			assert.Equal(t, "regular", day.Source)
 		}
-		counts["api.mealplan.child_participation"] = len(queries)
+		counts["api.mealplan.child_participation"] = len(queries.Statements)
 		recorded["api.mealplan.child_participation"] = queries
 		for _, export := range []struct{ scenario, path string }{
 			{"api.mealplan.participants.export", "/api/meal-plan/participants/export?date=" + monday.String() + "&format=xlsx"},
@@ -210,7 +210,7 @@ func checkStaffMealPlanReadBudgets(t *testing.T, api *goldenRuntime) {
 				assert.Contains(t, text, fmt.Sprintf("Essensbudget, Kind%02d", i))
 			}
 			assert.Contains(t, text, "2a")
-			counts[export.scenario] = len(queries)
+			counts[export.scenario] = len(queries.Statements)
 			recorded[export.scenario] = queries
 		}
 		for _, days := range []int{1, 5, 8, 20} {
@@ -255,7 +255,7 @@ func checkStaffMealPlanReadBudgets(t *testing.T, api *goldenRuntime) {
 				}
 			}
 			scenario := map[int]string{1: "api.mealplan.orders.dates_1", 5: "api.mealplan.orders.dates_5", 8: "api.mealplan.orders.dates_8", 20: "api.mealplan.orders.dates_20"}[days]
-			counts[scenario] = len(queries)
+			counts[scenario] = len(queries.Statements)
 			recorded[scenario] = queries
 		}
 		assert.Equal(t, before, mealReadSnapshot(t), "reads preserve every tenant-owned meal row")
@@ -287,7 +287,7 @@ func checkParentMealPlanReadBudget(t *testing.T, api *goldenRuntime) {
 	testpkg.SetTestTenantSetting(t, db, testpkg.Tenant(t), "operations.meal_plan_enabled", "true")
 	token := testpkg.MintLiveSessionJWT(t, db, testutil.ParentTestClaims(int(chain.AccountID)))
 	counter := testpkg.CaptureQueriesForContext(t, api.db.Pool())
-	get := func(path string) (*httptest.ResponseRecorder, []string) {
+	get := func(path string) (*httptest.ResponseRecorder, testpkg.QueryMeasurement) {
 		return captureMealRead(t, api, counter, token, path)
 	}
 	// This real Serve graph keeps the production clock, and the parent route
@@ -295,7 +295,7 @@ func checkParentMealPlanReadBudget(t *testing.T, api *goldenRuntime) {
 	// crossing Sunday midnight still requests an allowed week.
 	monday := calendar.TodayDate().StartOfISOWeek().AddDays(7)
 	counts := []int{}
-	var captureRouteQueries []string
+	var captureRouteQueries testpkg.QueryMeasurement
 	for _, size := range []int{3, 8} {
 		for i := len(counts) * 3; i < size; i++ {
 			_, err := db.ExecContext(testpkg.Ctx(t), `INSERT INTO schedule.meal_plan_entries (tenant_id,date,position,dish,allergens) VALUES (?,?,?,?,ARRAY['gluten'])`, chain.TenantID, monday, i, fmt.Sprintf("Elterngericht%02d", i))
@@ -320,7 +320,7 @@ func checkParentMealPlanReadBudget(t *testing.T, api *goldenRuntime) {
 			assert.Equal(t, []string{"gluten"}, row.Allergens)
 		}
 		assert.Equal(t, before, mealReadSnapshot(t))
-		counts = append(counts, len(queries))
+		counts = append(counts, len(queries.Statements))
 		captureRouteQueries = queries
 	}
 	assert.Equal(t, counts[0], counts[1])

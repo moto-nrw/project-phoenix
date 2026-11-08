@@ -1,5 +1,6 @@
 "use client";
 
+import { SectionLabel } from "~/components/ui/section-label";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
   activeSettingsSectionId,
@@ -150,12 +151,13 @@ export function StaffSettingsSidebarNav({
       className={`${collapsed ? "scrollbar-hidden" : ""} flex-1 overflow-y-auto ${SIDEBAR_NAV_PADDING}`}
     >
       {renderRow(back)}
-      <p
-        className={`mt-5 mb-1.5 truncate px-3 text-xs font-semibold tracking-wider text-gray-400 uppercase motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-100" : "opacity-0"}`}
+      <SectionLabel
+        as="p"
+        className={`mt-5 mb-1.5 truncate px-3 motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-100" : "opacity-0"}`}
         aria-hidden={collapsed}
       >
         {SETTINGS_LABEL}
-      </p>
+      </SectionLabel>
       <div className={SIDEBAR_NAV_GAP}>
         {loading
           ? ["w-24", "w-28", "w-20", "w-32"].map((widthClass) => (

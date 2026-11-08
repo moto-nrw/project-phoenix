@@ -452,7 +452,7 @@ func TestEmergencySnapshotInputsEnforceRLS(t *testing.T) {
 		require.NoError(t, testpkg.WithTenantTx(t, counter.Context(fixture.ctx), db, fixture.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 			snapshot, err := query.Snapshot(txCtx, time.Now())
 			require.NoError(t, err)
-			querybudgets.AssertQueryBudget(t, "modules.emergencysnapshot.snapshot", counter.Queries())
+			querybudgets.AssertQueryBudget(t, "modules.emergencysnapshot.snapshot", counter.Measurement(counter.Queries()))
 			require.Len(t, snapshot.Rows, 1, "each school lists exactly its own child")
 			row := snapshot.Rows[0]
 			assert.Equal(t, fixture.studentID, row.StudentID)

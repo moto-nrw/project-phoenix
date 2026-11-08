@@ -1,1 +1,7 @@
-{"scenario":"api.class_list_entries.list.full.n3","max":10,"exact":true,"description":"Full protected class-list HTTP request with three positive matches, including the tenant frame."}
+{
+  "scenario": "api.class_list_entries.list.full.n3",
+  "max": 6,
+  "exact": true,
+  "description": "Full protected class-list HTTP request with three positive matches, including the tenant frame.",
+  "route": "GET /api/class-list-entries/"
+}

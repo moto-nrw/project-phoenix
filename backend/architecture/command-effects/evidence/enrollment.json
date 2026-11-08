@@ -2241,6 +2241,14 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentStudentRows.VerifyCompanionStrandingBatch",
+      "binding_digest": "92d15547aa945258246df5a85fb4faed",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.CompanionStrandings.VerifyCompanionStrandingBatch",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.VerifyCompanionStrandingBatch",
+      "target_owner": "people-directory"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.BookingMaterializationCapability.AdjustOfferings",
       "binding_digest": "bb387e48a62fe521c097bd44f6ef3033",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.DecisionBookings.AdjustOfferings",
@@ -2721,6 +2729,14 @@
       "target_owner": "settings-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentIntakeSettings.CareFacilityTerm",
+      "binding_digest": "42ed3e7dea3e8333f87e476682c56d11",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.IntakeSettings.CareFacilityTerm",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.EnrollmentIntakeValues.CareFacilityTerm",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentIntakeSettings.CareOfferingsEnabled",
       "binding_digest": "1e6e2bcbef487a199a626c1c90fb4473",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.IntakeSettings.CareOfferingsEnabled",
@@ -2863,6 +2879,22 @@
       "source_owner": "enrollment",
       "target": "unresolved:interface{Field(byte) string; error}.Field",
       "target_owner": ""
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentNotificationSettings.CareFacilityTerm",
+      "binding_digest": "0dbf1a661c22705fbcfeb2e3a41e5821",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.NotificationSettings.CareFacilityTerm",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentNotificationSettings.CareFacilityTerm",
+      "binding_digest": "077d974dbfbd6c5d4f1f7e3093134f59",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.NotificationSettings.CareFacilityTerm",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentNotificationSettings.NotifyPerDecision",
@@ -3201,6 +3233,78 @@
       "target_owner": "timetable-activities"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.ApplyDueWeeklyPlans",
+      "binding_digest": "ed15f1c9f5da5513010deaa53ba017bc",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverDecider.ApplyDueWeeklyPlans",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupAutoExcusal.RecordWeeklyPickupChanges",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.ApplyDueWeeklyPlans",
+      "binding_digest": "5d88a8e0d040a0b38eae341aee6dbcc3",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverDecider.ApplyDueWeeklyPlans",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupAutoExcusal.ResyncFutureExceptions",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.ApplyDueWeeklyPlans",
+      "binding_digest": "728d651fd3edde87649c66cde8056441",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverDecider.ApplyDueWeeklyPlans",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupAutoExcusal.SnapshotWeeklyPickups",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.ApplyDueWeeklyPlans",
+      "binding_digest": "e2f2ada701384f7bc6f08d38056b485b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverDecider.ApplyDueWeeklyPlans",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan/compose.LockWeeklyPickupStudents",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.ApplyDueWeeklyPlans",
+      "binding_digest": "c1364eb8f847ff962337bb5fc9fe8511",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverDecider.ApplyDueWeeklyPlans",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.ApplyDueWeeklyPlans",
+      "binding_digest": "feebab26a71bb1da978e0c6355734ebb",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverDecider.ApplyDueWeeklyPlans",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RegisterAfterCommit",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.ApplyDueWeeklyPlans",
+      "binding_digest": "178f8af1431840844cffd9e68183060f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverDecider.ApplyDueWeeklyPlans",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithSavepoint",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.ApplyDueWeeklyPlans",
+      "binding_digest": "41a39e457eefed480cd6cb5dae1afd5c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverDecider.ApplyDueWeeklyPlans",
+      "source_owner": "enrollment",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.ApplyDueWeeklyPlans",
+      "binding_digest": "58d9a4c6a64830ff19c7fe5f04480761",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverDecider.ApplyDueWeeklyPlans",
+      "source_owner": "enrollment",
+      "target": "unresolved:interface{Field(byte) string; error}.Field",
+      "target_owner": ""
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.Decide",
       "binding_digest": "ed15f1c9f5da5513010deaa53ba017bc",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverDecider.Decide",
@@ -3255,6 +3359,14 @@
       "source_owner": "enrollment",
       "target": "unresolved:interface{Field(byte) string; error}.Field",
       "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.LockApprovalGates",
+      "binding_digest": "c1364eb8f847ff962337bb5fc9fe8511",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverDecider.LockApprovalGates",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CompanionRepository.ListLinksForStudents",
@@ -3318,6 +3430,14 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.StudentAudit.RecordChangesForActor",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentAuditService.RecordChangesForActor",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentStudentAudit.RecordSystemChanges",
+      "binding_digest": "525eaaa0e6999025aed54788a215e43d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.StudentAudit.RecordSystemChanges",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentAuditService.RecordChanges",
       "target_owner": "people-directory"
     },
     {
@@ -3436,6 +3556,14 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPlanBroadcasts.BroadcastStudentCompanionsChanged",
       "binding_digest": "5d9d953f97ab754ce0056d1cecff4348",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.StudentPlanBroadcasts.BroadcastStudentCompanionsChanged",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastToTenant",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.studentUpdatedOnly.BroadcastStudentUpdated",
+      "binding_digest": "0d6b71811badf6fe0d90af4ea606fc1c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.StudentPlanBroadcasts.BroadcastStudentUpdated",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastToTenant",
       "target_owner": "delivery-platform"

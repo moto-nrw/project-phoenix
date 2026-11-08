@@ -11,10 +11,20 @@ export type ButtonVariant =
   | "ghost_danger"
   | "ghost_tone"
   | "link"
+  | "link_tone"
   | "fab"
-  | "dashed";
+  | "dashed"
+  | "filter"
+  | "segment"
+  | "disclosure"
+  | "day_chip"
+  | "day_chip_stacked";
 export type ButtonSize =
   "sm" | "md" | "field" | "base" | "lg" | "xl" | "compact" | "icon" | "card";
+
+// Ruhiger Knopf ohne Fläche; `segment` und `disclosure` bauen darauf auf.
+const GHOST =
+  "bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900 active:bg-gray-200";
 
 export function buttonStyles({
   variant,
@@ -77,8 +87,7 @@ export function buttonStyles({
     // dem Kopieren eines Links. Sie bleibt eine helle Fläche statt einer CTA.
     surface_success:
       "bg-moto-green/10 text-moto-green-strong ring-1 ring-moto-green/40 shadow-sm hover:bg-moto-green/15 hover:ring-moto-green/50 active:bg-moto-green/20",
-    ghost:
-      "bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900 active:bg-gray-200",
+    ghost: GHOST,
     // Leiser roter Knopf: Entfernen in einer Zeile oder einem Formular, wo
     // ein gefüllter roter Knopf zu laut wäre.
     ghost_danger:
@@ -97,6 +106,36 @@ export function buttonStyles({
     // ohne Füllung: ein grau gefüllter Knopf passt in keine Rangstufe (#5574).
     dashed:
       "border border-dashed border-gray-300 bg-transparent text-gray-600 hover:border-gray-400 hover:bg-gray-50 hover:text-gray-700",
+    // Unterstrichener Textknopf auf einer farbigen Meldung (Toast,
+    // Fehlerkasten, #6182): Farbe wie `ghost_tone`, das Polster bleibt, damit
+    // die Hover-Tönung den Text umrahmt. Wächst mit dem Text, damit eine lange
+    // Vorgangskennung in der Meldung umbrechen kann.
+    link_tone:
+      "h-auto min-h-8 px-2.5 py-1 bg-transparent text-current underline underline-offset-2 hover:bg-black/5 active:bg-black/10",
+    // Filterknopf im Seitenkopf (#6182): runde 40-px-Fläche, blau solange das
+    // Filterfeld offen ist (`aria-expanded`), blauer Ring bei aktiven Filtern
+    // (`data-filters-active`). Bringt sein Maß selbst mit.
+    filter:
+      // oxlint-disable-next-line ui-kit/no-hand-rolled-surface -- runde Bedienfläche des Filterknopfs, keine Karte
+      "h-10 rounded-2xl border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 aria-expanded:border-moto-blue aria-expanded:bg-moto-blue aria-expanded:text-white aria-expanded:hover:bg-moto-blue data-filters-active:ring-2 data-filters-active:ring-moto-blue data-filters-active:ring-offset-1",
+    // Teil einer gerahmten Knopfgruppe (Zeitnavigation der Planungsleiste,
+    // #6182): kein eigener Radius, füllt die Höhe der Gruppe, sonst `ghost`.
+    // Ein Symbol-Segment bleibt quadratisch: mit Polster und Trennlinie würde
+    // es 1 px breiter als hoch.
+    segment: `h-full rounded-none px-3 data-icon-only:px-0 ${GHOST}`,
+    // Einklapp-Knopf im Kopf einer Karte (#6182): wie `ghost`, tönt aber
+    // auch, wenn die Maus über dem übrigen Kopf liegt, weil der ganze Kopf
+    // schaltet (`SectionCollapseHead`, #5021).
+    disclosure: `${GHOST} group-hover/collapse-head:bg-gray-100 group-hover/collapse-head:text-gray-900`,
+    // Tag einer Wochenleiste (`PlanningDayChip`, #6182): einzeilig, 36 px
+    // (per Finger 44 px wie jeder Kit-Knopf).
+    // Der gewählte Tag (`aria-pressed`) ist dunkel gefüllt.
+    day_chip:
+      "h-9 gap-1 rounded-md px-2.5 py-0 text-sm font-normal bg-transparent text-gray-600 hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-gray-900 aria-pressed:bg-gray-900 aria-pressed:text-white aria-pressed:hover:bg-gray-900 aria-pressed:hover:text-white",
+    // Derselbe Tag zweizeilig im Tagesstreifen am Telefon (`PlanningDayChip
+    // stacked`): Kürzel, Datum und Zustand untereinander.
+    day_chip_stacked:
+      "h-auto flex-col justify-start gap-0.5 rounded-lg px-1 py-1.5 text-sm font-normal bg-transparent text-gray-600 hover:bg-gray-100 aria-pressed:bg-gray-900 aria-pressed:text-white aria-pressed:hover:bg-gray-900",
   };
   // Fingerregel (#5531): Bei Bedienung per Finger ist jeder Kit-Knopf
   // mindestens 44 px hoch (Apple HIG 44 pt), `icon` auch 44 px breit. Mit Maus
@@ -105,12 +144,17 @@ export function buttonStyles({
   const baseStyles =
     "inline-flex items-center justify-center font-medium transition-[background-color,box-shadow,color,opacity] duration-200 pointer-coarse:min-h-11 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50";
 
+  // Die Variante steht hinter der Größe: Varianten mit eigenem Maß (`fab`,
+  // `filter`, `day_chip` …) setzen sich so auch bei der Schriftgröße durch.
   return [
     baseStyles,
     sizeStyles[size],
-    variantStyles[variant],
     textSizes[size],
-    touchTarget && "h-11 w-11",
+    variantStyles[variant],
+    // Ausdrückliche 44-px-Zielgröße, wenn eine Ansicht sie unabhängig vom
+    // Zeiger verlangt (Toast auf schmalen Ansichten). Ein Textknopf behält
+    // seine Breite.
+    touchTarget && (size === "icon" ? "h-11 w-11" : "h-11"),
     className,
   ]
     .filter(Boolean)

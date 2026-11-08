@@ -31,9 +31,9 @@ func TestDashboardAnalyticsPositiveGrowthQueryBudget(t *testing.T) {
 		}
 	}
 	counter := testpkg.CaptureQueries(t, tc.db)
-	run := func() []string {
+	run := func() testpkg.QueryMeasurement {
 		counter.Reset()
-		rr := testutil.ExecuteWithAuthPermissions(t, router, testutil.NewRequest("GET", "/active/analytics/dashboard", nil), testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := testutil.ExecuteWithAuthPermissions(t, testpkg.MountedQueryBudgetRouter("/api", router), testutil.NewRequest("GET", "/active/analytics/dashboard", nil), testutil.AdminTestClaims(1), []string{"admin:*"})
 		queries := counter.Queries()
 		require.Equal(t, testutil.StatusOK, rr.Code, rr.Body.String())
 		var response struct {
@@ -44,14 +44,14 @@ func TestDashboardAnalyticsPositiveGrowthQueryBudget(t *testing.T) {
 		require.Equal(t, created, response.Data.ActiveActivities)
 		require.Equal(t, created, response.Data.SupervisorsToday)
 		require.Len(t, response.Data.CurrentActivities, min(created, 5))
-		return queries
+		return counter.Measurement(queries)
 	}
 	add(3)
 	small := run()
 	add(5)
 	large := run()
-	require.Equal(t, len(small), len(large), "positive N3/N8 dashboard capture")
-	t.Logf("dashboard full route N3=%d N8=%d", len(small), len(large))
+	require.Equal(t, len(small.Statements), len(large.Statements), "positive N3/N8 dashboard capture")
+	t.Logf("dashboard full route N3=%d N8=%d", len(small.Statements), len(large.Statements))
 	querybudgets.AssertQueryBudget(t, "api.active.analytics.dashboard.positive", small)
 	querybudgets.AssertQueryBudget(t, "api.active.analytics.dashboard.positive", large)
 }
@@ -76,9 +76,9 @@ func TestCrossTenantStudentsPositiveGrowthQueryBudget(t *testing.T) {
 		}
 	}
 	counter := testpkg.CaptureQueries(t, tc.db)
-	run := func() []string {
+	run := func() testpkg.QueryMeasurement {
 		counter.Reset()
-		rr := testutil.ExecuteWithAuthPermissions(t, router, testutil.NewRequest("GET", "/active/cross-tenant-students", nil), testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := testutil.ExecuteWithAuthPermissions(t, testpkg.MountedQueryBudgetRouter("/api", router), testutil.NewRequest("GET", "/active/cross-tenant-students", nil), testutil.AdminTestClaims(1), []string{"admin:*"})
 		queries := counter.Queries()
 		require.Equal(t, testutil.StatusOK, rr.Code, rr.Body.String())
 		var response struct {
@@ -100,14 +100,14 @@ func TestCrossTenantStudentsPositiveGrowthQueryBudget(t *testing.T) {
 			require.Equal(t, "Guest", row.LastName)
 			require.NotEmpty(t, row.HomeTenant)
 		}
-		return queries
+		return counter.Measurement(queries)
 	}
 	add(3)
 	small := run()
 	add(5)
 	large := run()
-	require.Equal(t, len(small), len(large), "positive N3/N8 visitor capture with N distinct home schools")
-	t.Logf("cross-tenant full route N3=%d N8=%d", len(small), len(large))
+	require.Equal(t, len(small.Statements), len(large.Statements), "positive N3/N8 visitor capture with N distinct home schools")
+	t.Logf("cross-tenant full route N3=%d N8=%d", len(small.Statements), len(large.Statements))
 	querybudgets.AssertQueryBudget(t, "api.active.cross_tenant_students.positive", small)
 	querybudgets.AssertQueryBudget(t, "api.active.cross_tenant_students.positive", large)
 }

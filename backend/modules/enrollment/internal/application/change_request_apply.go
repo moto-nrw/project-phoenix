@@ -47,15 +47,10 @@ func (s *ChangeRequests) applyApprovedChange(ctx context.Context, row *ChangeReq
 	return run.rosterImpacts, nil
 }
 
+// applyApprovedProposal runs under the gates Approve took before the request
+// row lock (lockApprovalGates): booking writers hold the recurrence gate while
+// their FK checks touch request_children.
 func (s *ChangeRequests) applyApprovedProposal(ctx context.Context, row *ChangeRequest, input enrollmentNative.ReviewChangeRequestInput) (*approval, error) {
-	// Take the global gates before the first request or student row lock:
-	// booking writers hold the recurrence gate while their FK checks touch
-	// request_children, so taking it later would invert the order.
-	if s.deps.Decisions != nil && s.deps.BookingGates != nil {
-		if err := s.deps.BookingGates.LockOfferingDerivedWrites(ctx); err != nil {
-			return nil, fmt.Errorf("change request approve: lock offering-derived writes: %w", err)
-		}
-	}
 	run, err := s.loadApproval(ctx, row, input)
 	if err != nil {
 		return nil, err

@@ -248,7 +248,7 @@ func (s *rosterReviewSetup) listDeviationsAs(t *testing.T, periodID int64, grant
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/templates/roster-deviations?period_id=%d", periodID), nil)
 	req = req.WithContext(testpkg.WithPermissionsContext(req.Context(), granted))
 	w := httptest.NewRecorder()
-	s.router.ServeHTTP(w, req)
+	testpkg.MountedQueryBudgetRouter("/api/timetable", s.router).ServeHTTP(w, req)
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 	return decodeTemplateData[rosterDeviationsResponse](t, w).Deviations
 }
@@ -468,7 +468,7 @@ func TestTemplateRosterDeviationsQueryBudget(t *testing.T) {
 	measured.Use(render.SetContentType(render.ContentTypeJSON))
 	measured.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			next.ServeHTTP(w, r.WithContext(testpkg.WithTestTenantRuntime(t, r.Context())))
+			testpkg.MeasuredHTTPRequest(counter, next, w, r.WithContext(testpkg.WithTestTenantRuntime(t, r.Context())))
 		})
 	})
 	measured.Get("/templates/roster-deviations", s.res.listTemplateRosterDeviations)
@@ -481,6 +481,7 @@ func TestTemplateRosterDeviationsQueryBudget(t *testing.T) {
 			created++
 		}
 	}
+
 	// granted empty: a caller without the right to read children, who gets
 	// the counts only; "*:*": an administrator, who also gets the names.
 	run := func(granted ...string) int {
@@ -488,7 +489,7 @@ func TestTemplateRosterDeviationsQueryBudget(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/templates/roster-deviations?period_id=%d", period.ID), nil)
 		req = req.WithContext(testpkg.WithPermissionsContext(req.Context(), granted))
 		w := httptest.NewRecorder()
-		router.ServeHTTP(w, req)
+		testpkg.MeasuredHTTPRequest(counter, testpkg.MountedQueryBudgetRouter("/api/timetable", router), w, req)
 		require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 		deviations := decodeTemplateData[rosterDeviationsResponse](t, w).Deviations
 		require.Len(t, deviations, created)
@@ -506,14 +507,14 @@ func TestTemplateRosterDeviationsQueryBudget(t *testing.T) {
 	small, smallNamed := run(), run("*:*")
 	addTemplates(5)
 	large := run()
-	unnamed := counter.Queries()
+	unnamed := counter.Measurement(counter.Queries())
 	largeNamed := run("*:*")
 
 	t.Logf("query budget: 3 templates → %d (named %d) queries, 8 templates → %d (named %d) queries", small, smallNamed, large, largeNamed)
 	assert.Equal(t, small, large, "query count must not grow with the number of Regeltermine")
 	assert.Equal(t, smallNamed, largeNamed, "the names are read in one batch for every Regeltermin")
 	querybudgets.AssertQueryBudget(t, "api.timetable.templates.roster_deviations", unnamed)
-	querybudgets.AssertQueryBudget(t, "api.timetable.templates.roster_deviations.named", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.timetable.templates.roster_deviations.named", counter.Measurement(counter.Queries()))
 }
 
 // TestTemplateRosterDeviationsTiedCombinations (review of #5363): two

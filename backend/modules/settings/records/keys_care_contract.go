@@ -20,3 +20,14 @@ const (
 	KeyCareContractWithdrawalConfirmation    = "care_contract.withdrawal_confirmation"
 	KeyCareContractExtraordinaryConfirmation = "care_contract.extraordinary_termination_confirmation"
 )
+
+// KeyCareContractEndSetNotice and KeyCareContractReasonRejectedNotice are
+// the Träger's templates of the notices the parents receive in Textform
+// once the Träger-Büro decided the end of an extraordinary termination
+// (#4682, decision of 07.11.2026): it set the last day, or it did not
+// accept the reason and the declaration holds as an ordinary termination
+// to the next notice date (§ 140 BGB).
+const (
+	KeyCareContractEndSetNotice         = "care_contract.extraordinary_end_set_notice"
+	KeyCareContractReasonRejectedNotice = "care_contract.extraordinary_reason_rejected_notice"
+)

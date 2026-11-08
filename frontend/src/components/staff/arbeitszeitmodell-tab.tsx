@@ -53,6 +53,7 @@ import {
 import { SonderarbeitszeitenSection } from "./sonderarbeitszeiten-section";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { InsetPanel } from "~/components/ui/inset-panel";
+import { SectionLabel } from "~/components/ui/section-label";
 
 export {
   formatDecimalHours,
@@ -229,7 +230,7 @@ export function ArbeitszeitmodellTab({
                   const minutes = entry?.targetMinutes ?? 0;
                   return (
                     <div key={d} className="space-y-0.5">
-                      <div className="text-xs tracking-wider text-gray-400 uppercase">
+                      <div className="text-xs text-gray-500">
                         {dayLabels[d]}
                       </div>
                       <div
@@ -363,9 +364,9 @@ function FourWeekPreview({
               tone={week.isCurrent ? "warning" : "white"}
               className="flex flex-wrap items-center gap-3"
             >
-              <span className="w-16 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+              <SectionLabel as="p" className="w-16">
                 {week.label}
-              </span>
+              </SectionLabel>
               {schedule.rotationLength > 1 && (
                 <StatusBadge tone="gray" label={`Woche ${badge}`} />
               )}

@@ -279,7 +279,7 @@ func TestStudentEnrollmentListQueryBudgetStaysFlat(t *testing.T) {
 		counter := testpkg.CaptureQueries(t, db)
 		_, err := module.ListStudentEnrollments(ctx, timetable.StudentEnrollmentFilter{StudentIDs: []int64{student.ID}})
 		require.NoError(t, err)
-		querybudgets.AssertQueryBudget(t, "modules.timetable.enrollments.list", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "modules.timetable.enrollments.list", counter.Measurement(counter.Queries()))
 
 		return nil
 	}))

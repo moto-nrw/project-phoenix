@@ -43,7 +43,7 @@ function BellRow({ reminder }: { readonly reminder: Reminder }) {
         <span className="text-xs font-semibold text-gray-900">
           {reminder.due_time}
         </span>
-        <span className={`text-[11px] ${reminderToneClass(reminder)}`}>
+        <span className={`text-xs ${reminderToneClass(reminder)}`}>
           {reminderRelativeLabel(reminder)}
         </span>
       </div>

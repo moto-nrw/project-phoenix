@@ -170,6 +170,7 @@ type EditDraft struct {
 	CollectGradeLevel    bool
 	CareOfferingsEnabled bool
 	GradeLevelMax        int
+	CareFacilityTerm     string
 }
 
 // RequestService is the intake these routes and the parents portal call.
@@ -177,7 +178,7 @@ type RequestService interface {
 	Submit(ctx context.Context, req SubmitRequest) (*SubmitResult, error)
 	CreateLateInvite(ctx context.Context, input CreateLateInviteInput) (*CreateLateInviteResult, error)
 	GetByStatusToken(ctx context.Context, token string) (*Request, []*RequestChild, error)
-	EditModeForStatus(ctx context.Context, req *Request, children []*RequestChild) (string, error)
+	StatusPage(ctx context.Context, req *Request, children []*RequestChild) (capability.StatusPage, error)
 	GetEditDraft(ctx context.Context, token string) (*EditDraft, error)
 	ReplaceEditable(ctx context.Context, token string, req SubmitRequest) (*SubmitResult, error)
 	GuardiansByStatusToken(ctx context.Context, token string) ([]*capability.RequestGuardian, error)
@@ -190,6 +191,7 @@ type RequestService interface {
 	LoadPublicFormBootstrap(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*PublicFormBootstrapData, error)
 	LoadEnrolleeFormBootstrap(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string, access EnrolleeAudienceAccess) (*PublicFormBootstrapData, error)
 	LoadPublicCareOfferings(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*PublicFormBootstrapData, error)
+	phasePreviewForms
 	LoadManualEnrollmentBootstrap(ctx context.Context, phaseID int64) (*PublicFormBootstrapData, error)
 	CreateManualApprovedEnrollment(ctx context.Context, input ManualApprovedEnrollmentInput) (*ManualApprovedEnrollmentResult, error)
 	PublicActiveSchema(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*capability.FormSchema, error)
@@ -208,10 +210,19 @@ func NewRequestService(owner IntakeOwner) RequestService {
 	if owner == nil {
 		return nil
 	}
-	return intakeService{owner: owner}
+	return intakeService{owner: owner, phasePreviewForms: owner}
 }
 
-type intakeService struct{ owner IntakeOwner }
+// The preview carries public owner values directly. Promote that capability
+// instead of adding a forwarding HTTP adapter.
+type phasePreviewForms interface {
+	LoadPhasePreviewCareOfferings(ctx context.Context, phaseID int64) (*capability.PublicFormBootstrapData, error)
+}
+
+type intakeService struct {
+	owner IntakeOwner
+	phasePreviewForms
+}
 
 func encodeSubmitRequest(in SubmitRequest) (capability.SubmitRequest, error) {
 	out := capability.SubmitRequest{
@@ -315,15 +326,16 @@ func (s intakeService) GetByStatusToken(ctx context.Context, token string) (*Req
 	return request, children, nil
 }
 
-func (s intakeService) EditModeForStatus(ctx context.Context, req *Request, children []*RequestChild) (string, error) {
+func (s intakeService) StatusPage(ctx context.Context, req *Request, children []*RequestChild) (capability.StatusPage, error) {
+	none := capability.StatusPage{EditMode: capability.EditModeNone}
 	if req == nil {
-		return capability.EditModeNone, nil
+		return none, nil
 	}
 	status, err := requestStatusInput(req, children)
 	if err != nil {
-		return capability.EditModeNone, err
+		return none, err
 	}
-	return s.owner.EditModeForStatus(ctx, status)
+	return s.owner.StatusPage(ctx, status)
 }
 
 func (s intakeService) GetEditDraft(ctx context.Context, token string) (*EditDraft, error) {
@@ -352,6 +364,7 @@ func editDraftValue(draft *capability.EditDraft) (*EditDraft, error) {
 		Phase: draft.Phase, School: draft.School, Schema: draft.Schema, OpenOfferings: offerings,
 		LegalTexts: draft.LegalTexts, EditMode: draft.EditMode, CollectSchoolClass: draft.CollectSchoolClass,
 		CollectGradeLevel: draft.CollectGradeLevel, CareOfferingsEnabled: draft.CareOfferingsEnabled, GradeLevelMax: draft.GradeLevelMax,
+		CareFacilityTerm: draft.CareFacilityTerm,
 	}, nil
 }
 

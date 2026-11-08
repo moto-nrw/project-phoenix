@@ -1,10 +1,9 @@
 "use client";
 
-import { ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "~/lib/utils";
 import { Checkbox } from "~/components/ui/checkbox";
-import NavigationLink from "~/components/ui/navigation-link";
+import { ListRowLink } from "~/components/ui/list-row-link";
 
 interface DatabaseListItemProps {
   title: string;
@@ -29,13 +28,8 @@ interface DatabaseListItemProps {
   onToggleSelection?: () => void;
 }
 
-/** Die Zeile in allen drei Formen: Auswahl, Link und Knopf. */
-function rowClasses(highlighted: boolean): string {
-  return cn(
-    "flex w-full items-center gap-3 border-b border-gray-100 px-4 py-2.5 text-left transition-colors hover:bg-gray-50",
-    highlighted && "bg-moto-green-soft/60 hover:bg-moto-green-soft/70",
-  );
-}
+/** Trennlinie und Höhe der Zeile, im Auswahlmodus wie als Link oder Knopf. */
+const ROW_FRAME = "border-b border-gray-100 py-2.5";
 
 export function DatabaseListItem({
   title,
@@ -71,46 +65,34 @@ export function DatabaseListItem({
 
   if (selectionMode) {
     return (
-      <label className={cn("cursor-pointer", rowClasses(isChecked))}>
+      <label
+        className={cn(
+          "flex w-full cursor-pointer items-center gap-3 px-4 text-left transition-colors",
+          ROW_FRAME,
+          isChecked
+            ? "bg-moto-green-soft/60 hover:bg-moto-green-soft/70"
+            : "hover:bg-gray-50",
+        )}
+      >
         <Checkbox checked={isChecked} onChange={onToggleSelection} />
         {content}
       </label>
     );
   }
 
-  const chevron = (
-    <ChevronRight
-      className={cn(
-        "h-4 w-4 shrink-0",
-        isSelected ? "text-moto-green" : "text-gray-400",
-      )}
-      aria-hidden
-    />
-  );
-  const rowClassName = rowClasses(isSelected);
+  // Navigationszeile aus dem Kit (#5593): Auswahl grün mit aria-current.
+  const subtitleText = subtitle ? (
+    <span className="block truncate">{subtitle}</span>
+  ) : undefined;
+  const shared = {
+    icon: leadingAccessory,
+    title,
+    subtitle: subtitleText,
+    badge: trailingAccessory,
+    selected: isSelected,
+    className: ROW_FRAME,
+  };
 
-  if (href) {
-    return (
-      <NavigationLink
-        href={href}
-        aria-current={isSelected ? "true" : undefined}
-        className={rowClassName}
-      >
-        {content}
-        {chevron}
-      </NavigationLink>
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-current={isSelected ? "true" : undefined}
-      className={rowClassName}
-    >
-      {content}
-      {chevron}
-    </button>
-  );
+  if (href) return <ListRowLink href={href} {...shared} />;
+  return <ListRowLink onClick={onSelect} {...shared} />;
 }

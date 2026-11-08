@@ -71,7 +71,7 @@ func BuildDeliveryNotifications(
 		return DeliveryNotifications{}, err
 	}
 	notifier := deliveryCompose.NewNotifier(settings, logger.With("service", "notifications"), deliveryCompose.NotificationDeliveryObserver(env.Observe.Delivery), sse, push)
-	preferences, err := deliveryCompose.NewTenantPreferenceService(unit, consent, settings, db.Pool(), identity, securityruntime.HasPermission)
+	preferences, err := deliveryCompose.NewTenantPreferenceService(unit, consent, DeliveryPreferenceSettings(settings), db.Pool(), identity, securityruntime.HasPermission)
 	if err != nil {
 		return DeliveryNotifications{}, err
 	}
@@ -111,6 +111,19 @@ func BuildDeliveryWorker(
 	delivery DeliveryRuntime, appointments deliveryCompose.MailRenderer, identityRenderers map[string]deliveryCompose.MailRenderer, reminders CalendarReminderSource,
 	modules settingsValues.ModuleBookingReader, documents parentportal.DocumentNotices,
 ) (*deliveryModule.Worker, error) {
+	subscriptions := deliveryCompose.NewPushSubscriptionRepository(db.Pool())
+	tenants := deliveryCompose.NewTenantTransactions(db.Pool())
+	push := deliveryCompose.NewWebPushSender(deliveryContract.WebPushConfig{
+		Subscriber: pushVAPID.Subscriber, PublicKey: pushVAPID.PublicKey, PrivateKey: pushVAPID.PrivateKey,
+	}, deliveryCompose.NewExpiredPushSubscriptionCleaner(tenants, subscriptions))
+	return buildDeliveryWorker(db, env, mailSender, mailFrom, mailIdentity, delivery, appointments, identityRenderers, reminders, modules, documents, push)
+}
+
+func buildDeliveryWorker(
+	db transactionruntime.Database, env RootEnvironment, mailSender email.Mailer, mailFrom email.Email, mailIdentity email.ReplyToResolver,
+	delivery DeliveryRuntime, appointments deliveryCompose.MailRenderer, identityRenderers map[string]deliveryCompose.MailRenderer, reminders CalendarReminderSource,
+	modules settingsValues.ModuleBookingReader, documents parentportal.DocumentNotices, push deliveryContract.PushSender,
+) (*deliveryModule.Worker, error) {
 	defaultFrom := mailFrom
 	renderers := map[string]deliveryCompose.MailRenderer{
 		communication.MailKindParentAnnouncement: deliveryCompose.MailRendererFunc(BindCommunicationMailRenderer(communicationCompose.NewParentAnnouncementRenderer(communicationCompose.ParentAnnouncementEmailConfig{
@@ -148,16 +161,18 @@ func BuildDeliveryWorker(
 	for kind, renderer := range identityRenderers {
 		renderers[kind] = renderer
 	}
+	pushObjects, err := NewParentPushObjectAuthorization(db)
+	if err != nil {
+		return nil, fmt.Errorf("initialize push object authorization: %w", err)
+	}
 	pushSubscriptions := deliveryCompose.NewPushSubscriptionRepository(db.Pool())
 	tenants := deliveryCompose.NewTenantTransactions(db.Pool())
-	vapid := pushVAPID
 	worker, err := deliveryCompose.NewWorker(delivery.Runtime, &deliveryCompose.MailPushProvider{
 		Registry: deliveryCompose.NewEmailTemplateRegistry(renderers), Mailer: mailSender, MailIdentity: mailIdentity,
-		Push: deliveryCompose.NewWebPushSender(deliveryContract.WebPushConfig{
-			Subscriber: vapid.Subscriber, PublicKey: vapid.PublicKey, PrivateKey: vapid.PrivateKey,
-		}, deliveryCompose.NewExpiredPushSubscriptionCleaner(tenants, pushSubscriptions)),
+		Push:   push,
 		Logger: env.Logger.With("service", "delivery"), Tenants: tenants,
 		PushAuthorized: deliveryCompose.NewPushAuthorizationChecker(tenants, pushSubscriptions),
+		PushObjects:    pushObjects,
 		DeferredPush:   deferredPushes(reminderRecovery(db, reminders), documents),
 		Deliverable:    moduleGate.deliverable,
 	})

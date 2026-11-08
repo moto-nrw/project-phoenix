@@ -45,6 +45,62 @@
   ],
   "data_objects": [
     {
+      "name": "parent_billing.care_evidence_events",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_evidences",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_invoice_reductions",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_invoice_cancellations",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_invoice_positions",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_invoices",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_letter_mailings",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_letters",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_run_events",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_run_letters",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_run_holds",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_runs",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_run_schools",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_tariffs",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.contribution_rules",
       "write_owner": "parent-billing"
     },
@@ -66,6 +122,14 @@
     },
     {
       "name": "parent_billing.documents",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.family_billing",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.family_billing_events",
       "write_owner": "parent-billing"
     },
     {
@@ -101,6 +165,10 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.run_due_dates",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.run_letters",
       "write_owner": "parent-billing"
     },
@@ -110,6 +178,10 @@
     },
     {
       "name": "parent_billing.runs",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.service_terms",
       "write_owner": "parent-billing"
     }
   ],

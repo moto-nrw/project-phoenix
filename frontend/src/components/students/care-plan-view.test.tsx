@@ -355,7 +355,8 @@ describe("CarePlanView", () => {
       const saturday = screen
         .getAllByRole("button")
         .find((button) => button.textContent === "Sa12.09.");
-      expect(saturday).toHaveClass("bg-gray-900");
+      // #6182: Der gewählte Tag steht in `aria-pressed` (Kit-Variante).
+      expect(saturday).toHaveAttribute("aria-pressed", "true");
     });
   });
 

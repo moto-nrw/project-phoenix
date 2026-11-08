@@ -2,5 +2,6 @@
   "scenario": "api.enrollment.growth.phase_export",
   "max": 11,
   "exact": true,
-  "description": "Positive mounted POST XLSX export, N3/N8 approved requests; rendered child names asserted, full SQL including tenant transaction and audit write."
+  "description": "Positive mounted POST XLSX export, N3/N8 approved requests; rendered child names asserted, full SQL including tenant transaction and audit write.",
+  "route": "POST /api/enrollment/phases/{id}/export"
 }

@@ -42,6 +42,7 @@ type Owner interface {
 	ChildQueries
 	ChildCommands
 	ClassSwitches
+	WeeklyPlans
 	ChangeRequestQueries
 	ChangeRequestCommands
 	LateInvitationRecords

@@ -40,6 +40,7 @@ import {
   OFFERING_NO_DAY_HINT,
   type StaffValueInput,
 } from "./request-copy";
+import { SectionCard } from "~/components/ui/section-card";
 
 const logger = createLogger({ component: "ConflictDecisionGroup" });
 
@@ -204,7 +205,7 @@ export function ConflictDecisionGroup({
   const [reason, setReason] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
-  const sectionRef = useRef<HTMLElement>(null);
+  const sectionRef = useRef<HTMLFieldSetElement>(null);
   const errors = useApiFormError(sectionRef);
   // „Wiederholen“ speichert die aktuelle Auswahl, nicht die vom Fehler.
   const latestSaveRef = useRef<() => Promise<void>>(async () => undefined);
@@ -291,11 +292,8 @@ export function ConflictDecisionGroup({
 
   const name = `conflict-${group.key}`;
   return (
-    <section
-      ref={sectionRef}
-      className="moto-content-surface rounded-2xl border p-4"
-    >
-      <fieldset className="space-y-3">
+    <SectionCard>
+      <fieldset ref={sectionRef} className="space-y-3">
         <legend className="text-sm font-semibold text-gray-900">
           {group.expectedCount} Wünsche für {group.label}
         </legend>
@@ -405,6 +403,6 @@ export function ConflictDecisionGroup({
           </div>
         </ConfirmationModal>
       )}
-    </section>
+    </SectionCard>
   );
 }
