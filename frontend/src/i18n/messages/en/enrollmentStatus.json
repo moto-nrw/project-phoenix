@@ -135,6 +135,12 @@
       "guardian_phone": "Phone",
       "phase_id": "Enrollment phase"
     },
+    "consent": {
+      "agb": "General terms and conditions",
+      "data_processing": "Privacy information acknowledged",
+      "email_contact": "Contact by email allowed",
+      "photo": "Photo consent"
+    },
     "child": {
       "custom_data": "Additional information",
       "date_of_birth": "Date of birth",

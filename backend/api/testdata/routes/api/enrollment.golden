@@ -16,6 +16,7 @@ GET /api/enrollment/admin/requests/{id}/
 GET /api/enrollment/admin/requests/{id}/children/{childId}/delete-impact
 GET /api/enrollment/admin/requests/{id}/children/{childId}/offering-adjustments
 GET /api/enrollment/admin/requests/{id}/delete-impact
+GET /api/enrollment/admin/requests/{id}/form-labels
 GET /api/enrollment/admin/requests/{id}/mails
 GET /api/enrollment/admin/requests/{id}/uploads/{uploadId}
 GET /api/enrollment/admin/students/{studentId}/requests/
@@ -38,6 +39,7 @@ GET /api/enrollment/phases/{id}/rollover-preview
 GET /api/enrollment/requests/{statusToken}
 GET /api/enrollment/requests/{statusToken}/change-requests
 GET /api/enrollment/requests/{statusToken}/edit-bootstrap
+GET /api/enrollment/requests/{statusToken}/form-labels
 GET /api/enrollment/schema/
 GET /api/enrollment/schema/preview
 GET /api/enrollment/schema/versions
