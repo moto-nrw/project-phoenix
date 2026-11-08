@@ -60,14 +60,20 @@ func TestPortalOfClaimResolvesTheLegacyTenantClaim(t *testing.T) {
 	}
 }
 
-func TestPersistedPortalScope(t *testing.T) {
+// A refresh session is stored under its portal's name when the portal
+// persists sessions; every other scope, also a future one, lands in the
+// legacy bucket.
+func TestPersistedPortalScopeFollowsThePortal(t *testing.T) {
 	t.Parallel()
-	for scope, want := range map[string]string{
-		"": "tenant", "tenant": "tenant", "school": "school", "parent": "parent", "caterer": "caterer", "org": "org",
-		"platform": PortalScopeUnknown, "unexpected-new-scope": PortalScopeUnknown,
-	} {
-		assert.Equal(t, want, PersistedPortalScope(scope), scope)
+	for _, portal := range portals {
+		want := PortalScopeUnknown
+		if portal.Persisted {
+			want = portal.Name
+		}
+		assert.Equal(t, want, PersistedPortalScope(portal.Claim), portal.Name)
 	}
+	assert.Equal(t, PortalTenant.Name, PersistedPortalScope(PortalTenant.LegacyClaim), "the legacy tenant claim")
+	assert.Equal(t, PortalScopeUnknown, PersistedPortalScope("unexpected-new-scope"))
 }
 
 func TestSessionScopeMatchesTheNamedPortalOnly(t *testing.T) {
@@ -95,30 +101,91 @@ func TestPortalShapes(t *testing.T) {
 	assert.True(t, PortalPlatform.Holds(0, 0))
 }
 
-func TestPushPortalsOf(t *testing.T) {
+// A session holds subscriptions only in its portal's push portal; a legacy
+// row may belong to any of them.
+func TestPushPortalsOfFollowsThePortal(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, []string{PushPortalParent}, PushPortalsOf("parent"))
-	assert.Equal(t, []string{PushPortalSchool}, PushPortalsOf("school"))
-	assert.Equal(t, []string{PushPortalStaff}, PushPortalsOf("tenant"))
-	assert.Equal(t, []string{PushPortalStaff}, PushPortalsOf("org"))
-	assert.Empty(t, PushPortalsOf("caterer"), "the caterer portal has no push messages")
-	assert.ElementsMatch(t, []string{PushPortalStaff, PushPortalParent, PushPortalSchool}, PushPortalsOf(PortalScopeUnknown))
-	assert.ElementsMatch(t, []string{PushPortalStaff, PushPortalParent, PushPortalSchool}, PushPortalsOf(""))
+	for _, portal := range portals {
+		if !portal.Persisted {
+			continue
+		}
+		if portal.Push == "" {
+			assert.Empty(t, PushPortalsOf(portal.Name), portal.Name)
+			continue
+		}
+		assert.Equal(t, []string{portal.Push}, PushPortalsOf(portal.Name), portal.Name)
+	}
+	all := AllPushPortals()
+	assert.ElementsMatch(t, []string{PushPortalStaff, PushPortalParent, PushPortalSchool}, all, "each push portal once")
+	assert.Equal(t, all, PushPortalsOf(PortalScopeUnknown))
+	assert.Equal(t, all, PushPortalsOf(""))
 }
 
-func TestMFARuleOf(t *testing.T) {
+// The MFA rule of a stored session is its portal's; a legacy row follows the
+// school policy.
+func TestMFARuleOfFollowsThePortal(t *testing.T) {
 	t.Parallel()
-	for scope, want := range map[string]MFARule{
-		"tenant": MFASchoolPolicy, "school": MFASchoolPolicy, PortalScopeUnknown: MFASchoolPolicy, "": MFASchoolPolicy,
-		"org": MFAAlways, "caterer": MFAAccountChoice, "parent": MFANone,
-	} {
-		assert.Equal(t, want, MFARuleOf(scope), scope)
+	for _, portal := range portals {
+		if portal.Persisted {
+			assert.Equal(t, portal.MFA, MFARuleOf(portal.Name), portal.Name)
+		}
+	}
+	for _, legacy := range []string{PortalScopeUnknown, "", PortalPlatform.Name, "kiosk"} {
+		assert.Equal(t, MFASchoolPolicy, MFARuleOf(legacy), legacy)
 	}
 }
 
-func TestAccountMFAChallengeScope(t *testing.T) {
+// An account challenge starts only for a portal with a challenge whose
+// sessions it mints; the operator keeps its own.
+func TestAccountMFAChallengeScopeRefusesOtherPortals(t *testing.T) {
 	t.Parallel()
-	for scope, want := range map[string]bool{"tenant": true, "school": true, "org": true, "caterer": true, "platform": false, "parent": false, "": false} {
-		assert.Equal(t, want, AccountMFAChallengeScope(scope), scope)
+	for _, portal := range portals {
+		assert.Equal(t, portal.Challenge && portal.Persisted, AccountMFAChallengeScope(portal.Name), portal.Name)
+	}
+	assert.False(t, AccountMFAChallengeScope(PortalPlatform.Name))
+	assert.False(t, AccountMFAChallengeScope(PortalParent.Name))
+	assert.False(t, AccountMFAChallengeScope(""))
+	assert.False(t, AccountMFAChallengeScope(PortalScopeUnknown))
+}
+
+// The three representations of a Träger school session (refresh claims,
+// stored row, access token) resolve to the same kind; a staff token that
+// names its school's Träger is none.
+func TestTraegerSchoolIsRecognisedInEveryRepresentation(t *testing.T) {
+	t.Parallel()
+	refresh, ok := RefreshClaims{Scope: PortalTenant.Claim, TenantID: 10, OrgID: 7}.SessionKind()
+	require.True(t, ok)
+	access, ok := SessionClaims{Scope: PortalTenant.Claim, TenantID: 10, OrgID: 7, ViaTraeger: true}.SessionKind()
+	require.True(t, ok)
+	row := AccountSession{PortalScope: PortalTenant.Name, TenantID: 10, OrganizationID: 7}.SessionKind()
+	assert.Equal(t, SessionKindTraegerSchool, refresh)
+	assert.Equal(t, SessionKindTraegerSchool, access)
+	assert.Equal(t, SessionKindTraegerSchool, row)
+
+	staff, ok := SessionClaims{Scope: PortalTenant.Claim, TenantID: 10, OrgID: 7}.SessionKind()
+	require.True(t, ok)
+	assert.Equal(t, SessionKind(PortalTenant.Name), staff, "every staff token names its school's Träger")
+	traeger, ok := RefreshClaims{Scope: PortalOrg.Claim, OrgID: 7}.SessionKind()
+	require.True(t, ok)
+	assert.Equal(t, SessionKind(PortalOrg.Name), traeger)
+	_, ok = RefreshClaims{Scope: PortalPlatform.Claim}.SessionKind()
+	assert.False(t, ok, "operator sessions follow their own rules")
+	_, ok = RefreshClaims{Scope: "kiosk"}.SessionKind()
+	assert.False(t, ok)
+}
+
+// Only the Träger-Portal keeps its sessions without a school; the sign-ins
+// of the Träger-Portal and the caterer name none.
+func TestSchoolFactsFollowTheTokenShape(t *testing.T) {
+	t.Parallel()
+	assert.False(t, AccountSession{PortalScope: PortalOrg.Name}.KeptAtSchool())
+	for _, scope := range []string{PortalTenant.Name, PortalSchool.Name, PortalParent.Name, PortalCaterer.Name, PortalScopeUnknown} {
+		assert.True(t, AccountSession{PortalScope: scope}.KeptAtSchool(), scope)
+	}
+	for _, portal := range []Portal{PortalOrg, PortalCaterer} {
+		assert.True(t, portal.Schoolless(), portal.Name)
+	}
+	for _, portal := range []Portal{PortalTenant, PortalSchool} {
+		assert.False(t, portal.Schoolless(), portal.Name)
 	}
 }

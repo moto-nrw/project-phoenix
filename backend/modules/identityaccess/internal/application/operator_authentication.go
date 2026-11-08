@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"sort"
 	"strings"
 	"time"
@@ -117,7 +118,7 @@ func (s *OperatorAuthentication) loginWithMFAGate(ctx context.Context, email, pa
 		trusted = ok
 	}
 	if !trusted {
-		challenge, err := s.mfa.StartChallenge(ctx, operator.ID, ipAddress)
+		challenge, err := s.mfa.StartChallenge(ctx, operator.ID, net.ParseIP(strings.TrimSpace(ipAddress)))
 		if err != nil {
 			return nil, fmt.Errorf("start operator mfa challenge: %w", err)
 		}

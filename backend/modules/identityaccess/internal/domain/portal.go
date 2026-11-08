@@ -1,5 +1,7 @@
 package domain
 
+import "slices"
+
 // The domain may import no other package of its owner, so the portal names,
 // claims and token shapes repeat tokenprimitives.AllPortalClaims(); a test pins
 // the two tables to each other.
@@ -207,7 +209,7 @@ func PushPortalsOf(portalScope string) []string {
 	portal, ok := PortalOfPersisted(portalScope)
 	if !ok {
 		if portalScope == "" || portalScope == PortalScopeUnknown {
-			return []string{PushPortalStaff, PushPortalParent, PushPortalSchool}
+			return AllPushPortals()
 		}
 		return []string{PushPortalStaff}
 	}
@@ -215,4 +217,15 @@ func PushPortalsOf(portalScope string) []string {
 		return nil
 	}
 	return []string{portal.Push}
+}
+
+// AllPushPortals names every push portal of the table once, in table order.
+func AllPushPortals() []string {
+	var pushes []string
+	for _, portal := range portals {
+		if portal.Push != "" && !slices.Contains(pushes, portal.Push) {
+			pushes = append(pushes, portal.Push)
+		}
+	}
+	return pushes
 }

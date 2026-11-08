@@ -17,41 +17,6 @@ import (
 // second factor.
 var errMFANotComposed = errors.New("identity access: mfa is not composed")
 
-// operatorMFAGate adapts the composed operator flows to the gate the
-// operator login consults. Operator MFA is mandatory, so an unconfigured
-// gate issues the token pair directly, as the early phases did.
-type OperatorMFAGate struct{ Flows *OperatorMFAFlows }
-
-func (g OperatorMFAGate) Configured() bool { return g.Flows != nil }
-
-func (g OperatorMFAGate) HasEnrollment(ctx context.Context, operatorID int64) (bool, error) {
-	if g.Flows == nil {
-		return false, nil
-	}
-	return g.Flows.HasEnrollment(ctx, operatorID)
-}
-
-func (g OperatorMFAGate) VerifyTrustedDevice(ctx context.Context, operatorID int64, cookie string) (bool, error) {
-	if g.Flows == nil {
-		return false, nil
-	}
-	return g.Flows.VerifyTrustedDevice(ctx, operatorID, cookie)
-}
-
-func (g OperatorMFAGate) StartChallenge(ctx context.Context, operatorID int64, ipAddress string) (string, error) {
-	if g.Flows == nil {
-		return "", errors.New("identity access: operator mfa is not composed")
-	}
-	return g.Flows.StartChallenge(ctx, operatorID, net.ParseIP(strings.TrimSpace(ipAddress)))
-}
-
-func (g OperatorMFAGate) TrustedDeviceDays() int {
-	if g.Flows == nil {
-		return 0
-	}
-	return g.Flows.TrustedDeviceDays()
-}
-
 type MFAChallengeCodec struct {
 	Source identityPorts.MFAChallengeCodec
 }

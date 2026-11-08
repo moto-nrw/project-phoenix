@@ -10,14 +10,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // The pool is closed via t.Cleanup rather than defer throughout this file:
@@ -700,7 +703,7 @@ func TestLoginSchool_MFAEnrollmentRequired_MintsSchoolScopedEnrollmentToken(t *t
 
 	claims, err := tokentest.ParseMFAEnrollmentJWT(service.TokenAuth, result.AccessToken)
 	require.NoError(t, err)
-	assert.Equal(t, sessiontoken.MFAEnrollmentScopeSchool, claims.Scope,
+	assert.Equal(t, tokenprimitives.PortalSchool, claims.Scope,
 		"school login must mint a school-scope enrollment token")
 	assert.Equal(t, tenantID, claims.TenantID)
 }

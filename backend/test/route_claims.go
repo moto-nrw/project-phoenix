@@ -147,12 +147,6 @@ func ClaimsFromContext(ctx context.Context) Claims {
 // MFAEnrollmentClaims is the enrollment-only token's claims.
 type MFAEnrollmentClaims = sessiontoken.MFAEnrollmentClaims
 
-// Enrollment token scopes.
-const (
-	MFAEnrollmentScopeTenant   = sessiontoken.MFAEnrollmentScopeTenant
-	MFAEnrollmentScopePlatform = sessiontoken.MFAEnrollmentScopePlatform
-)
-
 // WithEnrollmentClaims puts enrollment-only claims on ctx the way the
 // enrollment authenticator does.
 func WithEnrollmentClaims(ctx context.Context, claims MFAEnrollmentClaims) context.Context {

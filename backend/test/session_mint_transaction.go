@@ -20,13 +20,15 @@ const (
 // session seam sessionUnit does the same for the operator: it replaces the
 // admin unit of RefreshToken and also holds the login, which wrote outside
 // any transaction before.
+var sessionMintTransactionSites = map[string]string{
+	sessionMintTransactionSite:     sessionMintTransactionReason,
+	authLedgerTransactionSite:      authLedgerTransactionReason,
+	operatorSessionTransactionSite: operatorSessionTransactionReason,
+}
+
 func withoutReviewedSessionMintTransactions(current map[string]string) map[string]string {
 	remaining := maps.Clone(current)
-	for site, reason := range map[string]string{
-		sessionMintTransactionSite:     sessionMintTransactionReason,
-		authLedgerTransactionSite:      authLedgerTransactionReason,
-		operatorSessionTransactionSite: operatorSessionTransactionReason,
-	} {
+	for site, reason := range sessionMintTransactionSites {
 		if remaining[site] == reason {
 			delete(remaining, site)
 		}

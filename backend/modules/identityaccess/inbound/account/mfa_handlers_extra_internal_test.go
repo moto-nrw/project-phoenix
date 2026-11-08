@@ -11,6 +11,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -94,7 +96,7 @@ func withClaims(r *http.Request, accountID int) *http.Request {
 func withEnrollmentClaims(r *http.Request, accountID int64, tenantID int64) *http.Request {
 	ctx := testutil.WithEnrollmentClaims(r.Context(), testutil.MFAEnrollmentClaims{
 		AccountID:            accountID,
-		Scope:                testutil.MFAEnrollmentScopeTenant,
+		Scope:                tokenprimitives.PortalTenant,
 		TenantID:             tenantID,
 		MFAEnrollmentPending: true,
 	})

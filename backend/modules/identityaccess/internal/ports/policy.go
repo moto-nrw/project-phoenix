@@ -2,6 +2,7 @@ package ports
 
 import (
 	"context"
+	"net"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -71,7 +72,7 @@ type OperatorMFAGate interface {
 	Configured() bool
 	HasEnrollment(ctx context.Context, operatorID int64) (bool, error)
 	VerifyTrustedDevice(ctx context.Context, operatorID int64, cookie string) (bool, error)
-	StartChallenge(ctx context.Context, operatorID int64, ipAddress string) (string, error)
+	StartChallenge(ctx context.Context, operatorID int64, ip net.IP) (string, error)
 	TrustedDeviceDays() int
 }
 

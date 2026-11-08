@@ -35,13 +35,18 @@ func (s *AccountAuthentication) ValidateSessionTokens(ctx context.Context, acces
 			return identityaccess.SessionClaims{}, err
 		}
 	}
-	if portal == domain.PortalPlatform.Name {
-		err = s.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-			return s.validateOperatorSession(txCtx, claims, refreshClaims)
-		})
-	} else {
-		err = s.validateAccountSession(ctx, claims, refreshClaims)
+	var renewal accountRenewal
+	if portal != domain.PortalPlatform.Name {
+		if renewal, err = s.renewAccountSession(ctx, claims); err != nil {
+			return identityaccess.SessionClaims{}, err
+		}
 	}
+	err = s.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
+		if portal == domain.PortalPlatform.Name {
+			return s.validateOperatorSession(txCtx, claims, refreshClaims)
+		}
+		return s.validateAccountSessionInTx(txCtx, renewal, claims, refreshClaims)
+	})
 	if err != nil {
 		return identityaccess.SessionClaims{}, err
 	}
@@ -115,35 +120,46 @@ func (s *AccountAuthentication) parseSessionRefresh(refresh string, claims domai
 	return refreshClaims, nil
 }
 
-// validateAccountSession asks whether the session would still renew: the
-// renewal reads and the guard of its kind, as the refresh runs them, without
-// rotating. A refusal makes the token invalid; a failed read stays an error.
-func (s *AccountAuthentication) validateAccountSession(ctx context.Context, claims domain.SessionClaims, refreshClaims *domain.RefreshClaims) error {
+// accountRenewal is what validation runs in its transaction: the kind of the
+// session and its guard.
+type accountRenewal struct {
+	kind     domain.SessionKind
+	eligible eligibility
+}
+
+// renewAccountSession asks whether the session would still renew: the
+// renewal reads of its kind, as the refresh runs them, without rotating. A
+// refusal makes the token invalid; a failed read stays an error.
+func (s *AccountAuthentication) renewAccountSession(ctx context.Context, claims domain.SessionClaims) (accountRenewal, error) {
 	kind, ok := claims.SessionKind()
 	policy, known := s.sessionPolicy(kind)
 	if !ok || !known || (claims.ViaTraeger && kind != domain.SessionKindTraegerSchool) {
-		return identityaccess.ErrInvalidToken
+		return accountRenewal{}, identityaccess.ErrInvalidToken
 	}
 	eligible, err := policy.renew(ctx, s, sessionBinding{op: "validate session", accountID: claims.AccountID, tenantID: claims.TenantID, orgID: claims.OrgID})
 	if err != nil {
+		return accountRenewal{}, sessionRefusal(err)
+	}
+	return accountRenewal{kind: kind, eligible: eligible}, nil
+}
+
+// validateAccountSessionInTx runs the guard of the session's kind and checks
+// the presented refresh row.
+func (s *AccountAuthentication) validateAccountSessionInTx(txCtx context.Context, renewal accountRenewal, claims domain.SessionClaims, refreshClaims *domain.RefreshClaims) error {
+	account, found, _, err := findLoginAccount(txCtx, s.runtime, s.store, claims.AccountID, false)
+	if err != nil {
+		return err
+	}
+	if !found || !account.Active {
+		return identityaccess.ErrInvalidToken
+	}
+	if _, err := s.eligibleClaims(txCtx, renewal.eligible, account); err != nil {
 		return sessionRefusal(err)
 	}
-	return s.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		account, found, _, err := findLoginAccount(txCtx, s.runtime, s.store, claims.AccountID, false)
-		if err != nil {
-			return err
-		}
-		if !found || !account.Active {
-			return identityaccess.ErrInvalidToken
-		}
-		if _, err := s.eligibleClaims(txCtx, eligible, account); err != nil {
-			return sessionRefusal(err)
-		}
-		if refreshClaims == nil {
-			return nil
-		}
-		return s.validateRefreshRow(txCtx, kind, claims, *refreshClaims, account.ID)
-	})
+	if refreshClaims == nil {
+		return nil
+	}
+	return s.validateRefreshRow(txCtx, renewal.kind, claims, *refreshClaims, account.ID)
 }
 
 func (s *AccountAuthentication) validateRefreshRow(ctx context.Context, kind domain.SessionKind, claims domain.SessionClaims, refreshClaims domain.RefreshClaims, accountID int64) error {

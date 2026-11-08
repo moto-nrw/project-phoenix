@@ -2,26 +2,6 @@ package sessiontoken
 
 import "github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
 
-// MFA enrollment scope values mirror the challenge scopes — same conventions,
-// different stage in the flow. An enrollment token is issued when MFA is
-// required for the tenant/operator role but the account has not yet
-// registered a second factor; it must only authorize the /auth/mfa/enroll/*
-// surface, never a fully authenticated route.
-const (
-	MFAEnrollmentScopeTenant   = tokenprimitives.PortalTenant
-	MFAEnrollmentScopePlatform = tokenprimitives.PortalPlatform
-	// MFAEnrollmentScopeSchool tags enrollment tokens minted by the school
-	// portal login (#2207). Only the /school/auth/mfa/enroll/* handlers
-	// accept it, and confirming there mints SCHOOL tokens — a school login
-	// must never be laundered into a tenant session via the enrollment
-	// detour.
-	MFAEnrollmentScopeSchool = tokenprimitives.PortalSchool
-	// MFAEnrollmentScopeOrg tags enrollment tokens minted by the Träger-Portal
-	// login (#4651). Only the /traeger/auth/mfa/enroll/* handlers accept it,
-	// and confirming there mints a Träger session.
-	MFAEnrollmentScopeOrg = tokenprimitives.PortalOrg
-)
-
 // MFAEnrollmentClaims represents a short-lived JWT issued to an account that
 // passed the password check but has no MFA credential on a tenant that
 // requires one. It is exchanged at /auth/mfa/enroll/confirm (or the operator
@@ -38,8 +18,8 @@ type MFAEnrollmentClaims struct {
 	// (platform scope) of the user being enrolled.
 	AccountID int64 `json:"account_id"`
 
-	// Scope distinguishes tenant from platform tokens, constrained to the
-	// two MFAEnrollmentScope* values.
+	// Scope is the portal the token enrolls for; EnrollmentAuthenticatorFor
+	// admits it only on that portal's enrollment routes.
 	Scope string `json:"scope,omitempty"`
 
 	// TenantID is set on tenant-scope tokens so the enroll handlers can
