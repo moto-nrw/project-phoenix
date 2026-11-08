@@ -498,12 +498,7 @@ export function OfferingChangeRequestModal({
                   const unavailable =
                     item.is_active === false && !item.selected;
                   return (
-                    <ChoiceTile
-                      as="div"
-                      key={item.id}
-                      selected={selected}
-                      className="block p-3"
-                    >
+                    <ChoiceTile as="div" key={item.id} className="block p-3">
                       <label className="flex cursor-pointer items-start gap-3">
                         <Checkbox
                           checked={selected}
