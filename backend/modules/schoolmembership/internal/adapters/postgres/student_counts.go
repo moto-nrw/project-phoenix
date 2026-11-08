@@ -59,6 +59,15 @@ func BerlinToday() string {
 	return calendar.DateFromTime(time.Now()).String()
 }
 
+// SchoolDay is the clock School Membership's writes decide on: the pinned
+// day when one is given (tests), the Berlin day otherwise.
+func SchoolDay(today func() calendar.Date) func() string {
+	if today == nil {
+		return BerlinToday
+	}
+	return func() string { return today().String() }
+}
+
 // CountActiveStudentsByTenant counts the active students of every school the
 // connection can see.
 func CountActiveStudentsByTenant(ctx context.Context, db bun.IDB, capturedAt time.Time) (map[int64]int, error) {

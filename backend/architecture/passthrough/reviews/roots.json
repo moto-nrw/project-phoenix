@@ -3201,6 +3201,11 @@
       "reason": "Finite named forwarding debt under ADR 0090, not a new floor; removal/deepening pending."
     },
     {
+      "decision": "0166",
+      "id": "roots/owners/careExitPresence.PresenceDaysBetween",
+      "reason": "ADR 0166 (#6041): root translation of Care Plan's presence-day port onto Student Presence's PresenceDaysBetween; it folds the dated presence rows of the caller's tenant into the per-day map the historical participation reads."
+    },
+    {
       "decision": "0090",
       "id": "roots/owners/carePlanRecords.CreateArrivalException",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."

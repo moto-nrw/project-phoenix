@@ -47,7 +47,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/date-picker.tsx",
-    lines: [444],
+    lines: [457],
     reason: "Auslöser des Datumsfelds (Eingabefeld, sieht aus wie ein Select)",
   },
   {
