@@ -14,7 +14,7 @@ import (
 // portal; a family that names an origin renews as before.
 func TestCapLegacyLineage(t *testing.T) {
 	t.Parallel()
-	for _, scope := range []string{domain.PortalScopeTenant, domain.PortalScopeSchool, domain.PortalScopeParent, domain.PortalScopeCaterer, domain.PortalScopeOrg, domain.PortalScopeUnknown} {
+	for _, scope := range []string{domain.PortalTenant.Name, domain.PortalSchool.Name, domain.PortalParent.Name, domain.PortalCaterer.Name, domain.PortalOrg.Name, domain.PortalScopeUnknown} {
 		expiry := time.Now().Add(time.Hour)
 		session := domain.AccountSession{AccountID: 1, FamilyID: "family", PortalScope: scope, Expiry: expiry}
 
@@ -26,7 +26,7 @@ func TestCapLegacyLineage(t *testing.T) {
 		assert.Empty(t, session.SwitchedFromFamilyID, "%s: a legacy family stays unlinked", scope)
 	}
 	for _, origin := range []string{"family", "origin"} {
-		session := domain.AccountSession{AccountID: 1, FamilyID: "family", SwitchedFromFamilyID: origin, PortalScope: domain.PortalScopeTenant, Expiry: time.Now().Add(time.Hour)}
+		session := domain.AccountSession{AccountID: 1, FamilyID: "family", SwitchedFromFamilyID: origin, PortalScope: domain.PortalTenant.Name, Expiry: time.Now().Add(time.Hour)}
 		assert.False(t, capLegacyLineage(&session), origin)
 		assert.Nil(t, session.FamilyExpiryCap, "a family the new code issued renews as before")
 		assert.Nil(t, session.LineageDeadline)
@@ -38,7 +38,7 @@ func TestCapLegacyLineage(t *testing.T) {
 func TestCapLegacyLineage_KeepsAnEarlierDeadline(t *testing.T) {
 	t.Parallel()
 	retired := time.Now().Add(time.Minute)
-	session := domain.AccountSession{AccountID: 1, FamilyID: "family", PortalScope: domain.PortalScopeTenant, Expiry: retired.Add(time.Hour), FamilyExpiryCap: &retired}
+	session := domain.AccountSession{AccountID: 1, FamilyID: "family", PortalScope: domain.PortalTenant.Name, Expiry: retired.Add(time.Hour), FamilyExpiryCap: &retired}
 
 	require.True(t, capLegacyLineage(&session))
 

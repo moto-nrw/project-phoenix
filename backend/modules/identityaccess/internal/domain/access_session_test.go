@@ -8,8 +8,8 @@ import (
 func TestAccessSessionLive(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 10, 28, 12, 0, 0, 0, time.UTC)
-	head := AccountSession{AccountID: 7, FamilyID: "family-a", PortalScope: PortalScopeTenant, Expiry: now.Add(time.Hour)}
-	token := AccessSession{AccountID: 7, Scope: ScopeTenant, FamilyID: "family-a"}
+	head := AccountSession{AccountID: 7, FamilyID: "family-a", PortalScope: PortalTenant.Name, Expiry: now.Add(time.Hour)}
+	token := AccessSession{AccountID: 7, Scope: PortalTenant.Claim, FamilyID: "family-a"}
 
 	cases := []struct {
 		name  string
@@ -23,7 +23,7 @@ func TestAccessSessionLive(t *testing.T) {
 		{name: "family of another account", head: func(h AccountSession) AccountSession { h.AccountID = 8; return h }},
 		{name: "another family", head: func(h AccountSession) AccountSession { h.FamilyID = "family-b"; return h }},
 		{name: "token without family", token: func(a AccessSession) AccessSession { a.FamilyID = ""; return a }},
-		{name: "token of another portal", token: func(a AccessSession) AccessSession { a.Scope = ScopeParent; return a }},
+		{name: "token of another portal", token: func(a AccessSession) AccessSession { a.Scope = PortalParent.Claim; return a }},
 		{name: "legacy row without portal scope", head: func(h AccountSession) AccountSession { h.PortalScope = PortalScopeUnknown; return h }, want: true},
 		{
 			name:  "preview rests on the acting admin's family",
@@ -36,8 +36,8 @@ func TestAccessSessionLive(t *testing.T) {
 		},
 		{
 			name:  "school portal family",
-			head:  func(h AccountSession) AccountSession { h.PortalScope = PortalScopeSchool; return h },
-			token: func(a AccessSession) AccessSession { a.Scope = PortalScopeSchool; return a },
+			head:  func(h AccountSession) AccountSession { h.PortalScope = PortalSchool.Name; return h },
+			token: func(a AccessSession) AccessSession { a.Scope = PortalSchool.Name; return a },
 			want:  true,
 		},
 	}

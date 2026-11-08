@@ -18,7 +18,7 @@ import (
 
 // Class trips and day outings through "moto schule" (#4799): the Lehrkraft
 // of a class reports who is away and when. Every report passes the same four
-// gates as the arrival exception — school scope (SchoolMiddleware), the
+// gates as the arrival exception — school scope (SchoolScopeMiddleware), the
 // class_day:class_trip_write permission, the school's setting
 // operations.school_portal_write_scope, and the caller's
 // education.class_teachers assignment — before the projection validates the

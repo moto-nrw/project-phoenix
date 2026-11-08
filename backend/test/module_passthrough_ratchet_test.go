@@ -248,7 +248,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // Lowered: AddGuardianPhone validates ambient create facts instead of merely forwarding.
 // Raised by ADR 0158: the monthly run list of modules/parentbilling (+1).
 // Raised by ADR 0167: the payment terms read of modules/parentbilling (+1).
-const modulePassthroughOwnerBudgetTotal = 1407
+const modulePassthroughOwnerBudgetTotal = 1404
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -283,7 +283,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/feedback":       2,
 	"modules/filestorage":    6,
 	// Raised by ADR 0077: the caterer flows.
-	"modules/identityaccess": 214,
+	"modules/identityaccess": 211,
 	"modules/mealplan":       1,
 	// Raised by ADR 0112: the Träger logo read of the Träger-Portal.
 	"modules/organizationtenancy": 12,

@@ -131,7 +131,7 @@ func ErrorResponder(resolve func(error) (int, error)) func(http.ResponseWriter, 
 
 // WithJWTBearer sets an Authorization: Bearer <token> header on the request.
 // Use together with MintTestJWT when exercising a Resource via Router(), where
-// the production JWT middleware chain (Verifier → Authenticator → TenantMiddleware)
+// the production JWT middleware chain (Verifier → Authenticator → TenantScopeMiddleware)
 // runs and rejects requests that lack a real signed token.
 func WithJWTBearer(token string) RequestOption {
 	return func(req *http.Request) {

@@ -78,7 +78,7 @@ func TestMFAService_ResendChallenge_InvalidToken_ReturnsTokenInvalid(t *testing.
 
 	svc, _, _ := newExtraMFAService(t)
 
-	renewed, err := svc.ResendMFAChallenge(context.Background(), "not-a-jwt", net.ParseIP("127.0.0.1"))
+	renewed, err := svc.ResendMFAChallengeForScope(context.Background(), "not-a-jwt", net.ParseIP("127.0.0.1"), identityaccess.MFAChallengeScopeTenant)
 
 	require.Error(t, err)
 	assert.Empty(t, renewed, "invalid token must not produce a renewed JWT")
@@ -100,7 +100,7 @@ func TestMFAService_ResendChallenge_HappyPath(t *testing.T) {
 	// The resend path goes parseChallengeToken → StartChallenge, both
 	// of which are exercised end-to-end. The renewed JWT is what the
 	// frontend must swap in for the in-flight challenge_token.
-	renewed, err := svc.ResendMFAChallenge(context.Background(), token, net.ParseIP("127.0.0.1"))
+	renewed, err := svc.ResendMFAChallengeForScope(context.Background(), token, net.ParseIP("127.0.0.1"), identityaccess.MFAChallengeScopeTenant)
 	require.NoError(t, err)
 	// The token may or may not differ byte-for-byte from the original
 	// (JWT iat has 1-second granularity and the encoded claims overlap

@@ -165,9 +165,6 @@ type AccountMFAChallenges interface {
 	// ResendMFAChallengeForScope re-issues a code for a challenge of this
 	// portal and returns the renewed JWT.
 	ResendMFAChallengeForScope(ctx context.Context, challengeToken string, ip net.IP, expectedScope string) (string, error)
-	// ResendMFAChallenge accepts a challenge of any scope and is therefore
-	// not for an HTTP surface.
-	ResendMFAChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error)
 }
 
 // AccountMFAEnrollment is the enrollment and its cascade.

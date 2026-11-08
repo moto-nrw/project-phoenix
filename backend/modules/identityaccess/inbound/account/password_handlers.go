@@ -11,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
 )
 
 // initiatePasswordReset handles initiating a password reset
@@ -61,10 +62,10 @@ func (rs *Resource) resetPassword(w http.ResponseWriter, r *http.Request) {
 		slog.Default().WarnContext(r.Context(), "Password reset failed", slog.String("error", err.Error()))
 
 		switch {
-		case passwordResetLinkUnusable(err):
+		case portalauth.PasswordResetLinkUnusable(err):
 			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(errors.New("invalid or expired reset token"), common.CodeIdentityPasswordResetLinkInvalid))
 			return
-		case passwordTooWeak(err):
+		case portalauth.PasswordTooWeak(err):
 			common.RenderError(w, r, common.ErrorInvalidOnField(identityaccess.ErrPasswordTooWeak, common.CodeIdentityPasswordTooWeak, "new_password"))
 			return
 		}

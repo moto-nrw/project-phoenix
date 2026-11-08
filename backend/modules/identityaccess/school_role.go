@@ -2,10 +2,9 @@ package identityaccess
 
 import (
 	"context"
-	"errors"
 )
 
-var ErrRoleNotFound = errors.New("role not found")
+var ErrRoleNotFound = notFoundError("role not found")
 
 // SchoolRole contains the stored facts used by school-role assignment and
 // grant checks. It exposes no persistence model or relation types.

@@ -90,11 +90,6 @@ func (c ComposedAccountMFA) ResendMFAChallengeForScope(ctx context.Context, chal
 	return token, MFAError(err)
 }
 
-func (c ComposedAccountMFA) ResendMFAChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {
-	token, err := c.Flows.ResendChallenge(c.ctx(ctx), challengeToken, ip)
-	return token, MFAError(err)
-}
-
 func (c ComposedAccountMFA) EnrollMFA(ctx context.Context, accountID int64) error {
 	return MFAError(c.Flows.Enroll(c.ctx(ctx), accountID))
 }
@@ -245,11 +240,11 @@ func (g CapabilityGate) StartChallenge(ctx context.Context, accountID, tenantID 
 	}
 	challengeScope := identityaccess.MFAChallengeScopeTenant
 	switch scope {
-	case domain.ScopeSchool:
+	case domain.PortalSchool.Claim:
 		challengeScope = identityaccess.MFAChallengeScopeSchool
-	case domain.ScopeOrg:
+	case domain.PortalOrg.Claim:
 		challengeScope = identityaccess.MFAChallengeScopeOrg
-	case domain.ScopeCaterer:
+	case domain.PortalCaterer.Claim:
 		challengeScope = identityaccess.MFAChallengeScopeCaterer
 	}
 	return g.Capability.StartMFAChallenge(ctx, accountID, tenantID, challengeScope, parseGateIP(ipAddress))

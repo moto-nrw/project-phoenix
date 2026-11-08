@@ -2,7 +2,7 @@
 //
 // These tests mount the production Resource.Router() and authenticate via real
 // signed JWTs (testutil.MintTestJWT + testutil.WithJWTBearer) so the full
-// middleware chain (Verifier → Authenticator → TenantMiddleware → TenantTxMiddleware)
+// middleware chain (Verifier → Authenticator → TenantScopeMiddleware → TenantTxMiddleware)
 // runs exactly as it does in production. They verify HTTP request/response
 // handling, status codes, and error responses against a real test database.
 package me_test

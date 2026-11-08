@@ -13,13 +13,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
+
+	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // Operator login, the MFA-proven token issue, refresh, profile and password
@@ -28,6 +31,17 @@ import (
 
 func operatorLoginEmail(prefix string) string {
 	return fmt.Sprintf("%s-%d@test.local", prefix, time.Now().UnixNano())
+}
+
+// operatorRefreshJWT signs a refresh token with the test signer, for the
+// tokens a login never issues.
+func operatorRefreshJWT(t *testing.T, operatorID int64, handle, scope string) string {
+	t.Helper()
+	signer, err := sessiontoken.NewTokenAuthWithDurations(authSigningSecret, time.Minute, time.Hour)
+	require.NoError(t, err)
+	token, err := tokentest.CreateRefreshJWT(signer, tokentest.RefreshClaims{ID: int(operatorID), Token: handle, Scope: scope})
+	require.NoError(t, err)
+	return token
 }
 
 // refreshHandle reads the session handle a refresh JWT carries. The
@@ -137,7 +151,7 @@ func TestIntegration_OperatorRefresh_RotatesAndRevokesReplay(t *testing.T) {
 	require.NoError(t, err)
 	predecessor := refreshHandle(t, issued)
 
-	access, refresh, err := identity.RefreshOperatorToken(ctx, operator.ID, predecessor)
+	access, refresh, err := identity.RefreshOperatorToken(ctx, issued, "")
 	require.NoError(t, err)
 	assert.NotEmpty(t, access)
 	assert.NotEmpty(t, refresh)
@@ -148,12 +162,17 @@ func TestIntegration_OperatorRefresh_RotatesAndRevokesReplay(t *testing.T) {
 	require.NoError(t, db.NewSelect().TableExpr("platform.operator_refresh_tokens").Column("replacement_token").Where("token = ?", sha256Hex(predecessor)).Scan(ctx, &replacement))
 	assert.Equal(t, sha256Hex(successor), replacement, "the database names both sessions by hash only")
 
-	_, _, err = identity.RefreshOperatorToken(ctx, operator.ID+1_000_000, successor)
+	_, _, err = identity.RefreshOperatorToken(ctx, operatorRefreshJWT(t, operator.ID+1_000_000, successor, tokenprimitives.PortalPlatform), "")
 	require.ErrorIs(t, err, identityaccess.ErrOperatorRefreshTokenInvalid, "another operator's handle is refused")
+	_, _, err = identity.RefreshOperatorToken(ctx, operatorRefreshJWT(t, operator.ID, successor, ""), "")
+	require.ErrorIs(t, err, identityaccess.ErrOperatorRefreshTokenInvalid, "a token without platform scope is refused")
+	_, _, err = identity.RefreshOperatorToken(ctx, "not-a-jwt", "")
+	require.ErrorIs(t, err, identityaccess.ErrOperatorRefreshTokenInvalid, "an unsigned value is refused")
+	assert.Equal(t, 2, countOperatorSessions(t, db, operator.ID), "the refusals rotate and revoke nothing")
 
 	// Without the recovery proof the request cannot prove possession of the
 	// rotated predecessor: the replay revokes the family and commits.
-	_, _, err = identity.RefreshOperatorToken(ctx, operator.ID, predecessor)
+	_, _, err = identity.RefreshOperatorToken(ctx, issued, "")
 	require.ErrorIs(t, err, identityaccess.ErrOperatorRefreshTokenInvalid)
 	assert.Equal(t, 0, countOperatorSessions(t, db, operator.ID), "replay revocation commits")
 	assert.Equal(t, 1, countOperatorAudit(t, db, operator.ID, "token_revoked"))
@@ -165,7 +184,7 @@ func TestIntegration_OperatorRefresh_RotatesAndRevokesReplay(t *testing.T) {
 	assert.EqualValues(t, 2, changes["revoked_token_count"])
 	assert.NotEmpty(t, changes["family_fingerprint"])
 
-	_, _, err = identity.RefreshOperatorToken(ctx, operator.ID, successor)
+	_, _, err = identity.RefreshOperatorToken(ctx, refresh, "")
 	require.ErrorIs(t, err, identityaccess.ErrOperatorRefreshTokenInvalid, "the revoked successor is gone too")
 }
 
@@ -177,12 +196,11 @@ func TestIntegration_OperatorRefresh_RefusesDeactivatedOperator(t *testing.T) {
 	operator := testpkg.CreateTestOperatorWithPassword(t, db, operatorLoginEmail("operator-inactive"), testPassword)
 	_, issued, err := identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID, "127.0.0.1", "ua")
 	require.NoError(t, err)
-	handle := refreshHandle(t, issued)
 
 	_, err = db.NewUpdate().Table("platform.operators").Set("active = false").Where("id = ?", operator.ID).Exec(ctx)
 	require.NoError(t, err)
 
-	_, _, err = identity.RefreshOperatorToken(ctx, operator.ID, handle)
+	_, _, err = identity.RefreshOperatorToken(ctx, issued, "")
 	require.ErrorIs(t, err, identityaccess.ErrOperatorInactive)
 	assert.Equal(t, 1, countOperatorSessions(t, db, operator.ID), "the refusal rolls back without rotating")
 	_, _, err = identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID, "127.0.0.1", "ua")
@@ -202,7 +220,6 @@ func TestIntegration_OperatorPasswordChange_RevokesSessions(t *testing.T) {
 	require.NoError(t, err)
 	_, issued, err := identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID, "127.0.0.1", "ua")
 	require.NoError(t, err)
-	handle := refreshHandle(t, issued)
 
 	require.ErrorIs(t, identity.ChangeOperatorPassword(ctx, operator.ID, "wrong", newPassword), identityaccess.ErrOperatorPasswordMismatch)
 	var invalid *identityaccess.InvalidInputError
@@ -211,7 +228,7 @@ func TestIntegration_OperatorPasswordChange_RevokesSessions(t *testing.T) {
 
 	require.NoError(t, identity.ChangeOperatorPassword(ctx, operator.ID, testPassword, newPassword))
 	assert.Equal(t, 0, countOperatorSessions(t, db, operator.ID), "a password change revokes every operator refresh session")
-	_, _, err = identity.RefreshOperatorToken(ctx, operator.ID, handle)
+	_, _, err = identity.RefreshOperatorToken(ctx, issued, "")
 	require.ErrorIs(t, err, identityaccess.ErrOperatorRefreshTokenInvalid)
 	assert.Equal(t, 2, countOperatorAudit(t, db, operator.ID, "token_revoked"), "one revocation entry per family")
 
@@ -298,4 +315,29 @@ func (a operatorAccountAccess) UpdateAccountTenantRole(ctx context.Context, acco
 
 func (a operatorAccountAccess) RevokeAccountTenantAccess(ctx context.Context, accountID, schoolID, operatorID int64, clientIP net.IP) ([]identityaccess.AccountTenantAccess, error) {
 	return a.module.RevokeAccountTenantAccess(ctx, accountID, schoolID, operatorID, clientIP.String())
+}
+
+// A login that cannot write its audit row issues nothing: the refresh session
+// and the last-login stamp roll back with it, because the three writes share
+// one administrative transaction.
+func TestOperatorLoginRollsBackTheSessionWhenTheAuditFails(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := context.Background()
+	identity := buildOperatorIdentity(t, db)
+	operator := testpkg.CreateTestOperator(t, db)
+	_, err := db.NewRaw(`ALTER TABLE platform.operator_audit_log ADD CONSTRAINT reject_login_audit_test CHECK (action <> 'login')`).Exec(ctx)
+	require.NoError(t, err)
+
+	access, refresh, err := identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID, "203.0.113.7", "test-agent")
+
+	require.Error(t, err)
+	assert.Empty(t, access)
+	assert.Empty(t, refresh)
+	var sessions int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM platform.operator_refresh_tokens WHERE operator_id = ?`, operator.ID).Scan(ctx, &sessions))
+	assert.Zero(t, sessions, "the refresh session rolls back with the audit row")
+	var lastLogin *time.Time
+	require.NoError(t, db.NewRaw(`SELECT last_login FROM platform.operators WHERE id = ?`, operator.ID).Scan(ctx, &lastLogin))
+	assert.Nil(t, lastLogin, "the last-login stamp rolls back with the audit row")
 }

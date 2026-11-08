@@ -103,9 +103,3 @@ type MFAChallengeClaims struct {
 	TenantID    int64
 	ChallengeID int64
 }
-
-// OperatorVerifiedChallenge is the operator counterpart of
-// VerifiedMFAChallenge.
-type OperatorVerifiedChallenge struct {
-	OperatorID int64
-}

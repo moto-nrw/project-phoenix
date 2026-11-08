@@ -235,7 +235,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // modules/parentbilling/compose adds exactly 7 LOC.
 // ADR 0167: the constructor of the payment terms of
 // modules/parentbilling/compose adds exactly 5 LOC.
-const moduleComposeBudgetTotal = 13093
+const moduleComposeBudgetTotal = 13087
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -287,7 +287,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/grouplive/compose":                    14,
 	"modules/guardianlinkview/compose":             8,
 	// Raised by ADR 0106: the Träger-Büro account management (+24).
-	"modules/identityaccess/compose": 1371, // raised by ADR 0077
+	"modules/identityaccess/compose": 1365, // raised by ADR 0077
 	"modules/mealplan/compose":       74,   // raised by ADR 0078
 	// ADR 0097: the isolated tenant return constructor, no retained logic moved.
 	// Raised by ADR 0112: the Träger master data constructor (+13).

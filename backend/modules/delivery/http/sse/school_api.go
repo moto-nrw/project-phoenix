@@ -29,7 +29,7 @@ type SchoolAccessChecker interface {
 
 // SchoolRouter returns the SSE router for the school portal ("moto schule",
 // #2208). It mirrors ParentRouter: same streaming loop, but authenticated with
-// SchoolMiddleware (scope=school only) and registered per account, so the
+// SchoolScopeMiddleware (scope=school only) and registered per account, so the
 // connection is woken only by fan-outs addressed to this Lehrkraft's account —
 // today the Team-Chat trigger (staff_message). Mounted at /school-sse.
 

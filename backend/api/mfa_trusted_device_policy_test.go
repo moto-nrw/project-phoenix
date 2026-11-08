@@ -10,13 +10,14 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	accountHTTP "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
-	"github.com/moto-nrw/project-phoenix/modules/schoolportal"
-	settings "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	accountHTTP "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
+	settings "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // A valid code must buy a session even when remembering the device is
@@ -75,7 +76,8 @@ func TestMFASecurityPolicyFailuresBothPortals(t *testing.T) {
 				lockoutFailure := key == settings.KeyAccountLockoutThreshold || key == settings.KeyAccountLockoutDurationMinutes
 				if lockoutFailure {
 					require.Equal(t, http.StatusServiceUnavailable, response.Code, response.Body.String())
-					assert.Contains(t, response.Body.String(), `"code":"general.unavailable"`)
+					// The unreadable status carries its own code on every MFA step.
+					assert.Contains(t, response.Body.String(), `"code":"identity.mfa_status_unavailable"`)
 					assert.NotContains(t, response.Body.String(), "access_token")
 					assert.NotContains(t, response.Body.String(), "refresh_token")
 					assert.Empty(t, response.Result().Cookies())
@@ -85,7 +87,7 @@ func TestMFASecurityPolicyFailuresBothPortals(t *testing.T) {
 					response = verify()
 				}
 				require.Equal(t, http.StatusOK, response.Code, response.Body.String())
-				var tokens schoolportal.TokenResponse
+				var tokens portalauth.TokenResponse
 				require.NoError(t, json.Unmarshal(response.Body.Bytes(), &tokens))
 				assert.NotEmpty(t, tokens.AccessToken)
 				assert.NotEmpty(t, tokens.RefreshToken)

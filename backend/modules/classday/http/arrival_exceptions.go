@@ -20,7 +20,7 @@ import (
 // Class-wide arrival day exceptions through "moto schule" (#2970): the same
 // rows the OGS sets in the Kindersuche (#2962), entered by the Lehrkraft of
 // the class. Every write passes four gates in this order — school scope
-// (SchoolMiddleware), the class_day:arrival_exception_write permission, the
+// (SchoolScopeMiddleware), the class_day:arrival_exception_write permission, the
 // school's setting operations.school_portal_write_scope, and the caller's
 // education.class_teachers assignment for the class — before the shared
 // service refuses past dates and weekends. The handlers know one seam, the

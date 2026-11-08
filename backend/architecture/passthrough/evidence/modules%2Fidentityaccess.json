@@ -93,7 +93,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (s Sessions) MFAEnrollment() []func(http.Handler) http.Handler {\n\treturn []func(http.Handler) http.Handler{s.tokenAuth.Verifier(), sessiontoken.MFAEnrollmentAuthenticator}\n}",
+      "evidence": "func (s Sessions) MFAEnrollment() []func(http.Handler) http.Handler {\n\treturn []func(http.Handler) http.Handler{s.tokenAuth.Verifier(), sessiontoken.EnrollmentAuthenticatorFor(tokenprimitives.PlatformClaims)}\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/inbound/operator/Sessions.MFAEnrollment",
       "owner": "modules/identityaccess"
@@ -317,13 +317,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (s *AccountAuthentication) ListActiveSessions(ctx context.Context, accountID int64) (_ []identityaccess.AccountSession, err error) {\n\tif s == nil {\n\t\treturn nil, errAccountAuthenticationUnavailable\n\t}\n\tdefer func() {\n\t\terr = authenticationError(err)\n\t}()\n\tctx = bindRuntime(s.attach, ctx)\n\tsessions, err := s.sessions.ListAccountSessions(ctx, identityaccess.AccountSessionFilter{AccountID: accountID, Liveness: identityaccess.AccountSessionsLive})\n\tif err != nil {\n\t\treturn nil, failed(\"get active tokens\", err)\n\t}\n\treturn sessions, nil\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/identityaccess/internal/application/AccountAuthentication.ListActiveSessions",
-      "owner": "modules/identityaccess"
-    },
-    {
-      "build": "production",
       "evidence": "func (s *AccountAuthentication) MarkAccountWideWipeCompleted(ctx context.Context, accountID int64) (err error) {\n\tif s == nil {\n\t\treturn errAccountAuthenticationUnavailable\n\t}\n\tdefer func() {\n\t\terr = authenticationError(err)\n\t}()\n\tctx = bindRuntime(s.attach, ctx)\n\tpending, err := s.audit.ClaimPendingAccountWideWipes(ctx, accountID)\n\tif err != nil {\n\t\treturn err\n\t}\n\treturn s.completeAccountWideWipes(ctx, pending)\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/application/AccountAuthentication.MarkAccountWideWipeCompleted",
@@ -359,6 +352,20 @@
     },
     {
       "build": "production",
+      "evidence": "func (c AccountMFACapability) OperatorDisableMFA(ctx context.Context, operatorID, schoolID, targetAccountID int64, reason string) error {\n\treturn c.AccountMFA.OperatorDisableMFA(operatorSchoolContext(ctx, schoolID), operatorID, schoolID, targetAccountID, reason)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/AccountMFACapability.OperatorDisableMFA",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c AccountMFACapability) OperatorSetMFAOverride(ctx context.Context, operatorID, schoolID, targetAccountID int64, override, reason string) error {\n\treturn c.AccountMFA.OperatorSetMFAOverride(operatorSchoolContext(ctx, schoolID), operatorID, schoolID, targetAccountID, override, reason)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/AccountMFACapability.OperatorSetMFAOverride",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
       "evidence": "func (f *AccountMFAFlows) GetGlobalMFAOverride(ctx context.Context, accountID int64) (string, error) {\n\toverride, found, err := f.records.FindGlobalOverride(ctx, accountID)\n\tif err != nil {\n\t\treturn \"\", fmt.Errorf(\"load global mfa override: %w\", err)\n\t}\n\tif !found {\n\t\treturn domain.MFAAdminOverrideNone, nil\n\t}\n\treturn override.Override, nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/application/AccountMFAFlows.GetGlobalMFAOverride",
@@ -369,13 +376,6 @@
       "evidence": "func (f *AccountMFAFlows) GetTenantMFAOverride(ctx context.Context, accountID, tenantID int64) (string, error) {\n\tif tenantID == 0 {\n\t\treturn domain.MFAAdminOverrideNone, nil\n\t}\n\toverride, found, err := f.records.FindTenantOverride(ctx, accountID, tenantID)\n\tif err != nil {\n\t\treturn \"\", fmt.Errorf(\"load tenant mfa override: %w\", err)\n\t}\n\tif !found {\n\t\treturn domain.MFAAdminOverrideNone, nil\n\t}\n\treturn override.Override, nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/application/AccountMFAFlows.GetTenantMFAOverride",
-      "owner": "modules/identityaccess"
-    },
-    {
-      "build": "production",
-      "evidence": "func (f *AccountMFAFlows) ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {\n\tclaims, err := f.codec.ParseChallengeToken(challengeToken)\n\tif err != nil {\n\t\treturn \"\", identityaccess.ErrMFAChallengeTokenInvalid\n\t}\n\treturn f.resend(ctx, claims, ip)\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/identityaccess/internal/application/AccountMFAFlows.ResendChallenge",
       "owner": "modules/identityaccess"
     },
     {
@@ -768,13 +768,6 @@
       "evidence": "func (c ComposedAccountMFA) PrepareTrustedDevice(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (identityaccess.TrustedDeviceIssue, error) {\n\tissue, err := c.Flows.PrepareTrustedDevice(c.ctx(ctx), accountID, tenantID, userAgent, ip)\n\tif err != nil || issue == nil {\n\t\treturn nil, MFAError(err)\n\t}\n\treturn func(issueCtx context.Context) (string, time.Time, error) {\n\t\tcookie, expiresAt, err := issue(c.ctx(issueCtx))\n\t\treturn cookie, expiresAt, MFAError(err)\n\t}, nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/application/ComposedAccountMFA.PrepareTrustedDevice",
-      "owner": "modules/identityaccess"
-    },
-    {
-      "build": "production",
-      "evidence": "func (c ComposedAccountMFA) ResendMFAChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {\n\ttoken, err := c.Flows.ResendChallenge(c.ctx(ctx), challengeToken, ip)\n\treturn token, MFAError(err)\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.ResendMFAChallenge",
       "owner": "modules/identityaccess"
     },
     {
@@ -1192,14 +1185,14 @@
     },
     {
       "build": "production",
-      "evidence": "func (f *OperatorMFAFlows) ListOperatorTrustedDevices(ctx context.Context, operatorID int64) ([]identityaccess.OperatorTrustedDevice, error) {\n\tif f == nil {\n\t\treturn nil, identityaccess.ErrOperatorMFAUnavailable\n\t}\n\tdevices, err := f.records.ListActiveTrustedDevices(ctx, operatorID)\n\tif err != nil {\n\t\treturn nil, operatorFlowError(err)\n\t}\n\tresult := make([]identityaccess.OperatorTrustedDevice, 0, len(devices))\n\tfor _, device := range devices {\n\t\tresult = append(result, identityaccess.OperatorTrustedDevice(device))\n\t}\n\treturn result, nil\n}",
+      "evidence": "func (f *OperatorMFAFlows) ListOperatorTrustedDevices(ctx context.Context, operatorID int64) ([]identityaccess.OperatorTrustedDevice, error) {\n\tif f == nil {\n\t\treturn nil, identityaccess.ErrOperatorMFAUnavailable\n\t}\n\tdevices, err := f.records.ListActiveTrustedDevices(ctx, operatorID)\n\tif err != nil {\n\t\treturn nil, operatorError(err)\n\t}\n\tresult := make([]identityaccess.OperatorTrustedDevice, 0, len(devices))\n\tfor _, device := range devices {\n\t\tresult = append(result, identityaccess.OperatorTrustedDevice(device))\n\t}\n\treturn result, nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/application/OperatorMFAFlows.ListOperatorTrustedDevices",
       "owner": "modules/identityaccess"
     },
     {
       "build": "production",
-      "evidence": "func (f *OperatorMFAFlows) ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {\n\tclaims, err := f.codec.ParseChallengeToken(challengeToken)\n\tif err != nil || claims.Scope != domain.MFAChallengeScopePlatform {\n\t\treturn \"\", identityaccess.ErrMFAChallengeTokenInvalid\n\t}\n\treturn f.StartChallenge(ctx, claims.AccountID, ip)\n}",
+      "evidence": "func (f *OperatorMFAFlows) ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {\n\tclaims, err := f.codec.ParseChallengeToken(challengeToken)\n\tif err != nil || claims.Scope != domain.PortalPlatform.Name {\n\t\treturn \"\", identityaccess.ErrMFAChallengeTokenInvalid\n\t}\n\treturn f.StartChallenge(ctx, claims.AccountID, ip)\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/application/OperatorMFAFlows.ResendChallenge",
       "owner": "modules/identityaccess"
@@ -1766,20 +1759,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (c accountMFACapability) OperatorDisableMFA(ctx context.Context, operatorID, schoolID, targetAccountID int64, reason string) error {\n\treturn c.AccountMFA.OperatorDisableMFA(operatorSchoolContext(ctx, schoolID), operatorID, schoolID, targetAccountID, reason)\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/identityaccess/internal/application/accountMFACapability.OperatorDisableMFA",
-      "owner": "modules/identityaccess"
-    },
-    {
-      "build": "production",
-      "evidence": "func (c accountMFACapability) OperatorSetMFAOverride(ctx context.Context, operatorID, schoolID, targetAccountID int64, override, reason string) error {\n\treturn c.AccountMFA.OperatorSetMFAOverride(operatorSchoolContext(ctx, schoolID), operatorID, schoolID, targetAccountID, override, reason)\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/identityaccess/internal/application/accountMFACapability.OperatorSetMFAOverride",
-      "owner": "modules/identityaccess"
-    },
-    {
-      "build": "production",
       "evidence": "func (r ceremonyRejection) Error() string {\n\treturn r.cause.Error()\n}",
       "form": "unchanged-forward-evidence",
       "id": "modules/identityaccess/internal/application/ceremonyRejection.Error",
@@ -1839,6 +1818,13 @@
       "evidence": "func (i SchoolInvitation) Redeemable(now time.Time) bool {\n\treturn i.UsedAt == nil \u0026\u0026 i.ExpiresAt.After(now)\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/domain/SchoolInvitation.Redeemable",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a *TokenAuth) ParseAccessJWT(tokenString string) (*AppClaims, error) {\n\ttoken, err := a.JwtAuth.Decode(tokenString)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tdecoded := decode(token)\n\tif decoded.AccessErr != nil {\n\t\treturn nil, decoded.AccessErr\n\t}\n\tif decoded.access.ExpiresAt \u003e 0 \u0026\u0026 decoded.access.ExpiresAt \u003c time.Now().Unix() {\n\t\treturn nil, errors.New(\"access token expired\")\n\t}\n\treturn \u0026decoded.access, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/sessiontoken/TokenAuth.ParseAccessJWT",
       "owner": "modules/identityaccess"
     }
   ]

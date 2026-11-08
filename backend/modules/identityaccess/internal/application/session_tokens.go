@@ -8,6 +8,7 @@ import (
 	"github.com/lestrrat-go/jwx/v3/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
 )
 
 // JWTSigner is the signing primitive supplied by composition. Identity owns the
@@ -23,7 +24,8 @@ func NewSessionCodec(signer JWTSigner, accessExpiry, refreshExpiry time.Duration
 	return &SessionCodec{signer: signer, accessExpiry: accessExpiry, refreshExpiry: refreshExpiry}
 }
 
-// SessionCodec signs and parses the identity tokens with one signer.
+// SessionCodec signs and parses the identity tokens with one signer. The
+// claim schema is tokenprimitives' wire codec.
 type SessionCodec struct {
 	signer        JWTSigner
 	accessExpiry  time.Duration
@@ -52,19 +54,7 @@ func (c *SessionCodec) IssueTokenPair(access identityaccess.SessionClaims, refre
 		return "", "", err
 	}
 	now := time.Now()
-	expiry := refresh.ExpiresAt
-	if expiry <= 0 {
-		expiry = now.Add(c.refreshExpiry).Unix()
-	}
-	claims := map[string]any{"iat": now.Unix(), "exp": expiry}
-	put(claims, "id", refresh.AccountID, refresh.AccountID != 0)
-	put(claims, "token", refresh.Token, refresh.Token != "")
-	put(claims, "tenant_id", refresh.TenantID, refresh.TenantID != 0)
-	put(claims, "org_id", refresh.OrgID, refresh.OrgID != 0)
-	put(claims, "scope", refresh.Scope, refresh.Scope != "")
-	put(claims, "family_id", refresh.FamilyID, refresh.FamilyID != "")
-	put(claims, "lineage_id", refresh.LineageID, refresh.LineageID != "")
-	refreshToken, err := c.sign(claims)
+	refreshToken, err := c.sign(tokenprimitives.EncodeRefresh(tokenprimitives.RefreshClaims(refresh), now, now.Add(c.refreshExpiry)))
 	if err != nil {
 		return "", "", err
 	}
@@ -73,82 +63,48 @@ func (c *SessionCodec) IssueTokenPair(access identityaccess.SessionClaims, refre
 
 func (c *SessionCodec) IssueAccessToken(claims identityaccess.SessionClaims) (string, error) {
 	now := time.Now()
-	wire := map[string]any{
-		"roles": claims.Roles, "role_is_system": claims.RoleIsSystem, "permissions": claims.Permissions,
-		"iat": now.Unix(), "exp": now.Add(c.accessExpiry).Unix(),
-	}
-	put(wire, "id", claims.AccountID, claims.AccountID != 0)
-	put(wire, "sub", claims.Email, claims.Email != "")
-	put(wire, "username", claims.Username, claims.Username != "")
-	put(wire, "first_name", claims.FirstName, claims.FirstName != "")
-	put(wire, "last_name", claims.LastName, claims.LastName != "")
-	put(wire, "is_admin", claims.IsAdmin, claims.IsAdmin)
-	put(wire, "scope", claims.Scope, claims.Scope != "")
-	put(wire, "tenant_id", claims.TenantID, claims.TenantID != 0)
-	put(wire, "org_id", claims.OrgID, claims.OrgID != 0)
-	put(wire, "family_id", claims.FamilyID, claims.FamilyID != "")
-	put(wire, "read_only", claims.ReadOnly, claims.ReadOnly)
-	put(wire, "acting_admin_id", claims.ActingAdminID, claims.ActingAdminID != 0)
-	put(wire, "preview_id", claims.PreviewID, claims.PreviewID != "")
-	put(wire, "via_traeger", claims.ViaTraeger, claims.ViaTraeger)
-	return c.sign(wire)
+	return c.sign(tokenprimitives.EncodeAccess(tokenprimitives.AccessClaims(claims), now, now.Add(c.accessExpiry)))
 }
 
 func (c *SessionCodec) IssueMFAEnrollmentToken(accountID, tenantID int64, scope string, ttl time.Duration) (string, error) {
-	if scope != "school" && scope != "platform" && scope != "org" {
-		scope = "tenant"
+	wire, err := tokenprimitives.EncodeEnrollment(tokenprimitives.EnrollmentClaims{AccountID: accountID, Scope: scope, TenantID: tenantID}, time.Now(), ttl)
+	if err != nil {
+		return "", err
 	}
-	now := time.Now()
-	wire := map[string]any{"account_id": accountID, "scope": scope, "mfa_enrollment_pending": true, "iat": now.Unix(), "exp": now.Add(ttl).Unix()}
-	put(wire, "tenant_id", tenantID, tenantID != 0)
 	return c.sign(wire)
 }
 
-func (c *SessionCodec) sign(claims map[string]any) (string, error) {
+// sign signs the JSON claims of a tokenprimitives wire value.
+func (c *SessionCodec) sign(wire any) (string, error) {
+	encoded, err := json.Marshal(wire)
+	if err != nil {
+		return "", err
+	}
+	var claims map[string]any
+	if err := json.Unmarshal(encoded, &claims); err != nil {
+		return "", err
+	}
 	_, token, err := c.signer.Encode(claims)
 	return token, err
 }
 
 func (c *SessionCodec) IssueChallengeToken(claims identityaccess.MFAChallengeClaims, ttl time.Duration) (string, error) {
-	now := time.Now()
-	wire := map[string]any{"account_id": claims.AccountID, "mfa_pending": true, "iat": now.Unix(), "exp": now.Add(ttl).Unix()}
-	put(wire, "scope", claims.Scope, claims.Scope != "")
-	put(wire, "tenant_id", claims.TenantID, claims.TenantID != 0)
-	put(wire, "challenge_id", claims.ChallengeID, claims.ChallengeID != 0)
-	return c.sign(wire)
+	return c.sign(tokenprimitives.EncodeChallenge(tokenprimitives.ChallengeClaims(claims), time.Now(), ttl))
 }
 
 func (c *SessionCodec) ParseChallengeToken(token string) (identityaccess.MFAChallengeClaims, error) {
-	wire, err := c.decode(token)
+	verified, err := c.decode(token)
 	if err != nil {
 		return identityaccess.MFAChallengeClaims{}, err
 	}
-	claims, err := domain.DecodeMFAChallengeToken(wire, time.Now())
+	claims, err := tokenprimitives.DecodeChallenge(verified, time.Now())
 	return identityaccess.MFAChallengeClaims(claims), err
 }
 
-func put(claims map[string]any, key string, value any, include bool) {
-	if include {
-		claims[key] = value
-	}
-}
-
-// decode verifies the signature, then normalizes registered and custom claims
-// through JSON. Expiry policy belongs to the particular token operation below.
-func (c *SessionCodec) decode(token string) (map[string]any, error) {
-	verified, err := c.signer.Decode(token)
-	if err != nil {
-		return nil, err
-	}
-	encoded, err := json.Marshal(verified)
-	if err != nil {
-		return nil, err
-	}
-	var claims map[string]any
-	if err := json.Unmarshal(encoded, &claims); err != nil {
-		return nil, err
-	}
-	return claims, nil
+// decode verifies the signature. Expiry policy belongs to the particular
+// token operation below.
+func (c *SessionCodec) decode(token string) (jwt.Token, error) {
+	return c.signer.Decode(token)
 }
 
 func (c *SessionCodec) ParseAccessToken(token string) (identityaccess.SessionClaims, error) {
@@ -163,20 +119,20 @@ func (c *SessionCodec) ParseAccessToken(token string) (identityaccess.SessionCla
 }
 
 func (c *SessionCodec) ParseAccessTokenAllowExpired(token string) (identityaccess.SessionClaims, error) {
-	wire, err := c.decode(token)
+	verified, err := c.decode(token)
 	if err != nil {
 		return identityaccess.SessionClaims{}, err
 	}
-	claims, err := domain.DecodeSessionToken(wire)
+	claims, err := tokenprimitives.DecodeAccess(verified)
 	return identityaccess.SessionClaims(claims), err
 }
 
 // ParseRefreshToken verifies signatures; persisted sessions own expiry and revocation.
 func (c *SessionCodec) ParseRefreshToken(token string) (identityaccess.RefreshClaims, error) {
-	wire, err := c.decode(token)
+	verified, err := c.decode(token)
 	if err != nil {
 		return identityaccess.RefreshClaims{}, err
 	}
-	claims, err := domain.DecodeRefreshToken(wire)
+	claims, err := tokenprimitives.DecodeRefresh(verified)
 	return identityaccess.RefreshClaims(claims), err
 }

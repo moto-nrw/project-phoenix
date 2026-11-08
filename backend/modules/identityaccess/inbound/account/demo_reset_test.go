@@ -59,7 +59,7 @@ func TestDemoResetOrdersANewSchoolForTheSameLink(t *testing.T) {
 		SchoolSlug string `bun:"school_slug"`
 		AccountID  *int64 `bun:"account_id"`
 	}
-	require.NoError(t, env.db.NewRaw(`SELECT school_slug, account_id FROM auth.demo_accesses WHERE token_hash = ?`, fingerprint(token)).Scan(context.Background(), &access))
+	require.NoError(t, env.db.NewRaw(`SELECT school_slug, account_id FROM auth.demo_accesses WHERE token_hash = encode(sha256(?::bytea), 'hex')`, token).Scan(context.Background(), &access))
 	assert.NotEqual(t, slug, access.SchoolSlug)
 	assert.Regexp(t, `^ogs-beispiel-[a-z0-9]{6}$`, access.SchoolSlug, "the new school carries the OGS name again")
 	assert.Nil(t, access.AccountID, "the account of the old school no longer belongs to the access")
@@ -106,7 +106,7 @@ func TestDemoResetMovesEveryLinkOfTheAddress(t *testing.T) {
 	require.Equal(t, http.StatusAccepted, env.reset(t, second).Code)
 
 	var slugs []string
-	require.NoError(t, env.db.NewRaw(`SELECT DISTINCT school_slug FROM auth.demo_accesses WHERE token_hash IN (?, ?)`, fingerprint(first), fingerprint(second)).Scan(context.Background(), &slugs))
+	require.NoError(t, env.db.NewRaw(`SELECT DISTINCT school_slug FROM auth.demo_accesses WHERE token_hash IN (encode(sha256(?::bytea), 'hex'), encode(sha256(?::bytea), 'hex'))`, first, second).Scan(context.Background(), &slugs))
 	require.Len(t, slugs, 1, "both links lead into the same new school")
 	assert.NotEqual(t, slug, slugs[0])
 }
@@ -122,7 +122,7 @@ func TestDemoResetRefusesTheStandingSchool(t *testing.T) {
 	assert.Equal(t, http.StatusUnprocessableEntity, rr.Code, rr.Body.String())
 	assert.Contains(t, rr.Body.String(), "identity.demo_access_invalid")
 	var slug string
-	require.NoError(t, env.db.NewRaw(`SELECT school_slug FROM auth.demo_accesses WHERE token_hash = ?`, fingerprint(token)).Scan(context.Background(), &slug))
+	require.NoError(t, env.db.NewRaw(`SELECT school_slug FROM auth.demo_accesses WHERE token_hash = encode(sha256(?::bytea), 'hex')`, token).Scan(context.Background(), &slug))
 	assert.Equal(t, env.slug, slug)
 }
 
@@ -135,7 +135,7 @@ func TestDemoResetRejectsUnknownAndExpiredTokens(t *testing.T) {
 	assert.Contains(t, rr.Body.String(), "identity.demo_access_unknown")
 
 	token, _ := env.requestOwnSchool(t, env.address())
-	_, err := env.db.NewRaw(`UPDATE auth.demo_accesses SET expires_at = NOW() - INTERVAL '1 minute' WHERE token_hash = ?`, fingerprint(token)).Exec(context.Background())
+	_, err := env.db.NewRaw(`UPDATE auth.demo_accesses SET expires_at = NOW() - INTERVAL '1 minute' WHERE token_hash = encode(sha256(?::bytea), 'hex')`, token).Exec(context.Background())
 	require.NoError(t, err)
 	rr = env.reset(t, token)
 	assert.Equal(t, http.StatusGone, rr.Code)
@@ -160,7 +160,7 @@ func TestDemoResetCountsAgainstTheAddressLimit(t *testing.T) {
 		})
 		rr := env.reset(t, token)
 		require.Equal(t, http.StatusAccepted, rr.Code, "restart %d: %s", round+1, rr.Body.String())
-		require.NoError(t, env.db.NewRaw(`SELECT school_slug FROM auth.demo_accesses WHERE token_hash = ?`, fingerprint(token)).Scan(context.Background(), &slug))
+		require.NoError(t, env.db.NewRaw(`SELECT school_slug FROM auth.demo_accesses WHERE token_hash = encode(sha256(?::bytea), 'hex')`, token).Scan(context.Background(), &slug))
 	}
 
 	rr := env.reset(t, token)
@@ -176,12 +176,12 @@ func TestDemoAccessUseExtendsItsLifetime(t *testing.T) {
 	env := newDemoEnv(t)
 	env.provisionDemoAdmin(t)
 	token := env.requestToken(t)
-	_, err := env.db.NewRaw(`UPDATE auth.demo_accesses SET expires_at = NOW() + INTERVAL '1 day' WHERE token_hash = ?`, fingerprint(token)).Exec(context.Background())
+	_, err := env.db.NewRaw(`UPDATE auth.demo_accesses SET expires_at = NOW() + INTERVAL '1 day' WHERE token_hash = encode(sha256(?::bytea), 'hex')`, token).Exec(context.Background())
 	require.NoError(t, err)
 
 	env.enterAs(t, token, "")
 
 	var validDays int
-	require.NoError(t, env.db.NewRaw(`SELECT ROUND(EXTRACT(EPOCH FROM expires_at - last_used_at) / 86400)::int FROM auth.demo_accesses WHERE token_hash = ?`, fingerprint(token)).Scan(context.Background(), &validDays))
+	require.NoError(t, env.db.NewRaw(`SELECT ROUND(EXTRACT(EPOCH FROM expires_at - last_used_at) / 86400)::int FROM auth.demo_accesses WHERE token_hash = encode(sha256(?::bytea), 'hex')`, token).Scan(context.Background(), &validDays))
 	assert.Equal(t, 14, validDays)
 }

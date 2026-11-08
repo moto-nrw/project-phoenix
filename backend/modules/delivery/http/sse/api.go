@@ -27,7 +27,7 @@ func (rs *Resource[E, C]) StaffEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Step 2: Extract tenant ID from JWT context (set by TenantMiddleware)
+	// Step 2: Extract tenant ID from JWT context (set by TenantScopeMiddleware)
 	identity := rs.runtime.Identity(ctx)
 	conn.tenantID = identity.TenantID
 	conn.isAdmin = identity.IsAdmin
@@ -61,7 +61,7 @@ func (rs *Resource[E, C]) StaffEvents(w http.ResponseWriter, r *http.Request) {
 // resolveSSESubscription resolves the client's topic subscription inside a
 // tenant transaction. Resolution requires it because RLS on users.persons and
 // users.staff needs app.current_tenant_id to be set — the SSE router uses
-// sessiontoken.TenantMiddleware (context only), not the DB-level TenantTxMiddleware.
+// TenantScopeMiddleware (context only), not the DB-level TenantTxMiddleware.
 func (rs *Resource[E, C]) resolveSSESubscription(ctx context.Context, tenantID int64) (*sseTopics, int64, error) {
 	var staffID int64
 	topics := &sseTopics{}

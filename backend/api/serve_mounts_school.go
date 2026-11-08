@@ -6,13 +6,10 @@ import (
 	"net/http"
 	"strings"
 
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-
+	"github.com/go-chi/chi/v5"
 	"github.com/spf13/viper"
 
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-
-	"github.com/go-chi/chi/v5"
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	classdayHTTP "github.com/moto-nrw/project-phoenix/modules/classday/http"
 	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
@@ -22,10 +19,12 @@ import (
 	importAPI "github.com/moto-nrw/project-phoenix/modules/dataimport/http"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	roomsHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/http"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
@@ -167,7 +166,7 @@ func mountSchoolPortalRoutes(
 	// The calendar of moto schule (#4798): the same calendar service as
 	// /api/calendar, behind calendar:school and the school-portal mantle.
 	schoolCalendar := calendarAPI.NewResource(calendarApp, logger.With("handler", "school-calendar"))
-	school := NewSchoolPortalHTTP(SchoolPortalAuth(identity), SchoolPortalMFA(identity), schoolPasswordResets(identity), classDayResource, timetableResource, staffMessaging, staffNotices, notificationRoutes, schoolCalendar)
+	school := NewSchoolPortalHTTP(SchoolPortalAuth(identity), SchoolPortalMFA(identity), portalauth.PasswordResetRoutes(identity, identityaccess.PasswordResetScopeSchool), classDayResource, timetableResource, staffMessaging, staffNotices, notificationRoutes, schoolCalendar)
 	// Parent letters of a Lehrkraft to her classes (#4800): the OGS's
 	// announcement resource, narrowed by the caller's class reach.
 	parentLetters := announcementAPI.NewResource(announcements, newDeclarationReports())

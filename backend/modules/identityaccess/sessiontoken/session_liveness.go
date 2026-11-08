@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/jwtauth/v5"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
 )
 
 var (
@@ -38,7 +37,7 @@ type SessionLiveness func(ctx context.Context, claims AppClaims) (bool, error)
 func RequireLiveSession(live SessionLiveness) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			claims, ok := verifiedAccessClaims(r.Context())
+			claims, ok := VerifiedAccessClaims(r.Context())
 			if !ok || claims.IsPlatformScope() {
 				next.ServeHTTP(w, r)
 				return
@@ -77,16 +76,13 @@ func sessionRefusal(ctx context.Context, live SessionLiveness, claims AppClaims)
 	return nil
 }
 
-// verifiedAccessClaims returns the claims of a signed, unexpired access
-// token in the request context; false for every other request.
-func verifiedAccessClaims(ctx context.Context) (AppClaims, bool) {
-	token, raw, err := jwtauth.FromContext(ctx)
-	if err != nil || token == nil || tokenprimitives.Validate(token) != nil {
+// VerifiedAccessClaims returns the claims of the signed, unexpired access
+// token in the request context; false for every other request, including
+// one RequireLiveSession refused.
+func VerifiedAccessClaims(ctx context.Context) (AppClaims, bool) {
+	decoded, err := decodedFromCtx(ctx)
+	if err != nil || decoded.Expired || decoded.AccessErr != nil {
 		return AppClaims{}, false
 	}
-	var claims AppClaims
-	if claims.ParseClaims(raw) != nil {
-		return AppClaims{}, false
-	}
-	return claims, true
+	return decoded.access, true
 }

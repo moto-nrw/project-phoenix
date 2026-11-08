@@ -40,7 +40,7 @@ func (g *fakeOperatorPasskeyGate) StartChallenge(_ context.Context, operatorID i
 	return g.challengeToken, g.startErr
 }
 
-func (g *fakeOperatorPasskeyGate) VerifyCodeForOperator(_ context.Context, operatorID int64, code string) error {
+func (g *fakeOperatorPasskeyGate) VerifyOperatorMFACode(_ context.Context, operatorID int64, code string) error {
 	g.verifiedOperatorID, g.verifiedCode = operatorID, code
 	return g.verifyErr
 }
