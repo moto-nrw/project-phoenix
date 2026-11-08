@@ -139,36 +139,12 @@ export async function confirmParentPasswordReset(
   password: string,
   confirmPassword: string,
 ): Promise<{ message: string }> {
-  try {
-    const response = await transportFetch(
-      portalAuthPath("parent", "password-reset/confirm"),
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          token,
-          new_password: password,
-          confirm_password: confirmPassword,
-        }),
-      },
-    );
-
-    if (!response.ok) {
-      throw await buildApiError(
-        response,
-        "Fehler beim Zurücksetzen des Passworts",
-      );
-    }
-
-    return (await response.json()) as { message: string };
-  } catch (error) {
-    logger.error("parent password reset confirmation error", {
-      error: String(error),
-    });
-    throw error;
-  }
+  return confirmPasswordResetAt(
+    portalAuthPath("parent", "password-reset/confirm"),
+    token,
+    password,
+    confirmPassword,
+  );
 }
 
 export async function confirmSchoolPasswordReset(
