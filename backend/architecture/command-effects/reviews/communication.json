@@ -1,6 +1,149 @@
 {
   "entries": [
     {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.Service.CountUnread",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.Capability.CountUnread",
+      "reason": "Platform protocol participation (scope): communication reaches tenant.WithinAdminRetry (tenant-runtime) through *modules/communication/internal/application.Service.CountUnread. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). New platform target, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdminRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.Service.CreateAnnouncement",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.Capability.CreateAnnouncement",
+      "reason": "Platform protocol participation (scope): communication reaches tenant.WithinAdminRetry (tenant-runtime) through *modules/communication/internal/application.Service.CreateAnnouncement. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). New platform target, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdminRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.Service.DeleteAnnouncement",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.Capability.DeleteAnnouncement",
+      "reason": "Platform protocol participation (scope): communication reaches tenant.WithinAdminRetry (tenant-runtime) through *modules/communication/internal/application.Service.DeleteAnnouncement. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). New platform target, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdminRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.Service.GetAnnouncement",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.Capability.GetAnnouncement",
+      "reason": "Platform protocol participation (scope): communication reaches tenant.WithinAdminRetry (tenant-runtime) through *modules/communication/internal/application.Service.GetAnnouncement. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). New platform target, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdminRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.Service.GetStats",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.Capability.GetStats",
+      "reason": "Platform protocol participation (scope): communication reaches tenant.WithinAdminRetry (tenant-runtime) through *modules/communication/internal/application.Service.GetStats. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). New platform target, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdminRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.Service.GetUnreadForUser",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.Capability.GetUnreadForUser",
+      "reason": "Platform protocol participation (scope): communication reaches tenant.WithinAdminRetry (tenant-runtime) through *modules/communication/internal/application.Service.GetUnreadForUser. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). New platform target, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdminRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.Service.GetViewDetails",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.Capability.GetViewDetails",
+      "reason": "Platform protocol participation (scope): communication reaches tenant.WithinAdminRetry (tenant-runtime) through *modules/communication/internal/application.Service.GetViewDetails. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). New platform target, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdminRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.Service.ListAnnouncements",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.Capability.ListAnnouncements",
+      "reason": "Platform protocol participation (scope): communication reaches tenant.WithinAdminRetry (tenant-runtime) through *modules/communication/internal/application.Service.ListAnnouncements. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). New platform target, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdminRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.Service.MarkDismissed",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.Capability.MarkDismissed",
+      "reason": "Platform protocol participation (scope): communication reaches tenant.WithinAdminRetry (tenant-runtime) through *modules/communication/internal/application.Service.MarkDismissed. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). New platform target, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdminRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.Service.MarkSeen",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.Capability.MarkSeen",
+      "reason": "Platform protocol participation (scope): communication reaches tenant.WithinAdminRetry (tenant-runtime) through *modules/communication/internal/application.Service.MarkSeen. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). New platform target, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdminRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.Service.PublishAnnouncement",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.Capability.PublishAnnouncement",
+      "reason": "Platform protocol participation (scope): communication reaches tenant.WithinAdminRetry (tenant-runtime) through *modules/communication/internal/application.Service.PublishAnnouncement. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). New platform target, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdminRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.Service.UnpublishAnnouncement",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.Capability.UnpublishAnnouncement",
+      "reason": "Platform protocol participation (scope): communication reaches tenant.WithinAdminRetry (tenant-runtime) through *modules/communication/internal/application.Service.UnpublishAnnouncement. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). New platform target, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdminRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.Service.UpdateAnnouncement",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.Capability.UpdateAnnouncement",
+      "reason": "Platform protocol participation (scope): communication reaches tenant.WithinAdminRetry (tenant-runtime) through *modules/communication/internal/application.Service.UpdateAnnouncement. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). New platform target, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdminRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CommunicationSignatures.DeclarationSignatures",
       "classification": "query",
       "effect": "query",
@@ -40,6 +183,138 @@
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/filestorage.AttachmentPurger.QueueAttachmentCleanupForAnnouncement",
       "target_owner": "file-storage"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.DeleteParentAnnouncement",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.DeleteParentAnnouncement",
+      "reason": "Platform protocol participation (mutation): communication reaches modules/delivery/runtime.Capability.DeleteEmailDeliveries (delivery-platform) through *modules/communication/internal/application.parentAnnouncements.DeleteParentAnnouncement. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.DeleteEmailDeliveries",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.announcementsWithSurveys.DeleteParentAnnouncement",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.DeleteParentAnnouncement",
+      "reason": "Platform protocol participation (mutation): communication reaches modules/delivery/runtime.Capability.DeleteEmailDeliveries (delivery-platform) through modules/communication/internal/application.announcementsWithSurveys.DeleteParentAnnouncement. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.DeleteEmailDeliveries",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.ResendParentAnnouncementEmails",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.ResendParentAnnouncementEmails",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/runtime.Capability.AttachEmailOutbox (delivery-platform) through *modules/communication/internal/application.parentAnnouncements.ResendParentAnnouncementEmails. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.AttachEmailOutbox",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.ResendParentAnnouncementEmails",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.ResendParentAnnouncementEmails",
+      "reason": "Platform protocol participation (mutation): communication reaches modules/delivery/runtime.Capability.ClaimFailedEmailDelivery (delivery-platform) through *modules/communication/internal/application.parentAnnouncements.ResendParentAnnouncementEmails. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.ClaimFailedEmailDelivery",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.announcementsWithSurveys.ResendParentAnnouncementEmails",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.ResendParentAnnouncementEmails",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/runtime.Capability.AttachEmailOutbox (delivery-platform) through modules/communication/internal/application.announcementsWithSurveys.ResendParentAnnouncementEmails. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.AttachEmailOutbox",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.announcementsWithSurveys.ResendParentAnnouncementEmails",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.ResendParentAnnouncementEmails",
+      "reason": "Platform protocol participation (mutation): communication reaches modules/delivery/runtime.Capability.ClaimFailedEmailDelivery (delivery-platform) through modules/communication/internal/application.announcementsWithSurveys.ResendParentAnnouncementEmails. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.ClaimFailedEmailDelivery",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.UnpublishParentAnnouncement",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.UnpublishParentAnnouncement",
+      "reason": "Platform protocol participation (mutation): communication reaches modules/delivery/runtime.Capability.DeleteEmailDeliveries (delivery-platform) through *modules/communication/internal/application.parentAnnouncements.UnpublishParentAnnouncement. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.DeleteEmailDeliveries",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.announcementsWithSurveys.UnpublishParentAnnouncement",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.UnpublishParentAnnouncement",
+      "reason": "Platform protocol participation (mutation): communication reaches modules/delivery/runtime.Capability.DeleteEmailDeliveries (delivery-platform) through modules/communication/internal/application.announcementsWithSurveys.UnpublishParentAnnouncement. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.DeleteEmailDeliveries",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.ResendParentAnnouncementEmails",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementReminders.ResendParentAnnouncementEmails",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/runtime.Capability.AttachEmailOutbox (delivery-platform) through modules/communication.ParentAnnouncementCapability.ResendParentAnnouncementEmails. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.AttachEmailOutbox",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.ResendParentAnnouncementEmails",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementReminders.ResendParentAnnouncementEmails",
+      "reason": "Platform protocol participation (mutation): communication reaches modules/delivery/runtime.Capability.ClaimFailedEmailDelivery (delivery-platform) through modules/communication.ParentAnnouncementCapability.ResendParentAnnouncementEmails. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.ClaimFailedEmailDelivery",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.DeleteExpiredParentAnnouncements",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementRetention.DeleteExpiredParentAnnouncements",
+      "reason": "Platform protocol participation (mutation): communication reaches modules/delivery/runtime.Capability.DeleteEmailDeliveries (delivery-platform) through *modules/communication/internal/application.parentAnnouncements.DeleteExpiredParentAnnouncements. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.DeleteEmailDeliveries",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.DeleteExpiredParentAnnouncements",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementRetention.DeleteExpiredParentAnnouncements",
+      "reason": "Platform protocol participation (mutation): communication reaches modules/delivery/runtime.Capability.DeleteEmailDeliveries (delivery-platform) through modules/communication/internal/application.StaffService.DeleteExpiredParentAnnouncements. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.DeleteEmailDeliveries",
+      "target_owner": "delivery-platform"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.communicationGroupAudience.GroupAudience",
@@ -472,6 +747,39 @@
       "source_owner": "communication",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/roots/owners.read",
       "target_owner": ""
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.surveyService.DeleteExpiredSurveys",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.SurveyCapability.DeleteExpiredSurveys",
+      "reason": "Platform protocol participation (mutation): communication reaches modules/delivery/runtime.Capability.DeleteEmailDeliveries (delivery-platform) through *modules/communication/internal/application.surveyService.DeleteExpiredSurveys. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.DeleteEmailDeliveries",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.surveyService.DeleteSurvey",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.SurveyCapability.DeleteSurvey",
+      "reason": "Platform protocol participation (mutation): communication reaches modules/delivery/runtime.Capability.DeleteEmailDeliveries (delivery-platform) through *modules/communication/internal/application.surveyService.DeleteSurvey. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.DeleteEmailDeliveries",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication.SurveyCapability.DeleteExpiredSurveys",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.SurveyRetention.DeleteExpiredSurveys",
+      "reason": "Platform protocol participation (mutation): communication reaches modules/delivery/runtime.Capability.DeleteEmailDeliveries (delivery-platform) through modules/communication.SurveyCapability.DeleteExpiredSurveys. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.DeleteEmailDeliveries",
+      "target_owner": "delivery-platform"
     },
     {
       "adr": "0098",
@@ -963,6 +1271,16 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.ParentMessageReadRepositorySource.ParentReadListInboxForStaff",
+      "reason": "Read-only target already reviewed as query: communication reaches *modules/parentmessageinbox/internal/adapters/postgres.Projection.ListInboxForStaff (parent-message-inbox) through modules/communication/ports.ParentMessageReadRepository.ParentReadListInboxForStaff. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.ListInboxForStaff",
+      "target_owner": "parent-message-inbox"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadListInboxForStaff",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.ParentMessageReadRepositorySource.ParentReadListInboxForStaff",
       "reason": "Read-only already reviewed target: communication reaches modules/schoolstructure.Capability.ListGroupsByID (school-structure) through modules/communication/ports.ParentMessageReadRepository.ParentReadListInboxForStaff. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Capability.ListGroupsByID",
@@ -987,6 +1305,16 @@
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Query.ListGroupsByID",
       "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadListThreadsForStudent",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.ParentMessageReadRepositorySource.ParentReadListThreadsForStudent",
+      "reason": "Read-only target already reviewed as query: communication reaches *modules/parentmessageinbox/internal/adapters/postgres.Projection.ListThreadsForStudent (parent-message-inbox) through modules/communication/ports.ParentMessageReadRepository.ParentReadListThreadsForStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.ListThreadsForStudent",
+      "target_owner": "parent-message-inbox"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadListThreadsForStudent",
@@ -1158,6 +1486,61 @@
       "source_owner": "communication",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/peoplepostgres.MessageableStaffRepository.StaffRoleKinds",
       "target_owner": "people-directory"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.Delete",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.Delete",
+      "reason": "Platform protocol participation (mutation): communication reaches modules/delivery/runtime.Capability.DeleteEmailDeliveries (delivery-platform) through *modules/communication/internal/application.service.Delete. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.DeleteEmailDeliveries",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.DeleteExpiredParentAnnouncements",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.DeleteExpiredParentAnnouncements",
+      "reason": "Platform protocol participation (mutation): communication reaches modules/delivery/runtime.Capability.DeleteEmailDeliveries (delivery-platform) through *modules/communication/internal/application.service.DeleteExpiredParentAnnouncements. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.DeleteEmailDeliveries",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.ResendFailedEmails",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.ResendFailedEmails",
+      "reason": "Platform protocol participation (durable): communication reaches modules/delivery/runtime.Capability.AttachEmailOutbox (delivery-platform) through *modules/communication/internal/application.service.ResendFailedEmails. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.AttachEmailOutbox",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.ResendFailedEmails",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.ResendFailedEmails",
+      "reason": "Platform protocol participation (mutation): communication reaches modules/delivery/runtime.Capability.ClaimFailedEmailDelivery (delivery-platform) through *modules/communication/internal/application.service.ResendFailedEmails. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.ClaimFailedEmailDelivery",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.Unpublish",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.Unpublish",
+      "reason": "Platform protocol participation (mutation): communication reaches modules/delivery/runtime.Capability.DeleteEmailDeliveries (delivery-platform) through *modules/communication/internal/application.service.Unpublish. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.DeleteEmailDeliveries",
+      "target_owner": "delivery-platform"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication.StaffReadRecords.ListAddressableStaff",
@@ -1412,6 +1795,17 @@
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/staffannouncementaudience/internal/adapters/postgres.Mapped[github.com/moto-nrw/project-phoenix/modules/communication.Announcement, github.com/moto-nrw/project-phoenix/modules/communication.AnnouncementViewDetail, github.com/moto-nrw/project-phoenix/modules/communication/composition.OperationStats].ViewDetails",
       "target_owner": "staff-announcement-audience"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/composition.transaction.RunAdmin",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/ports.Transaction.RunAdmin",
+      "reason": "Platform protocol participation (scope): communication reaches tenant.WithinAdminRetry (tenant-runtime) through modules/communication/composition.transaction.RunAdmin. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). New platform target, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdminRetry",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.communicationViewerNames.NamesByAccount",
@@ -2074,6 +2468,16 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListInboxForStaff",
+      "reason": "Read-only target already reviewed as query: communication reaches *modules/parentmessageinbox/internal/adapters/postgres.Projection.ListInboxForStaff (parent-message-inbox) through modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ListInboxForStaff. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.ListInboxForStaff",
+      "target_owner": "parent-message-inbox"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ListInboxForStaff",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListInboxForStaff",
       "reason": "Read-only already reviewed target: communication reaches modules/schoolstructure.Capability.ListGroupsByID (school-structure) through modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ListInboxForStaff. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Capability.ListGroupsByID",
@@ -2108,6 +2512,86 @@
       "source_owner": "communication",
       "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.ListInboxForStaff",
       "target_owner": "parent-message-inbox"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListInboxForStaff",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListInboxForStaff",
+      "reason": "Read-only target already reviewed as query: communication reaches *modules/parentmessageinbox/internal/adapters/postgres.Projection.ListInboxForStaff (parent-message-inbox) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListInboxForStaff. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.ListInboxForStaff",
+      "target_owner": "parent-message-inbox"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListInboxForStaff",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListInboxForStaff",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolstructure.Capability.ListGroupsByID (school-structure) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListInboxForStaff. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Capability.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListInboxForStaff",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListInboxForStaff",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolstructure.Owner.ListGroupsByID (school-structure) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListInboxForStaff. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Owner.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListInboxForStaff",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListInboxForStaff",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolstructure.Query.ListGroupsByID (school-structure) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListInboxForStaff. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Query.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/peopledirectory/ports.PersonRepository.FindByIDs (people-directory) through modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ListThreadsForGuardianStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByIDs",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolmembership.Capability.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ListThreadsForGuardianStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolmembership.Owner.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ListThreadsForGuardianStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolmembership.Query.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ListThreadsForGuardianStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
+      "target_owner": "school-membership"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ListThreadsForGuardianStudent",
@@ -2175,6 +2659,116 @@
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianStudent",
       "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/peopledirectory/ports.PersonRepository.FindByIDs (people-directory) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByIDs",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolmembership.Capability.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolmembership.Owner.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolmembership.Query.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolstructure.Capability.ListGroupsByID (school-structure) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Capability.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolstructure.Owner.ListGroupsByID (school-structure) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Owner.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolstructure.Query.ListGroupsByID (school-structure) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Query.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/peopledirectory/ports.PersonRepository.FindByIDs (people-directory) through modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ListThreadsForGuardianTenants. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByIDs",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolmembership.Capability.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ListThreadsForGuardianTenants. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolmembership.Owner.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ListThreadsForGuardianTenants. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolmembership.Query.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ListThreadsForGuardianTenants. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
       "target_owner": "school-membership"
@@ -2250,6 +2844,86 @@
       "target_owner": "school-membership"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/peopledirectory/ports.PersonRepository.FindByIDs (people-directory) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianTenants. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByIDs",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolmembership.Capability.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianTenants. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolmembership.Owner.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianTenants. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolmembership.Query.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianTenants. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolstructure.Capability.ListGroupsByID (school-structure) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianTenants. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Capability.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolstructure.Owner.ListGroupsByID (school-structure) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianTenants. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Owner.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolstructure.Query.ListGroupsByID (school-structure) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForGuardianTenants. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Query.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ListThreadsForStudent",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForStudent",
+      "reason": "Read-only target already reviewed as query: communication reaches *modules/parentmessageinbox/internal/adapters/postgres.Projection.ListThreadsForStudent (parent-message-inbox) through modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ListThreadsForStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.ListThreadsForStudent",
+      "target_owner": "parent-message-inbox"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ListThreadsForStudent",
       "classification": "query",
       "effect": "query",
@@ -2288,6 +2962,46 @@
       "source_owner": "communication",
       "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.ListThreadsForStudent",
       "target_owner": "parent-message-inbox"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForStudent",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForStudent",
+      "reason": "Read-only target already reviewed as query: communication reaches *modules/parentmessageinbox/internal/adapters/postgres.Projection.ListThreadsForStudent (parent-message-inbox) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.ListThreadsForStudent",
+      "target_owner": "parent-message-inbox"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForStudent",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForStudent",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolstructure.Capability.ListGroupsByID (school-structure) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Capability.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForStudent",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForStudent",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolstructure.Owner.ListGroupsByID (school-structure) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Owner.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForStudent",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ListThreadsForStudent",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolstructure.Query.ListGroupsByID (school-structure) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ListThreadsForStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Query.ListGroupsByID",
+      "target_owner": "school-structure"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ParentReadLatestReadCursorByOther",
@@ -2414,6 +3128,16 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadListInboxForStaff",
+      "reason": "Read-only target already reviewed as query: communication reaches *modules/parentmessageinbox/internal/adapters/postgres.Projection.ListInboxForStaff (parent-message-inbox) through modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ParentReadListInboxForStaff. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.ListInboxForStaff",
+      "target_owner": "parent-message-inbox"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ParentReadListInboxForStaff",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadListInboxForStaff",
       "reason": "Read-only already reviewed target: communication reaches modules/schoolstructure.Capability.ListGroupsByID (school-structure) through modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ParentReadListInboxForStaff. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Capability.ListGroupsByID",
@@ -2438,6 +3162,56 @@
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Query.ListGroupsByID",
       "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ParentReadListInboxForStaff",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadListInboxForStaff",
+      "reason": "Read-only target already reviewed as query: communication reaches *modules/parentmessageinbox/internal/adapters/postgres.Projection.ListInboxForStaff (parent-message-inbox) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ParentReadListInboxForStaff. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.ListInboxForStaff",
+      "target_owner": "parent-message-inbox"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ParentReadListInboxForStaff",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadListInboxForStaff",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolstructure.Capability.ListGroupsByID (school-structure) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ParentReadListInboxForStaff. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Capability.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ParentReadListInboxForStaff",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadListInboxForStaff",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolstructure.Owner.ListGroupsByID (school-structure) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ParentReadListInboxForStaff. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Owner.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ParentReadListInboxForStaff",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadListInboxForStaff",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolstructure.Query.ListGroupsByID (school-structure) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ParentReadListInboxForStaff. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Query.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ParentReadListThreadsForStudent",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadListThreadsForStudent",
+      "reason": "Read-only target already reviewed as query: communication reaches *modules/parentmessageinbox/internal/adapters/postgres.Projection.ListThreadsForStudent (parent-message-inbox) through modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ParentReadListThreadsForStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.ListThreadsForStudent",
+      "target_owner": "parent-message-inbox"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.ParentReadListThreadsForStudent",
@@ -2468,6 +3242,86 @@
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Query.ListGroupsByID",
       "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ParentReadListThreadsForStudent",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadListThreadsForStudent",
+      "reason": "Read-only target already reviewed as query: communication reaches *modules/parentmessageinbox/internal/adapters/postgres.Projection.ListThreadsForStudent (parent-message-inbox) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ParentReadListThreadsForStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.ListThreadsForStudent",
+      "target_owner": "parent-message-inbox"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ParentReadListThreadsForStudent",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadListThreadsForStudent",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolstructure.Capability.ListGroupsByID (school-structure) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ParentReadListThreadsForStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Capability.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ParentReadListThreadsForStudent",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadListThreadsForStudent",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolstructure.Owner.ListGroupsByID (school-structure) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ParentReadListThreadsForStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Owner.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ParentReadListThreadsForStudent",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.ParentReadListThreadsForStudent",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolstructure.Query.ListGroupsByID (school-structure) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.ParentReadListThreadsForStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Query.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/peopledirectory/ports.PersonRepository.FindByIDs (people-directory) through modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.PortalListThreadsForGuardianStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByIDs",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolmembership.Capability.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.PortalListThreadsForGuardianStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolmembership.Owner.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.PortalListThreadsForGuardianStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolmembership.Query.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.PortalListThreadsForGuardianStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
+      "target_owner": "school-membership"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.PortalListThreadsForGuardianStudent",
@@ -2535,6 +3389,116 @@
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianStudent",
       "reason": "E1 #5889: ParentStaffMembers.List now requests MembershipOnly, preserving tenant IDs and live membership/person mappings used by the inbox. ListStaff remains a tenant-scoped query, without Workforce enrichment; no writes, locks or scope switch.",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/peopledirectory/ports.PersonRepository.FindByIDs (people-directory) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByIDs",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolmembership.Capability.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolmembership.Owner.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolmembership.Query.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolstructure.Capability.ListGroupsByID (school-structure) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Capability.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolstructure.Owner.ListGroupsByID (school-structure) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Owner.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianStudent",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolstructure.Query.ListGroupsByID (school-structure) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianStudent. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Query.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/peopledirectory/ports.PersonRepository.FindByIDs (people-directory) through modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.PortalListThreadsForGuardianTenants. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByIDs",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolmembership.Capability.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.PortalListThreadsForGuardianTenants. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolmembership.Owner.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.PortalListThreadsForGuardianTenants. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolmembership.Query.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.PortalListThreadsForGuardianTenants. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
       "target_owner": "school-membership"
@@ -2608,6 +3572,76 @@
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
       "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/peopledirectory/ports.PersonRepository.FindByIDs (people-directory) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianTenants. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByIDs",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolmembership.Capability.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianTenants. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolmembership.Owner.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianTenants. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolmembership.Query.ListStaff (school-membership) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianTenants. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolstructure.Capability.ListGroupsByID (school-structure) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianTenants. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Capability.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolstructure.Owner.ListGroupsByID (school-structure) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianTenants. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Owner.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.ParentMessageReadRepository.PortalListThreadsForGuardianTenants",
+      "reason": "Read-only target already reviewed as query: communication reaches modules/schoolstructure.Query.ListGroupsByID (school-structure) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.PortalListThreadsForGuardianTenants. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Query.ListGroupsByID",
+      "target_owner": "school-structure"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.UnreadMessageCountForGuardianTenants",
