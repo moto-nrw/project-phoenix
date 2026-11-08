@@ -11,6 +11,16 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 )
 
+func TestCareReviewTableNamesMissingScaleSteps(t *testing.T) {
+	t.Parallel()
+	table := careReviewTable(parentbilling.CareRunDetail{Unpriced: []parentbilling.CareUnpriced{
+		{ModuleName: "Modul 4", DaysPerWeek: ptr(3)},
+		{ModuleName: "Modul 1", Weekday: "mon"},
+	}})
+	assert.Contains(t, table.Rows[0]["position"], "3 Tage je Woche")
+	assert.Equal(t, "Mo", table.Rows[1]["weekdays"])
+}
+
 func TestCareReviewTableKeepsSignedReductions(t *testing.T) {
 	t.Parallel()
 	table := careReviewTable(parentbilling.CareRunDetail{

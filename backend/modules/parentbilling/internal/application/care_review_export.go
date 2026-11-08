@@ -151,10 +151,14 @@ func reviewInvoiceRows(invoices []parentbilling.CareInvoice, invoiceDate string)
 func reviewHeldRows(detail parentbilling.CareRunDetail, invoiceDate string) []map[string]string {
 	rows := []map[string]string{}
 	for _, unpriced := range detail.Unpriced {
+		module := unpriced.ModuleName
+		if unpriced.DaysPerWeek != nil {
+			module += ", " + daysPerWeekLabel(*unpriced.DaysPerWeek)
+		}
 		rows = append(rows, map[string]string{
 			"invoice_date": invoiceDate, "school": unpriced.SchoolName,
 			"child":    strings.TrimSpace(unpriced.ChildFirstName + " " + unpriced.ChildLastName),
-			"position": unpriced.ModuleName, "weekdays": germanWeekdays[unpriced.Weekday], "status": reviewStatusUnpriced,
+			"position": module, "weekdays": germanWeekdays[unpriced.Weekday], "status": reviewStatusUnpriced,
 		})
 	}
 	for _, duplicate := range detail.Duplicates {

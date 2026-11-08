@@ -163,7 +163,7 @@ func careModules(versions []parentbilling.CareContractVersion, tariffs []parentb
 		module, ok := modules[k]
 		if !ok {
 			module = &parentbilling.CareModule{SchoolID: k.school, SchoolName: schoolName, CareOfferingID: k.offering,
-				ModuleName: moduleName, BookedWeekdays: []string{}}
+				ModuleName: moduleName, BookedWeekdays: []string{}, BookedDaysPerWeek: []int{}}
 			modules[k] = module
 			contracts[k] = map[int64]bool{}
 		}
@@ -181,6 +181,14 @@ func careModules(versions []parentbilling.CareContractVersion, tariffs []parentb
 			}
 			contracts[k][version.ContractID] = true
 		}
+		for offering, counts := range bookedDayCounts(version) {
+			module := modules[key{version.SchoolID, offering}]
+			for _, count := range counts {
+				if !slices.Contains(module.BookedDaysPerWeek, count) {
+					module.BookedDaysPerWeek = append(module.BookedDaysPerWeek, count)
+				}
+			}
+		}
 	}
 	for _, tariff := range tariffs {
 		ensure(key{tariff.SchoolID, tariff.CareOfferingID}, "", tariff.ModuleName)
@@ -188,6 +196,7 @@ func careModules(versions []parentbilling.CareContractVersion, tariffs []parentb
 	result := make([]parentbilling.CareModule, 0, len(modules))
 	for k, module := range modules {
 		module.ContractCount = len(contracts[k])
+		slices.Sort(module.BookedDaysPerWeek)
 		slices.SortFunc(module.BookedWeekdays, func(a, b string) int { return compareOrdered(weekdayOrder[a], weekdayOrder[b]) })
 		result = append(result, *module)
 	}
@@ -370,10 +379,12 @@ func (c *CareBilling) ReleaseCareRun(ctx context.Context, reviewer parentbilling
 	}
 	if err := c.store.InsertCareRunEvent(ctx, reviewer.OrganizationID, run.ID, reviewer.AccountID, runEventRelease,
 		map[string]any{"document_count": len(month.invoices), "total_cents": month.total(), "month_rule": rule,
+			"free_of_charge":     month.free,
 			"duplicate_children": duplicateChildren(month.duplicates), "issued_on": issuedOn.String(),
 			"excluded_contract_ids": excludedContracts(month.excluded)}); err != nil {
 		return parentbilling.CareRunDetail{}, fmt.Errorf("parent billing: record care release: %w", err)
 	}
+	released.FreeOfCharge = month.free
 	return c.detail(ctx, reviewer, released)
 }
 

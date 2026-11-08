@@ -392,7 +392,7 @@ func trackPositions(schoolID int64, track moduleTrack, prices priceBook, month c
 		monthly[i], sibling[i], tiers[i] = runPrices(schoolID, track.offeringID, run, prices, month)
 	}
 	runCents, weekdayCents := shareMonth(track.runs, monthly, daysInMonth)
-	siblingCents, _ := shareMonth(track.runs, sibling, daysInMonth)
+	siblingCents := shareSiblingMonth(track.runs, sibling, daysInMonth, runCents)
 	positions := make([]parentbilling.CarePosition, len(track.runs))
 	for i, run := range track.runs {
 		position := parentbilling.CarePosition{
@@ -461,6 +461,37 @@ func shareMonth(runs []moduleRun, monthly [][]int64, daysInMonth int) ([]int64, 
 		weekdayCents[i] = largestRemainder(shares[i], int64(daysInMonth), runCents[i])
 	}
 	return runCents, weekdayCents
+}
+
+// shareSiblingMonth preserves the rounded sibling total without exceeding
+// a run's base amount. Independent largest-remainder allocations can put a
+// sibling cent on a run whose base amount rounded down. Move only those
+// cents, always to the eligible run furthest below its exact sibling share.
+func shareSiblingMonth(runs []moduleRun, monthly [][]int64, daysInMonth int, limits []int64) []int64 {
+	cents, _ := shareMonth(runs, monthly, daysInMonth)
+	remainders := make([]int64, len(runs))
+	var excess int64
+	for i, run := range runs {
+		excess += max(cents[i]-limits[i], 0)
+		cents[i] = min(cents[i], limits[i])
+		for _, price := range monthly[i] {
+			remainders[i] += price * int64(run.days())
+		}
+		remainders[i] -= cents[i] * int64(daysInMonth)
+	}
+	for ; excess > 0; excess-- {
+		best := -1
+		for i := range cents {
+			if cents[i] < limits[i] && (best < 0 || remainders[i] > remainders[best]) {
+				best = i
+			}
+		}
+		// Every sibling price is at most its base price, so the rounded
+		// base total always has room for the rounded sibling total.
+		cents[best]++
+		remainders[best] -= int64(daysInMonth)
+	}
+	return cents
 }
 
 // roundHalfUp divides numerator by denominator, rounding half up.

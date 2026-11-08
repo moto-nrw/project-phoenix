@@ -40,7 +40,7 @@ export function traegerCareReductionsTopic(): HelpTopic {
           "Wählen Sie bei `Ab dem Kind`, ab welchem Kind die Ermäßigung gilt, zum Beispiel ab dem 2. Kind.",
           "Wählen Sie bei `Geschwister zählen an` die Schulen, deren Kinder mitzählen. Lassen Sie das Feld leer, zählen nur die Schulen der Regel.",
           "`Fester Preis` heißt: Das Kind zahlt genau diesen Betrag. `Betrag weniger` zieht den Betrag vom Preis ab.",
-          "`Preis laut Preisliste` heißt: Jedes weitere Kind zahlt je Modul und Tag den Preis aus der Zeile `Jedes weitere Kind` der Preisliste. Die Zahl tragen Sie dort ein, nicht in der Regel.",
+          "`Preis laut Preisliste` heißt: Jedes weitere Kind zahlt je Modul und Tag den Preis unter `Jedes weitere Kind` der Preisliste. Die Zahl tragen Sie dort ein, nicht in der Regel.",
           "Sollen Geschwister an zwei Standorten getrennt zählen, legen Sie je Standort eine eigene Regel an. Lassen Sie `Geschwister zählen an` leer.",
         ],
       },

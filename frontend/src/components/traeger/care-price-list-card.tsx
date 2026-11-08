@@ -132,7 +132,7 @@ function scaleColumns(): DataTableColumn<PriceRow>[] {
     <PriceCell
       cents={row.steps[days]}
       sibling={row.siblingSteps[days]}
-      booked={days <= row.bookedWeekdays.length}
+      booked={row.bookedDaysPerWeek.includes(days)}
     />
   );
   return [

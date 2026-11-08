@@ -2,7 +2,7 @@
 
 // Neue Monatspreise einer Schule ab einem Monat (#4684, #6196). Je Modul
 // wählt das Büro die Preisform: „Je Wochentag“ (Summe der gebuchten Tage)
-// oder „Nach Tagen je Woche“ (Staffel, 1 bis 5 Tage). Unter jedem Preis für
+// oder „Nach Tagen je Woche“ (Staffel, 1 bis 7 Tage). Neben jedem Preis für
 // das 1. Kind steht der Preis für jedes weitere Kind; leer heißt: derselbe
 // Preis. Ein leeres Feld für das 1. Kind setzt ab diesem Monat keinen Preis;
 // dann gilt der Preis davor, falls es einen gibt. Beitragsfreie Monate
@@ -316,6 +316,7 @@ export function CarePriceListModal({
               moduleName={row.moduleName}
               endsAt={row.endsAt}
               bookedWeekdays={row.bookedWeekdays}
+              bookedDaysPerWeek={row.bookedDaysPerWeek}
               weekdays={weekdays}
               draft={draftOf(row.careOfferingId)}
               copySources={rows

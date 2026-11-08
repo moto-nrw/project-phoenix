@@ -102,6 +102,7 @@ interface BackendModule {
   module_name: string;
   ends_at: string;
   booked_weekdays: CareModule["bookedWeekdays"] | null;
+  booked_days_per_week?: number[] | null;
   contract_count: number;
 }
 
@@ -175,6 +176,7 @@ function ruleSetFromBackend(body: BackendRuleSet): CareRuleSet {
       moduleName: module.module_name,
       endsAt: module.ends_at,
       bookedWeekdays: module.booked_weekdays ?? [],
+      bookedDaysPerWeek: module.booked_days_per_week ?? [],
       contractCount: module.contract_count,
     })),
   };

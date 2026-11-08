@@ -68,12 +68,15 @@ type careRunRow struct {
 	InvoiceDate        *calendar.Date `bun:"invoice_date,type:date"`
 	// SchoolIDs come from parent_billing.care_run_schools (#5916).
 	SchoolIDs []int64 `bun:"school_ids,array,scanonly"`
+	// The immutable release event stores the free-month count.
+	FreeOfCharge int `bun:"free_of_charge,scanonly"`
 }
 
 func (r careRunRow) run() parentbilling.CareRun {
 	run := parentbilling.CareRun{
 		ID: r.ID, BillingMonth: r.BillingMonth, Status: r.Status, CreatedAt: r.CreatedAt, ReleasedAt: r.ReleasedAt,
 		IssuedOn: r.IssuedOn, DocumentCount: r.DocumentCount, TotalCents: r.TotalCents,
+		FreeOfCharge: r.FreeOfCharge,
 		CareRunScope: parentbilling.CareRunScope{SchoolIDs: r.SchoolIDs, InvoiceDate: r.InvoiceDate},
 	}
 	if run.SchoolIDs == nil {

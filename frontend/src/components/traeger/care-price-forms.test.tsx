@@ -30,6 +30,7 @@ const data: CareTariffs = {
       moduleName: "Modul 4 mit Mittagessen",
       endsAt: "15:30",
       bookedWeekdays: ["mon", "tue", "wed"],
+      bookedDaysPerWeek: [3],
       contractCount: 2,
     },
     {
@@ -39,6 +40,7 @@ const data: CareTariffs = {
       moduleName: "Modul 1 ohne Mittagessen",
       endsAt: "12:00",
       bookedWeekdays: ["mon", "tue"],
+      bookedDaysPerWeek: [2],
       contractCount: 1,
     },
   ],
@@ -113,6 +115,20 @@ describe("price forms of the price list", () => {
     expect(freeMonthsAt(data, "12", "2027-03-01")).toEqual([8]);
     expect(freeMonthsLabel([12, 7, 8])).toBe("Juli, August und Dezember");
   });
+
+  it("requires only actual booking sizes, not every smaller step or the weekday union", () => {
+    const [row] = priceRowsAt(data, "12", "2027-01-01");
+    expect(row).toBeDefined();
+    expect(row && missingPrices({ ...row, steps: { 3: 6000 } })).toEqual([]);
+    expect(
+      row &&
+        missingPrices({
+          ...row,
+          bookedWeekdays: ["mon", "tue", "wed", "thu", "fri"],
+          steps: {},
+        }),
+    ).toEqual(["3 Tage"]);
+  });
 });
 
 describe("CarePriceListModal", () => {
@@ -121,11 +137,11 @@ describe("CarePriceListModal", () => {
     saveCarePriceList.mockResolvedValue(data);
   });
 
-  function open() {
+  function open(tariffs = data) {
     render(
       <ToastProvider>
         <CarePriceListModal
-          data={data}
+          data={tariffs}
           school={{ id: "12", name: "Grundschule Birkenfeld" }}
           currentMonth="2027-01-01"
           onClose={() => undefined}
@@ -134,6 +150,51 @@ describe("CarePriceListModal", () => {
       </ToastProvider>,
     );
   }
+
+  it("keeps existing six- and seven-day prices when replacing the list", async () => {
+    open({
+      ...data,
+      tariffs: [
+        ...data.tariffs,
+        ...[6, 7].map((days) => ({
+          ...data.tariffs[0]!,
+          id: `step-${days}`,
+          daysPerWeek: days,
+          monthlyCents: days * 2000,
+          siblingCents: days * 1500,
+        })),
+      ],
+    });
+    expect(
+      await screen.findByRole("textbox", {
+        name: "Modul 4 mit Mittagessen, 7 Tage je Woche, Jedes weitere Kind, Monatspreis in Euro",
+      }),
+    ).toHaveValue("105,00");
+    fireEvent.click(screen.getByRole("button", { name: "Preise speichern" }));
+    await waitFor(() => expect(saveCarePriceList).toHaveBeenCalledTimes(1));
+    const prices = saveCarePriceList.mock.calls[0]?.[2];
+    for (const days of [6, 7]) {
+      expect(prices).toContainEqual(
+        expect.objectContaining({
+          daysPerWeek: days,
+          monthlyCents: days * 2000,
+          siblingCents: days * 1500,
+        }),
+      );
+    }
+  });
+
+  it("states the required sibling rule next to the prices", async () => {
+    open();
+    expect(
+      await screen.findAllByText(
+        /Geschwisterpreise gelten nur mit einer Geschwisterregel/,
+      ),
+    ).toHaveLength(2);
+    expect(
+      screen.getAllByText(/Legen Sie diese unter „Ermäßigungen“ an/),
+    ).toHaveLength(2);
+  });
 
   it("saves the scale with sibling steps, the meal note and the free months", async () => {
     open();

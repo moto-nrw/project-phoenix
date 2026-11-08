@@ -50,6 +50,7 @@ export interface CareModule {
   /** End time "HH:MM" or empty. */
   readonly endsAt: string;
   readonly bookedWeekdays: readonly CareWeekday[];
+  readonly bookedDaysPerWeek: readonly number[];
   readonly contractCount: number;
 }
 
@@ -274,6 +275,7 @@ interface BackendModule {
   module_name: string;
   ends_at: string;
   booked_weekdays: CareWeekday[] | null;
+  booked_days_per_week?: number[] | null;
   contract_count: number;
 }
 
@@ -432,6 +434,7 @@ function tariffsFromBackend(body: BackendTariffs): CareTariffs {
       moduleName: module.module_name,
       endsAt: module.ends_at,
       bookedWeekdays: module.booked_weekdays ?? [],
+      bookedDaysPerWeek: module.booked_days_per_week ?? [],
       contractCount: module.contract_count,
     })),
     tariffs: (body.tariffs ?? []).map((tariff) => ({
