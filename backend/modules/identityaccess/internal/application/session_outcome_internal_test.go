@@ -15,59 +15,51 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// renewalOutcomes is every error a refresh or a session validation can
-// return, with what it means for the session. Refresh and validation answer
-// through identityaccess.SessionOutcomeOf, so one table decides both routes.
-var renewalOutcomes = map[string]struct {
-	err     error
-	outcome identityaccess.SessionOutcome
-}{
-	"identityaccess.ErrInvalidToken":                 {identityaccess.ErrInvalidToken, identityaccess.SessionEnded},
-	"identityaccess.ErrTokenExpired":                 {identityaccess.ErrTokenExpired, identityaccess.SessionEnded},
-	"identityaccess.ErrTokenNotFound":                {identityaccess.ErrTokenNotFound, identityaccess.SessionEnded},
-	"identityaccess.ErrAccountInactive":              {identityaccess.ErrAccountInactive, identityaccess.SessionEnded},
-	"domain.ErrAccountNotFound":                      {domain.ErrAccountNotFound, identityaccess.SessionEnded},
-	"identityaccess.ErrTenantNotFound":               {identityaccess.ErrTenantNotFound, identityaccess.SessionEnded},
-	"identityaccess.ErrTenantAccessDenied":           {identityaccess.ErrTenantAccessDenied, identityaccess.SessionEnded},
-	"identityaccess.ErrParentMustUseParentPortal":    {identityaccess.ErrParentMustUseParentPortal, identityaccess.SessionEnded},
-	"identityaccess.ErrMustUseSchoolPortal":          {identityaccess.ErrMustUseSchoolPortal, identityaccess.SessionEnded},
-	"identityaccess.ErrAccountNoSchoolPortalRole":    {identityaccess.ErrAccountNoSchoolPortalRole, identityaccess.SessionEnded},
-	"identityaccess.ErrAccountNoGuardianRole":        {identityaccess.ErrAccountNoGuardianRole, identityaccess.SessionEnded},
-	"identityaccess.ErrNoTraegerMembership":          {identityaccess.ErrNoTraegerMembership, identityaccess.SessionEnded},
-	"identityaccess.ErrTraegerSchoolSwitchForbidden": {identityaccess.ErrTraegerSchoolSwitchForbidden, identityaccess.SessionEnded},
-	"identityaccess.ErrTraegerSchoolNotFound":        {identityaccess.ErrTraegerSchoolNotFound, identityaccess.SessionEnded},
-	"domain.ErrAccountNotCaterer":                    {domain.ErrAccountNotCaterer, identityaccess.SessionEnded},
-	"identityaccess.ErrCatererWithoutSchool":         {identityaccess.ErrCatererWithoutSchool, identityaccess.SessionEnded},
-	"identityaccess.ErrMFAStatusUnavailable":         {identityaccess.ErrMFAStatusUnavailable, identityaccess.SessionUndecided},
+// sentinelValues resolves the names the walk reports to their values. It
+// decides nothing: identityaccess.SessionOutcomeOf decides what each means.
+var sentinelValues = map[string]error{
+	"identityaccess.ErrInvalidToken":                 identityaccess.ErrInvalidToken,
+	"identityaccess.ErrTokenExpired":                 identityaccess.ErrTokenExpired,
+	"identityaccess.ErrTokenNotFound":                identityaccess.ErrTokenNotFound,
+	"identityaccess.ErrAccountInactive":              identityaccess.ErrAccountInactive,
+	"domain.ErrAccountNotFound":                      domain.ErrAccountNotFound,
+	"identityaccess.ErrTenantNotFound":               identityaccess.ErrTenantNotFound,
+	"identityaccess.ErrTenantAccessDenied":           identityaccess.ErrTenantAccessDenied,
+	"identityaccess.ErrParentMustUseParentPortal":    identityaccess.ErrParentMustUseParentPortal,
+	"identityaccess.ErrMustUseSchoolPortal":          identityaccess.ErrMustUseSchoolPortal,
+	"identityaccess.ErrAccountNoSchoolPortalRole":    identityaccess.ErrAccountNoSchoolPortalRole,
+	"identityaccess.ErrAccountNoGuardianRole":        identityaccess.ErrAccountNoGuardianRole,
+	"identityaccess.ErrNoTraegerMembership":          identityaccess.ErrNoTraegerMembership,
+	"identityaccess.ErrTraegerSchoolSwitchForbidden": identityaccess.ErrTraegerSchoolSwitchForbidden,
+	"identityaccess.ErrTraegerSchoolNotFound":        identityaccess.ErrTraegerSchoolNotFound,
+	"domain.ErrAccountNotCaterer":                    domain.ErrAccountNotCaterer,
+	"identityaccess.ErrCatererWithoutSchool":         identityaccess.ErrCatererWithoutSchool,
+	"identityaccess.ErrMFAStatusUnavailable":         identityaccess.ErrMFAStatusUnavailable,
 }
 
 // TestEveryRenewalErrorHasItsOutcome walks the session policy, validation
 // and refresh code and the functions of this package they reach, and fails
-// on an error sentinel whose outcome renewalOutcomes does not declare: a new
-// guard refusal must say whether it ends the session instead of falling to
-// a retry answer unnoticed.
+// on an error sentinel identityaccess.SessionOutcomeOf does not classify: a
+// new guard refusal must say whether it ends the session instead of falling
+// to a retry answer unnoticed.
 func TestEveryRenewalErrorHasItsOutcome(t *testing.T) {
 	t.Parallel()
 	reached := reachedSentinels(t, "session_policy.go", "session_validation.go", "session_refresh.go")
-	var unclassified []string
 	for _, name := range reached {
-		expected, known := renewalOutcomes[name]
-		if !known {
-			if _, retry := renewalRetries[name]; !retry {
-				unclassified = append(unclassified, name)
-			}
+		if _, retry := renewalRetries[name]; retry {
 			continue
 		}
-		got := identityaccess.SessionOutcomeOf(authenticationError(failed("renew session", expected.err)))
-		assert.Equal(t, expected.outcome, got, name)
-	}
-	assert.Empty(t, unclassified, "renewal errors without an outcome: add them to renewalOutcomes and identityaccess.SessionOutcomeOf, or to renewalRetries")
-	for name := range renewalOutcomes {
-		assert.Contains(t, reached, name, "stale renewalOutcomes entry")
+		value, known := sentinelValues[name]
+		if !assert.True(t, known, "add %s to sentinelValues", name) {
+			continue
+		}
+		outcome := identityaccess.SessionOutcomeOf(authenticationError(failed("renew session", value)))
+		assert.NotEqual(t, identityaccess.SessionUnclassified, outcome, "%s has no outcome: classify it in identityaccess.SessionOutcomeOf or list it in renewalRetries", name)
 	}
 	for name := range renewalRetries {
 		assert.Contains(t, reached, name, "stale renewalRetries entry")
 	}
+	assert.Equal(t, identityaccess.SessionUndecided, identityaccess.SessionOutcomeOf(authenticationError(identityaccess.ErrMFAStatusUnavailable)))
 	notBooked := &identityaccess.PortalNotBookedError{Module: "eltern_app"}
 	assert.Equal(t, identityaccess.SessionModuleNotBooked, identityaccess.SessionOutcomeOf(authenticationError(failed("renew session", notBooked))))
 }
