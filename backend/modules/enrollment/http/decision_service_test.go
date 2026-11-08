@@ -2475,6 +2475,9 @@ func TestDecisionService_Decide_ExistingStudentRecordsLaterPickupExtension(t *te
 	env := setupDecisionTest(t)
 	env.decision = newDecisionServiceForTestWithPickupExtensions(t, env.rolloverTestEnv, nil, nil, nil, nil)
 	ctx := testpkg.Ctx(t)
+	// A renewal whose care has started applies the weekly plan at approval;
+	// a future one applies it at the start (#6043).
+	env.sourcePhase.ServiceStartDate = enrollmentNative.Date(decisionTestToday)
 	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentNative.TargetSchedulePickup)
 	_, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
 	existing := testpkg.CreateTestStudent(t, env.db, "Mara", "Bestand", "2a")
@@ -2844,7 +2847,11 @@ func TestDecisionService_Decide_ExistingStudentScheduleReplacementFailureRollsBa
 	ctx := testpkg.Ctx(t)
 
 	// A pickup-schedule form field so approval takes the ReplaceSchedules
-	// delete-then-reinsert path.
+	// delete-then-reinsert path. The renewal's care has started, so the
+	// approval replaces the weekly plan at once; the future renewal applies
+	// it at the start and rolls back there (#6043,
+	// TestDecisionService_ApplyDueWeeklyPlans_FailureRollsBackCompletely).
+	env.sourcePhase.ServiceStartDate = enrollmentNative.Date(decisionTestToday)
 	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentNative.TargetSchedulePickup)
 
 	// The already-enrolled student, carrying a live pickup schedule row.
@@ -4654,7 +4661,7 @@ func (defaultDecisionSettings) ResolveString(_ context.Context, key string) (str
 }
 
 // membershipFirstCareFrom reads School Membership's first-care bound of the
-// child's membership (#6041, ADR 0165); empty when unknown.
+// child's membership (#6041, ADR 0166); empty when unknown.
 func membershipFirstCareFrom(t *testing.T, studentID int64) calendar.Date {
 	t.Helper()
 	var bound *calendar.Date

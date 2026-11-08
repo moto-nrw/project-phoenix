@@ -29,6 +29,8 @@ func TestEraseUnusedAccountsKeepsEveryAccountASchoolStillNeeds(t *testing.T) {
 	ctx := context.Background()
 	school := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, school)
+	// Remove unused template accounts before arranging the retention cases.
+	eraseUnusedAccountsAsAdmin(t, db)
 	exec := func(query string, args ...any) {
 		t.Helper()
 		_, err := db.ExecContext(ctx, query, args...)
@@ -42,9 +44,9 @@ func TestEraseUnusedAccountsKeepsEveryAccountASchoolStillNeeds(t *testing.T) {
 	exec(`UPDATE auth.accounts SET avatar = '/uploads/avatars/former.png', username = ?, calendar_feed_token = 'feed' WHERE id = ?`,
 		fmt.Sprintf("former-%d", formerParent.ID), formerParent.ID)
 	exec(`INSERT INTO users.profiles (tenant_id, account_id, avatar) VALUES (?, ?, '/uploads/avatars/former-profile.png')`, school, formerParent.ID)
-	// Erased: an account no school maps any more.
+	// Unmap this account only after the former parent is erased. Since
+	// 1.15.736, the time budget may end a run after just one account.
 	orphan := testpkg.CreateTestAccount(t, db, "orphan")
-	testpkg.UnclaimTestAccount(t, db, orphan.ID)
 
 	// Kept: the school still needs these accounts.
 	roleless := testpkg.CreateTestAccount(t, db, "roleless")
@@ -71,7 +73,6 @@ func TestEraseUnusedAccountsKeepsEveryAccountASchoolStillNeeds(t *testing.T) {
 	erased := eraseUnusedAccountsAsAdmin(t, db)
 	assert.Equal(t, map[int64][]string{
 		formerParent.ID: {"/uploads/avatars/former-profile.png", "/uploads/avatars/former.png"},
-		orphan.ID:       nil,
 	}, pick(erased, formerParent.ID, orphan.ID, roleless.ID, parent.AccountID, staff.ID, pending.ID, team.ID, invited.ID, relative.ID),
 		"only accounts no school needs are erased; their avatar files come back for removal")
 
@@ -98,6 +99,12 @@ func TestEraseUnusedAccountsKeepsEveryAccountASchoolStillNeeds(t *testing.T) {
 		require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM `+table+` WHERE account_id = ?`, formerParent.ID).Scan(ctx, &left))
 		assert.Zero(t, left, "%s of the erased account is deleted", table)
 	}
+
+	// Erased: an account no school maps any more. The former parent stays erased.
+	testpkg.UnclaimTestAccount(t, db, orphan.ID)
+	erased = eraseUnusedAccountsAsAdmin(t, db)
+	assert.Equal(t, map[int64][]string{orphan.ID: nil},
+		pick(erased, formerParent.ID, orphan.ID, roleless.ID, parent.AccountID, staff.ID, pending.ID, team.ID, invited.ID, relative.ID))
 
 	again := eraseUnusedAccountsAsAdmin(t, db)
 	assert.Empty(t, pick(again, formerParent.ID, orphan.ID), "an erased account is not erased twice")

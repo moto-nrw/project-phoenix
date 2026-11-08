@@ -263,7 +263,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 	// The Träger steps share the state of the Träger with every other school
 	// seeded under it at the same time; they run one school at a time.
 	steps = append(steps, seedStaffPersonMergeStep{})
-	steps = append(steps, traegerSerial(seedTraegerBueroStep{}, seedTraegerHolidayPeriodStep{}, seedHolidayLegalStep{}, seedTraegerSettingsStep{}, seedTraegerMasterDataStep{}, seedTraegerCareContractsStep{}, seedTraegerCareContractSignaturesStep{}, seedTraegerCareMonthsStep{}, seedTraegerDocumentsStep{}, seedTraegerBillingLettersStep{}, seedTraegerBillingReissueStep{}, seedTraegerBillingCreditStep{}, seedTestTraegerStep{})...)
+	steps = append(steps, traegerSerial(seedTraegerBueroStep{}, seedTraegerHolidayPeriodStep{}, seedHolidayLegalStep{}, seedTraegerSettingsStep{}, seedTraegerMasterDataStep{}, seedTraegerCareContractsStep{}, seedTraegerCareContractSignaturesStep{}, seedTraegerCareMonthsStep{}, seedTraegerCareLettersStep{}, seedTraegerDocumentsStep{}, seedTraegerBillingLettersStep{}, seedTraegerBillingReissueStep{}, seedTraegerBillingCreditStep{}, seedTestTraegerStep{})...)
 	if !seeder.options.DeferHistory {
 		// Erst jetzt sind alle Kinder der Schule angelegt (#5031).
 		steps = append(steps, seedPresenceHistoryStep{seeder: seeder}, seedFeedbackHistoryStep{seeder: seeder}, seedChildQuotaStep{}, seedBillingKeyDateCountsStep{})

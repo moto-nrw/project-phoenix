@@ -336,7 +336,7 @@ nicht ab; fehlende Anwesenheitsdaten beweisen keine fehlende Betreuung.
 Darum merkt sich School Membership den frühesten Tag, an dem ein neues Kind
 betreut worden sein kann: `users.student_school_memberships.first_care_from`
 (Migration 1.15.812,
-[ADR 0165](0165-mitgliedschaft-merkt-sich-den-fruehesten-betreuungstag.md)).
+[ADR 0166](0166-mitgliedschaft-merkt-sich-den-fruehesten-betreuungstag.md)).
 Eine neue Genehmigung mit späterem Start (`pending` mit Beginn, keine andere
 auch gelöschte Mitgliedschaft) setzt ihn auf den Beginn. Die Schreibvorgänge
 von School Membership führen ihn am Tag der Anwendung nach: Ein erreichter

@@ -114,7 +114,7 @@ func SetStudentLifecycle(
 
 // CreateTestScheduledStudent creates a new child the way a scheduled approval
 // does: the membership is inserted pending with its later care start, and
-// School Membership bounds its first care by that start (#6041, ADR 0165).
+// School Membership bounds its first care by that start (#6041, ADR 0166).
 // CreateTestStudent plus SetStudentLifecycle stages a returning child
 // instead: an existing child whose interval is replaced.
 func CreateTestScheduledStudent(tb testing.TB, db *bun.DB, firstName, lastName, schoolClass string, start calendar.Date) *Student {

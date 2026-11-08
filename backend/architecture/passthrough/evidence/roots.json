@@ -5602,6 +5602,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (a enrollmentStudentAudit) RecordSystemChanges(ctx context.Context, before, after *enrollmentCompose.Student) error {\n\treturn a.auditor.RecordChanges(ctx, decisionStudentRow(before), decisionStudentRow(after), peopledirectory.StudentAuditSystemActorID, peopledirectory.StudentAuditSystemActorName)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/enrollmentStudentAudit.RecordSystemChanges",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (a enrollmentStudentAudit) RecordSystemStatusChange(ctx context.Context, studentID int64, before, after string) error {\n\treturn a.auditor.RecordSystemStatusChange(ctx, studentID, string(before), string(after))\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/enrollmentStudentAudit.RecordSystemStatusChange",
@@ -6295,7 +6302,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (d parentBillingDocuments) BillingDocumentLetter(ctx context.Context, organizationID, documentID int64, reader parentportal.BillingDocumentReader) (parentportal.BillingDocumentFile, error) {\n\tfile, err := d.documents.ParentDocumentLetter(ctx, organizationID, documentID, parentbilling.ParentDocumentReader{AccountID: reader.AccountID, Email: reader.Email})\n\tif errors.Is(err, parentbilling.ErrParentDocumentNotFound) {\n\t\treturn parentportal.BillingDocumentFile{}, fmt.Errorf(\"%w: %w\", parentportal.ErrBillingDocumentNotFound, err)\n\t}\n\tif err != nil {\n\t\treturn parentportal.BillingDocumentFile{}, err\n\t}\n\treturn parentportal.BillingDocumentFile(file), nil\n}",
+      "evidence": "func (d parentBillingDocuments) BillingDocumentLetter(ctx context.Context, organizationID, documentID int64, reader parentportal.BillingDocumentReader) (parentportal.BillingDocumentFile, error) {\n\tfile, err := d.documents.ParentDocumentLetter(ctx, organizationID, documentID, parentBillingReader(reader))\n\tif errors.Is(err, parentbilling.ErrParentDocumentNotFound) {\n\t\treturn parentportal.BillingDocumentFile{}, fmt.Errorf(\"%w: %w\", parentportal.ErrBillingDocumentNotFound, err)\n\t}\n\tif err != nil {\n\t\treturn parentportal.BillingDocumentFile{}, err\n\t}\n\treturn parentportal.BillingDocumentFile(file), nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/parentBillingDocuments.BillingDocumentLetter",
       "owner": "roots"

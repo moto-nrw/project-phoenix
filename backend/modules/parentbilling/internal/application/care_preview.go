@@ -300,7 +300,8 @@ func billContract(month calendar.Date, rule string, versions []parentbilling.Car
 	head := versions[0]
 	invoice := parentbilling.CareInvoice{
 		ContractID: head.ContractID, SchoolID: head.SchoolID, SchoolName: head.SchoolName,
-		ChildFirstName: head.ChildFirstName, ChildLastName: head.ChildLastName, Positions: []parentbilling.CarePosition{},
+		ChildFirstName: head.ChildFirstName, ChildLastName: head.ChildLastName, StudentID: studentOf(versions),
+		Positions: []parentbilling.CarePosition{},
 	}
 	daysInMonth := month.DaysUntil(monthEnd(month)) + 1
 	var unpriced []parentbilling.CareUnpriced
@@ -482,4 +483,16 @@ func firstNonZero(comparisons ...int) int {
 		}
 	}
 	return 0
+}
+
+// studentOf is the child record of the latest version of the contract that
+// names one.
+func studentOf(versions []parentbilling.CareContractVersion) *int64 {
+	for i := len(versions) - 1; i >= 0; i-- {
+		if versions[i].StudentID != nil {
+			id := *versions[i].StudentID
+			return &id
+		}
+	}
+	return nil
 }
