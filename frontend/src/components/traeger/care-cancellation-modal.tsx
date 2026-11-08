@@ -25,12 +25,12 @@ const logger = createLogger({ component: "CareCancellationModal" });
 const MAX_REASON = 500;
 
 /** The invoice reached the family: it has a mail, sent or not. */
-export function invoiceWentOut(invoice: CareLetterMailing): boolean {
+function invoiceWentOut(invoice: CareLetterMailing): boolean {
   return invoice.sends > 0;
 }
 
 /** What the family gets from the Storno, in one line. */
-export function cancellationEffect(invoice: CareLetterMailing): string {
+function cancellationEffect(invoice: CareLetterMailing): string {
   return invoiceWentOut(invoice)
     ? "Die Familie bekommt ein Storno-Schreiben. Senden Sie es danach."
     : "Die Familie hat die Rechnung noch nicht bekommen. Sie bekommt auch kein Storno.";

@@ -20,7 +20,7 @@ import { formatEuro } from "./contribution-format";
 import { LetterFileView } from "./letter-file-view";
 
 /** „Rechnung MB-2027-0001“, „Storno MB-2027-0009“. */
-export function careLetterTitle(letter: CareLetterMailing): string {
+function careLetterTitle(letter: CareLetterMailing): string {
   return `${letter.kind === "cancellation" ? "Storno" : "Rechnung"} ${letter.number}`;
 }
 

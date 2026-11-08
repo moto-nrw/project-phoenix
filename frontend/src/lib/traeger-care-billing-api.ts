@@ -484,7 +484,7 @@ export async function releaseCareRun(
 export type CareLetterKind = "invoice" | "cancellation";
 
 /** What the Abrechnung wrote into every letter of a run. */
-export interface CareLetterSet {
+interface CareLetterSet {
   readonly paymentDueOn: string;
   readonly notes: string;
   readonly createdAt: string;

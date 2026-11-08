@@ -74,7 +74,7 @@ export function mailBadge(mailing: LetterMailState): {
 
 // The provider's block as it is now decides, not what became of the last mail. The
 // family still needs the letter, so a block points to the print.
-export function heldBackNote(mailing: LetterMailState): string | null {
+function heldBackNote(mailing: LetterMailState): string | null {
   if (mailing.providerBlock === "unreadable") {
     return "Ob diese Adresse gesperrt ist, lässt sich gerade nicht prüfen. Bitte versuchen Sie es später noch einmal.";
   }
