@@ -104,9 +104,13 @@ func TestValidateSessionTokensPreservesLookupErrors(t *testing.T) {
 	}
 }
 
+// Validation renews like the refresh without rotating, so it refuses every
+// session its portal's guard refuses: also a school session whose school
+// portal role was revoked and a caterer session of an account that left its
+// caterer.
 func TestValidateSessionTokensRefusesMissingAccess(t *testing.T) {
 	t.Parallel()
-	for _, missing := range []string{"account", "operator", "mapping", "membership", "switch-membership", "school", "account-session", "operator-session"} {
+	for _, missing := range []string{"account", "operator", "mapping", "membership", "switch-membership", "school", "account-session", "operator-session", "school-portal-role", "caterer-account"} {
 		t.Run(missing, func(t *testing.T) {
 			t.Parallel()
 			f := newAuthFixture(t)
@@ -130,6 +134,11 @@ func TestValidateSessionTokensRefusesMissingAccess(t *testing.T) {
 				if missing == "switch-membership" {
 					f.auth.traeger = validationMemberships{absent: true}
 				}
+			case "school-portal-role":
+				portal, claims.Scope = domain.PortalSchool.Name, domain.PortalSchool.Claim
+				f.schools.add(10, 7, "school-10", true, false)
+			case "caterer-account":
+				portal, claims.Scope, claims.TenantID = domain.PortalCaterer.Name, domain.PortalCaterer.Claim, 0
 			}
 			f.auth.store = validationStore{fakeStore: f.store}
 			expiry := time.Now().Add(time.Hour)
