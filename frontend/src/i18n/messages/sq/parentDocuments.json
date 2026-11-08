@@ -6,6 +6,8 @@
   "confirmationLetter": "Konfirmim: {period}",
   "cancellationLetter": "Anulim: {period}",
   "creditLetter": "Notë krediti: {period}",
+  "careInvoiceLetter": "Faturë: {period}",
+  "careCancellationLetter": "Anulim: {period}",
   "sender": "Nga: {traeger}",
   "children": "Për",
   "amount": "Shuma",

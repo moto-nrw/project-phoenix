@@ -38,7 +38,10 @@ func careInvoiceLetter(content careLetterContent) Letter {
 	blocks := []LetterBlock{
 		{Text: fmt.Sprintf("für die Betreuung von %s an der %s berechnen wir Ihnen den Monatsbeitrag für %s. Der Betrag richtet sich nach Ihrem Betreuungsvertrag.",
 			fullName(invoice.ChildFirstName, invoice.ChildLastName), strings.TrimSpace(invoice.SchoolName), careMonthName(content.run.BillingMonth))},
-		{Heading: "Ihre Betreuung", Facts: append(carePositionFacts(invoice.Positions, 1),
+		// A table follows a paragraph: the letter layout pulls it up by one
+		// paragraph spacing, so a heading alone would overlap its first row.
+		{Heading: "Ihre Betreuung", Text: "Abgerechnet wird nach Ihrem Vertrag, nicht nach Anwesenheit."},
+		{Facts: append(carePositionFacts(invoice.Positions, 1),
 			LetterFact{Label: "Summe", Value: formatEuro(invoice.TotalCents), Bold: true})},
 		{Text: carePaymentText(content), Bold: true},
 	}

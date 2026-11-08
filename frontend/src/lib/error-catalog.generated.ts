@@ -811,6 +811,12 @@ export const ERROR_CATALOG = {
         "Für diesen Ferienzeitraum gibt es schon einen Lauf in der Vorschau. Bitte öffnen Sie diesen Lauf.",
       "parent_billing.billing_run_released":
         "Der Lauf ist schon freigegeben. Ausgestellte Rechnungen lassen sich nicht ändern.",
+      "parent_billing.care_invoice_cancelled":
+        "Diese Rechnung ist storniert. Sie wird nicht mehr verschickt.",
+      "parent_billing.care_invoice_not_found":
+        "Diese Rechnung gibt es in diesem Lauf nicht. Bitte laden Sie die Seite neu.",
+      "parent_billing.care_recipient_changed":
+        "Die Rechnung geht an eine Person, die nicht mehr im Vertrag steht. Bitte stornieren Sie die Rechnung. Der nächste Lauf stellt sie neu aus.",
       "parent_billing.care_run_invalid": "Bitte wählen Sie einen Monat.",
       "parent_billing.care_run_not_found":
         "Diesen Monatslauf gibt es nicht. Bitte öffnen Sie ihn über „Abrechnung“ und „Monatsbeiträge“.",

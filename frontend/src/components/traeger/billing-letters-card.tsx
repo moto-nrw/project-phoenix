@@ -19,7 +19,7 @@ import { traegerPath } from "~/lib/traeger-url";
 const BillingLettersModal = dynamic(
   () =>
     import("./billing-letters-modal").then(
-      (module) => module.BillingLettersModal,
+      (module) => module.BillingLettersModal<BillingLetters>,
     ),
   { ssr: false },
 );

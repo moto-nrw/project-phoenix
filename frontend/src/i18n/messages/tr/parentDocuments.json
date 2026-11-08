@@ -6,6 +6,8 @@
   "confirmationLetter": "Onay yazısı: {period}",
   "cancellationLetter": "İptal yazısı: {period}",
   "creditLetter": "Alacak dekontu: {period}",
+  "careInvoiceLetter": "Fatura: {period}",
+  "careCancellationLetter": "İptal yazısı: {period}",
   "sender": "Gönderen: {traeger}",
   "children": "Çocuk",
   "amount": "Tutar",

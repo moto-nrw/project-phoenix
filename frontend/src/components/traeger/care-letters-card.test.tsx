@@ -1,0 +1,117 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { ToastProvider } from "~/contexts/ToastContext";
+import type { CareLetters } from "~/lib/traeger-care-billing-api";
+
+vi.mock("~/lib/traeger-url", () => ({
+  traegerPath: (path: string) => path,
+}));
+vi.mock("~/lib/traeger-care-billing-api", () => ({
+  createCareLetters: vi.fn(),
+  previewCareLetter: vi.fn(),
+}));
+
+import { CareLettersCard, lettersToSend } from "./care-letters-card";
+
+const CREATED: CareLetters = {
+  letters: {
+    paymentDueOn: "2026-09-23",
+    notes: "",
+    createdAt: "2026-09-09T08:00:00Z",
+  },
+  documents: [],
+  summary: {
+    letters: 10,
+    sent: 4,
+    queued: 1,
+    failed: 1,
+    notSent: 4,
+    withoutEmail: 2,
+  },
+};
+
+function renderCard(
+  letters: CareLetters | null,
+  onSendAll = vi.fn(async () => undefined),
+  onPrint = vi.fn(),
+) {
+  render(
+    <ToastProvider>
+      <CareLettersCard
+        runId="7"
+        letters={letters}
+        loadError={null}
+        sendingAll={false}
+        printing={null}
+        onCreated={vi.fn()}
+        onSendAll={onSendAll}
+        onPrint={onPrint}
+      />
+    </ToastProvider>,
+  );
+  return { onSendAll, onPrint };
+}
+
+describe("CareLettersCard (#4684)", () => {
+  it("says that creating sends nothing yet", () => {
+    renderCard({ ...CREATED, letters: null });
+    expect(
+      screen.getByText(/Erstellen sendet noch nichts/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Schreiben erstellen" }),
+    ).toBeInTheDocument();
+  });
+
+  it("counts every letter once and sends the open ones with an address", () => {
+    expect(lettersToSend(CREATED.summary)).toBe(2);
+    renderCard(CREATED);
+    expect(screen.getByText("4 von 10 Schreiben gesendet")).toBeInTheDocument();
+    expect(screen.getByText("Noch nicht gesendet")).toBeInTheDocument();
+    expect(screen.getByText("Ohne E-Mail")).toBeInTheDocument();
+  });
+
+  it("confirms the send with the count and the families to print", async () => {
+    const { onSendAll } = renderCard(CREATED);
+    fireEvent.click(screen.getByRole("button", { name: "An alle senden" }));
+    expect(
+      await screen.findByText(
+        /2 Schreiben gehen jetzt per E-Mail an die Familien/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/2 Familien ohne E-Mail-Adresse bekommen nichts/),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "2 Schreiben senden" }));
+    await waitFor(() => expect(onSendAll).toHaveBeenCalledTimes(1));
+  });
+
+  it("prints only the families without an address", () => {
+    const { onPrint } = renderCard(CREATED);
+    fireEvent.click(screen.getByRole("button", { name: "Schreiben drucken" }));
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: /Nur Familien ohne E-Mail/ }),
+    );
+    expect(onPrint).toHaveBeenCalledWith(true);
+  });
+
+  it("has nothing to send when every letter with an address went out", () => {
+    renderCard({
+      ...CREATED,
+      summary: {
+        letters: 3,
+        sent: 3,
+        queued: 0,
+        failed: 0,
+        notSent: 0,
+        withoutEmail: 0,
+      },
+    });
+    expect(
+      screen.getByRole("button", { name: "An alle senden" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText(/Alle Schreiben mit E-Mail-Adresse sind gesendet/),
+    ).toBeInTheDocument();
+  });
+});

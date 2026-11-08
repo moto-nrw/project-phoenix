@@ -6,7 +6,16 @@
  * dates stay "YYYY-MM-DD".
  */
 
+import type {
+  MailOutcome,
+  MailProviderBlock,
+} from "~/lib/email-delivery-status";
 import { traegerRequest } from "./traeger-api";
+import {
+  type BillingFile,
+  type LetterMailStatus,
+  billingFile,
+} from "./traeger-billing-api";
 
 export type CareWeekday = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
 export type CareRunStatus = "calculated" | "released";
@@ -463,6 +472,304 @@ export async function releaseCareRun(
           total_cents: run.previewCents,
         },
       },
+    ),
+  );
+}
+
+// The letters of a released monthly run (#4684): one letter per invoice and
+// per Storno of a sent invoice, the mail of each letter, the print and the
+// Storno itself.
+
+/** The letter of an invoice or of its Storno. */
+export type CareLetterKind = "invoice" | "cancellation";
+
+/** What the Abrechnung wrote into every letter of a run. */
+export interface CareLetterSet {
+  readonly paymentDueOn: string;
+  readonly notes: string;
+  readonly createdAt: string;
+}
+
+export interface CareLetterInput {
+  readonly paymentDueOn: string;
+  readonly notes: string;
+}
+
+/**
+ * One invoice or Storno of a run with its letter and its last mail. A
+ * Storno follows its invoice directly. `hasLetter` is false before the
+ * letters exist and for the Storno of an invoice that never went out.
+ */
+export interface CareLetterMailing {
+  readonly invoiceId: string;
+  readonly kind: CareLetterKind;
+  /** The number of this document: the invoice or the Storno. */
+  readonly number: string;
+  readonly invoiceNumber: string;
+  readonly issuedOn: string;
+  readonly childFirstName: string;
+  readonly childLastName: string;
+  readonly schoolName: string;
+  readonly recipientFirstName: string;
+  readonly recipientLastName: string;
+  readonly recipientEmail: string;
+  /** Negative for a Storno. */
+  readonly totalCents: number;
+  readonly reason: string;
+  /** The invoice has a Storno. */
+  readonly cancelled: boolean;
+  readonly cancellationNumber: string;
+  readonly hasLetter: boolean;
+  readonly status: LetterMailStatus;
+  readonly sends: number;
+  readonly attempts: number;
+  readonly requestedAt: string | null;
+  readonly sentAt: string | null;
+  readonly mailOutcome?: MailOutcome;
+  readonly providerBlock?: MailProviderBlock;
+}
+
+/**
+ * The letters of a run by the state of their last mail. `notSent` includes
+ * `withoutEmail`, the letters of families without an address.
+ */
+export interface CareLetterSummary {
+  readonly letters: number;
+  readonly sent: number;
+  readonly queued: number;
+  readonly failed: number;
+  readonly notSent: number;
+  readonly withoutEmail: number;
+}
+
+export interface CareLetters {
+  readonly letters: CareLetterSet | null;
+  readonly documents: readonly CareLetterMailing[];
+  readonly summary: CareLetterSummary;
+}
+
+/** What a send to every family did. */
+export interface CareLetterSeries {
+  readonly queued: number;
+  readonly already: number;
+  readonly withoutEmail: number;
+  /** Letters held back: the address is no longer a party of the contract. */
+  readonly recipientChanged: number;
+}
+
+interface BackendCareLetterMailing {
+  invoice_id: number;
+  kind: CareLetterKind;
+  number: string;
+  invoice_number: string;
+  issued_on: string;
+  child_first_name: string;
+  child_last_name: string;
+  school_name: string;
+  recipient_first_name: string;
+  recipient_last_name: string;
+  recipient_email: string;
+  total_cents: number;
+  reason?: string;
+  cancelled: boolean;
+  cancellation_number?: string;
+  has_letter: boolean;
+  status: LetterMailStatus;
+  sends: number;
+  attempts: number;
+  requested_at: string | null;
+  sent_at: string | null;
+  mail_outcome?: MailOutcome;
+  provider_block?: MailProviderBlock;
+}
+
+interface BackendCareLetters {
+  letters: {
+    payment_due_on: string;
+    notes: string;
+    created_at: string;
+  } | null;
+  documents: BackendCareLetterMailing[] | null;
+  summary: {
+    letters: number;
+    sent: number;
+    queued: number;
+    failed: number;
+    not_sent: number;
+    without_email: number;
+  } | null;
+}
+
+function careMailingFromBackend(
+  mailing: BackendCareLetterMailing,
+): CareLetterMailing {
+  return {
+    invoiceId: id(mailing.invoice_id),
+    kind: mailing.kind === "cancellation" ? "cancellation" : "invoice",
+    number: mailing.number,
+    invoiceNumber: mailing.invoice_number,
+    issuedOn: mailing.issued_on,
+    childFirstName: mailing.child_first_name,
+    childLastName: mailing.child_last_name,
+    schoolName: mailing.school_name,
+    recipientFirstName: mailing.recipient_first_name,
+    recipientLastName: mailing.recipient_last_name,
+    recipientEmail: mailing.recipient_email,
+    totalCents: mailing.total_cents,
+    reason: mailing.reason ?? "",
+    cancelled: mailing.cancelled,
+    cancellationNumber: mailing.cancellation_number ?? "",
+    hasLetter: mailing.has_letter,
+    status: mailing.status,
+    sends: mailing.sends,
+    attempts: mailing.attempts,
+    requestedAt: mailing.requested_at,
+    sentAt: mailing.sent_at,
+    mailOutcome: mailing.mail_outcome || undefined,
+    providerBlock: mailing.provider_block || undefined,
+  };
+}
+
+function careLettersFromBackend(body: BackendCareLetters): CareLetters {
+  const summary = body.summary;
+  return {
+    letters: body.letters
+      ? {
+          paymentDueOn: body.letters.payment_due_on,
+          notes: body.letters.notes,
+          createdAt: body.letters.created_at,
+        }
+      : null,
+    documents: (body.documents ?? []).map(careMailingFromBackend),
+    summary: {
+      letters: summary?.letters ?? 0,
+      sent: summary?.sent ?? 0,
+      queued: summary?.queued ?? 0,
+      failed: summary?.failed ?? 0,
+      notSent: summary?.not_sent ?? 0,
+      withoutEmail: summary?.without_email ?? 0,
+    },
+  };
+}
+
+function lettersPath(runId: string): string {
+  return `${RUNS_PATH}/${encodeURIComponent(runId)}/letters`;
+}
+
+function invoicePath(runId: string, invoiceId: string): string {
+  return `${RUNS_PATH}/${encodeURIComponent(runId)}/invoices/${encodeURIComponent(invoiceId)}`;
+}
+
+function careLetterBody(input: CareLetterInput) {
+  return { payment_due_on: input.paymentDueOn, notes: input.notes };
+}
+
+/** The letters of a released run with the state of every invoice. */
+export async function fetchCareLetters(runId: string): Promise<CareLetters> {
+  return careLettersFromBackend(
+    await traegerRequest<BackendCareLetters>(lettersPath(runId)),
+  );
+}
+
+/** Creates the letter of every invoice once; families see nothing yet. */
+export async function createCareLetters(
+  runId: string,
+  input: CareLetterInput,
+): Promise<CareLetters> {
+  return careLettersFromBackend(
+    await traegerRequest<BackendCareLetters>(lettersPath(runId), {
+      method: "POST",
+      body: careLetterBody(input),
+    }),
+  );
+}
+
+/** The letter of the first invoice with the input, without storing it. */
+export async function previewCareLetter(
+  runId: string,
+  input: CareLetterInput,
+): Promise<BillingFile> {
+  return billingFile(
+    `${lettersPath(runId)}/preview`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(careLetterBody(input)),
+    },
+    "vorschau.pdf",
+  );
+}
+
+/**
+ * Every letter the run may still send in one PDF to print; with
+ * `withoutEmailOnly` only those of families without an address.
+ */
+export async function printCareLetters(
+  runId: string,
+  withoutEmailOnly = false,
+): Promise<BillingFile> {
+  return billingFile(
+    `${lettersPath(runId)}/print${withoutEmailOnly ? "?only=without_email" : ""}`,
+    {},
+    "monatsrechnungen.pdf",
+  );
+}
+
+/** Mails every letter with an address and no mail yet; idempotent. */
+export async function mailCareLetters(
+  runId: string,
+): Promise<CareLetterSeries> {
+  const series = await traegerRequest<{
+    queued: number;
+    already: number;
+    without_email: number;
+    recipient_changed?: number;
+  }>(`${lettersPath(runId)}/mail`, { method: "POST" });
+  return {
+    queued: series.queued,
+    already: series.already,
+    withoutEmail: series.without_email,
+    recipientChanged: series.recipient_changed ?? 0,
+  };
+}
+
+/** The stored letter of an invoice or of its Storno. */
+export async function downloadCareLetter(
+  runId: string,
+  invoiceId: string,
+  kind: CareLetterKind,
+): Promise<BillingFile> {
+  return billingFile(
+    `${invoicePath(runId, invoiceId)}/letter${kind === "cancellation" ? "?kind=cancellation" : ""}`,
+    {},
+    kind === "cancellation" ? "storno.pdf" : "rechnung.pdf",
+  );
+}
+
+/** Mails one letter, first or again. */
+export async function mailCareLetter(
+  runId: string,
+  invoiceId: string,
+  kind: CareLetterKind,
+): Promise<CareLetterMailing> {
+  return careMailingFromBackend(
+    await traegerRequest<BackendCareLetterMailing>(
+      `${invoicePath(runId, invoiceId)}/${kind === "cancellation" ? "cancellation/mail" : "mail"}`,
+      { method: "POST" },
+    ),
+  );
+}
+
+/** Issues the Storno of an invoice with its reason. */
+export async function cancelCareInvoice(
+  runId: string,
+  invoiceId: string,
+  reason: string,
+): Promise<CareLetters> {
+  return careLettersFromBackend(
+    await traegerRequest<BackendCareLetters>(
+      `${invoicePath(runId, invoiceId)}/cancellation`,
+      { method: "POST", body: { reason } },
     ),
   );
 }

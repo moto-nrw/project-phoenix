@@ -63,6 +63,7 @@ func TestCareInvoiceLetterNamesOneLinePerModuleAndAsksForPayment(t *testing.T) {
 		"Betreuung bis 14:00 Uhr (Mo) = 32,00 €",
 		"Betreuung bis 16:30 Uhr (Di), 01.01. bis 15.01.2027 = 22,01 €",
 		"Summe = 54,01 €",
+		"Ihre Betreuung", "Abgerechnet wird nach Ihrem Vertrag, nicht nach Anwesenheit.",
 		"Bitte überweisen Sie 54,01 € bis zum 15.01.2027 auf das Konto unten. Geben Sie als Verwendungszweck die Rechnungsnummer MB-2027-0001 an.",
 		"Hinweise", "Die Betreuung ist am 2. Januar geschlossen.",
 		"Bankverbindung: SJR Pforzheim · IBAN DE02 1203 0000 0000 2020 51",
@@ -70,6 +71,11 @@ func TestCareInvoiceLetterNamesOneLinePerModuleAndAsksForPayment(t *testing.T) {
 		assert.Contains(t, text, want)
 	}
 	assert.NotContains(t, text, "02.01.", "no line per calendar day")
+	for _, block := range careInvoiceLetter(careLetterSJR()).Blocks {
+		if block.Heading != "" {
+			assert.NotEmpty(t, block.Text, "a heading needs its paragraph, or the layout lays the table over it")
+		}
+	}
 }
 
 func TestCarePaymentTextUsesTheTraegersTextUnlessItNeedsADebtorNumber(t *testing.T) {
