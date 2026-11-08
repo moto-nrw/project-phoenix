@@ -294,13 +294,13 @@ func TestTraegerSchoolSessionsInTwoTabsStaySignedIn(t *testing.T) {
 	// A tab whose shared OGS cookie now holds the other school switches back
 	// within the Träger, without a mapping and without a new sign-in.
 	family, _ := traegerTokenClaims(t, firstAccess)["family_id"].(string)
-	switched, _, err := identity.SwitchTenant(ctx, account.ID, schoolSubdomain(t, db, second), family)
+	switched, _, err := identity.SwitchTenant(ctx, account.ID, schoolSubdomain(t, db, second), family, "192.0.2.10", "test")
 	require.NoError(t, err)
 	switchedClaims := traegerTokenClaims(t, switched)
 	assert.Equal(t, float64(second), switchedClaims["tenant_id"])
 	assert.Equal(t, true, switchedClaims["via_traeger"])
 
-	_, _, err = identity.SwitchTenant(ctx, account.ID, schoolSubdomain(t, db, foreignSchool), switchedClaims["family_id"].(string))
+	_, _, err = identity.SwitchTenant(ctx, account.ID, schoolSubdomain(t, db, foreignSchool), switchedClaims["family_id"].(string), "192.0.2.10", "test")
 	assert.ErrorIs(t, err, identityaccess.ErrTenantAccessDenied, "a switch leaves the Träger only through the account's own mapping")
 
 	var switches int
@@ -351,7 +351,7 @@ func TestTraegerLogoutEndsTheSchoolSessionsOfItsAbsprung(t *testing.T) {
 	require.NoError(t, identity.VerifyAccessSession(ctx, traegerAccessSession(t, traeger.AccessToken)), "ending the school session leaves the Träger session signed in")
 
 	schoolAccess, _ = open(first, "tab-2")
-	switched, _, err := identity.SwitchTenant(ctx, account.ID, schoolSubdomain(t, db, second), traegerAccessSession(t, schoolAccess).FamilyID)
+	switched, _, err := identity.SwitchTenant(ctx, account.ID, schoolSubdomain(t, db, second), traegerAccessSession(t, schoolAccess).FamilyID, "192.0.2.10", "test")
 	require.NoError(t, err)
 	require.NoError(t, identity.VerifyAccessSession(ctx, traegerAccessSession(t, switched)))
 
@@ -428,7 +428,7 @@ func TestTraegerSchoolHandoffKeepsTheLegacyDeadline(t *testing.T) {
 			access, _, err = identity.RefreshTokenWithAudit(ctx, refresh, "legacy-school-host", "", "")
 			require.NoError(t, err)
 			assertDeadline(traegerAccessSession(t, access).FamilyID)
-			switched, switchedRefresh, err := identity.SwitchTenant(ctx, account.ID, schoolSubdomain(t, db, second), traegerAccessSession(t, access).FamilyID)
+			switched, switchedRefresh, err := identity.SwitchTenant(ctx, account.ID, schoolSubdomain(t, db, second), traegerAccessSession(t, access).FamilyID, "192.0.2.10", "test")
 			require.NoError(t, err)
 			assertDeadline(traegerAccessSession(t, switched).FamilyID)
 			_, _, err = identity.RefreshTokenWithAudit(ctx, switchedRefresh, "legacy-second-school", "", "")

@@ -422,7 +422,7 @@ func (c *CatererAccess) findCaterer(ctx context.Context, accountID int64, into *
 // caterer role name a token needs, no permission, no school. The portal
 // resolves the caterer and its schools on every request.
 func buildCatererMetadata(account domain.LoginAccount) *domain.AccountClaimsPayload {
-	return &domain.AccountClaimsPayload{RoleNames: []string{domain.CatererRoleName}, Username: account.Username, Scope: domain.ScopeCaterer}
+	return &domain.AccountClaimsPayload{RoleNames: []string{domain.CatererRoleName}, Username: account.Username, Scope: domain.PortalCaterer.Claim}
 }
 
 // newInvitationToken is a random link token of 32 bytes.

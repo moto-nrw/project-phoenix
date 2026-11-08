@@ -41,5 +41,6 @@
   "terminatedOn": "Wypowiedziana na {date}",
   "withdrawn": "Odstąpiono",
   "showConfirmation": "Zobacz potwierdzenie",
-  "terminationInReview": "Wypowiedziano, data końca w sprawdzeniu"
+  "terminationInReview": "Wypowiedziano, data końca w sprawdzeniu",
+  "familyChildren": "Podaj liczbę dzieci w rodzinie"
 }

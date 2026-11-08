@@ -51,7 +51,7 @@ func TestSwitchTenantRetiredFamilyRefreshKeepsDeadline(t *testing.T) {
 	_, presentedRefresh, err := service.Login(ctx, email, testPassword)
 	require.NoError(t, err)
 	presentedFamily := tokenFamilyID(t, db, account.ID, 0)
-	_, _, err = service.SwitchTenant(ctx, account.ID, fmt.Sprintf("t%d", targetTenantID), presentedFamily)
+	_, _, err = service.SwitchTenant(ctx, account.ID, fmt.Sprintf("t%d", targetTenantID), presentedFamily, "", "")
 	require.NoError(t, err)
 
 	_, refreshedToken, err := service.RefreshToken(ctx, presentedRefresh)
@@ -93,7 +93,7 @@ func TestSwitchTenantRetiresPresentedFamily(t *testing.T) {
 	presentedFamily := tokenFamilyID(t, db, account.ID, 0)
 
 	before := time.Now()
-	_, _, err = service.SwitchTenant(ctx, account.ID, fmt.Sprintf("t%d", targetTenantID), presentedFamily)
+	_, _, err = service.SwitchTenant(ctx, account.ID, fmt.Sprintf("t%d", targetTenantID), presentedFamily, "", "")
 	require.NoError(t, err)
 
 	rows := liveTokens(t, db, account.ID)
@@ -143,7 +143,7 @@ func TestSwitchTenantPingPongKeepsOtherDeviceSession(t *testing.T) {
 		if i%2 == 1 {
 			target = schoolB
 		}
-		_, _, err = service.SwitchTenant(ctx, account.ID, fmt.Sprintf("t%d", target), presented)
+		_, _, err = service.SwitchTenant(ctx, account.ID, fmt.Sprintf("t%d", target), presented, "", "")
 		require.NoError(t, err, "switch %d", i)
 		presented = liveTokens(t, db, account.ID)[0].FamilyID
 	}

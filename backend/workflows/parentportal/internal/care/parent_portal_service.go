@@ -227,7 +227,7 @@ func (s *Service) GetProfile(ctx context.Context, accountID int64) (*Profile, er
 		// profile link are written in the same transaction (auth
 		// guardianInvitationService.linkProfileToAccount / enrollment
 		// decisionService.ensureGuardianRoleForTenant), and these endpoints sit
-		// behind ParentMiddleware, which login only reaches once the account
+		// behind ParentScopeMiddleware, which login only reaches once the account
 		// has that role. Log it so the corruption is observable, then degrade
 		// to the anonymous locale rather than failing a read just to render a
 		// language. Any other error is a real fault and must surface unmasked.

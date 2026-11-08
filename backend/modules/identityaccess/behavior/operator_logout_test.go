@@ -5,10 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // TestIntegration_OperatorLogout_RevokesOnlyTheFamily pins #5194 for the
@@ -34,11 +36,11 @@ func TestIntegration_OperatorLogout_RevokesOnlyTheFamily(t *testing.T) {
 
 	require.NoError(t, identity.LogoutOperator(ctx, operator.ID, family))
 
-	_, err = identity.LatestOperatorSessionInFamily(ctx, family)
+	_, err = identity.(ports.Records).LatestOperatorSessionInFamily(ctx, family)
 	require.ErrorIs(t, err, identityaccess.ErrOperatorSessionNotFound, "the logged-out family is gone")
-	_, err = identity.LatestOperatorSessionInFamily(ctx, otherFamily)
+	_, err = identity.(ports.Records).LatestOperatorSessionInFamily(ctx, otherFamily)
 	require.NoError(t, err, "the other device keeps its family")
-	_, _, err = identity.RefreshOperatorToken(ctx, operator.ID, refreshHandle(t, refresh))
+	_, _, err = identity.RefreshOperatorToken(ctx, refresh, "")
 	require.ErrorIs(t, err, identityaccess.ErrOperatorRefreshTokenInvalid)
 	assert.Equal(t, 1, countOperatorAudit(t, db, operator.ID, "token_revoked"))
 
@@ -88,6 +90,6 @@ func TestIntegration_OperatorLogout_CatchesAConcurrentRotation(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		t.Fatal("logout did not finish after the rotation committed")
 	}
-	_, err = identity.LatestOperatorSessionInFamily(ctx, family)
+	_, err = identity.(ports.Records).LatestOperatorSessionInFamily(ctx, family)
 	require.ErrorIs(t, err, identityaccess.ErrOperatorSessionNotFound, "the successor committed during logout is revoked too")
 }

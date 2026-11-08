@@ -101,7 +101,7 @@ func TestTokenAuth_CreateRefreshJWT_SetsExpiry(t *testing.T) {
 	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
-	claims := sessiontoken.RefreshClaims{
+	claims := tokentest.RefreshClaims{
 		ID:    1,
 		Token: "token",
 	}
@@ -128,7 +128,7 @@ func TestTokenAuth_CreateRefreshJWT_PreservesPersistedExpiry(t *testing.T) {
 	require.NoError(t, err)
 
 	expiresAt := time.Now().Add(10 * time.Minute).Unix()
-	token, err := tokentest.CreateRefreshJWT(auth, sessiontoken.RefreshClaims{
+	token, err := tokentest.CreateRefreshJWT(auth, tokentest.RefreshClaims{
 		ID:    1,
 		Token: "persisted-token",
 		CommonClaims: sessiontoken.CommonClaims{
@@ -160,7 +160,7 @@ func TestTokenAuth_GenTokenPair_ValidClaims(t *testing.T) {
 		Roles: []string{"user"},
 	}
 
-	refreshClaims := sessiontoken.RefreshClaims{
+	refreshClaims := tokentest.RefreshClaims{
 		ID:    42,
 		Token: "refresh-token-id",
 	}
@@ -183,112 +183,6 @@ func TestTokenAuth_GetRefreshExpiry(t *testing.T) {
 
 	expiry := auth.JwtRefreshExpiry
 	assert.Equal(t, 48*time.Hour, expiry)
-}
-
-// =============================================================================
-// ParseStructToMap Tests
-// =============================================================================
-
-func TestParseStructToMap_AppClaims(t *testing.T) {
-	t.Parallel()
-
-	claims := sessiontoken.AppClaims{
-		ID:          42,
-		Sub:         "test@test.com",
-		Username:    "johndoe",
-		FirstName:   "John",
-		LastName:    "Doe",
-		Roles:       []string{"admin", "user"},
-		Permissions: []string{"read", "write"},
-		IsAdmin:     true,
-		CommonClaims: sessiontoken.CommonClaims{
-			ExpiresAt: 1234567890,
-			IssuedAt:  1234567800,
-		},
-	}
-
-	result, err := tokentest.ParseStructToMap(claims)
-	require.NoError(t, err)
-
-	assert.Equal(t, float64(42), result["id"])
-	assert.Equal(t, "test@test.com", result["sub"])
-	assert.Equal(t, "johndoe", result["username"])
-	assert.Equal(t, "John", result["first_name"])
-	assert.Equal(t, "Doe", result["last_name"])
-	assert.Equal(t, []string{"admin", "user"}, result["roles"])
-	assert.Equal(t, []string{"read", "write"}, result["permissions"])
-	assert.Equal(t, true, result["is_admin"])
-	assert.Equal(t, int64(1234567890), result["exp"])
-	assert.Equal(t, int64(1234567800), result["iat"])
-}
-
-func TestParseStructToMap_AppClaimsFamilyID(t *testing.T) {
-	t.Parallel()
-
-	claims := sessiontoken.AppClaims{
-		ID:       42,
-		Sub:      "test@test.com",
-		Roles:    []string{"user"},
-		FamilyID: "family-xyz",
-	}
-
-	result, err := tokentest.ParseStructToMap(claims)
-	require.NoError(t, err)
-	assert.Equal(t, "family-xyz", result["family_id"])
-}
-
-func TestParseStructToMap_RefreshClaims(t *testing.T) {
-	t.Parallel()
-
-	claims := sessiontoken.RefreshClaims{
-		ID:    42,
-		Token: "refresh-token",
-		CommonClaims: sessiontoken.CommonClaims{
-			ExpiresAt: 1234567890,
-			IssuedAt:  1234567800,
-		},
-	}
-
-	result, err := tokentest.ParseStructToMap(claims)
-	require.NoError(t, err)
-
-	assert.Equal(t, float64(42), result["id"])
-	assert.Equal(t, "refresh-token", result["token"])
-}
-
-func TestParseStructToMap_EmptySlices(t *testing.T) {
-	t.Parallel()
-
-	claims := sessiontoken.AppClaims{
-		ID:          1,
-		Sub:         "test@test.com",
-		Roles:       []string{},
-		Permissions: []string{},
-	}
-
-	result, err := tokentest.ParseStructToMap(claims)
-	require.NoError(t, err)
-
-	// Empty slices should be preserved
-	assert.NotNil(t, result["roles"])
-	assert.NotNil(t, result["permissions"])
-}
-
-func TestParseStructToMap_NilSlices(t *testing.T) {
-	t.Parallel()
-
-	claims := sessiontoken.AppClaims{
-		ID:          1,
-		Sub:         "test@test.com",
-		Roles:       nil,
-		Permissions: nil,
-	}
-
-	result, err := tokentest.ParseStructToMap(claims)
-	require.NoError(t, err)
-
-	// Nil slices get explicitly set in ParseStructToMap
-	assert.NotNil(t, result)
 }
 
 // =============================================================================

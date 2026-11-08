@@ -390,13 +390,10 @@ func (l *AccountLifecycle) mintStaffPreview(txCtx context.Context, account domai
 		previewID = newID
 	}
 
-	accessToken, err = l.codec.IssueAccessToken(domain.SessionClaims{
-		AccountID: account.ID, Email: account.Email, Username: claims.Username,
-		FirstName: claims.FirstName, LastName: claims.LastName,
-		Roles: claims.RoleNames, RoleIsSystem: domain.RoleSystemFlags(claims.Roles), Permissions: claims.Permissions, IsAdmin: claims.IsAdmin,
-		Scope: claims.Scope, TenantID: tenantID, OrgID: claims.OrgID, FamilyID: adminFamilyID,
-		ReadOnly: true, ActingAdminID: adminAccountID, PreviewID: previewID,
-	})
+	preview := accessClaims(account, claims, adminFamilyID, account.Email)
+	preview.TenantID = tenantID
+	preview.ReadOnly, preview.ActingAdminID, preview.PreviewID = true, adminAccountID, previewID
+	accessToken, err = l.codec.IssueAccessToken(preview)
 	if err != nil {
 		return accessToken, previewID, isRemint, failed(op, err)
 	}

@@ -71,7 +71,7 @@ func newWorkforceCapability(t *testing.T, db *bun.DB, clocks ...func() time.Time
 
 // setupStaffRoute initializes test database, services, and resource. The
 // router serves the resource through the production middleware chain
-// (Verifier → Authenticator → TenantMiddleware → RequiresPermission →
+// (Verifier → Authenticator → TenantScopeMiddleware → RequiresPermission →
 // TenantTxMiddleware) exactly as the real server does, mounted at /staff.
 func setupStaffRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 	t.Helper()

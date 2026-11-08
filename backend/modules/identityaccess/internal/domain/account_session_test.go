@@ -14,10 +14,10 @@ func TestCapPortalScopes(t *testing.T) {
 	}{
 		// ADR 0084: the Träger-Portal has its own session bucket; a Träger
 		// login never evicts an OGS session and vice versa.
-		{PortalScopeTenant, []string{PortalScopeTenant}},
-		{PortalScopeOrg, []string{PortalScopeOrg}},
-		{PortalScopeParent, []string{PortalScopeParent}},
-		{PortalScopeSchool, []string{PortalScopeSchool}},
+		{PortalTenant.Name, []string{PortalTenant.Name}},
+		{PortalOrg.Name, []string{PortalOrg.Name}},
+		{PortalParent.Name, []string{PortalParent.Name}},
+		{PortalSchool.Name, []string{PortalSchool.Name}},
 		{PortalScopeUnknown, []string{PortalScopeUnknown}},
 		{"", []string{PortalScopeUnknown}},
 	}
@@ -46,7 +46,7 @@ func TestAccountSessionValidate(t *testing.T) {
 		scope   string
 	}{
 		{"defaults an empty scope to unknown", AccountSession{AccountID: 1, Token: "handle"}, "", PortalScopeUnknown},
-		{"keeps a known scope", AccountSession{AccountID: 1, Token: "handle", PortalScope: PortalScopeSchool}, "", PortalScopeSchool},
+		{"keeps a known scope", AccountSession{AccountID: 1, Token: "handle", PortalScope: PortalSchool.Name}, "", PortalSchool.Name},
 		{"requires an account", AccountSession{Token: "handle"}, "account ID is required", ""},
 		{"requires a handle", AccountSession{AccountID: 1}, "token value is required", ""},
 		{"rejects an unknown scope", AccountSession{AccountID: 1, Token: "handle", PortalScope: "kiosk"}, "invalid portal scope", ""},

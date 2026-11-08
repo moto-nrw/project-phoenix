@@ -153,7 +153,7 @@ func TestParentAbsenceReviewTeamRequiresVerifiedTenantStaff(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []reviewTeamCase{
 		{"eligible", "tenant", 71, 71, []string{"users:update"}, true, true},
-		{"absence and read", "org", 71, 71, []string{"users:absence", "users:read"}, true, true},
+		{"absence and read", "tenant", 71, 71, []string{"users:absence", "users:read"}, true, true},
 		{"read only", "tenant", 71, 71, []string{"users:read"}, true, false},
 		{"not staff", "tenant", 71, 71, []string{"users:update"}, false, false},
 		{"other claim tenant", "tenant", 72, 71, []string{"users:update"}, true, false},
@@ -400,7 +400,7 @@ func TestParentRequestReviewTeamRequiresVerifiedTenantStaff(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []reviewTeamCase{
 		{"eligible", "tenant", 71, 71, []string{"users:update"}, true, true},
-		{"org token", "org", 71, 71, []string{"users:update"}, true, true},
+		{"Träger token", "org", 71, 71, []string{"users:update"}, true, false},
 		{"read only", "tenant", 71, 71, []string{"users:read"}, true, false},
 		{"not staff", "tenant", 71, 71, []string{"users:update"}, false, false},
 		{"other claim tenant", "tenant", 72, 71, []string{"users:update"}, true, false},

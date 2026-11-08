@@ -204,7 +204,10 @@ func demoLoopbackExempt() bool {
 }
 
 // setupRateLimiting configures rate limiting middleware if enabled
-func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.SecurityLogger, tokenAuth *sessiontoken.TokenAuth, exemptLoopback bool) {
+// It runs after the session Verifier, whose parse the per-account key reads,
+// and before the session family check, so a flood of signed tokens is limited
+// before it reaches the database.
+func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.SecurityLogger, exemptLoopback bool) {
 	if os.Getenv("RATE_LIMIT_ENABLED") != "true" {
 		return
 	}
@@ -223,7 +226,7 @@ func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.Secur
 		}
 	})
 	generalRateLimiter.SetRejectObserver(observability.RecordRateLimitRejection)
-	generalRateLimiter.SetKeyFunc(tokenAuth.RateLimitKey)
+	generalRateLimiter.SetKeyFunc(sessiontoken.RateLimitKey)
 	if exemptLoopback {
 		generalRateLimiter.ExemptLoopback()
 	}

@@ -36,7 +36,7 @@ func init() {
 
 // newReq builds a request authenticated with a real signed JWT so the
 // production middleware chain mounted by Resource.Router(rootAPI.ProtectedTenantRoutes)
-// (Verifier → Authenticator → TenantMiddleware → RequiresPermission →
+// (Verifier → Authenticator → TenantScopeMiddleware → RequiresPermission →
 // TenantTxMiddleware) accepts it. The permission set carried by the token is
 // exactly `permissions` — this mirrors the old testutil.WithPermissions option
 // (empty for the transfer routes, which mount no permission check). All other

@@ -10,6 +10,8 @@ import (
 	validation "github.com/go-ozzo/ozzo-validation"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
@@ -36,21 +38,11 @@ type MFARuntime struct {
 	// StartChallenge mails the enrollment code and names its row.
 	StartChallenge func(ctx context.Context, accountID int64, ip net.IP) (string, error)
 	Enroll         func(ctx context.Context, accountID int64) error
-
-	// ChallengeUnusable reports an expired, spent, mis-scoped or wrong code.
-	ChallengeUnusable func(error) bool
-	// Blocked reports a locked-out or rate-limited second factor.
-	Blocked func(error) bool
-	// Unavailable reports the fail-closed status lookup.
-	Unavailable func(error) bool
-	// AlreadyEnrolled reports a repeated enrollment, which is not a failure.
-	AlreadyEnrolled func(error) bool
 }
 
 func (rt *MFARuntime) complete() bool {
 	return rt != nil && rt.VerifyChallenge != nil && rt.VerifyChallengeForOwner != nil &&
-		rt.ResendChallenge != nil && rt.StartChallenge != nil && rt.Enroll != nil &&
-		rt.ChallengeUnusable != nil && rt.Blocked != nil && rt.Unavailable != nil && rt.AlreadyEnrolled != nil
+		rt.ResendChallenge != nil && rt.StartChallenge != nil && rt.Enroll != nil
 }
 
 var errMFANotComposed = errors.New("the Träger second factor is not composed")
@@ -74,18 +66,6 @@ func (req *MFAVerifyRequest) Bind(r *http.Request) error {
 	return validation.ValidateStruct(req, validation.Field(&req.OrganizationID, validation.Min(int64(0))))
 }
 
-// EnrollStartResponse carries the challenge the enrollment code belongs to;
-// the confirm step redeems exactly that challenge.
-type EnrollStartResponse struct {
-	ChallengeToken string `json:"challenge_token"`
-}
-
-// TokenResponse is the plain token pair of a completed second factor.
-type TokenResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-}
-
 // mfaVerify exchanges an org-scope challenge and its code for a Träger
 // session. The scope is checked before any code is compared, so a challenge
 // of another portal is never consumed here.
@@ -100,7 +80,7 @@ func (rs *Resource) mfaVerify(w http.ResponseWriter, r *http.Request) {
 	}
 	verified, err := rs.mfa.VerifyChallenge(r.Context(), req.ChallengeToken, req.Code)
 	if err != nil {
-		rs.renderMFAError(w, r, err)
+		portalauth.Render(w, r, err, portalauth.MFARules)
 		return
 	}
 	rs.completeTraegerExchange(w, r, verified, req.OrganizationID)
@@ -119,30 +99,29 @@ func (rs *Resource) mfaResend(w http.ResponseWriter, r *http.Request) {
 	}
 	renewed, err := rs.mfa.ResendChallenge(r.Context(), req.ChallengeToken, common.ParseClientIP(r))
 	if err != nil {
-		rs.renderMFAError(w, r, err)
+		portalauth.Render(w, r, err, portalauth.MFARules)
 		return
 	}
 	render.JSON(w, r, common.MFAResendResponse{ChallengeToken: renewed})
 }
 
-// mfaEnrollStart mails the code that sets up the second factor. The shared
-// enrollment authenticator accepts every enrollment scope, so the handler
-// pins the org scope.
+// mfaEnrollStart mails the code that sets up the second factor.
 func (rs *Resource) mfaEnrollStart(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
 		return
 	}
-	accountID, ok := traegerEnrollmentAccount(r)
+	claims, ok := sessiontoken.EnrollmentClaimsFromCtx(r.Context())
 	if !ok {
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return
 	}
+	accountID := claims.AccountID
 	challengeToken, err := rs.mfa.StartChallenge(r.Context(), accountID, common.ParseClientIP(r))
 	if err != nil {
-		rs.renderMFAError(w, r, err)
+		portalauth.Render(w, r, err, portalauth.MFARules)
 		return
 	}
-	render.JSON(w, r, EnrollStartResponse{ChallengeToken: challengeToken})
+	render.JSON(w, r, portalauth.EnrollStartResponse{ChallengeToken: challengeToken})
 }
 
 // mfaEnrollConfirm redeems the enrollment code, records the factor and mints
@@ -153,11 +132,12 @@ func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
 		return
 	}
-	accountID, ok := traegerEnrollmentAccount(r)
+	claims, ok := sessiontoken.EnrollmentClaimsFromCtx(r.Context())
 	if !ok {
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return
 	}
+	accountID := claims.AccountID
 	req := &MFAVerifyRequest{}
 	if err := render.Bind(r, req); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
@@ -165,58 +145,33 @@ func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 	}
 	verified, err := rs.mfa.VerifyChallengeForOwner(r.Context(), req.ChallengeToken, req.Code, accountID)
 	if err != nil {
-		rs.renderMFAError(w, r, err)
+		portalauth.Render(w, r, err, portalauth.MFARules)
 		return
 	}
-	if err := rs.mfa.Enroll(r.Context(), accountID); err != nil && !rs.mfa.AlreadyEnrolled(err) {
-		rs.renderMFAError(w, r, err)
+	if err := rs.mfa.Enroll(r.Context(), accountID); err != nil && !errors.Is(err, identityaccess.ErrMFAAlreadyEnrolled) {
+		portalauth.Render(w, r, err, portalauth.MFARules)
 		return
 	}
 	rs.completeTraegerExchange(w, r, verified, req.OrganizationID)
 }
 
-// traegerEnrollmentAccount reads the account of an org-scope enrollment token.
-func traegerEnrollmentAccount(r *http.Request) (int64, bool) {
-	claims, ok := sessiontoken.EnrollmentClaimsFromCtx(r.Context())
-	if !ok || claims.AccountID == 0 || claims.Scope != sessiontoken.MFAEnrollmentScopeOrg || claims.TenantID != 0 {
-		return 0, false
-	}
-	return claims.AccountID, true
-}
-
 // completeTraegerExchange mints the Träger session once the second factor is
-// proven, for the verify and the enrollment confirm alike.
+// proven, for the verify and the enrollment confirm alike. The portal
+// remembers no device: it has no school whose trusted-device settings would
+// apply.
 func (rs *Resource) completeTraegerExchange(w http.ResponseWriter, r *http.Request, proof VerifiedChallenge, organizationID int64) {
-	if !rs.auth.complete() {
-		common.RenderError(w, r, common.ErrorInternalServer(errLoginUnavailable))
+	if !common.RequireDependency(w, r, rs.auth.complete(), errLoginUnavailable) {
 		return
 	}
-	result, err := rs.auth.IssueTokens(r.Context(), proof, organizationID, common.GetClientIPString(r), r.Header.Get(headerUserAgent))
+	client := portalauth.ClientOf(r)
+	result, err := rs.auth.IssueTokens(r.Context(), proof, organizationID, client.IP, client.UserAgent)
 	if err != nil {
-		if rs.auth.InvalidSession(err) {
-			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(errMFACodeInvalid, common.CodeIdentityMfaCodeInvalid))
-			return
-		}
-		rs.renderLoginError(w, r, err)
+		portalauth.Render(w, r, err, portalauth.ExchangeRules, portalauth.LoginRules)
 		return
 	}
-	render.JSON(w, r, TokenResponse{AccessToken: result.AccessToken, RefreshToken: result.RefreshToken})
+	render.JSON(w, r, portalauth.TokenResponse{AccessToken: result.AccessToken, RefreshToken: result.RefreshToken})
 }
 
 func (rs *Resource) requireMFA(w http.ResponseWriter, r *http.Request) bool {
 	return common.RequireDependency(w, r, rs.mfa.complete(), errMFANotComposed)
-}
-
-// renderMFAError maps the second-factor refusals like the school portal.
-func (rs *Resource) renderMFAError(w http.ResponseWriter, r *http.Request, err error) {
-	switch {
-	case rs.mfa.ChallengeUnusable(err):
-		common.RenderError(w, r, common.ErrorUnauthorizedWithCode(errMFACodeInvalid, common.CodeIdentityMfaCodeInvalid))
-	case rs.mfa.Blocked(err):
-		common.RenderError(w, r, common.ErrorTooManyRequestsWithCode(errMFABlocked, common.CodeIdentityMfaBlocked))
-	case rs.mfa.Unavailable(err):
-		common.RenderError(w, r, common.ErrorServiceUnavailableWithCode(errMFAUnavailable, common.CodeIdentityMfaStatusUnavailable))
-	default:
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-	}
 }

@@ -421,9 +421,10 @@ func TestRateLimiting_SameIdentitySharesBudget(t *testing.T) {
 	// 1 request/minute refill with burst 3: the refill contributes no tokens
 	// within the test's runtime, so exactly 3 requests per key pass.
 	limiter := customMiddleware.NewRateLimiter(1, 3)
-	limiter.SetKeyFunc(tokenAuth.RateLimitKey)
+	limiter.SetKeyFunc(sessiontoken.RateLimitKey)
 
 	router := chi.NewRouter()
+	router.Use(tokenAuth.Verifier())
 	router.Use(limiter.Middleware())
 	router.Get("/api/students", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -470,9 +471,10 @@ func TestRateLimiting_ConcurrentSessionsShareBudget(t *testing.T) {
 
 	const burst = 10
 	limiter := customMiddleware.NewRateLimiter(1, burst)
-	limiter.SetKeyFunc(tokenAuth.RateLimitKey)
+	limiter.SetKeyFunc(sessiontoken.RateLimitKey)
 
 	router := chi.NewRouter()
+	router.Use(tokenAuth.Verifier())
 	router.Use(limiter.Middleware())
 	router.Get("/api/students", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)

@@ -16,6 +16,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
@@ -655,11 +656,7 @@ func renderInvitationError(w http.ResponseWriter, r *http.Request, err error) bo
 		return false
 	}
 
-	var operation *identityaccess.AuthenticationError
-	if errors.As(err, &operation) && operation.Err != nil {
-		err = operation.Err
-	}
-
+	err = portalauth.Cause(err)
 	switch {
 	case errors.Is(err, identityaccess.ErrInvitationNotFound):
 		if render.Render(w, r, common.ErrorNotFoundWithCode(identityaccess.ErrInvitationNotFound, common.CodeIdentityInvitationNotFound)) != nil {

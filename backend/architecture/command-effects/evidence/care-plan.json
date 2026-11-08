@@ -10946,18 +10946,18 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/compose.tokenAdapter.Hash",
-      "binding_digest": "267bdf92d9bba99626ede101b6723875",
+      "binding_digest": "68f17813a1372f4df7dc0aecc62214e1",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/internal/ports.TokenCodec.Hash",
       "source_owner": "care-plan",
-      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.OpaqueCapabilityFingerprint",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives.OpaqueCapabilityFingerprint",
       "target_owner": "identity-access"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/compose.tokenAdapter.New",
-      "binding_digest": "b4eddd726c1410b66ce2b7e344c934c8",
+      "binding_digest": "683300b96fa1a5fc7fb4a21ecd5b3aee",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/internal/ports.TokenCodec.New",
       "source_owner": "care-plan",
-      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.NewOpaqueCapabilityToken",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives.NewOpaqueCapabilityToken",
       "target_owner": "identity-access"
     },
     {

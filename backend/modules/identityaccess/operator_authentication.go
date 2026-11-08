@@ -105,8 +105,8 @@ type OperatorAuthentication interface {
 	IssueTokensForAuthenticatedOperator(ctx context.Context, operatorID int64, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
 	// RefreshOperatorToken rotates the persisted refresh session and issues
 	// a new token pair; replays outside the recovery grace revoke the
-	// family.
-	RefreshOperatorToken(ctx context.Context, operatorID int64, refreshToken string) (accessToken, newRefreshToken string, err error)
+	// family. The recovery proof is the X-Refresh-Recovery-Proof header.
+	RefreshOperatorToken(ctx context.Context, refreshToken, recoveryProof string) (accessToken, newRefreshToken string, err error)
 	// LogoutOperator revokes the operator's refresh-token family the
 	// logged-in access token names; its access tokens end at once (#5194).
 	// Other families stay valid.
