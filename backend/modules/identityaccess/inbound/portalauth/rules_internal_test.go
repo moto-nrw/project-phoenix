@@ -128,10 +128,12 @@ func TestRefreshRefusalsEndTheSession(t *testing.T) {
 		identityaccess.ErrInvalidToken, identityaccess.ErrTokenExpired, identityaccess.ErrTokenNotFound,
 		identityaccess.ErrAccountNotFound, identityaccess.ErrAccountInactive, identityaccess.ErrTenantNotFound,
 		identityaccess.ErrTenantAccessDenied, identityaccess.ErrNoTraegerMembership, identityaccess.ErrMustUseSchoolPortal,
+		identityaccess.ErrParentMustUseParentPortal, identityaccess.ErrAccountNoSchoolPortalRole, identityaccess.ErrAccountNoGuardianRole,
+		identityaccess.ErrTraegerSchoolSwitchForbidden, identityaccess.ErrTraegerSchoolNotFound, identityaccess.ErrAccountNotCaterer,
 	} {
 		cases[err] = answer{http.StatusUnauthorized, "general.permission"}
 	}
-	assertAnswers(t, func(w http.ResponseWriter, r *http.Request, err error) { Render(w, r, err, RefreshRules) }, cases)
+	assertAnswers(t, func(w http.ResponseWriter, r *http.Request, err error) { Render(w, r, err, RenewalRules) }, cases)
 }
 
 func TestPasskeyLoginRefusalsShareOneCode(t *testing.T) {
@@ -156,7 +158,7 @@ func TestUnclassifiedErrorsAreServerErrors(t *testing.T) {
 		func(w http.ResponseWriter, r *http.Request, err error) { Render(w, r, err, ExchangeRules) },
 		func(w http.ResponseWriter, r *http.Request, err error) { Render(w, r, err, MFARules) },
 		func(w http.ResponseWriter, r *http.Request, err error) { Render(w, r, err, SwitchRules) },
-		func(w http.ResponseWriter, r *http.Request, err error) { Render(w, r, err, RefreshRules) },
+		func(w http.ResponseWriter, r *http.Request, err error) { Render(w, r, err, RenewalRules) },
 	} {
 		assert.Equal(t, answer{http.StatusInternalServerError, "general.server"}, rendered(t, err, table))
 	}

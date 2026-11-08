@@ -92,7 +92,7 @@ func setupSignatureTest(t *testing.T, tenantID int64) *signatureEnv {
 	})))
 	resource := enrollmentAPI.NewResource(
 		nil, nil, requests, nil, nil, decisions, nil, nil, nil,
-		nil, enrollmentAPI.GuardianInvitationRuntime{}, nil, nil,
+		nil, nil, nil,
 		nativeUploads.UploadFiles{}, enrollmentAPI.DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation})
 	resource.ListExportService = lists.NewRendererService()
 	return &signatureEnv{

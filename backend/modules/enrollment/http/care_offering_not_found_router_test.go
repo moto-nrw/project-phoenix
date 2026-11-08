@@ -29,7 +29,7 @@ func TestCareOfferingWritesOnAStaleIDAnswerNotFound(t *testing.T) {
 	catalog := enrollmentAPI.NewCareOfferingCatalog(api.NewEnrollmentCareOfferingValues(newCareOfferingCatalog(t, db).Catalog))
 	resource := enrollmentAPI.NewResource(
 		nil, catalog, nil, nil, nil, nil, nil, nil, nil,
-		nil, enrollmentAPI.GuardianInvitationRuntime{}, nil, nil,
+		nil, nil, nil,
 		nativeUploads.UploadFiles{}, enrollmentAPI.DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation})
 	router := testpkg.TenantRuntimeMiddleware(t, db)(resource.Router(api.TenantSessionChain))
 	_, admin := testpkg.CreateTestStaffWithAccount(t, db, "Olga", "Angebot")

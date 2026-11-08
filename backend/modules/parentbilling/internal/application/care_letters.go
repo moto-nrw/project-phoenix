@@ -155,13 +155,19 @@ func (l *CareLetters) CreateCareLetters(ctx context.Context, reviewer parentbill
 	if err != nil {
 		return parentbilling.CareLetters{}, err
 	}
+	// Each letter takes the template and the mandatory parts of the kind
+	// its invoice froze, not of the first invoice of the run (#4688): a
+	// Mensa invoice of its own and a fee notice share one run.
+	contents, err := careLetterContents(ctx, l.letterheads, reviewer.OrganizationID, head, current.run, invoices, input)
+	if err != nil {
+		return parentbilling.CareLetters{}, err
+	}
 	set, err := l.store.InsertCareRunLetters(ctx, reviewer.OrganizationID, current.run.ID, reviewer.AccountID, input)
 	if err != nil {
 		return parentbilling.CareLetters{}, err
 	}
 	current.letters = &set
-	for _, invoice := range invoices {
-		content := careLetterContent{run: current.run, invoice: invoice, input: input, letterhead: head}
+	for _, content := range contents {
 		if err := l.storeLetter(ctx, reviewer, &current, content); err != nil {
 			return parentbilling.CareLetters{}, err
 		}
@@ -192,7 +198,11 @@ func (l *CareLetters) PreviewCareLetter(ctx context.Context, reviewer parentbill
 	if err != nil {
 		return parentbilling.BillingLetterFile{}, err
 	}
-	file, err := l.render(careLetterContent{run: current.run, invoice: invoices[0], input: input, letterhead: head})
+	contents, err := careLetterContents(ctx, l.letterheads, reviewer.OrganizationID, head, current.run, invoices[:1], input)
+	if err != nil {
+		return parentbilling.BillingLetterFile{}, err
+	}
+	file, err := l.render(contents[0])
 	if err != nil {
 		return parentbilling.BillingLetterFile{}, err
 	}
@@ -329,6 +339,9 @@ func (l *CareLetters) cancellationLetter(ctx context.Context, reviewer parentbil
 	if err != nil {
 		return sent, printed, err
 	}
+	if head, err = withNoticeTemplate(ctx, l.letterheads, reviewer.OrganizationID, head, invoice.DocumentKind, false); err != nil {
+		return sent, printed, err
+	}
 	content := careLetterContent{run: current.run, invoice: invoice, cancellation: &cancellation,
 		input: parentbilling.CareLetterInput{PaymentDueOn: current.letters.PaymentDueOn, Notes: current.letters.Notes}, letterhead: head}
 	return sent, printed, l.storeLetter(ctx, reviewer, current, content)
@@ -377,15 +390,58 @@ func (l *CareLetters) storeLetter(ctx context.Context, reviewer parentbilling.Ho
 }
 
 func (l *CareLetters) render(content careLetterContent) (parentbilling.BillingLetterFile, error) {
-	letter, filename := careInvoiceLetter(content), "rechnung-"+content.invoice.Number
-	if content.cancellation != nil {
+	notice := content.invoice.DocumentKind == parentbilling.DocumentKindFeeNotice
+	var letter Letter
+	var filename string
+	switch {
+	case content.cancellation != nil && notice:
+		letter, filename = careNoticeCancellationLetter(content), "aufhebungsbescheid-"+content.cancellation.Number
+	case content.cancellation != nil:
 		letter, filename = careCancellationLetter(content), "storno-"+content.cancellation.Number
+	case notice:
+		letter, filename = careNoticeLetter(content), "gebuehrenbescheid-"+content.invoice.Number
+	default:
+		letter, filename = careInvoiceLetter(content), "rechnung-"+content.invoice.Number
 	}
 	file, err := l.renderer.RenderLetter(letter, filename)
 	if err != nil {
 		return parentbilling.BillingLetterFile{}, fmt.Errorf("parent billing: render care letter: %w", err)
 	}
 	return file, nil
+}
+
+// withNoticeTemplate loads the Träger's fee-notice template only for a
+// fee notice (#4688). Other document kinds keep the existing letterhead.
+func withNoticeTemplate(ctx context.Context, templates parentbilling.BillingDocumentTemplates, organizationID int64,
+	head parentbilling.Letterhead, documentKind string, required bool,
+) (parentbilling.Letterhead, error) {
+	if documentKind != parentbilling.DocumentKindFeeNotice {
+		return head, nil
+	}
+	return withDocumentTemplate(ctx, templates, organizationID, head, documentKind, required)
+}
+
+// careLetterContents builds the letter of every invoice with the letterhead
+// of its own frozen kind of document (#4688): a fee notice takes the
+// template of the fee notice and needs its legal remedy, any other invoice
+// keeps the letterhead. The template is read once per kind.
+func careLetterContents(ctx context.Context, templates parentbilling.BillingDocumentTemplates, organizationID int64,
+	head parentbilling.Letterhead, run parentbilling.CareRun, invoices []parentbilling.CareInvoice, input parentbilling.CareLetterInput,
+) ([]careLetterContent, error) {
+	heads := map[string]parentbilling.Letterhead{}
+	contents := make([]careLetterContent, 0, len(invoices))
+	for _, invoice := range invoices {
+		own, ok := heads[invoice.DocumentKind]
+		if !ok {
+			var err error
+			if own, err = withNoticeTemplate(ctx, templates, organizationID, head, invoice.DocumentKind, true); err != nil {
+				return nil, err
+			}
+			heads[invoice.DocumentKind] = own
+		}
+		contents = append(contents, careLetterContent{run: run, invoice: invoice, input: input, letterhead: own})
+	}
+	return contents, nil
 }
 
 // letterhead reads the layout of the Träger; a letter asks for payment, so

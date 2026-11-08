@@ -24,11 +24,6 @@ import (
 // school (ADR 0077).
 var CatererScopeMiddleware = sessiontoken.PortalGate(tenant.ClaimScope{}, tokenprimitives.CatererClaims)
 
-// CatererSessionChain authenticates the routes of a caterer session.
-func CatererSessionChain(r chi.Router) {
-	r.Use(sessiontoken.Authenticator, ReadOnlyPreviewMiddleware, CatererScopeMiddleware, SecurityPrincipalMiddleware)
-}
-
 // catererIdentity is what the caterer portal needs of Identity & Access: the
 // caterer flows and the password reset.
 type catererIdentity interface {

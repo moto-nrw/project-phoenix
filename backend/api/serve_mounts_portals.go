@@ -182,7 +182,7 @@ func newParentResource(
 ) *parentAPI.Resource {
 	return parentAPI.NewResource(parentAPI.ResourceConfig{
 		Auth:        parentPortalLogin(identity),
-		Resets:      parentAPI.PasswordResetRuntime(portalauth.PasswordResetRoutes(identity, identityaccess.PasswordResetScopeParent)),
+		Resets:      portalauth.PasswordResetRoutes(identity, identityaccess.PasswordResetScopeParent),
 		Parent:      parent,
 		Calendar:    calendarApp,
 		Conferences: calendarApp,
@@ -204,17 +204,11 @@ func newParentResource(
 
 func newPlatformRuntime() platformAnnouncementsHTTP.Runtime {
 	return platformAnnouncementsHTTP.Runtime{
-		// TenantScopeMiddleware supplies the scope guard: parent- and school-scope
-		// tokens are rejected with 401 (#2207) — before it, this group was the
-		// only /api mount without a scope check, so a portal-bound token could
-		// read tenant announcements here. Tenant, org, and platform tokens pass
-		// unchanged.
+		// Tenant routes: parent-, school- and org-scope tokens are refused
+		// with 401 (#2207).
 		Protected: func(router chi.Router, register func(chi.Router)) {
 			router.Group(func(r chi.Router) {
-				r.Use(sessiontoken.Authenticator)
-				r.Use(ReadOnlyPreviewMiddleware)
-				r.Use(TenantScopeMiddleware)
-				r.Use(SecurityPrincipalMiddleware)
+				TenantSessionChain(r)
 				register(r)
 			})
 		},

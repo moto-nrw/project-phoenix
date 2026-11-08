@@ -20,7 +20,6 @@ import (
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	groupLiveHTTP "github.com/moto-nrw/project-phoenix/modules/grouplive/http"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -304,7 +303,7 @@ func mountStudentRoutes(
 func newEnrollmentResource(
 	logger *slog.Logger, settings settingsCompose.SettingsService, turnstile TurnstileKeys, careOfferings carePlanModule.CareOfferingCapability,
 	flows owners.EnrollmentFlows, phases enrollmentOwner.PhaseAdministration, decisions enrollmentOwner.Decisions,
-	deletions enrollmentOwner.EnrollmentDeletions, identity identityaccess.Owner,
+	deletions enrollmentOwner.EnrollmentDeletions,
 	guardianProfiles *peopleCompose.GuardianProfileLoader, organizations organizationtenancy.Query,
 	renderer *lists.RendererService, persons peopledirectory.Capability, carePlan carePlanModule.Capability,
 ) *enrollmentAPI.Resource {
@@ -319,7 +318,6 @@ func newEnrollmentResource(
 		enrollmentAPI.NewRolloverService(flows.Rollovers),
 		enrollmentAPI.NewChangeRequestService(flows.ChangeRequests),
 		deletions,
-		enrollmentGuardianInvitations(identity),
 		NewEnrollmentGuardianAutofill(guardianProfiles),
 		enrollmentSchoolDirectory{schools: organizations},
 		nativeUploads.UploadFiles{},

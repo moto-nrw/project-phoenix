@@ -348,16 +348,16 @@ func textOf(value *string) string {
 // with or why it is not (#4695). Every column is NULL on an invoice issued
 // before; the mandate columns are NULL on any other payment.
 type paymentSnapshot struct {
-	PaymentMethod    *string        `bun:"payment_method"`
-	DueOn            *calendar.Date `bun:"due_on,type:date"`
-	DueSource        *string        `bun:"due_source"`
-	MandateID        *int64         `bun:"mandate_id"`
-	MandateReference *string        `bun:"mandate_reference"`
-	MandateSignedOn  *calendar.Date `bun:"mandate_signed_on,type:date"`
-	CreditorID       *string        `bun:"creditor_id"`
-	DebtorIBANMasked *string        `bun:"debtor_iban_masked"`
-	SequenceType     *string        `bun:"sequence_type"`
-	DebitGap         *string        `bun:"debit_gap"`
+	PaymentMethod    *string
+	DueOn            *calendar.Date
+	DueSource        *string
+	MandateID        *int64
+	MandateReference *string
+	MandateSignedOn  *calendar.Date
+	CreditorID       *string
+	DebtorIBANMasked *string
+	SequenceType     *string
+	DebitGap         *string
 }
 
 // snapshotOf is the copy of a payment, all NULL without one.

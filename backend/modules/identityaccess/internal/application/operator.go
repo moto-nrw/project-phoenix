@@ -277,12 +277,22 @@ func (s *Service) FindOperatorSessionForUpdate(ctx context.Context, token string
 	return ports.OperatorSession(session), nil
 }
 
-func (s *Service) findOperatorSessionForUpdate(ctx context.Context, token string) (result domain.OperatorSession, err error) {
-	err = s.run(ctx, func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) }, "find_operator_session_for_update", func(txCtx context.Context, stats *domain.OperationStats) error {
+func (s *Service) findOperatorSessionForUpdate(ctx context.Context, token string) (domain.OperatorSession, error) {
+	return s.findOperatorSession(ctx, "find_operator_session_for_update", token, true)
+}
+
+// findOperatorSessionByToken reads the operator session without a row lock,
+// for a check that writes nothing.
+func (s *Service) findOperatorSessionByToken(ctx context.Context, token string) (domain.OperatorSession, error) {
+	return s.findOperatorSession(ctx, "find_operator_session", token, false)
+}
+
+func (s *Service) findOperatorSession(ctx context.Context, operation, token string, forUpdate bool) (result domain.OperatorSession, err error) {
+	err = s.run(ctx, func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) }, operation, func(txCtx context.Context, stats *domain.OperationStats) error {
 		if token == "" {
 			return identityaccess.ErrOperatorSessionNotFound
 		}
-		session, found, queryStats, findErr := s.operators.FindOperatorSessionByToken(txCtx, token, true)
+		session, found, queryStats, findErr := s.operators.FindOperatorSessionByToken(txCtx, token, forUpdate)
 		stats.Add(queryStats)
 		if findErr != nil {
 			return findErr

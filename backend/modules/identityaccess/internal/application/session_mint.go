@@ -130,7 +130,13 @@ type mintRequest struct {
 	tenantID int64
 	orgID    int64
 	proof    mintProof
-	eligible eligibility
+	// op names the sign-in in refusals; booked and recheckMFAGate are the
+	// reads of a parent and a school sign-in the portal's guard takes over.
+	op             string
+	booked         []int64
+	recheckMFAGate bool
+	// precondition runs under the account lock before the guard.
+	precondition func(ctx context.Context, account domain.LoginAccount) error
 	// sourceFamilyID is the family a switch or an Absprung starts from;
 	// retireFamilyID the one it replaces (#2952). An Absprung leaves its
 	// Träger family live.
@@ -254,7 +260,17 @@ func (s *AccountAuthentication) authorizeMint(ctx context.Context, req mintReque
 	if err := s.recheckProof(ctx, req, account); err != nil {
 		return nil, time.Time{}, refused(err)
 	}
-	claims, err := s.eligibleClaims(ctx, req.eligible, account)
+	if req.precondition != nil {
+		if err := req.precondition(ctx, account); err != nil {
+			return nil, time.Time{}, refused(err)
+		}
+	}
+	policy, ok := sessionPolicies[domain.SessionKindOf(req.portal, req.orgID > 0)]
+	if !ok {
+		return nil, time.Time{}, refused(failed("mint session", identityaccess.ErrInvalidToken))
+	}
+	guard := policy.guard(s, sessionBinding{op: req.op, accountID: account.ID, tenantID: req.tenantID, orgID: req.orgID, booked: req.booked, recheckMFAGate: req.recheckMFAGate})
+	claims, err := s.eligibleClaims(ctx, guard, account)
 	if err != nil {
 		return nil, time.Time{}, refused(err)
 	}
@@ -270,7 +286,7 @@ func (s *AccountAuthentication) authorizeMint(ctx context.Context, req mintReque
 	if err := s.adoptSourceFamily(ctx, account.ID, req.sourceFamilyID, session, loginTime); err != nil {
 		return nil, time.Time{}, refused(err)
 	}
-	if err := s.requireMintFloor(ctx, account.ID, req.tenantID, *session); err != nil {
+	if err := s.requireSessionFloor(ctx, account.ID, req.tenantID, *session, factReads{locked: true}); err != nil {
 		return nil, time.Time{}, refused(err)
 	}
 	return claims, loginTime, nil
@@ -347,8 +363,9 @@ func (s *AccountAuthentication) recheckProof(ctx context.Context, req mintReques
 
 func (s *AccountAuthentication) recheckTrustedDevice(ctx context.Context, req mintRequest, accountID int64) error {
 	deviceSchoolID := req.tenantID
-	if req.portal.MFA == domain.MFAAccountChoice {
-		// The caterer's device names no school, nor does its ledger.
+	if req.portal.Schoolless() {
+		// A device of a portal without a school names none, nor does its
+		// ledger.
 		ctx, deviceSchoolID = withoutSchoolLedgerContext(ctx), 0
 	}
 	enrolled, err := s.mfa.HasEnrollment(ctx, accountID)
@@ -376,10 +393,10 @@ func (s *AccountAuthentication) stampLiveAccount(ctx context.Context, accountID 
 	return loginTime, nil
 }
 
-// requireMintFloor is the MFA floor every mint and refresh applies to the
-// session it is about to persist.
-func (s *AccountAuthentication) requireMintFloor(ctx context.Context, accountID, tenantID int64, session domain.AccountSession) error {
-	if err := s.requireSessionMFA(ctx, accountID, tenantID, session.PortalScope, session.MFAVerified); err != nil {
+// requireSessionFloor is the MFA floor every mint and refresh applies to the
+// session it is about to persist, and a validation to the session it reads.
+func (s *AccountAuthentication) requireSessionFloor(ctx context.Context, accountID, tenantID int64, session domain.AccountSession, r factReads) error {
+	if err := s.requireSessionMFA(ctx, accountID, tenantID, session.PortalScope, session.MFAVerified, r); err != nil {
 		return err
 	}
 	return s.requireTraegerSchoolMFA(session)

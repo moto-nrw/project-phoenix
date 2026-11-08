@@ -89,23 +89,9 @@ func seedSEPAMandates(client *Client, auth AuthRef, invoices []struct {
 	}); err != nil {
 		return fmt.Errorf("keep the SEPA creditor: %w", err)
 	}
-	// Every monthly run seeds its families again: a family that has a
-	// mandate already, or one of its siblings, keeps it.
-	raw, err := client.GetWithAuth(auth, "/traeger/sepa-mandates/")
+	seeded, err := seededMandateFamilies(client, auth)
 	if err != nil {
-		return fmt.Errorf("read the SEPA mandates: %w", err)
-	}
-	var existing struct {
-		Data []struct {
-			FamilyEmail string `json:"family_email"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(raw, &existing); err != nil {
-		return fmt.Errorf("read the SEPA mandates: %w", err)
-	}
-	seeded := map[string]bool{}
-	for _, mandate := range existing.Data {
-		seeded[mandate.FamilyEmail] = true
+		return err
 	}
 	for i, invoice := range invoices {
 		if i == 0 || i == 2 || seeded[invoice.FamilyEmail] {
@@ -121,26 +107,57 @@ func seedSEPAMandates(client *Client, auth AuthRef, invoices []struct {
 		if err != nil {
 			return fmt.Errorf("keep the SEPA mandate of a family: %w", err)
 		}
-		if i != 1 {
-			continue
+		if i == 1 {
+			if err := seedReplacedMandate(client, auth, raw, mandate, invoice.ContractID); err != nil {
+				return err
+			}
 		}
-		var created struct {
-			Data struct {
-				ID int64 `json:"id"`
-			} `json:"data"`
-		}
-		if err := json.Unmarshal(raw, &created); err != nil {
-			return fmt.Errorf("read the SEPA mandate: %w", err)
-		}
-		if _, err := client.PostWithAuth(auth, fmt.Sprintf("/traeger/sepa-mandates/%d/revoke", created.Data.ID),
-			map[string]any{"revoked_on": "2026-10-01"}); err != nil {
-			return fmt.Errorf("revoke the SEPA mandate of a family: %w", err)
-		}
-		mandate["reference"], mandate["signed_on"], mandate["sequence"] = fmt.Sprintf("SJR-2026-%04d-2", invoice.ContractID), "2026-10-02", "first"
-		mandate["iban"] = demoIBAN(9100 + i)
-		if _, err := client.PostWithAuth(auth, "/traeger/sepa-mandates/", mandate); err != nil {
-			return fmt.Errorf("keep the new SEPA mandate of a family: %w", err)
-		}
+	}
+	return nil
+}
+
+// seededMandateFamilies names the families with a mandate already. Every
+// monthly run seeds its families again: a family that has a mandate, or one
+// of its siblings, keeps it.
+func seededMandateFamilies(client *Client, auth AuthRef) (map[string]bool, error) {
+	raw, err := client.GetWithAuth(auth, "/traeger/sepa-mandates/")
+	if err != nil {
+		return nil, fmt.Errorf("read the SEPA mandates: %w", err)
+	}
+	var existing struct {
+		Data []struct {
+			FamilyEmail string `json:"family_email"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &existing); err != nil {
+		return nil, fmt.Errorf("read the SEPA mandates: %w", err)
+	}
+	seeded := map[string]bool{}
+	for _, mandate := range existing.Data {
+		seeded[mandate.FamilyEmail] = true
+	}
+	return seeded, nil
+}
+
+// seedReplacedMandate revokes the mandate just created and gives the family a
+// new one with another account, so the demo shows a mandate's history.
+func seedReplacedMandate(client *Client, auth AuthRef, raw []byte, mandate map[string]any, contractID int64) error {
+	var created struct {
+		Data struct {
+			ID int64 `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &created); err != nil {
+		return fmt.Errorf("read the SEPA mandate: %w", err)
+	}
+	if _, err := client.PostWithAuth(auth, fmt.Sprintf("/traeger/sepa-mandates/%d/revoke", created.Data.ID),
+		map[string]any{"revoked_on": "2026-10-01"}); err != nil {
+		return fmt.Errorf("revoke the SEPA mandate of a family: %w", err)
+	}
+	mandate["reference"], mandate["signed_on"], mandate["sequence"] = fmt.Sprintf("SJR-2026-%04d-2", contractID), "2026-10-02", "first"
+	mandate["iban"] = demoIBAN(9101)
+	if _, err := client.PostWithAuth(auth, "/traeger/sepa-mandates/", mandate); err != nil {
+		return fmt.Errorf("keep the new SEPA mandate of a family: %w", err)
 	}
 	return nil
 }

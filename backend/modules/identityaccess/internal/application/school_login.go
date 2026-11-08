@@ -64,8 +64,7 @@ func (s *AccountAuthentication) IssueSchoolTokensForVerifiedMFA(ctx context.Cont
 	}
 	minted, err := s.mintAccountSession(ctx, mintRequest{
 		portal: domain.PortalSchool, account: account, tenantID: proof.TenantID, proof: challengeProof(&proof),
-		eligible: s.schoolEligibility(proof.TenantID, false),
-		audit:    &mintAudit{event: domain.AuthEventLogin, ipAddress: ipAddress, userAgent: userAgent, schoolID: proof.TenantID},
+		audit: &mintAudit{event: domain.AuthEventLogin, ipAddress: ipAddress, userAgent: userAgent, schoolID: proof.TenantID},
 	})
 	if err != nil {
 		return "", "", wrapSchoolMintError(op, err)
@@ -119,7 +118,6 @@ func (s *AccountAuthentication) SwitchSchool(ctx context.Context, accountID int6
 	}
 	minted, err := s.mintAccountSession(ctx, mintRequest{
 		portal: domain.PortalSchool, account: account, tenantID: targetTenantID,
-		eligible:       s.schoolEligibility(targetTenantID, false),
 		sourceFamilyID: sourceFamilyID, retireFamilyID: sourceFamilyID,
 		audit: &mintAudit{event: domain.AuthEventTenantSwitch, ipAddress: ipAddress, userAgent: userAgent, schoolID: targetTenantID},
 	})
@@ -151,33 +149,6 @@ func (s *AccountAuthentication) loadActiveAccountForSchoolMint(ctx context.Conte
 // never leaves the flow: the school login answers with the challenge or
 // enrollment token the login would have returned.
 var errSchoolMFARequiredAtMint = errors.New("mfa became required before the school token was minted")
-
-// checkSchoolMintPreconditions checks the school, the mapping and the
-// school-portal role under their locks, after the account row.
-func (s *AccountAuthentication) checkSchoolMintPreconditions(ctx context.Context, accountID, tenantID int64) error {
-	school, found, err := s.schools.LockSchoolShared(ctx, tenantID)
-	if err != nil {
-		return fmt.Errorf("re-check school %d at school token mint: %w", tenantID, err)
-	}
-	if !found || !school.Live() {
-		return identityaccess.ErrTenantNotFound
-	}
-	activeMapping, _, err := s.store.LockActiveTenantMappingShared(ctx, accountID, tenantID)
-	if err != nil {
-		return fmt.Errorf("re-check membership of account %d at school %d: %w", accountID, tenantID, err)
-	}
-	if !activeMapping {
-		return identityaccess.ErrTenantAccessDenied
-	}
-	roles, _, err := s.store.ListAccountRolesAtTenant(ctx, accountID, tenantID, true)
-	if err != nil {
-		return fmt.Errorf("re-check school portal role of account %d at school %d: %w", accountID, tenantID, err)
-	}
-	if !domain.HasSchoolPortalRole(roles) {
-		return identityaccess.ErrAccountNoSchoolPortalRole
-	}
-	return nil
-}
 
 // wrapSchoolMintError gives a guard sentinel the operation envelope every
 // school handler switches on, leaving errors that already carry one alone.

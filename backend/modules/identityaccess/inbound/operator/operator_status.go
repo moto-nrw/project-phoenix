@@ -54,7 +54,7 @@ func operatorListItem(operator identityaccess.Operator) *OperatorListItem {
 func operatorStatusErrorRenderer(err error) render.Renderer {
 	switch {
 	case errors.Is(err, identityaccess.ErrOperatorNotFound):
-		return common.OperatorRejection(http.StatusNotFound, common.CodeIdentityAccountNotFound, "identityaccess.Operator not found")
+		return common.OperatorRejection(http.StatusNotFound, common.CodeIdentityAccountNotFound, "Operator not found")
 	case errors.Is(err, identityaccess.ErrOperatorSelfDeactivation):
 		return common.OperatorRejection(http.StatusConflict, common.CodeIdentityOperatorSelfDeactivation, "an operator cannot deactivate their own account")
 	default:

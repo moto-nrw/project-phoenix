@@ -89,6 +89,22 @@
       "target_owner": "enrollment"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterheads.DocumentTemplate",
+      "binding_digest": "3d111ef7edfc9f33782e697cf606935f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingDocumentTemplates.DocumentTemplate",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentTemplates.Current",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterheads.DocumentTemplate",
+      "binding_digest": "3d111ef7edfc9f33782e697cf606935f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingDocumentTemplates.DocumentTemplate",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentTemplates.Current",
+      "target_owner": "organization-tenancy"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterPost.EnqueueDocumentNotice",
       "binding_digest": "fce3c2bd93f102b8b317ba2ce785e6d4",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterPost.EnqueueDocumentNotice",
@@ -135,6 +151,14 @@
       "source_owner": "parent-billing",
       "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
       "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterheads.DocumentTemplate",
+      "binding_digest": "3d111ef7edfc9f33782e697cf606935f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterheads.DocumentTemplate",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentTemplates.Current",
+      "target_owner": "organization-tenancy"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterheads.Letterhead",

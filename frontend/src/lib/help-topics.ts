@@ -238,6 +238,7 @@ export const HELP_TOPICS = {
   traegerSettings: "traeger-einstellungen",
   traegerBriefkopf: "briefkopf-des-traegers",
   traegerDocumentTemplates: "vorlagen-des-traegers",
+  traegerDocumentKinds: "rechnung-oder-gebuehrenbescheid",
   traegerCareContracts: "betreuungsvertraege-senden",
   traegerCareTimeOverruns: "laenger-als-gebucht",
   traegerSharedDocuments: "dokumente-fuer-eltern-und-schulen-freigeben",

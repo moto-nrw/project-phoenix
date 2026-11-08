@@ -11,12 +11,13 @@ import (
 )
 
 // requireSessionMFA runs under the policy/account lock at every persistence
-// boundary, including refresh hand-off recovery. Legacy sessions have no proof.
+// boundary, including refresh hand-off recovery, and without locks at a
+// session validation (r). Legacy sessions have no proof.
 // A Träger session minted before the duty or one whose proof an MFA reset
-// revoked is refused at mint and at refresh. A caterer session needs its
-// proof once the caterer switched its second factor on (#4497): a session
-// minted before that ends at its next refresh.
-func (s *AccountAuthentication) requireSessionMFA(ctx context.Context, accountID, tenantID int64, scope string, verified bool) error {
+// revoked is refused at mint, refresh and validation. A caterer session
+// needs its proof once the caterer switched its second factor on (#4497): a
+// session minted before that ends at its next refresh or validation.
+func (s *AccountAuthentication) requireSessionMFA(ctx context.Context, accountID, tenantID int64, scope string, verified bool, r factReads) error {
 	if !s.mfa.Configured() {
 		return nil
 	}
@@ -32,7 +33,7 @@ func (s *AccountAuthentication) requireSessionMFA(ctx context.Context, accountID
 	default:
 		return nil
 	}
-	if _, err := s.store.LockAccountPermissionSources(ctx, accountID, tenantID); err != nil {
+	if err := r.permissionSources(ctx, s, accountID, tenantID); err != nil {
 		return identityaccess.ErrMFAStatusUnavailable
 	}
 	permissions, err := s.loadAccountPermissionsForTenant(ctx, accountID, tenantID)
@@ -111,10 +112,10 @@ func (s *AccountAuthentication) adoptSourceFamily(ctx context.Context, accountID
 	}
 	// The Absprung's proof re-check already checked the Träger proof under this lock;
 	// it must not be replaced by a same-school-portal proof lookup.
-	if domain.IsTraegerSchoolSession(*session) && source.PortalScope == domain.PortalOrg.Name {
+	if session.SessionKind() == domain.SessionKindTraegerSchool && source.SessionKind() == domain.SessionKind(domain.PortalOrg.Name) {
 		return nil
 	}
-	if session.PortalScope != domain.PortalTenant.Name && session.PortalScope != domain.PortalSchool.Name {
+	if portal, ok := domain.PortalOfPersisted(session.PortalScope); !ok || portal.MFA != domain.MFASchoolPolicy {
 		return nil
 	}
 	verified, err := s.switchMFAProof(ctx, accountID, familyID, session.PortalScope)

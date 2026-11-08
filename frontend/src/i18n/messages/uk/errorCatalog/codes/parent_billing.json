@@ -59,6 +59,8 @@
   "care_evidence_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "care_evidence_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "care_evidence_overlap": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "document_kind_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "legal_remedy_missing": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "care_cost_share_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "care_cost_share_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "care_cost_share_overlap": "Не вдалося змінити: {object}. Перевірте поточний стан.",

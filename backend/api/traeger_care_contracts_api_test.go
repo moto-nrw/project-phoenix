@@ -576,6 +576,12 @@ func TestCareContractBouncedAfterAcceptanceShowsAsFailedAndTakesACorrection(t *t
 func TestCareContractMailFollowsTheCurrentStateOfTheAddress(t *testing.T) {
 	t.Parallel()
 	f := newCareContractFixture(t, "Träger Vertrag Zustellung")
+	// The provider's record is shared by the tests of this binary: the block this
+	// test sets must not reach the fixture's address of the other tests.
+	_, err := f.db.ExecContext(context.Background(), `UPDATE enrollment.requests SET guardian_email = ?
+		WHERE id = (SELECT request_id FROM enrollment.request_children WHERE id = ?)`,
+		fmt.Sprintf("zustellung-%d@example.org", testpkg.UniqueTestTenantID(t)), f.child)
+	require.NoError(t, err)
 	token := f.office.token
 	require.Equal(t, http.StatusOK, traegerJSON(t, f.traeger, token, http.MethodPut, templatePath(f.school, f.offering), careContractTemplate).Code)
 	rec := traegerJSON(t, f.traeger, token, http.MethodPost, "/traeger/contracts", map[string]any{"contracts": []any{f.key()}})

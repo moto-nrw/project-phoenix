@@ -61,7 +61,6 @@ func (s *AccountAuthentication) StartTraegerSchoolSession(ctx context.Context, r
 	minted, err := s.mintAccountSession(ctx, mintRequest{
 		portal: domain.PortalTenant, account: account, tenantID: request.SchoolID, orgID: request.OrganizationID,
 		proof:              mintProof{kind: proofTraegerSession, traegerFamilyID: request.TraegerFamilyID, traegerVerified: proof},
-		eligible:           s.traegerSchoolEligibility(request.OrganizationID, request.SchoolID),
 		sourceFamilyID:     request.TraegerFamilyID,
 		lifetime:           domain.TraegerSchoolHandoffTTL,
 		traegerSchoolAudit: &mintAudit{ipAddress: request.IPAddress, userAgent: request.UserAgent, schoolID: request.SchoolID},
@@ -147,7 +146,7 @@ func (s *AccountAuthentication) traegerSessionMFAProof(ctx context.Context, acco
 // portal requires the second factor of every member (ADR 0084 section 3).
 // Other sessions pass.
 func (s *AccountAuthentication) requireTraegerSchoolMFA(session domain.AccountSession) error {
-	if !domain.IsTraegerSchoolSession(session) || !s.mfa.Configured() || session.MFAVerified {
+	if session.SessionKind() != domain.SessionKindTraegerSchool || !s.mfa.Configured() || session.MFAVerified {
 		return nil
 	}
 	return identityaccess.ErrInvalidToken
@@ -168,7 +167,7 @@ func (s *AccountAuthentication) traegerSchoolFamily(ctx context.Context, account
 			}
 			return err
 		}
-		if source.AccountID == accountID && domain.IsTraegerSchoolSession(domain.AccountSession(source)) {
+		if source.AccountID == accountID && domain.AccountSession(source).SessionKind() == domain.SessionKindTraegerSchool {
 			organizationID = source.OrganizationID
 		}
 		return nil
@@ -209,7 +208,6 @@ func (s *AccountAuthentication) traegerSwitchTarget(ctx context.Context, account
 func (s *AccountAuthentication) switchTraegerSchool(ctx context.Context, account domain.LoginAccount, school domain.School, presentedFamilyID, ipAddress, userAgent string) (string, string, error) {
 	minted, err := s.mintAccountSession(ctx, mintRequest{
 		portal: domain.PortalTenant, account: account, tenantID: school.ID, orgID: school.OrganizationID,
-		eligible:       s.traegerSchoolEligibility(school.OrganizationID, school.ID),
 		sourceFamilyID: presentedFamilyID, retireFamilyID: presentedFamilyID,
 		traegerSchoolAudit: &mintAudit{ipAddress: ipAddress, userAgent: userAgent, schoolID: school.ID},
 	})

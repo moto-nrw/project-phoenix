@@ -238,7 +238,9 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0168: the Mensa-Monatsfreigabe of modules/mealplan/compose (+31) and
 // the Mensa of the monthly run of modules/parentbilling/compose (+7) add
 // exactly 38 LOC.
-const moduleComposeBudgetTotal = 13125
+// ADR 0171: the constructor of the SEPA mandates of
+// modules/parentbilling/compose adds exactly 5 LOC.
+const moduleComposeBudgetTotal = 13130
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -315,8 +317,9 @@ var moduleComposeBudgets = map[string]int{
 	// Raised by ADR 0158: the monthly contribution constructor (+5);
 	// ADR 0165: the constructor of the monthly letters (+7);
 	// ADR 0167: the constructor of the payment terms (+5);
-	// ADR 0168: the Mensa of the monthly run (+7).
-	"modules/parentbilling/compose":               74,
+	// ADR 0168: the Mensa of the monthly run (+7);
+	// ADR 0171: the constructor of the SEPA mandates (+5).
+	"modules/parentbilling/compose":               79,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	"modules/peopledirectory/compose":    973,

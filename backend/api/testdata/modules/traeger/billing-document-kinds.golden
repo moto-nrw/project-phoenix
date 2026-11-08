@@ -1,0 +1,2 @@
+GET /traeger/billing-document-kinds/ -> basis
+PUT /traeger/billing-document-kinds/{service} -> basis

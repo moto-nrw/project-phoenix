@@ -69,26 +69,18 @@ type DecideInput struct {
 	SuppressGuardianInvitation bool
 }
 
-// DecideOutcome is what the admin handler gets back from Decide. It
-// carries the refreshed child plus an optional follow-up instruction asking
-// the handler to issue a guardian invitation post-commit (after the tenant
-// tx the handler owns completes).
-//
-// We surface the invitation as a side-effect rather than firing it from
-// inside the service so:
-//   - the invitation flow's own DB writes happen only if the approval
-//     tx committed cleanly
-//   - the handler can apply best-effort error handling without rolling
-//     back the approval
+// DecideOutcome is what Decide returns: the refreshed child plus the
+// guardian invitation the approval owes, if any. Decide leaves creating it
+// to its caller within the same transaction; DecideAndInvite creates it and
+// returns no pending invitation.
 type DecideOutcome struct {
 	Child         *RequestChild
 	PendingInvite *PendingGuardianInvite
 }
 
-// PendingGuardianInvite is the post-commit hook for fresh approvals
-// where the guardian doesn't yet have a portal account. The handler is
-// expected to create the guardian invitation with these values once the
-// tenant tx commits.
+// PendingGuardianInvite is the invitation a fresh approval owes a guardian
+// without a portal account. It must be created in the approval's
+// transaction, so the two commit or roll back together.
 type PendingGuardianInvite struct {
 	GuardianProfileID int64
 	CreatedBy         int64 // admin auth account id (for audit)
@@ -266,6 +258,15 @@ type RestoreOutcome struct {
 	WaitlistedChildIDs []int64
 }
 
+// DecisionCommand applies one child's decision and creates the guardian
+// invitation an approval owes in the same transaction, so a failed invitation
+// or mail rolls the decision back (#6093). It joins the caller's transaction,
+// or opens its own and replays it once after a transient database failure
+// before the decision body ran. The outcome carries no pending invitation.
+type DecisionCommand interface {
+	DecideAndInvite(ctx context.Context, input DecideInput) (*DecideOutcome, error)
+}
+
 // Decisions backs the admin review: the request list and detail, the per-child
 // decision with the downstream record creation of an approval, the restore of
 // a withdrawn request, the booking correction and the audited exports. Every
@@ -274,6 +275,9 @@ type RestoreOutcome struct {
 type Decisions interface {
 	// RequestReads is the per-account read state of the queue (#3778).
 	RequestReads
+	// DecisionCommand is the decision of the admin routes and the manual
+	// approval, with the guardian invitation it owes (#6093).
+	DecisionCommand
 	// DecisionRequests lists the requests of the admin queue.
 	DecisionRequests(ctx context.Context, filters DecisionRequestFilters) ([]*DecisionSummary, error)
 	// StudentDecisionRequests lists the requests whose children created the

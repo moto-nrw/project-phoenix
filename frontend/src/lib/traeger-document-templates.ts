@@ -78,6 +78,16 @@ export interface DocumentTemplateText {
   readonly body: string;
   readonly closing: string;
   readonly invoice?: DocumentTemplateInvoiceLayout;
+  /**
+   * Die Rechtsbehelfsbelehrung des Bescheids (#4688); fehlt, solange sie leer
+   * ist. Ohne sie gibt moto keinen Gebührenbescheid frei.
+   */
+  readonly legalRemedy?: string;
+}
+
+/** Nur der Bescheid hat eine Rechtsbehelfsbelehrung (#4688). */
+export function hasLegalRemedy(kind: DocumentTemplateKind): boolean {
+  return kind === "bescheid";
 }
 
 /** Die Tabelle einer Vorlage; ohne eigene die Standardtabelle. */
@@ -102,7 +112,12 @@ export function templateTextOf(
     closing: template.closing,
   };
   const layout = invoiceLayoutOf(template);
-  return isStandardLayout(layout) ? text : { ...text, invoice: layout };
+  const withLayout = isStandardLayout(layout)
+    ? text
+    : { ...text, invoice: layout };
+  return template.legalRemedy
+    ? { ...withLayout, legalRemedy: template.legalRemedy }
+    : withLayout;
 }
 
 /** Gleicher Text und gleiche Tabelle. */
@@ -117,6 +132,7 @@ export function sameTemplateText(
     a.salutation === b.salutation &&
     a.body === b.body &&
     a.closing === b.closing &&
+    (a.legalRemedy ?? "") === (b.legalRemedy ?? "") &&
     la.groupByChild === lb.groupByChild &&
     la.hideTimeModels === lb.hideTimeModels
   );
@@ -184,6 +200,8 @@ export interface DocumentTemplatePreview {
   readonly salutation: string;
   readonly blocks: readonly DocumentTemplatePreviewBlock[];
   readonly closing: readonly string[];
+  /** Die Absätze der Rechtsbehelfsbelehrung eines Bescheids (#4688). */
+  readonly legalRemedy?: readonly DocumentTemplatePreviewBlock[];
 }
 
 interface BackendInvoiceLayout {
@@ -197,6 +215,7 @@ interface BackendText {
   body: string;
   closing: string;
   invoice?: BackendInvoiceLayout | null;
+  legal_remedy?: string | null;
 }
 
 interface BackendVersion extends BackendText {
@@ -227,6 +246,7 @@ function mapText(text: BackendText): DocumentTemplateText {
       groupByChild: text.invoice?.group_by_child ?? false,
       hideTimeModels: text.invoice?.hide_time_models ?? false,
     },
+    legalRemedy: text.legal_remedy ?? "",
   });
 }
 
@@ -251,6 +271,7 @@ function requestBody(text: DocumentTemplateText) {
       group_by_child: layout.groupByChild,
       hide_time_models: layout.hideTimeModels,
     },
+    legal_remedy: text.legalRemedy ?? "",
   };
 }
 
@@ -315,6 +336,12 @@ export async function previewDocumentTemplate(
       rows: DocumentTemplatePreviewRow[] | null;
     }> | null;
     closing: string[] | null;
+    legal_remedy?: Array<{
+      heading: string;
+      text: string;
+      bold: boolean;
+      rows: DocumentTemplatePreviewRow[] | null;
+    }> | null;
   }>(`${kindPath(kind)}/preview`, { method: "POST", body: requestBody(text) });
   return {
     recipient: data.recipient ?? [],
@@ -326,5 +353,9 @@ export async function previewDocumentTemplate(
       rows: block.rows ?? [],
     })),
     closing: data.closing ?? [],
+    legalRemedy: (data.legal_remedy ?? []).map((block) => ({
+      ...block,
+      rows: block.rows ?? [],
+    })),
   };
 }

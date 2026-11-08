@@ -238,16 +238,11 @@ func (g CapabilityGate) StartChallenge(ctx context.Context, accountID, tenantID 
 	if g.Capability == nil {
 		return "", errMFANotComposed
 	}
-	challengeScope := identityaccess.MFAChallengeScopeTenant
-	switch scope {
-	case domain.PortalSchool.Claim:
-		challengeScope = identityaccess.MFAChallengeScopeSchool
-	case domain.PortalOrg.Claim:
-		challengeScope = identityaccess.MFAChallengeScopeOrg
-	case domain.PortalCaterer.Claim:
-		challengeScope = identityaccess.MFAChallengeScopeCaterer
+	portal, ok := domain.PortalNamed(scope)
+	if !ok || !portal.Challenge {
+		return "", identityaccess.ErrMFAUnsupportedScope
 	}
-	return g.Capability.StartMFAChallenge(ctx, accountID, tenantID, challengeScope, parseGateIP(ipAddress))
+	return g.Capability.StartMFAChallenge(ctx, accountID, tenantID, portal.Name, parseGateIP(ipAddress))
 }
 
 func (g CapabilityGate) IsTrustedDeviceEnabled(ctx context.Context, tenantID int64) bool {

@@ -344,6 +344,8 @@ import type { traegerCareTimeOverrunsTopic as authored_traegerCareTimeOverrunsTo
 
 import type { traegerDashboardTopic as authored_traegerDashboardTopic } from "./articles/traeger-dashboard";
 
+import type { traegerDocumentKindsTopic as authored_traegerDocumentKindsTopic } from "./articles/traeger-document-kinds";
+
 import type { traegerDocumentTemplatesTopic as authored_traegerDocumentTemplatesTopic } from "./articles/traeger-document-templates";
 
 import type { traegerHolidayContributionTopic as authored_traegerHolidayContributionTopic } from "./articles/traeger-holiday-contribution";
@@ -11063,6 +11065,68 @@ export const traegerDashboardTopic =
   } satisfies typeof authored_traegerDashboardTopic;
 
 /**
+ * `/traeger/einstellungen/dokumentarten` (#4688): Rechnung, Gebührenbescheid
+ * oder Bestätigung mit Rechnung je Leistung; die Rechtsbehelfsbelehrung des
+ * Bescheids schreibt der Träger in der Vorlage „Bescheid“.
+ */
+export const traegerDocumentKindsTopic =
+  function traegerDocumentKindsTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerDocumentKinds,
+      title: "Rechnung oder Gebührenbescheid",
+      question:
+        "Wie lege ich fest, ob Familien eine Rechnung oder einen Bescheid bekommen?",
+      summary:
+        "Je Leistung wählen Sie das Schreiben: Rechnung, Gebührenbescheid oder bei den Ferien die Bestätigung mit Rechnung. Ein Gebührenbescheid braucht Ihre Rechtsbehelfsbelehrung.",
+      group: "konfiguration",
+      audience: "traeger",
+      icon: "ClipboardList",
+      requirements: ["Ihre Rolle im Träger-Büro ist Abrechnung."],
+      steps: [],
+      instructionGroups: [
+        {
+          title: "Dokumentart wählen",
+          description:
+            "Ohne Ihre Wahl bekommen Familien bei den Ferien die Bestätigung mit Rechnung und beim Monatsbeitrag eine Rechnung.",
+          steps: [
+            "Wählen Sie unten in der Navigation `Einstellungen` und dann `Dokumentarten`.",
+            "In der Karte `Ferienbetreuung` oder `Monatsbeitrag` wählen Sie eine Art: `Rechnung`, `Gebührenbescheid` oder `Bestätigung mit Rechnung`.",
+            "Wählen Sie `Speichern`.",
+          ],
+        },
+        {
+          title: "Rechtsbehelfsbelehrung eintragen",
+          description:
+            "Den Text ändert, wer das Recht `Einstellungen` hat. moto gibt keinen Rechtstext vor.",
+          steps: [
+            "Wählen Sie auf der Seite `Dokumentarten` in der Karte `Rechtsbehelfsbelehrung` den Knopf `Belehrung eintragen`.",
+            "Schreiben Sie den Text in das Feld `Rechtsbehelfsbelehrung`. Nennen Sie Frist, Stelle und Form des Widerspruchs.",
+            "Wählen Sie `Vorschau zeigen`. Die Belehrung steht unten im Bescheid.",
+            "Wählen Sie `Speichern`.",
+          ],
+        },
+      ],
+      result:
+        "Die nächste Freigabe stellt die gewählte Art aus. Im Lauf steht sie bei `Dokumentart`. Schon ausgestellte Schreiben bleiben, wie sie sind.",
+      notes: [
+        "Ein Gebührenbescheid nennt die Bescheidnummer und das Buchungszeichen der Familie. Das Buchungszeichen ist die Debitorennummer.",
+        "Ein Storno eines Gebührenbescheids heißt `Aufhebungsbescheid`. Eine Gutschrift heißt `Änderungsbescheid`. Die Nummern kommen aus demselben Nummernkreis.",
+        "Ändern Sie die Dokumentart nach der Prüfung eines Laufs, lehnt moto die Freigabe ab. Laden Sie den Lauf neu und prüfen Sie ihn noch einmal.",
+      ],
+      troubleshootingDetails: [
+        "Statt `Belehrung eintragen` sehen Sie `Vorlage ansehen`? Ihnen fehlt das Recht `Einstellungen`. Bitten Sie eine Person mit diesem Recht, die Belehrung einzutragen.",
+        "Im Lauf steht `Rechtsbehelfsbelehrung fehlt` und `Freigeben` geht nicht? Tragen Sie die Belehrung in der Vorlage `Bescheid` ein. Danach können Sie freigeben.",
+        "Die Seite `Dokumentarten` fehlt? Ihnen fehlt die Rolle `Abrechnung`.",
+      ],
+      related: [
+        HELP_TOPICS.traegerDocumentTemplates,
+        HELP_TOPICS.traegerBillingRun,
+        HELP_TOPICS.traegerCareMonths,
+      ],
+    };
+  } satisfies typeof authored_traegerDocumentKindsTopic;
+
+/**
  * `/traeger/einstellungen/briefkopf/vorlagen` (#4677): Text der Briefe mit
  * Platzhaltern; bei Bestätigung und Rechnung auch die Rechnungstabelle und
  * die Vorschau des ganzen Briefs (#5691).
@@ -11115,7 +11179,8 @@ export const traegerDocumentTemplatesTopic =
         "Die `Vorschau` zeigt auch Anschrift, Rechnungsnummer und Debitorennummer. So sehen Sie Text, Nummern und Tabelle zusammen.",
         "Sind alle Platzhalter eines Absatzes leer, fehlt der Absatz im Brief. So entfallen zum Beispiel die Notfallnummern, wenn keine eingetragen sind.",
         "Mit `Standardtext laden` holen Sie den Text von moto zurück in den Editor.",
-        "Heute nutzt moto die Vorlagen für das Bestätigungsschreiben der Ferien und für den Betreuungsvertrag. Die anderen Dokumente folgen.",
+        "Die Vorlage `Bescheid` hat ein eigenes Feld `Rechtsbehelfsbelehrung`. Ohne diesen Text gibt moto keinen Gebührenbescheid frei. Er steht immer nach dem Brieftext.",
+        "moto nutzt die Vorlagen für das Bestätigungsschreiben der Ferien, den Betreuungsvertrag, die Ferienrechnung und den Gebührenbescheid. Welches Schreiben ein Lauf ausstellt, legen Sie unter `Dokumentarten` fest. Die anderen Dokumente folgen.",
       ],
       differences: [
         "Sie können die Vorlage nur ansehen? Ihnen fehlt das Recht `Einstellungen`. Wenden Sie sich an eine Person mit der Rolle `Verwaltung`.",
@@ -11127,6 +11192,7 @@ export const traegerDocumentTemplatesTopic =
       related: [
         HELP_TOPICS.traegerBriefkopf,
         HELP_TOPICS.traegerBillingRun,
+        HELP_TOPICS.traegerDocumentKinds,
         HELP_TOPICS.errorMessages,
       ],
     };

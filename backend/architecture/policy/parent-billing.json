@@ -177,6 +177,10 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.document_kinds",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.holiday_sibling_groups",
       "write_owner": "parent-billing"
     },

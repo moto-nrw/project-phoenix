@@ -199,6 +199,13 @@ const TRAEGER_SETTINGS_NAV_ITEMS: readonly TraegerNavItem[] = [
     right: OVERVIEW_RIGHT,
   },
   {
+    key: "dokumentarten",
+    href: "/traeger/einstellungen/dokumentarten",
+    label: "Dokumentarten",
+    concept: billingConcept,
+    right: BILLING_RIGHT,
+  },
+  {
     key: "zugriffsprotokoll",
     href: "/traeger/einstellungen/zugriffsprotokoll",
     label: "Zugriffsprotokoll",

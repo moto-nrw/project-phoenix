@@ -59,6 +59,8 @@
   "care_evidence_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "care_evidence_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "care_evidence_overlap": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "document_kind_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "legal_remedy_missing": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "care_cost_share_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "care_cost_share_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "care_cost_share_overlap": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",

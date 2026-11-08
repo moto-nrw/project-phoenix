@@ -111,6 +111,26 @@
       "target_owner": "enrollment"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterheads.DocumentTemplate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingDocumentTemplates.DocumentTemplate",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.TraegerDocumentTemplates.Current: the newest version of the Träger's template of the kind of document a billing run issues (invoice, fee notice or confirmation letter), or its standard template, read in the Träger transaction under the Träger policy of platform.traeger_document_templates; the template names no person. The release reads the legal remedy of the fee notice, the letters its text (#4688).",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentTemplates.Current",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterheads.DocumentTemplate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingDocumentTemplates.DocumentTemplate",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.TraegerDocumentTemplates.Current: the newest version of the Träger's template of the kind of document a billing run issues (invoice, fee notice or confirmation letter), or its standard template, read in the Träger transaction under the Träger policy of platform.traeger_document_templates; the template names no person. The release reads the legal remedy of the fee notice, the letters its text (#4688).",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentTemplates.Current",
+      "target_owner": "organization-tenancy"
+    },
+    {
       "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterPost.EnqueueDocumentNotice",
       "classification": "platform",
@@ -171,6 +191,16 @@
       "source_owner": "parent-billing",
       "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
       "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterheads.DocumentTemplate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BillingLetterheads.DocumentTemplate",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.TraegerDocumentTemplates.Current: the newest version of the Träger's template of the kind of document a billing run issues (invoice, fee notice or confirmation letter), or its standard template, read in the Träger transaction under the Träger policy of platform.traeger_document_templates; the template names no person. The release reads the legal remedy of the fee notice, the letters its text (#4688).",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentTemplates.Current",
+      "target_owner": "organization-tenancy"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterheads.Letterhead",

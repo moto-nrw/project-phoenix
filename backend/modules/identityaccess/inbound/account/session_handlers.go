@@ -38,7 +38,6 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 
 var errSessionsUnavailable = errors.New("account sessions are not composed")
 
-// register handles user registration
 func (rs *Resource) register(w http.ResponseWriter, r *http.Request) {
 	req := &RegisterRequest{}
 	if err := render.Bind(r, req); err != nil {
@@ -218,7 +217,6 @@ func renderRoleAssignmentError(w http.ResponseWriter, r *http.Request, roleID in
 	}
 }
 
-// handleRegistrationError handles authentication errors during registration
 func (rs *Resource) handleRegistrationError(w http.ResponseWriter, r *http.Request, err error) {
 	var authErr *identityaccess.AuthenticationError
 	if !errors.As(err, &authErr) {
@@ -288,13 +286,12 @@ func (rs *Resource) refreshToken(w http.ResponseWriter, r *http.Request) {
 		r.Context(), sessiontoken.RefreshTokenFromCtx(r.Context()), r.Header.Get(sessiontoken.RecoveryProofHeader), client.IP, client.UserAgent,
 	)
 	if err != nil {
-		portalauth.Render(w, r, err, portalauth.RefreshRules)
+		portalauth.Render(w, r, err, portalauth.RenewalRules)
 		return
 	}
 	render.JSON(w, r, portalauth.TokenResponse{AccessToken: accessToken, RefreshToken: refreshToken})
 }
 
-// logout handles user logout
 func (rs *Resource) logout(w http.ResponseWriter, r *http.Request) {
 	if !common.RequireDependency(w, r, rs.Sessions != nil, errSessionsUnavailable) {
 		return
@@ -321,7 +318,6 @@ func (rs *Resource) logout(w http.ResponseWriter, r *http.Request) {
 	common.RespondNoContent(w, r)
 }
 
-// changePassword handles password change
 func (rs *Resource) changePassword(w http.ResponseWriter, r *http.Request) {
 	req := &ChangePasswordRequest{}
 	if err := render.Bind(r, req); err != nil {
