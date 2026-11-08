@@ -38,10 +38,19 @@ func NewRolloverService(owner capability.Rollovers) RolloverService {
 	if owner == nil {
 		return nil
 	}
-	return rolloverService{owner: owner}
+	return rolloverService{owner: owner, rolloverReviewQueue: owner}
 }
 
-type rolloverService struct{ owner capability.Rollovers }
+// The review queue serves the owner's values since ADR 0170 removed the
+// request codec; promote it instead of forwarding.
+type rolloverReviewQueue interface {
+	ListReviewQueue(ctx context.Context, phaseID int64) ([]*ReviewQueueItem, error)
+}
+
+type rolloverService struct {
+	owner capability.Rollovers
+	rolloverReviewQueue
+}
 
 func (c rolloverService) CreatePhaseFromSource(ctx context.Context, req CreatePhaseFromSourceRequest) (*RolloverResult, error) {
 	return c.owner.CreatePhaseFromSource(ctx, req)
@@ -49,10 +58,6 @@ func (c rolloverService) CreatePhaseFromSource(ctx context.Context, req CreatePh
 
 func (c rolloverService) PreviewPhaseFromSource(ctx context.Context, sourcePhaseID int64, bumpsGrade bool) (*RolloverPreview, error) {
 	return c.owner.PreviewPhaseFromSource(ctx, sourcePhaseID, bumpsGrade)
-}
-
-func (c rolloverService) ListReviewQueue(ctx context.Context, phaseID int64) ([]*ReviewQueueItem, error) {
-	return c.owner.ListReviewQueue(ctx, phaseID)
 }
 
 func (c rolloverService) DecideReview(ctx context.Context, req DecideReviewRequest) error {

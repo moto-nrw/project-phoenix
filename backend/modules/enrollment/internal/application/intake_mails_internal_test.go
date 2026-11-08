@@ -86,7 +86,7 @@ func TestNotifySubmissionHonoursSuppression(t *testing.T) {
 				},
 			})
 			req := &SubmitRequest{TenantID: 7, SuppressSubmissionEmails: suppressed}
-			outcome := &submitOutcome{Request: &Request{GuardianEmail: "parent@example.org"}}
+			outcome := &submitOutcome{Request: &enrollment.Request{GuardianEmail: "parent@example.org"}}
 
 			require.NoError(t, intake.notifySubmission(context.Background(), req, &submissionPlan{}, outcome, false))
 

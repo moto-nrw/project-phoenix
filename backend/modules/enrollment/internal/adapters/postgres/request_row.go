@@ -39,24 +39,24 @@ type requestRow struct {
 }
 
 // value decodes the row into the owner's request. The JSON columns decode
-// exactly here (ADR 0170); a decode error passes through unwrapped, as the
-// flows reported it before.
+// exactly here (ADR 0170); a decode error names the request and column.
 func (r requestRow) value() (*enrollment.Request, error) {
 	value := &enrollment.Request{ID: r.ID, TenantID: r.TenantID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, SchemaID: r.SchemaID, PhaseID: r.PhaseID, GuardianFirstName: r.GuardianFirstName, GuardianLastName: r.GuardianLastName, GuardianEmail: r.GuardianEmail, GuardianPhone: r.GuardianPhone, GuardianAccountID: r.GuardianAccountID, SubmissionSource: r.SubmissionSource, StatusToken: r.StatusToken, StatusTokenExpires: r.StatusTokenExpires, SubmittedAt: r.SubmittedAt, WithdrawnAt: r.WithdrawnAt, DecisionNotificationMode: r.DecisionNotificationMode}
 	for _, field := range []struct {
+		name string
 		raw  json.RawMessage
 		into any
 	}{
-		{r.ConsentFlags, &value.ConsentFlags},
-		{r.LegalBlocksSnapshot, &value.LegalBlocksSnapshot},
-		{r.CustomData, &value.CustomData},
-		{r.SourceMetadata, &value.SourceMetadata},
+		{"consent_flags", r.ConsentFlags, &value.ConsentFlags},
+		{"legal_blocks_snapshot", r.LegalBlocksSnapshot, &value.LegalBlocksSnapshot},
+		{"custom_data", r.CustomData, &value.CustomData},
+		{"source_metadata", r.SourceMetadata, &value.SourceMetadata},
 	} {
 		if len(field.raw) == 0 {
 			continue
 		}
 		if err := json.Unmarshal(field.raw, field.into); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("decode enrollment request %d %s: %w", r.ID, field.name, err)
 		}
 	}
 	return value, nil

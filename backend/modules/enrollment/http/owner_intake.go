@@ -142,7 +142,7 @@ func NewRequestService(owner IntakeOwner) RequestService {
 	if owner == nil {
 		return nil
 	}
-	return intakeService{owner: owner, phasePreviewForms: owner}
+	return intakeService{owner: owner, phasePreviewForms: owner, manualApprovedEnrollments: owner}
 }
 
 // The preview carries public owner values directly. Promote that capability
@@ -151,9 +151,16 @@ type phasePreviewForms interface {
 	LoadPhasePreviewCareOfferings(ctx context.Context, phaseID int64) (*capability.PublicFormBootstrapData, error)
 }
 
+// The manual approved enrollment takes and returns the owner's values since
+// ADR 0170 removed the request codec; promote it like the preview.
+type manualApprovedEnrollments interface {
+	CreateManualApprovedEnrollment(ctx context.Context, input ManualApprovedEnrollmentInput) (*ManualApprovedEnrollmentResult, error)
+}
+
 type intakeService struct {
 	owner IntakeOwner
 	phasePreviewForms
+	manualApprovedEnrollments
 }
 
 func bootstrapValue(data *capability.PublicFormBootstrapData, err error) (*PublicFormBootstrapData, error) {
@@ -257,10 +264,6 @@ func (s intakeService) LoadEnrolleeFormBootstrap(ctx context.Context, phaseID in
 
 func (s intakeService) LoadManualEnrollmentBootstrap(ctx context.Context, phaseID int64) (*PublicFormBootstrapData, error) {
 	return bootstrapValue(s.owner.LoadManualEnrollmentBootstrap(ctx, phaseID))
-}
-
-func (s intakeService) CreateManualApprovedEnrollment(ctx context.Context, input ManualApprovedEnrollmentInput) (*ManualApprovedEnrollmentResult, error) {
-	return s.owner.CreateManualApprovedEnrollment(ctx, input)
 }
 
 func (s intakeService) SignatureProof(ctx context.Context, requestID int64, token string) (*SignatureProof, error) {

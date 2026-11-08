@@ -61,7 +61,8 @@ Formularschema der Schule und haben keinen festen Go-Typ.
    übersetzt Zeile und Vertragswert; Anwendung und HTTP arbeiten nur noch mit
    dem Vertragswert. Die dekodierten Kopien der Anwendung und der HTTP-Rolle
    und ihre Codecs entfallen. Die Datumsfelder des Kinds reisen als
-   `calendar.Date`, so dass auch das Datumsparsen der Kopien entfällt. Wo die
+   `calendar.Date`, in der Zeile wie im Vertrag, so dass auch das
+   Datumsparsen der Kopien entfällt. Wo die
    Formularlogik (Prüfen, Filtern, Zusammenführen) eine veränderbare Map
    braucht, kopiert sie die Werte ohne JSON in eine lokale Map und zurück.
 5. **Die Einwilligungsnachweise bleiben Bytes.** `LegalBlocksSnapshot` reist
@@ -83,9 +84,14 @@ Formularschema der Schule und haben keinen festen Go-Typ.
 - Ein Änderungswunsch, der vor dieser Änderung gegen eine `null`-Zeile
   entstand, sieht beim Übernehmen `{}` statt `null` und meldet einen
   Konflikt. Das schlägt sicher fehl und betrifft nur Altzeilen mit `null`.
-- Drei HTTP-Dienstmethoden reichen nach dem Wegfall des Codecs nur noch an den
-  Owner weiter; das Pass-through-Register führt sie mit Verweis auf diese
-  Entscheidung, das Budget des Owners steigt nicht.
+- Zwei HTTP-Dienstmethoden (`CreateManualApprovedEnrollment`,
+  `ListReviewQueue`) hätten nach dem Wegfall des Codecs nur noch an den Owner
+  weitergereicht; die HTTP-Dienste befördern stattdessen die Fähigkeit des
+  Owners wie schon die Formularvorschau, es entsteht kein neues Pass-through.
+  `GetByStatusToken` bleibt eine Übersetzung der Route-Form und steht mit
+  Verweis auf diese Entscheidung im Register.
+- Ein Dekodierfehler einer gespeicherten Spalte nennt Anmeldung oder Kind und
+  Spalte.
 - Ein Regressionstest
   (`modules/enrollment/http/rollover_empty_form_values_test.go`) hält die
   leere Form am Speicherpfad fest.

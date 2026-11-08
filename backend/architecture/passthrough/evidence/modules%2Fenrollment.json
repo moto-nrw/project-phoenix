@@ -415,13 +415,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (s intakeService) CreateManualApprovedEnrollment(ctx context.Context, input ManualApprovedEnrollmentInput) (*ManualApprovedEnrollmentResult, error) {\n\treturn s.owner.CreateManualApprovedEnrollment(ctx, input)\n}",
-      "form": "unchanged-forward-evidence",
-      "id": "modules/enrollment/http/intakeService.CreateManualApprovedEnrollment",
-      "owner": "modules/enrollment"
-    },
-    {
-      "build": "production",
       "evidence": "func (s intakeService) Edit(ctx context.Context, token string, patch EditPatch) error {\n\treturn s.owner.Edit(ctx, token, patch)\n}",
       "form": "unchanged-forward-evidence",
       "id": "modules/enrollment/http/intakeService.Edit",
@@ -537,13 +530,6 @@
       "evidence": "func (c rolloverService) DecideReview(ctx context.Context, req DecideReviewRequest) error {\n\treturn c.owner.DecideReview(ctx, req)\n}",
       "form": "unchanged-forward-evidence",
       "id": "modules/enrollment/http/rolloverService.DecideReview",
-      "owner": "modules/enrollment"
-    },
-    {
-      "build": "production",
-      "evidence": "func (c rolloverService) ListReviewQueue(ctx context.Context, phaseID int64) ([]*ReviewQueueItem, error) {\n\treturn c.owner.ListReviewQueue(ctx, phaseID)\n}",
-      "form": "unchanged-forward-evidence",
-      "id": "modules/enrollment/http/rolloverService.ListReviewQueue",
       "owner": "modules/enrollment"
     },
     {

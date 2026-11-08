@@ -296,17 +296,12 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
-      "decision": "0132",
-      "id": "modules/enrollment/http/intakeService.CreateManualApprovedEnrollment",
-      "reason": "Owner-value forward: ADR 0170 removed the HTTP request codec, so the route service hands the owner's request values through unchanged (#6092)."
-    },
-    {
       "decision": "0090",
       "id": "modules/enrollment/http/intakeService.Edit",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
-      "decision": "0132",
+      "decision": "0170",
       "id": "modules/enrollment/http/intakeService.GetByStatusToken",
       "reason": "Route-shape translation: splits the owner's request status into request and children; ADR 0170 removed the decode it carried (#6092)."
     },
@@ -384,11 +379,6 @@
       "decision": "0090",
       "id": "modules/enrollment/http/rolloverService.DecideReview",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0132",
-      "id": "modules/enrollment/http/rolloverService.ListReviewQueue",
-      "reason": "Owner-value forward: ADR 0170 removed the HTTP request codec, so the route service hands the owner's request values through unchanged (#6092)."
     },
     {
       "decision": "0090",
