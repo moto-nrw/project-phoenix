@@ -975,6 +975,7 @@ func (m *mockDecisionService) MarkAllRequestsRead(context.Context, int64) error 
 func (m *mockDecisionService) MarkRequestUnread(context.Context, int64, int64) error  { return nil }
 
 func TestAttachExistingChildCandidates_EmptyRequiredChoice(t *testing.T) {
+	t.Parallel()
 	children := []AdminRequestChild{{}}
 	attachExistingChildCandidates(children, []*RequestChild{{ID: 7}}, map[int64][]capability.ExistingChildCandidate{7: {}})
 	encoded, err := json.Marshal(children[0])

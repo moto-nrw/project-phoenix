@@ -270,14 +270,10 @@ func (d *Decisions) attachExistingChildCandidates(ctx context.Context, request *
 		if err != nil {
 			return err
 		}
-		if len(candidates) == 0 {
-			lapsed, err := d.parentPinLapsed(ctx, request, child)
-			if err != nil {
-				return err
-			}
-			if !lapsed {
-				continue
-			}
+		// An unpinned child needs no choice without candidates. A lapsed
+		// pin still does, as childAsksTheOffice already established.
+		if len(candidates) == 0 && childAwaitsExistingChildChoice(summary.Phase, child) {
+			continue
 		}
 		if summary.ExistingChildCandidates == nil {
 			summary.ExistingChildCandidates = map[int64][]enrollmentNative.ExistingChildCandidate{}
