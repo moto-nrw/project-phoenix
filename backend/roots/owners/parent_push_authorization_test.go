@@ -280,7 +280,7 @@ func TestContractDevicePushRechecksVersionAndExactChild(t *testing.T) {
 				_, err := f.db.ExecContext(f.ctx, `UPDATE care_contract.contract_versions SET status='ersetzt' WHERE id=?`, versionID)
 				require.NoError(t, err)
 			case "newer version":
-				_, err := f.db.ExecContext(f.ctx, `INSERT INTO care_contract.contract_versions (organization_id,contract_id,version_number,effective_from,status,child_first_name,child_last_name,school_name,term_kind,notice_months,notice_to)
+				_, err := f.db.ExecContext(f.ctx, `INSERT INTO care_contract.contract_versions (organization_id,contract_id,version_number,effective_from,status,child_first_name,child_last_name,school_name,term_kind,notice_months,notice_to,special_termination,special_termination_note,statute_required,statute_title,statute_url,contract_partner)
      VALUES (?,?,2,'2027-09-01','wirksam','Test','Child','School','open_ended',1,'month_end',false,'',false,'','','')`, f.organization, contractID)
 				require.NoError(t, err)
 			}
