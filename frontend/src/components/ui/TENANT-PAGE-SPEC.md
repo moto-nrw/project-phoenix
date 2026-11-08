@@ -75,8 +75,9 @@ Gerenderte Reihenfolge, fest, nicht verhandelbar:
    Symbolknöpfe dort und jeder Textknopf bekommt eine volle Zeile darunter
    (Abschnitt „Unter sm").
    Der Bearbeitungszustand der Startseite trägt „Abbrechen“ und „Fertig“: Das
-   Paar ist eine Entscheidung. `tenant-page-scaffold.test.ts` prüft Regel 3 und
-   4 und führt diese Ausnahme (#5605).
+   Paar ist eine Entscheidung. Der Product Owner hat diese Ausnahme am
+   08.11.2026 freigegeben. `tenant-page-scaffold.test.ts` prüft Regel 3 und 4
+   und führt sie als einzige (#5605).
 5. **Suche und Filter gehören in `search`/`filters`.** Handgebaute Zeilen aus
    `Input` + `CustomSelect` werden zu `FilterConfig[]` (`type: "dropdown"`).
    Nur wenn ein Filter wirklich nicht abbildbar ist: `type: "custom"` mit

@@ -17,6 +17,10 @@ const CodeParentBillingBillingRunNotFound = "parent_billing.billing_run_not_foun
 const CodeParentBillingBillingRunNotReleased = "parent_billing.billing_run_not_released"
 const CodeParentBillingBillingRunOpen = "parent_billing.billing_run_open"
 const CodeParentBillingBillingRunReleased = "parent_billing.billing_run_released"
+const CodeParentBillingCareEvidenceInvalid = "parent_billing.care_evidence_invalid"
+const CodeParentBillingCareEvidenceNotFound = "parent_billing.care_evidence_not_found"
+const CodeParentBillingCareEvidenceOverlap = "parent_billing.care_evidence_overlap"
+const CodeParentBillingCareRuleInUse = "parent_billing.care_rule_in_use"
 const CodeParentBillingCareRunInvalid = "parent_billing.care_run_invalid"
 const CodeParentBillingCareRunNotFound = "parent_billing.care_run_not_found"
 const CodeParentBillingCareRunOpen = "parent_billing.care_run_open"
@@ -71,6 +75,10 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingBillingRunNotReleased, "business_rejection"},
 	{CodeParentBillingBillingRunOpen, "business_rejection"},
 	{CodeParentBillingBillingRunReleased, "business_rejection"},
+	{CodeParentBillingCareEvidenceInvalid, "input"},
+	{CodeParentBillingCareEvidenceNotFound, "business_rejection"},
+	{CodeParentBillingCareEvidenceOverlap, "business_rejection"},
+	{CodeParentBillingCareRuleInUse, "business_rejection"},
 	{CodeParentBillingCareRunInvalid, "input"},
 	{CodeParentBillingCareRunNotFound, "business_rejection"},
 	{CodeParentBillingCareRunOpen, "business_rejection"},

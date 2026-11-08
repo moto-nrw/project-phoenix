@@ -819,6 +819,14 @@ export const ERROR_CATALOG = {
         "Für diesen Ferienzeitraum gibt es schon einen Lauf in der Vorschau. Bitte öffnen Sie diesen Lauf.",
       "parent_billing.billing_run_released":
         "Der Lauf ist schon freigegeben. Ausgestellte Rechnungen lassen sich nicht ändern.",
+      "parent_billing.care_evidence_invalid":
+        "Der Nachweis konnte nicht gespeichert werden. Bitte prüfen Sie die markierten Felder.",
+      "parent_billing.care_evidence_not_found":
+        "Diesen Nachweis gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "parent_billing.care_evidence_overlap":
+        "Für diese Zeit gibt es schon einen Nachweis dieser Art. Beenden Sie zuerst den alten Nachweis.",
+      "parent_billing.care_rule_in_use":
+        "Diese Einkommensstufe ist bei Kindern eingetragen. Ändern oder löschen Sie zuerst deren Nachweise.",
       "parent_billing.care_run_invalid": "Bitte wählen Sie einen Monat.",
       "parent_billing.care_run_not_found":
         "Diesen Monatslauf gibt es nicht. Bitte öffnen Sie ihn über „Abrechnung“ und „Monatsbeiträge“.",

@@ -13,6 +13,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Checkbox } from "~/components/ui/checkbox";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { ChoiceTile } from "~/components/ui/choice-tile";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiLoadError } from "~/contexts/ToastContext";
@@ -233,7 +234,7 @@ export function PickupSignatureField({
   const t = useTranslations("parentPickupPermission");
   const labels = usePickupSignatureLabels();
   return (
-    <div className="space-y-3 rounded-xl border border-gray-200 p-4">
+    <InsetPanel tone="white" padding="md" className="space-y-3">
       <div>
         <p className="text-sm font-medium text-gray-900">
           {t("signature.title")}
@@ -249,6 +250,6 @@ export function PickupSignatureField({
         error={error}
         labels={labels}
       />
-    </div>
+    </InsetPanel>
   );
 }
