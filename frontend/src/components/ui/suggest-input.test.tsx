@@ -151,9 +151,10 @@ describe("SuggestInput", () => {
     fireEvent.focus(field());
 
     const option = screen.getByRole("option", { name: "OGS-Büro" });
-    // Default prevented: the browser moves no focus, the field does not blur.
-    expect(fireEvent.pointerDown(option)).toBe(false);
-    expect(fireEvent.pointerDown(screen.getByRole("listbox"))).toBe(false);
+    // Only mouse presses on options retain focus. The panel's pointer event
+    // remains native so touch scrolling and the later tap click are preserved.
+    expect(fireEvent.pointerDown(option)).toBe(true);
+    expect(fireEvent.mouseDown(option)).toBe(false);
     // A press alone (a finger starting to scroll) takes nothing.
     expect(field()).toHaveValue("");
     expect(screen.getByRole("listbox")).toBeInTheDocument();

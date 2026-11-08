@@ -221,10 +221,6 @@ export function SuggestInput({
         onOpenChange={(next) => (next ? openList() : closeList())}
         ariaLabel={listLabel}
         panelRole="listbox"
-        // Pressing anywhere in the list (entry or scrollbar) keeps the focus
-        // in the field. Without it the field would blur and close the list
-        // before a tap or click arrived (Safari/iOS focuses no tapped entry).
-        panelHandlers={{ onPointerDown: (event) => event.preventDefault() }}
         restoreFocusOnClose={false}
         portalScopeSelector={SUGGEST_PORTAL_SCOPE}
         className="py-1"
@@ -293,6 +289,10 @@ export function SuggestInput({
                 tabIndex={-1}
                 aria-selected={index === activeOption}
                 onMouseEnter={() => setActiveIndex(index)}
+                // Prevent a mouse press from moving focus out of the field.
+                // Touch starts stay native, so scrolling and the compatible
+                // click after a tap are left intact.
+                onMouseDown={(event) => event.preventDefault()}
                 // A tap, not a touch: a finger that only scrolls the list
                 // fires no click and takes nothing.
                 onClick={() => take(suggestion)}
