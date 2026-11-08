@@ -14,8 +14,8 @@ func init() {
 		Version:     studentMembershipFirstCareFromVersion,
 		Description: "Mitgliedschaft merkt sich den frühesten möglichen Betreuungstag eines neuen Kindes (#6041)",
 		DependsOn: []string{
-			holidayCareTimeHistoryVersion, // the last migration before this one
-			studentOwnerCutoverVersion,    // the membership table and its updated_at trigger
+			demoVisitorErasureContractPushVersion, // the last migration before this one
+			studentOwnerCutoverVersion,            // the membership table and its updated_at trigger
 		},
 	})
 	Migrations.MustRegister(studentMembershipFirstCareFromUp, studentMembershipFirstCareFromDown)
