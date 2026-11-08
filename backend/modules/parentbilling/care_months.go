@@ -196,9 +196,12 @@ type CareInvoice struct {
 	SchoolName     string         `json:"school_name"`
 	ChildFirstName string         `json:"child_first_name"`
 	ChildLastName  string         `json:"child_last_name"`
-	Recipient      CareRecipient  `json:"recipient"`
-	Positions      []CarePosition `json:"positions"`
-	TotalCents     int64          `json:"total_cents"`
+	// StudentID is the child record the contract names, nil without one; the
+	// parents inbox shows the letter only for it (ADR 0165).
+	StudentID  *int64         `json:"-"`
+	Recipient  CareRecipient  `json:"recipient"`
+	Positions  []CarePosition `json:"positions"`
+	TotalCents int64          `json:"total_cents"`
 }
 
 // CareUnpriced is a booked weekday of a module the price list has no price

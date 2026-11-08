@@ -76,6 +76,11 @@ COMMENT ON TABLE parent_billing.care_invoice_cancellations IS
 	'Storno of an issued monthly care invoice, numbered from the number range of the invoices (#4684, ADR 0165); never changes.';
 
 ALTER TABLE parent_billing.care_invoices ADD COLUMN replaces_invoice_id BIGINT;
+-- The child record the contract names, copied at the release like the name:
+-- the parents inbox shows a letter only to an account whose relationship to
+-- this child grants the inbox (ADR 0126 point 2, ADR 0165). An invoice of a
+-- contract without a record reaches the family by mail only.
+ALTER TABLE parent_billing.care_invoices ADD COLUMN student_id BIGINT;
 ALTER TABLE parent_billing.care_invoices ADD CONSTRAINT fk_care_invoices_replaces
 	FOREIGN KEY (organization_id, replaces_invoice_id) REFERENCES parent_billing.care_invoices (organization_id, id);
 ALTER TABLE parent_billing.care_invoices ADD CONSTRAINT chk_care_invoices_replaces
@@ -221,6 +226,7 @@ DELETE FROM parent_billing.care_invoices WHERE replaces_invoice_id IS NOT NULL;
 ALTER TABLE parent_billing.care_invoices DROP CONSTRAINT chk_care_invoices_replaces;
 ALTER TABLE parent_billing.care_invoices DROP CONSTRAINT fk_care_invoices_replaces;
 ALTER TABLE parent_billing.care_invoices DROP COLUMN replaces_invoice_id;
+ALTER TABLE parent_billing.care_invoices DROP COLUMN student_id;
 ALTER TABLE parent_billing.care_invoices ADD CONSTRAINT uq_care_invoices_contract_month
 	UNIQUE (organization_id, care_contract_id, billing_month);
 `

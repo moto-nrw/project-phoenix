@@ -108,6 +108,7 @@ type careInvoiceRow struct {
 	MonthRule          string        `bun:"month_rule"`
 	TotalCents         int64         `bun:"total_cents"`
 	ReplacesInvoiceID  *int64        `bun:"replaces_invoice_id"`
+	StudentID          *int64        `bun:"student_id"`
 }
 
 type careInvoicePositionRow struct {
@@ -409,6 +410,7 @@ func (s *Store) IssueCareInvoices(ctx context.Context, organizationID int64, run
 			ChildLastName: invoice.ChildLastName, RecipientFirstName: invoice.Recipient.FirstName,
 			RecipientLastName: invoice.Recipient.LastName, RecipientEmail: invoice.Recipient.Email,
 			MonthRule: rule, TotalCents: invoice.TotalCents, ReplacesInvoiceID: replaced[invoice.ContractID],
+			StudentID: invoice.StudentID,
 		}
 	}
 	if _, err := db.NewInsert().Model(&rows).Returning("id").Exec(ctx); err != nil {
@@ -511,7 +513,7 @@ func (s *Store) CareRunInvoices(ctx context.Context, organizationID, runID int64
 		issuedOn := row.IssuedOn
 		invoices[i] = parentbilling.CareInvoice{
 			ID: row.ID, Number: row.Number, IssuedOn: &issuedOn, ContractID: row.CareContractID, SchoolID: row.SchoolID,
-			SchoolName: row.SchoolName, ChildFirstName: row.ChildFirstName, ChildLastName: row.ChildLastName,
+			SchoolName: row.SchoolName, ChildFirstName: row.ChildFirstName, ChildLastName: row.ChildLastName, StudentID: row.StudentID,
 			Recipient: parentbilling.CareRecipient{FirstName: row.RecipientFirstName, LastName: row.RecipientLastName, Email: row.RecipientEmail},
 			Positions: byInvoice[row.ID], TotalCents: row.TotalCents,
 		}
