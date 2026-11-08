@@ -176,18 +176,6 @@ func (entry *isolatedTestDatabase) drop() {
 	})
 }
 
-// IsolatedTestDSN returns the DSN of the test's isolated clone, for a test
-// that needs a pool with its own driver settings (for example a client read
-// timeout) against the same clone. Call SetupIsolatedTestDB first.
-func IsolatedTestDSN(tb testing.TB) string {
-	tb.Helper()
-	dsn, ok := isolatedTestDSN(tb)
-	if !ok {
-		tb.Fatal("IsolatedTestDSN needs SetupIsolatedTestDB in the same top-level test")
-	}
-	return dsn
-}
-
 func isolatedTestDSN(tb testing.TB) (string, bool) {
 	value, ok := isolatedTestDatabases.Load(topLevelTestName(tb))
 	if !ok {

@@ -346,43 +346,46 @@ func TestPickupChainCancelledWaitWritesNothing(t *testing.T) {
 
 // A deadlock while waiting for the second block: the resolve is the victim.
 // In its own transaction it is replayed and assigns every block once; inside
-// an outer transaction it ends with 40P01. The resolve's sessions check for
-// a deadlock after 3 s, the holder's only after 30 s: the cycle exists long
-// before the resolve checks, and only the resolve finds it.
+// an outer transaction it ends with 40P01.
+//
+// The victim follows from the order of the waits, not from timing: a gate
+// holds the first block and the holder the second. The resolve locks its task
+// and waits at the gate; then the holder waits for the task. Only when the
+// gate opens does the resolve lock the first block and wait for the second,
+// and that wait closes the cycle. A backend checks for a deadlock once, after
+// deadlock_timeout of its current wait: the resolve's check (server default,
+// 1 s) always finds the closed cycle however late it runs, while the holder
+// waited before the cycle existed and checks only after 30 s.
 func TestPickupChainDeadlockReplaysOnlyItsOwnTransaction(t *testing.T) {
 	t.Parallel()
-	testpkg.SetupIsolatedTestDB(t)
-	pool := privateClonePool(t, map[string]string{"deadlock_timeout": "3s"})
-	newFixture := func(t *testing.T) *pickupChainFixture {
-		f := newPickupChainFixture(t, pool, pickupChainOptions{})
-		f.ctx = testpkg.WithTenantRuntime(t, f.ctx, pool)
-		return f
-	}
-	deadlock := func(t *testing.T, f *pickupChainFixture, start func() <-chan pickupResolveOutcome) (bun.Tx, pickupResolveOutcome, <-chan pickupResolveOutcome) {
+	db := testpkg.SetupIsolatedTestDB(t)
+	deadlock := func(t *testing.T, f *pickupChainFixture, start func() <-chan pickupResolveOutcome) (bun.Tx, <-chan pickupResolveOutcome) {
 		t.Helper()
+		gate := f.holdInstance(t, f.instances[0], "")
 		holder := f.holdInstance(t, f.instances[1], "")
-		// The holder never runs the deadlock check within the test.
 		_, err := holder.ExecContext(context.Background(), `SET LOCAL deadlock_timeout = '30s'`)
 		require.NoError(t, err)
 		done := start()
-		f.waitForInstanceLockWait(t)
+		f.waitForLockWaiters(t, 1) // the resolve holds its task and waits at the gate
 		crossed := make(chan error, 1)
 		go func() {
-			_, err := holder.ExecContext(context.Background(), `SELECT id FROM schedule.activity_instances WHERE id = ? FOR UPDATE`, f.instances[0])
+			_, err := holder.ExecContext(context.Background(), `SELECT id FROM schedule.pickup_extension_tasks WHERE id = ? FOR UPDATE`, f.taskID)
 			crossed <- err
 		}()
+		f.waitForLockWaiters(t, 2) // the holder waits for the task
+		require.NoError(t, gate.Rollback())
 		select {
 		case err := <-crossed:
 			require.NoError(t, err, "the holder is not the deadlock victim")
 		case <-time.After(15 * time.Second):
 			t.Fatal("the deadlock was never resolved")
 		}
-		return holder, pickupResolveOutcome{}, done
+		return holder, done
 	}
 
 	t.Run("own transaction", func(t *testing.T) {
-		f := newFixture(t)
-		holder, _, done := deadlock(t, f, func() <-chan pickupResolveOutcome { return f.resolveBlocksAsync(f.templateID) })
+		f := newPickupChainFixture(t, db, pickupChainOptions{})
+		holder, done := deadlock(t, f, func() <-chan pickupResolveOutcome { return f.resolveBlocksAsync(f.templateID) })
 		require.NoError(t, holder.Rollback())
 		outcome := f.awaitOutcome(t, done)
 		require.NoError(t, outcome.err)
@@ -392,8 +395,8 @@ func TestPickupChainDeadlockReplaysOnlyItsOwnTransaction(t *testing.T) {
 		assert.Len(t, roster, len(f.instances), "one participant per block")
 	})
 	t.Run("outer transaction", func(t *testing.T) {
-		f := newFixture(t)
-		holder, _, done := deadlock(t, f, func() <-chan pickupResolveOutcome {
+		f := newPickupChainFixture(t, db, pickupChainOptions{})
+		holder, done := deadlock(t, f, func() <-chan pickupResolveOutcome {
 			result := make(chan pickupResolveOutcome, 1)
 			go func() { result <- pickupResolveOutcome{err: f.resolveInTransaction(t, nil, nil)} }()
 			return result
