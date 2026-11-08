@@ -10,3 +10,4 @@ POST /traeger/master-data/document-templates/{kind}/versions
 PUT /traeger/master-data/bank-accounts/{id}
 PUT /traeger/master-data/contact
 PUT /traeger/master-data/logo
+PUT /traeger/master-data/withdrawal-contact

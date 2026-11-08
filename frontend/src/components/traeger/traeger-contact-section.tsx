@@ -3,22 +3,26 @@
 import { useSession } from "next-auth/react";
 import { Alert } from "~/components/ui/alert";
 import { hasPermission } from "~/lib/auth-utils";
-import type { TraegerContact } from "~/lib/traeger-api";
+import type { TraegerMasterData } from "~/lib/traeger-api";
 import { TraegerContactCard } from "./traeger-contact-card";
+import { TraegerWithdrawalContactCard } from "./traeger-withdrawal-contact-card";
 
 /** The Träger right that changes the master data (ADR 0084 section 4). */
 const SETTINGS_RIGHT = "traeger_settings:manage";
 
 /**
- * Die Ansprechperson des Trägers im Bereich „Kontakt“ unter „Allgemein“ (#5685).
- * Liest die Stammdaten erst beim Öffnen des Bereichs: Jedes Lesen steht im
- * Protokoll des Trägers.
+ * Die Ansprechperson des Trägers und sein Kontakt für Widerrufe im Bereich
+ * „Kontakt“ unter „Allgemein“ (#5685, #6200). Liest die Stammdaten erst beim
+ * Öffnen des Bereichs: Jedes Lesen steht im Protokoll des Trägers.
  */
 export function TraegerContactSection({
-  contact,
+  masterData,
+  letterheadText,
   onSaved,
 }: Readonly<{
-  contact: TraegerContact;
+  masterData: Pick<TraegerMasterData, "contact" | "withdrawal">;
+  /** Der Absender aus dem Briefkopf; die Belehrung nennt ihn mit Anschrift. */
+  letterheadText: string;
   onSaved: () => Promise<unknown>;
 }>) {
   const { data: session } = useSession();
@@ -32,7 +36,14 @@ export function TraegerContactSection({
         />
       )}
       <TraegerContactCard
-        contact={contact}
+        contact={masterData.contact}
+        canEdit={canEdit}
+        onSaved={onSaved}
+      />
+      <TraegerWithdrawalContactCard
+        withdrawal={masterData.withdrawal}
+        contact={masterData.contact}
+        letterheadText={letterheadText}
         canEdit={canEdit}
         onSaved={onSaved}
       />
