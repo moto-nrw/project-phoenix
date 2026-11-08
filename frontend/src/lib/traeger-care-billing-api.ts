@@ -126,6 +126,8 @@ export interface CareInvoice {
   readonly number: string;
   readonly issuedOn: string | null;
   readonly contractId: string;
+  /** Original contract-party address, independent of the payer. */
+  readonly familyEmail?: string;
   readonly schoolId: string;
   readonly schoolName: string;
   readonly childFirstName: string;
@@ -254,6 +256,7 @@ interface BackendInvoice {
   number: string;
   issued_on: string | null;
   contract_id: number;
+  family_email?: string;
   school_id: number;
   school_name: string;
   child_first_name: string;
@@ -390,6 +393,7 @@ function invoiceFromBackend(invoice: BackendInvoice): CareInvoice {
     number: invoice.number,
     issuedOn: invoice.issued_on,
     contractId: id(invoice.contract_id),
+    familyEmail: invoice.family_email ?? "",
     schoolId: id(invoice.school_id),
     schoolName: invoice.school_name,
     childFirstName: invoice.child_first_name,

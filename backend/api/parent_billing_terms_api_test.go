@@ -33,10 +33,11 @@ type paymentBody struct {
 }
 
 type termsInvoiceBody struct {
-	ID         int64  `json:"id"`
-	Number     string `json:"number"`
-	ContractID int64  `json:"contract_id"`
-	Recipient  struct {
+	FamilyEmail string `json:"family_email"`
+	ID          int64  `json:"id"`
+	Number      string `json:"number"`
+	ContractID  int64  `json:"contract_id"`
+	Recipient   struct {
 		FirstName  string `json:"first_name"`
 		LastName   string `json:"last_name"`
 		Email      string `json:"email"`
@@ -288,6 +289,7 @@ func TestFamilyDeviationReachesTheNextReleaseOnly(t *testing.T) {
 	preview := termsRun(t, f, f.office.token, next.ID)
 	require.Len(t, preview.Invoices, 1)
 	invoice := preview.Invoices[0]
+	assert.Equal(t, family, invoice.FamilyEmail)
 	assert.Equal(t, "payer", invoice.Recipient.Kind)
 	assert.Equal(t, "oma@example.org", invoice.Recipient.Email)
 	require.NotNil(t, invoice.Recipient.Address)

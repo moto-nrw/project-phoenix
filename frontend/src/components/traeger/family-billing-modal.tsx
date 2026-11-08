@@ -9,12 +9,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FieldLabel } from "~/components/ui/field-label";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
-import { SegmentedControl } from "~/components/ui/segmented-control";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
@@ -282,13 +282,23 @@ export function FamilyBillingModal({
         </p>
         <div className="space-y-2">
           <FieldLabel>Rechnung an</FieldLabel>
-          <SegmentedControl
-            ariaLabel="Rechnung an"
-            fullWidth
-            items={RECIPIENT_ITEMS}
-            value={draft.recipientKind}
-            onChange={(recipientKind) => set({ recipientKind })}
-          />
+          <div
+            role="group"
+            aria-label="Rechnung an"
+            className="grid gap-2 sm:grid-cols-3"
+          >
+            {RECIPIENT_ITEMS.map((item) => (
+              <ChoiceTile
+                key={item.value}
+                as="button"
+                selected={draft.recipientKind === item.value}
+                aria-pressed={draft.recipientKind === item.value}
+                onClick={() => set({ recipientKind: item.value })}
+              >
+                {item.label}
+              </ChoiceTile>
+            ))}
+          </div>
           <p className="text-sm text-gray-600">
             {draft.recipientKind === "applicant"
               ? `Die Rechnung geht an ${target?.applicantName || "die Person im Vertrag"}.`
@@ -401,19 +411,29 @@ export function FamilyBillingModal({
         ) : null}
         <div className="space-y-2">
           <FieldLabel>Zahlungsweg</FieldLabel>
-          <SegmentedControl
-            ariaLabel="Zahlungsweg"
-            fullWidth
-            items={[
-              { value: "", label: "Wie die Leistung" },
+          <div
+            role="group"
+            aria-label="Zahlungsweg"
+            className="grid gap-2 sm:grid-cols-3"
+          >
+            {[
+              { value: "" as const, label: "Wie die Leistung" },
               ...PAYMENT_METHODS.map((method) => ({
                 value: method,
                 label: PAYMENT_METHOD_LABELS[method],
               })),
-            ]}
-            value={draft.paymentMethod}
-            onChange={(paymentMethod) => set({ paymentMethod })}
-          />
+            ].map((item) => (
+              <ChoiceTile
+                key={item.value}
+                as="button"
+                selected={draft.paymentMethod === item.value}
+                aria-pressed={draft.paymentMethod === item.value}
+                onClick={() => set({ paymentMethod: item.value })}
+              >
+                {item.label}
+              </ChoiceTile>
+            ))}
+          </div>
         </div>
         <CustomSelect
           id={id("due-day")}

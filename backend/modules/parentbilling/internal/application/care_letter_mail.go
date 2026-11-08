@@ -13,7 +13,7 @@ import (
 // one entry on Delivery's outbox in the Träger transaction that records it,
 // with the PDF, and the first send also announces the letter in the inbox of
 // the parents (ADR 0126). Before every send the address the invoice copied
-// must still be the address of the party the contract bills; otherwise the
+// must still be the effective billing address of the contract's family; otherwise the
 // Abrechnung cancels the invoice and the next run copies the party of today.
 
 // careSendable is a letter the run may still send: every Storno letter and
@@ -48,7 +48,7 @@ func (l *CareLetters) MailCareLetters(ctx context.Context, reviewer parentbillin
 		return parentbilling.BillingLetterSeries{}, err
 	}
 	letters := current.sendable()
-	recipients, err := l.currentRecipients(ctx, reviewer.OrganizationID, letters)
+	recipients, err := l.currentRecipients(ctx, reviewer, letters)
 	if err != nil {
 		return parentbilling.BillingLetterSeries{}, err
 	}
@@ -110,7 +110,7 @@ func (l *CareLetters) MailCareLetter(ctx context.Context, reviewer parentbilling
 	if err := l.refuseWhileWaiting(ctx, last); err != nil {
 		return parentbilling.CareLetterMailing{}, err
 	}
-	recipients, err := l.currentRecipients(ctx, reviewer.OrganizationID, []careSendable{letter})
+	recipients, err := l.currentRecipients(ctx, reviewer, []careSendable{letter})
 	if err != nil {
 		return parentbilling.CareLetterMailing{}, err
 	}
@@ -254,8 +254,9 @@ func (l *CareLetters) send(ctx context.Context, reviewer parentbilling.HolidayRe
 	return send, nil
 }
 
-// currentRecipients reads the party each contract of the letters bills now.
-func (l *CareLetters) currentRecipients(ctx context.Context, organizationID int64, letters []careSendable) (map[int64]parentbilling.CareRecipient, error) {
+// currentRecipients resolves the effective recipient of each contract now,
+// including the family's deviation, and audits the read of the deviations.
+func (l *CareLetters) currentRecipients(ctx context.Context, reviewer parentbilling.HolidayReviewer, letters []careSendable) (map[int64]parentbilling.CareRecipient, error) {
 	seen := map[int64]bool{}
 	var contracts []int64
 	for _, letter := range letters {
@@ -267,9 +268,26 @@ func (l *CareLetters) currentRecipients(ctx context.Context, organizationID int6
 	if len(contracts) == 0 {
 		return map[int64]parentbilling.CareRecipient{}, nil
 	}
-	recipients, err := l.recipients.Recipients(ctx, organizationID, contracts)
+	recipients, err := l.recipients.Recipients(ctx, reviewer.OrganizationID, contracts)
 	if err != nil {
 		return nil, fmt.Errorf("parent billing: read the recipients of the contracts: %w", err)
+	}
+	families, err := l.store.FamilyBillings(ctx, reviewer.OrganizationID)
+	if err != nil {
+		return nil, fmt.Errorf("parent billing: read the family billing: %w", err)
+	}
+	if err := l.store.InsertFamilyBillingEvents(ctx, reviewer.OrganizationID, reviewer.AccountID, familyBillingRead, families); err != nil {
+		return nil, fmt.Errorf("parent billing: record the read of the family billing: %w", err)
+	}
+	byFamily := make(map[string]*parentbilling.FamilyBilling, len(families))
+	for i := range families {
+		byFamily[families[i].FamilyEmail] = &families[i]
+	}
+	for contractID, applicant := range recipients {
+		effective := parentbilling.ResolveRecipient(parentbilling.BillingRecipient{FirstName: applicant.FirstName,
+			LastName: applicant.LastName, Email: applicant.Email}, byFamily[parentbilling.FamilyKey(applicant.Email)])
+		recipients[contractID] = parentbilling.CareRecipient{FirstName: effective.FirstName, LastName: effective.LastName,
+			Email: effective.Email, Kind: effective.Kind, SecondName: effective.SecondName, Address: effective.Address}
 	}
 	return recipients, nil
 }

@@ -306,6 +306,7 @@ export default function TraegerCareRunLettersPage() {
         <>
           <CareLettersCard
             runId={run.id}
+            payments={run.invoices.map((invoice) => invoice.payment)}
             letters={letters}
             loadError={lettersLoad.error}
             sendingAll={sendingAll}

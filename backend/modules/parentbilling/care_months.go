@@ -211,7 +211,7 @@ type CareInvoice struct {
 	Recipient CareRecipient `json:"recipient"`
 	// FamilyEmail is the family of the invoice: the mail address of the
 	// contract party, whoever pays (#4689). The sibling rules count by it.
-	FamilyEmail string `json:"-"`
+	FamilyEmail string `json:"family_email"`
 	// Payment is how and by when the invoice is paid (#4689); an invoice
 	// issued before has none.
 	Payment   *InvoicePayment `json:"payment"`

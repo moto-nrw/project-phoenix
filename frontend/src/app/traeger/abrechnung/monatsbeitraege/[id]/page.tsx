@@ -176,6 +176,7 @@ export default function TraegerCareRunPage() {
         },
         existing: findFamilyBilling(families, {
           contractId: invoice.contractId,
+          familyEmail: invoice.familyEmail,
           recipientEmail: invoice.recipient.email,
           recipientKind: invoice.recipient.kind,
         }),

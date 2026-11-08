@@ -408,6 +408,9 @@ export default function TraegerBillingRunPage() {
           {run.status === "released" ? (
             <BillingLettersCard
               runId={run.id}
+              payments={run.documents
+                .filter((document) => document.kind === "invoice")
+                .map((document) => document.payment)}
               letters={run.letters}
               onCreated={(letters) => setRun({ ...run, letters })}
             />

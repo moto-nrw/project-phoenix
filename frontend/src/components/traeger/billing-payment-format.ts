@@ -101,6 +101,24 @@ export function runDueDatesText(dates: readonly RunDueDate[]): string | null {
     .join(" · ");
 }
 
+/** Frozen invoice deadlines, with identical method/date pairs shown once. */
+export function invoiceDueDatesText(
+  payments: readonly (InvoicePayment | null | undefined)[],
+): string | null {
+  const dates = new Map<string, RunDueDate>();
+  for (const payment of payments) {
+    if (payment?.dueOn) {
+      dates.set(`${payment.method}:${payment.dueOn}`, {
+        paymentMethod: payment.method,
+        dueOn: payment.dueOn,
+      });
+    }
+  }
+  return runDueDatesText(
+    [...dates.values()].sort((a, b) => a.dueOn.localeCompare(b.dueOn)),
+  );
+}
+
 /** The payment methods of a family as one line, in form order. */
 export function paymentMethodsText(
   methods: readonly string[] | undefined,
@@ -114,33 +132,31 @@ export function paymentMethodsText(
 
 /**
  * The deviation that applies to an invoice: the one saved for its
- * contract, else the one of its family. The family is the e-mail of the
- * contract party; a payer deviation sends the invoice to the payer, so the
- * invoice then names the payer's address instead.
+ * family key, else its contract for legacy invoices without that key.
+ * A payer's e-mail never identifies a family.
  */
 export function findFamilyBilling(
   families: readonly FamilyBilling[],
   invoice: {
     readonly contractId: string;
+    readonly familyEmail?: string;
     readonly recipientEmail: string;
     readonly recipientKind?: RecipientKind | "";
   },
 ): FamilyBilling | null {
+  const familyEmail = invoice.familyEmail?.trim().toLowerCase();
+  if (familyEmail) {
+    return (
+      families.find((family) => family.familyEmail === familyEmail) ?? null
+    );
+  }
   const byContract = families.find(
     (family) =>
       family.contractId !== "" && family.contractId === invoice.contractId,
   );
   if (byContract) return byContract;
+  if (invoice.recipientKind === "payer") return null;
   const email = invoice.recipientEmail.trim().toLowerCase();
   if (!email) return null;
-  if (invoice.recipientKind === "payer") {
-    return (
-      families.find(
-        (family) =>
-          family.recipientKind === "payer" &&
-          family.payerEmail.trim().toLowerCase() === email,
-      ) ?? null
-    );
-  }
   return families.find((family) => family.familyEmail === email) ?? null;
 }

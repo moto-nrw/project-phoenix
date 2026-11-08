@@ -5,6 +5,7 @@ import {
   dueDaysLabel,
   dueSourceHint,
   findFamilyBilling,
+  invoiceDueDatesText,
   paymentMethodsText,
   recipientKindLabel,
   recipientLine,
@@ -89,6 +90,22 @@ describe("billing payment format", () => {
     expect(paymentMethodsText([])).toBeNull();
   });
 
+  it("lists distinct frozen dates, including different dates for one method", () => {
+    const transfer = {
+      method: "transfer" as const,
+      dueOn: "2026-10-15",
+      dueSource: "family" as const,
+    };
+    expect(
+      invoiceDueDatesText([
+        null,
+        transfer,
+        transfer,
+        { ...transfer, dueOn: "2026-10-01" },
+      ]),
+    ).toBe("Überweisung am 01.10.2026 · Überweisung am 15.10.2026");
+  });
+
   it("finds a family's deviation by contract, else by its address", () => {
     const byContract = family({ id: "2", contractId: "42" });
     const byEmail = family({ id: "3", familyEmail: "anna@example.org" });
@@ -98,7 +115,13 @@ describe("billing payment format", () => {
       recipientKind: "payer",
       payerEmail: "Amt@Example.org",
     });
-    const families = [byEmail, byContract, payer];
+    const otherFamily = family({
+      id: "5",
+      familyEmail: "dora@example.org",
+      recipientKind: "payer",
+      payerEmail: "Amt@Example.org",
+    });
+    const families = [byEmail, byContract, payer, otherFamily];
 
     expect(
       findFamilyBilling(families, {
@@ -118,8 +141,16 @@ describe("billing payment format", () => {
         contractId: "8",
         recipientEmail: "amt@example.org",
         recipientKind: "payer",
+        familyEmail: " Dora@Example.org ",
       })?.id,
-    ).toBe("4");
+    ).toBe("5");
+    expect(
+      findFamilyBilling(families, {
+        contractId: "8",
+        recipientEmail: "amt@example.org",
+        recipientKind: "payer",
+      }),
+    ).toBeNull();
     expect(
       findFamilyBilling(families, {
         contractId: "9",

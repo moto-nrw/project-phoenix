@@ -94,7 +94,7 @@ func TestCareMonthGoldenSJR(t *testing.T) {
 		"school_name": "Grundschule Ispringen", "child_first_name": "Mia", "child_last_name": "Beispiel",
 		"recipient": {"first_name": "Eva", "last_name": "Beispiel", "email": "eva@example.org",
 			"kind": "", "second_name": "", "address": null},
-		"payment": null,
+		"family_email": "eva@example.org", "payment": null,
 		"positions": [
 			{"care_offering_id": 101, "module_name": "Betreuung bis 14:00 Uhr", "version_number": 1,
 			 "service_from": "2027-01-01", "service_until": "2027-01-31",

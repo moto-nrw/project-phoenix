@@ -7,6 +7,7 @@
 // Änderung gilt ab dem nächsten Lauf, ausgestellte Rechnungen bleiben.
 
 import { useEffect, useRef, useState } from "react";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FieldLabel } from "~/components/ui/field-label";
@@ -179,16 +180,26 @@ function ServiceTermsModal({
         {row && row.options.length > 0 ? (
           <div className="space-y-2">
             <FieldLabel>Rechnung</FieldLabel>
-            <SegmentedControl
-              ariaLabel="Rechnung"
-              fullWidth
-              items={[
+            <div
+              role="group"
+              aria-label="Rechnung"
+              className="grid gap-2 sm:grid-cols-2"
+            >
+              {[
                 { value: "care", label: "Auf der Rechnung der Betreuung" },
                 { value: "", label: "Eigene Rechnung" },
-              ]}
-              value={bundleWith}
-              onChange={setBundleWith}
-            />
+              ].map((item) => (
+                <ChoiceTile
+                  key={item.value}
+                  as="button"
+                  selected={bundleWith === item.value}
+                  aria-pressed={bundleWith === item.value}
+                  onClick={() => setBundleWith(item.value)}
+                >
+                  {item.label}
+                </ChoiceTile>
+              ))}
+            </div>
           </div>
         ) : (
           <p className="text-sm text-gray-600">
