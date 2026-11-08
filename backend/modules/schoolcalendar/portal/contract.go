@@ -85,8 +85,10 @@ type ParentCalendar interface {
 }
 
 // PublicCalendarFeeds renders the subscription feeds whose only credential is
-// the feed token.
+// the feed token. CalendarFeedByToken tries the token as a parent feed first,
+// then as a staff feed, and is what the public route serves.
 type PublicCalendarFeeds interface {
+	CalendarFeedByToken(ctx context.Context, token string) (filename, content string, err error)
 	ParentCalendarFeedByToken(ctx context.Context, token string) (filename, content string, err error)
 	StaffCalendarFeedByToken(ctx context.Context, token string) (filename, content string, err error)
 }
