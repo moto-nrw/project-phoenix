@@ -110,6 +110,30 @@ type ChangeRules = (
   queueKey?: string,
 ) => Promise<boolean>;
 
+// The responsive table remounts its cells when the layout changes. Keep
+// their unsaved drafts in the owning card, not in the discarded cell tree.
+// A changed server value still replaces the draft, as it did in each editor.
+type PayrollDrafts = Map<string, { current: string; value: string }>;
+
+function usePayrollDraft(drafts: PayrollDrafts, key: string, current: string) {
+  const [value, setValue] = useState(() => {
+    const draft = drafts.get(key);
+    return draft?.current === current ? draft.value : current;
+  });
+  useEffect(() => {
+    if (drafts.get(key)?.current !== current) {
+      drafts.delete(key);
+      setValue(current);
+    }
+  }, [drafts, key, current]);
+
+  const update = (next: string) => {
+    drafts.set(key, { current, value: next });
+    setValue(next);
+  };
+  return [value, update] as const;
+}
+
 const UNIT_OPTIONS = [
   { value: "", label: "Nicht festgelegt" },
   { value: "stunden", label: "Stunden" },
@@ -433,6 +457,7 @@ function LohnartenCard({
   readonly status: PayrollStatus;
   readonly onSave: SaveSetting;
 }) {
+  const [drafts] = useState<PayrollDrafts>(() => new Map());
   return (
     <SectionCard
       title="Feste Lohnarten"
@@ -444,7 +469,7 @@ function LohnartenCard({
         // über dem Feld, alle Felder gleich breit (#4807).
         stackedOnMobile
         stackedLayout="form"
-        columns={lohnartColumns(onSave)}
+        columns={lohnartColumns(onSave, drafts)}
         rows={status.categories}
         getRowKey={(cat) => cat.id}
         rowHasInteractiveControls
@@ -457,6 +482,7 @@ type LohnartCategory = PayrollStatus["categories"][number];
 
 function lohnartColumns(
   onSave: SaveSetting,
+  drafts: PayrollDrafts,
 ): DataTableColumn<LohnartCategory>[] {
   return [
     {
@@ -469,7 +495,9 @@ function lohnartColumns(
     {
       key: "number",
       header: "Lohnartnummer",
-      render: (cat) => <LohnartNumberCell cat={cat} onSave={onSave} />,
+      render: (cat) => (
+        <LohnartNumberCell cat={cat} onSave={onSave} drafts={drafts} />
+      ),
     },
     {
       key: "unit",
@@ -498,12 +526,13 @@ function lohnartColumns(
 function LohnartNumberCell({
   cat,
   onSave,
+  drafts,
 }: {
   readonly cat: LohnartCategory;
+  readonly drafts: PayrollDrafts;
   readonly onSave: SaveSetting;
 }) {
-  const [number, setNumber] = useState(cat.number);
-  useEffect(() => setNumber(cat.number), [cat.number]);
+  const [number, setNumber] = usePayrollDraft(drafts, cat.id, cat.number);
 
   const valid = number.trim() === "" || /^\d{1,4}$/.test(number.trim());
 
@@ -1034,6 +1063,7 @@ function WageTypesCard({
   readonly onCreate: () => void;
   readonly onArchive: (wageType: PayrollWageType) => void;
 }) {
+  const [drafts] = useState<PayrollDrafts>(() => new Map());
   // The API accepts the full wage-type object. Keep the last confirmed object
   // per row so a queued field save builds on the preceding successful save,
   // rather than on a stale render of another field.
@@ -1071,6 +1101,7 @@ function WageTypesCard({
           wageType={wageType}
           field="name"
           onSave={saveWageType}
+          drafts={drafts}
         />
       ),
     },
@@ -1082,6 +1113,7 @@ function WageTypesCard({
           wageType={wageType}
           field="number"
           onSave={saveWageType}
+          drafts={drafts}
         />
       ),
     },
@@ -1156,16 +1188,21 @@ function WageTypeTextCell({
   wageType,
   field,
   onSave,
+  drafts,
 }: {
   readonly wageType: PayrollWageType;
   readonly field: "name" | "number";
+  readonly drafts: PayrollDrafts;
   readonly onSave: (
     wageType: PayrollWageType,
     changes: Partial<PayrollWageType>,
   ) => void;
 }) {
-  const [value, setValue] = useState(wageType[field]);
-  useEffect(() => setValue(wageType[field]), [wageType, field]);
+  const [value, setValue] = usePayrollDraft(
+    drafts,
+    `${wageType.id}:${field}`,
+    wageType[field],
+  );
 
   const trimmed = value.trim();
   const error =
@@ -1222,6 +1259,7 @@ function SurchargeRulesCard({
   readonly onCreate: () => void;
   readonly onArchive: (rule: PayrollSurchargeRule) => void;
 }) {
+  const [drafts] = useState<PayrollDrafts>(() => new Map());
   // The API replaces the complete rule. Keep each row's last confirmed value
   // so a queued field save builds on the preceding successful save, instead
   // of a stale render of another field.
@@ -1261,7 +1299,11 @@ function SurchargeRulesCard({
       header: "Zeitraum",
       render: (rule) =>
         rule.kind === "nacht" ? (
-          <NightWindowCell rule={rule} onSave={saveSurchargeRule} />
+          <NightWindowCell
+            rule={rule}
+            onSave={saveSurchargeRule}
+            drafts={drafts}
+          />
         ) : (
           <span className="text-sm text-gray-600">ganzer Tag</span>
         ),
@@ -1269,7 +1311,9 @@ function SurchargeRulesCard({
     {
       key: "rate",
       header: "Höhe",
-      render: (rule) => <RateCell rule={rule} onSave={saveSurchargeRule} />,
+      render: (rule) => (
+        <RateCell rule={rule} onSave={saveSurchargeRule} drafts={drafts} />
+      ),
     },
     {
       key: "wageType",
@@ -1359,16 +1403,22 @@ type SaveSurchargeRule = (
 function NightWindowCell({
   rule,
   onSave,
+  drafts,
 }: {
   readonly rule: PayrollSurchargeRule;
+  readonly drafts: PayrollDrafts;
   readonly onSave: SaveSurchargeRule;
 }) {
-  const [from, setFrom] = useState(minutesToClock(rule.windowStartMinute ?? 0));
-  const [until, setUntil] = useState(minutesToClock(rule.windowEndMinute ?? 0));
-  useEffect(() => {
-    setFrom(minutesToClock(rule.windowStartMinute ?? 0));
-    setUntil(minutesToClock(rule.windowEndMinute ?? 0));
-  }, [rule.windowStartMinute, rule.windowEndMinute]);
+  const [from, setFrom] = usePayrollDraft(
+    drafts,
+    `${rule.id}:from`,
+    minutesToClock(rule.windowStartMinute ?? 0),
+  );
+  const [until, setUntil] = usePayrollDraft(
+    drafts,
+    `${rule.id}:until`,
+    minutesToClock(rule.windowEndMinute ?? 0),
+  );
 
   const fromMinute = clockToMinutes(from);
   const untilMinute = clockToMinutes(until);
@@ -1418,16 +1468,16 @@ function NightWindowCell({
 function RateCell({
   rule,
   onSave,
+  drafts,
 }: {
   readonly rule: PayrollSurchargeRule;
+  readonly drafts: PayrollDrafts;
   readonly onSave: SaveSurchargeRule;
 }) {
-  const [text, setText] = useState(
+  const [text, setText] = usePayrollDraft(
+    drafts,
+    `${rule.id}:rate`,
     formatRate(rule.rateType, rule.rateHundredths),
-  );
-  useEffect(
-    () => setText(formatRate(rule.rateType, rule.rateHundredths)),
-    [rule.rateType, rule.rateHundredths],
   );
   const value = parseRate(text);
 
