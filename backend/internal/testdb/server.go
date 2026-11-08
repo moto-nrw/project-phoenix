@@ -86,6 +86,21 @@ To run integration tests manually:
 // server: a corrupt cluster exits within a second of its start.
 const corruptServerCheckInterval = 2 * time.Second
 
+type corruptServerProbe struct {
+	recover corruptServerRecovery
+	next    time.Time
+}
+
+// rebuilt asks recover at most once per interval, and only while the server
+// refuses connections: a cluster that answers is not corrupt.
+func (p *corruptServerProbe) rebuilt(ctx context.Context, pingErr error) (bool, error) {
+	if p.recover == nil || !errors.Is(pingErr, syscall.ECONNREFUSED) || time.Now().Before(p.next) {
+		return false, nil
+	}
+	p.next = time.Now().Add(corruptServerCheckInterval)
+	return p.recover(ctx)
+}
+
 func waitForServer(
 	ctx context.Context,
 	cfg *Config,
@@ -94,7 +109,7 @@ func waitForServer(
 	recoverCorrupt corruptServerRecovery,
 ) error {
 	deadline := time.Now().Add(60 * time.Second)
-	nextCheck := time.Now().Add(corruptServerCheckInterval)
+	probe := corruptServerProbe{recover: recoverCorrupt, next: time.Now().Add(corruptServerCheckInterval)}
 	for {
 		err := ping(ctx, cfg)
 		if err == nil {
@@ -104,16 +119,11 @@ func waitForServer(
 		} else if time.Now().After(deadline) {
 			return fmt.Errorf("test database server did not become ready within 60s after container start: %w", err)
 		}
-		if recoverCorrupt != nil && errors.Is(err, syscall.ECONNREFUSED) && !time.Now().Before(nextCheck) {
-			rebuilt, recoverErr := recoverCorrupt(ctx)
-			if recoverErr != nil {
-				return fmt.Errorf("rebuild corrupt test database server: %w", recoverErr)
-			}
-			if rebuilt {
-				// A fresh cluster runs initdb before it accepts connections.
-				deadline = time.Now().Add(60 * time.Second)
-			}
-			nextCheck = time.Now().Add(corruptServerCheckInterval)
+		if rebuilt, recoverErr := probe.rebuilt(ctx, err); recoverErr != nil {
+			return fmt.Errorf("rebuild corrupt test database server: %w", recoverErr)
+		} else if rebuilt {
+			// A fresh cluster runs initdb before it accepts connections.
+			deadline = time.Now().Add(60 * time.Second)
 		}
 		select {
 		case <-ctx.Done():
