@@ -167,9 +167,15 @@ export function AnchoredPopover<
     updatePosition();
     window.addEventListener("resize", updatePosition);
     window.addEventListener("scroll", updatePosition, true);
+    // Ein Auslöser in einem Dialog, der noch einblendet, steht erst nach der
+    // Animation an seinem Platz.
+    window.addEventListener("animationend", updatePosition, true);
+    window.addEventListener("transitionend", updatePosition, true);
     return () => {
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("animationend", updatePosition, true);
+      window.removeEventListener("transitionend", updatePosition, true);
     };
   }, [open, updatePosition]);
 
