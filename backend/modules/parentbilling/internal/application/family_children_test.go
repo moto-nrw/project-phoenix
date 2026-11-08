@@ -102,3 +102,40 @@ func TestFamilyChildrenRetainsDatedConfirmations(t *testing.T) {
 	_, found = count.ConfirmedIn(calendar.NewDate(2026, 12, 1))
 	assert.False(t, found)
 }
+
+func TestFamilyChildrenSupersedesExpiredConfirmations(t *testing.T) {
+	t.Parallel()
+	january, april, july := calendar.NewDate(2027, 1, 1), calendar.NewDate(2027, 4, 1), calendar.NewDate(2027, 7, 1)
+	januaryEnd, mayEnd, augustEnd := calendar.NewDate(2027, 1, 31), calendar.NewDate(2027, 5, 31), calendar.NewDate(2027, 8, 31)
+	old := parentbilling.FamilyChildConfirmation{Children: ptr(3), ValidFrom: &january}
+	corrected := parentbilling.FamilyChildCount{ConfirmedChildren: ptr(3), ValidFrom: &january, ValidUntil: &januaryEnd,
+		Confirmations: []parentbilling.FamilyChildConfirmation{old}}
+	future := parentbilling.FamilyChildCount{ConfirmedChildren: ptr(2), ValidFrom: &april, ValidUntil: &mayEnd,
+		Confirmations: []parentbilling.FamilyChildConfirmation{old}}
+	later := parentbilling.FamilyChildCount{ConfirmedChildren: ptr(4), ValidFrom: &july, ValidUntil: &augustEnd,
+		Confirmations: []parentbilling.FamilyChildConfirmation{
+			{Children: ptr(2), ValidFrom: &april, ValidUntil: &mayEnd}, old,
+		}}
+	for _, tc := range []struct {
+		name     string
+		count    parentbilling.FamilyChildCount
+		month    calendar.Date
+		children int
+		found    bool
+	}{
+		{"corrected interval remains valid before its end", corrected, january, 3, true},
+		{"corrected expiry does not revive the open interval", corrected, calendar.NewDate(2027, 2, 1), 0, false},
+		{"future confirmation preserves earlier months", future, calendar.NewDate(2027, 3, 1), 3, true},
+		{"successor includes its last month", future, calendar.NewDate(2027, 5, 1), 2, true},
+		{"expired successor does not revive its predecessor", future, calendar.NewDate(2027, 6, 1), 0, false},
+		{"expired history does not revive an older interval", later, calendar.NewDate(2027, 6, 1), 0, false},
+		{"history before a successor remains valid", later, calendar.NewDate(2027, 3, 1), 3, true},
+		{"newest expiry supersedes all history", later, calendar.NewDate(2027, 9, 1), 0, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			children, found := tc.count.ConfirmedIn(tc.month)
+			assert.Equal(t, tc.found, found)
+			assert.Equal(t, tc.children, children)
+		})
+	}
+}

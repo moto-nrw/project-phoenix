@@ -84,6 +84,23 @@ func TestFamilyChildrenCountInTheSiblingRuleThroughTheRoutes(t *testing.T) {
 	require.NotEmpty(t, preview.Invoices[0].Reductions)
 	assert.Equal(t, 3, *preview.Invoices[0].Reductions[0].FamilyChildren)
 
+	// Correcting the successor's end must not revive either open interval.
+	correction := familyChildren(mia, 2, "2030-02-01")
+	correction["valid_until"] = "2030-02-28"
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPut, familyChildrenPath, correction)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	marchRun := f.startRun(t, "2030-03-01")
+	march := decodeSchoolPortalData[careReductionRunBody](t, traegerJSON(t, f.traeger, f.office.token, http.MethodGet,
+		careRunPath(marchRun.ID, ""), nil).Body.Bytes())
+	require.Len(t, march.Invoices, 1)
+	assert.Equal(t, int64(7750), march.Invoices[0].TotalCents, "the corrected expiry ends the sibling discount")
+	assert.Empty(t, march.Invoices[0].Reductions)
+	assert.Equal(t, 1, march.UncountedFamilies, "the expired family needs a new confirmation")
+	preview = decodeSchoolPortalData[careReductionRunBody](t, traegerJSON(t, f.traeger, f.office.token, http.MethodGet,
+		careRunPath(run.ID, ""), nil).Body.Bytes())
+	require.Len(t, preview.Invoices, 1)
+	assert.Equal(t, int64(3875), preview.Invoices[0].TotalCents, "the correction preserves the earlier billing period")
+
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/release"),
 		map[string]any{"document_count": preview.PreviewCount, "total_cents": preview.PreviewCents})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
