@@ -7,36 +7,28 @@
 // Schreiben, auch nur die der Familien ohne E-Mail. Die Mail und das Fach
 // „Dokumente“ der Eltern-App bekommen dieselbe Datei.
 
-import dynamic from "next/dynamic";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
-import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { ConfirmationModal } from "~/components/ui/modal";
-import NavigationLink from "~/components/ui/navigation-link";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { ProgressBar } from "~/components/ui/progress-bar";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatCard } from "~/components/ui/stat-card";
 import type { useApiLoadError } from "~/contexts/ToastContext";
-import { formatBerlinDate, formatDate } from "~/lib/date-helpers";
 import type { LetterSource } from "./billing-letters-modal";
+import {
+  BillingSettingsLink,
+  LetterheadLink,
+  LettersCreateCard,
+  LettersFacts,
+} from "./billing-letters-card";
 import {
   type CareLetterSummary,
   type CareLetters,
   createCareLetters,
   previewCareLetter,
 } from "~/lib/traeger-care-billing-api";
-import { traegerPath } from "~/lib/traeger-url";
-
-// Loaded when someone opens it: a run creates its letters once.
-const BillingLettersModal = dynamic(
-  () =>
-    import("./billing-letters-modal").then(
-      (module) => module.BillingLettersModal<CareLetters>,
-    ),
-  { ssr: false },
-);
 
 const TITLE = "Schreiben an die Familien";
 
@@ -114,7 +106,6 @@ export function CareLettersCard({
   onSendAll: () => Promise<void>;
   onPrint: (withoutEmailOnly: boolean) => void;
 }>) {
-  const [creating, setCreating] = useState(false);
   const [confirming, setConfirming] = useState(false);
 
   if (loadError) {
@@ -138,50 +129,17 @@ export function CareLettersCard({
 
   if (!letters.letters) {
     return (
-      <SectionCard
+      <LettersCreateCard<CareLetters>
         title={TITLE}
         description="Jede Familie bekommt ein Schreiben mit ihrer Rechnung. Erstellen sendet noch nichts: Die Familien sehen es erst, wenn Sie es senden."
-        actions={
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={() => setCreating(true)}
-          >
-            Schreiben erstellen
-          </Button>
-        }
+        runId={runId}
+        source={source}
+        onCreated={onCreated}
       >
-        <p className="text-sm text-gray-700">
-          Logo und Absender kommen aus{" "}
-          <NavigationLink
-            href={traegerPath("/traeger/einstellungen/briefkopf")}
-            className="font-medium underline"
-          >
-            Briefkopf und Vorlagen
-          </NavigationLink>
-          , die Bankverbindung aus den{" "}
-          <NavigationLink
-            href={traegerPath("/traeger/einstellungen/abrechnung")}
-            className="font-medium underline"
-          >
-            Abrechnungsvorgaben
-          </NavigationLink>
-          . Ohne Bankverbindung lassen sich keine Schreiben erstellen.
-        </p>
-        {creating ? (
-          <BillingLettersModal
-            runId={runId}
-            isOpen
-            source={source}
-            onClose={() => setCreating(false)}
-            onCreated={(created: CareLetters) => {
-              setCreating(false);
-              onCreated(created);
-            }}
-          />
-        ) : null}
-      </SectionCard>
+        Logo und Absender kommen aus <LetterheadLink />, die Bankverbindung aus
+        den <BillingSettingsLink />. Ohne Bankverbindung lassen sich keine
+        Schreiben erstellen.
+      </LettersCreateCard>
     );
   }
 
@@ -239,23 +197,13 @@ export function CareLettersCard({
             senden Sie erneut über das Menü ihrer Rechnung.
           </p>
         ) : null}
-        <DataGrid columns={2}>
-          <DataField label="Zahlen bis">
-            {formatDate(letters.letters.paymentDueOn)}
-          </DataField>
-          <DataField label="Erstellt am">
-            {formatBerlinDate(letters.letters.createdAt)}
-          </DataField>
-          <DataField label="Hinweis für die Familien">
-            {letters.letters.notes ? (
-              <span className="whitespace-pre-line">
-                {letters.letters.notes}
-              </span>
-            ) : (
-              "Keiner"
-            )}
-          </DataField>
-        </DataGrid>
+        <LettersFacts
+          paymentDueOn={letters.letters.paymentDueOn}
+          createdAt={letters.letters.createdAt}
+          notes={letters.letters.notes}
+          notesLabel="Hinweis für die Familien"
+          emptyNotes="Keiner"
+        />
       </div>
       <ConfirmationModal
         isOpen={confirming}

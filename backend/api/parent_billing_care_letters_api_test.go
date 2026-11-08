@@ -438,3 +438,26 @@ func TestCareInvoiceCancelledAfterPrintingGetsAPaperNotice(t *testing.T) {
 	assert.False(t, careLetterOf(decodeSchoolPortalData[careLettersBody](t, rec.Body.Bytes()), mia, "cancellation").HasLetter,
 		"the print filter must not mark the other invoice as printed")
 }
+
+// A letter opened alone may have been printed and handed over, like one of
+// the print of the run: its Storno gets a letter even though no mail went out.
+func TestCareInvoiceOpenedAloneGetsTheLetterOfItsStorno(t *testing.T) {
+	t.Parallel()
+	f := newCareBillingFixture(t, "Träger Monatsstorno geöffnet")
+	brandCareTraeger(t, f)
+	run, contracts := releasedCareRun(t, f, "Mia", "Lea")
+	mia, lea := invoiceOfContract(t, run, contracts["Mia"]), invoiceOfContract(t, run, contracts["Lea"])
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/letters"), careLettersInput())
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodGet, careRunPath(run.ID, fmt.Sprintf("/invoices/%d/letter", mia.ID)), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	for _, invoice := range []careInvoiceBody{mia, lea} {
+		rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, fmt.Sprintf("/invoices/%d/cancellation", invoice.ID)),
+			map[string]any{"reason": "Falscher Vertrag"})
+		require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	}
+	letters := careLetters(t, f, run.ID)
+	assert.True(t, careLetterOf(letters, mia, "cancellation").HasLetter, "the opened letter may be on paper at the family")
+	assert.False(t, careLetterOf(letters, lea, "cancellation").HasLetter, "a letter never opened, printed or sent stayed in the office")
+}

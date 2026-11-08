@@ -162,8 +162,9 @@ func (s *Store) CareRunLetterRecords(ctx context.Context, organizationID, runID 
 	}
 	query = query.ColumnExpr(`EXISTS (SELECT 1 FROM parent_billing.care_run_events AS event
 		WHERE event.organization_id = care_letter_row.organization_id AND event.run_id = care_letter_row.run_id
-		AND event.action = 'read' AND event.details->>'letter' = 'print'
-		AND event.details->'letter_ids' @> jsonb_build_array(care_letter_row.id)) AS printed`)
+		AND event.action = 'read' AND (
+			(event.details->>'letter' = 'print' AND event.details->'letter_ids' @> jsonb_build_array(care_letter_row.id))
+			OR (event.details->>'letter' = 'download' AND event.details->'letter_id' = to_jsonb(care_letter_row.id)))) AS printed`)
 	if err := query.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("read care letters: %w", err)
 	}
