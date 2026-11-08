@@ -19,21 +19,23 @@ vi.mock("next/headers", () => ({
       cookie: state.cookie,
     }),
 }));
-vi.mock("~/server/auth/tenant-config", async (importOriginal) => {
+vi.mock("~/server/auth/portal-config", async (importOriginal) => {
   const original =
-    await importOriginal<typeof import("~/server/auth/tenant-config")>();
+    await importOriginal<typeof import("~/server/auth/portal-config")>();
   return {
-    tenantAuthConfig: {
-      ...original.tenantAuthConfig,
+    createPortalAuthConfig: (
+      ...args: Parameters<typeof original.createPortalAuthConfig>
+    ) => ({
+      ...original.createPortalAuthConfig(...args),
       secret: "synthetic-local-stage-two-session-secret",
-    },
+    }),
   };
 });
 const { POST: login } = await import("./login/route");
 const { POST: verify } = await import("./mfa/verify/route");
 const { POST: enroll } = await import("./mfa/enroll/confirm/route");
 const { POST: passkey } = await import("./passkeys/login/verify/route");
-const { handlers } = await import("~/server/auth");
+const { handlers } = (await import("~/server/auth")).tenantPortal;
 const backend = vi.fn();
 const claims = () => ({
   id: 42,

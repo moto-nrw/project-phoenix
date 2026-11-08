@@ -5,10 +5,6 @@ import { SESSION_ACCOUNT_HEADER } from "~/lib/session-account";
 
 // Every portal's route wrapper runs through its real response-aware Auth.js
 // handler here, so a wrapper that bypasses the account check fails (#5183).
-vi.unmock("~/server/auth/tenant-route");
-vi.unmock("~/server/auth/operator-route");
-vi.unmock("~/server/auth/parent-route");
-vi.unmock("~/server/auth/traeger-route");
 
 const { mockFetch } = vi.hoisted(() => ({ mockFetch: vi.fn() }));
 
@@ -63,9 +59,9 @@ const portals: Portal[] = [
     name: "tenant",
     host: "schule-a.localhost:3000",
     read: async () =>
-      (await import("~/lib/route-proxy.server")).proxyGet("/api/x"),
+      (await import("~/lib/route-wrapper.server")).proxyGet("/api/x"),
     write: async () =>
-      (await import("~/lib/route-proxy.server")).proxyPost("/api/x"),
+      (await import("~/lib/route-wrapper.server")).proxyPost("/api/x"),
   },
   {
     name: "operator",
@@ -228,7 +224,7 @@ describe("routes that must work with another account in the cookie", () => {
   it.each(["/api/auth/logout", "/api/auth/token", "/api/logs"])(
     "tenant %s stays reachable",
     async (path) => {
-      const route = (await import("~/lib/route-proxy.server")).proxyPost(
+      const route = (await import("~/lib/route-wrapper.server")).proxyPost(
         "/api/x",
       );
 
@@ -250,7 +246,12 @@ describe("routes that must work with another account in the cookie", () => {
     ["school", "schule.localhost:3000", "/api/school/auth/logout"],
     ["caterer", "caterer.localhost:3000", "/api/caterer/auth/logout"],
     ["traeger", "traeger.localhost:3000", "/api/traeger/auth/logout"],
-  ] as const)("%s logout stays reachable", async (name, host, path) => {
+    ["operator", "operator.localhost:3000", "/api/operator/logs"],
+    ["parent", "eltern.localhost:3000", "/api/parent/logs"],
+    ["school", "schule.localhost:3000", "/api/school/logs"],
+    ["caterer", "caterer.localhost:3000", "/api/caterer/logs"],
+    ["traeger", "traeger.localhost:3000", "/api/traeger/logs"],
+  ] as const)("%s on %s: %s stays reachable", async (name, host, path) => {
     const portal = portals.find((entry) => entry.name === name)!;
 
     const response = await call(await portal.write(), {
@@ -267,7 +268,7 @@ describe("routes that must work with another account in the cookie", () => {
 it.each(["/api/auth/switch-tenant", "/api/auth/staff-preview/end"])(
   "%s cannot act on a different cookie account",
   async (path) => {
-    const route = (await import("~/lib/route-proxy.server")).proxyPost(
+    const route = (await import("~/lib/route-wrapper.server")).proxyPost(
       "/api/x",
     );
     const response = await call(route, {
@@ -314,7 +315,9 @@ it.each([
 
 describe("school and account checks of the tenant portal", () => {
   it("keeps the school mismatch for the same account on another school", async () => {
-    const route = (await import("~/lib/route-proxy.server")).proxyGet("/api/x");
+    const route = (await import("~/lib/route-wrapper.server")).proxyGet(
+      "/api/x",
+    );
 
     const response = await call(route, {
       host: "schule-b.localhost:3000",

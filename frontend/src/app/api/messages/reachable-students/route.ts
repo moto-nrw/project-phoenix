@@ -1,4 +1,4 @@
-import { proxyGet } from "~/lib/route-proxy.server";
+import { proxyGet } from "~/lib/route-wrapper.server";
 
 /**
  * Proxy GET /api/messages/reachable-students → backend. Returns the IDs of

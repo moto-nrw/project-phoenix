@@ -1,4 +1,4 @@
-import { proxyDelete, proxyPost } from "@/lib/route-proxy.server";
+import { proxyDelete, proxyPost } from "~/lib/route-wrapper.server";
 import { requirePathSegmentParam } from "@/lib/route-wrapper-utils.server";
 
 // POST stops mail to the person; DELETE takes the stop back (#5934).

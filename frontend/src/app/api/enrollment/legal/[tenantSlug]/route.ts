@@ -21,6 +21,4 @@ export const GET = createPublicJsonProxy({
       request.nextUrl.searchParams.get(LATE_INVITE_QUERY_PARAM),
     );
   },
-  cache: "no-store",
-  contentTypeOnGet: false,
 });

@@ -491,6 +491,11 @@ type InboxContract struct {
 	// needs (InboxReader.SigningChildren, parent_portal.enrollment.submit).
 	EndsOn *calendar.Date `json:"ends_on"`
 	CanEnd bool           `json:"can_end"`
+	// CanWithdraw tells that CanEnd holds and the withdrawal period may
+	// still run (#6105): the inbox then shows the withdrawal function
+	// „Vertrag widerrufen“ of § 356a BGB. The declaration page decides on
+	// the exact day.
+	CanWithdraw bool `json:"can_withdraw"`
 }
 
 // Inbox serves the contracts of one Träger in the parents' inbox (ADR 0088

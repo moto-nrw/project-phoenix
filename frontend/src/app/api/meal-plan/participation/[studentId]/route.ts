@@ -1,4 +1,4 @@
-import { proxyGet } from "~/lib/route-proxy.server";
+import { proxyGet } from "~/lib/route-wrapper.server";
 import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 // Anmeldung eines Kindes zum Mittagessen für die Schule (#3873). meals:register

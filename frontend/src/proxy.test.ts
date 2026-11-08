@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, it, expect, vi } from "vitest";
 import { NextRequest } from "next/server";
@@ -257,6 +257,8 @@ describe("sandbox CSP of uploaded files (#5275)", () => {
     "/api/files/folders/4/files/5/download",
     "/api/announcement-attachments/6/7/download",
     "/api/parent/me/news/8/attachments/9/download",
+    "/api/students/1/documents/2/download",
+    "/api/staff/3/documents/4/download",
   ])("runs %s in the sandbox, not under the app CSP", (route) => {
     const host = hostFor(route);
     const res = proxy(makeRequest(`http://${host}${route}?inline=1`, host));
@@ -269,6 +271,7 @@ describe("sandbox CSP of uploaded files (#5275)", () => {
     "/api/enrollment/admin/requests/7",
     "/api/files/folders/4/files",
     "/api/parent/me/news/8/attachments/9/download/extra",
+    "/api/students/1/documents",
   ])("keeps the app CSP on %s", (route) => {
     const host = hostFor(route);
     const res = proxy(makeRequest(`http://${host}${route}`, host));
@@ -277,32 +280,35 @@ describe("sandbox CSP of uploaded files (#5275)", () => {
     expect(csp).not.toContain("sandbox");
   });
 
-  it("covers every BFF route that forwards the backend's CSP", () => {
+  // The proxy's CSP is the one the browser gets: Next sets it on the
+  // response before the route runs and keeps it over the route's own
+  // (review L9). So this list alone sandboxes an uploaded file.
+  it("sandboxes exactly the routes that stream an uploaded file", () => {
     const apiDir = path.join(__dirname, "app", "api");
-    const routes = readdirSync(apiDir, { recursive: true, encoding: "utf8" })
+    const sandboxed = readdirSync(apiDir, { recursive: true, encoding: "utf8" })
       .filter((file) => file.endsWith("route.ts"))
-      .filter((file) =>
-        /content-security-policy/i.test(
-          readFileSync(path.join(apiDir, file), "utf8"),
-        ),
-      )
-      .map(
-        (file) =>
+      .map((file) => path.dirname(file).split(path.sep).join("/"))
+      .filter((dir) => {
+        const route =
           "/api/" +
-          path
-            .dirname(file)
-            .split(path.sep)
+          dir
+            .split("/")
             .map((segment) => (segment.startsWith("[") ? "1" : segment))
-            .join("/"),
-      );
-    expect(routes.length).toBeGreaterThan(0);
-    for (const route of routes) {
-      const host = hostFor(route);
-      const res = proxy(makeRequest(`http://${host}${route}`, host));
-      expect(res.headers.get("Content-Security-Policy"), route).toBe(
-        SANDBOX_CSP,
-      );
-    }
+            .join("/");
+        const host = hostFor(route);
+        const csp = proxy(makeRequest(`http://${host}${route}`, host)).headers;
+        return csp.get("Content-Security-Policy") === SANDBOX_CSP;
+      })
+      .sort();
+    expect(sandboxed).toEqual([
+      "announcement-attachments/[announcementId]/[attachmentId]/download",
+      "enrollment/admin/requests/[id]/uploads/[uploadId]",
+      "files/folders/[folderId]/files/[fileId]/download",
+      "parent/me/news/[announcementId]/attachments/[attachmentId]/download",
+      "staff/[id]/documents/[documentId]/download",
+      "students/[id]/documents/[documentId]/download",
+      "traeger/holiday-periods/[id]/registrations/[registrationId]/proofs/[proofId]",
+    ]);
   });
 });
 
@@ -642,27 +648,6 @@ describe("proxy", () => {
       expect(rewrite).toContain("/operator");
     });
 
-    it("rewrites /login to /operator/login", () => {
-      const res = proxy(
-        makeRequest(`http://${OPERATOR_HOSTNAME}/login`, OPERATOR_HOSTNAME),
-      );
-
-      const rewrite = res.headers.get("x-middleware-rewrite");
-      expect(rewrite).toContain("/operator/login");
-    });
-
-    it("rewrites /organizations to /operator/organizations", () => {
-      const res = proxy(
-        makeRequest(
-          `http://${OPERATOR_HOSTNAME}/organizations`,
-          OPERATOR_HOSTNAME,
-        ),
-      );
-
-      const rewrite = res.headers.get("x-middleware-rewrite");
-      expect(rewrite).toContain("/operator/organizations");
-    });
-
     it("rewrites nested operator paths like /organizations/123", () => {
       const res = proxy(
         makeRequest(
@@ -717,39 +702,6 @@ describe("proxy", () => {
 
       const rewrite = res.headers.get("x-middleware-rewrite");
       expect(rewrite).toContain("/operator/organizations");
-    });
-
-    it("rewrites /announcements to /operator/announcements", () => {
-      const res = proxy(
-        makeRequest(
-          `http://${OPERATOR_HOSTNAME}/announcements`,
-          OPERATOR_HOSTNAME,
-        ),
-      );
-
-      const rewrite = res.headers.get("x-middleware-rewrite");
-      expect(rewrite).toContain("/operator/announcements");
-    });
-
-    it("rewrites /settings to /operator/settings", () => {
-      const res = proxy(
-        makeRequest(`http://${OPERATOR_HOSTNAME}/settings`, OPERATOR_HOSTNAME),
-      );
-
-      const rewrite = res.headers.get("x-middleware-rewrite");
-      expect(rewrite).toContain("/operator/settings");
-    });
-
-    it("rewrites /provisioning to /operator/provisioning", () => {
-      const res = proxy(
-        makeRequest(
-          `http://${OPERATOR_HOSTNAME}/provisioning`,
-          OPERATOR_HOSTNAME,
-        ),
-      );
-
-      const rewrite = res.headers.get("x-middleware-rewrite");
-      expect(rewrite).toContain("/operator/provisioning");
     });
 
     it.each([
@@ -917,12 +869,6 @@ describe("proxy", () => {
       }
     });
 
-    it("rewrites the account page (#4496)", () => {
-      expect(caterer("/konto").headers.get("x-middleware-rewrite")).toContain(
-        "/caterer/konto",
-      );
-    });
-
     it("serves only the caterer API on its host", () => {
       expect(caterer("/api/caterer/schools").status).toBe(200);
       for (const path of [
@@ -1012,17 +958,6 @@ describe("proxy", () => {
       expect(res.headers.get("x-middleware-rewrite")).toContain("/school");
     });
 
-    it("rewrites /login to /school/login", () => {
-      const res = proxy(
-        makeRequest(`http://${SCHOOL_HOSTNAME}/login`, SCHOOL_HOSTNAME),
-      );
-
-      expect(res.headers.get("location")).toBeNull();
-      expect(res.headers.get("x-middleware-rewrite")).toContain(
-        "/school/login",
-      );
-    });
-
     it("rewrites /invite with token to /school/invite (accept flow)", () => {
       const res = proxy(
         makeRequest(
@@ -1050,29 +985,6 @@ describe("proxy", () => {
       );
     });
 
-    it("rewrites /aufsichten to /school/aufsichten (#2527)", () => {
-      const res = proxy(
-        makeRequest(`http://${SCHOOL_HOSTNAME}/aufsichten`, SCHOOL_HOSTNAME),
-      );
-
-      expect(res.headers.get("x-middleware-rewrite")).toContain(
-        "/school/aufsichten",
-      );
-    });
-
-    it("rewrites /tagesinformationen to /school/tagesinformationen (#2208)", () => {
-      const res = proxy(
-        makeRequest(
-          `http://${SCHOOL_HOSTNAME}/tagesinformationen`,
-          SCHOOL_HOSTNAME,
-        ),
-      );
-
-      expect(res.headers.get("x-middleware-rewrite")).toContain(
-        "/school/tagesinformationen",
-      );
-    });
-
     it("rewrites the parent letters to /school/elternbriefe (#4800)", () => {
       for (const path of ["/elternbriefe", "/elternbriefe/14"]) {
         const res = proxy(
@@ -1083,26 +995,6 @@ describe("proxy", () => {
           `/school${path}`,
         );
       }
-    });
-
-    it("rewrites /fehlzeiten to /school/fehlzeiten (#4793)", () => {
-      const res = proxy(
-        makeRequest(`http://${SCHOOL_HOSTNAME}/fehlzeiten`, SCHOOL_HOSTNAME),
-      );
-
-      expect(res.headers.get("x-middleware-rewrite")).toContain(
-        "/school/fehlzeiten",
-      );
-    });
-
-    it("rewrites /kalender to /school/kalender (#4798)", () => {
-      const res = proxy(
-        makeRequest(`http://${SCHOOL_HOSTNAME}/kalender`, SCHOOL_HOSTNAME),
-      );
-
-      expect(res.headers.get("x-middleware-rewrite")).toContain(
-        "/school/kalender",
-      );
     });
 
     it("rewrites a class page to /school/klasse (#2294)", () => {
@@ -1241,17 +1133,6 @@ describe("proxy", () => {
       expect(res.headers.get("x-middleware-rewrite")).toContain("/traeger");
     });
 
-    it("rewrites /login to /traeger/login", () => {
-      const res = proxy(
-        makeRequest(`http://${TRAEGER_HOSTNAME}/login`, TRAEGER_HOSTNAME),
-      );
-
-      expect(res.headers.get("location")).toBeNull();
-      expect(res.headers.get("x-middleware-rewrite")).toContain(
-        "/traeger/login",
-      );
-    });
-
     it("rewrites the reset link to /traeger/reset-password (#5149)", () => {
       const res = proxy(
         makeRequest(
@@ -1277,17 +1158,6 @@ describe("proxy", () => {
       );
     });
 
-    it("rewrites the dashboard to /traeger/uebersicht (#4674)", () => {
-      const res = proxy(
-        makeRequest(`http://${TRAEGER_HOSTNAME}/uebersicht`, TRAEGER_HOSTNAME),
-      );
-
-      expect(res.headers.get("location")).toBeNull();
-      expect(res.headers.get("x-middleware-rewrite")).toContain(
-        "/traeger/uebersicht",
-      );
-    });
-
     it("rewrites the care contracts to /traeger/vertraege (#4678)", () => {
       for (const path of [
         "/vertraege",
@@ -1303,34 +1173,6 @@ describe("proxy", () => {
           `/traeger${path}`,
         );
       }
-    });
-
-    it("rewrites the overruns to /traeger/zeitvergleich (#4683)", () => {
-      const res = proxy(
-        makeRequest(
-          `http://${TRAEGER_HOSTNAME}/zeitvergleich`,
-          TRAEGER_HOSTNAME,
-        ),
-      );
-
-      expect(res.headers.get("location")).toBeNull();
-      expect(res.headers.get("x-middleware-rewrite")).toContain(
-        "/traeger/zeitvergleich",
-      );
-    });
-
-    it("rewrites the Stichtagszahlen to /traeger/stichtagszahlen (#4673)", () => {
-      const res = proxy(
-        makeRequest(
-          `http://${TRAEGER_HOSTNAME}/stichtagszahlen`,
-          TRAEGER_HOSTNAME,
-        ),
-      );
-
-      expect(res.headers.get("location")).toBeNull();
-      expect(res.headers.get("x-middleware-rewrite")).toContain(
-        "/traeger/stichtagszahlen",
-      );
     });
 
     it("rewrites the shared documents to /traeger/dokumente (#4692)", () => {
@@ -1357,20 +1199,6 @@ describe("proxy", () => {
           `/traeger${path}`,
         );
       }
-    });
-
-    it("rewrites /einstellungen to /traeger/einstellungen (#4652)", () => {
-      const res = proxy(
-        makeRequest(
-          `http://${TRAEGER_HOSTNAME}/einstellungen`,
-          TRAEGER_HOSTNAME,
-        ),
-      );
-
-      expect(res.headers.get("location")).toBeNull();
-      expect(res.headers.get("x-middleware-rewrite")).toContain(
-        "/traeger/einstellungen",
-      );
     });
 
     it("rewrites the settings pages to /traeger/einstellungen/… (#5685)", () => {
@@ -1660,7 +1488,7 @@ describe("proxy", () => {
     });
 
     it("returns null slug for reserved subdomains", () => {
-      // "www" is in RESERVED_SLUGS , extractTenantSlug returns null,
+      // "www" is in RESERVED_SLUGS , tenantSlugFromHost returns null,
       // so it passes through as a bare domain (no rewrite).
       const res = proxy(
         makeRequest(
@@ -1919,6 +1747,171 @@ describe("proxy", () => {
 
       expect(res.headers.get("x-middleware-rewrite")).toContain(
         "/school-a/helpdesk",
+      );
+    });
+
+    it("sends /help on the caterer host to the overview: the help has no caterer role", () => {
+      const res = proxy(
+        makeRequest(`http://${CATERER_HOSTNAME}/help`, CATERER_HOSTNAME),
+      );
+
+      expect(res.headers.get("location")).toBe(`http://${CATERER_HOSTNAME}/`);
+    });
+  });
+
+  // A new page folder under app/<portal>/ must be reachable on the portal's
+  // host without a hand-kept list (the proxy cannot read the folder tree).
+  describe("portal pages from the app tree", () => {
+    const appDir = path.join(
+      path.dirname(new URL(import.meta.url).pathname),
+      "app",
+    );
+    const portals = [
+      ["operator", OPERATOR_HOSTNAME],
+      ["parents", PARENTS_HOSTNAME],
+      ["school", SCHOOL_HOSTNAME],
+      ["traeger", TRAEGER_HOSTNAME],
+      ["caterer", CATERER_HOSTNAME],
+    ] as const;
+
+    it.each(portals)(
+      "rewrites every page folder of app/%s on its host",
+      (portal, host) => {
+        const folders = readdirSync(path.join(appDir, portal), {
+          withFileTypes: true,
+        })
+          .filter((entry) => entry.isDirectory())
+          .map((entry) => entry.name);
+        expect(folders.length).toBeGreaterThan(3);
+        for (const folder of folders) {
+          const res = proxy(makeRequest(`http://${host}/${folder}`, host));
+          expect(res.headers.get("location"), folder).toBeNull();
+          expect(
+            new URL(res.headers.get("x-middleware-rewrite") ?? "http://x/")
+              .pathname,
+          ).toBe(`/${portal}/${folder}`);
+        }
+      },
+    );
+
+    it("sends a path without a page to the portal's start", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${PARENTS_HOSTNAME}/email-confirm`,
+          PARENTS_HOSTNAME,
+        ),
+      );
+
+      expect(res.headers.get("location")).toBe(`http://${PARENTS_HOSTNAME}/`);
+    });
+  });
+
+  // The tenant session cookie is domain-scoped and reaches every portal host;
+  // a tenant BFF route must not run there with it (contracts.md, portal
+  // session isolation).
+  describe("API allow-list of every portal host", () => {
+    const status = (host: string, apiPath: string) =>
+      proxy(makeRequest(`http://${host}${apiPath}`, host)).status;
+    const tenantRoutes = [
+      "/api/students",
+      "/api/settings/schema",
+      "/api/platform/announcements/unread",
+      "/api/messages/unread-count",
+      "/api/enrollment/me/profile",
+      "/api/enrollment/admin/requests/1/uploads/2",
+      "/api/files/folders/1/files/2/download",
+      "/api/auth/session",
+    ];
+
+    // The browser logger posts to its portal's log route (portalLogPath); on a
+    // portal host the tenant's /api/logs would need the tenant cookie.
+    it.each([
+      [OPERATOR_HOSTNAME, "/api/operator/logs"],
+      [PARENTS_HOSTNAME, "/api/parent/logs"],
+      [SCHOOL_HOSTNAME, "/api/school/logs"],
+      [CATERER_HOSTNAME, "/api/caterer/logs"],
+      [TRAEGER_HOSTNAME, "/api/traeger/logs"],
+    ])("%s serves its client log route %s, not /api/logs", (host, logPath) => {
+      expect(status(host, logPath)).toBe(200);
+      expect(status(host, "/api/logs")).toBe(404);
+    });
+
+    it("serves the operator API on the operator host", () => {
+      for (const apiPath of [
+        "/api/operator/auth/session",
+        "/api/operator/provisioning/schools",
+      ]) {
+        expect(status(OPERATOR_HOSTNAME, apiPath), apiPath).toBe(200);
+      }
+    });
+
+    it("refuses tenant and other portals' routes on the operator host", () => {
+      for (const apiPath of [
+        ...tenantRoutes,
+        "/api/parent/me/children",
+        "/api/school/auth/session",
+        "/api/traeger/schools",
+      ]) {
+        expect(status(OPERATOR_HOSTNAME, apiPath), apiPath).toBe(404);
+      }
+    });
+
+    it("serves the parent API and the public routes its links open", () => {
+      for (const apiPath of [
+        "/api/parent/auth/session",
+        "/api/parent/me/children",
+        "/api/tenant/resolve",
+        "/api/public/care-contract-signing/abc",
+        "/api/public/login-image/a.webp",
+        "/api/invitations/validate",
+        "/api/invitations/accept",
+        "/api/guardian-invitations/tok/accept",
+        "/api/holiday-registrations/tok/uploads",
+        "/api/enrollment/requests/tok/edit-bootstrap",
+        "/api/enrollment/school-a/uploads",
+        "/api/demo/access/handoff",
+      ]) {
+        expect(status(PARENTS_HOSTNAME, apiPath), apiPath).toBe(200);
+      }
+    });
+
+    it("refuses tenant and other portals' routes on the parents host", () => {
+      for (const apiPath of [
+        ...tenantRoutes,
+        "/api/parent-announcements",
+        "/api/invitations",
+        "/api/enrollment/school-a/submit",
+        // The tenant session's profile enrichment never runs on this host.
+        "/api/enrollment/form-bootstrap/public/school-a/5",
+        "/api/operator/auth/session",
+        "/api/school/auth/session",
+      ]) {
+        expect(status(PARENTS_HOSTNAME, apiPath), apiPath).toBe(404);
+      }
+    });
+  });
+
+  describe("tenant slug from the host", () => {
+    it.each([
+      ["School-A.localhost:3000", "upper case"],
+      ["school-a.localhost.", "trailing dot"],
+    ])("reads %s (%s) like the BFF host check does", (host) => {
+      const res = proxy(
+        makeRequest(`http://school-a.localhost/dashboard`, host),
+      );
+
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/school-a/dashboard",
+      );
+    });
+
+    it("keeps a tenant path that only starts with a portal name", () => {
+      const host = "school-a.localhost:3000";
+      const res = proxy(makeRequest(`http://${host}/operatorinfo`, host));
+
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/school-a/operatorinfo",
       );
     });
   });

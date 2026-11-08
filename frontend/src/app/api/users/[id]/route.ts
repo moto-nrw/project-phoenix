@@ -61,7 +61,7 @@ export const GET = createGetHandler(
     try {
       // Fetch person from backend API
       const response = await apiGet<ApiPersonResponse>(
-        `/api/users/${id}`,
+        `/api/users/${encodeURIComponent(id)}`,
         token,
       );
 
@@ -109,7 +109,11 @@ export const PUT = createPutHandler<BackendPersonResponse, PersonUpdateRequest>(
     }
 
     // A backend failure (403, 400, 404) keeps its envelope and status.
-    return apiPut<BackendPersonResponse>(`/api/users/${id}`, token, body);
+    return apiPut<BackendPersonResponse>(
+      `/api/users/${encodeURIComponent(id)}`,
+      token,
+      body,
+    );
   },
 );
 
@@ -130,7 +134,7 @@ export const DELETE = createDeleteHandler(
     }
 
     // A backend failure (403, 404) keeps its envelope and status.
-    await apiDelete(`/api/users/${id}`, token);
+    await apiDelete(`/api/users/${encodeURIComponent(id)}`, token);
 
     // Return null to indicate success with no content
     return null;

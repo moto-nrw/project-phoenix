@@ -11,7 +11,7 @@ function settingValuePath(params: Record<string, unknown>): string {
   if (typeof key !== "string" || !VALID_KEY_PATTERN.test(key)) {
     throw bffError(400, "Invalid settings key format");
   }
-  return `/operator/organizations/${requirePathSegmentParam(params)}/traeger-settings/values/${key}`;
+  return `/operator/organizations/${requirePathSegmentParam(params)}/traeger-settings/values/${encodeURIComponent(key)}`;
 }
 
 export const PUT = proxyPut(settingValuePath);

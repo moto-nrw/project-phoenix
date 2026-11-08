@@ -20,7 +20,7 @@ export const GET = createGetHandler(
     params: Record<string, unknown>,
   ) => {
     const id = params.id as string;
-    const endpoint = `/api/activities/${id}/schedules`;
+    const endpoint = `/api/activities/${encodeURIComponent(id)}/schedules`;
 
     try {
       const response = await apiGet<
@@ -73,7 +73,7 @@ export const POST = createPostHandler<
     params: Record<string, unknown>,
   ): Promise<BackendActivitySchedule> => {
     const id = params.id as string;
-    const endpoint = `/api/activities/${id}/schedules`;
+    const endpoint = `/api/activities/${encodeURIComponent(id)}/schedules`;
 
     const response = await apiPost<
       | { status: string; data: BackendActivitySchedule }

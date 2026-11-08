@@ -16,10 +16,12 @@ const {
   mockRevalidatePath: vi.fn(),
 }));
 
-vi.mock("~/server/auth/operator", () => ({
-  operatorAuth: mockAuth,
-  uncachedOperatorAuth: mockAuth,
-}));
+vi.mock("~/server/auth/operator", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("operator", {
+    auth: mockAuth,
+    uncachedAuth: mockAuth,
+  }),
+);
 
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: mockGetServerApiUrl,
@@ -128,7 +130,8 @@ describe("PUT /api/operator/provisioning/schools/[id]/settings/values/[key]", ()
     };
     const response = await PUT(request, context);
 
-    expect(response.status).toBe(500);
+    // An invalid route param is the request's mistake: a coded 400.
+    expect(response.status).toBe(400);
   });
 
   it.each(["operations.student_photos_enabled", "analytics.enabled"])(
@@ -369,7 +372,8 @@ describe("DELETE /api/operator/provisioning/schools/[id]/settings/values/[key]",
     };
     const response = await DELETE(request, context);
 
-    expect(response.status).toBe(500);
+    // An invalid route param is the request's mistake: a coded 400.
+    expect(response.status).toBe(400);
   });
 
   it.each(["operations.student_photos_enabled", "analytics.enabled"])(

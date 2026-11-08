@@ -12,7 +12,7 @@ import {
   TenantResolveStatusError,
 } from "~/lib/tenant-resolve.server";
 import { MISMATCH_EXEMPT_PATHS } from "./session-check-exempt-paths";
-import type { ServerSession } from "./shared";
+import type { ServerSession } from "./session-types";
 
 const logger = createLogger({ component: "TenantHostCheck" });
 

@@ -13,7 +13,6 @@ export const POST = withPrivateDownloadNoStore(
   createPublicJsonProxy({
     method: "POST",
     body: "none",
-    cache: "no-store",
     onSuccess: (response) => {
       const headers = new Headers({
         "Cache-Control": "private, no-store",

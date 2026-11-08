@@ -22,7 +22,7 @@ export const GET = createGetHandler(async (request, token, params) => {
 
   // Make the API call with the validated account ID
   return await apiGet<RolesResponse>(
-    `/auth/accounts/${accountId}/roles`,
+    `/auth/accounts/${encodeURIComponent(accountId)}/roles`,
     token,
   );
 });
@@ -38,7 +38,7 @@ export const PUT = createPutHandler<unknown, ReplaceAccountRoleBody>(
       throw new Error("Account ID is required");
     }
     return await apiPut<unknown>(
-      `/auth/accounts/${accountId}/roles`,
+      `/auth/accounts/${encodeURIComponent(accountId)}/roles`,
       token,
       body,
     );

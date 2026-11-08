@@ -1,8 +1,8 @@
 import { captureBffException } from "~/lib/sentry-bff.server";
 import { type NextRequest, NextResponse } from "next/server";
-import { getClientForwardHeaders } from "~/lib/client-headers.server";
+import { sendBackend } from "~/lib/backend-client.server";
 import { createLogger } from "~/lib/logger";
-import { DEMO_TOKEN_COOKIE, demoBackendUrl } from "../forward";
+import { DEMO_TOKEN_COOKIE, demoBackendPath } from "../forward";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { problemResponse } from "~/lib/api-helpers.server";
 import { withPrivateNoStore } from "~/lib/private-no-store";
@@ -34,13 +34,10 @@ async function POSTHandler(request: NextRequest) {
       ? body.role
       : undefined;
   try {
-    const backend = await fetch(demoBackendUrl("reset"), {
+    const backend = await sendBackend(demoBackendPath("reset"), null, {
       method: "POST",
-      headers: {
-        ...getClientForwardHeaders(request),
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ token }),
+      json: { token },
+      request,
     });
     if (!backend.ok) return forwardBackendResponse(backend, request);
     const payload = (await backend.json().catch(() => ({}))) as {

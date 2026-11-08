@@ -1,4 +1,4 @@
-import { proxyPut, proxyDelete } from "@/lib/route-proxy.server";
+import { proxyPut, proxyDelete } from "~/lib/route-wrapper.server";
 import { requirePathSegmentParam } from "@/lib/route-wrapper-utils.server";
 
 // PUT /api/students/class-arrival-exceptions/[schoolClass]/[date] - set the class-wide arrival time of one date (#2962)

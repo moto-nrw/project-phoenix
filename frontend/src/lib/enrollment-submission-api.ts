@@ -259,15 +259,6 @@ export interface LateInviteFetchOptions {
   lateInviteToken?: string;
 }
 
-export interface PublicEnrollmentBootstrapFetchOptions extends LateInviteFetchOptions {
-  /**
-   * Omits browser credentials from this request. This is transport hardening
-   * for parent-portal callers, not the server-side portal boundary; the route
-   * decides profile enrichment from the proxy-preserved original host.
-   */
-  omitCredentials?: boolean;
-}
-
 export interface PublicPhase {
   id: string;
   name: string;
@@ -378,18 +369,13 @@ export interface PublicEnrollmentBootstrap {
 export async function fetchPublicEnrollmentBootstrap(
   tenantSlug: string,
   phaseId: string,
-  options: PublicEnrollmentBootstrapFetchOptions = {},
+  options: LateInviteFetchOptions = {},
 ): Promise<PublicEnrollmentBootstrap> {
   let path = `/api/enrollment/form-bootstrap/public/${encodeURIComponent(
     tenantSlug,
   )}/${encodeURIComponent(phaseId)}`;
   path = withLateInviteQuery(path, options.lateInviteToken);
-  const response = await sendEnrollmentRequest(
-    path,
-    options.omitCredentials
-      ? { cache: "no-store", credentials: "omit" }
-      : { cache: "no-store" },
-  );
+  const response = await sendEnrollmentRequest(path, { cache: "no-store" });
   if (!response.ok) {
     throw await readError(
       response,

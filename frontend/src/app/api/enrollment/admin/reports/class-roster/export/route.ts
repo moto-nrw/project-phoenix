@@ -1,12 +1,11 @@
 import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
-import { withTenantAuth } from "~/server/auth/tenant-route";
+import { tenantPortal } from "~/server/auth";
 import { createFileExportRoute } from "~/lib/export-proxy.server";
 
 export const POST = withPrivateDownloadNoStore(
-  withTenantAuth(
+  tenantPortal.withAuth(
     createFileExportRoute({
       backendPath: "/api/enrollment/admin/reports/class-roster/export",
-      component: "EnrollmentClassRosterReportExportRoute",
     }),
   ),
 );

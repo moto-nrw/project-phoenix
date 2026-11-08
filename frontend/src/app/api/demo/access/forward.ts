@@ -1,6 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getServerApiUrl } from "~/lib/server-api-url";
-import { getClientForwardHeaders } from "~/lib/client-headers.server";
+import { sendBackend } from "~/lib/backend-client.server";
 import { createLogger } from "~/lib/logger";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { problemResponse } from "~/lib/api-helpers.server";
@@ -11,7 +10,7 @@ const logger = createLogger({ component: "DemoAccessRoute" });
 // body and is never logged; the backend answer passes through unchanged.
 export async function forwardDemoToken(
   request: NextRequest,
-  send: (token: string, headers: Record<string, string>) => Promise<Response>,
+  path: string,
 ): Promise<NextResponse> {
   let token = "";
   try {
@@ -24,7 +23,9 @@ export async function forwardDemoToken(
     return problemResponse(404, "demo access is unknown", request);
   }
   try {
-    const response = await send(token, getClientForwardHeaders(request));
+    const response = await sendBackend(demoBackendPath(path), token, {
+      request,
+    });
     return forwardBackendResponse(response, request);
   } catch (error) {
     logger.error("demo_access_forward_failed", {
@@ -49,6 +50,6 @@ export const DEMO_TOKEN_COOKIE_OPTIONS = {
   maxAge: 14 * 24 * 60 * 60,
 } as const;
 
-export function demoBackendUrl(path: string): string {
-  return `${getServerApiUrl()}/demo/access/${path}`;
+export function demoBackendPath(path: string): string {
+  return `/demo/access/${path}`;
 }

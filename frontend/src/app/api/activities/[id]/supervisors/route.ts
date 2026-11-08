@@ -28,7 +28,7 @@ export const GET = createGetHandler(
     }
 
     const response = await apiGet<{ data: BackendActivitySupervisor[] }>(
-      `/api/activities/${activityId}/supervisors`,
+      `/api/activities/${encodeURIComponent(activityId)}/supervisors`,
       token,
     );
     return mapActivitySupervisorSummariesResponse(response.data ?? []);
@@ -64,10 +64,14 @@ export const POST = createPostHandler(
       is_primary: body.is_primary,
     };
 
-    await apiPost(`/api/activities/${activityId}/supervisors`, token, {
-      staff_id: Number.parseInt(supervisorData.staff_id, 10),
-      is_primary: supervisorData.is_primary,
-    });
+    await apiPost(
+      `/api/activities/${encodeURIComponent(activityId)}/supervisors`,
+      token,
+      {
+        staff_id: Number.parseInt(supervisorData.staff_id, 10),
+        is_primary: supervisorData.is_primary,
+      },
+    );
 
     return { success: true };
   },

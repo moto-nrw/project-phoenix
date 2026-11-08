@@ -1,6 +1,5 @@
 import { type NextRequest } from "next/server";
-import { schoolAuth } from "~/server/auth/school";
-import { withSchoolAuth } from "~/server/auth/school-route";
+import { schoolPortal } from "~/server/auth/school";
 import { createLogger } from "~/lib/logger";
 import { proxySSEStream } from "~/lib/sse-proxy.server";
 import { problemResponse } from "~/lib/api-helpers.server";
@@ -17,7 +16,7 @@ export const runtime = "nodejs";
  * only account-addressed triggers (today: staff_message for the Team-Chat).
  */
 async function GETHandler(request: NextRequest) {
-  const session = await schoolAuth();
+  const session = await schoolPortal.auth();
 
   if (!session?.user?.token) {
     return problemResponse(401, "Unauthorized", request);
@@ -30,4 +29,4 @@ async function GETHandler(request: NextRequest) {
   });
 }
 
-export const GET = withSchoolAuth(GETHandler);
+export const GET = schoolPortal.withAuth(GETHandler);

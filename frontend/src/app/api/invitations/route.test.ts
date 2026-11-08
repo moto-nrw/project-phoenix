@@ -11,27 +11,32 @@ import {
 // Mocks
 // ============================================================================
 
-const { mockAuth, mockApiGet, mockApiPost } = vi.hoisted(() => ({
+const { mockAuth, mockApiPost, mockFetch } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
-  mockApiGet: vi.fn(),
   mockApiPost: vi.fn(),
+  mockFetch: vi.fn<typeof fetch>(),
 }));
 
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockAuth,
+  }),
+);
 
 vi.mock("~/lib/api-helpers.server", async () => {
   const { mockHandleApiError } =
     await import("~/test/helpers/handle-api-error");
   return {
-    apiGet: mockApiGet,
+    apiGet: vi.fn(),
     apiPost: mockApiPost,
     apiPut: vi.fn(),
     apiDelete: vi.fn(),
     handleApiError: vi.fn(mockHandleApiError),
   };
 });
+
+// GET is a factory proxy on the shared backend client; it reaches fetch.
+global.fetch = mockFetch;
 
 const { GET, POST } = await import("./route");
 
@@ -79,12 +84,25 @@ describe("GET /api/invitations", () => {
       },
     ];
 
-    mockApiGet.mockResolvedValueOnce({ data: invitations });
+    mockFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ data: invitations }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
 
     const request = createMockRequest("/api/invitations");
     const response = await GET(request, createMockContext());
 
-    expect(mockApiGet).toHaveBeenCalledWith("/auth/invitations", "test-token");
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://server:8080/auth/invitations",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Authorization: "Bearer test-token",
+        }) as Record<string, string>,
+      }),
+    );
     expect(response.status).toBe(200);
 
     const json =

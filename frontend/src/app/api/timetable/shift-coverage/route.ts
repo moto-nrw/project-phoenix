@@ -1,7 +1,7 @@
 // Batched, read-only Dienstplan coverage probe. The backend requires both
 // schedules:read and time_tracking:manage because exact shift gaps are
 // cross-staff time-tracking data.
-import { proxyPost } from "~/lib/route-proxy.server";
+import { proxyPost } from "~/lib/route-wrapper.server";
 
 interface ShiftCoverageBody {
   dates: string[];

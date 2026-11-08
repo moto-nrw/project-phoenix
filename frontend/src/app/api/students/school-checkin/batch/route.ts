@@ -1,4 +1,4 @@
-import { proxyPost } from "~/lib/route-proxy.server";
+import { proxyPost } from "~/lib/route-wrapper.server";
 
 // The backend's maxSchoolCheckinBatchBytes; checking it while reading keeps an
 // oversized payload out of this process.

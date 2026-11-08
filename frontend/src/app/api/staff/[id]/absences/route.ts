@@ -23,7 +23,7 @@ export const GET = createGetHandler(
     const to = searchParams.get("to");
 
     const response = await apiGet<{ data: unknown }>(
-      `/api/staff/${id}/absences?from=${from}&to=${to}`,
+      `/api/staff/${encodeURIComponent(id)}/absences?from=${from}&to=${to}`,
       token,
     );
     return response.data;
@@ -45,7 +45,7 @@ export const POST = createPostHandler(
   ) => {
     const id = params.id as string;
     const response = await apiPost<{ data: unknown }>(
-      `/api/staff/${id}/absences`,
+      `/api/staff/${encodeURIComponent(id)}/absences`,
       token,
       body,
     );

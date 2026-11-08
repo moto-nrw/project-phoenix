@@ -349,9 +349,11 @@ that IP. The IP crosses four hops:
 3. Every server-side backend call of the frontend forwards
    `canonicalForwardedFor` (rightmost valid `X-Forwarded-For`, `X-Real-IP`
    fallback) through `frontend/src/lib/client-headers.server.ts`:
-   `clientIdentityHeaders(request.headers)` with a request at hand,
-   `incomingClientForwardHeaders()` without one. The shared proxy factories
-   and portal wrappers already do this.
+   `backendIdentityHeaders(request)` with a request at hand,
+   `incomingBackendIdentityHeaders()` (the same set from the request being
+   handled) without one. `sendBackend`
+   (`frontend/src/lib/backend-client.server.ts`), under every portal's route
+   handlers, sends this set, frontend origin included, on every call.
 4. The backend takes the rightmost entry
    (`ClientIPFromXFFTrustedProxies(1)` and `syncClientIPToRemoteAddr` in
    `backend/api/serve_middleware.go`). Trusting one hop is safe only while
@@ -388,7 +390,7 @@ domain-scoped to support switching between school subdomains (localhost:
 host-only). The proxy redirects cross-host paths to their canonical subdomain.
 
 A switch on one school's subdomain replaces that shared cookie for every tab;
-tabs on other subdomains hear nothing of it. So `withTenantAuth` refuses a
+tabs on other subdomains hear nothing of it. So `tenantPortal.withAuth` refuses a
 session whose `tenantId` differs from the school of the request's subdomain
 with 409 `identity.session_tenant_mismatch` before the route runs
 (`frontend/src/server/auth/tenant-host-check.ts`, #5130). The host's school
@@ -396,7 +398,8 @@ comes from the cached `/auth/tenant/resolve` lookup of the tenant layout; a
 failed lookup refuses the request. Exempt are the routes that end the mismatch:
 `/api/auth/switch-tenant`, `/api/auth/token`, `/api/auth/logout`,
 `/api/auth/staff-preview/end`, plus the tab's `/api/logs` and
-`/api/invitations/accept`, which acts for the invitation's school. In the
+`/api/invitations/accept`, which acts for the invitation's school and runs
+inside the portal's `withAuth` (`withInvitationOwnerSession`). In the
 browser a fetch observer (`frontend/src/lib/session-tenant-mismatch-observer.ts`,
 installed by `TenantGuard`) and `apiErrorFromBody` report the refusal, also
 for clients that read only `response.ok`. The session cache drops its session
@@ -420,14 +423,18 @@ browser request to the tab's own `/api/` therefore names the account its
 `SessionAccountBinding` (mounted first in every portal's providers), the
 fetch observer and the Axios interceptor of `api-transport.ts`; another
 origin never gets it. Every portal's route wrapper
-(`createResponseAwareAuth`, so `withTenantAuth` too) refuses a header that
+(`createResponseAwareAuth`, so `tenantPortal.withAuth` too) refuses a header that
 names another account than the cookie with 409
 `identity.session_account_mismatch` before the route runs
 (`frontend/src/server/auth/session-account-check.ts`). Account exemptions
 are independent of the school exemptions: only
 portal logout, `/api/auth/token` (cookie-only renewal, no token in the
-answer) and `/api/logs` pass. Tenant switching and preview-end must match
-the account; invitation acceptance does not use this wrapper. The refusal takes
+answer) and every portal's client log route pass. The browser logger posts to
+the log route of its host's portal (`/api/logs` for the tenant,
+`/api/<portal>/logs` otherwise; `portalLogPath`), which authenticates with
+that portal's session. Tenant switching and preview-end must match
+the account, and so must invitation acceptance, which runs inside this
+wrapper. The refusal takes
 the path of the school refusal: the session cache wakes the provider,
 `TenantGuard` hides the page, and the provider's new account resets the SWR
 scope and leaves the page (`PersonalStorageGuard`). A request without the
@@ -469,7 +476,13 @@ passes cannot confirm that the family is empty; deleting rows on the last
 pass alone is not confirmation. Every portal shell revokes through its BFF logout route
 (`/api/{,parent/,school/,caterer/,traeger/,operator/}auth/logout`) before
 Auth.js clears the cookie; a failed revocation keeps the session and shows
-the error with a retry, as does the tenant relogin action. Portal cookies
+the error with a retry, as does the tenant relogin action. All six routes
+come from one factory (`frontend/src/lib/logout-route.server.ts`); the
+token kind and backend path come from the portal table. A refused token may
+still belong to a live family (another tab rotated it), so each route renews
+the session once and repeats the logout: a revoked family ends in the
+renewal and its 401 stands, a renewal without a new token answers 503 and
+the browser offers the logout again. Portal cookies
 are host-only; a late response of the same portal may write one back only
 in the narrow cases [below](#late-responses-after-logout-5399), and the
 revoked family makes it worthless. Migration 1.15.707 gives every
@@ -518,12 +531,25 @@ A staff-view preview token carries the admin's
 family and ends with the admin's session.
 
 In the frontend a backend 401 for an unexpired token renews the session at
-once (`withForcedSessionRenewal` in `frontend/src/server/auth/shared.ts`,
+once (`withForcedSessionRenewal` in `frontend/src/server/auth/token-refresh.ts`,
 used by `uncachedAuth` and by `withAuthResponse` for routes without their own
 retry). A revoked family fails that refresh; the response ends the session
 in its body but writes no cookie (#5399, below), and `/api/auth/token`
 answers 401 for a revoked family, so the browser signs out. A live family
 continues with fresh tokens.
+
+One table in `frontend/src/server/auth/portals.ts` holds these facts per
+portal; the Auth.js configs, entry modules, logout and login routes, layout
+snapshots and logout exemptions derive from it. Its browser- and edge-safe
+part, `PORTAL_ROUTES` in `frontend/src/lib/portal-paths.ts` (key, auth base
+path, host env name, App Router folder), is the only source of those facts
+for the proxy's host table, `portalOfHost`, the session cookie names and the
+sign-in pages and the browser's Credentials provider ids. Each entry module
+exports only its portal object (`tenantPortal`, `parentPortal`, …), whose one
+route wrapper `withAuth` carries every check of the portal (for the tenant
+the school-host check); route wrappers, login and logout routes take that
+one object, so a portal's session, wrapper and backend paths cannot be
+mixed up.
 
 | Portal | Host | Cookie | basePath | JWT scope | Backend login |
 |---|---|---|---|---|---|
@@ -537,7 +563,7 @@ continues with fresh tokens.
 The browser never receives a session's access token, refresh token or
 recovery proof (#5005). The client-importable `next-auth` types `Session` and
 `User` carry none; server code reads them through `ServerSession`, `AuthUser`
-and the `next-auth/jwt` `JWT` fields in `frontend/src/server/auth/shared.ts`.
+and the `next-auth/jwt` `JWT` fields in `frontend/src/server/auth/session-types.ts`.
 Each portal's `{basePath}/session` answer (GET and the `update()` POST)
 passes through the allowlist in `frontend/src/server/auth/browser-session.ts`,
 and the layout snapshots map the cookie without them. BFF routes authenticate
@@ -566,8 +592,10 @@ The browser may submit passwords, the Träger handoff's one-time proof, MFA
 challenge proofs and limited enrollment tokens. These are not completed session
 pairs. Public login routes that install cookies enforce Same-Origin before
 calling the backend; failed installation revokes the freshly minted family.
-The regular parent Credentials login and Träger handoff continue to redeem
-credentials/proofs server-side. The internal Next.js cookie adapter remains
+The parent Credentials login and Träger handoff continue to redeem
+credentials/proofs server-side. Only the parents' Credentials provider takes
+a password; every other portal signs in through its BFF login route, and a
+password posted to its Auth.js callback is refused without a backend call. The internal Next.js cookie adapter remains
 pinned and protected by the cookie-order/chunk-deletion integration tests.
 
 ### Late responses after logout (#5399)
@@ -620,7 +648,7 @@ old session back; the browser only saves requests.
    cookie: a superset of what any reader accepts and no other cookie
    (`parent-session-token`, `session-token` pass). The names have one source,
    `PORTAL_SESSION_COOKIE_NAMES` and `tenantSessionCookieName` in that module,
-   which the six portal configs use. The gate approves only names Auth.js
+   which the portal table (`frontend/src/server/auth/portals.ts`) uses. The gate approves only names Auth.js
    writes: a configured name (with Auth.js' `__Secure-`/`__Host-` prefix) and
    its chunks `.<n>`. A Set-Cookie line with a session cookie name
    leaves only approved, or as a deletion: an empty value with at most one `Max-Age` and one `Expires`
@@ -649,7 +677,7 @@ old session back; the browser only saves requests.
    refresh lifetime and moves with each rotation.
 2. **Read gate.** The session route asks the family on every call and reads
    a revoked family as ended (`RefreshTokenError`); the layout snapshots of
-   every portal (`readFreshPortalToken`, `readTenantSessionSnapshot`) hydrate
+   every portal (`readPortalSessionSnapshot`) hydrate
    only a live family. A family that cannot be read (503) and an expired
    access token, which the backend refuses before it reads the family, leave
    the shown session as it is; its own refresh decides.
@@ -671,8 +699,8 @@ next session read or page load; delivered only after a new login, it replaces
 that login's cookie and asks for the login again. The same holds for a
 just-issued refresh token that lands while the family check had no answer. A
 session cookie the gate cannot decode counts as no session and passes; the
-gate reads with `NEXTAUTH_SECRET`, which Auth.js uses too while no
-environment sets `AUTH_SECRET`. A school switch that committed before the
+gate reads with `NEXTAUTH_SECRET`, which every portal's Auth.js config
+pins (`createPortalAuthConfig`), whatever `AUTH_SECRET` says. A school switch that committed before the
 logout mints a family of its own; it names the origin of its lineage
 (`switched_from_family_id`), so the logout revokes it too, even when the
 session cap already evicted the retired source (#5422).
@@ -848,8 +876,14 @@ refresh, tenant switching, and wrong-portal rejection for affected flows.
 ### Routing and invitations
 
 `frontend/src/proxy.ts` rewrites tenant hosts to `/[tenant]/*`, operator to
-`/operator/*`, parents to `/parents/*`, school to `/school/*`, and Träger to
-`/traeger/*`.
+`/operator/*`, parents to `/parents/*`, school to `/school/*`, Träger to
+`/traeger/*`, and caterer to `/caterer/*`. One `PortalHost` entry per portal
+names its host, page namespace, API allow-list, localization, `/help` and
+moved pages. The page list comes from the `app/<portal>/` folders:
+`pnpm generate:portal-pages` writes `src/proxy-pages.generated.ts`, and
+`pnpm run check` fails when it is stale. A portal host answers 404 for every
+`/api/*` path outside its allow-list, because the domain-scoped tenant cookie
+reaches it too; a new BFF route that a portal page calls belongs in that list.
 `[tenant]/layout.tsx` resolves slugs through `/auth/tenant/resolve?slug=...`
 (cached five minutes). `POST /auth/switch-tenant` returns a tenant-session JWT
 for the target school, not a `scope=school` portal token.

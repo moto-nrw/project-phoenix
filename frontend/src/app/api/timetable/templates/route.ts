@@ -11,7 +11,7 @@
 // envelope here so route-wrapper's wrapInApiResponse doesn't double-wrap
 // the payload — clients (timetable-api.ts unwrap) expect a single
 // envelope and read envelope.data as the real result.
-import { proxyGet, proxyPost } from "~/lib/route-proxy.server";
+import { proxyGet, proxyPost } from "~/lib/route-wrapper.server";
 
 export const GET = proxyGet("/api/timetable/templates");
 

@@ -18,7 +18,7 @@ import {
 
 /** One German text the school wrote, with the document that translates it. */
 export interface TranslationTarget {
-  /** Stable per text, e.g. `field:allergies:label`. */
+  /** Stable per text, e.g. `field|3|label` (form-template-translations.ts). */
   readonly id: string;
   /** What the text is, in the editor's own words ("Frage", "Hinweis"). */
   readonly caption: string;

@@ -1,8 +1,7 @@
 import type { NextRequest } from "next/server";
 
 import { apiGet } from "~/lib/api-helpers.server";
-import { proxyPut } from "~/lib/route-proxy.server";
-import { createGetHandler } from "~/lib/route-wrapper.server";
+import { createGetHandler, proxyPut } from "~/lib/route-wrapper.server";
 import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 function backendPath(params: Record<string, unknown>): string {
