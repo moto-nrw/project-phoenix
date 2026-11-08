@@ -280,6 +280,7 @@ export function CareCostShareModal({
             <FieldLabel required>Anteil</FieldLabel>
             <SegmentedControl
               ariaLabel="Anteil als Prozent oder fester Betrag"
+              fullWidth
               items={[
                 { value: "percent", label: "Prozent vom Beitrag" },
                 { value: "amount", label: "Fester Betrag im Monat" },

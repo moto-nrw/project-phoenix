@@ -79,15 +79,16 @@ func (e *careChainEntry) applyCostShares(in careChainInput) {
 }
 
 // careCostBearerTotals sums what each cost bearer pays of the invoices, in
-// the order the invoices name them first. Excluded invoices and issued ones
-// a Storno took back do not count.
+// the order the invoices name them first. Excluded invoices do not count;
+// cancelled ones retain the export entry without adding to counts or amounts.
 func careCostBearerTotals(invoices []parentbilling.CareInvoice, cancelled map[int64]bool) []parentbilling.CareCostBearerTotal {
 	totals := []parentbilling.CareCostBearerTotal{}
 	index := map[int64]int{}
 	for _, invoice := range invoices {
-		if invoice.Exclusion != nil || (invoice.ID != 0 && cancelled[invoice.ID]) {
+		if invoice.Exclusion != nil {
 			continue
 		}
+		counted := map[int64]bool{}
 		for _, share := range invoice.CostShares {
 			i, ok := index[share.CostBearerID]
 			if !ok {
@@ -95,7 +96,13 @@ func careCostBearerTotals(invoices []parentbilling.CareInvoice, cancelled map[in
 				index[share.CostBearerID] = i
 				totals = append(totals, parentbilling.CareCostBearerTotal{CostBearerID: share.CostBearerID, CostBearerName: share.CostBearerName})
 			}
-			totals[i].InvoiceCount++
+			if invoice.ID != 0 && cancelled[invoice.ID] {
+				continue
+			}
+			if !counted[share.CostBearerID] {
+				totals[i].InvoiceCount++
+				counted[share.CostBearerID] = true
+			}
 			totals[i].AmountCents += share.AmountCents
 		}
 	}

@@ -95,7 +95,8 @@ func (c *CareReductions) CareCostShares(ctx context.Context, reviewer parentbill
 
 // costShareStatus says where a share stands today. A share that ends within
 // CostShareWarningDays warns unless a share of its kind for the contract
-// starts after it.
+// covers the next billing month (the first share starting in a month covers
+// that whole month, as in careCostShareInMonth).
 func costShareStatus(share parentbilling.CareCostShare, all []parentbilling.CareCostShare, today calendar.Date) string {
 	switch {
 	case share.ValidFrom.After(today):
@@ -105,8 +106,11 @@ func costShareStatus(share parentbilling.CareCostShare, all []parentbilling.Care
 	case share.ValidUntil.After(today.AddDays(parentbilling.CostShareWarningDays)):
 		return parentbilling.CostShareActive
 	}
+	nextMonth := monthEnd(share.ValidUntil).AddDays(1)
+	nextMonthEnd := monthEnd(nextMonth)
 	if slices.ContainsFunc(all, func(next parentbilling.CareCostShare) bool {
-		return next.ContractID == share.ContractID && next.Kind == share.Kind && next.ValidFrom.After(share.ValidUntil)
+		return next.ContractID == share.ContractID && next.Kind == share.Kind &&
+			next.ValidFrom.After(share.ValidUntil) && !next.ValidFrom.After(nextMonthEnd) && !next.ValidUntil.Before(nextMonth)
 	}) {
 		return parentbilling.CostShareActive
 	}

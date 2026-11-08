@@ -280,3 +280,70 @@ func TestCareCostShareStatusWarnsBeforeTheEnd(t *testing.T) {
 	assert.Equal(t, parentbilling.CostShareUpcoming, costShareStatus(ahead, nil, today))
 	assert.Equal(t, parentbilling.CostShareExpired, costShareStatus(over, nil, today))
 }
+
+func TestCareCostBearerTotalsCountInvoicesAndKeepCancellations(t *testing.T) {
+	t.Parallel()
+	shares := []parentbilling.CareInvoiceCostShare{
+		{Kind: parentbilling.CostShareEducationParticipation, CostBearerID: bearerJobcenter, CostBearerName: "Jobcenter Enzkreis", AmountCents: 2000},
+		{Kind: parentbilling.CostShareOtherSubsidy, CostBearerID: bearerJobcenter, CostBearerName: "Jobcenter Enzkreis", AmountCents: 1000},
+		{Kind: parentbilling.CostShareYouthOffice, CostBearerID: bearerYouthOffice, CostBearerName: "Jugendamt Enzkreis", AmountCents: 500},
+	}
+	invoices := []parentbilling.CareInvoice{
+		{ID: contractMia, CostShares: shares},
+		{ID: contractNoah, CostShares: shares[:1]},
+		{Exclusion: &parentbilling.CareExclusion{}, CostShares: []parentbilling.CareInvoiceCostShare{
+			{CostBearerID: bearerFoundation, AmountCents: 9000},
+		}},
+	}
+	for _, tc := range []struct {
+		name      string
+		cancelled map[int64]bool
+		counts    []int
+		amounts   []int64
+	}{
+		{name: "each invoice counts once per bearer", counts: []int{2, 1}, amounts: []int64{5000, 500}},
+		{name: "cancelled-only bearer remains downloadable", cancelled: map[int64]bool{contractMia: true}, counts: []int{1, 0}, amounts: []int64{2000, 0}},
+		{name: "all cancelled", cancelled: map[int64]bool{contractMia: true, contractNoah: true}, counts: []int{0, 0}, amounts: []int64{0, 0}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			totals := careCostBearerTotals(invoices, tc.cancelled)
+			require.Len(t, totals, 2)
+			assert.Equal(t, parentbilling.CareCostBearerTotal{CostBearerID: bearerJobcenter, CostBearerName: "Jobcenter Enzkreis", InvoiceCount: tc.counts[0], AmountCents: tc.amounts[0]}, totals[0])
+			assert.Equal(t, parentbilling.CareCostBearerTotal{CostBearerID: bearerYouthOffice, CostBearerName: "Jugendamt Enzkreis", InvoiceCount: tc.counts[1], AmountCents: tc.amounts[1]}, totals[1])
+		})
+	}
+}
+
+func TestCareCostShareStatusKeepsWarningsForUncoveredMonths(t *testing.T) {
+	t.Parallel()
+	ending := costShare(t, contractMia, parentbilling.CostShareYouthOffice, bearerYouthOffice, "2026-08-01", "2027-01-31", basisPoints(10000))
+	for _, tc := range []struct {
+		name   string
+		from   string
+		status string
+	}{
+		{name: "immediate successor", from: "2027-02-01", status: parentbilling.CostShareActive},
+		{name: "successor covers next billing month", from: "2027-02-28", status: parentbilling.CostShareActive},
+		{name: "one uncovered month", from: "2027-03-01", status: parentbilling.CostShareExpiring},
+		{name: "two uncovered months", from: "2027-04-01", status: parentbilling.CostShareExpiring},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			next := costShare(t, contractMia, ending.Kind, bearerYouthOffice, tc.from, "2027-07-31", basisPoints(10000))
+			assert.Equal(t, tc.status, costShareStatus(ending, []parentbilling.CareCostShare{ending, next}, day(t, "2027-01-10")))
+		})
+	}
+}
+
+func TestCareCostShareSuccessorMustCoverNextMonth(t *testing.T) {
+	t.Parallel()
+	today := day(t, "2027-01-05")
+	ending := costShare(t, contractMia, parentbilling.CostShareYouthOffice, bearerYouthOffice, "2026-08-01", "2027-01-10", basisPoints(10000))
+	next := costShare(t, contractMia, ending.Kind, bearerYouthOffice, "2027-01-11", "2027-01-20", basisPoints(10000))
+	assert.Equal(t, parentbilling.CostShareExpiring, costShareStatus(ending, []parentbilling.CareCostShare{ending, next}, today),
+		"a successor ending this month leaves the next month uncovered")
+	next.ValidUntil = day(t, "2027-02-01")
+	assert.Equal(t, parentbilling.CostShareActive, costShareStatus(ending, []parentbilling.CareCostShare{ending, next}, today))
+	next.ContractID = contractNoah
+	assert.Equal(t, parentbilling.CostShareExpiring, costShareStatus(ending, []parentbilling.CareCostShare{ending, next}, today),
+		"a successor for another contract does not cover this one")
+}
