@@ -159,7 +159,7 @@ export interface CorrectAdminChildDataInput {
 }
 
 /** An enrolled child that may be the child of an enrollment (#6053). */
-export interface AdminExistingChildCandidate {
+interface AdminExistingChildCandidate {
   student_id: string;
   first_name: string;
   last_name: string;
