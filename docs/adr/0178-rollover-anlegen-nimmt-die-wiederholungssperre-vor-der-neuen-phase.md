@@ -20,13 +20,23 @@ Quellphase zu löschen. Beide warteten aufeinander; PostgreSQL brach mit
 
 ## Entscheidung
 
-`runCreate` nimmt zuerst `Decisions.LockApprovalGates`, also Klassensperre und
-Wiederholungssperre, und liest danach die Quellphase. Danach folgen die neue
-Phase und die Katalogkopie. Wartet der Rollover auf ein Löschen, liest er
-danach die festgeschriebene Quellphase und meldet
-`ErrRolloverSourceNotFound`. Der Test
+`createRolloverPhase` nimmt `Decisions.LockApprovalGates`, also Klassensperre
+und Wiederholungssperre, nach der Eignungsprüfung und vor dem Einfügen der
+neuen Phase. Unter der Sperre liest es die Quellphase erneut. Danach folgen die
+neue Phase und die Katalogkopie. Wartet der Rollover auf ein Löschen, meldet er
+danach `ErrRolloverSourceNotFound`.
+
+Die Eignungsprüfung einer klassenbeschränkten Phase nimmt die
+Klassenabfrage-Sperre (`LockClassCollectionPair`, exklusiv). Eine
+Phasenänderung nimmt sie vor der Wiederholungssperre. Der Rollover nimmt sie
+deshalb ebenfalls zuerst; Wiederholungssperre und danach Klassenabfrage-Sperre
+schlossen gegen eine Phasenänderung einen neuen Zyklus.
+
+Zwei Zwei-Verbindungs-Tests belegen das:
 `TestRolloverService_CreatePhaseFromSource_WaitsForPhaseDelete` zeigt vorher
-`40P01` und danach keinen Deadlock.
+`40P01` gegen „Phase löschen“, danach keinen Deadlock.
+`TestRolloverService_CreatePhaseFromSource_TakesCollectionLockBeforeGates`
+zeigt `40P01`, wenn die Sperren vor der Eignungsprüfung genommen werden.
 
 ## Freigegebene Effekte
 

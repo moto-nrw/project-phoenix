@@ -169,17 +169,7 @@ func (s *Rollovers) CreatePhaseFromSource(ctx context.Context, req enrollment.Cr
 	return result, nil
 }
 
-// runCreate takes the approval gates first (ADR 0162). Inserting the
-// follow-up phase holds KEY SHARE on the source phase; a rollover that waited
-// for the recurrence gate only in the catalog clone afterwards deadlocked
-// with a phase delete that holds the gate and waits to delete the source
-// (#6168). Under the gate the source read also sees a committed delete.
 func (s *Rollovers) runCreate(ctx context.Context, tenantID int64, req enrollment.CreatePhaseFromSourceRequest, maxGrade int, collectGradeLevel bool, result *enrollment.RolloverResult) error {
-	if s.deps.Decisions != nil {
-		if err := s.deps.Decisions.LockApprovalGates(ctx); err != nil {
-			return fmt.Errorf("rollover: lock approval gates: %w", err)
-		}
-	}
 	source, err := s.loadRolloverSourcePhase(ctx, tenantID, req.SourcePhaseID)
 	if err != nil {
 		return err
@@ -286,6 +276,9 @@ func (s *Rollovers) createRolloverPhase(ctx context.Context, tenantID int64, req
 			return nil, fmt.Errorf("%w: %v", enrollment.ErrRolloverInvalidRequest, err)
 		}
 	}
+	if err := s.lockGatesBeforeInsert(ctx, tenantID, source.ID); err != nil {
+		return nil, err
+	}
 	if err := s.deps.Phases.InsertPhase(ctx, phase); err != nil {
 		if errors.Is(err, enrollment.ErrPhaseNameTaken) {
 			return nil, fmt.Errorf("%w: %q", enrollment.ErrRolloverDuplicateName, req.Name)
@@ -293,6 +286,25 @@ func (s *Rollovers) createRolloverPhase(ctx context.Context, tenantID int64, req
 		return nil, fmt.Errorf("rollover: create phase: %w", err)
 	}
 	return phase, nil
+}
+
+// lockGatesBeforeInsert takes the approval gates (ADR 0162, ADR 0178)
+// before the follow-up phase insert holds KEY SHARE on the source phase. A
+// rollover that waited for the recurrence gate only in the catalog clone
+// after the insert deadlocked with a phase delete that holds the gate and
+// waits to delete the source (#6168). The gates come after the eligibility
+// check, whose class-collection lock a phase update also takes before the
+// recurrence gate. The source is read again under the gate, so a delete that
+// committed meanwhile reports the missing source.
+func (s *Rollovers) lockGatesBeforeInsert(ctx context.Context, tenantID, sourcePhaseID int64) error {
+	if s.deps.Decisions == nil {
+		return nil
+	}
+	if err := s.deps.Decisions.LockApprovalGates(ctx); err != nil {
+		return fmt.Errorf("rollover: lock approval gates: %w", err)
+	}
+	_, err := s.loadRolloverSourcePhase(ctx, tenantID, sourcePhaseID)
+	return err
 }
 
 // rolloverPhaseFromSource builds the follow-up phase. Name translations ride
