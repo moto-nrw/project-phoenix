@@ -18,6 +18,7 @@ import { useLocale } from "next-intl";
 import {
   confirmRenewal,
   fetchStatus,
+  getEnrollmentFormLabels,
   listEnrollmentChangeRequests,
   patchStatus,
   replyEnrollmentChangeRequest,
@@ -48,7 +49,14 @@ import { SectionCard } from "~/components/ui/section-card";
 import { StatCard } from "~/components/ui/stat-card";
 import { BackLink } from "~/components/ui/back-link";
 import { EnrollmentChangeRequestDiff } from "~/components/enrollment/enrollment-change-request-diff";
-import type { EnrollmentChangeRequestDiffCopy } from "~/lib/enrollment-change-request-diff";
+import type {
+  EnrollmentChangeRequestDiffCopy,
+  EnrollmentFormLabels,
+} from "~/lib/enrollment-change-request-diff";
+import {
+  localizeFormFields,
+  translatedText,
+} from "~/lib/enrollment-translations";
 import {
   StatusBadge,
   type StatusBadgeTone,
@@ -645,6 +653,7 @@ function EnrollmentStatusContent({
 
       {canRequestChange || changeRequests.length > 0 || errors.requests ? (
         <ChangeRequestsPanel
+          token={token}
           canCreate={canRequestChange}
           editHref={editHref}
           requests={changeRequests}
@@ -1364,6 +1373,7 @@ function WithdrawAllSection({
 }
 
 function ChangeRequestsPanel({
+  token,
   canCreate,
   editHref,
   onReply,
@@ -1375,6 +1385,7 @@ function ChangeRequestsPanel({
   replyError,
   replyErrorId,
 }: {
+  readonly token: string;
   readonly canCreate: boolean;
   readonly editHref: string;
   readonly requests: EnrollmentChangeRequest[];
@@ -1388,6 +1399,7 @@ function ChangeRequestsPanel({
 }) {
   const t = useCareTermTranslations("enrollmentStatus");
   const locale = useLocale();
+  const formLabels = useLocalizedFormLabels(token, requests.length > 0, locale);
   const diffCopy = useMemo<EnrollmentChangeRequestDiffCopy>(
     () => ({
       snapshotLabels: {
@@ -1543,6 +1555,7 @@ function ChangeRequestsPanel({
                     emptyLabel={t("notProvided")}
                     emptyMessage={t("changeRequestDiffEmpty")}
                     copy={diffCopy}
+                    formLabels={formLabels}
                   />
                 </div>
 
@@ -1597,6 +1610,47 @@ function ChangeRequestsPanel({
         </ul>
       )}
     </section>
+  );
+}
+
+// The questions of the form behind the status link name the rows of a change
+// request (#6142), in the reader's language where the school translated them.
+function useLocalizedFormLabels(
+  token: string,
+  enabled: boolean,
+  locale: string,
+): EnrollmentFormLabels | null {
+  const [labels, setLabels] = useState<EnrollmentFormLabels | null>(null);
+  useEffect(() => {
+    if (!enabled) return;
+    let cancelled = false;
+    getEnrollmentFormLabels(token)
+      .then((loaded) => {
+        if (!cancelled) setLabels(loaded);
+      })
+      .catch((err: unknown) => {
+        // Stays silent on purpose: every changed value is still shown, only
+        // named by its stored key, and the family has nothing to do.
+        logger.warn("enrollment_form_labels_failed", {
+          error: err instanceof Error ? err.message : "unknown",
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token, enabled]);
+  return useMemo(
+    () =>
+      labels
+        ? {
+            fields: localizeFormFields(labels.fields, locale),
+            legal_blocks: labels.legal_blocks.map((block) => ({
+              ...block,
+              title: translatedText(block, "title", block.title, locale),
+            })),
+          }
+        : null,
+    [labels, locale],
   );
 }
 

@@ -15,6 +15,7 @@ import type {
 } from "~/lib/enrollment-submission-api";
 import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
 import type { EnrollmentSignature } from "~/lib/enrollment-submission-api";
+import type { EnrollmentFormLabels } from "~/lib/enrollment-change-request-diff";
 
 const logger = createLogger({ component: "EnrollmentAdminAPI" });
 
@@ -848,6 +849,26 @@ export async function getAdminEnrollmentChangeRequest(
     );
   }
   return readJSON<AdminEnrollmentChangeRequest>(response);
+}
+
+/**
+ * Questions and consent titles of the request's form version (#6142), which
+ * name the rows of a change request.
+ */
+export async function getAdminEnrollmentFormLabels(
+  requestId: string,
+): Promise<EnrollmentFormLabels> {
+  const response = await send(
+    `${BASE}/${encodeURIComponent(requestId)}/form-labels`,
+    { cache: "no-store" },
+  );
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Fragen des Anmeldeformulars konnten nicht geladen werden",
+    );
+  }
+  return readJSON<EnrollmentFormLabels>(response);
 }
 
 export async function askEnrollmentChangeRequestQuestion(

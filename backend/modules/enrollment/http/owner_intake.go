@@ -18,6 +18,7 @@ type IntakeOwner interface {
 	capability.IntakeStatus
 	capability.IntakeForms
 	capability.IntakeSignatureProofs
+	capability.IntakeFormLabels
 }
 
 // SignatureProof is the request behind a status token with its signature,
@@ -203,6 +204,10 @@ type RequestService interface {
 	// StatusSignature loads only the signature metadata shown on the public
 	// status page. It is authorized by the status token.
 	StatusSignature(ctx context.Context, token string) (*StatusSignature, error)
+	// FormLabels loads the form version a request is pinned to (#6142):
+	// behind its status token when token is set, otherwise the request of
+	// the school in the caller's tenant transaction.
+	FormLabels(ctx context.Context, requestID int64, token string) (*capability.RequestFormLabels, error)
 }
 
 // NewRequestService decodes the owner's intake for these routes and the
@@ -463,6 +468,13 @@ func (s intakeService) StatusSignature(ctx context.Context, token string) (*Stat
 		return nil, err
 	}
 	return &StatusSignature{Signature: status.Signature, SignatureRequired: status.SignatureRequired}, nil
+}
+
+func (s intakeService) FormLabels(ctx context.Context, requestID int64, token string) (*capability.RequestFormLabels, error) {
+	if token != "" {
+		return s.owner.FormLabelsByStatusToken(ctx, token)
+	}
+	return s.owner.FormLabels(ctx, requestID)
 }
 
 // signatureProofValue decodes the owner's proof for these routes.

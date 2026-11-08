@@ -43,6 +43,8 @@ type reviewListEnv struct {
 	childIDs  []int64
 	accountID int64
 	token     string
+	// statusToken is the family's status link token of the request.
+	statusToken string
 }
 
 func setupReviewListTest(t *testing.T) *reviewListEnv {
@@ -162,12 +164,13 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 	require.Len(t, submitted.Children, 2)
 
 	env := &reviewListEnv{
-		db:        db,
-		router:    testpkg.TenantRuntimeMiddleware(t, db)(resource.Router(api.TenantSessionChain)),
-		tenantID:  tenantID,
-		requestID: submitted.Request.ID,
-		childIDs:  []int64{submitted.Children[0].ID, submitted.Children[1].ID},
-		accountID: accountID,
+		db:          db,
+		router:      testpkg.TenantRuntimeMiddleware(t, db)(resource.Router(api.TenantSessionChain)),
+		tenantID:    tenantID,
+		requestID:   submitted.Request.ID,
+		childIDs:    []int64{submitted.Children[0].ID, submitted.Children[1].ID},
+		accountID:   accountID,
+		statusToken: submitted.Request.StatusToken,
 	}
 	claims := sessiontoken.AppClaims{
 		ID:          int(accountID),

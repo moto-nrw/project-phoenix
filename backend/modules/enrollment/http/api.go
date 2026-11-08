@@ -156,6 +156,7 @@ func (rs *Resource) mountPublicRoutes(r chi.Router) {
 	r.Patch("/requests/{statusToken}", rs.patchStatus)
 	r.Put("/requests/{statusToken}", rs.replaceStatus)
 	r.Get("/requests/{statusToken}/change-requests", rs.listPublicChangeRequests)
+	r.Get("/requests/{statusToken}/form-labels", rs.getPublicFormLabels)
 	r.Post("/requests/{statusToken}/change-requests", rs.createChangeRequest)
 	r.Post("/requests/{statusToken}/change-requests/{changeRequestId}/messages", rs.replyToChangeRequest)
 	r.Post("/requests/{statusToken}/withdraw", rs.withdrawStatus)
@@ -269,6 +270,9 @@ func (rs *Resource) mountAdminRequestRoutes(r chi.Router) {
 		r.With(common.RequiresPermission("config:manage")).Post("/mark-all-read", rs.markAllAdminRequestsRead)
 		r.Route("/{id}", func(r chi.Router) {
 			r.With(common.RequiresPermission("config:manage")).Get("/", rs.getAdminRequest)
+			// The questions of the request's form version, for the change
+			// request view (#6142); same permission as that view.
+			r.With(common.RequiresPermission("config:manage")).Get("/form-labels", rs.getAdminFormLabels)
 			// Opening a parent's file needs its own permission on top of the
 			// detail (#4783); every open is recorded in the access log.
 			r.Route("/uploads", func(r chi.Router) {

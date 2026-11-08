@@ -15,6 +15,7 @@ import {
   approveEnrollmentChangeRequest,
   askEnrollmentChangeRequestQuestion,
   getAdminEnrollmentChangeRequest,
+  getAdminEnrollmentFormLabels,
   rejectEnrollmentChangeRequest,
   type AdminEnrollmentChangeRequest,
   type AdminEnrollmentChangeRequestStatus,
@@ -39,7 +40,10 @@ import { Button, ButtonLink } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Textarea } from "~/components/ui/textarea";
 import { formatChatDateTime } from "~/lib/date-helpers";
-import { changedEnrollmentChangeRequestLabels } from "~/lib/enrollment-change-request-diff";
+import {
+  changedEnrollmentChangeRequestLabels,
+  type EnrollmentFormLabels,
+} from "~/lib/enrollment-change-request-diff";
 import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 import { parentConversationsConcept } from "~/lib/concepts/parentConversations";
 import { announceChangeRequestsChanged } from "~/lib/change-requests-refresh";
@@ -98,6 +102,29 @@ export function AdminEnrollmentChangeRequestDetail({
   useEffect(() => {
     void load();
   }, [load]);
+
+  const requestId = data?.request_id;
+  const [formLabels, setFormLabels] = useState<EnrollmentFormLabels | null>(
+    null,
+  );
+  useEffect(() => {
+    if (!requestId) return;
+    let cancelled = false;
+    getAdminEnrollmentFormLabels(requestId)
+      .then((labels) => {
+        if (!cancelled) setFormLabels(labels);
+      })
+      .catch((err: unknown) => {
+        // Stays silent on purpose: the rows still show every value, only
+        // named by their stored key, and the review needs no extra step.
+        logger.warn("change_request_form_labels_failed", {
+          error: err instanceof Error ? err.message : "unknown",
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [requestId]);
 
   const handleQuestion = async () => {
     const body = question.trim();
@@ -245,7 +272,7 @@ export function AdminEnrollmentChangeRequestDetail({
                 : "Vergleichen Sie die eingereichten Änderungen mit dem gespeicherten Stand. Rückfragen pausieren die Prüfung, Freigabe übernimmt die Änderung in die Anmeldung."}
             </p>
 
-            <ChangeSummary request={data} />
+            <ChangeSummary request={data} formLabels={formLabels} />
             {(data.roster_impacts ?? []).map((entry) => {
               const impact = mapRosterImpact(entry.roster_impact);
               return impact ? (
@@ -397,8 +424,10 @@ export function AdminEnrollmentChangeRequestDetail({
 
 function ChangeSummary({
   request,
+  formLabels,
 }: {
   readonly request: AdminEnrollmentChangeRequest;
+  readonly formLabels: EnrollmentFormLabels | null;
 }) {
   return (
     <SectionCard
@@ -435,6 +464,7 @@ function ChangeSummary({
         baseSnapshot={request.base_snapshot}
         proposedSnapshot={request.proposed_snapshot}
         diff={request.diff}
+        formLabels={formLabels}
       />
     </SectionCard>
   );

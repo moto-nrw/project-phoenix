@@ -243,6 +243,7 @@ var (
 	_ enrollmentNative.IntakeStatus          = (*Intake)(nil)
 	_ enrollmentNative.IntakeForms           = (*Intake)(nil)
 	_ enrollmentNative.IntakeSignatureProofs = (*Intake)(nil)
+	_ enrollmentNative.IntakeFormLabels      = (*Intake)(nil)
 )
 
 // NewIntake composes the intake. A nil logger falls back to slog.Default().
