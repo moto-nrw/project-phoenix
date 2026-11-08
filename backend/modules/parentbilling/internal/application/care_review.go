@@ -69,11 +69,7 @@ func narrowMonth(month careMonth, schoolIDs []int64, exclusions map[int64]parent
 	review := reviewedMonth{careMonth: careMonth{invoices: []parentbilling.CareInvoice{}, unpriced: []parentbilling.CareUnpriced{},
 		duplicates: []parentbilling.CareDuplicate{}, dueDates: month.dueDates, deviations: month.deviations},
 		excluded: []parentbilling.CareInvoice{}}
-	for _, schools := range month.uncountedSchools {
-		if slices.ContainsFunc(schools, inRun) {
-			review.uncounted++
-		}
-	}
+	review.uncounted = uncountedInRun(month.uncountedSchools, inRun)
 	for schoolID, count := range month.billedBySchool {
 		if inRun(schoolID) {
 			review.billed += count
@@ -103,6 +99,18 @@ func narrowMonth(month careMonth, schoolIDs []int64, exclusions map[int64]parent
 		}
 	}
 	return review
+}
+
+// uncountedInRun counts the families without a confirmed number whose
+// invoices go to a school of the run (#5918).
+func uncountedInRun(families map[string][]int64, inRun func(int64) bool) int {
+	count := 0
+	for _, schools := range families {
+		if slices.ContainsFunc(schools, inRun) {
+			count++
+		}
+	}
+	return count
 }
 
 // fingerprintInvoice is what the fingerprint covers of an invoice the
