@@ -228,6 +228,9 @@ func seedCareRun(client *Client, auth AuthRef, month calendar.Date, release bool
 			return 0, fmt.Errorf("read the monthly run: %w", err)
 		}
 	}
+	if err := seedBillingTerms(client, auth, runID, month); err != nil {
+		return 0, err
+	}
 	raw, err := client.GetWithAuth(auth, fmt.Sprintf("/traeger/care-billing-runs/%d", runID))
 	if err != nil {
 		return 0, fmt.Errorf("check the monthly run: %w", err)

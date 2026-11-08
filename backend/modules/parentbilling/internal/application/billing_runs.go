@@ -79,6 +79,9 @@ type RunStore interface {
 	// RegistrationConfirmations names when each registration of the period
 	// with a frozen contribution was confirmed (#5627).
 	RegistrationConfirmations(ctx context.Context, organizationID, periodID int64) (map[int64]time.Time, error)
+	// The terms, the family deviations and the due dates of the run decide
+	// the recipient and the payment of every invoice (#4689).
+	paymentTermsReader
 	// DocumentKindStore keeps the kind of document of each service (#4688).
 	DocumentKindStore
 }
@@ -436,10 +439,23 @@ func (b *BillingRuns) preview(ctx context.Context, reviewer parentbilling.Holida
 	if err != nil {
 		return preview{}, err
 	}
-	return buildPreview(previewInput{
+	result := buildPreview(previewInput{
 		run: run, registrations: registrations, contributions: contributions, issued: issued, corrections: corrections,
 		replaces: replaces, replaced: replaced,
-	}), nil
+	})
+	payments, err := readInvoicePayments(ctx, b.store, reviewer.OrganizationID, 0, run.ID)
+	if err != nil {
+		return preview{}, err
+	}
+	issuedOn := b.today()
+	for i := range result.documents {
+		payments.holidayDocument(&result.documents[i], issuedOn)
+	}
+	result.dueDates = payments.run
+	if err := recordDeviationReads(ctx, b.store, reviewer, payments.deviationsRead()); err != nil {
+		return preview{}, err
+	}
+	return result, nil
 }
 
 // detail is the run with the preview or its issued invoices and the
@@ -452,12 +468,17 @@ func (b *BillingRuns) detail(ctx context.Context, reviewer parentbilling.Holiday
 			return parentbilling.BillingRunDetail{}, err
 		}
 		detail.DocumentKind = issuedDocumentKind(detail.Documents)
+		payments, err := readInvoicePayments(ctx, b.store, reviewer.OrganizationID, 0, run.ID)
+		if err != nil {
+			return parentbilling.BillingRunDetail{}, err
+		}
+		detail.DueDates = payments.run.InPaymentOrder()
 	} else {
 		current, err := b.preview(ctx, reviewer, run)
 		if err != nil {
 			return parentbilling.BillingRunDetail{}, err
 		}
-		detail.Documents, detail.Unbilled = current.documents, current.unbilled
+		detail.Documents, detail.Unbilled, detail.DueDates = current.documents, current.unbilled, current.dueDates.InPaymentOrder()
 		if err := b.previewKind(ctx, reviewer.OrganizationID, &detail); err != nil {
 			return parentbilling.BillingRunDetail{}, err
 		}

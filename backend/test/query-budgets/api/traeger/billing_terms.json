@@ -1,0 +1,7 @@
+{
+  "scenario": "api.traeger.billing_terms",
+  "max": 2,
+  "exact": true,
+  "description": "modules/parentbilling — GET /traeger/billing-terms (#4689):\nthe Träger binding of the Träger transaction, then the terms of the\nservices of the Träger. Flat in the number of services.",
+  "route": "GET /traeger/billing-terms/"
+}

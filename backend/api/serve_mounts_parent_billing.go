@@ -44,6 +44,9 @@ import (
 // of the letters as mails of the Träger on Delivery's outbox and their
 // print in one file (#4670, ADR 0123), and the invoices and amounts per
 // family at /traeger/billing-families behind the right "Abrechnung" (#4691),
+// and the payment terms, the family deviations and the due dates of the runs
+// at /traeger/billing-terms, /traeger/family-billing and
+// /traeger/billing-run-due-dates behind the same right (#4689),
 // and the kind of document of each service at
 // /traeger/billing-document-kinds behind the right "Abrechnung" (#4688).
 func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganizations, settings TraegerBrandingSettings, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, healthData enrollmentOwner.HolidayHealthCipher, logger *slog.Logger) {
@@ -64,6 +67,20 @@ func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganization
 	root.Mount("/traeger/care-billing-runs", care.RunRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/care-rules", reductions.RuleRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/care-evidences", reductions.EvidenceRouter(ProtectedTraegerRoutes))
+	terms := NewBillingTermsHTTP()
+	root.Mount("/traeger/billing-terms", terms.TermsRouter(ProtectedTraegerRoutes))
+	root.Mount("/traeger/family-billing", terms.FamilyRouter(ProtectedTraegerRoutes))
+	root.Mount("/traeger/billing-run-due-dates", terms.DueDateRouter(ProtectedTraegerRoutes))
+}
+
+// NewBillingTermsHTTP binds the payment terms, the bundling, the family
+// deviations and the due dates of the runs (#4689, ADR 0167) to the right
+// "Abrechnung" and to the parties of the Betreuungsvertrag, which name the
+// family of a contract, in the caller's Träger transaction.
+func NewBillingTermsHTTP() *parentBillingHTTP.BillingTermsResource {
+	contracts := parentBillingCareContracts{contracts: careContractCompose.NewContractVersions()}
+	return parentBillingHTTP.NewBillingTermsResource(parentBillingCompose.NewBillingTerms(contracts),
+		common.RequiresPermission(identityaccess.TraegerRightBillingManage))
 }
 
 // NewCareBillingHTTP binds the monthly contribution of the care contract

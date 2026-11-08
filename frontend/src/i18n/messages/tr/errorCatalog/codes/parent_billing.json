@@ -60,5 +60,10 @@
   "care_evidence_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "care_evidence_overlap": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "document_kind_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-  "legal_remedy_missing": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+  "legal_remedy_missing": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "billing_terms_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "family_billing_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "family_billing_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "family_unknown": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "due_dates_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin."
 }

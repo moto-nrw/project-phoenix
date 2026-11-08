@@ -4,6 +4,7 @@ import {
   cancelCareInvoice,
   downloadCareLetter,
   fetchCareLetters,
+  fetchCareRun,
   mailCareLetter,
   mailCareLetters,
   printCareLetters,
@@ -70,6 +71,39 @@ describe("traeger-care-billing-api letters (#4684)", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it("keeps the original family key when a payer receives the invoice", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, {
+        data: {
+          id: 7,
+          invoices: [
+            {
+              id: 41,
+              contract_id: 42,
+              school_id: 3,
+              family_email: "familie@example.org",
+              recipient: {
+                first_name: "Oma",
+                last_name: "Muster",
+                email: "oma@example.org",
+                kind: "payer",
+              },
+              positions: [],
+              reductions: [],
+            },
+          ],
+          unpriced: [],
+          duplicates: [],
+        },
+      }),
+    );
+    const run = await fetchCareRun("7");
+    expect(run.invoices[0]).toMatchObject({
+      familyEmail: "familie@example.org",
+      recipient: { email: "oma@example.org" },
+    });
   });
 
   it("maps the letters, each invoice and its Storno, and the counts", async () => {

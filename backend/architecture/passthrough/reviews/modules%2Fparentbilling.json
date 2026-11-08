@@ -11,6 +11,11 @@
       "reason": "ADR 0119 (#4668): lists the billing runs of the session's Träger after refusing a missing Träger; the Träger transaction is the caller's."
     },
     {
+      "decision": "0167",
+      "id": "modules/parentbilling/internal/application/BillingTerms.ServiceTerms",
+      "reason": "ADR 0167 (#4689): refuses a missing Träger and completes the stored terms with the defaults of every service in their order; the Träger transaction is the caller's."
+    },
+    {
       "decision": "0158",
       "id": "modules/parentbilling/internal/application/CareBilling.ListCareRuns",
       "reason": "ADR 0158 (#4684): lists the monthly runs of the session's Träger after refusing a missing Träger and derives the month a new run bills; the Träger transaction is the caller's."

@@ -164,11 +164,21 @@ type BillingDocument struct {
 	RecipientLastName   string                `json:"recipient_last_name"`
 	RecipientEmail      string                `json:"recipient_email"`
 	RecipientAddress    *PostalAddress        `json:"recipient_address"`
-	DebtorNumber        string                `json:"debtor_number"`
-	ServiceFrom         calendar.Date         `json:"service_from"`
-	ServiceUntil        calendar.Date         `json:"service_until"`
-	Children            []BillingChild        `json:"children"`
-	TotalCents          int64                 `json:"total_cents"`
+	// RecipientKind and RecipientSecondName say who gets the invoice
+	// (#4689): the person of the registration, both parents or another
+	// payer. Payment is how and by when it is paid; an invoice issued
+	// before #4689 has neither.
+	RecipientKind       string          `json:"recipient_kind"`
+	RecipientSecondName string          `json:"recipient_second_name"`
+	Payment             *InvoicePayment `json:"payment"`
+	// FamilyEmail is the family of the invoice, the address of the
+	// registration, whoever pays.
+	FamilyEmail  string         `json:"-"`
+	DebtorNumber string         `json:"debtor_number"`
+	ServiceFrom  calendar.Date  `json:"service_from"`
+	ServiceUntil calendar.Date  `json:"service_until"`
+	Children     []BillingChild `json:"children"`
+	TotalCents   int64          `json:"total_cents"`
 }
 
 // BillingRunDetail is a run with its invoices. A calculated run shows the
@@ -191,6 +201,8 @@ type BillingRunDetail struct {
 	NumberRangeSet                  bool              `json:"number_range_set"`
 	BilledInAdvance                 bool              `json:"billed_in_advance"`
 	Letters                         *BillingLetters   `json:"letters"`
+	// DueDates are the due dates of the run per payment method (#4689).
+	DueDates []RunDueDate `json:"due_dates"`
 	// DocumentKindState is the kind the run issues (#4688).
 	DocumentKindState
 }

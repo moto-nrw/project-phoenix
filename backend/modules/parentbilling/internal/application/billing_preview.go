@@ -34,6 +34,8 @@ type previewInput struct {
 type preview struct {
 	documents []parentbilling.BillingDocument
 	unbilled  int
+	// dueDates are the run's due dates the payments used (#4689).
+	dueDates parentbilling.RunDueDates
 }
 
 func (p preview) total() int64 {

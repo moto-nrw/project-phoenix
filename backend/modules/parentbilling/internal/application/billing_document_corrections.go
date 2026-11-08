@@ -228,7 +228,8 @@ func correctionOf(invoice parentbilling.BillingDocument, kind, reason string) pa
 		Kind: kind, DocumentKind: invoice.DocumentKind, ReferenceDocumentID: &reference, ReferenceNumber: invoice.Number, Reason: reason,
 		RegistrationID: invoice.RegistrationID, RecipientFirstName: invoice.RecipientFirstName,
 		RecipientLastName: invoice.RecipientLastName, RecipientEmail: invoice.RecipientEmail,
-		RecipientAddress: invoice.RecipientAddress, DebtorNumber: invoice.DebtorNumber,
+		RecipientAddress: invoice.RecipientAddress, RecipientKind: invoice.RecipientKind,
+		RecipientSecondName: invoice.RecipientSecondName, DebtorNumber: invoice.DebtorNumber,
 		ServiceFrom: invoice.ServiceFrom, ServiceUntil: invoice.ServiceUntil, Children: []parentbilling.BillingChild{},
 	}
 }

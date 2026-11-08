@@ -237,6 +237,7 @@ func OwnTraegerContributionRules(tb testing.TB, db *bun.DB, organizationID int64
 			"parent_billing.contribution_rules", "parent_billing.runs", "parent_billing.care_runs", "parent_billing.care_tariffs",
 			"parent_billing.cost_bearers",
 			"parent_billing.number_range_counters", "parent_billing.number_ranges", "parent_billing.document_kinds",
+			"parent_billing.service_terms",
 		} {
 			_, err := db.ExecContext(context.Background(), `DELETE FROM `+table+` WHERE organization_id = ?`, organizationID)
 			require.NoError(tb, err, "Failed to clean up test Elternabrechnung rows")

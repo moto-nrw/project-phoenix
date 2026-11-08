@@ -10,7 +10,7 @@
 // „Schreiben“ ([id]/schreiben). Jedes Öffnen steht im Protokoll des Laufs.
 
 import dynamic from "next/dynamic";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import {
   CARE_RUN_STATUS_LABELS,
@@ -25,6 +25,7 @@ import {
   CareUnpricedCard,
 } from "~/components/traeger/care-run-invoices";
 import { CareLettersSummaryCard } from "~/components/traeger/care-letters-summary-card";
+import { runDueDatesText } from "~/components/traeger/billing-payment-format";
 import { invoiceDateLabel } from "~/components/traeger/care-review-format";
 import {
   CareExcludedCard,
@@ -97,6 +98,7 @@ function notBilledLabel(children: number, released = false): string {
 
 export default function TraegerCareRunPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const runId = params?.id ?? "";
   const [run, setRun] = useState<CareRunDetail | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -195,6 +197,17 @@ export default function TraegerCareRunPage() {
     } finally {
       setReturning(null);
     }
+  };
+
+  // Recipient and payment of a family are set on their own page, so the run
+  // does not load that form (#4689).
+  const openFamilyBilling = (invoice: CareInvoice) => {
+    if (!run) return;
+    router.push(
+      traegerPath(
+        `/traeger/abrechnung/monatsbeitraege/${run.id}/empfaenger/${invoice.contractId}`,
+      ),
+    );
   };
 
   const preview = run?.status === "calculated";
@@ -358,6 +371,29 @@ export default function TraegerCareRunPage() {
                   "–"
                 )}
               </DataField>
+              <DataField label="Fällig">
+                {preview ? (
+                  <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <span>
+                      {runDueDatesText(run.dueDates ?? []) ??
+                        "Nach dem Zahlungsziel der Leistung"}
+                    </span>
+                    <ButtonLink
+                      href={traegerPath(
+                        `/traeger/abrechnung/monatsbeitraege/${run.id}/faelligkeiten`,
+                      )}
+                      variant="link"
+                      size="md"
+                      aria-label="Fälligkeiten ändern"
+                    >
+                      Ändern
+                    </ButtonLink>
+                  </span>
+                ) : (
+                  (runDueDatesText(run.dueDates ?? []) ??
+                  "Nach dem Zahlungsziel der Leistung")
+                )}
+              </DataField>
               <DataField label="Rechnungen">
                 <span className="tabular-nums">
                   {invoiceCountLabel(run.previewCount)} ·{" "}
@@ -433,8 +469,11 @@ export default function TraegerCareRunPage() {
             released={!preview}
             letters={released ? letters?.documents : undefined}
             letterColumns={
-              preview ? [exclusionColumn(setExcluding)] : undefined
+              preview
+                ? [exclusionColumn(setExcluding, openFamilyBilling)]
+                : undefined
             }
+            onFamilyBilling={preview ? undefined : openFamilyBilling}
           />
         </>
       ) : null}
