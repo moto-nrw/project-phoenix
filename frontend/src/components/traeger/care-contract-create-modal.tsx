@@ -29,9 +29,7 @@ import {
   TEMPLATE_ISSUE_LABELS,
   TEMPLATE_ISSUE_REASONS,
   childName,
-  formatModules,
   formatServiceDays,
-  moduleNames,
 } from "./care-contract-format";
 
 const logger = createLogger({ component: "CareContractCreateModal" });
@@ -58,7 +56,6 @@ function bySchool(candidates: readonly ContractCandidate[]): SchoolGroup[] {
   }));
 }
 
-/** The warning when children get no draft yet, with the reason. */
 /** The children's names as one list: „Jona Kern und Lea Kern“. */
 function nameList(children: readonly ContractCandidate[]): string {
   const names = children.map(childName);
@@ -114,7 +111,6 @@ export function CareContractCreateModal({
   candidates: readonly ContractCandidate[];
   onClose: () => void;
   onCreated: (result: CreateResult) => void;
-  /** Wechselt zum Reiter „Vertragsbedingungen“. */
   onOpenConditions: () => void;
 }>) {
   const ready = useMemo(
@@ -212,8 +208,8 @@ export function CareContractCreateModal({
           Diese Kinder sind angenommen und haben Betreuung gebucht. moto
           übernimmt Kind, Eltern, Beginn und die Module je Wochentag aus der
           Anmeldung. Ein Vertrag umfasst alle Module eines Kindes. Sie prüfen
-          jeden Entwurf, bevor Sie ihn senden. Für „Entsteht bei der Annahme“
-          sind hier keine Entwürfe nötig.
+          jeden Entwurf, bevor Sie ihn senden. Für „Bei der Annahme“ sind hier
+          keine Entwürfe nötig.
         </p>
         {candidates.length === 0 ? (
           <EmptyState
@@ -308,7 +304,7 @@ export function CareContractCreateModal({
                       </span>
                     ) : null}
                     <span className="mt-0.5 block text-sm text-gray-600">
-                      {formatModules(moduleNames(candidate.services))} · ab{" "}
+                      {candidate.modulesText || "–"} · ab{" "}
                       {formatDate(candidate.effectiveFrom)}
                     </span>
                     <span className="block text-sm text-gray-600">

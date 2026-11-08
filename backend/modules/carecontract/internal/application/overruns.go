@@ -32,7 +32,6 @@ type OverrunPorts struct {
 
 var _ carecontract.OverrunEvaluations = (*Overruns)(nil)
 
-// NewOverruns builds the evaluation.
 func NewOverruns(ports OverrunPorts, today func() calendar.Date) *Overruns {
 	if ports.Schools == nil || ports.CareTimes == nil || ports.Access == nil || ports.Runtime == nil || today == nil {
 		panic("care contract: the schools, the care times, the access log, the runtime and the clock are required")
@@ -172,7 +171,6 @@ func namedChildren(school carecontract.School, rows []carecontract.SchoolOverrun
 	return children
 }
 
-// sortChildren puts the children with the most extra time first.
 func sortChildren(children []carecontract.OverrunChild) {
 	slices.SortStableFunc(children, func(a, b carecontract.OverrunChild) int {
 		switch {
