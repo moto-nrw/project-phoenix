@@ -274,20 +274,21 @@ func (s *Store) InsertCareEvidenceEvents(ctx context.Context, organizationID, ac
 type careInvoiceReductionRow struct {
 	bun.BaseModel `bun:"table:parent_billing.care_invoice_reductions"`
 
-	ID                  int64  `bun:"id,pk,autoincrement"`
-	OrganizationID      int64  `bun:"organization_id"`
-	InvoiceID           int64  `bun:"invoice_id"`
-	Position            int    `bun:"position"`
-	Kind                string `bun:"kind"`
-	RuleID              int64  `bun:"rule_id"`
-	Name                string `bun:"name"`
-	ChildRank           *int   `bun:"child_rank"`
-	FamilyChildren      *int   `bun:"family_children"`
-	DiscountBasisPoints *int   `bun:"discount_basis_points"`
-	DiscountCents       *int64 `bun:"discount_cents"`
-	PriceCents          *int64 `bun:"price_cents"`
-	CapCents            *int64 `bun:"cap_cents"`
-	AmountCents         int64  `bun:"amount_cents"`
+	ID                  int64   `bun:"id,pk,autoincrement"`
+	OrganizationID      int64   `bun:"organization_id"`
+	InvoiceID           int64   `bun:"invoice_id"`
+	Position            int     `bun:"position"`
+	Kind                string  `bun:"kind"`
+	RuleID              int64   `bun:"rule_id"`
+	Name                string  `bun:"name"`
+	ChildRank           *int    `bun:"child_rank"`
+	FamilyChildren      *int    `bun:"family_children"`
+	DiscountBasisPoints *int    `bun:"discount_basis_points"`
+	DiscountCents       *int64  `bun:"discount_cents"`
+	PriceCents          *int64  `bun:"price_cents"`
+	CapCents            *int64  `bun:"cap_cents"`
+	CareOfferingIDs     []int64 `bun:"care_offering_ids,array"`
+	AmountCents         int64   `bun:"amount_cents"`
 }
 
 // insertCareReductions stores the reductions of the invoices just issued;
@@ -301,7 +302,7 @@ func insertCareReductions(ctx context.Context, db bun.IDB, organizationID int64,
 				RuleID: reduction.RuleID, Name: reduction.Name, ChildRank: reduction.ChildRank,
 				FamilyChildren: reduction.FamilyChildren, DiscountBasisPoints: reduction.DiscountBasisPoints,
 				DiscountCents: reduction.DiscountCents, PriceCents: reduction.PriceCents, CapCents: reduction.CapCents,
-				AmountCents: reduction.AmountCents,
+				CareOfferingIDs: idsOrEmpty(reduction.CareOfferingIDs), AmountCents: reduction.AmountCents,
 			})
 		}
 	}
@@ -327,7 +328,7 @@ func careReductionsOf(ctx context.Context, db bun.IDB, organizationID int64, inv
 		byInvoice[row.InvoiceID] = append(byInvoice[row.InvoiceID], parentbilling.CareReduction{
 			Kind: row.Kind, RuleID: row.RuleID, Name: row.Name, ChildRank: row.ChildRank, FamilyChildren: row.FamilyChildren,
 			DiscountBasisPoints: row.DiscountBasisPoints, DiscountCents: row.DiscountCents, PriceCents: row.PriceCents,
-			CapCents: row.CapCents, AmountCents: row.AmountCents,
+			CapCents: row.CapCents, CareOfferingIDs: idsOrEmpty(row.CareOfferingIDs), AmountCents: row.AmountCents,
 		})
 	}
 	return byInvoice, nil

@@ -183,7 +183,7 @@ func (e *careChainEntry) reduce(rule *parentbilling.ContributionRule, discount i
 	e.invoice.Reductions = append(e.invoice.Reductions, parentbilling.CareReduction{
 		Kind: rule.Kind, RuleID: rule.ID, Name: rule.Name, ChildRank: rank, FamilyChildren: children,
 		DiscountBasisPoints: rule.DiscountBasisPoints, DiscountCents: rule.DiscountCents, PriceCents: rule.PriceCents,
-		CapCents: rule.CapCents, AmountCents: -discount,
+		CapCents: rule.CapCents, CareOfferingIDs: slices.Clone(rule.CareOfferingIDs), AmountCents: -discount,
 	})
 }
 
@@ -373,24 +373,48 @@ func (e *careChainEntry) finish() {
 
 // issuedAtSiblingStage is what an issued invoice billed for the rule's
 // modules when the sibling rule ran: their base price less the income level
-// (shared by base price, as the chain shares it) and less this rule's
-// discount. The single-parent reduction and the cap came later and do not
-// count, so a later contract of the child never pays a fixed price twice.
+// and less this rule's discount. The income reduction is shared again over
+// the positions of the modules its rule named (all without names), by base
+// price and largest remainder, as the chain shared it when it issued the
+// invoice; it never lands on a module its rule did not reduce. The
+// single-parent reduction and the cap came later and do not count, so a
+// later contract of the child never pays a fixed price twice.
 func (e *careChainEntry) issuedAtSiblingStage(rule *parentbilling.ContributionRule) int64 {
-	var base, total, income int64
-	for _, position := range e.invoice.Positions {
-		total += position.AmountCents
-	}
-	base = e.base(rule)
+	stage := e.base(rule)
 	for _, reduction := range e.invoice.Reductions {
-		if reduction.Kind == parentbilling.RuleIncomeLevel {
-			income -= reduction.AmountCents
+		if reduction.Kind != parentbilling.RuleIncomeLevel {
+			continue
+		}
+		stage -= e.incomeOnScope(reduction, rule)
+	}
+	return max(stage-e.issuedSiblingDiscount(rule.ID), 0)
+}
+
+// incomeOnScope is the part of an issued income reduction that fell on the
+// positions the sibling rule applies to.
+func (e *careChainEntry) incomeOnScope(reduction parentbilling.CareReduction, rule *parentbilling.ContributionRule) int64 {
+	reduced := &parentbilling.ContributionRule{CareOfferingIDs: reduction.CareOfferingIDs}
+	var indices []int
+	var numerators []int64
+	var base int64
+	discount := -reduction.AmountCents
+	for i, position := range e.invoice.Positions {
+		if inScope(reduced, position.CareOfferingID) && position.AmountCents > 0 {
+			indices = append(indices, i)
+			numerators = append(numerators, position.AmountCents*discount)
+			base += position.AmountCents
 		}
 	}
-	if total > 0 && income > 0 {
-		base -= roundHalfUp(income*e.base(rule), total)
+	if base == 0 || discount <= 0 {
+		return 0
 	}
-	return max(base-e.issuedSiblingDiscount(rule.ID), 0)
+	var onScope int64
+	for k, part := range largestRemainder(numerators, base, min(discount, base)) {
+		if inScope(rule, e.invoice.Positions[indices[k]].CareOfferingID) {
+			onScope += part
+		}
+	}
+	return onScope
 }
 
 func (e *careChainEntry) issuedSiblingDiscount(ruleID int64) int64 {

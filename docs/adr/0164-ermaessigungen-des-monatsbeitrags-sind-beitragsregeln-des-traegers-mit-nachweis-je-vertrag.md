@@ -51,6 +51,16 @@ auf. Sie führt keinen Owner ein (ADR 0057 Punkt 5, ADR 0070).
    stehen nicht darauf. Ein Kind, das ein früherer Lauf des Monats
    abgerechnet hat, zählt im Rang mit. #5918 ergänzt die Kinderzahl der
    Familie an genau dieser Stelle (`rankFamilies`).
+
+   **Grenzen der Familie über die Mail-Adresse, bis #4689 und #5918
+   hingenommen:** Nutzen zwei Familien dieselbe Rechnungsadresse, legt moto
+   sie zu einer Familie zusammen; Geschwisterregel und Höchstbetrag zählen
+   dann Kinder beider Familien. Hat eine Familie zwei Adressen (etwa je
+   Elternteil ein Vertrag), sind es zwei Familien; die Geschwisterermäßigung
+   und der gemeinsame Höchstbetrag entfallen. Das Büro erkennt beides an
+   der Rechnungsadresse der Verträge und gleicht sie im Vertrag an. Erst die
+   Zahler aus #4689 und die bestätigte Familie mit Kinderzahl aus #5918
+   ersetzen die Adresse als Schlüssel.
 5. **Höchstbetrag.** Was eine Familie an den Schulen der Regel nach den
    übrigen Regeln zahlt, sinkt auf den Höchstbetrag; der Überschuss geht vom
    letzten Kind der Rangfolge ab. Eine schon ausgestellte Rechnung des
@@ -71,7 +81,11 @@ auf. Sie führt keinen Owner ein (ADR 0057 Punkt 5, ADR 0070).
    Lesen steht wie bisher in `care_run_events`.
 8. **Unveränderlich.** Eine ausgestellte Rechnung speichert ihre
    Ermäßigungen in `parent_billing.care_invoice_reductions` mit einer Kopie
-   von Name und Parametern der Regel; der Trigger aus ADR 0119 Punkt 7 lehnt
+   von Name, Parametern und Modulen der Regel, dazu je Position den
+   zahlbaren Betrag (`payable_cents`). Ein späterer Lauf des Monats rechnet
+   damit Höchstbetrag und festen Geschwisterpreis gegen das Ausgestellte:
+   Ein früherer Einkommensabzug bleibt auf den Modulen, die seine Regel
+   genannt hat; der Trigger aus ADR 0119 Punkt 7 lehnt
    jede Änderung ab. Eine spätere Änderung oder Löschung der Regel oder des
    Nachweises erreicht sie nicht.
 9. **Löschung.** Nachweise und ihre Spur hängen mit `ON DELETE CASCADE` am

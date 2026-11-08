@@ -21,10 +21,11 @@ import (
 
 type reductionScope struct {
 	careScope
-	rule     int64
-	evidence int64
-	invoice  int64
-	care     int64
+	holidayRule int64
+	rule        int64
+	evidence    int64
+	invoice     int64
+	care        int64
 }
 
 // seedReductionScope writes a contract, a holiday and a care rule, an
@@ -37,9 +38,9 @@ func seedReductionScope(t *testing.T, ctx context.Context, tx bun.IDB, scope car
 	require.NoError(t, tx.NewRaw(`INSERT INTO care_contract.contracts (organization_id, school_id, request_child_id)
 		VALUES (?, ?, ?) RETURNING id`, scope.organization, scope.school, scope.contract).Scan(ctx, &contract))
 	out.contract = contract
-	_, err := tx.ExecContext(ctx, `INSERT INTO parent_billing.contribution_rules (organization_id, service, kind, valid_from,
-		sibling_from_child, discount_basis_points) VALUES (?, 'holiday', 'sibling', DATE '2029-09-01', 2, 5000)`, scope.organization)
-	require.NoError(t, err)
+	require.NoError(t, tx.NewRaw(`INSERT INTO parent_billing.contribution_rules (organization_id, service, kind, valid_from,
+		sibling_from_child, discount_basis_points) VALUES (?, 'holiday', 'sibling', DATE '2029-09-01', 2, 5000) RETURNING id`,
+		scope.organization).Scan(ctx, &out.holidayRule))
 	require.NoError(t, tx.NewRaw(`INSERT INTO parent_billing.contribution_rules (organization_id, service, kind, name, valid_from,
 		school_ids, discount_basis_points) VALUES (?, 'care', 'income_level', ?, DATE '2029-09-01', ARRAY[?]::bigint[], 2000)
 		RETURNING id`, scope.organization, "Stufe "+name, scope.school).Scan(ctx, &out.care))
@@ -49,7 +50,7 @@ func seedReductionScope(t *testing.T, ctx context.Context, tx bun.IDB, scope car
 		RETURNING id`, scope.organization, contract, out.care).Scan(ctx, &out.evidence))
 	require.NoError(t, tx.NewRaw(`SELECT id FROM parent_billing.care_invoices WHERE organization_id = ?`, scope.organization).
 		Scan(ctx, &out.invoice))
-	_, err = tx.ExecContext(ctx, `INSERT INTO parent_billing.care_invoice_reductions (organization_id, invoice_id, position, kind,
+	_, err := tx.ExecContext(ctx, `INSERT INTO parent_billing.care_invoice_reductions (organization_id, invoice_id, position, kind,
 		rule_id, name, amount_cents) VALUES (?, ?, 1, 'income_level', ?, 'Stufe', -640)`, scope.organization, out.invoice, out.care)
 	require.NoError(t, err)
 	return out
@@ -102,8 +103,15 @@ func TestCareReductionFiltersKeepTheTraegerBelowRLS(t *testing.T) {
 			"UpdateCareRule of another Träger")
 		assert.ErrorIs(t, store.DeleteCareRule(ctx, own.organization, other.care), parentbilling.ErrContributionRuleNotFound,
 			"DeleteCareRule of another Träger")
+		assert.ErrorIs(t, store.UpdateCareRule(ctx, own.organization, own.holidayRule, care), parentbilling.ErrContributionRuleNotFound,
+			"UpdateCareRule leaves a holiday rule")
+		assert.ErrorIs(t, store.DeleteCareRule(ctx, own.organization, own.holidayRule), parentbilling.ErrContributionRuleNotFound,
+			"DeleteCareRule leaves a holiday rule")
 		assert.ErrorIs(t, store.DeleteContributionRule(ctx, own.organization, own.care), parentbilling.ErrContributionRuleNotFound,
 			"the holiday deletion leaves a care rule")
+		_, err = store.UpdateContributionRule(ctx, own.organization, own.care, parentbilling.ContributionRuleInput{
+			Service: parentbilling.ServiceHoliday, Kind: parentbilling.RuleBenefitsExemption, ValidFrom: september, Note: "Befreit"})
+		assert.ErrorIs(t, err, parentbilling.ErrContributionRuleNotFound, "the holiday change leaves a care rule")
 
 		reductions, err := careReductionsOf(ctx, tx, own.organization, []int64{own.invoice, other.invoice})
 		require.NoError(t, err)

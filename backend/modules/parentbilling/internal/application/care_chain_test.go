@@ -36,6 +36,7 @@ func chainTariffs(t *testing.T) []parentbilling.CareTariff {
 		price(t, schoolIspringen, moduleUntil1400, "Betreuung bis 14:00 Uhr", "mon", "2026-09-01", 4000),
 		price(t, schoolIspringen, moduleUntil1400, "Betreuung bis 14:00 Uhr", "tue", "2026-09-01", 4000),
 		price(t, schoolIspringen, moduleUntil1630, "Betreuung bis 16:30 Uhr", "mon", "2026-09-01", 6000),
+		price(t, schoolIspringen, moduleUntil1630, "Betreuung bis 16:30 Uhr", "tue", "2026-09-01", 4000),
 		price(t, schoolIspringen, moduleEarly, "Frühbetreuung", "mon", "2026-09-01", 3333),
 		price(t, schoolBirkenfeld, moduleUntil1400, "Betreuung bis 14:00 Uhr", "mon", "2026-09-01", 4500),
 	}
@@ -55,6 +56,7 @@ var (
 	mon1400  = booked("mon", moduleUntil1400, "Betreuung bis 14:00 Uhr", "14:00")
 	tue1400  = booked("tue", moduleUntil1400, "Betreuung bis 14:00 Uhr", "14:00")
 	mon1630  = booked("mon", moduleUntil1630, "Betreuung bis 16:30 Uhr", "16:30")
+	tue1630  = booked("tue", moduleUntil1630, "Betreuung bis 16:30 Uhr", "16:30")
 	monEarly = booked("mon", moduleEarly, "Frühbetreuung", "08:00")
 )
 
@@ -89,9 +91,11 @@ func TestCareMonthRuleChainTable(t *testing.T) {
 	t.Parallel()
 	until := day(t, "2026-12-31")
 	cases := []struct {
-		name      string
-		children  []careChainChild
-		invoiced  []int64
+		name     string
+		children []careChainChild
+		invoiced []int64
+		// sameChild gives a contract the child of another one.
+		sameChild map[int64]int64
 		rules     func(t *testing.T) []parentbilling.ContributionRule
 		evidences func(t *testing.T) []parentbilling.CareEvidence
 		totals    map[int64]int64
@@ -375,6 +379,43 @@ func TestCareMonthRuleChainTable(t *testing.T) {
 			},
 			totals: map[int64]int64{contractMia: 8000, contractNoah: 6000},
 		},
+		{
+			// One child, two contracts. 501 (Mon until 14:00 = A 40,00 €,
+			// Mon until 16:30 = B 60,00 €) was issued by an earlier run:
+			// the income level holds only for A and sets it to 0,00 €; the
+			// sibling price of 25,00 € holds only for B (Noah, B Mon and Tue
+			// = 100,00 €, ties with Mia's 60 + 40 and is older: first child). The first run shared B's discount of
+			// 100,00 − 25,00 = 75,00 € by base: 501 B 60 → 45,00 € off, B
+			// pays 15,00 €; 503 B 40 → 30,00 € off. Now 503 (Tue until 16:30
+			// = B 40,00 €) is billed alone: 501 holds 15,00 € of the price
+			// at the sibling stage (the income level took nothing from B),
+			// so 503 pays 25,00 − 15,00 = 10,00 €. Spreading the income
+			// reduction over A and B would count 501 at 0,00 € and bill
+			// 503 at 25,00 €.
+			name: "an earlier income reduction stays on its module",
+			children: []careChainChild{
+				{contractMia, schoolIspringen, familyEva, "2017-03-01", []parentbilling.CareContractService{mon1400, mon1630}},
+				{contractNoah, schoolIspringen, familyEva, "2015-03-01", []parentbilling.CareContractService{mon1630, tue1630}},
+				{contractLea, schoolIspringen, familyEva, "2017-03-01", []parentbilling.CareContractService{tue1630}},
+			},
+			invoiced:  []int64{contractMia},
+			sameChild: map[int64]int64{contractLea: contractMia},
+			rules: func(t *testing.T) []parentbilling.ContributionRule {
+				return []parentbilling.ContributionRule{
+					careRule(t, ruleIncome, parentbilling.RuleIncomeLevel, []int64{schoolIspringen}, func(rule *parentbilling.ContributionRule) {
+						rule.PriceCents, rule.CareOfferingIDs = ptr(int64(0)), []int64{moduleUntil1400}
+					}),
+					careRule(t, ruleSiblingIspringen, parentbilling.RuleSibling, []int64{schoolIspringen}, func(rule *parentbilling.ContributionRule) {
+						rule.SiblingFromChild, rule.PriceCents, rule.CareOfferingIDs = ptr(2), ptr(int64(2500)), []int64{moduleUntil1630}
+					}),
+				}
+			},
+			evidences: func(t *testing.T) []parentbilling.CareEvidence {
+				return []parentbilling.CareEvidence{evidence(t, contractMia, parentbilling.EvidenceIncomeLevel, ptr(ruleIncome), "2026-09-01", nil)}
+			},
+			totals: map[int64]int64{contractNoah: 10000, contractLea: 1000},
+			lines:  map[int64][]reductionOf{contractLea: {{parentbilling.RuleSibling, -3000, 2}}},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -387,6 +428,14 @@ func TestCareMonthRuleChainTable(t *testing.T) {
 				version.ChildBirthDate = &born
 				in.versions = append(in.versions, version)
 				in.recipients[child.contract] = parentbilling.CareRecipient{FirstName: "Eva", LastName: "Beispiel", Email: child.family}
+			}
+			for contract, like := range tc.sameChild {
+				for i := range in.versions {
+					if in.versions[i].ContractID == contract {
+						student := like + 9000
+						in.versions[i].StudentID = &student
+					}
+				}
 			}
 			if tc.evidences != nil {
 				in.evidences = tc.evidences(t)

@@ -160,7 +160,10 @@ type CareReduction struct {
 	DiscountCents       *int64 `json:"discount_cents"`
 	PriceCents          *int64 `json:"price_cents"`
 	CapCents            *int64 `json:"cap_cents"`
-	AmountCents         int64  `json:"amount_cents"`
+	// CareOfferingIDs are the modules the rule reduced, none for all; a
+	// later run of the month places an earlier reduction by them.
+	CareOfferingIDs []int64 `json:"care_offering_ids"`
+	AmountCents     int64   `json:"amount_cents"`
 }
 
 // CareReductions lets the Abrechnung of a Träger keep the rules of the

@@ -305,6 +305,9 @@ func (s *Store) CareRun(ctx context.Context, organizationID, runID int64, lock b
 }
 
 // InvoicedContracts reads the immutable amounts and scope of earlier runs.
+// Only the invoices are filtered by the Träger: positions and reductions
+// follow them by invoice ID, which is unique across Träger, and their
+// composite key (organization_id, invoice_id) ties them to its Träger.
 func (s *Store) InvoicedContracts(ctx context.Context, organizationID int64, month calendar.Date) (map[int64]parentbilling.CareInvoice, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
@@ -324,9 +327,9 @@ func (s *Store) InvoicedContracts(ctx context.Context, organizationID int64, mon
 		p.care_offering_id, p.amount_cents, COALESCE(p.payable_cents, p.amount_cents) AS payable_cents,
 		COALESCE((SELECT jsonb_agg(to_jsonb(r) ORDER BY r.position)
 			FROM parent_billing.care_invoice_reductions r
-			WHERE r.organization_id = i.organization_id AND r.invoice_id = i.id), '[]'::jsonb) AS reductions
+			WHERE r.invoice_id = i.id), '[]'::jsonb) AS reductions
 		FROM parent_billing.care_invoices i
-		JOIN parent_billing.care_invoice_positions p ON p.invoice_id = i.id AND p.organization_id = i.organization_id
+		JOIN parent_billing.care_invoice_positions p ON p.invoice_id = i.id
 		WHERE i.organization_id = ? AND i.billing_month = ?
 		ORDER BY i.care_contract_id, p.position`, organizationID, month).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("read invoiced contracts: %w", err)
