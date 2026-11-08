@@ -26,6 +26,8 @@ type careMonthInput struct {
 	// invoice is its base price.
 	rules     []parentbilling.ContributionRule
 	evidences []parentbilling.CareEvidence
+	// costShares split the contribution with the cost bearers (#4687).
+	costShares []parentbilling.CareCostShare
 }
 
 // careMonth is the preview of one month: the draft invoices, the bookings
@@ -107,7 +109,7 @@ func buildCareMonth(in careMonthInput) (careMonth, error) {
 	for _, invoice := range in.invoiced {
 		result.billedBySchool[invoice.SchoolID]++
 	}
-	applyCareChain(chained, careChainInput{month: in.month, rules: in.rules, evidences: in.evidences})
+	applyCareChain(chained, careChainInput{month: in.month, rules: in.rules, evidences: in.evidences, costShares: in.costShares})
 	slices.SortStableFunc(result.invoices, func(a, b parentbilling.CareInvoice) int {
 		return firstNonZero(compareOrdered(a.SchoolName, b.SchoolName), compareOrdered(a.ChildLastName, b.ChildLastName),
 			compareOrdered(a.ChildFirstName, b.ChildFirstName), compareOrdered(a.ContractID, b.ContractID))

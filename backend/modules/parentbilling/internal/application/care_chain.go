@@ -10,7 +10,8 @@ import (
 )
 
 // The rule chain of the monthly care contribution (#4685, ADR 0164): income
-// level, sibling, single parent, cap, in the order of ADR 0088 section 4.
+// level, sibling, single parent, cap, in the order of ADR 0088 section 4,
+// then the cost bearer shares (#4687, ADR 0169).
 // It is pure: the caller reads the rules, the evidences and the draft
 // invoices of the month. It reuses the sibling discount and the ranking of
 // the holiday care (ADR 0115): the first child is the one with the highest
@@ -30,9 +31,10 @@ type careChainEntry struct {
 
 // careChainInput are the rules and evidences of the Träger the chain reads.
 type careChainInput struct {
-	month     calendar.Date
-	rules     []parentbilling.ContributionRule
-	evidences []parentbilling.CareEvidence
+	month      calendar.Date
+	rules      []parentbilling.ContributionRule
+	evidences  []parentbilling.CareEvidence
+	costShares []parentbilling.CareCostShare
 }
 
 // applyCareChain runs the chain over the invoices of one month and writes
@@ -56,6 +58,7 @@ func applyCareChain(entries []*careChainEntry, in careChainInput) {
 	}
 	for _, entry := range entries {
 		entry.finish()
+		entry.applyCostShares(in)
 	}
 }
 
@@ -361,6 +364,7 @@ func (e *careChainEntry) initialize() {
 	}
 	if !e.issued {
 		e.invoice.Reductions = []parentbilling.CareReduction{}
+		e.invoice.CostShares = []parentbilling.CareInvoiceCostShare{}
 	}
 }
 

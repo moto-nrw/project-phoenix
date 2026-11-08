@@ -182,4 +182,5 @@ type CareReductions interface {
 	// changes that one otherwise.
 	SaveCareEvidence(ctx context.Context, reviewer HolidayReviewer, evidenceID int64, input CareEvidenceInput) (CareEvidenceSet, error)
 	DeleteCareEvidence(ctx context.Context, reviewer HolidayReviewer, evidenceID int64) (CareEvidenceSet, error)
+	CareCostShares
 }

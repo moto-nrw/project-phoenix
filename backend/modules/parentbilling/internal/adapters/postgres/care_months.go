@@ -148,6 +148,7 @@ func (row careInvoiceRow) invoice(positions []parentbilling.CarePosition, reduct
 	if invoice.Reductions == nil {
 		invoice.Reductions = []parentbilling.CareReduction{}
 	}
+	invoice.CostShares = []parentbilling.CareInvoiceCostShare{}
 	if invoice.Positions == nil {
 		invoice.Positions = []parentbilling.CarePosition{}
 	}
@@ -509,7 +510,10 @@ func (s *Store) IssueCareInvoices(ctx context.Context, organizationID int64, run
 	if _, err := db.NewInsert().Model(&positions).Exec(ctx); err != nil {
 		return fmt.Errorf("insert care invoice positions: %w", err)
 	}
-	return insertCareReductions(ctx, db, organizationID, rows, invoices)
+	if err := insertCareReductions(ctx, db, organizationID, rows, invoices); err != nil {
+		return err
+	}
+	return insertCareCostShares(ctx, db, organizationID, rows, invoices)
 }
 
 func carePositionRows(organizationID int64, rows []careInvoiceRow, invoices []parentbilling.CareInvoice) ([]careInvoicePositionRow, error) {
@@ -586,6 +590,10 @@ func (s *Store) CareRunInvoices(ctx context.Context, organizationID, runID int64
 	if err != nil {
 		return nil, err
 	}
+	shares, err := careCostSharesOf(ctx, db, organizationID, ids)
+	if err != nil {
+		return nil, err
+	}
 	byInvoice := map[int64][]parentbilling.CarePosition{}
 	for _, row := range positions {
 		position := parentbilling.CarePosition{
@@ -600,6 +608,9 @@ func (s *Store) CareRunInvoices(ctx context.Context, organizationID, runID int64
 	invoices := make([]parentbilling.CareInvoice, len(rows))
 	for i, row := range rows {
 		invoices[i] = row.invoice(byInvoice[row.ID], reductions[row.ID])
+		if list, ok := shares[row.ID]; ok {
+			invoices[i].CostShares = list
+		}
 	}
 	return invoices, nil
 }
