@@ -1,13 +1,17 @@
+import {
+  PORTAL_AUTH_BASE_PATHS,
+  portalLogPath,
+  type PortalKey,
+} from "~/lib/portal-paths";
+
 const FALLBACK_RETRY_SECONDS = 60;
 
 // Client log shipping has its own quota and pauses itself on 429 (logger.ts).
 // A log 429 says nothing about the user's own requests, so it must neither
 // lock a bucket nor show the rate-limit toast (#3884).
-const CLIENT_LOG_PATHS = new Set([
-  "/api/logs",
-  "/api/parent/logs",
-  "/api/caterer/logs",
-]);
+const CLIENT_LOG_PATHS = new Set(
+  (Object.keys(PORTAL_AUTH_BASE_PATHS) as PortalKey[]).map(portalLogPath),
+);
 
 type RateLimitBucket = "read" | "write";
 
