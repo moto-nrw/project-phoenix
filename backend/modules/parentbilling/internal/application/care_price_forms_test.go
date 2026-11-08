@@ -527,7 +527,7 @@ func TestTariffSiblingPriceIsAnEndPrice(t *testing.T) {
 		rule.Name, rule.DiscountBasisPoints = "Stufe 1", ptr(1000)
 	})
 	input.rules = append(input.rules, level)
-	input.evidences = []parentbilling.CareEvidence{evidence(t, 802, parentbilling.EvidenceIncomeLevel, ptr(int64(3)), sjrListStart, nil)}
+	input.evidences = []parentbilling.CareEvidence{evidence(t, 802, parentbilling.EvidenceIncomeLevel, &level.ID, sjrListStart, nil)}
 	month, err := buildCareMonth(input)
 	require.NoError(t, err)
 	// Ben: 78,00 − 10 % = 70,20 €, then down to the sibling price 60,50 €.

@@ -317,10 +317,13 @@ func applyCareSiblingRule(entries []*careChainEntry, rule *parentbilling.Contrib
 		total := len(children)
 		for index, child := range children {
 			rank := index + 1
-			if rank < *rule.SiblingFromChild {
-				continue
+			switch {
+			case rank < *rule.SiblingFromChild:
+			case rule.TariffSiblingPrice:
+				reduceToSiblingPricesChild(child, rule, rank, total)
+			default:
+				reduceCareSiblingChild(child, rule, rank, total)
 			}
-			reduceCareSiblingChild(child, rule, rank, total)
 		}
 	}
 }
@@ -351,15 +354,17 @@ func applyCareCap(entries []*careChainEntry, rule *parentbilling.ContributionRul
 // reduceCareSiblingChild computes one discount per child, then shares it
 // across eligible draft contracts by largest remainder. Issued contracts
 // consume the fixed price or discount without being changed themselves.
-func reduceCareSiblingChild(child *rankedCareChild, rule *parentbilling.ContributionRule, rank, children int) {
-	if rule.TariffSiblingPrice {
-		for _, entry := range child.entries {
-			if appliesAt(rule.SchoolIDs, entry) {
-				entry.reduceToSiblingPrices(rule, &rank, &children)
-			}
+// reduceToSiblingPricesChild lowers every invoice of the child at the
+// rule's schools to the sibling prices of the price list (#6196).
+func reduceToSiblingPricesChild(child *rankedCareChild, rule *parentbilling.ContributionRule, rank, children int) {
+	for _, entry := range child.entries {
+		if appliesAt(rule.SchoolIDs, entry) {
+			entry.reduceToSiblingPrices(rule, &rank, &children)
 		}
-		return
 	}
+}
+
+func reduceCareSiblingChild(child *rankedCareChild, rule *parentbilling.ContributionRule, rank, children int) {
 	var drafts []*careChainEntry
 	var amounts []int64
 	var draftTotal, issuedTotal, issuedDiscount int64

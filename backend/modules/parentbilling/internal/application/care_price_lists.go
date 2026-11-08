@@ -33,6 +33,19 @@ func (c *CareBilling) keepBilledPrices(ctx context.Context, organizationID, scho
 	if err != nil {
 		return err
 	}
+	after, headsAfter := priceListsAfter(tariffs, heads, schoolID, validFrom, replacement)
+	if changesBilledPrice(schoolID, validFrom, billed, newPriceBook(tariffs), newPriceBook(after)) ||
+		freesBilledMonth(schoolID, validFrom, billed, newFreeMonths(headsAfter)) {
+		return parentbilling.ErrCareTariffMonthBilled
+	}
+	return nil
+}
+
+// priceListsAfter are the prices and heads once the list of the school from
+// validFrom is replaced (nil: deleted).
+func priceListsAfter(tariffs []parentbilling.CareTariff, heads []parentbilling.CarePriceListHead, schoolID int64,
+	validFrom calendar.Date, replacement *parentbilling.CarePriceList,
+) ([]parentbilling.CareTariff, []parentbilling.CarePriceListHead) {
 	after := make([]parentbilling.CareTariff, 0, len(tariffs))
 	for _, tariff := range tariffs {
 		if tariff.SchoolID != schoolID || tariff.ValidFrom != validFrom {
@@ -45,19 +58,15 @@ func (c *CareBilling) keepBilledPrices(ctx context.Context, organizationID, scho
 			headsAfter = append(headsAfter, head)
 		}
 	}
-	if replacement != nil {
-		for _, price := range replacement.Prices {
-			after = append(after, parentbilling.CareTariff{SchoolID: schoolID, CareOfferingID: price.CareOfferingID,
-				Weekday: price.Weekday, DaysPerWeek: price.DaysPerWeek, ValidFrom: validFrom,
-				MonthlyCents: price.MonthlyCents, SiblingCents: price.SiblingCents, MealExtra: price.MealExtra})
-		}
-		headsAfter = append(headsAfter, parentbilling.CarePriceListHead{SchoolID: schoolID, ValidFrom: validFrom, FreeMonths: replacement.FreeMonths})
+	if replacement == nil {
+		return after, headsAfter
 	}
-	if changesBilledPrice(schoolID, validFrom, billed, newPriceBook(tariffs), newPriceBook(after)) ||
-		freesBilledMonth(schoolID, validFrom, billed, newFreeMonths(headsAfter)) {
-		return parentbilling.ErrCareTariffMonthBilled
+	for _, price := range replacement.Prices {
+		after = append(after, parentbilling.CareTariff{SchoolID: schoolID, CareOfferingID: price.CareOfferingID,
+			Weekday: price.Weekday, DaysPerWeek: price.DaysPerWeek, ValidFrom: validFrom,
+			MonthlyCents: price.MonthlyCents, SiblingCents: price.SiblingCents, MealExtra: price.MealExtra})
 	}
-	return nil
+	return after, append(headsAfter, parentbilling.CarePriceListHead{SchoolID: schoolID, ValidFrom: validFrom, FreeMonths: replacement.FreeMonths})
 }
 
 // changesBilledPrice reports a billed weekday or scale step whose price or

@@ -84,7 +84,7 @@ func TestCarePriceListsFiltersKeepTheTraegerBelowRLS(t *testing.T) {
 		assert.Equal(t, 2, otherRows, "the other Träger keeps its head and price")
 		deleted, err = store.DeleteCarePrices(ctx, own.organization, own.school, january)
 		require.NoError(t, err)
-		assert.Equal(t, int64(2), deleted)
+		assert.Equal(t, int64(len(scalePriceList(own.school, january).Prices)), deleted)
 		heads, err = store.CarePriceListHeads(ctx, own.organization)
 		require.NoError(t, err)
 		assert.Empty(t, heads, "the head goes with its prices")
