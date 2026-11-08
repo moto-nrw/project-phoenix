@@ -1,6 +1,6 @@
 {
   "scenario": "operator.schools.settings.schema",
-  "max": 17,
+  "max": 14,
   "exact": true,
   "description": "Protected operator school schema; real active-operator/session checks, committed access audit and tenant frame, 0/3/8 persisted Träger overrides. Only mandatory access-audit INSERT permitted.",
   "route": "GET /operator/schools/{id}/settings/schema"

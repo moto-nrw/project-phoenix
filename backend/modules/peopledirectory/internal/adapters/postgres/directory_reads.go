@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -134,6 +135,32 @@ func (s *studentDirectoryReads) ListNamesByIDs(ctx context.Context, ids []int64)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		return nil, stats, fmt.Errorf("student directory projection: list student names by id: %w", err)
+	}
+	stats.Rows = int64(len(rows))
+	return rows, stats, nil
+}
+
+// ListNamesByClass reads the names of every child of one class, alumni
+// included, in one statement: the class matches trimmed and case-insensitive,
+// like the class roster.
+func (s *studentDirectoryReads) ListNamesByClass(ctx context.Context, schoolClass string) ([]directory.StudentName, directoryStats, error) {
+	db, scope, err := s.database(ctx)
+	if err != nil {
+		return nil, directoryStats{}, err
+	}
+	rows := []directory.StudentName{}
+	query := withStudentTenant(s.studentRows(db, scope).
+		ColumnExpr(`"student".id AS student_id, "person".first_name, "person".last_name`).
+		Join(`JOIN users.persons AS "person" ON "person".tenant_id = "student".tenant_id AND "person".id = "student".person_id`).
+		Where(`LOWER(TRIM("student".school_class)) = ?`, strings.ToLower(strings.TrimSpace(schoolClass))).
+		Where(`"person".deleted_at IS NULL`), scope).
+		OrderExpr(`"student".id ASC`)
+	stats := directoryStats{Queries: 1}
+	started := time.Now()
+	err = query.Scan(ctx, &rows)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return nil, stats, fmt.Errorf("student directory projection: list student names by class: %w", err)
 	}
 	stats.Rows = int64(len(rows))
 	return rows, stats, nil

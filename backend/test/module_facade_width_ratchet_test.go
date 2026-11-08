@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go/ast"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -38,8 +39,10 @@ import (
 // FuncType. The repository's Capability = Query + Command composition shape
 // would otherwise be charged twice for methods the embedded facades already
 // carry, and those embedded facades are the entries this ratchet holds. The
-// consequence is known and accepted: a Capability that embeds two allowlisted
-// halves scores 0 here, and the halves are where the width is ratcheted.
+// consequence: a Capability that embeds two allowlisted halves scores 0 here,
+// and the halves are where the declared width is ratcheted. The composite
+// itself is measured by its method set in TestModuleFacadeMethodSetRatchet
+// (module_facade_method_set_ratchet_test.go, ADR 0178).
 //
 // Allowlist semantics (per interface, like handler_complexity_ratchet_test.go):
 //
@@ -95,7 +98,7 @@ func TestModuleFacadeWidthRatchet(t *testing.T) {
 		t.Fatalf("module-facade scan failed: %v", err)
 	}
 
-	violations := moduleFacadeViolations(widths, moduleFacadeAllowlist)
+	violations := moduleFacadeViolations(widths, moduleFacadeAllowlist, moduleFacadeDeclaredMeasure)
 	if len(violations) > 0 {
 		sort.Strings(violations)
 		t.Errorf("Module-facade width ratchet check failed (%d issue(s)):\n\n%s",
@@ -103,35 +106,44 @@ func TestModuleFacadeWidthRatchet(t *testing.T) {
 	}
 }
 
+// moduleFacadeMeasure names a measurement in its violation messages.
+type moduleFacadeMeasure struct {
+	register string // the bracketed tag
+	verb     string // "declares" or "has a method set of"
+}
+
+// moduleFacadeDeclaredMeasure names the declared-method measurement.
+var moduleFacadeDeclaredMeasure = moduleFacadeMeasure{register: "facade width", verb: "declares"}
+
 // moduleFacadeViolations compares the measured widths above the threshold
 // against the allowlist. Like complexityViolations, and unlike
 // ratchetViolations, entries are capped values rather than hit counts: an
 // allowlisted facade that shrinks to the threshold disappears from the scan
 // entirely, which is the ratchet-down signal, not a deleted file.
-func moduleFacadeViolations(widths, allowlist map[string]int) []string {
+func moduleFacadeViolations(widths, allowlist map[string]int, m moduleFacadeMeasure) []string {
 	var violations []string
 	for iface, got := range widths {
 		allowed, ok := allowlist[iface]
 		switch {
 		case !ok:
 			violations = append(violations, fmt.Sprintf(
-				"[facade width] %s declares %d methods (limit %d), and is not in the allowlist.\n  Split the facade along a capability boundary — #2580 asks for small concrete facades, not generic CRUD APIs. Do not add new entries.",
-				iface, got, moduleFacadeThreshold))
+				"[%s] %s %s %d methods (limit %d), and is not in the allowlist.\n  Split the facade along a capability boundary — #2580 asks for small concrete facades, not generic CRUD APIs. Do not add new entries.",
+				m.register, iface, m.verb, got, moduleFacadeThreshold))
 		case got > allowed:
 			violations = append(violations, fmt.Sprintf(
-				"[facade width] %s declares %d methods, allowed %d.\n  The facade grew. Put the new behaviour behind its own capability — never raise the allowlist.",
-				iface, got, allowed))
+				"[%s] %s %s %d methods, allowed %d.\n  The facade grew. Put the new behaviour behind its own capability — never raise the allowlist.",
+				m.register, iface, m.verb, got, allowed))
 		case got < allowed:
 			violations = append(violations, fmt.Sprintf(
-				"[facade width] %s declares %d methods, allowlist says %d.\n  Nice — ratchet the entry down to %d so the improvement cannot regress.",
-				iface, got, allowed, got))
+				"[%s] %s %s %d methods, allowlist says %d.\n  Nice — ratchet the entry down to %d so the improvement cannot regress.",
+				m.register, iface, m.verb, got, allowed, got))
 		}
 	}
 	for iface, allowed := range allowlist {
 		if _, ok := widths[iface]; !ok {
 			violations = append(violations, fmt.Sprintf(
-				"[facade width] %s is allowlisted at %d but now declares ≤ %d methods (or was deleted/renamed).\n  Remove the entry.",
-				iface, allowed, moduleFacadeThreshold))
+				"[%s] %s is allowlisted at %d but now %s ≤ %d methods (or was deleted/renamed).\n  Remove the entry.",
+				m.register, iface, allowed, m.verb, moduleFacadeThreshold))
 		}
 	}
 	return violations
@@ -142,6 +154,38 @@ func moduleFacadeViolations(widths, allowlist map[string]int) []string {
 // "relpath:InterfaceName".
 func moduleFacadeScan(backendRoot string) (map[string]int, error) {
 	widths := make(map[string]int)
+	err := moduleFacadeWalkRootFiles(backendRoot, func(path, rel string) error {
+		return moduleFacadeMeasureFile(path, rel, widths)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return widths, nil
+}
+
+// moduleFacadeRootDirs returns the backend-relative directories of the root
+// packages, sorted.
+func moduleFacadeRootDirs(backendRoot string) ([]string, error) {
+	seen := make(map[string]bool)
+	err := moduleFacadeWalkRootFiles(backendRoot, func(_, rel string) error {
+		seen[path.Dir(rel)] = true
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	dirs := make([]string, 0, len(seen))
+	for dir := range seen {
+		dirs = append(dirs, dir)
+	}
+	sort.Strings(dirs)
+	return dirs, nil
+}
+
+// moduleFacadeWalkRootFiles calls visit for every non-test .go file of a root
+// package under modules/ and workflows/ (see the file header), with its
+// backend-relative slash path.
+func moduleFacadeWalkRootFiles(backendRoot string, visit func(path, rel string) error) error {
 	for _, tree := range []string{"modules", "workflows"} {
 		treeRoot := filepath.Join(backendRoot, tree)
 		err := filepath.WalkDir(treeRoot, func(path string, d os.DirEntry, err error) error {
@@ -168,13 +212,13 @@ func moduleFacadeScan(backendRoot string) (map[string]int, error) {
 			if relErr != nil {
 				return relErr
 			}
-			return moduleFacadeMeasureFile(path, filepath.ToSlash(rel), widths)
+			return visit(path, filepath.ToSlash(rel))
 		})
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
-	return widths, nil
+	return nil
 }
 
 // moduleFacadeMeasureFile records every exported interface in one file whose

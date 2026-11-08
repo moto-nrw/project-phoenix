@@ -2657,38 +2657,6 @@
       "target_owner": "people-directory"
     },
     {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListStudentDirectoryIDs",
-      "binding_digest": "6dfc9517b1e35c5cb9c4203357e53869",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentDirectoryIDs",
-      "source_owner": "student-presence",
-      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListStudentDirectoryIDs",
-      "target_owner": "people-directory"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentDirectoryIDs",
-      "binding_digest": "8eb44b84192005bc94ec715857c970ab",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentDirectoryIDs",
-      "source_owner": "student-presence",
-      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentDirectoryIDs",
-      "target_owner": "people-directory"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentDirectoryIDs",
-      "binding_digest": "84d8341904f855f775a061b4200ebda4",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentDirectoryIDs",
-      "source_owner": "student-presence",
-      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentDirectoryIDs",
-      "target_owner": "people-directory"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentDirectoryIDs",
-      "binding_digest": "84d8341904f855f775a061b4200ebda4",
-      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentDirectoryIDs",
-      "source_owner": "student-presence",
-      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentDirectoryIDs",
-      "target_owner": "people-directory"
-    },
-    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListStudentGuardians",
       "binding_digest": "a6212a757203a7b187dcb6c2208a82c2",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentGuardians",
@@ -2718,6 +2686,38 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentGuardians",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentGuardians",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListStudentNamesByClass",
+      "binding_digest": "ae9321de40034320fa8317513265553e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByClass",
+      "source_owner": "student-presence",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListStudentNamesByClass",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByClass",
+      "binding_digest": "448f8fe785a44c91c4ab90913e79adc8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByClass",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByClass",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByClass",
+      "binding_digest": "4d78354f2e182942dfecae84ebddd217",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByClass",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByClass",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByClass",
+      "binding_digest": "4d78354f2e182942dfecae84ebddd217",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByClass",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByClass",
       "target_owner": "people-directory"
     },
     {

@@ -455,3 +455,13 @@ an (Regel 15). Jeder Schritt prüft:
   bis zum nächsten erfolgreichen Lauf bestehen bleiben.
 - Erwartete Werte sind aus Dumps abgeleitet, nicht an einer Umsetzung
   gemessen. Jeder Schritt misst neu, bevor er ein Budget senkt.
+
+## Nachtrag 08.11.2026: Kommando-Schlüssel des Eltern-Feeds (#5881)
+
+Schritt 1 verlagert die Tenant-Startstelle
+`modules/schoolcalendar/portal/internal/application/feed.go:*service.ParentCalendarFeedByToken:s.cfg.Runtime.WithinTenant#1`
+nach `…/feed.go:*service.parentCalendarFeed:s.cfg.Runtime.WithinTenant#1`, damit
+`CalendarFeedByToken` den Eltern-Feed ohne zweite Token-Lesung rendert. Es ist
+derselbe Rahmen mit bytegleichem Rumpf und wörtlich gleichem Grund; die Zahl der
+Tenant-Startstellen bleibt gleich, und der neue Schlüssel steht in
+`transactionFrameBundleSites`.

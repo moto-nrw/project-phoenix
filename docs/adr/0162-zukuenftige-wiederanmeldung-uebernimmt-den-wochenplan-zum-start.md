@@ -92,7 +92,7 @@ Reihenfolge nicht auseinanderläuft: `Decisions.LockApprovalGates`. Die
 
 | Weg | Einstieg | Reihenfolge |
 | --- | --- | --- |
-| Bestätigung `Decide(approved)` | `decide.go`, `LockApprovalGates` vor `lockDecisionTarget` und dem Lesen der Phase | Klasse, Wiederholung, Anmeldung, Kinder, Kind |
+| Bestätigung `Decide(approved)` | `decide.go`, `LockApprovalGates` vor `lockDecisionTarget` und dem Lesen der Phase | Klasse, Wiederholung, Anmeldung, Kinder, Kind; vor der Suche nach einem schon angemeldeten Kind zuletzt die Identitätssperre (Schule, Name, Geburtsdatum, #6170) |
 | Andere Entscheidungen (Ablehnung, Warteliste, Rückzug) | `decide.go` | keine Sperre; sie schreiben nur den Status |
 | Bestätigung bestehendes Kind, Klassenwechsel-Resync | `attachApprovalToExistingStudent` | Sperren schon von `Decide` gehalten |
 | Änderungsanfrage bestätigen | `ChangeRequests.Approve` → `withLockedChangeRequest` mit `lockApprovalGates` vor der Anmeldung | Klasse, Wiederholung, Anmeldung, Änderungsanfrage, Kinder, Kind |

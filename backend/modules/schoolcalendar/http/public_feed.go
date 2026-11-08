@@ -12,10 +12,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
-// PublicFeeds are the subscription feeds a calendar token opens.
+// PublicFeeds is the subscription feed a calendar token opens.
 type PublicFeeds interface {
-	ParentCalendarFeedByToken(ctx context.Context, token string) (filename, content string, err error)
-	StaffCalendarFeedByToken(ctx context.Context, token string) (filename, content string, err error)
+	CalendarFeedByToken(ctx context.Context, token string) (filename, content string, err error)
 }
 
 // PublicFeed serves the parent and staff iCalendar subscription feeds at
@@ -30,10 +29,7 @@ func PublicFeed(feeds PublicFeeds) http.HandlerFunc {
 			return
 		}
 		token := chi.URLParam(r, "token")
-		filename, content, err := feeds.ParentCalendarFeedByToken(r.Context(), token)
-		if errors.Is(err, calendarService.ErrNotFound) {
-			filename, content, err = feeds.StaffCalendarFeedByToken(r.Context(), token)
-		}
+		filename, content, err := feeds.CalendarFeedByToken(r.Context(), token)
 		if err != nil {
 			if errors.Is(err, calendarService.ErrNotFound) {
 				common.RenderStatus(w, r, http.StatusNotFound, "")
