@@ -176,15 +176,17 @@ func measureRuntimeCheckpoint(t *testing.T, production *Runtime) {
 				Method: "POST", Path: "/api/enrollment/schema/", Authenticated: true, Body: `{"name":"Checkpoint Reserved Schema","fields":[]}`,
 			}, token)
 			require.Equal(t, http.StatusCreated, conflict.Code, conflict.Body.String())
-			captcha := checkpointRequest(production.Handler(), checkpointScenario{Method: "GET", Path: "/api/enrollment/captcha-config/" + slug}, token)
+			captcha := checkpointRequest(production.Handler(), checkpointScenario{Method: "GET", Path: fmt.Sprintf("/api/enrollment/form-bootstrap/public/%s/%d", slug, phase.ID)}, token)
 			require.Equal(t, http.StatusOK, captcha.Code, captcha.Body.String())
 			var captchaResponse struct {
 				Data struct {
-					Enabled bool `json:"enabled"`
+					CaptchaConfig struct {
+						Enabled bool `json:"enabled"`
+					} `json:"captcha_config"`
 				} `json:"data"`
 			}
 			require.NoError(t, json.Unmarshal(captcha.Body.Bytes(), &captchaResponse))
-			require.False(t, captchaResponse.Data.Enabled, "intake workload requires the fresh-tenant captcha-disabled configuration")
+			require.False(t, captchaResponse.Data.CaptchaConfig.Enabled, "intake workload requires the fresh-tenant captcha-disabled configuration")
 			throttled := checkpointScenario{"enrollment.public-submit-rate-limited", "POST", "/api/enrollment/" + slug + "/submit", 429, false, `{}`}
 			for range 10 {
 				attempt := checkpointRequest(production.Handler(), throttled, token)

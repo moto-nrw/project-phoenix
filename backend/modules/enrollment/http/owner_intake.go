@@ -186,11 +186,9 @@ type RequestService interface {
 	LegalTextsForPhaseWithLateInvite(ctx context.Context, phaseID int64, lateInviteToken string) (LegalTexts, error)
 	LoadPublicFormBootstrap(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*PublicFormBootstrapData, error)
 	LoadEnrolleeFormBootstrap(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string, access EnrolleeAudienceAccess) (*PublicFormBootstrapData, error)
-	LoadPublicCareOfferings(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*PublicFormBootstrapData, error)
 	phasePreviewForms
 	LoadManualEnrollmentBootstrap(ctx context.Context, phaseID int64) (*PublicFormBootstrapData, error)
 	CreateManualApprovedEnrollment(ctx context.Context, input ManualApprovedEnrollmentInput) (*ManualApprovedEnrollmentResult, error)
-	PublicActiveSchema(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*capability.FormSchema, error)
 	// SignatureProof loads a request with its signature (#4786): behind its
 	// status token when token is set, otherwise the request of the school
 	// in the caller's tenant transaction.
@@ -409,10 +407,6 @@ func (s intakeService) LoadEnrolleeFormBootstrap(ctx context.Context, phaseID in
 	return bootstrapValue(s.owner.LoadEnrolleeFormBootstrap(ctx, phaseID, now, lateInviteToken, access))
 }
 
-func (s intakeService) LoadPublicCareOfferings(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*PublicFormBootstrapData, error) {
-	return bootstrapValue(s.owner.LoadPublicCareOfferings(ctx, phaseID, now, lateInviteToken))
-}
-
 func (s intakeService) LoadManualEnrollmentBootstrap(ctx context.Context, phaseID int64) (*PublicFormBootstrapData, error) {
 	return bootstrapValue(s.owner.LoadManualEnrollmentBootstrap(ctx, phaseID))
 }
@@ -437,10 +431,6 @@ func (s intakeService) CreateManualApprovedEnrollment(ctx context.Context, input
 		return nil, err
 	}
 	return &ManualApprovedEnrollmentResult{Request: decodedRequest, Child: child, StatusURL: result.StatusURL, PendingInvite: result.PendingInvite}, nil
-}
-
-func (s intakeService) PublicActiveSchema(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*capability.FormSchema, error) {
-	return s.owner.PublicActiveSchema(ctx, phaseID, now, lateInviteToken)
 }
 
 func (s intakeService) SignatureProof(ctx context.Context, requestID int64, token string) (*SignatureProof, error) {

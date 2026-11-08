@@ -1,7 +1,0 @@
-{
-  "scenario": "api.enrollment.growth.public_offerings",
-  "max": 15,
-  "exact": true,
-  "description": "Positive mounted handler with real settings and persistence, all SQL including transaction envelope; N3/N8 offerings or sibling children. JWT verification performs no SQL.",
-  "route": "GET /api/enrollment/care-offerings/public/{tenantSlug}/{phaseId}"
-}

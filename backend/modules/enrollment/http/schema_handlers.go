@@ -302,87 +302,14 @@ func countAssignedPreviewPhases(phases []*capability.Phase, schema *capability.F
 	return assigned, active
 }
 
-// listPublicActiveSchema returns the form schema for a (tenant, phase)
-// pair. The phase's pinned form_schema_id wins; if the phase has none,
-// we fall back to the tenant's currently-active schema; if neither
-// exists, 404 → form falls back to core fields only.
-func (rs *Resource) listPublicActiveSchema(w http.ResponseWriter, r *http.Request) {
-	if rs.RequestService == nil || rs.SchoolService == nil || !rs.transactions {
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("public schema endpoint not wired")))
-		return
-	}
-
-	slug := chi.URLParam(r, "tenantSlug")
-	if slug == "" {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("tenant slug is required")))
-		return
-	}
-	phaseID, ok := common.ParsePositiveInt64IDWithError(w, r, "phaseId", "phaseId is required")
-	if !ok {
-		return
-	}
-
-	var schema *capability.FormSchema
-	lateInviteToken := lateInviteTokenFromRequest(r)
-	schoolID, resolveErr := rs.resolvePublicTenantID(r.Context(), slug)
-	if resolveErr == nil {
-		resolveErr = withinTenant(r.Context(), schoolID, func(txCtx context.Context) error {
-			s, schemaErr := rs.RequestService.PublicActiveSchema(txCtx, phaseID, time.Now(), lateInviteToken)
-			schema = s
-			return schemaErr
-		})
-	}
-	if resolveErr != nil {
-		renderPublicEnrollmentError(w, r, resolveErr)
-		return
-	}
-
-	common.Respond(w, r, http.StatusOK, toPublicFormSchemaResponse(schema), "Public active form schema retrieved")
-}
-
 // PublicCaptchaConfigResponse carries the tenant-scoped Cloudflare
 // Turnstile site key + enabled flag so the public form can render
-// the widget. Returned by GET /enrollment/captcha-config/{tenantSlug}.
+// the widget. Returned inside the public form bootstrap.
 // SiteKey is intentionally surfaced — Turnstile site keys are public
 // by design (they appear in the rendered widget markup).
 type PublicCaptchaConfigResponse struct {
 	Enabled bool   `json:"enabled"`
 	SiteKey string `json:"site_key"`
-}
-
-// publicCaptchaConfig serves the captcha config for the parent form.
-// Slug-gated, no JWT.
-func (rs *Resource) publicCaptchaConfig(w http.ResponseWriter, r *http.Request) {
-	if rs.CaptchaService == nil || rs.SchoolService == nil || !rs.transactions {
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("captcha config endpoint not wired")))
-		return
-	}
-
-	slug := chi.URLParam(r, "tenantSlug")
-	if slug == "" {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("tenant slug is required")))
-		return
-	}
-
-	out := PublicCaptchaConfigResponse{}
-	schoolID, resolveErr := rs.resolvePublicTenantID(r.Context(), slug)
-	if resolveErr == nil {
-		resolveErr = withinTenant(r.Context(), schoolID, func(txCtx context.Context) error {
-			var err error
-			out.Enabled, err = rs.CaptchaService.IsEnabled(txCtx)
-			if err != nil {
-				return err
-			}
-			out.SiteKey, err = rs.CaptchaService.SiteKey(txCtx)
-			return err
-		})
-	}
-	if resolveErr != nil {
-		renderPublicEnrollmentError(w, r, resolveErr)
-		return
-	}
-
-	common.Respond(w, r, http.StatusOK, out, "Captcha config retrieved")
 }
 
 // getActiveSchema returns the currently-active schema or 404 if none

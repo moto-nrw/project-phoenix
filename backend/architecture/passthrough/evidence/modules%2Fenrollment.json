@@ -471,23 +471,9 @@
     },
     {
       "build": "production",
-      "evidence": "func (s intakeService) LoadPublicCareOfferings(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*PublicFormBootstrapData, error) {\n\treturn bootstrapValue(s.owner.LoadPublicCareOfferings(ctx, phaseID, now, lateInviteToken))\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/enrollment/http/intakeService.LoadPublicCareOfferings",
-      "owner": "modules/enrollment"
-    },
-    {
-      "build": "production",
       "evidence": "func (s intakeService) LoadPublicFormBootstrap(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*PublicFormBootstrapData, error) {\n\treturn bootstrapValue(s.owner.LoadPublicFormBootstrap(ctx, phaseID, now, lateInviteToken))\n}",
       "form": "unclassified-evidence",
       "id": "modules/enrollment/http/intakeService.LoadPublicFormBootstrap",
-      "owner": "modules/enrollment"
-    },
-    {
-      "build": "production",
-      "evidence": "func (s intakeService) PublicActiveSchema(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*capability.FormSchema, error) {\n\treturn s.owner.PublicActiveSchema(ctx, phaseID, now, lateInviteToken)\n}",
-      "form": "unchanged-forward-evidence",
-      "id": "modules/enrollment/http/intakeService.PublicActiveSchema",
       "owner": "modules/enrollment"
     },
     {
