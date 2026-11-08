@@ -196,7 +196,8 @@ interface DebitHint {
 export function debitHints(invoices: readonly CareInvoice[]): DebitHint[] {
   const hints: DebitHint[] = [];
   for (const invoice of invoices) {
-    if (invoice.exclusion) continue;
+    // An excluded invoice is not issued; one of 0 € collects nothing.
+    if (invoice.exclusion || invoice.totalCents <= 0) continue;
     const payment = invoice.payment;
     if (payment?.debitGap) {
       hints.push({

@@ -269,7 +269,9 @@ func (b *BillingRuns) ReleaseBillingRun(ctx context.Context, reviewer parentbill
 	if len(current.documents) != release.DocumentCount || current.total() != release.TotalCents {
 		return parentbilling.BillingRunDetail{}, parentbilling.ErrBillingRunChanged
 	}
-	if slices.ContainsFunc(current.documents, func(document parentbilling.BillingDocument) bool { return debitBlocked(document.Payment) }) {
+	if slices.ContainsFunc(current.documents, func(document parentbilling.BillingDocument) bool {
+		return debitBlocked(document.TotalCents, document.Payment)
+	}) {
 		return parentbilling.BillingRunDetail{}, parentbilling.ErrDirectDebitWithoutMandate
 	}
 	issuedOn := b.today()

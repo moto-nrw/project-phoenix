@@ -418,10 +418,11 @@ func recordMandateReads(ctx context.Context, store paymentTermsReader, reviewer 
 	return nil
 }
 
-// debitBlocked tells whether a payment stays a direct debit without a
-// mandate, which the release refuses (MissingMandateBlock).
-func debitBlocked(payment *parentbilling.InvoicePayment) bool {
-	return payment != nil && payment.Method == parentbilling.PaymentDirectDebit && payment.DebitGap != ""
+// debitBlocked tells whether an invoice stays a direct debit without a
+// mandate, which the release refuses (MissingMandateBlock). An invoice of
+// 0 € collects nothing and never blocks.
+func debitBlocked(totalCents int64, payment *parentbilling.InvoicePayment) bool {
+	return totalCents > 0 && payment != nil && payment.Method == parentbilling.PaymentDirectDebit && payment.DebitGap != ""
 }
 
 // deviationsRead are the deviations the invoices took.

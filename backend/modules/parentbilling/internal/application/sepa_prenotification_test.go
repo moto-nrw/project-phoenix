@@ -62,3 +62,17 @@ func TestDirectDebitWithoutMandateKeepsTheShortSentence(t *testing.T) {
 	assert.Equal(t, "Wir buchen 54,01 € am 18.01.2027 von Ihrem Konto ab. Verwendungszweck: Rechnungsnummer MB-2027-0001. Sie müssen nichts überweisen.",
 		carePaymentText(content))
 }
+
+// Only an invoice that collects money and stays a direct debit without a
+// mandate holds the release back (MissingMandateBlock).
+func TestDebitBlockedOnlyByAnAmountWithoutMandate(t *testing.T) {
+	t.Parallel()
+	gap := &parentbilling.InvoicePayment{Method: parentbilling.PaymentDirectDebit, DebitGap: parentbilling.DebitGapMandate}
+	assert.True(t, debitBlocked(7800, gap))
+	assert.False(t, debitBlocked(0, gap), "a cost bearer pays all: nothing to collect")
+	assert.False(t, debitBlocked(7800, &parentbilling.InvoicePayment{Method: parentbilling.PaymentTransfer,
+		DebitGap: parentbilling.DebitGapMandate}), "the fallback transfer goes out")
+	assert.False(t, debitBlocked(7800, &parentbilling.InvoicePayment{Method: parentbilling.PaymentDirectDebit,
+		Mandate: &parentbilling.InvoiceMandate{Reference: "SJR-1"}}))
+	assert.False(t, debitBlocked(7800, nil))
+}

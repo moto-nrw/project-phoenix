@@ -460,8 +460,11 @@ func (c *CareBilling) issueReviewed(ctx context.Context, organizationID int64, r
 		return "", reviewedMonth{}, "", parentbilling.ErrBillingRunChanged
 	}
 	// A Träger that blocks direct debits without a mandate issues none of
-	// them (MissingMandateBlock, ADR 0171).
-	if slices.ContainsFunc(month.invoices, func(invoice parentbilling.CareInvoice) bool { return debitBlocked(invoice.Payment) }) {
+	// them (MissingMandateBlock, ADR 0171); an invoice of 0 € collects
+	// nothing and needs no mandate.
+	if slices.ContainsFunc(month.invoices, func(invoice parentbilling.CareInvoice) bool {
+		return debitBlocked(invoice.TotalCents, invoice.Payment)
+	}) {
 		return "", reviewedMonth{}, "", parentbilling.ErrDirectDebitWithoutMandate
 	}
 	issuedOn := c.today()
