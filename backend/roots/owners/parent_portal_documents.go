@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
 	careContractCompose "github.com/moto-nrw/project-phoenix/modules/carecontract/compose"
@@ -108,7 +107,7 @@ func (d parentContractDocuments) ListContractDocuments(ctx context.Context, orga
 	for i, contract := range found {
 		documents[i] = parentportal.BillingDocument{
 			ID: contract.ID, OrganizationID: organizationID, Kind: parentportal.DocumentKindContract,
-			Number: "Nr. " + strconv.FormatInt(contract.ID, 10), PeriodName: strings.Join(contract.ModuleNames, ", ") + " · " + contract.SchoolName,
+			Number: "Nr. " + strconv.FormatInt(contract.ID, 10), PeriodName: contract.ModulesText + " · " + contract.SchoolName,
 			ServiceFrom: contract.EffectiveOn, ChildNames: contract.ChildNames, SentAt: contract.SentAt,
 			ContractStatus: contract.Status, SignedAt: contract.SignedAt, CanSign: contract.CanSign, Replaced: contract.Replaced,
 			EndsOn: contract.EndsOn, CanEndContract: contract.CanEnd,

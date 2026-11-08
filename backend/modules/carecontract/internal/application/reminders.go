@@ -35,7 +35,6 @@ type Reminders struct {
 
 var _ carecontract.Reminders = (*Reminders)(nil)
 
-// NewReminders builds the reminders over the root-bound ports.
 func NewReminders(store ContractStore, ports ReminderPorts, clock Clock) *Reminders {
 	if store == nil || ports.Organizations == nil || ports.Settings == nil || ports.Sender == nil || ports.Post == nil ||
 		ports.Runtime == nil || ports.Links.Tokens == nil || ports.Links.Fingerprint == nil {
@@ -82,14 +81,14 @@ func (r *Reminders) remindTraeger(ctx context.Context, organizationID int64) err
 		return fmt.Errorf("letterhead: %w", err)
 	}
 	for _, candidate := range due {
-		if err := r.remind(ctx, organizationID, firstLine(textLines(letterhead)), candidate, lastContactBefore); err != nil {
+		if err := r.remind(ctx, organizationID, letterhead, candidate, lastContactBefore); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (r *Reminders) remind(ctx context.Context, organizationID int64, traeger string, candidate ports.ReminderCandidate, lastContactBefore time.Time) error {
+func (r *Reminders) remind(ctx context.Context, organizationID int64, letterhead string, candidate ports.ReminderCandidate, lastContactBefore time.Time) error {
 	record, err := r.store.Contract(ctx, organizationID, candidate.ContractID, true)
 	if err != nil {
 		return err
@@ -120,9 +119,9 @@ func (r *Reminders) remind(ctx context.Context, organizationID int64, traeger st
 	party, _ := recipient(record.Parties)
 	outboxID, err := r.ports.Post.EnqueueContractMail(ctx, carecontract.ContractMail{
 		OrganizationID: organizationID, ContractID: candidate.ContractID, Recipient: candidate.Recipient,
-		GuardianName: fullName(party.FirstName, party.LastName), TraegerName: firstText(traeger, record.Version.Terms.ContractPartner),
+		GuardianName: fullName(party.FirstName, party.LastName), TraegerName: traegerName(letterhead, record.Version.Terms),
 		ChildName: fullName(record.Version.ChildFirstName, record.Version.ChildLastName),
-		Modules:   joinGerman(ModuleNames(record.Version.Services)), Filename: document.File.Filename,
+		Modules:   carecontract.JoinNames(ModuleNames(record.Version.Services)), Filename: document.File.Filename,
 		IdempotencyKey: fmt.Sprintf("care-contract:%d:reminder:%d", candidate.ContractID, candidate.Number),
 		Purpose:        carecontract.MailPurposeReminder, SigningURL: link.url, LinkExpiresOn: link.expiresOn,
 	})
@@ -132,14 +131,9 @@ func (r *Reminders) remind(ctx context.Context, organizationID int64, traeger st
 	if err := r.store.InsertReminder(ctx, organizationID, candidate.ContractID, candidate.Number, outboxID, candidate.Recipient); err != nil {
 		return err
 	}
-	contractID, schoolID := record.Summary.ID, record.Summary.SchoolID
-	return r.store.InsertEvents(ctx, organizationID, []Event{{
-		ContractID: &contractID, SchoolID: &schoolID, Action: ports.ActionRemind,
-		Details: map[string]any{"number": candidate.Number},
-	}})
+	return trailContract(ctx, r.store, organizationID, 0, record, ports.ActionRemind, map[string]any{"number": candidate.Number})
 }
 
-// berlinDay prints the calendar day of an instant in Berlin.
 func berlinDay(at time.Time) string {
 	return germanDate(calendar.DateFromTime(at))
 }

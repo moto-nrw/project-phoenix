@@ -37,6 +37,7 @@ import { VisibilityBadge } from "~/components/ui/visibility-badge";
 import { PARENT_VISIBLE_HINTS } from "~/lib/parent-visible-fields";
 import { ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "GuardianForm" });
 
@@ -750,9 +751,10 @@ export default function GuardianFormModal({
                     <FieldLabel className="mb-0">Telefonnummern</FieldLabel>
 
                     {entry.phoneNumbers.map((phone, phoneIndex) => (
-                      <div
+                      <InsetPanel
                         key={phone.id}
-                        className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white p-3 sm:flex-row sm:items-center"
+                        tone="white"
+                        className="flex flex-col gap-2 sm:flex-row sm:items-center"
                       >
                         {/* Phone Type Select */}
                         <div className="w-full sm:w-32">
@@ -867,7 +869,7 @@ export default function GuardianFormModal({
                             </Button>
                           )}
                         </div>
-                      </div>
+                      </InsetPanel>
                     ))}
 
                     {/* Add Phone Button */}
