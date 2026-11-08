@@ -71,6 +71,46 @@
       "target_owner": "document-rendering"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Open",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.Open",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/securityruntime/internal/domain/fieldcipher.Cipher.Open. ADR 0171 (#4695): the Elternabrechnung seals and opens the IBAN of a SEPA mandate with Security Runtime's field cipher, the key ring the root binds for the holiday health information (#4722), a pure computation bound to the Träger and the mandate reference.",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.Cipher.Open",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Open",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.Open",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.HolidayHealthCipher.Open. ADR 0171 (#4695): the Elternabrechnung seals and opens the IBAN of a SEPA mandate with Security Runtime's field cipher, the key ring the root binds for the holiday health information (#4722), a pure computation bound to the Träger and the mandate reference.",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Open",
+      "target_owner": "enrollment"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Seal",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.Seal",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/securityruntime/internal/domain/fieldcipher.Cipher.Seal. ADR 0171 (#4695): the Elternabrechnung seals and opens the IBAN of a SEPA mandate with Security Runtime's field cipher, the key ring the root binds for the holiday health information (#4722), a pure computation bound to the Träger and the mandate reference.",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.Cipher.Seal",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Seal",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.Seal",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.HolidayHealthCipher.Seal. ADR 0171 (#4695): the Elternabrechnung seals and opens the IBAN of a SEPA mandate with Security Runtime's field cipher, the key ring the root binds for the holiday health information (#4722), a pure computation bound to the Träger and the mandate reference.",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Seal",
+      "target_owner": "enrollment"
+    },
+    {
       "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterPost.EnqueueDocumentNotice",
       "classification": "platform",
