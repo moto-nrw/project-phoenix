@@ -257,6 +257,8 @@ describe("sandbox CSP of uploaded files (#5275)", () => {
     "/api/files/folders/4/files/5/download",
     "/api/announcement-attachments/6/7/download",
     "/api/parent/me/news/8/attachments/9/download",
+    "/api/students/1/documents/2/download",
+    "/api/staff/3/documents/4/download",
   ])("runs %s in the sandbox, not under the app CSP", (route) => {
     const host = hostFor(route);
     const res = proxy(makeRequest(`http://${host}${route}?inline=1`, host));
@@ -269,6 +271,7 @@ describe("sandbox CSP of uploaded files (#5275)", () => {
     "/api/enrollment/admin/requests/7",
     "/api/files/folders/4/files",
     "/api/parent/me/news/8/attachments/9/download/extra",
+    "/api/students/1/documents",
   ])("keeps the app CSP on %s", (route) => {
     const host = hostFor(route);
     const res = proxy(makeRequest(`http://${host}${route}`, host));
@@ -296,7 +299,7 @@ describe("sandbox CSP of uploaded files (#5275)", () => {
             .map((segment) => (segment.startsWith("[") ? "1" : segment))
             .join("/"),
       );
-    expect(routes.length).toBe(5);
+    expect(routes.length).toBe(7);
     for (const route of routes) {
       const host = hostFor(route);
       const res = proxy(makeRequest(`http://${host}${route}`, host));

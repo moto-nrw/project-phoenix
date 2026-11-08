@@ -249,6 +249,8 @@ const SANDBOXED_FILE_ROUTES: readonly RegExp[] = [
   /^\/api\/files\/folders\/[^/]+\/files\/[^/]+\/download$/,
   /^\/api\/announcement-attachments\/[^/]+\/[^/]+\/download$/,
   /^\/api\/parent\/me\/news\/[^/]+\/attachments\/[^/]+\/download$/,
+  // Documents staff attach to a child (#777) or a staff member (#1424).
+  /^\/api\/(?:students|staff)\/[^/]+\/documents\/[^/]+\/download$/,
 ];
 
 /** Like NextResponse.next, but strips any client-forged localize header. */

@@ -7,5 +7,6 @@ export const GET = withPrivateDownloadNoStore(
   proxyFile(
     (p) =>
       `/api/students/${requirePathSegmentParam(p)}/documents/${requirePathSegmentParam(p, "documentId")}/download`,
+    { uploadedFile: true },
   ),
 );
