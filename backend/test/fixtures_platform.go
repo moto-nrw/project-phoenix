@@ -235,6 +235,7 @@ func OwnTraegerContributionRules(tb testing.TB, db *bun.DB, organizationID int64
 			// An evidence holds its income level (#4685): it goes first.
 			"parent_billing.care_evidences",
 			"parent_billing.contribution_rules", "parent_billing.runs", "parent_billing.care_runs", "parent_billing.care_tariffs",
+			"parent_billing.care_price_lists",
 			"parent_billing.cost_bearers",
 			"parent_billing.number_range_counters", "parent_billing.number_ranges",
 			"parent_billing.service_terms",

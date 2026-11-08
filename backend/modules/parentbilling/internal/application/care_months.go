@@ -20,11 +20,10 @@ const careModuleHorizon = 365
 // CareStore persists the price list, the monthly runs and their invoices
 // of a Träger in its Träger transaction.
 type CareStore interface {
-	CareTariffs(ctx context.Context, organizationID int64) ([]parentbilling.CareTariff, error)
-	// CarePriceListHeads reads the heads of the price lists with their free
-	// months (#6196); ReplaceCarePrices writes the head of its list and
-	// DeleteCarePrices removes it.
-	CarePriceListHeads(ctx context.Context, organizationID int64) ([]parentbilling.CarePriceListHead, error)
+	// CarePriceLists reads every price and the heads of the price lists with
+	// their free months in one read (#6196); ReplaceCarePrices writes the
+	// head of its list and DeleteCarePrices removes it.
+	CarePriceLists(ctx context.Context, organizationID int64) ([]parentbilling.CareTariff, []parentbilling.CarePriceListHead, error)
 	ReplaceCarePrices(ctx context.Context, organizationID, accountID int64, list parentbilling.CarePriceList) error
 	DeleteCarePrices(ctx context.Context, organizationID, schoolID int64, validFrom calendar.Date) (int64, error)
 	CareBilledUntil(ctx context.Context, organizationID int64) (map[int64]calendar.Date, error)
@@ -101,15 +100,11 @@ func (c *CareBilling) CareTariffs(ctx context.Context, reviewer parentbilling.Ho
 	if err != nil {
 		return parentbilling.CareTariffs{}, err
 	}
-	tariffs, err := c.store.CareTariffs(ctx, reviewer.OrganizationID)
+	tariffs, heads, err := c.store.CarePriceLists(ctx, reviewer.OrganizationID)
 	if err != nil {
 		return parentbilling.CareTariffs{}, err
 	}
 	billed, err := c.store.CareBilledUntil(ctx, reviewer.OrganizationID)
-	if err != nil {
-		return parentbilling.CareTariffs{}, err
-	}
-	heads, err := c.store.CarePriceListHeads(ctx, reviewer.OrganizationID)
 	if err != nil {
 		return parentbilling.CareTariffs{}, err
 	}
@@ -421,7 +416,7 @@ func (c *CareBilling) monthWith(ctx context.Context, organizationID int64, run p
 	if err != nil {
 		return "", careMonth{}, fmt.Errorf("parent billing: read the contract versions: %w", err)
 	}
-	tariffs, err := c.store.CareTariffs(ctx, organizationID)
+	tariffs, heads, err := c.store.CarePriceLists(ctx, organizationID)
 	if err != nil {
 		return "", careMonth{}, err
 	}
@@ -438,10 +433,6 @@ func (c *CareBilling) monthWith(ctx context.Context, organizationID int64, run p
 		return "", careMonth{}, fmt.Errorf("parent billing: read the care rules: %w", err)
 	}
 	evidences, err := c.store.CareEvidences(ctx, organizationID, versionContracts(versions))
-	if err != nil {
-		return "", careMonth{}, err
-	}
-	heads, err := c.store.CarePriceListHeads(ctx, organizationID)
 	if err != nil {
 		return "", careMonth{}, err
 	}

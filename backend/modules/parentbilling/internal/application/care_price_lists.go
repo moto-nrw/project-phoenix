@@ -29,11 +29,7 @@ func (c *CareBilling) keepBilledPrices(ctx context.Context, organizationID, scho
 	if err != nil {
 		return err
 	}
-	tariffs, err := c.store.CareTariffs(ctx, organizationID)
-	if err != nil {
-		return err
-	}
-	heads, err := c.store.CarePriceListHeads(ctx, organizationID)
+	tariffs, heads, err := c.store.CarePriceLists(ctx, organizationID)
 	if err != nil {
 		return err
 	}

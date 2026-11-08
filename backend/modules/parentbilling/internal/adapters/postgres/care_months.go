@@ -51,16 +51,6 @@ type careTariffRow struct {
 	CreatedAt          time.Time     `bun:"created_at,nullzero,default:current_timestamp"`
 }
 
-// carePriceListRow is the head of a price list with its free months (#6196).
-type carePriceListRow struct {
-	bun.BaseModel `bun:"table:parent_billing.care_price_lists"`
-
-	OrganizationID int64         `bun:"organization_id,pk"`
-	SchoolID       int64         `bun:"school_id,pk"`
-	ValidFrom      calendar.Date `bun:"valid_from,pk,type:date"`
-	FreeMonths     []int         `bun:"free_months,array"`
-}
-
 type careRunRow struct {
 	bun.BaseModel `bun:"table:parent_billing.care_runs"`
 
@@ -277,27 +267,6 @@ func (s *Store) DeleteCarePrices(ctx context.Context, organizationID, schoolID i
 	// A price list without prices (only free months) still counts as one.
 	lists, err := heads.RowsAffected()
 	return max(prices, lists), err
-}
-
-// CarePriceListHeads reads the heads of the price lists of the Träger.
-func (s *Store) CarePriceListHeads(ctx context.Context, organizationID int64) ([]parentbilling.CarePriceListHead, error) {
-	db, err := traegerDB(ctx, organizationID)
-	if err != nil {
-		return nil, err
-	}
-	var rows []carePriceListRow
-	if err := db.NewSelect().Model(&rows).Where("organization_id = ?", organizationID).
-		OrderExpr("school_id, valid_from").Scan(ctx); err != nil {
-		return nil, fmt.Errorf("read care price lists: %w", err)
-	}
-	heads := make([]parentbilling.CarePriceListHead, len(rows))
-	for i, row := range rows {
-		heads[i] = parentbilling.CarePriceListHead{SchoolID: row.SchoolID, ValidFrom: row.ValidFrom, FreeMonths: row.FreeMonths}
-		if heads[i].FreeMonths == nil {
-			heads[i].FreeMonths = []int{}
-		}
-	}
-	return heads, nil
 }
 
 // CareBilledUntil names per school the last month an issued invoice bills.
