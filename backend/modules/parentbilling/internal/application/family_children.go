@@ -207,11 +207,18 @@ func laterConfirmationStatus(count *parentbilling.FamilyChildCount, today calend
 		return parentbilling.FamilyChildrenUpcoming
 	case current.ValidUntil.Before(today):
 		return parentbilling.FamilyChildrenExpired
-	case current.ValidUntil.AddDays(1).Before(*count.ValidFrom) &&
-		!current.ValidUntil.After(today.AddDays(parentbilling.FamilyChildrenExpiryNotice)):
+	case !current.ValidUntil.After(today.AddDays(parentbilling.FamilyChildrenExpiryNotice)) && gapAfter(count, *current.ValidUntil):
 		return parentbilling.FamilyChildrenExpiring
 	}
 	return parentbilling.FamilyChildrenUpcoming
+}
+
+// gapAfter tells whether no confirmation holds on the day after end: a
+// confirmation in between, not only the newest, may close the gap.
+func gapAfter(count *parentbilling.FamilyChildCount, end calendar.Date) bool {
+	next := end.AddDays(1)
+	confirmation, started := count.InForceOn(next)
+	return !started || (confirmation.ValidUntil != nil && confirmation.ValidUntil.Before(next))
 }
 
 // recordFamilyReads records the read of every number shown, on the contract

@@ -255,3 +255,16 @@ func TestUncountedFamiliesNameOnlyTheSchoolsOfTheCountingRule(t *testing.T) {
 	assert.Equal(t, 1, narrowMonth(month, []int64{schoolIspringen}, nil).uncounted)
 	assert.Zero(t, narrowMonth(month, []int64{schoolBirkenfeld}, nil).uncounted, "Birkenfeld has no counting rule")
 }
+
+// September to November, December, January onward: the family is covered
+// without a break, so November asks for no check.
+func TestFamilyChildrenStatusSeesAConfirmationInBetween(t *testing.T) {
+	t.Parallel()
+	count := parentbilling.FamilyChildCount{ConfirmedChildren: ptr(3), ValidFrom: ptr(calendar.NewDate(2027, 1, 1)),
+		Confirmations: []parentbilling.FamilyChildConfirmation{
+			{Children: ptr(3), ValidFrom: ptr(calendar.NewDate(2027, 1, 1))},
+			{Children: ptr(3), ValidFrom: ptr(calendar.NewDate(2026, 12, 1)), ValidUntil: ptr(calendar.NewDate(2026, 12, 31))},
+			{Children: ptr(3), ValidFrom: ptr(calendar.NewDate(2026, 9, 1)), ValidUntil: ptr(calendar.NewDate(2026, 11, 30))},
+		}}
+	assert.Equal(t, parentbilling.FamilyChildrenUpcoming, familyChildrenStatus(&count, calendar.NewDate(2026, 11, 10)))
+}
