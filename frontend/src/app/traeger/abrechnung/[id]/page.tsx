@@ -40,6 +40,10 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import NavigationLink from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
+import {
+  RunDocumentKindField,
+  RunLegalRemedyNotice,
+} from "~/components/traeger/run-document-kind";
 import { TenantPage } from "~/components/ui/tenant-page";
 import {
   useApiErrorDisplay,
@@ -193,7 +197,11 @@ export default function TraegerBillingRunPage() {
   const preview = run?.status === "calculated";
   const corrections =
     run?.documents.filter((document) => document.kind !== "invoice") ?? [];
-  const canRelease = preview && run.numberRangeSet && run.previewCount > 0;
+  const canRelease =
+    preview &&
+    run.numberRangeSet &&
+    run.previewCount > 0 &&
+    !run.legalRemedyMissing;
   const paymentTextGaps = preview ? run.paymentTextMissingDebtorNumbers : 0;
 
   return (
@@ -338,6 +346,7 @@ export default function TraegerBillingRunPage() {
               <DataField label="Abrechnung">
                 Im Voraus, nach den bestätigten Buchungen
               </DataField>
+              <RunDocumentKindField documentKind={run.documentKind} />
               <DataField label="Fällig">
                 {runDueDatesText(run.dueDates ?? []) ??
                   "Nach dem Zahlungsziel der Ferienbetreuung"}
@@ -353,6 +362,9 @@ export default function TraegerBillingRunPage() {
               </DataField>
             </DataGrid>
           </SectionCard>
+          {preview ? (
+            <RunLegalRemedyNotice missing={run.legalRemedyMissing} />
+          ) : null}
           {preview && !run.numberRangeSet ? (
             <Alert
               type="warning"

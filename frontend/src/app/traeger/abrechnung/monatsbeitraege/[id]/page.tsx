@@ -40,6 +40,10 @@ import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
+import {
+  RunDocumentKindField,
+  RunLegalRemedyNotice,
+} from "~/components/traeger/run-document-kind";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { WizardStepper } from "~/components/ui/wizard-stepper";
 import {
@@ -213,6 +217,7 @@ export default function TraegerCareRunPage() {
   const preview = run?.status === "calculated";
   const canRelease =
     preview &&
+    !(run.previewCount > 0 && run.legalRemedyMissing) &&
     (run.previewCount > 0 ? run.numberRangeSet : run.excludedCount > 0);
   const issuable = run?.invoices.filter((invoice) => !invoice.exclusion) ?? [];
   const excluded = run?.invoices.filter((invoice) => invoice.exclusion) ?? [];
@@ -406,6 +411,7 @@ export default function TraegerCareRunPage() {
               <DataField label="Vertrag ändert sich im Monat">
                 {run.monthRule ? MONTH_RULE_LABELS[run.monthRule] : "–"}
               </DataField>
+              <RunDocumentKindField documentKind={run.documentKind} />
               <DataField label="Rechnungsnummern">
                 {run.numberRangeSet ? (
                   <span className="font-mono">{run.numberPattern}</span>
@@ -430,6 +436,9 @@ export default function TraegerCareRunPage() {
               ) : null}
             </DataGrid>
           </SectionCard>
+          {preview && run.previewCount > 0 ? (
+            <RunLegalRemedyNotice missing={run.legalRemedyMissing} />
+          ) : null}
           {preview && run.previewCount > 0 && !run.numberRangeSet ? (
             <Alert
               type="warning"

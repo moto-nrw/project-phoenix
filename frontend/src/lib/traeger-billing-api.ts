@@ -176,6 +176,13 @@ export interface BillingRunDetail extends BillingRun {
   readonly letters: BillingLetters | null;
   /** The due dates of the run per payment method (#4689). */
   readonly dueDates?: readonly RunDueDate[];
+  /**
+   * The kind of document the run issues (#4688): before the release the
+   * kind the release would freeze, after it the frozen one.
+   */
+  readonly documentKind?: string;
+  /** A release would refuse: the fee notice has no legal remedy (#4688). */
+  readonly legalRemedyMissing?: boolean;
 }
 
 /** An emergency number of a hosting OGS on the letters of a run. */
@@ -312,6 +319,8 @@ interface BackendRunDetail extends BackendRun {
   number_range_set: boolean;
   letters?: BackendLetters | null;
   due_dates?: BackendRunDueDate[] | null;
+  document_kind?: string;
+  legal_remedy_missing?: boolean;
 }
 
 interface BackendLetters {
@@ -446,6 +455,8 @@ function detailFromBackend(run: BackendRunDetail): BillingRunDetail {
     numberRangeSet: run.number_range_set,
     letters: run.letters ? lettersFromBackend(run.letters) : null,
     dueDates: runDueDatesFromBackend(run.due_dates),
+    documentKind: run.document_kind,
+    legalRemedyMissing: run.legal_remedy_missing ?? false,
   };
 }
 
@@ -588,7 +599,10 @@ export async function creditBillingDocument(
  * matches the count and the sum the person checked.
  */
 export async function releaseBillingRun(
-  run: Pick<BillingRunDetail, "id" | "previewCount" | "previewCents">,
+  run: Pick<
+    BillingRunDetail,
+    "id" | "previewCount" | "previewCents" | "documentKind"
+  >,
 ): Promise<BillingRunDetail> {
   return detailFromBackend(
     await traegerRequest<BackendRunDetail>(`${runPath(run.id)}/release`, {
@@ -596,6 +610,8 @@ export async function releaseBillingRun(
       body: {
         document_count: run.previewCount,
         total_cents: run.previewCents,
+        // The release refuses another kind than the one shown (#4688).
+        ...(run.documentKind ? { document_kind: run.documentKind } : {}),
       },
     }),
   );

@@ -42,6 +42,9 @@ export function getTraegerHelpTopicForPath(pathname: string): HelpTopicId {
   if (onPage(page, "/einstellungen/briefkopf")) {
     return HELP_TOPICS.traegerBriefkopf;
   }
+  if (onPage(page, "/einstellungen/dokumentarten")) {
+    return HELP_TOPICS.traegerDocumentKinds;
+  }
   if (onPage(page, "/einstellungen/abrechnung")) {
     return HELP_TOPICS.traegerHolidayContribution;
   }

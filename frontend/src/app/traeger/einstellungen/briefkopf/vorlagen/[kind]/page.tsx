@@ -12,6 +12,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { DocumentTemplateInvoiceFields } from "~/components/traeger/document-template-invoice-fields";
+import { DocumentTemplateLegalRemedyField } from "~/components/traeger/document-template-legal-remedy-field";
 import { DocumentTemplatePlaceholdersCard } from "~/components/traeger/document-template-placeholders-card";
 import { DocumentTemplatePreviewBody } from "~/components/traeger/document-template-preview-body";
 import { DocumentTemplateVersionsCard } from "~/components/traeger/document-template-versions-card";
@@ -50,6 +51,7 @@ import {
   type DocumentTemplateText,
   fetchDocumentTemplate,
   hasInvoiceTable,
+  hasLegalRemedy,
   invoiceLayoutOf,
   isDocumentTemplateKind,
   previewDocumentTemplate,
@@ -207,7 +209,7 @@ function TemplateEditorPage({
     return typeof item?.value === "string" ? item.value : "";
   };
   const set = (
-    part: "subject" | "salutation" | "body" | "closing",
+    part: "subject" | "salutation" | "body" | "closing" | "legalRemedy",
     value: string,
   ) => setDraft((before) => (before ? { ...before, [part]: value } : before));
   const rememberCaret = (field: HTMLTextAreaElement) => {
@@ -362,6 +364,14 @@ function TemplateEditorPage({
                     maxLength={500}
                     disabled={!canEdit || saving}
                   />
+                  {hasLegalRemedy(kind) ? (
+                    <DocumentTemplateLegalRemedyField
+                      value={draft.legalRemedy ?? ""}
+                      onChange={(value) => set("legalRemedy", value)}
+                      error={formErrors.fieldError("legal_remedy")}
+                      disabled={!canEdit || saving}
+                    />
+                  ) : null}
                   {invoice ? (
                     <DocumentTemplateInvoiceFields
                       layout={invoiceLayoutOf(draft)}

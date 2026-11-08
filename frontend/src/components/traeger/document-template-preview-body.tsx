@@ -56,6 +56,24 @@ export function DocumentTemplatePreviewBody({
           ) : null}
         </div>
       ))}
+      {preview.legalRemedy && preview.legalRemedy.length > 0 ? (
+        // Der Bescheid druckt die Belehrung nach dem Text der Vorlage (#4688).
+        <div className="space-y-2 border-t border-gray-100 pt-4">
+          {preview.legalRemedy.map((block, index) => (
+            // oxlint-disable-next-line react/no-array-index-key -- static order of the filled template
+            <div key={index} className="space-y-1">
+              {block.heading || index === 0 ? (
+                <p className="font-semibold text-gray-900">
+                  {block.heading || "Rechtsbehelfsbelehrung"}
+                </p>
+              ) : null}
+              {block.text ? (
+                <p className="whitespace-pre-line">{block.text}</p>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
       {preview.closing.length > 0 ? (
         <div>
           {preview.closing.map((line) => (

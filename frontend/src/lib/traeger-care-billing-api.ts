@@ -227,6 +227,10 @@ export interface CareRunDetail extends CareRun {
   readonly excludedCents: number;
   /** The reviewed state; the release sends it back. */
   readonly fingerprint: string;
+  /** The kind of document the run issues (#4688). */
+  readonly documentKind?: string;
+  /** A release would refuse: the fee notice has no legal remedy (#4688). */
+  readonly legalRemedyMissing?: boolean;
 }
 
 interface BackendModule {
@@ -360,6 +364,8 @@ export interface BackendRunDetail extends BackendRun {
   excluded_count?: number;
   excluded_cents?: number;
   fingerprint?: string;
+  document_kind?: string;
+  legal_remedy_missing?: boolean;
 }
 
 const TARIFFS_PATH = "/api/traeger/care-tariffs";
@@ -513,6 +519,8 @@ export function detailFromBackend(detail: BackendRunDetail): CareRunDetail {
     excludedCount: detail.excluded_count ?? 0,
     excludedCents: detail.excluded_cents ?? 0,
     fingerprint: detail.fingerprint ?? "",
+    documentKind: detail.document_kind,
+    legalRemedyMissing: detail.legal_remedy_missing ?? false,
   };
 }
 
