@@ -22,7 +22,6 @@ func TestChangeRequestCareOfferingCapabilityMigration_BackfillsLegacyRowsEnabled
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	testpkg.OwnTenantRows(t, db, tenantID)
 	phaseID := insertRequestChildSourcePhase(t, db, tenantID)
 	requestID := insertRequestChildSourceRequest(t, db, tenantID, phaseID)
 

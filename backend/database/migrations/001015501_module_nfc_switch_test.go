@@ -17,7 +17,6 @@ func TestModuleNFCSwitchCarriesEverySchoolsNFCState(t *testing.T) {
 	nfcOff, _ := testpkg.CreateTestTenant(t, db)
 	noValue, _ := testpkg.CreateTestTenant(t, db)
 	alreadyMoved, _ := testpkg.CreateTestTenant(t, db)
-	testpkg.OwnTenantRows(t, db, nfcOff, noValue, alreadyMoved)
 
 	_, err := db.ExecContext(ctx, `
 		INSERT INTO config.setting_values (tenant_id, setting_key, value)

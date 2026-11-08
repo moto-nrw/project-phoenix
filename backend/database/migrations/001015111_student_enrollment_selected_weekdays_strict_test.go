@@ -15,7 +15,6 @@ func TestStudentEnrollmentSelectedWeekdaysStrictConstraint(t *testing.T) {
 
 	tenantID := time.Now().UnixNano()
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	testpkg.OwnTenantRows(t, db, tenantID)
 	require.NoError(t, studentEnrollmentSelectedWeekdaysStrictUp(context.Background(), db))
 
 	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Weekday", "Strict", "3a")

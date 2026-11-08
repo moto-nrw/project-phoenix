@@ -40,7 +40,6 @@ func TestRoomsRetireAtSchoolColorUp_ClearsSchuleHexAndLeavesOthers(t *testing.T)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	testpkg.OwnTenantRows(t, db, tenantID)
 
 	schuleID := insertColoredRoom(t, db, tenantID, "Atelier", "#217a78")
 	otherID := insertColoredRoom(t, db, tenantID, "Werkraum", "#A3D977")

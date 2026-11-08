@@ -14,7 +14,6 @@ func TestOptionalActivityCapacity(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
-	testpkg.OwnTenantRows(t, db, tenantID)
 
 	ctx := context.Background()
 	require.NoError(t, optionalActivityCapacityDown(ctx, db))
