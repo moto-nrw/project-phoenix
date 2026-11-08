@@ -91,8 +91,10 @@ describe("Holiday form legal blocks", () => {
     expect(screen.getByDisplayValue("entwurf")).toBeInTheDocument();
     expect(discard).toBeEnabled();
     fireEvent.click(discard);
+    // The page stays open, so the delete needs no keepalive; that is only
+    // for an unmount (shared draft-document lifecycle, #6112).
     await waitFor(() =>
-      expect(remove).toHaveBeenCalledWith("5", "90", { keepalive: true }),
+      expect(remove).toHaveBeenCalledWith("5", "90", { keepalive: false }),
     );
     expect(screen.getByLabelText("Rechtstext / Erklärung")).toHaveValue(
       "Der gespeicherte Wortlaut.",
