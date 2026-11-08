@@ -26,6 +26,11 @@ func (s *StudentStore) ListNamesByIDs(ctx context.Context, ids []int64) ([]direc
 	return result, domain.OperationStats(stats), projectionError(err)
 }
 
+func (s *StudentStore) ListNamesByClass(ctx context.Context, schoolClass string) ([]directory.StudentName, domain.OperationStats, error) {
+	records, stats, err := s.reads.ListNamesByClass(ctx, schoolClass)
+	return append([]directory.StudentName{}, records...), domain.OperationStats(stats), projectionError(err)
+}
+
 func (s *StudentStore) ListByClasses(ctx context.Context, classes []string) ([]directory.Student, domain.OperationStats, error) {
 	records, stats, err := s.reads.ListByClasses(ctx, classes)
 	result := make([]directory.Student, 0, len(records))

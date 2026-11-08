@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
@@ -23,6 +24,15 @@ func (s *Service) ListStudentNamesByID(ctx context.Context, ids []int64) ([]peop
 	}
 
 	values, err := s.students.ListNamesByIDs(ctx, ids)
+	result := append([]peopledirectory.StudentName{}, values...)
+	return result, MapError(err)
+}
+
+func (s *Service) ListStudentNamesByClass(ctx context.Context, schoolClass string) ([]peopledirectory.StudentName, error) {
+	if strings.TrimSpace(schoolClass) == "" {
+		return []peopledirectory.StudentName{}, nil
+	}
+	values, err := s.students.ListNamesByClass(ctx, schoolClass)
 	result := append([]peopledirectory.StudentName{}, values...)
 	return result, MapError(err)
 }
