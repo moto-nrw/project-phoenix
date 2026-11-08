@@ -5233,6 +5233,76 @@ describe("anonymous enrollment information attachments", () => {
   });
 });
 
+describe("staff enrollment form attachments", () => {
+  beforeEach(() => {
+    phaseSchemaFixture.mockReset();
+    captchaConfigFixture.mockReset();
+    mockFetchPublicLegalTexts.mockReset();
+    phaseOfferingsFixture.mockReset();
+    profileFixture.mockReset();
+    captchaConfigFixture.mockResolvedValue({ enabled: false, site_key: "" });
+    mockFetchPublicLegalTexts.mockResolvedValue(legalTexts());
+    phaseOfferingsFixture.mockResolvedValue({
+      offerings: offerings(),
+      careOfferingSelectionMode: "at_least_one",
+      careRequired: true,
+    });
+    profileFixture.mockResolvedValue(null);
+  });
+  afterEach(() => {
+    mockIntlLocale.value = "de";
+  });
+
+  // The staff portal's messages carry no parent form texts, so the German
+  // staff form labels its attachment buttons itself, whatever the portal's
+  // catalog says (#6148).
+  it("labels attachment buttons in German without the portal's form messages", async () => {
+    mockIntlLocale.value = "en";
+    const { ToastProvider } = await import("~/contexts/ToastContext");
+    phaseSchemaFixture.mockResolvedValueOnce({
+      id: "7",
+      version: 1,
+      fields: [
+        {
+          key: "information",
+          label: "Hinweise zur OGS",
+          type: "information",
+          content: "Bitte lesen Sie die Datei.",
+          required: false,
+          applies_to_child: false,
+          sort_order: 0,
+          attachments: [
+            {
+              label: "Schulstart",
+              document_url:
+                "/api/public/enrollment-form-legal-documents/42_start.pdf",
+            },
+          ],
+        },
+      ],
+    });
+    const prefetchedData = await fixturePrefetchedData(true);
+    render(
+      <ToastProvider>
+        <EnrollmentForm
+          phaseID="5"
+          gradeLevelMax={4}
+          onSubmitted={vi.fn()}
+          prefetchedData={prefetchedData}
+          skipCaptcha
+        />
+      </ToastProvider>,
+    );
+
+    expect(
+      await screen.findByRole("button", { name: "Schulstart öffnen" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Schulstart herunterladen" }),
+    ).toBeInTheDocument();
+  });
+});
+
 describe("EnrollmentForm signature (#4786)", () => {
   const PNG_DATA_URL = "data:image/png;base64,iVBORw0KGgo=";
 
