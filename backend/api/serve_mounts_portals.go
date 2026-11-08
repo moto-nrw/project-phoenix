@@ -70,9 +70,21 @@ func newAccountResource(db transactionruntime.Database, identity identityaccess.
 	return resource
 }
 
+// operatorIdentityCapabilities are the Identity & Access capabilities the
+// operator routes call.
+type operatorIdentityCapabilities interface {
+	identityaccess.OperatorSessionLiveness
+	identityOperatorAPI.Capability
+	identityOperatorAPI.OperatorAccess
+	identityaccess.OperatorPasskeyFlows
+	identityaccess.OperatorMFAFlows
+	identityaccess.AccountMFA
+	Caterers() *identityaccess.CatererAccess
+}
+
 // newOperatorIdentity binds the operator sign-in, session and account routes
 // to Identity & Access.
-func newOperatorIdentity(sessionAuth *sessiontoken.TokenAuth, identity identityaccess.Owner) operatorIdentity {
+func newOperatorIdentity(sessionAuth *sessiontoken.TokenAuth, identity operatorIdentityCapabilities) operatorIdentity {
 	var caterers identityOperatorAPI.CatererMFA
 	if identity != nil {
 		if access := identity.Caterers(); access != nil {
@@ -82,7 +94,7 @@ func newOperatorIdentity(sessionAuth *sessiontoken.TokenAuth, identity identitya
 	return operatorIdentity{
 		caterers:    caterers,
 		sessions:    identityOperatorAPI.NewSessions(sessionAuth, identity),
-		account:     identityOperatorAPI.NewResource(identity, operatorIdentityResponses()),
+		account:     identityOperatorAPI.NewResource(identity, provisioningOperatorAPI.ProvisioningErrorRenderer),
 		access:      identity,
 		passkeys:    identity,
 		mfa:         identity,

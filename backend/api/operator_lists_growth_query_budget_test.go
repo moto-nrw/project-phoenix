@@ -13,14 +13,15 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/spf13/viper"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	provisioningHTTP "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/operator"
 	settingsHTTP "github.com/moto-nrw/project-phoenix/modules/settings/inbound/operator"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
-	"github.com/spf13/viper"
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // These route-sized routers use the serving root's real owners, operator JWT
@@ -169,7 +170,7 @@ func TestOperatorDirectoryListsPositiveGrowthQueryBudget(t *testing.T) {
 func TestOperatorIdentityListsPositiveGrowthQueryBudget(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
-	router, identity, token, operatorID := operatorListBudgetRouter(t, db)
+	router, _, token, operatorID := operatorListBudgetRouter(t, db)
 	provisioning := buildOperatorProvisioning(t, db)
 	_, school := provisionTestSchool(t, db, provisioning, operatorID, "identity-list")
 	account := testpkg.CreateTestAccount(t, db, "list-tenant-owner")
@@ -189,17 +190,14 @@ func TestOperatorIdentityListsPositiveGrowthQueryBudget(t *testing.T) {
 			tenants = append(tenants, fmt.Sprint(tenantID))
 			role := testpkg.CreateTestRoleForTenant(t, db, "list-user", school)
 			roles = append(roles, fmt.Sprint(role.ID))
-			key, err := identity.CreateOperatorPasskey(ctx, identityaccess.OperatorPasskeyCredential{
-				OperatorID: operatorID, UserHandle: []byte("budget-operator"), CredentialID: []byte(fmt.Sprintf("budget-%d-%d", operatorID, i)),
-				CredentialJSON: json.RawMessage(`{"id":"registered"}`), Name: fmt.Sprintf("Key %d", i),
-			})
-			require.NoError(t, err)
-			passkeys = append(passkeys, fmt.Sprint(key.ID))
-			device, err := identity.CreateOperatorTrustedDevice(ctx, identityaccess.OperatorTrustedDevice{
-				OperatorID: operatorID, TokenHash: fmt.Sprintf("budget-token-%d-%d", operatorID, i), ExpiresAt: time.Now().Add(time.Hour),
-			})
-			require.NoError(t, err)
-			devices = append(devices, fmt.Sprint(device.ID))
+			// The rows the listings read; their records are owner-private.
+			var keyID, deviceID int64
+			require.NoError(t, db.NewRaw(`INSERT INTO platform.operator_passkey_credentials (operator_id, user_handle, credential_id, credential_json, name) VALUES (?, ?, ?, ?, ?) RETURNING id`,
+				operatorID, []byte("budget-operator"), []byte(fmt.Sprintf("budget-%d-%d", operatorID, i)), `{"id":"registered"}`, fmt.Sprintf("Key %d", i)).Scan(ctx, &keyID))
+			passkeys = append(passkeys, fmt.Sprint(keyID))
+			require.NoError(t, db.NewRaw(`INSERT INTO platform.operator_mfa_trusted_devices (operator_id, token_hash, expires_at) VALUES (?, ?, ?) RETURNING id`,
+				operatorID, fmt.Sprintf("budget-token-%d-%d", operatorID, i), time.Now().Add(time.Hour)).Scan(ctx, &deviceID))
+			devices = append(devices, fmt.Sprint(deviceID))
 		}
 		for _, tc := range []struct {
 			path, scenario, field string

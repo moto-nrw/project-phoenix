@@ -26,12 +26,12 @@ type (
 // PasskeyResource serves the operator passkey ceremonies and the
 // management of the current operator's passkeys.
 type PasskeyResource struct {
-	passkeyService OperatorPasskeys
+	passkeyService identityaccess.OperatorPasskeyFlows
 }
 
 // NewPasskeyResource binds the handlers to the passkey capability. A nil
 // capability answers every route with 503.
-func NewPasskeyResource(passkeys OperatorPasskeys) *PasskeyResource {
+func NewPasskeyResource(passkeys identityaccess.OperatorPasskeyFlows) *PasskeyResource {
 	return &PasskeyResource{passkeyService: passkeys}
 }
 
@@ -45,7 +45,7 @@ func (rs *PasskeyResource) PasskeyLoginOptions(w http.ResponseWriter, r *http.Re
 	}
 	origin := common.PasskeyOrigin(r)
 	if origin == "" {
-		common.RenderError(w, r, common.ErrorInvalidRequest(ErrPasskeyOriginInvalid))
+		common.RenderError(w, r, common.ErrorInvalidRequest(identityaccess.ErrPasskeyOriginInvalid))
 		return
 	}
 	options, err := rs.passkeyService.BeginOperatorPasskeyLogin(r.Context(), origin)
@@ -70,7 +70,7 @@ func (rs *PasskeyResource) PasskeyLoginVerify(w http.ResponseWriter, r *http.Req
 	if ip != nil {
 		ipString = ip.String()
 	}
-	result, err := rs.passkeyService.FinishOperatorPasskeyLogin(r.Context(), OperatorPasskeyLoginFinish{
+	result, err := rs.passkeyService.FinishOperatorPasskeyLogin(r.Context(), identityaccess.OperatorPasskeyLoginFinish{
 		SessionID:          req.SessionID,
 		CredentialResponse: req.Response,
 		IPAddress:          ipString,
@@ -109,11 +109,11 @@ func (rs *PasskeyResource) PasskeyRegisterOptions(w http.ResponseWriter, r *http
 	}
 	origin := common.PasskeyOrigin(r)
 	if origin == "" {
-		common.RenderError(w, r, common.ErrorInvalidRequest(ErrPasskeyOriginInvalid))
+		common.RenderError(w, r, common.ErrorInvalidRequest(identityaccess.ErrPasskeyOriginInvalid))
 		return
 	}
 	claims := sessiontoken.ClaimsFromCtx(r.Context())
-	options, err := rs.passkeyService.BeginOperatorPasskeyRegistration(r.Context(), OperatorPasskeyRegistrationStart{
+	options, err := rs.passkeyService.BeginOperatorPasskeyRegistration(r.Context(), identityaccess.OperatorPasskeyRegistrationStart{
 		OperatorID:     int64(claims.ID),
 		ExpectedOrigin: origin,
 		Code:           req.Code,
@@ -136,7 +136,7 @@ func (rs *PasskeyResource) PasskeyRegisterVerify(w http.ResponseWriter, r *http.
 		return
 	}
 	claims := sessiontoken.ClaimsFromCtx(r.Context())
-	credential, err := rs.passkeyService.FinishOperatorPasskeyRegistration(r.Context(), OperatorPasskeyRegistrationFinish{
+	credential, err := rs.passkeyService.FinishOperatorPasskeyRegistration(r.Context(), identityaccess.OperatorPasskeyRegistrationFinish{
 		OperatorID:         int64(claims.ID),
 		SessionID:          req.SessionID,
 		CredentialResponse: req.Response,
@@ -182,17 +182,17 @@ func (rs *PasskeyResource) PasskeyRevoke(w http.ResponseWriter, r *http.Request)
 
 func mapOperatorPasskeyError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, ErrOperatorInvalidCredentials),
-		errors.Is(err, ErrPasskeySessionInvalid):
+	case errors.Is(err, identityaccess.ErrOperatorInvalidCredentials),
+		errors.Is(err, identityaccess.ErrPasskeySessionInvalid):
 		common.RenderError(w, r, common.OperatorRejection(http.StatusUnauthorized, common.CodeIdentityPasskeyLoginFailed, "Invalid email or password"))
-	case errors.Is(err, ErrPasskeyOriginInvalid):
+	case errors.Is(err, identityaccess.ErrPasskeyOriginInvalid):
 		common.RenderError(w, r, common.OperatorRejection(http.StatusForbidden, common.CodeIdentityPasskeyLoginFailed, "Passkey origin is not allowed"))
-	case errors.Is(err, ErrMFACodeInvalid):
+	case errors.Is(err, identityaccess.ErrMFACodeInvalid):
 		common.RenderError(w, r, common.OperatorRejection(http.StatusUnauthorized, common.CodeIdentityMfaCodeInvalid, "Invalid email or password"))
-	case errors.Is(err, ErrMFARateLimited),
-		errors.Is(err, ErrMFALocked):
+	case errors.Is(err, identityaccess.ErrMFARateLimited),
+		errors.Is(err, identityaccess.ErrMFALocked):
 		common.RenderError(w, r, common.OperatorRejection(http.StatusTooManyRequests, common.CodeIdentityMfaBlocked, "Too many code requests, please wait"))
-	case errors.Is(err, ErrPasskeyNotFound):
+	case errors.Is(err, identityaccess.ErrPasskeyNotFound):
 		common.RenderError(w, r, common.OperatorRejection(http.StatusNotFound, common.CodeIdentityPasskeyNotFound, "Passkey not found"))
 	default:
 		// A failed read or write of the passkey records answers with the

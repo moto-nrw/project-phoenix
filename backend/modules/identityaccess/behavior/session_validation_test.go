@@ -6,14 +6,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/stretchr/testify/require"
 )
 
 // TestValidateSessionTokens drives the retained AuthService's session
@@ -30,8 +31,9 @@ func TestValidateSessionTokens(t *testing.T) {
 	require.NotNil(t, service, "the composed module validates session hand-offs")
 	signer, err := sessiontoken.NewTokenAuthWithDurations(config.JWTSecret, config.JWTExpiry, config.JWTRefreshExpiry)
 	require.NoError(t, err)
-	sessions, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
+	owner, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityaccessCompose.Observation) {}})
 	require.NoError(t, err)
+	sessions := owner.(ports.Records)
 	ctx := testpkg.Ctx(t)
 	for _, portal := range []string{"tenant", "parent", "school", "platform", "caterer"} {
 		t.Run(portal, func(t *testing.T) {
@@ -52,13 +54,13 @@ func TestValidateSessionTokens(t *testing.T) {
 			if portal == "platform" {
 				operator := testpkg.CreateTestOperator(t, db)
 				accountID = operator.ID
-				stored, err := sessions.CreateOperatorSession(ctx, identityaccess.OperatorSession{
+				stored, err := sessions.CreateOperatorSession(ctx, ports.OperatorSession{
 					OperatorID: accountID, Token: handle, Expiry: time.Now().Add(time.Hour), FamilyID: family,
 				})
 				require.NoError(t, err)
 				tokenID = stored.ID
 			} else {
-				stored, err := sessions.CreateAccountSession(ctx, identityaccess.AccountSession{
+				stored, err := sessions.CreateAccountSession(ctx, ports.AccountSession{
 					AccountID: accountID, TenantID: testpkg.Tenant(t), Token: handle, Expiry: time.Now().Add(time.Hour), FamilyID: family, PortalScope: portal,
 				})
 				require.NoError(t, err)

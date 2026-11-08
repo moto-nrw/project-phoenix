@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
@@ -36,7 +37,7 @@ func TestRBACPlatformCatalogueDenialsQueryBudget(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, stored.Active)
 	require.NotNil(t, stored.LastLogin, "the real issuer must stamp the persisted platform account")
-	session, err := f.module.Auth.LatestOperatorSessionInFamily(context.Background(), family)
+	session, err := f.module.Auth.(ports.Records).LatestOperatorSessionInFamily(context.Background(), family)
 	require.NoError(t, err)
 	require.Equal(t, operator.ID, session.OperatorID)
 	require.Zero(t, session.Generation)
@@ -122,7 +123,7 @@ func TestRBACPlatformCatalogueDenialsQueryBudget(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, nextRefresh)
 	require.Equal(t, family, rbacPlatformClaims(t, renewed, operator.ID))
-	session, err = f.module.Auth.LatestOperatorSessionInFamily(context.Background(), family)
+	session, err = f.module.Auth.(ports.Records).LatestOperatorSessionInFamily(context.Background(), family)
 	require.NoError(t, err)
 	require.Equal(t, operator.ID, session.OperatorID)
 	require.Equal(t, 1, session.Generation)
@@ -180,7 +181,7 @@ type rbacPlatformReadback struct {
 	Catalogue        rbacBudgetState
 	GlobalRoles      []identityaccess.Role
 	Operator         identityaccess.Operator
-	Session          identityaccess.OperatorSession
+	Session          ports.OperatorSession
 	PrivateStateJSON string `json:"-"`
 }
 
@@ -195,7 +196,7 @@ func rbacPlatformState(t *testing.T, f *rbacBudgetFixture, operatorID int64, fam
 	var err error
 	state.Operator, err = f.module.Auth.FindOperator(context.Background(), operatorID)
 	require.NoError(t, err)
-	state.Session, err = f.module.Auth.LatestOperatorSessionInFamily(context.Background(), family)
+	state.Session, err = f.module.Auth.(ports.Records).LatestOperatorSessionInFamily(context.Background(), family)
 	require.NoError(t, err)
 	private, err := json.Marshal([]any{state.Operator, state.Session})
 	require.NoError(t, err)

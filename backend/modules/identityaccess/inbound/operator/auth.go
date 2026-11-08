@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/render"
+
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
@@ -49,11 +50,11 @@ func operatorResponse(operator *identityaccess.Operator) *OperatorResponse {
 func (rs *Resource) Login(w http.ResponseWriter, r *http.Request) {
 	req := &LoginRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, rs.responses.InvalidRequest(err))
+		common.RenderError(w, r, common.OperatorInvalidRequest(err))
 		return
 	}
 	if req.Email == "" || req.Password == "" {
-		common.RenderError(w, r, rs.responses.InvalidCredentials())
+		common.RenderError(w, r, common.OperatorInvalidCredentials())
 		return
 	}
 	ipAddress := ""
@@ -93,7 +94,7 @@ func (rs *Resource) Login(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	presented := sessiontoken.RefreshTokenFromCtx(r.Context())
 	if presented == "" {
-		common.RenderError(w, r, rs.responses.Unauthorized())
+		common.RenderError(w, r, common.OperatorUnauthorized())
 		return
 	}
 
@@ -119,7 +120,7 @@ func (rs *Resource) Logout(w http.ResponseWriter, r *http.Request) {
 	case err == nil:
 		common.RespondNoContent(w, r)
 	case errors.Is(err, identityaccess.ErrOperatorRefreshTokenInvalid):
-		common.RenderError(w, r, rs.responses.Unauthorized())
+		common.RenderError(w, r, common.OperatorUnauthorized())
 	default:
 		slog.ErrorContext(r.Context(), "operator logout did not revoke the session family",
 			slog.Int("operator_id", claims.ID),

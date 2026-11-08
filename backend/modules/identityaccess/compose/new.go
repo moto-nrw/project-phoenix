@@ -6,13 +6,14 @@ import (
 	"context"
 	"errors"
 
+	"github.com/uptrace/bun"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
 	internalports "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 	identityBindingPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 type Observation = internalports.Observation
@@ -80,69 +81,69 @@ func New(dependencies Dependencies) (identityaccess.Owner, error) {
 	}
 	sessions, attach := application.BindTenantRuntime(dependencies.Sessions, dependencies.TenantRuntime)
 	dependencies.Sessions = sessions
+	runtime := tenantRuntime{attach: attach, runner: tenant.NewTransactionRunner()}
 	store := postgres.NewStore(dependencies.DB)
 	runAdmin := newCommandTransactions(attach).RunAdmin
 	service := application.New(store, store, store, newCommandTransactions(attach), tenant.FromContext, application.NewObserver(dependencies.Observe))
 	operatorMFARecords := application.NewOperatorMFA(service, store)
 	// The second factor is composed first: every login path consults its
 	// gate, and the passkey ceremonies below need the sessions it gates.
-	flows, err := newMFACore(service, operatorMFARecords, postgres.NewAccountMFARecords(store), dependencies.Sessions, dependencies.MFA)
+	flows, err := newMFACore(service, operatorMFARecords, postgres.NewAccountMFARecords(store), dependencies.Sessions, dependencies.MFA, runtime)
 	if err != nil {
 		return nil, err
 	}
-	auth, err := newAccountAuthentication(service, store, store, dependencies.Sessions, application.CapabilityGate{Capability: flows.Capability})
+	auth, err := newAccountAuthentication(service, store, store, dependencies.Sessions, application.CapabilityGate{Capability: flows.Capability}, runtime)
 	if err != nil {
 		return nil, err
 	}
-	administration, lifecycle, roles, err := newLifecycleAndRoles(service, auth, store, dependencies)
+	administration, lifecycle, roles, err := newLifecycleAndRoles(service, auth, store, dependencies, runtime)
 	if err != nil {
 		return nil, err
 	}
-	resets, invitations, provisioning, err := newRegistrationFlows(auth, store, lifecycle, roles, dependencies)
+	resets, invitations, provisioning, err := newRegistrationFlows(auth, store, lifecycle, roles, dependencies, runtime)
 	if err != nil {
 		return nil, err
 	}
 	tokens := application.NewOperatorTokens(service, store)
-	operatorAuth, accountAccess, err := newOperatorFlows(service, store, tokens, auth, dependencies.Sessions, dependencies.Operators, lifecycle, application.OperatorLoginGate(flows, dependencies.Demo))
+	operatorAuth, accountAccess, err := newOperatorFlows(service, store, tokens, auth, dependencies.Sessions, dependencies.Operators, lifecycle, application.OperatorLoginGate(flows, dependencies.Demo), runtime)
 	if err != nil {
 		return nil, err
 	}
 	operatorPasskeys, accountPasskeys := application.NewOperatorPasskey(service, store), application.NewAccountPasskey(service, store)
 	flows, err = withPasskeyFlows(flows, service, auth, operatorAuth, accountPasskeys, operatorPasskeys,
-		dependencies.Sessions, dependencies.MFA)
+		dependencies.Sessions, dependencies.MFA, runtime)
 	if err != nil {
 		return nil, err
 	}
-	operatorProvisioning, err := newOperatorProvisioning(service, tokens, dependencies.Sessions, dependencies.Operators, dependencies.OperatorProvisioning)
+	operatorProvisioning, err := newOperatorProvisioning(service, tokens, dependencies.Sessions, dependencies.Operators, dependencies.OperatorProvisioning, runtime)
 	if err != nil {
 		return nil, err
 	}
-	demoAccess, traegerAccounts, caterers, err := composeBesideEngine(dependencies, auth, store, runAdmin, flows)
+	demoAccess, traegerAccounts, caterers, err := composeBesideEngine(dependencies, auth, store, runAdmin, flows, runtime)
 	if err != nil {
 		return nil, err
 	}
-	owner := application.NewOwner(application.OwnerParts{
-		CalendarFeeds: application.NewCalendarFeeds(application.NewStaffCalendarFeeds(service, store), application.NewParentCalendarFeeds(service, store)),
-		Profiles:      application.NewAccountProfiles(service, store), GuardianSchools: application.NewGuardianSchools(service, store),
-		Service: service, MFA: operatorMFARecords, Tokens: tokens, RFIDCards: application.NewRFIDCards(service, store),
-		Passkeys: operatorPasskeys, AccountPasskeys: accountPasskeys, AccountRoleQueries: application.NewAccountRoleQueries(service, store, postgres.NewRoleStore(store)),
-		Auth: auth, OperatorAuth: operatorAuth, AccountAccess: accountAccess, Lifecycle: lifecycle, Roles: roles,
-		Resets: resets, Invitations: invitations, Provisioning: provisioning, Administration: administration,
-		MFAFlows: flows, OperatorProvisioning: operatorProvisioning, SignInRetention: application.NewSignInDataRetention(store, application.InvitationLogger(dependencies.Invitations), runAdmin), AccountRetention: application.NewAccountRetention(store, attach, runAdmin, dependencies.RemoveErasedAvatarFile, application.InvitationLogger(dependencies.Invitations)),
-		InvitationMaintenance: application.NewSchoolInvitationMaintenance(store, application.InvitationLogger(dependencies.Invitations), newCommandTransactions(attach).RunPlatform),
-		TraegerAccounts:       traegerAccounts, DemoAccess: demoAccess, Caterers: caterers,
-	})
-	return owner, nil
+	return application.Engine{
+		CalendarFeeds:   application.NewCalendarFeeds(application.NewStaffCalendarFeeds(service, store), application.NewParentCalendarFeeds(service, store)),
+		AccountProfiles: application.NewAccountProfiles(service, store), GuardianSchools: application.NewGuardianSchools(service, store),
+		Service: service, OperatorMFARecords: operatorMFARecords, OperatorTokens: tokens, RFIDCards: application.NewRFIDCards(service, store),
+		OperatorPasskeyRecords: operatorPasskeys, AccountPasskeyRecords: accountPasskeys, AccountRoleQueries: application.NewAccountRoleQueries(service, store, postgres.NewRoleStore(store)),
+		AccountAuthentication: auth, OperatorAuthentication: operatorAuth, OperatorAccountAccess: accountAccess, AccountLifecycle: lifecycle, RoleAdministration: roles,
+		PasswordReset: resets, SchoolInvitation: invitations, AccountProvisioning: provisioning, AccountAdministration: administration, OperatorProvisioning: operatorProvisioning,
+		OperatorMFAFlows: flows.Operator, OperatorPasskeyFlows: flows.OperatorPasskey, AccountPasskeyFlows: flows.AccountPasskey, AccountMFACapability: application.NewAccountMFACapability(flows.Capability),
+		SignInDataRetention: application.NewSignInDataRetention(store, application.InvitationLogger(dependencies.Invitations), runAdmin), AccountRetention: application.NewAccountRetention(store, attach, runAdmin, dependencies.RemoveErasedAvatarFile, application.InvitationLogger(dependencies.Invitations)),
+		SchoolInvitationMaintenance: application.NewSchoolInvitationMaintenance(store, application.InvitationLogger(dependencies.Invitations), newCommandTransactions(attach).RunPlatform), TraegerAccounts: traegerAccounts, Demo: demoAccess, CatererFlows: caterers,
+	}, nil
 }
 
 // composeBesideEngine composes the capabilities the owner carries beside its
 // services: the demo access, the Träger accounts and the caterer flows.
-func composeBesideEngine(dependencies Dependencies, auth *application.AccountAuthentication, store *postgres.Store, runAdmin func(context.Context, func(context.Context) error) error, flows application.MFAFlows) (*identityaccess.DemoAccess, *application.TraegerAccounts, *identityaccess.CatererAccess, error) {
+func composeBesideEngine(dependencies Dependencies, auth *application.AccountAuthentication, store *postgres.Store, runAdmin func(context.Context, func(context.Context) error) error, flows application.MFAFlows, runtime tenantRuntime) (*identityaccess.DemoAccess, *application.TraegerAccounts, *identityaccess.CatererAccess, error) {
 	demoAccess, traegerAccounts, err := newPortalAccess(dependencies, auth, store, runAdmin)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	caterers, err := newCatererAccess(auth, store, dependencies.Sessions, dependencies.Lifecycle, flows)
+	caterers, err := newCatererAccess(auth, store, dependencies.Sessions, dependencies.Lifecycle, flows, runtime)
 	return demoAccess, traegerAccounts, caterers, err
 }
 
@@ -163,28 +164,28 @@ func newCommandTransactions(attach func(context.Context) context.Context) applic
 	return application.NewCommandTransactions(attach, tenant.TransactionFromContext, tenant.FromContext, tenant.WithinCurrentTenant, tenant.WithinAdmin)
 }
 
-func newLifecycleAndRoles(service *application.Service, auth *application.AccountAuthentication, store *postgres.Store, dependencies Dependencies) (*application.AccountAdministration, *application.AccountLifecycle, *application.RoleAdministration, error) {
-	administration, err := newAccountAdministration(store, auth, dependencies.Sessions, dependencies.Lifecycle)
+func newLifecycleAndRoles(service *application.Service, auth *application.AccountAuthentication, store *postgres.Store, dependencies Dependencies, runtime tenantRuntime) (*application.AccountAdministration, *application.AccountLifecycle, *application.RoleAdministration, error) {
+	administration, err := newAccountAdministration(store, auth, dependencies.Sessions, dependencies.Lifecycle, runtime)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	lifecycle, roles, err := newAccountLifecycle(service, auth, store, dependencies.Sessions, dependencies.Lifecycle, administration)
+	lifecycle, roles, err := newAccountLifecycle(service, auth, store, dependencies.Sessions, dependencies.Lifecycle, administration, runtime)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 	return administration, lifecycle, roles, nil
 }
 
-func newRegistrationFlows(auth *application.AccountAuthentication, store *postgres.Store, lifecycle *application.AccountLifecycle, roles *application.RoleAdministration, dependencies Dependencies) (*application.PasswordReset, *application.SchoolInvitation, *application.AccountProvisioning, error) {
-	resets, err := newPasswordReset(auth, store, dependencies.Sessions, dependencies.Resets)
+func newRegistrationFlows(auth *application.AccountAuthentication, store *postgres.Store, lifecycle *application.AccountLifecycle, roles *application.RoleAdministration, dependencies Dependencies, runtime tenantRuntime) (*application.PasswordReset, *application.SchoolInvitation, *application.AccountProvisioning, error) {
+	resets, err := newPasswordReset(auth, store, dependencies.Sessions, dependencies.Resets, runtime)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	invitations, err := newSchoolInvitation(store, roles, lifecycle, dependencies.Sessions, dependencies.Lifecycle, dependencies.Invitations)
+	invitations, err := newSchoolInvitation(store, roles, lifecycle, dependencies.Sessions, dependencies.Lifecycle, dependencies.Invitations, runtime)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	provisioning, err := newAccountProvisioning(store, lifecycle, dependencies.Sessions, dependencies.Lifecycle)
+	provisioning, err := newAccountProvisioning(store, lifecycle, dependencies.Sessions, dependencies.Lifecycle, runtime)
 	if err != nil {
 		return nil, nil, nil, err
 	}

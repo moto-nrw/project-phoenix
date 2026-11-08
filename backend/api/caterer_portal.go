@@ -29,11 +29,18 @@ func CatererSessionChain(r chi.Router) {
 	r.Use(sessiontoken.Authenticator, ReadOnlyPreviewMiddleware, CatererScopeMiddleware, SecurityPrincipalMiddleware)
 }
 
+// catererIdentity is what the caterer portal needs of Identity & Access: the
+// caterer flows and the password reset.
+type catererIdentity interface {
+	identityaccess.PasswordResets
+	Caterers() *identityaccess.CatererAccess
+}
+
 // mountCatererPortal serves the caterer portal (ADR 0077): the school's
 // caterer under /api/meal-caterer and the caterer's own routes under
 // /caterer, where the auth rate limiter guards the sign-in and the
 // invitation.
-func mountCatererPortal(root, tenantRouter chi.Router, limiters authRateLimiters, identity identityaccess.Owner, mealPlan mealplanModule.Capability, schools organizationtenancy.Capability) error {
+func mountCatererPortal(root, tenantRouter chi.Router, limiters authRateLimiters, identity catererIdentity, mealPlan mealplanModule.Capability, schools organizationtenancy.Capability) error {
 	caterers := identity.Caterers()
 	if caterers == nil {
 		return errors.New("caterer portal: identity access composed no caterer flows")

@@ -11,6 +11,7 @@ import (
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/gofrs/uuid"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
@@ -51,7 +52,7 @@ type OperatorPasskeyFlowDependencies struct {
 // by; operatorPasskeySessions mints the pair a completed login returns.
 type operatorPasskeyGate interface {
 	StartChallenge(ctx context.Context, operatorID int64, ip net.IP) (string, error)
-	VerifyCodeForOperator(ctx context.Context, operatorID int64, code string) error
+	VerifyOperatorMFACode(ctx context.Context, operatorID int64, code string) error
 }
 
 type operatorPasskeySessions interface {
@@ -103,7 +104,7 @@ func (f *OperatorPasskeyFlows) BeginRegistration(ctx context.Context, request do
 	if err := domain.ValidateOperatorPasskeyOrigin(request.ExpectedOrigin, f.originHost); err != nil {
 		return domain.PasskeyCeremonyOptions{}, err
 	}
-	if err := f.mfa.VerifyCodeForOperator(ctx, request.OperatorID, request.Code); err != nil {
+	if err := f.mfa.VerifyOperatorMFACode(ctx, request.OperatorID, request.Code); err != nil {
 		return domain.PasskeyCeremonyOptions{}, err
 	}
 	operator, err := f.operators.findOperatorByID(ctx, request.OperatorID)
@@ -430,7 +431,7 @@ func (f *OperatorPasskeyFlows) StartOperatorPasskeyEnrollment(ctx context.Contex
 		return identityaccess.PasskeyEnrollmentChallenge{}, identityaccess.ErrPasskeyFlowsUnavailable
 	}
 	challenge, err := f.StartEnrollmentChallenge(ctx, operatorID, ip)
-	return identityaccess.PasskeyEnrollmentChallenge(challenge), operatorFlowError(err)
+	return identityaccess.PasskeyEnrollmentChallenge(challenge), operatorError(err)
 }
 
 func (f *OperatorPasskeyFlows) BeginOperatorPasskeyRegistration(ctx context.Context, request identityaccess.OperatorPasskeyRegistrationStart) (identityaccess.PasskeyCeremonyOptions, error) {
@@ -438,7 +439,7 @@ func (f *OperatorPasskeyFlows) BeginOperatorPasskeyRegistration(ctx context.Cont
 		return identityaccess.PasskeyCeremonyOptions{}, identityaccess.ErrPasskeyFlowsUnavailable
 	}
 	options, err := f.BeginRegistration(ctx, domain.OperatorPasskeyRegistrationStart(request))
-	return identityaccess.PasskeyCeremonyOptions(options), operatorFlowError(err)
+	return identityaccess.PasskeyCeremonyOptions(options), operatorError(err)
 }
 
 func (f *OperatorPasskeyFlows) FinishOperatorPasskeyRegistration(ctx context.Context, request identityaccess.OperatorPasskeyRegistrationFinish) (identityaccess.PasskeyCredentialSummary, error) {
@@ -446,7 +447,7 @@ func (f *OperatorPasskeyFlows) FinishOperatorPasskeyRegistration(ctx context.Con
 		return identityaccess.PasskeyCredentialSummary{}, identityaccess.ErrPasskeyFlowsUnavailable
 	}
 	summary, err := f.FinishRegistration(ctx, domain.OperatorPasskeyRegistrationFinish(request))
-	return identityaccess.PasskeyCredentialSummary(summary), operatorFlowError(err)
+	return identityaccess.PasskeyCredentialSummary(summary), operatorError(err)
 }
 
 func (f *OperatorPasskeyFlows) BeginOperatorPasskeyLogin(ctx context.Context, expectedOrigin string) (identityaccess.PasskeyCeremonyOptions, error) {
@@ -454,7 +455,7 @@ func (f *OperatorPasskeyFlows) BeginOperatorPasskeyLogin(ctx context.Context, ex
 		return identityaccess.PasskeyCeremonyOptions{}, identityaccess.ErrPasskeyFlowsUnavailable
 	}
 	options, err := f.BeginLogin(ctx, expectedOrigin)
-	return identityaccess.PasskeyCeremonyOptions(options), operatorFlowError(err)
+	return identityaccess.PasskeyCeremonyOptions(options), operatorError(err)
 }
 
 func (f *OperatorPasskeyFlows) FinishOperatorPasskeyLogin(ctx context.Context, request identityaccess.OperatorPasskeyLoginFinish) (identityaccess.PasskeyLoginResult, error) {
@@ -462,7 +463,7 @@ func (f *OperatorPasskeyFlows) FinishOperatorPasskeyLogin(ctx context.Context, r
 		return identityaccess.PasskeyLoginResult{}, identityaccess.ErrPasskeyFlowsUnavailable
 	}
 	result, err := f.FinishLogin(ctx, domain.OperatorPasskeyLoginFinish(request))
-	return identityaccess.PasskeyLoginResult(result), operatorFlowError(err)
+	return identityaccess.PasskeyLoginResult(result), operatorError(err)
 }
 
 func (f *OperatorPasskeyFlows) ListOperatorPasskeyCredentials(ctx context.Context, operatorID int64) ([]identityaccess.PasskeyCredentialSummary, error) {
@@ -471,7 +472,7 @@ func (f *OperatorPasskeyFlows) ListOperatorPasskeyCredentials(ctx context.Contex
 	}
 	summaries, err := f.ListCredentials(ctx, operatorID)
 	if err != nil {
-		return nil, operatorFlowError(err)
+		return nil, operatorError(err)
 	}
 	return publicPasskeySummaries(summaries), nil
 }
@@ -480,5 +481,5 @@ func (f *OperatorPasskeyFlows) RevokeOperatorPasskeyCredential(ctx context.Conte
 	if f == nil {
 		return identityaccess.ErrPasskeyFlowsUnavailable
 	}
-	return operatorFlowError(f.RevokeCredential(ctx, operatorID, credentialID))
+	return operatorError(f.RevokeCredential(ctx, operatorID, credentialID))
 }

@@ -17,7 +17,7 @@ import (
 // public values so the root can implement them without the module's
 // internal vocabulary; this package adapts them to the consumer-owned ports.
 
-func newAccountAuthentication(service *application.Service, store ports.AccountLoginStore, caterers ports.CatererStore, deps *identityPorts.SessionDependencies, mfa ports.MFAGate) (*application.AccountAuthentication, error) {
+func newAccountAuthentication(service *application.Service, store ports.AccountLoginStore, caterers ports.CatererStore, deps *identityPorts.SessionDependencies, mfa ports.MFAGate, runtime tenantRuntime) (*application.AccountAuthentication, error) {
 	if deps == nil {
 		return nil, nil
 	}
@@ -37,7 +37,7 @@ func newAccountAuthentication(service *application.Service, store ports.AccountL
 		MFALock:  deps.MFALock,
 		Audit:    application.AuthAudit{Source: deps.Audit},
 		Push:     deps.Push,
-		Runtime:  tenantRuntime{attach: attach, runner: application.NewTransactionRunner()},
+		Runtime:  runtime,
 		Attach:   attach,
 		Rotation: rotation.RotationPolicy{},
 		Caterers: caterers,
@@ -48,6 +48,8 @@ func newAccountAuthentication(service *application.Service, store ports.AccountL
 // tenantRuntime binds the shared tenant transaction runtime: administrative
 // transactions for the pre-authentication flows, tenant transactions for
 // audit evidence, and the after-commit hooks a revocation defers to.
+// tenantRuntime is the one unit of work New binds every flow to: the tenant
+// transactions over the composed attach.
 type tenantRuntime struct {
 	attach func(context.Context) context.Context
 	runner *tenant.TransactionRunner

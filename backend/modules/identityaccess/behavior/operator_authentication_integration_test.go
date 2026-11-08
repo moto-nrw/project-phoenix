@@ -13,16 +13,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // Operator login, the MFA-proven token issue, refresh, profile and password
@@ -315,4 +315,29 @@ func (a operatorAccountAccess) UpdateAccountTenantRole(ctx context.Context, acco
 
 func (a operatorAccountAccess) RevokeAccountTenantAccess(ctx context.Context, accountID, schoolID, operatorID int64, clientIP net.IP) ([]identityaccess.AccountTenantAccess, error) {
 	return a.module.RevokeAccountTenantAccess(ctx, accountID, schoolID, operatorID, clientIP.String())
+}
+
+// A login that cannot write its audit row issues nothing: the refresh session
+// and the last-login stamp roll back with it, because the three writes share
+// one administrative transaction.
+func TestOperatorLoginRollsBackTheSessionWhenTheAuditFails(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := context.Background()
+	identity := buildOperatorIdentity(t, db)
+	operator := testpkg.CreateTestOperator(t, db)
+	_, err := db.NewRaw(`ALTER TABLE platform.operator_audit_log ADD CONSTRAINT reject_login_audit_test CHECK (action <> 'login')`).Exec(ctx)
+	require.NoError(t, err)
+
+	access, refresh, err := identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID, "203.0.113.7", "test-agent")
+
+	require.Error(t, err)
+	assert.Empty(t, access)
+	assert.Empty(t, refresh)
+	var sessions int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM platform.operator_refresh_tokens WHERE operator_id = ?`, operator.ID).Scan(ctx, &sessions))
+	assert.Zero(t, sessions, "the refresh session rolls back with the audit row")
+	var lastLogin *time.Time
+	require.NoError(t, db.NewRaw(`SELECT last_login FROM platform.operators WHERE id = ?`, operator.ID).Scan(ctx, &lastLogin))
+	assert.Nil(t, lastLogin, "the last-login stamp rolls back with the audit row")
 }

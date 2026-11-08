@@ -1,7 +1,6 @@
 package identityaccess
 
 import (
-	"context"
 	"net"
 	"time"
 )
@@ -65,43 +64,4 @@ type OperatorTrustedDevice struct {
 	RevokedAt  *time.Time
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
-}
-
-// OperatorMFAQuery resolves operator MFA records. "Active" means unconsumed
-// (codes) or unrevoked (devices) and not yet expired.
-type OperatorMFAQuery interface {
-	FindOperatorMFACredential(ctx context.Context, operatorID int64) (OperatorMFACredential, error)
-	// FindActiveOperatorMFAChallenge returns the active code with the latest
-	// expiry.
-	FindActiveOperatorMFAChallenge(ctx context.Context, operatorID int64) (OperatorMFAChallenge, error)
-	// CountOperatorMFAChallengesSince counts every code created at or after
-	// since, redeemed or not; the send rate limit reads it.
-	CountOperatorMFAChallengesSince(ctx context.Context, operatorID int64, since time.Time) (int, error)
-	FindActiveOperatorTrustedDevice(ctx context.Context, operatorID int64, tokenHash string) (OperatorTrustedDevice, error)
-	// ListActiveOperatorTrustedDevices orders by last use, most recent first,
-	// then by creation.
-	ListActiveOperatorTrustedDevices(ctx context.Context, operatorID int64) ([]OperatorTrustedDevice, error)
-}
-
-// OperatorMFACommand changes operator MFA records. The creates validate the
-// record and return it with its identity and timestamps.
-type OperatorMFACommand interface {
-	CreateOperatorMFACredential(ctx context.Context, credential OperatorMFACredential) (OperatorMFACredential, error)
-	TouchOperatorMFACredential(ctx context.Context, id int64, usedAt time.Time) error
-	DeleteOperatorMFACredentials(ctx context.Context, operatorID int64) error
-	CreateOperatorMFAChallenge(ctx context.Context, challenge OperatorMFAChallenge) (OperatorMFAChallenge, error)
-	// ActivateOperatorMFAChallenge makes a delivered code redeemable.
-	ActivateOperatorMFAChallenge(ctx context.Context, id int64) error
-	// ConsumeOperatorMFAChallenge redeems a code exactly once.
-	ConsumeOperatorMFAChallenge(ctx context.Context, id int64, consumedAt time.Time) error
-	CreateOperatorTrustedDevice(ctx context.Context, device OperatorTrustedDevice) (OperatorTrustedDevice, error)
-	TouchOperatorTrustedDevice(ctx context.Context, id int64, usedAt time.Time) error
-	RevokeOperatorTrustedDevice(ctx context.Context, id int64, revokedAt time.Time) error
-	RevokeOperatorTrustedDevices(ctx context.Context, operatorID int64, revokedAt time.Time) error
-}
-
-// OperatorMFARecords is the capability the operator MFA flows consume.
-type OperatorMFARecords interface {
-	OperatorMFAQuery
-	OperatorMFACommand
 }

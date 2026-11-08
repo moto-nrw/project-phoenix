@@ -3,6 +3,7 @@ package operator
 import (
 	"net/http"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
 )
@@ -13,12 +14,12 @@ import (
 // Identity & Access's.
 type Sessions struct {
 	tokenAuth *sessiontoken.TokenAuth
-	operators OperatorLookup
+	operators identityaccess.OperatorSessionLiveness
 }
 
 // NewSessions binds the operator session chains to the session signer and
 // the operator lookup of the active-operator gate.
-func NewSessions(tokenAuth *sessiontoken.TokenAuth, operators OperatorLookup) Sessions {
+func NewSessions(tokenAuth *sessiontoken.TokenAuth, operators identityaccess.OperatorSessionLiveness) Sessions {
 	return Sessions{tokenAuth: tokenAuth, operators: operators}
 }
 

@@ -1,5 +1,3 @@
-// Package ports declares the persistence and transaction seams the Identity &
-// Access application needs. Composition binds them.
 package ports
 
 import (
@@ -8,6 +6,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
+
+// The stores of the module's own tables.
 
 // Store is the persistence port over the platform account table and the
 // tenant-scoped mapping and role tables.
@@ -233,32 +233,6 @@ type AccountSessionStore interface {
 	DeleteExpiredAccountSessions(ctx context.Context, now time.Time) (int, domain.OperationStats, error)
 }
 
-type Transaction interface {
-	// RunWrite joins the caller's transaction or opens one for the tenant
-	// in context.
-	RunWrite(context.Context, func(context.Context) error) error
-	// RunRead joins the caller's transaction, else opens a tenant
-	// transaction. A missing school is an error.
-	RunRead(context.Context, func(context.Context) error) error
-	// RunPlatform joins the caller's transaction when one is active and
-	// otherwise opens an explicit administrative transaction. Operator rows are platform-wide
-	// and carry no tenant, so no tenant transaction is opened for them; the
-	// operator flows open their own administrative transaction where several
-	// writes must commit together.
-	RunPlatform(context.Context, func(context.Context) error) error
-	// RunAdmin is the explicit operator/cross-school worker boundary.
-	RunAdmin(context.Context, func(context.Context) error) error
-}
-
-type Observation struct {
-	Operation string
-	Duration  time.Duration
-	Stats     domain.OperationStats
-	Err       error
-}
-
-type Observer func(Observation)
-
 // AccountLoginStore is the persistence port over the identity-owned facts
 // tenant, parent and school login, refresh, switching and session validation
 // read: the account row with its credential, the school mappings and the
@@ -324,116 +298,6 @@ type TraegerRoleStore interface {
 	FindTraegerSchoolRole(ctx context.Context, name string, tenantID int64) (domain.RoleAssignment, []string, bool, domain.OperationStats, error)
 }
 
-// SchoolDirectory is the consumer-owned port over the Organisation & Tenancy
-// school facts login resolves. Missing schools report found=false; every
-// other failure is an error.
-type SchoolDirectory interface {
-	FindSchool(ctx context.Context, id int64) (domain.School, bool, error)
-	FindSchoolBySubdomain(ctx context.Context, subdomain string) (domain.School, bool, error)
-	// LockSchoolShared reads the school under a FOR SHARE lock inside the
-	// caller's transaction.
-	LockSchoolShared(ctx context.Context, id int64) (domain.School, bool, error)
-	// ListActiveSchoolsByID returns the live, active schools among the supplied IDs.
-	// Identity has already selected the account's active memberships.
-	ListActiveSchoolsByID(ctx context.Context, schoolIDs []int64) ([]domain.School, error)
-}
-
-// PersonDirectory is the consumer-owned port over the People Directory name
-// of an account's person row in the tenant the context carries.
-type PersonDirectory interface {
-	FindPersonName(ctx context.Context, accountID int64) (firstName, lastName string, found bool, err error)
-}
-
-// PasswordVerifier checks a password against the stored hash.
-type PasswordVerifier interface {
-	VerifyPassword(password, hash string) (bool, error)
-}
-
-// TokenCodec signs and parses the session JWTs.
-type TokenCodec interface {
-	IssueTokenPair(access domain.SessionClaims, refresh domain.RefreshClaims) (accessToken, refreshToken string, err error)
-	IssueMFAEnrollmentToken(accountID, tenantID int64, scope string, ttl time.Duration) (string, error)
-	// ParseAccessToken verifies the signature and expiry of an access JWT.
-	ParseAccessToken(token string) (domain.SessionClaims, error)
-	// ParseRefreshToken verifies the signature of a refresh JWT and refuses
-	// challenge, enrollment and preview tokens.
-	ParseRefreshToken(token string) (domain.RefreshClaims, error)
-	RefreshExpiry() time.Duration
-}
-
-// MFAPolicy is a resolved MFA verdict waiting for the permission set it applies to.
-type MFAPolicy interface {
-	RequiredFor(permissions []string) bool
-}
-
-// MFAGate is the consumer-owned port over the retained MFA service. An
-// unconfigured gate (Configured false) means "not required / not enrolled".
-type MFAGate interface {
-	Configured() bool
-	IsRequired(ctx context.Context, accountID int64, email string, permissions []string, tenantID int64) (bool, error)
-	ResolvePolicy(ctx context.Context, accountID, tenantID int64) (MFAPolicy, error)
-	// ResolvePolicyInTx re-reads the policy on the caller's transaction, past
-	// every request-scoped cache.
-	ResolvePolicyInTx(ctx context.Context, accountID, tenantID int64) (MFAPolicy, error)
-	HasEnrollment(ctx context.Context, accountID int64) (bool, error)
-	VerifyTrustedDevice(ctx context.Context, accountID, tenantID int64, cookie string) (bool, error)
-	StartChallenge(ctx context.Context, accountID, tenantID int64, scope, ipAddress string) (string, error)
-	IsTrustedDeviceEnabled(ctx context.Context, tenantID int64) bool
-	TrustedDeviceDays(ctx context.Context, tenantID int64) int
-}
-
-// MFAPolicyLock pins a school's MFA mode for the rest of the caller's
-// transaction, in shared mode.
-type MFAPolicyLock interface {
-	LockMFAPolicySharedForTenant(ctx context.Context, tenantID int64) error
-}
-
-// AuthAudit is the consumer-owned port over the Audit platform's
-// authentication ledger.
-type AuthAudit interface {
-	// RecordAuthEvent appends the event on the caller's transaction.
-	RecordAuthEvent(ctx context.Context, event domain.AuthEvent) error
-	ListPendingAccountWideWipes(ctx context.Context) ([]domain.PendingAccountWideWipe, error)
-	ClaimPendingAccountWideWipes(ctx context.Context, accountID int64) ([]domain.PendingAccountWideWipe, error)
-}
-
-// PushSubscriptionCleanup is the consumer-owned port over the Delivery
-// platform's push subscription rows a session revocation orphans.
-type PushSubscriptionCleanup interface {
-	DeleteStaffByAccount(ctx context.Context, accountID int64) error
-	DeleteSchoolByAccount(ctx context.Context, accountID int64) error
-	DeleteParentByAccount(ctx context.Context, accountID int64) error
-	DeleteByTokenFamily(ctx context.Context, accountID int64, familyID string) error
-	DeleteUnboundByAccount(ctx context.Context, accountID, tenantID int64, portal string) error
-	DeleteOrphaned(ctx context.Context) error
-}
-
-// Runtime is the tenant transaction runtime the account flows run under:
-// administrative transactions for the pre-authentication flows, tenant
-// transactions for audit evidence, and the after-commit hooks a revocation
-// defers its cleanup to.
-type Runtime interface {
-	WithAdminTx(ctx context.Context, fn func(context.Context) error) error
-	WithTenantTx(ctx context.Context, tenantID int64, fn func(context.Context) error) error
-	// RunInTx joins the caller's transaction, runs tenantless scoped callers
-	// administratively and otherwise opens the tenant's transaction.
-	RunInTx(ctx context.Context, fn func(context.Context) error) error
-	IsAdminTx(ctx context.Context) bool
-	HasTransaction(ctx context.Context) bool
-	HasAfterCommitHooks(ctx context.Context) bool
-	RegisterAfterCommit(ctx context.Context, fn func())
-	TenantID(ctx context.Context) int64
-	Scope(ctx context.Context) string
-	OrgID(ctx context.Context) int64
-	WithTenantID(ctx context.Context, tenantID int64) context.Context
-	// Detach strips the transaction, the tenant and the after-commit hooks
-	// so independent cleanup cannot join the caller's outcome.
-	Detach(ctx context.Context) context.Context
-	WithoutTransaction(ctx context.Context) context.Context
-	// AcquireLock takes a transaction-scoped advisory lock.
-	AcquireLock(ctx context.Context, key string) error
-}
-
 // AccountAccessStore is the persistence port over the identity-owned rows
 // the operator-led school access flows read and write (#3252): the account
 // row, its school mappings, its role assignments and direct permissions,
@@ -455,88 +319,4 @@ type AccountAccessStore interface {
 	RemoveAccountRole(ctx context.Context, accountID, roleID, tenantID int64) (domain.OperationStats, error)
 	FindRole(ctx context.Context, roleID int64) (domain.RoleFact, bool, domain.OperationStats, error)
 	ListRoles(ctx context.Context) ([]domain.RoleFact, domain.OperationStats, error)
-}
-
-// OrganizationDirectory is the consumer-owned port over the Organisation &
-// Tenancy facts the access listing shows: the schools behind the mappings
-// and the organisation names, in the owner's name order.
-type OrganizationDirectory interface {
-	ListSchools(ctx context.Context, ids []int64) ([]domain.School, error)
-	ListOrganizationNames(ctx context.Context, ids []int64) ([]domain.OrganizationName, error)
-}
-
-// SchoolIdentityProvisioner is the consumer-owned port over the People
-// Directory and School Membership identity chain a school access requires
-// (persons, staff, teachers) and the facts the listing shows about it. The
-// tenant-scoped reads take the tenant from the context; the platform-wide
-// reads run administratively.
-type SchoolIdentityProvisioner interface {
-	// HasLivePersonAtSchool reports a live person carrying the account at
-	// the school in context.
-	HasLivePersonAtSchool(ctx context.Context, accountID int64) (bool, error)
-	// ListAccountPersons returns every person row carrying the account at
-	// any school.
-	ListAccountPersons(ctx context.Context, accountID int64) ([]domain.AccountPersonIdentity, error)
-	// HasLiveCaregiverProfile reports a live users.teachers row behind the
-	// account's identity at the school in context.
-	HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error)
-	// EnsureSchoolIdentity creates the person, staff and (for caregiver
-	// roles) teacher rows idempotently on the caller's tenant transaction.
-	// A request the caller can correct is reported as
-	// *domain.InvalidInputError.
-	EnsureSchoolIdentity(ctx context.Context, request domain.SchoolIdentityRequest) error
-	// ListAccountIdentityFacts reports, per school, whether a person and a
-	// staff record back the account.
-	ListAccountIdentityFacts(ctx context.Context, accountID int64) ([]domain.AccountIdentityFact, error)
-}
-
-// SchoolRolePolicy is the consumer-owned port over the retained role
-// assignment rules every school-access path shares (#1772, #2222): which
-// roles may be handed out at a school, which role is the lehrkraft system
-// role, which roles need a staff record, and the message a lehrkraft
-// account's role change is refused with.
-type SchoolRolePolicy interface {
-	ValidateAssignableSchoolRole(role domain.RoleFact, tenantID int64) error
-	IsLehrkraftRole(role domain.RoleFact) bool
-	RoleNeedsStaffRecord(role domain.RoleFact) bool
-	LehrkraftRoleImmutable() error
-}
-
-// OperatorMFAGate is the consumer-owned port over the retained operator MFA
-// service. Operator MFA is mandatory: an unconfigured gate (Configured
-// false) issues token pairs directly, as the early phases did.
-type OperatorMFAGate interface {
-	Configured() bool
-	HasEnrollment(ctx context.Context, operatorID int64) (bool, error)
-	VerifyTrustedDevice(ctx context.Context, operatorID int64, cookie string) (bool, error)
-	StartChallenge(ctx context.Context, operatorID int64, ipAddress string) (string, error)
-	TrustedDeviceDays() int
-}
-
-// OperatorAudit is the consumer-owned port over the Audit platform's
-// operator action ledger. Entries append on the caller's transaction.
-type OperatorAudit interface {
-	RecordOperatorAction(ctx context.Context, entry domain.OperatorAuditEntry) error
-}
-
-// OperatorCredentialCleanup invalidates the bearer-style controls a password
-// rotation must not leave alive besides the refresh sessions: the pending
-// e-mail change links. The composition binds it to the module's own link
-// operations (#2722), so the revocation joins the password change.
-type OperatorCredentialCleanup interface {
-	RevokeEmailChanges(ctx context.Context, operatorID int64) error
-}
-
-// PasswordHasher hashes a new password and applies the strength policy.
-type PasswordHasher interface {
-	HashPassword(password string) (string, error)
-	ValidatePasswordStrength(password string) error
-}
-
-// Rotation is the refresh-rotation recovery policy shared with the operator
-// portal.
-type Rotation interface {
-	RecoveryGrace() time.Duration
-	MaxRecoveryHops() int
-	FamilyFingerprint(familyID string) string
 }

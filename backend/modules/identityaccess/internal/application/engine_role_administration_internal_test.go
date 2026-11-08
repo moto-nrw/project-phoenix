@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
 // Every role sentinel reaches consumers as its public twin with the same
@@ -71,7 +72,7 @@ func internalTwin(public error) error {
 func TestModuleWithoutLifecycleReportsRoleAdministrationUnavailable(t *testing.T) {
 	t.Parallel()
 
-	var module identityaccess.Owner = engine{}
+	var module identityaccess.Owner = Engine{}
 	ctx := t.Context()
 
 	_, err := module.GetRole(ctx, 7)

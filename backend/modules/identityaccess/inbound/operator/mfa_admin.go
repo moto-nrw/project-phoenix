@@ -18,7 +18,7 @@ import (
 // SchoolAccountMFAResource serves the operator MFA admin actions for school
 // staff and the account-wide MFA override.
 type SchoolAccountMFAResource struct {
-	TenantMFAService AccountMFA
+	TenantMFAService identityaccess.AccountMFA
 }
 
 // MFAAdminStateResponse mirrors the tenant-side shape so the same
@@ -55,7 +55,7 @@ type MFAAdminOverrideSetRequest struct {
 func (req *MFAAdminOverrideSetRequest) Bind(_ *http.Request) error {
 	req.Override = strings.TrimSpace(req.Override)
 	req.Reason = strings.TrimSpace(req.Reason)
-	if !IsValidMFAAdminOverride(req.Override) {
+	if !identityaccess.IsValidMFAAdminOverride(req.Override) {
 		return errors.New("override must be one of: none, force_off, force_on")
 	}
 	return validation.ValidateStruct(req,
@@ -123,7 +123,7 @@ func (rs *SchoolAccountMFAResource) GetSchoolAccountMFAState(w http.ResponseWrit
 	if err != nil {
 		// Read-side failure shouldn't block the modal from rendering —
 		// fall back to "none" and let the admin still trigger writes.
-		override = MFAAdminOverrideNone
+		override = identityaccess.MFAAdminOverrideNone
 	}
 	common.Respond(w, r, http.StatusOK, &MFAAdminStateResponse{
 		Enrolled: enrolled,
@@ -154,10 +154,10 @@ func (rs *SchoolAccountMFAResource) ResetSchoolAccountMFA(w http.ResponseWriter,
 	ctx := identityaccess.WithOperatorAuditClientIP(r.Context(), common.ParseClientIP(r))
 	if err := rs.TenantMFAService.OperatorDisableMFA(ctx, operatorID, schoolID, accountID, req.Reason); err != nil {
 		if errors.Is(err, identityaccess.ErrOperatorAuditUnavailable) {
-			common.RenderError(w, r, common.OperatorRejection(http.StatusServiceUnavailable, common.CodeOperatorAuditUnavailable, "Operator audit unavailable"))
+			common.RenderError(w, r, common.OperatorRejection(http.StatusServiceUnavailable, common.CodeOperatorAuditUnavailable, "identityaccess.Operator audit unavailable"))
 			return
 		}
-		if errors.Is(err, ErrMFAPermissionDenied) {
+		if errors.Is(err, identityaccess.ErrMFAPermissionDenied) {
 			common.RenderError(w, r, common.OperatorForbidden("Permission denied"))
 			return
 		}
@@ -191,14 +191,14 @@ func (rs *SchoolAccountMFAResource) SetSchoolAccountMFAOverride(w http.ResponseW
 	ctx := identityaccess.WithOperatorAuditClientIP(r.Context(), common.ParseClientIP(r))
 	if err := rs.TenantMFAService.OperatorSetMFAOverride(ctx, operatorID, schoolID, accountID, req.Override, req.Reason); err != nil {
 		if errors.Is(err, identityaccess.ErrOperatorAuditUnavailable) {
-			common.RenderError(w, r, common.OperatorRejection(http.StatusServiceUnavailable, common.CodeOperatorAuditUnavailable, "Operator audit unavailable"))
+			common.RenderError(w, r, common.OperatorRejection(http.StatusServiceUnavailable, common.CodeOperatorAuditUnavailable, "identityaccess.Operator audit unavailable"))
 			return
 		}
-		if errors.Is(err, ErrMFAInvalidOverride) {
+		if errors.Is(err, identityaccess.ErrMFAInvalidOverride) {
 			common.RenderError(w, r, common.OperatorInvalidRequest(err))
 			return
 		}
-		if errors.Is(err, ErrMFAPermissionDenied) {
+		if errors.Is(err, identityaccess.ErrMFAPermissionDenied) {
 			common.RenderError(w, r, common.OperatorForbidden("Permission denied"))
 			return
 		}
@@ -253,7 +253,7 @@ func (rs *SchoolAccountMFAResource) GetAccountMFAGlobalOverride(w http.ResponseW
 	}
 	override, err := rs.TenantMFAService.GetGlobalMFAOverride(r.Context(), accountID)
 	if err != nil {
-		override = MFAAdminOverrideNone
+		override = identityaccess.MFAAdminOverrideNone
 	}
 	common.Respond(w, r, http.StatusOK, &MFAGlobalOverrideStateResponse{
 		Enrolled: enrolled,
@@ -287,14 +287,14 @@ func (rs *SchoolAccountMFAResource) SetAccountMFAGlobalOverride(w http.ResponseW
 	ctx := identityaccess.WithOperatorAuditClientIP(r.Context(), common.ParseClientIP(r))
 	if err := rs.TenantMFAService.OperatorSetGlobalMFAOverride(ctx, operatorID, accountID, req.Override, req.Reason); err != nil {
 		if errors.Is(err, identityaccess.ErrOperatorAuditUnavailable) {
-			common.RenderError(w, r, common.OperatorRejection(http.StatusServiceUnavailable, common.CodeOperatorAuditUnavailable, "Operator audit unavailable"))
+			common.RenderError(w, r, common.OperatorRejection(http.StatusServiceUnavailable, common.CodeOperatorAuditUnavailable, "identityaccess.Operator audit unavailable"))
 			return
 		}
-		if errors.Is(err, ErrMFAInvalidOverride) {
+		if errors.Is(err, identityaccess.ErrMFAInvalidOverride) {
 			common.RenderError(w, r, common.OperatorInvalidRequest(err))
 			return
 		}
-		if errors.Is(err, ErrMFAPermissionDenied) {
+		if errors.Is(err, identityaccess.ErrMFAPermissionDenied) {
 			common.RenderError(w, r, common.OperatorForbidden("Permission denied"))
 			return
 		}

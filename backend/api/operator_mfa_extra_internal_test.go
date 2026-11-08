@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
 )
@@ -29,7 +30,7 @@ type stubOperatorMFAServiceExtra struct {
 	startChallengeFn  func(ctx context.Context, operatorID int64, ip net.IP) (string, error)
 	verifyCodeFn      func(ctx context.Context, operatorID int64, code string) error
 	enrollFn          func(ctx context.Context, operatorID int64) error
-	listDevicesFn     func(ctx context.Context, operatorID int64) ([]identityoperator.OperatorTrustedDevice, error)
+	listDevicesFn     func(ctx context.Context, operatorID int64) ([]identityaccess.OperatorTrustedDevice, error)
 }
 
 func (s *stubOperatorMFAServiceExtra) HasOperatorMFAEnrollment(context.Context, int64) (bool, error) {
@@ -81,7 +82,7 @@ func (s *stubOperatorMFAServiceExtra) VerifyOperatorTrustedDevice(context.Contex
 	return false, nil
 }
 
-func (s *stubOperatorMFAServiceExtra) ListOperatorTrustedDevices(ctx context.Context, operatorID int64) ([]identityoperator.OperatorTrustedDevice, error) {
+func (s *stubOperatorMFAServiceExtra) ListOperatorTrustedDevices(ctx context.Context, operatorID int64) ([]identityaccess.OperatorTrustedDevice, error) {
 	if s.listDevicesFn != nil {
 		return s.listDevicesFn(ctx, operatorID)
 	}
@@ -94,7 +95,7 @@ func (s *stubOperatorMFAServiceExtra) RevokeOperatorTrustedDeviceOwned(context.C
 
 func (s *stubOperatorMFAServiceExtra) OperatorTrustedDeviceDays() int { return 90 }
 
-var _ identityoperator.OperatorMFA = (*stubOperatorMFAServiceExtra)(nil)
+var _ identityaccess.OperatorMFAFlows = (*stubOperatorMFAServiceExtra)(nil)
 
 // --- helpers -----------------------------------------------------------
 
@@ -136,7 +137,7 @@ func opWithEnrollmentClaims(r *http.Request, operatorID int64) *http.Request {
 func TestOperatorMFAVerify_InvalidJSON_Returns400(t *testing.T) {
 	t.Parallel()
 
-	rs := identityoperator.NewMFAResource(nil, &stubOperatorMFAServiceExtra{}, nil)
+	rs := identityoperator.NewMFAResource(nil, &stubOperatorMFAServiceExtra{})
 
 	r := httptest.NewRequest(http.MethodPost, "/operator/mfa/verify", strings.NewReader("not-json"))
 	r.Header.Set("Content-Type", "application/json")
@@ -151,9 +152,9 @@ func TestOperatorMFAVerify_ServiceErrorMapsTo401(t *testing.T) {
 
 	rs := identityoperator.NewMFAResource(nil, &stubOperatorMFAServiceExtra{
 		verifyChallengeFn: func(context.Context, string, string) (int64, error) {
-			return 0, identityoperator.ErrMFACodeInvalid
+			return 0, identityaccess.ErrMFACodeInvalid
 		},
-	}, nil)
+	})
 
 	r := opJSONReq(t, http.MethodPost, "/operator/mfa/verify",
 		identityoperator.MFAVerifyRequest{ChallengeToken: "tok", Code: "123456"})
@@ -171,7 +172,7 @@ func TestOperatorMFAResend_Success_ReturnsRenewedToken(t *testing.T) {
 
 	rs := identityoperator.NewMFAResource(nil, &stubOperatorMFAServiceExtra{
 		resendChallengeFn: func(context.Context, string, net.IP) (string, error) { return "renewed-tok", nil },
-	}, nil)
+	})
 
 	r := opJSONReq(t, http.MethodPost, "/operator/mfa/resend",
 		identityoperator.MFAResendRequest{ChallengeToken: "tok"})
@@ -187,7 +188,7 @@ func TestOperatorMFAResend_Success_ReturnsRenewedToken(t *testing.T) {
 func TestOperatorMFAResend_BindRejectsEmptyToken(t *testing.T) {
 	t.Parallel()
 
-	rs := identityoperator.NewMFAResource(nil, &stubOperatorMFAServiceExtra{}, nil)
+	rs := identityoperator.NewMFAResource(nil, &stubOperatorMFAServiceExtra{})
 
 	r := opJSONReq(t, http.MethodPost, "/operator/mfa/resend", identityoperator.MFAResendRequest{})
 	rr := httptest.NewRecorder()
@@ -201,9 +202,9 @@ func TestOperatorMFAResend_ServiceErrorMapsTo429(t *testing.T) {
 
 	rs := identityoperator.NewMFAResource(nil, &stubOperatorMFAServiceExtra{
 		resendChallengeFn: func(context.Context, string, net.IP) (string, error) {
-			return "", identityoperator.ErrMFARateLimited
+			return "", identityaccess.ErrMFARateLimited
 		},
-	}, nil)
+	})
 
 	r := opJSONReq(t, http.MethodPost, "/operator/mfa/resend",
 		identityoperator.MFAResendRequest{ChallengeToken: "tok"})
@@ -216,7 +217,7 @@ func TestOperatorMFAResend_ServiceErrorMapsTo429(t *testing.T) {
 func TestOperatorMFAEnrollStart_RequiresEnrollmentClaim(t *testing.T) {
 	t.Parallel()
 
-	rs := identityoperator.NewMFAResource(nil, &stubOperatorMFAServiceExtra{}, nil)
+	rs := identityoperator.NewMFAResource(nil, &stubOperatorMFAServiceExtra{})
 
 	r := opJSONReq(t, http.MethodPost, "/operator/mfa/enroll/start", nil)
 	rr := httptest.NewRecorder()
@@ -230,7 +231,7 @@ func TestOperatorMFAEnrollStart_Success(t *testing.T) {
 
 	rs := identityoperator.NewMFAResource(nil, &stubOperatorMFAServiceExtra{
 		startChallengeFn: func(context.Context, int64, net.IP) (string, error) { return "ch", nil },
-	}, nil)
+	})
 
 	r := opWithEnrollmentClaims(opJSONReq(t, http.MethodPost, "/operator/mfa/enroll/start", nil), 42)
 	rr := httptest.NewRecorder()
@@ -242,7 +243,7 @@ func TestOperatorMFAEnrollStart_Success(t *testing.T) {
 func TestOperatorMFAEnrollConfirm_RequiresEnrollmentClaim(t *testing.T) {
 	t.Parallel()
 
-	rs := identityoperator.NewMFAResource(nil, &stubOperatorMFAServiceExtra{}, nil)
+	rs := identityoperator.NewMFAResource(nil, &stubOperatorMFAServiceExtra{})
 
 	r := opJSONReq(t, http.MethodPost, "/operator/mfa/enroll/confirm",
 		identityoperator.MFAEnrollConfirmRequest{Code: "123456"})
@@ -256,8 +257,8 @@ func TestOperatorMFAEnrollConfirm_WrongCodeReturns401(t *testing.T) {
 	t.Parallel()
 
 	rs := identityoperator.NewMFAResource(nil, &stubOperatorMFAServiceExtra{
-		verifyCodeFn: func(context.Context, int64, string) error { return identityoperator.ErrMFACodeInvalid },
-	}, nil)
+		verifyCodeFn: func(context.Context, int64, string) error { return identityaccess.ErrMFACodeInvalid },
+	})
 
 	r := opWithEnrollmentClaims(opJSONReq(t, http.MethodPost, "/operator/mfa/enroll/confirm",
 		identityoperator.MFAEnrollConfirmRequest{Code: "654321"}), 42)
@@ -278,9 +279,8 @@ func TestOperatorMFAEnrollConfirm_AlreadyEnrolledMintsSession(t *testing.T) {
 		&completeOperatorMFAAuthStub{access: "op-access", refresh: "op-refresh"},
 		&stubOperatorMFAServiceExtra{
 			verifyCodeFn: func(context.Context, int64, string) error { return nil },
-			enrollFn:     func(context.Context, int64) error { return identityoperator.ErrMFAAlreadyEnrolled },
+			enrollFn:     func(context.Context, int64) error { return identityaccess.ErrMFAAlreadyEnrolled },
 		},
-		nil,
 	)
 
 	r := opWithEnrollmentClaims(opJSONReq(t, http.MethodPost, "/operator/mfa/enroll/confirm",
@@ -302,10 +302,10 @@ func TestOperatorMFAListTrustedDevices_EmptyOK(t *testing.T) {
 	t.Parallel()
 
 	rs := identityoperator.NewMFAResource(nil, &stubOperatorMFAServiceExtra{
-		listDevicesFn: func(context.Context, int64) ([]identityoperator.OperatorTrustedDevice, error) {
-			return []identityoperator.OperatorTrustedDevice{}, nil
+		listDevicesFn: func(context.Context, int64) ([]identityaccess.OperatorTrustedDevice, error) {
+			return []identityaccess.OperatorTrustedDevice{}, nil
 		},
-	}, nil)
+	})
 
 	r := opWithClaims(httptest.NewRequest(http.MethodGet, "/operator/mfa/trusted-devices", nil), 42)
 	rr := httptest.NewRecorder()
@@ -317,7 +317,7 @@ func TestOperatorMFAListTrustedDevices_EmptyOK(t *testing.T) {
 func TestOperatorMFAListTrustedDevices_RequiresClaim(t *testing.T) {
 	t.Parallel()
 
-	rs := identityoperator.NewMFAResource(nil, &stubOperatorMFAServiceExtra{}, nil)
+	rs := identityoperator.NewMFAResource(nil, &stubOperatorMFAServiceExtra{})
 
 	r := httptest.NewRequest(http.MethodGet, "/operator/mfa/trusted-devices", nil)
 	rr := httptest.NewRecorder()
@@ -330,10 +330,10 @@ func TestOperatorMFAListTrustedDevices_ServiceErrorReturns500(t *testing.T) {
 	t.Parallel()
 
 	rs := identityoperator.NewMFAResource(nil, &stubOperatorMFAServiceExtra{
-		listDevicesFn: func(context.Context, int64) ([]identityoperator.OperatorTrustedDevice, error) {
+		listDevicesFn: func(context.Context, int64) ([]identityaccess.OperatorTrustedDevice, error) {
 			return nil, errors.New("db down")
 		},
-	}, nil)
+	})
 
 	r := opWithClaims(httptest.NewRequest(http.MethodGet, "/operator/mfa/trusted-devices", nil), 42)
 	rr := httptest.NewRecorder()

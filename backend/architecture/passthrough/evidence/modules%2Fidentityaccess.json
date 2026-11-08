@@ -317,13 +317,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (s *AccountAuthentication) ListActiveSessions(ctx context.Context, accountID int64) (_ []identityaccess.AccountSession, err error) {\n\tif s == nil {\n\t\treturn nil, errAccountAuthenticationUnavailable\n\t}\n\tdefer func() {\n\t\terr = authenticationError(err)\n\t}()\n\tctx = bindRuntime(s.attach, ctx)\n\tsessions, err := s.sessions.ListAccountSessions(ctx, identityaccess.AccountSessionFilter{AccountID: accountID, Liveness: identityaccess.AccountSessionsLive})\n\tif err != nil {\n\t\treturn nil, failed(\"get active tokens\", err)\n\t}\n\treturn sessions, nil\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/identityaccess/internal/application/AccountAuthentication.ListActiveSessions",
-      "owner": "modules/identityaccess"
-    },
-    {
-      "build": "production",
       "evidence": "func (s *AccountAuthentication) MarkAccountWideWipeCompleted(ctx context.Context, accountID int64) (err error) {\n\tif s == nil {\n\t\treturn errAccountAuthenticationUnavailable\n\t}\n\tdefer func() {\n\t\terr = authenticationError(err)\n\t}()\n\tctx = bindRuntime(s.attach, ctx)\n\tpending, err := s.audit.ClaimPendingAccountWideWipes(ctx, accountID)\n\tif err != nil {\n\t\treturn err\n\t}\n\treturn s.completeAccountWideWipes(ctx, pending)\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/application/AccountAuthentication.MarkAccountWideWipeCompleted",
@@ -355,6 +348,20 @@
       "evidence": "func (l *AccountLifecycle) RejectInvitation(ctx context.Context, invitationID, approverAccountID int64) (err error) {\n\tif l == nil {\n\t\treturn errAccountLifecycleUnavailable\n\t}\n\toperation := func(ctx context.Context) error {\n\t\treturn lifecycleError(l.rejectInvitation(bindRuntime(l.auth.attach, ctx), invitationID, approverAccountID))\n\t}\n\terr = l.runtime.RunInTx(ctx, func(txCtx context.Context) error {\n\t\terr = operation(txCtx)\n\t\treturn err\n\t})\n\treturn\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/application/AccountLifecycle.RejectInvitation",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c AccountMFACapability) OperatorDisableMFA(ctx context.Context, operatorID, schoolID, targetAccountID int64, reason string) error {\n\treturn c.AccountMFA.OperatorDisableMFA(operatorSchoolContext(ctx, schoolID), operatorID, schoolID, targetAccountID, reason)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/AccountMFACapability.OperatorDisableMFA",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c AccountMFACapability) OperatorSetMFAOverride(ctx context.Context, operatorID, schoolID, targetAccountID int64, override, reason string) error {\n\treturn c.AccountMFA.OperatorSetMFAOverride(operatorSchoolContext(ctx, schoolID), operatorID, schoolID, targetAccountID, override, reason)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/AccountMFACapability.OperatorSetMFAOverride",
       "owner": "modules/identityaccess"
     },
     {
@@ -1178,7 +1185,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (f *OperatorMFAFlows) ListOperatorTrustedDevices(ctx context.Context, operatorID int64) ([]identityaccess.OperatorTrustedDevice, error) {\n\tif f == nil {\n\t\treturn nil, identityaccess.ErrOperatorMFAUnavailable\n\t}\n\tdevices, err := f.records.ListActiveTrustedDevices(ctx, operatorID)\n\tif err != nil {\n\t\treturn nil, operatorFlowError(err)\n\t}\n\tresult := make([]identityaccess.OperatorTrustedDevice, 0, len(devices))\n\tfor _, device := range devices {\n\t\tresult = append(result, identityaccess.OperatorTrustedDevice(device))\n\t}\n\treturn result, nil\n}",
+      "evidence": "func (f *OperatorMFAFlows) ListOperatorTrustedDevices(ctx context.Context, operatorID int64) ([]identityaccess.OperatorTrustedDevice, error) {\n\tif f == nil {\n\t\treturn nil, identityaccess.ErrOperatorMFAUnavailable\n\t}\n\tdevices, err := f.records.ListActiveTrustedDevices(ctx, operatorID)\n\tif err != nil {\n\t\treturn nil, operatorError(err)\n\t}\n\tresult := make([]identityaccess.OperatorTrustedDevice, 0, len(devices))\n\tfor _, device := range devices {\n\t\tresult = append(result, identityaccess.OperatorTrustedDevice(device))\n\t}\n\treturn result, nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/application/OperatorMFAFlows.ListOperatorTrustedDevices",
       "owner": "modules/identityaccess"
@@ -1748,20 +1755,6 @@
       "evidence": "func (c TokenCodec) ParseRefreshToken(token string) (domain.RefreshClaims, error) {\n\tclaims, err := c.TokenCodec.ParseRefreshToken(token)\n\treturn domain.RefreshClaims(claims), err\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/application/TokenCodec.ParseRefreshToken",
-      "owner": "modules/identityaccess"
-    },
-    {
-      "build": "production",
-      "evidence": "func (c accountMFACapability) OperatorDisableMFA(ctx context.Context, operatorID, schoolID, targetAccountID int64, reason string) error {\n\treturn c.AccountMFA.OperatorDisableMFA(operatorSchoolContext(ctx, schoolID), operatorID, schoolID, targetAccountID, reason)\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/identityaccess/internal/application/accountMFACapability.OperatorDisableMFA",
-      "owner": "modules/identityaccess"
-    },
-    {
-      "build": "production",
-      "evidence": "func (c accountMFACapability) OperatorSetMFAOverride(ctx context.Context, operatorID, schoolID, targetAccountID int64, override, reason string) error {\n\treturn c.AccountMFA.OperatorSetMFAOverride(operatorSchoolContext(ctx, schoolID), operatorID, schoolID, targetAccountID, override, reason)\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/identityaccess/internal/application/accountMFACapability.OperatorSetMFAOverride",
       "owner": "modules/identityaccess"
     },
     {

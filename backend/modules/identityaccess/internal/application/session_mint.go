@@ -9,8 +9,10 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 )
 
 // Every account session of every portal is minted by mintAccountSession and
@@ -222,7 +224,7 @@ func (s *AccountAuthentication) persistSessionInTransaction(ctx context.Context,
 			return err
 		}
 		session.TenantID = req.tenantID
-		created, err := s.sessions.CreateAccountSession(txCtx, identityaccess.AccountSession(session))
+		created, err := s.sessions.CreateAccountSession(txCtx, ports.AccountSession(session))
 		if err != nil {
 			return err
 		}

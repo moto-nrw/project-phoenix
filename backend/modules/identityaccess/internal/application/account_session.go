@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 )
 
 // Account refresh sessions (auth.tokens) join the caller's transaction and
@@ -16,20 +17,20 @@ import (
 // The tenant filter the store applies comes from the caller's context, so no
 // operation here opens a tenant transaction of its own.
 
-func (s *Service) FindAccountSession(ctx context.Context, token string) (identityaccess.AccountSession, error) {
+func (s *Service) FindAccountSession(ctx context.Context, token string) (ports.AccountSession, error) {
 	session, err := s.findAccountSessionByToken(ctx, token)
 	if err != nil {
-		return identityaccess.AccountSession{}, fmt.Errorf("identity access: find account session: %w", MapError(err))
+		return ports.AccountSession{}, fmt.Errorf("identity access: find account session: %w", MapError(err))
 	}
-	return identityaccess.AccountSession(session), nil
+	return ports.AccountSession(session), nil
 }
 
-func (s *Service) FindAccountSessionForUpdate(ctx context.Context, token string) (identityaccess.AccountSession, error) {
+func (s *Service) FindAccountSessionForUpdate(ctx context.Context, token string) (ports.AccountSession, error) {
 	session, err := s.findAccountSessionForUpdate(ctx, token)
 	if err != nil {
-		return identityaccess.AccountSession{}, fmt.Errorf("identity access: find account session for update: %w", MapError(err))
+		return ports.AccountSession{}, fmt.Errorf("identity access: find account session for update: %w", MapError(err))
 	}
-	return identityaccess.AccountSession(session), nil
+	return ports.AccountSession(session), nil
 }
 
 func (s *Service) findAccountSessionByToken(ctx context.Context, token string) (domain.AccountSession, error) {
@@ -59,7 +60,7 @@ func (s *Service) findAccountSession(ctx context.Context, operation, token strin
 	return result, err
 }
 
-func (s *Service) LatestAccountSessionInFamily(ctx context.Context, familyID string) (identityaccess.AccountSession, error) {
+func (s *Service) LatestAccountSessionInFamily(ctx context.Context, familyID string) (ports.AccountSession, error) {
 	var result domain.AccountSession
 	err := s.run(ctx, s.tx.RunPlatform, "latest_account_session_in_family", func(txCtx context.Context, stats *domain.OperationStats) error {
 		if familyID == "" {
@@ -77,12 +78,12 @@ func (s *Service) LatestAccountSessionInFamily(ctx context.Context, familyID str
 		return nil
 	})
 	if err != nil {
-		return identityaccess.AccountSession{}, fmt.Errorf("identity access: latest account session in family: %w", MapError(err))
+		return ports.AccountSession{}, fmt.Errorf("identity access: latest account session in family: %w", MapError(err))
 	}
-	return identityaccess.AccountSession(result), nil
+	return ports.AccountSession(result), nil
 }
 
-func (s *Service) ListAccountSessions(ctx context.Context, public identityaccess.AccountSessionFilter) ([]identityaccess.AccountSession, error) {
+func (s *Service) ListAccountSessions(ctx context.Context, public ports.AccountSessionFilter) ([]ports.AccountSession, error) {
 	var result []domain.AccountSession
 	filter := domain.AccountSessionFilter{
 		AccountID: public.AccountID, FamilyID: public.FamilyID, Mobile: public.Mobile, Liveness: domain.AccountSessionLiveness(public.Liveness),
@@ -157,7 +158,7 @@ func (s *Service) HasLiveAccountSessionsCreatedAfter(ctx context.Context, accoun
 // tenant when the caller did not name one. Login resolves the tenant from
 // the account's mappings before it mints, so the row is always attributable
 // to one school.
-func (s *Service) CreateAccountSession(ctx context.Context, public identityaccess.AccountSession) (identityaccess.AccountSession, error) {
+func (s *Service) CreateAccountSession(ctx context.Context, public ports.AccountSession) (ports.AccountSession, error) {
 	var result domain.AccountSession
 	session := domain.AccountSession(public)
 	err := s.run(ctx, s.tx.RunPlatform, "create_account_session", func(txCtx context.Context, stats *domain.OperationStats) error {
@@ -178,9 +179,9 @@ func (s *Service) CreateAccountSession(ctx context.Context, public identityacces
 		return nil
 	})
 	if err != nil {
-		return identityaccess.AccountSession{}, fmt.Errorf("identity access: create account session: %w", MapError(err))
+		return ports.AccountSession{}, fmt.Errorf("identity access: create account session: %w", MapError(err))
 	}
-	return identityaccess.AccountSession(result), nil
+	return ports.AccountSession(result), nil
 }
 
 // MarkAccountSessionRotated records the hand-off exactly once: a session that
@@ -238,7 +239,7 @@ func (s *Service) RetireAccountSessionFamily(ctx context.Context, accountID int6
 // the ones it joins, an Absprung's hand-off after two minutes, a switch out
 // of a legacy family at its deadline, and ordered by expiry alone the cap
 // would evict it in its own mint transaction.
-func (s *Service) EnforceAccountSessionCap(ctx context.Context, accountID int64, portalScope string, keep int, minted int64) ([]identityaccess.AccountSession, error) {
+func (s *Service) EnforceAccountSessionCap(ctx context.Context, accountID int64, portalScope string, keep int, minted int64) ([]ports.AccountSession, error) {
 	var result []domain.AccountSession
 	err := s.run(ctx, s.tx.RunPlatform, "enforce_account_session_cap", func(txCtx context.Context, stats *domain.OperationStats) error {
 		live, listStats, listErr := s.sessions.ListLiveAccountSessionsForCap(txCtx, accountID, domain.CapPortalScopes(portalScope), time.Now())
@@ -298,7 +299,7 @@ func (s *Service) DeleteAccountSession(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (s *Service) RevokeAccountSessionFamily(ctx context.Context, familyID string) ([]identityaccess.AccountSession, error) {
+func (s *Service) RevokeAccountSessionFamily(ctx context.Context, familyID string) ([]ports.AccountSession, error) {
 	var result []domain.AccountSession
 	err := s.run(ctx, s.tx.RunPlatform, "revoke_account_session_family", func(txCtx context.Context, stats *domain.OperationStats) error {
 		deleted, queryStats, deleteErr := s.sessions.DeleteAccountSessionsByFamily(txCtx, familyID)
@@ -318,7 +319,7 @@ func (s *Service) RevokeAccountSessionFamily(ctx context.Context, familyID strin
 // RevokeAccountSessionsInTenant deletes the account's sessions at the
 // caller's school only. An administrative caller must not widen this to
 // other schools; account-wide wipes use RevokeAllAccountSessions.
-func (s *Service) RevokeAccountSessionsInTenant(ctx context.Context, accountID int64) ([]identityaccess.AccountSession, error) {
+func (s *Service) RevokeAccountSessionsInTenant(ctx context.Context, accountID int64) ([]ports.AccountSession, error) {
 	var result []domain.AccountSession
 	err := s.run(ctx, s.tx.RunPlatform, "revoke_account_sessions_in_tenant", func(txCtx context.Context, stats *domain.OperationStats) error {
 		if s.tenantOf(txCtx) <= 0 {
@@ -338,7 +339,7 @@ func (s *Service) RevokeAccountSessionsInTenant(ctx context.Context, accountID i
 	return accountSessions(result), nil
 }
 
-func (s *Service) RevokeAllAccountSessions(ctx context.Context, accountID int64) ([]identityaccess.AccountSession, error) {
+func (s *Service) RevokeAllAccountSessions(ctx context.Context, accountID int64) ([]ports.AccountSession, error) {
 	var result []domain.AccountSession
 	err := s.run(ctx, s.tx.RunAdmin, "revoke_all_account_sessions", func(txCtx context.Context, stats *domain.OperationStats) error {
 		deleted, queryStats, deleteErr := s.sessions.DeleteAccountSessionsByAccount(txCtx, accountID, false, time.Time{})
@@ -355,7 +356,7 @@ func (s *Service) RevokeAllAccountSessions(ctx context.Context, accountID int64)
 	return accountSessions(result), nil
 }
 
-func (s *Service) RevokeAccountSessionsCreatedAtOrBefore(ctx context.Context, accountID int64, cutoff time.Time) ([]identityaccess.AccountSession, error) {
+func (s *Service) RevokeAccountSessionsCreatedAtOrBefore(ctx context.Context, accountID int64, cutoff time.Time) ([]ports.AccountSession, error) {
 	var result []domain.AccountSession
 	err := s.run(ctx, s.tx.RunAdmin, "revoke_account_sessions_created_at_or_before", func(txCtx context.Context, stats *domain.OperationStats) error {
 		deleted, queryStats, deleteErr := s.sessions.DeleteAccountSessionsByAccount(txCtx, accountID, false, cutoff)
@@ -372,7 +373,7 @@ func (s *Service) RevokeAccountSessionsCreatedAtOrBefore(ctx context.Context, ac
 	return accountSessions(result), nil
 }
 
-func (s *Service) RevokeTenantAccountSessions(ctx context.Context, tenantID int64) ([]identityaccess.AccountSession, error) {
+func (s *Service) RevokeTenantAccountSessions(ctx context.Context, tenantID int64) ([]ports.AccountSession, error) {
 	var result []domain.AccountSession
 	err := s.run(ctx, s.tx.RunPlatform, "revoke_tenant_account_sessions", func(txCtx context.Context, stats *domain.OperationStats) error {
 		if tenantID <= 0 {
@@ -409,20 +410,20 @@ func (s *Service) DeleteExpiredAccountSessions(ctx context.Context) (int, error)
 	return result, nil
 }
 
-func accountSessions(values []domain.AccountSession) []identityaccess.AccountSession {
+func accountSessions(values []domain.AccountSession) []ports.AccountSession {
 	if values == nil {
 		return nil
 	}
-	result := make([]identityaccess.AccountSession, 0, len(values))
+	result := make([]ports.AccountSession, 0, len(values))
 	for _, value := range values {
-		result = append(result, identityaccess.AccountSession(value))
+		result = append(result, ports.AccountSession(value))
 	}
 	return result
 }
 
 // domainAccountSessions hands the public sessions back to the session flows,
 // whose rotation and audit rules read the domain rows.
-func domainAccountSessions(values []identityaccess.AccountSession) []domain.AccountSession {
+func domainAccountSessions(values []ports.AccountSession) []domain.AccountSession {
 	if values == nil {
 		return nil
 	}

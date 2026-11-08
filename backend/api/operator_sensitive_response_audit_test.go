@@ -10,13 +10,14 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	identityAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	provisioningAPI "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/operator"
 	settingsAPI "github.com/moto-nrw/project-phoenix/modules/settings/inbound/operator"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestOperatorAuditSensitiveResponseRoutesFailClosed(t *testing.T) {
@@ -43,7 +44,7 @@ func TestOperatorAuditSensitiveResponseRoutesFailClosed(t *testing.T) {
 		}),
 		bookingAuthorityImpact: newBookingAuthorityImpact(lifecycle),
 	}, demoPresenceHistory)
-	(operatorIdentityRoutes{account: identityAPI.NewResource(identity, operatorIdentityResponses())}).mountAccountTenantAccessRoutes(router, resource)
+	(operatorIdentityRoutes{account: identityAPI.NewResource(identity, provisioningAPI.ProvisioningErrorRenderer)}).mountAccountTenantAccessRoutes(router, resource)
 	// The mounted scan reader/writer must never be invoked if its audit fails.
 	scanCalls := 0
 	scans := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

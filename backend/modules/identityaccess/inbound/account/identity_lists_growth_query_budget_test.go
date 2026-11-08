@@ -10,11 +10,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
-	"github.com/stretchr/testify/require"
 )
 
 func TestIdentityRoleDetailPermissionsGrowthQueryBudget(t *testing.T) {
@@ -150,8 +152,9 @@ func TestIdentityAccountPasskeysGrowthQueryBudget(t *testing.T) {
 	t.Parallel()
 	f := newRBACBudgetFixtureOn(t, testpkg.SetupIsolatedTestDB(t))
 	f.resource.PasskeyService = f.module.Passkeys
-	records, err := identityCompose.New(identityCompose.Dependencies{DB: f.db, TenantRuntime: testpkg.TenantRuntime(t, f.db), Observe: func(identityCompose.Observation) {}})
+	owner, err := identityCompose.New(identityCompose.Dependencies{DB: f.db, TenantRuntime: testpkg.TenantRuntime(t, f.db), Observe: func(identityCompose.Observation) {}})
 	require.NoError(t, err)
+	records := owner.(ports.Records)
 	want := []identityaccess.PasskeyCredentialSummary{}
 	for _, n := range []int{3, 8} {
 		for len(want) < n {

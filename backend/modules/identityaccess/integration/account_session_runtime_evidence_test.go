@@ -6,11 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
+
+	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // TestAccountSessionRuntimeEvidence records the flow-specific runtime evidence
@@ -23,8 +24,9 @@ func TestAccountSessionRuntimeEvidence(t *testing.T) {
 	t.Parallel()
 	testpkg.RequireRuntimeEvidence(t)
 	db := testpkg.SetupIsolatedTestDB(t)
-	access, err := identityCompose.New(identityCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityCompose.Observation) {}})
+	owner, err := identityCompose.New(identityCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityCompose.Observation) {}})
 	require.NoError(t, err)
+	access := owner.(ports.Records)
 	account := testpkg.CreateTestAccount(t, db, "session-runtime")
 	tenantID := testpkg.Tenant(t)
 	counter := testpkg.CaptureQueriesForContext(t, db)
@@ -70,13 +72,13 @@ func TestAccountSessionRuntimeEvidence(t *testing.T) {
 		}
 		samples[operation] = append(samples[operation], sample)
 	}
-	mint := func(txCtx context.Context, familyID string, generation int) (identityaccess.AccountSession, error) {
+	mint := func(txCtx context.Context, familyID string, generation int) (ports.AccountSession, error) {
 		session := newAccountSession(account.ID, "tenant", familyID, generation)
 		session.TenantID = tenantID
 		return access.CreateAccountSession(txCtx, session)
 	}
 	for iteration := range 35 {
-		var session identityaccess.AccountSession
+		var session ports.AccountSession
 		// Login: the session mint, the hand-off sweep and the portal session
 		// cap inside the administrative login transaction.
 		measure("login", iteration, func() error {

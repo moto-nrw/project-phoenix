@@ -24,6 +24,7 @@ func newMFACore(
 	records ports.AccountMFARecords,
 	sessions *identityPorts.SessionDependencies,
 	deps *identityPorts.MFADependencies,
+	runtime tenantRuntime,
 ) (application.MFAFlows, error) {
 	if deps == nil {
 		return application.MFAFlows{}, nil
@@ -36,7 +37,6 @@ func newMFACore(
 		deps.Mail == nil, deps.OperatorAudit == nil, strings.TrimSpace(deps.JWTSecret) == "":
 		return application.MFAFlows{}, errors.New("identity access compose: every mfa dependency is required")
 	}
-	runtime := mfaRuntime(sessions)
 	records = application.NewAccountMFACommands(records, runtime)
 	trail := application.MFAAuditTrail{AuthAudit: application.AuthAudit{Source: sessions.Audit}, Operator: deps.OperatorAudit}
 	secret := domain.DeriveMFASecret(deps.JWTSecret)
@@ -78,10 +78,7 @@ func withPasskeyFlows(
 	operatorPasskeys *application.OperatorPasskey,
 	sessions *identityPorts.SessionDependencies,
 	deps *identityPorts.MFADependencies,
+	runtime tenantRuntime,
 ) (application.MFAFlows, error) {
-	return application.NewPasskeyFlowsBinding(flows, service, auth, operatorAuth, accountPasskeys, operatorPasskeys, deps, func() ports.Runtime { return mfaRuntime(sessions) })
-}
-
-func mfaRuntime(sessions *identityPorts.SessionDependencies) tenantRuntime {
-	return tenantRuntime{attach: sessions.TenantRuntime, runner: application.NewTransactionRunner()}
+	return application.NewPasskeyFlowsBinding(flows, service, auth, operatorAuth, accountPasskeys, operatorPasskeys, deps, func() ports.Runtime { return runtime })
 }

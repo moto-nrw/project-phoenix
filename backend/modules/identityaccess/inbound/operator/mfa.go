@@ -25,19 +25,14 @@ var errOperatorMFAServiceUnavailable = errors.New("operator mfa service is not c
 // login routes of Identity & Access stay focused on the password step.
 type MFAResource struct {
 	authService OperatorAccess
-	mfaService  OperatorMFA
-	tokenAuth   *sessiontoken.TokenAuth
+	mfaService  identityaccess.OperatorMFAFlows
 }
 
 // NewMFAResource wires the dependencies. mfaService may be nil — handlers
 // will return 503 in that case so deployments that haven't enabled MFA yet
 // still answer cleanly.
-func NewMFAResource(authSvc OperatorAccess, mfaSvc OperatorMFA, tokenAuth *sessiontoken.TokenAuth) *MFAResource {
-	return &MFAResource{
-		authService: authSvc,
-		mfaService:  mfaSvc,
-		tokenAuth:   tokenAuth,
-	}
+func NewMFAResource(authSvc OperatorAccess, mfaSvc identityaccess.OperatorMFAFlows) *MFAResource {
+	return &MFAResource{authService: authSvc, mfaService: mfaSvc}
 }
 
 // requireMFA short-circuits with 503 when no MFAService is wired. Use as the
@@ -49,14 +44,14 @@ func (rs *MFAResource) requireMFA(w http.ResponseWriter, r *http.Request) bool {
 // mfaRules classify the operator second factor. The texts stay; the codes
 // let the shared code form name the reason (#2517).
 var mfaRules = []common.ErrorRule{
-	{Target: ErrMFAChallengeTokenInvalid, Render: operatorRejection(http.StatusUnauthorized, common.CodeIdentityMfaCodeInvalid, "Unauthorized")},
-	{Target: ErrMFACodeInvalid, Render: operatorRejection(http.StatusUnauthorized, common.CodeIdentityMfaCodeInvalid, "Unauthorized")},
-	{Target: ErrMFALocked, Render: operatorRejection(http.StatusTooManyRequests, common.CodeIdentityMfaBlocked, "MFA temporarily locked")},
-	{Target: ErrMFARateLimited, Render: operatorRejection(http.StatusTooManyRequests, common.CodeIdentityMfaBlocked, "Too many MFA emails — try again later")},
-	{Target: ErrMFANotEnrolled, Render: operatorRejection(http.StatusForbidden, common.CodeIdentityMfaNotEnrolled, "MFA is not enrolled for this operator")},
-	{Target: ErrMFAAlreadyEnrolled, Render: operatorRejection(http.StatusConflict, common.CodeIdentityMfaAlreadyEnrolled, "MFA is already enrolled")},
-	{Target: ErrMFAPermissionDenied, Render: func(error) render.Renderer { return common.OperatorForbidden("Permission denied") }},
-	{Target: ErrMFAStatusUnavailable, Render: func(error) render.Renderer {
+	{Target: identityaccess.ErrMFAChallengeTokenInvalid, Render: operatorRejection(http.StatusUnauthorized, common.CodeIdentityMfaCodeInvalid, "Unauthorized")},
+	{Target: identityaccess.ErrMFACodeInvalid, Render: operatorRejection(http.StatusUnauthorized, common.CodeIdentityMfaCodeInvalid, "Unauthorized")},
+	{Target: identityaccess.ErrMFALocked, Render: operatorRejection(http.StatusTooManyRequests, common.CodeIdentityMfaBlocked, "MFA temporarily locked")},
+	{Target: identityaccess.ErrMFARateLimited, Render: operatorRejection(http.StatusTooManyRequests, common.CodeIdentityMfaBlocked, "Too many MFA emails — try again later")},
+	{Target: identityaccess.ErrMFANotEnrolled, Render: operatorRejection(http.StatusForbidden, common.CodeIdentityMfaNotEnrolled, "MFA is not enrolled for this operator")},
+	{Target: identityaccess.ErrMFAAlreadyEnrolled, Render: operatorRejection(http.StatusConflict, common.CodeIdentityMfaAlreadyEnrolled, "MFA is already enrolled")},
+	{Target: identityaccess.ErrMFAPermissionDenied, Render: func(error) render.Renderer { return common.OperatorForbidden("Permission denied") }},
+	{Target: identityaccess.ErrMFAStatusUnavailable, Render: func(error) render.Renderer {
 		return common.OperatorServiceUnavailable("MFA ist gerade nicht verfügbar. Bitte versuchen Sie es erneut.")
 	}},
 }
@@ -178,7 +173,7 @@ func (rs *MFAResource) EnrollConfirm(w http.ResponseWriter, r *http.Request) {
 	if err := rs.mfaService.EnrollOperatorMFA(r.Context(), operatorID); err != nil {
 		// Already-enrolled is not fatal — a retried request must still mint
 		// a real session (no longer the pre-enrollment token).
-		if !errors.Is(err, ErrMFAAlreadyEnrolled) {
+		if !errors.Is(err, identityaccess.ErrMFAAlreadyEnrolled) {
 			mapOperatorMFAError(w, r, err)
 			return
 		}
@@ -207,7 +202,7 @@ func (rs *MFAResource) ListTrustedDevices(w http.ResponseWriter, r *http.Request
 		mapOperatorMFAError(w, r, err)
 		return
 	}
-	dtos := common.MapTrustedDevices(devices, func(d OperatorTrustedDevice) common.TrustedDeviceRow {
+	dtos := common.MapTrustedDevices(devices, func(d identityaccess.OperatorTrustedDevice) common.TrustedDeviceRow {
 		return common.TrustedDeviceRow{
 			ID:         d.ID,
 			UserAgent:  d.UserAgent,
@@ -277,6 +272,6 @@ func (rs *MFAResource) completeMFAExchange(w http.ResponseWriter, r *http.Reques
 // exchangeRules classify a refused mint after a correct second factor: a
 // refused credential like the tenant exchange, not an expired session.
 var exchangeRules = []common.ErrorRule{
-	{Target: ErrOperatorInactive, Render: func(error) render.Renderer { return operatorInactive("Operator account is inactive") }},
-	{Target: ErrOperatorNotFound, Render: operatorRejection(http.StatusUnauthorized, common.CodeIdentityInvalidCredentials, "Unauthorized")},
+	{Target: identityaccess.ErrOperatorInactive, Render: func(error) render.Renderer { return operatorInactive("identityaccess.Operator account is inactive") }},
+	{Target: identityaccess.ErrOperatorNotFound, Render: operatorRejection(http.StatusUnauthorized, common.CodeIdentityInvalidCredentials, "Unauthorized")},
 }

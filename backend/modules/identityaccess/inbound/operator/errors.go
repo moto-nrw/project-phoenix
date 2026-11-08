@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/render"
+
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
@@ -18,11 +19,11 @@ func (rs *Resource) profileError(err error) render.Renderer {
 	case errors.Is(err, identityaccess.ErrOperatorPasswordMismatch):
 		return common.OperatorInvalidField(common.CodeIdentityCurrentPasswordWrong, "current_password", "das aktuelle Passwort ist falsch")
 	case errors.Is(err, identityaccess.ErrOperatorNotFound):
-		return common.OperatorRejection(http.StatusNotFound, common.CodeIdentityAccountNotFound, "Operator not found")
+		return common.OperatorRejection(http.StatusNotFound, common.CodeIdentityAccountNotFound, "identityaccess.Operator not found")
 	case errors.Is(err, identityaccess.ErrOperatorInactive):
 		return operatorInactive("Dieser Account ist deaktiviert")
 	default:
-		return rs.responses.ProfileFallback(err)
+		return ProfileErrorRenderer(err)
 	}
 }
 
@@ -33,7 +34,7 @@ func (rs *Resource) accessError(err error) render.Renderer {
 		if errors.Is(invalid.Err, identityaccess.ErrLehrkraftRoleImmutable) {
 			return common.OperatorRejection(http.StatusBadRequest, common.CodeIdentityLehrkraftRoleImmutable, invalid.Err.Error())
 		}
-		return rs.responses.InvalidRequest(invalid.Err)
+		return common.OperatorInvalidRequest(invalid.Err)
 	}
 	switch {
 	case errors.Is(err, identityaccess.ErrAccountNotFound):
@@ -50,7 +51,7 @@ func (rs *Resource) accessError(err error) render.Renderer {
 		// A caterer account joins no school (ADR 0077).
 		return common.OperatorRejection(http.StatusConflict, common.CodeIdentityEmailAlreadyExists, "account cannot join a school")
 	default:
-		return rs.responses.AccessFallback(err)
+		return rs.accessFallback(err)
 	}
 }
 
@@ -58,14 +59,14 @@ func (rs *Resource) accessError(err error) render.Renderer {
 // unknown operator answers like a wrong password.
 var authRules = []common.ErrorRule{
 	{Target: identityaccess.ErrOperatorRefreshTokenInvalid, Render: func(error) render.Renderer { return common.OperatorUnauthorized() }},
-	{Target: ErrOperatorInvalidCredentials, Render: func(error) render.Renderer { return common.OperatorInvalidCredentials() }},
-	{Target: ErrOperatorNotFound, Render: func(error) render.Renderer { return common.OperatorInvalidCredentials() }},
-	{Target: ErrOperatorInactive, Render: func(error) render.Renderer { return operatorInactive("Operator account is inactive") }},
-	{Target: ErrMFARateLimited, Render: operatorRejection(http.StatusTooManyRequests, common.CodeIdentityMfaBlocked, "Too many code requests, please wait")},
-	{Target: ErrMFALocked, Render: operatorRejection(http.StatusTooManyRequests, common.CodeIdentityMfaBlocked, "MFA account temporarily locked")},
-	{Target: ErrMFAChallengeTokenInvalid, Render: operatorRejection(http.StatusUnauthorized, common.CodeIdentityMfaCodeInvalid, "Invalid email or password")},
-	{Target: ErrMFACodeInvalid, Render: operatorRejection(http.StatusUnauthorized, common.CodeIdentityMfaCodeInvalid, "Invalid email or password")},
-	{Target: ErrMFAStatusUnavailable, Render: func(error) render.Renderer {
+	{Target: identityaccess.ErrOperatorInvalidCredentials, Render: func(error) render.Renderer { return common.OperatorInvalidCredentials() }},
+	{Target: identityaccess.ErrOperatorNotFound, Render: func(error) render.Renderer { return common.OperatorInvalidCredentials() }},
+	{Target: identityaccess.ErrOperatorInactive, Render: func(error) render.Renderer { return operatorInactive("identityaccess.Operator account is inactive") }},
+	{Target: identityaccess.ErrMFARateLimited, Render: operatorRejection(http.StatusTooManyRequests, common.CodeIdentityMfaBlocked, "Too many code requests, please wait")},
+	{Target: identityaccess.ErrMFALocked, Render: operatorRejection(http.StatusTooManyRequests, common.CodeIdentityMfaBlocked, "MFA account temporarily locked")},
+	{Target: identityaccess.ErrMFAChallengeTokenInvalid, Render: operatorRejection(http.StatusUnauthorized, common.CodeIdentityMfaCodeInvalid, "Invalid email or password")},
+	{Target: identityaccess.ErrMFACodeInvalid, Render: operatorRejection(http.StatusUnauthorized, common.CodeIdentityMfaCodeInvalid, "Invalid email or password")},
+	{Target: identityaccess.ErrMFAStatusUnavailable, Render: func(error) render.Renderer {
 		return common.OperatorServiceUnavailable("MFA status temporarily unavailable, please retry")
 	}},
 }

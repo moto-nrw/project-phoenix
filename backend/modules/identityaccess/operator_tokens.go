@@ -64,77 +64,11 @@ type OperatorEmailChange struct {
 	UpdatedAt  time.Time
 }
 
-// OperatorTokenQuery resolves operator invitation and e-mail change links.
-type OperatorTokenQuery interface {
-	// FindOperatorInvitation returns the invitation in any state.
-	FindOperatorInvitation(ctx context.Context, id int64) (OperatorInvitation, error)
-	FindRedeemableOperatorInvitation(ctx context.Context, token string) (OperatorInvitation, error)
-	// ListRedeemableOperatorInvitations orders by creation, newest first.
-	ListRedeemableOperatorInvitations(ctx context.Context) ([]OperatorInvitation, error)
-	// CountOperatorInvitationsCreatedAfter counts every invitation the
-	// operator created after since, spent or not; the invite rate limit
-	// reads it.
-	CountOperatorInvitationsCreatedAfter(ctx context.Context, createdBy int64, since time.Time) (int, error)
-	// CountOperatorEmailChangesCreatedAfter counts every link created for
-	// the operator after since, spent or not; the initiation rate limit
-	// reads it.
-	CountOperatorEmailChangesCreatedAfter(ctx context.Context, operatorID int64, since time.Time) (int, error)
-}
-
-// OperatorTokenCommand changes operator invitation and e-mail change links.
-// The creates validate the link and return it with its identity and
-// timestamps.
-type OperatorTokenCommand interface {
-	OperatorInvitationCommand
-	OperatorEmailChangeCommand
-}
-
-// OperatorInvitationCommand issues, redeems and retires operator invitations.
-type OperatorInvitationCommand interface {
-	CreateOperatorInvitation(ctx context.Context, invitation OperatorInvitation) (OperatorInvitation, error)
-	// RedeemOperatorInvitation spends a redeemable invitation exactly once.
-	RedeemOperatorInvitation(ctx context.Context, token string) (OperatorInvitation, error)
-	// RevokeOperatorInvitation spends an unused invitation.
-	RevokeOperatorInvitation(ctx context.Context, id int64) error
-	// RevokeOperatorInvitationsForEmail spends every unused invitation for
-	// the address and returns how many it spent.
-	RevokeOperatorInvitationsForEmail(ctx context.Context, email string) (int, error)
-	// ExtendOperatorInvitation moves the expiry of a redeemable invitation
-	// to the future expiresAt and replaces its link token. It returns the new
-	// raw token, the only copy: the store keeps its hash (#4902).
-	ExtendOperatorInvitation(ctx context.Context, id int64, expiresAt time.Time) (string, error)
-	RecordOperatorInvitationDelivery(ctx context.Context, id int64, delivery TokenDelivery) error
-	DeleteExpiredOperatorInvitations(ctx context.Context) (int, error)
-}
-
-// OperatorEmailChangeCommand issues and redeems operator e-mail changes.
-type OperatorEmailChangeCommand interface {
-	CreateOperatorEmailChange(ctx context.Context, change OperatorEmailChange) (OperatorEmailChange, error)
-	// RedeemOperatorEmailChange spends a redeemable link exactly once.
-	RedeemOperatorEmailChange(ctx context.Context, token string) (OperatorEmailChange, error)
-	// RevokeOperatorEmailChanges spends every unused link of the operator.
-	RevokeOperatorEmailChanges(ctx context.Context, operatorID int64) error
-	RecordOperatorEmailChangeDelivery(ctx context.Context, id int64, delivery TokenDelivery) error
-	// RevokeExpiredOperatorEmailChanges spends expired, unused links so the
-	// operator can request a new one, and returns how many it spent.
-	RevokeExpiredOperatorEmailChanges(ctx context.Context) (int, error)
-	// DeleteStaleOperatorEmailChanges deletes expired or spent links older
-	// than the initiation rate-limit window.
-	DeleteStaleOperatorEmailChanges(ctx context.Context) (int, error)
-}
-
 // OperatorLinkDeliveryRecorder records how the mail of an operator invitation
 // or e-mail change link fared; the root's mail delivery reports through it.
 type OperatorLinkDeliveryRecorder interface {
 	RecordOperatorInvitationDelivery(ctx context.Context, id int64, delivery TokenDelivery) error
 	RecordOperatorEmailChangeDelivery(ctx context.Context, id int64, delivery TokenDelivery) error
-}
-
-// OperatorTokens is the capability the operator invitation and e-mail
-// change flows consume.
-type OperatorTokens interface {
-	OperatorTokenQuery
-	OperatorTokenCommand
 }
 
 // minimumOperatorEmailChangeExpiry accounts for mail delivery latency and the
@@ -151,4 +85,11 @@ func OperatorEmailChangeExpiry(passwordResetExpiry time.Duration) time.Duration 
 		return passwordResetExpiry
 	}
 	return minimumOperatorEmailChangeExpiry
+}
+
+// OperatorRecordCleanup drops the operator invitations and refresh sessions
+// that expired; the hourly worker runs it.
+type OperatorRecordCleanup interface {
+	DeleteExpiredOperatorInvitations(ctx context.Context) (int, error)
+	DeleteExpiredOperatorSessions(ctx context.Context, now time.Time) (int, error)
 }

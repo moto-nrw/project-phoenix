@@ -421,23 +421,26 @@ type AccountSessionAuthentication interface {
 	VerifyAccountTenantMembership(ctx context.Context, accountID, tenantID int64) (bool, error)
 }
 
+// ActiveSession is one live refresh session as the admin token listing shows
+// it.
+type ActiveSession struct {
+	ID         int64
+	Expiry     time.Time
+	Mobile     bool
+	Identifier *string
+	CreatedAt  time.Time
+}
+
 // AccountSessionMaintenance is the capability session cleanup and session
 // revocation consume: the cleanup CLI, the admin token routes and the
 // retained account, role and password flows.
 type AccountSessionMaintenance interface {
 	CountExpiredTokens(ctx context.Context) (int, error)
 	CleanupExpiredTokens(ctx context.Context) (int, error)
-	ListActiveSessions(ctx context.Context, accountID int64) ([]AccountSession, error)
+	ListActiveSessions(ctx context.Context, accountID int64) ([]ActiveSession, error)
 	ListSessionIDs(ctx context.Context, accountID int64) ([]int64, error)
 	RevokeAllTokensWithReason(ctx context.Context, accountID int64, reason string) error
 	RevokeTokensByTenantID(ctx context.Context, tenantID int64) (int, error)
-	// DeleteAccountSessionsWithAudit revokes the account's sessions at the
-	// caller's school on the caller's transaction, or schedules the
-	// account-wide wipe an account-wide reason asks for.
-	DeleteAccountSessionsWithAudit(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) ([]AccountSession, error)
-	// QueuePushCleanup removes the push subscriptions the revoked sessions
-	// orphaned, after the caller's transaction commits.
-	QueuePushCleanup(ctx context.Context, accountID int64, sessions []AccountSession, reason string)
 	ScheduleAccountWideRevoke(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) error
 	MarkAccountWideWipeCompleted(ctx context.Context, accountID int64) error
 }

@@ -20,7 +20,7 @@ type retainedSessionCalls interface {
 	LoginParent(ctx context.Context, email, password string) (string, string, error)
 	RefreshToken(ctx context.Context, refreshToken string) (string, string, error)
 	RevokeAllTokens(ctx context.Context, accountID int) error
-	GetActiveTokens(ctx context.Context, accountID int) ([]identityaccess.AccountSession, error)
+	GetActiveTokens(ctx context.Context, accountID int) ([]identityaccess.ActiveSession, error)
 }
 
 // sessions is the module the shims delegate to.
@@ -42,7 +42,7 @@ func (s *fixtureOwnedAuthService) RevokeAllTokens(ctx context.Context, accountID
 	return s.sessions().RevokeAllTokensWithReason(ctx, int64(accountID), "administrative_revoke")
 }
 
-func (s *fixtureOwnedAuthService) GetActiveTokens(ctx context.Context, accountID int) ([]identityaccess.AccountSession, error) {
+func (s *fixtureOwnedAuthService) GetActiveTokens(ctx context.Context, accountID int) ([]identityaccess.ActiveSession, error) {
 	return s.sessions().ListActiveSessions(ctx, int64(accountID))
 }
 

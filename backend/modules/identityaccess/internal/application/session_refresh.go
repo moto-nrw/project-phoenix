@@ -14,6 +14,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 )
 
 // parseRefreshClaims parses and validates the refresh JWT.
@@ -451,7 +452,7 @@ func (s *AccountAuthentication) createAndPersistSuccessor(ctx context.Context, p
 		CreatedAt:            now,
 		UpdatedAt:            now,
 	}
-	created, err := s.sessions.CreateAccountSession(ctx, identityaccess.AccountSession(successor))
+	created, err := s.sessions.CreateAccountSession(ctx, ports.AccountSession(successor))
 	if err != nil {
 		return domain.AccountSession{}, err
 	}

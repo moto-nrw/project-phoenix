@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 )
 
@@ -76,7 +77,7 @@ func (s *operatorTrustedDeviceStub) IssueOperatorTrustedDevice(_ context.Context
 
 func (s *operatorTrustedDeviceStub) OperatorTrustedDeviceDays() int { return 90 }
 
-var _ identityoperator.OperatorMFA = (*operatorTrustedDeviceStub)(nil)
+var _ identityaccess.OperatorMFAFlows = (*operatorTrustedDeviceStub)(nil)
 
 func opVerifyRequest(t *testing.T, body identityoperator.MFAVerifyRequest) *http.Request {
 	t.Helper()
@@ -97,7 +98,7 @@ func TestOperatorMFAVerify_SuccessReturnsTokenPair(t *testing.T) {
 	mfa := &operatorTrustedDeviceStub{
 		verifyResult: 4242,
 	}
-	rs := identityoperator.NewMFAResource(auth, mfa, nil)
+	rs := identityoperator.NewMFAResource(auth, mfa)
 
 	rr := httptest.NewRecorder()
 	rs.Verify(rr, opVerifyRequest(t, identityoperator.MFAVerifyRequest{
@@ -123,7 +124,7 @@ func TestOperatorMFAVerify_RememberDeviceIssuesCookie(t *testing.T) {
 		issueCookie:    "op.td.cookie",
 		issueExpiresAt: time.Now().Add(90 * 24 * time.Hour),
 	}
-	rs := identityoperator.NewMFAResource(auth, mfa, nil)
+	rs := identityoperator.NewMFAResource(auth, mfa)
 
 	rr := httptest.NewRecorder()
 	rs.Verify(rr, opVerifyRequest(t, identityoperator.MFAVerifyRequest{
@@ -157,7 +158,7 @@ func TestOperatorMFAVerify_RememberDeviceFailureDoesNotBreakLogin(t *testing.T) 
 		verifyResult: 1,
 		issueErr:     errors.New("cookie store down"),
 	}
-	rs := identityoperator.NewMFAResource(auth, mfa, nil)
+	rs := identityoperator.NewMFAResource(auth, mfa)
 
 	rr := httptest.NewRecorder()
 	rs.Verify(rr, opVerifyRequest(t, identityoperator.MFAVerifyRequest{
@@ -175,11 +176,11 @@ func TestOperatorMFAVerify_RememberDeviceFailureDoesNotBreakLogin(t *testing.T) 
 func TestOperatorMFAVerify_InactiveOperatorReturns403(t *testing.T) {
 	t.Parallel()
 
-	auth := &completeOperatorMFAAuthStub{err: identityoperator.ErrOperatorInactive}
+	auth := &completeOperatorMFAAuthStub{err: identityaccess.ErrOperatorInactive}
 	mfa := &operatorTrustedDeviceStub{
 		verifyResult: 1,
 	}
-	rs := identityoperator.NewMFAResource(auth, mfa, nil)
+	rs := identityoperator.NewMFAResource(auth, mfa)
 
 	rr := httptest.NewRecorder()
 	rs.Verify(rr, opVerifyRequest(t, identityoperator.MFAVerifyRequest{
@@ -194,11 +195,11 @@ func TestOperatorMFAVerify_InactiveOperatorReturns403(t *testing.T) {
 func TestOperatorMFAVerify_NotFoundReturns401(t *testing.T) {
 	t.Parallel()
 
-	auth := &completeOperatorMFAAuthStub{err: identityoperator.ErrOperatorNotFound}
+	auth := &completeOperatorMFAAuthStub{err: identityaccess.ErrOperatorNotFound}
 	mfa := &operatorTrustedDeviceStub{
 		verifyResult: 1,
 	}
-	rs := identityoperator.NewMFAResource(auth, mfa, nil)
+	rs := identityoperator.NewMFAResource(auth, mfa)
 
 	rr := httptest.NewRecorder()
 	rs.Verify(rr, opVerifyRequest(t, identityoperator.MFAVerifyRequest{
@@ -216,7 +217,7 @@ func TestOperatorMFAVerify_IssueTokensUnknownErrorMapsTo500(t *testing.T) {
 	mfa := &operatorTrustedDeviceStub{
 		verifyResult: 1,
 	}
-	rs := identityoperator.NewMFAResource(auth, mfa, nil)
+	rs := identityoperator.NewMFAResource(auth, mfa)
 
 	rr := httptest.NewRecorder()
 	rs.Verify(rr, opVerifyRequest(t, identityoperator.MFAVerifyRequest{

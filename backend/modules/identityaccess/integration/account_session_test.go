@@ -6,23 +6,25 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-func newAccountSessionAccess(t *testing.T, db *bun.DB) identityaccess.AccountSessionAccess {
+func newAccountSessionAccess(t *testing.T, db *bun.DB) ports.AccountSessionAccess {
 	t.Helper()
 	module, err := identityCompose.New(identityCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityCompose.Observation) {}})
 	require.NoError(t, err)
-	return module
+	return module.(ports.Records)
 }
 
-func newAccountSession(accountID int64, portalScope, familyID string, generation int) identityaccess.AccountSession {
-	return identityaccess.AccountSession{
+func newAccountSession(accountID int64, portalScope, familyID string, generation int) ports.AccountSession {
+	return ports.AccountSession{
 		AccountID:   accountID,
 		Token:       uuid.Must(uuid.NewV4()).String(),
 		Expiry:      time.Now().Add(time.Hour),
@@ -42,7 +44,7 @@ func TestAccountSessionLifecycle(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "session-lifecycle")
 
 	familyID := newFamilyID()
-	created, err := access.CreateAccountSession(ctx, identityaccess.AccountSession{AccountID: account.ID, Token: uuid.Must(uuid.NewV4()).String(), Expiry: time.Now().Add(time.Hour), FamilyID: familyID})
+	created, err := access.CreateAccountSession(ctx, ports.AccountSession{AccountID: account.ID, Token: uuid.Must(uuid.NewV4()).String(), Expiry: time.Now().Add(time.Hour), FamilyID: familyID})
 	require.NoError(t, err)
 	require.NotZero(t, created.ID)
 	require.NotZero(t, created.CreatedAt)
@@ -74,11 +76,11 @@ func TestAccountSessionLifecycle(t *testing.T) {
 	_, err = access.LatestAccountSessionInFamily(ctx, newFamilyID())
 	require.ErrorIs(t, err, identityaccess.ErrAccountSessionNotFound)
 
-	_, err = access.CreateAccountSession(ctx, identityaccess.AccountSession{AccountID: account.ID, Token: "", Expiry: time.Now()})
+	_, err = access.CreateAccountSession(ctx, ports.AccountSession{AccountID: account.ID, Token: "", Expiry: time.Now()})
 	require.EqualError(t, err, "identity access: create account session: token value is required")
-	_, err = access.CreateAccountSession(ctx, identityaccess.AccountSession{AccountID: 0, Token: "handle", Expiry: time.Now()})
+	_, err = access.CreateAccountSession(ctx, ports.AccountSession{AccountID: 0, Token: "handle", Expiry: time.Now()})
 	require.EqualError(t, err, "identity access: create account session: account ID is required")
-	_, err = access.CreateAccountSession(ctx, identityaccess.AccountSession{AccountID: account.ID, Token: "handle", Expiry: time.Now(), PortalScope: "kiosk"})
+	_, err = access.CreateAccountSession(ctx, ports.AccountSession{AccountID: account.ID, Token: "handle", Expiry: time.Now(), PortalScope: "kiosk"})
 	require.EqualError(t, err, "identity access: create account session: invalid portal scope")
 
 	mobile := true
@@ -91,21 +93,21 @@ func TestAccountSessionLifecycle(t *testing.T) {
 	expiredCreated, err := access.CreateAccountSession(ctx, expired)
 	require.NoError(t, err)
 
-	all, err := access.ListAccountSessions(ctx, identityaccess.AccountSessionFilter{AccountID: account.ID})
+	all, err := access.ListAccountSessions(ctx, ports.AccountSessionFilter{AccountID: account.ID})
 	require.NoError(t, err)
 	assert.Len(t, all, 4)
-	live, err := access.ListAccountSessions(ctx, identityaccess.AccountSessionFilter{AccountID: account.ID, Liveness: identityaccess.AccountSessionsLive})
+	live, err := access.ListAccountSessions(ctx, ports.AccountSessionFilter{AccountID: account.ID, Liveness: ports.AccountSessionsLive})
 	require.NoError(t, err)
 	assert.Len(t, live, 3)
-	expiredOnly, err := access.ListAccountSessions(ctx, identityaccess.AccountSessionFilter{AccountID: account.ID, Liveness: identityaccess.AccountSessionsExpired})
+	expiredOnly, err := access.ListAccountSessions(ctx, ports.AccountSessionFilter{AccountID: account.ID, Liveness: ports.AccountSessionsExpired})
 	require.NoError(t, err)
 	require.Len(t, expiredOnly, 1)
 	assert.Equal(t, expiredCreated.ID, expiredOnly[0].ID)
-	mobileOnly, err := access.ListAccountSessions(ctx, identityaccess.AccountSessionFilter{AccountID: account.ID, Mobile: &mobile})
+	mobileOnly, err := access.ListAccountSessions(ctx, ports.AccountSessionFilter{AccountID: account.ID, Mobile: &mobile})
 	require.NoError(t, err)
 	require.Len(t, mobileOnly, 1)
 	assert.Equal(t, mobileCreated.ID, mobileOnly[0].ID)
-	family, err := access.ListAccountSessions(ctx, identityaccess.AccountSessionFilter{FamilyID: familyID})
+	family, err := access.ListAccountSessions(ctx, ports.AccountSessionFilter{FamilyID: familyID})
 	require.NoError(t, err)
 	assert.Len(t, family, 2)
 
@@ -179,7 +181,7 @@ func TestAccountSessionCapKeepsPortalGroupsApart(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "session-cap")
 
-	var staff []identityaccess.AccountSession
+	var staff []ports.AccountSession
 	for i := range 5 {
 		session := newAccountSession(account.ID, "tenant", newFamilyID(), 0)
 		session.Expiry = time.Now().Add(time.Duration(i+1) * time.Hour)
@@ -252,7 +254,7 @@ func TestAccountSessionCapInAdminTransactionSpansSchools(t *testing.T) {
 	otherTenant, _ := testpkg.CreateTestTenant(t, db)
 	testpkg.MapAccountToTenant(t, db, account.ID, otherTenant)
 
-	var first []identityaccess.AccountSession
+	var first []ports.AccountSession
 	for i := range 5 {
 		session := newAccountSession(account.ID, "tenant", newFamilyID(), 0)
 		session.Expiry = time.Now().Add(time.Duration(i+1) * time.Hour)
@@ -270,7 +272,7 @@ func TestAccountSessionCapInAdminTransactionSpansSchools(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, evicted, "a tenant-scoped caller counts only its own school's sessions")
 
-	var adminEvicted []identityaccess.AccountSession
+	var adminEvicted []ports.AccountSession
 	require.NoError(t, testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, _ bun.Tx) error {
 		var err error
 		adminEvicted, err = access.EnforceAccountSessionCap(txCtx, account.ID, "tenant", 5, 0)
@@ -313,7 +315,7 @@ func TestAccountSessionRevocations(t *testing.T) {
 
 	// An administrative transaction re-scoped to one school still revokes
 	// only that school's sessions.
-	var inTenant []identityaccess.AccountSession
+	var inTenant []ports.AccountSession
 	require.NoError(t, testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, _ bun.Tx) error {
 		var err error
 		inTenant, err = access.RevokeAccountSessionsInTenant(testpkg.ContextForTenant(txCtx, testpkg.Tenant(t)), account.ID)
@@ -347,7 +349,7 @@ func TestAccountSessionRevocations(t *testing.T) {
 	older, err := access.RevokeAccountSessionsCreatedAtOrBefore(ctx, account.ID, cutoff)
 	require.NoError(t, err)
 	assert.Len(t, older, 3)
-	remaining, err := access.ListAccountSessions(ctx, identityaccess.AccountSessionFilter{AccountID: account.ID})
+	remaining, err := access.ListAccountSessions(ctx, ports.AccountSessionFilter{AccountID: account.ID})
 	require.NoError(t, err)
 	require.Len(t, remaining, 1)
 	assert.Equal(t, newFamily, remaining[0].FamilyID)
@@ -433,7 +435,7 @@ func TestAccountSessionsAreScopedToTheCallerTenant(t *testing.T) {
 	require.ErrorIs(t, err, identityaccess.ErrAccountSessionNotFound)
 	_, err = access.LatestAccountSessionInFamily(ownCtx, foreignFamily)
 	require.ErrorIs(t, err, identityaccess.ErrAccountSessionNotFound)
-	listed, err := access.ListAccountSessions(ownCtx, identityaccess.AccountSessionFilter{AccountID: account.ID})
+	listed, err := access.ListAccountSessions(ownCtx, ports.AccountSessionFilter{AccountID: account.ID})
 	require.NoError(t, err)
 	require.Len(t, listed, 1)
 	assert.Equal(t, own.ID, listed[0].ID)
@@ -451,7 +453,7 @@ func TestAccountSessionsAreScopedToTheCallerTenant(t *testing.T) {
 		_, err = access.FindAccountSession(tenantless, token)
 		require.NoError(t, err, "the pre-authentication flows resolve every school's session")
 	}
-	both, err := access.ListAccountSessions(tenantless, identityaccess.AccountSessionFilter{AccountID: account.ID})
+	both, err := access.ListAccountSessions(tenantless, ports.AccountSessionFilter{AccountID: account.ID})
 	require.NoError(t, err)
 	assert.Len(t, both, 2)
 }
@@ -459,9 +461,9 @@ func TestAccountSessionsAreScopedToTheCallerTenant(t *testing.T) {
 // loginState carries the sessions a login or tenant switch works on between
 // its writes.
 type loginState struct {
-	retired identityaccess.AccountSession
-	minted  identityaccess.AccountSession
-	evicted []identityaccess.AccountSession
+	retired ports.AccountSession
+	minted  ports.AccountSession
+	evicted []ports.AccountSession
 }
 
 // A login or tenant switch performs its authoritative session writes in one
@@ -500,7 +502,7 @@ func TestAccountLoginMintRollsBackAfterEachWrite(t *testing.T) {
 	for injectAfter, write := range writes {
 		t.Run("fails after the "+write.name, func(t *testing.T) {
 			account := testpkg.CreateTestAccount(t, db, "login-rollback")
-			var sessions []identityaccess.AccountSession
+			var sessions []ports.AccountSession
 			for i := range 5 {
 				session := newAccountSession(account.ID, "tenant", newFamilyID(), 0)
 				session.Expiry = time.Now().Add(time.Duration(i+2) * time.Hour)
@@ -528,7 +530,7 @@ func TestAccountLoginMintRollsBackAfterEachWrite(t *testing.T) {
 				_, err = access.FindAccountSession(testpkg.Ctx(t), state.minted.Token)
 				require.ErrorIs(t, err, identityaccess.ErrAccountSessionNotFound, "the rolled-back mint must not exist")
 			}
-			live, err := access.ListAccountSessions(testpkg.Ctx(t), identityaccess.AccountSessionFilter{AccountID: account.ID, Liveness: identityaccess.AccountSessionsLive})
+			live, err := access.ListAccountSessions(testpkg.Ctx(t), ports.AccountSessionFilter{AccountID: account.ID, Liveness: ports.AccountSessionsLive})
 			require.NoError(t, err)
 			assert.Len(t, live, 5, "the rolled-back cap eviction must leave every session in place")
 
@@ -628,8 +630,8 @@ func TestAccountRefreshRollsBackAfterEachWrite(t *testing.T) {
 // refreshSessions carries the two sessions one refresh works on between its
 // writes.
 type refreshSessions struct {
-	predecessor identityaccess.AccountSession
-	successor   identityaccess.AccountSession
+	predecessor ports.AccountSession
+	successor   ports.AccountSession
 }
 
 // Revocation and its audit evidence commit together or not at all: a failure
@@ -680,10 +682,11 @@ func TestAccountSessionObservationsCountRows(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	account := testpkg.CreateTestAccount(t, db, "session-observations")
 	var observations []identityCompose.Observation
-	access, err := identityCompose.New(identityCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(observation identityCompose.Observation) {
+	owner, err := identityCompose.New(identityCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(observation identityCompose.Observation) {
 		observations = append(observations, observation)
 	}})
 	require.NoError(t, err)
+	access := owner.(ports.Records)
 	ctx := testpkg.Ctx(t)
 
 	session, err := access.CreateAccountSession(ctx, newAccountSession(account.ID, "tenant", newFamilyID(), 0))

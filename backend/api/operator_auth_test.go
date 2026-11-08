@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
@@ -28,7 +27,6 @@ type mockOperatorAuthService struct {
 	refreshTokenFn                   func(ctx context.Context, refreshToken, recoveryProof string) (string, string, error)
 	logoutFn                         func(ctx context.Context, operatorID int64, familyID string) error
 	getOperatorFn                    func(ctx context.Context, id int64) (*identityaccess.Operator, error)
-	latestOperatorSessionFn          func(ctx context.Context, familyID string) (identityaccess.OperatorSession, error)
 	updateProfileFn                  func(ctx context.Context, operatorID int64, displayName string) (*identityaccess.Operator, error)
 	changePasswordFn                 func(ctx context.Context, operatorID int64, currentPassword, newPassword string) error
 	initiateEmailChangeFn            func(ctx context.Context, operatorID int64, newEmail, currentPassword string, clientIP net.IP) error
@@ -54,7 +52,7 @@ func (m *mockOperatorAuthService) LoginOperatorWithMFAGate(ctx context.Context, 
 	}
 	return nil, nil
 }
-func (m *mockOperatorAuthService) SetMFAService(_ identityoperator.OperatorMFA) {}
+func (m *mockOperatorAuthService) SetMFAService(_ identityaccess.OperatorMFAFlows) {}
 
 // IssueTokensForAuthenticatedOperator no-op stub. The legacy auth_test cases
 // exercise the password-only Login flow; the new MFA verify flow has its own
@@ -82,28 +80,26 @@ func (m *mockOperatorAuthService) FindOperator(ctx context.Context, id int64) (i
 		op, err := m.getOperatorFn(ctx, id)
 		if op == nil {
 			if err == nil {
-				err = identityoperator.ErrOperatorNotFound
+				err = identityaccess.ErrOperatorNotFound
 			}
 			return identityaccess.Operator{}, err
 		}
 		return *identityOperatorOf(op), err
 	}
-	return identityaccess.Operator{}, identityoperator.ErrOperatorNotFound
+	return identityaccess.Operator{}, identityaccess.ErrOperatorNotFound
 }
 
-func (m *mockOperatorAuthService) LatestOperatorSessionInFamily(ctx context.Context, familyID string) (identityaccess.OperatorSession, error) {
-	if m.latestOperatorSessionFn != nil {
-		return m.latestOperatorSessionFn(ctx, familyID)
+// VerifyOperatorSession treats every family as live and refuses only an
+// unknown or inactive operator.
+func (m *mockOperatorAuthService) VerifyOperatorSession(ctx context.Context, operatorID int64, _ string) error {
+	operator, err := m.FindOperator(ctx, operatorID)
+	if err != nil {
+		return err
 	}
-	return identityaccess.OperatorSession{OperatorID: 42, FamilyID: familyID, Expiry: time.Now().Add(time.Hour)}, nil
-}
-
-func (m *mockOperatorAuthService) FindOperatorForUpdate(ctx context.Context, id int64) (identityaccess.Operator, error) {
-	return m.FindOperator(ctx, id)
-}
-
-func (m *mockOperatorAuthService) FindOperatorByEmail(context.Context, string) (identityaccess.Operator, error) {
-	return identityaccess.Operator{}, identityoperator.ErrOperatorNotFound
+	if !operator.Active {
+		return identityaccess.ErrOperatorInactive
+	}
+	return nil
 }
 
 func (m *mockOperatorAuthService) ListOperators(context.Context) ([]identityaccess.Operator, error) {
@@ -276,7 +272,7 @@ func TestLogin_InvalidCredentials(t *testing.T) {
 
 	mockService := &mockOperatorAuthService{
 		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*identityaccess.OperatorLoginResult, error) {
-			return nil, identityoperator.ErrOperatorInvalidCredentials
+			return nil, identityaccess.ErrOperatorInvalidCredentials
 		},
 	}
 
@@ -302,7 +298,7 @@ func TestLogin_OperatorInactive(t *testing.T) {
 
 	mockService := &mockOperatorAuthService{
 		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*identityaccess.OperatorLoginResult, error) {
-			return nil, identityoperator.ErrOperatorInactive
+			return nil, identityaccess.ErrOperatorInactive
 		},
 	}
 
@@ -328,7 +324,7 @@ func TestLogin_OperatorNotFound(t *testing.T) {
 
 	mockService := &mockOperatorAuthService{
 		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*identityaccess.OperatorLoginResult, error) {
-			return nil, identityoperator.ErrOperatorNotFound
+			return nil, identityaccess.ErrOperatorNotFound
 		},
 	}
 
@@ -548,7 +544,7 @@ func TestRefreshToken_ServiceError(t *testing.T) {
 
 	mockService := &mockOperatorAuthService{
 		refreshTokenFn: func(ctx context.Context, refreshToken, recoveryProof string) (string, string, error) {
-			return "", "", identityoperator.ErrOperatorInactive
+			return "", "", identityaccess.ErrOperatorInactive
 		},
 	}
 

@@ -11,14 +11,15 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	accountHTTP "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
 	operatorHTTP "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentHTTP "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 func TestPasswordFailuresLockAccountAcrossPortals(t *testing.T) {
@@ -190,7 +191,7 @@ func TestPasswordLoginRefusalsDoNotEnumerateAccountsAcrossPortals(t *testing.T) 
 				resource := &parentHTTP.Resource{Auth: parentPortalLogin(module.Auth)}
 				root.Mount("/", resource.RouterWithAuthRateLimiter(nil, ParentSessionChain))
 			case "operator":
-				resource := operatorHTTP.NewResource(module.Auth, operatorHTTP.OperatorResponses(nil))
+				resource := operatorHTTP.NewResource(module.Auth, nil)
 				root.Post("/auth/login", resource.Login)
 			}
 			refusal := func(email, value string) string {

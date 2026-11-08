@@ -8,8 +8,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 )
 
 type revocationGroup struct {
@@ -90,7 +90,7 @@ func (s *AccountAuthentication) deleteFamilyWithAudit(ctx context.Context, sessi
 // caller's school with audit evidence, or schedules the account-wide wipe an
 // account-wide reason asks for. Tenant-scoped callers pair it with
 // QueuePushCleanup after their transaction.
-func (s *AccountAuthentication) DeleteAccountSessionsWithAudit(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) (_ []identityaccess.AccountSession, err error) {
+func (s *AccountAuthentication) DeleteAccountSessionsWithAudit(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) (_ []ports.AccountSession, err error) {
 	if s == nil {
 		return nil, errAccountAuthenticationUnavailable
 	}
@@ -163,7 +163,7 @@ func (s *AccountAuthentication) recordPendingAccountWideWipe(ctx context.Context
 // leave behind: after commit when the caller's transaction has an
 // after-commit queue, immediately without a transaction, and not at all
 // inside a plain transaction whose rollback would otherwise lose them.
-func (s *AccountAuthentication) QueuePushCleanup(ctx context.Context, accountID int64, sessions []identityaccess.AccountSession, reason string) {
+func (s *AccountAuthentication) QueuePushCleanup(ctx context.Context, accountID int64, sessions []ports.AccountSession, reason string) {
 	if s == nil {
 		return
 	}

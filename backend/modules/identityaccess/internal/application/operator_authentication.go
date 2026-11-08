@@ -209,7 +209,7 @@ func (s *OperatorAuthentication) issueTokenPair(ctx context.Context, operator do
 		ResourceID: &operator.ID, IPAddress: ipAddress,
 	}
 	err = s.sessionUnit(ctx, func(txCtx context.Context) error {
-		if _, err := s.operators.CreateOperatorSession(txCtx, identityaccess.OperatorSession(session)); err != nil {
+		if _, err := s.operators.CreateOperatorSession(txCtx, ports.OperatorSession(session)); err != nil {
 			return fmt.Errorf("failed to persist operator refresh token: %w", err)
 		}
 		if err := s.operators.RecordOperatorLogin(txCtx, operator.ID); err != nil {
@@ -629,7 +629,7 @@ func (s *OperatorAuthentication) mintRotatedOperatorSession(txCtx context.Contex
 	if err != nil {
 		return accessToken, refreshToken, err
 	}
-	if _, err := s.operators.CreateOperatorSession(txCtx, identityaccess.OperatorSession(successor)); err != nil {
+	if _, err := s.operators.CreateOperatorSession(txCtx, ports.OperatorSession(successor)); err != nil {
 		return accessToken, refreshToken, fmt.Errorf("failed to persist rotated operator refresh token: %w", err)
 	}
 	if err := s.operators.MarkOperatorSessionRotated(txCtx, session.ID, successor.Token, proof.Hash(), now); err != nil {
