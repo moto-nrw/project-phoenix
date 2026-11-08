@@ -79,7 +79,7 @@ interface CareTariff {
 }
 
 /** The head of a price list: the months it bills nothing for (1–12). */
-export interface CarePriceListHead {
+interface CarePriceListHead {
   readonly schoolId: string;
   readonly validFrom: string;
   readonly freeMonths: readonly number[];
