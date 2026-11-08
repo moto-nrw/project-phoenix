@@ -108,6 +108,9 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/traeger/care-evidences/"}:                       notCaptured,
 	{http.MethodPut, "/traeger/care-evidences/{id}"}:                    notCaptured,
 	{http.MethodDelete, "/traeger/care-evidences/{id}"}:                 notCaptured,
+	// The children of a family (#5918): the Abrechnung confirms or removes.
+	{http.MethodPut, "/traeger/family-children/"}:                notCaptured,
+	{http.MethodDelete, "/traeger/family-children/{contractId}"}: notCaptured,
 	// The care contracts and their templates (#4678, ADR 0153) belong to
 	// the Träger, not to a school.
 	{http.MethodPost, "/traeger/contracts/"}:       notCaptured,
@@ -123,6 +126,8 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodPut, "/traeger/contract-notices/{id}/ends-on"}:                               notCaptured,
 	{http.MethodPost, "/traeger/contract-notices/{id}/reason-rejection"}:                     notCaptured,
 	{http.MethodPost, "/parent/me/documents/{organizationId}/contracts/{contractId}/notice"}: notCaptured,
+	// The parents state the children of their family on a contract (#5918).
+	{http.MethodPut, "/parent/me/documents/{organizationId}/contracts/{contractId}/family-children"}: notCaptured,
 }
 
 func init() {
