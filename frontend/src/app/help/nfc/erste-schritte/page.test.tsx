@@ -47,6 +47,14 @@ describe("NfcQuickstartPage", () => {
     expect(
       screen.getByText(/unten links auf\s+Hilfe klicken/i),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Zur Hilfe" }).closest("section"),
+    ).toHaveClass(
+      "moto-content-surface",
+      "rounded-2xl",
+      "overflow-visible",
+      "p-5",
+    );
   });
 
   it("zeigt die drei Erste-Schritte-Karten", () => {

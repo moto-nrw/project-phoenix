@@ -447,76 +447,78 @@ export function AccountTenantAccessModal({
                   description="Dieses Konto ist derzeit keiner Schule zugeordnet und kann sich nicht anmelden."
                 />
               ) : (
-                <ul className="moto-content-surface divide-y divide-gray-200 rounded-2xl border">
-                  {activeEntries.map((entry) => (
-                    <li
-                      key={entry.tenantId}
-                      className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
-                    >
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="truncate text-sm font-medium text-gray-900">
-                            {entry.schoolName}
-                          </span>
-                          <StatusBadge
-                            tone={statusTone(entry.status)}
-                            label={statusLabel(entry.status)}
-                          />
-                          {!entry.hasStaff && (
+                <SectionCard padding="none">
+                  <ul className="divide-y divide-gray-200">
+                    {activeEntries.map((entry) => (
+                      <li
+                        key={entry.tenantId}
+                        className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="truncate text-sm font-medium text-gray-900">
+                              {entry.schoolName}
+                            </span>
                             <StatusBadge
-                              tone="orange"
-                              label="Ohne Personaldaten"
+                              tone={statusTone(entry.status)}
+                              label={statusLabel(entry.status)}
                             />
-                          )}
+                            {!entry.hasStaff && (
+                              <StatusBadge
+                                tone="orange"
+                                label="Ohne Personaldaten"
+                              />
+                            )}
+                          </div>
+                          <p className="mt-0.5 truncate text-xs text-gray-500">
+                            {entry.organizationName}
+                            {entry.roles.length > 0 &&
+                              ` • ${entry.roles.map((role) => roleLabel(role.name)).join(", ")}`}
+                          </p>
                         </div>
-                        <p className="mt-0.5 truncate text-xs text-gray-500">
-                          {entry.organizationName}
-                          {entry.roles.length > 0 &&
-                            ` • ${entry.roles.map((role) => roleLabel(role.name)).join(", ")}`}
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-2">
-                        <div className="w-44">
-                          <CustomSelect
-                            value={primaryRoleId(entry)}
-                            options={roleChangeOptions(entry).map((role) => ({
-                              value: role.id,
-                              label: roleLabel(role.name),
-                            }))}
-                            onChange={(value) =>
-                              void handleRoleChange(entry, value)
+                        <div className="flex shrink-0 items-center gap-2">
+                          <div className="w-44">
+                            <CustomSelect
+                              value={primaryRoleId(entry)}
+                              options={roleChangeOptions(entry).map((role) => ({
+                                value: role.id,
+                                label: roleLabel(role.name),
+                              }))}
+                              onChange={(value) =>
+                                void handleRoleChange(entry, value)
+                              }
+                              disabled={
+                                saving ||
+                                !entry.schoolActive ||
+                                !rolesBySchool[entry.tenantId] ||
+                                entryIsLehrkraft(entry)
+                              }
+                              ariaLabel={`Rolle an ${entry.schoolName}`}
+                              placeholder="Rolle wählen"
+                            />
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline_danger"
+                            size="md"
+                            disabled={saving || accessRevocationBlocked(entry)}
+                            onClick={() => {
+                              clearRevokeError();
+                              setRevokeTarget(entry);
+                            }}
+                            title={
+                              accessRevocationBlocked(entry)
+                                ? "Diese Rolle wird über ihren eigenen Verwaltungsablauf entfernt."
+                                : undefined
                             }
-                            disabled={
-                              saving ||
-                              !entry.schoolActive ||
-                              !rolesBySchool[entry.tenantId] ||
-                              entryIsLehrkraft(entry)
-                            }
-                            ariaLabel={`Rolle an ${entry.schoolName}`}
-                            placeholder="Rolle wählen"
-                          />
+                          >
+                            Entziehen
+                          </Button>
                         </div>
-                        <Button
-                          type="button"
-                          variant="outline_danger"
-                          size="md"
-                          disabled={saving || accessRevocationBlocked(entry)}
-                          onClick={() => {
-                            clearRevokeError();
-                            setRevokeTarget(entry);
-                          }}
-                          title={
-                            accessRevocationBlocked(entry)
-                              ? "Diese Rolle wird über ihren eigenen Verwaltungsablauf entfernt."
-                              : undefined
-                          }
-                        >
-                          Entziehen
-                        </Button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+                      </li>
+                    ))}
+                  </ul>
+                </SectionCard>
               )}
             </SectionCard>
 
@@ -627,27 +629,29 @@ export function AccountTenantAccessModal({
                 // FormModal rendert seinen Titel als h3.
                 headingLevel={4}
               >
-                <ul className="moto-content-surface divide-y divide-gray-200 rounded-2xl border">
-                  {formerEntries.map((entry) => (
-                    <li
-                      key={entry.tenantId}
-                      className="flex items-center justify-between gap-3 p-4"
-                    >
-                      <div className="min-w-0">
-                        <span className="truncate text-sm text-gray-700">
-                          {entry.schoolName}
-                        </span>
-                        <p className="mt-0.5 truncate text-xs text-gray-500">
-                          {entry.organizationName}
-                        </p>
-                      </div>
-                      <StatusBadge
-                        tone={statusTone(entry.status)}
-                        label={statusLabel(entry.status)}
-                      />
-                    </li>
-                  ))}
-                </ul>
+                <SectionCard padding="none">
+                  <ul className="divide-y divide-gray-200">
+                    {formerEntries.map((entry) => (
+                      <li
+                        key={entry.tenantId}
+                        className="flex items-center justify-between gap-3 p-4"
+                      >
+                        <div className="min-w-0">
+                          <span className="truncate text-sm text-gray-700">
+                            {entry.schoolName}
+                          </span>
+                          <p className="mt-0.5 truncate text-xs text-gray-500">
+                            {entry.organizationName}
+                          </p>
+                        </div>
+                        <StatusBadge
+                          tone={statusTone(entry.status)}
+                          label={statusLabel(entry.status)}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                </SectionCard>
               </SectionCard>
             )}
           </div>

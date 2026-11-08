@@ -243,7 +243,7 @@ export function AuthShell({
     <main className="moto-auth-shell-background grid min-h-screen lg:grid-cols-[minmax(0,0.9fr)_minmax(34rem,1.1fr)]">
       <section className="relative z-10 flex min-h-screen items-center justify-center px-4 py-8 sm:px-6 lg:px-10">
         <div className={cn("w-full", formMaxWidth)}>
-          <div className="moto-content-surface rounded-2xl border px-6 py-10 sm:p-8">
+          <SectionCard overflow="visible">
             {brand && <div className="mb-8 flex justify-center">{brand}</div>}
             <div className="mb-9 text-center">
               <SectionLabel as="p" className="mb-3">
@@ -260,7 +260,7 @@ export function AuthShell({
               <p className="mt-3 text-sm leading-6 text-gray-600">{subtitle}</p>
             </div>
             {children}
-          </div>
+          </SectionCard>
           {showMotoAttribution ? <MotoAttribution /> : null}
           {footer && <div className="mt-5 text-center">{footer}</div>}
         </div>
@@ -399,6 +399,7 @@ function TestimonialCard({
   }[state];
 
   return (
+    // oxlint-disable-next-line ui-kit/no-hand-rolled-surface -- dekorative 3D-Karte des Zitat-Wechslers: eigene Transparenz, Schatten und Drehung, keine Inhaltsfläche
     <article
       aria-hidden={state !== "active"}
       className={cn(

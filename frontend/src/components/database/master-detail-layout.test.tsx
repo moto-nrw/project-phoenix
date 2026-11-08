@@ -164,8 +164,14 @@ describe("MasterDetailLayout", () => {
           listWidth={500}
         />,
       );
-      const listPane = container.querySelector('[style*="width: 500px"]');
-      expect(listPane).toBeInTheDocument();
+      const root = container.firstElementChild;
+      expect(root).toHaveStyle({ "--master-detail-list-width": "500px" });
+
+      const listPane = screen.getByText("List").closest("section");
+      expect(listPane).toHaveClass(
+        "w-(--master-detail-list-width)",
+        "shrink-0",
+      );
     });
 
     it("applies className to root", () => {

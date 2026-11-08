@@ -26,6 +26,8 @@ import {
 import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { SectionCard } from "~/components/ui/section-card";
+import { TileCard } from "~/components/ui/tile-card";
 import { cn } from "~/lib/utils";
 import {
   getHelpTopics,
@@ -360,19 +362,21 @@ function HelpMobileHeader({
 function TopicImage({ topic }: Readonly<{ topic: HelpTopic }>) {
   if (!topic.image || !topic.imageAlt) return null;
   return (
-    <figure className="moto-content-surface overflow-hidden rounded-2xl border">
-      <Image
-        src={topic.image}
-        alt={topic.imageAlt}
-        width={1280}
-        height={800}
-        priority
-        className="h-auto w-full"
-      />
-      <figcaption className="border-t border-gray-100 px-4 py-3 text-sm text-gray-600">
-        {topic.imageAlt}
-      </figcaption>
-    </figure>
+    <SectionCard padding="none">
+      <figure>
+        <Image
+          src={topic.image}
+          alt={topic.imageAlt}
+          width={1280}
+          height={800}
+          priority
+          className="h-auto w-full"
+        />
+        <figcaption className="border-t border-gray-100 px-4 py-3 text-sm text-gray-600">
+          {topic.imageAlt}
+        </figcaption>
+      </figure>
+    </SectionCard>
   );
 }
 
@@ -426,11 +430,7 @@ function GroupOverview({
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
         {groupTopics.map((item) => {
           return (
-            <Link
-              key={item.id}
-              href={hrefFor(item.id)}
-              className="moto-content-surface group rounded-2xl border p-5 focus-visible:outline-2 focus-visible:outline-gray-400"
-            >
+            <TileCard key={item.id} href={hrefFor(item.id)}>
               <MotoDuotoneIcon
                 icon={HELP_ICONS[item.icon]}
                 tone="greenDeep"
@@ -441,7 +441,7 @@ function GroupOverview({
               <p className="mt-2 text-sm leading-6 text-gray-600">
                 {item.summary}
               </p>
-            </Link>
+            </TileCard>
           );
         })}
       </div>
@@ -1184,11 +1184,7 @@ function HelpDocumentationShell({
                 .slice(0, HOME_TOPIC_COUNT)
                 .map((item) => {
                   return (
-                    <Link
-                      key={item.id}
-                      href={hrefFor(item.id)}
-                      className="moto-content-surface group rounded-2xl border p-5 focus-visible:outline-2 focus-visible:outline-gray-400"
-                    >
+                    <TileCard key={item.id} href={hrefFor(item.id)}>
                       <MotoDuotoneIcon
                         icon={HELP_ICONS[item.icon]}
                         tone="greenDeep"
@@ -1201,7 +1197,7 @@ function HelpDocumentationShell({
                       <p className="mt-2 text-sm leading-6 text-gray-600">
                         {item.summary}
                       </p>
-                    </Link>
+                    </TileCard>
                   );
                 })}
             </div>
