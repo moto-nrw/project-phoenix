@@ -9,11 +9,13 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
+	contractcompose "github.com/moto-nrw/project-phoenix/modules/carecontract/compose"
 	deliverycompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	delivery "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	mail "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 	deliveryruntime "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	organizationcompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	billingcompose "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -216,6 +218,40 @@ func TestBillingPushObjectScopeWithoutRLS(t *testing.T) {
 		assert.Equal(t, map[int64]bool{1: true}, allowed)
 		return nil
 	}))
+	contractID, _ := f.contract(t)
+	_, releaseID, groupID := f.release(t)
+	sibling := testpkg.CreateTestStudent(t, f.db, "Sibling", "Scope", "1a")
+	school := testpkg.CreateTestSchoolInOrganization(t, f.db, f.organization, "Another push school")
+	var otherGroup int64
+	require.NoError(t, f.db.NewRaw(`INSERT INTO education.groups (tenant_id,name) VALUES (?,'Other group') RETURNING id`, f.chain.TenantID).Scan(f.ctx, &otherGroup))
+	contractOwner := contractcompose.NewDocumentPushValidity()
+	releaseOwner := organizationcompose.NewReleasePushValidity()
+	for _, organization := range []int64{f.organization, foreign} {
+		require.NoError(t, (ParentPortalRuntime{}).WithinTraeger(f.ctx, organization, func(ctx context.Context) error {
+			require.NoError(t, testpkg.WithoutRequestRole(ctx))
+			contracts, err := contractOwner.ValidContractPushes(ctx, organization, []carecontract.DocumentPushCandidate{
+				{Key: 1, ContractID: contractID, Email: f.chain.Email, SchoolID: f.chain.TenantID, StudentIDs: []int64{f.chain.StudentID}},
+				{Key: 2, ContractID: contractID, Email: f.chain.Email, SchoolID: school, StudentIDs: []int64{f.chain.StudentID}},
+				{Key: 3, ContractID: contractID, Email: f.chain.Email, SchoolID: f.chain.TenantID, StudentIDs: []int64{sibling.ID}},
+			})
+			require.NoError(t, err)
+			releases, err := releaseOwner.ValidReleasePushes(ctx, organization, []organizationtenancy.ReleasePushCandidate{
+				{Key: 1, ReleaseID: releaseID, SchoolID: f.chain.TenantID, GroupIDs: []int64{groupID}},
+				{Key: 2, ReleaseID: releaseID, SchoolID: school, GroupIDs: []int64{groupID}},
+				{Key: 3, ReleaseID: releaseID, SchoolID: f.chain.TenantID, GroupIDs: []int64{otherGroup}},
+			})
+			require.NoError(t, err)
+			if organization == f.organization {
+				assert.Equal(t, map[int64]bool{1: true}, contracts)
+				assert.Equal(t, map[int64]bool{1: true}, releases)
+			} else {
+				assert.Empty(t, contracts)
+				assert.Empty(t, releases)
+			}
+			return nil
+		}))
+	}
+
 }
 
 // contract fixes the event to the first mailed version, as contract sending
@@ -280,8 +316,13 @@ func TestContractDevicePushRechecksVersionAndExactChild(t *testing.T) {
 				_, err := f.db.ExecContext(f.ctx, `UPDATE care_contract.contract_versions SET status='ersetzt' WHERE id=?`, versionID)
 				require.NoError(t, err)
 			case "newer version":
-				_, err := f.db.ExecContext(f.ctx, `INSERT INTO care_contract.contract_versions (organization_id,contract_id,version_number,effective_from,status,child_first_name,child_last_name,school_name,term_kind,notice_months,notice_to,special_termination,special_termination_note,statute_required,statute_title,statute_url,contract_partner)
-     VALUES (?,?,2,'2027-09-01','wirksam','Test','Child','School','open_ended',1,'month_end',false,'',false,'','','')`, f.organization, contractID)
+				var nextVersion int64
+				err := f.db.NewRaw(`INSERT INTO care_contract.contract_versions (organization_id,contract_id,version_number,effective_from,status,child_first_name,child_last_name,school_name,term_kind,notice_months,notice_to,special_termination,special_termination_note,statute_required,statute_title,statute_url,contract_partner)
+     VALUES (?,?,2,'2027-09-01','wirksam','Test','Child','School','open_ended',1,'month_end',false,'',false,'','','') RETURNING id`, f.organization, contractID).Scan(f.ctx, &nextVersion)
+				require.NoError(t, err)
+				var nextDocument int64
+				require.NoError(t, f.db.NewRaw(`INSERT INTO care_contract.contract_documents (organization_id,contract_id,contract_version_id,template_version,filename,pdf) VALUES (?,?,?,0,'new-contract.pdf',?) RETURNING id`, f.organization, contractID, nextVersion, []byte("%PDF-new")).Scan(f.ctx, &nextDocument))
+				_, err = f.db.ExecContext(f.ctx, `INSERT INTO care_contract.contract_mailings (organization_id,contract_id,contract_document_id,outbox_id,recipient_email) VALUES (?,?,?,?,?)`, f.organization, contractID, nextDocument, testpkg.UniqueTestTenantID(t), f.chain.Email)
 				require.NoError(t, err)
 			}
 			counter := testpkg.CaptureQueriesForContext(t, f.db)
