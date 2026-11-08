@@ -200,17 +200,6 @@ func amendmentConflicts(invoices []parentbilling.CareInvoice) int {
 	return count
 }
 
-// appliedAmendments are the changes a release copies onto the invoice.
-func appliedAmendments(invoice parentbilling.CareInvoice) []parentbilling.CareAmendment {
-	applied := []parentbilling.CareAmendment{}
-	for _, amendment := range invoice.Amendments {
-		if amendment.Applied() {
-			applied = append(applied, amendment)
-		}
-	}
-	return applied
-}
-
 // amendReviewed applies the changes to every invoice of a review, those the
 // release issues and the excluded ones.
 func (c *CareBilling) amendReviewed(ctx context.Context, organizationID int64, run parentbilling.CareRun, review *reviewedMonth) error {
