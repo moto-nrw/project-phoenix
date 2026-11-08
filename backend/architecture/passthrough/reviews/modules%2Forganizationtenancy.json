@@ -361,9 +361,9 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
-      "decision": "0168",
+      "decision": "0172",
       "id": "modules/organizationtenancy/internal/application/TraegerMasterData.DocumentContact",
-      "reason": "ADR 0168 (#6200): reads the contact person and the withdrawal contact a document prints after refusing a missing Träger, without an account and without a read log; the Träger transaction is the caller's."
+      "reason": "ADR 0172 (#6200): reads the contact person and the withdrawal contact a document prints after refusing a missing Träger, without an account and without a read log; the Träger transaction is the caller's."
     },
     {
       "decision": "0112",

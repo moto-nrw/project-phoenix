@@ -27,7 +27,7 @@ gehen soll. Träger nennen dafür häufig ein zentrales Postfach.
 ## Entscheidung
 
 - `platform.traeger_profiles` erhält `withdrawal_phone` und `withdrawal_email`
-  (Migration 1.15.817), geprüft wie Telefon und E-Mail der Ansprechperson. Ein
+  (Migration 1.15.820), geprüft wie Telefon und E-Mail der Ansprechperson. Ein
   leeres Feld nimmt die Angabe der Ansprechperson, Feld für Feld. Ein Träger
   ohne eigene Angabe druckt also, was er vorher druckte.
 - `UpdateWithdrawalContact` speichert beide Felder unter der Zeilensperre des
