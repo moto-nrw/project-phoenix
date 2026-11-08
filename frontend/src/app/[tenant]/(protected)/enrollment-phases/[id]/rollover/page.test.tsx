@@ -7,7 +7,7 @@ import type { Phase } from "~/lib/enrollment-phase-api";
 const mocks = vi.hoisted(() => ({
   getPhase: vi.fn(),
   replace: vi.fn(),
-  tenantMutate: vi.fn(),
+  tenantMutate: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock("~/lib/enrollment-phase-api", () => ({

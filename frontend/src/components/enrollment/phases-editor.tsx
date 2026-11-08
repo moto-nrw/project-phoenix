@@ -1,6 +1,9 @@
 "use client";
 
-import { phaseHasPublicForm } from "~/lib/enrollment-phase-rules";
+import {
+  enrollmentWindowIsOrdered,
+  phaseHasPublicForm,
+} from "~/lib/enrollment-phase-rules";
 import type { CareOfferingSelectionMode } from "~/lib/enrollment-phase-api";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -89,10 +92,12 @@ import {
 import { TenantPage } from "~/components/ui/tenant-page";
 import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
 import {
+  berlinTodayISO,
   formatChatDateTime,
   formatDate,
+  fromDateTimeLocalValue,
   parseISODate,
-  berlinTodayISO,
+  toDateTimeLocalValue,
 } from "~/lib/date-helpers";
 import {
   DataTable,
@@ -104,8 +109,10 @@ import {
   LateInviteModal,
   ManualApprovedEnrollmentModal,
 } from "~/components/enrollment/phase-enrollment-actions";
-import { PhaseExpiryWarnings } from "~/components/enrollment/phase-expiry-warnings";
-import { useTenantMutate } from "~/lib/swr";
+import {
+  PhaseExpiryWarnings,
+  useRefreshPhaseExpiryWarnings,
+} from "~/components/enrollment/phase-expiry-warnings";
 import { calendarPeriodsConcept } from "~/lib/concepts/calendarPeriods";
 import { careTimesConcept } from "~/lib/concepts/careTimes";
 import { enrollmentsConcept } from "~/lib/concepts/enrollments";
@@ -239,24 +246,6 @@ function mergeOfferedClasses(
   return merged;
 }
 
-// RFC3339 to datetime-local "YYYY-MM-DDTHH:MM" helpers. The HTML
-// datetime-local input always works in the browser's local zone,
-// which matches what an admin expects when they type "1. März 09:00".
-function toLocalInputValue(rfc?: string | null): string {
-  if (!rfc) return "";
-  const d = new Date(rfc);
-  if (Number.isNaN(d.getTime())) return "";
-  const pad = (n: number) => n.toString().padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-function fromLocalInputValue(local: string): string | null {
-  if (!local) return null;
-  const d = new Date(local);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toISOString();
-}
-
 export function PhasesEditor() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -309,19 +298,7 @@ export function PhasesEditor() {
   const gradeLevelMax = supportedGradeLevelMax(resolvedGradeLevelMax);
   const tenantPath = useTenantAwarePath();
   const toast = useToast();
-  const tenantMutate = useTenantMutate();
-  const refreshPhaseExpiryWarnings = useCallback(() => {
-    // Bewusst still: die eigentliche Änderung ist gespeichert und bestätigt.
-    // Die Hinweise zu ablaufenden Phasen laden beim nächsten Öffnen neu; bis
-    // dahin bleibt nur dieser Hinweiskasten veraltet.
-    void tenantMutate("enrollment-phase-expiry-warnings").catch(
-      (err: unknown) => {
-        logger.error("phase_expiry_warning_refresh_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-      },
-    );
-  }, [tenantMutate]);
+  const refreshPhaseExpiryWarnings = useRefreshPhaseExpiryWarnings();
   const assignFormId = searchParams.get("assignForm");
   const rolloverPhaseID = searchParams.get("rollover");
   const latestSchemas = useMemo(() => latestSchemasByName(schemas), [schemas]);
@@ -475,10 +452,10 @@ export function PhasesEditor() {
       return;
     }
     if (
-      payload.enrollment_open_at &&
-      payload.enrollment_close_at &&
-      new Date(payload.enrollment_close_at) <=
-        new Date(payload.enrollment_open_at)
+      !enrollmentWindowIsOrdered(
+        payload.enrollment_open_at,
+        payload.enrollment_close_at,
+      )
     ) {
       formErrors.invalid(
         "Die Schließung des Anmeldefensters muss nach der Öffnung liegen.",
@@ -1572,19 +1549,20 @@ function PhaseForm(props: PhaseFormProps) {
               id="enrollment_open_at"
               dateAriaLabel="Öffnung"
               timeAriaLabel="Öffnung Uhrzeit"
-              value={toLocalInputValue(draft.enrollment_open_at)}
+              value={toDateTimeLocalValue(draft.enrollment_open_at)}
               invalid={Boolean(fieldError("enrollment_open_at"))}
               onChange={(nextLocal) => {
-                const nextOpen = fromLocalInputValue(nextLocal);
+                const nextOpen = fromDateTimeLocalValue(nextLocal);
                 setDraft((prev) => {
                   if (!prev) return prev;
                   const patch: Partial<PhaseInput> = {
                     enrollment_open_at: nextOpen,
                   };
                   if (
-                    nextOpen &&
-                    prev.enrollment_close_at &&
-                    new Date(prev.enrollment_close_at) <= new Date(nextOpen)
+                    !enrollmentWindowIsOrdered(
+                      nextOpen,
+                      prev.enrollment_close_at,
+                    )
                   ) {
                     patch.enrollment_close_at = null;
                   }
@@ -1599,15 +1577,15 @@ function PhaseForm(props: PhaseFormProps) {
               id="enrollment_close_at"
               dateAriaLabel="Schließung"
               timeAriaLabel="Schließung Uhrzeit"
-              min={toLocalInputValue(draft.enrollment_open_at) || undefined}
-              value={toLocalInputValue(draft.enrollment_close_at)}
+              min={toDateTimeLocalValue(draft.enrollment_open_at) || undefined}
+              value={toDateTimeLocalValue(draft.enrollment_close_at)}
               invalid={Boolean(fieldError("enrollment_close_at"))}
               // A closing date picked without a time should end the day, not
               // start it — otherwise the window shuts at midnight.
               defaultTime="23:59"
               onChange={(nextLocal) =>
                 update({
-                  enrollment_close_at: fromLocalInputValue(nextLocal),
+                  enrollment_close_at: fromDateTimeLocalValue(nextLocal),
                 })
               }
             />

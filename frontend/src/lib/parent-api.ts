@@ -2498,6 +2498,11 @@ export interface ParentDocument {
    * to the child grants the right (#4682). Absent when it may only read.
    */
   readonly can_end_contract?: boolean;
+  /**
+   * `can_end_contract` holds and the withdrawal period may still run: the
+   * inbox shows „Vertrag widerrufen“ (§ 356a BGB, #6105).
+   */
+  readonly can_withdraw_contract?: boolean;
 }
 
 /**
