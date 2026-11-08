@@ -37,12 +37,6 @@ import (
 //     sent to their own address; every declaration and every read of the
 //     notice page lands in the trail.
 
-// The states a declaration leaves a contract in.
-const (
-	StatusTerminated = "gekuendigt"
-	StatusWithdrawn  = "widerrufen"
-)
-
 // The kinds of a declaration.
 const (
 	NoticeTermination = "kuendigung"

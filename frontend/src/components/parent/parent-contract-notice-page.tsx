@@ -50,7 +50,6 @@ import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 type Choice =
   "ordentlich" | "sonderkuendigung" | "ausserordentlich" | "widerruf";
 
-/** The reason of an extraordinary termination may not grow longer. */
 const REASON_MAX_LENGTH = 2000;
 
 const DOCUMENTS_HREF = "/documents";
@@ -144,7 +143,6 @@ export function ParentContractNoticePage({
   );
 }
 
-/** The contract the parents are about to end. */
 function ContractSummary({
   options,
 }: Readonly<{ options: ContractNoticeOptions }>) {
