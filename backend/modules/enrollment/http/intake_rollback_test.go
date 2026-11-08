@@ -57,7 +57,6 @@ func TestPublicIntakeRejectsRateLimitStorageFailures(t *testing.T) {
 			service := newTestRequestService(config)
 			input := validSubmission(t, env.phaseID)
 			input.RemoteIP = "198.51.100.42"
-			input.SuppressSubmissionEmails = true
 			input.AdditionalGuardians = []enrollmentAPI.SubmitGuardian{{FirstName: "Second", LastName: "Guardian"}}
 			result, err := service.Submit(testpkg.Ctx(t), input)
 			require.ErrorIs(t, err, failure)
@@ -140,7 +139,6 @@ func TestPublicIntakeRollsBackAfterEveryRequestInviteGuardianAndChildWrite(t *te
 			config.LateInviteRepo = writes
 			service := newTestRequestService(config)
 			input := validSubmission(t, env.phaseID)
-			input.SuppressSubmissionEmails = true
 			input.AdditionalGuardians = []enrollmentAPI.SubmitGuardian{{FirstName: "Second", LastName: "Guardian"}}
 			second := input.Children[0]
 			second.FirstName = "Second"
@@ -316,7 +314,6 @@ func TestPublicIntakeRollsBackAfterEachOfferingLinkWrite(t *testing.T) {
 			config.Children = links
 			service := newTestRequestService(config)
 			input := validSubmission(t, env.phaseID)
-			input.SuppressSubmissionEmails = true
 			input.AdditionalGuardians = []enrollmentAPI.SubmitGuardian{{FirstName: "Second", LastName: "Guardian"}}
 			input.Children[0].OfferingIDs = offeringIDs
 			result, err := service.Submit(ctx, input)
@@ -362,7 +359,6 @@ func TestPublicIntakeRollsBackAfterCarePlanBookingCommand(t *testing.T) {
 	})
 	service := newTestRequestService(config)
 	input := validSubmission(t, env.phaseID)
-	input.SuppressSubmissionEmails = true
 	input.Children[0].OfferingIDs = []int64{offering.ID}
 	input.AdditionalGuardians = []enrollmentAPI.SubmitGuardian{{FirstName: "Second", LastName: "Guardian"}}
 	result, err := service.Submit(ctx, input)

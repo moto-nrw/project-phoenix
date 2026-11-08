@@ -27,14 +27,9 @@ type SubmitRequest struct {
 	// LateInviteToken opens a closed phase for its holder. It is phase-bound,
 	// validated, and consumed inside the write transaction, but it does not
 	// bind the submitted guardian email to the invitation address (#2164).
-	LateInviteToken string
-	// Internal admin paths set these; the public routes never do.
-	SkipRateLimit            bool
-	AllowClosedPhase         bool
-	SuppressSubmissionEmails bool
-	ExternalConsentConfirmed bool
-	SubmissionSource         string
-	SourceMetadata           json.RawMessage
+	LateInviteToken  string
+	SubmissionSource string
+	SourceMetadata   json.RawMessage
 
 	GuardianFirstName string
 	GuardianLastName  string

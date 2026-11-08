@@ -610,7 +610,7 @@ describe("getParentHelpTopicForPath", () => {
     // 100 seit #4769: das geteilte Wochenprotokoll.
     // 101 seit #4808: Nachweise wie Erste Hilfe im Blick behalten.
     // 103 seit #4692: Dokumente vom Träger finden.
-    expect(leadTopics).toHaveLength(103);
+    expect(leadTopics).toHaveLength(104);
     expect(
       leadTopics.every(
         (topic) =>
@@ -742,6 +742,8 @@ describe("getParentHelpTopicForPath", () => {
       HELP_TOPICS.traegerBillingRun,
       HELP_TOPICS.traegerCareMonths,
       HELP_TOPICS.traegerCareReductions,
+      HELP_TOPICS.traegerCareMeals,
+      HELP_TOPICS.traegerCareCostShares,
       HELP_TOPICS.traegerBillingTerms,
       HELP_TOPICS.traegerSharedDocuments,
       HELP_TOPICS.traegerCareTimeOverruns,

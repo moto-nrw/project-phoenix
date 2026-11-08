@@ -124,6 +124,7 @@ var moduleRouteRules = []moduleRouteRule{
 	// Mittagessen und Catering.
 	{"/api/meal-plan", settings.ModuleMittagessen},
 	{"/api/meal-caterer", settings.ModuleMittagessen},
+	{"/api/meal-billing-months", settings.ModuleMittagessen},
 	{"/caterer", settings.ModuleMittagessen},
 
 	// Eltern-App: messages and letters to parents, parent-portal invitations.

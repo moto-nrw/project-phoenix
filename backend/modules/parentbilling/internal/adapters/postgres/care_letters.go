@@ -281,32 +281,49 @@ func (s *Store) InsertCareMailing(ctx context.Context, organizationID, runID, ac
 // without one gets its first invoice of the month.
 func cancelledInvoicesToReplace(ctx context.Context, db bun.IDB, organizationID int64, month calendar.Date,
 	invoices []parentbilling.CareInvoice,
-) (map[int64]*int64, error) {
+) (map[replacedKey]*int64, error) {
 	contracts := make([]int64, 0, len(invoices))
 	for _, invoice := range invoices {
 		contracts = append(contracts, invoice.ContractID)
 	}
 	var rows []struct {
-		ContractID int64 `bun:"care_contract_id"`
-		InvoiceID  int64 `bun:"id"`
+		ContractID int64  `bun:"care_contract_id"`
+		Service    string `bun:"service"`
+		InvoiceID  int64  `bun:"id"`
 	}
-	if err := db.NewRaw(`SELECT DISTINCT ON (invoice.care_contract_id) invoice.care_contract_id, invoice.id
+	// Per contract and service (#4686): a Mensa invoice of its own replaces
+	// its own cancelled Mensa invoice, never the care's.
+	if err := db.NewRaw(`SELECT DISTINCT ON (invoice.care_contract_id, invoice.service) invoice.care_contract_id, invoice.service, invoice.id
 		FROM parent_billing.care_invoices AS invoice
 		JOIN parent_billing.care_invoice_cancellations AS cancellation
 			ON cancellation.organization_id = invoice.organization_id AND cancellation.invoice_id = invoice.id
 		WHERE invoice.organization_id = ? AND invoice.billing_month = ? AND invoice.care_contract_id = ANY(?)
 			AND NOT EXISTS (SELECT 1 FROM parent_billing.care_invoices AS reissue
 				WHERE reissue.organization_id = invoice.organization_id AND reissue.replaces_invoice_id = invoice.id)
-		ORDER BY invoice.care_contract_id, invoice.id DESC`,
+		ORDER BY invoice.care_contract_id, invoice.service, invoice.id DESC`,
 		organizationID, month, pgdialect.Array(contracts)).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("read cancelled care invoices: %w", err)
 	}
-	replaced := make(map[int64]*int64, len(rows))
+	replaced := make(map[replacedKey]*int64, len(rows))
 	for _, row := range rows {
 		id := row.InvoiceID
-		replaced[row.ContractID] = &id
+		replaced[replacedKey{row.ContractID, row.Service}] = &id
 	}
 	return replaced, nil
+}
+
+// replacedKey is a contract's invoice of one service in a month.
+type replacedKey struct {
+	contractID int64
+	service    string
+}
+
+// invoiceService is the service an invoice bills, the care without one.
+func invoiceService(invoice parentbilling.CareInvoice) string {
+	if invoice.Service == "" {
+		return parentbilling.ServiceCare
+	}
+	return invoice.Service
 }
 
 // CareLetterRecord loads one PDF rather than every PDF of the monthly run.

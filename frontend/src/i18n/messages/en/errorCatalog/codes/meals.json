@@ -15,5 +15,12 @@
   "not_supplied": "You no longer supply this school. Please ask the school.",
   "order_not_found": "This order does not exist. Please reload the page.",
   "supply_active": "{object} is not possible right now. A caterer still supplies the school. Please end that supply first.",
-  "participation_manage_denied": "You can view meal registrations, but cannot change them. Please contact the after-school care team."
+  "participation_manage_denied": "You can view meal registrations, but cannot change them. Please contact the after-school care team.",
+  "billing_month_running": "{object} could not be changed. Please check its current status.",
+  "billing_month_released": "{object} could not be changed. Please check its current status.",
+  "billing_month_changed": "{object} could not be changed. Please check its current status.",
+  "billing_month_no_traeger": "{object} could not be changed. Please check its current status.",
+  "billing_month_invalid": "{object} could not be saved. Please check your entries.",
+  "billing_month_attendance_expired": "Attendance records for this month may already have been deleted. The month can no longer be released reliably. Please contact your provider.",
+  "billing_month_reason_required": "{object} could not be saved. Please check your entries."
 }

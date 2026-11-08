@@ -26,6 +26,8 @@ type careMonthInput struct {
 	// invoice is its base price.
 	rules     []parentbilling.ContributionRule
 	evidences []parentbilling.CareEvidence
+	// costShares split the contribution with the cost bearers (#4687).
+	costShares []parentbilling.CareCostShare
 	// familyCounts are the numbers of the families (#5918); a sibling rule
 	// that counts the family reads the one confirmed for the month.
 	familyCounts []parentbilling.FamilyChildCount
@@ -44,6 +46,10 @@ type careMonth struct {
 	duplicates     []parentbilling.CareDuplicate
 	billed         int
 	billedBySchool map[int64]int
+	// mealGaps and mealUnbilled are the Mensa of the run (#4686, care_meals.go).
+	mealGaps     []parentbilling.CareMealGap
+	mealUnbilled []parentbilling.CareMealUnbilled
+	mealChanged  []parentbilling.CareMealChanged
 	// uncounted is the number of families a rule that counts the family
 	// ranked without a confirmed number for the month (#5918), for the
 	// schools of a run; uncountedSchools names per such family the schools
@@ -109,6 +115,7 @@ func buildCareMonth(in careMonthInput) (careMonth, error) {
 		}
 		invoice.Recipient = in.recipients[contractID]
 		invoice.FamilyEmail = parentbilling.FamilyKey(invoice.Recipient.Email)
+		invoice.Service = parentbilling.ServiceCare
 		result.invoices = append(result.invoices, invoice)
 		chained = append(chained, &careChainEntry{child: childOf[contractID], birthDate: byContract[contractID][0].ChildBirthDate})
 	}
@@ -124,6 +131,7 @@ func buildCareMonth(in careMonthInput) (careMonth, error) {
 	}
 	uncounted := map[string][]int64{}
 	applyCareChain(chained, careChainInput{month: in.month, rules: in.rules, evidences: in.evidences,
+		costShares:     in.costShares,
 		familyChildren: familyChildrenIn(in.familyCounts, in.month), uncounted: uncounted, unbilled: unbilled})
 	result.uncounted = len(uncounted)
 	result.uncountedSchools = uncounted
@@ -355,7 +363,7 @@ func billContract(month calendar.Date, rule string, versions []parentbilling.Car
 	invoice := parentbilling.CareInvoice{
 		ContractID: head.ContractID, SchoolID: head.SchoolID, SchoolName: head.SchoolName,
 		ChildFirstName: head.ChildFirstName, ChildLastName: head.ChildLastName, StudentID: studentOf(versions),
-		Positions: []parentbilling.CarePosition{},
+		Positions: []parentbilling.CarePosition{}, MealPositions: []parentbilling.CareMealPosition{},
 	}
 	daysInMonth := month.DaysUntil(monthEnd(month)) + 1
 	var unpriced []parentbilling.CareUnpriced

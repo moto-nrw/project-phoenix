@@ -94,6 +94,9 @@ const (
 	// MealPlanAccessRegister changes a child's registration for the school.
 	MealPlanAccessRegister
 	MealPlanAccessDailyParticipants
+	// MealPlanAccessBillingRelease reads and releases the Mensa months
+	// (#4686): the children's names and the maintenance of the Mensa.
+	MealPlanAccessBillingRelease
 )
 
 // MealPlanAccessPermissions names the permission of a meal plan access level
@@ -103,6 +106,8 @@ const (
 // configuration or every child's data, and seeing names opens no change.
 func MealPlanAccessPermissions(level MealPlanAccess) AccessRule {
 	switch level {
+	case MealPlanAccessBillingRelease:
+		return AccessRule{Permissions: []string{permissionMealsManage, permissionMealsOrders}, RequireAll: true}
 	case MealPlanAccessDailyParticipants:
 		return AccessRule{Permissions: []string{permissionMealsOrders, permissionMealsRegister}}
 	case MealPlanAccessRegister:

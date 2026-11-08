@@ -6,6 +6,20 @@
  * dates stay "YYYY-MM-DD".
  */
 
+import {
+  type BackendMealChanged,
+  type BackendMealGap,
+  type BackendMealPosition,
+  type BackendMealUnbilled,
+  type CareMealChanged,
+  type CareMealGap,
+  type CareMealPosition,
+  type CareMealUnbilled,
+  mealChangedFromBackend,
+  mealGapsFromBackend,
+  mealPositionsFromBackend,
+  mealUnbilledFromBackend,
+} from "./traeger-care-meal-api";
 import type {
   MailOutcome,
   MailProviderBlock,
@@ -130,6 +144,8 @@ export interface CareInvoice {
   readonly number: string;
   readonly issuedOn: string | null;
   readonly contractId: string;
+  /** What the invoice bills: the care with the Mensa bundled, or the Mensa on an invoice of its own (#4686). */
+  readonly service: "care" | "meal";
   /** Original contract-party address, independent of the payer. */
   readonly familyEmail?: string;
   readonly schoolId: string;
@@ -152,6 +168,13 @@ export interface CareInvoice {
   readonly positions: readonly CarePosition[];
   /** The rules of the chain in their order (#4685); negative amounts. */
   readonly reductions: readonly CareReduction[];
+  /** The Mensa months of the child (#4686); no rule reduces them. */
+  readonly mealPositions: readonly CareMealPosition[];
+  /**
+   * What cost bearers pay of the contribution after the reductions (#4687);
+   * `totalCents` is the rest the family pays.
+   */
+  readonly costShares: readonly CareInvoiceCostShare[];
   readonly totalCents: number;
   /** Set on a preview invoice the release leaves out (#5916). */
   readonly exclusion?: CareExclusion | null;
@@ -177,6 +200,39 @@ export interface CareReduction {
   readonly priceCents: number | null;
   readonly capCents: number | null;
   readonly amountCents: number;
+}
+
+export type CareCostShareKind =
+  "education_participation" | "youth_office" | "other_subsidy";
+
+/** What a share covers (#4686): the modules, the Mensa or both. */
+export type CareCostShareScope = "care" | "meal" | "both";
+
+/** The part one cost bearer pays of an invoice, a positive amount (#4687). */
+interface CareInvoiceCostShare {
+  readonly kind: CareCostShareKind;
+  readonly costBearerId: string;
+  readonly costBearerName: string;
+  readonly shareBasisPoints: number | null;
+  readonly shareCents: number | null;
+  readonly scope: CareCostShareScope;
+  readonly amountCents: number;
+}
+
+/** What one cost bearer pays of the invoices of a run (#4687). */
+export interface CareCostBearerTotal {
+  readonly costBearerId: string;
+  readonly costBearerName: string;
+  readonly invoiceCount: number;
+  readonly amountCents: number;
+}
+
+/** The contribution before the cost bearer shares. */
+export function careContributionCents(invoice: CareInvoice): number {
+  return invoice.costShares.reduce(
+    (sum, share) => sum + share.amountCents,
+    invoice.totalCents,
+  );
 }
 
 export interface CareUnpriced {
@@ -225,6 +281,12 @@ export interface CareRunDetail extends CareRun {
   readonly previewCents: number;
   readonly numberPattern: string;
   readonly numberRangeSet: boolean;
+  /** Ended months a school has not released for the Mensa (#4686). */
+  readonly mealGaps: readonly CareMealGap[];
+  /** Released Mensa months of children the run does not bill (#4686). */
+  readonly mealUnbilled: readonly CareMealUnbilled[];
+  /** Mensa months issued invoices bill with an amount a later release changed (#4686). */
+  readonly mealChanged: readonly CareMealChanged[];
   /** The due dates of the run per payment method (#4689). */
   readonly dueDates?: readonly RunDueDate[];
   /** The review of a calculated run (#5916). */
@@ -233,6 +295,8 @@ export interface CareRunDetail extends CareRun {
   readonly excludedCents: number;
   /** The reviewed state; the release sends it back. */
   readonly fingerprint: string;
+  /** What each cost bearer pays of the invoices (#4687). */
+  readonly costBearers: readonly CareCostBearerTotal[];
 }
 
 interface BackendModule {
@@ -282,6 +346,7 @@ interface BackendInvoice {
   number: string;
   issued_on: string | null;
   contract_id: number;
+  service?: string;
   family_email?: string;
   school_id: number;
   school_name: string;
@@ -326,6 +391,18 @@ interface BackendInvoice {
         amount_cents: number;
       }[]
     | null;
+  meal_positions?: BackendMealPosition[] | null;
+  cost_shares?:
+    | {
+        kind: CareCostShareKind;
+        cost_bearer_id: number;
+        cost_bearer_name: string;
+        share_basis_points: number | null;
+        share_cents: number | null;
+        scope?: CareCostShareScope;
+        amount_cents: number;
+      }[]
+    | null;
   total_cents: number;
   exclusion?: { reason: string; excluded_at: string } | null;
 }
@@ -362,11 +439,22 @@ export interface BackendRunDetail extends BackendRun {
   preview_cents: number;
   number_pattern: string;
   number_range_set: boolean;
+  meal_gaps?: BackendMealGap[] | null;
+  meal_unbilled?: BackendMealUnbilled[] | null;
+  meal_changed?: BackendMealChanged[] | null;
   due_dates?: BackendRunDueDate[] | null;
   schools?: { id: number; name: string }[] | null;
   excluded_count?: number;
   excluded_cents?: number;
   fingerprint?: string;
+  cost_bearers?:
+    | {
+        cost_bearer_id: number;
+        cost_bearer_name: string;
+        invoice_count: number;
+        amount_cents: number;
+      }[]
+    | null;
 }
 
 const TARIFFS_PATH = "/api/traeger/care-tariffs";
@@ -427,6 +515,7 @@ function invoiceFromBackend(invoice: BackendInvoice): CareInvoice {
     number: invoice.number,
     issuedOn: invoice.issued_on,
     contractId: id(invoice.contract_id),
+    service: invoice.service === "meal" ? "meal" : "care",
     familyEmail: invoice.family_email ?? "",
     schoolId: id(invoice.school_id),
     schoolName: invoice.school_name,
@@ -471,6 +560,16 @@ function invoiceFromBackend(invoice: BackendInvoice): CareInvoice {
       capCents: reduction.cap_cents,
       amountCents: reduction.amount_cents,
     })),
+    mealPositions: mealPositionsFromBackend(invoice.meal_positions),
+    costShares: (invoice.cost_shares ?? []).map((share) => ({
+      kind: share.kind,
+      costBearerId: id(share.cost_bearer_id),
+      costBearerName: share.cost_bearer_name,
+      shareBasisPoints: share.share_basis_points,
+      shareCents: share.share_cents,
+      scope: share.scope ?? "care",
+      amountCents: share.amount_cents,
+    })),
     totalCents: invoice.total_cents,
     exclusion: invoice.exclusion
       ? {
@@ -513,6 +612,9 @@ export function detailFromBackend(detail: BackendRunDetail): CareRunDetail {
     previewCents: detail.preview_cents,
     numberPattern: detail.number_pattern,
     numberRangeSet: detail.number_range_set,
+    mealGaps: mealGapsFromBackend(detail.meal_gaps),
+    mealUnbilled: mealUnbilledFromBackend(detail.meal_unbilled),
+    mealChanged: mealChangedFromBackend(detail.meal_changed),
     dueDates: runDueDatesFromBackend(detail.due_dates),
     schools: (detail.schools ?? []).map((school) => ({
       id: id(school.id),
@@ -521,6 +623,12 @@ export function detailFromBackend(detail: BackendRunDetail): CareRunDetail {
     excludedCount: detail.excluded_count ?? 0,
     excludedCents: detail.excluded_cents ?? 0,
     fingerprint: detail.fingerprint ?? "",
+    costBearers: (detail.cost_bearers ?? []).map((total) => ({
+      costBearerId: id(total.cost_bearer_id),
+      costBearerName: total.cost_bearer_name,
+      invoiceCount: total.invoice_count,
+      amountCents: total.amount_cents,
+    })),
   };
 }
 

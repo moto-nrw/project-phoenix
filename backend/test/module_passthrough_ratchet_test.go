@@ -251,7 +251,9 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // Lowered by #6178: the operator login consults the operator MFA flows
 // directly instead of the four forwards of OperatorMFAGate; the portal lookup
 // of CapabilityGate.StartChallenge (no own switch any more) counts again (-3).
-const modulePassthroughOwnerBudgetTotal = 1401
+// Raised by ADR 0168: the first complete attendance day of
+// modules/studentpresence (+1).
+const modulePassthroughOwnerBudgetTotal = 1402
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -306,7 +308,10 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/settings":         17,
 	// Raised by ADR 0131: the kiosk count revision read (+1).
 	// Raised by ADR 0133: the kiosk room count revision read (+1).
-	"modules/studentpresence": 122,
+	// Raised by ADR 0168: the first complete attendance day, which checks
+	// the window and takes the later of its cutoff and the retention mark
+	// (+1).
+	"modules/studentpresence": 123,
 	"modules/timetable":       203,
 	// Raised by ADR 0141: the payroll dispatch overview (+1).
 	"modules/workforce":      140,
