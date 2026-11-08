@@ -168,6 +168,8 @@ jobs:
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v6
         with:
           version: v2.14.0
+          # Avoid the release-asset endpoint after repeated HTTP 504 failures.
+          install-mode: goinstall
           args: --timeout 10m ${{ steps.packages.outputs.args }}
           working-directory: backend
           # The step above owns the lint cache.
