@@ -184,6 +184,8 @@ describe("TraegerCareNoticeRunPage", () => {
         previewCents: 0,
         unchanged: 2,
         billed: 1,
+        numberRangeSet: false,
+        legalRemedyMissing: true,
       }),
     );
     renderPage();
@@ -196,7 +198,20 @@ describe("TraegerCareNoticeRunPage", () => {
       screen.getAllByText("Kein Bescheid auszustellen.").length,
     ).toBeGreaterThan(0);
     expect(
-      screen.getByRole("button", { name: "Bescheide ausstellen" }),
-    ).toBeDisabled();
+      screen.getByRole("button", { name: "Jahreslauf abschließen" }),
+    ).toBeEnabled();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Jahreslauf abschließen" }),
+    );
+    api.releaseCareNoticeRun.mockResolvedValue(
+      run({
+        status: "released",
+        notices: [],
+        previewCount: 0,
+        previewCents: 0,
+      }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Abschließen" }));
+    expect(await screen.findByText("Abgeschlossen")).toBeInTheDocument();
   });
 });

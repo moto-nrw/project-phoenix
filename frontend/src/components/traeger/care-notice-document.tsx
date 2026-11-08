@@ -7,7 +7,7 @@
 // die Rechtsbehelfsbelehrung des Trägers. Seite 2 von MK-007 liegt nicht vor
 // und wird nicht nachgebaut.
 
-import type { ReactNode } from "react";
+import { DataField } from "~/components/ui/data-field";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { InsetPanel } from "~/components/ui/inset-panel";
 import { SectionCard } from "~/components/ui/section-card";
@@ -70,7 +70,7 @@ function lineColumns(change: boolean): DataTableColumn<CareNoticeLine>[] {
       render: (line) => formatEuro(line.monthlyCents),
       stackedRender: (line) =>
         `${formatEuro(line.monthlyCents)} im Monat · ${noticePeriod(line.periodFrom, line.periodUntil)}`,
-      stackedLabel: false,
+      stackedLabel: change,
     },
     {
       key: "quantity",
@@ -78,7 +78,7 @@ function lineColumns(change: boolean): DataTableColumn<CareNoticeLine>[] {
       align: "right",
       className: "tabular-nums",
       render: (line) => line.quantity,
-      stacked: "hidden",
+      stacked: change ? "field" : "hidden",
     },
   );
   if (change) {
@@ -105,7 +105,7 @@ function lineColumns(change: boolean): DataTableColumn<CareNoticeLine>[] {
       align: "right",
       className: "tabular-nums",
       render: (line) => formatDelta(line.deltaCents),
-      stacked: change ? "meta" : "hidden",
+      stacked: change ? "field" : "hidden",
     },
   );
   return columns;
@@ -153,7 +153,7 @@ function installmentColumns(
     align: "right",
     className: "tabular-nums font-medium text-gray-900",
     render: (rate) => formatEuro(rate.amountCents),
-    stacked: "meta",
+    stacked: change ? "field" : "meta",
   });
   if (change) {
     columns.push({
@@ -172,18 +172,6 @@ function paymentText(notice: CareNotice): string {
   return notice.paymentMethod === "direct_debit"
     ? "Die fälligen Raten werden per SEPA-Lastschrift eingezogen. Bitte nicht überweisen."
     : `Bitte überweisen Sie jede Rate bis zum Fälligkeitstag. Geben Sie dabei die Bescheid-Nr.${notice.number ? ` ${notice.number}` : ""} an.`;
-}
-
-function InfoLine({
-  label,
-  children,
-}: Readonly<{ label: string; children: ReactNode }>) {
-  return (
-    <div className="flex justify-between gap-4 text-sm">
-      <span className="text-gray-600">{label}</span>
-      <span className="text-right text-gray-900">{children}</span>
-    </div>
-  );
 }
 
 function RecipientBlock({ letter }: Readonly<{ letter: CareNoticeLetter }>) {
@@ -241,15 +229,17 @@ export function CareNoticeDocument({
               className="ml-auto h-14 w-auto object-contain"
             />
           ) : null}
-          <div className="space-y-1">
-            <InfoLine label="Datum">
+          <dl className="space-y-1">
+            <DataField inline label="Datum">
               {notice.issuedOn
                 ? formatDate(notice.issuedOn)
                 : "bei Ausstellung"}
-            </InfoLine>
-            <InfoLine label="Seite">1</InfoLine>
+            </DataField>
+            <DataField inline label="Seite">
+              1
+            </DataField>
             {letter.contactName ? (
-              <InfoLine label="Auskunft">
+              <DataField inline label="Auskunft">
                 {letter.contactName}
                 {letter.contactPhone ? (
                   <span className="block text-gray-600">
@@ -261,9 +251,9 @@ export function CareNoticeDocument({
                     {letter.contactEmail}
                   </span>
                 ) : null}
-              </InfoLine>
+              </DataField>
             ) : null}
-          </div>
+          </dl>
           <InsetPanel padding="md">
             <p className="text-xs text-gray-600">Bescheid-Nr.</p>
             <p className="text-xl font-semibold tracking-tight text-gray-900 tabular-nums">
@@ -314,31 +304,30 @@ export function CareNoticeDocument({
             `${line.kind}-${line.label}-${line.detail}-${line.periodFrom}`
           }
           stackedOnMobile
-          stackedLayout="row"
+          stackedLayout={change ? "lines" : "row"}
           dense
         />
-        <div className="ml-auto max-w-sm space-y-1">
+        <dl className="ml-auto max-w-sm space-y-1 [&>div:last-child]:border-t [&>div:last-child]:border-gray-200 [&>div:last-child]:pt-2">
           {change ? (
             <>
-              <InfoLine label="Bisher festgesetzt">
+              <DataField inline label="Bisher festgesetzt">
                 <span className="tabular-nums">
                   {formatEuro(notice.previousCents)}
                 </span>
-              </InfoLine>
-              <InfoLine label="Zu-/Abgang">
+              </DataField>
+              <DataField inline label="Zu-/Abgang">
                 <span className="tabular-nums">
                   {formatDelta(notice.deltaCents)}
                 </span>
-              </InfoLine>
+              </DataField>
             </>
           ) : null}
-          <div className="flex justify-between gap-4 border-t border-gray-200 pt-2 text-base">
-            <span className="font-semibold text-gray-900">Gesamtbetrag</span>
-            <span className="font-semibold text-gray-900 tabular-nums">
+          <DataField inline label="Gesamtbetrag">
+            <span className="text-base font-semibold tabular-nums">
               {formatEuro(notice.totalCents)}
             </span>
-          </div>
-        </div>
+          </DataField>
+        </dl>
       </section>
 
       <section className="space-y-3" aria-labelledby="notice-payment">
@@ -356,7 +345,7 @@ export function CareNoticeDocument({
           stackedDetailKey="due"
           getRowKey={(rate) => rate.month}
           stackedOnMobile
-          stackedLayout="row"
+          stackedLayout={change ? "lines" : "row"}
           dense
         />
       </section>

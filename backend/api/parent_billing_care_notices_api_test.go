@@ -48,6 +48,9 @@ type careNoticeBody struct {
 		Number string `json:"number"`
 	} `json:"amended_by"`
 	LegalRemedy string `json:"legal_remedy"`
+	Recipient   struct {
+		Email string `json:"email"`
+	} `json:"recipient"`
 }
 
 type careNoticeRunBody struct {
@@ -195,7 +198,8 @@ func TestCareNoticeRunIssuesTheYearAndNoMonthlyRunBillsItAgain(t *testing.T) {
 	assert.Empty(t, again.Notices)
 	assert.Equal(t, 1, again.Unchanged)
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careNoticeRunPath(again.ID, "/release"), careNoticeRelease(again))
-	assert.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+	assert.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, "released", decodeSchoolPortalData[careNoticeRunBody](t, rec.Body.Bytes()).Status)
 
 	var reads int
 	require.NoError(t, f.db.NewRaw(`SELECT count(*) FROM parent_billing.care_notice_run_events
@@ -351,4 +355,97 @@ func TestCareNoticeRunsStayWithTheirTraegerAndTheListIsFlat(t *testing.T) {
 	f.startNoticeRun(t, "2031-01-01", "")
 	assert.Len(t, list().Statements, len(one.Statements))
 	querybudgets.AssertQueryBudget(t, "api.traeger.care_notice_runs", one)
+}
+
+// Computation failures are not a withdrawal of an existing assessment,
+// including months before the selected start of a change run.
+func TestCareNoticeCalculationFailuresKeepTheIssuedAssessment(t *testing.T) {
+	t.Parallel()
+	for _, failure := range []string{"missing price", "duplicate contract"} {
+		t.Run(failure, func(t *testing.T) {
+			t.Parallel()
+			f, contract := newNoticeFixture(t, "Träger Bewertung "+failure)
+			writeLegalRemedy(t, f.db, f.office.organization)
+			f.releaseNoticeRun(t, f.noticeRun(t, f.startNoticeRun(t, "2030-09-01", "2030-09-24").ID))
+			if failure == "missing price" {
+				_, err := f.db.ExecContext(context.Background(), `DELETE FROM parent_billing.care_tariffs WHERE organization_id = ?`, f.office.organization)
+				require.NoError(t, err)
+			} else {
+				careContract(t, f.db, f.office.organization, f.office.schools[0], "Mia", "2030-09-01", sjrServices()...)
+			}
+			preview := f.noticeRun(t, f.startNoticeRun(t, "2030-11-01", "2030-11-01").ID)
+			assert.Empty(t, preview.Notices, "contract %d must not lose its assessed charges on a calculation failure", contract)
+			assert.Equal(t, 1, preview.Unchanged)
+			if failure == "missing price" {
+				_, err := f.db.ExecContext(context.Background(), `UPDATE care_contract.contract_parties
+                  SET email = 'current@example.org' WHERE contract_id = ?`, contract)
+				require.NoError(t, err)
+				rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careTariffsPath,
+					carePriceList(f.office.schools[0], "2030-11-01", 3300))
+				require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+				december := carePriceList(f.office.schools[0], "2030-12-01", 3300)
+				december["prices"] = []map[string]any{{"care_offering_id": careModuleUntil1400, "module_name": "Betreuung bis 14:00 Uhr", "days_per_week": 2, "monthly_cents": 3300}}
+				rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careTariffsPath, december)
+				require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+				mixed := f.noticeRun(t, preview.ID)
+				require.Len(t, mixed.Notices, 1)
+				require.Len(t, mixed.Notices[0].Installments, 4)
+				assert.Equal(t, int64(7750), mixed.Notices[0].Installments[0].AmountCents, "unpriced September keeps its charge")
+				assert.Equal(t, int64(7750), mixed.Notices[0].Installments[1].AmountCents, "unpriced October keeps its charge")
+				assert.Equal(t, int64(7850), mixed.Notices[0].Installments[2].AmountCents)
+				assert.Equal(t, int64(7750), mixed.Notices[0].Installments[3].AmountCents)
+				assert.Equal(t, int64(100), mixed.Notices[0].DeltaCents)
+				assert.Equal(t, "current@example.org", mixed.Notices[0].Recipient.Email, "preserving a failed month must not restore an old recipient")
+				f.releaseNoticeRun(t, mixed)
+			}
+		})
+	}
+}
+
+func TestCareNoticeEmptyRunClosesWithoutNumbersAndFreesTheYear(t *testing.T) {
+	t.Parallel()
+	f, _ := newNoticeFixture(t, "Träger leerer Jahreslauf")
+	// The second school has no contract, no legal remedy and no number range.
+	_, err := f.db.ExecContext(context.Background(), `DELETE FROM parent_billing.number_ranges WHERE organization_id = ?`, f.office.organization)
+	require.NoError(t, err)
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careNoticeRunsPath,
+		map[string]any{"year": 2030, "from_month": "2030-09-01", "school_ids": []int64{f.office.schools[1]}})
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	preview := f.noticeRun(t, decodeSchoolPortalData[careNoticeRunBody](t, rec.Body.Bytes()).ID)
+	require.Zero(t, preview.PreviewCount)
+	stale := preview
+	stale.Fingerprint = "outdated"
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careNoticeRunPath(preview.ID, "/release"), careNoticeRelease(stale))
+	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), "parent_billing.billing_run_changed")
+	closed := f.releaseNoticeRun(t, preview)
+	assert.Equal(t, "released", closed.Status)
+	assert.Empty(t, closed.Notices)
+	next := f.noticeRun(t, f.startNoticeRun(t, "2030-09-01", "").ID)
+	require.Len(t, next.Notices, 1, "the other school's contracts are no longer blocked")
+}
+
+func TestCareNoticeAllowsMealOnlyInvoicesWithoutBillingCareAgain(t *testing.T) {
+	t.Parallel()
+	f, contract := newNoticeFixture(t, "Träger Bescheid und Mensa")
+	writeLegalRemedy(t, f.db, f.office.organization)
+	f.releaseNoticeRun(t, f.noticeRun(t, f.startNoticeRun(t, "2030-09-01", "2030-09-01").ID))
+	school := f.office.schools[0]
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careMealTariffsPath, mealPrice(school, "2030-08-01", "per_meal", 480))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	student := testpkg.UniqueTestTenantID(t)
+	releaseMealMonth(t, f.db, f.office.organization, school, student, "2030-09-01", "Mia", 3)
+	run := f.run(t, f.startRun(t, "2030-10-01").ID)
+	require.Len(t, run.Invoices, 1, "the notice covers care, not meals")
+	assert.Equal(t, contract, run.Invoices[0].ContractID)
+	assert.Equal(t, int64(1440), run.PreviewCents, "care must not be billed again")
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/release"), careRelease(run))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	// A newly released meal month cannot enter a second invoice of this run month.
+	releaseMealMonth(t, f.db, f.office.organization, school, student, "2030-08-01", "Mia", 2)
+	again := f.run(t, f.startRun(t, "2030-10-01").ID)
+	assert.Empty(t, again.Invoices)
+	next := f.run(t, f.startRun(t, "2030-11-01").ID)
+	require.Len(t, next.Invoices, 1)
+	assert.Equal(t, int64(960), next.PreviewCents)
 }

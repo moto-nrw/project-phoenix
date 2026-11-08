@@ -207,15 +207,12 @@ func (n *CareFeeNotices) ReleaseCareNoticeRun(ctx context.Context, reviewer pare
 	if err != nil {
 		return parentbilling.CareNoticeRunDetail{}, err
 	}
-	if len(preview.notices) == 0 {
-		return parentbilling.CareNoticeRunDetail{}, parentbilling.ErrBillingRunEmpty
-	}
 	if len(preview.notices) != release.DocumentCount || preview.total() != release.TotalCents ||
 		preview.fingerprint == "" || preview.fingerprint != release.Fingerprint {
 		return parentbilling.CareNoticeRunDetail{}, parentbilling.ErrBillingRunChanged
 	}
 	// A Bescheid without its legal remedy is not issued (ADR 0170 point 4).
-	if preview.legalRemedyMissing {
+	if len(preview.notices) > 0 && preview.legalRemedyMissing {
 		return parentbilling.CareNoticeRunDetail{}, parentbilling.ErrLegalRemedyMissing
 	}
 	issuedOn := preview.issuedOn
@@ -239,6 +236,9 @@ func (n *CareFeeNotices) ReleaseCareNoticeRun(ctx context.Context, reviewer pare
 func (n *CareFeeNotices) issue(ctx context.Context, organizationID int64, run parentbilling.CareNoticeRun, issuedOn calendar.Date,
 	notices []parentbilling.CareNotice,
 ) error {
+	if len(notices) == 0 {
+		return nil
+	}
 	pattern, err := numberPatternOf(ctx, n.billing.store, organizationID, parentbilling.ServiceCare)
 	if err != nil {
 		return err

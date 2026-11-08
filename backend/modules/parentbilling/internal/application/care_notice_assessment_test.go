@@ -311,3 +311,27 @@ func TestCareNoticeLetterFillsThePlaceholdersOfTheLegalRemedy(t *testing.T) {
 	assert.Equal(t, "Widerspruch bei Gemeinde Hardt gegen den Bescheid 1.2025.000041.1 vom 24.09.2025.", filled)
 	assert.Empty(t, filledLegalRemedy(parentbilling.CareNotice{}, parentbilling.Letterhead{}))
 }
+
+func TestCareNoticeChangeKeepsPreviouslyAssessedZeroMonths(t *testing.T) {
+	t.Parallel()
+	previous := mk007Previous(t)
+	previous.Installments[2].AmountCents = 0
+	previous.Months[2] = noticeMonth(previous, nil, mk007Months[2])
+	drafts := mk007Drafts(func(month calendar.Date) []parentbilling.CareInvoice {
+		if month == mk007Months[2] {
+			return nil
+		}
+		invoice := mk007Month(month)
+		if month == mk007Months[3] {
+			invoice = mk007Month(month, mk007Position(1, "Verlässliche Grundschule", 1300, month, "wed"),
+				mk007Position(2, "Nachmittagsbetreuung 13 - 16 Uhr", 2000, month, "wed"))
+		}
+		return []parentbilling.CareInvoice{invoice}
+	})
+	notices, _ := assessNotices(noticeAssessment{from: mk007Months[3], months: mk007Months, drafts: drafts,
+		previous: map[int64]parentbilling.CareNotice{7: previous}, issuedOn: mk007Months[3]})
+	require.Len(t, notices, 1)
+	require.Len(t, notices[0].Installments, 4, "the zero month stays assessed after another month changes")
+	assert.Equal(t, mk007Months[2], notices[0].Installments[2].Month)
+	assert.Zero(t, notices[0].Installments[2].AmountCents)
+}

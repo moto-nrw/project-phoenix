@@ -427,6 +427,7 @@ func (s *Store) InvoicedContracts(ctx context.Context, organizationID int64, mon
 // invoicedContractRow is one position of an issued invoice or of a month
 // of a Jahresbescheid, as invoicedContractsSQL reads it.
 type invoicedContractRow struct {
+	InvoiceID      int64
 	ContractID     int64
 	SchoolID       int64
 	RecipientEmail string
@@ -441,9 +442,9 @@ type invoicedContractRow struct {
 
 // invoicedContractsSQL reads the positions of the issued monthly invoices
 // of a month and of the months of the Jahresbescheide nobody amended.
-const invoicedContractsSQL = `SELECT contract_id, school_id, recipient_email, family_email, total_cents, care_offering_id,
+const invoicedContractsSQL = `SELECT invoice_id, contract_id, school_id, recipient_email, family_email, total_cents, care_offering_id,
 		amount_cents, payable_cents, reductions, notice_number FROM (
-		SELECT i.care_contract_id AS contract_id, i.school_id, i.recipient_email,
+		SELECT i.id AS invoice_id, i.care_contract_id AS contract_id, i.school_id, i.recipient_email,
 		COALESCE(i.family_email, '') AS family_email, i.total_cents,
 		COALESCE(p.care_offering_id, 0) AS care_offering_id, COALESCE(p.amount_cents, 0) AS amount_cents,
 		COALESCE(p.payable_cents, p.amount_cents, 0) AS payable_cents,
@@ -464,7 +465,7 @@ const invoicedContractsSQL = `SELECT contract_id, school_id, recipient_email, fa
 			AND NOT EXISTS (SELECT 1 FROM parent_billing.care_invoice_cancellations AS cancellation
 				WHERE cancellation.organization_id = i.organization_id AND cancellation.invoice_id = i.id)
 		UNION ALL
-		SELECT m.care_contract_id, n.school_id, n.recipient_email, n.family_email, m.amount_cents,
+		SELECT 0::bigint, m.care_contract_id, n.school_id, n.recipient_email, n.family_email, m.amount_cents,
 		COALESCE((p.position->>'care_offering_id')::bigint, 0), COALESCE((p.position->>'amount_cents')::bigint, 0),
 		COALESCE((m.snapshot->'payable'->>(p.ord - 1)::int)::bigint, (p.position->>'amount_cents')::bigint, 0),
 		COALESCE(NULLIF(m.snapshot->'invoice'->'reductions', 'null'::jsonb), '[]'::jsonb),
@@ -477,13 +478,18 @@ const invoicedContractsSQL = `SELECT contract_id, school_id, recipient_email, fa
 			AND NOT EXISTS (SELECT 1 FROM parent_billing.care_notices AS amendment
 				WHERE amendment.organization_id = n.organization_id AND amendment.amends_notice_id = n.id)
 		) AS billed
-		ORDER BY contract_id, ord`
+		ORDER BY contract_id, notice_number, ord`
 
 // invoicedFromRows folds the positions into one billed entry per contract.
 func invoicedFromRows(rows []invoicedContractRow) map[int64]parentbilling.CareInvoice {
 	invoiced := make(map[int64]parentbilling.CareInvoice)
 	for _, row := range rows {
 		invoice := invoiced[row.ContractID]
+		// A meal-only care invoice can coexist with a notice. Keep its ID
+		// while the notice supplies the care assessment for the rule chain.
+		if row.InvoiceID != 0 {
+			invoice.ID = row.InvoiceID
+		}
 		invoice.ContractID, invoice.SchoolID = row.ContractID, row.SchoolID
 		invoice.Recipient.Email, invoice.TotalCents = row.RecipientEmail, row.TotalCents
 		invoice.FamilyEmail = row.FamilyEmail

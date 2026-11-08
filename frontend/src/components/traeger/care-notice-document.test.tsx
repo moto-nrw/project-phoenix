@@ -4,6 +4,7 @@ import type {
   CareNotice,
   CareNoticeLetter,
 } from "~/lib/traeger-care-notices-api";
+import { usePhoneViewport } from "~/test/helpers/viewport";
 import { CareNoticeDocument } from "./care-notice-document";
 
 // Page 1 of the Hardt notice MK-007: 01.09.–31.12.2025, 12,00 € and
@@ -160,5 +161,70 @@ describe("CareNoticeDocument", () => {
     expect(screen.getByText("Bisher festgesetzt")).toBeInTheDocument();
     expect(screen.getByText(/\+16,00\s€/)).toBeInTheDocument();
     expect(screen.getByText("wird vergeben")).toBeInTheDocument();
+  });
+});
+
+describe("CareNoticeDocument on phones", () => {
+  usePhoneViewport();
+
+  it("keeps every change amount in the mobile calculation and rates", () => {
+    render(
+      <CareNoticeDocument
+        letter={letter({
+          ...MK007,
+          kind: "change",
+          lines: [
+            {
+              ...MK007.lines[0]!,
+              monthlyPreviousCents: 1100,
+              monthlyCents: 1200,
+              annualPreviousCents: 4400,
+              annualCents: 4800,
+              deltaCents: 400,
+            },
+          ],
+          installments: [
+            {
+              ...MK007.installments[0]!,
+              previousCents: 3100,
+              amountCents: 3200,
+              deltaCents: 100,
+            },
+          ],
+        })}
+      />,
+    );
+    const calculation = screen
+      .getByRole("heading", { name: "I. Berechnung" })
+      .closest("section")!;
+    const mobileLines = within(within(calculation).getByRole("list"));
+    for (const label of [
+      "Monat bisher",
+      "Monat neu",
+      "Zeitraum bisher",
+      "Zeitraum neu",
+      "Zu-/Abgang",
+    ]) {
+      expect(mobileLines.getByText(label)).toBeInTheDocument();
+    }
+    for (const amount of [
+      /11,00\s€/,
+      /12,00\s€/,
+      /44,00\s€/,
+      /48,00\s€/,
+      /\+4,00\s€/,
+    ]) {
+      expect(mobileLines.getByText(amount)).toBeInTheDocument();
+    }
+    const payment = screen
+      .getByRole("heading", { name: "II. Abrechnung" })
+      .closest("section")!;
+    const mobileRates = within(within(payment).getByRole("list"));
+    for (const label of ["bisher", "neu", "Zu-/Abgang"]) {
+      expect(mobileRates.getByText(label)).toBeInTheDocument();
+    }
+    for (const amount of [/31,00\s€/, /32,00\s€/, /\+1,00\s€/]) {
+      expect(mobileRates.getByText(amount)).toBeInTheDocument();
+    }
   });
 });

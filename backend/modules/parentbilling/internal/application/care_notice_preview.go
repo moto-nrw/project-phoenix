@@ -107,16 +107,39 @@ func (n *CareFeeNotices) noticeDrafts(ctx context.Context, organizationID int64,
 			return nil, err
 		}
 		review := narrowMonth(computed, run.SchoolIDs, nil)
-		drafts[month] = review.invoices
-		if month.Before(run.PeriodFrom) {
-			continue
+		drafts[month] = retainFailedAssessments(review.careMonth, in.previous, in.month.recipients, month)
+		if !month.Before(run.PeriodFrom) {
+			addBilledByInvoice(billed, invoiced, run.SchoolIDs)
 		}
-		addBilledByInvoice(billed, invoiced, run.SchoolIDs)
 		preview.unpriced = appendNew(preview.unpriced, review.unpriced)
 		preview.duplicates = appendNew(preview.duplicates, review.duplicates)
 	}
 	preview.billed = len(billed)
 	return drafts, nil
+}
+
+// retainFailedAssessments keeps the effective assessment of months the
+// computation could not price or held for duplicate contracts. An absent
+// draft is a withdrawal only when the computation succeeded.
+func retainFailedAssessments(review careMonth, previous map[int64]parentbilling.CareNotice,
+	recipients map[int64]parentbilling.CareRecipient, month calendar.Date,
+) []parentbilling.CareInvoice {
+	drafts := review.invoices
+	for contractID := range heldOrUnpriced(&review) {
+		notice, ok := previous[contractID]
+		if !ok {
+			continue
+		}
+		months, _ := previousByMonth(notice, true)
+		if invoice, assessed := months[month]; assessed {
+			// Keep the assessment, not an outdated contract party.
+			invoice.Recipient = recipients[contractID]
+			invoice.FamilyEmail = parentbilling.FamilyKey(invoice.Recipient.Email)
+			drafts = append(drafts, invoice)
+		}
+	}
+	slices.SortFunc(drafts, func(a, b parentbilling.CareInvoice) int { return compareOrdered(a.ContractID, b.ContractID) })
+	return drafts
 }
 
 // addBilledByInvoice names the contracts of the schools a monthly invoice

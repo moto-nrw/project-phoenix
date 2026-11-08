@@ -168,13 +168,13 @@ func noticeMonth(notice parentbilling.CareNotice, drafts map[calendar.Date]paren
 
 // noticeMonths are the months the notice assesses: those with a draft from
 // the run's first month on (and before it where the amended notice reached),
-// and every month the amended notice assessed with an amount.
+// and every month the amended notice assessed, including zero amounts.
 func noticeMonths(computed []calendar.Date, drafts map[calendar.Date]parentbilling.CareInvoice, previous map[calendar.Date]int64) []calendar.Date {
 	months := []calendar.Date{}
 	for _, month := range computed {
 		_, drafted := drafts[month]
-		amount, assessed := previous[month]
-		if drafted || (assessed && amount > 0) {
+		_, assessed := previous[month]
+		if drafted || assessed {
 			months = append(months, month)
 		}
 	}

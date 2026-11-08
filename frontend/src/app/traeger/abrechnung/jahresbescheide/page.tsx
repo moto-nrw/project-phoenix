@@ -3,7 +3,7 @@
 // Jahresbescheide des Trägers (#6219): Ein Jahreslauf setzt den Beitrag für
 // die Monate eines Jahres in einem Gebührenbescheid je Vertrag fest, mit
 // Monatsraten zum Monatsersten. Für diese Monate stellt der Monatslauf keine
-// Rechnung aus. Nur die Rolle mit dem Recht „Abrechnung“ sieht die Seite.
+// Betreuungsrechnung aus. Nur die Rolle mit dem Recht „Abrechnung“ sieht die Seite.
 
 import { FileText, Plus } from "lucide-react";
 import dynamic from "next/dynamic";
@@ -69,7 +69,11 @@ function runColumns(
       header: "Status",
       render: (run) => (
         <StatusBadge
-          label={NOTICE_RUN_STATUS_LABELS[run.status]}
+          label={
+            run.status === "released" && run.noticeCount === 0
+              ? "Abgeschlossen"
+              : NOTICE_RUN_STATUS_LABELS[run.status]
+          }
           tone={NOTICE_RUN_STATUS_TONES[run.status]}
         />
       ),
@@ -101,7 +105,7 @@ function runColumns(
     },
     {
       key: "issued",
-      header: "Ausgestellt am",
+      header: "Abgeschlossen am",
       render: (run) => (run.issuedOn ? formatDate(run.issuedOn) : "–"),
       stacked: "meta",
     },
@@ -156,7 +160,7 @@ export default function TraegerJahresbescheidePage() {
   return (
     <TenantPage
       title="Abrechnung"
-      info="Hier setzen Sie den Beitrag für mehrere Monate eines Jahres in einem Bescheid fest. Jede Familie bekommt je Vertrag einen Bescheid mit Monatsraten. Für diese Monate stellt der Monatslauf keine Rechnung aus."
+      info="Hier setzen Sie den Beitrag für mehrere Monate eines Jahres in einem Bescheid fest. Jede Familie bekommt je Vertrag einen Bescheid mit Monatsraten. Für diese Monate berechnet der Monatslauf keine Betreuung erneut. Essen rechnet er weiterhin ab."
       stats={
         runs.length > 0 ? (
           <TenantPageStats

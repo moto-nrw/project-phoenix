@@ -10873,7 +10873,7 @@ export const traegerCareNoticesTopic =
       title: "Jahresbescheide ausstellen",
       question: "Wie stelle ich einen Gebührenbescheid für das Jahr aus?",
       summary:
-        "Ein Jahresbescheid setzt den Beitrag für mehrere Monate eines Jahres fest. Jede Familie bekommt je Vertrag einen Bescheid mit Monatsraten. Die Raten sind jeweils am 1. des Monats fällig. Für Monate mit Bescheid stellt der Monatslauf keine Rechnung aus.",
+        "Ein Jahresbescheid setzt den Beitrag für mehrere Monate eines Jahres fest. Jede Familie bekommt je Vertrag einen Bescheid mit Monatsraten. Die Raten sind jeweils am 1. des Monats fällig. Für Monate mit Bescheid berechnet der Monatslauf keine Betreuung erneut. Essen rechnet er weiterhin ab.",
       group: "anmeldeverwaltung",
       audience: "traeger",
       icon: "Repeat",
@@ -10930,19 +10930,20 @@ export const traegerCareNoticesTopic =
         },
       ],
       result:
-        "Jede Familie hat ihren Bescheid mit den Raten bis Dezember. Für diese Monate stellt der Monatslauf keine Rechnung aus. Er zählt die Kinder unter `Schon abgerechnet`.",
+        "Jede Familie hat ihren Bescheid mit den Raten bis Dezember. Für diese Monate berechnet der Monatslauf keine Betreuung erneut. Er zählt die Kinder unter `Schon abgerechnet`.",
       differences: [
         "Hat ein Kind für einen Monat schon eine Monatsrechnung, nimmt der Bescheid diesen Monat nicht auf. Er beginnt mit dem nächsten Monat.",
         "Endet ein Vertrag, setzt der Änderungsbescheid die Monate danach auf 0,00 €. Das ist ein Abgang.",
       ],
       notes: [
+        "Fehlt ein Preis oder gibt es einen doppelten Vertrag, bleibt die bisherige Bewertung gültig. Prüfen Sie die Hinweise im Monatslauf.",
         "Das Essen steht nicht im Bescheid. Die Mensa rechnet es nach den Essen ab.",
         "Ermäßigungen und Anteile von Kostenträgern stehen als eigene Zeilen im Bescheid.",
       ],
       troubleshootingDetails: [
         "`Bescheide ausstellen` geht nicht und oben steht `Rechtsbehelfsbelehrung fehlt`: Tragen Sie die Belehrung in der Vorlage `Bescheid` ein. Dafür brauchen Sie das Recht `Einstellungen`.",
-        "Ein Jahreslauf lässt sich nicht starten: Für dieses Jahr gibt es schon einen offenen Lauf. Öffnen Sie ihn in der Liste und stellen Sie ihn aus.",
-        "Die Vorschau ist leer: Alle Bescheide stimmen noch. Es gibt nichts Neues auszustellen.",
+        "Ein Jahreslauf lässt sich nicht starten: Für dieses Jahr gibt es schon einen offenen Lauf. Öffnen Sie ihn in der Liste. Stellen Sie die Bescheide aus oder schließen Sie den leeren Lauf ab.",
+        "Die Vorschau ist leer: Es gibt nichts Neues auszustellen. Wählen Sie `Jahreslauf abschließen` und dann `Abschließen`. Danach können Sie einen neuen Jahreslauf für andere Schulen starten.",
       ],
       related: [
         HELP_TOPICS.traegerCareMonths,

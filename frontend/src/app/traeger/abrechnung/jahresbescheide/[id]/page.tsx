@@ -157,7 +157,11 @@ export default function TraegerCareNoticeRunPage() {
     try {
       setRun(await releaseCareNoticeRun(run));
       setConfirming(false);
-      success("Die Bescheide sind ausgestellt.");
+      success(
+        run.previewCount === 0
+          ? "Der Jahreslauf ist abgeschlossen."
+          : "Die Bescheide sind ausgestellt.",
+      );
     } catch (err) {
       logger.error("traeger_care_notice_run_release_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -182,9 +186,7 @@ export default function TraegerCareNoticeRunPage() {
     run?.notices.filter((notice) => notice.kind === "change") ?? [];
   const canRelease =
     preview &&
-    run.previewCount > 0 &&
-    run.numberRangeSet &&
-    !run.legalRemedyMissing;
+    (run.previewCount === 0 || (run.numberRangeSet && !run.legalRemedyMissing));
 
   return (
     <TenantPage
@@ -196,14 +198,21 @@ export default function TraegerCareNoticeRunPage() {
         run ? (
           <HolidayHeadFacts>
             <StatusBadge
-              label={NOTICE_RUN_STATUS_LABELS[run.status]}
+              label={
+                run.status === "released" && run.previewCount === 0
+                  ? "Abgeschlossen"
+                  : NOTICE_RUN_STATUS_LABELS[run.status]
+              }
               tone={NOTICE_RUN_STATUS_TONES[run.status]}
             />
             <span className="tabular-nums">
               {noticePeriod(run.periodFrom, run.periodUntil)}
             </span>
             {run.issuedOn ? (
-              <span>Ausgestellt am {formatDate(run.issuedOn)}</span>
+              <span>
+                {run.previewCount === 0 ? "Abgeschlossen" : "Ausgestellt"} am{" "}
+                {formatDate(run.issuedOn)}
+              </span>
             ) : run.noticeDate ? (
               <span>Bescheiddatum {formatDate(run.noticeDate)}</span>
             ) : null}
@@ -220,7 +229,9 @@ export default function TraegerCareNoticeRunPage() {
             disabled={!canRelease}
             onClick={() => setConfirming(true)}
           >
-            Bescheide ausstellen
+            {run.previewCount === 0
+              ? "Jahreslauf abschließen"
+              : "Bescheide ausstellen"}
           </Button>
         ) : undefined
       }
@@ -230,20 +241,35 @@ export default function TraegerCareNoticeRunPage() {
         run ? (
           <ConfirmationModal
             isOpen={confirming}
-            title="Bescheide ausstellen?"
-            confirmText="Ausstellen"
+            title={
+              run.previewCount === 0
+                ? "Jahreslauf abschließen?"
+                : "Bescheide ausstellen?"
+            }
+            confirmText={run.previewCount === 0 ? "Abschließen" : "Ausstellen"}
             isConfirmLoading={releasing}
-            loadingText="Wird ausgestellt …"
+            loadingText={
+              run.previewCount === 0
+                ? "Wird abgeschlossen …"
+                : "Wird ausgestellt …"
+            }
             onClose={() => setConfirming(false)}
             onConfirm={() => void release()}
           >
-            <p className="text-sm text-gray-700">
-              {noticeCountLabel(run.previewCount)} über{" "}
-              {formatEuro(run.previewCents)} bekommen ihre Nummer und das
-              Bescheiddatum{" "}
-              {run.noticeDate ? formatDate(run.noticeDate) : "von heute"}.
-              Danach lassen sie sich nicht mehr ändern.
-            </p>
+            {run.previewCount === 0 ? (
+              <p className="text-sm text-gray-700">
+                Dieser Jahreslauf stellt keine Bescheide aus. Danach können Sie
+                einen neuen Jahreslauf starten.
+              </p>
+            ) : (
+              <p className="text-sm text-gray-700">
+                {noticeCountLabel(run.previewCount)} über{" "}
+                {formatEuro(run.previewCents)} bekommen ihre Nummer und das
+                Bescheiddatum{" "}
+                {run.noticeDate ? formatDate(run.noticeDate) : "von heute"}.
+                Danach lassen sie sich nicht mehr ändern.
+              </p>
+            )}
             {changes.length > 0 ? (
               <p className="mt-3 text-sm text-gray-700">
                 {changes.length === 1
@@ -257,7 +283,7 @@ export default function TraegerCareNoticeRunPage() {
     >
       {run ? (
         <>
-          {preview && run.legalRemedyMissing ? (
+          {preview && run.previewCount > 0 && run.legalRemedyMissing ? (
             <Alert
               type="warning"
               title="Rechtsbehelfsbelehrung fehlt"
@@ -293,7 +319,7 @@ export default function TraegerCareNoticeRunPage() {
           {preview && (run.unpricedCount > 0 || run.duplicateCount > 0) ? (
             <Alert
               type="warning"
-              message="Für einige Kinder fehlt ein Preis oder es gibt einen doppelten Vertrag. Diese Monate stehen in keinem Bescheid. Der Monatslauf zeigt, was fehlt."
+              message="Für einige Kinder fehlt ein Preis oder es gibt einen doppelten Vertrag. Für diese Monate bleibt ein bisheriger Bescheid gültig. Ohne bisherigen Bescheid bleiben sie offen. Der Monatslauf zeigt, was fehlt."
             />
           ) : null}
           <div className="grid gap-4 sm:grid-cols-3">
