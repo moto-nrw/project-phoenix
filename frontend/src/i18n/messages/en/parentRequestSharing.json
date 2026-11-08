@@ -1,9 +1,9 @@
 {
   "button": "Share request",
   "title": "Share request with others",
-  "privacyHint": "Only selected guardians can see your request and the school's reply.",
+  "privacyHint": "Only selected guardians can see your request and the {careTerm}'s reply.",
   "recipientLegend": "Share request (optional)",
-  "protected": "This request stays private. The school has enabled family protection.",
+  "protected": "This request stays private. The {careTerm} has enabled family protection.",
   "noRecipients": "There are no other guardians with access to the parents app.",
   "loading": "Loading recipients …",
   "save": "Save selection",

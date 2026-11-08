@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import {
@@ -30,6 +30,7 @@ import {
   type CourseItem,
 } from "~/lib/parent-api";
 import { activitiesConcept } from "~/lib/concepts/activities";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 const logger = createLogger({ component: "CoursesSection" });
 
@@ -63,7 +64,7 @@ export function CoursesSection({
   /** Nach dem Ende der Betreuung gibt es nichts mehr anzufragen. */
   careEnded: boolean;
 }>) {
-  const t = useTranslations("parentMasterData");
+  const t = useCareTermTranslations("parentMasterData");
   const locale = useLocale();
   const [courses, setCourses] = useState<ChildCourses | null>(null);
   const [loading, setLoading] = useState(true);
@@ -329,7 +330,7 @@ export function CoursesSection({
 
 /** Freie Plätze im Klartext. Ohne Grenze steht hier nichts. */
 function CourseSlots({ course }: Readonly<{ course: CourseItem }>) {
-  const t = useTranslations("parentMasterData");
+  const t = useCareTermTranslations("parentMasterData");
   if (course.free_slots === undefined) return null;
   if (course.free_slots <= 0) {
     // Wer auf "Anfragen" tippt, soll vorher wissen, worauf es hinausläuft.
@@ -347,7 +348,7 @@ function CourseSlots({ course }: Readonly<{ course: CourseItem }>) {
 
 /** Der Stand des Kindes bei diesem Kurs, in einem Wort. */
 function CourseState({ course }: Readonly<{ course: CourseItem }>) {
-  const t = useTranslations("parentMasterData");
+  const t = useCareTermTranslations("parentMasterData");
   if (course.booked) {
     return <StatusBadge label={t("courses.booked")} tone="green" />;
   }
@@ -386,7 +387,7 @@ function CourseAction({
   onWithdraw: () => void;
   careEnded: boolean;
 }>) {
-  const t = useTranslations("parentMasterData");
+  const t = useCareTermTranslations("parentMasterData");
   if (course.booked) return null;
   if (course.requested) {
     if (

@@ -10,10 +10,10 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useTranslations } from "next-intl";
 
 import type { FormError } from "~/components/ui/form-error";
 import { useApiLoadError } from "~/contexts/ToastContext";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 import {
   getRequestSharingOptions,
   type RequestSharingState,
@@ -62,7 +62,7 @@ export function useSharingOptions(studentId: string): {
   failed: boolean;
   error: FormError | null;
 } {
-  const t = useTranslations("parentRequestSharing");
+  const t = useCareTermTranslations("parentRequestSharing");
   const contextLoad = useContext(SharingOptionsContext);
   const load = contextLoad ?? getRequestSharingOptions;
   const [state, setState] = useState<RequestSharingState | null>(null);

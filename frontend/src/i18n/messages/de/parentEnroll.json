@@ -1,7 +1,7 @@
 {
   "errorObject": "die Liste der Anmeldephasen",
   "back": "Zurück zum Elternportal",
-  "kicker": "Anmeldung für die OGS-Betreuung",
+  "kicker": "Anmeldung für die {careTerm}-Betreuung",
   "title": "Neue Anmeldung",
   "description": "Wählen Sie eine Schule und eine Anmeldephase, um Ihr Kind anzumelden.",
   "loading": "Anmeldephasen werden geladen …",

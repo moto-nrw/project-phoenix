@@ -1,9 +1,9 @@
 {
   "button": "Ndaje kërkesën",
   "title": "Ndaje kërkesën me të tjerët",
-  "privacyHint": "Vetëm kujdestarët e zgjedhur e shohin kërkesën tuaj dhe përgjigjen e shkollës.",
+  "privacyHint": "Vetëm kujdestarët e zgjedhur e shohin kërkesën tuaj dhe përgjigjen e {careTerm}-së.",
   "recipientLegend": "Ndaje kërkesën (me dëshirë)",
-  "protected": "Kjo kërkesë mbetet private. Shkolla ka aktivizuar mbrojtjen e familjes.",
+  "protected": "Kjo kërkesë mbetet private. {careTerm}-ja ka aktivizuar mbrojtjen e familjes.",
   "noRecipients": "Nuk ka kujdestarë të tjerë me qasje në aplikacionin e prindërve.",
   "loading": "Po ngarkohen marrësit …",
   "save": "Ruaj zgjedhjen",

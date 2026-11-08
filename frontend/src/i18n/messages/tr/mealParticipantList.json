@@ -2,7 +2,7 @@
   "title": "Mutfak için günlük liste",
   "description": "Liste, o gün öğle yemeğine kayıtlı tüm çocukları gösterir.",
   "cutoff": "Bu günün sipariş son tarihi: {date}.",
-  "closedDay": "OGS bu gün kapalı. Öğle yemeği yok.",
+  "closedDay": "{careTerm} bu gün kapalı. Öğle yemeği yok.",
   "child": "Çocuk",
   "class": "Sınıf",
   "dateAria": "Tarih: {date}",

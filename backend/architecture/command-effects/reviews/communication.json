@@ -1727,6 +1727,16 @@
       "target_owner": "organization-tenancy"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/settings.ParentMessagingValues.CareFacilityTerm",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.Settings.CareFacilityTerm",
+      "reason": "Read-only target: communication reaches modules/settings.ParentMessagingValues.CareFacilityTerm (settings-platform) to name the school's care term in the guardian's new-message mail (#6082). No persistent, lock or scope effect.",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.ParentMessagingValues.CareFacilityTerm",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/settings.ParentMessagingValues.ParentMessageLeadershipEnabled",
       "classification": "query",
       "effect": "query",

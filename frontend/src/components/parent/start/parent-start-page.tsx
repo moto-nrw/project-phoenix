@@ -44,6 +44,11 @@ import { parentMessagesConcept } from "~/lib/concepts/parentMessages";
 
 import { useSWRAuth, useInvalidateMatching } from "~/lib/swr";
 import { parentKeys } from "~/lib/swr/parent-keys";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
+import {
+  ParentChildCareTermScope,
+  useParentCareTerms,
+} from "~/lib/parent-care-term";
 import {
   useParentChildren,
   useParentFeatures,
@@ -160,7 +165,7 @@ const EMPTY_DATA: StartData = {
 };
 
 export function ParentStartPage() {
-  const t = useTranslations("parentStart");
+  const t = useCareTermTranslations("parentStart");
   const { profile } = useShellAuth();
   const childrenResource = useParentChildren();
   const featuresResource = useParentFeatures(childrenResource.data);
@@ -262,23 +267,25 @@ function StartChildCard({
     ) : undefined;
 
   return (
-    <ChildDayCard
-      child={{
-        studentId: child.student_id,
-        firstName: child.first_name,
-        lastName: child.last_name,
-        schoolClass: child.school_class,
-      }}
-      today={today}
-      features={features}
-      statusAside={pickupAside}
-      actionDisplay="compact"
-    />
+    <ParentChildCareTermScope studentId={child.student_id}>
+      <ChildDayCard
+        child={{
+          studentId: child.student_id,
+          firstName: child.first_name,
+          lastName: child.last_name,
+          schoolClass: child.school_class,
+        }}
+        today={today}
+        features={features}
+        statusAside={pickupAside}
+        actionDisplay="compact"
+      />
+    </ParentChildCareTermScope>
   );
 }
 
 function StartPickupSummary({ time }: Readonly<{ time: string }>) {
-  const t = useTranslations("parentChild");
+  const t = useCareTermTranslations("parentChild");
 
   return (
     <div className="flex min-w-0 items-start gap-3">
@@ -301,7 +308,7 @@ function StartPickupSummary({ time }: Readonly<{ time: string }>) {
 }
 
 function StartChildCardSkeleton() {
-  const t = useTranslations("parentStart");
+  const t = useCareTermTranslations("parentStart");
 
   return (
     <article
@@ -352,7 +359,8 @@ const EMPTY_SOURCES: TodoSources = {
  * Neuigkeiten-Backend die Tageskarten nicht aufhaelt (#2308).
  */
 function StartTodoSection() {
-  const t = useTranslations("parentStart");
+  const t = useCareTermTranslations("parentStart");
+  const { termOf } = useParentCareTerms();
   const locale = useLocale();
   const invalidate = useInvalidateMatching();
   const load = useCallback(
@@ -418,8 +426,8 @@ function StartTodoSection() {
   );
 
   const items = useMemo(
-    () => buildTodoItems(sources, locale, t, setOpenAnnouncementId),
-    [sources, locale, t],
+    () => buildTodoItems(sources, locale, t, setOpenAnnouncementId, termOf),
+    [sources, locale, t, termOf],
   );
 
   const openAnnouncement =
@@ -451,7 +459,7 @@ function StartTodoSection() {
 }
 
 function StartTodoSkeleton() {
-  const t = useTranslations("parentStart");
+  const t = useCareTermTranslations("parentStart");
 
   return (
     <section
@@ -480,6 +488,7 @@ function buildTodoItems(
   locale: string,
   t: StartTranslator,
   openAnnouncement: (id: string) => void,
+  termOf: (studentId: string) => string,
 ): TodoItem[] {
   const openAnnouncements = sources.announcements.filter(
     (item) =>
@@ -519,7 +528,9 @@ function buildTodoItems(
       todoFromAnnouncement(item, locale, t, true, openAnnouncement),
     ),
     ...appointments.map((event) => todoFromAppointment(event, locale, t)),
-    ...threads.map((thread) => todoFromThread(thread, locale, t)),
+    ...threads.map((thread) =>
+      todoFromThread(thread, locale, t, termOf(thread.student_id)),
+    ),
     ...notices.map((item) =>
       todoFromAnnouncement(item, locale, t, false, openAnnouncement),
     ),
@@ -591,6 +602,7 @@ function todoFromThread(
   thread: ThreadSummary,
   locale: string,
   t: StartTranslator,
+  careTerm: string,
 ): TodoItem {
   return {
     key: `thread-${thread.thread_id}`,
@@ -599,7 +611,10 @@ function todoFromThread(
       thread.unread === 1
         ? t("todo.messageTitleOne")
         : t("todo.messageTitleMany", { count: thread.unread }),
-    context: t("todo.messageContext", { name: thread.student_name }),
+    context: t("todo.messageContext", {
+      name: thread.student_name,
+      careTerm,
+    }),
     meta: formatTodoTimestamp(thread.last_message_at, locale, t("todo.today")),
     unread: true,
     href: parentPath(childConversationPath(thread.student_id, thread.audience)),

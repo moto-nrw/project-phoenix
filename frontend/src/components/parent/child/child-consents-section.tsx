@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
 import { ParentSection } from "~/components/parent/shell/parent-section";
 import { ParentSectionSkeleton } from "~/components/parent/parent-page";
 import { Alert } from "~/components/ui/alert";
@@ -25,13 +25,14 @@ import {
   type ChildConsentState,
 } from "~/lib/parent-api";
 import { confirmationsConcept } from "~/lib/concepts/confirmations";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 type PhotoConsentAction = "withdraw" | "grant";
 
 export function ChildConsentsSection({
   studentId,
 }: Readonly<{ studentId: string }>) {
-  const t = useTranslations("parentChild.consents");
+  const t = useCareTermTranslations("parentChild.consents");
   const locale = useLocale();
   const [consents, setConsents] = useState<ChildConsent[] | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);

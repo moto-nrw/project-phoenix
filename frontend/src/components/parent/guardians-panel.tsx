@@ -77,6 +77,7 @@ import {
 import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 import { peopleConcept } from "~/lib/concepts/people";
 import { permissionsConcept } from "~/lib/concepts/permissions";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 const logger = createLogger({ component: "GuardiansPanel" });
 
@@ -131,9 +132,9 @@ export default function GuardiansPanel({
   canAddContact = false,
   canManagePickup = false,
 }: GuardiansPanelProps) {
-  const t = useTranslations("parentChildDetail");
-  const visibilityT = useTranslations("parentVisibility");
-  const tPermission = useTranslations("parentPickupPermission");
+  const t = useCareTermTranslations("parentChildDetail");
+  const visibilityT = useCareTermTranslations("parentVisibility");
+  const tPermission = useCareTermTranslations("parentPickupPermission");
   const [guardians, setGuardians] = useState<ChildGuardian[]>([]);
   const [accounts, setAccounts] = useState<RelatedAccount[]>([]);
   // Offene Abholerlaubnis-Anfragen je Kontakt (#4780).
@@ -663,7 +664,7 @@ function ConnectedAccountRow({
   onCancelRemove: () => void;
   onConfirmRemove: () => void;
 }>) {
-  const t = useTranslations("parentChildDetail");
+  const t = useCareTermTranslations("parentChildDetail");
   const email = displayEmail(account.email);
   const name = `${account.first_name} ${account.last_name}`.trim() || email;
   const removable = canRemove && !account.is_primary && !account.is_self;
@@ -752,8 +753,8 @@ function GuardianRow({
   onEditPickup: () => void;
   onGrantAccess: (email: string, name: string) => void;
 }>) {
-  const t = useTranslations("parentChildDetail");
-  const tPermission = useTranslations("parentPickupPermission");
+  const t = useCareTermTranslations("parentChildDetail");
+  const tPermission = useCareTermTranslations("parentPickupPermission");
   const weekdayList = useWeekdayList();
   const pickupDays = normalizeWeekdays(g.pickup_weekdays ?? []);
   const name =
@@ -1025,8 +1026,8 @@ function ContactModal({
   /** requested: eine Abholerlaubnis ging als Anfrage an die OGS (#4780). */
   onSaved: (requested: boolean) => void;
 }>) {
-  const t = useTranslations("parentChildDetail");
-  const tPermission = useTranslations("parentPickupPermission");
+  const t = useCareTermTranslations("parentChildDetail");
+  const tPermission = useCareTermTranslations("parentPickupPermission");
   const [firstName, setFirstName] = useState(guardian?.first_name ?? "");
   const [lastName, setLastName] = useState(guardian?.last_name ?? "");
   const [email, setEmail] = useState(guardian?.email ?? "");
@@ -1451,8 +1452,8 @@ function PickupModal({
   /** requested: die Abholerlaubnis ging als Anfrage an die OGS (#4780). */
   onSaved: (requested: boolean) => void;
 }>) {
-  const t = useTranslations("parentChildDetail");
-  const tPermission = useTranslations("parentPickupPermission");
+  const t = useCareTermTranslations("parentChildDetail");
+  const tPermission = useCareTermTranslations("parentPickupPermission");
   const weekdayList = useWeekdayList();
   const [canPickup, setCanPickup] = useState(g.can_pickup);
   const [weekdays, setWeekdays] = useState<number[]>(

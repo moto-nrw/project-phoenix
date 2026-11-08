@@ -6,19 +6,19 @@
   "testimonialButtonLabel": "{number}. deneyim yazısını göster",
   "testimonials": {
     "infoHub": {
-      "quote": "OGS ile ilgili en önemli bilgileri tek bir yerde buluyorum. Artık e-postalarda veya kağıtlarda aramam gerekmiyor.",
+      "quote": "Bakımla ilgili en önemli bilgileri tek bir yerde buluyorum. Artık e-postalarda veya kağıtlarda aramam gerekmiyor.",
       "author": "Veli",
-      "role": "OGS iletişimi",
+      "role": "Bakımla ilgili bilgiler",
       "metric": "Her şey tek bir yerde"
     },
     "easyReplies": {
       "quote": "Bakım ekibine geri dönüş yapmak çok daha kolay. Her konu için telefon etmek veya ayrı e-posta yazmak gerekmiyor.",
       "author": "Veli",
-      "role": "OGS ile iletişim",
+      "role": "Bakım ekibiyle iletişim",
       "metric": "Daha kolay yanıt"
     },
     "lookUpLater": {
-      "quote": "Günlük hayat yoğun olduğunda, OGS'nin ne bildirdiğine sonradan tekrar bakabilmek çok yardımcı oluyor.",
+      "quote": "Günlük hayat yoğun olduğunda, bakım ekibinin ne bildirdiğine sonradan tekrar bakabilmek çok yardımcı oluyor.",
       "author": "Veli",
       "role": "Aile hayatı",
       "metric": "Güvenilir bilgi"

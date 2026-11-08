@@ -20,7 +20,7 @@
     "emptyDescription": "Şu anda yapılacak bir şey yok.",
     "messageTitleOne": "Yeni mesaj",
     "messageTitleMany": "{count} yeni mesaj",
-    "messageContext": "OGS · {name} hakkında",
+    "messageContext": "{careTerm} · {name} hakkında",
     "pollContext": "Anket · {school}",
     "declarationContext": "İzin · {school}",
     "newsContext": "Veli mektubu · {school}",
@@ -34,6 +34,6 @@
     "errorObject": "yapılacaklar listesinin tamamı"
   },
   "childrenLoading": "Çocuklar yükleniyor",
-  "noChildren": "Hesabınıza henüz bir çocuk bağlı değil. Okulunuzun OGS'si bunu ayarlayabilir.",
+  "noChildren": "Hesabınıza henüz bir çocuk bağlı değil. Okulunuzun {careTerm}'si bunu ayarlayabilir.",
   "errorObject": "çocuklarınızın özeti"
 }

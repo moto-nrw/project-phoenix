@@ -3,8 +3,8 @@
   "sectionTitle": "Today",
   "sectionDescription": "Today's status and important actions at a glance.",
   "statusLabel": "Current status",
-  "atOgs": "At the OGS",
-  "notAtOgs": "Not at the OGS",
+  "atOgs": "At the {careTerm}",
+  "notAtOgs": "Not at the {careTerm}",
   "state": {
     "present": "Here since {time}",
     "presentNoTime": "Here today",
@@ -30,7 +30,7 @@
     "pickupHint": "Adjust the pick-up time for one day",
     "message": "Write a message",
     "messageCompact": "Write a message",
-    "messageHint": "Contact the OGS about {name}",
+    "messageHint": "Contact the {careTerm} about {name}",
     "pickupWithMode": "Change pick-up for {name}",
     "pickupCompactWithMode": "Change pick-up",
     "pickupHintWithMode": "Change the pick-up time or way home for one day"

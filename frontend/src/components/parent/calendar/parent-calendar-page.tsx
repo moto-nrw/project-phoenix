@@ -76,6 +76,8 @@ import {
 } from "~/lib/personal-calendar-api";
 import { childrenConcept } from "~/lib/concepts/children";
 import { StatusDot } from "~/components/ui/status-dot";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
+import { useParentCareTerms } from "~/lib/parent-care-term";
 
 const logger = createLogger({ component: "ParentCalendarPage" });
 const MAX_CALENDAR_WINDOW_OFFSET = 91;
@@ -206,7 +208,7 @@ function eventTime(event: CalendarEvent, allDayLabel: string): string {
 }
 
 export function ParentCalendarPage() {
-  const t = useTranslations("parentCalendar");
+  const t = useCareTermTranslations("parentCalendar");
   const locale = useLocale();
   const toast = useToast();
   const searchParams = useSearchParams();
@@ -403,7 +405,7 @@ function CalendarEventList({
     status: "accepted" | "declined",
   ) => Promise<void>;
 }>) {
-  const t = useTranslations("parentCalendar");
+  const t = useCareTermTranslations("parentCalendar");
   const groupOrder: EventGroupKey[] = ["thisWeek", "nextWeek", "later"];
   return (
     <SectionCard className="h-full" bodyClassName="h-full space-y-5">
@@ -446,7 +448,7 @@ function useRespondWithError(
   show: ApiErrorShow,
   before?: () => void,
 ) {
-  const t = useTranslations("parentCalendar");
+  const t = useCareTermTranslations("parentCalendar");
   const onRespondRef = useRef(onRespond);
   const beforeRef = useRef(before);
   useLayoutEffect(() => {
@@ -480,7 +482,8 @@ function CalendarListEvent({
   responding: boolean;
   onRespond: (status: "accepted" | "declined") => Promise<void>;
 }>) {
-  const t = useTranslations("parentCalendar");
+  // A cancelled date names the care of its own school (#6082).
+  const t = useCareTermTranslations("parentCalendar", useEventCareTerm(event));
   // The row's own buttons sit in the list, so their error is a toast.
   const { show: showRespondError } = useApiErrorDisplay();
   const respondInRow = useRespondWithError(onRespond, showRespondError);
@@ -622,7 +625,7 @@ function CalendarMonthPanel({
     status: "accepted" | "declined",
   ) => Promise<void>;
 }>) {
-  const t = useTranslations("parentCalendar");
+  const t = useCareTermTranslations("parentCalendar");
   const days = useMemo(() => monthDays(referenceDate), [referenceDate]);
   const monthLabel = new Intl.DateTimeFormat(locale, {
     month: "long",
@@ -759,7 +762,7 @@ function MonthEventButton({
   responding: boolean;
   onRespond: (status: "accepted" | "declined") => Promise<void>;
 }>) {
-  const t = useTranslations("parentCalendar");
+  const t = useCareTermTranslations("parentCalendar");
   const colors = eventColors(event);
   const pending = eventState(event) === "needsResponse";
   const accessibleStatus = pending ? `, ${t("responseRequired")}` : "";
@@ -815,7 +818,8 @@ function CalendarEventPopover({
   renderTrigger: EventPopoverTrigger;
 }>) {
   const [open, setOpen] = useState(false);
-  const t = useTranslations("parentCalendar");
+  // A cancelled date names the care of its own school (#6082).
+  const t = useCareTermTranslations("parentCalendar", useEventCareTerm(event));
   const isCompact = useMediaQuery(BELOW_LG);
   const mobileTriggerRef = useRef<HTMLButtonElement>(null);
   const mobilePanelId = useId();
@@ -923,7 +927,7 @@ function CalendarEventDetails({
   onClose: () => void;
   onRespond: (status: "accepted" | "declined") => Promise<void>;
 }>) {
-  const t = useTranslations("parentCalendar");
+  const t = useCareTermTranslations("parentCalendar");
   // The details are an open popover or drawer, so the error stays inside.
   const {
     error: respondError,
@@ -1043,4 +1047,11 @@ function DetailRow({
       <span>{label}</span>
     </div>
   );
+}
+
+function useEventCareTerm(event: CalendarEvent): string {
+  const { termOf, termOfSchool } = useParentCareTerms();
+  return event.student_id
+    ? termOf(event.student_id)
+    : termOfSchool(event.school_name);
 }

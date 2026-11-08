@@ -22,7 +22,7 @@
   "declined": "Katılım reddedildi.",
   "answeredAccepted": "Katılıyoruz",
   "answeredDeclined": "Katılmıyoruz",
-  "cancelledByOgs": "OGS tarafından iptal edildi",
+  "cancelledByOgs": "{careTerm} tarafından iptal edildi",
   "previousMonth": "Önceki ay",
   "nextMonth": "Sonraki ay",
   "close": "Kapat",

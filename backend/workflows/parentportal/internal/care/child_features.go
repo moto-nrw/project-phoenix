@@ -34,6 +34,7 @@ func (s *Service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 			MealPlanEnabled:         settings.mealPlan,
 			MealRegistrationEnabled: false,
 			NewsEnabled:             settings.news,
+			CareFacilityTerm:        settings.careTerm,
 		}, nil
 	}
 
@@ -72,6 +73,7 @@ func (f childFeatureSettings) activeChildFlags(child *Child, hasOpenChangeReques
 		MealRegistrationEnabled:      f.mealRegistration && child.HasPermission(GuardianPermissionMealParticipationManage),
 		NewsEnabled:                  f.news,
 		ReasonRequired:               parentrequests.ReasonRequired(f.reasonPolicy, parentrequests.ReasonSideGuardian),
+		CareFacilityTerm:             f.careTerm,
 	}
 }
 

@@ -2,16 +2,16 @@
   "switcherLabel": "Choose a child",
   "overviewKicker": "Children at a glance",
   "overviewDescription": "Choose a child to view care, details and contacts.",
-  "ogsLabel": "OGS",
+  "ogsLabel": "{careTerm}",
   "careEnded": {
     "title": "Care has ended",
-    "body": "Your child is no longer in care at this school. You can still view everything from before. New reports are no longer possible."
+    "body": "Your child is no longer in care at this {careTerm}. You can still view everything from before. New reports are no longer possible."
   },
   "notFound": "There is no child at this address in your account. Please choose your child from the overview.",
-  "noChildren": "No child is linked to your account yet. Your school's OGS can set this up.",
+  "noChildren": "No child is linked to your account yet. Your school's {careTerm} can set this up.",
   "sections": {
     "today": "Today",
-    "care": "Care at the OGS",
+    "care": "Care at the {careTerm}",
     "data": "Child details",
     "people": "Parents and pick-up contacts"
   },
@@ -45,7 +45,7 @@
     "pickupUnknown": "The pick-up time is not available right now"
   },
   "care": {
-    "weekTitle": "OGS weekly schedule",
+    "weekTitle": "{careTerm} weekly schedule",
     "absenceTitle": "Absences"
   },
   "consents": {
@@ -81,7 +81,7 @@
     "grantButton": "Give photo consent again",
     "grantButtonShort": "Give again",
     "grantConfirmTitle": "Give photo consent again?",
-    "grantConfirmBody": "The OGS may store a photo again afterwards.",
+    "grantConfirmBody": "The {careTerm} may store a photo again afterwards.",
     "grantConfirmButton": "Give consent",
     "granting": "Saving",
     "grantSuccess": "Photo consent was given again.",

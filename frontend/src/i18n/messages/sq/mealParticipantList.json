@@ -2,7 +2,7 @@
   "title": "Lista ditore për kuzhinën",
   "description": "Lista tregon të gjithë fëmijët e regjistruar për drekë në këtë ditë.",
   "cutoff": "Afati i porosisë për këtë ditë: {date}.",
-  "closedDay": "Në këtë ditë OGS është e mbyllur. Nuk ka drekë.",
+  "closedDay": "Në këtë ditë {careTerm} është e mbyllur. Nuk ka drekë.",
   "child": "Fëmija",
   "class": "Klasa",
   "dateAria": "Data: {date}",

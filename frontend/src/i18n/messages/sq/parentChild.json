@@ -2,16 +2,16 @@
   "switcherLabel": "Zgjidhni fëmijën",
   "overviewKicker": "Fëmijët me një vështrim",
   "overviewDescription": "Zgjidhni një fëmijë për të parë kujdesin, të dhënat dhe kontaktet.",
-  "ogsLabel": "OGS",
+  "ogsLabel": "{careTerm}",
   "careEnded": {
     "title": "Kujdesi ka përfunduar",
-    "body": "Fëmija juaj nuk kujdeset më në këtë shkollë. Gjithçka e mëparshme mund ta shihni ende. Njoftime të reja nuk janë më të mundura."
+    "body": "Fëmija juaj nuk kujdeset më në këtë {careTerm}. Gjithçka e mëparshme mund ta shihni ende. Njoftime të reja nuk janë më të mundura."
   },
   "notFound": "Në këtë adresë nuk ka asnjë fëmijë në llogarinë tuaj. Ju lutemi zgjidhni fëmijën tuaj te përmbledhja.",
-  "noChildren": "Me llogarinë tuaj nuk është lidhur ende asnjë fëmijë. OGS-ja e shkollës suaj mund ta rregullojë këtë.",
+  "noChildren": "Me llogarinë tuaj nuk është lidhur ende asnjë fëmijë. {careTerm}-ja e shkollës suaj mund ta rregullojë këtë.",
   "sections": {
     "today": "Sot",
-    "care": "Kujdesi në OGS",
+    "care": "Kujdesi në {careTerm}",
     "data": "Të dhënat e fëmijës",
     "people": "Prindërit dhe personat që marrin fëmijën"
   },
@@ -45,7 +45,7 @@
     "pickupUnknown": "Ora e marrjes nuk është e disponueshme për momentin"
   },
   "care": {
-    "weekTitle": "Plani javor i OGS-së",
+    "weekTitle": "Plani javor i {careTerm}-së",
     "absenceTitle": "Mungesat"
   },
   "consents": {
@@ -81,7 +81,7 @@
     "grantButton": "Jep përsëri pëlqimin për fotografinë",
     "grantButtonShort": "Jep përsëri",
     "grantConfirmTitle": "Të jepet përsëri pëlqimi për fotografinë?",
-    "grantConfirmBody": "Më pas OGS-ja mund të ruajë përsëri një fotografi.",
+    "grantConfirmBody": "Më pas {careTerm}-ja mund të ruajë përsëri një fotografi.",
     "grantConfirmButton": "Jep pëlqimin",
     "granting": "Po ruhet",
     "grantSuccess": "Pëlqimi për fotografinë u dha përsëri.",

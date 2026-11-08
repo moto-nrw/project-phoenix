@@ -4,7 +4,7 @@
   "marksShort": "Alergjenët: {letters}",
   "marksLabel": "Përmban: {names}",
   "noneThisWeek": "Për këtë javë nuk janë dhënë alergjenë.",
-  "source": "Këto të dhëna vijnë nga shkolla ose nga furnizuesi i ushqimit. Një gjellë pa shkronjë nuk është patjetër pa alergjenë. Për pyetje drejtohuni te OGS.",
+  "source": "Këto të dhëna vijnë nga shkolla ose nga furnizuesi i ushqimit. Një gjellë pa shkronjë nuk është patjetër pa alergjenë. Për pyetje drejtohuni te {careTerm}.",
   "names": {
     "gluten": "Drithëra me gluten",
     "crustaceans": "Krustace",

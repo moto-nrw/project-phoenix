@@ -6,7 +6,7 @@
   "meals": "Essen",
   "byClass": "Je Klasse",
   "changes": "Nachmeldungen",
-  "closed": "OGS geschlossen",
+  "closed": "{careTerm} geschlossen",
   "open": "Offen",
   "deadline": "Frist",
   "ordered": "Bestellt",

@@ -1,7 +1,7 @@
 {
-  "kicker": "Poczta z OGS",
+  "kicker": "Poczta z {careTerm}",
   "title": "Listy do rodziców",
-  "description": "Ogłoszenia, ankiety i ważne informacje z Państwa OGS.",
+  "description": "Ogłoszenia, ankiety i ważne informacje z Państwa {careTerm}.",
   "empty": "Obecnie nie ma nowych listów do rodziców.",
   "open": "Otwarte",
   "openLabel": "Otwarte, {count}",
