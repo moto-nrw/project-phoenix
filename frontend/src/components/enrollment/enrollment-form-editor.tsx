@@ -3381,7 +3381,11 @@ function FormPreview({
               </span>
             </TileCard>
           ) : (
-            <TileCard disabled className="flex items-start gap-3">
+            <InsetPanel
+              tone="white"
+              padding="sm"
+              className="flex items-start gap-3 opacity-70"
+            >
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
                 <ExternalLink className="h-4 w-4" aria-hidden="true" />
               </span>
@@ -3393,7 +3397,7 @@ function FormPreview({
                   Speichern Sie die Vorlage zuerst.
                 </span>
               </span>
-            </TileCard>
+            </InsetPanel>
           )}
         </>
       }
