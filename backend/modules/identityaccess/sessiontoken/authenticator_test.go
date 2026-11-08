@@ -162,7 +162,6 @@ func TestAuthenticator_ValidToken(t *testing.T) {
 	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
-	// Create a valid token
 	claims := sessiontoken.AppClaims{
 		ID:          42,
 		Sub:         "user@example.com",
@@ -189,7 +188,6 @@ func TestAuthenticator_ValidToken(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	// Make request
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rr := httptest.NewRecorder()
@@ -246,7 +244,6 @@ func TestAuthenticator_ExpiredToken(t *testing.T) {
 		auth, err := newTestTokenAuth(t, testSecret, time.Millisecond, 24*time.Hour)
 		require.NoError(t, err)
 
-		// Create token
 		claims := sessiontoken.AppClaims{
 			ID:    1,
 			Sub:   "test@test.com",
@@ -348,7 +345,6 @@ func TestAuthenticateRefreshJWT_ValidToken(t *testing.T) {
 	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
-	// Create a valid refresh token
 	claims := tokentest.RefreshClaims{
 		ID:    42,
 		Token: "unique-token-id",
@@ -467,7 +463,6 @@ func TestFullRequestLifecycle_AccessToken(t *testing.T) {
 	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
-	// Create claims
 	accessClaims := sessiontoken.AppClaims{
 		ID:          123,
 		Sub:         "user@example.com",
@@ -484,7 +479,6 @@ func TestFullRequestLifecycle_AccessToken(t *testing.T) {
 		Token: "refresh-token-id",
 	}
 
-	// Generate tokens
 	accessToken, refreshToken, err := tokentest.GenTokenPair(auth, accessClaims, refreshClaims)
 	require.NoError(t, err)
 	require.NotEmpty(t, accessToken)
@@ -649,7 +643,6 @@ func TestAuthenticateRefreshJWT_ExpiredToken(t *testing.T) {
 		auth, err := newTestTokenAuth(t, testSecret, 15*time.Minute, time.Millisecond)
 		require.NoError(t, err)
 
-		// Create refresh token
 		claims := tokentest.RefreshClaims{
 			ID:    1,
 			Token: "test-token",
