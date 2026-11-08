@@ -472,7 +472,7 @@ export function CareRuleModal({
         ) : null}
         {kind === "sibling" && draft.effect === "tariff" ? (
           <p className="text-sm text-gray-600">
-            Jedes weitere Kind zahlt den Preis aus der Zeile „Jedes weitere
+            Jedes weitere Kind zahlt den Preis aus der Spalte „Jedes weitere
             Kind“ der Preisliste, je Modul und Tag. Wo dort nichts steht, zahlt
             es den Preis des 1. Kindes.
           </p>
