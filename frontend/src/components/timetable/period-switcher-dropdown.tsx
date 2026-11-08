@@ -176,7 +176,7 @@ export function PeriodSwitcherDropdown({
           <p className="text-sm font-semibold text-gray-900">
             Planungszeitraum
           </p>
-          <p className="text-xs text-gray-500">
+          <p className="text-sm text-gray-500">
             Zeiträume legen fest, in welchen Wochen regelmäßige Termine gelten.
             So kannst du Schuljahr, Ferien oder besondere Phasen getrennt
             planen.
@@ -402,7 +402,7 @@ function MonthPeriodSummary({
           </p>
         ))}
         {hasMissingDays && (
-          <p className="text-moto-amber-strong text-xs">
+          <p className="text-moto-amber-strong text-sm">
             Einige Tage haben keinen aktiven Zeitraum.
           </p>
         )}
