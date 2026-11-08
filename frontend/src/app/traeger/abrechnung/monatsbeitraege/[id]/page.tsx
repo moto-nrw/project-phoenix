@@ -41,7 +41,7 @@ import { ConfirmationModal } from "~/components/ui/modal";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import {
-  RunDocumentKindField,
+  runDocumentKindLabel,
   RunLegalRemedyNotice,
 } from "~/components/traeger/run-document-kind";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -411,7 +411,9 @@ export default function TraegerCareRunPage() {
               <DataField label="Vertrag ändert sich im Monat">
                 {run.monthRule ? MONTH_RULE_LABELS[run.monthRule] : "–"}
               </DataField>
-              <RunDocumentKindField documentKind={run.documentKind} />
+              <DataField label="Dokumentart">
+                {runDocumentKindLabel(run.documentKind)}
+              </DataField>
               <DataField label="Rechnungsnummern">
                 {run.numberRangeSet ? (
                   <span className="font-mono">{run.numberPattern}</span>

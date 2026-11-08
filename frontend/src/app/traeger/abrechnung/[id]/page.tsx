@@ -41,7 +41,7 @@ import NavigationLink from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import {
-  RunDocumentKindField,
+  runDocumentKindLabel,
   RunLegalRemedyNotice,
 } from "~/components/traeger/run-document-kind";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -346,7 +346,9 @@ export default function TraegerBillingRunPage() {
               <DataField label="Abrechnung">
                 Im Voraus, nach den bestätigten Buchungen
               </DataField>
-              <RunDocumentKindField documentKind={run.documentKind} />
+              <DataField label="Dokumentart">
+                {runDocumentKindLabel(run.documentKind)}
+              </DataField>
               <DataField label="Fällig">
                 {runDueDatesText(run.dueDates ?? []) ??
                   "Nach dem Zahlungsziel der Ferienbetreuung"}

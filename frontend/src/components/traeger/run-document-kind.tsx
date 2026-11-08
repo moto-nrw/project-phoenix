@@ -6,24 +6,16 @@
 
 import { Alert } from "~/components/ui/alert";
 import { ButtonLink } from "~/components/ui/button";
-import { DataField } from "~/components/ui/detail-modal-components";
 import {
   DOCUMENT_KIND_LABEL,
   type DocumentKind,
 } from "~/lib/traeger-document-kinds-api";
 import { traegerPath } from "~/lib/traeger-url";
 
-function labelOf(kind: string | undefined): string {
+export function runDocumentKindLabel(kind: string | undefined): string {
   return kind && kind in DOCUMENT_KIND_LABEL
     ? DOCUMENT_KIND_LABEL[kind as DocumentKind]
     : "–";
-}
-
-/** Das Feld „Dokumentart“ im Kopf eines Laufs. */
-export function RunDocumentKindField({
-  documentKind,
-}: Readonly<{ documentKind?: string }>) {
-  return <DataField label="Dokumentart">{labelOf(documentKind)}</DataField>;
 }
 
 /** Der Hinweis vor der Freigabe, wenn die Belehrung fehlt. */

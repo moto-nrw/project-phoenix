@@ -244,7 +244,11 @@ func careNoticeLetter(content careLetterContent) Letter {
 	if len(filled.Closing) > 0 {
 		letter.Closing = filled.Closing
 	}
-	letter.Blocks = append(letterBlocks(filled.Blocks), legalRemedyBlocks(filled.LegalRemedy)...)
+	letter.Blocks = letterBlocks(filled.Blocks)
+	if notes := strings.TrimSpace(content.input.Notes); notes != "" {
+		letter.Blocks = append(letter.Blocks, LetterBlock{Heading: "Hinweise", Text: notes})
+	}
+	letter.Blocks = append(letter.Blocks, legalRemedyBlocks(filled.LegalRemedy)...)
 	return letter
 }
 
@@ -278,7 +282,7 @@ func careNoticeValues(content careLetterContent) map[string]templates.Value {
 		values["datum"] = text(germanDate(*invoice.IssuedOn))
 	}
 	if invoice.TotalCents > 0 {
-		values["zahlen_bis"] = text(germanDate(content.input.PaymentDueOn))
+		values["zahlen_bis"] = text(germanDate(dueOnOf(invoice.Payment, content.input.PaymentDueOn)))
 	}
 	return values
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // hardtLegalRemedy is the legal remedy a Träger writes into its fee notice,
@@ -329,4 +330,103 @@ func TestLettersOfAFeeNoticeNeedTheLegalRemedyItsStornoDoesNot(t *testing.T) {
 	got, err = withNoticeTemplate(context.Background(), double, 1, head, parentbilling.DocumentKindInvoice, true)
 	require.NoError(t, err)
 	assert.Equal(t, head, got, "a monthly invoice keeps its built-in text")
+}
+
+func TestCareFeeNoticeUsesFrozenPaymentDeadline(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		payment *parentbilling.InvoicePayment
+		due     string
+	}{
+		{name: "legacy deadline", due: "15.01.2027"},
+		{name: "frozen deadline", payment: &parentbilling.InvoicePayment{
+			Method: parentbilling.PaymentTransfer, DueOn: calendar.NewDate(2027, 1, 25),
+		}, due: "25.01.2027"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			content := careLetterSJR()
+			content.invoice.Payment = tc.payment
+			content.letterhead.Template = hardtNoticeTemplate()
+			content.letterhead.Template.Body += "\n\nZahlen bis {{zahlen_bis}}."
+			text := blockText(careNoticeLetter(content))
+			assert.Contains(t, text, "Zahlen bis: "+tc.due)
+			assert.Contains(t, text, "Zahlen bis "+tc.due+".")
+			assert.Contains(t, text, "bis zum "+tc.due)
+		})
+	}
+}
+
+func TestCareFeeNoticeKeepsNotesBeforeLegalRemedy(t *testing.T) {
+	t.Parallel()
+	content := careLetterSJR()
+	content.letterhead.Template = hardtNoticeTemplate()
+	letter := careNoticeLetter(content)
+	require.GreaterOrEqual(t, len(letter.Blocks), 3)
+	assert.Equal(t, LetterBlock{Heading: "Hinweise", Text: content.input.Notes}, letter.Blocks[len(letter.Blocks)-3])
+	assert.Equal(t, "Rechtsbehelfsbelehrung", letter.Blocks[len(letter.Blocks)-2].Heading)
+
+	content.input.Notes = "  \n "
+	withoutNotes := careNoticeLetter(content)
+	assert.Len(t, withoutNotes.Blocks, len(letter.Blocks)-1)
+}
+
+type correctionNoticeStore struct {
+	LetterStore
+	file *parentbilling.BillingLetterFile
+}
+
+func (s *correctionNoticeStore) RunLetters(context.Context, int64, int64) (*parentbilling.BillingLetters, error) {
+	return &parentbilling.BillingLetters{}, nil
+}
+
+func (s *correctionNoticeStore) InsertDocumentLetter(_ context.Context, _, _, _ int64, file parentbilling.BillingLetterFile) error {
+	s.file = &file
+	return nil
+}
+
+type correctionNoticeTemplates struct {
+	documentKindDouble
+}
+
+func (s *correctionNoticeTemplates) Letterhead(context.Context, parentbilling.HolidayReviewer) (parentbilling.Letterhead, error) {
+	return parentbilling.Letterhead{Template: parentbilling.LetterTemplate{Body: "Bestätigung"}}, nil
+}
+
+type correctionNoticeRenderer struct {
+	letter Letter
+}
+
+func (r *correctionNoticeRenderer) RenderLetter(letter Letter, _ string) (parentbilling.BillingLetterFile, error) {
+	r.letter = letter
+	return parentbilling.BillingLetterFile{Data: []byte(blockText(letter))}, nil
+}
+
+func TestLaterHolidayNoticeCorrectionsLoadTheirLegalRemedy(t *testing.T) {
+	t.Parallel()
+	for _, kind := range []string{parentbilling.DocumentCancellation, parentbilling.DocumentCredit} {
+		for _, remedy := range []string{"Widerspruch binnen eines Monats.", ""} {
+			t.Run(kind+"/"+remedy, func(t *testing.T) {
+				content := correctionContent(t, kind)
+				content.document.DocumentKind = parentbilling.DocumentKindFeeNotice
+				content.invoice.DocumentKind = parentbilling.DocumentKindFeeNotice
+				store := &correctionNoticeStore{}
+				templates := &correctionNoticeTemplates{documentKindDouble{remedy: remedy}}
+				renderer := &correctionNoticeRenderer{}
+				letters := &BillingLetters{store: store, letterheads: templates, renderer: renderer}
+				err := letters.correctionLetter(context.Background(), parentbilling.HolidayReviewer{}, correctionTarget{
+					run: content.run, invoice: *content.invoice,
+				}, content.document)
+				require.NoError(t, err)
+				require.NotNil(t, store.file)
+				assert.Equal(t, 1, templates.reads)
+				if remedy != "" {
+					assert.Contains(t, string(store.file.Data), remedy)
+					assert.Contains(t, blockText(renderer.letter), "Rechtsbehelfsbelehrung")
+				} else {
+					assert.NotContains(t, blockText(renderer.letter), "Rechtsbehelfsbelehrung")
+				}
+			})
+		}
+	}
 }

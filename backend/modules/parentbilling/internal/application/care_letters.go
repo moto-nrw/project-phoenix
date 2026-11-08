@@ -406,9 +406,8 @@ func (l *CareLetters) render(content careLetterContent) (parentbilling.BillingLe
 	return file, nil
 }
 
-// withNoticeTemplate puts the Träger's template of the fee notice on the
-// letterhead of a monthly fee notice (#4688). A monthly invoice keeps its
-// built-in text and reads no template.
+// withNoticeTemplate loads the Träger's fee-notice template only for a
+// fee notice (#4688). Other document kinds keep the existing letterhead.
 func withNoticeTemplate(ctx context.Context, templates parentbilling.BillingDocumentTemplates, organizationID int64,
 	head parentbilling.Letterhead, documentKind string, required bool,
 ) (parentbilling.Letterhead, error) {

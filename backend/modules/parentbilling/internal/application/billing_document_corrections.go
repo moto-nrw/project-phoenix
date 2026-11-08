@@ -174,6 +174,9 @@ func (b *BillingLetters) correctionLetter(ctx context.Context, reviewer parentbi
 	if err != nil {
 		return fmt.Errorf("parent billing: read letterhead: %w", err)
 	}
+	if head, err = withNoticeTemplate(ctx, b.letterheads, reviewer.OrganizationID, head, document.DocumentKind, false); err != nil {
+		return err
+	}
 	file, err := b.render(letterContent{
 		run: target.run, document: document, letterhead: head, invoice: &target.invoice,
 		leftCents: leftOf(target.invoice, append(append([]parentbilling.BillingDocument{}, target.history...), document)),
