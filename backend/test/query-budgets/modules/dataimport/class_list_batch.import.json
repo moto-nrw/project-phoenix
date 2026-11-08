@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.dataimport.class_list_batch.import",
+  "max": 80,
+  "exact": false,
+  "description": "Ten-row class-list create with name and class; each entry leaves its audit change. Measured by TestClassListImportBatchQueryBudget after two warmups (ADR 0067 addendum 2026-11-08, Messplan N10/N110)."
+}
