@@ -1,4 +1,4 @@
-import type { ChildStatus } from "~/lib/enrollment-admin-api";
+import type { ChildStatus } from "~/lib/enrollment-status";
 import {
   StatusBadge,
   type StatusBadgeTone,

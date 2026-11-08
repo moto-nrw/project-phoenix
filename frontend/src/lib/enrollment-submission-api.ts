@@ -1,8 +1,6 @@
 import type { SignatureRequestBody } from "~/lib/signature";
-import { unavailableApiError, type ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
-import { readEnrollmentError } from "~/lib/enrollment-api-error";
 import type {
   PublicCaptchaConfig,
   PublicFormSchema,
@@ -10,11 +8,19 @@ import type {
 } from "~/lib/enrollment-form-schema-api";
 import type { CareOfferingAvailabilityRule } from "~/lib/care-offering-api";
 import type { Translations } from "~/lib/enrollment-translations";
+import {
+  enrollmentErrorReader,
+  readEnrollmentJSON,
+  sendEnrollmentRequest,
+} from "~/lib/enrollment-http";
+
+import type {
+  CareOfferingSelectionMode,
+  PhaseAudience,
+} from "~/lib/enrollment-phase-api";
+import type { ChangeRequestStatus, ChildStatus } from "~/lib/enrollment-status";
 
 const logger = createLogger({ component: "EnrollmentSubmissionAPI" });
-
-export type CareOfferingSelectionMode =
-  "optional" | "at_least_one" | "exactly_one";
 
 export interface PublicCareOffering {
   id: string;
@@ -187,13 +193,6 @@ export interface EnrollmentEditBootstrap {
   draft: EnrollmentEditDraft;
 }
 
-type EnrollmentChangeRequestStatus =
-  | "pending_review"
-  | "needs_parent_response"
-  | "approved"
-  | "rejected"
-  | "cancelled";
-
 type EnrollmentChangeRequestMessageAuthor = "parent" | "staff" | "system";
 
 interface EnrollmentChangeRequestMessage {
@@ -209,7 +208,7 @@ export interface EnrollmentChangeRequest {
   id: string;
   request_id: string;
   origin: "parent" | "admin";
-  status: EnrollmentChangeRequestStatus;
+  status: ChangeRequestStatus;
   parent_note?: string | null;
   admin_decision_note?: string | null;
   base_snapshot: Record<string, unknown>;
@@ -222,48 +221,10 @@ export interface EnrollmentChangeRequest {
   messages?: EnrollmentChangeRequestMessage[];
 }
 
-interface BackendEnvelope<T> {
-  status?: string;
-  data?: T;
-  message?: string;
-}
-
-async function readJSON<T>(response: Response): Promise<T> {
-  const raw = (await response.json()) as BackendEnvelope<T>;
-  if (
-    raw &&
-    typeof raw === "object" &&
-    "data" in raw &&
-    raw.data !== undefined
-  ) {
-    return raw.data as T;
-  }
-  return raw as unknown as T;
-}
-
-/**
- * `fetch` that reports a broken connection as `general.unavailable`
- * (#2515), so the form says "nicht erreichbar" instead of crashing.
- */
-async function request(input: string, init?: RequestInit): Promise<Response> {
-  try {
-    return await fetch(input, init);
-  } catch (cause) {
-    throw unavailableApiError(cause);
-  }
-}
-
-async function readError(
-  response: Response,
-  fallback: string,
-): Promise<ApiError> {
-  return readEnrollmentError(
-    response,
-    fallback,
-    logger,
-    "enrollment_submission_api_failed",
-  );
-}
+const readError = enrollmentErrorReader(
+  logger,
+  "enrollment_submission_api_failed",
+);
 
 /**
  * Concrete-class config for a phase (#1833): whether the tenant collects
@@ -350,7 +311,7 @@ export async function fetchPublicCareOfferings(
   const path = `/api/enrollment/care-offerings/public/${encodeURIComponent(
     tenantSlug,
   )}/${encodeURIComponent(phaseId)}`;
-  const response = await request(
+  const response = await sendEnrollmentRequest(
     withLateInviteQuery(path, options.lateInviteToken),
     { cache: "no-store" },
   );
@@ -360,7 +321,7 @@ export async function fetchPublicCareOfferings(
       "Betreuungsangebote konnten nicht geladen werden",
     );
   }
-  const payload = await readJSON<{
+  const payload = await readEnrollmentJSON<{
     offerings?: PublicCareOffering[];
     care_offering_selection_mode?: CareOfferingSelectionMode;
     care_required?: boolean;
@@ -422,7 +383,7 @@ export interface PublicPhase {
    * "linked_parents" phases never reach the public picker (filtered
    * server-side).
    */
-  audience?: "open" | "new_students" | "existing_students" | "linked_parents";
+  audience?: PhaseAudience;
   /**
    * Grade restriction (#1663). Empty (or missing) = no restriction;
    * otherwise only children in one of these grades may apply. The form
@@ -442,14 +403,14 @@ export interface PublicPhase {
 export async function fetchPublicPhases(
   tenantSlug: string,
 ): Promise<PublicPhase[]> {
-  const response = await request(
+  const response = await sendEnrollmentRequest(
     `/api/enrollment/phases/public/${encodeURIComponent(tenantSlug)}`,
     { cache: "no-store" },
   );
   if (!response.ok) {
     throw await readError(response, "Phasen konnten nicht geladen werden");
   }
-  const list = await readJSON<PublicPhase[]>(response);
+  const list = await readEnrollmentJSON<PublicPhase[]>(response);
   return Array.isArray(list) ? list : [];
 }
 
@@ -519,14 +480,14 @@ export async function fetchPublicEnrollmentBootstrap(
     tenantSlug,
   )}/${encodeURIComponent(phaseId)}`;
   path = withLateInviteQuery(path, options.lateInviteToken);
-  const response = await request(path, { cache: "no-store" });
+  const response = await sendEnrollmentRequest(path, { cache: "no-store" });
   if (!response.ok) {
     throw await readError(
       response,
       "Anmeldeformular konnte nicht geladen werden",
     );
   }
-  return readJSON<PublicEnrollmentBootstrap>(response);
+  return readEnrollmentJSON<PublicEnrollmentBootstrap>(response);
 }
 
 /**
@@ -546,14 +507,14 @@ export async function fetchParentEnrollmentBootstrap(
     tenantSlug,
   )}/bootstrap/${encodeURIComponent(phaseId)}`;
   path = withLateInviteQuery(path, options.lateInviteToken);
-  const response = await request(path, { cache: "no-store" });
+  const response = await sendEnrollmentRequest(path, { cache: "no-store" });
   if (!response.ok) {
     throw await readError(
       response,
       "Anmeldeformular konnte nicht geladen werden",
     );
   }
-  return readJSON<PublicEnrollmentBootstrap>(response);
+  return readEnrollmentJSON<PublicEnrollmentBootstrap>(response);
 }
 
 /**
@@ -563,7 +524,7 @@ export async function fetchParentEnrollmentBootstrap(
  * as ApiError so SWR/effects can surface them.
  */
 export async function fetchMyEnrollmentProfile(): Promise<MeProfileResponse | null> {
-  const response = await request("/api/enrollment/me/profile", {
+  const response = await sendEnrollmentRequest("/api/enrollment/me/profile", {
     cache: "no-store",
   });
   if (response.status === 401) {
@@ -572,7 +533,7 @@ export async function fetchMyEnrollmentProfile(): Promise<MeProfileResponse | nu
   if (!response.ok) {
     throw await readError(response, "Profil konnte nicht geladen werden");
   }
-  return readJSON<MeProfileResponse>(response);
+  return readEnrollmentJSON<MeProfileResponse>(response);
 }
 
 /**
@@ -583,7 +544,7 @@ export async function submitEnrollment(
   tenantSlug: string,
   payload: SubmitEnrollmentPayload,
 ): Promise<SubmitEnrollmentResult> {
-  const response = await request(
+  const response = await sendEnrollmentRequest(
     `/api/enrollment/${encodeURIComponent(tenantSlug)}/submit`,
     {
       method: "POST",
@@ -597,27 +558,14 @@ export async function submitEnrollment(
       "Anmeldung konnte nicht übermittelt werden",
     );
   }
-  return readJSON<SubmitEnrollmentResult>(response);
+  return readEnrollmentJSON<SubmitEnrollmentResult>(response);
 }
 
 export interface StatusChild {
   id: string;
   first_name: string;
   last_name: string;
-  status:
-    | "submitted"
-    | "under_review"
-    | "approved"
-    | "waitlisted"
-    | "rejected"
-    | "withdrawn"
-    // Annual phase rollover (migration 1.15.62). pending_renewal +
-    // auto_renewed surface to parents; pending_admin_review is admin-only
-    // and doesn't ship a status URL — but we include it in the union
-    // so the type is exhaustive across all DB values.
-    | "pending_renewal"
-    | "auto_renewed"
-    | "pending_admin_review";
+  status: ChildStatus;
   status_reason?: string | null;
   /**
    * True once the child is taken over into care. Its data stays readable
@@ -694,7 +642,7 @@ export interface EnrollmentSignature {
 export async function fetchStatus(
   token: string,
 ): Promise<StatusResponse | null> {
-  const response = await request(
+  const response = await sendEnrollmentRequest(
     `/api/enrollment/requests/${encodeURIComponent(token)}`,
     { cache: "no-store" },
   );
@@ -702,14 +650,14 @@ export async function fetchStatus(
   if (!response.ok) {
     throw await readError(response, "Status konnte nicht geladen werden");
   }
-  return readJSON<StatusResponse>(response);
+  return readEnrollmentJSON<StatusResponse>(response);
 }
 
 /** Downloads the proof of the parent's signature behind the status link. */
 export async function downloadEnrollmentSignatureProof(
   token: string,
 ): Promise<void> {
-  const response = await request(
+  const response = await sendEnrollmentRequest(
     `/api/enrollment/requests/${encodeURIComponent(token)}/signature-proof`,
     { cache: "no-store" },
   );
@@ -726,14 +674,14 @@ export async function fetchEnrollmentEditBootstrap(
   token: string,
   fallback = "Anmeldung kann nicht bearbeitet werden",
 ): Promise<EnrollmentEditBootstrap> {
-  const response = await request(
+  const response = await sendEnrollmentRequest(
     `/api/enrollment/requests/${encodeURIComponent(token)}/edit-bootstrap`,
     { cache: "no-store" },
   );
   if (!response.ok) {
     throw await readError(response, fallback);
   }
-  return readJSON<EnrollmentEditBootstrap>(response);
+  return readEnrollmentJSON<EnrollmentEditBootstrap>(response);
 }
 
 export async function updateEnrollmentRequest(
@@ -741,7 +689,7 @@ export async function updateEnrollmentRequest(
   payload: SubmitEnrollmentPayload,
   fallback = "Änderungen konnten nicht gespeichert werden",
 ): Promise<SubmitEnrollmentResult> {
-  const response = await request(
+  const response = await sendEnrollmentRequest(
     `/api/enrollment/requests/${encodeURIComponent(token)}`,
     {
       method: "PUT",
@@ -752,7 +700,7 @@ export async function updateEnrollmentRequest(
   if (!response.ok) {
     throw await readError(response, fallback);
   }
-  return readJSON<SubmitEnrollmentResult>(response);
+  return readEnrollmentJSON<SubmitEnrollmentResult>(response);
 }
 
 export async function createEnrollmentChangeRequest(
@@ -761,7 +709,7 @@ export async function createEnrollmentChangeRequest(
   parentNote = "",
   fallback = "Änderungsanfrage konnte nicht gespeichert werden",
 ): Promise<EnrollmentChangeRequest> {
-  const response = await request(
+  const response = await sendEnrollmentRequest(
     `/api/enrollment/requests/${encodeURIComponent(token)}/change-requests`,
     {
       method: "POST",
@@ -775,13 +723,13 @@ export async function createEnrollmentChangeRequest(
   if (!response.ok) {
     throw await readError(response, fallback);
   }
-  return readJSON<EnrollmentChangeRequest>(response);
+  return readEnrollmentJSON<EnrollmentChangeRequest>(response);
 }
 
 export async function listEnrollmentChangeRequests(
   token: string,
 ): Promise<EnrollmentChangeRequest[]> {
-  const response = await request(
+  const response = await sendEnrollmentRequest(
     `/api/enrollment/requests/${encodeURIComponent(token)}/change-requests`,
     { cache: "no-store" },
   );
@@ -791,7 +739,7 @@ export async function listEnrollmentChangeRequests(
       "Änderungsanfragen konnten nicht geladen werden",
     );
   }
-  const list = await readJSON<EnrollmentChangeRequest[]>(response);
+  const list = await readEnrollmentJSON<EnrollmentChangeRequest[]>(response);
   return Array.isArray(list) ? list : [];
 }
 
@@ -800,7 +748,7 @@ export async function replyEnrollmentChangeRequest(
   changeRequestId: string,
   body: string,
 ): Promise<EnrollmentChangeRequest> {
-  const response = await request(
+  const response = await sendEnrollmentRequest(
     `/api/enrollment/requests/${encodeURIComponent(
       token,
     )}/change-requests/${encodeURIComponent(changeRequestId)}/messages`,
@@ -813,7 +761,7 @@ export async function replyEnrollmentChangeRequest(
   if (!response.ok) {
     throw await readError(response, "Antwort konnte nicht gesendet werden");
   }
-  return readJSON<EnrollmentChangeRequest>(response);
+  return readEnrollmentJSON<EnrollmentChangeRequest>(response);
 }
 
 export async function patchStatus(
@@ -826,7 +774,7 @@ export async function patchStatus(
     custom_data?: Record<string, unknown>;
   },
 ): Promise<void> {
-  const response = await request(
+  const response = await sendEnrollmentRequest(
     `/api/enrollment/requests/${encodeURIComponent(token)}`,
     {
       method: "PATCH",
@@ -847,7 +795,7 @@ export async function withdrawStatus(
   childID?: string,
 ): Promise<void> {
   const body = childID ? { child_id: childID } : {};
-  const response = await request(
+  const response = await sendEnrollmentRequest(
     `/api/enrollment/requests/${encodeURIComponent(token)}/withdraw`,
     {
       method: "POST",
@@ -867,7 +815,7 @@ export async function withdrawStatus(
  * picks them up. Returns the number of children promoted.
  */
 export async function confirmRenewal(token: string): Promise<number> {
-  const response = await request(
+  const response = await sendEnrollmentRequest(
     `/api/enrollment/requests/${encodeURIComponent(token)}/confirm-renewal`,
     { method: "POST", headers: { "Content-Type": "application/json" } },
   );

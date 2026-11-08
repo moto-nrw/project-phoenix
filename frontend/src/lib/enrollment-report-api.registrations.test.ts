@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ApiError } from "./api-error";
-import { exportPhaseRegistrations } from "./enrollment-export-api";
+import { exportPhaseRegistrations } from "./enrollment-report-api";
 
 // exportPhaseRegistrations POSTs to the Next.js proxy and streams the
 // returned blob to a browser download. These tests stub fetch + the DOM

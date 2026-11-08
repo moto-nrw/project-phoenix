@@ -141,6 +141,21 @@ describe("AdminEnrollmentsList setup guide", () => {
     expect(screen.getByText("Basisformular")).toBeVisible();
   });
 
+  it("offers no public form link for an audience-restricted phase", async () => {
+    mocks.listPhases.mockResolvedValue([
+      phase({ id: "12", audience: "linked_parents" }),
+    ]);
+
+    render(<AdminEnrollmentsList />);
+
+    expect(
+      await screen.findByRole("link", { name: "Anmeldungen ansehen" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("link", { name: "Formular ansehen" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("uses tenant-aware enrollment links", async () => {
     mocks.listPhases.mockResolvedValue([phase({ id: "12" })]);
 

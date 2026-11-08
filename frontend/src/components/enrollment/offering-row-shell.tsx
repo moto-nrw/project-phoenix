@@ -12,6 +12,11 @@
 import type { ReactNode } from "react";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { InsetPanel } from "~/components/ui/inset-panel";
+import {
+  type CareOfferingBookingStats,
+  formatOfferingOccupancy,
+  offeringIsFull,
+} from "~/lib/care-offering-booking-stats";
 
 /**
  * - `available`: the person can tick the row.
@@ -54,5 +59,25 @@ export function OfferingRowShell({
     >
       {children}
     </ChoiceTile>
+  );
+}
+
+/**
+ * Occupancy under an offering in the admin flows (#2186); nothing without
+ * stats, so the parent form and a failed stats load show no line.
+ */
+export function OfferingOccupancyLine({
+  stats,
+}: Readonly<{ stats: CareOfferingBookingStats | undefined }>) {
+  const label = formatOfferingOccupancy(stats);
+  if (!label) return null;
+  return (
+    <span
+      className={`mt-1 block text-xs ${
+        offeringIsFull(stats) ? "text-moto-amber-strong" : "text-gray-500"
+      }`}
+    >
+      {label}
+    </span>
   );
 }

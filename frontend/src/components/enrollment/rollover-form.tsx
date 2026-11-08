@@ -14,7 +14,7 @@ import {
 } from "~/lib/enrollment-phase-api";
 import { parseISODate, toISODate } from "~/lib/date-helpers";
 import { CHILD_STATUS_LABELS } from "~/components/enrollment/child-status-badge";
-import type { ChildStatus } from "~/lib/enrollment-admin-api";
+import type { ChildStatus } from "~/lib/enrollment-status";
 import { createLogger } from "~/lib/logger";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { CheckboxCard } from "~/components/ui/checkbox-card";
