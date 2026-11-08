@@ -120,7 +120,9 @@ function ReductionLine({ reduction }: Readonly<{ reduction: CareReduction }>) {
   return (
     <li className="flex items-baseline justify-between gap-4 py-1.5">
       <div className="min-w-0">
-        <p className="text-sm text-gray-900">{reduction.name}</p>
+        <p className="text-sm break-words hyphens-auto text-gray-900">
+          {reduction.name}
+        </p>
         <p className="mt-0.5 text-xs text-gray-600">
           {reductionExplanation(reduction)}
         </p>
@@ -154,11 +156,11 @@ function CostShareLines({ invoice }: Readonly<{ invoice: CareInvoice }>) {
           className="flex items-baseline justify-between gap-4 py-1.5"
         >
           <div className="min-w-0">
-            <p className="text-sm wrap-anywhere text-gray-900">
-              Übernimmt {share.costBearerName}
+            <p className="text-sm break-words hyphens-auto text-gray-900">
+              {share.costBearerName}
             </p>
             <p className="mt-0.5 text-xs text-gray-600">
-              {COST_SHARE_KIND_LABELS[share.kind]} ·{" "}
+              übernimmt · {COST_SHARE_KIND_LABELS[share.kind]} ·{" "}
               {costShareAmountText(share)}
             </p>
           </div>
