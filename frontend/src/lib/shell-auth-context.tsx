@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useMemo } from "react";
+import { portalAuthPath } from "./portal-paths";
 import { signOut, useSession } from "next-auth/react";
 import { useProfile } from "~/lib/profile-context";
 import { operatorAbsoluteUrl, operatorPath } from "~/lib/operator-url";
@@ -224,7 +225,7 @@ export function TeacherShellProvider({
               // sessionStorage unavailable (e.g. private browsing quota)
             }
             // Record the preview's end before revoking its family (#2893).
-            // Its refresh token is still the admin's (shared.ts), so logout
+            // Its refresh token is still the admin's (staff-preview.ts), so logout
             // needs no intermediate session restore or uncancellable update.
             if (session?.user?.isPreview) {
               try {
@@ -243,7 +244,10 @@ export function TeacherShellProvider({
             // The revocation never waits for push (#5194): the backend drops the
             // family's push subscriptions with it, and the device-side cleanup
             // below stays best-effort with one five-second budget (#5260).
-            await revokeSessionFamily("/api/auth/logout", signal);
+            await revokeSessionFamily(
+              portalAuthPath("tenant", "logout"),
+              signal,
+            );
             void unsubscribePushSilently("tenant", {
               signal,
               timeoutMs: 5000,
@@ -332,7 +336,7 @@ export function OperatorShellProvider({
         behindSessionBarrier(async () => {
           // The operator family is checked on every operator request; revoking
           // it ends this session's tokens at once (#5194).
-          await revokeSessionFamily("/api/operator/auth/logout");
+          await revokeSessionFamily(portalAuthPath("operator", "logout"));
           // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
           // Gerät (#5000).
           clearPersonalStorage();
@@ -410,7 +414,7 @@ export function SchoolShellProvider({
           // School sessions revoke through the shared scope-preserving
           // /auth/logout (tenant-style), proxied with the school session's
           // refresh token (#5194).
-          await revokeSessionFamily("/api/school/auth/logout");
+          await revokeSessionFamily(portalAuthPath("school", "logout"));
           // Dieses Gerät abmelden, bevor die Session weg ist (#2208): sonst
           // bliebe das Browser-Abo bestehen und der nächste Login auf diesem
           // Gerät fände ein Abo ohne Zuordnung vor.
@@ -478,7 +482,7 @@ export function CatererShellProvider({
           } catch {
             // sessionStorage unavailable: the login page shows its notice.
           }
-          await revokeSessionFamily("/api/caterer/auth/logout");
+          await revokeSessionFamily(portalAuthPath("caterer", "logout"));
           // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
           // Gerät (#5000).
           clearPersonalStorage();
@@ -550,7 +554,7 @@ export function TraegerShellProvider({
             // "session expired" note, which is harmless.
           }
           // Revoke the backend refresh session first (#5194).
-          await revokeSessionFamily("/api/traeger/auth/logout");
+          await revokeSessionFamily(portalAuthPath("traeger", "logout"));
           // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
           // Gerät (#5000).
           clearPersonalStorage();
@@ -654,7 +658,7 @@ export function ParentShellProvider({
           // Revoke the parent family first (#5194): the revocation never waits
           // for push. The backend drops the family's push subscriptions with
           // it; the device-side cleanup below stays best-effort (#5260).
-          await revokeSessionFamily("/api/parent/auth/logout");
+          await revokeSessionFamily(portalAuthPath("parent", "logout"));
           await unsubscribePushSilently("parent");
           // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
           // Gerät (#5000).

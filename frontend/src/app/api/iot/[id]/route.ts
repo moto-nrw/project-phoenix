@@ -10,7 +10,7 @@ import { mapDeviceResponse } from "@/lib/iot-helpers";
 export const GET = createGetHandler(async (request, token, params) => {
   const id = params.id as string;
   const response = await apiGet<{ data: BackendDevice }>(
-    `/api/iot/${id}`,
+    `/api/iot/${encodeURIComponent(id)}`,
     token,
   );
 
@@ -24,7 +24,7 @@ export const GET = createGetHandler(async (request, token, params) => {
 export const PUT = createPutHandler(async (request, body, token, params) => {
   const id = params.id as string;
   const response = await apiPut<{ data: BackendDevice }>(
-    `/api/iot/${id}`,
+    `/api/iot/${encodeURIComponent(id)}`,
     token,
     body,
   );
@@ -38,7 +38,7 @@ export const PUT = createPutHandler(async (request, body, token, params) => {
 
 export const DELETE = createDeleteHandler(async (request, token, params) => {
   const id = params.id as string;
-  await apiDelete(`/api/iot/${id}`, token);
+  await apiDelete(`/api/iot/${encodeURIComponent(id)}`, token);
 
   // Return success response for delete operations
   return { success: true, message: "Device deleted successfully" };

@@ -5,6 +5,7 @@ import { InsetPanel } from "~/components/ui/inset-panel";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- redirects target tenant root, not a tenant route helper
 import { useRouter } from "next/navigation";
+import { PORTAL_ROUTES } from "~/lib/portal-paths";
 import { Check, Circle } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { FieldLabel } from "~/components/ui/field-label";
@@ -129,7 +130,7 @@ export function GuardianInvitationAcceptForm({ token, invitation }: Props) {
       // is unauth, so there is no NextAuth session to clear here.
       let redirectUrl: string | null = null;
       if (globalThis.window !== undefined) {
-        const parentsHostname = process.env.NEXT_PUBLIC_PARENTS_HOSTNAME;
+        const parentsHostname = PORTAL_ROUTES.parent.hostname();
         if (parentsHostname) {
           const { protocol } = globalThis.window.location;
           redirectUrl = `${protocol}//${parentsHostname}/login`;

@@ -4,6 +4,7 @@ import { Server, ServerResponse } from "node:http";
 import { Server as HttpsServer } from "node:https";
 import { env } from "~/env";
 import { createLogger } from "~/lib/logger";
+import { HOSTED_PORTAL_KEYS, type HostedPortalKey } from "~/lib/portal-paths";
 
 /**
  * The runtime lock at the exit of the Node server (#5520): every response of
@@ -23,19 +24,16 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "SessionCookieExit" });
 
-/** The session cookie of each portal; their Auth.js configs use these. */
-export const PORTAL_SESSION_COOKIE_NAMES = {
-  caterer: "caterer.session-token",
-  operator: "operator.session-token",
-  parent: "parent.session-token",
-  school: "school.session-token",
-  traeger: "traeger.session-token",
-} as const;
+/** The session cookie of each portal on its own host; their Auth.js configs
+ * use these. */
+export const PORTAL_SESSION_COOKIE_NAMES = Object.fromEntries(
+  HOSTED_PORTAL_KEYS.map((key) => [key, `${key}.session-token`]),
+) as Record<HostedPortalKey, `${HostedPortalKey}.session-token`>;
 
 /** Auth.js' default name, the tenant portal's without a TENANT_DOMAIN. */
 const AUTHJS_SESSION_COOKIE = "authjs.session-token";
 
-/** The tenant portal's session cookie for TENANT_DOMAIN (tenant-config.ts). */
+/** The tenant portal's session cookie for TENANT_DOMAIN. */
 export function tenantSessionCookieName(tenantDomain: string | undefined) {
   return !tenantDomain || tenantDomain === "localhost"
     ? AUTHJS_SESSION_COOKIE

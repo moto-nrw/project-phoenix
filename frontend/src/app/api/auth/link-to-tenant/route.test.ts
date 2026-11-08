@@ -10,9 +10,11 @@ const { mockAuth } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
 }));
 
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockAuth,
+  }),
+);
 
 vi.mock("~/env", () => ({
   env: {
@@ -82,7 +84,8 @@ describe("POST /api/auth/link-to-tenant", () => {
 
     expect(response.status).toBe(401);
     const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Nicht authentifiziert");
+    // Contract: the per-route unauthorizedError text is gone; every portal says "Unauthorized".
+    expect(json.detail).toBe("Unauthorized");
   });
 
   it("forwards request with auth token to backend", async () => {

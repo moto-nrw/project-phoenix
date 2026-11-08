@@ -9,12 +9,18 @@ const { parentAuthMock, readParentSessionSnapshotMock } = vi.hoisted(() => ({
   ),
 }));
 
-vi.mock("~/server/auth/parent", () => ({
-  parentAuth: parentAuthMock,
-}));
+vi.mock("~/server/auth/parent", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("parent", {
+    auth: parentAuthMock,
+  }),
+);
 
-vi.mock("~/lib/parent-session-snapshot.server", () => ({
-  readParentSessionSnapshot: readParentSessionSnapshotMock,
+vi.mock("~/lib/portal-session-snapshot.server", () => ({
+  readPortalSessionSnapshot: async (key: string) => {
+    const session =
+      key === "parent" ? await readParentSessionSnapshotMock() : null;
+    return session ? { session, accessToken: "server-only" } : null;
+  },
 }));
 
 const { default: ParentLayout } = await import("./layout");

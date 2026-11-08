@@ -8,14 +8,18 @@ const { mockAuth, mockFetch, mockGetServerApiUrl } = vi.hoisted(() => ({
   mockGetServerApiUrl: vi.fn(() => "http://localhost:8080"),
 }));
 
-vi.mock("~/server/auth/operator", () => ({
-  operatorAuth: mockAuth,
-  uncachedOperatorAuth: mockAuth,
-}));
+vi.mock("~/server/auth/operator", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("operator", {
+    auth: mockAuth,
+    uncachedAuth: mockAuth,
+  }),
+);
 
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockAuth,
+  }),
+);
 
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: mockGetServerApiUrl,
@@ -104,7 +108,8 @@ describe("GET /api/operator/announcements/[id]", () => {
     };
     const response = await GET(request, context);
 
-    expect(response.status).toBe(500);
+    // A missing or invalid route param is the request's mistake: 400.
+    expect(response.status).toBe(400);
   });
 });
 

@@ -12,9 +12,11 @@ const { mockAuth, mockApiPut, mockApiDelete } = vi.hoisted(() => ({
   mockApiDelete: vi.fn(),
 }));
 
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockAuth,
+  }),
+);
 
 vi.mock("~/lib/api-helpers.server", async () => {
   const { mockHandleApiError } =
@@ -90,7 +92,8 @@ describe("PUT /api/activities/categories/[id]", () => {
       createContext({}),
     );
 
-    expect(response.status).toBe(500);
+    // A missing route param is the request's mistake: 400.
+    expect(response.status).toBe(400);
     expect(mockApiPut).not.toHaveBeenCalled();
   });
 });

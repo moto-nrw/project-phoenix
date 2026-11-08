@@ -11,5 +11,4 @@ export const GET = createPublicJsonProxy({
     }
     return `/auth/tenant/resolve?slug=${encodeURIComponent(slug)}`;
   },
-  contentTypeOnGet: false,
 });

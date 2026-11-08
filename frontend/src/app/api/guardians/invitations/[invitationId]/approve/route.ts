@@ -6,7 +6,7 @@ export const POST = createPostHandler(async (request, body, token, params) => {
   const { invitationId } = params;
 
   const response = await apiPost(
-    `/api/guardians/invitations/${String(invitationId)}/approve`,
+    `/api/guardians/invitations/${encodeURIComponent(String(invitationId))}/approve`,
     token,
     {},
   );

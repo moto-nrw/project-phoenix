@@ -31,7 +31,7 @@ export const POST = createPostHandler<
     throw bffError(400, "Invalid staff id");
   }
   const response = await apiPost<{ data: BackendStaffResponse }>(
-    `/api/staff/externals/${id}/invitation`,
+    `/api/staff/externals/${encodeURIComponent(id)}/invitation`,
     token,
     { email: body.email, access: body.access },
   );

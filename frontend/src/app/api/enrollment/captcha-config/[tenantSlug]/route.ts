@@ -10,6 +10,4 @@ export const GET = createPublicJsonProxy({
     }
     return `/api/enrollment/captcha-config/${encodeURIComponent(tenantSlug)}`;
   },
-  cache: "no-store",
-  contentTypeOnGet: false,
 });

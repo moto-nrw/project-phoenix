@@ -1,4 +1,4 @@
-import { proxyPost } from "~/lib/route-proxy.server";
+import { proxyPost } from "~/lib/route-wrapper.server";
 
 interface WageTypeBody {
   name: string;

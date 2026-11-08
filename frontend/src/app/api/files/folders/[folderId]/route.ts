@@ -1,5 +1,5 @@
 // Dateiablage (#2596): rename / re-share / delete one folder.
-import { proxyDelete, proxyPut } from "~/lib/route-proxy.server";
+import { proxyDelete, proxyPut } from "~/lib/route-wrapper.server";
 import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 export const PUT = proxyPut(

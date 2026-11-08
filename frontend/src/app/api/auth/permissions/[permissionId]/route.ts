@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createTenantJsonProxy } from "~/lib/backend-proxy-route.server";
+import { createTenantJsonProxy } from "~/lib/route-wrapper.server";
 import { problemResponse } from "~/lib/api-helpers.server";
 
 function permissionPath(

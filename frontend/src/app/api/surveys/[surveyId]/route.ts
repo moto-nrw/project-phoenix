@@ -1,4 +1,4 @@
-import { proxyDelete, proxyGet, proxyPut } from "~/lib/route-proxy.server";
+import { proxyDelete, proxyGet, proxyPut } from "~/lib/route-wrapper.server";
 
 function surveyPath(params: Record<string, unknown>): string {
   return `/api/surveys/${encodeURIComponent(String(params.surveyId))}`;

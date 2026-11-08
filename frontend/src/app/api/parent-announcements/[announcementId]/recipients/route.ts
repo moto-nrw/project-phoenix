@@ -12,7 +12,7 @@ export const GET = createGetHandler(
     const id = params.announcementId as string;
     if (!id) throw new Error("Announcement ID is required");
     const response = await apiGet<{ data: unknown }>(
-      `/api/parent-announcements/${id}/recipients`,
+      `/api/parent-announcements/${encodeURIComponent(id)}/recipients`,
       token,
     );
     return response.data;

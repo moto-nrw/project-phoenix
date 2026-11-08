@@ -7,18 +7,15 @@ const { mockAuth, mockUncachedAuth } = vi.hoisted(() => ({
   mockUncachedAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
 }));
 
-vi.mock("~/server/auth/school", () => ({
-  schoolAuth: mockAuth,
-  uncachedSchoolAuth: mockUncachedAuth,
-  withSchoolAuth: <T>(handler: T) => handler,
-}));
+vi.mock("~/server/auth/school", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("school", {
+    auth: mockAuth,
+    uncachedAuth: mockUncachedAuth,
+  }),
+);
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://backend:8080",
 }));
-vi.mock("~/lib/analytics-session-header.server", () => ({
-  incomingAnalyticsSessionHeaders: vi.fn(async () => ({})),
-}));
-
 const { GET } = await import("./route");
 
 function session(token: string): ExtendedSession {

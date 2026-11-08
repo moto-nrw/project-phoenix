@@ -4,5 +4,5 @@ import { proxyGet } from "~/lib/school/route-wrapper.server";
 // Jeder Aufruf wird serverseitig protokolliert.
 export const GET = proxyGet(
   (params) =>
-    `/school/supervisions/${params.id as string}/students/${params.studentId as string}/sheet`,
+    `/school/supervisions/${encodeURIComponent(params.id as string)}/students/${encodeURIComponent(params.studentId as string)}/sheet`,
 );

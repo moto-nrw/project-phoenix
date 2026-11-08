@@ -1,11 +1,8 @@
-import { createOperatorProxyPostHandler } from "~/lib/operator/route-wrapper.server";
+import { createOperatorJsonProxy } from "~/lib/operator/route-wrapper.server";
 
-/**
- * POST /api/operator/profile/email-change
- * Proxies to backend POST /operator/profile/email-change.
- * Uses the proxy handler to preserve backend error messages verbatim
- * while adding 401 retry with token refresh.
- */
-export const POST = createOperatorProxyPostHandler(
-  "/operator/profile/email-change",
-);
+/** Starts an e-mail change; the body carries the current password. */
+export const POST = createOperatorJsonProxy({
+  method: "POST",
+  path: "/operator/profile/email-change",
+  retry: { off: "a renewed session would send the current password twice" },
+});

@@ -1,34 +1,13 @@
 import { captureBffException } from "~/lib/sentry-bff.server";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { auth } from "~/server/auth";
-import { withTenantAuth } from "~/server/auth/tenant-route";
-import { getServerApiUrl } from "~/lib/server-api-url";
-import { clientIdentityHeaders } from "~/lib/client-headers.server";
+import { tenantPortal } from "~/server/auth";
+import { sendBackend } from "~/lib/backend-client.server";
 import { createLogger } from "~/lib/logger";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
-import {
-  getOriginalRequestHost,
-  hostnameFromAuthority,
-} from "~/lib/client-headers.server";
 import { problemResponse } from "~/lib/api-helpers.server";
-import { withPrivateNoStore } from "~/lib/private-no-store";
 
 const logger = createLogger({ component: "EnrollmentFormBootstrapRoute" });
-
-function configuredParentsHostname(): string {
-  const authority = process.env.NEXT_PUBLIC_PARENTS_HOSTNAME;
-  if (!authority) {
-    throw new Error("NEXT_PUBLIC_PARENTS_HOSTNAME is not set.");
-  }
-  const hostname = hostnameFromAuthority(authority);
-  if (!hostname) {
-    throw new Error(
-      "NEXT_PUBLIC_PARENTS_HOSTNAME is not a valid host authority.",
-    );
-  }
-  return hostname;
-}
 
 interface RouteContext {
   params: Promise<{ tenantSlug: string; phaseId: string }>;
@@ -36,43 +15,26 @@ interface RouteContext {
 
 async function GETHandler(request: NextRequest, context: RouteContext) {
   const { tenantSlug, phaseId } = await context.params;
-  // Runtime env validation normally rejects this during application startup.
-  // Keep the route independently fail-closed when build tooling explicitly
-  // skips env validation while collecting route metadata.
-  const parentsHostname = configuredParentsHostname();
   try {
-    const requestHostname = hostnameFromAuthority(
-      getOriginalRequestHost(request),
-    );
-    if (!requestHostname) {
-      return problemResponse(400, "Invalid request host", request);
-    }
-    const isParentPortal = requestHostname === parentsHostname;
     const lateInvite = request.nextUrl.searchParams.get("late_invite")?.trim();
-    const backendUrl = new URL(
-      `${getServerApiUrl()}/api/enrollment/form-bootstrap/public/${encodeURIComponent(
+    const query = lateInvite
+      ? `?${new URLSearchParams({ late_invite: lateInvite })}`
+      : "";
+    const response = await sendBackend(
+      `/api/enrollment/form-bootstrap/public/${encodeURIComponent(
         tenantSlug,
-      )}/${encodeURIComponent(phaseId)}`,
+      )}/${encodeURIComponent(phaseId)}${query}`,
+      null,
+      { request },
     );
-    if (lateInvite) backendUrl.searchParams.set("late_invite", lateInvite);
-    const response = await fetch(backendUrl, {
-      headers: clientIdentityHeaders(request.headers),
-      cache: "no-store",
-    });
     if (!response.ok) {
       return forwardBackendResponse(response, request);
     }
     const payload = await response.json().catch(() => ({}));
 
-    // The parent portal uses the same public metadata, but tenant cookies are
-    // domain-scoped across tenant subdomains in production. The proxy-owned
-    // original host is the security boundary: client-controlled query flags
-    // and fetch credential options must never decide whether auth() runs.
-    if (isParentPortal) {
-      return NextResponse.json(payload, { status: response.status });
-    }
-
-    const session = await auth().catch((error: unknown) => {
+    // The parents host never reaches this route (proxy allow-list), so the
+    // tenant session's profile only enriches the tenant's own public form.
+    const session = await tenantPortal.auth().catch((error: unknown) => {
       logger.warn("profile_auth_prefetch_failed", {
         error: error instanceof Error ? error.message : String(error),
       });
@@ -83,15 +45,10 @@ async function GETHandler(request: NextRequest, context: RouteContext) {
       return NextResponse.json(payload, { status: response.status });
     }
 
-    const profileResponse = await fetch(
-      `${getServerApiUrl()}/api/enrollment/me/profile`,
-      {
-        headers: {
-          ...clientIdentityHeaders(request.headers),
-          Authorization: `Bearer ${token}`,
-        },
-        cache: "no-store",
-      },
+    const profileResponse = await sendBackend(
+      "/api/enrollment/me/profile",
+      token,
+      { request },
     ).catch((error: unknown) => {
       logger.warn("profile_prefetch_failed", {
         error: error instanceof Error ? error.message : String(error),
@@ -131,21 +88,4 @@ async function GETHandler(request: NextRequest, context: RouteContext) {
   }
 }
 
-const authenticatedTenantGET = withTenantAuth(GETHandler);
-
-/**
- * The parents host deliberately bypasses tenant Auth.js. Tenant cookies are
- * domain-scoped and may be sent to that host, but portal isolation forbids
- * reading or refreshing them there.
- */
-function GETRouteHandler(request: NextRequest, context: RouteContext) {
-  const requestHostname = hostnameFromAuthority(
-    getOriginalRequestHost(request),
-  );
-  if (!requestHostname || requestHostname === configuredParentsHostname()) {
-    return GETHandler(request, context);
-  }
-  return authenticatedTenantGET(request, context);
-}
-
-export const GET = withPrivateNoStore(GETRouteHandler);
+export const GET = tenantPortal.withAuth(GETHandler);

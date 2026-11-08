@@ -1,4 +1,4 @@
-import { proxyPost } from "~/lib/route-proxy.server";
+import { proxyPost } from "~/lib/route-wrapper.server";
 
 /**
  * Proxy POST /api/surveys/{surveyId}/answers → backend (#4781): submits the

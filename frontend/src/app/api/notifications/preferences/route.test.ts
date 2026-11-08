@@ -9,10 +9,8 @@ vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/api-helpers.server")>()),
   apiDelete: mockApiDelete,
 }));
-vi.mock("~/lib/route-proxy.server", () => ({
-  proxyGet: mockProxyGet,
-}));
 vi.mock("~/lib/route-wrapper.server", () => ({
+  proxyGet: mockProxyGet,
   createDeleteHandler: (handler: Function) => handler,
 }));
 

@@ -5,5 +5,4 @@ import { invitationPath } from "../invitation-path";
 export const POST = createPublicJsonProxy({
   method: "POST",
   path: (_request, params) => invitationPath(params, "/accept"),
-  forwardClientHeaders: true,
 });

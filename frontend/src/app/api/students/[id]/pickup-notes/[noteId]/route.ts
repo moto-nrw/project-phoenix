@@ -1,4 +1,4 @@
-import { proxyPut, proxyDelete } from "@/lib/route-proxy.server";
+import { proxyPut, proxyDelete } from "~/lib/route-wrapper.server";
 import { requirePathSegmentParam } from "@/lib/route-wrapper-utils.server";
 
 // PUT /api/students/[id]/pickup-notes/[noteId] - Update a pickup note

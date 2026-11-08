@@ -1,4 +1,4 @@
-import { proxyGet, proxyPost } from "~/lib/route-proxy.server";
+import { proxyGet, proxyPost } from "~/lib/route-wrapper.server";
 
 // Aggregated parent requests across the four kinds, open or history,
 // cursor-paginated (#2432).

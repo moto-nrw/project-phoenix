@@ -1,4 +1,4 @@
-import { proxyGet, proxyPut } from "~/lib/route-proxy.server";
+import { proxyGet, proxyPut } from "~/lib/route-wrapper.server";
 import type {
   BackendProfile,
   ProfileUpdateRequest,

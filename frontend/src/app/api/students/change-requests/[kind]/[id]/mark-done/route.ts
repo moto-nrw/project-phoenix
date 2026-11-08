@@ -1,4 +1,4 @@
-import { proxyPost } from "~/lib/route-proxy.server";
+import { proxyPost } from "~/lib/route-wrapper.server";
 import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 // Closes a request that only concerns past days (#2267): nothing is applied.
