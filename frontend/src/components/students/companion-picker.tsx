@@ -24,6 +24,7 @@ import {
 import { getGermanWeekdayAdverb } from "~/lib/timetable-helpers";
 import { createLogger } from "~/lib/logger";
 import { SpinnerIcon } from "~/components/ui/icons";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "CompanionPicker" });
 
@@ -286,10 +287,7 @@ export function CompanionPicker({
       ) : null}
 
       {value.map((companion) => (
-        <div
-          key={companion.companion_student_id}
-          className="rounded-lg border border-gray-200 bg-white p-2.5"
-        >
+        <InsetPanel key={companion.companion_student_id} tone="white">
           <div className="mb-2 flex items-center justify-between gap-2">
             <span className="truncate text-sm font-medium text-gray-900">
               {companionDisplayName(companion)}
@@ -321,7 +319,7 @@ export function CompanionPicker({
             }
             disabled={disabled}
           />
-        </div>
+        </InsetPanel>
       ))}
 
       {pending ? (
@@ -360,7 +358,7 @@ export function CompanionPicker({
       ) : null}
 
       {!disabled && pickerOpen && !pending ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-2.5">
+        <InsetPanel tone="white">
           <div className="relative mb-2">
             <Search
               className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400"
@@ -420,7 +418,7 @@ export function CompanionPicker({
               Abbrechen
             </Button>
           </div>
-        </div>
+        </InsetPanel>
       ) : null}
 
       {!disabled && !pickerOpen && !pending ? (
