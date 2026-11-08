@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { useCareTermTranslations } from "~/lib/care-facility-term";
 import type { Child, ChildFeatures } from "~/lib/parent-api";
@@ -86,6 +87,40 @@ describe("care term in the parents portal (#6082)", () => {
       </ParentCareTermScope>,
     );
     expect(screen.getByText("In der GTS/OGS")).toBeInTheDocument();
+  });
+
+  it("keeps a child's subtree mounted when its term arrives late", () => {
+    link([child("1", "Barnstorf"), undefined]);
+    function Draft() {
+      const [draft, setDraft] = useState("");
+      return (
+        <>
+          <Today />
+          <input
+            aria-label="Entwurf"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+          />
+        </>
+      );
+    }
+    const tree = () => (
+      <ParentCareTermScope enabled>
+        <ParentChildCareTermScope studentId="1">
+          <Draft />
+        </ParentChildCareTermScope>
+      </ParentCareTermScope>
+    );
+    const { rerender } = render(tree());
+    fireEvent.change(screen.getByLabelText("Entwurf"), {
+      target: { value: "Bis gleich" },
+    });
+    expect(screen.getByText("In der OGS")).toBeInTheDocument();
+
+    link([child("1", "Barnstorf"), "GTS"]);
+    rerender(tree());
+    expect(screen.getByText("In der GTS")).toBeInTheDocument();
+    expect(screen.getByLabelText("Entwurf")).toHaveValue("Bis gleich");
   });
 
   it("says OGS outside the parents shell", () => {

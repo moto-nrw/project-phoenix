@@ -4,6 +4,7 @@ import { createContext, useContext, useMemo, type ReactNode } from "react";
 import {
   CareFacilityTermScope,
   normalizeCareFacilityTerm,
+  useCareFacilityTerm,
 } from "~/lib/care-facility-term";
 import {
   useParentChildren,
@@ -112,7 +113,11 @@ export function ParentCareTermScope({
   );
 }
 
-/** Gives every text inside the care term of one child's school. */
+/**
+ * Gives every text inside the care term of one child's school. Until the
+ * term loaded it keeps the inherited one; the provider stays mounted, so a
+ * late term never remounts the subtree (an unsent draft survives).
+ */
 export function ParentChildCareTermScope({
   studentId,
   children,
@@ -120,7 +125,7 @@ export function ParentChildCareTermScope({
   readonly studentId: string | undefined;
   readonly children: ReactNode;
 }) {
-  const term = useParentCareTerms().forChild(studentId);
-  if (term === undefined) return children;
+  const inherited = useCareFacilityTerm();
+  const term = useParentCareTerms().forChild(studentId) ?? inherited;
   return <CareFacilityTermScope term={term}>{children}</CareFacilityTermScope>;
 }
