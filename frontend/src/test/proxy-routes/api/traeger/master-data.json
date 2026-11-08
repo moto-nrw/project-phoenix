@@ -19,5 +19,8 @@
   ],
   "api/traeger/master-data/document-templates/[kind]/versions": [
     "POST traeger /traeger/master-data/document-templates/kind%2F1/versions"
+  ],
+  "api/traeger/master-data/withdrawal-contact": [
+    "PUT traeger /traeger/master-data/withdrawal-contact"
   ]
 }

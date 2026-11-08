@@ -32,6 +32,12 @@ declare module "next-auth" {
       previewTargetAccountId?: string;
     };
     error?: "RefreshTokenExpired" | "RefreshTokenError";
+    /**
+     * The renewal found the portal's module not booked (#6187). The session
+     * stays; the parents and school guards show the explanation instead of
+     * the page.
+     */
+    notBooked?: true;
   }
 
   // Importable from client code too, so it carries no token (#5005); the
@@ -70,6 +76,8 @@ declare module "next-auth/jwt" {
     refreshRecoveryProof?: string;
     error?: "RefreshTokenExpired" | "RefreshTokenError";
     needsRefresh?: boolean;
+    /** The last renewal was refused with module.not_booked (#6187). */
+    notBooked?: boolean;
     // Admin staff-view preview (#2893). While previewTargetAccountId is set,
     // `token`/`tokenExpiry` hold the READ-ONLY preview token and the admin's
     // own access token is parked in previewAdminToken; `refreshToken` stays

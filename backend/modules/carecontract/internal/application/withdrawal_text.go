@@ -15,9 +15,8 @@ import (
 // 2 Satz 2 EGBGB for services, with the note on the withdrawal function of
 // § 356a BGB (Gestaltungshinweis 3, since 19 June 2026). The enrollment
 // form, the contract PDF, the signing page and the confirmation mail all
-// print withdrawalNoticeParagraphs; only the addressee's contact details
-// differ with what the surface knows. Federal law, so the text is the same
-// in every Land.
+// print withdrawalNoticeParagraphs with the same addressee (#6200). Federal
+// law, so the text is the same in every Land.
 //
 // The notice names the withdrawal function by its statutory label „Vertrag
 // widerrufen“ (§ 356a Abs. 1 Satz 2 BGB), not by a screen path, so a renamed
@@ -43,18 +42,23 @@ type withdrawalContact struct {
 	Email   string
 }
 
-// letterContact is the addressee the contract PDF names: the partner of the
-// terms, else the letterhead's first line, with the letterhead's address.
+// letterContact is the addressee the contract PDF and the enrollment form
+// name: the partner of the terms, else the letterhead's first line, with the
+// letterhead's address.
 func letterContact(terms carecontract.TemplateInput, head carecontract.Letterhead) withdrawalContact {
-	contact := signingContact(contractPartner(terms, head), head.SenderText)
-	contact.Phone, contact.Email = strings.TrimSpace(head.ContactPhone), strings.TrimSpace(head.ContactEmail)
-	return contact
+	return withdrawalAddressee(contractPartner(terms, head), head.SenderText, head.Reach())
 }
 
-// signingContact is the addressee the signing page and the mail name; they
-// know the letterhead's text only.
-func signingContact(partner, letterhead string) withdrawalContact {
-	contact := withdrawalContact{Partner: strings.TrimSpace(partner)}
+// withdrawalAddressee is the addressee every surface names (#6200): the
+// partner, the letterhead's other lines as the address, and the Träger's
+// phone and e-mail for withdrawals, each falling back to the contact
+// person's.
+func withdrawalAddressee(partner, letterhead string, reach carecontract.WithdrawalReach) withdrawalContact {
+	contact := withdrawalContact{
+		Partner: strings.TrimSpace(partner),
+		Phone:   strings.TrimSpace(firstText(reach.WithdrawalPhone, reach.ContactPhone)),
+		Email:   strings.TrimSpace(firstText(reach.WithdrawalEmail, reach.ContactEmail)),
+	}
 	for _, line := range textLines(letterhead) {
 		if line != contact.Partner {
 			contact.Lines = append(contact.Lines, line)

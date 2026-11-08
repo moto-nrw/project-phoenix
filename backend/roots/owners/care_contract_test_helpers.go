@@ -54,6 +54,10 @@ func (careContractTestSender) TraegerLetterhead(context.Context, int64) (string,
 	return "Träger e.V.\nMusterweg 1\n12345 Musterstadt", nil
 }
 
+func (careContractTestSender) WithdrawalReach(context.Context, int64) (carecontract.WithdrawalReach, error) {
+	return carecontract.WithdrawalReach{ContactPhone: "0123 456", ContactEmail: "vertrag@example.org"}, nil
+}
+
 // NewParentContractSigningForTests composes the signature in the parents'
 // inbox (#4679) over the real ledger and store, with the mails recorded.
 func NewParentContractSigningForTests(mails *CareContractTestMails) carecontract.InboxSigning {

@@ -28,8 +28,9 @@ const SCHOOL_PORTAL_NOT_BOOKED =
 
 /**
  * Why the parents or the school portal refuses its user: the school has not
- * booked the portal's module. Shown at the login and when a request of an
- * open session is refused with `module.not_booked`.
+ * booked the portal's module. Shown at the login, by the parents and school
+ * guards when the page loads (session validation answers `module.not_booked`),
+ * and when a request of an open session is refused with `module.not_booked`.
  */
 export function portalNotBookedExplanation(
   portal: Exclude<ModulePortal, "staff">,

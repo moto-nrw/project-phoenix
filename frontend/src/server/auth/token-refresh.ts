@@ -4,6 +4,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { createHmac, randomBytes } from "node:crypto";
 import { env } from "~/env";
 import { sendBackend } from "~/lib/backend-client.server";
+import type { ErrorCode } from "~/lib/error-codes.generated";
 import { authLogger, parseJwtPayload } from "./jwt-claims";
 import type { BackendEndpoint } from "./portals";
 
@@ -42,6 +43,11 @@ export type Rotation =
       shared: boolean;
     }
   | { status: "terminal"; remembered: boolean }
+  /**
+   * The school has not booked the portal's module. The backend rotated
+   * nothing and keeps the presented refresh token valid (#6187).
+   */
+  | { status: "notBooked" }
   | { status: "transient" };
 
 const REFRESH_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -68,11 +74,19 @@ const refreshCache = new Map<
 // this memo makes each dead token cost one backend call.
 const terminalRefreshKeys = new Map<string, number>();
 
+// A refresh refused with module.not_booked is no refusal of the session: the
+// token stays valid and works again once the school books the module. It is
+// asked again after this pause, not on every request in between.
+const NOT_BOOKED_RETRY_MS = 60 * 1000;
+const notBookedRefreshKeys = new Map<string, number>();
+const moduleNotBookedCode: ErrorCode = "module.not_booked";
+
 /** @internal Test isolation only: the keys already isolate sessions. */
 export function _resetRefreshState(): void {
   activeRefreshes.clear();
   refreshCache.clear();
   terminalRefreshKeys.clear();
+  notBookedRefreshKeys.clear();
 }
 
 export function createRefreshRecoveryProof(): string {
@@ -126,6 +140,9 @@ function pruneRefreshCache(): void {
   for (const [key, expiresAt] of terminalRefreshKeys) {
     if (now >= expiresAt) terminalRefreshKeys.delete(key);
   }
+  for (const [key, retryAt] of notBookedRefreshKeys) {
+    if (now >= retryAt) notBookedRefreshKeys.delete(key);
+  }
   if (refreshCache.size > MAX_CACHE_ENTRIES) {
     const excess = refreshCache.size - MAX_CACHE_ENTRIES;
     const keys = refreshCache.keys();
@@ -136,7 +153,8 @@ function pruneRefreshCache(): void {
   }
 }
 
-// A 401/403 from the refresh endpoint is final; everything else may be retried.
+// A 401/403 from the refresh endpoint is final, except a 403
+// module.not_booked; everything else may be retried.
 // The dead token is remembered for as long as a cookie could still carry it.
 function rememberTerminal(refreshKey: string, refreshTokenExpiry: unknown) {
   terminalRefreshKeys.set(
@@ -167,6 +185,15 @@ export function refreshAlreadyRefused(token: JWT): boolean {
   );
 }
 
+async function refusedAsNotBooked(response: Response): Promise<boolean> {
+  try {
+    const body = (await response.json()) as { code?: unknown } | null;
+    return body?.code === moduleNotBookedCode;
+  } catch {
+    return false;
+  }
+}
+
 async function fetchRotation(
   endpoint: BackendEndpoint,
   refreshToken: string,
@@ -185,6 +212,14 @@ async function fetchRotation(
         status: response.status,
         scope: token.scope,
       });
+      if (response.status === 403 && (await refusedAsNotBooked(response))) {
+        notBookedRefreshKeys.set(refreshKey, Date.now() + NOT_BOOKED_RETRY_MS);
+        if (notBookedRefreshKeys.size > MAX_CACHE_ENTRIES) {
+          const oldest = notBookedRefreshKeys.keys().next();
+          if (!oldest.done) notBookedRefreshKeys.delete(oldest.value);
+        }
+        return { status: "notBooked" };
+      }
       if (response.status === 401 || response.status === 403) {
         rememberTerminal(refreshKey, token.refreshTokenExpiry);
         return { status: "terminal", remembered: false };
@@ -255,6 +290,7 @@ export async function rotateRefreshToken(
   if (isKnownTerminalRefresh(refreshKey)) {
     return { status: "terminal", remembered: true };
   }
+  if (notBookedRefreshKeys.has(refreshKey)) return { status: "notBooked" };
   const inflight = activeRefreshes.get(refreshKey);
   if (inflight) return inflight;
 

@@ -59,6 +59,8 @@ function mockResponse(status: number, body: unknown): typeof global.fetch {
   );
 }
 
+const START = { challenge_token: "challenge-abc" };
+
 const props = {
   scope: "tenant" as const,
   bearerToken: "bearer-xyz",
@@ -75,7 +77,7 @@ describe("MFAEnrollmentScreen", () => {
   });
 
   it("starts in intro step and triggers enroll/start when the button is clicked", async () => {
-    global.fetch = mockResponse(204, null);
+    global.fetch = mockResponse(200, START);
     render(<MFAEnrollmentScreen {...props} onComplete={vi.fn()} />);
 
     expect(
@@ -105,8 +107,7 @@ describe("MFAEnrollmentScreen", () => {
   });
 
   it("auto-submits enroll/confirm when 6 digits are entered and shows the success screen", async () => {
-    // Tenant confirmation installs the session in the BFF and returns status.
-    const startMock = mockResponse(204, null);
+    const startMock = mockResponse(200, START);
     const confirmMock = mockResponse(200, {
       status: "authenticated",
     });
@@ -141,8 +142,11 @@ describe("MFAEnrollmentScreen", () => {
       expect(global.fetch).toHaveBeenCalledWith(
         "/api/auth/mfa/enroll/confirm",
         expect.objectContaining({
-          // remember_device is now part of the payload (defaults to false).
-          body: JSON.stringify({ code: "987654", remember_device: false }),
+          body: JSON.stringify({
+            challenge_token: "challenge-abc",
+            code: "987654",
+            remember_device: false,
+          }),
         }),
       );
     });
@@ -166,7 +170,7 @@ describe("MFAEnrollmentScreen", () => {
   it("keeps a failed final session read visible and allows Continue to retry", async () => {
     global.fetch = vi.fn(async (url) =>
       String(url).endsWith("/start")
-        ? new Response(null, { status: 204 })
+        ? Response.json(START)
         : Response.json({ status: "authenticated" }),
     );
     const onComplete = vi
@@ -196,7 +200,7 @@ describe("MFAEnrollmentScreen", () => {
     const assign = vi
       .spyOn(window.location, "assign")
       .mockImplementation(() => undefined);
-    const startMock = mockResponse(204, null);
+    const startMock = mockResponse(200, START);
     const confirmMock = mockResponse(401, {
       status: 401,
       detail: "invalid code",
@@ -232,6 +236,54 @@ describe("MFAEnrollmentScreen", () => {
         ),
       ).toBeInTheDocument();
     });
+    expect(assign).not.toHaveBeenCalled();
+    assign.mockRestore();
+  });
+
+  it("sends no confirm when enroll/start names no challenge", async () => {
+    global.fetch = mockResponse(204, null);
+    render(<MFAEnrollmentScreen {...props} onComplete={vi.fn()} />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Code an meine E-Mail senden" }),
+    );
+
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "das Senden des Codes"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("group", { name: "6-stelliger Bestätigungscode" }),
+    ).not.toBeInTheDocument();
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a rejected confirm request in the form", async () => {
+    const assign = vi
+      .spyOn(window.location, "assign")
+      .mockImplementation(() => undefined);
+    global.fetch = vi.fn(async (url) =>
+      String(url).endsWith("/start")
+        ? Response.json(START)
+        : Response.json(
+            { status: 400, detail: "challenge_token required" },
+            { status: 400 },
+          ),
+    );
+    render(<MFAEnrollmentScreen {...props} onComplete={vi.fn()} />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Code an meine E-Mail senden" }),
+    );
+    fireEvent.change(await screen.findByLabelText("Stelle 1"), {
+      target: { value: "123456" },
+    });
+
+    expect(
+      await screen.findByText(
+        catalogText("general.input", "die Prüfung des Codes"),
+      ),
+    ).toBeInTheDocument();
     expect(assign).not.toHaveBeenCalled();
     assign.mockRestore();
   });
