@@ -172,6 +172,7 @@ export const nodeLogicTestFiles = [
   "src/lib/navigation-sync.test.ts",
   "src/lib/notification-api.test.ts",
   "src/lib/notification-preferences-api.test.ts",
+  "src/lib/offering-adjustment-history.test.ts",
   "src/lib/offering-request-review-api.test.ts",
   "src/lib/ogs-group-live-api.test.ts",
   "src/lib/operator/account-tenant-access-api.test.ts",
