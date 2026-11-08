@@ -21,14 +21,6 @@ var validDaysOfWeekModes = map[string]bool{
 	DaysOfWeekModeParentChoice: true,
 }
 
-// canonicalDaySet enumerates the allowed values inside available_days
-// + selected_days. Lowercase three-letter abbreviations match the
-// project's German-context norm (e.g., the activity scheduler).
-var canonicalDaySet = map[string]bool{
-	"mon": true, "tue": true, "wed": true, "thu": true, "fri": true,
-	"sat": true, "sun": true,
-}
-
 // Selection rules constrain how many offerings within the same
 // selection_group a parent may/must pick. Match the column CHECK
 // constraint from migration 1.15.78.
@@ -258,7 +250,7 @@ func normalizePickupTimes(times map[string]string, availableDays []string) (map[
 		if value == "" {
 			continue
 		}
-		if !canonicalDaySet[key] {
+		if !IsDayCode(key) {
 			return nil, fmt.Errorf("pickup_times key %q is not a known day abbreviation", day)
 		}
 		if key == "sat" || key == "sun" {
@@ -387,7 +379,7 @@ func (c *CareOfferingRecord) normalizeDays() error {
 		return ErrCareOfferingDaysRequired
 	}
 	for _, d := range c.AvailableDays {
-		if !canonicalDaySet[strings.ToLower(d)] {
+		if !IsDayCode(strings.ToLower(d)) {
 			return fmt.Errorf("available_days entry %q is not a known day abbreviation", d)
 		}
 	}

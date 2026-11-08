@@ -124,7 +124,7 @@ type Store interface {
 	DeleteSchemaLineage(ctx context.Context, name string) error
 	LockSchemaLineages(ctx context.Context) error
 	SchemaReferencesLegalDocument(ctx context.Context, storedURL, publicURL string) (bool, error)
-	CleanupExpired(context.Context) (int, error)
+	CleanupExpired(ctx context.Context, olderThan time.Duration) (int, error)
 	BackfillGuardianAccountID(context.Context, int64, string) (int, error)
 	Schema(context.Context, int64) (*enrollment.FormSchema, error)
 	StudentExtraFieldSchemas(context.Context, []int64) ([]enrollment.SchemaVersionResult, error)
@@ -179,7 +179,5 @@ func NewService(store Store, transactions OwnerTransactions, observers ...func(e
 	}
 	return service
 }
-
-const submissionRateLimitRetentionDays = 1
 
 var _ enrollment.Owner = (*Service)(nil)

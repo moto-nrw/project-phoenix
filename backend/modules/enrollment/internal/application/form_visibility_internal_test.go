@@ -6,14 +6,11 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
-
 	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
-
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Server-side visibility evaluation + required-custom-field enforcement.
@@ -401,7 +398,7 @@ func TestRelevantCareDaysForChild(t *testing.T) {
 	openByID := map[int64]*offeringContract.CareOfferingRecord{7: fixed}
 
 	// No offerings configured -> all weekdays (the form shows them all).
-	assert.Equal(t, enrollmentNative.ValidWeekdays,
+	assert.Equal(t, map[string]bool{"mon": true, "tue": true, "wed": true, "thu": true, "fri": true},
 		relevantCareDaysForChild(SubmitChild{}, nil),
 		"no offerings means every weekday is schedulable")
 
@@ -428,7 +425,7 @@ func TestPruneChildScheduleAnswers(t *testing.T) {
 
 	// No offerings (all weekdays schedulable): mon-fri kept, weekend dropped.
 	answers2 := map[string]any{"dismissal": map[string]any{"mon": "15:00", "sat": "09:00"}}
-	pruneChildScheduleAnswers(schema, answers2, enrollmentNative.ValidWeekdays)
+	pruneChildScheduleAnswers(schema, answers2, schoolDaySet())
 	assert.Equal(t, map[string]any{"mon": "15:00"}, answers2["dismissal"])
 }
 

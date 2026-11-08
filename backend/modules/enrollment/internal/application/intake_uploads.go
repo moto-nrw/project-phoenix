@@ -13,14 +13,6 @@ import (
 	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
-// Upload thresholds per IP. A family uploads a handful of proofs, maybe
-// again after a typo; the public form's submission bucket (10 per hour)
-// would refuse a parent who replaces a blurred photo twice.
-const (
-	rateLimitWindowUploadIP      = time.Hour
-	rateLimitMaxAttemptsUploadIP = 30
-)
-
 // IntakeUploads stores the files parents attach to a request (#4783).
 type IntakeUploads = enrollmentNative.RequestUploadRecords
 
@@ -144,10 +136,7 @@ func (s *Intake) CountUploadAttempt(ctx context.Context, tenantID int64, remoteI
 
 // countUploadAttempt is the upload bucket of enforceRateLimitBuckets.
 func (s *Intake) countUploadAttempt(ctx context.Context, req SubmitRequest) error {
-	return s.countRateLimitAttempt(ctx, req.TenantID, rateLimitBucket{
-		keyType: enrollmentNative.SubmissionRateLimitKeyTypeUploadIP, label: "upload IP",
-		window: rateLimitWindowUploadIP, maxAttempts: rateLimitMaxAttemptsUploadIP,
-	}, strings.TrimSpace(req.RemoteIP))
+	return s.countRateLimitAttempt(ctx, req.TenantID, uploadRateLimit, strings.TrimSpace(req.RemoteIP))
 }
 
 // newUploadStoredName is a random object name with the detected extension.

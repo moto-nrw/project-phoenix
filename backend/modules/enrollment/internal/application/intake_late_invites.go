@@ -13,16 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/contact"
 )
 
-// Rate-limit thresholds. They work for "small school with families of three
-// children submitting once" without tuning; a school needing others would
-// promote them to settings.
-const (
-	rateLimitWindowIP        = time.Hour
-	rateLimitWindowEmail     = 24 * time.Hour
-	rateLimitMaxAttemptsIP   = 10
-	rateLimitMaxAttemptsMail = 5
-)
-
 func (s *Intake) newStatusToken() (string, error) {
 	if s.deps.Random == nil {
 		return "", errors.New("status token entropy source is not configured")
@@ -199,27 +189,14 @@ func (s *Intake) enforceRateLimitBuckets(ctx context.Context, req SubmitRequest)
 	ip := strings.TrimSpace(req.RemoteIP)
 	email := strings.ToLower(strings.TrimSpace(req.GuardianEmail))
 	if ip != "" {
-		if err := s.countRateLimitAttempt(ctx, req.TenantID, rateLimitBucket{
-			keyType: enrollment.SubmissionRateLimitKeyTypeIP, label: "IP", window: rateLimitWindowIP, maxAttempts: rateLimitMaxAttemptsIP,
-		}, ip); err != nil {
+		if err := s.countRateLimitAttempt(ctx, req.TenantID, ipRateLimit, ip); err != nil {
 			return err
 		}
 	}
 	if email != "" {
-		return s.countRateLimitAttempt(ctx, req.TenantID, rateLimitBucket{
-			keyType: enrollment.SubmissionRateLimitKeyTypeEmail, label: "email", window: rateLimitWindowEmail, maxAttempts: rateLimitMaxAttemptsMail,
-		}, email)
+		return s.countRateLimitAttempt(ctx, req.TenantID, emailRateLimit, email)
 	}
 	return nil
-}
-
-// rateLimitBucket is one submission counter: its key type, the label its
-// error names, its window and its threshold.
-type rateLimitBucket struct {
-	keyType     string
-	label       string
-	window      time.Duration
-	maxAttempts int
 }
 
 func (s *Intake) countRateLimitAttempt(ctx context.Context, tenantID int64, bucket rateLimitBucket, keyValue string) error {
@@ -239,6 +216,7 @@ func (s *Intake) countRateLimitAttempt(ctx context.Context, tenantID int64, buck
 }
 
 // cloneSourceMetadata copies a metadata map so the submission can add to it.
+// Unlike maps.Clone it never returns nil: the callers write into the copy.
 func cloneSourceMetadata(src map[string]any) map[string]any {
 	out := make(map[string]any, len(src))
 	for k, v := range src {
