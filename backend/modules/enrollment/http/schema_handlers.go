@@ -116,10 +116,10 @@ func (req *RenameSchemaRequest) Bind(_ *http.Request) error {
 	return nil
 }
 
-// PublicFormSchemaResponse is the slim, parent-safe shape returned by
-// the public schema endpoint. We deliberately drop CreatedBy and
-// internal version metadata that parents don't need to render the
-// form. The fields array carries everything the dynamic renderer
+// PublicFormSchemaResponse is the slim, parent-safe schema shape that
+// the public form bootstrap and the status responses carry. We
+// deliberately drop CreatedBy and internal version metadata that parents
+// don't need to render the form. The fields array carries everything the dynamic renderer
 // consumes (label, type, options, validation).
 type PublicFormSchemaResponse struct {
 	ID               string                      `json:"id"`

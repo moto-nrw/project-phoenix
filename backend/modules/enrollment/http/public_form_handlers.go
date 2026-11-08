@@ -149,10 +149,6 @@ func effectiveCareOfferingSelectionMode(mode string, enabled bool) string {
 	return mode
 }
 
-// We deliberately don't expose enrollmentService here — it is already
-// referenced via *Resource.CareOfferingService.
-var _ = capability.ErrCareOfferingNotFound
-
 // PublicPhase is the parent-safe shape returned by the public phases
 // endpoint. Intentionally slim — no created_by, no audit metadata.
 type PublicPhase struct {
