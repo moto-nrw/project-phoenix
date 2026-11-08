@@ -30,6 +30,14 @@ export const ERROR_CATALOG = {
         "Der Stichtag muss zwischen dem 1. und dem 28. des Monats liegen. Bitte wählen Sie einen dieser Tage.",
       "care_contract.application_not_found":
         "Diese Anmeldung gibt es nicht mehr oder sie ist nicht angenommen. Bitte laden Sie die Seite neu.",
+      "care_contract.change_contract_not_active":
+        "Dieser Vertrag gilt nicht mehr. Änderungswünsche entscheidet jetzt die Schule.",
+      "care_contract.change_ends_care":
+        "Die Eltern melden damit die ganze Betreuung ab. Das ist eine Kündigung. Bitte tragen Sie sie unter „Vertrag beenden“ ein oder lehnen Sie den Wunsch ab.",
+      "care_contract.change_not_applicable":
+        "Die Schule lässt diese Änderung gerade nicht zu. Bitte sprechen Sie mit der Schule.",
+      "care_contract.change_not_found":
+        "Diesen Änderungswunsch gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "care_contract.contract_input_invalid":
         "Bitte wählen Sie mindestens einen und höchstens 200 Einträge aus.",
       "care_contract.contract_not_draft":
@@ -1699,6 +1707,14 @@ export const ERROR_CATALOG = {
     codes: {
       "care_contract.application_not_found":
         "This application no longer exists or is not accepted. Please reload the page.",
+      "care_contract.change_contract_not_active":
+        "This contract is no longer in force. The school now decides change requests.",
+      "care_contract.change_ends_care":
+        "The parents give up all care with this. That is a termination. Please record it under “End contract” or reject the request.",
+      "care_contract.change_not_applicable":
+        "The school does not allow this change right now. Please talk to the school.",
+      "care_contract.change_not_found":
+        "This change request no longer exists. Please reload the page.",
       "care_contract.contract_input_invalid":
         "Please select at least one and at most 200 entries.",
       "care_contract.contract_not_draft":
@@ -2279,6 +2295,14 @@ export const ERROR_CATALOG = {
     codes: {
       "care_contract.application_not_found":
         "This application no longer exists or is not accepted. Please reload the page.",
+      "care_contract.change_contract_not_active":
+        "This contract is no longer in force. The school now decides change requests.",
+      "care_contract.change_ends_care":
+        "The parents give up all care with this. That is a termination. Please record it under “End contract” or reject the request.",
+      "care_contract.change_not_applicable":
+        "The school does not allow this change right now. Please talk to the school.",
+      "care_contract.change_not_found":
+        "This change request no longer exists. Please reload the page.",
       "care_contract.contract_input_invalid":
         "Please select at least one and at most 200 entries.",
       "care_contract.contract_not_draft":
@@ -2752,6 +2776,14 @@ export const ERROR_CATALOG = {
     codes: {
       "care_contract.application_not_found":
         "This application no longer exists or is not accepted. Please reload the page.",
+      "care_contract.change_contract_not_active":
+        "This contract is no longer in force. The school now decides change requests.",
+      "care_contract.change_ends_care":
+        "The parents give up all care with this. That is a termination. Please record it under “End contract” or reject the request.",
+      "care_contract.change_not_applicable":
+        "The school does not allow this change right now. Please talk to the school.",
+      "care_contract.change_not_found":
+        "This change request no longer exists. Please reload the page.",
       "care_contract.contract_input_invalid":
         "Please select at least one and at most 200 entries.",
       "care_contract.contract_not_draft":
@@ -3240,6 +3272,14 @@ export const ERROR_CATALOG = {
     codes: {
       "care_contract.application_not_found":
         "This application no longer exists or is not accepted. Please reload the page.",
+      "care_contract.change_contract_not_active":
+        "This contract is no longer in force. The school now decides change requests.",
+      "care_contract.change_ends_care":
+        "The parents give up all care with this. That is a termination. Please record it under “End contract” or reject the request.",
+      "care_contract.change_not_applicable":
+        "The school does not allow this change right now. Please talk to the school.",
+      "care_contract.change_not_found":
+        "This change request no longer exists. Please reload the page.",
       "care_contract.contract_input_invalid":
         "Please select at least one and at most 200 entries.",
       "care_contract.contract_not_draft":
@@ -3715,6 +3755,14 @@ export const ERROR_CATALOG = {
     codes: {
       "care_contract.application_not_found":
         "This application no longer exists or is not accepted. Please reload the page.",
+      "care_contract.change_contract_not_active":
+        "This contract is no longer in force. The school now decides change requests.",
+      "care_contract.change_ends_care":
+        "The parents give up all care with this. That is a termination. Please record it under “End contract” or reject the request.",
+      "care_contract.change_not_applicable":
+        "The school does not allow this change right now. Please talk to the school.",
+      "care_contract.change_not_found":
+        "This change request no longer exists. Please reload the page.",
       "care_contract.contract_input_invalid":
         "Please select at least one and at most 200 entries.",
       "care_contract.contract_not_draft":
@@ -4196,6 +4244,14 @@ export const ERROR_CATALOG = {
     codes: {
       "care_contract.application_not_found":
         "This application no longer exists or is not accepted. Please reload the page.",
+      "care_contract.change_contract_not_active":
+        "This contract is no longer in force. The school now decides change requests.",
+      "care_contract.change_ends_care":
+        "The parents give up all care with this. That is a termination. Please record it under “End contract” or reject the request.",
+      "care_contract.change_not_applicable":
+        "The school does not allow this change right now. Please talk to the school.",
+      "care_contract.change_not_found":
+        "This change request no longer exists. Please reload the page.",
       "care_contract.contract_input_invalid":
         "Please select at least one and at most 200 entries.",
       "care_contract.contract_not_draft":

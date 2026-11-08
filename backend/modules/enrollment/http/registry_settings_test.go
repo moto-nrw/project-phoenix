@@ -36,6 +36,7 @@ const (
 	settingKeyLegalTermsEnabled                      = "enrollment.legal_terms_enabled"
 	settingKeyNotificationEmails                     = "enrollment.notification_emails"
 	settingKeyNotifyPerDecision                      = "enrollment.notify_per_decision"
+	settingKeyCareFacilityTerm                       = "enrollment.care_facility_term"
 	settingKeyRejectedRetentionDays                  = "enrollment.rejected_retention_days"
 	settingKeyStatusTokenTTLDays                     = "enrollment.status_token_ttl_days"
 	settingKeyWaitlistEnabled                        = "enrollment.waitlist_enabled"

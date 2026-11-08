@@ -44,11 +44,22 @@ var visitorTraceCounts = map[string]string{
 	"care_contract.contract_parties": `SELECT count(*) FROM care_contract.contract_parties AS party
 		JOIN care_contract.contracts AS contract ON contract.id = party.contract_id
 		WHERE contract.school_id = ?0 AND party.first_name = '` + visitorFirst + `' AND party.last_name = '` + visitorLast + `'`,
+	// The parents' extraordinary termination and the notice of its decided
+	// end (#4682) repeat the visitor's name; they hang on the contract.
+	// The text carries the school, so the count needs no join to a contract
+	// the erasure removed.
+	"care_contract.contract_notices": `SELECT count(*) FROM care_contract.contract_notices
+		WHERE end_notice_text = 'Mitteilung ' || ?0 || ' an ` + visitorFull + `'`,
 	// Its mail is the Träger's: it has no school, only the contract it names.
 	"care contract mail": `SELECT count(*) FROM platform.email_outbox AS outbox
 		JOIN care_contract.contracts AS contract ON contract.id = outbox.related_entity_id
 		WHERE outbox.related_entity_type = 'care_contract' AND contract.school_id = ?0
 			AND outbox.recipient->>'name' = '` + visitorFull + `'`,
+	// The push of the sent contract (#5941) is the Träger's, named by the
+	// contract alone, and keeps the recipient's address in its payload.
+	"care contract push": `SELECT count(*) FROM platform.push_outbox
+		WHERE related_entity_type = 'care_contract_document'
+			AND payload->>'recipient_email' = '` + visitorLast + `-' || ?0 || '@example.org'`,
 	// The monthly invoice of the contract copies child, recipient and mail
 	// address (#4684) and outlives the contract. Its positions and the read
 	// in the run's trail name no one; careMonthRows counts them.
@@ -159,6 +170,20 @@ func leaveVisitorTraces(t *testing.T, db *bun.DB, schoolID int64) visitorAccount
 			FROM document JOIN outbox ON outbox.contract_id = document.contract_id)
 		INSERT INTO care_contract.contract_events (organization_id, contract_id, school_id, account_id, action)
 		SELECT organization_id, id, ?0, ?3, 'send' FROM contract`,
+		// The send put the push „Neues Dokument vom Träger“ on the outbox
+		// (#5941), with the recipient's address in its payload.
+		`INSERT INTO platform.push_outbox (organization_id, kind, related_entity_type, related_entity_id, recipient, payload)
+		SELECT organization_id, 'care_contract_document', 'care_contract_document', id, '{"deferred":true}'::jsonb,
+			jsonb_build_object('organization_id', organization_id, 'contract_id', id,
+				'recipient_email', '` + visitorLast + `-' || ?0 || '@example.org')
+		FROM care_contract.contracts WHERE school_id = ?0`,
+		// The visitor terminated extraordinarily; the Träger-Büro did not
+		// accept the reason and told the visitor the new end (#4682).
+		`INSERT INTO care_contract.contract_notices (organization_id, contract_id, kind, notice_kind, channel, declared_at,
+			received_on, ends_on, reason, recipient_email, confirmation_text, end_decision, end_decided_at, end_notice_text)
+		SELECT organization_id, id, 'kuendigung', 'ausserordentlich', 'traeger_buero', NOW(), DATE '2026-11-10', DATE '2026-12-31',
+			'Umzug', 'eltern@example.org', 'Bestätigung', 'umgedeutet', NOW(), 'Mitteilung ' || ?0 || ' an ` + visitorFull + `'
+		FROM care_contract.contracts WHERE school_id = ?0`,
 		// The Träger billed the contract for a month and read the run
 		// (#4684): invoice, position and the read in the trail.
 		`WITH contract AS (
@@ -814,7 +839,8 @@ func TestDemoSchoolQueueErasesTheRealtimeNotificationsOfTheRetiredSchool(t *test
 func careContractRows(t *testing.T, db *bun.DB, schoolID int64) map[string]int {
 	t.Helper()
 	rows := map[string]int{}
-	for _, table := range []string{"contracts", "contract_versions", "contract_parties", "contract_documents", "contract_mailings", "contract_events"} {
+	for _, table := range []string{"contracts", "contract_versions", "contract_parties", "contract_documents", "contract_mailings", "contract_events",
+		"contract_notices"} {
 		query := `SELECT count(*) FROM care_contract.` + table + ` WHERE contract_id IN (
 			SELECT id FROM care_contract.contracts WHERE school_id = ?)`
 		if table == "contracts" {
@@ -843,7 +869,7 @@ func TestDemoSchoolQueueErasesTheCareContractsOfTheRetiredSchool(t *testing.T) {
 	accounts := leaveVisitorTraces(t, db, schoolID)
 	leaveVisitorTraces(t, db, openID)
 	everyRow := map[string]int{"contracts": 1, "contract_versions": 1, "contract_parties": 1, "contract_documents": 1,
-		"contract_mailings": 1, "contract_events": 1, "contract_events of the school": 1}
+		"contract_mailings": 1, "contract_events": 1, "contract_notices": 1, "contract_events of the school": 1}
 	require.Equal(t, everyRow, careContractRows(t, db, schoolID), "the fixture leaves a whole sent contract")
 	var mails []int64
 	require.NoError(t, db.NewRaw(`SELECT outbox.id FROM platform.email_outbox AS outbox
@@ -855,7 +881,7 @@ func TestDemoSchoolQueueErasesTheCareContractsOfTheRetiredSchool(t *testing.T) {
 	retireVisitorOrder(t, db, schoolID, accounts)
 
 	assert.Equal(t, map[string]int{"contracts": 0, "contract_versions": 0, "contract_parties": 0, "contract_documents": 0,
-		"contract_mailings": 0, "contract_events": 0, "contract_events of the school": 0}, careContractRows(t, db, schoolID),
+		"contract_mailings": 0, "contract_events": 0, "contract_notices": 0, "contract_events of the school": 0}, careContractRows(t, db, schoolID),
 		"no row of the retired school's contract stays")
 	assert.Equal(t, []int64{mails[1]}, remainingMails(t, db, mails...), "only the open school keeps its contract mail")
 	assert.Equal(t, everyRow, careContractRows(t, db, openID), "the open school keeps its contract")

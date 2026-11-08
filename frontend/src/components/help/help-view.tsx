@@ -1,5 +1,6 @@
 "use client";
 
+import { SectionLabel } from "~/components/ui/section-label";
 import { ListRowLink } from "~/components/ui/list-row-link";
 import Image from "next/image";
 import Link from "next/link";
@@ -413,9 +414,7 @@ function GroupOverview({
   const groupTopics = topics.filter((item) => item.group === group);
   return (
     <section className="max-w-4xl">
-      <p className="text-moto-green-strong text-sm font-bold tracking-wide uppercase">
-        {ROLE_KICKER[role]}
-      </p>
+      <SectionLabel as="p">{ROLE_KICKER[role]}</SectionLabel>
       <h1 className="mt-2 text-4xl font-semibold tracking-tight text-gray-950 sm:text-5xl">
         {helpGroupLabel(group, presenceMode, groupMode)}
       </h1>
@@ -580,10 +579,7 @@ function DocumentationArticle({
 
       <article className="max-w-2xl min-w-0">
         <header>
-          <p className="text-moto-green-strong text-sm font-bold tracking-wide uppercase">
-            {helpGroupLabel(topic.group, presenceMode, groupMode)}
-          </p>
-          <h1 className="mt-3 text-4xl font-semibold tracking-tight text-balance text-gray-950 sm:text-5xl">
+          <h1 className="text-4xl font-semibold tracking-tight text-balance text-gray-950 sm:text-5xl">
             {topic.question}
           </h1>
           <p className="mt-5 text-lg leading-8 text-pretty text-gray-600">
@@ -1175,9 +1171,7 @@ function HelpDocumentationShell({
           />
         ) : (
           <section className="max-w-4xl">
-            <p className="text-moto-green-strong text-sm font-bold tracking-wide uppercase">
-              {ROLE_KICKER[role]}
-            </p>
+            <SectionLabel as="p">{ROLE_KICKER[role]}</SectionLabel>
             <h1 className="mt-2 text-4xl font-semibold tracking-tight text-gray-950 sm:text-5xl">
               Was möchten Sie erledigen?
             </h1>

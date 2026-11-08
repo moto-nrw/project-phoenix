@@ -106,4 +106,4 @@ Storno mit demselben Nummernkreis.
 - Fehlercodes `parent_billing.care_invoice_not_found`, `care_invoice_cancelled`,
   `care_recipient_changed`.
 - Migration `1.15.809` (Tabellen, `care_invoices.replaces_invoice_id`,
-  Demo-Löschung auf der Fassung von 1.15.805).
+  Demo-Löschung auf der Fassung von 1.15.808).

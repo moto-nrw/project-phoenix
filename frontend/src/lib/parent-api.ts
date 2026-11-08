@@ -1,4 +1,5 @@
 import type { ParentConferenceOffer } from "~/lib/parent-conferences";
+import type { CareContractStatus } from "./traeger-care-contracts-api";
 import {
   ApiError,
   transportFetch as fetchTransport,
@@ -2479,7 +2480,7 @@ export interface ParentDocument {
   readonly child_names: readonly string[];
   readonly sent_at: string;
   /** The state of a care contract (#4679); absent for a letter. */
-  readonly contract_status?: string;
+  readonly contract_status?: CareContractStatus;
   readonly can_sign?: boolean;
   readonly signed_at?: string | null;
   /**

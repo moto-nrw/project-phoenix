@@ -17,7 +17,7 @@ func init() {
 		DependsOn: []string{
 			parentBillingCareMonthsVersion,          // the monthly invoices the letters belong to
 			parentBillingLetterMailingsVersion,      // the documents sequence the letters share with the inbox
-			demoVisitorErasureCareInvoicesVersion,   // the erasure this one extends
+			demoVisitorErasureContractPushVersion,   // the erasure this one extends
 			parentBillingDocumentCorrectionsVersion, // the Storno of the holiday invoices this one follows
 		},
 	})
@@ -226,7 +226,7 @@ ALTER TABLE parent_billing.care_invoices ADD CONSTRAINT uq_care_invoices_contrac
 	UNIQUE (organization_id, care_contract_id, billing_month);
 `
 
-// careLetterErasureAnchor is the statement of 1.15.805 that deletes the
+// careLetterErasureAnchor is the statement of 1.15.805, kept by 1.15.808, that deletes the
 // monthly invoices of the retired demo schools. The letters, their sends and
 // the copies on Delivery's outbox go right before it.
 const careLetterErasureAnchor = `					DELETE FROM parent_billing.care_invoices
@@ -280,14 +280,14 @@ const careLetterErasureSQL = `					-- The letter of a monthly invoice or its Sto
 `
 
 // demoVisitorErasureCareLettersSQL is platform.erase_closed_demo_visitors of
-// 1.15.805 with the outbox copies of the monthly letters deleted before the
+// 1.15.808 with the outbox copies of the monthly letters deleted before the
 // invoices; the rest is unchanged. It panics at start-up when the anchor is
 // not there exactly once, so a changed base never installs a half erasure.
 func demoVisitorErasureCareLettersSQL() string {
-	if strings.Count(demoVisitorErasureCareInvoicesUpSQL, careLetterErasureAnchor) != 1 {
-		panic("migration 1.15.809: the anchor of the monthly invoices in the erasure of 1.15.805 is not there exactly once")
+	if strings.Count(demoVisitorErasureContractPushUpSQL, careLetterErasureAnchor) != 1 {
+		panic("migration 1.15.809: the anchor of the monthly invoices in the erasure of 1.15.808 is not there exactly once")
 	}
-	return strings.Replace(demoVisitorErasureCareInvoicesUpSQL, careLetterErasureAnchor,
+	return strings.Replace(demoVisitorErasureContractPushUpSQL, careLetterErasureAnchor,
 		careLetterErasureSQL+careLetterErasureAnchor, 1)
 }
 
@@ -301,11 +301,11 @@ func parentBillingCareLettersUp(ctx context.Context, db *bun.DB) error {
 	return nil
 }
 
-// parentBillingCareLettersDown reinstalls the erasure of 1.15.805 before it
+// parentBillingCareLettersDown reinstalls the erasure of 1.15.808 before it
 // drops the tables that erasure no longer names.
 func parentBillingCareLettersDown(ctx context.Context, db *bun.DB) error {
-	if err := demoVisitorErasureCareInvoicesUp(ctx, db); err != nil {
-		return fmt.Errorf("restore the demo visitor erasure of 1.15.805: %w", err)
+	if err := demoVisitorErasureContractPushUp(ctx, db); err != nil {
+		return fmt.Errorf("restore the demo visitor erasure of 1.15.808: %w", err)
 	}
 	if _, err := db.ExecContext(ctx, parentBillingCareLettersDownSQL); err != nil {
 		return fmt.Errorf("drop parent billing care letters: %w", err)

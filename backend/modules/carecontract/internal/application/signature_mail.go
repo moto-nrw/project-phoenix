@@ -13,7 +13,6 @@ const (
 	contractSignedMailTemplate   = "care-contract-signed.html"
 )
 
-// contractMailKind is the subject and template of a contract mail.
 func contractMailKind(purpose string) (string, string, error) {
 	switch purpose {
 	case carecontract.MailPurposeContract:

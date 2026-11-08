@@ -219,7 +219,7 @@ export function CareContractVersions({
           <StatusBadge label={`${versions.length} Versionen`} tone="gray" />
         ) : null
       }
-      description="Gibt die Schule eine Änderung der Betreuung frei, entsteht eine neue Version. Frühere Versionen bleiben hier lesbar."
+      description="Geben Sie oder die Schule eine Änderung der Betreuung frei, entsteht eine neue Version. Frühere Versionen bleiben hier lesbar."
     >
       <ResponsiveActionList>
         {ordered.map((version, index) => {

@@ -11,6 +11,7 @@ import {
 import { Modal } from "~/components/ui/modal";
 import { SectionCard } from "~/components/ui/section-card";
 import type { FormLegalBlock } from "~/lib/enrollment-form-schema-api";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 function holidayPublicDocumentPath(token: string, id: string): string {
   return `/api/holiday-registrations/${encodeURIComponent(token)}/documents/${encodeURIComponent(id)}`;
@@ -32,7 +33,7 @@ export function HolidayRegistrationLegal({
   fieldError: (name: string) => string | undefined;
 }>) {
   const t = useTranslations("holidayRegistration");
-  const tr = useTranslations("enrollmentForm");
+  const tr = useCareTermTranslations("enrollmentForm");
   const [open, setOpen] = useState<FormLegalBlock | null>(null);
   const visible = blocks.filter((b) => b.enabled);
   if (visible.length === 0) return null;
