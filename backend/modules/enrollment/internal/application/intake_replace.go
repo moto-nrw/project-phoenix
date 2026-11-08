@@ -200,23 +200,13 @@ func (s *Intake) planReplacementContract(ctx context.Context, editReq *SubmitReq
 		return fmt.Errorf("edit replace: resolve legal blocks: %w", err)
 	}
 	plan.legalBlocks = applyTemplateLegalBlocks(texts, plan.schema).Blocks
-	if err := normalizeAdditionalGuardians(editReq); err != nil {
-		return err
-	}
-	if err := s.validateSubmission(ctx, *editReq, plan.legalBlocks, plan.capabilities); err != nil {
-		return err
-	}
-	if err := s.validateAndNormalizeSchoolClasses(ctx, plan.phase, editReq.Children); err != nil {
-		return err
-	}
-	plan.eligibilityEnforced = !isTrustedEnrollmentSource(plan.req.SubmissionSource) && !hasRolloverGeneratedChild(plan.children)
-	if plan.eligibilityEnforced {
-		if err := s.validatePhaseChildEligibility(ctx, plan.phase, *editReq); err != nil {
-			return err
-		}
-	}
-	editReq.ConsentFlags = filterConsentFlags(editReq.ConsentFlags, plan.legalBlocks)
-	if err := validateSubmittedFields(plan.schema, *editReq, plan.openByID, plan.children); err != nil {
+	gate := storedRequestEligibility(plan.req.SubmissionSource, plan.children)
+	plan.eligibilityEnforced = gate != eligibilityNone
+	if err := s.validateIntakePayload(ctx, editReq, intakePayload{
+		phase: plan.phase, schema: plan.schema, legalBlocks: plan.legalBlocks,
+		capabilities: plan.capabilities, openByID: plan.openByID,
+		eligibility: gate, existingChildren: plan.children,
+	}); err != nil {
 		return err
 	}
 	mergeReplacementAnswers(plan.schema, editReq, plan.req.CustomData, plan.children, plan.openByID)

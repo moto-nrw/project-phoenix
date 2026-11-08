@@ -19,13 +19,9 @@ const UnclaimedUploadLifetime = 24 * time.Hour
 // SubmissionRateLimitKeyTypeUploadIP counts the uploads of one IP address.
 const SubmissionRateLimitKeyTypeUploadIP = "upload_ip"
 
-// Wire codes of the upload failures. The package may not import api/common.
-const (
-	CodeUploadInvalid     = "enrollment.upload_invalid"
-	CodeUploadExpired     = "enrollment.upload_expired"
-	CodeUploadRateLimited = "enrollment.upload_rate_limited"
-	CodeUploadNotFound    = "enrollment.upload_not_found"
-)
+// CodeUploadExpired is the wire code of an upload the token no longer claims.
+// The package may not import api/common.
+const CodeUploadExpired = "enrollment.upload_expired"
 
 var (
 	// ErrUploadFieldNotFound marks an upload for a phase or field that does
