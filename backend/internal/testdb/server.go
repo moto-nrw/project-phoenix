@@ -25,11 +25,10 @@ func EnsureServer(ctx context.Context, cfg *Config) error {
 	if err := HoldServer(ctx, cfg); err != nil {
 		return fmt.Errorf("protect local test server: %w", err)
 	}
-	start := func(ctx context.Context) error {
-		return startTestContainer(ctx, cfg)
-	}
-	return ensureServerWithRecovery(ctx, cfg, start, pingServer, isPostgresAuthenticationFailure,
-		func(ctx context.Context) (bool, error) { return rebuildCorruptServer(ctx, cfg, start) })
+	return ensureServerWithRecovery(ctx, cfg,
+		func(ctx context.Context) error { return startTestContainerLocked(ctx, cfg) },
+		pingServer, isPostgresAuthenticationFailure,
+		func(ctx context.Context) (bool, error) { return rebuildCorruptServer(ctx, cfg) })
 }
 
 type serverPinger func(context.Context, *Config) error

@@ -20,30 +20,54 @@ const corruptClusterMarker = "could not locate a valid checkpoint record"
 
 const testDataDirectory = "/var/lib/postgresql/data"
 
+// lockServer takes the per-server lock that serializes starting and
+// rebuilding the managed server behind cfg, so a concurrent start cannot
+// attach a new container to a volume that is being removed. Outside the
+// managed local lifecycle it returns no lock.
+func lockServer(ctx context.Context, cfg *Config) (*idleServer, *os.File, error) {
+	if os.Getenv("CI") != "" || !isLoopbackHost(cfg.templateURL.Hostname()) {
+		return nil, nil, nil
+	}
+	server, err := localIdleServer(ctx, composeProjectFor(cfg))
+	if err != nil || server == nil {
+		// Docker discovery stays optional for startup, as in HoldServer.
+		return nil, nil, nil
+	}
+	cache, err := os.UserCacheDir()
+	if err != nil {
+		return nil, nil, err
+	}
+	dir := filepath.Join(cache, "moto-testdb", "v1", identifierHash(server.Host+"\n"+server.Project))
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return nil, nil, err
+	}
+	lock, err := lockFile(ctx, filepath.Join(dir, "rebuild.lock"), syscall.LOCK_EX)
+	if err != nil {
+		return nil, nil, err
+	}
+	return server, lock, nil
+}
+
+func startTestContainerLocked(ctx context.Context, cfg *Config) error {
+	_, lock, err := lockServer(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	if lock != nil {
+		defer func() { _ = lock.Close() }()
+	}
+	return startTestContainer(ctx, cfg)
+}
+
 // rebuildCorruptServer replaces the managed test server behind cfg when its
 // last start failed with corruptClusterMarker: it removes exactly that
 // container and its data volume and starts a fresh one. It reports whether it
 // rebuilt. Unmanaged, running, cleanly stopped or otherwise failed servers are
-// left untouched. The rebuild lock is held through start, so a concurrent test
+// left untouched. The lock is held through start, so a concurrent test
 // process sees the replacement container instead of rebuilding it again.
-func rebuildCorruptServer(ctx context.Context, cfg *Config, start func(context.Context) error) (bool, error) {
-	if os.Getenv("CI") != "" || !isLoopbackHost(cfg.templateURL.Hostname()) {
-		return false, nil
-	}
-	server, err := localIdleServer(ctx, composeProjectFor(cfg))
-	if err != nil || server == nil {
-		return false, err
-	}
-	cache, err := os.UserCacheDir()
-	if err != nil {
-		return false, err
-	}
-	dir := filepath.Join(cache, "moto-testdb", "v1", identifierHash(server.Host+"\n"+server.Project))
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		return false, err
-	}
-	lock, err := lockFile(ctx, filepath.Join(dir, "rebuild.lock"), syscall.LOCK_EX)
-	if err != nil {
+func rebuildCorruptServer(ctx context.Context, cfg *Config) (bool, error) {
+	server, lock, err := lockServer(ctx, cfg)
+	if err != nil || lock == nil {
 		return false, err
 	}
 	defer func() { _ = lock.Close() }()
@@ -52,7 +76,7 @@ func rebuildCorruptServer(ctx context.Context, cfg *Config, start func(context.C
 	if err != nil || !rebuilt {
 		return false, err
 	}
-	if err := start(ctx); err != nil {
+	if err := startTestContainer(ctx, cfg); err != nil {
 		return true, fmt.Errorf("start rebuilt test server: %w", err)
 	}
 	return true, nil
