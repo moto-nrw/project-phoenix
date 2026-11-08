@@ -94,7 +94,10 @@ func (s *Store) FamilyChildCount(ctx context.Context, organizationID int64, fami
 }
 
 // StateFamilyChildren stores the number the parents stated for their
-// family on a contract; a confirmed number stays as it is.
+// family on a contract; a confirmed number stays as it is. The statement and
+// the confirmation take the time of the write, after the lock of the monthly
+// billing, not the start of the transaction: a statement that waited for a
+// confirmation must stay newer than it.
 func (s *Store) StateFamilyChildren(ctx context.Context, organizationID, accountID int64, family string, contractID int64, children int) (int64, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
@@ -103,10 +106,10 @@ func (s *Store) StateFamilyChildren(ctx context.Context, organizationID, account
 	var id int64
 	err = db.NewRaw(`INSERT INTO parent_billing.family_child_counts
 			(organization_id, family_email, care_contract_id, stated_children, stated_at, stated_by_account_id)
-		VALUES (?0, ?1, ?2, ?3, CURRENT_TIMESTAMP, ?4)
+		VALUES (?0, ?1, ?2, ?3, clock_timestamp(), ?4)
 		ON CONFLICT (organization_id, family_email) DO UPDATE SET care_contract_id = EXCLUDED.care_contract_id,
 			stated_children = EXCLUDED.stated_children, stated_at = EXCLUDED.stated_at,
-			stated_by_account_id = EXCLUDED.stated_by_account_id, updated_at = CURRENT_TIMESTAMP
+			stated_by_account_id = EXCLUDED.stated_by_account_id, updated_at = clock_timestamp()
 		RETURNING id`, organizationID, family, contractID, children, accountOrNull(accountID)).Scan(ctx, &id)
 	return id, familyChildWriteError(err)
 }
@@ -121,11 +124,11 @@ func (s *Store) ConfirmFamilyChildren(ctx context.Context, organizationID, accou
 	var id int64
 	err = db.NewRaw(`INSERT INTO parent_billing.family_child_counts
 			(organization_id, family_email, care_contract_id, confirmed_children, valid_from, valid_until, confirmed_at, confirmed_by_account_id)
-		VALUES (?0, ?1, ?2, ?3, ?4, ?5, CURRENT_TIMESTAMP, ?6)
+		VALUES (?0, ?1, ?2, ?3, ?4, ?5, clock_timestamp(), ?6)
 		ON CONFLICT (organization_id, family_email) DO UPDATE SET care_contract_id = EXCLUDED.care_contract_id,
 			confirmed_children = EXCLUDED.confirmed_children, valid_from = EXCLUDED.valid_from, valid_until = EXCLUDED.valid_until,
 			confirmed_at = EXCLUDED.confirmed_at, confirmed_by_account_id = EXCLUDED.confirmed_by_account_id,
-			updated_at = CURRENT_TIMESTAMP
+			updated_at = clock_timestamp()
 		RETURNING id`, organizationID, family, input.ContractID, input.Children, input.ValidFrom, input.ValidUntil, accountOrNull(accountID)).
 		Scan(ctx, &id)
 	return id, familyChildWriteError(err)

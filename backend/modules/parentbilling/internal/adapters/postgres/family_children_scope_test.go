@@ -105,3 +105,39 @@ func TestFamilyChildrenFiltersKeepTheTraegerBelowRLS(t *testing.T) {
 	})
 	require.ErrorIs(t, err, rollback)
 }
+
+// A statement written after a confirmation in the same transaction, or
+// after waiting for the lock of a confirmation, is newer than it: the time
+// of the write counts, not the start of the transaction. Otherwise a
+// pending change would hide as confirmed.
+func TestFamilyChildrenStatementAfterConfirmationIsNewer(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	own := newCareScope(t, db, "Träger Familie Zeit")
+	store := NewStore()
+	rollback := errors.New("roll the rows back")
+	const family = "eva.zeit@example.org"
+
+	ctx := testpkg.ContextWithTenantRuntime(context.Background(), testpkg.TenantRuntime(t, db))
+	err := testpkg.WithinTraeger(ctx, own.organization, func(ctx context.Context) error {
+		require.NoError(t, testpkg.WithoutRequestRole(ctx))
+		tx, err := traegerDB(ctx, own.organization)
+		require.NoError(t, err)
+		var contract int64
+		require.NoError(t, tx.NewRaw(`INSERT INTO care_contract.contracts (organization_id, school_id, request_child_id)
+			VALUES (?, ?, ?) RETURNING id`, own.organization, own.school, own.contract).Scan(ctx, &contract))
+		_, err = store.ConfirmFamilyChildren(ctx, own.organization, 0, family,
+			parentbilling.FamilyChildrenInput{ContractID: contract, Children: 2, ValidFrom: calendar.NewDate(2029, 9, 1)})
+		require.NoError(t, err)
+		_, err = store.StateFamilyChildren(ctx, own.organization, 0, family, contract, 3)
+		require.NoError(t, err)
+		count, found, err := store.FamilyChildCount(ctx, own.organization, family)
+		require.NoError(t, err)
+		require.True(t, found)
+		require.NotNil(t, count.StatedAt)
+		require.NotNil(t, count.ConfirmedAt)
+		assert.True(t, count.StatedAt.After(*count.ConfirmedAt), "the later statement is newer than the confirmation")
+		return rollback
+	})
+	require.ErrorIs(t, err, rollback)
+}
