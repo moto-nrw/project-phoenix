@@ -39,8 +39,9 @@ func seedBillingTerms(client *Client, auth AuthRef, runID int64, month calendar.
 	var envelope struct {
 		Data struct {
 			Invoices []struct {
-				ContractID int64 `json:"contract_id"`
-				Recipient  struct {
+				ContractID  int64  `json:"contract_id"`
+				FamilyEmail string `json:"family_email"`
+				Recipient   struct {
 					LastName string `json:"last_name"`
 				} `json:"recipient"`
 			} `json:"invoices"`
@@ -77,8 +78,9 @@ func seedBillingTerms(client *Client, auth AuthRef, runID int64, month calendar.
 // replaced, one family has none, so the review shows its hint and the
 // invoice goes as a transfer. The first family pays by transfer anyway.
 func seedSEPAMandates(client *Client, auth AuthRef, invoices []struct {
-	ContractID int64 `json:"contract_id"`
-	Recipient  struct {
+	ContractID  int64  `json:"contract_id"`
+	FamilyEmail string `json:"family_email"`
+	Recipient   struct {
 		LastName string `json:"last_name"`
 	} `json:"recipient"`
 }) error {
@@ -87,12 +89,31 @@ func seedSEPAMandates(client *Client, auth AuthRef, invoices []struct {
 	}); err != nil {
 		return fmt.Errorf("keep the SEPA creditor: %w", err)
 	}
+	// Every monthly run seeds its families again: a family that has a
+	// mandate already, or one of its siblings, keeps it.
+	raw, err := client.GetWithAuth(auth, "/traeger/sepa-mandates/")
+	if err != nil {
+		return fmt.Errorf("read the SEPA mandates: %w", err)
+	}
+	var existing struct {
+		Data []struct {
+			FamilyEmail string `json:"family_email"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &existing); err != nil {
+		return fmt.Errorf("read the SEPA mandates: %w", err)
+	}
+	seeded := map[string]bool{}
+	for _, mandate := range existing.Data {
+		seeded[mandate.FamilyEmail] = true
+	}
 	for i, invoice := range invoices {
-		if i == 0 || i == 2 {
+		if i == 0 || i == 2 || seeded[invoice.FamilyEmail] {
 			continue
 		}
+		seeded[invoice.FamilyEmail] = true
 		mandate := map[string]any{
-			"contract_id": invoice.ContractID, "reference": fmt.Sprintf("SJR-2026-%04d", i), "signed_on": "2026-09-01",
+			"contract_id": invoice.ContractID, "reference": fmt.Sprintf("SJR-2026-%04d", invoice.ContractID), "signed_on": "2026-09-01",
 			"kind": "recurring", "sequence": "recurring", "account_holder": "Familie " + invoice.Recipient.LastName,
 			"iban": demoIBAN(9000 + i),
 		}
@@ -115,7 +136,7 @@ func seedSEPAMandates(client *Client, auth AuthRef, invoices []struct {
 			map[string]any{"revoked_on": "2026-10-01"}); err != nil {
 			return fmt.Errorf("revoke the SEPA mandate of a family: %w", err)
 		}
-		mandate["reference"], mandate["signed_on"], mandate["sequence"] = "SJR-2026-0101", "2026-10-02", "first"
+		mandate["reference"], mandate["signed_on"], mandate["sequence"] = fmt.Sprintf("SJR-2026-%04d-2", invoice.ContractID), "2026-10-02", "first"
 		mandate["iban"] = demoIBAN(9100 + i)
 		if _, err := client.PostWithAuth(auth, "/traeger/sepa-mandates/", mandate); err != nil {
 			return fmt.Errorf("keep the new SEPA mandate of a family: %w", err)
