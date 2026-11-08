@@ -176,7 +176,7 @@ func TestStudentExtraFieldRequestsExcludeOfficeMatchesButKeepHistory(t *testing.
 			extra, err := decisions.StudentExtraFieldRequests(t.Context(), 41)
 			require.NoError(t, err)
 			require.Len(t, extra, 1, "only authorized submission answers belong in the student profile")
-			require.Equal(t, int64(1), extra[0].Request.ID)
+			require.Equal(t, records.requests[1].ID, extra[0].Request.ID)
 			require.Len(t, extra[0].Children, 1)
 			require.False(t, extra[0].Children[0].MatchedByOffice)
 			history, err := decisions.StudentDecisionRequests(t.Context(), 41)
