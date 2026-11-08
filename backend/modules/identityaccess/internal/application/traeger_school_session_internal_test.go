@@ -19,10 +19,11 @@ func runTraegerSchoolHandoffGuard(t *testing.T, f *authFixture, familyID string,
 	admit := func(context.Context, domain.LoginAccount) (*domain.AccountClaimsPayload, error) {
 		return &domain.AccountClaimsPayload{TenantID: 10, OrgID: 7, ViaTraeger: true}, nil
 	}
+	admitKind(f, domain.SessionKindTraegerSchool, admit)
 	_, err := f.auth.mintAccountSession(context.Background(), mintRequest{
 		portal: domain.PortalTenant, account: f.store.accounts[1], tenantID: 10, orgID: 7,
-		proof:    mintProof{kind: proofTraegerSession, traegerFamilyID: familyID, traegerVerified: proof},
-		eligible: admit, sourceFamilyID: familyID, lifetime: domain.TraegerSchoolHandoffTTL,
+		proof:          mintProof{kind: proofTraegerSession, traegerFamilyID: familyID, traegerVerified: proof},
+		sourceFamilyID: familyID, lifetime: domain.TraegerSchoolHandoffTTL,
 	})
 	return err
 }

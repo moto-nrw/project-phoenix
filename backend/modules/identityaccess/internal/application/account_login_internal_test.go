@@ -276,7 +276,7 @@ func TestValidateTenantAccess(t *testing.T) {
 			f := newAuthFixture(t)
 			f.seedStaff(1, 10, "user")
 			tc.arrange(f)
-			err := f.auth.validateTenantAccess(context.Background(), claims)
+			err := f.auth.validateTenantAccess(context.Background(), claims.AccountID, claims.TenantID)
 			if tc.want == nil {
 				require.NoError(t, err)
 				return

@@ -32,8 +32,9 @@ func TestSessionMintRefusesAnAccountErasedAfterItsChecks(t *testing.T) {
 			admit := func(context.Context, domain.LoginAccount) (*domain.AccountClaimsPayload, error) {
 				return &domain.AccountClaimsPayload{Scope: portal.Claim}, nil
 			}
+			admitKind(f, domain.SessionKind(portal.Name), admit)
 			_, err := f.auth.mintAccountSession(context.Background(), mintRequest{
-				portal: portal, account: f.store.accounts[1], tenantID: tenantID, eligible: admit,
+				portal: portal, account: f.store.accounts[1], tenantID: tenantID,
 			})
 			require.ErrorIs(t, err, domain.ErrAccountNotFound)
 			assert.Empty(t, f.store.sessionsOf(1), "no session for the erased account")
@@ -129,4 +130,12 @@ func functionSource(t *testing.T, file, signature string) string {
 	end := strings.Index(text[start:], "\n}\n")
 	require.Positive(t, end, signature)
 	return text[start : start+end]
+}
+
+// admitKind replaces the guard of one session kind, for tests of a later
+// pipeline step.
+func admitKind(f *authFixture, kind domain.SessionKind, admit eligibility) {
+	f.auth.policies = map[domain.SessionKind]sessionPolicy{
+		kind: {guard: func(*AccountAuthentication, sessionBinding) eligibility { return admit }},
+	}
 }

@@ -111,10 +111,10 @@ func (s *AccountAuthentication) adoptSourceFamily(ctx context.Context, accountID
 	}
 	// The Absprung's proof re-check already checked the Träger proof under this lock;
 	// it must not be replaced by a same-school-portal proof lookup.
-	if domain.IsTraegerSchoolSession(*session) && source.PortalScope == domain.PortalOrg.Name {
+	if session.SessionKind() == domain.SessionKindTraegerSchool && source.SessionKind() == domain.SessionKind(domain.PortalOrg.Name) {
 		return nil
 	}
-	if session.PortalScope != domain.PortalTenant.Name && session.PortalScope != domain.PortalSchool.Name {
+	if portal, ok := domain.PortalOfPersisted(session.PortalScope); !ok || portal.MFA != domain.MFASchoolPolicy {
 		return nil
 	}
 	verified, err := s.switchMFAProof(ctx, accountID, familyID, session.PortalScope)

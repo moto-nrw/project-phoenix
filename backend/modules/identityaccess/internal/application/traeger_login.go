@@ -129,8 +129,7 @@ func (s *AccountAuthentication) IssueTraegerTokensForVerifiedMFA(ctx context.Con
 func (s *AccountAuthentication) mintTraegerSession(ctx context.Context, account domain.LoginAccount, organizationID int64, proof *identityaccess.VerifiedMFAChallenge, ipAddress, userAgent string) (*identityaccess.TraegerLoginResult, error) {
 	minted, err := s.mintAccountSession(ctx, mintRequest{
 		portal: domain.PortalOrg, account: account, orgID: organizationID, proof: challengeProof(proof),
-		eligible: s.traegerEligibility(organizationID),
-		audit:    s.traegerLoginAudit(ctx, account.ID, ipAddress, userAgent),
+		audit: s.traegerLoginAudit(ctx, account.ID, ipAddress, userAgent),
 	})
 	if err != nil {
 		return nil, err

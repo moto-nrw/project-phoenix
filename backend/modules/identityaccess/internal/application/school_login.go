@@ -64,8 +64,7 @@ func (s *AccountAuthentication) IssueSchoolTokensForVerifiedMFA(ctx context.Cont
 	}
 	minted, err := s.mintAccountSession(ctx, mintRequest{
 		portal: domain.PortalSchool, account: account, tenantID: proof.TenantID, proof: challengeProof(&proof),
-		eligible: s.schoolEligibility(proof.TenantID, false),
-		audit:    &mintAudit{event: domain.AuthEventLogin, ipAddress: ipAddress, userAgent: userAgent, schoolID: proof.TenantID},
+		audit: &mintAudit{event: domain.AuthEventLogin, ipAddress: ipAddress, userAgent: userAgent, schoolID: proof.TenantID},
 	})
 	if err != nil {
 		return "", "", wrapSchoolMintError(op, err)
@@ -119,7 +118,6 @@ func (s *AccountAuthentication) SwitchSchool(ctx context.Context, accountID int6
 	}
 	minted, err := s.mintAccountSession(ctx, mintRequest{
 		portal: domain.PortalSchool, account: account, tenantID: targetTenantID,
-		eligible:       s.schoolEligibility(targetTenantID, false),
 		sourceFamilyID: sourceFamilyID, retireFamilyID: sourceFamilyID,
 		audit: &mintAudit{event: domain.AuthEventTenantSwitch, ipAddress: ipAddress, userAgent: userAgent, schoolID: targetTenantID},
 	})

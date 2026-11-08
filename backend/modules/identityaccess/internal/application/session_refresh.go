@@ -99,118 +99,24 @@ type refreshPlan struct {
 	successor successorTenant
 }
 
-// planRefresh runs the refusals that need no rotation lock and picks the
-// portal's guard. Every refusal here and in the guard happens before the
+// planRefresh runs the portal's renewal reads that need no rotation lock and
+// picks its guard. Every refusal here and in the guard happens before the
 // rotation commits, so the presented refresh token stays valid: a school
 // that books its module again lets the session continue.
 func (s *AccountAuthentication) planRefresh(ctx context.Context, claims domain.RefreshClaims) (refreshPlan, error) {
-	portal, ok := domain.PortalOfClaim(claims.Scope)
-	if !ok || !portal.Persisted {
+	kind, ok := claims.SessionKind()
+	policy, known := s.sessionPolicy(kind)
+	if !ok || !known {
 		s.logRefreshDecision("refresh_session_rejected", "unknown_scope", claims.AccountID, claims.TenantID)
 		return refreshPlan{}, failed("refresh session", identityaccess.ErrInvalidToken)
 	}
-	plan := refreshPlan{portal: portal, successor: s.refreshTenant(claims)}
-	switch {
-	case portal.Name == domain.PortalCaterer.Name:
-		// A caterer token never names a school (ADR 0077).
-		if claims.TenantID != 0 {
-			s.logRefreshDecision("refresh_session_rejected", "caterer_token_with_tenant", claims.AccountID, claims.TenantID)
-			return refreshPlan{}, failed("refresh caterer session", identityaccess.ErrInvalidToken)
-		}
-		plan.eligible, plan.successor = s.catererEligibility(), s.catererSessionSchool
-	case traegerSchoolRefresh(claims):
-		// A Träger school session has no mapping at its school; its guard
-		// re-checks the Träger instead (ADR 0084 section 5).
-		if claims.TenantID <= 0 {
-			s.logRefreshDecision("refresh_session_rejected", "traeger_school_token_without_school", claims.AccountID, claims.TenantID)
-			return refreshPlan{}, failed("refresh Träger school session", identityaccess.ErrInvalidToken)
-		}
-		plan.eligible = s.traegerSchoolEligibility(claims.OrgID, claims.TenantID)
-	case portal.Name == domain.PortalOrg.Name:
-		if !portal.Holds(claims.TenantID, claims.OrgID) {
-			s.logRefreshDecision("refresh_session_rejected", "traeger_token_without_traeger", claims.AccountID, claims.TenantID)
-			return refreshPlan{}, failed("refresh Träger session", identityaccess.ErrInvalidToken)
-		}
-		plan.eligible = s.traegerEligibility(claims.OrgID)
-	default:
-		eligible, err := s.planStaffOrParentRefresh(ctx, portal, claims)
-		if err != nil {
-			return refreshPlan{}, err
-		}
-		plan.eligible = eligible
+	portal, _ := domain.PortalOfClaim(claims.Scope)
+	binding := sessionBinding{op: "refresh token", accountID: claims.AccountID, tenantID: claims.TenantID, orgID: claims.OrgID}
+	eligible, err := policy.renew(ctx, s, binding)
+	if err != nil {
+		return refreshPlan{}, err
 	}
-	return plan, nil
-}
-
-// planStaffOrParentRefresh covers the portals bound to the account's own
-// mapping: tenant, school and parent. An inactive school is refused before
-// the rotation so the client can retry after reactivation; a portal whose
-// module the school no longer books renews no session (#4895).
-func (s *AccountAuthentication) planStaffOrParentRefresh(ctx context.Context, portal domain.Portal, claims domain.RefreshClaims) (eligibility, error) {
-	if claims.TenantID > 0 {
-		if err := s.validateTenantAccess(ctx, claims); err != nil {
-			return nil, err
-		}
-	}
-	switch portal.Name {
-	case domain.PortalSchool.Name:
-		if !portal.Holds(claims.TenantID, claims.OrgID) {
-			s.logRefreshDecision("refresh_session_rejected", "school_token_without_tenant", claims.AccountID, claims.TenantID)
-			return nil, failed("refresh school session", identityaccess.ErrTenantAccessDenied)
-		}
-		if err := s.requireSchoolPortal(ctx, "refresh school session", claims.AccountID, claims.TenantID); err != nil {
-			s.logRefreshDecision("refresh_session_rejected", "portal_module_not_booked", claims.AccountID, claims.TenantID)
-			return nil, err
-		}
-		return s.schoolRefreshEligibility(claims.TenantID), nil
-	case domain.PortalParent.Name:
-		booked, err := s.requireParentPortalForAccount(ctx, "refresh parent session", claims.AccountID)
-		if err != nil {
-			s.logRefreshDecision("refresh_session_rejected", "portal_module_not_booked", claims.AccountID, claims.TenantID)
-			return nil, err
-		}
-		return s.parentRefreshEligibility(booked), nil
-	default:
-		return s.tenantRefreshEligibility(claims.TenantID), nil
-	}
-}
-
-// parentRefreshEligibility reports a parent left without a live guardian
-// school as ErrTenantNotFound, the answer the refresh route gave when the
-// successor found no school to be kept at.
-func (s *AccountAuthentication) parentRefreshEligibility(booked []int64) eligibility {
-	parent := s.parentEligibility("refresh parent session", booked)
-	return func(ctx context.Context, account domain.LoginAccount) (*domain.AccountClaimsPayload, error) {
-		payload, err := parent(ctx, account)
-		if errors.Is(err, identityaccess.ErrAccountNoGuardianRole) {
-			s.logRefreshDecision("refresh_session_rejected", "no_live_guardian_school", account.ID, 0)
-			return nil, failed("refresh parent session", identityaccess.ErrTenantNotFound)
-		}
-		return payload, err
-	}
-}
-
-// refreshTenant pins the successor of a tenant or parent session to the
-// tenant of the presented token. Pre-tenant-claim tokens carry tenant 0;
-// their successor gets the account's default mapping.
-func (s *AccountAuthentication) refreshTenant(claims domain.RefreshClaims) successorTenant {
-	return func(ctx context.Context, accountID int64, _ domain.AccountSession) (int64, error) {
-		if claims.Scope == domain.PortalOrg.Claim {
-			return 0, nil
-		}
-		if claims.TenantID > 0 {
-			return claims.TenantID, nil
-		}
-		resolved, _, err := s.resolveAccountTenant(ctx, accountID, "")
-		return resolved, err
-	}
-}
-
-// traegerSchoolRefresh reports the refresh of an OGS session the Träger-Büro
-// opened through the Absprung: a school-bound refresh token that names its
-// Träger. Other OGS refresh tokens name none.
-func traegerSchoolRefresh(claims domain.RefreshClaims) bool {
-	return domain.PersistedPortalScope(claims.Scope) == domain.PortalTenant.Name && claims.OrgID > 0
+	return refreshPlan{portal: portal, eligible: eligible, successor: policy.keptAt(s, binding)}, nil
 }
 
 // refreshSessionInTransaction validates and rotates the session in one
@@ -326,10 +232,9 @@ func (r *refreshRotation) presentedSession(ctx context.Context) (domain.AccountS
 }
 
 func (r *refreshRotation) validatePresented(ctx context.Context, presented domain.AccountSession, now time.Time) error {
-	traegerToken, traegerSession := r.claims.Scope == domain.PortalOrg.Claim, presented.PortalScope == domain.PortalOrg.Name
-	viaTraeger := traegerSchoolRefresh(r.claims) || domain.IsTraegerSchoolSession(presented)
+	claimed, _ := r.claims.SessionKind()
 	if presented.AccountID != r.claims.AccountID || (r.claims.TenantID > 0 && presented.TenantID != r.claims.TenantID) ||
-		traegerToken != traegerSession || ((traegerToken || viaTraeger) && presented.OrganizationID != r.claims.OrgID) {
+		!sameTraeger(claimed, r.claims.OrgID, presented) {
 		return r.reject(ctx, presented, "claim_mismatch", "revoke mismatched refresh-token family", identityaccess.ErrInvalidToken)
 	}
 	if now.After(presented.Expiry) {
@@ -478,38 +383,38 @@ func (s *AccountAuthentication) logRefreshDecision(event, reason string, account
 // school check closes the race with a concurrent soft delete that bulk
 // deletes the school's sessions; an inactive school is refused before the
 // rotation so the client can retry after reactivation.
-func (s *AccountAuthentication) validateTenantAccessInTransaction(ctx context.Context, claims domain.RefreshClaims) error {
-	exists, _, err := s.store.HasActiveAccountTenant(ctx, claims.AccountID, claims.TenantID)
+func (s *AccountAuthentication) validateTenantAccessInTransaction(ctx context.Context, accountID, tenantID int64) error {
+	exists, _, err := s.store.HasActiveAccountTenant(ctx, accountID, tenantID)
 	if err != nil {
 		s.logger.Error("refresh_session_validation_failed",
 			slog.String("reason", "tenant_lookup_error"),
-			slog.Int64("account_id", claims.AccountID),
-			slog.Int64("tenant_id", claims.TenantID),
+			slog.Int64("account_id", accountID),
+			slog.Int64("tenant_id", tenantID),
 			slog.Any("error", err))
 		return failed("validate tenant access", fmt.Errorf("tenant access lookup failed: %w", err))
 	}
 	if !exists {
-		s.logRefreshDecision("refresh_session_rejected", "tenant_access_revoked", claims.AccountID, claims.TenantID)
+		s.logRefreshDecision("refresh_session_rejected", "tenant_access_revoked", accountID, tenantID)
 		return failed("validate tenant access", identityaccess.ErrTenantAccessDenied)
 	}
-	school, found, err := s.schools.FindSchool(ctx, claims.TenantID)
+	school, found, err := s.schools.FindSchool(ctx, tenantID)
 	if err != nil {
 		s.logger.Error("failed to look up school during refresh validation",
-			slog.Int64("account_id", claims.AccountID),
-			slog.Int64("tenant_id", claims.TenantID),
+			slog.Int64("account_id", accountID),
+			slog.Int64("tenant_id", tenantID),
 			slog.Any("error", err))
 		return failed("validate tenant access", fmt.Errorf("school lookup failed: %w", err))
 	}
 	if !found {
-		s.logRefreshDecision("refresh_session_rejected", "tenant_not_found", claims.AccountID, claims.TenantID)
+		s.logRefreshDecision("refresh_session_rejected", "tenant_not_found", accountID, tenantID)
 		return failed("validate tenant access", identityaccess.ErrTenantNotFound)
 	}
 	if school.Deleted {
-		s.logRefreshDecision("refresh_session_rejected", "tenant_deleted", claims.AccountID, claims.TenantID)
+		s.logRefreshDecision("refresh_session_rejected", "tenant_deleted", accountID, tenantID)
 		return failed("validate tenant access", identityaccess.ErrTenantNotFound)
 	}
 	if !school.Active {
-		s.logRefreshDecision("refresh_session_rejected", "tenant_inactive", claims.AccountID, claims.TenantID)
+		s.logRefreshDecision("refresh_session_rejected", "tenant_inactive", accountID, tenantID)
 		return failed("validate tenant access", identityaccess.ErrTenantNotFound)
 	}
 	return nil
@@ -604,7 +509,7 @@ func (s *AccountAuthentication) auditLogout(ctx context.Context, revoked domain.
 	if tenantID == 0 {
 		tenantID = claimTenantID
 	}
-	if revoked.PortalScope == domain.PortalOrg.Name {
+	if !revoked.KeptAtSchool() {
 		tenantID = 0
 	} else if tenantID == 0 {
 		s.logger.Error("failed to audit logout",
@@ -655,8 +560,10 @@ func (s *AccountAuthentication) auditLogoutAtSchool(txCtx context.Context, accou
 	return s.logAuthEvent(txCtx, accountID, domain.AuthEventLogout, true, ipAddress, userAgent, "")
 }
 
-func (s *AccountAuthentication) validateTenantAccess(ctx context.Context, claims domain.RefreshClaims) error {
-	return globalIdentityRead(ctx, s.runtime, func(txCtx context.Context) error { return s.validateTenantAccessInTransaction(txCtx, claims) })
+func (s *AccountAuthentication) validateTenantAccess(ctx context.Context, accountID, tenantID int64) error {
+	return globalIdentityRead(ctx, s.runtime, func(txCtx context.Context) error {
+		return s.validateTenantAccessInTransaction(txCtx, accountID, tenantID)
+	})
 }
 
 // sameAccountSessionLineage holds when next continues current's family.

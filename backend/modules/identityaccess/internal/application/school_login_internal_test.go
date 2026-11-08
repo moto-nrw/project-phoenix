@@ -30,7 +30,7 @@ func newSchoolMintFixture(t *testing.T) (*authFixture, domain.LoginAccount) {
 func mintSchool(f *authFixture, account domain.LoginAccount, recheckMFAGate bool) (mintedSession, error) {
 	return f.auth.mintAccountSession(context.Background(), mintRequest{
 		portal: domain.PortalSchool, account: account, tenantID: 10,
-		eligible: f.auth.schoolEligibility(10, recheckMFAGate),
+		recheckMFAGate: recheckMFAGate,
 	})
 }
 

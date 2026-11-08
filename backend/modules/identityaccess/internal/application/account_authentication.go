@@ -47,6 +47,8 @@ type AccountAuthentication struct {
 	// caterers lets a caterer session refresh only while its account
 	// belongs to a caterer (ADR 0077).
 	caterers ports.CatererStore
+	// policies replaces entries of sessionPolicies; nil outside tests.
+	policies map[domain.SessionKind]sessionPolicy
 	logger   *slog.Logger
 	// refreshSF deduplicates concurrent refresh calls for the same refresh
 	// token and recovery proof.

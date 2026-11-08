@@ -48,8 +48,8 @@ func (s *AccountAuthentication) loginWithMFAGate(ctx context.Context, email, pas
 	}
 	minted, err := s.mintAccountSession(ctx, mintRequest{
 		portal: domain.PortalTenant, account: account, email: email, tenantID: metadata.TenantID, proof: proof,
-		eligible: s.tenantEligibility("login", metadata.TenantID),
-		audit:    &mintAudit{event: domain.AuthEventLogin, ipAddress: ipAddress, userAgent: userAgent},
+		op:    "login",
+		audit: &mintAudit{event: domain.AuthEventLogin, ipAddress: ipAddress, userAgent: userAgent},
 	})
 	if err != nil {
 		return nil, err
@@ -105,9 +105,7 @@ func (s *AccountAuthentication) mfaChallengeResult(ctx context.Context, account 
 	if err != nil {
 		return nil, failed("start mfa challenge", err)
 	}
-	if portal.Name == domain.PortalOrg.Name {
-		// The Träger-Portal remembers no device: it has no school whose
-		// trusted-device settings would apply.
+	if !portal.TrustedDevice {
 		return &domain.LoginResult{Status: domain.LoginStatusMFARequired, ChallengeToken: challenge, MaskedEmail: domain.MaskEmail(account.Email)}, nil
 	}
 	return &domain.LoginResult{
@@ -156,8 +154,8 @@ func (s *AccountAuthentication) issueTenantTokens(ctx context.Context, accountID
 	}
 	minted, err := s.mintAccountSession(ctx, mintRequest{
 		portal: domain.PortalTenant, account: account, tenantID: metadata.TenantID, proof: proof,
-		eligible: s.tenantEligibility("issue tokens", metadata.TenantID),
-		audit:    &mintAudit{event: domain.AuthEventLogin, ipAddress: ipAddress, userAgent: userAgent},
+		op:    "issue tokens",
+		audit: &mintAudit{event: domain.AuthEventLogin, ipAddress: ipAddress, userAgent: userAgent},
 	})
 	return minted.accessToken, minted.refreshToken, err
 }
