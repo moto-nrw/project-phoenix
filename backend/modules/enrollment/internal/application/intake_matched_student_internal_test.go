@@ -114,7 +114,7 @@ func TestGuardMatchedStudentUnique_ProbeErrorPropagates(t *testing.T) {
 func TestSameSubmittedIdentity(t *testing.T) {
 	t.Parallel()
 
-	existing := &RequestChild{
+	existing := &enrollment.RequestChild{
 		FirstName:   "Anna",
 		LastName:    "Müller",
 		DateOfBirth: "2019-04-12",

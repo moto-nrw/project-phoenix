@@ -88,9 +88,9 @@ func TestChangeRequestService_Approve_WaitsForSiblingApprovalGates(t *testing.T)
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Sperre",
 		GuardianEmail:     "change-request-gate-order@example.com",
-		ConsentFlags: map[string]any{
+		ConsentFlags: testFormValues(map[string]any{
 			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
-		},
+		}),
 		Children: []enrollmentAPI.SubmitChild{
 			{FirstName: "Lina", LastName: "Sperre", DateOfBirth: calendar.NewDate(2018, 4, 15), TargetGradeLevel: &gradeOne},
 			{FirstName: "Emil", LastName: "Sperre", DateOfBirth: calendar.NewDate(2019, 5, 20), TargetGradeLevel: &gradeOne},

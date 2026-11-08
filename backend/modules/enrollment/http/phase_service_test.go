@@ -461,7 +461,7 @@ func TestPhaseService_Delete_RemovesRequestsAndKeepsCreatedStudents(t *testing.T
 	phase, err := testpkg.TenantQuery1(t, ctx, db, svc.CreatePhase, minimalPhase(t, t.Name()))
 	require.NoError(t, err)
 
-	req := &enrollmentAPI.Request{
+	req := &enrollmentNative.Request{
 		PhaseID:           phase.ID,
 		GuardianFirstName: "Test",
 		GuardianLastName:  "Guardian",
@@ -472,7 +472,7 @@ func TestPhaseService_Delete_RemovesRequestsAndKeepsCreatedStudents(t *testing.T
 	req.TenantID = testpkg.Tenant(t)
 	require.NoError(t, enrollmentAPI.InsertOwnerRequestForTest(ctx, repoFactory.Enrollment(), req))
 
-	child := &enrollmentAPI.RequestChild{
+	child := &enrollmentNative.RequestChild{
 		RequestID:        req.ID,
 		FirstName:        "Kept",
 		LastName:         "Child",
@@ -523,7 +523,7 @@ func TestPhaseService_DeleteImpact_ReportsCounts(t *testing.T) {
 	offering.TenantID = testpkg.Tenant(t)
 	require.NoError(t, newCareOfferingFixtures(repoFactoryCare.CarePlan).Create(ctx, offering))
 
-	req := &enrollmentAPI.Request{
+	req := &enrollmentNative.Request{
 		PhaseID:           phase.ID,
 		GuardianFirstName: "Impact",
 		GuardianLastName:  "Guardian",
@@ -534,7 +534,7 @@ func TestPhaseService_DeleteImpact_ReportsCounts(t *testing.T) {
 	req.TenantID = testpkg.Tenant(t)
 	require.NoError(t, enrollmentAPI.InsertOwnerRequestForTest(ctx, repoFactory.Enrollment(), req))
 
-	child := &enrollmentAPI.RequestChild{
+	child := &enrollmentNative.RequestChild{
 		RequestID:        req.ID,
 		FirstName:        "Impact",
 		LastName:         "Child",

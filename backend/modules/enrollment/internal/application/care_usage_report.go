@@ -15,8 +15,8 @@ import (
 type careUsageInputs struct {
 	phaseID      int64
 	phase        *enrollmentNative.Phase
-	requestByID  map[int64]*Request
-	children     []*reportChild
+	requestByID  map[int64]*enrollmentNative.Request
+	children     []*enrollmentNative.RequestChild
 	offerings    []*offeringContract.CareOfferingRecord
 	offeringByID map[int64]*offeringContract.CareOfferingRecord
 	linksByChild map[int64][]*enrollmentNative.RequestChildOfferingRecord
@@ -84,7 +84,7 @@ func (s *Reports) loadCareUsageInputs(ctx context.Context, phaseID int64) (*care
 	if len(requests) > maxExportRequests {
 		return nil, fmt.Errorf("care usage report: %d requests: %w", len(requests), enrollmentNative.ErrReportExportTooLarge)
 	}
-	in := &careUsageInputs{phaseID: phaseID, phase: phase, requestByID: make(map[int64]*Request, len(requests))}
+	in := &careUsageInputs{phaseID: phaseID, phase: phase, requestByID: make(map[int64]*enrollmentNative.Request, len(requests))}
 	reqIDs := make([]int64, 0, len(requests))
 	for _, req := range requests {
 		reqIDs = append(reqIDs, req.ID)
@@ -132,7 +132,7 @@ func (s *Reports) loadCareUsageSelections(ctx context.Context, in *careUsageInpu
 	return nil
 }
 
-func (s *Reports) loadSchemas(ctx context.Context, requests []*Request) (map[int64]*enrollmentNative.FormSchema, error) {
+func (s *Reports) loadSchemas(ctx context.Context, requests []*enrollmentNative.Request) (map[int64]*enrollmentNative.FormSchema, error) {
 	schemas, err := loadReportSchemas(ctx, s.deps.Schemas, requests)
 	if err != nil {
 		return nil, fmt.Errorf("care usage report: load schemas: %w", err)
@@ -189,7 +189,7 @@ func buildCareUsageReport(in *careUsageInputs, filters enrollmentNative.CareUsag
 	return report, nil
 }
 
-func (t careUsageTally) observeOptions(child *reportChild, row enrollmentNative.CareUsageRow) {
+func (t careUsageTally) observeOptions(child *enrollmentNative.RequestChild, row enrollmentNative.CareUsageRow) {
 	if child.TargetGradeLevel != nil {
 		t.gradeSeen[*child.TargetGradeLevel] = true
 	}
@@ -232,7 +232,7 @@ func (t careUsageTally) count(report *enrollmentNative.CareUsageReport, row enro
 // care days, every request guardian and the maintained Kind-Gehzeit.
 func (s *Reports) enrichCompactCareUsage(ctx context.Context, report *enrollmentNative.CareUsageReport, in *careUsageInputs) error {
 	requestIDs := make([]int64, 0, len(report.Rows))
-	childByID := make(map[int64]*reportChild, len(in.children))
+	childByID := make(map[int64]*enrollmentNative.RequestChild, len(in.children))
 	for _, child := range in.children {
 		childByID[child.ID] = child
 	}
@@ -290,7 +290,7 @@ func (s *Reports) careOfferingsEnabled(ctx context.Context, errPrefix string) (b
 // careUsageStudentID resolves the student of an approved request child
 // (rollout-created or matched existing student). Unapproved children return
 // 0 because their form snapshot must not be replaced by live student data.
-func careUsageStudentID(child *reportChild) int64 {
+func careUsageStudentID(child *enrollmentNative.RequestChild) int64 {
 	if child == nil || child.Status != enrollmentNative.ChildStatusApproved {
 		return 0
 	}

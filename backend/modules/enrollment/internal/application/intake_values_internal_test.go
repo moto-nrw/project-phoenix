@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The flows decode the owner's requests and children, whose answers arrive as
-// raw JSON. A corrupt or invalid stored row fails the whole read instead of
-// yielding a partial batch.
+// A corrupt or invalid stored row fails the whole read instead of yielding a
+// partial batch. The request and child answers decode in the owner's
+// postgres adapter (ADR 0173), whose tests pin that for them.
 
 type carePeriodReadResult struct {
 	periods []*enrollment.StudentCarePeriod
@@ -45,56 +45,6 @@ func TestCarePeriodReadPreservesFailureWithoutPartialResults(t *testing.T) {
 				require.ErrorIs(t, err, failure)
 			}
 		})
-	}
-}
-
-func TestRequestBatchRejectsMalformedStoredJSON(t *testing.T) {
-	t.Parallel()
-	for _, field := range []string{"consent", "legal", "custom", "source"} {
-		t.Run(field, func(t *testing.T) {
-			invalid := json.RawMessage(`{"unfinished":`)
-			row := &enrollment.Request{ID: 2}
-			switch field {
-			case "consent":
-				row.ConsentFlags = invalid
-			case "legal":
-				row.LegalBlocksSnapshot = invalid
-			case "custom":
-				row.CustomData = invalid
-			case "source":
-				row.SourceMetadata = invalid
-			}
-			rows, err := requestValues([]*enrollment.Request{{ID: 1}, row})
-			var syntaxError *json.SyntaxError
-			require.ErrorAs(t, err, &syntaxError)
-			require.Nil(t, rows, "a corrupt row must not return a successful partial batch")
-		})
-	}
-}
-
-func TestChildBatchRejectsMalformedStoredJSON(t *testing.T) {
-	t.Parallel()
-	rows, err := childValues([]*enrollment.RequestChild{
-		{ID: 1, DateOfBirth: "2018-04-15"},
-		{ID: 2, DateOfBirth: "2018-04-15", CustomData: json.RawMessage(`{"unfinished":`)},
-	})
-	var syntaxError *json.SyntaxError
-	require.ErrorAs(t, err, &syntaxError)
-	require.Nil(t, rows, "a corrupt row must not return a successful partial batch")
-}
-
-func TestChildBatchRejectsInvalidDates(t *testing.T) {
-	t.Parallel()
-	invalid := enrollment.Date("2027-02-30")
-	for _, row := range []*enrollment.RequestChild{
-		{ID: 2, DateOfBirth: invalid},
-		{ID: 2, DateOfBirth: "2018-04-15", ActivateOn: &invalid},
-	} {
-		rows, err := childValues([]*enrollment.RequestChild{
-			{ID: 1, DateOfBirth: "2018-04-15"}, row,
-		})
-		require.Error(t, err)
-		require.Nil(t, rows, "invalid dates must not yield a partial child batch")
 	}
 }
 

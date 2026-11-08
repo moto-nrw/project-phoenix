@@ -70,10 +70,10 @@ type SchoolRolePolicy interface {
 // false) issues token pairs directly, as the early phases did.
 type OperatorMFAGate interface {
 	Configured() bool
-	HasEnrollment(ctx context.Context, operatorID int64) (bool, error)
-	VerifyTrustedDevice(ctx context.Context, operatorID int64, cookie string) (bool, error)
-	StartChallenge(ctx context.Context, operatorID int64, ip net.IP) (string, error)
-	TrustedDeviceDays() int
+	HasOperatorMFAEnrollment(ctx context.Context, operatorID int64) (bool, error)
+	VerifyOperatorTrustedDevice(ctx context.Context, operatorID int64, cookie string) (bool, error)
+	StartOperatorMFAChallenge(ctx context.Context, operatorID int64, ip net.IP) (string, error)
+	OperatorTrustedDeviceDays() int
 }
 
 // PasswordHasher hashes a new password and applies the strength policy.

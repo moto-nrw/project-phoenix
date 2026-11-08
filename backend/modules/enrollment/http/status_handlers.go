@@ -106,8 +106,8 @@ type EditDraftResponse struct {
 	GuardianLastName    string                      `json:"guardian_last_name"`
 	GuardianEmail       string                      `json:"guardian_email"`
 	GuardianPhone       *string                     `json:"guardian_phone,omitempty"`
-	ConsentFlags        map[string]any              `json:"consent_flags"`
-	CustomData          map[string]any              `json:"custom_data"`
+	ConsentFlags        capability.FormValues       `json:"consent_flags"`
+	CustomData          capability.FormValues       `json:"custom_data"`
 	AdditionalGuardians []EditDraftGuardianResponse `json:"additional_guardians,omitempty"`
 	Children            []EditDraftChildResponse    `json:"children"`
 }
@@ -126,7 +126,7 @@ type EditDraftChildResponse struct {
 	DateOfBirth       string                         `json:"date_of_birth"`
 	TargetGradeLevel  *int16                         `json:"target_grade_level,omitempty"`
 	TargetSchoolClass *string                        `json:"target_school_class,omitempty"`
-	CustomData        map[string]any                 `json:"custom_data"`
+	CustomData        capability.FormValues          `json:"custom_data"`
 	OfferingIDs       []string                       `json:"offering_ids"`
 	OfferingDays      []EditDraftOfferingDayResponse `json:"offering_days,omitempty"`
 	// Locked marks a child that is already taken over into care: the change
@@ -202,8 +202,8 @@ func (rs *Resource) loadPublicStatusView(ctx context.Context, token string, proo
 
 // statusView is everything the status page and its proof show.
 type statusView struct {
-	req       *Request
-	children  []*RequestChild
+	req       *capability.Request
+	children  []*capability.RequestChild
 	guardians []*capability.RequestGuardian
 	editMode  string
 	careTerm  string
@@ -296,7 +296,7 @@ func (rs *Resource) respondStatus(w http.ResponseWriter, r *http.Request, token 
 
 // newStatusResponse maps a request to the public status payload and reports
 // whether any child is taken over into care.
-func newStatusResponse(req *Request, editMode string, children []*RequestChild, guardians []*capability.RequestGuardian) (StatusResponse, bool) {
+func newStatusResponse(req *capability.Request, editMode string, children []*capability.RequestChild, guardians []*capability.RequestGuardian) (StatusResponse, bool) {
 	resp := StatusResponse{
 		RequestID:         strconv.FormatInt(req.ID, 10),
 		GuardianFirstName: req.GuardianFirstName,
@@ -456,7 +456,7 @@ func toEditDraftChildResponses(draft *EditDraft) []EditDraftChildResponse {
 	return responses
 }
 
-func toEditDraftChildResponse(child *RequestChild, offeringLinks []*RequestChildOffering) EditDraftChildResponse {
+func toEditDraftChildResponse(child *capability.RequestChild, offeringLinks []*RequestChildOffering) EditDraftChildResponse {
 	response := EditDraftChildResponse{
 		ID:                strconv.FormatInt(child.ID, 10),
 		FirstName:         child.FirstName,
@@ -526,8 +526,8 @@ func (rs *Resource) patchStatus(w http.ResponseWriter, r *http.Request) {
 		GuardianFirstName: patchReq.GuardianFirstName,
 		GuardianLastName:  patchReq.GuardianLastName,
 		GuardianPhone:     patchReq.GuardianPhone,
-		ConsentFlags:      patchReq.ConsentFlags,
-		CustomData:        patchReq.CustomData,
+		ConsentFlags:      patchFormValues(patchReq.ConsentFlags),
+		CustomData:        patchFormValues(patchReq.CustomData),
 	}
 	err := withinAdmin(r.Context(), func(adminCtx context.Context) error {
 		return rs.RequestService.Edit(adminCtx, token, patch)

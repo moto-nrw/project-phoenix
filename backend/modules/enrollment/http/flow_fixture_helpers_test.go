@@ -479,12 +479,12 @@ func submitApprovedAdjustmentChild(
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  lastName,
 		GuardianEmail:     email,
-		ConsentFlags: map[string]any{
+		ConsentFlags: testFormValues(map[string]any{
 			"agb":             true,
 			"data_processing": true,
 			"email_contact":   true,
 			"photo":           true,
-		},
+		}),
 		Children: []enrollmentAPI.SubmitChild{
 			{
 				FirstName:        "Kind",

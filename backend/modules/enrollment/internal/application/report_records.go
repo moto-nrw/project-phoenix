@@ -18,77 +18,16 @@ const (
 	maxExportRequests = 5000
 )
 
-// The reports read the parent's answers, so they decode the stored request
-// and child answers the same way the decision flow does.
-
-// reportChild is a request child with its decoded answers.
-type reportChild = RequestChild
-
-func listReportRequests(ctx context.Context, owner ReportRequests, filters enrollment.RequestListFilters) ([]*Request, error) {
-	values, err := owner.AdminRequests(ctx, filters)
-	if err != nil {
-		return nil, err
-	}
-	var result []*Request
-	for _, value := range values {
-		converted, err := requestValue(value)
-		if err != nil {
-			return nil, err
-		}
-		result = append(result, converted)
-	}
-	return result, nil
+func listReportRequests(ctx context.Context, owner ReportRequests, filters enrollment.RequestListFilters) ([]*enrollment.Request, error) {
+	return owner.AdminRequests(ctx, filters)
 }
 
-func requestValue(r *enrollment.Request) (*Request, error) {
-	if r == nil {
-		return nil, nil
-	}
-	result := &Request{
-		ID: r.ID, TenantID: r.TenantID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
-		SchemaID: r.SchemaID, PhaseID: r.PhaseID,
-		GuardianFirstName: r.GuardianFirstName, GuardianLastName: r.GuardianLastName,
-		GuardianEmail: r.GuardianEmail, GuardianPhone: r.GuardianPhone, GuardianAccountID: r.GuardianAccountID,
-		SubmissionSource: r.SubmissionSource, StatusToken: r.StatusToken, StatusTokenExpires: r.StatusTokenExpires,
-		SubmittedAt: r.SubmittedAt, WithdrawnAt: r.WithdrawnAt, DecisionNotificationMode: r.DecisionNotificationMode,
-	}
-	for _, field := range []struct {
-		raw  json.RawMessage
-		into any
-	}{
-		{r.ConsentFlags, &result.ConsentFlags},
-		{r.LegalBlocksSnapshot, &result.LegalBlocksSnapshot},
-		{r.CustomData, &result.CustomData},
-		{r.SourceMetadata, &result.SourceMetadata},
-	} {
-		if len(field.raw) == 0 {
-			continue
-		}
-		if err := json.Unmarshal(field.raw, field.into); err != nil {
-			return nil, err
-		}
-	}
-	return result, nil
-}
-
-func listReportChildren(ctx context.Context, owner ReportChildren, requestIDs []int64) ([]*reportChild, error) {
-	values, err := owner.ChildrenForRequests(ctx, requestIDs)
-	if err != nil {
-		return nil, err
-	}
-	var result []*reportChild
-	for _, value := range values {
-		converted, err := childValue(value)
-		if err != nil {
-			return nil, err
-		}
-		result = append(result, converted)
-	}
-	return result, nil
+func listReportChildren(ctx context.Context, owner ReportChildren, requestIDs []int64) ([]*enrollment.RequestChild, error) {
+	return owner.ChildrenForRequests(ctx, requestIDs)
 }
 
 // loadReportSchemas loads the form schema of every request that has one.
-func loadReportSchemas(ctx context.Context, owner ReportSchemas, requests []*Request) (map[int64]*enrollment.FormSchema, error) {
+func loadReportSchemas(ctx context.Context, owner ReportSchemas, requests []*enrollment.Request) (map[int64]*enrollment.FormSchema, error) {
 	ids := make([]int64, 0, len(requests))
 	seen := make(map[int64]bool)
 	for _, request := range requests {
@@ -121,25 +60,25 @@ func loadReportSchemas(ctx context.Context, owner ReportSchemas, requests []*Req
 
 // reportFieldValue pulls the submission value for a field. Guardian-level
 // fields live on the request's answers, per-child fields on the child's.
-func reportFieldValue(req *Request, child *reportChild, field enrollment.FormField) any {
+func reportFieldValue(req *enrollment.Request, child *enrollment.RequestChild, field enrollment.FormField) any {
 	if field.AppliesToCh {
-		if child == nil || child.CustomData == nil {
+		if child == nil {
 			return nil
 		}
-		return child.CustomData[field.Key]
+		return formValue(child.CustomData, field.Key)
 	}
-	if req == nil || req.CustomData == nil {
+	if req == nil {
 		return nil
 	}
-	return req.CustomData[field.Key]
+	return formValue(req.CustomData, field.Key)
 }
 
 // careUsagePickupByDay reads the child's pickup weekday schedule answer.
-func careUsagePickupByDay(req *Request, child *reportChild, schemas map[int64]*enrollment.FormSchema) (map[string]string, error) {
+func careUsagePickupByDay(req *enrollment.Request, child *enrollment.RequestChild, schemas map[int64]*enrollment.FormSchema) (map[string]string, error) {
 	return careUsageScheduleByTarget(req, child, schemas, enrollment.TargetSchedulePickup)
 }
 
-func careUsageScheduleByTarget(req *Request, child *reportChild, schemas map[int64]*enrollment.FormSchema, target string) (map[string]string, error) {
+func careUsageScheduleByTarget(req *enrollment.Request, child *enrollment.RequestChild, schemas map[int64]*enrollment.FormSchema, target string) (map[string]string, error) {
 	out := map[string]string{}
 	if req == nil || req.SchemaID == nil || child == nil {
 		return out, nil

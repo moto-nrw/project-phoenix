@@ -240,7 +240,8 @@ var moduleLegacyFileBudgets = map[string]int{
 // exactly 38 LOC.
 // ADR 0171: the constructor of the SEPA mandates of
 // modules/parentbilling/compose adds exactly 5 LOC.
-const moduleComposeBudgetTotal = 13130
+// ADR 0175: the school-read context guard adds exactly 5 LOC in settings/compose.
+const moduleComposeBudgetTotal = 13135
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -339,8 +340,8 @@ var moduleComposeBudgets = map[string]int{
 	"modules/securityruntime/compose": 7,
 	// ADR 0154: the group names constructor (+13).
 	"modules/schoolstructure/compose": 606,
-	// Raised by ADR 0107: the Träger settings store, runtime and service.
-	"modules/settings/compose":             315,
+	// Raised by ADR 0107 and ADR 0175: the Träger settings and school-read context guard.
+	"modules/settings/compose":             320,
 	"modules/studentdirectoryview/compose": 9,
 	// Raised by ADR 0125: the dev-tools presence history constructor (+7).
 	// ADR 0151: the school figure constructor (+13).

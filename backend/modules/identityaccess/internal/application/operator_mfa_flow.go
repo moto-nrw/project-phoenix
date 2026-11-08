@@ -70,10 +70,14 @@ func NewOperatorMFAFlows(operators *Service, deps OperatorMFAFlowDependencies) (
 
 // ===== Inquiry =====
 
-// HasEnrollment reports whether the operator enrolled in e-mail MFA. A
-// missing enrollment is (false, nil) — every fresh operator hits it on the
-// first login. Any other failure refuses this login rather than fail-open.
-func (f *OperatorMFAFlows) HasEnrollment(ctx context.Context, operatorID int64) (bool, error) {
+// HasOperatorMFAEnrollment reports whether the operator enrolled in e-mail
+// MFA. A missing enrollment is (false, nil) — every fresh operator hits it on
+// the first login. Any other failure refuses this login rather than
+// fail-open.
+func (f *OperatorMFAFlows) HasOperatorMFAEnrollment(ctx context.Context, operatorID int64) (bool, error) {
+	if f == nil {
+		return false, identityaccess.ErrOperatorMFAUnavailable
+	}
 	credential, found, err := f.findCredential(ctx, operatorID)
 	if err != nil {
 		f.logger.Warn("operator mfa enrollment lookup failed; refusing login",
@@ -88,17 +92,26 @@ func (f *OperatorMFAFlows) HasEnrollment(ctx context.Context, operatorID int64) 
 // login issues the token pair directly without them.
 func (f *OperatorMFAFlows) Configured() bool { return f != nil }
 
-// TrustedDeviceDays is the fixed operator remember-device lifetime in days.
-func (f *OperatorMFAFlows) TrustedDeviceDays() int {
+// OperatorTrustedDeviceDays is the fixed operator remember-device lifetime
+// in days; flows composed without the second factor report none.
+func (f *OperatorMFAFlows) OperatorTrustedDeviceDays() int {
+	if f == nil {
+		return 0
+	}
 	return int(domain.OperatorMFATrustedDeviceDuration.Hours() / 24)
 }
 
 // ===== Challenge and verification =====
 
-// StartChallenge mails a fresh code and returns the challenge JWT it named.
-// The row is stored consumed and only activated once the transport accepted
-// the message, so a failed send never leaves a redeemable code behind.
-func (f *OperatorMFAFlows) StartChallenge(ctx context.Context, operatorID int64, ip net.IP) (string, error) {
+// StartOperatorMFAChallenge mails a fresh code and returns the challenge JWT
+// it named. The row is stored consumed and only activated once the transport
+// accepted the message, so a failed send never leaves a redeemable code
+// behind.
+func (f *OperatorMFAFlows) StartOperatorMFAChallenge(ctx context.Context, operatorID int64, ip net.IP) (_ string, err error) {
+	if f == nil {
+		return "", identityaccess.ErrOperatorMFAUnavailable
+	}
+	defer func() { err = operatorError(err) }()
 	operator, err := f.operators.findOperatorByID(ctx, operatorID)
 	if err != nil {
 		return "", fmt.Errorf("look up operator: %w", err)
@@ -125,7 +138,7 @@ func (f *OperatorMFAFlows) StartChallenge(ctx context.Context, operatorID int64,
 		ConsumedAt: &createdAt, IPAddress: ip,
 	}, domain.MFACodeMailFor(
 		operator.Email, operator.DisplayName, operator.ID, true, plainCode,
-		domain.OperatorMFAChallengeTTL, ip, true, f.TrustedDeviceDays(),
+		domain.OperatorMFAChallengeTTL, ip, true, f.OperatorTrustedDeviceDays(),
 	))
 	if err != nil {
 		return "", fmt.Errorf("prepare operator email challenge: %w", err)
@@ -144,9 +157,12 @@ func (f *OperatorMFAFlows) StartChallenge(ctx context.Context, operatorID int64,
 		)
 		return "", identityaccess.ErrMFAStatusUnavailable
 	}
+	return f.issueChallengeToken(operatorID)
+}
 
-	// The operator id reuses the account slot; the scope distinguishes the
-	// two id spaces.
+// issueChallengeToken mints the challenge JWT. The operator id reuses the
+// account slot; the scope distinguishes the two id spaces.
+func (f *OperatorMFAFlows) issueChallengeToken(operatorID int64) (string, error) {
 	token, err := f.codec.IssueChallengeToken(domain.MFAChallengeClaims{
 		AccountID: operatorID,
 		Scope:     domain.PortalPlatform.Name,
@@ -187,7 +203,7 @@ func (f *OperatorMFAFlows) ResendChallenge(ctx context.Context, challengeToken s
 	if err != nil || claims.Scope != domain.PortalPlatform.Name {
 		return "", identityaccess.ErrMFAChallengeTokenInvalid
 	}
-	return f.StartChallenge(ctx, claims.AccountID, ip)
+	return f.StartOperatorMFAChallenge(ctx, claims.AccountID, ip)
 }
 
 // VerifyOperatorMFACode is the JWT-less sibling of VerifyOperatorMFAChallenge: the
@@ -373,9 +389,12 @@ func (f *OperatorMFAFlows) IssueTrustedDevice(ctx context.Context, operatorID in
 	return signed, expiresAt, nil
 }
 
-// VerifyTrustedDevice reports whether the cookie names an active device of
-// this operator, and touches it when it does.
-func (f *OperatorMFAFlows) VerifyTrustedDevice(ctx context.Context, operatorID int64, signedCookie string) (bool, error) {
+// VerifyOperatorTrustedDevice reports whether the cookie names an active
+// device of this operator, and touches it when it does.
+func (f *OperatorMFAFlows) VerifyOperatorTrustedDevice(ctx context.Context, operatorID int64, signedCookie string) (bool, error) {
+	if f == nil {
+		return false, identityaccess.ErrOperatorMFAUnavailable
+	}
 	rawToken, ok := domain.VerifyTrustedDeviceToken(signedCookie, f.secret)
 	if !ok {
 		return false, nil
@@ -431,7 +450,7 @@ func (f *OperatorMFAFlows) notifyTrustedDeviceAdded(ctx context.Context, operato
 	return f.mail.NotifyTrustedDeviceAdded(ctx, domain.TrustedDeviceMail{
 		Recipient: operator.Email, RecipientName: operator.DisplayName, ReferenceID: operatorID, Operator: true,
 		DeviceLabel: domain.ShortenUserAgent(userAgent), RequestIP: domain.AuditIPString(ip),
-		AddedAt: f.now().Format("02.01.2006 15:04"), TrustedDays: f.TrustedDeviceDays(),
+		AddedAt: f.now().Format("02.01.2006 15:04"), TrustedDays: f.OperatorTrustedDeviceDays(),
 	}, deviceID)
 }
 
@@ -492,29 +511,6 @@ func (f *OperatorMFAFlows) requireChallengeRateLimit(ctx context.Context, operat
 	return nil
 }
 
-func (f *OperatorMFAFlows) HasOperatorMFAEnrollment(ctx context.Context, operatorID int64) (bool, error) {
-	if f == nil {
-		return false, identityaccess.ErrOperatorMFAUnavailable
-	}
-	enrolled, err := f.HasEnrollment(ctx, operatorID)
-	return enrolled, operatorError(err)
-}
-
-func (f *OperatorMFAFlows) OperatorTrustedDeviceDays() int {
-	if f == nil {
-		return 0
-	}
-	return f.TrustedDeviceDays()
-}
-
-func (f *OperatorMFAFlows) StartOperatorMFAChallenge(ctx context.Context, operatorID int64, ip net.IP) (string, error) {
-	if f == nil {
-		return "", identityaccess.ErrOperatorMFAUnavailable
-	}
-	token, err := f.StartChallenge(ctx, operatorID, ip)
-	return token, operatorError(err)
-}
-
 func (f *OperatorMFAFlows) ResendOperatorMFAChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {
 	if f == nil {
 		return "", identityaccess.ErrOperatorMFAUnavailable
@@ -543,14 +539,6 @@ func (f *OperatorMFAFlows) IssueOperatorTrustedDevice(ctx context.Context, opera
 	}
 	cookie, expiresAt, err := f.IssueTrustedDevice(ctx, operatorID, userAgent, ip)
 	return cookie, expiresAt, operatorError(err)
-}
-
-func (f *OperatorMFAFlows) VerifyOperatorTrustedDevice(ctx context.Context, operatorID int64, signedCookie string) (bool, error) {
-	if f == nil {
-		return false, identityaccess.ErrOperatorMFAUnavailable
-	}
-	verified, err := f.VerifyTrustedDevice(ctx, operatorID, signedCookie)
-	return verified, operatorError(err)
 }
 
 func (f *OperatorMFAFlows) ListOperatorTrustedDevices(ctx context.Context, operatorID int64) ([]identityaccess.OperatorTrustedDevice, error) {

@@ -14,8 +14,8 @@ import (
 
 // editDraft collects the persisted request that reopens the public form.
 type editDraft struct {
-	req           *Request
-	children      []*RequestChild
+	req           *enrollmentNative.Request
+	children      []*enrollmentNative.RequestChild
 	childIDs      []int64
 	guardians     []*enrollmentNative.RequestGuardian
 	school        *enrollmentNative.School
@@ -65,7 +65,7 @@ func (s *Intake) loadDraftRequest(adminCtx context.Context, token string, draft 
 	}
 	draft.req = req
 	tenantCtx := s.deps.Runtime.WithTenant(adminCtx, req.TenantID)
-	if draft.children, err = decodedChildrenOfRequest(tenantCtx, s.deps.Children, req.ID, false); err != nil {
+	if draft.children, err = s.deps.Children.ChildrenForRequest(tenantCtx, req.ID, false); err != nil {
 		return fmt.Errorf("edit draft: list children: %w", err)
 	}
 	if s.deps.Guardians != nil {
@@ -152,7 +152,7 @@ func (s *Intake) loadDraftPhase(ctx context.Context, draft *editDraft) error {
 	return nil
 }
 
-func (s *Intake) schemaForEditableRequest(ctx context.Context, req *Request) (*enrollmentNative.FormSchema, error) {
+func (s *Intake) schemaForEditableRequest(ctx context.Context, req *enrollmentNative.Request) (*enrollmentNative.FormSchema, error) {
 	if req != nil && req.SchemaID != nil {
 		return s.intakeSchema(ctx, *req.SchemaID)
 	}
@@ -204,14 +204,7 @@ func (s *Intake) loadDraftOfferings(ctx context.Context, draft *editDraft) error
 }
 
 func (d *editDraft) public() (*enrollmentNative.EditDraft, error) {
-	request, err := requestInput(d.req)
-	if err != nil {
-		return nil, err
-	}
-	children, err := childInputs(d.children)
-	if err != nil {
-		return nil, err
-	}
+	request, children := d.req, d.children
 	linksByChild := make(map[int64][]*enrollmentNative.RequestChildOfferingRecord, len(d.children))
 	for _, link := range d.links {
 		linksByChild[link.RequestChildID] = append(linksByChild[link.RequestChildID], link)

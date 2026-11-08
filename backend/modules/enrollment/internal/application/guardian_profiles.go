@@ -17,7 +17,7 @@ import (
 // are added by the targeted-field dispatch, not here.
 func (d *Decisions) resolveGuardianProfile(
 	ctx context.Context,
-	request *Request,
+	request *enrollmentNative.Request,
 ) (*GuardianProfile, bool, error) {
 	profiles := d.deps.People.GuardianProfiles
 	email := strings.TrimSpace(strings.ToLower(request.GuardianEmail))
@@ -58,7 +58,7 @@ func (d *Decisions) resolveGuardianProfile(
 // existingGuardianProfileByEmail resolves the profile the submitted email
 // already belongs to, refusing a profile the authenticated submitter may not
 // claim.
-func (d *Decisions) existingGuardianProfileByEmail(ctx context.Context, request *Request, email string, authAccountID int64) (*GuardianProfile, error) {
+func (d *Decisions) existingGuardianProfileByEmail(ctx context.Context, request *enrollmentNative.Request, email string, authAccountID int64) (*GuardianProfile, error) {
 	existing, err := d.deps.People.GuardianProfiles.GuardianProfileByEmail(ctx, email)
 	if err != nil {
 		return nil, fmt.Errorf("decision: resolve guardian profile by email: %w", err)
@@ -105,7 +105,7 @@ func (d *Decisions) checkGuardianProfileClaim(ctx context.Context, existing *Gua
 }
 
 // createSubmittedGuardianProfile builds a fresh profile from the request.
-func (d *Decisions) createSubmittedGuardianProfile(ctx context.Context, request *Request, email string) (*GuardianProfile, error) {
+func (d *Decisions) createSubmittedGuardianProfile(ctx context.Context, request *enrollmentNative.Request, email string) (*GuardianProfile, error) {
 	profile := &GuardianProfile{
 		FirstName:              textnorm.Name(request.GuardianFirstName),
 		LastName:               textnorm.Name(request.GuardianLastName),
@@ -133,8 +133,8 @@ func (d *Decisions) createSubmittedGuardianProfile(ctx context.Context, request 
 // instead of granting access to the editable request address.
 func (d *Decisions) guardianIdentityRequest(
 	ctx context.Context,
-	request *Request,
-) (*Request, error) {
+	request *enrollmentNative.Request,
+) (*enrollmentNative.Request, error) {
 	if request == nil {
 		return nil, errors.New("decision: guardian identity request is required")
 	}
@@ -154,7 +154,7 @@ func (d *Decisions) guardianIdentityRequest(
 	return &identityRequest, nil
 }
 
-func (d *Decisions) applyStandaloneGuardianNameCorrection(ctx context.Context, profile *GuardianProfile, request *Request) error {
+func (d *Decisions) applyStandaloneGuardianNameCorrection(ctx context.Context, profile *GuardianProfile, request *enrollmentNative.Request) error {
 	if request == nil {
 		return nil
 	}

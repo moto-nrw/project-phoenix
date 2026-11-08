@@ -191,11 +191,11 @@ func mergeEditableCustomData(existing, submitted map[string]any, schema *enrollm
 	return out
 }
 
-func existingChildCustomDataBySubmittedIdentity(existing []*RequestChild, submitted []SubmitChild) []map[string]any {
+func existingChildCustomDataBySubmittedIdentity(existing []*enrollmentNative.RequestChild, submitted []SubmitChild) []map[string]any {
 	out := make([]map[string]any, len(submitted))
 	for i, child := range matchExistingChildrenBySubmittedIdentity(existing, submitted) {
 		if child != nil {
-			out[i] = child.CustomData
+			out[i] = formMap(child.CustomData)
 		}
 	}
 	return out
@@ -204,10 +204,10 @@ func existingChildCustomDataBySubmittedIdentity(existing []*RequestChild, submit
 // matchExistingChildrenBySubmittedIdentity pairs replacement children with
 // the stored ones: a persisted ID is authoritative; an ID-less child matches
 // only when its normalized name and birthday are unique on both sides.
-func matchExistingChildrenBySubmittedIdentity(existing []*RequestChild, submitted []SubmitChild) []*RequestChild {
-	matches := make([]*RequestChild, len(submitted))
+func matchExistingChildrenBySubmittedIdentity(existing []*enrollmentNative.RequestChild, submitted []SubmitChild) []*enrollmentNative.RequestChild {
+	matches := make([]*enrollmentNative.RequestChild, len(submitted))
 	used := matchChildrenByID(existing, submitted, matches)
-	existingByIdentity := make(map[string][]*RequestChild)
+	existingByIdentity := make(map[string][]*enrollmentNative.RequestChild)
 	for _, child := range existing {
 		if child == nil || child.ID <= 0 || used[child.ID] {
 			continue
@@ -234,8 +234,8 @@ func matchExistingChildrenBySubmittedIdentity(existing []*RequestChild, submitte
 
 // matchChildrenByID pairs submitted children carrying a stored ID and
 // reports the stored IDs it used.
-func matchChildrenByID(existing []*RequestChild, submitted []SubmitChild, matches []*RequestChild) map[int64]bool {
-	byID := make(map[int64]*RequestChild, len(existing))
+func matchChildrenByID(existing []*enrollmentNative.RequestChild, submitted []SubmitChild, matches []*enrollmentNative.RequestChild) map[int64]bool {
+	byID := make(map[int64]*enrollmentNative.RequestChild, len(existing))
 	used := make(map[int64]bool, len(existing))
 	for _, child := range existing {
 		if child != nil && child.ID > 0 {

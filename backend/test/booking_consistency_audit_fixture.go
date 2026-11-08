@@ -234,10 +234,7 @@ func createApprovedBookingAuditChild(
 		GuardianFirstName: "Audit",
 		GuardianLastName:  "Test",
 		GuardianEmail:     fmt.Sprintf("booking-audit-request-%d@example.test", studentID),
-		ConsentFlags:      []byte(`{}`),
-		CustomData:        []byte(`{}`),
 		SubmissionSource:  enrollmentOwner.RequestSourceAdminManual,
-		SourceMetadata:    []byte(`{}`),
 		StatusToken:       fmt.Sprintf("booking-audit-%d-%d", studentID, time.Now().UnixNano()),
 		SubmittedAt:       time.Now(),
 	}
@@ -245,8 +242,8 @@ func createApprovedBookingAuditChild(
 	require.NoError(t, insertEnrollmentRequest(t, ownerCtx, db, request))
 	child := &enrollmentOwner.RequestChild{
 		RequestID: request.ID, FirstName: "Audit", LastName: "Kind",
-		DateOfBirth: "2018-01-01", CustomData: []byte(`{}`),
-		Status: enrollmentOwner.ChildStatusApproved, ActivationMode: enrollmentOwner.ChildActivationImmediate,
+		DateOfBirth: "2018-01-01",
+		Status:      enrollmentOwner.ChildStatusApproved, ActivationMode: enrollmentOwner.ChildActivationImmediate,
 		CreatedStudentID: &studentID,
 	}
 	require.NoError(t, insertEnrollmentChild(t, ownerCtx, db, child))

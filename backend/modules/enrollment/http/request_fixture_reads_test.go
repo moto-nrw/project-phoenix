@@ -11,7 +11,7 @@ import (
 
 // requestFixtureRoot mirrors the HTTP root's school unit around direct flow calls.
 
-func (r requestFixtureRoot) StatusPage(ctx context.Context, req *enrollmentAPI.Request, children []*enrollmentAPI.RequestChild) (value0 capability.StatusPage, err error) {
+func (r requestFixtureRoot) StatusPage(ctx context.Context, req *capability.Request, children []*capability.RequestChild) (value0 capability.StatusPage, err error) {
 	err = tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
 		value0, err = r.RequestService.StatusPage(txCtx, req, children)
 		return err

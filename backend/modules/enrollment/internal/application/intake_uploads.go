@@ -98,7 +98,7 @@ func (s *Intake) statusUploadField(ctx context.Context, input enrollmentNative.U
 	if req.TenantID != input.TenantID || req.PhaseID != input.PhaseID {
 		return nil, enrollmentNative.ErrUploadFieldNotFound
 	}
-	children, err := decodedChildrenOfRequest(ctx, s.deps.Children, req.ID, false)
+	children, err := s.deps.Children.ChildrenForRequest(ctx, req.ID, false)
 	if err != nil {
 		return nil, fmt.Errorf("upload: load request children: %w", err)
 	}

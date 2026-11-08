@@ -75,15 +75,15 @@ func TestRejectedEnrollmentCleanup_ConcurrentReopenPreservesRequestAndOutbox(t *
 	phase.TenantID = scope.TenantID
 	require.NoError(t, enrollmentAPI.InsertOwnerPhaseForTest(ctx, repos.Enrollment(), phase))
 
-	request := &enrollmentAPI.Request{
+	request := &capability.Request{
 		PhaseID:           phase.ID,
 		GuardianFirstName: "Cleanup",
 		GuardianLastName:  "Concurrency",
 		GuardianEmail:     fmt.Sprintf("cleanup-%d@example.invalid", scope.TenantID),
-		ConsentFlags:      map[string]any{},
-		CustomData:        map[string]any{},
+		ConsentFlags:      testFormValues(map[string]any{}),
+		CustomData:        testFormValues(map[string]any{}),
 		SubmissionSource:  capability.RequestSourcePublic,
-		SourceMetadata:    map[string]any{},
+		SourceMetadata:    testFormValues(map[string]any{}),
 		StatusToken:       fmt.Sprintf("cleanup-token-%d", scope.TenantID),
 		SubmittedAt:       time.Now(),
 	}
@@ -91,12 +91,12 @@ func TestRejectedEnrollmentCleanup_ConcurrentReopenPreservesRequestAndOutbox(t *
 	require.NoError(t, enrollmentAPI.InsertOwnerRequestForTest(ctx, repos.Enrollment(), request))
 
 	oldReview := time.Now().Add(-60 * 24 * time.Hour)
-	child := &enrollmentAPI.RequestChild{
+	child := &capability.RequestChild{
 		RequestID:      request.ID,
 		FirstName:      "Cleanup",
 		LastName:       "Child",
 		DateOfBirth:    "2018-04-15",
-		CustomData:     map[string]any{},
+		CustomData:     testFormValues(map[string]any{}),
 		Status:         capability.ChildStatusRejected,
 		ActivationMode: capability.ChildActivationScheduled,
 		ReviewedAt:     &oldReview,
@@ -198,15 +198,15 @@ func TestRejectedEnrollmentCleanup_TenantRoleDeletesLateInviteOutboxAndRequest(t
 			return err
 		}
 
-		request := &enrollmentAPI.Request{
+		request := &capability.Request{
 			PhaseID:           phase.ID,
 			GuardianFirstName: "Cleanup",
 			GuardianLastName:  "Late Invite",
 			GuardianEmail:     fmt.Sprintf("cleanup-late-invite-%d@example.invalid", scope.TenantID),
-			ConsentFlags:      map[string]any{},
-			CustomData:        map[string]any{},
+			ConsentFlags:      testFormValues(map[string]any{}),
+			CustomData:        testFormValues(map[string]any{}),
 			SubmissionSource:  capability.RequestSourceLateInvite,
-			SourceMetadata:    map[string]any{},
+			SourceMetadata:    testFormValues(map[string]any{}),
 			StatusToken:       fmt.Sprintf("cleanup-late-invite-token-%d", scope.TenantID),
 			SubmittedAt:       time.Now(),
 		}
@@ -215,12 +215,12 @@ func TestRejectedEnrollmentCleanup_TenantRoleDeletesLateInviteOutboxAndRequest(t
 		}
 		requestID = request.ID
 
-		child := &enrollmentAPI.RequestChild{
+		child := &capability.RequestChild{
 			RequestID:      request.ID,
 			FirstName:      "Cleanup",
 			LastName:       "Child",
 			DateOfBirth:    "2018-04-15",
-			CustomData:     map[string]any{},
+			CustomData:     testFormValues(map[string]any{}),
 			Status:         capability.ChildStatusRejected,
 			ActivationMode: capability.ChildActivationScheduled,
 			ReviewedAt:     &oldReview,

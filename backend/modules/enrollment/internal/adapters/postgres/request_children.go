@@ -30,7 +30,10 @@ func (r *Store) InsertChild(ctx context.Context, child *enrollment.RequestChild)
 			return fmt.Errorf("find rollover source child: %w", err)
 		}
 	}
-	row := childStorage(child)
+	row, err := childStorage(child)
+	if err != nil {
+		return err
+	}
 	row.TenantID = tenantID
 
 	_, err = db.NewInsert().
@@ -41,7 +44,11 @@ func (r *Store) InsertChild(ctx context.Context, child *enrollment.RequestChild)
 	if err != nil {
 		return fmt.Errorf("failed to create request child: %w", markChildWriteError(err))
 	}
-	*child = *row.value()
+	stored, err := row.value()
+	if err != nil {
+		return err
+	}
+	*child = *stored
 	return nil
 }
 func (r *Store) ChildByID(ctx context.Context, id int64) (*enrollment.RequestChild, error) {
@@ -63,7 +70,7 @@ func (r *Store) ChildByID(ctx context.Context, id int64) (*enrollment.RequestChi
 	if err != nil {
 		return nil, fmt.Errorf("failed to find request child %d: %w", id, err)
 	}
-	return child.value(), nil
+	return child.value()
 }
 func (r *Store) ChildrenByID(ctx context.Context, ids []int64) ([]*enrollment.RequestChild, error) {
 	tenantID, err := r.tenantID(ctx)
@@ -86,11 +93,7 @@ func (r *Store) ChildrenByID(ctx context.Context, ids []int64) ([]*enrollment.Re
 		Scan(ctx); err != nil {
 		return nil, fmt.Errorf("failed to list request children by ids: %w", err)
 	}
-	var result []*enrollment.RequestChild
-	for _, row := range children {
-		result = append(result, row.value())
-	}
-	return result, nil
+	return childValues(children)
 }
 
 type phaseResponseChildRow struct {
@@ -141,9 +144,11 @@ func (r *Store) PhaseResponseChildren(ctx context.Context, phaseID int64, status
 	}
 	result := make([]enrollment.PhaseResponseChild, 0, len(children))
 	for _, child := range children {
-		result = append(result, enrollment.PhaseResponseChild{
-			Child: child.value(), IsPhaseChild: child.IsPhaseChild,
-		})
+		value, err := child.value()
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, enrollment.PhaseResponseChild{Child: value, IsPhaseChild: child.IsPhaseChild})
 	}
 	return result, nil
 }
@@ -171,11 +176,7 @@ func (r *Store) ChildrenForRequest(ctx context.Context, requestID int64, forUpda
 	if err != nil {
 		return nil, fmt.Errorf("failed to list request children: %w", err)
 	}
-	var result []*enrollment.RequestChild
-	for _, row := range children {
-		result = append(result, row.value())
-	}
-	return result, nil
+	return childValues(children)
 }
 func (r *Store) ChildrenForRequests(ctx context.Context, requestIDs []int64) ([]*enrollment.RequestChild, error) {
 	tenantID, err := r.tenantID(ctx)
@@ -200,11 +201,7 @@ func (r *Store) ChildrenForRequests(ctx context.Context, requestIDs []int64) ([]
 	if err != nil {
 		return nil, fmt.Errorf("failed to list request children by request ids: %w", err)
 	}
-	var result []*enrollment.RequestChild
-	for _, row := range children {
-		result = append(result, row.value())
-	}
-	return result, nil
+	return childValues(children)
 }
 func (r *Store) ChildrenByPhaseStatuses(ctx context.Context, phaseID int64, statuses []string) ([]*enrollment.RequestChild, error) {
 	tenantID, err := r.tenantID(ctx)
@@ -234,11 +231,7 @@ func (r *Store) ChildrenByPhaseStatuses(ctx context.Context, phaseID int64, stat
 	if err != nil {
 		return nil, fmt.Errorf("failed to list request children by phase + status: %w", err)
 	}
-	var result []*enrollment.RequestChild
-	for _, row := range children {
-		result = append(result, row.value())
-	}
-	return result, nil
+	return childValues(children)
 }
 func (r *Store) UpdateChildData(ctx context.Context, child *enrollment.RequestChild) error {
 	tenantID, err := r.tenantID(ctx)
@@ -252,8 +245,12 @@ func (r *Store) UpdateChildData(ctx context.Context, child *enrollment.RequestCh
 	if child == nil || child.ID <= 0 {
 		return fmt.Errorf("request child id is required")
 	}
+	row, err := childStorage(child)
+	if err != nil {
+		return err
+	}
 	res, err := db.NewUpdate().
-		Model(childStorage(child)).
+		Model(row).
 		ModelTableExpr(requestChildTableExpr).
 		Where(`"request_child".tenant_id = ?`, tenantID).
 		Set("first_name = ?", child.FirstName).
@@ -261,7 +258,7 @@ func (r *Store) UpdateChildData(ctx context.Context, child *enrollment.RequestCh
 		Set("date_of_birth = ?", child.DateOfBirth).
 		Set("target_grade_level = ?", child.TargetGradeLevel).
 		Set("target_school_class = ?", child.TargetSchoolClass).
-		Set("custom_data = ?", child.CustomData).
+		Set("custom_data = ?", row.CustomData).
 		Set("sort_order = ?", child.SortOrder).
 		Set("updated_at = NOW()").
 		Where(`"request_child".id = ?`, child.ID).

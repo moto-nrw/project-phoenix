@@ -201,14 +201,14 @@ func TestFormSchemaService_UpdateSchema_RepointsPhasesButKeepsRequestSchemaPin(t
 	}
 	require.NoError(t, enrollmentAPI.InsertOwnerPhaseForTest(ctx, repoFactory.Enrollment(), phase))
 
-	request := &enrollmentAPI.Request{
+	request := &enrollmentCapability.Request{
 		SchemaID:          &v1.ID,
 		PhaseID:           phase.ID,
 		GuardianFirstName: "Form",
 		GuardianLastName:  "Schema",
 		GuardianEmail:     "form-schema-extra-repoint@test",
-		ConsentFlags:      map[string]any{},
-		CustomData:        map[string]any{},
+		ConsentFlags:      testFormValues(map[string]any{}),
+		CustomData:        testFormValues(map[string]any{}),
 		StatusToken:       "form-schema-extra-repoint-" + time.Now().Format("150405.000000"),
 		SubmittedAt:       time.Now().UTC(),
 	}

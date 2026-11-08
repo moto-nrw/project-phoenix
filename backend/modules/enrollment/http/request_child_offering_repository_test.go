@@ -472,7 +472,7 @@ func uniqueToken(prefix string) string {
 func makeOwnerRequest(phaseID int64, token, email string) *enrollmentNative.Request {
 	return &enrollmentNative.Request{
 		PhaseID: phaseID, GuardianFirstName: "Anna", GuardianLastName: "Beispiel", GuardianEmail: email,
-		ConsentFlags: []byte("{}"), CustomData: []byte("{}"), StatusToken: token, SubmittedAt: time.Now().UTC(),
+		StatusToken: token, SubmittedAt: time.Now().UTC(),
 	}
 }
 
@@ -495,10 +495,9 @@ func makeChild(requestID int64, firstName, lastName string) *enrollmentNative.Re
 		RequestID:      requestID,
 		FirstName:      firstName,
 		LastName:       lastName,
-		DateOfBirth:    enrollmentNative.Date("2018-04-15"),
+		DateOfBirth:    calendar.NewDate(2018, 4, 15),
 		Status:         enrollmentNative.ChildStatusSubmitted,
 		ActivationMode: enrollmentNative.ChildActivationScheduled,
-		CustomData:     []byte("{}"),
 	}
 }
 

@@ -48,7 +48,7 @@ func TestPhaseExpiryService_ApprovedRolloverWithInactiveOfferingStaysOpen(t *tes
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Phasenende",
 		GuardianEmail:     "phase-expiry-decision@example.com",
-		ConsentFlags:      rolloverConsentFlags(),
+		ConsentFlags:      testFormValues(rolloverConsentFlags()),
 		Children: []enrollmentAPI.SubmitChild{{
 			FirstName:        "Lina",
 			LastName:         "Phasenende",

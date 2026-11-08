@@ -41,17 +41,17 @@ func TestStudents20ExtraFieldsGrowthQueryBudget(t *testing.T) {
 			request := makeOwnerRequest(f.env.phaseID, uniqueToken("s20-extras"), fmt.Sprintf("extras%d@example.test", i))
 			request.SchemaID = &schema.ID
 			request.SubmittedAt = time.Date(2026, 8, 24, 12, i, 0, 0, time.UTC)
-			request.CustomData = json.RawMessage(`{"guardian_note":"private guardian value"}`)
+			request.CustomData = testJSONFormValues(json.RawMessage(`{"guardian_note":"private guardian value"}`))
 			require.NoError(t, testpkg.TenantCommand1(t, testpkg.Ctx(t), tc.db, f.env.repos.Enrollment().InsertRequest, request))
 			linked := makeChild(request.ID, "Extras", "Subject")
 			linked.Status = enrollment.ChildStatusApproved
 			linked.CreatedStudentID = &child.ID
-			linked.CustomData = rawEnrollmentJSON(t, map[string]any{"child_note": fmt.Sprintf("value%02d", i), "guardian_note": "must not leak"})
+			linked.CustomData = testFormValues(map[string]any{"child_note": fmt.Sprintf("value%02d", i), "guardian_note": "must not leak"})
 			require.NoError(t, testpkg.TenantCommand1(t, testpkg.Ctx(t), tc.db, f.env.repos.Enrollment().InsertChild, linked))
 			sibling := makeChild(request.ID, "Extras", "Excluded")
 			sibling.Status = enrollment.ChildStatusApproved
 			sibling.CreatedStudentID = &other.ID
-			sibling.CustomData = rawEnrollmentJSON(t, map[string]any{"child_note": "sibling only"})
+			sibling.CustomData = testFormValues(map[string]any{"child_note": "sibling only"})
 			require.NoError(t, testpkg.TenantCommand1(t, testpkg.Ctx(t), tc.db, f.env.repos.Enrollment().InsertChild, sibling))
 			expected = append([]enrollmentHTTP.StudentEnrollmentExtraFieldGroup{{RequestID: strconv.FormatInt(request.ID, 10), PhaseName: f.env.phase.Name, SubmittedAt: request.SubmittedAt, Fields: []enrollmentHTTP.StudentEnrollmentExtraField{{Key: "child_note", Label: "Child note", Type: "text", Value: fmt.Sprintf("value%02d", i)}}}}, expected...)
 		}

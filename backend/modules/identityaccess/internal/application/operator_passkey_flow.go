@@ -51,7 +51,7 @@ type OperatorPasskeyFlowDependencies struct {
 // operatorPasskeyGate is the second factor an operator registration is gated
 // by; operatorPasskeySessions mints the pair a completed login returns.
 type operatorPasskeyGate interface {
-	StartChallenge(ctx context.Context, operatorID int64, ip net.IP) (string, error)
+	StartOperatorMFAChallenge(ctx context.Context, operatorID int64, ip net.IP) (string, error)
 	VerifyOperatorMFACode(ctx context.Context, operatorID int64, code string) error
 }
 
@@ -91,7 +91,7 @@ func (f *OperatorPasskeyFlows) StartEnrollmentChallenge(ctx context.Context, ope
 	if err != nil {
 		return domain.PasskeyEnrollmentChallenge{}, err
 	}
-	token, err := f.mfa.StartChallenge(ctx, operatorID, ip)
+	token, err := f.mfa.StartOperatorMFAChallenge(ctx, operatorID, ip)
 	if err != nil {
 		return domain.PasskeyEnrollmentChallenge{}, err
 	}
