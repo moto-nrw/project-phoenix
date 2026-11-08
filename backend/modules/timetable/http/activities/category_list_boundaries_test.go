@@ -108,7 +108,7 @@ func TestActivityCategoriesListFailurePaths(t *testing.T) {
 			}
 			counter := testpkg.CaptureQueries(t, db)
 			response := testutil.ExecuteWithAuth(t, router, request, caregiverClaims())
-			logCatalogQueries(t, scenario.name, 0, counter.Queries())
+			logCatalogQueries(t, scenario.name, 0, counter.Measurement(counter.Queries()).Statements)
 			t.Logf("response=%s write_rows=%d", response.Body.String(), counter.WriteRows())
 			require.Equal(t, http.StatusInternalServerError, response.Code, response.Body.String())
 			body := testutil.ParseJSONResponse(t, response.Body.Bytes())

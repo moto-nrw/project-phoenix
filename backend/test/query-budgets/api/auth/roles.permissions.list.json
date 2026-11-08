@@ -2,5 +2,6 @@
   "scenario": "api.auth.roles.permissions.list",
   "max": 4,
   "exact": true,
-  "description": "GET /auth/roles/{roleId}/permissions/: protected route-sized production resource with persisted grants, signed JWT and tenant role/RLS frame; caller's own custom role at 0/3/8 mappings, role visibility checked in the same statement (#5703), no DML. Serve-host routing/session liveness excluded."
+  "description": "GET /auth/roles/{roleId}/permissions/: protected route-sized production resource with persisted grants, signed JWT and tenant role/RLS frame; caller's own custom role at 0/3/8 mappings, role visibility checked in the same statement (#5703), no DML. Serve-host routing/session liveness excluded.",
+  "route": "GET /auth/roles/{roleId}/permissions/"
 }

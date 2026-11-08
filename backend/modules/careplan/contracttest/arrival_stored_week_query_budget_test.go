@@ -69,9 +69,9 @@ func TestStoredArrivalWeekQueryBudget(t *testing.T) {
 			}
 			require.Equal(t, expected, values, "include IDs, timestamps, tenant, notes and row ordering")
 			if n == 3 {
-				querybudgets.AssertQueryBudget(t, "modules.careplan.arrival.stored_week.n3", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "modules.careplan.arrival.stored_week.n3", counter.Measurement(counter.Queries()))
 			} else {
-				querybudgets.AssertQueryBudget(t, "modules.careplan.arrival.stored_week.n8", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "modules.careplan.arrival.stored_week.n8", counter.Measurement(counter.Queries()))
 			}
 			mixed := append(slices.Clone(ids), ids[0], foreignStudent.ID, 0, -1)
 			actual, readErr = testpkg.TenantQuery2(t, ctx, db, service.GetWeeklySchedulesByStudentIDsForDate, mixed, date)

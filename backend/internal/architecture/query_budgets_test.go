@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-const queryBudgetFragment = `{"scenario":"fixture.list","max":1,"exact":true,"description":"GET /fixture/list bulk read."}`
+const queryBudgetFragment = `{"scenario":"fixture.list","max":1,"exact":true,"route":"GET /fixture/list","description":"GET /fixture/list bulk read."}`
 
 func TestCompareQueryBudgetsImmutableRepresentations(t *testing.T) {
 	t.Parallel()
@@ -143,7 +143,7 @@ func TestCompareQueryBudgetsRetiresABudgetOnlyWithItsRoute(t *testing.T) {
 		{name: "idle record for an active budget", record: fixtureRetirement, want: "names a budget that is still registered"},
 		{name: "idle record for an unknown budget", record: strings.Replace(fixtureRetirement, "fixture.list", "fixture.other", 1), want: "retires no budget of the base register"},
 		{name: "idle record for an unknown route", removeBudget: true, golden: "GET /fixture/\n", record: strings.Replace(fixtureRetirement, "/fixture/list", "/fixture/other", 1), want: "is not the budget's own"},
-		{name: "foreign route leaves", removeBudget: true, golden: "GET /fixture/list\n", record: strings.Replace(fixtureRetirement, "/fixture/list", "/fixture/", 1), want: "is not the budget's own; its base description binds GET /fixture/list"},
+		{name: "foreign route leaves", removeBudget: true, golden: "GET /fixture/list\n", record: strings.Replace(fixtureRetirement, "/fixture/list", "/fixture/", 1), want: "is not the budget's own; its base route binds GET /fixture/list"},
 		{name: "historical record grants nothing", baseRecord: true, removeBudget: true, golden: "GET /fixture/\n", record: fixtureRetirement, want: "fixture.list disappeared"},
 		{name: "malformed record", removeBudget: true, golden: "GET /fixture/\n", record: `[{"scenario":"fixture.list","route":"fixture/list","issue":5972}]`, want: "read candidate query budget retirements"},
 		{name: "unknown field", removeBudget: true, golden: "GET /fixture/\n", record: `[{"scenario":"fixture.list","route":"GET /fixture/list","issue":5972,"force":true}]`, want: "unknown field"},
@@ -184,13 +184,13 @@ func compareQueryBudgetRouteCase(t *testing.T, test queryBudgetRouteCase) error 
 	base := strings.TrimSpace(runGit(t, repo, "rev-parse", "HEAD"))
 	fragment := filepath.Join(repo, "test", "query-budgets", "owner", "list.json")
 	if test.removeBudget {
-		writeFile(t, filepath.Join(repo, "test", "query-budgets", "owner", "other.json"), strings.Replace(queryBudgetFragment, "fixture.list", "fixture.kept", 1))
+		writeFile(t, filepath.Join(repo, "test", "query-budgets", "owner", "other.json"), strings.Replace(strings.Replace(queryBudgetFragment, "fixture.list", "fixture.kept", 1), `"route":"GET /fixture/list"`, `"route":"GET /fixture/"`, 1))
 		if err := os.Remove(fragment); err != nil {
 			t.Fatal(err)
 		}
 	}
 	if test.description != "" {
-		writeFile(t, fragment, strings.Replace(queryBudgetFragment, "GET /fixture/list bulk read.", test.description, 1))
+		writeFile(t, fragment, strings.Replace(strings.Replace(queryBudgetFragment, "GET /fixture/list bulk read.", test.description, 1), `"route":"GET /fixture/list"`, `"route":"GET /fixture/items"`, 1))
 	}
 	if test.golden == "-" && test.extraGolden {
 		if err := os.Remove(golden); err != nil {

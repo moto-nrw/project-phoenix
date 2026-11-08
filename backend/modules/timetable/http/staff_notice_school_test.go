@@ -148,7 +148,7 @@ func (f *staffNoticeRouteFixture) execute(t *testing.T, router chi.Router, req *
 	claims.IsAdmin = false
 	claims.TenantID = f.tenantID
 	claims.Scope = who.scope
-	return routetest.ExecuteWithAuthPermissions(t, router, req, claims, permissions)
+	return routetest.ExecuteWithAuthPermissions(t, testpkg.MountedQueryBudgetRouter("/api/staff-notices", router), req, claims, permissions)
 }
 
 func (f *staffNoticeRouteFixture) call(t *testing.T, router chi.Router, method, path string, who noticePrincipal, permissions []string) *httptest.ResponseRecorder {
@@ -294,7 +294,7 @@ func TestStaffNoticeAcknowledgementsListNames(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, path, strings.NewReader("")).WithContext(counter.Context(context.Background()))
 	rec = f.execute(t, f.tenant, req, f.admin, []string{"admin:*"})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	querybudgets.AssertQueryBudget(t, "api.staff_notices.acknowledgements", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.staff_notices.acknowledgements", counter.Measurement(counter.Queries()))
 
 	var envelope struct {
 		Data []struct {

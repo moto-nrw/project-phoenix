@@ -2,5 +2,6 @@
   "scenario": "api.traeger.care_time_overrun_children",
   "max": 28,
   "exact": true,
-  "description": "modules/carecontract — GET /traeger/care-time-overruns/children (#4683, ADR 0156): the summary's statements plus one access-log insert per school that shows a child by name, in that school's unit. Settings come in one prefetch per school. Measured with two schools, one showing children; flat in the number of children."
+  "description": "modules/carecontract — GET /traeger/care-time-overruns/children (#4683, ADR 0156): the summary's statements plus one access-log insert per school that shows a child by name, in that school's unit. Settings come in one prefetch per school. Measured with two schools, one showing children; flat in the number of children.",
+  "route": "GET /traeger/care-time-overruns/children"
 }

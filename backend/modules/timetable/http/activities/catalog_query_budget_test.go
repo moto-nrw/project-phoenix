@@ -76,8 +76,8 @@ func TestActivityCategoriesListQueryBudgetIsFlat(t *testing.T) {
 				counter.Reset()
 				request := testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/api/activities/categories?with_usage=%t", withUsage), nil, testutil.WithJWTBearer(token))
 				response := testutil.ExecuteRequestForTest(t, router, request)
-				queries := counter.Queries()
-				logCatalogQueries(t, fmt.Sprintf("categories.with_usage=%t", withUsage), size, queries)
+				queries := counter.Measurement(counter.Queries())
+				logCatalogQueries(t, fmt.Sprintf("categories.with_usage=%t", withUsage), size, queries.Statements)
 				require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 				assertCatalogData(t, response.Body.Bytes(), want, "Categories retrieved successfully")
 				if size == 0 {
@@ -93,9 +93,9 @@ func TestActivityCategoriesListQueryBudgetIsFlat(t *testing.T) {
 				}
 				// Usage is flat across populated scopes; the empty scope skips it.
 				if size == 8 || (size == 3 && !withUsage) {
-					require.Len(t, queries, previous[withUsage], "statement count must not grow with N")
+					require.Len(t, queries.Statements, previous[withUsage], "statement count must not grow with N")
 				}
-				previous[withUsage] = len(queries)
+				previous[withUsage] = len(queries.Statements)
 				if withUsage && size == 0 {
 					querybudgets.AssertQueryBudget(t, "api.activities.categories.empty_with_usage", queries)
 				} else if withUsage {
@@ -183,16 +183,16 @@ func TestActivityTimespansListQueryBudgetIsFlat(t *testing.T) {
 			counter.Reset()
 			request := testutil.NewAuthenticatedRequest(t, http.MethodGet, "/api/activities/timespans", nil, testutil.WithJWTBearer(token))
 			response := testutil.ExecuteRequestForTest(t, router, request)
-			queries := counter.Queries()
-			logCatalogQueries(t, "timespans", size, queries)
+			queries := counter.Measurement(counter.Queries())
+			logCatalogQueries(t, "timespans", size, queries.Statements)
 			require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 			assertCatalogData(t, response.Body.Bytes(), expected, "Time spans retrieved successfully")
 			assertCatalogReadOnly(t, counter)
 			require.Len(t, counter.Selects("schedule.timeframes"), 1, "one active-only tenant read")
 			if size != 0 {
-				require.Len(t, queries, previous, "statement count must not grow with N")
+				require.Len(t, queries.Statements, previous, "statement count must not grow with N")
 			}
-			previous = len(queries)
+			previous = len(queries.Statements)
 			querybudgets.AssertQueryBudget(t, "api.activities.timespans", queries)
 		})
 	}

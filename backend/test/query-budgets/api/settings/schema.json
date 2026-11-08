@@ -2,5 +2,6 @@
   "scenario": "api.settings.schema",
   "max": 5,
   "exact": true,
-  "description": "Protected tenant settings schema; 0/3/8 persisted Tr\u00e4ger overrides, real registry/stores, JWT, tenant frame, no DML. Serve-host session liveness excluded."
+  "description": "Protected tenant settings schema; 0/3/8 persisted Träger overrides, real registry/stores, JWT, tenant frame, no DML. Serve-host session liveness excluded.",
+  "route": "GET /api/settings/schema"
 }

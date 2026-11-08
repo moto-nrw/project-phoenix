@@ -160,7 +160,7 @@ func TestOperatorDirectoryListsPositiveGrowthQueryBudget(t *testing.T) {
 					require.Contains(t, ids, id)
 				}
 				t.Logf("MEASURE %s N%d statements=%d", tc.scenario, n, len(statements))
-				assertOperatorListBudget(t, tc.scenario, statements)
+				assertOperatorListBudget(t, tc.scenario, counter.Measurement(statements))
 			})
 		}
 	}
@@ -223,7 +223,7 @@ func TestOperatorIdentityListsPositiveGrowthQueryBudget(t *testing.T) {
 					require.Contains(t, ids, id)
 				}
 				t.Logf("MEASURE %s N%d statements=%d", tc.scenario, n, len(statements))
-				assertOperatorListBudget(t, tc.scenario, statements)
+				assertOperatorListBudget(t, tc.scenario, counter.Measurement(statements))
 			})
 		}
 	}
@@ -249,7 +249,7 @@ func TestOperatorBookingImpactPositiveGrowthQueryBudget(t *testing.T) {
 			request.Header.Set("Authorization", "Bearer "+token)
 			response := httptest.NewRecorder()
 			counter.Reset()
-			router.ServeHTTP(response, request)
+			testpkg.MeasuredHTTPRequest(counter, router, response, request)
 			statements := counter.Queries()
 			require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 			var body struct {
@@ -263,13 +263,13 @@ func TestOperatorBookingImpactPositiveGrowthQueryBudget(t *testing.T) {
 			require.Empty(t, body.Data.Planned)
 			require.ElementsMatch(t, students, operatorBudgetIDs(t, body.Data.Blocking, "student_id"))
 			t.Logf("MEASURE operator.lists.booking_authority_impact N%d statements=%d", n, len(statements))
-			querybudgets.AssertQueryBudget(t, "operator.lists.booking_authority_impact", statements)
+			querybudgets.AssertQueryBudget(t, "operator.lists.booking_authority_impact", counter.Measurement(statements))
 		})
 	}
 }
 
 // Literal calls keep every table case visible to the budget-register ratchet.
-func assertOperatorListBudget(t *testing.T, scenario string, statements []string) {
+func assertOperatorListBudget(t *testing.T, scenario string, statements querybudgets.Measurement) {
 	t.Helper()
 	switch scenario {
 	case "operator.lists.account_tenant_roles":

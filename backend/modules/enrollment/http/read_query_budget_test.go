@@ -45,14 +45,14 @@ func TestEnrollmentSchemaReadQueryBudgets(t *testing.T) {
 		}
 	}
 	counter := testpkg.CaptureQueries(t, db)
-	run := func(path string, expectedRows, expectedFields int) []string {
+	run := func(path string, expectedRows, expectedFields int) testpkg.QueryMeasurement {
 		var queries []string
 		require.NoError(t, testpkg.WithTenantTx(t, testpkg.Ctx(t), db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
 			req := httptest.NewRequest(http.MethodGet, path, nil).WithContext(ctx)
 			req = req.WithContext(permissions.WithPrincipal(req.Context(), principal))
 			response := httptest.NewRecorder()
 			counter.Reset()
-			router.ServeHTTP(response, req)
+			testpkg.MeasuredHTTPRequest(counter, testpkg.MountedQueryBudgetRouter("/api/enrollment", router), response, req)
 			queries = counter.Queries()
 			require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 			if expectedRows > 0 {
@@ -72,11 +72,11 @@ func TestEnrollmentSchemaReadQueryBudgets(t *testing.T) {
 			require.Len(t, counter.Operation("SELECT"), len(queries), "read handlers must not write")
 			return nil
 		}))
-		return queries
+		return counter.Measurement(queries)
 	}
 	add(3, 3)
 	paths := []string{"/schema/", "/schema/versions", fmt.Sprintf("/schema/%d", schemaIDs[0])}
-	small := make([][]string, len(paths))
+	small := make([]testpkg.QueryMeasurement, len(paths))
 	for i, path := range paths {
 		rows := 0
 		if i == 1 {
@@ -89,7 +89,7 @@ func TestEnrollmentSchemaReadQueryBudgets(t *testing.T) {
 	}
 	add(5, 8)
 	scenarios := []string{"api.enrollment.schema.active.reads", "api.enrollment.schema.versions.reads", "api.enrollment.schema.by_id.reads"}
-	largeQueries := make([][]string, len(paths))
+	largeQueries := make([]testpkg.QueryMeasurement, len(paths))
 	for i, path := range paths {
 		rows := 0
 		if i == 1 {
@@ -99,8 +99,8 @@ func TestEnrollmentSchemaReadQueryBudgets(t *testing.T) {
 			path = fmt.Sprintf("/schema/%d", schemaIDs[len(schemaIDs)-1])
 		}
 		large := run(path, rows, 8)
-		require.Equal(t, len(small[i]), len(large), path)
-		t.Logf("%s: N3=%d N8=%d", scenarios[i], len(small[i]), len(large))
+		require.Equal(t, len(small[i].Statements), len(large.Statements), path)
+		t.Logf("%s: N3=%d N8=%d", scenarios[i], len(small[i].Statements), len(large.Statements))
 		largeQueries[i] = large
 	}
 

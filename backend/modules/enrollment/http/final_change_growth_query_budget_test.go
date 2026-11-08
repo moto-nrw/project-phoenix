@@ -26,10 +26,10 @@ func TestEnrollmentAdminChangesPositiveGrowthQueryBudget(t *testing.T) {
 			ids = append(ids, fmt.Sprint(row.ID))
 		}
 	}
-	run := func(n int) [][]string {
+	run := func(n int) []testpkg.QueryMeasurement {
 		counter.Reset()
 		rec := env.getPath(t, "/admin/change-requests/?status=rejected", env.token)
-		listQ := counter.Queries()
+		listQ := counter.Measurement(counter.Queries())
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 		var list struct {
 			Data []enrollmenthttp.ChangeRequestResponse `json:"data"`
@@ -43,21 +43,21 @@ func TestEnrollmentAdminChangesPositiveGrowthQueryBudget(t *testing.T) {
 		}
 		counter.Reset()
 		page := env.fetch(t, "view=history&limit=100")
-		reviewQ := counter.Queries()
+		reviewQ := counter.Measurement(counter.Queries())
 		require.Equal(t, reverseFinalIDs(ids), idsOf(page))
 		for _, row := range page.Data.Items {
 			require.Equal(t, "enrollment", row.RequestType)
 			require.ElementsMatch(t, []string{"Quirina Zoffenbach", "Xander Zoffenbach"}, row.Data.ChildNames)
 			require.Len(t, row.Data.Children, 2)
 		}
-		return [][]string{listQ, reviewQ}
+		return []testpkg.QueryMeasurement{listQ, reviewQ}
 	}
 	add(3)
 	small := run(3)
 	add(5)
 	large := run(8)
 	for i := range large {
-		t.Logf("admin changes route %d N3=%d N8=%d", i, len(small[i]), len(large[i]))
+		t.Logf("admin changes route %d N3=%d N8=%d", i, len(small[i].Statements), len(large[i].Statements))
 	}
 	querybudgets.AssertQueryBudget(t, "api.enrollment.growth.admin_changes", large[0])
 	querybudgets.AssertQueryBudget(t, "api.enrollment.growth.review_changes", large[1])
@@ -87,7 +87,7 @@ func TestEnrollmentAdminChangeDetailPositiveGrowthQueryBudget(t *testing.T) {
 			n++
 		}
 	}
-	run := func() []string {
+	run := func() testpkg.QueryMeasurement {
 		counter.Reset()
 		rec := env.getPath(t, fmt.Sprintf("/admin/change-requests/%d/", row.ID), env.token)
 		queries := counter.Queries()
@@ -106,13 +106,13 @@ func TestEnrollmentAdminChangeDetailPositiveGrowthQueryBudget(t *testing.T) {
 			require.Equal(t, enrollment.ChangeRequestMessageAuthorParent, message.AuthorType)
 			require.False(t, message.InternalOnly)
 		}
-		return queries
+		return counter.Measurement(queries)
 	}
 	add(3)
 	small := run()
 	add(5)
 	large := run()
-	require.Equal(t, len(small), len(large))
-	t.Logf("admin change detail messages N3=%d N8=%d", len(small), len(large))
+	require.Equal(t, len(small.Statements), len(large.Statements))
+	t.Logf("admin change detail messages N3=%d N8=%d", len(small.Statements), len(large.Statements))
 	querybudgets.AssertQueryBudget(t, "api.enrollment.growth.admin_change_detail", large)
 }

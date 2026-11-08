@@ -2,5 +2,6 @@
   "scenario": "api.settings.payroll_status",
   "max": 6,
   "exact": true,
-  "description": "Protected payroll status; 3/8 persisted staff, real production Staff.List binding and settings, JWT and tenant frame, exact DTO, no DML. Serve-host liveness excluded."
+  "description": "Protected payroll status; 3/8 persisted staff, real production Staff.List binding and settings, JWT and tenant frame, exact DTO, no DML. Serve-host liveness excluded.",
+  "route": "GET /api/settings/payroll-status"
 }

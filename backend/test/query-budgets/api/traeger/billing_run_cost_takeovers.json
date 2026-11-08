@@ -2,5 +2,6 @@
   "scenario": "api.traeger.billing_run_cost_takeovers",
   "max": 16,
   "exact": true,
-  "description": "modules/parentbilling — GET /traeger/billing-runs/{id}/cost-takeovers/{costBearerId}/export\n(#5627), every statement: the Träger transaction and its binding, the\nrun, the cost bearer, the issued documents and their positions in one\nstatement each, through Enrollment the period and its confirmed\nregistrations with children, bookings and whether a proof exists (in bulk)\nwith the entry in the period's trail, the confirmation days and the entry\nin the run's trail. No statement per document or registration."
+  "description": "modules/parentbilling — GET /traeger/billing-runs/{id}/cost-takeovers/{costBearerId}/export\n(#5627), every statement: the Träger transaction and its binding, the\nrun, the cost bearer, the issued documents and their positions in one\nstatement each, through Enrollment the period and its confirmed\nregistrations with children, bookings and whether a proof exists (in bulk)\nwith the entry in the period's trail, the confirmation days and the entry\nin the run's trail. No statement per document or registration.",
+  "route": "GET /traeger/billing-runs/{id}/cost-takeovers/{costBearerId}/export"
 }

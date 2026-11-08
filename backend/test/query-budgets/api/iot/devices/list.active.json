@@ -2,5 +2,6 @@
   "scenario": "api.iot.devices.list.active",
   "max": 6,
   "exact": true,
-  "description": "GET /api/iot/active; owner HTTP, N1/N3/N8 distinct real devices/rooms, archive/other-school/filter controls, real tenant transaction/RLS, independent DTO and zero writes; all production statements, fresh existing settings memo per request."
+  "description": "GET /api/iot/active; owner HTTP, N1/N3/N8 distinct real devices/rooms, archive/other-school/filter controls, real tenant transaction/RLS, independent DTO and zero writes; all production statements, fresh existing settings memo per request.",
+  "route": "GET /api/iot/active"
 }

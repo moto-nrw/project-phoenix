@@ -20,7 +20,7 @@ func TestSupervisionListsQueryBudget(t *testing.T) {
 	t.Parallel()
 	type sample struct {
 		scenario, label string
-		queries         []string
+		queries         testpkg.QueryMeasurement
 	}
 	type expected struct {
 		row    *testpkg.GroupSupervisorRow
@@ -131,13 +131,13 @@ func TestSupervisionListsQueryBudget(t *testing.T) {
 			}
 			counter := testpkg.CaptureQueriesForContext(t, db)
 			counter.Stop()
-			run := func(path, label string, want []expected) []string {
+			run := func(path, label string, want []expected) testpkg.QueryMeasurement {
 				t.Helper()
 				counter.Reset()
 				counter.Start()
 				req := testutil.NewRequest("GET", path, nil)
 				req = req.WithContext(counter.Context(req.Context()))
-				rr := testutil.ExecuteWithAuthPermissions(t, router, req, claims, []string{permissions.GroupsRead})
+				rr := testutil.ExecuteWithAuthPermissions(t, testpkg.MountedQueryBudgetRouter("/api", router), req, claims, []string{permissions.GroupsRead})
 				counter.Stop()
 				queries := counter.Queries()
 				rawSQL, err := json.Marshal(queries)
@@ -184,7 +184,7 @@ func TestSupervisionListsQueryBudget(t *testing.T) {
 						require.NotContains(t, objects[index], key, "basic responses do not hydrate relations")
 					}
 				}
-				return queries
+				return counter.Measurement(queries)
 			}
 			want := make([]expected, 0, 8)
 			counts := make(map[string]map[int]int)
@@ -209,7 +209,7 @@ func TestSupervisionListsQueryBudget(t *testing.T) {
 					if counts[path] == nil {
 						counts[path] = make(map[int]int)
 					}
-					counts[path][size] = len(queries)
+					counts[path][size] = len(queries.Statements)
 				}
 			}
 			for path, measured := range counts {

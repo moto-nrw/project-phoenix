@@ -26,9 +26,6 @@ const (
 
 var (
 	routeGoldenLine = regexp.MustCompile(`^[A-Z]+ /\S*$`)
-	// describedRoute finds "METHOD /path" in a budget description; the path
-	// ends before whitespace, punctuation of the prose or a trailing period.
-	describedRoute = regexp.MustCompile(`\b(GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS) (/[^\s,;:()\[\]` + "`" + `"]*[^\s,;:()\[\]` + "`" + `".])`)
 )
 
 // queryBudgetRetirement lets a base scenario disappear together with its own
@@ -67,6 +64,11 @@ func retiredQueryBudgets(root, project, sha string, base, candidate map[string]q
 		}
 		retired[record.Scenario] = true
 	}
+	routeViolations, err := validateQueryBudgetRoutes(root, project, sha, candidate, candidateRoutes.routes)
+	if err != nil {
+		return nil, nil, err
+	}
+	violations = append(violations, routeViolations...)
 	violations = append(violations, orphanedQueryBudgets(base, candidate, baseRoutes.routes, candidateRoutes.routes)...)
 	return retired, violations, nil
 }
@@ -83,17 +85,15 @@ func retirementViolation(record queryBudgetRetirement, base, candidate map[strin
 	case active:
 		return "names a budget that is still registered"
 	case !own[record.Route]:
-		return fmt.Sprintf("names a route that is not the budget's own; its base description binds %s", describeRoutes(own))
+		return fmt.Sprintf("names a route that is not the budget's own; its base route binds %s", describeRoutes(own))
 	case anyRoute(own, candidateRoutes):
 		return "names a route the router golden still lists"
 	}
 	return ""
 }
 
-// orphanedQueryBudgets rejects a budget that stays while every route its base
-// description binds left the router golden, as after a route rename. It stays
-// red until its description names a route of the candidate golden or it is
-// retired.
+// orphanedQueryBudgets retains the base-route retirement guard. Candidate
+// bindings are additionally checked member-by-member by queryBudgetRouteViolations.
 func orphanedQueryBudgets(base, candidate map[string]querybudget.Budget, baseRoutes, candidateRoutes map[string]bool) []string {
 	var violations []string
 	for scenario, after := range candidate {
@@ -102,21 +102,17 @@ func orphanedQueryBudgets(base, candidate map[string]querybudget.Budget, baseRou
 		if !existed || len(own) == 0 || anyRoute(own, candidateRoutes) || len(budgetRoutes(after, candidateRoutes)) != 0 {
 			continue
 		}
-		violations = append(violations, fmt.Sprintf("%s orphaned: its route %s left the router golden; name the new route in its description or retire it", scenario, describeRoutes(own)))
+		violations = append(violations, fmt.Sprintf("%s orphaned: its route %s left the router golden; record the new route or retire it", scenario, describeRoutes(own)))
 	}
 	return violations
 }
 
-// budgetRoutes binds a budget to the routes its description names that the
-// router golden lists. Tenant routes carry the /api mount prefix in the golden
-// and often omit it in prose, so both spellings are matched.
+// budgetRoutes selects explicit measured bindings present in this golden.
 func budgetRoutes(budget querybudget.Budget, routes map[string]bool) map[string]bool {
 	own := map[string]bool{}
-	for _, match := range describedRoute.FindAllStringSubmatch(budget.Description, -1) {
-		for _, route := range []string{match[1] + " " + match[2], match[1] + " /api" + match[2]} {
-			if routes[route] {
-				own[route] = true
-			}
+	for _, route := range budget.Route {
+		if routes[route] {
+			own[route] = true
 		}
 	}
 	return own
@@ -240,7 +236,7 @@ func (g routeGolden) add(name, source string) error {
 		if !routeGoldenLine.MatchString(line) {
 			return fmt.Errorf("%s: unreadable route golden line %q", name, line)
 		}
-		g.routes[line] = true
+		g.routes[querybudget.CanonicalRoute(line)] = true
 		count++
 	}
 	if err := scanner.Err(); err != nil {
