@@ -10,19 +10,19 @@ import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
 
 const {
-  mockFetchPublicActiveSchema,
-  mockFetchPublicCaptchaConfig,
+  phaseSchemaFixture,
+  captchaConfigFixture,
   mockFetchPublicLegalTexts,
-  mockFetchPublicCareOfferings,
-  mockFetchMyEnrollmentProfile,
+  phaseOfferingsFixture,
+  profileFixture,
   mockSubmitEnrollment,
   mockIntlLocale,
 } = vi.hoisted(() => ({
-  mockFetchPublicActiveSchema: vi.fn(),
-  mockFetchPublicCaptchaConfig: vi.fn(),
+  phaseSchemaFixture: vi.fn(),
+  captchaConfigFixture: vi.fn(),
   mockFetchPublicLegalTexts: vi.fn(),
-  mockFetchPublicCareOfferings: vi.fn(),
-  mockFetchMyEnrollmentProfile: vi.fn(),
+  phaseOfferingsFixture: vi.fn(),
+  profileFixture: vi.fn(),
   mockSubmitEnrollment: vi.fn(),
   mockIntlLocale: { value: "de" },
 }));
@@ -31,8 +31,6 @@ vi.mock("~/lib/enrollment-form-schema-api", async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
-    fetchPublicActiveSchema: mockFetchPublicActiveSchema,
-    fetchPublicCaptchaConfig: mockFetchPublicCaptchaConfig,
     fetchPublicLegalTexts: mockFetchPublicLegalTexts,
   };
 });
@@ -41,8 +39,6 @@ vi.mock("~/lib/enrollment-submission-api", async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
-    fetchMyEnrollmentProfile: mockFetchMyEnrollmentProfile,
-    fetchPublicCareOfferings: mockFetchPublicCareOfferings,
     submitEnrollment: mockSubmitEnrollment,
   };
 });
@@ -150,9 +146,9 @@ vi.mock("next-intl", async () => {
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 import { CareFacilityTermScope } from "~/lib/care-facility-term";
-import { contactListValueMissing } from "./enrollment-form-contact-inputs";
-import { EnrollmentForm, submitFieldName } from "./enrollment-form";
+import { EnrollmentForm } from "./enrollment-form";
 import type {
+  PublicCaptchaConfig,
   PublicFormSchema,
   PublicLegalTexts,
 } from "~/lib/enrollment-form-schema-api";
@@ -160,8 +156,10 @@ import type {
   EnrollmentEditDraft,
   MeProfileResponse,
   PublicCareOffering,
+  PublicSchoolClassConfig,
   SubmitEnrollmentPayload,
 } from "~/lib/enrollment-submission-api";
+import type { CareOfferingSelectionMode } from "~/lib/enrollment-phase-api";
 
 function schema(): PublicFormSchema {
   return {
@@ -365,17 +363,55 @@ function profile(): MeProfileResponse {
   };
 }
 
-function renderForm(
-  props: Partial<React.ComponentProps<typeof EnrollmentForm>> = {},
-) {
+type FormProps = Partial<React.ComponentProps<typeof EnrollmentForm>>;
+
+/**
+ * Renders the form the way the phase pages do: with the phase's data
+ * prefetched, built from the fixtures above. A test that passes
+ * `previewSchema` gets the template preview instead.
+ */
+async function renderForm(props: FormProps = {}) {
+  const prefetchedData =
+    props.prefetchedData ??
+    ("previewSchema" in props
+      ? undefined
+      : await fixturePrefetchedData(props.skipCaptcha === true));
   return render(
     <EnrollmentForm
       phaseID="5"
       gradeLevelMax={4}
       onSubmitted={vi.fn()}
       {...props}
+      prefetchedData={prefetchedData}
     />,
   );
+}
+
+async function fixturePrefetchedData(
+  skipCaptcha: boolean,
+): Promise<NonNullable<FormProps["prefetchedData"]>> {
+  const care = (await phaseOfferingsFixture()) as {
+    offerings: PublicCareOffering[];
+    careOfferingSelectionMode: CareOfferingSelectionMode;
+    collectGradeLevel?: boolean;
+    careOfferingsEnabled?: boolean;
+    schoolClass?: PublicSchoolClassConfig;
+    eligibleGradeLevels?: number[];
+  };
+  return {
+    schema: (await phaseSchemaFixture()) as PublicFormSchema | null,
+    offerings: care.offerings,
+    careOfferingSelectionMode: care.careOfferingSelectionMode,
+    collectGradeLevel: care.collectGradeLevel,
+    careOfferingsEnabled: care.careOfferingsEnabled,
+    schoolClass: care.schoolClass,
+    eligibleGradeLevels: care.eligibleGradeLevels,
+    captchaConfig: skipCaptcha
+      ? null
+      : ((await captchaConfigFixture()) as PublicCaptchaConfig | null),
+    legalTexts: (await mockFetchPublicLegalTexts()) as PublicLegalTexts,
+    profile: (await profileFixture()) as MeProfileResponse | null,
+  };
 }
 
 async function waitForLoaded() {
@@ -468,43 +504,52 @@ function recordScrolls(): { scrolled: Element[]; restore: () => void } {
   };
 }
 
-/** Lets pending effects and a late second scroll run before counting. */
-async function settle() {
-  await new Promise((resolve) => setTimeout(resolve, 50));
+/**
+ * Waits until the submit attempt is over: the button is idle again only after
+ * the failure handling, so a second scroll would have happened by then.
+ */
+async function submitAttemptFinished() {
+  await waitFor(() =>
+    expect(
+      screen.getByRole("button", { name: "Anmeldung absenden" }),
+    ).toBeEnabled(),
+  );
 }
 
 describe("EnrollmentForm", () => {
   beforeEach(() => {
     mockIntlLocale.value = "de";
-    mockFetchPublicActiveSchema.mockReset();
-    mockFetchPublicCaptchaConfig.mockReset();
+    phaseSchemaFixture.mockReset();
+    captchaConfigFixture.mockReset();
     mockFetchPublicLegalTexts.mockReset();
-    mockFetchPublicCareOfferings.mockReset();
-    mockFetchMyEnrollmentProfile.mockReset();
+    phaseOfferingsFixture.mockReset();
+    profileFixture.mockReset();
     mockSubmitEnrollment.mockReset();
-    mockFetchPublicActiveSchema.mockResolvedValue(schema());
-    mockFetchPublicCaptchaConfig.mockResolvedValue({
+    phaseSchemaFixture.mockResolvedValue(schema());
+    captchaConfigFixture.mockResolvedValue({
       enabled: false,
       site_key: "",
     });
     mockFetchPublicLegalTexts.mockResolvedValue(legalTexts());
-    mockFetchPublicCareOfferings.mockResolvedValue({
+    phaseOfferingsFixture.mockResolvedValue({
       offerings: offerings(),
       careOfferingSelectionMode: "at_least_one",
       careRequired: true,
     });
-    mockFetchMyEnrollmentProfile.mockResolvedValue(null);
+    profileFixture.mockResolvedValue(null);
     mockSubmitEnrollment.mockResolvedValue({ status_url: "/status/abc" });
   });
 
   it.each([false, true])(
     "updates the care term without reloading or losing a draft (localized: %s)",
     async (localizedCopy) => {
+      const prefetchedData = await fixturePrefetchedData(false);
       const form = (
         <EnrollmentForm
           phaseID="5"
           gradeLevelMax={4}
           onSubmitted={vi.fn()}
+          prefetchedData={prefetchedData}
           localizedCopy={localizedCopy}
         />
       );
@@ -527,25 +572,20 @@ describe("EnrollmentForm", () => {
         screen.getByText(/Die GTS benötigt diese Angaben/),
       ).toBeInTheDocument();
       expect(screen.getAllByLabelText("Vorname")[0]).toHaveValue("Entwurf");
-      expect(mockFetchPublicActiveSchema).toHaveBeenCalledTimes(1);
-      expect(mockFetchPublicCareOfferings).toHaveBeenCalledTimes(1);
-      expect(mockFetchMyEnrollmentProfile).toHaveBeenCalledTimes(1);
-      expect(mockFetchPublicCaptchaConfig).toHaveBeenCalledTimes(1);
-      expect(mockFetchPublicLegalTexts).toHaveBeenCalledTimes(1);
     },
   );
 
   it("does not mount Turnstile or block submission when captcha is disabled with a site key", async () => {
-    mockFetchPublicCareOfferings.mockResolvedValue({
+    phaseOfferingsFixture.mockResolvedValue({
       offerings: [],
       careOfferingSelectionMode: "optional",
       careRequired: false,
     });
-    mockFetchPublicCaptchaConfig.mockResolvedValue({
+    captchaConfigFixture.mockResolvedValue({
       enabled: false,
       site_key: "test-site-key",
     });
-    renderForm();
+    await renderForm();
     await waitForLoaded();
 
     const submit = screen.getByRole("button", { name: "Anmeldung absenden" });
@@ -560,16 +600,16 @@ describe("EnrollmentForm", () => {
   });
 
   it("requires a fresh Turnstile response when captcha is enabled", async () => {
-    mockFetchPublicCaptchaConfig.mockResolvedValue({
+    captchaConfigFixture.mockResolvedValue({
       enabled: true,
       site_key: "test-site-key",
     });
-    mockFetchPublicCareOfferings.mockResolvedValue({
+    phaseOfferingsFixture.mockResolvedValue({
       offerings: [],
       careOfferingSelectionMode: "optional",
       careRequired: false,
     });
-    renderForm();
+    await renderForm();
     await waitForLoaded();
 
     expect(screen.getByTestId("turnstile")).toBeInTheDocument();
@@ -593,11 +633,11 @@ describe("EnrollmentForm", () => {
   });
 
   it("does not mount Turnstile on an authenticated path that skips captcha", async () => {
-    mockFetchPublicCaptchaConfig.mockResolvedValue({
+    captchaConfigFixture.mockResolvedValue({
       enabled: true,
       site_key: "test-site-key",
     });
-    renderForm({
+    await renderForm({
       skipCaptcha: true,
       prefetchedData: {
         schema: schema(),
@@ -615,23 +655,10 @@ describe("EnrollmentForm", () => {
     expect(screen.queryByTestId("turnstile")).not.toBeInTheDocument();
   });
 
-  it("loads schema, offerings, and renders validation for missing required fields", async () => {
-    renderForm();
+  it("renders the phase's questions and offerings and marks missing required fields", async () => {
+    await renderForm();
     await waitForLoaded();
 
-    expect(mockFetchPublicActiveSchema).toHaveBeenCalledWith(
-      "test-tenant",
-      "5",
-      { lateInviteToken: undefined },
-    );
-    expect(mockFetchPublicCareOfferings).toHaveBeenCalledWith(
-      "test-tenant",
-      "5",
-      { lateInviteToken: undefined },
-    );
-    expect(mockFetchPublicLegalTexts).toHaveBeenCalledWith("test-tenant", "5", {
-      lateInviteToken: undefined,
-    });
     expect(screen.getByText("Flexible Betreuung")).toBeInTheDocument();
     expect(screen.getByText("Abholhinweis")).toBeInTheDocument();
     expect(screen.getByText("Allergien")).toBeInTheDocument();
@@ -648,7 +675,7 @@ describe("EnrollmentForm", () => {
   });
 
   it("scrolls the first marked field into view exactly once after a failed check", async () => {
-    renderForm();
+    await renderForm();
     await waitForLoaded();
     const scrolls = recordScrolls();
     try {
@@ -660,7 +687,7 @@ describe("EnrollmentForm", () => {
           "Bitte korrigieren Sie die rot markierten Felder.",
         ),
       ).toBeInTheDocument();
-      await settle();
+      await submitAttemptFinished();
       const firstInvalid = document
         .querySelector("form")
         ?.querySelector('[aria-invalid="true"]');
@@ -674,11 +701,11 @@ describe("EnrollmentForm", () => {
   });
 
   it("blocks the form as a failure at its top when the bot protection lacks its site key", async () => {
-    mockFetchPublicCaptchaConfig.mockResolvedValue({
+    captchaConfigFixture.mockResolvedValue({
       enabled: true,
       site_key: "",
     });
-    renderForm();
+    await renderForm();
     await waitForLoaded();
 
     const notice = await screen.findByText(
@@ -707,7 +734,7 @@ describe("EnrollmentForm", () => {
         conditions: [{ source: "grade_level", operator: "in", value: [1, 2] }],
       },
     };
-    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+    phaseOfferingsFixture.mockResolvedValueOnce({
       offerings: [offerings()[0]!, conditional],
       careOfferingSelectionMode: "optional",
       careRequired: false,
@@ -715,7 +742,7 @@ describe("EnrollmentForm", () => {
       careOfferingsEnabled: true,
     });
 
-    renderForm();
+    await renderForm();
     await waitForLoaded();
 
     expect(
@@ -753,7 +780,7 @@ describe("EnrollmentForm", () => {
         conditions: [{ source: "grade_level", operator: "in", value: [1, 2] }],
       },
     };
-    mockFetchPublicCareOfferings.mockResolvedValue({
+    phaseOfferingsFixture.mockResolvedValue({
       offerings: [offerings()[0]!, conditional],
       careOfferingSelectionMode: "optional",
       careRequired: false,
@@ -761,7 +788,7 @@ describe("EnrollmentForm", () => {
       careOfferingsEnabled: true,
     });
 
-    renderForm({ showBlockedOfferings: true });
+    await renderForm({ showBlockedOfferings: true });
     await waitForLoaded();
 
     await chooseOption("Klassenstufe", "3. Klasse");
@@ -796,7 +823,7 @@ describe("EnrollmentForm", () => {
         ],
       },
     };
-    mockFetchPublicCareOfferings.mockResolvedValue({
+    phaseOfferingsFixture.mockResolvedValue({
       offerings: [offerings()[0]!, conditional],
       careOfferingSelectionMode: "optional",
       careRequired: false,
@@ -804,7 +831,7 @@ describe("EnrollmentForm", () => {
       careOfferingsEnabled: true,
     });
 
-    renderForm({ showBlockedOfferings: true });
+    await renderForm({ showBlockedOfferings: true });
     await waitForLoaded();
 
     await chooseOption("Klassenstufe", "4. Klasse");
@@ -824,7 +851,7 @@ describe("EnrollmentForm", () => {
         conditions: [{ source: "grade_level", operator: "in", value: [1, 2] }],
       },
     };
-    mockFetchPublicCareOfferings.mockResolvedValue({
+    phaseOfferingsFixture.mockResolvedValue({
       offerings: [offerings()[0]!, conditional],
       careOfferingSelectionMode: "optional",
       careRequired: false,
@@ -832,7 +859,7 @@ describe("EnrollmentForm", () => {
       careOfferingsEnabled: true,
     });
 
-    renderForm({ showBlockedOfferings: true });
+    await renderForm({ showBlockedOfferings: true });
     await waitForLoaded();
 
     await chooseOption("Klassenstufe", "3. Klasse");
@@ -848,7 +875,7 @@ describe("EnrollmentForm", () => {
   });
 
   it("shows per-offering occupancy in admin mode", async () => {
-    mockFetchPublicCareOfferings.mockResolvedValue({
+    phaseOfferingsFixture.mockResolvedValue({
       offerings: offerings(),
       careOfferingSelectionMode: "optional",
       careRequired: false,
@@ -856,7 +883,7 @@ describe("EnrollmentForm", () => {
       careOfferingsEnabled: true,
     });
 
-    renderForm({
+    await renderForm({
       showBlockedOfferings: true,
       offeringBookingStats: {
         [offerings()[0]!.id]: {
@@ -904,7 +931,7 @@ describe("EnrollmentForm", () => {
       catalog: PublicCareOffering[],
       overrides: Record<string, unknown> = {},
     ) {
-      mockFetchPublicCareOfferings.mockResolvedValue({
+      phaseOfferingsFixture.mockResolvedValue({
         offerings: catalog,
         careOfferingSelectionMode: "at_least_one",
         careRequired: true,
@@ -920,7 +947,7 @@ describe("EnrollmentForm", () => {
         gradeOffering("92", "Betreuung Klasse 3 und 4", [3, 4]),
       ]);
 
-      renderForm();
+      await renderForm();
       await waitForLoaded();
 
       expect(screen.getByText("Betreuungsangebote")).toBeVisible();
@@ -942,7 +969,7 @@ describe("EnrollmentForm", () => {
     it("keeps the hint next to offerings that need no grade", async () => {
       mockCatalog([offerings()[0]!, gradeOffering("91", "Randstunde", [1, 2])]);
 
-      renderForm();
+      await renderForm();
       await waitForLoaded();
 
       expect(screen.getByText("Flexible Betreuung")).toBeVisible();
@@ -956,7 +983,7 @@ describe("EnrollmentForm", () => {
     it("explains when no offering fits the chosen grade", async () => {
       mockCatalog([gradeOffering("91", "Betreuung Klasse 1 und 2", [1, 2])]);
 
-      renderForm();
+      await renderForm();
       await waitForLoaded();
       await chooseOption("Klassenstufe", "4. Klasse");
 
@@ -974,7 +1001,7 @@ describe("EnrollmentForm", () => {
     it("asks for no grade when every offering is open to all grades", async () => {
       mockCatalog(offerings());
 
-      renderForm();
+      await renderForm();
       await waitForLoaded();
 
       expect(screen.getByText("Flexible Betreuung")).toBeVisible();
@@ -994,7 +1021,7 @@ describe("EnrollmentForm", () => {
       };
       mockCatalog([unrestrictedRuleOffering]);
 
-      renderForm();
+      await renderForm();
       await waitForLoaded();
 
       // Anker: Die Kinderkarte ist geladen, in der der Hinweis stünde.
@@ -1010,7 +1037,7 @@ describe("EnrollmentForm", () => {
         },
       );
 
-      renderForm();
+      await renderForm();
       await waitForLoaded();
 
       expect(screen.getByText("Flexible Betreuung")).toBeVisible();
@@ -1026,7 +1053,7 @@ describe("EnrollmentForm", () => {
       ]);
       draft.children[0]!.offering_ids = ["91"];
 
-      renderForm({
+      await renderForm({
         skipCaptcha: true,
         submitter,
         initialDraft: draft,
@@ -1067,7 +1094,7 @@ describe("EnrollmentForm", () => {
       const draft = editDraft([
         { id: "c-1", first_name: "Anton", last_name: "Alster" },
       ]);
-      renderForm({
+      await renderForm({
         initialDraft: draft,
         prefetchedData: {
           schema: schema(),
@@ -1095,7 +1122,7 @@ describe("EnrollmentForm", () => {
         { id: "c-1", first_name: "Anton", last_name: "Alster" },
       ]);
       draft.children[0]!.offering_ids = ["12"];
-      renderForm({
+      await renderForm({
         initialDraft: draft,
         prefetchedData: {
           schema: schema(),
@@ -1130,7 +1157,7 @@ describe("EnrollmentForm", () => {
         careOfferingsEnabled: false,
       });
 
-      renderForm();
+      await renderForm();
       await waitForLoaded();
 
       expect(screen.getByLabelText("Klassenstufe")).toBeInTheDocument();
@@ -1141,7 +1168,7 @@ describe("EnrollmentForm", () => {
     it("shows no offering block for an empty catalog", async () => {
       mockCatalog([]);
 
-      renderForm();
+      await renderForm();
       await waitForLoaded();
 
       expect(screen.getByLabelText("Klassenstufe")).toBeInTheDocument();
@@ -1155,7 +1182,7 @@ describe("EnrollmentForm", () => {
         gradeOffering("92", "Betreuung Klasse 3 und 4", [3, 4]),
       ]);
 
-      renderForm();
+      await renderForm();
       await waitForLoaded();
       fireEvent.click(screen.getByRole("button", { name: "Weiteres Kind" }));
 
@@ -1187,7 +1214,7 @@ describe("EnrollmentForm", () => {
         conditions: [{ source: "grade_level", operator: "in", value: [1, 2] }],
       },
     };
-    mockFetchPublicCareOfferings.mockResolvedValue({
+    phaseOfferingsFixture.mockResolvedValue({
       offerings: [offerings()[0]!, conditional],
       careOfferingSelectionMode: "optional",
       careRequired: false,
@@ -1195,7 +1222,7 @@ describe("EnrollmentForm", () => {
       careOfferingsEnabled: true,
     });
 
-    renderForm();
+    await renderForm();
     await waitForLoaded();
     await chooseOption("Klassenstufe", "3. Klasse");
 
@@ -1206,7 +1233,7 @@ describe("EnrollmentForm", () => {
   });
 
   it("hides grade and care offerings when the tenant disables both", async () => {
-    mockFetchPublicCareOfferings.mockResolvedValue({
+    phaseOfferingsFixture.mockResolvedValue({
       offerings: offerings(),
       careOfferingSelectionMode: "at_least_one",
       careRequired: true,
@@ -1214,7 +1241,7 @@ describe("EnrollmentForm", () => {
       careOfferingsEnabled: false,
     });
 
-    renderForm();
+    await renderForm();
     await waitForLoaded();
 
     // Anker: die Kinderkarte steht, in der Klassenstufe und Angebote stünden.
@@ -1233,9 +1260,9 @@ describe("EnrollmentForm", () => {
     const withHelp = schema();
     withHelp.fields[0]!.help_text = "Bitte gewünschte Abholung beschreiben.";
     withHelp.fields[3]!.help_text = "Pro Tag die Uhrzeit eintragen.";
-    mockFetchPublicActiveSchema.mockResolvedValue(withHelp);
+    phaseSchemaFixture.mockResolvedValue(withHelp);
 
-    renderForm();
+    await renderForm();
     await waitForLoaded();
 
     expect(
@@ -1259,9 +1286,9 @@ describe("EnrollmentForm", () => {
         options: [{ value: "bus", label: "Mit dem Bus" }],
       },
     ];
-    mockFetchPublicActiveSchema.mockResolvedValue(customSchema);
+    phaseSchemaFixture.mockResolvedValue(customSchema);
 
-    renderForm();
+    await renderForm();
     await waitForLoaded();
 
     const label = screen.getByText("Ankunftsweg").closest("label");
@@ -1281,22 +1308,8 @@ describe("EnrollmentForm", () => {
     ).toBeInTheDocument();
   });
 
-  it("treats malformed contact phone and email values as missing", () => {
-    const malformedContacts = [
-      {
-        first_name: "Mara",
-        last_name: "Muster",
-        email: 42,
-        phone_numbers: [null, {}, { phone_number: 7 }],
-      },
-    ];
-
-    expect(() => contactListValueMissing(malformedContacts)).not.toThrow();
-    expect(contactListValueMissing(malformedContacts)).toBe(true);
-  });
-
   it("shows the compulsory attendance notice near care offerings", async () => {
-    renderForm();
+    await renderForm();
     await waitForLoaded();
 
     expect(
@@ -1306,20 +1319,23 @@ describe("EnrollmentForm", () => {
     ).toBeInTheDocument();
   });
 
-  it("fails closed when the legal texts cannot be loaded", async () => {
-    // A real load failure (settings/DB/JSON error) must reject the whole
-    // form load so the parent never submits legally relevant consent
-    // without the configured documents. Unconfigured texts (empty
-    // strings, a 200) do NOT trigger this — see the beforeEach default.
+  it("fails closed when the preview cannot load the legal texts", async () => {
+    // A template without its own legal blocks previews the school's texts.
+    // A real load failure must replace the form, so it never shows consent
+    // without the configured documents. Unconfigured texts (empty strings,
+    // a 200) do not trigger this; see the beforeEach default.
     mockFetchPublicLegalTexts.mockReset();
     mockFetchPublicLegalTexts.mockRejectedValue(
       new ApiError("legal texts request failed: 500", 500),
     );
-    renderForm();
+    await renderForm({
+      phaseID: undefined,
+      previewMode: true,
+      previewSchema: schema(),
+    });
     await waitForLoaded();
 
-    // The load error replaces the form, so consent can't be collected
-    // without the documents; the backend sentence never reaches the parent.
+    // The backend sentence never reaches the reader.
     expect(
       await screen.findByText(catalogText("general.server", "die Anmeldung")),
     ).toBeInTheDocument();
@@ -1327,14 +1343,13 @@ describe("EnrollmentForm", () => {
       screen.queryByText("legal texts request failed: 500"),
     ).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /absenden/i })).toBeNull();
-    expect(screen.queryByText("Flexible Betreuung")).not.toBeInTheDocument();
-    expect(mockSubmitEnrollment).not.toHaveBeenCalled();
+    expect(screen.queryByText("Allergien")).not.toBeInTheDocument();
   });
 
   it("localizes the e-mail contact notice CTA in localized public copy", async () => {
     mockIntlLocale.value = "en";
 
-    renderForm({ localizedCopy: true });
+    await renderForm({ localizedCopy: true });
     await waitForLoaded();
 
     const emailContactNotice = screen
@@ -1396,7 +1411,10 @@ describe("EnrollmentForm", () => {
   it("shows school-written texts in the chosen language and German where none exists", async () => {
     mockIntlLocale.value = "en";
 
-    renderForm({ localizedCopy: true, prefetchedData: translatedPrefetch() });
+    await renderForm({
+      localizedCopy: true,
+      prefetchedData: translatedPrefetch(),
+    });
     await waitForLoaded();
 
     expect(screen.getByText("Pickup note")).toBeInTheDocument();
@@ -1425,7 +1443,7 @@ describe("EnrollmentForm", () => {
     });
     prefetched.legalTexts = legalTexts([]);
 
-    renderForm({
+    await renderForm({
       localizedCopy: true,
       prefetchedData: prefetched,
       initialDraft: editDraft([
@@ -1458,7 +1476,7 @@ describe("EnrollmentForm", () => {
   it("keeps school-written texts German in a staff preview", async () => {
     mockIntlLocale.value = "en";
 
-    renderForm({ prefetchedData: translatedPrefetch() });
+    await renderForm({ prefetchedData: translatedPrefetch() });
     await waitForLoaded();
 
     expect(screen.getByText("Abholhinweis")).toBeInTheDocument();
@@ -1479,13 +1497,13 @@ describe("EnrollmentForm", () => {
         },
       ]),
     );
-    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+    phaseOfferingsFixture.mockResolvedValueOnce({
       offerings: [],
       careOfferingSelectionMode: "optional",
       careRequired: false,
     });
 
-    renderForm();
+    await renderForm();
     await waitForLoaded();
 
     expect(screen.getByText(/Ganztag Info-Brief/)).toBeInTheDocument();
@@ -1528,13 +1546,13 @@ describe("EnrollmentForm", () => {
         },
       ]),
     );
-    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+    phaseOfferingsFixture.mockResolvedValueOnce({
       offerings: [],
       careOfferingSelectionMode: "optional",
       careRequired: false,
     });
 
-    renderForm();
+    await renderForm();
     await waitForLoaded();
 
     expect(screen.queryByText("Mehr anzeigen")).not.toBeInTheDocument();
@@ -1552,7 +1570,7 @@ describe("EnrollmentForm", () => {
   });
 
   it("renders email contact as an active notice block without a checkbox", async () => {
-    renderForm();
+    await renderForm();
     await waitForLoaded();
 
     const notice = screen.getByText(/Status-Benachrichtigungen/).closest("div");
@@ -1595,9 +1613,9 @@ describe("EnrollmentForm", () => {
         sort_order: 3,
       },
     ];
-    mockFetchPublicActiveSchema.mockResolvedValue(customSchema);
+    phaseSchemaFixture.mockResolvedValue(customSchema);
 
-    renderForm({
+    await renderForm({
       initialDraft: editDraft([
         { id: "c-1", first_name: "Lina", last_name: "Muster" },
         { id: "c-2", first_name: "Noah", last_name: "Muster" },
@@ -1646,13 +1664,13 @@ describe("EnrollmentForm", () => {
 
   it("hides the legal section and submits empty consent flags when no blocks are configured", async () => {
     mockFetchPublicLegalTexts.mockResolvedValueOnce(legalTexts([]));
-    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+    phaseOfferingsFixture.mockResolvedValueOnce({
       offerings: [],
       careOfferingSelectionMode: "optional",
       careRequired: false,
     });
 
-    renderForm({
+    await renderForm({
       initialDraft: editDraft([
         { id: "c-1", first_name: "Anton", last_name: "Alster" },
       ]),
@@ -1689,13 +1707,13 @@ describe("EnrollmentForm", () => {
         },
       ]),
     );
-    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+    phaseOfferingsFixture.mockResolvedValueOnce({
       offerings: [],
       careOfferingSelectionMode: "optional",
       careRequired: false,
     });
 
-    renderForm();
+    await renderForm();
     await waitForLoaded();
     await fillRequiredFields();
 
@@ -1728,7 +1746,7 @@ describe("EnrollmentForm", () => {
   it("renders legal blocks from preview schemas without loading tenant legal texts", async () => {
     mockFetchPublicLegalTexts.mockClear();
 
-    renderForm({
+    await renderForm({
       phaseID: undefined,
       previewMode: true,
       previewSchema: {
@@ -1775,7 +1793,7 @@ describe("EnrollmentForm", () => {
 
   it("submits guardian, child, custom field, offering, and consent payloads", async () => {
     const onSubmitted = vi.fn();
-    renderForm({ onSubmitted });
+    await renderForm({ onSubmitted });
     await waitForLoaded();
 
     await fillRequiredFields();
@@ -1867,7 +1885,7 @@ describe("EnrollmentForm", () => {
   it("stays quiet when a submitter stops before sending (#2515)", async () => {
     const onSubmitted = vi.fn();
     const submitter = vi.fn().mockResolvedValue(null);
-    renderForm({ onSubmitted, submitter });
+    await renderForm({ onSubmitted, submitter });
     await waitForLoaded();
 
     await fillRequiredFields();
@@ -1886,7 +1904,7 @@ describe("EnrollmentForm", () => {
   });
 
   it("limits pickup weekdays to the child's selected care days", async () => {
-    renderForm();
+    await renderForm();
     await waitForLoaded();
 
     // Before any care offering is chosen there are no care days, so the
@@ -1911,7 +1929,7 @@ describe("EnrollmentForm", () => {
   it("drops pickup times for days the child is no longer in care", async () => {
     // Two fixed offerings change the care-day set deterministically (no day
     // picker needed).
-    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+    phaseOfferingsFixture.mockResolvedValueOnce({
       offerings: [
         {
           id: "31",
@@ -1944,7 +1962,7 @@ describe("EnrollmentForm", () => {
       careRequired: true,
     });
     const onSubmitted = vi.fn();
-    renderForm({ onSubmitted });
+    await renderForm({ onSubmitted });
     await waitForLoaded();
 
     await fillRequiredFields();
@@ -1983,8 +2001,8 @@ describe("EnrollmentForm", () => {
       ...requiredScheduleSchema.fields[3]!,
       required: true,
     };
-    mockFetchPublicActiveSchema.mockResolvedValueOnce(requiredScheduleSchema);
-    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+    phaseSchemaFixture.mockResolvedValueOnce(requiredScheduleSchema);
+    phaseOfferingsFixture.mockResolvedValueOnce({
       offerings: [
         {
           id: "31",
@@ -2003,7 +2021,7 @@ describe("EnrollmentForm", () => {
       careOfferingSelectionMode: "at_least_one",
       careRequired: true,
     });
-    renderForm();
+    await renderForm();
     await waitForLoaded();
     await fillRequiredFields();
 
@@ -2050,13 +2068,13 @@ describe("EnrollmentForm", () => {
       ...requiredScheduleSchema.fields[3]!,
       required: true,
     };
-    mockFetchPublicActiveSchema.mockResolvedValueOnce(requiredScheduleSchema);
-    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+    phaseSchemaFixture.mockResolvedValueOnce(requiredScheduleSchema);
+    phaseOfferingsFixture.mockResolvedValueOnce({
       offerings: [],
       careOfferingSelectionMode: "optional",
       careRequired: false,
     });
-    renderForm();
+    await renderForm();
     await waitForLoaded();
     await fillRequiredFields();
 
@@ -2093,7 +2111,7 @@ describe("EnrollmentForm", () => {
     // the care days, so the field shows exactly two days -- but because it is
     // NOT required, the hint must stay on the lenient "keine Angabe" copy (not
     // the per-day demand) and an entirely empty schedule must still submit.
-    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+    phaseOfferingsFixture.mockResolvedValueOnce({
       offerings: [
         {
           id: "31",
@@ -2112,7 +2130,7 @@ describe("EnrollmentForm", () => {
       careOfferingSelectionMode: "at_least_one",
       careRequired: true,
     });
-    renderForm();
+    await renderForm();
     await waitForLoaded();
     await fillRequiredFields();
 
@@ -2135,7 +2153,7 @@ describe("EnrollmentForm", () => {
   // only those grades, otherwise the parent fills in the entire form and is
   // rejected with grade_not_eligible on submit.
   it("offers only the phase's eligible grade levels", async () => {
-    renderForm({
+    await renderForm({
       prefetchedData: {
         schema: schema(),
         offerings: offerings(),
@@ -2157,7 +2175,7 @@ describe("EnrollmentForm", () => {
   });
 
   it("offers every grade when the phase carries no grade restriction", async () => {
-    renderForm({
+    await renderForm({
       prefetchedData: {
         schema: schema(),
         offerings: offerings(),
@@ -2182,7 +2200,7 @@ describe("EnrollmentForm", () => {
     // Reuse is scoped to existing_students phases (#1663): on other audiences
     // adopting a linked child would fresh-create a duplicate on approval, so
     // the panel only appears here.
-    renderForm({
+    await renderForm({
       prefetchedData: {
         schema: schema(),
         offerings: offerings(),
@@ -2210,7 +2228,7 @@ describe("EnrollmentForm", () => {
   });
 
   it("prefills editable guardian fields from a late invite before the parent profile", async () => {
-    renderForm({
+    await renderForm({
       prefetchedData: {
         schema: schema(),
         offerings: offerings(),
@@ -2243,7 +2261,7 @@ describe("EnrollmentForm", () => {
     // client-side "grade is set" check, and rejected at submit with
     // grade_not_eligible for the whole form. It has to fall back to empty so
     // the required-field check forces an eligible grade.
-    renderForm({
+    await renderForm({
       prefetchedData: {
         schema: schema(),
         offerings: offerings(),
@@ -2274,7 +2292,7 @@ describe("EnrollmentForm", () => {
       ...c,
       enrollment_submit: false,
     }));
-    renderForm({
+    await renderForm({
       prefetchedData: {
         schema: schema(),
         offerings: offerings(),
@@ -2305,7 +2323,7 @@ describe("EnrollmentForm", () => {
       ...c,
       status: "inactive",
     }));
-    renderForm({
+    await renderForm({
       prefetchedData: {
         schema: schema(),
         offerings: offerings(),
@@ -2329,7 +2347,7 @@ describe("EnrollmentForm", () => {
   it("hides linked-child reuse and explains it on a new_students phase", async () => {
     // Parent portal path: a new_students phase rejects any already-enrolled
     // child at submit, so the reuse panel must not be offered (#1663).
-    renderForm({
+    await renderForm({
       prefetchedData: {
         schema: schema(),
         offerings: offerings(),
@@ -2352,7 +2370,7 @@ describe("EnrollmentForm", () => {
   });
 
   it("keeps linked-child reuse on an existing_students phase", async () => {
-    renderForm({
+    await renderForm({
       prefetchedData: {
         schema: schema(),
         offerings: offerings(),
@@ -2372,7 +2390,7 @@ describe("EnrollmentForm", () => {
   });
 
   it("requires care offerings and parent-choice days before submit", async () => {
-    renderForm();
+    await renderForm();
     await waitForLoaded();
     await fillRequiredFields();
 
@@ -2394,12 +2412,12 @@ describe("EnrollmentForm", () => {
   });
 
   it("treats exactly-one care selection as a single-choice group", async () => {
-    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+    phaseOfferingsFixture.mockResolvedValueOnce({
       offerings: offerings(),
       careOfferingSelectionMode: "exactly_one",
       careRequired: true,
     });
-    renderForm();
+    await renderForm();
     await waitForLoaded();
 
     const flexible = screen.getByRole("checkbox", {
@@ -2419,18 +2437,18 @@ describe("EnrollmentForm", () => {
   });
 
   it("enforces configurable core required fields", async () => {
-    mockFetchPublicActiveSchema.mockResolvedValueOnce({
+    phaseSchemaFixture.mockResolvedValueOnce({
       ...schema(),
       core_requirements: {
         guardian_phone: true,
       },
     });
-    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+    phaseOfferingsFixture.mockResolvedValueOnce({
       offerings: [],
       careOfferingSelectionMode: "optional",
       careRequired: false,
     });
-    renderForm();
+    await renderForm();
     await waitForLoaded();
     await fillRequiredFields();
 
@@ -2458,11 +2476,9 @@ describe("EnrollmentForm", () => {
 
   // #6044: the staff preview of a phase shows its offerings without the
   // public phase link, which an inactive or closed phase answers with an
-  // error. The preview must not call the public offering route.
+  // error.
   it("shows the offerings a staff phase preview hands in", async () => {
-    mockFetchPublicCareOfferings.mockClear();
-
-    renderForm({
+    await renderForm({
       phaseID: undefined,
       previewMode: true,
       previewSchema: null,
@@ -2477,11 +2493,10 @@ describe("EnrollmentForm", () => {
 
     expect(await screen.findByText("Flexible Betreuung")).toBeVisible();
     expect(screen.getByText("Fixe Betreuung")).toBeVisible();
-    expect(mockFetchPublicCareOfferings).not.toHaveBeenCalled();
   });
 
   it("uses phase preview capabilities instead of template defaults", async () => {
-    renderForm({
+    await renderForm({
       phaseID: undefined,
       previewMode: true,
       previewSchema: null,
@@ -2515,7 +2530,7 @@ describe("EnrollmentForm", () => {
         sort_order: 1,
       },
     ];
-    renderForm({
+    await renderForm({
       phaseID: undefined,
       previewMode: true,
       previewSchema,
@@ -2552,7 +2567,7 @@ describe("EnrollmentForm", () => {
   });
 
   it("adds and removes children without submitting in preview mode", async () => {
-    renderForm({ previewMode: true, previewSchema: schema() });
+    await renderForm({ previewMode: true, previewSchema: schema() });
     await waitForLoaded();
 
     fireEvent.click(screen.getByRole("button", { name: "Weiteres Kind" }));
@@ -2579,7 +2594,7 @@ describe("EnrollmentForm", () => {
       },
     ];
 
-    renderForm({ phaseID: undefined, previewMode: true, previewSchema });
+    await renderForm({ phaseID: undefined, previewMode: true, previewSchema });
     await waitForLoaded();
 
     expect(
@@ -2622,8 +2637,8 @@ describe("EnrollmentForm", () => {
         sort_order: 1,
       },
     ];
-    mockFetchPublicActiveSchema.mockResolvedValueOnce(restricted);
-    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+    phaseSchemaFixture.mockResolvedValueOnce(restricted);
+    phaseOfferingsFixture.mockResolvedValueOnce({
       offerings: [],
       careOfferingSelectionMode: "optional",
       careRequired: false,
@@ -2631,7 +2646,7 @@ describe("EnrollmentForm", () => {
       careOfferingsEnabled: true,
     });
 
-    renderForm();
+    await renderForm();
     await waitForLoaded();
     await chooseOption("Klassenstufe", "1. Klasse");
 
@@ -2655,6 +2670,53 @@ describe("EnrollmentForm", () => {
     expect(within(group).getByRole("radio", { name: "Bus" })).not.toBeChecked();
   });
 
+  it("ignores a saved grade for the way-home rule while the phase collects no grade", async () => {
+    const restricted = schema();
+    restricted.fields = [
+      {
+        key: "heimwege",
+        label: "Erlaubte Heimwege",
+        type: "weekday_multi_mode",
+        required: false,
+        applies_to_child: true,
+        target: "student.allowed_departure_modes",
+        single_mode_grades: [1],
+        sort_order: 1,
+      },
+    ];
+    const draft = editDraft([
+      { id: "c1", first_name: "Lina", last_name: "Muster" },
+    ]);
+    draft.children[0]!.target_grade_level = 1;
+    draft.children[0]!.offering_ids = [];
+
+    await renderForm({
+      initialDraft: draft,
+      prefetchedData: {
+        schema: restricted,
+        offerings: [],
+        careOfferingSelectionMode: "optional",
+        captchaConfig: null,
+        legalTexts: legalTexts([]),
+        collectGradeLevel: false,
+      },
+    });
+    await waitForLoaded();
+
+    // The hidden grade 1 must not turn the picker into one way per day.
+    const group = screen.getByRole("group", { name: /Erlaubte Heimwege/ });
+    fireEvent.click(within(group).getByRole("button", { name: "Mo" }));
+    fireEvent.click(within(group).getByRole("checkbox", { name: "Bus" }));
+    fireEvent.click(
+      within(group).getByRole("checkbox", { name: "Wird abgeholt" }),
+    );
+    expect(within(group).getByRole("checkbox", { name: "Bus" })).toBeChecked();
+    expect(
+      within(group).getByRole("checkbox", { name: "Wird abgeholt" }),
+    ).toBeChecked();
+    expect(within(group).queryByRole("radio")).not.toBeInTheDocument();
+  });
+
   it("keeps the multi-select for grades outside single_mode_grades", async () => {
     const restricted = schema();
     restricted.fields = [
@@ -2669,8 +2731,8 @@ describe("EnrollmentForm", () => {
         sort_order: 1,
       },
     ];
-    mockFetchPublicActiveSchema.mockResolvedValueOnce(restricted);
-    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+    phaseSchemaFixture.mockResolvedValueOnce(restricted);
+    phaseOfferingsFixture.mockResolvedValueOnce({
       offerings: [],
       careOfferingSelectionMode: "optional",
       careRequired: false,
@@ -2678,7 +2740,7 @@ describe("EnrollmentForm", () => {
       careOfferingsEnabled: true,
     });
 
-    renderForm();
+    await renderForm();
     await waitForLoaded();
     await chooseOption("Klassenstufe", "2. Klasse");
 
@@ -2707,7 +2769,7 @@ describe("EnrollmentForm", () => {
       },
     ];
 
-    renderForm({ phaseID: undefined, previewMode: true, previewSchema });
+    await renderForm({ phaseID: undefined, previewMode: true, previewSchema });
     await waitForLoaded();
 
     const group = screen.getByRole("group", { name: /Erlaubte Heimwege/ });
@@ -2748,7 +2810,7 @@ describe("EnrollmentForm", () => {
       },
     ];
 
-    renderForm({ phaseID: undefined, previewMode: true, previewSchema });
+    await renderForm({ phaseID: undefined, previewMode: true, previewSchema });
     await waitForLoaded();
 
     const group = screen.getByRole("group", { name: /Erlaubte Heimwege/ });
@@ -2786,7 +2848,7 @@ describe("EnrollmentForm", () => {
       },
     ];
 
-    renderForm({ phaseID: undefined, previewMode: true, previewSchema });
+    await renderForm({ phaseID: undefined, previewMode: true, previewSchema });
     await waitForLoaded();
 
     const group = screen.getByRole("group", { name: /Erlaubte Heimwege/ });
@@ -2842,7 +2904,7 @@ describe("EnrollmentForm", () => {
       },
     ];
 
-    renderForm({ phaseID: undefined, previewMode: true, previewSchema });
+    await renderForm({ phaseID: undefined, previewMode: true, previewSchema });
     await waitForLoaded();
 
     const group = screen.getByRole("group", { name: /Erlaubte Heimwege/ });
@@ -2875,7 +2937,7 @@ describe("EnrollmentForm", () => {
       },
     ];
 
-    renderForm({ phaseID: undefined, previewMode: true, previewSchema });
+    await renderForm({ phaseID: undefined, previewMode: true, previewSchema });
     await waitForLoaded();
 
     const group = screen.getByRole("group", { name: /Erlaubte Heimwege/ });
@@ -2920,9 +2982,9 @@ describe("EnrollmentForm", () => {
         sort_order: 1,
       },
     ];
-    mockFetchPublicActiveSchema.mockResolvedValue(customSchema);
+    phaseSchemaFixture.mockResolvedValue(customSchema);
 
-    renderForm();
+    await renderForm();
     await waitForLoaded();
 
     const group = screen.getByRole("group", { name: /Erlaubte Heimwege/ });
@@ -2952,8 +3014,8 @@ describe("EnrollmentForm", () => {
         sort_order: 1,
       },
     ];
-    mockFetchPublicActiveSchema.mockResolvedValue(customSchema);
-    mockFetchPublicCareOfferings.mockResolvedValue({
+    phaseSchemaFixture.mockResolvedValue(customSchema);
+    phaseOfferingsFixture.mockResolvedValue({
       offerings: [
         {
           id: "21",
@@ -2986,7 +3048,7 @@ describe("EnrollmentForm", () => {
       careRequired: true,
     });
 
-    renderForm();
+    await renderForm();
     await waitForLoaded();
 
     // Select the Di/Do block so the home-route field has two care days.
@@ -3035,8 +3097,8 @@ describe("EnrollmentForm", () => {
         sort_order: 1,
       },
     ];
-    mockFetchPublicActiveSchema.mockResolvedValue(customSchema);
-    mockFetchPublicCareOfferings.mockResolvedValue({
+    phaseSchemaFixture.mockResolvedValue(customSchema);
+    phaseOfferingsFixture.mockResolvedValue({
       offerings: [
         {
           id: "21",
@@ -3069,7 +3131,7 @@ describe("EnrollmentForm", () => {
       careRequired: true,
     });
 
-    renderForm();
+    await renderForm();
     await waitForLoaded();
 
     fireEvent.click(screen.getByRole("checkbox", { name: /Block Di Do/ }));
@@ -3120,7 +3182,7 @@ describe("EnrollmentForm", () => {
       },
     ];
 
-    renderForm({
+    await renderForm({
       phaseID: undefined,
       previewMode: true,
       previewSchema,
@@ -3156,7 +3218,7 @@ describe("EnrollmentForm", () => {
     // Exercises the draftChildren rebuild path (initialDraft -> ChildDraft[]):
     // each saved child must reappear with its own controlled values, and each
     // gets a deterministic clientId so the cards don't share identity.
-    renderForm({
+    await renderForm({
       initialDraft: editDraft([
         { id: "c-1", first_name: "Anton", last_name: "Alster" },
         { id: "c-2", first_name: "Berta", last_name: "Bach" },
@@ -3183,7 +3245,7 @@ describe("EnrollmentForm", () => {
     ]);
     draft.children[0]!.locked = true;
 
-    renderForm({ initialDraft: draft, lockChildStructure: true });
+    await renderForm({ initialDraft: draft, lockChildStructure: true });
     await waitForLoaded();
 
     // Guardian name plus the one editable child — the locked child has no
@@ -3216,7 +3278,7 @@ describe("EnrollmentForm", () => {
       { id: "c-1", first_name: "Anton", last_name: "Alster" },
     ]);
     draft.consent_flags = { care_contract: true };
-    renderForm({
+    await renderForm({
       submitter,
       skipCaptcha: true,
       initialDraft: draft,
@@ -3251,7 +3313,7 @@ describe("EnrollmentForm", () => {
     const submitter = vi.fn().mockResolvedValue({ status_url: "/status/edit" });
     const noFieldSchema = schema();
     noFieldSchema.fields = [];
-    mockFetchPublicActiveSchema.mockResolvedValueOnce(noFieldSchema);
+    phaseSchemaFixture.mockResolvedValueOnce(noFieldSchema);
     mockFetchPublicLegalTexts.mockResolvedValueOnce(legalTexts([]));
     const draft = editDraft([
       { id: "c-1", first_name: "Anton", last_name: "Alster" },
@@ -3267,7 +3329,7 @@ describe("EnrollmentForm", () => {
     ];
     lockedChild.custom_data = { retired_field: "keep me" };
 
-    renderForm({
+    await renderForm({
       submitter,
       skipCaptcha: true,
       lockChildStructure: true,
@@ -3306,9 +3368,9 @@ describe("EnrollmentForm", () => {
         conditions: [{ source: "grade_level", operator: "in", value: [1, 2] }],
       },
     };
-    mockFetchPublicActiveSchema.mockResolvedValueOnce(noFieldSchema);
+    phaseSchemaFixture.mockResolvedValueOnce(noFieldSchema);
     mockFetchPublicLegalTexts.mockResolvedValueOnce(legalTexts([]));
-    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+    phaseOfferingsFixture.mockResolvedValueOnce({
       offerings: [offerings()[1]!, conditionalRequired],
       careOfferingSelectionMode: "optional",
       careRequired: false,
@@ -3316,7 +3378,7 @@ describe("EnrollmentForm", () => {
       careOfferingsEnabled: true,
     });
 
-    renderForm({
+    await renderForm({
       submitter,
       skipCaptcha: true,
       initialDraft: editDraft([
@@ -3338,9 +3400,9 @@ describe("EnrollmentForm", () => {
     const submitter = vi.fn().mockResolvedValue({ status_url: "/status/edit" });
     const noFieldSchema = schema();
     noFieldSchema.fields = [];
-    mockFetchPublicActiveSchema.mockResolvedValueOnce(noFieldSchema);
+    phaseSchemaFixture.mockResolvedValueOnce(noFieldSchema);
     mockFetchPublicLegalTexts.mockResolvedValueOnce(legalTexts([]));
-    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+    phaseOfferingsFixture.mockResolvedValueOnce({
       offerings: [
         {
           id: "11",
@@ -3376,7 +3438,7 @@ describe("EnrollmentForm", () => {
       careRequired: false,
     });
 
-    renderForm({
+    await renderForm({
       submitter,
       skipCaptcha: true,
       initialDraft: {
@@ -3437,9 +3499,9 @@ describe("EnrollmentForm", () => {
         sort_order: 1,
       },
     ];
-    mockFetchPublicActiveSchema.mockResolvedValue(customSchema);
+    phaseSchemaFixture.mockResolvedValue(customSchema);
 
-    renderForm({
+    await renderForm({
       initialDraft: editDraft([
         { id: "c-1", first_name: "Anton", last_name: "Alster" },
         { id: "c-2", first_name: "Berta", last_name: "Bach" },
@@ -3474,11 +3536,10 @@ describe("EnrollmentForm", () => {
       .fn()
       .mockResolvedValue({ status_url: "/parents/status/1" });
     const onSubmitted = vi.fn();
-    renderForm({
+    await renderForm({
       submitter,
       onSubmitted,
       skipCaptcha: true,
-      profileFetcher: vi.fn().mockResolvedValue(null),
     });
     await waitForLoaded();
     await fillRequiredFields();
@@ -3496,7 +3557,7 @@ describe("EnrollmentForm", () => {
   });
 
   it("submits selected bus weekdays for weekday boolean fields", async () => {
-    renderForm();
+    await renderForm();
     await waitForLoaded();
     await fillRequiredFields();
 
@@ -3533,8 +3594,8 @@ describe("EnrollmentForm", () => {
         sort_order: 1,
       },
     ];
-    mockFetchPublicActiveSchema.mockResolvedValue(customSchema);
-    mockFetchPublicCareOfferings.mockResolvedValue({
+    phaseSchemaFixture.mockResolvedValue(customSchema);
+    phaseOfferingsFixture.mockResolvedValue({
       offerings: [
         {
           id: "21",
@@ -3557,7 +3618,7 @@ describe("EnrollmentForm", () => {
 
   it("submits the coupled companion note when an accompanied day is selected (#1694)", async () => {
     accompaniedModeSchemaAndOfferings();
-    renderForm();
+    await renderForm();
     await waitForLoaded();
     await fillRequiredFields();
     fireEvent.click(screen.getByRole("checkbox", { name: /Block Mo/ }));
@@ -3603,8 +3664,8 @@ describe("EnrollmentForm", () => {
         sort_order: 1,
       },
     ];
-    mockFetchPublicActiveSchema.mockResolvedValue(customSchema);
-    mockFetchPublicCareOfferings.mockResolvedValue({
+    phaseSchemaFixture.mockResolvedValue(customSchema);
+    phaseOfferingsFixture.mockResolvedValue({
       offerings: [
         {
           id: "21",
@@ -3624,7 +3685,7 @@ describe("EnrollmentForm", () => {
       careRequired: true,
     });
 
-    renderForm({
+    await renderForm({
       initialDraft: {
         ...editDraft([{ id: "c-1", first_name: "Lina", last_name: "Muster" }]),
         consent_flags: { agb: true, data_processing: true },
@@ -3696,8 +3757,8 @@ describe("EnrollmentForm", () => {
         sort_order: 2,
       },
     ];
-    mockFetchPublicActiveSchema.mockResolvedValue(customSchema);
-    mockFetchPublicCareOfferings.mockResolvedValue({
+    phaseSchemaFixture.mockResolvedValue(customSchema);
+    phaseOfferingsFixture.mockResolvedValue({
       offerings: [
         {
           id: "21",
@@ -3720,7 +3781,7 @@ describe("EnrollmentForm", () => {
 
   it("couples the companion note when accompanied is selected in a later departure field (#1694)", async () => {
     twoDepartureFieldsSchemaAndOfferings();
-    renderForm();
+    await renderForm();
     await waitForLoaded();
     await fillRequiredFields();
     fireEvent.click(screen.getByRole("checkbox", { name: /Block Mo/ }));
@@ -3758,7 +3819,7 @@ describe("EnrollmentForm", () => {
 
   it("requires the note when accompanied is selected only in a later departure field (#1694)", async () => {
     twoDepartureFieldsSchemaAndOfferings();
-    renderForm();
+    await renderForm();
     await waitForLoaded();
     await fillRequiredFields();
     fireEvent.click(screen.getByRole("checkbox", { name: /Block Mo/ }));
@@ -3788,7 +3849,7 @@ describe("EnrollmentForm", () => {
 
   it("blocks submit with a required-note error when accompanied is selected but the note is empty (#1694)", async () => {
     accompaniedModeSchemaAndOfferings();
-    renderForm();
+    await renderForm();
     await waitForLoaded();
     await fillRequiredFields();
     fireEvent.click(screen.getByRole("checkbox", { name: /Block Mo/ }));
@@ -3820,7 +3881,7 @@ describe("EnrollmentForm", () => {
 
   it("drops the companion note from the payload once accompanied is deselected (#1694)", async () => {
     accompaniedModeSchemaAndOfferings();
-    renderForm();
+    await renderForm();
     await waitForLoaded();
     await fillRequiredFields();
     fireEvent.click(screen.getByRole("checkbox", { name: /Block Mo/ }));
@@ -3869,8 +3930,8 @@ describe("EnrollmentForm", () => {
         sort_order: 7,
       },
     ];
-    mockFetchPublicActiveSchema.mockResolvedValueOnce(withPickup);
-    renderForm();
+    phaseSchemaFixture.mockResolvedValueOnce(withPickup);
+    await renderForm();
     await waitForLoaded();
 
     // The pickup field gets the pickup copy, not the bus copy — guards the
@@ -3899,14 +3960,14 @@ describe("EnrollmentForm", () => {
         sort_order: 7,
       },
     ];
-    mockFetchPublicActiveSchema.mockResolvedValueOnce(withDeparture);
-    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+    phaseSchemaFixture.mockResolvedValueOnce(withDeparture);
+    phaseOfferingsFixture.mockResolvedValueOnce({
       offerings: [],
       careOfferingSelectionMode: "optional",
       careRequired: false,
     });
 
-    renderForm({ localizedCopy: true });
+    await renderForm({ localizedCopy: true });
 
     expect(await screen.findByText("Geh-/Abholregelung")).toBeInTheDocument();
     expect(
@@ -3935,13 +3996,13 @@ describe("EnrollmentForm", () => {
     requiredBusDays.fields = requiredBusDays.fields.map((field) =>
       field.key === "bus_days" ? { ...field, required: true } : field,
     );
-    mockFetchPublicActiveSchema.mockResolvedValueOnce(requiredBusDays);
-    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+    phaseSchemaFixture.mockResolvedValueOnce(requiredBusDays);
+    phaseOfferingsFixture.mockResolvedValueOnce({
       offerings: [],
       careOfferingSelectionMode: "optional",
       careRequired: false,
     });
-    renderForm();
+    await renderForm();
     await waitForLoaded();
     await fillRequiredFields();
 
@@ -3974,13 +4035,13 @@ describe("EnrollmentForm", () => {
         sort_order: 7,
       },
     ];
-    mockFetchPublicActiveSchema.mockResolvedValueOnce(withRequiredPickup);
-    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+    phaseSchemaFixture.mockResolvedValueOnce(withRequiredPickup);
+    phaseOfferingsFixture.mockResolvedValueOnce({
       offerings: [],
       careOfferingSelectionMode: "optional",
       careRequired: false,
     });
-    renderForm();
+    await renderForm();
     await waitForLoaded();
     await fillRequiredFields();
 
@@ -4009,9 +4070,112 @@ describe("EnrollmentForm", () => {
     });
   });
 
+  it("marks the child the server's exactly-one rejection applies to, without counting mandatory offerings", async () => {
+    // The phase switched to "genau ein Angebot" after the form loaded: the
+    // server rejects, names no child, and the form applies the rule itself.
+    mockSubmitEnrollment.mockRejectedValueOnce(
+      new ApiError("exactly one", 400, {
+        code: "enrollment.care_offering_exactly_one",
+      }),
+    );
+    const draft = editDraft([
+      { id: "c1", first_name: "Lina", last_name: "Muster" },
+      { id: "c2", first_name: "Tom", last_name: "Muster" },
+    ]);
+    draft.children[1]!.offering_ids = [];
+    await renderForm({
+      initialDraft: draft,
+      prefetchedData: {
+        schema: schema(),
+        offerings: [
+          ...offerings(),
+          {
+            id: "20",
+            phase_id: "5",
+            name: "Mittagessen",
+            description: null,
+            days_of_week_mode: "fixed",
+            available_days: ["mon", "tue", "wed", "thu", "fri"],
+            includes_holiday_care: false,
+            includes_lunch: true,
+            is_active: true,
+            is_required: true,
+            capacity: null,
+          },
+        ],
+        careOfferingSelectionMode: "optional",
+        captchaConfig: null,
+        legalTexts: legalTexts([]),
+      },
+    });
+    await waitForLoaded();
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    // Tom has only the mandatory lunch; Lina picked one offering on top.
+    await waitFor(() =>
+      expect(
+        document.querySelector(
+          '[aria-describedby="children-1-offerings-error"]',
+        ),
+      ).toHaveAttribute("aria-invalid", "true"),
+    );
+    expect(
+      document.querySelector('[aria-describedby="children-0-offerings-error"]'),
+    ).not.toBeInTheDocument();
+  });
+
+  it("marks a child with only mandatory offerings after the server's at-least-one rejection", async () => {
+    mockSubmitEnrollment.mockRejectedValueOnce(
+      new ApiError("missing care", 400, {
+        code: "enrollment.care_offering_missing",
+      }),
+    );
+    const draft = editDraft([
+      { id: "c1", first_name: "Lina", last_name: "Muster" },
+    ]);
+    draft.children[0]!.offering_ids = [];
+    await renderForm({
+      initialDraft: draft,
+      prefetchedData: {
+        schema: schema(),
+        offerings: [
+          ...offerings(),
+          {
+            id: "20",
+            phase_id: "5",
+            name: "Mittagessen",
+            description: null,
+            days_of_week_mode: "fixed",
+            available_days: ["mon", "tue", "wed", "thu", "fri"],
+            includes_holiday_care: false,
+            includes_lunch: true,
+            is_active: true,
+            is_required: true,
+            capacity: null,
+          },
+        ],
+        careOfferingSelectionMode: "optional",
+        captchaConfig: null,
+        legalTexts: legalTexts([]),
+      },
+    });
+    await waitForLoaded();
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    await waitFor(() =>
+      expect(
+        document.querySelector(
+          '[aria-describedby="children-0-offerings-error"]',
+        ),
+      ).toHaveAttribute("aria-invalid", "true"),
+    );
+  });
+
   it("pre-selects and locks a mandatory offering and submits it for every child", async () => {
     const submitter = vi.fn().mockResolvedValue({ status_url: "/status/req" });
-    mockFetchPublicCareOfferings.mockResolvedValue({
+    phaseOfferingsFixture.mockResolvedValue({
       offerings: [
         {
           id: "20",
@@ -4030,7 +4194,7 @@ describe("EnrollmentForm", () => {
       careOfferingSelectionMode: "optional",
       careRequired: false,
     });
-    renderForm({ submitter, skipCaptcha: true });
+    await renderForm({ submitter, skipCaptcha: true });
     await waitForLoaded();
 
     // The mandatory offering is checked and cannot be toggled off.
@@ -4053,7 +4217,7 @@ describe("EnrollmentForm", () => {
 
   it("auto-fills required lunch days from selected care days without submitting them as manual picks", async () => {
     const submitter = vi.fn().mockResolvedValue({ status_url: "/status/req" });
-    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+    phaseOfferingsFixture.mockResolvedValueOnce({
       offerings: [
         {
           id: "12",
@@ -4087,7 +4251,7 @@ describe("EnrollmentForm", () => {
       careOfferingSelectionMode: "optional",
       careRequired: false,
     });
-    renderForm({ submitter, skipCaptcha: true });
+    await renderForm({ submitter, skipCaptcha: true });
     await waitForLoaded();
 
     fireEvent.click(screen.getByRole("checkbox", { name: /Fixe Betreuung/ }));
@@ -4110,7 +4274,7 @@ describe("EnrollmentForm", () => {
   });
 
   it("shows auto-added offerings as selected without exposing day provenance", async () => {
-    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+    phaseOfferingsFixture.mockResolvedValueOnce({
       offerings: [
         {
           id: "11",
@@ -4146,7 +4310,7 @@ describe("EnrollmentForm", () => {
       careOfferingSelectionMode: "optional",
       careRequired: false,
     });
-    renderForm();
+    await renderForm();
     await waitForLoaded();
     await chooseOption("Klassenstufe", "2. Klasse");
 
@@ -4182,7 +4346,7 @@ describe("EnrollmentForm", () => {
   });
 
   it("validates selection groups against auto-added offerings", async () => {
-    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+    phaseOfferingsFixture.mockResolvedValueOnce({
       offerings: [
         {
           id: "11",
@@ -4235,7 +4399,7 @@ describe("EnrollmentForm", () => {
       careOfferingSelectionMode: "optional",
       careRequired: false,
     });
-    renderForm();
+    await renderForm();
     await waitForLoaded();
     await fillRequiredFields();
 
@@ -4298,12 +4462,12 @@ describe("EnrollmentForm", () => {
     }
 
     it("names the day and both variants at selection, keeps both and blocks the submit", async () => {
-      mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      phaseOfferingsFixture.mockResolvedValueOnce({
         offerings: [shortCare, longCare],
         careOfferingSelectionMode: "optional",
         careRequired: false,
       });
-      renderForm();
+      await renderForm();
       await waitForLoaded();
       await fillRequiredFields();
 
@@ -4338,7 +4502,7 @@ describe("EnrollmentForm", () => {
     });
 
     it("counts the days of a fixed variant", async () => {
-      mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      phaseOfferingsFixture.mockResolvedValueOnce({
         offerings: [
           shortCare,
           perDayVariant("43", "Freitag bis 15 Uhr", {
@@ -4349,7 +4513,7 @@ describe("EnrollmentForm", () => {
         careOfferingSelectionMode: "optional",
         careRequired: false,
       });
-      renderForm();
+      await renderForm();
       await waitForLoaded();
 
       pick("41", "Fr");
@@ -4365,7 +4529,7 @@ describe("EnrollmentForm", () => {
     });
 
     it("counts the days an automatic addition brings in", async () => {
-      mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      phaseOfferingsFixture.mockResolvedValueOnce({
         offerings: [
           perDayVariant("44", "Hausaufgabenkurs", {
             selection_group: null,
@@ -4380,7 +4544,7 @@ describe("EnrollmentForm", () => {
         careOfferingSelectionMode: "optional",
         careRequired: false,
       });
-      renderForm();
+      await renderForm();
       await waitForLoaded();
 
       pick("44", "Mi");
@@ -4400,7 +4564,7 @@ describe("EnrollmentForm", () => {
   });
 
   it("counts only choosable offerings for exactly_one when a required offering is present", async () => {
-    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+    phaseOfferingsFixture.mockResolvedValueOnce({
       offerings: [
         {
           id: "20",
@@ -4432,7 +4596,7 @@ describe("EnrollmentForm", () => {
       careOfferingSelectionMode: "exactly_one",
       careRequired: true,
     });
-    renderForm();
+    await renderForm();
     await waitForLoaded();
 
     // The required offering renders in its own locked "Pflichtangebote" block,
@@ -4530,29 +4694,29 @@ describe("EnrollmentForm — fixed pickup times", () => {
 
   beforeEach(() => {
     mockIntlLocale.value = "de";
-    mockFetchPublicActiveSchema.mockReset();
-    mockFetchPublicCaptchaConfig.mockReset();
+    phaseSchemaFixture.mockReset();
+    captchaConfigFixture.mockReset();
     mockFetchPublicLegalTexts.mockReset();
-    mockFetchPublicCareOfferings.mockReset();
-    mockFetchMyEnrollmentProfile.mockReset();
+    phaseOfferingsFixture.mockReset();
+    profileFixture.mockReset();
     mockSubmitEnrollment.mockReset();
-    mockFetchPublicActiveSchema.mockResolvedValue(pickupSchema());
-    mockFetchPublicCaptchaConfig.mockResolvedValue({
+    phaseSchemaFixture.mockResolvedValue(pickupSchema());
+    captchaConfigFixture.mockResolvedValue({
       enabled: false,
       site_key: "",
     });
     mockFetchPublicLegalTexts.mockResolvedValue(legalTexts([]));
-    mockFetchPublicCareOfferings.mockResolvedValue({
+    phaseOfferingsFixture.mockResolvedValue({
       offerings: [],
       careOfferingSelectionMode: "optional",
       careRequired: false,
     });
-    mockFetchMyEnrollmentProfile.mockResolvedValue(null);
+    profileFixture.mockResolvedValue(null);
     mockSubmitEnrollment.mockResolvedValue({ status_url: "/status/abc" });
   });
 
   it("renders a dropdown limited to the configured pickup times", async () => {
-    renderForm();
+    await renderForm();
     await waitForLoaded();
 
     // The constrained field must NOT render the free-entry time input.
@@ -4571,8 +4735,8 @@ describe("EnrollmentForm — fixed pickup times", () => {
 
   it("falls back to a free time input when no fixed times are configured", async () => {
     // allowed_times empty → historical free-entry behaviour.
-    mockFetchPublicActiveSchema.mockResolvedValue(pickupSchema([]));
-    renderForm();
+    phaseSchemaFixture.mockResolvedValue(pickupSchema([]));
+    await renderForm();
     await waitForLoaded();
 
     expect(
@@ -4588,7 +4752,7 @@ describe("EnrollmentForm — fixed pickup times", () => {
     // The admin shortened the list after this draft was saved: 12:00 is no
     // longer offered. It must stay visible (not silently blanked) and be
     // tagged so the parent re-picks it before submit.
-    renderForm({ initialDraft: draftWithPickup({ mon: "12:00" }) });
+    await renderForm({ initialDraft: draftWithPickup({ mon: "12:00" }) });
     await waitForLoaded();
 
     expect(screen.getByText(/12:00.*nicht mehr verfügbar/)).toBeInTheDocument();
@@ -4608,7 +4772,7 @@ describe("EnrollmentForm — fixed pickup times", () => {
       }),
     );
 
-    renderForm({ initialDraft: draftWithPickup({ mon: "12:00" }) });
+    await renderForm({ initialDraft: draftWithPickup({ mon: "12:00" }) });
     await waitForLoaded();
 
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
@@ -4639,7 +4803,7 @@ describe("EnrollmentForm — fixed pickup times", () => {
     );
 
     // 14:45 is in the client's allowed list — the precise pass cannot flag it.
-    renderForm({ initialDraft: draftWithPickup({ mon: "14:45" }) });
+    await renderForm({ initialDraft: draftWithPickup({ mon: "14:45" }) });
     await waitForLoaded();
 
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
@@ -4657,7 +4821,7 @@ describe("EnrollmentForm — fixed pickup times", () => {
         errors: [{ field: "children.0.first_name", reason: "required" }],
       }),
     );
-    renderForm({ initialDraft: draftWithPickup({ mon: "14:45" }) });
+    await renderForm({ initialDraft: draftWithPickup({ mon: "14:45" }) });
     await waitForLoaded();
 
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
@@ -4680,7 +4844,7 @@ describe("EnrollmentForm — fixed pickup times", () => {
         errors: [{ field: "children.0.first_name", reason: "required" }],
       }),
     );
-    renderForm({ initialDraft: draftWithPickup({ mon: "14:45" }) });
+    await renderForm({ initialDraft: draftWithPickup({ mon: "14:45" }) });
     await waitForLoaded();
     const scrolls = recordScrolls();
     try {
@@ -4690,7 +4854,7 @@ describe("EnrollmentForm — fixed pickup times", () => {
       expect(
         await screen.findByText(catalogText("general.input", "die Anmeldung")),
       ).toBeInTheDocument();
-      await settle();
+      await submitAttemptFinished();
       expect(scrolls.scrolled).toEqual([
         document.querySelector('input[name="children_0_first_name"]'),
       ]);
@@ -4709,7 +4873,7 @@ describe("EnrollmentForm — fixed pickup times", () => {
         code: "enrollment.pickup_time_not_allowed",
       }),
     );
-    renderForm({ initialDraft: draftWithPickup({ mon: "12:00" }) });
+    await renderForm({ initialDraft: draftWithPickup({ mon: "12:00" }) });
     await waitForLoaded();
     const scrolls = recordScrolls();
     try {
@@ -4719,7 +4883,7 @@ describe("EnrollmentForm — fixed pickup times", () => {
       await waitFor(() =>
         expect(screen.getAllByText(message).length).toBeGreaterThanOrEqual(2),
       );
-      await settle();
+      await submitAttemptFinished();
       const marked = document
         .querySelector("form")
         ?.querySelector('[aria-invalid="true"]');
@@ -4739,7 +4903,7 @@ describe("EnrollmentForm — fixed pickup times", () => {
         ],
       }),
     );
-    renderForm({ initialDraft: draftWithPickup({ mon: "14:45" }) });
+    await renderForm({ initialDraft: draftWithPickup({ mon: "14:45" }) });
     await waitForLoaded();
 
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
@@ -4766,9 +4930,9 @@ describe("EnrollmentForm — fixed pickup times", () => {
         sort_order: 1,
       },
     ];
-    mockFetchPublicActiveSchema.mockResolvedValue(customSchema);
+    phaseSchemaFixture.mockResolvedValue(customSchema);
 
-    renderForm({ initialDraft: draftWithPickup({}) });
+    await renderForm({ initialDraft: draftWithPickup({}) });
     await waitForLoaded();
 
     const picker = screen.getByLabelText("Wunschtermin");
@@ -4791,7 +4955,7 @@ describe("EnrollmentForm — fixed pickup times", () => {
         expect(picker).toHaveAttribute("data-form-invalid", "true");
         expect(picker).toHaveFocus();
       });
-      await settle();
+      await submitAttemptFinished();
       expect(scrolls.scrolled).toEqual([picker]);
     } finally {
       scrolls.restore();
@@ -4805,7 +4969,7 @@ describe("EnrollmentForm — fixed pickup times", () => {
       )
       .mockResolvedValueOnce({ request_id: "1", status_url: "/status/abc" });
     const onSubmitted = vi.fn();
-    renderForm({
+    await renderForm({
       initialDraft: draftWithPickup({ mon: "14:45" }),
       onSubmitted,
     });
@@ -4824,12 +4988,16 @@ describe("EnrollmentForm — fixed pickup times", () => {
     expect(mockSubmitEnrollment).toHaveBeenCalledTimes(2);
   });
 
-  it("stops the load when the form template fails, then retries", async () => {
-    mockFetchPublicActiveSchema.mockReset();
-    mockFetchPublicActiveSchema
-      .mockRejectedValueOnce(new ApiError("schema", 503))
-      .mockResolvedValueOnce(pickupSchema());
-    renderForm();
+  it("stops the preview when its legal texts fail, then retries", async () => {
+    mockFetchPublicLegalTexts.mockReset();
+    mockFetchPublicLegalTexts
+      .mockRejectedValueOnce(new ApiError("legal texts", 503))
+      .mockResolvedValueOnce(legalTexts());
+    await renderForm({
+      phaseID: undefined,
+      previewMode: true,
+      previewSchema: pickupSchema(),
+    });
     await waitForLoaded();
 
     expect(
@@ -4838,13 +5006,13 @@ describe("EnrollmentForm — fixed pickup times", () => {
       ),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Anmeldung absenden" }),
+      screen.queryByRole("button", { name: "Vorschau, nicht absenden" }),
     ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
 
     expect(
-      await screen.findByRole("button", { name: "Anmeldung absenden" }),
+      await screen.findByRole("button", { name: "Vorschau, nicht absenden" }),
     ).toBeInTheDocument();
   });
 });
@@ -4852,29 +5020,29 @@ describe("EnrollmentForm — fixed pickup times", () => {
 describe("EnrollmentForm restrictToOfferings (#2251)", () => {
   beforeEach(() => {
     mockIntlLocale.value = "de";
-    mockFetchPublicActiveSchema.mockReset();
-    mockFetchPublicCaptchaConfig.mockReset();
+    phaseSchemaFixture.mockReset();
+    captchaConfigFixture.mockReset();
     mockFetchPublicLegalTexts.mockReset();
-    mockFetchPublicCareOfferings.mockReset();
-    mockFetchMyEnrollmentProfile.mockReset();
+    phaseOfferingsFixture.mockReset();
+    profileFixture.mockReset();
     mockSubmitEnrollment.mockReset();
-    mockFetchPublicActiveSchema.mockResolvedValue(schema());
-    mockFetchPublicCaptchaConfig.mockResolvedValue({
+    phaseSchemaFixture.mockResolvedValue(schema());
+    captchaConfigFixture.mockResolvedValue({
       enabled: false,
       site_key: "",
     });
     mockFetchPublicLegalTexts.mockResolvedValue(legalTexts());
-    mockFetchPublicCareOfferings.mockResolvedValue({
+    phaseOfferingsFixture.mockResolvedValue({
       offerings: offerings(),
       careOfferingSelectionMode: "at_least_one",
       careRequired: true,
     });
-    mockFetchMyEnrollmentProfile.mockResolvedValue(null);
+    profileFixture.mockResolvedValue(null);
     mockSubmitEnrollment.mockResolvedValue({ status_url: "/status/abc" });
   });
 
   it("shows only the per-child offering selection, no master data or consents", async () => {
-    renderForm({
+    await renderForm({
       restrictToOfferings: true,
       lockChildStructure: true,
       skipCaptcha: true,
@@ -4915,7 +5083,7 @@ describe("EnrollmentForm restrictToOfferings (#2251)", () => {
         },
       ],
     };
-    renderForm({
+    await renderForm({
       restrictToOfferings: true,
       lockChildStructure: true,
       skipCaptcha: true,
@@ -4963,44 +5131,27 @@ describe("EnrollmentForm restrictToOfferings (#2251)", () => {
   });
 });
 
-describe("submitFieldName (#2515)", () => {
-  it.each([
-    ["guardian_email", "guardian_email"],
-    ["children.0.first_name", "children_0_first_name"],
-    ["children.1.custom_data.allergies", "children_1_custom_allergies"],
-    [
-      "children.0.custom_data.student.departure_companion_note",
-      "children_0_departure_companion_note",
-    ],
-    ["custom_data.siblings", "custom_siblings"],
-    ["consent_flags.agb", "consent_agb"],
-    ["additional_guardians.1.email", "additional_guardian_1_email"],
-  ])("maps %s to the input name %s", (path, name) => {
-    expect(submitFieldName(path)).toBe(name);
-  });
-});
-
 describe("anonymous enrollment information attachments", () => {
   beforeEach(() => {
     mockIntlLocale.value = "de";
-    mockFetchPublicActiveSchema.mockReset();
-    mockFetchPublicCaptchaConfig.mockReset();
+    phaseSchemaFixture.mockReset();
+    captchaConfigFixture.mockReset();
     mockFetchPublicLegalTexts.mockReset();
-    mockFetchPublicCareOfferings.mockReset();
-    mockFetchMyEnrollmentProfile.mockReset();
+    phaseOfferingsFixture.mockReset();
+    profileFixture.mockReset();
     mockSubmitEnrollment.mockReset();
-    mockFetchPublicActiveSchema.mockResolvedValue(schema());
-    mockFetchPublicCaptchaConfig.mockResolvedValue({
+    phaseSchemaFixture.mockResolvedValue(schema());
+    captchaConfigFixture.mockResolvedValue({
       enabled: false,
       site_key: "",
     });
     mockFetchPublicLegalTexts.mockResolvedValue(legalTexts());
-    mockFetchPublicCareOfferings.mockResolvedValue({
+    phaseOfferingsFixture.mockResolvedValue({
       offerings: offerings(),
       careOfferingSelectionMode: "at_least_one",
       careRequired: true,
     });
-    mockFetchMyEnrollmentProfile.mockResolvedValue(null);
+    profileFixture.mockResolvedValue(null);
     mockSubmitEnrollment.mockResolvedValue({ status_url: "/status/abc" });
   });
   it("renders both PDF actions on an information field and a notice without extra consent", async () => {
@@ -5017,7 +5168,7 @@ describe("anonymous enrollment information attachments", () => {
           "/api/public/enrollment-form-legal-documents/42_pickup.pdf",
       },
     ];
-    mockFetchPublicActiveSchema.mockResolvedValueOnce({
+    phaseSchemaFixture.mockResolvedValueOnce({
       id: "7",
       version: 1,
       fields: [
@@ -5053,12 +5204,14 @@ describe("anonymous enrollment information attachments", () => {
         },
       ],
     });
+    const prefetchedData = await fixturePrefetchedData(true);
     render(
       <ToastProvider>
         <EnrollmentForm
           phaseID="5"
           gradeLevelMax={4}
           onSubmitted={vi.fn()}
+          prefetchedData={prefetchedData}
           skipCaptcha
         />
       </ToastProvider>,
@@ -5077,11 +5230,6 @@ describe("anonymous enrollment information attachments", () => {
         name: /Schulstart|Abholen|Informationen|Elternbrief/,
       }),
     ).not.toBeInTheDocument();
-    expect(mockFetchPublicActiveSchema).toHaveBeenCalledWith(
-      "test-tenant",
-      "5",
-      { lateInviteToken: undefined },
-    );
   });
 });
 
@@ -5090,27 +5238,27 @@ describe("EnrollmentForm signature (#4786)", () => {
 
   beforeEach(() => {
     mockIntlLocale.value = "de";
-    mockFetchPublicActiveSchema.mockReset();
-    mockFetchPublicCaptchaConfig.mockReset();
+    phaseSchemaFixture.mockReset();
+    captchaConfigFixture.mockReset();
     mockFetchPublicLegalTexts.mockReset();
-    mockFetchPublicCareOfferings.mockReset();
-    mockFetchMyEnrollmentProfile.mockReset();
+    phaseOfferingsFixture.mockReset();
+    profileFixture.mockReset();
     mockSubmitEnrollment.mockReset();
-    mockFetchPublicActiveSchema.mockResolvedValue({
+    phaseSchemaFixture.mockResolvedValue({
       ...schema(),
       core_requirements: { signature: true },
     });
-    mockFetchPublicCaptchaConfig.mockResolvedValue({
+    captchaConfigFixture.mockResolvedValue({
       enabled: false,
       site_key: "",
     });
     mockFetchPublicLegalTexts.mockResolvedValue(legalTexts());
-    mockFetchPublicCareOfferings.mockResolvedValue({
+    phaseOfferingsFixture.mockResolvedValue({
       offerings: [],
       careOfferingSelectionMode: "optional",
       careRequired: false,
     });
-    mockFetchMyEnrollmentProfile.mockResolvedValue(null);
+    profileFixture.mockResolvedValue(null);
     mockSubmitEnrollment.mockResolvedValue({ status_url: "/status/abc" });
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(
       () =>
@@ -5144,7 +5292,7 @@ describe("EnrollmentForm signature (#4786)", () => {
   }
 
   it("refuses to submit without the signature, then sends it", async () => {
-    renderForm();
+    await renderForm();
     await waitForLoaded();
     expect(
       screen.getByRole("heading", { name: "Unterschrift" }),
@@ -5180,7 +5328,7 @@ describe("EnrollmentForm signature (#4786)", () => {
   });
 
   it("requires a new signature after signed enrollment data changes", async () => {
-    renderForm();
+    await renderForm();
     await waitForLoaded();
     await fillRequiredFields();
     sign();
@@ -5200,8 +5348,8 @@ describe("EnrollmentForm signature (#4786)", () => {
   });
 
   it("leaves the signature out where the form does not require it", async () => {
-    mockFetchPublicActiveSchema.mockResolvedValue(schema());
-    renderForm();
+    phaseSchemaFixture.mockResolvedValue(schema());
+    await renderForm();
     await waitForLoaded();
     expect(screen.getByRole("heading", { name: "Kind 1" })).toBeInTheDocument();
     expect(
@@ -5220,7 +5368,7 @@ describe("EnrollmentForm signature (#4786)", () => {
   });
 
   it("shows no signature field for a change request", async () => {
-    renderForm({ withoutSignature: true });
+    await renderForm({ withoutSignature: true });
     await waitForLoaded();
     expect(screen.getByRole("heading", { name: "Kind 1" })).toBeInTheDocument();
     expect(
