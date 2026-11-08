@@ -339,8 +339,10 @@ Fehler, Rollback, Frische der Reads und Sperren gilt.
 - **Chunk:** bis zu 100 Positionen der Verarbeitungsreihenfolge in einer
   Tenant-Transaktion (`importservice/import_service.go:75`,
   `batches.go:243–313`). Commit-, Checkpoint-, Retry- und Resume-Einheit.
-- **Segment:** zusammenhängender Teil eines Chunks, in dem keine Zeile einen
-  Match-Schlüssel mit einer früheren Zeile desselben Segments teilt.
+- **Segment:** zusammenhängender Teil eines Chunks mit voneinander
+  unabhängigen Zeilen. Keine Zeile darf die Match-Auflösung oder den
+  Schreibzustand einer späteren Zeile desselben Segments ändern; disjunkte
+  Eingabeschlüssel allein reichen dafür nicht (Punkt 2).
 - **Zeilenpfad:** der heutige Ablauf `applyBatchRow` je akzeptierter Zeile
   (`batches.go:384–411`). **Batchpfad:** die Owner-Batch-Kommandos dieses
   Addendums.
@@ -490,8 +492,32 @@ Die Annahmen des Entwurfs gelten mit diesen Abweichungen:
 2. **Chunk-Ausführung (#5827).** `applyAcceptedRows` (`batches.go:329–350`)
    bildet Segmente (Schlüssel: Student Karte, Vor- und Nachname,
    Guardian-E-Mail; Staff Personalnummer, E-Mail, Name; Klassenliste Name und
-   Klasse). Segmente mit weniger als zwei Zeilen nehmen den Zeilenpfad. Je
-   Segment:
+   Klasse). Diese Eingabeschlüssel bilden nur vorläufige Segmente. Die
+   Abhängigkeitsprüfung berücksichtigt auch aufgelöste Identitäten und
+   sämtliche betroffenen alten und neuen Suchschlüssel nach den Regeln von
+   `FindExisting`, einschließlich Fallbacks und Mehrdeutigkeit. Zwei Zeilen
+   mit derselben Zielidentität sind nicht unabhängig. Auch verschiedene
+   Zielidentitäten sind abhängig, wenn das Schreiben einer Zeile die
+   Trefferzahl oder Zuordnung einer späteren Suche ändern kann.
+
+   Updates, die Suchschlüssel ändern können, nehmen als einzelne Segmente
+   den Zeilenpfad, sofern ihre Unabhängigkeit nicht vor
+   `determineImportAction` nachgewiesen ist. Fehlen dafür Daten aus den nach
+   Punkt 6 erlaubten Reads, gilt ebenfalls der Zeilenpfad; die Prüfung
+   rechtfertigt keinen vorgezogenen Kind-Read ohne Gate und Sperre. Nach
+   jeder Segmentgrenze wird die verbleibende Folge gegen den dann gültigen
+   Transaktionsstand neu aufgelöst und segmentiert. Vorher ermittelte
+   Matches, Match-Fehler und Aktionen dieser Folge werden verworfen, nicht
+   erst bei einem Batchfehler.
+
+   Beispiel: Zeile 1 findet ein Kind per RFID und benennt es von B nach A
+   um; Zeile 2 sucht ohne Karte nach B. Beide Zeilen dürfen nicht mit den
+   gemeinsam vorab ermittelten Matches verarbeitet werden. Nach Zeile 1
+   liefert die neue Suche für Zeile 2 im Update-Modus `not_found`, wie im
+   heutigen Zeilenpfad.
+
+   Segmente mit weniger als zwei Zeilen nehmen den Zeilenpfad. Je endgültig
+   unabhängigem Segment:
    1. `ResolveChunk` als geschützter Read (Savepoint, wie
       `student_import_preview.go:70`); scheitert er, gilt `FindExisting` je
       Zeile wie heute.
@@ -756,6 +782,14 @@ Jeder Schritt prüft:
   erzwungenem Zeilenpfad. Gleich sein müssen Antwort-JSON ohne Timestamps,
   Owner-Zeilen ohne `id`/`created_at`/`updated_at`, NULL gegen Default und
   Fehlercodes.
+- **Match-Abhängigkeiten:** ohne erzwungenen Batchfehler ein Kind per RFID
+  von B nach A umbenennen, danach ohne Karte nach B suchen: im Update-Modus
+  genau ein Update und `not_found` für die zweite Zeile, Antwort und
+  Persistenz wie im erzwungenen Zeilenpfad. Zusätzlich nach A suchen und
+  Fälle mit verschiedenen Eingabeschlüsseln, aber gleicher Zielidentität
+  sowie mit geänderter Mehrdeutigkeit prüfen. Die Folge wird nach der
+  Segmentgrenze neu aufgelöst; kein vorab bestimmter Match oder Zeilenfehler
+  darf weiterverwendet werden.
 - **Fehler in Zeile k:** k = 1, 5, 10 von 10 und k = 1, 55, 101, 110 von 110
   per Trigger, je Owner-Tabelle; Status, Code, Zeilenfehler, bestätigte
   Zähler und Persistenz wie im Zeilenpfad.
