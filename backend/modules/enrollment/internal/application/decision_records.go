@@ -46,6 +46,7 @@ type RequestChild struct {
 	// approval the decision renews that student instead of creating a
 	// duplicate person and student.
 	MatchedStudentID      *int64
+	MatchedByOffice       bool
 	SortOrder             int
 	RolloverSourceChildID *int64
 	ReviewReason          *string
@@ -60,7 +61,7 @@ func childValue(r *enrollment.RequestChild) (*RequestChild, error) {
 		FirstName: r.FirstName, LastName: r.LastName, TargetGradeLevel: r.TargetGradeLevel,
 		TargetSchoolClass: r.TargetSchoolClass, Status: r.Status, StatusReason: r.StatusReason,
 		ActivationMode: r.ActivationMode, ReviewedAt: r.ReviewedAt, ReviewedBy: r.ReviewedBy,
-		CreatedStudentID: r.CreatedStudentID, MatchedStudentID: r.MatchedStudentID, SortOrder: r.SortOrder,
+		CreatedStudentID: r.CreatedStudentID, MatchedStudentID: r.MatchedStudentID, MatchedByOffice: r.MatchedByOffice, SortOrder: r.SortOrder,
 		RolloverSourceChildID: r.RolloverSourceChildID, ReviewReason: r.ReviewReason,
 	}
 	dob, err := calendar.ParseDate(string(r.DateOfBirth))
@@ -104,7 +105,7 @@ func childInput(r *RequestChild) (*enrollment.RequestChild, error) {
 		FirstName: r.FirstName, LastName: r.LastName, TargetGradeLevel: r.TargetGradeLevel,
 		TargetSchoolClass: r.TargetSchoolClass, Status: r.Status, StatusReason: r.StatusReason,
 		ActivationMode: r.ActivationMode, ReviewedAt: r.ReviewedAt, ReviewedBy: r.ReviewedBy,
-		CreatedStudentID: r.CreatedStudentID, MatchedStudentID: r.MatchedStudentID, SortOrder: r.SortOrder,
+		CreatedStudentID: r.CreatedStudentID, MatchedStudentID: r.MatchedStudentID, MatchedByOffice: r.MatchedByOffice, SortOrder: r.SortOrder,
 		RolloverSourceChildID: r.RolloverSourceChildID, ReviewReason: r.ReviewReason,
 	}
 	result.DateOfBirth = enrollment.Date(r.DateOfBirth.String())

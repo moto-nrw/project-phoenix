@@ -90,6 +90,9 @@ func TestDecideAdminChild_ApprovalOfferingGuard(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Each case approves the same fixture child: in a shared tenant a
+			// later case would find the earlier one already enrolled (#6053).
+			testpkg.OwnTenant(t)
 			harness := setupOfferingGuardRouterTest(t, tt.mode, tt.link, tt.offeringsEnabled, false)
 			rec := executeApprovalDecision(t, harness)
 			require.Equal(t, tt.wantStatus, rec.Code)

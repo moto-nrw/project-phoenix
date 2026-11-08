@@ -75,6 +75,9 @@ func (d *Decisions) Decide(ctx context.Context, input enrollmentNative.DecideInp
 			return nil, err
 		}
 	}
+	if err := d.resolveExistingChildChoice(ctx, target, phase, input); err != nil {
+		return nil, err
+	}
 	outcome := &enrollmentNative.DecideOutcome{}
 	invite, err := d.applyDecision(ctx, target, phase, input)
 	if err != nil {
@@ -103,7 +106,7 @@ func validateDecideInput(input enrollmentNative.DecideInput) error {
 	if !validDecisionStatuses[input.Status] {
 		return fmt.Errorf("%w: %s", enrollmentNative.ErrDecisionInvalidStatus, input.Status)
 	}
-	return nil
+	return validateExistingChildChoice(input)
 }
 
 // lockDecisionTarget locks the parent before its children. Cleanup, editing,

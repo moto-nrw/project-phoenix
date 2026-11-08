@@ -158,6 +158,19 @@ export interface CorrectAdminChildDataInput {
   reason: string;
 }
 
+/** An enrolled child that may be the child of an enrollment (#6053). */
+export interface AdminExistingChildCandidate {
+  student_id: string;
+  first_name: string;
+  last_name: string;
+  date_of_birth?: string;
+  school_class?: string;
+}
+
+/** The office's answer for a child that may already be enrolled (#6053). */
+export type ExistingChildChoice =
+  { existingStudentId: string } | { createNewStudent: true };
+
 export interface AdminRequestChild {
   id: string;
   first_name: string;
@@ -172,6 +185,12 @@ export interface AdminRequestChild {
   reviewed_by?: number | null;
   activation_mode: string;
   created_student_id?: string;
+  /**
+   * Enrolled children with this child's name and birthday (#6053). While the
+   * list is non-empty, approving needs the office's choice: renew one of
+   * them or create a new child. Detail endpoint only.
+   */
+  possible_existing_children?: AdminExistingChildCandidate[];
   /**
    * Why an open enrollment was left to the school, e.g.
    * "child_quota_reached" for a renewal the automatic approval skipped
@@ -701,6 +720,7 @@ export async function decideAdminChild(
   childId: string,
   status: DecisionStatus,
   reason?: string,
+  existingChildChoice?: ExistingChildChoice,
 ): Promise<AdminRequestChild> {
   // Flattened path: the proxy reads request_id/child_id from the body.
   // The deep dynamic /requests/[id]/children/[childId]/decide path
@@ -714,6 +734,12 @@ export async function decideAdminChild(
       child_id: childId,
       status,
       reason: reason ?? "",
+      ...(existingChildChoice && "existingStudentId" in existingChildChoice
+        ? { existing_student_id: existingChildChoice.existingStudentId }
+        : {}),
+      ...(existingChildChoice && "createNewStudent" in existingChildChoice
+        ? { create_new_student: true }
+        : {}),
     }),
   });
   if (!response.ok) {

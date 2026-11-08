@@ -41,6 +41,8 @@ type (
 		UpdateChildStatus(context.Context, int64, string, *string, int64) error
 		UpdateChildActivationPlan(context.Context, int64, string, *enrollmentNative.Date) error
 		LinkCreatedStudent(context.Context, int64, int64) error
+		// PinOfficeChosenStudent pins the student the office chose (#6053).
+		PinOfficeChosenStudent(context.Context, int64, int64) error
 		// The planned class switch of an approved re-enrollment (#3917).
 		SetChildClassSwitch(context.Context, int64, *enrollmentNative.ClassSwitch) error
 		ChildClassSwitch(context.Context, int64) (*enrollmentNative.ClassSwitch, error)

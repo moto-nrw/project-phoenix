@@ -67,6 +67,12 @@ type DecideInput struct {
 	ReviewedBy                 int64  // admin's auth account id
 	SuppressParentEmail        bool
 	SuppressGuardianInvitation bool
+	// ExistingStudentID and CreateNewStudent are the office's answer when the
+	// child of an open or linked_parents phase may already be enrolled
+	// (#6053): renew that student, or create a new child. At most one is set,
+	// and only for an approval.
+	ExistingStudentID *int64
+	CreateNewStudent  bool
 }
 
 // DecideOutcome is what the admin handler gets back from Decide. It
@@ -110,6 +116,21 @@ type DecisionSummary struct {
 	Children   []*RequestChild
 	Guardians  []*RequestGuardian
 	LateInvite *LateInvite
+	// ExistingChildCandidates are, per request child id, the enrolled
+	// children that may be the same child (#6053). Only the detail read
+	// fills it, and only for children whose approval still asks the office.
+	ExistingChildCandidates map[int64][]ExistingChildCandidate
+}
+
+// ExistingChildCandidate is an enrolled child of the school with the name
+// and birthday an enrollment names (#6053), compared like the
+// existing_students match.
+type ExistingChildCandidate struct {
+	StudentID   int64
+	FirstName   string
+	LastName    string
+	DateOfBirth *Date
+	SchoolClass string
 }
 
 // ChildOfferingRow is one care-offering selection for a child, as

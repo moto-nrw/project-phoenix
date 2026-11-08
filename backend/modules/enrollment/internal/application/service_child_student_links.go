@@ -20,3 +20,13 @@ func (m *Service) UpdateMatchedStudent(ctx context.Context, childID int64, stude
 	}
 	return m.store.UpdateMatchedStudent(ctx, childID, studentID)
 }
+
+// PinOfficeChosenStudent records the enrolled student the office chose at
+// approval (#6053). The calling decision keeps the candidate check and the
+// phase-wide uniqueness guard.
+func (m *Service) PinOfficeChosenStudent(ctx context.Context, childID, studentID int64) error {
+	if err := m.transactions.RequireTransaction(ctx); err != nil {
+		return err
+	}
+	return m.store.PinOfficeChosenStudent(ctx, childID, studentID)
+}

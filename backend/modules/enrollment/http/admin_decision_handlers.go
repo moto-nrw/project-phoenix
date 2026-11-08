@@ -123,6 +123,13 @@ type AdminRequestChild struct {
 	ReviewedBy        *int64     `json:"reviewed_by,omitempty"`
 	ActivationMode    string     `json:"activation_mode"`
 	CreatedStudentID  string     `json:"created_student_id,omitempty"`
+	// MatchedStudentID is the enrolled child the approval renews instead of
+	// creating a new one (#1663, #6053).
+	MatchedStudentID string `json:"matched_student_id,omitempty"`
+	// PossibleExistingChildren are enrolled children that may be this child
+	// (#6053). Detail endpoint only; while it is non-empty the approval needs
+	// the office's choice: existing_student_id or create_new_student.
+	PossibleExistingChildren []AdminExistingChildCandidate `json:"possible_existing_children,omitempty"`
 	// ReviewReason says why an open enrollment was left to the school,
 	// e.g. child_quota_reached for a renewal the automatic approval held
 	// back (#3570). Cleared by the next decision.
@@ -144,6 +151,16 @@ type AdminRequestChild struct {
 	// save a correction in this state: an empty editor plus a save
 	// deletes whatever the family actually booked.
 	OfferingsUnavailable bool `json:"offerings_unavailable,omitempty"`
+}
+
+// AdminExistingChildCandidate is an enrolled child that may be the child of
+// an enrollment (#6053).
+type AdminExistingChildCandidate struct {
+	StudentID   string  `json:"student_id"`
+	FirstName   string  `json:"first_name"`
+	LastName    string  `json:"last_name"`
+	DateOfBirth *string `json:"date_of_birth,omitempty"`
+	SchoolClass string  `json:"school_class,omitempty"`
 }
 
 // AdminRequestChildOffering is one care-offering pick for a child.
@@ -224,6 +241,7 @@ func toAdminRequestSummary(s *RequestSummary) AdminRequestSummary {
 			ReviewedBy:        c.ReviewedBy,
 			ActivationMode:    c.ActivationMode,
 			CreatedStudentID:  optionalInt64String(c.CreatedStudentID),
+			MatchedStudentID:  optionalInt64String(c.MatchedStudentID),
 			ReviewReason:      c.ReviewReason,
 			CustomData:        c.CustomData,
 		})
@@ -406,6 +424,7 @@ func (rs *Resource) toAdminRequestDetailSummary(ctx context.Context, summary *Re
 		}
 	}
 
+	attachExistingChildCandidates(detail.Children, summary.Children, summary.ExistingChildCandidates)
 	if rs.DecisionService != nil {
 		childOfferings, err := rs.DecisionService.ListChildOfferings(ctx, summary.Request.ID)
 		if err != nil {
@@ -421,6 +440,28 @@ func (rs *Resource) toAdminRequestDetailSummary(ctx context.Context, summary *Re
 		}
 	}
 	return detail
+}
+
+// attachExistingChildCandidates fills the per-child candidates in place,
+// matching admin children to summary children positionally like
+// attachChildOfferings.
+func attachExistingChildCandidates(children []AdminRequestChild, summaryChildren []*RequestChild, candidates map[int64][]capability.ExistingChildCandidate) {
+	for i := range children {
+		if i >= len(summaryChildren) {
+			continue
+		}
+		for _, candidate := range candidates[summaryChildren[i].ID] {
+			out := AdminExistingChildCandidate{
+				StudentID: strconv.FormatInt(candidate.StudentID, 10),
+				FirstName: candidate.FirstName, LastName: candidate.LastName, SchoolClass: candidate.SchoolClass,
+			}
+			if candidate.DateOfBirth != nil {
+				dob := string(*candidate.DateOfBirth)
+				out.DateOfBirth = &dob
+			}
+			children[i].PossibleExistingChildren = append(children[i].PossibleExistingChildren, out)
+		}
+	}
 }
 
 // attachChildOfferings fills the per-child Offerings slices in place from
@@ -486,12 +527,29 @@ func toAdminSchemaMetadata(fs *capability.FormSchema) ([]AdminRequestSchemaField
 }
 
 // AdminDecideRequest is the body of POST .../children/{childId}/decide.
+// ExistingStudentID and CreateNewStudent answer an approval whose child may
+// already be enrolled (#6053): renew that child, or create a new one.
 type AdminDecideRequest struct {
-	Status string `json:"status"` // approved | waitlisted | rejected | under_review
-	Reason string `json:"reason,omitempty"`
+	Status            string `json:"status"` // approved | waitlisted | rejected | under_review
+	Reason            string `json:"reason,omitempty"`
+	ExistingStudentID string `json:"existing_student_id,omitempty"`
+	CreateNewStudent  bool   `json:"create_new_student,omitempty"`
 }
 
 func (req *AdminDecideRequest) Bind(_ *http.Request) error { return nil }
+
+// existingStudentID parses the chosen enrolled child, nil when none is chosen.
+func (req *AdminDecideRequest) existingStudentID() (*int64, error) {
+	raw := strings.TrimSpace(req.ExistingStudentID)
+	if raw == "" {
+		return nil, nil
+	}
+	id, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || id <= 0 {
+		return nil, errors.New("invalid existing_student_id")
+	}
+	return &id, nil
+}
 
 func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 	if rs.DecisionService == nil {
@@ -512,13 +570,21 @@ func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	existingStudentID, err := body.existingStudentID()
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
 	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	outcome, err := rs.decideChildWithRetry(r, DecideInput{
-		RequestID:  requestID,
-		ChildID:    childID,
-		Status:     DecisionStatus(body.Status),
-		Reason:     body.Reason,
-		ReviewedBy: int64(claims.ID),
+		RequestID:         requestID,
+		ChildID:           childID,
+		Status:            DecisionStatus(body.Status),
+		Reason:            body.Reason,
+		ReviewedBy:        int64(claims.ID),
+		ExistingStudentID: existingStudentID,
+		CreateNewStudent:  body.CreateNewStudent,
 	})
 	if err != nil {
 		rs.renderDecideError(w, r, err)
@@ -658,6 +724,15 @@ func (rs *Resource) decideErrorRules() []common.ErrorRule {
 		{Target: capability.ErrGuardianAccountMismatch, Render: func(err error) render.Renderer {
 			return common.ErrorConflictWithCode(err, common.CodeEnrollmentGuardianAccountMismatch)
 		}},
+		{Target: capability.ErrChildPossiblyEnrolled, Render: func(err error) render.Renderer {
+			return common.ErrorConflictWithCode(err, common.CodeEnrollmentChildPossiblyEnrolled)
+		}},
+		{Target: capability.ErrExistingChildChoiceInvalid, Render: func(err error) render.Renderer {
+			return common.ErrorConflictWithCode(err, common.CodeEnrollmentExistingChildChoiceInvalid)
+		}},
+		{Target: capability.ErrExistingStudentAlreadyRequested, Render: func(err error) render.Renderer {
+			return common.ErrorConflictWithCode(err, common.CodeEnrollmentChildAlreadyRequested)
+		}},
 		{Match: rs.Failures.Transient, Render: common.ErrorServiceUnavailable},
 	}
 }
@@ -685,6 +760,7 @@ func newAdminRequestChild(child *RequestChild) AdminRequestChild {
 		ReviewedBy:        child.ReviewedBy,
 		ActivationMode:    child.ActivationMode,
 		CreatedStudentID:  optionalInt64String(child.CreatedStudentID),
+		MatchedStudentID:  optionalInt64String(child.MatchedStudentID),
 		ReviewReason:      child.ReviewReason,
 	}
 }

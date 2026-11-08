@@ -147,6 +147,14 @@ func (d *Decisions) DecisionRequest(ctx context.Context, requestID int64) (publi
 	if err != nil {
 		return nil, err
 	}
+	// Best effort: the detail still renders without the candidates, and the
+	// approval itself re-checks them and fails closed (#6053).
+	if err := d.attachExistingChildCandidates(ctx, summary); err != nil {
+		d.logger().Warn("decision: enrolled-child candidates unavailable",
+			slog.Int64("request_id", requestID),
+			slog.String("error", err.Error()),
+		)
+	}
 	if d.deps.LateInvites == nil || enrollmentNative.NormalizedSubmissionSource(req.SubmissionSource) != enrollmentNative.RequestSourceLateInvite {
 		return summary, nil
 	}

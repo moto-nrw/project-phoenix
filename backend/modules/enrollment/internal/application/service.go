@@ -62,6 +62,7 @@ type Store interface {
 	ChildClassSwitch(context.Context, int64) (*enrollment.ClassSwitch, error)
 	DueClassSwitches(context.Context, enrollment.Date) ([]enrollment.DueClassSwitch, error)
 	UpdateMatchedStudent(context.Context, int64, *int64) error
+	PinOfficeChosenStudent(context.Context, int64, int64) error
 	RestoreWithdrawnChildren(context.Context, int64, []int64) ([]int64, error)
 	TransitionPhaseChildren(context.Context, int64, string, string) (int, error)
 	UpdateChildStatus(context.Context, int64, string, *string, int64) error

@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -243,6 +244,9 @@ type ReviewerStaff interface {
 // runtime's not-found error.
 type StudentRecords interface {
 	FindStudent(context.Context, int64) error
+	// EnrolledMatchCandidates lists the enrolled children of the school that
+	// may be the child an enrollment names (#6053).
+	EnrolledMatchCandidates(ctx context.Context, firstName, lastName string, birthday calendar.Date) ([]enrollmentNative.ExistingChildCandidate, error)
 }
 
 // GuardianProfiles reads and writes the tenant's guardian profiles.

@@ -424,6 +424,13 @@ func (s *Intake) replacementStudentPin(ctx context.Context, plan *replacePlan, i
 		return nil, err
 	}
 	submitter := reEnrollmentSubmitterFor(req.SubmissionSource, req.GuardianAccountID, req.GuardianEmail)
+	if pin == nil {
+		resolved, err := s.resolveEnrolledChildPin(ctx, req.TenantID, plan.phase, child, submitter)
+		if err != nil {
+			return nil, err
+		}
+		pin = resolved
+	}
 	if pin != nil {
 		resolvedSubmitter, err := reEnrollmentSubmitterForPersistedRequest(ctx, s.deps.LateInvites, req)
 		if err != nil {

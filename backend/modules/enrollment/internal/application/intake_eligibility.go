@@ -267,6 +267,48 @@ func (s *Intake) assertGuardianMayReEnrollStudent(ctx context.Context, submitter
 	return nil
 }
 
+// resolveEnrolledChildPin pins the enrolled student an open or
+// linked_parents child names (#6053) when the signed-in parent account's own
+// relationship to that student holds parent_portal.enrollment.submit: the
+// existing_students rule (name and birthday, one match only) finds the
+// child among the school's children, and the relationship authorizes the
+// renewal, which links the submitter to the child. Name and birthday alone
+// recognize a child but authorize nobody, so an anonymous form, a late
+// invite's email and staff entry never pin here; nor does a child another
+// active request of the phase already renews. Those children reach the
+// office as candidates.
+func (s *Intake) resolveEnrolledChildPin(ctx context.Context, tenantID int64, phase *enrollmentNative.Phase, child SubmitChild, submitter reEnrollmentSubmitter) (*int64, error) {
+	if s.deps.Students == nil || s.deps.GuardianAuthorizer == nil || !audienceChecksEnrolledChildren(phase) || submitter.GuardianAccountID == nil {
+		return nil, nil
+	}
+	id, err := s.deps.Students.FindEnrolledStudentIDByNameAndBirthday(ctx, tenantID, child.FirstName, child.LastName, child.DateOfBirth)
+	if err != nil {
+		return nil, fmt.Errorf("submit: resolve enrolled child: %w", err)
+	}
+	if id == nil {
+		return nil, nil
+	}
+	granted, err := s.deps.GuardianAuthorizer.AccountHasStudentPermission(ctx, *submitter.GuardianAccountID,
+		*id, tenantID, guardianPermissionEnrollmentSubmit)
+	if err != nil {
+		return nil, fmt.Errorf("submit: verify enrolled child relationship: %w", err)
+	}
+	if !granted {
+		return nil, nil
+	}
+	if err := s.deps.Requests.AcquireExistingStudentMatchLock(ctx, phase.ID); err != nil {
+		return nil, fmt.Errorf("submit: acquire existing-student match lock: %w", err)
+	}
+	taken, err := s.deps.Requests.HasActiveRequestForMatchedStudent(ctx, phase.ID, *id, 0)
+	if err != nil {
+		return nil, fmt.Errorf("submit: enrolled child duplicate check: %w", err)
+	}
+	if taken {
+		return nil, nil
+	}
+	return id, nil
+}
+
 // guardMatchedStudentUnique refuses a child pinned to a student another
 // active request of the phase already targets. The phase-wide advisory lock
 // makes the check race-free across distinct guardian emails. It applies

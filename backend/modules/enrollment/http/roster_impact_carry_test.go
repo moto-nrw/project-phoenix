@@ -152,7 +152,9 @@ func (f *carryFixture) child(schoolClass string, bookings map[*offeringContract.
 			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
 		},
 		Children: []enrollmentAPI.SubmitChild{{
-			FirstName: "Kind", LastName: "Muster",
+			// A distinct child per call: the same name and birthday twice
+			// would be the already enrolled child (#6053).
+			FirstName: "Kind", LastName: "Muster" + string(rune('A'+f.seq%26)),
 			DateOfBirth:       calendar.NewDate(2019, 3, 4),
 			TargetGradeLevel:  testpkg.Int16Ptr(1),
 			TargetSchoolClass: testpkg.StrPtr(schoolClass),

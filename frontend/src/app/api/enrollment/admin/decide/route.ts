@@ -27,6 +27,8 @@ interface DecideBody {
   child_id?: string | number;
   status?: string;
   reason?: string;
+  existing_student_id?: string | number;
+  create_new_student?: boolean;
 }
 
 async function POSTHandler(request: NextRequest) {
@@ -66,6 +68,12 @@ async function POSTHandler(request: NextRequest) {
         body: JSON.stringify({
           status: body.status,
           reason: body.reason ?? "",
+          ...(body.existing_student_id != null
+            ? { existing_student_id: String(body.existing_student_id) }
+            : {}),
+          ...(body.create_new_student === true
+            ? { create_new_student: true }
+            : {}),
         }),
       },
     );

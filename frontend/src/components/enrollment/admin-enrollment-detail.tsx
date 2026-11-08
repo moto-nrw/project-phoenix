@@ -34,6 +34,7 @@ import {
   type AdminRequestSummary,
   type ChildStatus,
   type DecisionStatus,
+  type ExistingChildChoice,
   decideAdminChild,
   announceAdminRequestOpened,
   getAdminRequest,
@@ -85,6 +86,7 @@ import { formatCalendarDate } from "~/lib/localized-date-format";
 import { schoolClassLabel } from "~/lib/school-class-label";
 import { AdminChildDataCorrection } from "~/components/enrollment/admin-child-data-correction";
 import { AdminEnrollmentDeletionModal } from "~/components/enrollment/admin-enrollment-deletion-modal";
+import { ExistingChildChoiceModal } from "~/components/enrollment/existing-child-choice-modal";
 import { Button, buttonClassName } from "~/components/ui/button";
 import NavigationLink from "~/components/ui/navigation-link";
 import { Alert } from "~/components/ui/alert";
@@ -174,7 +176,11 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
   // „Wiederholen“ ruft die aktuelle Fassung auf, nicht die vom Fehler.
   const reloadRef = useRef<() => Promise<void>>(async () => undefined);
   const latestDecideRef = useRef<
-    (childId: string, status: DecisionStatus) => Promise<void>
+    (
+      childId: string,
+      status: DecisionStatus,
+      existingChildChoice?: ExistingChildChoice,
+    ) => Promise<void>
   >(async () => undefined);
   const latestRestoreRef = useRef<() => Promise<void>>(async () => undefined);
   const [busyChildId, setBusyChildId] = useState<string | null>(null);
@@ -185,7 +191,13 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
   const [restoreOpen, setRestoreOpen] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [approvalWithoutOfferingChildId, setApprovalWithoutOfferingChildId] =
-    useState<string | null>(null);
+    useState<{ id: string; existingChildChoice?: ExistingChildChoice } | null>(
+      null,
+    );
+  // Ein Kind, das vielleicht schon angemeldet ist: das Büro wählt vor dem
+  // Bestätigen das bestehende Kind oder ein neues (#6053).
+  const [existingChildChoiceChild, setExistingChildChoiceChild] =
+    useState<AdminRequestChild | null>(null);
 
   // `quiet` refreshes without the page's loading state, so a card that just
   // saved keeps showing its result (#5102).
@@ -242,7 +254,11 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
     ? ACTIONS
     : ACTIONS.filter((action) => action.status !== "waitlisted");
 
-  const handleDecide = async (childId: string, status: DecisionStatus) => {
+  const handleDecide = async (
+    childId: string,
+    status: DecisionStatus,
+    existingChildChoice?: ExistingChildChoice,
+  ) => {
     if (!data) return;
     const reason = (reasons[childId] ?? "").trim();
     setBusyChildId(childId);
@@ -250,7 +266,16 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
     setDecisionErrorChildId(childId);
     let saved = false;
     try {
-      await decideAdminChild(requestId, childId, status, reason || undefined);
+      // The office's choice travels only when there was one to make.
+      await (existingChildChoice
+        ? decideAdminChild(
+            requestId,
+            childId,
+            status,
+            reason || undefined,
+            existingChildChoice,
+          )
+        : decideAdminChild(requestId, childId, status, reason || undefined));
       saved = true;
     } catch (err) {
       logger.error("admin_enrollment_decide_failed", {
@@ -261,7 +286,8 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
       });
       await decisionErrors.show(err, {
         object: "die Entscheidung",
-        retry: () => void latestDecideRef.current(childId, status),
+        retry: () =>
+          void latestDecideRef.current(childId, status, existingChildChoice),
       });
     } finally {
       setBusyChildId(null);
@@ -332,7 +358,16 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
   const requestDecision = (
     child: AdminRequestChild,
     status: DecisionStatus,
+    existingChildChoice?: ExistingChildChoice,
   ) => {
+    if (
+      status === "approved" &&
+      existingChildChoice === undefined &&
+      (child.possible_existing_children?.length ?? 0) > 0
+    ) {
+      setExistingChildChoiceChild(child);
+      return;
+    }
     if (
       status === "approved" &&
       careOfferingsEnabled &&
@@ -340,10 +375,10 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
       child.offerings_unavailable !== true &&
       (child.offerings?.length ?? 0) === 0
     ) {
-      setApprovalWithoutOfferingChildId(child.id);
+      setApprovalWithoutOfferingChildId({ id: child.id, existingChildChoice });
       return;
     }
-    void handleDecide(child.id, status);
+    void handleDecide(child.id, status, existingChildChoice);
   };
 
   const submittedAt = formatDateTime(data.submitted_at, {
@@ -388,9 +423,15 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
             isOpen={approvalWithoutOfferingChildId !== null}
             onClose={() => setApprovalWithoutOfferingChildId(null)}
             onConfirm={() => {
-              const childId = approvalWithoutOfferingChildId;
+              const pending = approvalWithoutOfferingChildId;
               setApprovalWithoutOfferingChildId(null);
-              if (childId !== null) void handleDecide(childId, "approved");
+              if (pending !== null) {
+                void handleDecide(
+                  pending.id,
+                  "approved",
+                  pending.existingChildChoice,
+                );
+              }
             }}
             title="Anmeldung bestätigen"
             confirmText="Trotzdem bestätigen"
@@ -400,6 +441,22 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
               message="Für dieses Kind ist kein Betreuungsangebot gebucht. Das Kind wird trotzdem in die OGS aufgenommen."
             />
           </ConfirmationModal>
+          {existingChildChoiceChild ? (
+            <ExistingChildChoiceModal
+              key={existingChildChoiceChild.id}
+              isOpen
+              childName={`${existingChildChoiceChild.first_name} ${existingChildChoiceChild.last_name}`}
+              candidates={
+                existingChildChoiceChild.possible_existing_children ?? []
+              }
+              onClose={() => setExistingChildChoiceChild(null)}
+              onConfirm={(choice) => {
+                const child = existingChildChoiceChild;
+                setExistingChildChoiceChild(null);
+                requestDecision(child, "approved", choice);
+              }}
+            />
+          ) : null}
           <ConfirmationModal
             isOpen={restoreOpen}
             onClose={() => {
@@ -750,6 +807,13 @@ function ChildInformationCard({
             type="warning"
             announce="off"
             message="Beim Schuljahreswechsel war das Kinderkontingent voll. Darum wurde dieses Kind nicht automatisch verlängert. Bitte entscheiden Sie selbst."
+          />
+        ) : null}
+        {!terminal && (child.possible_existing_children?.length ?? 0) > 0 ? (
+          <Alert
+            type="warning"
+            announce="off"
+            message="Ein Kind mit diesem Namen und Geburtsdatum ist schon angemeldet. Beim Bestätigen wählen Sie, ob es dasselbe Kind ist."
           />
         ) : null}
         {child.status_reason ? (

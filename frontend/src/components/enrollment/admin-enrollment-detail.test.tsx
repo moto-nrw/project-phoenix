@@ -4,6 +4,7 @@ import {
   render as renderComponent,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -207,6 +208,106 @@ describe("AdminEnrollmentDetail mail updates", () => {
     unmount();
     interval.mockRestore();
     visibility.mockRestore();
+  });
+});
+
+describe("AdminEnrollmentDetail child that may already be enrolled", () => {
+  function requestWithCandidate() {
+    return {
+      id: "request-1",
+      phase_id: "phase-1",
+      phase_name: "2026/27",
+      guardian_first_name: "Mara",
+      guardian_last_name: "Beispiel",
+      guardian_email: "mara@example.test",
+      submitted_at: "2026-08-05T10:00:00Z",
+      status_token: "status-token",
+      children: [
+        {
+          id: "child-1",
+          first_name: "Paul",
+          last_name: "Offen",
+          date_of_birth: "2018-04-15",
+          status: "submitted",
+          activation_mode: "scheduled",
+          offerings: [{ offering_id: "o-1", offering_name: "Ganztag" }],
+          possible_existing_children: [
+            {
+              student_id: "student-7",
+              first_name: "Paul",
+              last_name: "Offen",
+              date_of_birth: "2018-04-15",
+              school_class: "1a",
+            },
+          ],
+        },
+      ],
+    };
+  }
+
+  it("asks before approving and renews the chosen child", async () => {
+    mocks.getAdminRequest.mockResolvedValue(requestWithCandidate());
+    mocks.decideAdminChild.mockResolvedValue({ id: "child-1" });
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+    expect(
+      await screen.findByText(
+        "Ein Kind mit diesem Namen und Geburtsdatum ist schon angemeldet. Beim Bestätigen wählen Sie, ob es dasselbe Kind ist.",
+      ),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "Ist das Kind schon angemeldet?",
+    });
+    expect(mocks.decideAdminChild).not.toHaveBeenCalled();
+    const confirm = within(dialog).getByRole("button", { name: "Bestätigen" });
+    expect(confirm).toBeDisabled();
+    expect(
+      within(dialog).getByText(
+        "Paul Offen · Klasse 1a · geboren am 15.04.2018",
+      ),
+    ).toBeVisible();
+
+    fireEvent.click(
+      within(dialog).getByRole("radio", { name: /Bestehendes Kind verwenden/ }),
+    );
+    fireEvent.click(confirm);
+
+    await waitFor(() => {
+      expect(mocks.decideAdminChild).toHaveBeenCalledWith(
+        "request-1",
+        "child-1",
+        "approved",
+        undefined,
+        { existingStudentId: "student-7" },
+      );
+    });
+  });
+
+  it("creates a new child when the office says it is another child", async () => {
+    mocks.getAdminRequest.mockResolvedValue(requestWithCandidate());
+    mocks.decideAdminChild.mockResolvedValue({ id: "child-1" });
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Bestätigen" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Ist das Kind schon angemeldet?",
+    });
+    fireEvent.click(
+      within(dialog).getByRole("radio", { name: /Als neues Kind anlegen/ }),
+    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Bestätigen" }));
+
+    await waitFor(() => {
+      expect(mocks.decideAdminChild).toHaveBeenCalledWith(
+        "request-1",
+        "child-1",
+        "approved",
+        undefined,
+        { createNewStudent: true },
+      );
+    });
   });
 });
 

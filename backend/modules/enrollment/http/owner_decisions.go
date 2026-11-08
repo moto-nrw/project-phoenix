@@ -46,6 +46,9 @@ type RequestSummary struct {
 	Children   []*RequestChild
 	Guardians  []*capability.RequestGuardian
 	LateInvite *capability.LateInvite
+	// ExistingChildCandidates are the detail read's enrolled children that
+	// may be a request child, keyed by request child id (#6053).
+	ExistingChildCandidates map[int64][]capability.ExistingChildCandidate
 }
 
 // PhaseExport is the fully-assembled payload for the compact phase export.
@@ -255,6 +258,7 @@ func decisionSummary(value *capability.DecisionSummary) (*RequestSummary, error)
 	return &RequestSummary{
 		Request: request, Phase: value.Phase, Children: children,
 		Guardians: value.Guardians, LateInvite: value.LateInvite,
+		ExistingChildCandidates: value.ExistingChildCandidates,
 	}, nil
 }
 

@@ -105,6 +105,7 @@ type RequestChild struct {
 	ReviewedBy            *int64         `json:"reviewed_by,omitempty"`
 	CreatedStudentID      *int64         `json:"created_student_id,omitempty"`
 	MatchedStudentID      *int64         `json:"matched_student_id,omitempty"`
+	MatchedByOffice       bool           `json:"matched_by_office,omitempty"`
 	SortOrder             int            `json:"sort_order"`
 	RolloverSourceChildID *int64         `json:"rollover_source_child_id,omitempty"`
 	ReviewReason          *string        `json:"review_reason,omitempty"`
@@ -144,7 +145,7 @@ func childValue(r *capability.RequestChild) (*RequestChild, error) {
 		FirstName: r.FirstName, LastName: r.LastName, TargetGradeLevel: r.TargetGradeLevel,
 		TargetSchoolClass: r.TargetSchoolClass, Status: r.Status, StatusReason: r.StatusReason,
 		ActivationMode: r.ActivationMode, ReviewedAt: r.ReviewedAt, ReviewedBy: r.ReviewedBy,
-		CreatedStudentID: r.CreatedStudentID, MatchedStudentID: r.MatchedStudentID, SortOrder: r.SortOrder,
+		CreatedStudentID: r.CreatedStudentID, MatchedStudentID: r.MatchedStudentID, MatchedByOffice: r.MatchedByOffice, SortOrder: r.SortOrder,
 		RolloverSourceChildID: r.RolloverSourceChildID, ReviewReason: r.ReviewReason,
 	}
 	dob, err := calendar.ParseDate(string(r.DateOfBirth))
@@ -299,7 +300,7 @@ func childInput(r *RequestChild) (*capability.RequestChild, error) {
 		FirstName: r.FirstName, LastName: r.LastName, DateOfBirth: capability.Date(r.DateOfBirth.String()),
 		TargetGradeLevel: r.TargetGradeLevel, TargetSchoolClass: r.TargetSchoolClass, Status: r.Status,
 		StatusReason: r.StatusReason, ActivationMode: r.ActivationMode, ReviewedAt: r.ReviewedAt,
-		ReviewedBy: r.ReviewedBy, CreatedStudentID: r.CreatedStudentID, MatchedStudentID: r.MatchedStudentID,
+		ReviewedBy: r.ReviewedBy, CreatedStudentID: r.CreatedStudentID, MatchedStudentID: r.MatchedStudentID, MatchedByOffice: r.MatchedByOffice,
 		SortOrder: r.SortOrder, RolloverSourceChildID: r.RolloverSourceChildID, ReviewReason: r.ReviewReason,
 	}
 	if r.ActivateOn != nil {

@@ -1,0 +1,386 @@
+package enrollmenthttp_test
+
+import (
+	"context"
+	"log/slog"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+
+	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+)
+
+// An enrolled child submitted again in an open or linked_parents phase must
+// not become a second child at approval (#6053). These tests drive the real
+// submit, detail read and decision against the test database.
+
+var existingChildBirthday = calendar.NewDate(2018, 4, 15)
+
+// existingChildEnv is the decision env with a request service that matches
+// enrolled children: the People Directory's students and the guardian
+// relationships, as the production root binds them.
+type existingChildEnv struct {
+	*decisionTestEnv
+	matching enrollmentAPI.RequestService
+}
+
+func setupExistingChildTest(t *testing.T, audience string) *existingChildEnv {
+	t.Helper()
+	env := setupDecisionTest(t)
+	matching := newTestRequestService(owners.EnrollmentIntakeSources{
+		Bookings:           requestTestBookingCommands(),
+		Requests:           env.repos.Enrollment(),
+		Children:           env.repos.Enrollment(),
+		CareOfferingRepo:   enrollmentCompose.NewCareOfferingRecords(env.reposCare.CarePlan),
+		Catalog:            env.repos.Enrollment(),
+		SchoolRepo:         factorySchools{repos: env.reposSchools},
+		RateLimitRepo:      env.repos.Enrollment(),
+		LateInviteRepo:     env.repos.Enrollment(),
+		StudentRepo:        env.repos.Student,
+		GuardianAuthorizer: env.repos.StudentGuardian,
+		OutboxEnqueuer:     env.outbox,
+		Settings:           env.settings,
+		FrontendURL:        "http://localhost:3000",
+		Logger:             slog.Default(),
+	})
+	_, err := env.db.NewUpdate().TableExpr(`enrollment.phases`).
+		Set("audience = ?", audience).
+		Where("id = ?", env.sourcePhase.ID).
+		Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+	return &existingChildEnv{decisionTestEnv: env, matching: matching}
+}
+
+// enrolledChild creates an active child of the test's school born on
+// birthday.
+func enrolledChild(t *testing.T, db *bun.DB, firstName, lastName string, birthday calendar.Date) *testpkg.Student {
+	t.Helper()
+	student := testpkg.CreateTestStudent(t, db, firstName, lastName, "1a")
+	setPersonBirthday(t, db, student.PersonID, birthday)
+	return student
+}
+
+func setPersonBirthday(t *testing.T, db *bun.DB, personID int64, birthday calendar.Date) {
+	t.Helper()
+	_, err := db.NewUpdate().TableExpr(`users.persons`).
+		Set("birthday = ?", birthday).
+		Where("id = ?", personID).
+		Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+}
+
+// parentAccountLinkedTo creates a parent account whose guardian profile is
+// linked to the student with the given role preset.
+func parentAccountLinkedTo(t *testing.T, db *bun.DB, studentID int64, role string) int64 {
+	t.Helper()
+	account := testpkg.CreateTestAccount(t, db, "existing-child-parent")
+	profile := testpkg.CreateTestGuardianProfileNamed(t, db, "Eva", "Bestand", "existing-child-parent")
+	_, err := db.NewUpdate().TableExpr(`users.guardian_profiles`).
+		Set("account_id = ?", account.ID).Set("has_account = TRUE").
+		Where("id = ?", profile.ID).
+		Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+	testpkg.CreateTestStudentGuardianLink(t, db, studentID, profile.ID, role)
+	return account.ID
+}
+
+type existingChildSubmission struct {
+	accountID *int64
+	email     string
+	children  []enrollmentAPI.SubmitChild
+}
+
+func submitChild(firstName, lastName string, birthday calendar.Date) enrollmentAPI.SubmitChild {
+	grade := int16(2)
+	return enrollmentAPI.SubmitChild{FirstName: firstName, LastName: lastName, DateOfBirth: birthday, TargetGradeLevel: &grade}
+}
+
+func (env *existingChildEnv) submit(t *testing.T, in existingChildSubmission) *enrollmentAPI.SubmitResult {
+	t.Helper()
+	email := in.email
+	if email == "" {
+		email = "existing-child@example.com"
+	}
+	res, err := env.matching.Submit(testpkg.Ctx(t), enrollmentAPI.SubmitRequest{
+		TenantID:               testpkg.Tenant(t),
+		PhaseID:                env.sourcePhase.ID,
+		GuardianFirstName:      "Eva",
+		GuardianLastName:       "Bestand",
+		GuardianEmail:          email,
+		GuardianAccountID:      in.accountID,
+		GuardianSubmitEligible: in.accountID != nil,
+		ConsentFlags:           rolloverConsentFlags(),
+		Children:               in.children,
+	})
+	require.NoError(t, err)
+	require.Len(t, res.Children, len(in.children))
+	return res
+}
+
+func (env *existingChildEnv) decide(t *testing.T, input enrollmentAPI.DecideInput) error {
+	t.Helper()
+	if input.Status == "" {
+		input.Status = enrollmentNative.DecisionApproved
+	}
+	if input.ReviewedBy == 0 {
+		input.ReviewedBy = env.creatorID
+	}
+	return testpkg.WithTenantTx(t, testpkg.Ctx(t), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		_, err := testpkg.TenantQuery1(t, txCtx, env.db, env.decision.Decide, input)
+		return err
+	})
+}
+
+func (env *existingChildEnv) decideOutcome(t *testing.T, input enrollmentAPI.DecideInput) *enrollmentAPI.DecideOutcome {
+	t.Helper()
+	input.Status, input.ReviewedBy = enrollmentNative.DecisionApproved, env.creatorID
+	var outcome *enrollmentAPI.DecideOutcome
+	require.NoError(t, testpkg.WithTenantTx(t, testpkg.Ctx(t), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		out, err := testpkg.TenantQuery1(t, txCtx, env.db, env.decision.Decide, input)
+		outcome = out
+		return err
+	}))
+	return outcome
+}
+
+// guardianLinks lists the guardian links of the student.
+func (env *existingChildEnv) guardianLinks(t *testing.T, studentID int64) []int64 {
+	t.Helper()
+	links, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), env.db, env.repos.StudentGuardian.FindByStudentID, studentID)
+	require.NoError(t, err)
+	ids := make([]int64, 0, len(links))
+	for _, link := range links {
+		ids = append(ids, link.GuardianProfileID)
+	}
+	return ids
+}
+
+func (env *existingChildEnv) child(t *testing.T, childID int64) *enrollmentAPI.RequestChild {
+	t.Helper()
+	child, err := enrollmentAPI.ReadOwnerChildForTest(testpkg.Ctx(t), env.repos.Enrollment(), childID)
+	require.NoError(t, err)
+	return child
+}
+
+func (env *existingChildEnv) candidates(t *testing.T, requestID, childID int64) []enrollmentNative.ExistingChildCandidate {
+	t.Helper()
+	summary, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), env.db, env.decision.Get, requestID)
+	require.NoError(t, err)
+	return summary.ExistingChildCandidates[childID]
+}
+
+// studentsNamed counts the school's children with the name.
+func studentsNamed(t *testing.T, db *bun.DB, firstName, lastName string) int {
+	t.Helper()
+	count, err := db.NewSelect().TableExpr(`users.student_profiles AS sp`).
+		Join(`JOIN users.persons AS p ON p.id = sp.person_id`).
+		Where("sp.tenant_id = ?", testpkg.Tenant(t)).
+		Where("p.first_name = ? AND p.last_name = ?", firstName, lastName).
+		Count(testpkg.Ctx(t))
+	require.NoError(t, err)
+	return int(count)
+}
+
+func TestExistingChild_OpenPhaseRenewsLinkedChildAndKeepsSiblingNew(t *testing.T) {
+	t.Parallel()
+	env := setupExistingChildTest(t, enrollmentNative.PhaseAudienceOpen)
+	existing := enrolledChild(t, env.db, "Lina", "Bestand", existingChildBirthday)
+	accountID := parentAccountLinkedTo(t, env.db, existing.ID, securityruntime.GuardianRolePrimaryGuardian)
+
+	res := env.submit(t, existingChildSubmission{accountID: &accountID, children: []enrollmentAPI.SubmitChild{
+		submitChild("Lina", "Bestand", existingChildBirthday),
+		submitChild("Tom", "Bestand", calendar.NewDate(2020, 2, 3)),
+	}})
+	lina, tom := res.Children[0], res.Children[1]
+	require.NotNil(t, lina.MatchedStudentID, "an unambiguous enrolled child of the submitting parent is pinned")
+	assert.Equal(t, existing.ID, *lina.MatchedStudentID)
+	assert.Nil(t, tom.MatchedStudentID, "a sibling stays a new child")
+	assert.Empty(t, env.candidates(t, res.Request.ID, tom.ID))
+
+	require.NoError(t, env.decide(t, enrollmentAPI.DecideInput{RequestID: res.Request.ID, ChildID: lina.ID}))
+	require.NoError(t, env.decide(t, enrollmentAPI.DecideInput{RequestID: res.Request.ID, ChildID: tom.ID}))
+
+	renewed := env.child(t, lina.ID)
+	require.NotNil(t, renewed.CreatedStudentID)
+	assert.Equal(t, existing.ID, *renewed.CreatedStudentID, "the approval renews the enrolled child")
+	assert.False(t, renewed.MatchedByOffice)
+	assert.Equal(t, 1, studentsNamed(t, env.db, "Lina", "Bestand"), "no second child is created")
+	created := env.child(t, tom.ID)
+	require.NotNil(t, created.CreatedStudentID)
+	assert.NotEqual(t, existing.ID, *created.CreatedStudentID)
+	assert.Equal(t, 1, studentsNamed(t, env.db, "Tom", "Bestand"), "the sibling is created as a new child")
+}
+
+func TestExistingChild_LinkedParentsPhaseMatchesThroughTheLink(t *testing.T) {
+	t.Parallel()
+	env := setupExistingChildTest(t, enrollmentNative.PhaseAudienceLinkedParents)
+	existing := enrolledChild(t, env.db, "Mila", "Verknuepft", existingChildBirthday)
+	accountID := parentAccountLinkedTo(t, env.db, existing.ID, securityruntime.GuardianRolePrimaryGuardian)
+
+	res := env.submit(t, existingChildSubmission{accountID: &accountID, children: []enrollmentAPI.SubmitChild{
+		submitChild("Mila", "Verknuepft", existingChildBirthday),
+	}})
+	require.NotNil(t, res.Children[0].MatchedStudentID)
+	assert.Equal(t, existing.ID, *res.Children[0].MatchedStudentID)
+
+	require.NoError(t, env.decide(t, enrollmentAPI.DecideInput{RequestID: res.Request.ID, ChildID: res.Children[0].ID}))
+	assert.Equal(t, 1, studentsNamed(t, env.db, "Mila", "Verknuepft"))
+}
+
+// A link without the re-enrollment permission is not enough to renew the
+// child on the parent's word: the office decides.
+func TestExistingChild_LinkWithoutEnrollmentPermissionAsksTheOffice(t *testing.T) {
+	t.Parallel()
+	env := setupExistingChildTest(t, enrollmentNative.PhaseAudienceLinkedParents)
+	existing := enrolledChild(t, env.db, "Ida", "Abholung", existingChildBirthday)
+	accountID := parentAccountLinkedTo(t, env.db, existing.ID, securityruntime.GuardianRolePickupOnly)
+
+	res := env.submit(t, existingChildSubmission{accountID: &accountID, children: []enrollmentAPI.SubmitChild{
+		submitChild("Ida", "Abholung", existingChildBirthday),
+	}})
+	child := res.Children[0]
+	assert.Nil(t, child.MatchedStudentID)
+	candidates := env.candidates(t, res.Request.ID, child.ID)
+	require.Len(t, candidates, 1)
+	assert.Equal(t, existing.ID, candidates[0].StudentID)
+
+	err := env.decide(t, enrollmentAPI.DecideInput{RequestID: res.Request.ID, ChildID: child.ID})
+	require.ErrorIs(t, err, enrollmentNative.ErrChildPossiblyEnrolled)
+}
+
+// An anonymous public form proves nothing about the submitter, so even an
+// exact match is left to the office, which can renew the child or create a
+// new one.
+func TestExistingChild_AnonymousExactMatchNeedsOfficeChoiceBothWays(t *testing.T) {
+	t.Parallel()
+	env := setupExistingChildTest(t, enrollmentNative.PhaseAudienceOpen)
+	existing := enrolledChild(t, env.db, "Paul", "Offen", existingChildBirthday)
+
+	renewal := env.submit(t, existingChildSubmission{email: "renewal@example.com", children: []enrollmentAPI.SubmitChild{
+		submitChild("Paul", "Offen", existingChildBirthday),
+	}})
+	child := renewal.Children[0]
+	assert.Nil(t, child.MatchedStudentID, "an anonymous submission pins nothing")
+	candidates := env.candidates(t, renewal.Request.ID, child.ID)
+	require.Len(t, candidates, 1)
+	assert.Equal(t, existing.ID, candidates[0].StudentID)
+	require.NotNil(t, candidates[0].DateOfBirth)
+	assert.Equal(t, existingChildBirthday.String(), string(*candidates[0].DateOfBirth))
+
+	err := env.decide(t, enrollmentAPI.DecideInput{RequestID: renewal.Request.ID, ChildID: child.ID})
+	require.ErrorIs(t, err, enrollmentNative.ErrChildPossiblyEnrolled, "approval without the office's choice is refused")
+	assert.Equal(t, enrollmentNative.ChildStatusSubmitted, env.child(t, child.ID).Status)
+
+	unrelated := enrolledChild(t, env.db, "Paula", "Fremd", calendar.NewDate(2017, 1, 1))
+	err = env.decide(t, enrollmentAPI.DecideInput{RequestID: renewal.Request.ID, ChildID: child.ID, ExistingStudentID: &unrelated.ID})
+	require.ErrorIs(t, err, enrollmentNative.ErrExistingChildChoiceInvalid, "only a candidate can be chosen")
+
+	outcome := env.decideOutcome(t, enrollmentAPI.DecideInput{RequestID: renewal.Request.ID, ChildID: child.ID, ExistingStudentID: &existing.ID})
+	assert.Nil(t, outcome.PendingInvite, "the office's choice invites nobody")
+	renewed := env.child(t, child.ID)
+	require.NotNil(t, renewed.CreatedStudentID)
+	assert.Equal(t, existing.ID, *renewed.CreatedStudentID)
+	assert.True(t, renewed.MatchedByOffice)
+	assert.Equal(t, 1, studentsNamed(t, env.db, "Paul", "Offen"))
+	assert.Empty(t, env.guardianLinks(t, existing.ID), "the office's choice links none of the submitting family")
+
+	// A confirmed edit of the request later still links nobody to the child.
+	req, err := enrollmentAPI.ReadOwnerRequestForTest(testpkg.Ctx(t), env.repos.Enrollment(), renewal.Request.ID)
+	require.NoError(t, err)
+	req.GuardianEmail = "renewal-edited@example.com"
+	require.NoError(t, enrollmentAPI.UpdateOwnerRequestGuardianForTest(testpkg.Ctx(t), env.repos.Enrollment(), req, true))
+	_, err = changeRequestApplierForTest(t, env.decisionTestEnv).SyncApprovedChildData(testpkg.Ctx(t), enrollmentAPI.SyncApprovedChildDataInput{
+		RequestID: renewal.Request.ID, ChildID: child.ID, ActorAccountID: env.creatorID, ReplaceTargetedData: true,
+	})
+	require.NoError(t, err)
+	assert.Empty(t, env.guardianLinks(t, existing.ID), "a later sync links none of the submitting family either")
+
+	// A different family with a namesake born the same day: the office
+	// creates a new child on purpose.
+	namesake := env.submit(t, existingChildSubmission{email: "namesake@example.com", children: []enrollmentAPI.SubmitChild{
+		submitChild("Paul", "Offen", existingChildBirthday),
+	}})
+	require.NoError(t, env.decide(t, enrollmentAPI.DecideInput{RequestID: namesake.Request.ID, ChildID: namesake.Children[0].ID, CreateNewStudent: true}))
+	created := env.child(t, namesake.Children[0].ID)
+	require.NotNil(t, created.CreatedStudentID)
+	assert.NotEqual(t, existing.ID, *created.CreatedStudentID)
+	assert.Equal(t, 2, studentsNamed(t, env.db, "Paul", "Offen"))
+}
+
+// Several children with the name and birthday are shown to the office and
+// never matched automatically, even when the parent is linked to one. A name
+// with another birthday is no match: the child is created as usual.
+func TestExistingChild_AmbiguousMatchAsksTheOfficeAndNameOnlyIsNew(t *testing.T) {
+	t.Parallel()
+	env := setupExistingChildTest(t, enrollmentNative.PhaseAudienceOpen)
+	first := enrolledChild(t, env.db, "Ben", "Doppelt", existingChildBirthday)
+	second := enrolledChild(t, env.db, "Ben", "Doppelt", existingChildBirthday)
+	accountID := parentAccountLinkedTo(t, env.db, first.ID, securityruntime.GuardianRolePrimaryGuardian)
+	nameOnly := enrolledChild(t, env.db, "Emma", "Datum", calendar.NewDate(2018, 1, 1))
+	// A twin of the namesakes is not one of their candidates.
+	enrolledChild(t, env.db, "Lea", "Doppelt", existingChildBirthday)
+
+	res := env.submit(t, existingChildSubmission{accountID: &accountID, children: []enrollmentAPI.SubmitChild{
+		submitChild("Ben", "Doppelt", existingChildBirthday),
+		submitChild("Emma", "Datum", existingChildBirthday),
+	}})
+	ben, emma := res.Children[0], res.Children[1]
+	assert.Nil(t, ben.MatchedStudentID, "two enrolled children of that name are ambiguous")
+	assert.Nil(t, emma.MatchedStudentID)
+	benCandidates := env.candidates(t, res.Request.ID, ben.ID)
+	require.Len(t, benCandidates, 2)
+	assert.ElementsMatch(t, []int64{first.ID, second.ID}, []int64{benCandidates[0].StudentID, benCandidates[1].StudentID})
+	assert.Empty(t, env.candidates(t, res.Request.ID, emma.ID), "the same name with another birthday is no match")
+
+	require.ErrorIs(t, env.decide(t, enrollmentAPI.DecideInput{RequestID: res.Request.ID, ChildID: ben.ID}), enrollmentNative.ErrChildPossiblyEnrolled)
+	require.NoError(t, env.decide(t, enrollmentAPI.DecideInput{RequestID: res.Request.ID, ChildID: ben.ID, ExistingStudentID: &first.ID}))
+	assert.Equal(t, 2, studentsNamed(t, env.db, "Ben", "Doppelt"))
+	require.NoError(t, env.decide(t, enrollmentAPI.DecideInput{RequestID: res.Request.ID, ChildID: emma.ID}))
+	created := env.child(t, emma.ID)
+	require.NotNil(t, created.CreatedStudentID)
+	assert.NotEqual(t, nameOnly.ID, *created.CreatedStudentID)
+}
+
+// A child of another school never matches, as candidate or pin.
+func TestExistingChild_OtherSchoolsChildNeverMatches(t *testing.T) {
+	t.Parallel()
+	env := setupExistingChildTest(t, enrollmentNative.PhaseAudienceOpen)
+	otherTenant, _ := testpkg.CreateTestTenant(t, env.db)
+	foreign := testpkg.CreateTestStudentForTenant(t, env.db, otherTenant, "Noah", "Woanders", "1a")
+	setPersonBirthday(t, env.db, foreign.PersonID, existingChildBirthday)
+	accountID := parentAccountLinkedTo(t, env.db, enrolledChild(t, env.db, "Lotta", "Hier", existingChildBirthday).ID, securityruntime.GuardianRolePrimaryGuardian)
+
+	res := env.submit(t, existingChildSubmission{accountID: &accountID, children: []enrollmentAPI.SubmitChild{
+		submitChild("Noah", "Woanders", existingChildBirthday),
+	}})
+	child := res.Children[0]
+	assert.Nil(t, child.MatchedStudentID)
+	assert.Empty(t, env.candidates(t, res.Request.ID, child.ID))
+
+	require.NoError(t, env.decide(t, enrollmentAPI.DecideInput{RequestID: res.Request.ID, ChildID: child.ID}))
+	created := env.child(t, child.ID)
+	require.NotNil(t, created.CreatedStudentID)
+	assert.NotEqual(t, foreign.ID, *created.CreatedStudentID)
+}
+
+// new_students and existing_students keep their submit-time rules; their
+// approvals take no choice.
+func TestExistingChild_OtherAudiencesTakeNoChoice(t *testing.T) {
+	t.Parallel()
+	env := setupExistingChildTest(t, enrollmentNative.PhaseAudienceNewStudents)
+
+	res := env.submit(t, existingChildSubmission{children: []enrollmentAPI.SubmitChild{
+		submitChild("Jona", "Neu", existingChildBirthday),
+	}})
+	err := env.decide(t, enrollmentAPI.DecideInput{RequestID: res.Request.ID, ChildID: res.Children[0].ID, CreateNewStudent: true})
+	require.ErrorIs(t, err, enrollmentNative.ErrExistingChildChoiceInvalid)
+	require.NoError(t, env.decide(t, enrollmentAPI.DecideInput{RequestID: res.Request.ID, ChildID: res.Children[0].ID}))
+}

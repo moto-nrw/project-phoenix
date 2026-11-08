@@ -387,6 +387,11 @@ func (s *Intake) createSubmittedChildren(ctx context.Context, req *SubmitRequest
 		if err != nil {
 			return nil, err
 		}
+		if matchedStudentID == nil {
+			if matchedStudentID, err = s.resolveEnrolledChildPin(ctx, req.TenantID, plan.phase, child, submitter); err != nil {
+				return nil, err
+			}
+		}
 		// !AllowClosedPhase means the eligibility gate ran, so a vanished
 		// match is a race, not a fresh create (#1663).
 		if err := assertExistingStudentMatchResolved(plan.phase, matchedStudentID, !req.AllowClosedPhase, i); err != nil {

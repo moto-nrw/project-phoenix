@@ -381,6 +381,8 @@ export const ERROR_CATALOG = {
         "Dieses Kind ist an der Schule noch nicht angemeldet. Diese Anmeldung ist nur für Kinder der Schule.",
       "enrollment.child_not_permitted":
         "Sie dürfen dieses Kind nicht erneut anmelden. Bitte wenden Sie sich an die Schule.",
+      "enrollment.child_possibly_enrolled":
+        "Ein Kind mit diesem Namen und Geburtsdatum ist schon angemeldet. Bitte öffnen Sie die Anmeldung und wählen Sie dort, ob es dasselbe Kind ist.",
       "enrollment.child_required": "Bitte fügen Sie mindestens ein Kind hinzu.",
       "enrollment.class_not_eligible":
         "Diese Anmeldung gilt nur für bestimmte Klassen. Bitte prüfen Sie die Klasse Ihres Kindes.",
@@ -408,6 +410,8 @@ export const ERROR_CATALOG = {
         "Die Online-Anmeldung ist an dieser Schule gerade nicht möglich. Bitte wenden Sie sich an die Schule.",
       "enrollment.edit_not_allowed":
         "Diese Anmeldung kann nicht mehr geändert werden. Bitte wenden Sie sich an die Schule.",
+      "enrollment.existing_child_choice_invalid":
+        "Ihre Auswahl passt nicht mehr zu diesem Kind. Bitte laden Sie die Seite neu.",
       "enrollment.export_too_large":
         "Diese Anmeldephase hat zu viele Anmeldungen für einen Export. Bitte melden Sie sich beim moto-Team.",
       "enrollment.field_required": "Bitte füllen Sie alle Pflichtfelder aus.",
