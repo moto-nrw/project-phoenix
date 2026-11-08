@@ -14,8 +14,8 @@ func init() {
 		Version:     parentBillingSEPAMandatesVersion,
 		Description: "Elternabrechnung: SEPA-Mandate, Gläubiger-ID und Vorabankündigung (#4695)",
 		DependsOn: []string{
-			traegerWithdrawalContactVersion,  // the newest migration on development
-			parentBillingPaymentTermsVersion, // the payment method and due date the invoices copy
+			parentBillingCareAmendmentsVersion, // the newest migration on development
+			parentBillingPaymentTermsVersion,   // the payment method and due date the invoices copy
 		},
 	})
 	Migrations.MustRegister(parentBillingSEPAMandatesUp, parentBillingSEPAMandatesDown)
