@@ -65,7 +65,7 @@ func (c *Contracts) versionDocument(ctx context.Context, reviewer carecontract.R
 	if stored {
 		view = "version_document"
 	}
-	if err := c.record(ctx, reviewer, record, ActionRead, map[string]any{"view": view, "version_number": number}); err != nil {
+	if err := trailContract(ctx, c.store, reviewer.OrganizationID, reviewer.AccountID, record, ActionRead, map[string]any{"view": view, "version_number": number}); err != nil {
 		return carecontract.File{}, 0, err
 	}
 	return file, record.Summary.SchoolID, nil
@@ -107,7 +107,6 @@ type Versions struct {
 
 var _ carecontract.ContractVersions = (*Versions)(nil)
 
-// NewVersions builds the read of the versions in force.
 func NewVersions(store Store) *Versions {
 	if store == nil {
 		panic("care contract: the store is required")
@@ -136,7 +135,6 @@ func (v *Versions) periods(ctx context.Context, organizationID int64, from, to c
 	return periods, nil
 }
 
-// clipPeriod is the part of the version's validity within from and to.
 func clipPeriod(version carecontract.Version, from, to calendar.Date) (calendar.Date, calendar.Date) {
 	start, end := version.EffectiveFrom, to
 	if start.Before(from) {

@@ -328,16 +328,16 @@ const ROW_ACTION_BASELINE = new Map(
       "Auswahlzeit entfernen@3438",
     ],
     "src/components/guardians/guardian-form-modal.tsx": [
-      "Entfernen@589",
-      "Telefonnummer entfernen@857",
+      "Entfernen@590",
+      "Telefonnummer entfernen@859",
     ],
     "src/components/staff/shift-edit-modal.tsx": ["Entfernen@1310"],
     "src/components/staff/stammdaten-section-forms.tsx": [
       "Qualifikation entfernen@477",
     ],
-    "src/components/students/companion-picker.tsx": ["entfernen@298"],
+    "src/components/students/companion-picker.tsx": ["entfernen@296"],
     "src/components/students/student-create-modal.tsx": [
-      "Erziehungsberechtigte/n entfernen@802",
+      "Erziehungsberechtigte/n entfernen@804",
     ],
     "src/components/timetable/substitution-slide-over.tsx": [
       "Rückgängig Entfernen@810",
@@ -1465,8 +1465,8 @@ const FORM_CONTEXT_EXCEPTIONS = new Map(
   Object.entries({
     // Übergabe einer Gruppe: Erklärung und die Gruppe, um die es geht.
     "src/components/groups/group-transfer-modal.tsx": [
-      "InfoSection@222",
-      "DataGrid@236",
+      "InfoSection@223",
+      "DataGrid@237",
     ],
   }),
 );
@@ -1598,7 +1598,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Träger bearbeiten@83",
     ],
     "src/app/operator/provisioning/edit-school-modal.tsx": [
-      "Schule bearbeiten@157",
+      "Schule bearbeiten@158",
     ],
     "src/app/school/kalender/page.tsx": [
       "Schultermin anlegen Schultermin bearbeiten@326",

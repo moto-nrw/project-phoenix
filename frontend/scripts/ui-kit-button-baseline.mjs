@@ -134,13 +134,13 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1543],
+    lines: [1544],
     reason: "Wochentagskarte, öffnet den Editor: Kachel",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/companion-picker.tsx",
-    lines: [397],
+    lines: [395],
     reason: "Suchtreffer zum Auswählen: Auswahlzeile",
   },
   {

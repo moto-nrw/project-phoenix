@@ -6,6 +6,8 @@
  * only; the Träger client lives in care-contract-notices-api.ts.
  */
 
+import type { CareContractStatus } from "./traeger-care-contracts-api";
+
 export type NoticeKind = "kuendigung" | "widerruf";
 /**
  * How the parents terminate (§ 312k Abs. 2 BGB): to the next date, to the
@@ -56,7 +58,7 @@ export interface ContractNotice {
 export interface ContractNoticeOptions {
   readonly contractId: string;
   readonly traegerName: string;
-  readonly status: string;
+  readonly status: CareContractStatus;
   readonly childName: string;
   readonly modules: string;
   readonly schoolName: string;
@@ -104,7 +106,7 @@ interface BackendNotice {
 export interface BackendNoticeOptions {
   contract_id: number | string;
   traeger_name?: string;
-  status: string;
+  status: CareContractStatus;
   child_name: string;
   modules: string;
   school_name: string;

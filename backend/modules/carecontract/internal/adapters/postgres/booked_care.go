@@ -22,7 +22,6 @@ type BookedCare struct{}
 
 var _ carecontract.BookedCare = BookedCare{}
 
-// NewBookedCare builds the school's read of the booked care.
 func NewBookedCare() BookedCare { return BookedCare{} }
 
 // schoolDB returns the tenant transaction of the reading school. A Träger
