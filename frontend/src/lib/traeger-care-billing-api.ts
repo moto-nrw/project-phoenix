@@ -138,7 +138,7 @@ export interface CareInvoice {
 }
 
 /** Why the release leaves an invoice of the preview out (#5916). */
-export interface CareExclusion {
+interface CareExclusion {
   readonly reason: string;
   readonly excludedAt: string;
 }
