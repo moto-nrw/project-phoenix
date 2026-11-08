@@ -33,7 +33,9 @@ type careMonthInput struct {
 // contracts already billed.
 type careMonth struct {
 	// dueDates are the run's due dates the payments used (#4689).
-	dueDates   parentbilling.RunDueDates
+	dueDates parentbilling.RunDueDates
+	// deviations are the family deviations the invoices took (#4689).
+	deviations []parentbilling.FamilyBilling
 	invoices   []parentbilling.CareInvoice
 	unpriced   []parentbilling.CareUnpriced
 	duplicates []parentbilling.CareDuplicate

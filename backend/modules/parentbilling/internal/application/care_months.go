@@ -528,7 +528,7 @@ func (c *CareBilling) monthWith(ctx context.Context, organizationID int64, run p
 	for i := range month.invoices {
 		payments.careInvoice(&month.invoices[i], issuedOn)
 	}
-	month.dueDates = payments.run
+	month.dueDates, month.deviations = payments.run, payments.deviationsRead()
 	return rule, month, nil
 }
 
@@ -560,6 +560,9 @@ func (c *CareBilling) detail(ctx context.Context, reviewer parentbilling.Holiday
 	} else {
 		rule, month, err := c.preview(ctx, reviewer.OrganizationID, run)
 		if err != nil {
+			return parentbilling.CareRunDetail{}, err
+		}
+		if err := recordDeviationReads(ctx, c.store, reviewer, month.deviations); err != nil {
 			return parentbilling.CareRunDetail{}, err
 		}
 		detail.MonthRule, detail.Invoices, detail.Unpriced, detail.Billed = rule, month.invoices, month.unpriced, month.billed

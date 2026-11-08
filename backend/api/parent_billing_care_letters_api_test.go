@@ -379,6 +379,13 @@ func TestCareLettersResolveThePayerAndRefuseAChangedPayer(t *testing.T) {
 					rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPut, familyBillingPath, input)
 					require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 				}
+				readsOf := func() int {
+					var reads int
+					require.NoError(t, f.db.NewRaw(`SELECT count(*) FROM parent_billing.family_billing_events
+						WHERE care_contract_id = ? AND action = 'read'`, contracts["Mia"]).Scan(context.Background(), &reads))
+					return reads
+				}
+				before := readsOf()
 				path := fmt.Sprintf("/invoices/%d/mail", invoice.ID)
 				if bulk {
 					path = "/letters/mail"
@@ -398,10 +405,7 @@ func TestCareLettersResolveThePayerAndRefuseAChangedPayer(t *testing.T) {
 					assert.Equal(t, want, decodeSchoolPortalData[careSeriesBody](t, rec.Body.Bytes()))
 				}
 				if !changed || bulk {
-					var reads int
-					require.NoError(t, f.db.NewRaw(`SELECT count(*) FROM parent_billing.family_billing_events
-						WHERE care_contract_id = ? AND action = 'read'`, contracts["Mia"]).Scan(context.Background(), &reads))
-					assert.Equal(t, 1, reads, "the send audits its read of the family deviation")
+					assert.Equal(t, before+1, readsOf(), "the send audits its read of the family deviation")
 				}
 				mails := careLetterMails(t, f, run.ID)
 				if changed {

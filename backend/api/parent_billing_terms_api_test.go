@@ -287,6 +287,10 @@ func TestFamilyDeviationReachesTheNextReleaseOnly(t *testing.T) {
 	assert.Equal(t, "Eva", released.Invoices[0].Recipient.FirstName, "issued invoices never change")
 	next := f.startRun(t, "2030-02-01")
 	preview := termsRun(t, f, f.office.token, next.ID)
+	var shown int
+	require.NoError(t, f.db.NewRaw(`SELECT count(*) FROM parent_billing.family_billing_events WHERE family_billing_id = ? AND action = 'read'`,
+		saved.ID).Scan(context.Background(), &shown))
+	assert.Positive(t, shown, "a run that shows the payer records the read of the deviation")
 	require.Len(t, preview.Invoices, 1)
 	invoice := preview.Invoices[0]
 	assert.Equal(t, family, invoice.FamilyEmail)
@@ -317,7 +321,9 @@ func TestFamilyDeviationReachesTheNextReleaseOnly(t *testing.T) {
 	var actions []string
 	require.NoError(t, f.db.NewRaw(`SELECT action FROM parent_billing.family_billing_events WHERE family_billing_id = ? ORDER BY id`,
 		saved.ID).Scan(context.Background(), &actions))
-	assert.Equal(t, []string{"save", "delete"}, actions, "every change of the deviation is in its trail")
+	assert.Equal(t, "save", actions[0], "every change of the deviation is in its trail")
+	assert.Equal(t, "delete", actions[len(actions)-1])
+	assert.Contains(t, actions, "read")
 }
 
 // Every route needs the right "Abrechnung"; another Träger neither reads nor

@@ -29,6 +29,9 @@ const (
 type paymentTermsReader interface {
 	InvoicePaymentTerms(ctx context.Context, organizationID, careRunID, holidayRunID int64) (
 		[]parentbilling.ServiceTerms, []parentbilling.FamilyBilling, parentbilling.RunDueDates, error)
+	// InsertFamilyBillingEvents records one action for each deviation, with
+	// its contract, in one statement.
+	InsertFamilyBillingEvents(ctx context.Context, organizationID, accountID int64, action string, families []parentbilling.FamilyBilling) error
 }
 
 // TermsStore persists the terms, the deviations and the due dates.
@@ -42,9 +45,6 @@ type TermsStore interface {
 	// DeleteFamilyBilling removes a deviation by its ID or, with id zero, by
 	// its family; it answers the deviation it removed, nil for none.
 	DeleteFamilyBilling(ctx context.Context, organizationID, id int64, familyEmail string) (*parentbilling.FamilyBilling, error)
-	// InsertFamilyBillingEvents records one action for each deviation, with
-	// its contract, in one statement.
-	InsertFamilyBillingEvents(ctx context.Context, organizationID, accountID int64, action string, families []parentbilling.FamilyBilling) error
 	// ReplaceRunDueDates replaces the due dates of a run; the database
 	// refuses it for a released run.
 	ReplaceRunDueDates(ctx context.Context, organizationID, accountID, careRunID, holidayRunID int64, dates parentbilling.RunDueDates) error
@@ -369,6 +369,36 @@ type invoicePayments struct {
 	terms    parentbilling.TermsSet
 	run      parentbilling.RunDueDates
 	families map[string]*parentbilling.FamilyBilling
+	// used are the deviations the invoices took, by ID, for the trail.
+	used map[int64]parentbilling.FamilyBilling
+}
+
+// deviationsRead are the deviations the invoices took.
+func (p invoicePayments) deviationsRead() []parentbilling.FamilyBilling {
+	read := make([]parentbilling.FamilyBilling, 0, len(p.used))
+	for _, family := range p.used {
+		read = append(read, family)
+	}
+	slices.SortFunc(read, func(a, b parentbilling.FamilyBilling) int { return compareOrdered(a.ID, b.ID) })
+	return read
+}
+
+// family answers the deviation of a family and notes its read.
+func (p invoicePayments) family(key string) *parentbilling.FamilyBilling {
+	family := p.families[key]
+	if family != nil {
+		p.used[family.ID] = *family
+	}
+	return family
+}
+
+// recordDeviationReads records in the trail of each deviation that a run
+// showed it to the account (#4689, ADR 0167).
+func recordDeviationReads(ctx context.Context, store paymentTermsReader, reviewer parentbilling.HolidayReviewer, families []parentbilling.FamilyBilling) error {
+	if err := store.InsertFamilyBillingEvents(ctx, reviewer.OrganizationID, reviewer.AccountID, familyBillingRead, families); err != nil {
+		return fmt.Errorf("parent billing: record the read of the family billing: %w", err)
+	}
+	return nil
 }
 
 // readInvoicePayments reads the terms, the deviations and the dates of a run.
@@ -384,13 +414,13 @@ func readInvoicePayments(ctx context.Context, store paymentTermsReader, organiza
 	for i := range families {
 		byFamily[families[i].FamilyEmail] = &families[i]
 	}
-	return invoicePayments{terms: termsSetOf(stored), run: dates, families: byFamily}, nil
+	return invoicePayments{terms: termsSetOf(stored), run: dates, families: byFamily, used: map[int64]parentbilling.FamilyBilling{}}, nil
 }
 
 // careInvoice sets the recipient and the payment of a monthly invoice.
 // The invoice carries the care and every service bundled with it.
 func (p invoicePayments) careInvoice(invoice *parentbilling.CareInvoice, issuedOn calendar.Date) {
-	family := p.families[invoice.FamilyEmail]
+	family := p.family(invoice.FamilyEmail)
 	recipient := parentbilling.ResolveRecipient(parentbilling.BillingRecipient{FirstName: invoice.Recipient.FirstName,
 		LastName: invoice.Recipient.LastName, Email: invoice.Recipient.Email}, family)
 	invoice.Recipient = parentbilling.CareRecipient{FirstName: recipient.FirstName, LastName: recipient.LastName,
@@ -403,7 +433,7 @@ func (p invoicePayments) careInvoice(invoice *parentbilling.CareInvoice, issuedO
 // the registration's address stays for both parents.
 func (p invoicePayments) holidayDocument(document *parentbilling.BillingDocument, issuedOn calendar.Date) {
 	document.FamilyEmail = parentbilling.FamilyKey(document.RecipientEmail)
-	family := p.families[document.FamilyEmail]
+	family := p.family(document.FamilyEmail)
 	recipient := parentbilling.ResolveRecipient(parentbilling.BillingRecipient{FirstName: document.RecipientFirstName,
 		LastName: document.RecipientLastName, Email: document.RecipientEmail, Address: document.RecipientAddress}, family)
 	document.RecipientFirstName, document.RecipientLastName, document.RecipientEmail = recipient.FirstName, recipient.LastName, recipient.Email

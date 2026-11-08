@@ -428,6 +428,9 @@ func (b *BillingRuns) preview(ctx context.Context, reviewer parentbilling.Holida
 		payments.holidayDocument(&result.documents[i], issuedOn)
 	}
 	result.dueDates = payments.run
+	if err := recordDeviationReads(ctx, b.store, reviewer, payments.deviationsRead()); err != nil {
+		return preview{}, err
+	}
 	return result, nil
 }
 
