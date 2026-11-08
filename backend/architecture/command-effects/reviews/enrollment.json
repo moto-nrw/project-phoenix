@@ -4290,6 +4290,18 @@
       "target_owner": "care-plan"
     },
     {
+      "adr": "0083",
+      "approval_adr": "0162",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.ApplyDueWeeklyPlans",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverDecider.ApplyDueWeeklyPlans",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/compose.Decisions.ApplyDueWeeklyPlans; takes the class-writes and recurrence gates (Decisions.LockApprovalGates) before it reads the due plans and locks students, in the documented order class-writes, recurrence, row locks (#6043 review). The same gate ApplyDueClassSwitches and Decide already take; protocol review is follow-up work (ADR 0098); approved for the rollover tick lock order by ADR 0162.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
       "adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.ApplyDueWeeklyPlans",
       "classification": "platform",
@@ -4416,6 +4428,18 @@
       "source_owner": "enrollment",
       "target": "unresolved:interface{Field(byte) string; error}.Field",
       "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0162",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.LockApprovalGates",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverDecider.LockApprovalGates",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/compose.Decisions.LockApprovalGates; the rollover tick takes the class-writes and recurrence gates before its first bulk transition, in the documented order class-writes, recurrence, row locks (#6043 review). The same gate ApplyDueClassSwitches and Decide already take; protocol review is follow-up work (ADR 0098); approved for the rollover tick lock order by ADR 0162.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CompanionRepository.ListLinksForStudents",

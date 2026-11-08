@@ -37,7 +37,9 @@ func (d *Decisions) attachApprovalToExistingStudent(
 	reviewedBy int64,
 	syncTargetedFields bool,
 ) (*enrollmentNative.PendingGuardianInvite, error) {
-	if err := d.lockExistingStudentGates(ctx); err != nil {
+	// Decide took the gates already; an existing-student approval rewrites
+	// school_class and resyncs the class-filtered rosters under them.
+	if err := d.LockApprovalGates(ctx); err != nil {
 		return nil, err
 	}
 	renewal, err := d.renewExistingStudent(ctx, child, phase, studentID, reviewedBy)
@@ -91,21 +93,6 @@ func (d *Decisions) attachApprovalToExistingStudent(
 	// stays nil there) and whenever the account attach above already linked
 	// them.
 	return d.pendingGuardianInvite(guardian, reviewedBy, false), nil
-}
-
-// lockExistingStudentGates takes the tenant-wide gates BEFORE the first
-// student row lock, in the project-wide class-change order (shared
-// class-writes gate first, recurrence gate second, row locks last) — the same
-// order the direct school_class PUT and the approved-child sync take (#2147
-// review rounds 12/15). The existing-student tail rewrites school_class, and
-// the class-change resync needs the recurrence gate; acquiring both up front
-// keeps the approval deadlock-free against a concurrent direct PUT or grade
-// transition on the same student.
-func (d *Decisions) lockExistingStudentGates(ctx context.Context) error {
-	if err := d.deps.StudentEnrollment.LockEnrollmentClassWrites(ctx); err != nil {
-		return fmt.Errorf("decision: lock class writes for existing-student approval: %w", err)
-	}
-	return d.lockTemplateRecurrence(ctx)
 }
 
 // renewExistingStudent updates school_class and the enrollment window.

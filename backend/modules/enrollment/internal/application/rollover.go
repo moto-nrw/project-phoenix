@@ -52,6 +52,9 @@ type (
 	// and applies the class switches renewals planned for the new school
 	// year once it starts (#3917).
 	RolloverDecider interface {
+		// LockApprovalGates takes the class-writes and recurrence gates the
+		// tick's approvals, class switches and weekly plans write under.
+		LockApprovalGates(ctx context.Context) error
 		Decide(ctx context.Context, input enrollment.DecideInput) (*enrollment.DecideOutcome, error)
 		ApplyDueClassSwitches(ctx context.Context, asOf calendar.Date) (int, error)
 		// ApplyDueWeeklyPlans applies the weekly plans renewals approved

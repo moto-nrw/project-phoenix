@@ -55,11 +55,10 @@ Begleitnotiz.
 - Verschiebt die Schule den Start der Phase, folgen offene Pläne ihrer
   Anmeldungen in derselben Transaktion dem neuen Datum. Bereits übernommene
   Pläne entstehen dadurch nicht neu. Die Phasenänderung hält dabei die
-  Wiederholungssperre. Bestätigung und direkte Korrektur nehmen deshalb
-  Klassen- und Wiederholungssperre vor den Zeilensperren der Anmeldung und vor
-  dem Lesen der Phase: Eine wartende Bestätigung plant so den gespeicherten
-  Start, und keine der beiden Seiten wartet mit gesperrter Kindzeile auf die
-  Sperre der anderen.
+  Wiederholungssperre. Alle Schreibwege nehmen deshalb die Sperren in der
+  Reihenfolge aus [Sperrreihenfolge](#sperrreihenfolge): Eine wartende
+  Bestätigung plant so den gespeicherten Start, und kein Weg wartet mit
+  gesperrter Zeile auf eine Sperre, die ein anderer hält.
 - Als Urheber der neuen Wochenzeilen speichert der Plan die Mitarbeiterin, die
   bestätigt hat, oder zuletzt geändert hat (`weekly_plan_author`). Der Start
   hängt damit nicht davon ab, dass dieses Konto Monate später noch besteht.
@@ -74,6 +73,51 @@ Begleitnotiz.
 - Ein Kind ohne laufende Betreuung, eine schon begonnene Betreuung und neue
   Kinder bekommen den Wochenplan wie bisher sofort.
 
+### Sperrreihenfolge
+
+Zwei mandantenweite Sperren gelten für die Ziele des Wochenplans und der
+Klasse: die Klassensperre (`pg_advisory_xact_lock_shared` auf dem
+Klassenschlüssel der Schule; nur der Jahrgangswechsel nimmt sie exklusiv) und
+die Wiederholungssperre (`template-recurrence:<tenant>`, exklusiv). Global
+gilt: Klassensperre, dann Wiederholungssperre, dann Zeilensperren
+(`requests`, `request_children`, Änderungsanfragen, `users.students`). Ein Weg
+darf eine Sperre auslassen, aber nie nach einer Zeilensperre oder nach der
+Wiederholungssperre noch auf eine der beiden warten. Beide Sperren gelten bis
+zum Ende der Transaktion; ein erneutes Nehmen weiter unten ist harmlos.
+
+In Enrollment nehmen alle Wege das Paar über eine Methode, damit die
+Reihenfolge nicht auseinanderläuft: `Decisions.LockApprovalGates`. Die
+Änderungsanfrage und die direkte Korrektur nehmen dasselbe Paar über Care Plans
+`LockOfferingDerivedWrites` (`ChangeRequests.lockApprovalGates`).
+
+| Weg | Einstieg | Reihenfolge |
+| --- | --- | --- |
+| Bestätigung `Decide(approved)` | `decide.go`, `LockApprovalGates` vor `lockDecisionTarget` und dem Lesen der Phase | Klasse, Wiederholung, Anmeldung, Kinder, Kind |
+| Andere Entscheidungen (Ablehnung, Warteliste, Rückzug) | `decide.go` | keine Sperre; sie schreiben nur den Status |
+| Bestätigung bestehendes Kind, Klassenwechsel-Resync | `attachApprovalToExistingStudent` | Sperren schon von `Decide` gehalten |
+| Änderungsanfrage bestätigen | `ChangeRequests.Approve` → `withLockedChangeRequest` mit `lockApprovalGates` vor der Anmeldung | Klasse, Wiederholung, Anmeldung, Änderungsanfrage, Kinder, Kind |
+| Änderungsanfrage ablehnen, Rückfrage | `Reject`, `askQuestion` | keine Sperre |
+| Direkte Korrektur | `correctApprovedChildData`, `lockApprovalGates` vor der Anmeldung | Klasse, Wiederholung, Anmeldung, Kinder, Kind |
+| Abgleich bestätigter Daten | `SyncApprovedChildData` (nur aus Änderungsanfrage und Korrektur) | Sperren schon gehalten; erneut vor der Kindzeile |
+| Rollover-Lauf | `RunDeadlineWorker`, `LockApprovalGates` vor der ersten Sammelumstellung | Klasse, Wiederholung, Sammelumstellungen, Savepoints der Bestätigungen |
+| Fällige Klassenwechsel (#3917) | `ApplyDueClassSwitches` | Klasse, Wiederholung, Pläne, Kinder (`users.students`) |
+| Fällige Wochenpläne | `ApplyDueWeeklyPlans`, `LockApprovalGates` vor dem Lesen der Pläne | Klasse, Wiederholung, Pläne, Laufgemeinschaft, Kinder |
+| Phasenänderung (Start verschieben) | `Phases.update` → `validateCareOfferingPhaseUpdate` | Wiederholung, Phase, offene Pläne |
+| Phase löschen | `Phases.Delete` → `detachPhaseSourcedTemplates` | Wiederholung, Vorlagen, Phase |
+| Rollover anlegen | `runCreate` → Katalogkopie | neue Phase (unsichtbar), dann Wiederholung; keine bestehende Zeile gesperrt |
+| Angebote anpassen | `UpdateChildOfferings` → Care Plan `AdjustOfferings` | Klasse, Wiederholung, Kind; die Anmeldung wird ungesperrt gelesen |
+| Angebotsverwaltung | Care Plan `CareOfferingCatalog` | Wiederholung, Angebote; keine Klassensperre danach |
+| Kind bearbeiten mit Klasse (Care Plan PUT) | `student_update_handlers.go` | Klasse, Wiederholung, Kind |
+| Abholzeiten auf Angebot zurücksetzen, Anpassungen anwenden, Angebotswechsel entscheiden | Care Plan `LockOfferingDerivedWrites` | Klasse, Wiederholung, Kind, Anmeldung |
+| Betreuungsende bestätigen, fällige Effekte | Care Plan `care_lifecycle.go` | Klasse, Wiederholung, Zeilen |
+| Rückzug eines Kindes | `workflows/studentdeletion` `ExecuteWithdrawal` | Klasse, Wiederholung, Zeilen |
+| Jahrgangswechsel | `gradetransition` `Apply`/`Revert` | Klasse (exklusiv), Wiederholung, Zeilen |
+| Stammdaten des Kindes | People Directory `Create`/`Update`/`DeleteStudent` | Klasse vor der Kindzeile |
+
+Vorher nahmen die Änderungsanfrage die Anmeldung und der Rollover-Lauf die
+Kinder vor der Wiederholungssperre. Gegen eine Bestätigung, die beide Sperren
+hält und auf diese Zeilen wartet, schloss das einen Zyklus (40P01).
+
 Abgelehnt: Wochenzeilen mit Gültigkeitszeitraum in Care Plan. Das wäre eine
 Migration der beiden Wochentabellen und eine Änderung aller ihrer Leser
 (Anwesenheit, Kiosk, Listen, Elternportal, Auto-Entschuldigungen). Mit der
@@ -82,22 +126,26 @@ an jedem Tag den gültigen Plan.
 
 ## Freigegebene Effekte
 
-`ApplyDueWeeklyPlans` ist eine neue Bindung des Ports
-`application.RolloverDecider`. Sie erreicht dieselben Ziele, die
-`compose.Decisions.Decide` für eine sofortige Wiederanmeldung schon erreicht
-(ADR 0098). Diese Entscheidung gibt genau diese Diagnosen für die Bindung
-`*compose.Decisions.ApplyDueWeeklyPlans` frei:
+`ApplyDueWeeklyPlans` und `LockApprovalGates` sind neue Bindungen des Ports
+`application.RolloverDecider`. Sie erreichen dieselben Ziele, die
+`compose.Decisions.Decide` für eine sofortige Wiederanmeldung und
+`ApplyDueClassSwitches` schon erreichen (ADR 0098). Diese Entscheidung gibt
+genau diese Diagnosen frei:
 
-| Ziel | Effekt |
-| --- | --- |
-| `careplan.PickupAutoExcusal.RecordWeeklyPickupChanges` | mutation, debt |
-| `careplan.PickupAutoExcusal.ResyncFutureExceptions` | mutation, debt |
-| `careplan/compose.LockWeeklyPickupStudents` | lock, debt |
-| `unresolved:callable:.../api.now` | unresolved |
-| `unresolved:interface{Field(byte) string; error}.Field` | unresolved |
+| Bindung | Ziel | Effekt |
+| --- | --- | --- |
+| `*compose.Decisions.ApplyDueWeeklyPlans` | `careplan.PickupAutoExcusal.RecordWeeklyPickupChanges` | mutation, debt |
+| `*compose.Decisions.ApplyDueWeeklyPlans` | `careplan.PickupAutoExcusal.ResyncFutureExceptions` | mutation, debt |
+| `*compose.Decisions.ApplyDueWeeklyPlans` | `careplan/compose.LockWeeklyPickupStudents` | lock, debt |
+| `*compose.Decisions.ApplyDueWeeklyPlans` | `timetable.RecurrenceWriteLock.LockRecurrenceWrites` | lock, debt |
+| `*compose.Decisions.ApplyDueWeeklyPlans` | `unresolved:callable:.../api.now` | unresolved |
+| `*compose.Decisions.ApplyDueWeeklyPlans` | `unresolved:interface{Field(byte) string; error}.Field` | unresolved |
+| `*compose.Decisions.LockApprovalGates` | `timetable.RecurrenceWriteLock.LockRecurrenceWrites` | lock, debt |
 
-Die Abstimmung mit Care Plan bleibt die offene Folgearbeit aus ADR 0098; sie
-wächst nur um den Zeitpunkt, nicht um einen neuen Schreibweg. Nach dem
+Die Wiederholungssperre nehmen beide Bindungen für die
+[Sperrreihenfolge](#sperrreihenfolge) des Rollover-Laufs. Die Abstimmung mit
+Care Plan bleibt die offene Folgearbeit aus ADR 0098; sie wächst nur um den
+Zeitpunkt, nicht um einen neuen Schreibweg. Nach dem
 Einchecken dieser Entscheidung darf sie keine weiteren Diagnosen freigeben.
 
 ## Folgen

@@ -3274,6 +3274,14 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.ApplyDueWeeklyPlans",
+      "binding_digest": "c1364eb8f847ff962337bb5fc9fe8511",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverDecider.ApplyDueWeeklyPlans",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.ApplyDueWeeklyPlans",
       "binding_digest": "feebab26a71bb1da978e0c6355734ebb",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverDecider.ApplyDueWeeklyPlans",
       "source_owner": "enrollment",
@@ -3359,6 +3367,14 @@
       "source_owner": "enrollment",
       "target": "unresolved:interface{Field(byte) string; error}.Field",
       "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.LockApprovalGates",
+      "binding_digest": "c1364eb8f847ff962337bb5fc9fe8511",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverDecider.LockApprovalGates",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CompanionRepository.ListLinksForStudents",

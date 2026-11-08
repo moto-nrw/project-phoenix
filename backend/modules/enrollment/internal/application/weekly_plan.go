@@ -137,6 +137,11 @@ func (d *Decisions) approvedChildTargetScope(ctx context.Context, run *approvedC
 // transaction. Connected companion plans share a savepoint and a final stranding
 // verdict. A failure keeps that group due without blocking unrelated plans.
 func (d *Decisions) ApplyDueWeeklyPlans(ctx context.Context, asOf calendar.Date) (int, error) {
+	// The gates before the plans and the student rows, as an approval takes
+	// them: a phase edit reschedules pending plans under the recurrence gate.
+	if err := d.LockApprovalGates(ctx); err != nil {
+		return 0, err
+	}
 	due, err := d.deps.Children.DueWeeklyPlans(ctx, enrollmentNative.Date(asOf.String()))
 	if err != nil {
 		return 0, fmt.Errorf("weekly plan: list due plans: %w", err)

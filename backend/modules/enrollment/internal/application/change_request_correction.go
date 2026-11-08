@@ -22,7 +22,7 @@ func (s *ChangeRequests) correctApprovedChildData(ctx context.Context, input enr
 	if err != nil {
 		return nil, err
 	}
-	if err := s.lockCorrectionGates(ctx); err != nil {
+	if err := s.lockApprovalGates(ctx); err != nil {
 		return nil, err
 	}
 	req, err := decodedRequestByID(ctx, s.deps.Requests, input.RequestID, true)
@@ -68,16 +68,19 @@ func (s *ChangeRequests) correctApprovedChildData(ctx context.Context, input enr
 	return s.recordAdminCorrection(ctx, req, children, child, baseSnapshot, reason, input.ActorAccountID)
 }
 
-// lockCorrectionGates takes the gates the student sync needs before the
-// request and child row locks, as an approved change request does: a phase
-// edit holds the recurrence gate while it rewrites the children's pending
-// weekly plans (#6043 review).
-func (s *ChangeRequests) lockCorrectionGates(ctx context.Context) error {
+// lockApprovalGates takes the class-writes and recurrence gates a
+// change-request approval and a direct correction write under, before the
+// request, change-request and child row locks (ADR 0162). The student sync
+// and the booking changes need them; a phase edit holds the recurrence gate
+// while it rewrites pending weekly plans, and Decide(approved) holds both
+// while it waits for the request row (#6043 review). Without the decision
+// flow nothing gated is written.
+func (s *ChangeRequests) lockApprovalGates(ctx context.Context) error {
 	if s.deps.Decisions == nil || s.deps.BookingGates == nil {
 		return nil
 	}
 	if err := s.deps.BookingGates.LockOfferingDerivedWrites(ctx); err != nil {
-		return fmt.Errorf("admin data correction: lock offering-derived writes: %w", err)
+		return fmt.Errorf("change request: lock offering-derived writes: %w", err)
 	}
 	return nil
 }
