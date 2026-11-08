@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
@@ -20,7 +21,20 @@ import (
 // and mode beside the student create in query_budget_test.go. Each runs two
 // warmups like TestStudentImportBatchQueryBudget, then a ten-row file and an
 // eleven times larger file in two write transactions; the difference between
-// both points is the growth for 100 rows.
+// both points is the growth for 100 rows. Student and staff accept create,
+// update and upsert, each also as a preview; class list and opening balances
+// are create-only over HTTP.
+//
+// Upsert mix: rows with an even index exist and change fixed cells, rows with
+// an odd index are new. Every file has an even row count, so it is half new
+// and half existing, and each 100-row chunk of N110 is too.
+
+// outcome is the expected split of a file into created and updated rows.
+type outcome struct{ created, updated int }
+
+func allCreated(n int) outcome { return outcome{created: n} }
+func allUpdated(n int) outcome { return outcome{updated: n} }
+func upsertMix(n int) outcome  { return outcome{created: n / 2, updated: n / 2} }
 
 // importBudgetRun drives one config's ImportBatches with a query counter and
 // fails on any row error, so a budget never measures a rejected row.
@@ -32,8 +46,9 @@ type importBudgetRun[T any] struct {
 	audit    importModels.BatchAudit
 }
 
-// run imports rows and returns the statements of exactly this call.
-func (r importBudgetRun[T]) run(t *testing.T, rows []T, mode importModels.ImportMode, dryRun bool) querybudgets.Measurement {
+// run imports rows, requires the expected created and updated counters and
+// returns the statements of exactly this call.
+func (r importBudgetRun[T]) run(t *testing.T, rows []T, mode importModels.ImportMode, dryRun bool, want outcome) querybudgets.Measurement {
 	t.Helper()
 	r.counter.Reset()
 	result, err := r.importer.ImportBatches(r.ctx, importModels.ImportRequest[T]{
@@ -41,11 +56,7 @@ func (r importBudgetRun[T]) run(t *testing.T, rows []T, mode importModels.Import
 	}, r.audit)
 	require.NoError(t, err)
 	require.Zero(t, result.ErrorCount, "%+v", result.Errors)
-	if mode == importModels.ImportModeUpdate && !dryRun {
-		require.Equal(t, len(rows), result.UpdatedCount)
-	} else {
-		require.Equal(t, len(rows), result.CreatedCount)
-	}
+	require.Equal(t, want, outcome{created: result.CreatedCount, updated: result.UpdatedCount}, "mode %s, dry run %t", mode, dryRun)
 	t.Logf("%d rows, mode %s, dry run %t: %d statements", len(rows), mode, dryRun, r.counter.Total())
 	return r.counter.Measurement(r.counter.Queries())
 }
@@ -53,12 +64,35 @@ func (r importBudgetRun[T]) run(t *testing.T, rows []T, mode importModels.Import
 // previewAndCreate are the measurements of one file's preview and create.
 type previewAndCreate struct{ preview, create querybudgets.Measurement }
 
-// TestStudentImportUpdateBatchQueryBudget pins the update of a student file
-// whose rows change fixed cells (Befund 6 of the addendum): every row moves the
-// child to another city and its pickup to a later time, so the profile patch
-// and the care write both run. The create that precedes each update is not
-// measured.
-func TestStudentImportUpdateBatchQueryBudget(t *testing.T) {
+// updateAndUpsert are the measurements of one file's update and upsert, each
+// with its preview.
+type updateAndUpsert struct{ previewUpdate, update, previewUpsert, upsert querybudgets.Measurement }
+
+// countByFirstName counts rows of a raw count query restricted to persons
+// whose first name starts with prefix, outside the counted context.
+func countByFirstName(t *testing.T, db *bun.DB, query, prefix string, args ...any) int {
+	t.Helper()
+	var n int
+	require.NoError(t, db.NewRaw(query, append([]any{testpkg.Tenant(t), prefix + "%"}, args...)...).Scan(testpkg.Ctx(t), &n))
+	return n
+}
+
+const (
+	studentsInCity = `SELECT count(*) FROM users.student_profiles s JOIN users.persons p ON p.id = s.person_id
+		WHERE s.tenant_id = ? AND p.first_name LIKE ? AND s.address_city = ?`
+	studentPickupsAt = `SELECT count(*) FROM schedule.student_pickup_schedules ps JOIN users.student_profiles s ON s.id = ps.student_id
+		JOIN users.persons p ON p.id = s.person_id WHERE ps.tenant_id = ? AND p.first_name LIKE ? AND ps.pickup_time = ?::time`
+	staffInCity = `SELECT count(*) FROM users.staff_master_data md JOIN users.staff_school_memberships s ON s.id = md.staff_id
+		JOIN users.persons p ON p.id = s.person_id WHERE md.tenant_id = ? AND p.first_name LIKE ? AND md.address_city = ? AND md.weekly_hours = ?`
+)
+
+// TestStudentImportUpdateAndUpsertBatchQueryBudget pins update and upsert of
+// a student file, each with its preview, after an unmeasured create of the
+// file. The update changes fixed cells (Befund 6 of the addendum): every row
+// moves the child to another city and its pickup to a later time, so the
+// profile patch and the care write both run. The upsert follows the mix above:
+// existing children move once more, new ones come from another iteration.
+func TestStudentImportUpdateAndUpsertBatchQueryBudget(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	module, err := api.NewImportTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
@@ -69,37 +103,57 @@ func TestStudentImportUpdateBatchQueryBudget(t *testing.T) {
 		importer: module.Import, ctx: counter.Context(testpkg.Ctx(t)), counter: counter, userID: actor.staffID,
 		audit: importModels.BatchAudit{EntityType: "student", Filename: "budget.csv", AccountID: actor.accountID},
 	}
-	update := func(rows []importModels.StudentImportRow) querybudgets.Measurement {
+	measure := func(iteration, n int) updateAndUpsert {
 		t.Helper()
-		runner.run(t, rows, importModels.ImportModeCreate, false)
-		changed := make([]importModels.StudentImportRow, len(rows))
-		for i, row := range rows {
+		file := studentBatch(iteration, n)
+		runner.run(t, file, importModels.ImportModeCreate, false, allCreated(n))
+		changed := make([]importModels.StudentImportRow, n)
+		mixed := make([]importModels.StudentImportRow, n)
+		fresh := studentBatch(iteration+10, n)
+		for i, row := range file {
 			row.AddressCity = "Bonn"
 			row.PickupSchedules = []importModels.PickupScheduleImportData{{Weekday: 2, PickupTime: "16:45"}}
 			changed[i] = row
+			row.AddressCity = "Münster"
+			mixed[i] = row
+			if i%2 == 1 {
+				mixed[i] = fresh[i]
+			}
 		}
-		measured := runner.run(t, changed, importModels.ImportModeUpdate, false)
-		// Outside the counted context: the fixed changes reached both owners.
-		var stale, early int
-		require.NoError(t, db.NewSelect().TableExpr("users.student_profiles").ColumnExpr("count(*)").
-			Where("tenant_id = ? AND address_city IS DISTINCT FROM 'Bonn'", testpkg.Tenant(t)).Scan(testpkg.Ctx(t), &stale))
-		require.NoError(t, db.NewSelect().TableExpr("schedule.student_pickup_schedules").ColumnExpr("count(*)").
-			Where("tenant_id = ? AND pickup_time <> '16:45'", testpkg.Tenant(t)).Scan(testpkg.Ctx(t), &early))
-		require.Zero(t, stale, "every updated child moved to the new city")
-		require.Zero(t, early, "every updated pickup moved to the new time")
+		var measured updateAndUpsert
+		measured.previewUpdate = runner.run(t, changed, importModels.ImportModeUpdate, true, allUpdated(n))
+		measured.update = runner.run(t, changed, importModels.ImportModeUpdate, false, allUpdated(n))
+		existing := fmt.Sprintf("Runtime%d-", iteration)
+		require.Equal(t, n, countByFirstName(t, db, studentsInCity, existing, "Bonn"), "every updated child moved to the new city")
+		require.Equal(t, n, countByFirstName(t, db, studentPickupsAt, existing, "16:45"), "every updated pickup moved to the new time")
+		measured.previewUpsert = runner.run(t, mixed, importModels.ImportModeUpsert, true, upsertMix(n))
+		measured.upsert = runner.run(t, mixed, importModels.ImportModeUpsert, false, upsertMix(n))
+		require.Equal(t, n/2, countByFirstName(t, db, studentsInCity, existing, "Münster"), "the existing half was updated")
+		require.Equal(t, n/2, countByFirstName(t, db, studentsInCity, fmt.Sprintf("Runtime%d-", iteration+10), "Köln"), "the new half was created")
 		return measured
 	}
 	for iteration := range 2 {
-		update(tenStudentBatch(iteration))
+		measure(iteration, studentBatchRows)
 	}
-	querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.update", update(tenStudentBatch(2)))
-	querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.update_110", update(studentBatch(3, 11*studentBatchRows)))
+	small := measure(2, studentBatchRows)
+	querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.preview_update", small.previewUpdate)
+	querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.update", small.update)
+	querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.preview_upsert", small.previewUpsert)
+	querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.upsert", small.upsert)
+	large := measure(3, 11*studentBatchRows)
+	querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.preview_update_110", large.previewUpdate)
+	querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.update_110", large.update)
+	querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.preview_upsert_110", large.previewUpsert)
+	querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.upsert_110", large.upsert)
 }
 
-// TestStaffImportBatchQueryBudget pins preview, create and update of a staff
-// file with role, personnel number, weekly hours and one qualification and
-// without e-mail, so no invitation is sent. The update matches each row by its
-// personnel number and changes the city and the weekly hours.
+// TestStaffImportBatchQueryBudget pins create, update and upsert of a staff
+// file, each with its preview. Rows carry role, personnel number, weekly hours
+// and one qualification and no e-mail, so no invitation is sent. The update
+// matches each row by its personnel number and changes the city and the
+// weekly hours; the upsert follows the mix above, and in upsert mode every row
+// also looks up its existing record during validation
+// (skipStaffRoleGrantCheck).
 func TestStaffImportBatchQueryBudget(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -114,44 +168,61 @@ func TestStaffImportBatchQueryBudget(t *testing.T) {
 		importer: module.StaffImport, ctx: ctx, counter: counter, userID: actor.accountID,
 		audit: importModels.BatchAudit{EntityType: "staff", Filename: "budget.csv", AccountID: actor.accountID},
 	}
-	imported := 0
-	measure := func(iteration, n int) (previewAndCreate, querybudgets.Measurement) {
+	staffRow := func(iteration, i int) importModels.StaffImportRow {
+		return importModels.StaffImportRow{
+			FirstName: fmt.Sprintf("Budget%d-%d", iteration, i), LastName: "Staff", RoleName: role.Name,
+			PersonnelNumber: fmt.Sprintf("P-%d-%d", iteration, i), WeeklyHours: "19,5", Qualifications: "Erste Hilfe",
+		}
+	}
+	measure := func(iteration, n int) (previewAndCreate, updateAndUpsert) {
 		t.Helper()
 		file := make([]importModels.StaffImportRow, 0, n)
 		changed := make([]importModels.StaffImportRow, 0, n)
+		mixed := make([]importModels.StaffImportRow, 0, n)
 		for i := range n {
-			row := importModels.StaffImportRow{
-				FirstName: fmt.Sprintf("Budget%d-%d", iteration, i), LastName: "Staff", RoleName: role.Name,
-				PersonnelNumber: fmt.Sprintf("P-%d-%d", iteration, i), WeeklyHours: "19,5", Qualifications: "Erste Hilfe",
-			}
+			row := staffRow(iteration, i)
 			file = append(file, row)
 			row.AddressCity, row.WeeklyHours = "Bonn", "30"
 			changed = append(changed, row)
+			row.AddressCity = "Münster"
+			if i%2 == 1 {
+				row = staffRow(iteration+10, i)
+			}
+			mixed = append(mixed, row)
 		}
-		measured := previewAndCreate{
-			preview: runner.run(t, file, importModels.ImportModeCreate, true),
-			create:  runner.run(t, file, importModels.ImportModeCreate, false),
+		created := previewAndCreate{
+			preview: runner.run(t, file, importModels.ImportModeCreate, true, allCreated(n)),
+			create:  runner.run(t, file, importModels.ImportModeCreate, false, allCreated(n)),
 		}
-		update := runner.run(t, changed, importModels.ImportModeUpdate, false)
-		// Outside the counted context: the fixed changes reached Workforce.
-		var updated int
-		require.NoError(t, db.NewSelect().TableExpr("users.staff_master_data").ColumnExpr("count(*)").
-			Where("tenant_id = ? AND address_city = 'Bonn' AND weekly_hours = 30", testpkg.Tenant(t)).Scan(testpkg.Ctx(t), &updated))
-		imported += n
-		require.Equal(t, imported, updated)
-		return measured, update
+		var measured updateAndUpsert
+		measured.previewUpdate = runner.run(t, changed, importModels.ImportModeUpdate, true, allUpdated(n))
+		measured.update = runner.run(t, changed, importModels.ImportModeUpdate, false, allUpdated(n))
+		existing := fmt.Sprintf("Budget%d-", iteration)
+		require.Equal(t, n, countByFirstName(t, db, staffInCity, existing, "Bonn", 30), "every update reached Workforce")
+		measured.previewUpsert = runner.run(t, mixed, importModels.ImportModeUpsert, true, upsertMix(n))
+		measured.upsert = runner.run(t, mixed, importModels.ImportModeUpsert, false, upsertMix(n))
+		require.Equal(t, n/2, countByFirstName(t, db, staffInCity, existing, "Münster", 30), "the existing half was updated")
+		require.Equal(t, n/2, countByFirstName(t, db, `SELECT count(*) FROM users.staff_school_memberships s
+			JOIN users.persons p ON p.id = s.person_id WHERE s.tenant_id = ? AND p.first_name LIKE ?`, fmt.Sprintf("Budget%d-", iteration+10)), "the new half was created")
+		return created, measured
 	}
 	for iteration := range 2 {
 		measure(iteration, 10)
 	}
-	small, smallUpdate := measure(2, 10)
+	small, smallModes := measure(2, 10)
 	querybudgets.AssertQueryBudget(t, "modules.dataimport.staff_batch.preview", small.preview)
 	querybudgets.AssertQueryBudget(t, "modules.dataimport.staff_batch.import", small.create)
-	querybudgets.AssertQueryBudget(t, "modules.dataimport.staff_batch.update", smallUpdate)
-	large, largeUpdate := measure(3, 110)
+	querybudgets.AssertQueryBudget(t, "modules.dataimport.staff_batch.preview_update", smallModes.previewUpdate)
+	querybudgets.AssertQueryBudget(t, "modules.dataimport.staff_batch.update", smallModes.update)
+	querybudgets.AssertQueryBudget(t, "modules.dataimport.staff_batch.preview_upsert", smallModes.previewUpsert)
+	querybudgets.AssertQueryBudget(t, "modules.dataimport.staff_batch.upsert", smallModes.upsert)
+	large, largeModes := measure(3, 110)
 	querybudgets.AssertQueryBudget(t, "modules.dataimport.staff_batch.preview_110", large.preview)
 	querybudgets.AssertQueryBudget(t, "modules.dataimport.staff_batch.import_110", large.create)
-	querybudgets.AssertQueryBudget(t, "modules.dataimport.staff_batch.update_110", largeUpdate)
+	querybudgets.AssertQueryBudget(t, "modules.dataimport.staff_batch.preview_update_110", largeModes.previewUpdate)
+	querybudgets.AssertQueryBudget(t, "modules.dataimport.staff_batch.update_110", largeModes.update)
+	querybudgets.AssertQueryBudget(t, "modules.dataimport.staff_batch.preview_upsert_110", largeModes.previewUpsert)
+	querybudgets.AssertQueryBudget(t, "modules.dataimport.staff_batch.upsert_110", largeModes.upsert)
 }
 
 // TestClassListImportBatchQueryBudget pins preview and create of a class list
@@ -174,8 +245,8 @@ func TestClassListImportBatchQueryBudget(t *testing.T) {
 			file = append(file, importModels.ClassListEntryImportRow{FirstName: fmt.Sprintf("Budget%d-%d", iteration, i), LastName: "Liste", SchoolClass: "1a"})
 		}
 		return previewAndCreate{
-			preview: runner.run(t, file, importModels.ImportModeCreate, true),
-			create:  runner.run(t, file, importModels.ImportModeCreate, false),
+			preview: runner.run(t, file, importModels.ImportModeCreate, true, allCreated(n)),
+			create:  runner.run(t, file, importModels.ImportModeCreate, false, allCreated(n)),
 		}
 	}
 	for iteration := range 2 {
@@ -217,8 +288,8 @@ func TestOpeningBalanceImportBatchQueryBudget(t *testing.T) {
 			})
 		}
 		return previewAndCreate{
-			preview: runner.run(t, file, importModels.ImportModeCreate, true),
-			create:  runner.run(t, file, importModels.ImportModeCreate, false),
+			preview: runner.run(t, file, importModels.ImportModeCreate, true, allCreated(n)),
+			create:  runner.run(t, file, importModels.ImportModeCreate, false, allCreated(n)),
 		}
 	}
 	for iteration := range 2 {
