@@ -14,6 +14,7 @@ import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useLocalizedDatePicker } from "~/lib/hooks/use-localized-date-picker";
 import { createLogger } from "~/lib/logger";
 import { useApiFormError } from "~/contexts/ToastContext";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 import {
   listParentRequestEvents,
   updateExcusedRequest,
@@ -181,7 +182,7 @@ export function RequestEditModal({
   onClose: () => void;
   onSaved: () => void;
 }>) {
-  const t = useTranslations("parentRequestEdit");
+  const t = useCareTermTranslations("parentRequestEdit");
   const tError = useTranslations("errorCatalog");
   const tTimePicker = useTranslations("datePicker.timePicker");
   const locale = useLocale();

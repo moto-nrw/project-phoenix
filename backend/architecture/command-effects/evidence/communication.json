@@ -1337,6 +1337,14 @@
       "target_owner": "organization-tenancy"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/settings.ParentMessagingValues.CareFacilityTerm",
+      "binding_digest": "42885238057e13b8cdfc4975a0b7866f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.Settings.CareFacilityTerm",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.ParentMessagingValues.CareFacilityTerm",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/settings.ParentMessagingValues.ParentMessageLeadershipEnabled",
       "binding_digest": "a3826b820077ffc00abd36e7f1a8f605",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.Settings.ParentMessageLeadershipEnabled",

@@ -4,7 +4,7 @@
   "download": "PDF olarak indir",
   "downloading": "Oluşturuluyor …",
   "integrityOk": "Metin ve cevaplar yayından bu yana değişmedi.",
-  "integrityBroken": "Dikkat: Kayıtlı bir giriş sonradan değiştirildi. Lütfen OGS ile iletişime geçin.",
+  "integrityBroken": "Dikkat: Kayıtlı bir giriş sonradan değiştirildi. Lütfen {careTerm} ile iletişime geçin.",
   "notFound": "Bu çocuk için henüz belge yok. Bir izin talebine cevap verdiğinizde oluşturulur.",
   "generated": "Oluşturulma: {date}",
   "child": "Çocuk",

@@ -22,7 +22,7 @@
   "declined": "Takimi u refuzua.",
   "answeredAccepted": "Pranuar",
   "answeredDeclined": "Refuzuar",
-  "cancelledByOgs": "Anuluar nga OGS",
+  "cancelledByOgs": "Anuluar nga {careTerm}",
   "previousMonth": "Muaji i mëparshëm",
   "nextMonth": "Muaji tjetër",
   "close": "Mbyll",

@@ -1,9 +1,9 @@
 {
   "button": "Talebi paylaş",
   "title": "Talebi başkalarıyla paylaş",
-  "privacyHint": "Talebinizi ve OGS'nin yanıtını sadece seçtiğiniz veliler görür.",
+  "privacyHint": "Talebinizi ve {careTerm}'nin yanıtını sadece seçtiğiniz veliler görür.",
   "recipientLegend": "Talebi paylaş (isteğe bağlı)",
-  "protected": "Bu talep gizli kalır. OGS aile korumasını açtı.",
+  "protected": "Bu talep gizli kalır. {careTerm} aile korumasını açtı.",
   "noRecipients": "Veli uygulamasına erişimi olan başka veli yok.",
   "loading": "Alıcılar yükleniyor …",
   "save": "Seçimi kaydet",

@@ -63,6 +63,8 @@ import { calendarConcept } from "~/lib/concepts/calendar";
 import { childrenConcept } from "~/lib/concepts/children";
 import { pickupConcept } from "~/lib/concepts/pickup";
 import { sickConcept } from "~/lib/concepts/sick";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
+import { ParentChildCareTermScope } from "~/lib/parent-care-term";
 
 import {
   useParentChildren,
@@ -95,9 +97,9 @@ export function ChildPage({
   /** Aus der URL. Fehlt er, folgt je nach Anzahl Profil oder Auswahl. */
   studentId?: string;
 }>) {
-  const t = useTranslations("parentChild");
+  const t = useCareTermTranslations("parentChild");
   const navT = useTranslations("parentNav");
-  const backT = useTranslations("parentChildDetail");
+  const backT = useCareTermTranslations("parentChildDetail");
   const childResource = useParentChildren();
   const children = childResource.data ?? EMPTY_CHILDREN;
   const statuses = useParentToday(childResource.data);
@@ -208,20 +210,24 @@ export function ChildPage({
       {/* Eine Freigabe-Liste pro Kind: alle Abschnitte teilen sich einen
           einzigen Abruf der möglichen Empfänger. Ebenso teilen sie laufende
           Abrufe der Schulschalter und des Wochenplans. */}
-      <SharedParentFeaturesProvider linkedChildren={children}>
-        <SharingOptionsProvider>
-          <ChildRequestsProvider>
-            <ChildSections
-              key={active.student_id}
-              child={active}
-              today={
-                selectionToday[active.student_id] ??
-                (statuses.error ? UNKNOWN_CHILD_TODAY : null)
-              }
-            />
-          </ChildRequestsProvider>
-        </SharingOptionsProvider>
-      </SharedParentFeaturesProvider>
+      {/* Alle Texte zum Kind nennen die Betreuung so, wie seine Schule sie
+          nennt (#6082). */}
+      <ParentChildCareTermScope studentId={active.student_id}>
+        <SharedParentFeaturesProvider linkedChildren={children}>
+          <SharingOptionsProvider>
+            <ChildRequestsProvider>
+              <ChildSections
+                key={active.student_id}
+                child={active}
+                today={
+                  selectionToday[active.student_id] ??
+                  (statuses.error ? UNKNOWN_CHILD_TODAY : null)
+                }
+              />
+            </ChildRequestsProvider>
+          </SharingOptionsProvider>
+        </SharedParentFeaturesProvider>
+      </ParentChildCareTermScope>
     </ParentPage>
   );
 }
@@ -232,7 +238,7 @@ function ChildSections({
 }: Readonly<{ child: Child; today: ChildToday | null }>) {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const t = useTranslations("parentChild");
+  const t = useCareTermTranslations("parentChild");
   const care = useChildCare(child.student_id);
   const {
     error: careLoadError,
@@ -427,7 +433,7 @@ function ChildAreaTabs({
   reasonRequired: boolean;
   onCareRefresh: () => void;
 }>) {
-  const t = useTranslations("parentChild");
+  const t = useCareTermTranslations("parentChild");
   const conferenceT = useTranslations("parentConference");
   const locale = useLocale();
   const [activeArea, setActiveArea] = useState<ChildArea>("betreuung");
@@ -642,7 +648,7 @@ function AreaTab({
 function PickupSummary({
   care,
 }: Readonly<{ care: ReturnType<typeof useChildCare> }>) {
-  const t = useTranslations("parentChild");
+  const t = useCareTermTranslations("parentChild");
   return (
     <div className="flex min-w-0 items-start gap-3">
       <MotoConceptIcon
@@ -665,7 +671,7 @@ function PickupSummary({
 function PlannedPickup({
   care,
 }: Readonly<{ care: ReturnType<typeof useChildCare> }>) {
-  const t = useTranslations("parentChild");
+  const t = useCareTermTranslations("parentChild");
   const pickup = care.todayPickup;
   switch (pickup.kind) {
     case "time":

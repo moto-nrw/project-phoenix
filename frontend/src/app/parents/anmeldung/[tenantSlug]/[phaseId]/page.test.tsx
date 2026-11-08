@@ -43,6 +43,7 @@ vi.mock("~/components/enrollment/enrollment-form", () => ({
     return (
       <div
         data-testid="parent-enrollment-form"
+        data-care-term={useCareFacilityTerm()}
         data-grade-level-max={props.gradeLevelMax}
         data-has-profile={String(props.prefetchedData.profile !== null)}
       />
@@ -50,6 +51,10 @@ vi.mock("~/components/enrollment/enrollment-form", () => ({
   },
 }));
 
+import {
+  CareFacilityTermScope,
+  useCareFacilityTerm,
+} from "~/lib/care-facility-term";
 import ParentEnrollFormPage from "./page";
 
 const tenant = {
@@ -165,6 +170,32 @@ describe("ParentEnrollFormPage", () => {
         }),
       }),
     );
+  });
+
+  // The parents shell names the account's schools (#6082); the form names
+  // the school it enrolls at, also when the account's schools say GTS.
+  it("names the care of the school the form enrolls at", async () => {
+    mocks.resolveTenant.mockResolvedValue({
+      ...tenant,
+      careFacilityTerm: "OGS",
+    });
+    await act(async () => {
+      render(
+        <CareFacilityTermScope term="GTS">
+          <Suspense fallback={null}>
+            <ParentEnrollFormPage
+              params={Promise.resolve({ tenantSlug: "demo", phaseId: "5" })}
+            />
+          </Suspense>
+        </CareFacilityTermScope>,
+      );
+    });
+
+    const form = await screen.findByTestId("parent-enrollment-form");
+    expect(form).toHaveAttribute("data-care-term", "OGS");
+    expect(
+      screen.getByText("Anmeldung für die OGS-Betreuung"),
+    ).toBeInTheDocument();
   });
 
   it("shows an error instead of falling back when tenant metadata is unavailable", async () => {

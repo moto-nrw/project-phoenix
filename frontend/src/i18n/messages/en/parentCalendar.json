@@ -22,7 +22,7 @@
   "declined": "Appointment declined.",
   "answeredAccepted": "Accepted",
   "answeredDeclined": "Declined",
-  "cancelledByOgs": "Cancelled by the OGS",
+  "cancelledByOgs": "Cancelled by the {careTerm}",
   "previousMonth": "Previous month",
   "nextMonth": "Next month",
   "close": "Close",

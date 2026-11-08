@@ -27,11 +27,11 @@
     },
     "messagesNews": {
       "title": "Gjej mesazhet dhe letrat për prindërit",
-      "description": "Lexoni mesazhet dhe gjeni letrat nga kujdesi pas shkollës."
+      "description": "Lexoni mesazhet dhe gjeni letrat nga {careTerm}-ja."
     },
     "messages": {
       "title": "Gjej mesazhet",
-      "description": "Këtu lexoni dhe shkruani mesazhe për kujdesin pas shkollës."
+      "description": "Këtu lexoni dhe shkruani mesazhe për {careTerm}-në."
     },
     "installApp": {
       "title": "Shto moto në telefon",
@@ -80,10 +80,10 @@
     "messagesNews": {
       "messagesNavigation": "Hapni Mesazhet.",
       "messagesTitle": "Mesazhet",
-      "messages": "Këtu lexoni mesazhet nga kujdesi dhe mund të përgjigjeni.",
+      "messages": "Këtu lexoni mesazhet nga {careTerm}-ja dhe mund të përgjigjeni.",
       "newsNavigation": "Hapni Letrat për prindërit.",
       "newsTitle": "Letrat për prindërit",
-      "news": "Këtu gjeni letra dhe informacione të rëndësishme nga kujdesi."
+      "news": "Këtu gjeni letra dhe informacione të rëndësishme nga {careTerm}-ja."
     },
     "installApp": {
       "guideTitle": "Shto moto në telefon",

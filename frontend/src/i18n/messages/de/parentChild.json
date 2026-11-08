@@ -2,16 +2,16 @@
   "switcherLabel": "Kind auswählen",
   "overviewKicker": "Kinder im Überblick",
   "overviewDescription": "Wählen Sie ein Kind aus, um Betreuung, Daten und Kontakte zu sehen.",
-  "ogsLabel": "OGS",
+  "ogsLabel": "{careTerm}",
   "careEnded": {
     "title": "Betreuung beendet",
-    "body": "Ihr Kind wird in dieser OGS nicht mehr betreut. Alles Bisherige können Sie weiter ansehen. Neue Meldungen sind nicht mehr möglich."
+    "body": "Ihr Kind wird in dieser {careTerm} nicht mehr betreut. Alles Bisherige können Sie weiter ansehen. Neue Meldungen sind nicht mehr möglich."
   },
   "notFound": "Zu dieser Adresse gibt es kein Kind in Ihrem Konto. Bitte wählen Sie Ihr Kind in der Übersicht.",
-  "noChildren": "Mit Ihrem Konto ist noch kein Kind verknüpft. Die OGS Ihrer Schule kann das einrichten.",
+  "noChildren": "Mit Ihrem Konto ist noch kein Kind verknüpft. Die {careTerm} Ihrer Schule kann das einrichten.",
   "sections": {
     "today": "Heute",
-    "care": "Betreuung in der OGS",
+    "care": "Betreuung in der {careTerm}",
     "data": "Angaben zum Kind",
     "people": "Eltern und Abholberechtigte"
   },
@@ -45,7 +45,7 @@
     "pickupUnknown": "Die Abholzeit ist gerade nicht abrufbar"
   },
   "care": {
-    "weekTitle": "Dein OGS Wochenplan",
+    "weekTitle": "Dein {careTerm} Wochenplan",
     "absenceTitle": "Abwesenheiten"
   },
   "consents": {
@@ -81,7 +81,7 @@
     "grantButton": "Foto-Einwilligung erneut geben",
     "grantButtonShort": "Erneut geben",
     "grantConfirmTitle": "Foto-Einwilligung erneut geben?",
-    "grantConfirmBody": "Die OGS darf danach wieder ein Foto hinterlegen.",
+    "grantConfirmBody": "Die {careTerm} darf danach wieder ein Foto hinterlegen.",
     "grantConfirmButton": "Einwilligung geben",
     "granting": "Wird gespeichert",
     "grantSuccess": "Die Foto-Einwilligung wurde erneut gegeben.",

@@ -20,7 +20,7 @@
     "emptyDescription": "Сейчас ничего делать не нужно.",
     "messageTitleOne": "Новое сообщение",
     "messageTitleMany": "Новых сообщений: {count}",
-    "messageContext": "Продлёнка · О {name}",
+    "messageContext": "{careTerm} · О {name}",
     "pollContext": "Опрос · {school}",
     "declarationContext": "Согласие · {school}",
     "newsContext": "Письмо родителям · {school}",
@@ -34,6 +34,6 @@
     "errorObject": "полный список дел"
   },
   "childrenLoading": "Загрузка данных о детях",
-  "noChildren": "К вашему аккаунту ещё не привязан ребёнок. Продлёнка вашей школы может это настроить.",
+  "noChildren": "К вашему аккаунту ещё не привязан ребёнок. {careTerm} вашей школы может это настроить.",
   "errorObject": "обзор ваших детей"
 }

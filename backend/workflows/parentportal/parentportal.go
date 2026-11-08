@@ -66,4 +66,5 @@ const (
 	DayStateNoCare                     = care.DayStateNoCare
 	KeyEnrollmentBookingsAuthoritative = care.KeyEnrollmentBookingsAuthoritative
 	KeyParentNewsEnabled               = care.KeyParentNewsEnabled
+	KeyEnrollmentCareFacilityTerm      = care.KeyEnrollmentCareFacilityTerm
 )

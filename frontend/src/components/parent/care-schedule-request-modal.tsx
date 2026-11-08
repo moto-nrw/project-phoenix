@@ -22,6 +22,7 @@ import {
   usePickupSignatureStatement,
 } from "~/components/parent/pickup-permission-fields";
 import { FormFieldset } from "~/components/ui/form-fieldset";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 const DAY_KEYS: Record<number, "mon" | "tue" | "wed" | "thu" | "fri"> = {
   1: "mon",
@@ -169,7 +170,7 @@ function ModalFooter({
   onClose: () => void;
   onSubmit: () => void;
 }>) {
-  const t = useTranslations("parentMasterData.careSchedule");
+  const t = useCareTermTranslations("parentMasterData.careSchedule");
   return (
     <>
       <Button type="button" variant="outline" size="md" onClick={onClose}>
@@ -199,7 +200,7 @@ function ScheduleDayFields({
   capabilities: Capabilities;
   onChange: (draft: DayDraft) => void;
 }>) {
-  const t = useTranslations("parentMasterData");
+  const t = useCareTermTranslations("parentMasterData");
   const day = t(`careSchedule.weekdays.${DAY_KEYS[weekday]}`);
   const canChangeDay = capabilities.pickup && capabilities.departure_mode;
   return (
@@ -221,7 +222,7 @@ function CareDayToggle({
   draft,
   onChange,
 }: Readonly<{ draft: DayDraft; onChange: (draft: DayDraft) => void }>) {
-  const t = useTranslations("parentMasterData.careSchedule");
+  const t = useCareTermTranslations("parentMasterData.careSchedule");
   return (
     <label className="flex items-center gap-3 text-sm font-medium text-gray-700">
       <Checkbox
@@ -246,7 +247,7 @@ function ScheduleValues({
   capabilities: Capabilities;
   onChange: (draft: DayDraft) => void;
 }>) {
-  const t = useTranslations("parentMasterData");
+  const t = useCareTermTranslations("parentMasterData");
   const tTimePicker = useTranslations("datePicker.timePicker");
   const options = ["alone", "bus", "pickup"].map((value) => ({
     value,
@@ -289,8 +290,8 @@ function useRequestForm(
   onSubmit: SubmitRequest,
   onClose: () => void,
 ) {
-  const t = useTranslations("parentMasterData.careSchedule");
-  const tPermission = useTranslations("parentPickupPermission");
+  const t = useCareTermTranslations("parentMasterData.careSchedule");
+  const tPermission = useCareTermTranslations("parentPickupPermission");
   const [drafts, setDrafts] = useState(() => draftsFromWeekdays(weekdays));
   const [signature, setSignature] = useState<SignatureValue | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -408,7 +409,7 @@ export function CareScheduleRequestModal({
   onClose: () => void;
   onSubmit: SubmitRequest;
 }>) {
-  const t = useTranslations("parentMasterData.careSchedule");
+  const t = useCareTermTranslations("parentMasterData.careSchedule");
   const form = useRequestForm(
     studentId,
     weekdays,

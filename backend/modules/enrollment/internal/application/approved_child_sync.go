@@ -69,14 +69,14 @@ func (d *Decisions) SyncApprovedChildData(ctx context.Context, input enrollmentN
 
 // syncApprovedChildRecords carries the edit onto the student's master data,
 // guardians and form data. An office match renews enrollment only (#6053), so
-// later edits keep all of them untouched too; so does an edit of a parent pin
-// whose relationship the school removed since, as the pin no longer
-// authorizes the family. Neither case cancels what the school already
+// later edits keep all of them untouched too; so does an edit of a child
+// whose relationship the school removed since, as nothing authorizes the
+// family any longer (#6173). Neither case cancels what the school already
 // approved: the planned weekly plan and class switch stay and apply at the
 // start. A direct staff correction is the school's own act, so it still
 // writes the fields it changed onto the child (#6053).
 func (d *Decisions) syncApprovedChildRecords(ctx context.Context, run *approvedChildSync) error {
-	enrollmentOnly, err := d.childEnrollmentOnly(ctx, run.request, run.child)
+	enrollmentOnly, err := d.childEnrollmentOnly(ctx, run)
 	if err != nil {
 		return err
 	}
@@ -89,9 +89,9 @@ func (d *Decisions) syncApprovedChildRecords(ctx context.Context, run *approvedC
 	return d.syncApprovedChildGuardians(ctx, run)
 }
 
-// syncEnrollmentOnlyChild handles an edit of an office match or a lapsed
-// parent pin. A staff correction writes its fields onto the child. A
-// family's new data for a lapsed pin is refused: it would land in the
+// syncEnrollmentOnlyChild handles an edit of an office match or of a child
+// whose relationship lapsed. A staff correction writes its fields onto the
+// child. A family's new data for a lapsed relationship is refused: it would land in the
 // request child the school-approved weekly plan applies at the start.
 // Anything else leaves the child and its planned values alone.
 func (d *Decisions) syncEnrollmentOnlyChild(ctx context.Context, run *approvedChildSync) error {
@@ -144,50 +144,83 @@ func (d *Decisions) approvedChildDataChanged(ctx context.Context, run *approvedC
 var allChildFields = enrollmentNative.ApprovedChildCorrection{FirstName: true, LastName: true, Birthday: true, Class: true}
 
 // childEnrollmentOnly leaves master data, guardians and form data alone
-// for an office match or an account-bound pin or rollover whose authority
-// has lapsed.
-func (d *Decisions) childEnrollmentOnly(ctx context.Context, request *enrollmentNative.Request, child *enrollmentNative.RequestChild) (bool, error) {
-	if child.MatchedByOffice {
+// for an office match and for every approved child whose request identity
+// no longer holds parent_portal.enrollment.submit on its relationship to the
+// student: a parent pin, a child the approval created and a rollover
+// descendant alike, with or without a portal account (#6053, #6173). The
+// approval linked the family once; a school that removed or narrowed the
+// relationship since must not see a later edit restore it.
+func (d *Decisions) childEnrollmentOnly(ctx context.Context, run *approvedChildSync) (bool, error) {
+	if run.child.MatchedByOffice {
 		return true, nil
 	}
-	if child.RolloverSourceChildID != nil && child.CreatedStudentID != nil {
-		// Approval already resolved the inherited student, across any number
-		// of rollovers. Descendants carry no MatchedStudentID of their own.
-		// Only a descendant of a parent pin is checked here; other
-		// descendants follow #6173.
-		fromPin, err := d.rolloverFromParentPin(ctx, child)
-		if err != nil || !fromPin {
-			return false, err
-		}
-		return d.parentStudentAuthorityLapsed(ctx, request, child.ID, *child.CreatedStudentID)
+	identity, err := d.syncAuthorityRequest(ctx, run)
+	if err != nil {
+		return false, err
 	}
-	return d.parentPinLapsed(ctx, request, child)
+	return d.parentStudentAuthorityLapsed(ctx, identity, run.child.ID, *run.child.CreatedStudentID)
+}
+
+// syncAuthorityRequest is the request identity the edit is authorized
+// against. An account is fixed. A rollover request copies the contact email
+// only, so an accountless descendant of a late invite asks with the address
+// that invite was issued to. An anonymous request's contact email is
+// editable through the edit itself, so the address before the edit stands
+// for the family the school linked; the edit then carries the corrected
+// address onto the link as before.
+func (d *Decisions) syncAuthorityRequest(ctx context.Context, run *approvedChildSync) (*enrollmentNative.Request, error) {
+	if run.request.GuardianAccountID != nil {
+		return run.request, nil
+	}
+	if run.child.RolloverSourceChildID != nil {
+		origin, err := d.rolloverOriginRequest(ctx, run.child)
+		if err != nil {
+			return nil, err
+		}
+		if origin != nil && enrollmentNative.NormalizedSubmissionSource(origin.SubmissionSource) == enrollmentNative.RequestSourceLateInvite {
+			return origin, nil
+		}
+	}
+	previous := stringFromAny(run.snapshot["guardian_email"])
+	if previous == "" || previous == run.request.GuardianEmail {
+		return run.request, nil
+	}
+	identity := *run.request
+	identity.GuardianEmail = previous
+	return &identity, nil
 }
 
 // maxRolloverDepth bounds the walk to a rollover chain's first submission.
 const maxRolloverDepth = 50
 
-// rolloverFromParentPin reports whether a rollover descendant goes back to a
-// child the family pinned through its own relationship (#6053).
-func (d *Decisions) rolloverFromParentPin(ctx context.Context, child *enrollmentNative.RequestChild) (bool, error) {
+// rolloverOriginRequest loads the request a rollover chain started with, or
+// nil when a deleted phase cut the chain.
+func (d *Decisions) rolloverOriginRequest(ctx context.Context, child *enrollmentNative.RequestChild) (*enrollmentNative.Request, error) {
 	source := child
 	for depth := 0; source.RolloverSourceChildID != nil; depth++ {
 		if depth >= maxRolloverDepth {
-			return false, fmt.Errorf("decision: rollover chain of child %d exceeds %d phases", child.ID, maxRolloverDepth)
+			return nil, fmt.Errorf("decision: rollover chain of child %d exceeds %d phases", child.ID, maxRolloverDepth)
 		}
 		next, err := d.deps.Children.ChildByID(ctx, *source.RolloverSourceChildID)
 		if err != nil && d.deps.Runtime.NotFound(err) {
-			return false, nil
+			return nil, nil
 		}
 		if err != nil {
-			return false, fmt.Errorf("decision: load rollover source of child %d: %w", child.ID, err)
+			return nil, fmt.Errorf("decision: load rollover source of child %d: %w", child.ID, err)
 		}
 		if next == nil {
-			return false, nil
+			return nil, nil
 		}
 		source = next
 	}
-	return isParentPin(source), nil
+	origin, err := d.deps.Requests.RequestByID(ctx, source.RequestID, false)
+	if err != nil && d.deps.Runtime.NotFound(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("decision: load rollover origin request of child %d: %w", child.ID, err)
+	}
+	return origin, nil
 }
 
 func (d *Decisions) loadApprovedChildForSync(ctx context.Context, run *approvedChildSync) error {
