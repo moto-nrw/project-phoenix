@@ -26,11 +26,12 @@ const firstCareFromNext = `first_care_from = CASE
 	WHEN ?1::text = 'active' OR ?2::date IS NULL THEN LEAST(?2::date, ?0::date)
 	ELSE ?2::date END`
 
-// careRestart is true when a write restarts an ended care with a gap (#6073,
-// ADR 0177): the row has an end, and the next start lies more than a day
-// after it. ?0 is the next start.
-const careRestart = `("student".enrolled_until IS NOT NULL AND ?0::date IS NOT NULL
-	AND ?0::date > "student".enrolled_until + 1)`
+// careRestart is true when a write restarts an ended care (#6073, ADR 0177):
+// the row's end has passed, and the next interval reaches today or later. ?0
+// is the application's today, ?1 the next end. Correcting an end to another
+// past day is no restart.
+const careRestart = `("student".enrolled_until IS NOT NULL AND "student".enrolled_until < ?0::date
+	AND (?1::date IS NULL OR ?1::date >= ?0::date))`
 
 // carePausedAfterNext records the last care day before a restart; every
 // other write keeps it. ?0 is the restart condition.
@@ -38,11 +39,16 @@ const carePausedAfterNext = `care_paused_after = CASE WHEN ?0 THEN "student".enr
 	ELSE "student".care_paused_after END`
 
 // careResumedFromNext is the end of the care gap. A restart sets it to the
-// earliest day the child can be cared for again: the start, or today for an
-// activation before it. Every other write keeps it like firstCareFromNext
-// keeps the first-care bound. ?0 to ?2 as there, ?3 the restart condition.
+// earliest day the child can be cared for again: a start after the earlier
+// end (today for an activation before it), otherwise today, as care that
+// keeps its earlier start only resumes with this write. Every other write
+// keeps it like firstCareFromNext keeps the first-care bound. ?0 to ?2 as
+// there, ?3 the restart condition.
 const careResumedFromNext = `care_resumed_from = CASE
-	WHEN ?3 THEN CASE WHEN ?1::text = 'active' THEN LEAST(?2::date, ?0::date) ELSE ?2::date END
+	WHEN ?3 THEN CASE
+		WHEN ?2::date IS NULL OR ?2::date <= "student".enrolled_until THEN ?0::date
+		WHEN ?1::text = 'active' THEN LEAST(?2::date, ?0::date)
+		ELSE ?2::date END
 	WHEN "student".care_resumed_from IS NULL THEN NULL
 	WHEN "student".care_resumed_from <= ?0::date THEN LEAST("student".care_resumed_from, ?2::date)
 	WHEN ?1::text = 'active' OR ?2::date IS NULL THEN LEAST(?2::date, ?0::date)
@@ -204,7 +210,7 @@ func (s *Store) ResumeStudentCare(ctx context.Context, id int64, from, status, o
 	if err != nil {
 		return false, domain.OperationStats{}, err
 	}
-	restart := bun.SafeQuery(careRestart, start)
+	restart := bun.SafeQuery(careRestart, today, bun.Safe("NULL"))
 	query := withStudentTenant(studentUpdate(db), scope).
 		Set("enrolled_from = ?", start).Set("enrolled_until = NULL").Set("status = ?", status).
 		Set(firstCareFromNext, today, status, start).

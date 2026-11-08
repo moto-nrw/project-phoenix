@@ -11,8 +11,8 @@ import (
 )
 
 // School Membership keeps the care gap of a returning child (#6073, ADR 0177):
-// a resumption or a renewal that restarts an ended care with a later start
-// records the last care day before it and the day care resumes. The end of
+// a resumption or a renewal that restarts a care whose end has passed records
+// the last care day before it and the day care resumes. The end of
 // the gap moves like the first-care bound; saving the child again keeps it.
 func TestStudentMembershipKeepsTheCareGapOfAReturningChild(t *testing.T) {
 	t.Parallel()
@@ -83,7 +83,23 @@ func TestStudentMembershipKeepsTheCareGapOfAReturningChild(t *testing.T) {
 
 	continuing := endedChild("Anschluss")
 	renew(restartDay, continuing, "active", "2099-11-01", "")
-	assert.Equal(t, [2]string{}, gap(continuing), "a start right after the end leaves no gap")
+	assert.Equal(t, [2]string{ended, "2099-11-01"}, gap(continuing), "a start right after the end leaves no day in the gap")
+
+	// An Enrollment approval that matches an ended child keeps its earlier
+	// start and only pushes the end out: care resumes with this write.
+	extended := endedChild("Verlaengert")
+	renew(restartDay, extended, "active", "", "2100-07-31")
+	assert.Equal(t, [2]string{ended, restartDay.String()}, gap(extended), "extending a passed end resumes care today")
+
+	corrected := endedChild("Korrigiert")
+	renew(restartDay, corrected, "active", "", "2099-11-03")
+	assert.Equal(t, [2]string{}, gap(corrected), "correcting an end to another past day is no restart")
+
+	future := testpkg.CreateTestStudent(t, db, "Luecke", "Zukunft", "1a")
+	_, err = on("2099-10-20").EndCare(ctx, []int64{future.ID}, "2099-12-31")
+	require.NoError(t, err)
+	renew(restartDay, future.ID, "active", "2100-03-01", "")
+	assert.Equal(t, [2]string{}, gap(future.ID), "care that has not ended yet has no gap")
 
 	running := testpkg.CreateTestStudent(t, db, "Luecke", "Laufend", "1a")
 	renew(restartDay, running.ID, "pending", february, "")

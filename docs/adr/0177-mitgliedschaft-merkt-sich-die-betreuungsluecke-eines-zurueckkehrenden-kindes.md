@@ -32,11 +32,17 @@ Jeder weitere Tag bis Februar wäre nach seinem Ablauf ebenso zurückgekehrt.
   betreut worden sein kann. Die Tage echt dazwischen sind keine
   Betreuungstage. Beide `NULL` heißt: keine Lücke bekannt.
 - Ein Neustart ist ein Schreibvorgang von `ResumeStudentCare` oder
-  `RenewStudentEnrollment`, bei dem die Zeile ein Ende hat und der neue Beginn
-  mehr als einen Tag danach liegt. Er setzt `care_paused_after` auf das
-  bisherige Ende und `care_resumed_from` auf den neuen Beginn, bei einer
-  sofortigen Aktivierung auf `LEAST(Beginn, heute)`. Ein Beginn direkt nach
-  dem Ende hinterlässt keine Lücke.
+  `RenewStudentEnrollment`, bei dem das Ende der Zeile vor dem Tag der
+  Anwendung liegt und das neue Intervall bis heute oder später reicht (kein
+  Ende oder ein Ende ab heute). Er setzt `care_paused_after` auf das bisherige
+  Ende. `care_resumed_from` wird der neue Beginn, wenn er nach dem bisherigen
+  Ende liegt (bei einer sofortigen Aktivierung `LEAST(Beginn, heute)`), sonst
+  heute: Eine Genehmigung, die ein beendetes Kind mit seinem früheren Beginn
+  verlängert (Enrollment, `renewExistingStudent`), nimmt die Betreuung mit
+  diesem Schreibvorgang wieder auf. Ein Beginn direkt nach dem Ende
+  hinterlässt keinen Tag in der Lücke. Ein Ende, das noch nicht erreicht ist,
+  oder ein Ende, das auf einen anderen vergangenen Tag korrigiert wird, ist
+  kein Neustart.
 - Jeder andere Schreibvorgang, der Status oder Beginn bewegt, behält
   `care_paused_after` und führt `care_resumed_from` nach den Regeln von
   `first_care_from` (ADR 0166) nach: Ein erreichter Tag rückt nur noch früher,
@@ -77,3 +83,8 @@ Basis liegt, genehmigt es keine weitere Diagnose.
 - Wird eine Lücke nach einer weiteren Wiederaufnahme ersetzt, zählen die
   Tage der früheren Lücke wieder als Betreuungstage.
 - Neustarts vor diesem ADR bleiben ohne Lücke.
+- Verlängert die Schule das vergangene Ende eines Kindes, das in Wahrheit
+  durchgehend betreut wurde (Korrektur statt Neustart), zählen die Tage
+  zwischen altem Ende und Korrektur nur mit gespeicherter Anwesenheit. Die
+  Schule korrigiert das, indem sie den Beginn vor das alte Ende legt; dann
+  ist die Lücke leer.
