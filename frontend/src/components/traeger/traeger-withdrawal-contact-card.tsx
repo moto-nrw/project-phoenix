@@ -72,7 +72,8 @@ function ReachField({
 
 /**
  * Phone and e-mail for withdrawals (#6200): the withdrawal notice of every
- * care contract names them, on the PDF, the signing page and in the mail.
+ * care contract names them, on the PDF, the signing page, in the mail and in
+ * the text the school copies into its enrollment form.
  * An empty field takes the contact person's. The preview shows the notice's
  * sentence as parents read it, with where each value comes from.
  */
@@ -212,7 +213,9 @@ export function TraegerWithdrawalContactCard({
               >
                 Briefkopf
               </NavigationLink>
-              .
+              . Nennen die Vertragsbedingungen einen anderen Vertragspartner,
+              steht er davor. Nach einer Änderung kopiert die Schule die
+              Belehrung neu ins Anmeldeformular.
             </p>
           </InsetPanel>
         </figure>

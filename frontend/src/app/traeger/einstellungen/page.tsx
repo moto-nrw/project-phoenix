@@ -2,9 +2,8 @@
 
 // Allgemeine Einstellungen des Trägers (#4652, ADR 0086, #5685): Werte, die
 // für alle Schulen des Trägers gelten, und die Kontaktdaten mit dem Kontakt
-// für Widerrufe (#6200). Eine Schule kann
-// abweichen, wo die Einstellung das erlaubt; Schul-Abweichungen ändert nur die
-// Schule selbst.
+// für Widerrufe (#6200). Eine Schule kann abweichen, wo die Einstellung das
+// erlaubt; Schul-Abweichungen ändert nur die Schule selbst.
 
 import { Suspense, useCallback, useState } from "react";
 import { useSearchParams } from "next/navigation";
