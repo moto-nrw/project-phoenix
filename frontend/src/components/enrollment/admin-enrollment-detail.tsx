@@ -86,13 +86,15 @@ import { schoolClassLabel } from "~/lib/school-class-label";
 import { AdminChildDataCorrection } from "~/components/enrollment/admin-child-data-correction";
 import { AdminEnrollmentDeletionModal } from "~/components/enrollment/admin-enrollment-deletion-modal";
 import {
-  ExistingChildChoiceDialog,
-  ExistingChildHint,
+  existingChildChoiceDescription,
+  existingChildChoiceOptions,
+  existingChildHintMessage,
   needsExistingChildChoice,
 } from "~/components/enrollment/existing-child-choice";
 import { Button, buttonClassName } from "~/components/ui/button";
 import NavigationLink from "~/components/ui/navigation-link";
 import { Alert } from "~/components/ui/alert";
+import { ChoiceModal } from "~/components/ui/choice-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { EditActions } from "~/components/ui/edit-actions";
 import {
@@ -470,13 +472,24 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
             />
           </ConfirmationModal>
           {existingChildChoiceChild ? (
-            <ExistingChildChoiceDialog
-              child={existingChildChoiceChild}
+            <ChoiceModal
+              isOpen
+              title="Ist das Kind schon angemeldet?"
+              description={existingChildChoiceDescription(
+                existingChildChoiceChild,
+              )}
+              options={existingChildChoiceOptions(existingChildChoiceChild)}
               onClose={() => setExistingChildChoiceChild(null)}
-              onChoose={(choice) => {
+              onSelect={(value) => {
                 const child = existingChildChoiceChild;
                 setExistingChildChoiceChild(null);
-                requestDecision(child, "approved", choice);
+                requestDecision(
+                  child,
+                  "approved",
+                  value === "new"
+                    ? { createNewStudent: true }
+                    : { existingStudentId: value },
+                );
               }}
             />
           ) : null}
@@ -764,6 +777,7 @@ function ChildInformationCard({
   weeklyPlanToday: string | null;
 }>) {
   const terminal = TERMINAL.has(child.status);
+  const existingChildHint = terminal ? null : existingChildHintMessage(child);
   const canDeleteFromEnrollment =
     child.created_student_id === undefined &&
     (child.status === "rejected" ||
@@ -835,7 +849,9 @@ function ChildInformationCard({
             message="Beim Schuljahreswechsel war das Kinderkontingent voll. Darum wurde dieses Kind nicht automatisch verlängert. Bitte entscheiden Sie selbst."
           />
         ) : null}
-        {terminal ? null : <ExistingChildHint child={child} />}
+        {existingChildHint ? (
+          <Alert type="warning" announce="off" message={existingChildHint} />
+        ) : null}
         {child.status_reason ? (
           <InsetPanel
             framed

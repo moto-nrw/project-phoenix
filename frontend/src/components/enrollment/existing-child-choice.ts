@@ -1,11 +1,4 @@
-"use client";
-
-import { ChoiceModal } from "~/components/ui/choice-modal";
-import { Alert } from "~/components/ui/alert";
-import type {
-  AdminRequestChild,
-  ExistingChildChoice,
-} from "~/lib/enrollment-admin-api";
+import type { AdminRequestChild } from "~/lib/enrollment-admin-api";
 import { formatCalendarDate } from "~/lib/localized-date-format";
 import { schoolClassLabel } from "~/lib/school-class-label";
 
@@ -32,31 +25,21 @@ function parentMayNoLongerEnroll(child: AdminRequestChild): boolean {
   );
 }
 
-export function ExistingChildHint({
-  child,
-}: Readonly<{ child: AdminRequestChild }>) {
+export function existingChildHintMessage(
+  child: AdminRequestChild,
+): string | null {
   if (parentMayNoLongerEnroll(child)) {
-    return (
-      <Alert
-        type="warning"
-        announce="off"
-        message="Dieser Elternteil darf das Kind nicht mehr anmelden. Prüfen Sie bitte die Angaben."
-      />
-    );
+    return "Dieser Elternteil darf das Kind nicht mehr anmelden. Prüfen Sie bitte die Angaben.";
   }
   if ((child.possible_existing_children?.length ?? 0) > 0) {
-    return (
-      <Alert
-        type="warning"
-        announce="off"
-        message="Ein Kind mit diesem Namen und Geburtsdatum ist schon angemeldet. Beim Bestätigen wählen Sie, ob es dasselbe Kind ist."
-      />
-    );
+    return "Ein Kind mit diesem Namen und Geburtsdatum ist schon angemeldet. Beim Bestätigen wählen Sie, ob es dasselbe Kind ist.";
   }
   return null;
 }
 
-function choiceDescription(child: AdminRequestChild): string {
+export function existingChildChoiceDescription(
+  child: AdminRequestChild,
+): string {
   const hasCandidates = (child.possible_existing_children?.length ?? 0) > 0;
   const existingOnly = child.existing_child_only === true;
   if (!hasCandidates) {
@@ -70,15 +53,7 @@ function choiceDescription(child: AdminRequestChild): string {
     : base;
 }
 
-export function ExistingChildChoiceDialog({
-  child,
-  onClose,
-  onChoose,
-}: Readonly<{
-  child: AdminRequestChild;
-  onClose: () => void;
-  onChoose: (choice: ExistingChildChoice) => void;
-}>) {
+export function existingChildChoiceOptions(child: AdminRequestChild) {
   const candidates = (child.possible_existing_children ?? []).map(
     (candidate) => ({
       value: candidate.student_id,
@@ -104,20 +79,5 @@ export function ExistingChildChoiceDialog({
             description: "Wählen Sie dies nur, wenn es ein anderes Kind ist.",
           },
         ];
-  return (
-    <ChoiceModal
-      isOpen
-      title="Ist das Kind schon angemeldet?"
-      description={choiceDescription(child)}
-      options={[...candidates, ...newChild]}
-      onClose={onClose}
-      onSelect={(value) =>
-        onChoose(
-          value === "new"
-            ? { createNewStudent: true }
-            : { existingStudentId: value },
-        )
-      }
-    />
-  );
+  return [...candidates, ...newChild];
 }
