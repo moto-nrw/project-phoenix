@@ -61,26 +61,26 @@ func TestClassRosterRowUsesPhaseEnrollmentData(t *testing.T) {
 	t.Parallel()
 
 	schemaID := int64(88)
-	req := &Request{
+	req := &enrollmentNative.Request{
 		ID:          10,
 		SchemaID:    &schemaID,
 		SubmittedAt: time.Date(2026, 6, 1, 8, 0, 0, 0, time.UTC),
 	}
-	child := &reportChild{
+	child := &enrollmentNative.RequestChild{
 		ID:          20,
 		RequestID:   10,
 		FirstName:   "Lina",
 		LastName:    "Muster",
 		DateOfBirth: "2018-05-04",
 		Status:      enrollmentNative.ChildStatusApproved,
-		CustomData: map[string]any{
+		CustomData: formValues(map[string]any{
 			"arrival": map[string]any{"mon": "11:30"},
 			"pickup":  map[string]any{"mon": "14:30"},
 			"departure": map[string]any{
 				"mon": []any{"pickup", "accompanied"},
 			},
 			enrollmentNative.TargetStudentDepartureCompanionNote: "Mia",
-		},
+		}),
 	}
 	student := &RosterStudent{
 		ID:          100,
@@ -128,11 +128,11 @@ func TestClassRosterRowUsesPhaseEnrollmentData(t *testing.T) {
 func TestClassRosterRowBuildsDailyOfferingNames(t *testing.T) {
 	t.Parallel()
 
-	req := &Request{
+	req := &enrollmentNative.Request{
 		ID:          13,
 		SubmittedAt: time.Date(2026, 6, 1, 8, 0, 0, 0, time.UTC),
 	}
-	child := &reportChild{
+	child := &enrollmentNative.RequestChild{
 		ID:          23,
 		RequestID:   13,
 		DateOfBirth: "2018-05-04",
@@ -172,22 +172,22 @@ func TestClassRosterRowReadsGuardianLevelSchedules(t *testing.T) {
 	t.Parallel()
 
 	schemaID := int64(90)
-	req := &Request{
+	req := &enrollmentNative.Request{
 		ID:          12,
 		SchemaID:    &schemaID,
 		SubmittedAt: time.Date(2026, 6, 1, 8, 0, 0, 0, time.UTC),
-		CustomData: map[string]any{
+		CustomData: formValues(map[string]any{
 			"guardian_arrival": map[string]any{"mon": "11:15"},
 			"guardian_pickup":  map[string]any{"mon": "15:30"},
-		},
+		}),
 	}
-	child := &reportChild{
+	child := &enrollmentNative.RequestChild{
 		ID:         22,
 		RequestID:  12,
 		FirstName:  "Lina",
 		LastName:   "Muster",
 		Status:     enrollmentNative.ChildStatusApproved,
-		CustomData: map[string]any{},
+		CustomData: formValues(map[string]any{}),
 	}
 	student := &RosterStudent{
 		ID:          102,
@@ -219,18 +219,18 @@ func TestClassRosterRowTreatsAllWeekdaysAsCareDaysWithoutOfferings(t *testing.T)
 	t.Parallel()
 
 	schemaID := int64(91)
-	req := &Request{
+	req := &enrollmentNative.Request{
 		ID:          14,
 		SchemaID:    &schemaID,
 		SubmittedAt: time.Date(2026, 6, 1, 8, 0, 0, 0, time.UTC),
 	}
-	child := &reportChild{
+	child := &enrollmentNative.RequestChild{
 		ID:         24,
 		RequestID:  14,
 		FirstName:  "Lina",
 		LastName:   "Muster",
 		Status:     enrollmentNative.ChildStatusApproved,
-		CustomData: map[string]any{"pickup": map[string]any{"mon": "14:30", "thu": "15:00"}},
+		CustomData: formValues(map[string]any{"pickup": map[string]any{"mon": "14:30", "thu": "15:00"}}),
 	}
 	student := &RosterStudent{
 		ID:          104,
@@ -326,8 +326,8 @@ func TestClassRosterRowWithoutContactsHasNoInventedContact(t *testing.T) {
 	})
 
 	t.Run("with enrollment but without request guardians", func(t *testing.T) {
-		req := &Request{ID: 10}
-		child := &reportChild{
+		req := &enrollmentNative.Request{ID: 10}
+		child := &enrollmentNative.RequestChild{
 			ID:          20,
 			RequestID:   10,
 			DateOfBirth: "2018-05-04",
@@ -363,14 +363,14 @@ func TestClassRosterApprovedEnrollmentsOnlyUsesApprovedChildrenInClass(t *testin
 
 	studentID := int64(100)
 	otherStudentID := int64(200)
-	requestByID := map[int64]*Request{
+	requestByID := map[int64]*enrollmentNative.Request{
 		1: {ID: 1, SubmittedAt: time.Date(2026, 1, 1, 8, 0, 0, 0, time.UTC)},
 		2: {ID: 2, SubmittedAt: time.Date(2026, 1, 2, 8, 0, 0, 0, time.UTC)},
 	}
 	studentByID := map[int64]*RosterStudent{
 		studentID: {ID: studentID},
 	}
-	children := []*reportChild{
+	children := []*enrollmentNative.RequestChild{
 		{ID: 10, RequestID: 1, Status: enrollmentNative.ChildStatusApproved, CreatedStudentID: &studentID},
 		{ID: 11, RequestID: 2, Status: enrollmentNative.ChildStatusRejected, CreatedStudentID: &studentID},
 		{ID: 12, RequestID: 2, Status: enrollmentNative.ChildStatusApproved, CreatedStudentID: &otherStudentID},
@@ -388,14 +388,14 @@ func TestClassRosterApprovedEnrollmentsUsesOnlyNewestChildLinks(t *testing.T) {
 
 	studentID := int64(100)
 	newestOfferingID := int64(20)
-	requestByID := map[int64]*Request{
+	requestByID := map[int64]*enrollmentNative.Request{
 		1: {ID: 1, SubmittedAt: time.Date(2026, 1, 1, 8, 0, 0, 0, time.UTC)},
 		2: {ID: 2, SubmittedAt: time.Date(2026, 1, 2, 8, 0, 0, 0, time.UTC)},
 	}
 	studentByID := map[int64]*RosterStudent{
 		studentID: {ID: studentID},
 	}
-	children := []*reportChild{
+	children := []*enrollmentNative.RequestChild{
 		{ID: 10, RequestID: 1, Status: enrollmentNative.ChildStatusApproved, CreatedStudentID: &studentID},
 		{ID: 20, RequestID: 2, Status: enrollmentNative.ChildStatusApproved, CreatedStudentID: &studentID},
 	}

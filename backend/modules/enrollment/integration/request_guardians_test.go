@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -49,7 +50,7 @@ func TestRequestGuardiansIsolationRollbackAndRetry(t *testing.T) {
 	ctx := testpkg.ContextForTenant(testpkg.Ctx(t), schools[0])
 	localChild, err := testpkg.TenantQuery1(t, ctx, db, module.ChildByID, children[0])
 	require.NoError(t, err)
-	require.Equal(t, enrollment.Date("2020-03-29"), localChild.DateOfBirth)
+	require.Equal(t, calendar.NewDate(2020, 3, 29), localChild.DateOfBirth)
 	_, err = testpkg.TenantQuery1(t, ctx, db, module.ChildByID, children[1])
 	require.ErrorIs(t, err, sql.ErrNoRows)
 	childRows, err := testpkg.TenantQuery1(t, ctx, db, module.ChildrenForRequests, requests)

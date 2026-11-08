@@ -30,8 +30,8 @@ import (
 // silently discards the submitted guardian and their portal access (#1663).
 func (d *Decisions) attachApprovalToExistingStudent(
 	ctx context.Context,
-	request *Request,
-	child *RequestChild,
+	request *enrollmentNative.Request,
+	child *enrollmentNative.RequestChild,
 	phase *enrollmentNative.Phase,
 	studentID int64,
 	reviewedBy int64,
@@ -109,7 +109,7 @@ func (d *Decisions) attachApprovalToExistingStudent(
 // Writing next year's values at once put the child in next year's class for
 // the rest of the running year, and a future enrolled_from made every reader
 // of the window treat it as not yet enrolled.
-func (d *Decisions) renewExistingStudent(ctx context.Context, child *RequestChild, phase *enrollmentNative.Phase, studentID, reviewedBy int64) (*existingStudentRenewal, error) {
+func (d *Decisions) renewExistingStudent(ctx context.Context, child *enrollmentNative.RequestChild, phase *enrollmentNative.Phase, studentID, reviewedBy int64) (*existingStudentRenewal, error) {
 	existing, err := d.readEnrollmentStudent(ctx, studentID, "")
 	if err != nil {
 		return nil, fmt.Errorf("decision: load existing student %d: %w", studentID, err)
@@ -189,7 +189,7 @@ func (d *Decisions) auditRenewedStatus(ctx context.Context, existing *Student, b
 // year's approval, an import, the other parent), so they keep their link —
 // and with it their pickup authority and parent-portal access — and are only
 // demoted from primary by the DB trigger (#1663).
-func (d *Decisions) reconcileRenewalGuardian(ctx context.Context, request *Request, studentID, reviewedBy int64) (*GuardianProfile, error) {
+func (d *Decisions) reconcileRenewalGuardian(ctx context.Context, request *enrollmentNative.Request, studentID, reviewedBy int64) (*GuardianProfile, error) {
 	guardianRequest, err := d.guardianIdentityRequest(ctx, request)
 	if err != nil {
 		return nil, err
@@ -231,7 +231,7 @@ func (d *Decisions) reconcileRenewalGuardian(ctx context.Context, request *Reque
 // Returning the error rolls the whole approval back through the surrounding
 // tenant tx. Losing a pickup-authorized emergency contact is a data-integrity
 // failure as well, so the co-guardian link is fatal too.
-func (d *Decisions) syncRenewalTargetedFields(ctx context.Context, request *Request, child *RequestChild, existing *Student, guardian *GuardianProfile, reviewedBy int64, weeklyPlanOn *enrollmentNative.Date) error {
+func (d *Decisions) syncRenewalTargetedFields(ctx context.Context, request *enrollmentNative.Request, child *enrollmentNative.RequestChild, existing *Student, guardian *GuardianProfile, reviewedBy int64, weeklyPlanOn *enrollmentNative.Date) error {
 	scope := allTargets
 	if weeklyPlanOn != nil {
 		scope = withoutWeeklyPlan

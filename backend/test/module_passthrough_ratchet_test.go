@@ -248,10 +248,13 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // Lowered: AddGuardianPhone validates ambient create facts instead of merely forwarding.
 // Raised by ADR 0158: the monthly run list of modules/parentbilling (+1).
 // Raised by ADR 0167: the payment terms read of modules/parentbilling (+1).
+// Lowered by #6178: the operator login consults the operator MFA flows
+// directly instead of the four forwards of OperatorMFAGate; the portal lookup
+// of CapabilityGate.StartChallenge (no own switch any more) counts again (-3).
 // Raised by ADR 0168: the first complete attendance day of
 // modules/studentpresence (+1).
 // Raised by ADR 0172: the document contact read of modules/organizationtenancy (+1).
-const modulePassthroughOwnerBudgetTotal = 1406
+const modulePassthroughOwnerBudgetTotal = 1403
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -286,7 +289,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/feedback":       2,
 	"modules/filestorage":    6,
 	// Raised by ADR 0077: the caterer flows.
-	"modules/identityaccess": 211,
+	"modules/identityaccess": 208,
 	"modules/mealplan":       1,
 	// Raised by ADR 0112: the Träger logo read of the Träger-Portal.
 	// Raised by ADR 0172: the document contact read without an account (+1).

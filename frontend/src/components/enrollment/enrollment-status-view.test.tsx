@@ -11,6 +11,7 @@ import {
   confirmRenewal,
   downloadEnrollmentSignatureProof,
   fetchStatus,
+  getEnrollmentFormLabels,
   listEnrollmentChangeRequests,
   patchStatus,
   replyEnrollmentChangeRequest,
@@ -41,6 +42,7 @@ vi.mock("~/lib/enrollment-submission-api", () => ({
   confirmRenewal: vi.fn(),
   downloadEnrollmentSignatureProof: vi.fn(),
   fetchStatus: vi.fn(),
+  getEnrollmentFormLabels: vi.fn(),
   listEnrollmentChangeRequests: vi.fn(),
   patchStatus: vi.fn(),
   replyEnrollmentChangeRequest: vi.fn(),
@@ -51,6 +53,7 @@ const mockFetchStatus = vi.mocked(fetchStatus);
 const mockListEnrollmentChangeRequests = vi.mocked(
   listEnrollmentChangeRequests,
 );
+const mockGetEnrollmentFormLabels = vi.mocked(getEnrollmentFormLabels);
 const mockPatchStatus = vi.mocked(patchStatus);
 const mockReplyEnrollmentChangeRequest = vi.mocked(
   replyEnrollmentChangeRequest,
@@ -108,6 +111,11 @@ describe("EnrollmentStatusView", () => {
     mockFetchStatus.mockReset();
     mockListEnrollmentChangeRequests.mockReset();
     mockListEnrollmentChangeRequests.mockResolvedValue([]);
+    mockGetEnrollmentFormLabels.mockReset();
+    mockGetEnrollmentFormLabels.mockResolvedValue({
+      fields: [],
+      legal_blocks: [],
+    });
     mockPatchStatus.mockReset();
     mockReplyEnrollmentChangeRequest.mockReset();
     mockWithdrawStatus.mockReset();
@@ -218,6 +226,80 @@ describe("EnrollmentStatusView", () => {
     expect(screen.getByText("Sommer")).toBeInTheDocument();
     expect(screen.getByText("Sommerer")).toBeInTheDocument();
     expect(screen.queryByText("1 Eintrag")).not.toBeInTheDocument();
+  });
+
+  it("names changed answers with the form's questions (#6142)", async () => {
+    mockFetchStatus.mockResolvedValueOnce(status());
+    mockListEnrollmentChangeRequests.mockResolvedValueOnce([
+      changeRequest({
+        base_snapshot: {
+          children: [{ custom_data: { allergies: "keine" } }],
+          consent_flags: { photo: true },
+        },
+        proposed_snapshot: {
+          children: [{ custom_data: { allergies: "Nüsse" } }],
+          consent_flags: { photo: false },
+        },
+        diff: { changed: ["children", "consent_flags"] },
+      }),
+    ]);
+    mockGetEnrollmentFormLabels.mockResolvedValueOnce({
+      fields: [
+        {
+          key: "allergies",
+          label: "Allergien",
+          applies_to_child: true,
+        },
+      ],
+      legal_blocks: [],
+    });
+
+    render(<EnrollmentStatusView token="tok" />);
+
+    expect(await screen.findByText("Kind 1 · Allergien")).toBeInTheDocument();
+    expect(screen.getByText("Nüsse")).toBeInTheDocument();
+    expect(screen.getByText("Foto-Einwilligung")).toBeInTheDocument();
+    expect(mockGetEnrollmentFormLabels).toHaveBeenCalledWith("tok");
+  });
+
+  it("clears labels from the previous status link when the next load fails", async () => {
+    mockFetchStatus.mockResolvedValueOnce(status());
+    mockListEnrollmentChangeRequests.mockResolvedValueOnce([
+      changeRequest({
+        base_snapshot: { children: [{ custom_data: { allergies: "keine" } }] },
+        proposed_snapshot: {
+          children: [{ custom_data: { allergies: "Nüsse" } }],
+        },
+        diff: { changed: ["children"] },
+      }),
+    ]);
+    mockGetEnrollmentFormLabels.mockResolvedValueOnce({
+      fields: [
+        { key: "allergies", label: "Allergien", applies_to_child: true },
+      ],
+      legal_blocks: [],
+    });
+
+    const view = render(<EnrollmentStatusView token="tok" />);
+    expect(await screen.findByText("Kind 1 · Allergien")).toBeInTheDocument();
+
+    mockFetchStatus.mockResolvedValueOnce(status());
+    mockListEnrollmentChangeRequests.mockResolvedValueOnce([
+      changeRequest({
+        base_snapshot: { children: [{ custom_data: { allergies: "keine" } }] },
+        proposed_snapshot: {
+          children: [{ custom_data: { allergies: "Nüsse" } }],
+        },
+        diff: { changed: ["children"] },
+      }),
+    ]);
+    mockGetEnrollmentFormLabels.mockRejectedValueOnce(new Error("offline"));
+    view.rerender(<EnrollmentStatusView token="other-token" />);
+
+    expect(
+      await screen.findByText("Kind 1 · Zusatzangaben · allergies"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Kind 1 · Allergien")).not.toBeInTheDocument();
   });
 
   it("keeps open change requests visible but hides second creation", async () => {

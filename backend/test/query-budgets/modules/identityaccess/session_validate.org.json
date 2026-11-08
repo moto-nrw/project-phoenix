@@ -1,0 +1,6 @@
+{
+  "scenario": "identity.session_validate.org",
+  "max": 7,
+  "exact": true,
+  "description": "modules/identityaccess — POST /auth/session/validate without a refresh token, which the BFF asks on every page view (#5399). One administrative transaction (BEGIN, SET LOCAL ROLE, ..., COMMIT) reads, without row locks and without claims, the family, the account, then the session policy's facts through the definitions the refresh's guard reads under its locks (sessionPolicy.check), the MFA floor and the school the refresh keeps the session at. Facts: the active Träger memberships (2). MFA floor: every Träger session needs proof, read from the family row (0)."
+}

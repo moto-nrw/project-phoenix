@@ -146,9 +146,12 @@ type PostalAddress struct {
 // ReplacedCredits the credits of the cancelled invoice a draft replaces, which
 // it does not carry over (#5663).
 type BillingDocument struct {
-	ID                  int64                 `json:"id"`
-	RunID               int64                 `json:"run_id"`
-	Kind                string                `json:"kind"`
+	ID    int64  `json:"id"`
+	RunID int64  `json:"run_id"`
+	Kind  string `json:"kind"`
+	// DocumentKind is the kind of document the release froze (#4688); a
+	// draft carries the kind its release would freeze now.
+	DocumentKind        string                `json:"document_kind,omitempty"`
 	ReferenceDocumentID *int64                `json:"reference_document_id"`
 	ReferenceNumber     string                `json:"reference_number"`
 	Reason              string                `json:"reason"`
@@ -200,6 +203,8 @@ type BillingRunDetail struct {
 	Letters                         *BillingLetters   `json:"letters"`
 	// DueDates are the due dates of the run per payment method (#4689).
 	DueDates []RunDueDate `json:"due_dates"`
+	// DocumentKindState is the kind the run issues (#4688).
+	DocumentKindState
 }
 
 // BillingCorrectionInput changes the amount of one child of a family in a
@@ -217,6 +222,9 @@ type BillingCorrectionInput struct {
 type BillingRelease struct {
 	DocumentCount int
 	TotalCents    int64
+	// DocumentKind is the kind of document the Abrechnung saw; a release
+	// of another kind refuses (#4688). Empty skips the check.
+	DocumentKind string
 }
 
 // NumberRange is the pattern of the invoice numbers of a service. Example

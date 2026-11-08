@@ -20,7 +20,7 @@ type phaseDeparture struct {
 	hasLegacy         bool
 }
 
-func classRosterDepartureByDay(req *Request, child *reportChild, schemas map[int64]*enrollment.FormSchema, student *RosterStudent, companions []departure.CompanionLink) (map[string]string, error) {
+func classRosterDepartureByDay(req *enrollment.Request, child *enrollment.RequestChild, schemas map[int64]*enrollment.FormSchema, student *RosterStudent, companions []departure.CompanionLink) (map[string]string, error) {
 	allowed, fallback, note, ok, err := classRosterDepartureFromPhase(req, child, schemas)
 	if err != nil {
 		return nil, err
@@ -34,7 +34,7 @@ func classRosterDepartureByDay(req *Request, child *reportChild, schemas map[int
 	return classRosterDepartureByDayFromStudent(student, companions), nil
 }
 
-func classRosterDepartureFromPhase(req *Request, child *reportChild, schemas map[int64]*enrollment.FormSchema) (departure.AllowedDepartureModes, departure.DepartureDays, *string, bool, error) {
+func classRosterDepartureFromPhase(req *enrollment.Request, child *enrollment.RequestChild, schemas map[int64]*enrollment.FormSchema) (departure.AllowedDepartureModes, departure.DepartureDays, *string, bool, error) {
 	if req == nil || req.SchemaID == nil || child == nil {
 		return nil, nil, nil, false, nil
 	}
@@ -139,11 +139,11 @@ func classRosterDepartureFields(schema *enrollment.FormSchema) []enrollment.Form
 	return fields
 }
 
-func classRosterCompanionNote(child *reportChild) *string {
-	if child == nil || child.CustomData == nil {
+func classRosterCompanionNote(child *enrollment.RequestChild) *string {
+	if child == nil {
 		return nil
 	}
-	note := strings.TrimSpace(stringValue(child.CustomData[enrollment.TargetStudentDepartureCompanionNote]))
+	note := strings.TrimSpace(stringValue(formValue(child.CustomData, enrollment.TargetStudentDepartureCompanionNote)))
 	if note == "" {
 		return nil
 	}

@@ -10,8 +10,8 @@ import (
 
 // The parent-facing intake of an enrollment (#3565): the submission and its
 // edits, the status link, the public form loads and the late invites. The
-// answers, consent flags and source metadata a family submits stay raw JSON
-// at this boundary; the intake decodes them itself.
+// answers, consent flags and source metadata a family submits travel as
+// FormValues (ADR 0173).
 
 // SubmitRequest is one submission as the intake receives it.
 type SubmitRequest struct {
@@ -29,14 +29,14 @@ type SubmitRequest struct {
 	// bind the submitted guardian email to the invitation address (#2164).
 	LateInviteToken  string
 	SubmissionSource string
-	SourceMetadata   json.RawMessage
+	SourceMetadata   FormValues
 
 	GuardianFirstName string
 	GuardianLastName  string
 	GuardianEmail     string
 	GuardianPhone     *string
-	ConsentFlags      json.RawMessage
-	CustomData        json.RawMessage
+	ConsentFlags      FormValues
+	CustomData        FormValues
 	// GuardianAccountID is set when an authenticated parent submits through
 	// the parents portal; nil is an anonymous public submission.
 	GuardianAccountID *int64
@@ -71,7 +71,7 @@ type SubmitChild struct {
 	DateOfBirth       calendar.Date
 	TargetGradeLevel  *int16
 	TargetSchoolClass *string
-	CustomData        json.RawMessage
+	CustomData        FormValues
 	OfferingIDs       []int64
 	OfferingDays      []SubmitOfferingDays
 	// ExcludedAutoAddTargetIDs switches off the Mitbuchungs-Regel for these
@@ -118,14 +118,14 @@ const (
 )
 
 // EditPatch carries the fields a parent may patch before the first decision.
-// Pointer fields leave a value alone unless set; a non-nil JSON document
-// replaces the stored one.
+// Pointer fields leave a value alone unless set; set values, even empty
+// ones, replace the stored ones.
 type EditPatch struct {
 	GuardianFirstName *string
 	GuardianLastName  *string
 	GuardianPhone     *string
-	ConsentFlags      json.RawMessage
-	CustomData        json.RawMessage
+	ConsentFlags      *FormValues
+	CustomData        *FormValues
 }
 
 // CreateLateInviteInput is an admin's late invite for one family.
@@ -154,13 +154,13 @@ type ManualApprovedEnrollmentInput struct {
 	ActorID          int64
 }
 
-// ManualApprovedEnrollmentResult is the created request, the approved child,
-// its status link and the guardian invitation the approval owes.
+// ManualApprovedEnrollmentResult is the created request, the approved child
+// and its status link. The approval's guardian invitation is already created
+// in the same transaction.
 type ManualApprovedEnrollmentResult struct {
-	Request       *Request
-	Child         *RequestChild
-	StatusURL     string
-	PendingInvite *PendingGuardianInvite
+	Request   *Request
+	Child     *RequestChild
+	StatusURL string
 }
 
 // LegalTexts bundles the per-tenant legal texts of the public enrollment

@@ -11,6 +11,7 @@ import (
 	"github.com/uptrace/bun"
 
 	ownerCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -50,10 +51,9 @@ func makeChild(requestID int64, firstName, lastName string) *capability.RequestC
 		RequestID:      requestID,
 		FirstName:      firstName,
 		LastName:       lastName,
-		DateOfBirth:    capability.Date("2018-04-15"),
+		DateOfBirth:    calendar.NewDate(2018, 4, 15),
 		Status:         capability.ChildStatusSubmitted,
 		ActivationMode: capability.ChildActivationScheduled,
-		CustomData:     []byte("{}"),
 	}
 }
 

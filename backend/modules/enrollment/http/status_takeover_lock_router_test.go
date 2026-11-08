@@ -199,7 +199,7 @@ func setupTakeoverLockTest(t *testing.T, redeemableInvitation ...bool) *takeover
 
 	resource := enrollmentAPI.NewResource(
 		nil, nil, requestSvc, nil, nil, nil, nil, nil, changeRequestSvc,
-		nil, enrollmentAPI.GuardianInvitationRuntime{}, nil, nil,
+		nil, nil, nil,
 		nativeUploads.UploadFiles{}, enrollmentAPI.DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation})
 
 	submitted, err := requestSvc.Submit(ctx, enrollmentAPI.SubmitRequest{
@@ -208,12 +208,12 @@ func setupTakeoverLockTest(t *testing.T, redeemableInvitation ...bool) *takeover
 		GuardianFirstName: "Anna",
 		GuardianLastName:  "Beispiel",
 		GuardianEmail:     "takeover-lock@example.com",
-		ConsentFlags: map[string]any{
+		ConsentFlags: testFormValues(map[string]any{
 			"agb":             true,
 			"data_processing": true,
 			"email_contact":   true,
 			"photo":           false,
-		},
+		}),
 		Children: []enrollmentAPI.SubmitChild{
 			{
 				FirstName:        "Lina",

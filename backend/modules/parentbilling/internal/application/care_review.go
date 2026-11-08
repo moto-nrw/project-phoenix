@@ -39,10 +39,13 @@ type CareReviewStore interface {
 }
 
 // reviewedMonth is the preview of a calculated run: the invoices the
-// release issues, those it leaves out, and the state the reviewer checks.
+// release issues, those it leaves out, the kind of document they would be
+// issued as (#4688) and the state the reviewer checks.
 type reviewedMonth struct {
 	careMonth
 	excluded    []parentbilling.CareInvoice
+	kind        parentbilling.DocumentKindState
+	legalRemedy string
 	fingerprint string
 	// conflicts counts the changes in conflict on the invoices the release
 	// issues (#6197).
@@ -67,6 +70,13 @@ func (c *CareBilling) reviewed(ctx context.Context, organizationID int64, run pa
 	if err := c.amendReviewed(ctx, organizationID, run, &review); err != nil {
 		return "", reviewedMonth{}, err
 	}
+	// Every draft carries the kind of document the release would freeze,
+	// so the fingerprint changes when the Abrechnung chooses another kind
+	// after the review (#4688).
+	if review.kind, review.legalRemedy, err = c.kinds.reviewed(ctx, organizationID, parentbilling.ServiceCare); err != nil {
+		return "", reviewedMonth{}, err
+	}
+	markDocumentKind(review.kind.DocumentKind, review.invoices, review.excluded)
 	review.fingerprint = previewFingerprint(run, rule, review)
 	return rule, review, nil
 }
@@ -203,9 +213,11 @@ func previewFingerprint(run parentbilling.CareRun, rule string, review reviewedM
 		MealGaps    []parentbilling.CareMealGap      `json:"meal_gaps"`
 		MealUnbill  []parentbilling.CareMealUnbilled `json:"meal_unbilled"`
 		MealChanged []parentbilling.CareMealChanged  `json:"meal_changed"`
+		LegalRemedy string                           `json:"legal_remedy"`
 	}{run.ID, run.SchoolIDs, run.InvoiceDate, rule, fingerprintInvoices(review.invoices),
 		fingerprintInvoices(review.excluded), review.unpriced, review.duplicates, review.billed, review.free,
-		review.dueDates.InPaymentOrder(), review.uncounted, review.mealGaps, review.mealUnbilled, review.mealChanged})
+		review.dueDates.InPaymentOrder(), review.uncounted, review.mealGaps, review.mealUnbilled, review.mealChanged,
+		review.legalRemedy})
 	if err != nil {
 		// Every value above marshals; a failure leaves no fingerprint a
 		// release could match.
@@ -418,6 +430,7 @@ func (c *CareBilling) reviewDetail(ctx context.Context, reviewer parentbilling.H
 	if detail.Amendable, err = c.settings.CareAmendable(ctx, organizationID); err != nil {
 		return fmt.Errorf("parent billing: read the changes the Träger allows: %w", err)
 	}
+	detail.DocumentKindState = review.kind
 	for _, invoice := range review.excluded {
 		detail.ExcludedCount++
 		detail.ExcludedCents += invoice.TotalCents
@@ -475,6 +488,11 @@ func (c *CareBilling) issueReviewed(ctx context.Context, organizationID int64, r
 	if len(month.invoices) == 0 {
 		return rule, month, issuedOn, nil
 	}
+	// No fee notice without its legal remedy (#4688); the drafts already
+	// carry the kind the fingerprint covers.
+	if month.kind.LegalRemedyMissing {
+		return "", reviewedMonth{}, "", parentbilling.ErrLegalRemedyMissing
+	}
 	pattern, err := numberPatternOf(ctx, c.store, organizationID, parentbilling.ServiceCare)
 	if err != nil {
 		return "", reviewedMonth{}, "", err
@@ -483,4 +501,18 @@ func (c *CareBilling) issueReviewed(ctx context.Context, organizationID int64, r
 		return "", reviewedMonth{}, "", err
 	}
 	return rule, month, issuedOn, nil
+}
+
+// markDocumentKind puts the kind the release would freeze on every draft. A
+// Mensa invoice of its own stays an invoice: the kind belongs to the care
+// contribution (#4688); bundled Mensa lines go with their care invoice.
+func markDocumentKind(kind string, lists ...[]parentbilling.CareInvoice) {
+	for _, drafts := range lists {
+		for i := range drafts {
+			drafts[i].DocumentKind = kind
+			if drafts[i].Service == parentbilling.ServiceMeal {
+				drafts[i].DocumentKind = parentbilling.DocumentKindInvoice
+			}
+		}
+	}
 }

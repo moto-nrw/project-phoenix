@@ -106,7 +106,7 @@ func TestToEditDraftChildResponses_PreserveOnlyLockedOfferingsWhenDisabled(t *te
 
 	studentID := int64(42)
 	responses := toEditDraftChildResponses(&EditDraft{
-		Children: []*RequestChild{
+		Children: []*capability.RequestChild{
 			{ID: 1},
 			{ID: 2, CreatedStudentID: &studentID},
 		},
@@ -540,7 +540,7 @@ func TestMapSubmitError_SignatureRefusals400WithCodeAndField(t *testing.T) {
 func TestSignatureProofDocument_RefusesUnreadableConsents(t *testing.T) {
 	t.Parallel()
 
-	req := &Request{LegalBlocksSnapshot: []capability.LegalBlocksSnapshotEntry{{ConsentFlags: []byte("kaputt")}}}
+	req := &capability.Request{LegalBlocksSnapshot: []capability.LegalBlocksSnapshotEntry{{ConsentFlags: []byte("kaputt")}}}
 	_, err := signatureProofDocument(signatureProof{Request: req, Signature: &capability.RequestSignature{}}, time.Now())
 	require.Error(t, err)
 }
@@ -577,7 +577,7 @@ func TestSignatureProofRecord_UsesMethodNeutralTitle(t *testing.T) {
 func TestSignatureProofDocument_ReproducesFrozenLegalTextAndDocuments(t *testing.T) {
 	t.Parallel()
 
-	req := &Request{LegalBlocksSnapshot: []capability.LegalBlocksSnapshotEntry{{
+	req := &capability.Request{LegalBlocksSnapshot: []capability.LegalBlocksSnapshotEntry{{
 		ConsentFlags: []byte(`{"photo":true}`),
 		Blocks: []capability.LegalBlockSnapshot{
 			{
@@ -617,16 +617,16 @@ func TestSignatureProofDocument_ReproducesFrozenLegalTextAndDocuments(t *testing
 func TestSignatureProofDocument_IncludesSignedAnswersAndOfferingChoices(t *testing.T) {
 	t.Parallel()
 
-	req := &Request{
-		CustomData: map[string]any{"vegetarisch": true},
+	req := &capability.Request{
+		CustomData: formValues(map[string]any{"vegetarisch": true}),
 		LegalBlocksSnapshot: []capability.LegalBlocksSnapshotEntry{{
 			ConsentFlags: []byte(`{}`),
 		}},
 	}
-	child := &RequestChild{ID: 17, FirstName: "Lina", LastName: "Beispiel", DateOfBirth: calendar.NewDate(2018, 4, 15),
-		CustomData: map[string]any{"abholzeit": map[string]any{"mon": "15:00"}}}
+	child := &capability.RequestChild{ID: 17, FirstName: "Lina", LastName: "Beispiel", DateOfBirth: calendar.NewDate(2018, 4, 15),
+		CustomData: formValues(map[string]any{"abholzeit": map[string]any{"mon": "15:00"}})}
 	doc, err := signatureProofDocument(signatureProof{
-		Request: req, Children: []*RequestChild{child}, Signature: &capability.RequestSignature{},
+		Request: req, Children: []*capability.RequestChild{child}, Signature: &capability.RequestSignature{},
 		Schema: &capability.FormSchema{Fields: []capability.FormField{
 			{Key: "vegetarisch", Label: "Vegetarisch", Type: capability.FormFieldBoolean},
 			{Key: "abholzeit", Label: "Abholzeit", Type: capability.FormFieldWeekdaySchedule, AppliesToCh: true},
@@ -656,7 +656,8 @@ func TestSubmitCarriesTheShownFormVersion(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(`{"phase_id":42,"form_schema_id":81,"consent_flags":{"terms":true},"children":[]}`), wire))
 	out, err := buildServiceRequest(wire, 7, "203.0.113.5")
 	require.NoError(t, err)
-	encoded, err := encodeSubmitRequest(out)
-	require.NoError(t, err)
-	assert.Equal(t, int64(81), encoded.DisplayedFormSchemaID)
+	assert.Equal(t, int64(81), out.DisplayedFormSchemaID)
+	accepted, ok := out.ConsentFlags.Lookup("terms")
+	assert.True(t, ok)
+	assert.Equal(t, true, accepted)
 }

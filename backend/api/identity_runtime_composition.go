@@ -4,7 +4,6 @@ import (
 	"context"
 	"net"
 
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	schoolPortal "github.com/moto-nrw/project-phoenix/modules/schoolportal"
 	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
@@ -16,25 +15,6 @@ import (
 // reset link of another portal never reaches those handlers (#4006). The
 // portals classify the refusals through the owner's rule tables
 // (portalauth).
-
-// enrollmentGuardianInvitations hands the enrollment decision routes the one
-// call they make: approving the first child of a family creates one
-// invitation in the decision's transaction, so a failed invitation or mail
-// rolls the decision back with it (#4602). A nil capability yields the zero
-// runtime, which the routes report as not configured.
-func enrollmentGuardianInvitations(invitations identityaccess.GuardianInvitations) enrollmentAPI.GuardianInvitationRuntime {
-	if invitations == nil {
-		return enrollmentAPI.GuardianInvitationRuntime{}
-	}
-	return enrollmentAPI.GuardianInvitationRuntime{
-		Create: func(ctx context.Context, guardianProfileID, createdBy int64) error {
-			_, err := invitations.CreateGuardianInvitation(ctx, identityaccess.GuardianInvitationRequest{
-				GuardianProfileID: guardianProfileID, CreatedBy: createdBy,
-			})
-			return err
-		},
-	}
-}
 
 // SchoolPortalAuth binds the school portal's session runtime. A nil
 // capability yields the zero runtime, which the portal reports as not

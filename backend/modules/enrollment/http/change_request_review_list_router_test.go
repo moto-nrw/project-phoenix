@@ -42,7 +42,11 @@ type reviewListEnv struct {
 	requestID int64
 	childIDs  []int64
 	accountID int64
+	schemas   capability.FormSchemaAdministration
+	schemaID  int64
 	token     string
+	// statusToken is the family's status link token of the request.
+	statusToken string
 }
 
 func setupReviewListTest(t *testing.T) *reviewListEnv {
@@ -128,7 +132,7 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 
 	resource := enrollmentAPI.NewResource(
 		nil, nil, requestSvc, nil, nil, nil, nil, nil, changeRequestSvc,
-		nil, enrollmentAPI.GuardianInvitationRuntime{}, nil, nil,
+		nil, nil, nil,
 		nativeUploads.UploadFiles{}, enrollmentAPI.DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation})
 
 	submitted, err := requestSvc.Submit(ctx, enrollmentAPI.SubmitRequest{
@@ -137,12 +141,12 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 		GuardianFirstName: "Annegret",
 		GuardianLastName:  "Zoffenbach",
 		GuardianEmail:     "review-list@example.com",
-		ConsentFlags: map[string]any{
+		ConsentFlags: testFormValues(map[string]any{
 			"agb":             true,
 			"data_processing": true,
 			"email_contact":   true,
 			"photo":           false,
-		},
+		}),
 		Children: []enrollmentAPI.SubmitChild{
 			{
 				FirstName:        "Quirina",
@@ -162,12 +166,15 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 	require.Len(t, submitted.Children, 2)
 
 	env := &reviewListEnv{
-		db:        db,
-		router:    testpkg.TenantRuntimeMiddleware(t, db)(resource.Router(api.TenantSessionChain)),
-		tenantID:  tenantID,
-		requestID: submitted.Request.ID,
-		childIDs:  []int64{submitted.Children[0].ID, submitted.Children[1].ID},
-		accountID: accountID,
+		db:          db,
+		router:      testpkg.TenantRuntimeMiddleware(t, db)(resource.Router(api.TenantSessionChain)),
+		tenantID:    tenantID,
+		requestID:   submitted.Request.ID,
+		childIDs:    []int64{submitted.Children[0].ID, submitted.Children[1].ID},
+		accountID:   accountID,
+		schemas:     schemaSvc,
+		schemaID:    schema.ID,
+		statusToken: submitted.Request.StatusToken,
 	}
 	claims := sessiontoken.AppClaims{
 		ID:          int(accountID),

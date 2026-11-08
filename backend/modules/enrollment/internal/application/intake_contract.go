@@ -35,7 +35,7 @@ func submissionEligibility(req SubmitRequest) eligibilityGate {
 // parent's edit, its draft, a change request): the audience was authorized
 // at submission, and a request from a trusted source or with a child the
 // rollover carried forward keeps the exemption its creation had.
-func storedRequestEligibility(source string, children []*RequestChild) eligibilityGate {
+func storedRequestEligibility(source string, children []*enrollmentNative.RequestChild) eligibilityGate {
 	if isTrustedEnrollmentSource(source) || hasRolloverGeneratedChild(children) {
 		return eligibilityNone
 	}
@@ -53,7 +53,7 @@ type intakePayload struct {
 	openByID         map[int64]*offeringContract.CareOfferingRecord
 	eligibility      eligibilityGate
 	consentConfirmed bool
-	existingChildren []*RequestChild
+	existingChildren []*enrollmentNative.RequestChild
 }
 
 // validateIntakePayload is the one validation pipeline of the submission and

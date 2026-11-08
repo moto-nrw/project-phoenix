@@ -43,6 +43,9 @@ const (
 	MaxSalutationLength = 200
 	MaxBodyLength       = 10000
 	MaxClosingLength    = 500
+	// MaxLegalRemedyLength is the longest legal remedy of a fee notice
+	// (#4688); the Hardt notice needs about 600 characters.
+	MaxLegalRemedyLength = 5000
 )
 
 // Template is the text of a document with its placeholders.
@@ -55,6 +58,12 @@ type Template struct {
 	// kinds that print {{positionen}} have one; the zero value is the
 	// standard table.
 	Invoice InvoiceLayout `json:"invoice"`
+	// LegalRemedy is the Rechtsbehelfsbelehrung of a fee notice (#4688):
+	// the Träger writes it, moto has no legal text of its own. Only the kind
+	// fee notice has one. A fee notice prints it after the body, so no text
+	// of the template can leave it out, and no fee notice is issued while it
+	// is empty (LacksLegalRemedy).
+	LegalRemedy string `json:"legal_remedy"`
 }
 
 // Placeholder is a name a template of a kind may use. Table placeholders
@@ -87,12 +96,15 @@ type Block struct {
 	Rows    []Row  `json:"rows"`
 }
 
-// Filled is a template filled with the values of one document.
+// Filled is a template filled with the values of one document. LegalRemedy
+// holds the paragraphs of the legal remedy of a fee notice, empty for every
+// other kind.
 type Filled struct {
-	Subject    string   `json:"subject"`
-	Salutation string   `json:"salutation"`
-	Blocks     []Block  `json:"blocks"`
-	Closing    []string `json:"closing"`
+	Subject     string   `json:"subject"`
+	Salutation  string   `json:"salutation"`
+	Blocks      []Block  `json:"blocks"`
+	Closing     []string `json:"closing"`
+	LegalRemedy []Block  `json:"legal_remedy,omitempty"`
 }
 
 var (
@@ -157,12 +169,38 @@ func Normalize(template Template) Template {
 		return strings.TrimSpace(strings.ReplaceAll(text, "\r\n", "\n"))
 	}
 	return Template{
-		Subject:    strings.Join(strings.Fields(clean(template.Subject)), " "),
-		Salutation: strings.Join(strings.Fields(clean(template.Salutation)), " "),
-		Body:       clean(template.Body),
-		Closing:    clean(template.Closing),
-		Invoice:    template.Invoice,
+		Subject:     strings.Join(strings.Fields(clean(template.Subject)), " "),
+		Salutation:  strings.Join(strings.Fields(clean(template.Salutation)), " "),
+		Body:        clean(template.Body),
+		Closing:     clean(template.Closing),
+		Invoice:     template.Invoice,
+		LegalRemedy: clean(template.LegalRemedy),
 	}
+}
+
+// HasLegalRemedy reports whether a template of kind carries a legal remedy:
+// only the fee notice, an administrative act (#4688).
+func HasLegalRemedy(kind Kind) bool {
+	return kind == KindFeeNotice
+}
+
+// LacksLegalRemedy reports a template of a kind that needs a legal remedy
+// and has none. Saving such a template is allowed, so the Träger-Büro can
+// write it in steps; issuing a fee notice with it is not (#4688): without
+// the legal remedy the time limit for an appeal grows to one year (§ 58
+// Abs. 2 VwGO).
+func LacksLegalRemedy(kind Kind, template Template) bool {
+	if !HasLegalRemedy(kind) {
+		return false
+	}
+	// Legal text must survive even when optional placeholder values are
+	// absent. A heading or a placeholder alone is no remedy text.
+	for _, block := range fillLegalRemedy(template.LegalRemedy, nil) {
+		if block.Text != "" {
+			return false
+		}
+	}
+	return true
 }
 
 // Check accepts a normalized template of kind: subject and body are
@@ -175,6 +213,9 @@ func Check(kind Kind, template Template) error {
 	fields := partErrors(template)
 	if template.Invoice != (InvoiceLayout{}) && !HasInvoice(kind) {
 		fields["invoice"] = "has no table of amounts"
+	}
+	if strings.TrimSpace(template.LegalRemedy) != "" && !HasLegalRemedy(kind) {
+		fields["legal_remedy"] = "has no legal remedy"
 	}
 	if len(fields) > 0 {
 		return &InvalidError{Fields: fields}
@@ -197,6 +238,7 @@ func partErrors(template Template) map[string]string {
 		{"salutation", template.Salutation, MaxSalutationLength, false},
 		{"body", template.Body, MaxBodyLength, true},
 		{"closing", template.Closing, MaxClosingLength, false},
+		{"legal_remedy", template.LegalRemedy, MaxLegalRemedyLength, false},
 	} {
 		switch {
 		case part.required && strings.TrimSpace(part.text) == "":
@@ -212,7 +254,7 @@ func partErrors(template Template) map[string]string {
 // template its kind does not know and every placeholder written wrongly.
 func unknownPlaceholders(kind Kind, template Template) []string {
 	unknown := map[string]bool{}
-	for _, text := range []string{template.Subject, template.Salutation, template.Body, template.Closing} {
+	for _, text := range []string{template.Subject, template.Salutation, template.Body, template.Closing, template.LegalRemedy} {
 		for _, match := range placeholderPattern.FindAllStringSubmatch(text, -1) {
 			if match[1] == "" || !knows(kind, match[1]) {
 				unknown[cmpOr(match[1], match[0])] = true
@@ -246,11 +288,20 @@ func Fill(template Template, values map[string]Value) Filled {
 	salutation, _ := fillLine(template.Salutation, values)
 	closing, _ := fillLine(template.Closing, values)
 	return Filled{
-		Subject:    oneLine(subject),
-		Salutation: oneLine(salutation),
-		Blocks:     fillBody(template.Body, values),
-		Closing:    lines(closing),
+		Subject:     oneLine(subject),
+		Salutation:  oneLine(salutation),
+		Blocks:      fillBody(template.Body, values, true),
+		Closing:     lines(closing),
+		LegalRemedy: fillLegalRemedy(template.LegalRemedy, values),
 	}
+}
+
+// fillLegalRemedy fills the legal remedy; a template without one has none.
+func fillLegalRemedy(text string, values map[string]Value) []Block {
+	if strings.TrimSpace(text) == "" {
+		return nil
+	}
+	return fillBody(text, values, false)
 }
 
 func knows(kind Kind, name string) bool {
@@ -289,10 +340,10 @@ func (v Value) inline() string {
 	return strings.Join(parts, "; ")
 }
 
-func fillBody(body string, values map[string]Value) []Block {
+func fillBody(body string, values map[string]Value, omitEmpty bool) []Block {
 	blocks := []Block{}
 	for _, paragraph := range paragraphs(body) {
-		blocks = append(blocks, fillParagraph(paragraph, values)...)
+		blocks = append(blocks, fillParagraph(paragraph, values, omitEmpty)...)
 	}
 	return blocks
 }
@@ -318,8 +369,9 @@ func paragraphs(body string) [][]string {
 }
 
 // fillParagraph keeps standalone tables in order with the surrounding text.
-// The whole paragraph is left out when every placeholder in it is empty.
-func fillParagraph(paragraph []string, values map[string]Value) []Block {
+// When omitEmpty is true, a paragraph whose placeholders are all empty is
+// left out. Legal-remedy paragraphs keep their literal text instead.
+func fillParagraph(paragraph []string, values map[string]Value, omitEmpty bool) []Block {
 	var blocks []Block
 	var block Block
 	var count placeholderCount
@@ -346,7 +398,7 @@ func fillParagraph(paragraph []string, values map[string]Value) []Block {
 		}
 	}
 	appendBlock(paragraph[start:], nil)
-	if count.allEmpty() {
+	if omitEmpty && count.allEmpty() {
 		return nil
 	}
 	return blocks

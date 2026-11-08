@@ -135,6 +135,12 @@
       "guardian_phone": "Telefon",
       "phase_id": "Okres zapisów"
     },
+    "consent": {
+      "agb": "Ogólne warunki umowy (regulamin)",
+      "data_processing": "Zapoznano się z informacją o ochronie danych",
+      "email_contact": "Zgoda na kontakt e-mailem",
+      "photo": "Zgoda na zdjęcia"
+    },
     "child": {
       "custom_data": "Dodatkowe informacje",
       "date_of_birth": "Data urodzenia",

@@ -143,6 +143,9 @@ type LetterTemplate struct {
 	// line. The week always stays: it is the period of the service.
 	GroupByChild   bool
 	HideTimeModels bool
+	// LegalRemedy is the Rechtsbehelfsbelehrung of the template of the fee
+	// notice, empty for every other kind (#4688).
+	LegalRemedy string
 }
 
 // BillingLetterheads is the master data and the branding settings of the
@@ -152,6 +155,9 @@ type LetterTemplate struct {
 // template of the confirmation letter (#4677).
 type BillingLetterheads interface {
 	Letterhead(ctx context.Context, reviewer HolidayReviewer) (Letterhead, error)
+	// The letter of an invoice or a fee notice reads the template of its
+	// kind (#4688).
+	BillingDocumentTemplates
 }
 
 // BillingLetterService lets the Abrechnung of a Träger create the letters

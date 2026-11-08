@@ -152,22 +152,53 @@ export function LettersFacts({
   );
 }
 
+/**
+ * Titel, Satz und Vorlage der Schreiben je Dokumentart, die die Freigabe
+ * festgehalten hat (#4688). Ohne Art bleibt es das Bestätigungsschreiben.
+ */
+const LETTER_KINDS: Readonly<
+  Record<string, { title: string; description: string; template: string }>
+> = {
+  confirmation: {
+    title: "Bestätigungsschreiben",
+    description:
+      "Jede Familie bekommt ein Schreiben, das ihre Anmeldung bestätigt und zugleich ihre Rechnung ist.",
+    template: "bestaetigung",
+  },
+  invoice: {
+    title: "Rechnungen",
+    description: "Jede Familie bekommt ihre Rechnung als Schreiben.",
+    template: "rechnung",
+  },
+  fee_notice: {
+    title: "Gebührenbescheide",
+    description:
+      "Jede Familie bekommt einen Gebührenbescheid mit Ihrer Rechtsbehelfsbelehrung.",
+    template: "bescheid",
+  },
+};
+
 export function BillingLettersCard({
   runId,
   payments,
   letters,
   onCreated,
+  documentKind,
 }: Readonly<{
   runId: string;
   payments: readonly (InvoicePayment | null | undefined)[];
   letters: BillingLetters | null;
   onCreated: (letters: BillingLetters) => void;
+  /** Die Dokumentart, die die Freigabe festgehalten hat (#4688). */
+  documentKind?: string;
 }>) {
+  const kind =
+    LETTER_KINDS[documentKind ?? "confirmation"] ?? LETTER_KINDS.confirmation!;
   if (!letters) {
     return (
       <LettersCreateCard
-        title="Bestätigungsschreiben"
-        description="Jede Familie bekommt ein Schreiben, das ihre Anmeldung bestätigt und zugleich ihre Rechnung ist."
+        title={kind.title}
+        description={kind.description}
         runId={runId}
         payments={payments}
         onCreated={onCreated}
@@ -176,7 +207,7 @@ export function BillingLettersCard({
         Bankverbindung kommt aus den <BillingSettingsLink />, der Text aus der{" "}
         <NavigationLink
           href={traegerPath(
-            "/traeger/einstellungen/briefkopf/vorlagen/bestaetigung",
+            `/traeger/einstellungen/briefkopf/vorlagen/${kind.template}`,
           )}
           className="font-medium underline"
         >
@@ -190,7 +221,7 @@ export function BillingLettersCard({
 
   return (
     <SectionCard
-      title="Bestätigungsschreiben"
+      title={kind.title}
       description="Die Schreiben sind erstellt und lassen sich nicht mehr ändern. Das Schreiben einer Familie laden Sie über das Menü ihrer Rechnung herunter."
     >
       <LettersFacts

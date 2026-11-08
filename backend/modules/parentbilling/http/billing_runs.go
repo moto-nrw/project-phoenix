@@ -108,6 +108,9 @@ func (req *BillingCorrectionRequest) Bind(*http.Request) error { return nil }
 type BillingReleaseRequest struct {
 	DocumentCount int   `json:"document_count"`
 	TotalCents    int64 `json:"total_cents"`
+	// DocumentKind is the kind of document the Abrechnung saw (#4688);
+	// missing skips the check.
+	DocumentKind string `json:"document_kind"`
 }
 
 // Bind accepts the body.
@@ -368,6 +371,7 @@ func renderBillingConflict(w http.ResponseWriter, r *http.Request, err error) {
 		{capability.ErrBillingRunChanged, common.CodeParentBillingBillingRunChanged},
 		{capability.ErrBillingRunEmpty, common.CodeParentBillingBillingRunEmpty},
 		{capability.ErrNumberRangeMissing, common.CodeParentBillingNumberRangeMissing},
+		{capability.ErrLegalRemedyMissing, common.CodeParentBillingLegalRemedyMissing},
 		{capability.ErrInvoiceNumberTaken, common.CodeParentBillingInvoiceNumberTaken},
 		{capability.ErrBillingLettersExist, common.CodeParentBillingBillingLettersExist},
 		{capability.ErrBankAccountMissing, common.CodeParentBillingBankAccountMissing},

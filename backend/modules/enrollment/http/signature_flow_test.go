@@ -92,7 +92,7 @@ func setupSignatureTest(t *testing.T, tenantID int64) *signatureEnv {
 	})))
 	resource := enrollmentAPI.NewResource(
 		nil, nil, requests, nil, nil, decisions, nil, nil, nil,
-		nil, enrollmentAPI.GuardianInvitationRuntime{}, nil, nil,
+		nil, nil, nil,
 		nativeUploads.UploadFiles{}, enrollmentAPI.DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation})
 	resource.ListExportService = lists.NewRendererService()
 	return &signatureEnv{
@@ -117,7 +117,7 @@ func (env *signatureEnv) submission(email, guardianFirstName string, signature *
 	return enrollmentAPI.SubmitRequest{
 		TenantID: env.tenantID, PhaseID: env.phaseID,
 		GuardianFirstName: guardianFirstName, GuardianLastName: "Beispiel", GuardianEmail: email,
-		ConsentFlags: map[string]any{"agb": true, "data_processing": true, "email_contact": true, "photo": false},
+		ConsentFlags: testFormValues(map[string]any{"agb": true, "data_processing": true, "email_contact": true, "photo": false}),
 		Children: []enrollmentAPI.SubmitChild{{
 			FirstName: "Lina", LastName: "Beispiel", DateOfBirth: calendar.NewDate(2018, 4, 15), TargetGradeLevel: testpkg.Int16Ptr(1),
 		}},

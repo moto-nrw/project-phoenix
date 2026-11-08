@@ -54,6 +54,7 @@ const CodeParentBillingCostBearerNotFound = "parent_billing.cost_bearer_not_foun
 const CodeParentBillingCostTakeoverWithExemption = "parent_billing.cost_takeover_with_exemption"
 const CodeParentBillingDebtorNumberInvalid = "parent_billing.debtor_number_invalid"
 const CodeParentBillingDebtorNumberLocked = "parent_billing.debtor_number_locked"
+const CodeParentBillingDocumentKindInvalid = "parent_billing.document_kind_invalid"
 const CodeParentBillingDueDatesInvalid = "parent_billing.due_dates_invalid"
 const CodeParentBillingFamilyBillingInvalid = "parent_billing.family_billing_invalid"
 const CodeParentBillingFamilyBillingNotFound = "parent_billing.family_billing_not_found"
@@ -66,6 +67,7 @@ const CodeParentBillingHolidayQuoteInvalid = "parent_billing.holiday_quote_inval
 const CodeParentBillingInvoiceCancelled = "parent_billing.invoice_cancelled"
 const CodeParentBillingInvoiceCredited = "parent_billing.invoice_credited"
 const CodeParentBillingInvoiceNumberTaken = "parent_billing.invoice_number_taken"
+const CodeParentBillingLegalRemedyMissing = "parent_billing.legal_remedy_missing"
 const CodeParentBillingLetterMailBlockUnreadable = "parent_billing.letter_mail_block_unreadable"
 const CodeParentBillingLetterMailBlocked = "parent_billing.letter_mail_blocked"
 const CodeParentBillingLetterMailDelayed = "parent_billing.letter_mail_delayed"
@@ -134,6 +136,7 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingCostTakeoverWithExemption, "business_rejection"},
 	{CodeParentBillingDebtorNumberInvalid, "input"},
 	{CodeParentBillingDebtorNumberLocked, "business_rejection"},
+	{CodeParentBillingDocumentKindInvalid, "input"},
 	{CodeParentBillingDueDatesInvalid, "input"},
 	{CodeParentBillingFamilyBillingInvalid, "input"},
 	{CodeParentBillingFamilyBillingNotFound, "business_rejection"},
@@ -146,6 +149,7 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingInvoiceCancelled, "business_rejection"},
 	{CodeParentBillingInvoiceCredited, "business_rejection"},
 	{CodeParentBillingInvoiceNumberTaken, "business_rejection"},
+	{CodeParentBillingLegalRemedyMissing, "business_rejection"},
 	{CodeParentBillingLetterMailBlockUnreadable, "unavailable"},
 	{CodeParentBillingLetterMailBlocked, "business_rejection"},
 	{CodeParentBillingLetterMailDelayed, "business_rejection"},

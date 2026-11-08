@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -38,8 +37,8 @@ type AdminRequestSummary struct {
 	GuardianPhone             *string                   `json:"guardian_phone,omitempty"`
 	SubmittedAt               time.Time                 `json:"submitted_at"`
 	WithdrawnAt               *time.Time                `json:"withdrawn_at,omitempty"`
-	CustomData                map[string]any            `json:"custom_data,omitempty"`
-	ConsentFlags              map[string]any            `json:"consent_flags,omitempty"`
+	CustomData                capability.FormValues     `json:"custom_data,omitzero"`
+	ConsentFlags              capability.FormValues     `json:"consent_flags,omitzero"`
 	SchemaFields              []AdminRequestSchemaField `json:"schema_fields,omitempty"`
 	// SchemaLegalBlocks carries key→title pairs from the pinned schema's
 	// legal blocks so the detail UI can label custom consent flags (e.g.
@@ -130,8 +129,8 @@ type AdminRequestChild struct {
 	// WeeklyPlanOn is the day the approved weekly plan of a renewal applies
 	// when the child's care was still running at approval (#6043). Until
 	// then the running pickup times, care days and Heimweg stay.
-	WeeklyPlanOn string         `json:"weekly_plan_on,omitempty"`
-	CustomData   map[string]any `json:"custom_data,omitempty"`
+	WeeklyPlanOn string                `json:"weekly_plan_on,omitempty"`
+	CustomData   capability.FormValues `json:"custom_data,omitzero"`
 	// Offerings is the per-child Betreuungsangebote selection that is on
 	// file RIGHT NOW — exactly the set a correction replaces. Populated
 	// only on the detail endpoint (listing endpoints leave it empty to
@@ -432,7 +431,7 @@ func (rs *Resource) toAdminRequestDetailSummary(ctx context.Context, summary *Re
 // the request's care-offering rows, matching admin children to summary
 // children positionally. Children beyond the summary or without rows are
 // left untouched.
-func attachChildOfferings(children []AdminRequestChild, summaryChildren []*RequestChild, childOfferings map[int64]ChildOfferingSet) {
+func attachChildOfferings(children []AdminRequestChild, summaryChildren []*capability.RequestChild, childOfferings map[int64]ChildOfferingSet) {
 	for i := range children {
 		if i >= len(summaryChildren) {
 			continue
@@ -518,7 +517,9 @@ func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 	}
 
 	claims := sessiontoken.ClaimsFromCtx(r.Context())
-	outcome, err := rs.decideChildWithRetry(r, DecideInput{
+	// The command opens the tenant unit and owns its retry and the guardian
+	// invitation an approval owes (#6093).
+	outcome, err := rs.DecisionService.DecideAndInvite(r.Context(), DecideInput{
 		RequestID:  requestID,
 		ChildID:    childID,
 		Status:     DecisionStatus(body.Status),
@@ -529,7 +530,6 @@ func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 		rs.renderDecideError(w, r, err)
 		return
 	}
-
 	common.Respond(w, r, http.StatusOK, newAdminRequestChild(outcome.Child), "Decision applied")
 }
 
@@ -598,43 +598,6 @@ func (rs *Resource) renderRestoreError(w http.ResponseWriter, r *http.Request, e
 	}
 }
 
-// decideChildWithRetry runs the decision inside a tenant transaction,
-// retrying once on a transient database error when the decision body has
-// not yet committed. A cancelled/expired request context stops the retry
-// loop and surfaces the context error.
-func (rs *Resource) decideChildWithRetry(r *http.Request, input DecideInput) (*DecideOutcome, error) {
-	var err error
-	var outcome *DecideOutcome
-	for attempt := 0; attempt < 2; attempt++ {
-		outcome = nil
-		decisionBodySucceeded := false
-		err = rs.runInTenantTx(r, func(ctx context.Context) error {
-			out, e := rs.DecisionService.Decide(ctx, input)
-			if e != nil {
-				return e
-			}
-			outcome = out
-			decisionBodySucceeded = true
-			return rs.enqueueDecisionInvite(ctx, out.PendingInvite)
-		})
-		if err == nil {
-			break
-		}
-		if reqErr := r.Context().Err(); reqErr != nil {
-			return outcome, reqErr
-		}
-		if decisionBodySucceeded || !rs.Failures.Transient(err) || attempt == 1 {
-			break
-		}
-		slog.WarnContext(r.Context(), "transient enrollment decision failure, retrying",
-			slog.Int64("request_id", input.RequestID),
-			slog.Int64("child_id", input.ChildID),
-			slog.String("error", err.Error()),
-		)
-	}
-	return outcome, err
-}
-
 func (rs *Resource) decideErrorRules() []common.ErrorRule {
 	return []common.ErrorRule{
 		{Target: context.Canceled, Render: common.ErrorClientClosed},
@@ -676,7 +639,7 @@ func (rs *Resource) renderDecideError(w http.ResponseWriter, r *http.Request, er
 // newAdminRequestChild maps a decided child model onto the wire shape
 // returned by the decide endpoint (no CustomData / Offerings — those are
 // detail-endpoint concerns).
-func newAdminRequestChild(child *RequestChild) AdminRequestChild {
+func newAdminRequestChild(child *capability.RequestChild) AdminRequestChild {
 	return AdminRequestChild{
 		ID:                strconv.FormatInt(child.ID, 10),
 		FirstName:         child.FirstName,
@@ -703,13 +666,4 @@ func actorRoleFromClaims(roles []string) string {
 		}
 	}
 	return "admin"
-}
-
-// enqueueDecisionInvite joins the decision transaction so approval and its
-// durable invitation either both commit or both roll back.
-func (rs *Resource) enqueueDecisionInvite(ctx context.Context, invite *PendingGuardianInvite) error {
-	if invite == nil || !rs.GuardianInvitations.configured() {
-		return nil
-	}
-	return rs.GuardianInvitations.Create(ctx, invite.GuardianProfileID, invite.CreatedBy)
 }

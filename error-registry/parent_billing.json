@@ -387,6 +387,18 @@
       "legacy": "parent_billing.care_evidence_overlap"
     },
     {
+      "code": "parent_billing.document_kind_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.document_kind_invalid"
+    },
+    {
+      "code": "parent_billing.legal_remedy_missing",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.legal_remedy_missing"
+    },
+    {
       "code": "parent_billing.care_cost_share_invalid",
       "class": "input",
       "parameters": [],

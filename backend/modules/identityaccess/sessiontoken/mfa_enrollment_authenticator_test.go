@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -36,7 +37,7 @@ func TestMFAEnrollmentAuthenticator_AcceptsEnrollmentToken(t *testing.T) {
 
 	tokenString, err := tokentest.CreateMFAEnrollmentJWT(auth, sessiontoken.MFAEnrollmentClaims{
 		AccountID: 4242,
-		Scope:     sessiontoken.MFAEnrollmentScopeTenant,
+		Scope:     tokenprimitives.PortalTenant,
 		TenantID:  70010001,
 	}, 5*time.Minute)
 
@@ -50,7 +51,7 @@ func TestMFAEnrollmentAuthenticator_AcceptsEnrollmentToken(t *testing.T) {
 		assert.True(t, ok, "enrollment claims must be set on the context for downstream handlers")
 		assert.Equal(t, int64(4242), claims.AccountID)
 		assert.Equal(t, int64(70010001), claims.TenantID)
-		assert.Equal(t, sessiontoken.MFAEnrollmentScopeTenant, claims.Scope)
+		assert.Equal(t, tokenprimitives.PortalTenant, claims.Scope)
 		assert.True(t, claims.MFAEnrollmentPending)
 		w.WriteHeader(http.StatusNoContent)
 	})
@@ -76,7 +77,7 @@ func TestRegularAuthenticator_RejectsEnrollmentToken(t *testing.T) {
 
 	tokenString, err := tokentest.CreateMFAEnrollmentJWT(auth, sessiontoken.MFAEnrollmentClaims{
 		AccountID: 4242,
-		Scope:     sessiontoken.MFAEnrollmentScopeTenant,
+		Scope:     tokenprimitives.PortalTenant,
 	}, 5*time.Minute)
 
 	require.NoError(t, err)
@@ -159,32 +160,35 @@ func TestMFAEnrollmentAuthenticator_NoToken(t *testing.T) {
 
 func TestMFAEnrollmentAuthenticator_ExpiredToken(t *testing.T) {
 	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
 
-	auth, err := newTestTokenAuth(t, testSecret)
-	require.NoError(t, err)
+		auth, err := newTestTokenAuth(t, testSecret)
+		require.NoError(t, err)
 
-	tokenString, err := tokentest.CreateMFAEnrollmentJWT(auth, sessiontoken.MFAEnrollmentClaims{
-		AccountID: 4242,
-		Scope:     sessiontoken.MFAEnrollmentScopeTenant,
-	}, time.Millisecond)
+		tokenString, err := tokentest.CreateMFAEnrollmentJWT(auth, sessiontoken.MFAEnrollmentClaims{
+			AccountID: 4242,
+			Scope:     tokenprimitives.PortalTenant,
+		}, time.Millisecond)
 
-	require.NoError(t, err)
-	time.Sleep(10 * time.Millisecond)
+		require.NoError(t, err)
+		// The bubble's clock passes the expiry without waiting.
+		time.Sleep(10 * time.Millisecond)
 
-	r := chi.NewRouter()
-	r.Use(auth.Verifier())
-	r.Use(sessiontoken.MFAEnrollmentAuthenticator)
-	r.Post("/mfa/enroll/start", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusNoContent)
+		r := chi.NewRouter()
+		r.Use(auth.Verifier())
+		r.Use(sessiontoken.MFAEnrollmentAuthenticator)
+		r.Post("/mfa/enroll/start", func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusNoContent)
+		})
+
+		req := httptest.NewRequest(http.MethodPost, "/mfa/enroll/start", nil)
+		req.Header.Set("Authorization", "Bearer "+tokenString)
+		rr := httptest.NewRecorder()
+		r.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusUnauthorized, rr.Code,
+			"expired enrollment tokens must be rejected, just like expired access tokens")
 	})
-
-	req := httptest.NewRequest(http.MethodPost, "/mfa/enroll/start", nil)
-	req.Header.Set("Authorization", "Bearer "+tokenString)
-	rr := httptest.NewRecorder()
-	r.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusUnauthorized, rr.Code,
-		"expired enrollment tokens must be rejected, just like expired access tokens")
 }
 
 // A route group of one portal admits only that portal's enrollment tokens,
@@ -200,19 +204,19 @@ func TestEnrollmentAuthenticatorFor_AdmitsOnlyItsPortal(t *testing.T) {
 		scope    string
 		tenantID int64
 	}{
-		{sessiontoken.MFAEnrollmentScopeTenant, 70010001},
-		{sessiontoken.MFAEnrollmentScopeTenant, 0},
-		{sessiontoken.MFAEnrollmentScopeSchool, 70010001},
-		{sessiontoken.MFAEnrollmentScopeSchool, 0},
-		{sessiontoken.MFAEnrollmentScopeOrg, 0},
-		{sessiontoken.MFAEnrollmentScopeOrg, 70010001},
-		{sessiontoken.MFAEnrollmentScopePlatform, 0},
+		{tokenprimitives.PortalTenant, 70010001},
+		{tokenprimitives.PortalTenant, 0},
+		{tokenprimitives.PortalSchool, 70010001},
+		{tokenprimitives.PortalSchool, 0},
+		{tokenprimitives.PortalOrg, 0},
+		{tokenprimitives.PortalOrg, 70010001},
+		{tokenprimitives.PortalPlatform, 0},
 	}
 	admitted := map[string]map[string]bool{
-		sessiontoken.MFAEnrollmentScopeTenant:   {"tenant/1": true},
-		sessiontoken.MFAEnrollmentScopeSchool:   {"school/1": true},
-		sessiontoken.MFAEnrollmentScopeOrg:      {"org/0": true},
-		sessiontoken.MFAEnrollmentScopePlatform: {"platform/0": true},
+		tokenprimitives.PortalTenant:   {"tenant/1": true},
+		tokenprimitives.PortalSchool:   {"school/1": true},
+		tokenprimitives.PortalOrg:      {"org/0": true},
+		tokenprimitives.PortalPlatform: {"platform/0": true},
 	}
 	for _, portal := range []tokenprimitives.PortalClaims{tokenprimitives.TenantClaims, tokenprimitives.SchoolClaims, tokenprimitives.OrgClaims, tokenprimitives.PlatformClaims} {
 		router := chi.NewRouter()

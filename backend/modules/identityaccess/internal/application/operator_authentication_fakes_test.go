@@ -5,14 +5,16 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"sort"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
-	"github.com/stretchr/testify/require"
 )
 
 // The operator half of the fake store (ports.OperatorStore) and the doubles
@@ -207,7 +209,7 @@ func (m *fakeOperatorMFA) VerifyTrustedDevice(_ context.Context, _ int64, cookie
 	m.calls = append(m.calls, "VerifyTrustedDevice")
 	return cookie != "" && cookie == m.trustedCookie, nil
 }
-func (m *fakeOperatorMFA) StartChallenge(context.Context, int64, string) (string, error) {
+func (m *fakeOperatorMFA) StartChallenge(context.Context, int64, net.IP) (string, error) {
 	m.calls = append(m.calls, "StartChallenge")
 	if m.challengeErr != nil {
 		return "", m.challengeErr

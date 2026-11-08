@@ -68,6 +68,8 @@ type CareStore interface {
 	CareReviewStore
 	// CareAmendmentStore keeps the changes of its invoices (#6197).
 	CareAmendmentStore
+	// DocumentKindStore keeps the kind of document of each service (#4688).
+	DocumentKindStore
 }
 
 // CareBilling serves parentbilling.CareBilling. The contract versions and
@@ -80,6 +82,7 @@ type CareBilling struct {
 	schools   parentbilling.CareSchools
 	settings  parentbilling.CareBillingSettings
 	renderer  TableRenderer
+	kinds     documentKindGate
 	today     func() calendar.Date
 	// mealStore and meals bill the Mensa (#4686).
 	mealStore CareMealStore
@@ -90,16 +93,17 @@ var _ parentbilling.CareBilling = (*CareBilling)(nil)
 
 // NewCareBilling builds the monthly billing with its Mensa (#4686). today
 // is the issue date of a release without an invoice date and the start of
-// the price list's look ahead; renderer renders the review list (#5916).
+// the price list's look ahead; renderer renders the review list (#5916);
+// templates tell whether a fee notice has its legal remedy (#4688).
 func NewCareBilling(store CareStore, contracts parentbilling.CareContracts, schools parentbilling.CareSchools,
-	settings parentbilling.CareBillingSettings, renderer TableRenderer, mealStore CareMealStore, meals parentbilling.CareMeals,
+	settings parentbilling.CareBillingSettings, renderer TableRenderer, mealStore CareMealStore, meals parentbilling.CareMeals, templates parentbilling.BillingDocumentTemplates,
 	today func() calendar.Date,
 ) *CareBilling {
 	if store == nil || contracts == nil || schools == nil || settings == nil || renderer == nil || mealStore == nil || meals == nil || today == nil {
 		panic("parent billing: the store, the care contracts, the schools, the settings, the renderer, the Mensa and the clock are required")
 	}
 	return &CareBilling{store: store, contracts: contracts, schools: schools, settings: settings, renderer: renderer,
-		mealStore: mealStore, meals: meals, today: today}
+		mealStore: mealStore, meals: meals, kinds: newDocumentKindGate(store, templates), today: today}
 }
 
 // CareTariffs reads the price list with the schools of the Träger and the
@@ -537,6 +541,7 @@ func (c *CareBilling) detail(ctx context.Context, reviewer parentbilling.Holiday
 			return parentbilling.CareRunDetail{}, err
 		}
 		detail.Duplicates = holdView(holds)
+		detail.DocumentKind = issuedCareDocumentKind(invoices)
 		// The dates of the release, which its invoices copied.
 		payments, err := readInvoicePayments(ctx, c.store, reviewer.OrganizationID, run.ID, 0)
 		if err != nil {
@@ -632,4 +637,13 @@ func shownContracts(detail parentbilling.CareRunDetail) []int64 {
 		}
 	}
 	return ids
+}
+
+// issuedCareDocumentKind is the kind a released monthly run froze: the kind
+// of its invoices, which one release issued together (#4688).
+func issuedCareDocumentKind(invoices []parentbilling.CareInvoice) string {
+	if len(invoices) == 0 {
+		return ""
+	}
+	return invoices[0].DocumentKind
 }

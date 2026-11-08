@@ -296,7 +296,7 @@ func (rs *InvitationsResource) AcceptInvitation(w http.ResponseWriter, r *http.R
 		ID:          operator.ID,
 		Email:       operator.Email,
 		DisplayName: operator.DisplayName,
-	}, "identityaccess.Operator account created successfully")
+	}, "Operator account created successfully")
 }
 
 // --- Error translation ---
@@ -325,7 +325,7 @@ func invitationErrorRenderer(err error) render.Renderer {
 	case errors.Is(err, identityaccess.ErrOperatorInvitationNotFound):
 		return common.OperatorRejection(http.StatusNotFound, common.CodeIdentityInvitationNotFound, "Einladung nicht gefunden oder abgelaufen")
 	case errors.Is(err, identityaccess.ErrOperatorEmailExists):
-		return common.OperatorRejection(http.StatusConflict, common.CodeIdentityEmailAlreadyExists, "Ein identityaccess.Operator mit dieser E-Mail existiert bereits")
+		return common.OperatorRejection(http.StatusConflict, common.CodeIdentityEmailAlreadyExists, "Ein Operator mit dieser E-Mail existiert bereits")
 	case errors.Is(err, identityaccess.ErrOperatorInvitationRateLimited):
 		return common.OperatorRejection(http.StatusTooManyRequests, common.CodeIdentityInvitationRateLimited, "Zu viele Einladungen. Bitte warte eine Stunde.")
 	default:

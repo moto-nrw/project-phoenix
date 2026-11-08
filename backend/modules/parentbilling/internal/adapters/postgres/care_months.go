@@ -123,6 +123,7 @@ type careInvoiceRow struct {
 	TotalCents         int64         `bun:"total_cents"`
 	ReplacesInvoiceID  *int64        `bun:"replaces_invoice_id"`
 	StudentID          *int64        `bun:"student_id"`
+	DocumentKind       string        `bun:"document_kind"`
 	// The family, the recipient and the payment the release copied
 	// (#4689); NULL on invoices issued before.
 	FamilyEmail         *string        `bun:"family_email"`
@@ -151,7 +152,7 @@ func (row careInvoiceRow) invoice(positions []parentbilling.CarePosition, reduct
 		SchoolName: row.SchoolName, ChildFirstName: row.ChildFirstName, ChildLastName: row.ChildLastName, StudentID: row.StudentID,
 		Recipient: parentbilling.CareRecipient{FirstName: row.RecipientFirstName, LastName: row.RecipientLastName, Email: row.RecipientEmail,
 			Kind: textOf(row.RecipientKind), SecondName: textOf(row.RecipientSecondName)},
-		Positions: positions, Reductions: reductions, TotalCents: row.TotalCents,
+		Positions: positions, Reductions: reductions, TotalCents: row.TotalCents, DocumentKind: row.DocumentKind,
 		FamilyEmail: textOf(row.FamilyEmail), Payment: paymentOf(row.PaymentMethod, row.DueOn, row.DueSource),
 	}
 	if row.RecipientStreet != nil && row.RecipientPostalCode != nil && row.RecipientCity != nil {
@@ -549,6 +550,7 @@ func (s *Store) IssueCareInvoices(ctx context.Context, organizationID int64, run
 			MonthRule: rule, TotalCents: invoice.TotalCents, ReplacesInvoiceID: replaced[replacedKey{invoice.ContractID, invoiceService(invoice)}],
 			StudentID: invoice.StudentID, FamilyEmail: textRef(invoice.FamilyEmail), RecipientKind: textRef(invoice.Recipient.Kind),
 			RecipientSecondName: textRef(invoice.Recipient.SecondName),
+			DocumentKind:        careDocumentKind(invoice.DocumentKind),
 		}
 		if address := invoice.Recipient.Address; address != nil {
 			rows[i].RecipientStreet, rows[i].RecipientPostalCode, rows[i].RecipientCity = &address.Street, &address.PostalCode, &address.City
@@ -760,4 +762,13 @@ func (s *Store) CareRunHolds(ctx context.Context, organizationID, runID int64) (
 			ChildLastName: row.ChildLastName, Contracts: row.Contracts, Slots: row.Slots}
 	}
 	return holds, nil
+}
+
+// careDocumentKind is the kind a monthly invoice is issued as; one without a
+// kind is issued as before #4688, an invoice.
+func careDocumentKind(kind string) string {
+	if kind == "" {
+		return parentbilling.DocumentKindInvoice
+	}
+	return kind
 }

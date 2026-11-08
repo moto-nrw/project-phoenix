@@ -20,6 +20,7 @@ import (
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -99,13 +100,14 @@ func BuildEnrollmentDecisions(
 		Companions:        EnrollmentDecisionCompanions(NewStudentCompanionRepository(carePlan), carePlan.DeleteCompanionEdges),
 		PickupSchedules:   arrivalTimetable.NewEnrollmentPickupSchedules(careRows.PickupSchedules),
 		ArrivalSchedules:  arrivalTimetable.NewEnrollmentArrivalSchedules(careRows.ArrivalSchedules),
-		Bookings:          offerings.Bookings, GuardianAccess: identity,
+		Bookings:          offerings.Bookings, GuardianAccess: identity, GuardianInvitations: identity,
 		StudentAudit:           EnrollmentDecisionStudentAudit(services.StudentAudit),
 		StudentConsents:        EnrollmentDecisionStudentConsents(services.StudentConsents),
 		CareWithdrawal:         schedules.Lifecycle,
 		Broadcasts:             EnrollmentDecisionBroadcasts(hub),
 		ParentsURL:             EnrollmentDecisionParentsURL(env.Links.ParentsURL, env.Links.FrontendURL),
 		Settings:               EnrollmentDecisionSettingValues(settings),
+		IsTransient:            transactionFailures.IsTransientDatabaseError,
 		LockTemplateRecurrence: owner.RecurrenceLock.LockRecurrenceWrites,
 		Pickups:                weeklyPickupHooks(schedules.AutoExcusal, carePlanRows.PickupStudentLocks),
 		Logger:                 env.Logger.With("service", "enrollment-decision"), Today: env.Today,

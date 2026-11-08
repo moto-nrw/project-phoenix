@@ -127,7 +127,7 @@ func childDepartureAllowsAccompanied(schema *enrollmentNative.FormSchema, child 
 // existingChildren are the stored children an edit pairs the submitted ones
 // with (nil for a new submission); they let an unchanged answer accepted
 // before a single-mode rule stand.
-func validateConstrainedSchedules(schema *enrollmentNative.FormSchema, req SubmitRequest, openByID map[int64]*offeringContract.CareOfferingRecord, existingChildren []*RequestChild) error {
+func validateConstrainedSchedules(schema *enrollmentNative.FormSchema, req SubmitRequest, openByID map[int64]*offeringContract.CareOfferingRecord, existingChildren []*enrollmentNative.RequestChild) error {
 	if schema == nil {
 		return nil
 	}
@@ -144,7 +144,7 @@ func validateConstrainedSchedules(schema *enrollmentNative.FormSchema, req Submi
 		}
 	}
 	for idx := range req.Children {
-		var existing *RequestChild
+		var existing *enrollmentNative.RequestChild
 		if idx < len(existingBySubmittedChild) {
 			existing = existingBySubmittedChild[idx]
 		}
@@ -155,7 +155,7 @@ func validateConstrainedSchedules(schema *enrollmentNative.FormSchema, req Submi
 	return nil
 }
 
-func validateChildConstrainedSchedules(schema *enrollmentNative.FormSchema, guardianAnswers map[string]any, idx int, child SubmitChild, existing *RequestChild, openByID map[int64]*offeringContract.CareOfferingRecord, byKey map[string]*enrollmentNative.FormField) error {
+func validateChildConstrainedSchedules(schema *enrollmentNative.FormSchema, guardianAnswers map[string]any, idx int, child SubmitChild, existing *enrollmentNative.RequestChild, openByID map[int64]*offeringContract.CareOfferingRecord, byKey map[string]*enrollmentNative.FormField) error {
 	childCtx := childVisibilityContext(guardianAnswers, child, openByID, byKey)
 	scheduleDays := relevantCareDaysForChild(child, openByID)
 	for i := range schema.Fields {
@@ -214,11 +214,11 @@ func checkAllowedPickupTimes(f *enrollmentNative.FormField, answers map[string]a
 // unchangedSingleModeDepartureAnswer preserves a multi-select answer accepted
 // before a single-mode rule was configured. A changed grade still
 // revalidates, because it can newly put the child under the rule.
-func unchangedSingleModeDepartureAnswer(existing *RequestChild, submitted SubmitChild, key string) bool {
+func unchangedSingleModeDepartureAnswer(existing *enrollmentNative.RequestChild, submitted SubmitChild, key string) bool {
 	if existing == nil || !sameGradeLevel(existing.TargetGradeLevel, submitted.TargetGradeLevel) {
 		return false
 	}
-	return jsonEqual(existing.CustomData[key], submitted.CustomData[key])
+	return jsonEqual(formValue(existing.CustomData, key), submitted.CustomData[key])
 }
 
 func sameGradeLevel(left, right *int16) bool {

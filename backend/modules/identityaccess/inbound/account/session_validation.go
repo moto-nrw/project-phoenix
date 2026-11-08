@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 
 	"github.com/go-chi/render"
@@ -28,14 +29,11 @@ func (rs *Resource) validateSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	claims, err := rs.Sessions.ValidateSessionTokens(r.Context(), input.AccessToken, input.RefreshToken, input.Portal)
-	if err != nil && !errors.Is(err, identityaccess.ErrInvalidToken) {
-		// Validation could not complete (#5399): the BFF keeps the session
-		// it shows and writes no cookie, but does not end it on a hiccup.
-		common.RenderError(w, r, common.ErrorServiceUnavailable(errors.New("session validation unavailable")))
-		return
-	}
 	if err != nil {
-		common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrInvalidToken))
+		// A refusal answers as the refresh would. A read that could not run
+		// is 503 (#5399): the BFF keeps the session it shows and writes no
+		// cookie, but does not end it on a hiccup.
+		common.RenderError(w, r, portalauth.RendererOr(err, validationUnavailable, portalauth.RenewalRules))
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
@@ -52,4 +50,8 @@ func sessionClaimsResponse(claims identityaccess.SessionClaims) *sessiontoken.Ap
 		ReadOnly: claims.ReadOnly, ActingAdminID: claims.ActingAdminID, PreviewID: claims.PreviewID, ViaTraeger: claims.ViaTraeger,
 		CommonClaims: sessiontoken.CommonClaims{ExpiresAt: claims.ExpiresAt},
 	}
+}
+
+func validationUnavailable(error) render.Renderer {
+	return common.ErrorServiceUnavailable(errors.New("session validation unavailable"))
 }

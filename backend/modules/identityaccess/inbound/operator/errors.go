@@ -19,7 +19,7 @@ func (rs *Resource) profileError(err error) render.Renderer {
 	case errors.Is(err, identityaccess.ErrOperatorPasswordMismatch):
 		return common.OperatorInvalidField(common.CodeIdentityCurrentPasswordWrong, "current_password", "das aktuelle Passwort ist falsch")
 	case errors.Is(err, identityaccess.ErrOperatorNotFound):
-		return common.OperatorRejection(http.StatusNotFound, common.CodeIdentityAccountNotFound, "identityaccess.Operator not found")
+		return common.OperatorRejection(http.StatusNotFound, common.CodeIdentityAccountNotFound, "Operator not found")
 	case errors.Is(err, identityaccess.ErrOperatorInactive):
 		return operatorInactive("Dieser Account ist deaktiviert")
 	default:
@@ -61,7 +61,7 @@ var authRules = []common.ErrorRule{
 	{Target: identityaccess.ErrOperatorRefreshTokenInvalid, Render: func(error) render.Renderer { return common.OperatorUnauthorized() }},
 	{Target: identityaccess.ErrOperatorInvalidCredentials, Render: func(error) render.Renderer { return common.OperatorInvalidCredentials() }},
 	{Target: identityaccess.ErrOperatorNotFound, Render: func(error) render.Renderer { return common.OperatorInvalidCredentials() }},
-	{Target: identityaccess.ErrOperatorInactive, Render: func(error) render.Renderer { return operatorInactive("identityaccess.Operator account is inactive") }},
+	{Target: identityaccess.ErrOperatorInactive, Render: func(error) render.Renderer { return operatorInactive("Operator account is inactive") }},
 	{Target: identityaccess.ErrMFARateLimited, Render: operatorRejection(http.StatusTooManyRequests, common.CodeIdentityMfaBlocked, "Too many code requests, please wait")},
 	{Target: identityaccess.ErrMFALocked, Render: operatorRejection(http.StatusTooManyRequests, common.CodeIdentityMfaBlocked, "MFA account temporarily locked")},
 	{Target: identityaccess.ErrMFAChallengeTokenInvalid, Render: operatorRejection(http.StatusUnauthorized, common.CodeIdentityMfaCodeInvalid, "Invalid email or password")},

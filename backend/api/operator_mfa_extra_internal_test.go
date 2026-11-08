@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -126,7 +128,7 @@ func opWithClaims(r *http.Request, operatorID int) *http.Request {
 func opWithEnrollmentClaims(r *http.Request, operatorID int64) *http.Request {
 	ctx := routetest.WithEnrollmentClaims(r.Context(), routetest.MFAEnrollmentClaims{
 		AccountID:            operatorID,
-		Scope:                routetest.MFAEnrollmentScopePlatform,
+		Scope:                tokenprimitives.PortalPlatform,
 		MFAEnrollmentPending: true,
 	})
 	return r.WithContext(ctx)

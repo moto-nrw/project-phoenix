@@ -44,8 +44,8 @@ type targetedFieldSyncOptions struct {
 type targetedFieldSync struct {
 	d          *Decisions
 	ctx        context.Context
-	request    *Request
-	child      *RequestChild
+	request    *enrollment.Request
+	child      *enrollment.RequestChild
 	student    *Student
 	guardian   *GuardianProfile
 	reviewedBy int64
@@ -93,8 +93,8 @@ type pickupScheduleSync struct {
 // somebody an in-progress companion edit.
 func (d *Decisions) applyTargetedFields(
 	ctx context.Context,
-	request *Request,
-	child *RequestChild,
+	request *enrollment.Request,
+	child *enrollment.RequestChild,
 	student *Student,
 	guardian *GuardianProfile,
 	reviewedBy int64,
@@ -446,11 +446,11 @@ func (r *targetedFieldSync) applyExplicitDeparture() {
 // no "Mit anderem Kind" day. Capped server-side (the column is unbounded
 // TEXT).
 func (r *targetedFieldSync) applyCompanionNote() {
-	if r.child == nil || r.child.CustomData == nil || r.options.Scope == withoutWeeklyPlan ||
+	if r.child == nil || r.options.Scope == withoutWeeklyPlan ||
 		!r.student.AllowedDepartureModes.HasMode(departure.DepartureAccompanied) {
 		return
 	}
-	note := strings.TrimSpace(stringValue(r.child.CustomData[enrollment.TargetStudentDepartureCompanionNote]))
+	note := strings.TrimSpace(stringValue(formValue(r.child.CustomData, enrollment.TargetStudentDepartureCompanionNote)))
 	if note == "" {
 		return
 	}
@@ -505,15 +505,12 @@ func structuredTargetValueHasEntries(raw any) bool {
 
 // readFieldValue pulls the submission value for a field. Guardian-level
 // fields live on the request's custom data; per-child fields on the child's.
-func readFieldValue(request *Request, child *RequestChild, field *enrollment.FormField) any {
+func readFieldValue(request *enrollment.Request, child *enrollment.RequestChild, field *enrollment.FormField) any {
 	if field.AppliesToCh {
-		if child == nil || child.CustomData == nil {
+		if child == nil {
 			return nil
 		}
-		return child.CustomData[field.Key]
+		return formValue(child.CustomData, field.Key)
 	}
-	if request.CustomData == nil {
-		return nil
-	}
-	return request.CustomData[field.Key]
+	return formValue(request.CustomData, field.Key)
 }

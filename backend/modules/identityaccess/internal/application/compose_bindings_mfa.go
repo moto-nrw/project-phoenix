@@ -4,11 +4,13 @@ import (
 	identityBindingPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 )
 
-// operatorLoginGate is the gate the operator login consults; the demo
-// environment may leave it unconfigured (DemoDependencies.OperatorWithoutSecondFactor).
-func OperatorLoginGate(flows MFAFlows, demo *identityBindingPorts.DemoDependencies) OperatorMFAGate {
+// OperatorLoginGate is the gate the operator login consults: the composed
+// operator flows. Operator MFA is mandatory; the demo environment may leave
+// it unconfigured (DemoDependencies.OperatorWithoutSecondFactor), and an
+// unconfigured gate issues the token pair directly.
+func OperatorLoginGate(flows MFAFlows, demo *identityBindingPorts.DemoDependencies) *OperatorMFAFlows {
 	if demo != nil && demo.OperatorWithoutSecondFactor {
-		return OperatorMFAGate{}
+		return nil
 	}
-	return OperatorMFAGate{Flows: flows.Operator}
+	return flows.Operator
 }

@@ -163,21 +163,17 @@ var SwitchRules = []common.ErrorRule{
 
 var errMFASessionRequired = errors.New("switching requires a live MFA-verified session; sign in again")
 
-// RefreshRules classify a refused refresh. Every refusal of the session is a
-// plain 401, which the frontend turns into a clean logout; the presented
-// token stays untouched by a refusal of a missing module.
-var RefreshRules = []common.ErrorRule{
+// RenewalRules classify a refused refresh or session validation by
+// identityaccess.SessionOutcomeOf, so both routes answer one state alike: an
+// ended session a plain 401, which the frontend turns into a clean logout,
+// a missing module 403 module.not_booked with the presented token untouched.
+var RenewalRules = []common.ErrorRule{
 	notBooked,
 	unavailable,
-	rule(identityaccess.ErrInvalidToken, common.ErrorUnauthorized),
-	rule(identityaccess.ErrTokenExpired, common.ErrorUnauthorized),
-	rule(identityaccess.ErrTokenNotFound, common.ErrorUnauthorized),
-	rule(identityaccess.ErrAccountNotFound, common.ErrorUnauthorized),
-	rule(identityaccess.ErrAccountInactive, common.ErrorUnauthorized),
-	rule(identityaccess.ErrTenantNotFound, common.ErrorUnauthorized),
-	rule(identityaccess.ErrTenantAccessDenied, common.ErrorUnauthorized),
-	rule(identityaccess.ErrNoTraegerMembership, common.ErrorUnauthorized),
-	rule(identityaccess.ErrMustUseSchoolPortal, common.ErrorUnauthorized),
+	{
+		Match:  func(err error) bool { return identityaccess.SessionOutcomeOf(err) == identityaccess.SessionEnded },
+		Render: common.ErrorUnauthorized,
+	},
 }
 
 // PasskeyLoginRules answer every refused passkey sign-in with one code, so

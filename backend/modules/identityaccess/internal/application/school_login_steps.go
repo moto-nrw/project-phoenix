@@ -85,7 +85,7 @@ func (s *AccountAuthentication) mintSchoolLogin(ctx context.Context, account dom
 		// Where the gate concluded "no second factor needed", the mint decides
 		// it again: a role granted or the school's mfa_mode switched on in the
 		// gap would otherwise hand out a session that never saw a challenge.
-		eligible: s.schoolEligibility(portalTenantID, !mfaRequired && s.mfa.Configured()),
+		recheckMFAGate: !mfaRequired && s.mfa.Configured(),
 		// The event belongs to the school the portal-role lookup resolved,
 		// not to the account's first mapping.
 		audit: &mintAudit{event: domain.AuthEventLogin, ipAddress: ipAddress, userAgent: userAgent, schoolID: portalTenantID},

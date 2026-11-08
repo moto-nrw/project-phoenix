@@ -318,6 +318,7 @@ var tableRetentions = map[string]tableRetention{
 	"parent_billing.holiday_sibling_group_members":          parent("enrollment.holiday_registrations"),
 	"parent_billing.holiday_sibling_groups":                 own("goes with its last but one registration (trigger drop_lone_holiday_sibling_group on parent_billing.holiday_sibling_group_members, #5628) or with platform.organizations; created_by_account_id SET NULL on account delete"),
 	"parent_billing.number_range_counters":                  notPersonal("last invoice number of a Träger per service and year (#4668), no person"),
+	"parent_billing.document_kinds":                         notPersonal("kind of document a service of a Träger issues (#4688), no person"),
 	"parent_billing.number_ranges":                          notPersonal("pattern of the invoice numbers of a Träger (#4668), no person"),
 	"parent_billing.run_correction_dismissals":              parent("parent_billing.document_positions"),
 	"parent_billing.run_corrections":                        parent("enrollment.holiday_registration_children"),

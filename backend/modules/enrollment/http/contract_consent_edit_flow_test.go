@@ -67,7 +67,7 @@ func setupContractConsentTest(t *testing.T, tenantID int64) (*signatureEnv, int6
 	}))
 	resource := enrollmentAPI.NewResource(
 		nil, nil, requests, nil, nil, nil, nil, nil, nil,
-		nil, enrollmentAPI.GuardianInvitationRuntime{}, nil, nil,
+		nil, nil, nil,
 		nativeUploads.UploadFiles{}, enrollmentAPI.DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation})
 	return &signatureEnv{
 		db: db, router: testpkg.TenantRuntimeMiddleware(t, db)(resource.Router(api.TenantSessionChain)),
@@ -91,7 +91,7 @@ func TestContractConsentSurvivesTheParentsEdit(t *testing.T) {
 			submitted, err := env.requests.Submit(ctx, enrollmentAPI.SubmitRequest{
 				TenantID: env.tenantID, PhaseID: env.phaseID, DisplayedFormSchemaID: schemaID,
 				GuardianFirstName: "Erika", GuardianLastName: "Muster", GuardianEmail: "erika.muster@example.com",
-				ConsentFlags: map[string]any{"agb": true, "data_processing": true, "email_contact": true, "care_contract": true},
+				ConsentFlags: testFormValues(map[string]any{"agb": true, "data_processing": true, "email_contact": true, "care_contract": true}),
 				Children: []enrollmentAPI.SubmitChild{{
 					FirstName: "Lina", LastName: "Muster", DateOfBirth: calendar.NewDate(2018, 4, 15), TargetGradeLevel: testpkg.Int16Ptr(1),
 				}},

@@ -25,7 +25,7 @@ func TestTargetedFieldsPreservePinnedSchemaReadFailure(t *testing.T) {
 		Schemas: targetedSchemaFailure{err: failure},
 	}}
 	var schemaID int64 // The fake does not access storage; only a non-nil pin is needed.
-	request := &Request{SchemaID: &schemaID}
+	request := &enrollment.Request{SchemaID: &schemaID}
 	changed, err := decisions.applyTargetedFields(t.Context(), request, nil, nil, nil, 0, targetedFieldSyncOptions{})
 	require.ErrorIs(t, err, failure)
 	require.False(t, changed)

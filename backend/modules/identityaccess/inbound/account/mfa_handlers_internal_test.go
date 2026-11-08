@@ -45,20 +45,6 @@ func TestMFAVerifyRequest_BindAcceptsHappyPath(t *testing.T) {
 	assert.Equal(t, "482157", req.Code)
 }
 
-func TestMFAEnrollConfirmRequest_BindEnforcesCodeLength(t *testing.T) {
-	t.Parallel()
-
-	short := MFAEnrollConfirmRequest{Code: "12345"}
-	assert.Error(t, short.Bind(nil), "five-digit code must be rejected")
-
-	long := MFAEnrollConfirmRequest{Code: "1234567"}
-	assert.Error(t, long.Bind(nil), "seven-digit code must be rejected")
-
-	ok := MFAEnrollConfirmRequest{Code: "  123456  "}
-	require.NoError(t, ok.Bind(nil))
-	assert.Equal(t, "123456", ok.Code)
-}
-
 // TestMFAHandlers_ServiceUnavailableWhenNotWired ensures every public-facing
 // endpoint fails closed (503) when MFAService is nil. A misconfigured
 // deployment must never silently fall through to a partial-feature state.
@@ -76,7 +62,7 @@ func TestMFAHandlers_ServiceUnavailableWhenNotWired(t *testing.T) {
 		{"verify", rs.mfaVerify, MFAVerifyRequest{ChallengeToken: "x", Code: "123456"}},
 		{"resend", rs.mfaResend, MFAResendRequest{ChallengeToken: "x"}},
 		{"enroll-start", rs.mfaEnrollStart, nil},
-		{"enroll-confirm", rs.mfaEnrollConfirm, MFAEnrollConfirmRequest{Code: "123456"}},
+		{"enroll-confirm", rs.mfaEnrollConfirm, MFAVerifyRequest{ChallengeToken: "x", Code: "123456"}},
 		{"trusted-devices-list", rs.mfaListTrustedDevices, nil},
 		{"trusted-devices-revoke", rs.mfaRevokeTrustedDevice, nil},
 	}

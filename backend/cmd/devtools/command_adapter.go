@@ -209,7 +209,8 @@ func (a *Adapter) completeMFAEnrollment(ctx context.Context, authPath, enrollmen
 	enrollAuth := AuthRef{Kind: AuthBearer, Label: "mfa-enroll", Token: enrollmentToken}
 
 	watermark := time.Now()
-	if _, _, err := a.Raw(ctx, enrollAuth, http.MethodPost, authPath+"/mfa/enroll/start", nil, nil); err != nil {
+	startBody, _, err := a.Raw(ctx, enrollAuth, http.MethodPost, authPath+"/mfa/enroll/start", nil, nil)
+	if err != nil {
 		return "", fmt.Errorf("enroll start: %w", err)
 	}
 
@@ -218,7 +219,22 @@ func (a *Adapter) completeMFAEnrollment(ctx context.Context, authPath, enrollmen
 		return "", err
 	}
 
-	respBody, status, err := a.Raw(ctx, enrollAuth, http.MethodPost, authPath+"/mfa/enroll/confirm", map[string]string{"code": code}, nil)
+	// An account portal's start names the challenge its confirm redeems; the
+	// operator's answers without a body.
+	confirm := map[string]string{"code": code}
+	if len(bytes.TrimSpace(startBody)) > 0 {
+		var started struct {
+			ChallengeToken string `json:"challenge_token"`
+		}
+		if err := json.Unmarshal(startBody, &started); err != nil {
+			return "", fmt.Errorf("decode POST %s/mfa/enroll/start response: %w", authPath, err)
+		}
+		if started.ChallengeToken != "" {
+			confirm["challenge_token"] = started.ChallengeToken
+		}
+	}
+
+	respBody, status, err := a.Raw(ctx, enrollAuth, http.MethodPost, authPath+"/mfa/enroll/confirm", confirm, nil)
 	if err != nil {
 		return "", fmt.Errorf("enroll confirm: %w", err)
 	}

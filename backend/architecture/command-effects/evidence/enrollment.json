@@ -465,6 +465,62 @@
       "target_owner": "care-plan"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
+      "binding_digest": "ed15f1c9f5da5513010deaa53ba017bc",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.DecisionCommand.DecideAndInvite",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupAutoExcusal.RecordWeeklyPickupChanges",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
+      "binding_digest": "5d88a8e0d040a0b38eae341aee6dbcc3",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.DecisionCommand.DecideAndInvite",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupAutoExcusal.ResyncFutureExceptions",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
+      "binding_digest": "728d651fd3edde87649c66cde8056441",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.DecisionCommand.DecideAndInvite",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupAutoExcusal.SnapshotWeeklyPickups",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
+      "binding_digest": "e2f2ada701384f7bc6f08d38056b485b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.DecisionCommand.DecideAndInvite",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan/compose.LockWeeklyPickupStudents",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
+      "binding_digest": "c1364eb8f847ff962337bb5fc9fe8511",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.DecisionCommand.DecideAndInvite",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
+      "binding_digest": "41a39e457eefed480cd6cb5dae1afd5c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.DecisionCommand.DecideAndInvite",
+      "source_owner": "enrollment",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
+      "binding_digest": "58d9a4c6a64830ff19c7fe5f04480761",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.DecisionCommand.DecideAndInvite",
+      "source_owner": "enrollment",
+      "target": "unresolved:interface{Field(byte) string; error}.Field",
+      "target_owner": ""
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Decisions.Decide",
       "binding_digest": "ed15f1c9f5da5513010deaa53ba017bc",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.Decide",
@@ -516,6 +572,118 @@
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Decisions.Decide",
       "binding_digest": "58d9a4c6a64830ff19c7fe5f04480761",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.Decide",
+      "source_owner": "enrollment",
+      "target": "unresolved:interface{Field(byte) string; error}.Field",
+      "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Decisions.DecideAndInvite",
+      "binding_digest": "ed15f1c9f5da5513010deaa53ba017bc",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupAutoExcusal.RecordWeeklyPickupChanges",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Decisions.DecideAndInvite",
+      "binding_digest": "5d88a8e0d040a0b38eae341aee6dbcc3",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupAutoExcusal.ResyncFutureExceptions",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Decisions.DecideAndInvite",
+      "binding_digest": "728d651fd3edde87649c66cde8056441",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupAutoExcusal.SnapshotWeeklyPickups",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Decisions.DecideAndInvite",
+      "binding_digest": "e2f2ada701384f7bc6f08d38056b485b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan/compose.LockWeeklyPickupStudents",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Decisions.DecideAndInvite",
+      "binding_digest": "c1364eb8f847ff962337bb5fc9fe8511",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Decisions.DecideAndInvite",
+      "binding_digest": "41a39e457eefed480cd6cb5dae1afd5c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
+      "source_owner": "enrollment",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Decisions.DecideAndInvite",
+      "binding_digest": "58d9a4c6a64830ff19c7fe5f04480761",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
+      "source_owner": "enrollment",
+      "target": "unresolved:interface{Field(byte) string; error}.Field",
+      "target_owner": ""
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest.enrollmentDecisionFixtureRoot.DecideAndInvite",
+      "binding_digest": "ed15f1c9f5da5513010deaa53ba017bc",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupAutoExcusal.RecordWeeklyPickupChanges",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest.enrollmentDecisionFixtureRoot.DecideAndInvite",
+      "binding_digest": "5d88a8e0d040a0b38eae341aee6dbcc3",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupAutoExcusal.ResyncFutureExceptions",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest.enrollmentDecisionFixtureRoot.DecideAndInvite",
+      "binding_digest": "728d651fd3edde87649c66cde8056441",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupAutoExcusal.SnapshotWeeklyPickups",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest.enrollmentDecisionFixtureRoot.DecideAndInvite",
+      "binding_digest": "e2f2ada701384f7bc6f08d38056b485b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan/compose.LockWeeklyPickupStudents",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest.enrollmentDecisionFixtureRoot.DecideAndInvite",
+      "binding_digest": "c1364eb8f847ff962337bb5fc9fe8511",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest.enrollmentDecisionFixtureRoot.DecideAndInvite",
+      "binding_digest": "41a39e457eefed480cd6cb5dae1afd5c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
+      "source_owner": "enrollment",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest.enrollmentDecisionFixtureRoot.DecideAndInvite",
+      "binding_digest": "58d9a4c6a64830ff19c7fe5f04480761",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
       "source_owner": "enrollment",
       "target": "unresolved:interface{Field(byte) string; error}.Field",
       "target_owner": ""
@@ -1793,6 +1961,62 @@
       "target_owner": "settings-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.decisionService.DecideAndInvite",
+      "binding_digest": "ed15f1c9f5da5513010deaa53ba017bc",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.DecisionService.DecideAndInvite",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupAutoExcusal.RecordWeeklyPickupChanges",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.decisionService.DecideAndInvite",
+      "binding_digest": "5d88a8e0d040a0b38eae341aee6dbcc3",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.DecisionService.DecideAndInvite",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupAutoExcusal.ResyncFutureExceptions",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.decisionService.DecideAndInvite",
+      "binding_digest": "728d651fd3edde87649c66cde8056441",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.DecisionService.DecideAndInvite",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupAutoExcusal.SnapshotWeeklyPickups",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.decisionService.DecideAndInvite",
+      "binding_digest": "e2f2ada701384f7bc6f08d38056b485b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.DecisionService.DecideAndInvite",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan/compose.LockWeeklyPickupStudents",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.decisionService.DecideAndInvite",
+      "binding_digest": "c1364eb8f847ff962337bb5fc9fe8511",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.DecisionService.DecideAndInvite",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.decisionService.DecideAndInvite",
+      "binding_digest": "41a39e457eefed480cd6cb5dae1afd5c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.DecisionService.DecideAndInvite",
+      "source_owner": "enrollment",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.decisionService.DecideAndInvite",
+      "binding_digest": "58d9a4c6a64830ff19c7fe5f04480761",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.DecisionService.DecideAndInvite",
+      "source_owner": "enrollment",
+      "target": "unresolved:interface{Field(byte) string; error}.Field",
+      "target_owner": ""
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.holidayProofUnits.UploadHolidayProof",
       "binding_digest": "85a2c54cff95bb802efebea3a7fa883c",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayProofUploads.UploadHolidayProof",
@@ -1844,6 +2068,22 @@
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Intake.Submit",
       "binding_digest": "178f8af1431840844cffd9e68183060f",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.IntakeOwner.Submit",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithSavepoint",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.intakeService.CreateManualApprovedEnrollment",
+      "binding_digest": "4b96727a1aa402889e0419a628090ce2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.RequestService.CreateManualApprovedEnrollment",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.FillRandom",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.intakeService.CreateManualApprovedEnrollment",
+      "binding_digest": "178f8af1431840844cffd9e68183060f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.RequestService.CreateManualApprovedEnrollment",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithSavepoint",
       "target_owner": "tenant-runtime"
@@ -1982,6 +2222,22 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.UploadService.PrepareUpload",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.IntakeOwner.CreateManualApprovedEnrollment",
+      "binding_digest": "4b96727a1aa402889e0419a628090ce2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.manualApprovedEnrollments.CreateManualApprovedEnrollment",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.FillRandom",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.IntakeOwner.CreateManualApprovedEnrollment",
+      "binding_digest": "178f8af1431840844cffd9e68183060f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.manualApprovedEnrollments.CreateManualApprovedEnrollment",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithSavepoint",
       "target_owner": "tenant-runtime"
     },
     {
@@ -2318,6 +2574,14 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.DecisionGuardianAccess.GrantGuardianTenantAccess",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.GrantGuardianTenantAccess",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.CreateGuardianInvitation",
+      "binding_digest": "b0cd2e8e01c8ca0687f6de2566bc4dfa",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.DecisionGuardianInvitations.CreateGuardianInvitation",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.CreateGuardianInvitation",
       "target_owner": "identity-access"
     },
     {
@@ -2825,57 +3089,57 @@
       "target_owner": "delivery-platform"
     },
     {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.Decide",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.DecideAndInvite",
       "binding_digest": "ed15f1c9f5da5513010deaa53ba017bc",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ManualEnrollmentDecider.Decide",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ManualEnrollmentDecider.DecideAndInvite",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupAutoExcusal.RecordWeeklyPickupChanges",
       "target_owner": "care-plan"
     },
     {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.Decide",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.DecideAndInvite",
       "binding_digest": "5d88a8e0d040a0b38eae341aee6dbcc3",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ManualEnrollmentDecider.Decide",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ManualEnrollmentDecider.DecideAndInvite",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupAutoExcusal.ResyncFutureExceptions",
       "target_owner": "care-plan"
     },
     {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.Decide",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.DecideAndInvite",
       "binding_digest": "728d651fd3edde87649c66cde8056441",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ManualEnrollmentDecider.Decide",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ManualEnrollmentDecider.DecideAndInvite",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupAutoExcusal.SnapshotWeeklyPickups",
       "target_owner": "care-plan"
     },
     {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.Decide",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.DecideAndInvite",
       "binding_digest": "e2f2ada701384f7bc6f08d38056b485b",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ManualEnrollmentDecider.Decide",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ManualEnrollmentDecider.DecideAndInvite",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan/compose.LockWeeklyPickupStudents",
       "target_owner": "care-plan"
     },
     {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.Decide",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.DecideAndInvite",
       "binding_digest": "c1364eb8f847ff962337bb5fc9fe8511",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ManualEnrollmentDecider.Decide",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ManualEnrollmentDecider.DecideAndInvite",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
     },
     {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.Decide",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.DecideAndInvite",
       "binding_digest": "41a39e457eefed480cd6cb5dae1afd5c",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ManualEnrollmentDecider.Decide",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ManualEnrollmentDecider.DecideAndInvite",
       "source_owner": "enrollment",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
       "target_owner": ""
     },
     {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.Decide",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.DecideAndInvite",
       "binding_digest": "58d9a4c6a64830ff19c7fe5f04480761",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ManualEnrollmentDecider.Decide",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ManualEnrollmentDecider.DecideAndInvite",
       "source_owner": "enrollment",
       "target": "unresolved:interface{Field(byte) string; error}.Field",
       "target_owner": ""

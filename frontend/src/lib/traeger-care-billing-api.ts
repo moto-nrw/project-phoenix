@@ -419,6 +419,10 @@ export interface CareRunDetail extends CareRun {
   readonly amendable?: CareAmendable;
   /** Changes in conflict on invoices the release issues; it refuses while any is open. */
   readonly amendmentConflicts?: number;
+  /** The kind of document the run issues (#4688). */
+  readonly documentKind?: string;
+  /** A release would refuse: the fee notice has no legal remedy (#4688). */
+  readonly legalRemedyMissing?: boolean;
   /** What each cost bearer pays of the invoices (#4687). */
   readonly costBearers: readonly CareCostBearerTotal[];
 }
@@ -672,6 +676,8 @@ export interface BackendRunDetail extends BackendRun {
     positions: boolean;
   };
   amendment_conflicts?: number;
+  document_kind?: string;
+  legal_remedy_missing?: boolean;
   cost_bearers?:
     | {
         cost_bearer_id: number;
@@ -873,6 +879,8 @@ export function detailFromBackend(detail: BackendRunDetail): CareRunDetail {
       positions: detail.amendable?.positions ?? false,
     },
     amendmentConflicts: detail.amendment_conflicts ?? 0,
+    documentKind: detail.document_kind,
+    legalRemedyMissing: detail.legal_remedy_missing ?? false,
     costBearers: (detail.cost_bearers ?? []).map((total) => ({
       costBearerId: id(total.cost_bearer_id),
       costBearerName: total.cost_bearer_name,

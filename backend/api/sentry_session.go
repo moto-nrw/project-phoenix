@@ -5,7 +5,9 @@ import (
 	"strconv"
 
 	"github.com/getsentry/sentry-go"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
 )
 
 // SentrySessionContext tags every Sentry event of a request with the session
@@ -46,19 +48,14 @@ func verifiedSession(r *http.Request) (sessiontoken.AppClaims, bool) {
 // operator tokens are platform-wide. There school_id is absent, never a
 // placeholder.
 func tagSentrySession(scope *sentry.Scope, claims sessiontoken.AppClaims) {
-	var portal, role string
-	var schoolID int64
-	switch {
-	case claims.IsPlatformScope():
-		portal, role = "operator", "operator"
-	case claims.IsParentScope():
-		portal, role = "parent", "guardian"
-	case claims.IsCatererScope():
-		portal, role = "caterer", "caterer"
-	case claims.IsSchoolScope():
-		portal, role, schoolID = "school", "lehrkraft", claims.TenantID
-	default:
-		portal, role, schoolID = "tenant", tenantRole(claims), claims.TenantID
+	portal, role, schoolID := "tenant", tenantRole(claims), claims.TenantID
+	if claimed, ok := tokenprimitives.PortalOfClaim(claims.Scope); ok {
+		if tag, tagged := sentryPortalTags[claimed.Name]; tagged {
+			portal, role = tag.portal, tag.role
+			if !tag.bindsSchool {
+				schoolID = 0
+			}
+		}
 	}
 
 	scope.SetUser(sentry.User{ID: strconv.Itoa(claims.ID)})
@@ -67,6 +64,18 @@ func tagSentrySession(scope *sentry.Scope, claims sessiontoken.AppClaims) {
 	if schoolID > 0 {
 		scope.SetTag("school_id", strconv.FormatInt(schoolID, 10))
 	}
+}
+
+// sentryPortalTags are the portals with tags of their own; every other
+// session reports as the OGS portal.
+var sentryPortalTags = map[string]struct {
+	portal, role string
+	bindsSchool  bool
+}{
+	tokenprimitives.PortalPlatform: {portal: "operator", role: "operator"},
+	tokenprimitives.PortalParent:   {portal: "parent", role: "guardian"},
+	tokenprimitives.PortalCaterer:  {portal: "caterer", role: "caterer"},
+	tokenprimitives.PortalSchool:   {portal: "school", role: "lehrkraft", bindsSchool: true},
 }
 
 func tenantRole(claims sessiontoken.AppClaims) string {

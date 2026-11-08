@@ -16,6 +16,7 @@ GET /api/enrollment/admin/requests/{id}/ -> online_anmeldung
 GET /api/enrollment/admin/requests/{id}/children/{childId}/delete-impact -> online_anmeldung
 GET /api/enrollment/admin/requests/{id}/children/{childId}/offering-adjustments -> online_anmeldung
 GET /api/enrollment/admin/requests/{id}/delete-impact -> online_anmeldung
+GET /api/enrollment/admin/requests/{id}/form-labels -> online_anmeldung
 GET /api/enrollment/admin/requests/{id}/mails -> online_anmeldung
 GET /api/enrollment/admin/requests/{id}/uploads/{uploadId} -> online_anmeldung
 GET /api/enrollment/admin/students/{studentId}/requests/ -> online_anmeldung
@@ -38,6 +39,7 @@ GET /api/enrollment/phases/{id}/rollover-preview -> online_anmeldung
 GET /api/enrollment/requests/{statusToken} -> online_anmeldung  (Anmeldung: Statuslink schließt mit dem Modul)
 GET /api/enrollment/requests/{statusToken}/change-requests -> online_anmeldung  (Anmeldung: Statuslink schließt mit dem Modul)
 GET /api/enrollment/requests/{statusToken}/edit-bootstrap -> online_anmeldung  (Anmeldung: Statuslink schließt mit dem Modul)
+GET /api/enrollment/requests/{statusToken}/form-labels -> online_anmeldung  (Anmeldung: Statuslink schließt mit dem Modul)
 GET /api/enrollment/schema/ -> online_anmeldung
 GET /api/enrollment/schema/preview -> online_anmeldung
 GET /api/enrollment/schema/versions -> online_anmeldung

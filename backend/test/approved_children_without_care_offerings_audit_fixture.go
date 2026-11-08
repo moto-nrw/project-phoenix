@@ -122,10 +122,7 @@ func createApprovedWithoutOfferingRequest(
 		GuardianFirstName: "Anna",
 		GuardianLastName:  "Audit",
 		GuardianEmail:     fmt.Sprintf("offering-audit-%d@example.test", tenantID),
-		ConsentFlags:      []byte(`{}`),
-		CustomData:        []byte(`{}`),
 		SubmissionSource:  enrollmentOwner.RequestSourcePublic,
-		SourceMetadata:    []byte(`{}`),
 		StatusToken:       fmt.Sprintf("offering-audit-%d-%d", tenantID, time.Now().UnixNano()),
 		SubmittedAt:       time.Now(),
 	}
@@ -145,8 +142,8 @@ func createApprovedWithoutOfferingChild(
 	t.Helper()
 	child := &enrollmentOwner.RequestChild{
 		RequestID: requestID, FirstName: firstName, LastName: "Audit",
-		DateOfBirth: "2018-04-15", CustomData: []byte(`{}`),
-		Status: enrollmentOwner.ChildStatusApproved, ActivationMode: enrollmentOwner.ChildActivationScheduled,
+		DateOfBirth: "2018-04-15",
+		Status:      enrollmentOwner.ChildStatusApproved, ActivationMode: enrollmentOwner.ChildActivationScheduled,
 	}
 	child.TenantID = tenantID
 	require.NoError(t, insertEnrollmentChild(t, ctx, db, child))

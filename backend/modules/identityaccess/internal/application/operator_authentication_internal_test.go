@@ -70,6 +70,27 @@ func TestOperatorLogin_FailsWhenTheLoginCannotBeRecorded(t *testing.T) {
 	}
 }
 
+// A deactivation that commits between the credential check and the session
+// write leaves no session: the login re-reads the operator in its unit.
+func TestOperatorLogin_RefusesAnOperatorDeactivatedAfterTheCredentialCheck(t *testing.T) {
+	t.Parallel()
+	f := newOperatorFixture(t)
+	f.seedOperator(42)
+	unit := f.auth.sessionUnit
+	f.auth.sessionUnit = func(ctx context.Context, fn func(context.Context) error) error {
+		operator := f.store.operators[42]
+		operator.Active = false
+		f.store.operators[42] = operator
+		return unit(ctx, fn)
+	}
+
+	result, err := f.auth.loginWithMFAGate(context.Background(), "operator42@example.com", "secret", "127.0.0.1", "ua", "")
+	require.ErrorIs(t, err, identityaccess.ErrOperatorInactive)
+	assert.Nil(t, result)
+	assert.Empty(t, f.store.operatorSessionsOf(42), "no session for a deactivated operator")
+	assert.Empty(t, f.audit.actions(domain.OperatorAuditActionLogin))
+}
+
 func TestOperatorLogin_CredentialFailures(t *testing.T) {
 	t.Parallel()
 	t.Run("unknown address", func(t *testing.T) {

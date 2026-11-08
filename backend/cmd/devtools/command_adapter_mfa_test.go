@@ -400,12 +400,13 @@ func TestLoginTenant_CompletesRequiredMFAEnrollment(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "mfa_enrollment_required", "access_token": "pending-enrollment", "mfa_enrollment_required": true})
 		case "/auth/mfa/enroll/start":
 			assert.Equal(t, "Bearer pending-enrollment", r.Header.Get("Authorization"))
-			w.WriteHeader(testpkg.HTTPStatusNoContent)
+			_ = json.NewEncoder(w).Encode(map[string]string{"challenge_token": "enroll-challenge"})
 		case "/auth/mfa/enroll/confirm":
 			assert.Equal(t, "Bearer pending-enrollment", r.Header.Get("Authorization"))
 			var payload map[string]string
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&payload))
 			assert.Equal(t, code, payload["code"])
+			assert.Equal(t, "enroll-challenge", payload["challenge_token"], "the confirm redeems the challenge the start minted")
 			_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]string{"access_token": "completed-session"}})
 		default:
 			t.Errorf("unexpected path %s", r.URL.Path)

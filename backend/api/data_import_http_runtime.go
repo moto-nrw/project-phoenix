@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/dataimport"
 	importapi "github.com/moto-nrw/project-phoenix/modules/dataimport/http"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -32,11 +33,7 @@ func dataImportHTTPRuntime(people peopledirectory.Capability, membership schoolm
 		return staff.ID, nil
 	}
 	runtime := importapi.Runtime{
-		Middleware: []importapi.Middleware{
-			sessiontoken.Authenticator,
-			ReadOnlyPreviewMiddleware, TenantScopeMiddleware,
-			SecurityPrincipalMiddleware, common.TenantOperationMiddleware,
-		},
+		Middleware:           append(SessionChain(tokenprimitives.TenantClaims), common.TenantOperationMiddleware),
 		RequireAnyPermission: common.RequiresAnyPermission,
 		TemplateTransaction:  common.TenantTxMiddleware,
 		WithinTenant:         tenant.WithinCurrentTenant,

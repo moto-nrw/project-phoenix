@@ -694,14 +694,32 @@ old session back; the browser only saves requests.
    access token, which the backend refuses before it reads the family, leave
    the shown session as it is; its own refresh decides.
 3. **Family check.** `POST /auth/session/validate` without a refresh token
-   reads the access token's family (`ValidateSessionTokens`,
-   `verifyAccessFamily` in
-   `backend/modules/identityaccess/internal/application/session_validation.go`):
-   `VerifyAccessSession` for account portals, the latest operator session of
-   the family for the operator. 401 means revoked, foreign or an expired
-   token, 403 `module.not_booked` a live family whose school has not booked
-   the portal's module, 503 means the family could not be read. The BFF calls it through
-   `sessionFamilyState` (`frontend/src/server/auth/token-validation.ts`).
+   reads the access token's family and asks whether the session would still
+   renew (`ValidateSessionTokens` in
+   `backend/modules/identityaccess/internal/application/session_validation.go`,
+   `sessionPolicy.check` in `session_policy.go`): the facts its refresh
+   decides (account, mapping, live school, portal role, guardian school,
+   caterer supply, Träger membership and right, and the second-factor
+   floor), read in one administrative transaction
+   through the same per-kind definitions the refresh's guard reads under its
+   locks, then the module booking. It writes nothing, so it takes no row lock
+   and builds no claims; its cost per kind is pinned in
+   `identity.session_validate.*`. The operator reads the latest operator
+   session of the family, or the presented operator session without a lock.
+   Validation and refresh answer one state alike
+   (`identityaccess.SessionOutcomeOf`, `portalauth.RenewalRules`): 401 means
+   the session ended (revoked, foreign or expired token, inactive account,
+   access to the school or Träger lost, the school inactive, the portal role
+   revoked, a second factor the session has no proof of); 403
+   `module.not_booked` means the school no longer books the portal's module
+   and the session stays, as at refresh; 503 means a read
+   could not run (`identity.mfa_status_unavailable` for the second-factor
+   state). Access loss therefore ends the session at the next page view, not
+   only at the next refresh. The BFF calls it through `sessionFamilyState`
+   (`frontend/src/server/auth/token-validation.ts`), which reads 401 as
+   ended, 403 `module.not_booked` as `notBooked` (the family is live, so the
+   session stays and the guard shows the explanation) and every other
+   refusal as unknown: the shown session stays and its own refresh decides.
 
 Invariants: no response sets a session cookie of a family Identity & Access
 answers as revoked while the response is built, whichever tab, subdomain or frozen
@@ -769,7 +787,7 @@ Backend paths in this section are relative to `backend/`:
   `mfa_verified`, and mint and refresh refuse a caterer session without it.
   A caterer challenge is refused by every other portal's verify. Switching
   the factor on (`/caterer/account/mfa/confirm`) answers with a new proven
-  session; older sessions end at their next refresh. Recovery is the
+  session; older sessions end at their next refresh or validation. Recovery is the
   operator's reset (`DELETE /operator/caterers/{id}/accounts/{accountId}/mfa`, reason, operator
   audit, notice mail); school admins have none.
 - Träger login (ADR 0084, #4649) requires an active membership in
@@ -790,7 +808,8 @@ Backend paths in this section are relative to `backend/`:
   `org`-scope challenges, and mint and refresh refuse a session without
   `mfa_verified`. No trusted device. The operator reset
   (`DELETE /operator/organizations/{id}/traeger-members/{accountId}/mfa`)
-  revokes the proof, so the Träger session ends at its next refresh.
+  revokes the proof, so the Träger session ends at its next refresh or
+  validation.
 - Absprung into a school (ADR 0084 section 5, #4654): `POST
   /traeger/school-sessions` `{school_id}` needs the Träger right
   `traeger_school:switch` and answers `{handoff_token}`: the refresh token of a
@@ -904,7 +923,15 @@ school-scoped live-family proof.
 Parent-scope sessions remain separate and carry no staff permissions.
 
 Enrollment uses the existing email-code flow in tenant and school portals;
-mail delivery/verification failures issue no completed session. Passkeys for
+mail delivery/verification failures issue no completed session. Every
+account portal's `…/auth/mfa/enroll/start` (tenant, school, Träger) answers
+200 `{challenge_token}`, and its `…/auth/mfa/enroll/confirm` takes
+`{challenge_token, code, remember_device?}` and redeems exactly that
+challenge, pinned to the enrollment token's account and school
+(`VerifyMFAChallengeForOwner`); a confirm without `challenge_token` answers
+400, a challenge of another account, school or portal 401. A failed read
+during verification answers 503 `identity.mfa_status_unavailable`, never a
+wrong code. The operator keeps its own enrollment bodies. Passkeys for
 school personnel already require verified email registration and WebAuthn user
 verification at login. Local seed tools complete the same email flow through
 local Mailpit, with no production bypass. Human rollout/recovery and count-only

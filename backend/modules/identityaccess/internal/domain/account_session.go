@@ -80,7 +80,7 @@ func (s *AccountSession) traegerShapeHolds() bool {
 	case s.PortalScope == PortalOrg.Name:
 		return PortalOrg.Holds(s.TenantID, s.OrganizationID)
 	case s.OrganizationID > 0:
-		return s.PortalScope == PortalTenant.Name && s.TenantID > 0
+		return s.SessionKind() == SessionKindTraegerSchool && s.TenantID > 0
 	default:
 		return true
 	}
@@ -112,8 +112,19 @@ type AccountSessionFilter struct {
 // lifetime.
 const TraegerSchoolHandoffTTL = 2 * time.Minute
 
-// IsTraegerSchoolSession reports an OGS session the Träger-Büro opened through
-// the Absprung: portal scope tenant with the Träger in OrganizationID.
-func IsTraegerSchoolSession(session AccountSession) bool {
-	return session.PortalScope == PortalTenant.Name && session.OrganizationID > 0
+// SessionKind is the rules the stored session follows; a legacy row without
+// a portal keeps its scope.
+func (s AccountSession) SessionKind() SessionKind {
+	portal, ok := PortalNamed(s.PortalScope)
+	if !ok {
+		return SessionKind(s.PortalScope)
+	}
+	return SessionKindOf(portal, s.OrganizationID > 0)
+}
+
+// KeptAtSchool reports whether the session belongs to a school; a legacy
+// row without a portal does.
+func (s AccountSession) KeptAtSchool() bool {
+	portal, ok := PortalOfPersisted(s.PortalScope)
+	return !ok || portal.KeptAtSchool()
 }
