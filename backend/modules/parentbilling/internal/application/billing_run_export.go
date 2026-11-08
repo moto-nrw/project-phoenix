@@ -105,6 +105,13 @@ var billingRunDebtorColumn = ExportColumn{ID: "debtor_number", Label: "Debitoren
 
 // billingRunAddressColumns follow the recipient when an invoice of the run
 // copied a postal address (ADR 0122 addendum, #5625).
+// billingRunPaymentColumns name how and by when an invoice is paid (#4689);
+// a run whose invoices were issued before #4689 has none.
+var billingRunPaymentColumns = []ExportColumn{
+	{ID: "payment_method", Label: "Zahlungsweg"},
+	{ID: "due_on", Label: "Fällig am"},
+}
+
 var billingRunAddressColumns = []ExportColumn{
 	{ID: "street", Label: "Straße und Hausnummer"},
 	{ID: "postal_code", Label: "PLZ"},
@@ -163,6 +170,9 @@ func overviewRecipient(document parentbilling.BillingDocument) map[string]string
 	if address := document.RecipientAddress; address != nil {
 		recipient["street"], recipient["postal_code"], recipient["city"] = address.Street, address.PostalCode, address.City
 	}
+	if payment := document.Payment; payment != nil {
+		recipient["payment_method"], recipient["due_on"] = paymentMethodLabel(payment.Method), payment.DueOn.Format("02.01.2006")
+	}
 	return recipient
 }
 
@@ -178,12 +188,13 @@ func withValues(from, row map[string]string) map[string]string {
 // debtor number when an invoice of the run has one, then the address
 // columns when an invoice of the run has an address.
 func overviewColumns(documents []parentbilling.BillingDocument) []ExportColumn {
-	debtor, address, corrected := false, false, hasCorrections(documents)
+	debtor, address, paid, corrected := false, false, false, hasCorrections(documents)
 	for _, document := range documents {
 		debtor = debtor || strings.TrimSpace(document.DebtorNumber) != ""
 		address = address || document.RecipientAddress != nil
+		paid = paid || document.Payment != nil
 	}
-	if !debtor && !address && !corrected {
+	if !debtor && !address && !paid && !corrected {
 		return billingRunOverviewColumns
 	}
 	columns := append([]ExportColumn{}, billingRunOverviewColumns[:2]...)
@@ -198,6 +209,9 @@ func overviewColumns(documents []parentbilling.BillingDocument) []ExportColumn {
 	}
 	if address {
 		columns = append(columns, billingRunAddressColumns...)
+	}
+	if paid {
+		columns = append(columns, billingRunPaymentColumns...)
 	}
 	return append(columns, billingRunOverviewColumns[2:]...)
 }

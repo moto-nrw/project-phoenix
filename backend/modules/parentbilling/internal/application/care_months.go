@@ -50,6 +50,9 @@ type CareStore interface {
 	CareEvidences(ctx context.Context, organizationID int64, contractIDs []int64) ([]parentbilling.CareEvidence, error)
 	ListNumberRanges(ctx context.Context, organizationID int64) ([]parentbilling.NumberRange, error)
 	ReserveNumbers(ctx context.Context, organizationID int64, service string, year, count int) (int64, error)
+	// The terms, the family deviations and the due dates of the run decide
+	// the recipient and the payment of every invoice (#4689).
+	paymentTermsReader
 }
 
 // CareBilling serves parentbilling.CareBilling. The contract versions and
@@ -512,7 +515,21 @@ func (c *CareBilling) monthWith(ctx context.Context, organizationID int64, run p
 	}
 	month, err := buildCareMonth(careMonthInput{month: run.BillingMonth, rule: rule, versions: versions, tariffs: tariffs,
 		invoiced: invoiced, recipients: recipients, rules: rules, evidences: evidences})
-	return rule, month, err
+	if err != nil {
+		return rule, month, err
+	}
+	// After the rule chain: the chain counts the family by the address of
+	// the registration, the payer only receives the invoice (#4689).
+	payments, err := readInvoicePayments(ctx, c.store, organizationID, run.ID, 0)
+	if err != nil {
+		return rule, month, err
+	}
+	issuedOn := c.today()
+	for i := range month.invoices {
+		payments.careInvoice(&month.invoices[i], issuedOn)
+	}
+	month.dueDates = payments.run
+	return rule, month, nil
 }
 
 // detail is the run with its preview or its issued invoices and the number
@@ -534,6 +551,12 @@ func (c *CareBilling) detail(ctx context.Context, reviewer parentbilling.Holiday
 			return parentbilling.CareRunDetail{}, err
 		}
 		detail.Duplicates = holdView(holds)
+		// The dates of the release, which its invoices copied.
+		payments, err := readInvoicePayments(ctx, c.store, reviewer.OrganizationID, run.ID, 0)
+		if err != nil {
+			return parentbilling.CareRunDetail{}, err
+		}
+		detail.DueDates = payments.run.List()
 	} else {
 		rule, month, err := c.preview(ctx, reviewer.OrganizationID, run)
 		if err != nil {
@@ -541,6 +564,7 @@ func (c *CareBilling) detail(ctx context.Context, reviewer parentbilling.Holiday
 		}
 		detail.MonthRule, detail.Invoices, detail.Unpriced, detail.Billed = rule, month.invoices, month.unpriced, month.billed
 		detail.Duplicates = month.duplicates
+		detail.DueDates = month.dueDates.List()
 	}
 	detail.DuplicateChildren = duplicateChildren(detail.Duplicates)
 	for _, invoice := range detail.Invoices {

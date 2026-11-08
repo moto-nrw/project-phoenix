@@ -7,21 +7,29 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// The documents of the families of a Träger (#4691). A family is the
-// recipient address of a document, compared without case:
-// LOWER(recipient_email) in familyDocumentsSQL is the one place that says
-// so, so the payer of #4689 can replace it there. The kinds of the
+// The documents of the families of a Träger (#4691). A family is the mail
+// address of the registration the release copied (#4689), so a payer who
+// gets the invoice does not split the family; a cancellation or credit
+// belongs to the family of its invoice, a document issued before #4689 to
+// its recipient address, compared without case. familyKeySQL is the one
+// place that says so. The kinds of the
 // positions are parentbilling.LineCostTakeover and LineBenefitsExemption.
+
+// familyKeySQL is the family of a document; anchor is the alias.
+func familyKeySQL(alias, referenceAlias string) string {
+	return "COALESCE(" + alias + ".family_email, " + referenceAlias + ".family_email, LOWER(" + alias + ".recipient_email))"
+}
 
 // familyDocumentsSQL reads the issued documents of the Träger, the oldest
 // first, with the period of their run, the first names of their children,
 // the cost bearers their positions name and whether the exemption freed
 // them. The second filter keeps the documents of one family: the family of
 // the document with the given ID, or every family when that ID is zero.
-const familyDocumentsSQL = `SELECT document.id, document.run_id, document.kind, document.number, document.issued_on,
+var familyDocumentsSQL = `SELECT document.id, document.run_id, document.kind, document.number, document.issued_on,
 		run.period_name, document.service_from, document.service_until, document.reference_document_id,
 		reference.number AS reference_number, document.reason, document.recipient_first_name, document.recipient_last_name,
-		document.recipient_email, document.debtor_number, document.total_cents, LOWER(document.recipient_email) AS family_key,
+		document.recipient_email, document.debtor_number, document.total_cents, ` + familyKeySQL("document", "reference") + ` AS family_key,
+		document.payment_method, document.due_on,
 		COALESCE((SELECT json_agg(DISTINCT position.child_first_name ORDER BY position.child_first_name)
 			FROM parent_billing.document_positions AS position
 			WHERE position.organization_id = document.organization_id AND position.document_id = document.id), '[]') AS child_names,
@@ -36,32 +44,36 @@ const familyDocumentsSQL = `SELECT document.id, document.run_id, document.kind, 
 	JOIN parent_billing.runs AS run ON run.organization_id = document.organization_id AND run.id = document.run_id
 	LEFT JOIN parent_billing.documents AS reference
 		ON reference.organization_id = document.organization_id AND reference.id = document.reference_document_id
-	WHERE document.organization_id = ? AND (?::bigint = 0 OR LOWER(document.recipient_email) = (
-		SELECT LOWER(anchor.recipient_email) FROM parent_billing.documents AS anchor
+	WHERE document.organization_id = ? AND (?::bigint = 0 OR ` + familyKeySQL("document", "reference") + ` = (
+		SELECT ` + familyKeySQL("anchor", "anchor_reference") + ` FROM parent_billing.documents AS anchor
+		LEFT JOIN parent_billing.documents AS anchor_reference
+			ON anchor_reference.organization_id = anchor.organization_id AND anchor_reference.id = anchor.reference_document_id
 		WHERE anchor.organization_id = document.organization_id AND anchor.id = ?))
 	ORDER BY document.id`
 
 type familyDocumentRow struct {
-	ID                  int64         `bun:"id"`
-	RunID               int64         `bun:"run_id"`
-	Kind                string        `bun:"kind"`
-	Number              string        `bun:"number"`
-	IssuedOn            calendar.Date `bun:"issued_on,type:date"`
-	PeriodName          string        `bun:"period_name"`
-	ServiceFrom         calendar.Date `bun:"service_from,type:date"`
-	ServiceUntil        calendar.Date `bun:"service_until,type:date"`
-	ReferenceDocumentID *int64        `bun:"reference_document_id"`
-	ReferenceNumber     *string       `bun:"reference_number"`
-	Reason              string        `bun:"reason"`
-	RecipientFirstName  string        `bun:"recipient_first_name"`
-	RecipientLastName   string        `bun:"recipient_last_name"`
-	RecipientEmail      string        `bun:"recipient_email"`
-	DebtorNumber        *string       `bun:"debtor_number"`
-	TotalCents          int64         `bun:"total_cents"`
-	FamilyKey           string        `bun:"family_key"`
-	ChildNames          []string      `bun:"child_names,type:json"`
-	CostBearerNames     []string      `bun:"cost_bearer_names,type:json"`
-	Exempt              bool          `bun:"exempt"`
+	ID                  int64          `bun:"id"`
+	RunID               int64          `bun:"run_id"`
+	Kind                string         `bun:"kind"`
+	Number              string         `bun:"number"`
+	IssuedOn            calendar.Date  `bun:"issued_on,type:date"`
+	PeriodName          string         `bun:"period_name"`
+	ServiceFrom         calendar.Date  `bun:"service_from,type:date"`
+	ServiceUntil        calendar.Date  `bun:"service_until,type:date"`
+	ReferenceDocumentID *int64         `bun:"reference_document_id"`
+	ReferenceNumber     *string        `bun:"reference_number"`
+	Reason              string         `bun:"reason"`
+	RecipientFirstName  string         `bun:"recipient_first_name"`
+	RecipientLastName   string         `bun:"recipient_last_name"`
+	RecipientEmail      string         `bun:"recipient_email"`
+	DebtorNumber        *string        `bun:"debtor_number"`
+	TotalCents          int64          `bun:"total_cents"`
+	FamilyKey           string         `bun:"family_key"`
+	PaymentMethod       *string        `bun:"payment_method"`
+	DueOn               *calendar.Date `bun:"due_on,type:date"`
+	ChildNames          []string       `bun:"child_names,type:json"`
+	CostBearerNames     []string       `bun:"cost_bearer_names,type:json"`
+	Exempt              bool           `bun:"exempt"`
 }
 
 // FamilyDocuments reads the issued documents of the family of the document
@@ -96,6 +108,7 @@ func (row familyDocumentRow) document() parentbilling.BillingFamilyDocument {
 	if row.DebtorNumber != nil {
 		document.DebtorNumber = *row.DebtorNumber
 	}
+	document.PaymentMethod, document.DueOn = textOf(row.PaymentMethod), row.DueOn
 	return document
 }
 

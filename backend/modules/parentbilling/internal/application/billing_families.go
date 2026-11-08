@@ -143,8 +143,9 @@ func familiesOf(documents []parentbilling.BillingFamilyDocument) []parentbilling
 			at = len(families)
 			index[document.FamilyKey] = at
 			families = append(families, parentbilling.BillingFamilyDetail{
-				BillingFamily: parentbilling.BillingFamily{ID: document.ID, DebtorNumbers: []string{}, Payments: []parentbilling.BillingPayment{}},
-				Documents:     []parentbilling.BillingFamilyDocument{},
+				BillingFamily: parentbilling.BillingFamily{ID: document.ID, DebtorNumbers: []string{}, Payments: []parentbilling.BillingPayment{},
+					PaymentMethods: []string{}},
+				Documents: []parentbilling.BillingFamilyDocument{},
 			})
 		}
 		if document.Kind == parentbilling.DocumentInvoice {
@@ -239,6 +240,12 @@ func noteInvoice(family *parentbilling.BillingFamilyDetail, invoice parentbillin
 	}
 	if invoice.Status != parentbilling.InvoiceCancelled && !slices.Contains(family.Payments, *invoice.Payment) {
 		family.Payments = append(family.Payments, *invoice.Payment)
+	}
+	if invoice.Status != parentbilling.InvoiceCancelled && invoice.PaymentMethod != "" && !slices.Contains(family.PaymentMethods, invoice.PaymentMethod) {
+		family.PaymentMethods = append(family.PaymentMethods, invoice.PaymentMethod)
+		slices.SortFunc(family.PaymentMethods, func(a, b string) int {
+			return slices.Index(parentbilling.PaymentMethods, a) - slices.Index(parentbilling.PaymentMethods, b)
+		})
 	}
 }
 

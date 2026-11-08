@@ -78,10 +78,13 @@ type BillingFamily struct {
 	RecipientEmail     string           `json:"recipient_email"`
 	DebtorNumbers      []string         `json:"debtor_numbers"`
 	Payments           []BillingPayment `json:"payments"`
-	InvoiceCount       int              `json:"invoice_count"`
-	OpenInvoiceCount   int              `json:"open_invoice_count"`
-	DocumentCount      int              `json:"document_count"`
-	LastIssuedOn       calendar.Date    `json:"last_issued_on"`
+	// PaymentMethods are the payment methods of its invoices (#4689), in
+	// the order of PaymentMethods.
+	PaymentMethods   []string      `json:"payment_methods"`
+	InvoiceCount     int           `json:"invoice_count"`
+	OpenInvoiceCount int           `json:"open_invoice_count"`
+	DocumentCount    int           `json:"document_count"`
+	LastIssuedOn     calendar.Date `json:"last_issued_on"`
 	BillingAmounts
 }
 
@@ -111,6 +114,10 @@ type BillingFamilyDocument struct {
 	Payment             *BillingPayment `json:"payment"`
 	Status              string          `json:"status"`
 	OpenCents           int64           `json:"open_cents"`
+	// PaymentMethod and DueOn are how and by when the invoice is paid
+	// (#4689); empty and nil on documents issued before.
+	PaymentMethod string         `json:"payment_method"`
+	DueOn         *calendar.Date `json:"due_on"`
 
 	RecipientFirstName string   `json:"-"`
 	RecipientLastName  string   `json:"-"`

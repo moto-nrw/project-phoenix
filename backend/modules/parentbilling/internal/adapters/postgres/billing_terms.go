@@ -1,0 +1,359 @@
+package postgres
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"time"
+
+	"github.com/uptrace/bun"
+
+	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+)
+
+// The terms of the services, the deviations of the families and the due
+// dates of the runs (#4689, ADR 0167). Every statement runs in the Träger
+// transaction and names the Träger in its own filter.
+
+type serviceTermsRow struct {
+	bun.BaseModel `bun:"table:parent_billing.service_terms"`
+
+	OrganizationID     int64     `bun:"organization_id,pk" json:"-"`
+	Service            string    `bun:"service,pk" json:"service"`
+	PaymentMethod      string    `bun:"payment_method" json:"payment_method"`
+	DueDays            int       `bun:"due_days" json:"due_days"`
+	BundleWith         *string   `bun:"bundle_with" json:"bundle_with"`
+	UpdatedByAccountID *int64    `bun:"updated_by_account_id" json:"-"`
+	UpdatedAt          time.Time `bun:"updated_at,nullzero,default:current_timestamp" json:"updated_at"`
+}
+
+func (r serviceTermsRow) terms() parentbilling.ServiceTerms {
+	updatedAt := r.UpdatedAt
+	terms := parentbilling.ServiceTerms{Service: r.Service, PaymentMethod: r.PaymentMethod, DueDays: r.DueDays, UpdatedAt: &updatedAt}
+	if r.BundleWith != nil {
+		terms.BundleWith = *r.BundleWith
+	}
+	return terms
+}
+
+type familyBillingRow struct {
+	bun.BaseModel `bun:"table:parent_billing.family_billing"`
+
+	ID                 int64     `bun:"id,pk,autoincrement" json:"id"`
+	OrganizationID     int64     `bun:"organization_id" json:"-"`
+	FamilyEmail        string    `bun:"family_email" json:"family_email"`
+	CareContractID     int64     `bun:"care_contract_id" json:"care_contract_id"`
+	RecipientKind      string    `bun:"recipient_kind" json:"recipient_kind"`
+	SecondFirstName    string    `bun:"second_first_name" json:"second_first_name"`
+	SecondLastName     string    `bun:"second_last_name" json:"second_last_name"`
+	PayerFirstName     string    `bun:"payer_first_name" json:"payer_first_name"`
+	PayerLastName      string    `bun:"payer_last_name" json:"payer_last_name"`
+	PayerEmail         string    `bun:"payer_email" json:"payer_email"`
+	PayerStreet        string    `bun:"payer_street" json:"payer_street"`
+	PayerPostalCode    string    `bun:"payer_postal_code" json:"payer_postal_code"`
+	PayerCity          string    `bun:"payer_city" json:"payer_city"`
+	PaymentMethod      *string   `bun:"payment_method" json:"payment_method"`
+	DueDay             *int      `bun:"due_day" json:"due_day"`
+	UpdatedByAccountID *int64    `bun:"updated_by_account_id" json:"-"`
+	UpdatedAt          time.Time `bun:"updated_at,nullzero,default:current_timestamp" json:"updated_at"`
+}
+
+func (r familyBillingRow) family() parentbilling.FamilyBilling {
+	family := parentbilling.FamilyBilling{
+		ID: r.ID, FamilyEmail: r.FamilyEmail, ContractID: r.CareContractID, RecipientKind: r.RecipientKind,
+		SecondFirstName: r.SecondFirstName, SecondLastName: r.SecondLastName, PayerFirstName: r.PayerFirstName,
+		PayerLastName: r.PayerLastName, PayerEmail: r.PayerEmail, DueDay: r.DueDay, UpdatedAt: r.UpdatedAt,
+	}
+	if r.PaymentMethod != nil {
+		family.PaymentMethod = *r.PaymentMethod
+	}
+	if r.PayerStreet != "" {
+		family.PayerAddress = &parentbilling.PostalAddress{Street: r.PayerStreet, PostalCode: r.PayerPostalCode, City: r.PayerCity}
+	}
+	return family
+}
+
+type familyBillingEventRow struct {
+	bun.BaseModel `bun:"table:parent_billing.family_billing_events"`
+
+	ID              int64  `bun:"id,pk,autoincrement"`
+	OrganizationID  int64  `bun:"organization_id"`
+	FamilyBillingID int64  `bun:"family_billing_id"`
+	Action          string `bun:"action"`
+	ActorAccountID  *int64 `bun:"actor_account_id"`
+}
+
+type runDueDateRow struct {
+	bun.BaseModel `bun:"table:parent_billing.run_due_dates"`
+
+	ID             int64         `bun:"id,pk,autoincrement"`
+	OrganizationID int64         `bun:"organization_id"`
+	CareRunID      *int64        `bun:"care_run_id"`
+	HolidayRunID   *int64        `bun:"holiday_run_id"`
+	PaymentMethod  string        `bun:"payment_method"`
+	DueOn          calendar.Date `bun:"due_on,type:date"`
+	SetByAccountID *int64        `bun:"set_by_account_id"`
+}
+
+// ServiceTerms reads the terms the Träger set, by service.
+func (s *Store) ServiceTerms(ctx context.Context, organizationID int64) ([]parentbilling.ServiceTerms, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	var rows []serviceTermsRow
+	if err := db.NewSelect().Model(&rows).Where("organization_id = ?", organizationID).OrderExpr("service").Scan(ctx); err != nil {
+		return nil, fmt.Errorf("read service terms: %w", err)
+	}
+	terms := make([]parentbilling.ServiceTerms, len(rows))
+	for i, row := range rows {
+		terms[i] = row.terms()
+	}
+	return terms, nil
+}
+
+// SaveServiceTerms inserts or replaces the terms of one service.
+func (s *Store) SaveServiceTerms(ctx context.Context, organizationID, accountID int64, terms parentbilling.ServiceTerms) error {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return err
+	}
+	row := &serviceTermsRow{OrganizationID: organizationID, Service: terms.Service, PaymentMethod: terms.PaymentMethod,
+		DueDays: terms.DueDays, UpdatedByAccountID: accountRef(accountID), UpdatedAt: time.Now()}
+	if terms.BundleWith != "" {
+		row.BundleWith = &terms.BundleWith
+	}
+	if _, err := db.NewInsert().Model(row).
+		On("CONFLICT (organization_id, service) DO UPDATE").
+		Set("payment_method = EXCLUDED.payment_method").Set("due_days = EXCLUDED.due_days").
+		Set("bundle_with = EXCLUDED.bundle_with").Set("updated_by_account_id = EXCLUDED.updated_by_account_id").
+		Set("updated_at = CURRENT_TIMESTAMP").Exec(ctx); err != nil {
+		return fmt.Errorf("save service terms: %w", err)
+	}
+	return nil
+}
+
+// FamilyBillings reads the deviations of the families, by family.
+func (s *Store) FamilyBillings(ctx context.Context, organizationID int64) ([]parentbilling.FamilyBilling, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	var rows []familyBillingRow
+	if err := db.NewSelect().Model(&rows).Where("organization_id = ?", organizationID).OrderExpr("family_email").Scan(ctx); err != nil {
+		return nil, fmt.Errorf("read family billing: %w", err)
+	}
+	families := make([]parentbilling.FamilyBilling, len(rows))
+	for i, row := range rows {
+		families[i] = row.family()
+	}
+	return families, nil
+}
+
+// SaveFamilyBilling inserts or replaces the deviation of its family.
+func (s *Store) SaveFamilyBilling(ctx context.Context, organizationID, accountID int64, family parentbilling.FamilyBilling) (parentbilling.FamilyBilling, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return parentbilling.FamilyBilling{}, err
+	}
+	row := &familyBillingRow{
+		OrganizationID: organizationID, FamilyEmail: family.FamilyEmail, CareContractID: family.ContractID,
+		RecipientKind: family.RecipientKind, SecondFirstName: family.SecondFirstName, SecondLastName: family.SecondLastName,
+		PayerFirstName: family.PayerFirstName, PayerLastName: family.PayerLastName, PayerEmail: family.PayerEmail,
+		DueDay: family.DueDay, UpdatedByAccountID: accountRef(accountID), UpdatedAt: time.Now(),
+	}
+	if family.PaymentMethod != "" {
+		row.PaymentMethod = &family.PaymentMethod
+	}
+	if address := family.PayerAddress; address != nil {
+		row.PayerStreet, row.PayerPostalCode, row.PayerCity = address.Street, address.PostalCode, address.City
+	}
+	if err := db.NewInsert().Model(row).
+		On("CONFLICT (organization_id, family_email) DO UPDATE").
+		Set("care_contract_id = EXCLUDED.care_contract_id").Set("recipient_kind = EXCLUDED.recipient_kind").
+		Set("second_first_name = EXCLUDED.second_first_name").Set("second_last_name = EXCLUDED.second_last_name").
+		Set("payer_first_name = EXCLUDED.payer_first_name").Set("payer_last_name = EXCLUDED.payer_last_name").
+		Set("payer_email = EXCLUDED.payer_email").Set("payer_street = EXCLUDED.payer_street").
+		Set("payer_postal_code = EXCLUDED.payer_postal_code").Set("payer_city = EXCLUDED.payer_city").
+		Set("payment_method = EXCLUDED.payment_method").Set("due_day = EXCLUDED.due_day").
+		Set("updated_by_account_id = EXCLUDED.updated_by_account_id").Set("updated_at = CURRENT_TIMESTAMP").
+		Returning("*").Scan(ctx); err != nil {
+		return parentbilling.FamilyBilling{}, fmt.Errorf("save family billing: %w", err)
+	}
+	return row.family(), nil
+}
+
+// DeleteFamilyBilling removes a deviation by its ID or, with id zero, by its
+// family, and answers the ID it removed.
+func (s *Store) DeleteFamilyBilling(ctx context.Context, organizationID, id int64, familyEmail string) (int64, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return 0, err
+	}
+	query := db.NewDelete().Model((*familyBillingRow)(nil)).Where("organization_id = ?", organizationID)
+	if id > 0 {
+		query = query.Where("id = ?", id)
+	} else {
+		query = query.Where("family_email = ?", familyEmail)
+	}
+	var removed []int64
+	if err := query.Returning("id").Scan(ctx, &removed); err != nil {
+		return 0, fmt.Errorf("delete family billing: %w", err)
+	}
+	if len(removed) == 0 {
+		return 0, nil
+	}
+	return removed[0], nil
+}
+
+// InsertFamilyBillingEvents records one action of the trail for each
+// deviation in one statement.
+func (s *Store) InsertFamilyBillingEvents(ctx context.Context, organizationID, accountID int64, action string, ids []int64) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return err
+	}
+	rows := make([]familyBillingEventRow, len(ids))
+	for i, id := range ids {
+		rows[i] = familyBillingEventRow{OrganizationID: organizationID, FamilyBillingID: id, Action: action, ActorAccountID: accountRef(accountID)}
+	}
+	if _, err := db.NewInsert().Model(&rows).Exec(ctx); err != nil {
+		return fmt.Errorf("record family billing: %w", err)
+	}
+	return nil
+}
+
+// ReplaceRunDueDates replaces the due dates of a monthly or a holiday run;
+// the trigger refuses it for a released run.
+func (s *Store) ReplaceRunDueDates(ctx context.Context, organizationID, accountID, careRunID, holidayRunID int64, dates parentbilling.RunDueDates) error {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return err
+	}
+	if _, err := db.NewDelete().Model((*runDueDateRow)(nil)).Where("organization_id = ?", organizationID).
+		Where("(care_run_id = ? OR holiday_run_id = ?)", careRunID, holidayRunID).Exec(ctx); err != nil {
+		return fmt.Errorf("replace run due dates: %w", err)
+	}
+	if len(dates) == 0 {
+		return nil
+	}
+	rows := make([]runDueDateRow, 0, len(dates))
+	for _, method := range parentbilling.PaymentMethods {
+		due, ok := dates[method]
+		if !ok {
+			continue
+		}
+		row := runDueDateRow{OrganizationID: organizationID, PaymentMethod: method, DueOn: due, SetByAccountID: accountRef(accountID)}
+		if careRunID > 0 {
+			row.CareRunID = &careRunID
+		} else {
+			row.HolidayRunID = &holidayRunID
+		}
+		rows = append(rows, row)
+	}
+	if _, err := db.NewInsert().Model(&rows).Exec(ctx); err != nil {
+		return fmt.Errorf("insert run due dates: %w", err)
+	}
+	return nil
+}
+
+// invoicePaymentTermsSQL reads the terms, the deviations and the due dates
+// of one run in one statement, each part under the Träger's own filter.
+const invoicePaymentTermsSQL = `SELECT
+	(SELECT COALESCE(jsonb_agg(to_jsonb(terms) ORDER BY terms.service), '[]'::jsonb)
+		FROM (SELECT service, payment_method, due_days, bundle_with, updated_at
+			FROM parent_billing.service_terms WHERE organization_id = ?0) AS terms) AS terms,
+	(SELECT COALESCE(jsonb_agg(to_jsonb(family) ORDER BY family.family_email), '[]'::jsonb)
+		FROM (SELECT id, family_email, care_contract_id, recipient_kind, second_first_name, second_last_name,
+				payer_first_name, payer_last_name, payer_email, payer_street, payer_postal_code, payer_city,
+				payment_method, due_day, updated_at
+			FROM parent_billing.family_billing WHERE organization_id = ?0) AS family) AS families,
+	(SELECT COALESCE(jsonb_object_agg(payment_method, due_on), '{}'::jsonb)
+		FROM parent_billing.run_due_dates
+		WHERE organization_id = ?0 AND (care_run_id = ?1 OR holiday_run_id = ?2)) AS dates`
+
+// InvoicePaymentTerms reads in one statement what decides the recipient
+// and the payment of the invoices of a run (careRunID or holidayRunID).
+func (s *Store) InvoicePaymentTerms(ctx context.Context, organizationID, careRunID, holidayRunID int64) (
+	[]parentbilling.ServiceTerms, []parentbilling.FamilyBilling, parentbilling.RunDueDates, error,
+) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	var raw struct {
+		Terms    json.RawMessage `bun:"terms"`
+		Families json.RawMessage `bun:"families"`
+		Dates    json.RawMessage `bun:"dates"`
+	}
+	if err := db.NewRaw(invoicePaymentTermsSQL, organizationID, careRunID, holidayRunID).Scan(ctx, &raw); err != nil {
+		return nil, nil, nil, fmt.Errorf("read payment terms: %w", err)
+	}
+	var termRows []serviceTermsRow
+	var familyRows []familyBillingRow
+	dates := parentbilling.RunDueDates{}
+	if err := json.Unmarshal(raw.Terms, &termRows); err != nil {
+		return nil, nil, nil, fmt.Errorf("read payment terms: %w", err)
+	}
+	if err := json.Unmarshal(raw.Families, &familyRows); err != nil {
+		return nil, nil, nil, fmt.Errorf("read family billing: %w", err)
+	}
+	if err := json.Unmarshal(raw.Dates, &dates); err != nil {
+		return nil, nil, nil, fmt.Errorf("read run due dates: %w", err)
+	}
+	terms := make([]parentbilling.ServiceTerms, len(termRows))
+	for i, row := range termRows {
+		terms[i] = row.terms()
+	}
+	families := make([]parentbilling.FamilyBilling, len(familyRows))
+	for i, row := range familyRows {
+		families[i] = row.family()
+	}
+	return terms, families, dates, nil
+}
+
+// accountRef is the account of a write, nil for none.
+func accountRef(accountID int64) *int64 {
+	if accountID <= 0 {
+		return nil
+	}
+	return &accountID
+}
+
+// textRef is a copied text, NULL when empty.
+func textRef(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
+}
+
+// textOf is a copied text, empty for NULL.
+func textOf(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+// paymentColumns are the copied payment of an invoice, all NULL without one.
+func paymentColumns(payment *parentbilling.InvoicePayment) (*string, *calendar.Date, *string) {
+	if payment == nil {
+		return nil, nil, nil
+	}
+	due := payment.DueOn
+	return textRef(payment.Method), &due, textRef(payment.DueSource)
+}
+
+// paymentOf is the copied payment of an invoice, nil for one issued before
+// #4689.
+func paymentOf(method *string, dueOn *calendar.Date, source *string) *parentbilling.InvoicePayment {
+	if method == nil || dueOn == nil || source == nil {
+		return nil
+	}
+	return &parentbilling.InvoicePayment{Method: *method, DueOn: *dueOn, DueSource: *source}
+}

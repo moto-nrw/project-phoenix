@@ -121,6 +121,14 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.family_billing",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.family_billing_events",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.holiday_contribution_lines",
       "write_owner": "parent-billing"
     },
@@ -153,6 +161,10 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.run_due_dates",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.run_letters",
       "write_owner": "parent-billing"
     },
@@ -162,6 +174,10 @@
     },
     {
       "name": "parent_billing.runs",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.service_terms",
       "write_owner": "parent-billing"
     }
   ],
