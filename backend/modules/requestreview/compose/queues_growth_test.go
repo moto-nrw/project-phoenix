@@ -45,9 +45,9 @@ func assertReviewGrowth(t *testing.T, db *bun.DB, query reviewcompose.GrowthQuer
 		require.Empty(t, page.NextCursor)
 		assertReviewGrowthPage(t, page, byStudent)
 		if n == 3 {
-			querybudgets.AssertQueryBudget(t, "modules.requestreview.open_page.three_children", counter.Queries())
+			querybudgets.AssertQueryBudget(t, "modules.requestreview.open_page.three_children", counter.Measurement(counter.Queries()))
 		} else {
-			querybudgets.AssertQueryBudget(t, "modules.requestreview.open_page.eight_children", counter.Queries())
+			querybudgets.AssertQueryBudget(t, "modules.requestreview.open_page.eight_children", counter.Measurement(counter.Queries()))
 		}
 		return nil
 	}))
@@ -57,9 +57,9 @@ func assertReviewGrowth(t *testing.T, db *bun.DB, query reviewcompose.GrowthQuer
 		require.NoError(t, err)
 		require.Equal(t, 4*n, count)
 		if n == 3 {
-			querybudgets.AssertQueryBudget(t, "modules.requestreview.pending_count.three_children", badge.Queries())
+			querybudgets.AssertQueryBudget(t, "modules.requestreview.pending_count.three_children", badge.Measurement(badge.Queries()))
 		} else {
-			querybudgets.AssertQueryBudget(t, "modules.requestreview.pending_count.eight_children", badge.Queries())
+			querybudgets.AssertQueryBudget(t, "modules.requestreview.pending_count.eight_children", badge.Measurement(badge.Queries()))
 		}
 		return nil
 	}))

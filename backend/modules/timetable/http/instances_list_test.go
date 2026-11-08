@@ -180,7 +180,7 @@ func listRouter(parentCtx context.Context, res *Resource) chi.Router {
 			next.ServeHTTP(w, req.WithContext(ctx))
 		})
 	})
-	r.Get("/instances", res.listInstances)
+	r.Route("/instances", func(r chi.Router) { r.Get("/", res.listInstances) })
 	return r
 }
 

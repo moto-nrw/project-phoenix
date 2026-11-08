@@ -493,7 +493,7 @@ func TestRequestReviewEnforcesRLS(t *testing.T) {
 			require.NoError(t, testpkg.WithTenantTx(t, counter.Context(side.Context), db, side.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 				page, err := query.ListRequests(txCtx, requestreview.ListQuery{Search: "ReviewRLS"})
 				require.NoError(t, err)
-				querybudgets.AssertQueryBudget(t, "modules.requestreview.open_page", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "modules.requestreview.open_page", counter.Measurement(counter.Queries()))
 				require.Len(t, page.Items, 4, "each school lists exactly its own four requests")
 				types := make([]string, 0, 4)
 				for _, item := range page.Items {

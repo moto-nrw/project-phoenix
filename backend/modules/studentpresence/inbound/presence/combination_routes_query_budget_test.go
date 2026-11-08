@@ -204,7 +204,7 @@ func TestGroupMappingsRouteQueryBudget(t *testing.T) {
 	combinationBudgetErrorControls(t, tc, router, "/active/mappings/group/invalid", path)
 }
 
-func assertCombinationBudgetMappings(t *testing.T, tc *testContext, router testutil.Router, path string, want []presenceAPI.GroupMappingResponse) []string {
+func assertCombinationBudgetMappings(t *testing.T, tc *testContext, router testutil.Router, path string, want []presenceAPI.GroupMappingResponse) testpkg.QueryMeasurement {
 	t.Helper()
 	rr, queries := combinationBudgetRequest(t, tc, router, path, []string{permissions.GroupsRead})
 	require.Equal(t, testutil.StatusOK, rr.Code, rr.Body.String())
@@ -226,11 +226,11 @@ func combinationBudgetErrorControls(t *testing.T, tc *testContext, router testut
 	testutil.AssertForbidden(t, rr)
 }
 
-func combinationBudgetRequest(t *testing.T, tc *testContext, router testutil.Router, path string, perms []string) (*httptest.ResponseRecorder, []string) {
+func combinationBudgetRequest(t *testing.T, tc *testContext, router testutil.Router, path string, perms []string) (*httptest.ResponseRecorder, testpkg.QueryMeasurement) {
 	t.Helper()
 	before := combinationBudgetState(t, tc)
 	counter := testpkg.CaptureQueries(t, tc.db)
-	rr := testutil.ExecuteWithAuthPermissions(t, router, testutil.NewRequest("GET", path, nil), testutil.AdminTestClaims(1), perms)
+	rr := testutil.ExecuteWithAuthPermissions(t, testpkg.MountedQueryBudgetRouter("/api", router), testutil.NewRequest("GET", path, nil), testutil.AdminTestClaims(1), perms)
 	counter.Stop()
 	queries := counter.Queries()
 	require.Zero(t, counter.WriteRows(), "no successful request DML, including rolled-back writes")
@@ -244,7 +244,7 @@ func combinationBudgetRequest(t *testing.T, tc *testContext, router testutil.Rou
 			t.Logf("complete SQL %d: %s", i+1, sql)
 		}
 	}
-	return rr, queries
+	return rr, counter.Measurement(queries)
 }
 
 func combinationBudgetState(t *testing.T, tc *testContext) string {

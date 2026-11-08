@@ -2,5 +2,6 @@
   "scenario": "api.enrollment.growth.tenant_legal",
   "max": 9,
   "exact": true,
-  "description": "Positive tenant legal handler over real settings; fixed four standard blocks, unchanged while the grouped phase/template fixture grows N3/N8. All SQL including slug lookup and transaction envelopes."
+  "description": "Positive tenant legal handler over real settings; fixed four standard blocks, unchanged while the grouped phase/template fixture grows N3/N8. All SQL including slug lookup and transaction envelopes.",
+  "route": "GET /api/enrollment/legal/{tenantSlug}"
 }

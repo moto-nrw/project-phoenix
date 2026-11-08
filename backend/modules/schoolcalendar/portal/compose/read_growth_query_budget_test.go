@@ -50,7 +50,7 @@ func TestCalendarCalDAVSnapshotPositiveGrowthQueryBudget(t *testing.T) {
 			require.Contains(t, string(item.Content), "UID:"+item.UID)
 		}
 		t.Logf("CalDAV appointments N%d statements=%d", n, len(counter.Queries()))
-		querybudgets.AssertQueryBudget(t, "services.calendar.caldav_snapshot", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "services.calendar.caldav_snapshot", counter.Measurement(counter.Queries()))
 		counter.Stop()
 
 	}

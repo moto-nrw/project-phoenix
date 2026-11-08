@@ -22,7 +22,7 @@ func TestPlannerOwnerGrowthQueryBudgets(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
 		setup  func(*testing.T, *bun.DB, api.TimetableHTTPTestModule) (func(int), func(context.Context) (int, error))
-		budget func(*testing.T, []string)
+		budget func(*testing.T, querybudgets.Measurement)
 	}{
 		{name: "participants", setup: func(t *testing.T, db *bun.DB, module api.TimetableHTTPTestModule) (func(int), func(context.Context) (int, error)) {
 			room := testpkg.CreateTestRoom(t, db, "Participant growth")
@@ -36,7 +36,7 @@ func TestPlannerOwnerGrowthQueryBudgets(t *testing.T) {
 				return len(rows), err
 			}
 			return add, read
-		}, budget: func(t *testing.T, queries []string) {
+		}, budget: func(t *testing.T, queries querybudgets.Measurement) {
 			querybudgets.AssertQueryBudget(t, "modules.timetable.block_participants.list", queries)
 		}},
 		{name: "corrections", setup: func(t *testing.T, db *bun.DB, module api.TimetableHTTPTestModule) (func(int), func(context.Context) (int, error)) {
@@ -57,7 +57,7 @@ func TestPlannerOwnerGrowthQueryBudgets(t *testing.T) {
 				return len(rows), err
 			}
 			return add, read
-		}, budget: func(t *testing.T, queries []string) {
+		}, budget: func(t *testing.T, queries querybudgets.Measurement) {
 			querybudgets.AssertQueryBudget(t, "modules.timetable.attendance_corrections.list", queries)
 		}},
 		{name: "gaps", setup: func(t *testing.T, db *bun.DB, module api.TimetableHTTPTestModule) (func(int), func(context.Context) (int, error)) {
@@ -76,7 +76,7 @@ func TestPlannerOwnerGrowthQueryBudgets(t *testing.T) {
 				return len(rows), err
 			}
 			return add, read
-		}, budget: func(t *testing.T, queries []string) {
+		}, budget: func(t *testing.T, queries querybudgets.Measurement) {
 			querybudgets.AssertQueryBudget(t, "modules.timetable.staffing_gaps.list", queries)
 		}},
 	} {
@@ -105,7 +105,7 @@ func TestPlannerOwnerGrowthQueryBudgets(t *testing.T) {
 					} else {
 						require.Len(t, queries, small)
 					}
-					tc.budget(t, queries)
+					tc.budget(t, counter.Measurement(queries))
 					return nil
 				}))
 			}

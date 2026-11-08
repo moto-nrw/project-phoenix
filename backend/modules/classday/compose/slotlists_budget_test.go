@@ -44,5 +44,5 @@ func TestBuildList_QueryBudget(t *testing.T) {
 	f.addPlannedPresent(t, 5)
 	large := build(8)
 	assert.Equal(t, small, large, "query count must not grow with the roster")
-	querybudgets.AssertQueryBudget(t, "modules.classday.slot_list.build", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "modules.classday.slot_list.build", counter.Measurement(counter.Queries()))
 }

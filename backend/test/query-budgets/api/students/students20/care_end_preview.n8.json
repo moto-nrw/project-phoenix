@@ -2,5 +2,6 @@
   "scenario": "api.students.students20.care_end_preview.n8",
   "max": 17,
   "exact": true,
-  "description": "Resource HTTP seam, real owner SQL, N8 positive collection fixture. Transaction frame included; production live-session authentication excluded. Measured count, not a minimum. "
+  "description": "Resource HTTP seam, real owner SQL, N8 positive collection fixture. Transaction frame included; production live-session authentication excluded. Measured count, not a minimum. ",
+  "route": "POST /api/students/care-end/preview"
 }

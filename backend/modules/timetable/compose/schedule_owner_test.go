@@ -250,7 +250,7 @@ func TestScheduleListQueryBudgetStaysFlat(t *testing.T) {
 		counter := testpkg.CaptureQueries(t, db)
 		_, err := module.ListSchedules(ctx, timetable.ScheduleFilter{GroupIDs: []int64{group.ID}})
 		require.NoError(t, err)
-		querybudgets.AssertQueryBudget(t, "modules.timetable.schedules.list", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "modules.timetable.schedules.list", counter.Measurement(counter.Queries()))
 
 		return nil
 	}))

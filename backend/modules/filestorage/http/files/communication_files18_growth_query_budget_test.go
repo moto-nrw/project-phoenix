@@ -121,9 +121,9 @@ func TestCommunicationFiles18PositiveGrowthQueryBudget(t *testing.T) {
 					require.NotEqual(t, idStr(foreignAccount.ID), p.AccountID)
 				}
 				if n == 3 {
-					querybudgets.AssertQueryBudget(t, "api.files.audience.communication18.n3", counter.Queries())
+					querybudgets.AssertQueryBudget(t, "api.files.audience.communication18.n3", counter.Measurement(counter.Queries()))
 				} else {
-					querybudgets.AssertQueryBudget(t, "api.files.audience.communication18.n8", counter.Queries())
+					querybudgets.AssertQueryBudget(t, "api.files.audience.communication18.n8", counter.Measurement(counter.Queries()))
 				}
 			case paths[1]:
 				got := growthData[filesHTTP.FolderListResponse](t, rec.Body.Bytes())
@@ -134,9 +134,9 @@ func TestCommunicationFiles18PositiveGrowthQueryBudget(t *testing.T) {
 				require.Equal(t, int64(n*len(fakePDF)), got.UsedBytes)
 				require.Equal(t, int64(1<<30), got.MaxBytes)
 				if n == 3 {
-					querybudgets.AssertQueryBudget(t, "api.files.folders.communication18.n3", counter.Queries())
+					querybudgets.AssertQueryBudget(t, "api.files.folders.communication18.n3", counter.Measurement(counter.Queries()))
 				} else {
-					querybudgets.AssertQueryBudget(t, "api.files.folders.communication18.n8", counter.Queries())
+					querybudgets.AssertQueryBudget(t, "api.files.folders.communication18.n8", counter.Measurement(counter.Queries()))
 				}
 			default:
 				got := growthData[filesHTTP.FileListResponse](t, rec.Body.Bytes())
@@ -146,9 +146,9 @@ func TestCommunicationFiles18PositiveGrowthQueryBudget(t *testing.T) {
 				require.Equal(t, want, got.Folder)
 				require.Equal(t, files, got.Files)
 				if n == 3 {
-					querybudgets.AssertQueryBudget(t, "api.files.files.communication18.n3", counter.Queries())
+					querybudgets.AssertQueryBudget(t, "api.files.files.communication18.n3", counter.Measurement(counter.Queries()))
 				} else {
-					querybudgets.AssertQueryBudget(t, "api.files.files.communication18.n8", counter.Queries())
+					querybudgets.AssertQueryBudget(t, "api.files.files.communication18.n8", counter.Measurement(counter.Queries()))
 				}
 			}
 			require.Zero(t, counter.WriteRows())
@@ -166,7 +166,9 @@ func TestCommunicationFiles18PositiveGrowthQueryBudget(t *testing.T) {
 			require.Equal(t, 404, foreignProbe.Code, foreignProbe.Body.String())
 
 			unauth := httptest.NewRecorder()
-			c.router.ServeHTTP(unauth, httptest.NewRequest("GET", path, nil))
+			testpkg.MeasuredHTTPRequest(counter,
+
+				c.router, unauth, httptest.NewRequest("GET", path, nil))
 			require.Equal(t, http.StatusUnauthorized, unauth.Code, unauth.Body.String())
 		}
 	}

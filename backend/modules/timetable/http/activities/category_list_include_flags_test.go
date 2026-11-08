@@ -58,20 +58,20 @@ func TestActivityCategoriesListIncludeFlags(t *testing.T) {
 					path := fmt.Sprintf("/api/activities/categories?include_system=%t&include_archived=%t&with_usage=%t", includeSystem, includeArchived, withUsage)
 					request := testutil.NewAuthenticatedRequest(t, http.MethodGet, path, nil, testutil.WithJWTBearer(token))
 					response := testutil.ExecuteRequestForTest(t, router, request)
-					logCatalogQueries(t, path, len(want), counter.Queries())
+					logCatalogQueries(t, path, len(want), counter.Measurement(counter.Queries()).Statements)
 					require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 					assertCatalogData(t, response.Body.Bytes(), want, "Categories retrieved successfully")
 					assertCatalogReadOnly(t, counter)
 					require.Len(t, counter.Selects("activities.categories"), 1)
 					if !withUsage {
 						require.Empty(t, counter.Selects("activities.groups"))
-						querybudgets.AssertQueryBudget(t, "api.activities.categories.without_usage", counter.Queries())
+						querybudgets.AssertQueryBudget(t, "api.activities.categories.without_usage", counter.Measurement(counter.Queries()))
 					} else if len(want) == 0 {
 						require.Empty(t, counter.Selects("activities.groups"))
-						querybudgets.AssertQueryBudget(t, "api.activities.categories.empty_with_usage", counter.Queries())
+						querybudgets.AssertQueryBudget(t, "api.activities.categories.empty_with_usage", counter.Measurement(counter.Queries()))
 					} else {
 						require.Len(t, counter.Selects("activities.groups"), 1)
-						querybudgets.AssertQueryBudget(t, "api.activities.categories.with_usage", counter.Queries())
+						querybudgets.AssertQueryBudget(t, "api.activities.categories.with_usage", counter.Measurement(counter.Queries()))
 					}
 				})
 			}

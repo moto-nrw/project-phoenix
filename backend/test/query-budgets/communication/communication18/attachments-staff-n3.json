@@ -2,5 +2,6 @@
   "scenario": "communication18.attachments.staff.n3",
   "max": 6,
   "exact": true,
-  "description": "Literal attachment route, complete ordered DTO and positive N3/N5 real uploaded PDF attachments. N8 is outside domain maximum 5. Real audience/settings/File Storage tenant transactions, foreign tenant and missing-auth refusal. Not a global minimum."
+  "description": "Literal attachment route, complete ordered DTO and positive N3/N5 real uploaded PDF attachments. N8 is outside domain maximum 5. Real audience/settings/File Storage tenant transactions, foreign tenant and missing-auth refusal. Not a global minimum.",
+  "route": "GET /api/announcement-attachments/{announcementId}"
 }

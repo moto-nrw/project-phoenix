@@ -522,7 +522,7 @@ func TestListInboxQueryBudgetStaysFlat(t *testing.T) {
 	inbox, err := testpkg.MeasuredTenantQuery1(t, counter.Context(ctx), db, counter, svc.ListInbox, false)
 	require.NoError(t, err)
 	require.Len(t, inbox, 3)
-	querybudgets.AssertQueryBudget(t, "modules.communication.parent_messages.list_inbox", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "modules.communication.parent_messages.list_inbox", counter.Measurement(counter.Queries()))
 }
 
 // TestListGuardians_ReturnsAccountHoldingGuardian: the staff recipient picker
@@ -571,7 +571,7 @@ func TestListReachableStudentIDsQueryBudgetStaysFlat(t *testing.T) {
 		for _, chain := range chains {
 			assert.Contains(t, ids, chain.StudentID)
 		}
-		querybudgets.AssertQueryBudget(t, "modules.communication.parent_messages.list_reachable_students", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "modules.communication.parent_messages.list_reachable_students", counter.Measurement(counter.Queries()))
 		return len(counter.Queries())
 	}
 

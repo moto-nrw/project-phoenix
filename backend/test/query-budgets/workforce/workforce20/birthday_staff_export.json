@@ -2,5 +2,6 @@
   "scenario": "workforce.workforce20.birthday_staff_export",
   "max": 5,
   "exact": true,
-  "description": "Full protected Resource HTTP request; paired positive domain N=3/N=8. Exact observed SQL, including transaction; no minimum or flat-growth claim."
+  "description": "Full protected Resource HTTP request; paired positive domain N=3/N=8. Exact observed SQL, including transaction; no minimum or flat-growth claim.",
+  "route": "POST /api/birthdays/staff-export"
 }

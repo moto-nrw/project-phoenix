@@ -44,7 +44,7 @@ func TestPresenceGroups20CallerQueryBudget(t *testing.T) {
 	type sample struct {
 		key string
 		n   int
-		sql []string
+		sql testpkg.QueryMeasurement
 	}
 	var samples []sample
 	for _, n := range []int{3, 8} {
@@ -118,7 +118,7 @@ func TestPresenceGroups20CallerQueryBudget(t *testing.T) {
 			// The caller merges ID sets; no stable ordering is promised by these routes.
 			require.ElementsMatch(t, route.ids, ids)
 			t.Logf("PRESENCE20_CALLER key=%s n=%d statements=%d sql=%q body=%s", route.key, n, counter.Total(), counter.Queries(), rr.Body.String())
-			samples = append(samples, sample{route.key, n, counter.Queries()})
+			samples = append(samples, sample{route.key, n, counter.Measurement(counter.Queries())})
 			unauthorized := testutil.ExecuteRequest(router, testutil.NewRequest("GET", path, nil))
 			require.Equal(t, 401, unauthorized.Code)
 			wrong := claims
@@ -135,7 +135,7 @@ func TestPresenceGroups20CallerQueryBudget(t *testing.T) {
 	}
 }
 
-func assertPresence20CallerBudget(t *testing.T, key string, n int, queries []string) {
+func assertPresence20CallerBudget(t *testing.T, key string, n int, queries querybudgets.Measurement) {
 	t.Helper()
 	switch fmt.Sprintf("%s.n%d", key, n) {
 	case "groups.n3":
