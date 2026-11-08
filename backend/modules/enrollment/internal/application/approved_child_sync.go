@@ -147,7 +147,7 @@ func (d *Decisions) approvedChildDataChanged(ctx context.Context, run *approvedC
 }
 
 // allChildFields syncs every master-data field of the child.
-var allChildFields = enrollmentNative.ApprovedChildCorrection{Name: true, Birthday: true, Class: true}
+var allChildFields = enrollmentNative.ApprovedChildCorrection{FirstName: true, LastName: true, Birthday: true, Class: true}
 
 // childEnrollmentOnly leaves master data, guardians and form data alone
 // for an office match or an account-bound pin or rollover whose authority
@@ -245,15 +245,17 @@ func (d *Decisions) syncApprovedChildStudent(ctx context.Context, run *approvedC
 // syncApprovedChildPerson writes the selected name and birthday fields of
 // the request child onto the child's person.
 func (d *Decisions) syncApprovedChildPerson(ctx context.Context, personID int64, child *RequestChild, fields enrollmentNative.ApprovedChildCorrection) error {
-	if !fields.Name && !fields.Birthday {
+	if !fields.FirstName && !fields.LastName && !fields.Birthday {
 		return nil
 	}
 	person, err := d.deps.People.Persons.PersonByID(ctx, personID)
 	if err != nil || person == nil {
 		return fmt.Errorf("decision: load approved child person: %w", err)
 	}
-	if fields.Name {
+	if fields.FirstName {
 		person.FirstName = child.FirstName
+	}
+	if fields.LastName {
 		person.LastName = child.LastName
 	}
 	if fields.Birthday {

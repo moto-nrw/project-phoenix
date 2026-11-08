@@ -77,8 +77,9 @@ func (s *ChangeRequests) correctApprovedChildData(ctx context.Context, input enr
 // reaches the child (#6053).
 func correctedChildFields(child *RequestChild, corrected SubmitChild) *enrollmentNative.ApprovedChildCorrection {
 	return &enrollmentNative.ApprovedChildCorrection{
-		Name:     corrected.FirstName != child.FirstName || corrected.LastName != child.LastName,
-		Birthday: corrected.DateOfBirth != child.DateOfBirth,
+		FirstName: corrected.FirstName != child.FirstName,
+		LastName:  corrected.LastName != child.LastName,
+		Birthday:  corrected.DateOfBirth != child.DateOfBirth,
 		Class: !sameGradeLevel(child.TargetGradeLevel, corrected.TargetGradeLevel) ||
 			!sameOptionalString(child.TargetSchoolClass, corrected.TargetSchoolClass),
 	}

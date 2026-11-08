@@ -375,14 +375,15 @@ type ApprovedChildSync struct {
 
 // ApprovedChildCorrection lists the child fields a staff correction changed.
 type ApprovedChildCorrection struct {
-	Name     bool
-	Birthday bool
-	Class    bool
+	FirstName bool
+	LastName  bool
+	Birthday  bool
+	Class     bool
 }
 
 // Any reports whether the correction changed a child field.
 func (c *ApprovedChildCorrection) Any() bool {
-	return c != nil && (c.Name || c.Birthday || c.Class)
+	return c != nil && (c.FirstName || c.LastName || c.Birthday || c.Class)
 }
 
 // ApprovedChildChanges is the side of the decision flow the change requests

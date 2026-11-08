@@ -619,3 +619,33 @@ func TestExistingChild_OfficeMatchedCorrectionAppliesOnlyCorrectedFields(t *test
 	assert.Equal(t, "1a", student.SchoolClass, "an uncorrected class keeps the school's master data")
 	assert.Empty(t, env.guardianLinks(t, existing.ID))
 }
+
+// A surname-only correction of an office-matched child writes only the
+// surname: a first name the school changed on the child stays (#6053 review).
+func TestExistingChild_OfficeMatchedSurnameCorrectionKeepsTheFirstName(t *testing.T) {
+	t.Parallel()
+	env := setupExistingChildTest(t, enrollmentNative.PhaseAudienceOpen)
+	existing := enrolledChild(t, env.db, "Paul", "Offen", existingChildBirthday)
+	submitted := env.submit(t, existingChildSubmission{children: []enrollmentAPI.SubmitChild{
+		submitChild("Paul", "Offen", existingChildBirthday),
+	}})
+	child := submitted.Children[0]
+	require.NoError(t, env.decide(t, enrollmentAPI.DecideInput{RequestID: submitted.Request.ID, ChildID: child.ID, ExistingStudentID: &existing.ID}))
+	ctx := testpkg.Ctx(t)
+	_, err := env.db.NewUpdate().TableExpr(`users.persons`).Set("first_name = ?", "Paula").Where("id = ?", existing.PersonID).Exec(ctx)
+	require.NoError(t, err)
+
+	svc := newChangeRequestServiceWithDecisionForTest(t, env.decisionTestEnv)
+	require.NoError(t, testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		_, err := testpkg.TenantQuery1(t, txCtx, env.db, svc.CorrectApprovedChildData, enrollmentAPI.CorrectApprovedChildDataInput{
+			RequestID: submitted.Request.ID, ChildID: child.ID, FirstName: child.FirstName, LastName: "Berichtigt",
+			DateOfBirth: child.DateOfBirth, TargetGradeLevel: child.TargetGradeLevel, Reason: "Nachname berichtigt", ActorAccountID: env.creatorID,
+		})
+		return err
+	}))
+	person, err := testpkg.TenantQuery1(t, ctx, env.db, env.repos.Person.FindByID, any(existing.PersonID))
+	require.NoError(t, err)
+	assert.Equal(t, "Berichtigt", person.LastName, "the corrected surname reaches the child")
+	assert.Equal(t, "Paula", person.FirstName, "an uncorrected first name keeps the school's master data")
+	assert.Empty(t, env.guardianLinks(t, existing.ID))
+}
