@@ -486,7 +486,7 @@ export function DienstplanResourceGrid({
           {summary && <WeeklySummaryIndicator summary={summary} />}
           {absenceNote && (
             <span
-              className="mt-0.5 block text-[11px] font-medium"
+              className="mt-0.5 block text-xs font-medium"
               style={{ color: LOCATION_COLORS.SICK }}
             >
               {absenceNote}
@@ -582,7 +582,7 @@ export function DienstplanResourceGrid({
         </div>
         {shift.cancelled ? (
           <p
-            className="text-[11px] font-medium"
+            className="text-xs font-medium"
             style={{ color: LOCATION_COLORS.DANGER }}
           >
             Fällt aus{shift.changeReason ? ` · ${shift.changeReason}` : ""}
@@ -591,14 +591,14 @@ export function DienstplanResourceGrid({
           <>
             {isReplacement && (
               <p
-                className="text-[11px] font-medium"
+                className="text-xs font-medium"
                 style={{ color: LOCATION_COLORS.OTHER_ROOM }}
               >
                 Vertretung{shift.changeReason ? ` · ${shift.changeReason}` : ""}
               </p>
             )}
             {shift.breakMinutes > 0 && (
-              <p className="text-[11px] text-gray-500">
+              <p className="text-xs text-gray-500">
                 Pause {shift.breakMinutes} min
               </p>
             )}

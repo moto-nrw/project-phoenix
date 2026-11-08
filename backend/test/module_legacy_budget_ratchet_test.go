@@ -233,7 +233,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // modules/carecontract/compose (+5) adds exactly 5 LOC.
 // ADR 0165: the constructor of the monthly letters of
 // modules/parentbilling/compose adds exactly 7 LOC.
-// ADR 0166: the Mensa-Monatsfreigabe of modules/mealplan/compose (+31) and
+// ADR 0168: the Mensa-Monatsfreigabe of modules/mealplan/compose (+31) and
 // the Mensa of the monthly run of modules/parentbilling/compose (+7) add
 // exactly 38 LOC.
 const moduleComposeBudgetTotal = 13126
@@ -246,7 +246,7 @@ const moduleComposeBudgetTotal = 13126
 // composition starts small and is no reason to raise the total; split code
 // keeps its LOC counted. ADR 0078 raised modules/mealplan/compose and
 // workflows/parentportal/compose for the meal ordering rules.
-// ADR 0166 raised modules/mealplan/compose for the Mensa-Monatsfreigabe and
+// ADR 0168 raised modules/mealplan/compose for the Mensa-Monatsfreigabe and
 // modules/parentbilling/compose for the Mensa of the monthly run.
 var moduleComposeBudgets = map[string]int{
 	"modules/appointments/compose": 45,
@@ -291,7 +291,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/guardianlinkview/compose":             8,
 	// Raised by ADR 0106: the Träger-Büro account management (+24).
 	"modules/identityaccess/compose": 1371, // raised by ADR 0077
-	"modules/mealplan/compose":       105,  // raised by ADR 0078 and ADR 0166
+	"modules/mealplan/compose":       105,  // raised by ADR 0078 and ADR 0168
 	// ADR 0097: the isolated tenant return constructor, no retained logic moved.
 	// Raised by ADR 0112: the Träger master data constructor (+13).
 	// Raised by ADR 0148: the demo school file erasure constructor (+10).
@@ -312,7 +312,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/carecontract/compose": 178,
 	// Raised by ADR 0158: the monthly contribution constructor (+5);
 	// ADR 0165: the constructor of the monthly letters (+7);
-	// ADR 0166: the Mensa of the monthly run (+7).
+	// ADR 0168: the Mensa of the monthly run (+7).
 	"modules/parentbilling/compose":               69,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.

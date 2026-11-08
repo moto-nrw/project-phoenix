@@ -41,6 +41,7 @@ type careMealRunBody struct {
 	Invoices     []careMealInvoiceBody `json:"invoices"`
 	PreviewCount int                   `json:"preview_count"`
 	PreviewCents int64                 `json:"preview_cents"`
+	Fingerprint  string                `json:"fingerprint"`
 	MealUnbilled []struct {
 		Reason   string `json:"reason"`
 		MealDays int    `json:"meal_days"`
@@ -107,7 +108,7 @@ func TestCareMealMonthsAreBilledOnceOnTheChildsInvoice(t *testing.T) {
 	assert.Equal(t, "no_contract", preview.MealUnbilled[0].Reason)
 
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/release"),
-		map[string]any{"document_count": preview.PreviewCount, "total_cents": preview.PreviewCents})
+		map[string]any{"document_count": preview.PreviewCount, "total_cents": preview.PreviewCents, "fingerprint": preview.Fingerprint})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	released := decodeSchoolPortalData[careMealRunBody](t, rec.Body.Bytes())
 	require.Len(t, released.Invoices, 1)
@@ -230,7 +231,7 @@ func TestCareMealMonthsReturnOnTheReissueAfterAStorno(t *testing.T) {
 	require.Len(t, laterPreview.Invoices, 1)
 	assert.Empty(t, laterPreview.Invoices[0].MealPositions, "cancelled meals belong to the original month's reissue")
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(later.ID, "/release"),
-		map[string]any{"document_count": laterPreview.PreviewCount, "total_cents": laterPreview.PreviewCents})
+		map[string]any{"document_count": laterPreview.PreviewCount, "total_cents": laterPreview.PreviewCents, "fingerprint": laterPreview.Fingerprint})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 	again := f.startRun(t, careMonth)
@@ -242,7 +243,7 @@ func TestCareMealMonthsReturnOnTheReissueAfterAStorno(t *testing.T) {
 	require.Len(t, reissue.Invoices[0].MealPositions, 1, "the reissue bills the Mensa month the Storno took back")
 	assert.Equal(t, int64(5500), reissue.Invoices[0].MealPositions[0].AmountCents)
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(again.ID, "/release"),
-		map[string]any{"document_count": reissue.PreviewCount, "total_cents": reissue.PreviewCents})
+		map[string]any{"document_count": reissue.PreviewCount, "total_cents": reissue.PreviewCents, "fingerprint": reissue.Fingerprint})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	var positions int
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM parent_billing.care_meal_positions WHERE organization_id = ?`,
@@ -275,4 +276,81 @@ func TestCareMealAttendanceWindowReadsTheSchoolsRetentionInTheTraegerTransaction
 			return err
 		}))
 	assert.Equal(t, map[int64]calendar.Date{school: calendar.NewDate(2026, 9, 29)}, cutoffs)
+}
+
+// A school releases a Mensa month between the review and the release
+// (#5916): Ben has no contract, so count and sum of the invoices stay the
+// same and only the children the run leaves out change. The fingerprint
+// covers the Mensa, so the release refuses the stale review.
+func TestCareMealReleaseAfterTheReviewRefusesTheRunRelease(t *testing.T) {
+	t.Parallel()
+	f := newCareBillingFixture(t, "Träger Mensa Prüfung")
+	db := testpkg.SetupTestDB(t)
+	school := f.office.schools[0]
+	careContract(t, f.db, f.office.organization, school, "Mia", careMonth, sjrServices()...)
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careTariffsPath, carePriceList(school, "2029-09-01", 3200))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careMealTariffsPath, mealPrice(school, "2029-11-01", "per_meal", 480))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	run := f.startRun(t, careMonth)
+	reviewed := f.run(t, run.ID)
+
+	releaseMealMonth(t, db, f.office.organization, school, testpkg.UniqueTestTenantID(t), "2029-12-01", "Ben", 4)
+	now := f.run(t, run.ID)
+	require.Equal(t, reviewed.PreviewCount, now.PreviewCount, "count and sum stay the same")
+	require.Equal(t, reviewed.PreviewCents, now.PreviewCents)
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/release"), careRelease(reviewed))
+	assert.Equal(t, http.StatusConflict, rec.Code, "a Mensa release since the review: %s", rec.Body.String())
+
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/release"), careRelease(now))
+	assert.Equal(t, http.StatusOK, rec.Code, "the review of the new state releases: %s", rec.Body.String())
+}
+
+// An excluded invoice is not issued, and neither are its Mensa months: Mia
+// is excluded, so her released December stays unbilled and the next run
+// bills it; Lea's invoice is issued with hers.
+func TestCareMealExcludedChildGetsNoMensaPosition(t *testing.T) {
+	t.Parallel()
+	f := newCareBillingFixture(t, "Träger Mensa Ausschluss")
+	db := testpkg.SetupTestDB(t)
+	school := f.office.schools[0]
+	mia := careContract(t, f.db, f.office.organization, school, "Mia", careMonth, sjrServices()...)
+	careContract(t, f.db, f.office.organization, school, "Lea", careMonth, sjrServices()...)
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careTariffsPath, carePriceList(school, "2029-09-01", 3200))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careMealTariffsPath, mealPrice(school, "2029-11-01", "per_meal", 480))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	releaseMealMonth(t, db, f.office.organization, school, testpkg.UniqueTestTenantID(t), "2029-12-01", "Mia", 2)
+	releaseMealMonth(t, db, f.office.organization, school, testpkg.UniqueTestTenantID(t), "2029-12-01", "Lea", 3)
+
+	run := f.startRun(t, careMonth)
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/exclusions"),
+		map[string]any{"contract_id": mia, "reason": "Rückfrage"})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	reviewed := f.run(t, run.ID)
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/release"), careRelease(reviewed))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	type issuedMeal struct {
+		Contract int64 `bun:"care_contract_id"`
+		Quantity int   `bun:"quantity"`
+	}
+	var issued []issuedMeal
+	require.NoError(t, f.db.NewRaw(`SELECT i.care_contract_id, p.quantity FROM parent_billing.care_meal_positions p
+		JOIN parent_billing.care_invoices i ON i.id = p.invoice_id WHERE i.run_id = ?`, run.ID).Scan(context.Background(), &issued))
+	require.Len(t, issued, 1, "only Lea's Mensa is issued")
+	assert.NotEqual(t, mia, issued[0].Contract)
+	assert.Equal(t, 3, issued[0].Quantity)
+
+	nextRun := f.startRun(t, "2030-02-01")
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodGet, careRunPath(nextRun.ID, ""), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	next := decodeSchoolPortalData[careMealRunBody](t, rec.Body.Bytes())
+	var miaMeals int
+	for _, invoice := range next.Invoices {
+		if invoice.ContractID == mia {
+			miaMeals = len(invoice.MealPositions)
+		}
+	}
+	assert.Equal(t, 1, miaMeals, "the next run bills the Mensa of the excluded invoice")
 }

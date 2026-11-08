@@ -139,7 +139,7 @@ export function MonthPlannerGrid({
                 )}
 
                 {planningDisabled && (
-                  <div className="mt-1 flex items-center gap-1 text-[11px] text-gray-500">
+                  <div className="mt-1 flex items-center gap-1 text-xs text-gray-500">
                     <MotoConceptIcon concept={calendarConcept} size={14} />
                     Nicht planbar
                   </div>
@@ -148,7 +148,7 @@ export function MonthPlannerGrid({
                 {dayInstances.length === 0 ? (
                   closingReason === undefined &&
                   !planningDisabled && (
-                    <div className="mt-5 flex items-center gap-1 text-[11px] text-gray-400">
+                    <div className="mt-5 flex items-center gap-1 text-xs text-gray-400">
                       <MotoConceptIcon concept={calendarConcept} size={14} />
                       Leer
                     </div>
@@ -169,7 +169,7 @@ export function MonthPlannerGrid({
                                 onClick: () => onInstanceClick(inst),
                               }
                             : {})}
-                          className={`pointer-events-auto flex max-w-full min-w-0 items-center gap-1.5 rounded-lg border border-l-[3px] bg-white px-1.5 py-1 text-[11px] shadow-sm ${
+                          className={`pointer-events-auto flex max-w-full min-w-0 items-center gap-1.5 rounded-lg border border-l-[3px] bg-white px-1.5 py-1 text-xs shadow-sm ${
                             isCancelled
                               ? "border-moto-red border-dashed text-gray-400 line-through"
                               : "border-gray-200 text-gray-700"
@@ -235,7 +235,7 @@ export function MonthPlannerGrid({
                       );
                     })}
                     {moreCount > 0 && (
-                      <div className="text-[10px] font-medium text-gray-500">
+                      <div className="text-xs font-medium text-gray-500">
                         + {moreCount} weitere
                       </div>
                     )}

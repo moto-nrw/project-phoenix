@@ -101,6 +101,10 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.care_run_schools",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.care_tariffs",
       "write_owner": "parent-billing"
     },

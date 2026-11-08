@@ -103,13 +103,11 @@ function LegendGlyph({
   return <ColorBar color={color} />;
 }
 
-const SM_TEXT = "text-[11px]";
-
 const SIZE_CLASSES = {
   sm: {
     list: "gap-x-4",
-    label: `${SM_TEXT} text-gray-600`,
-    value: `${SM_TEXT} font-semibold text-gray-900 tabular-nums`,
+    label: "text-xs text-gray-600",
+    value: "text-xs font-semibold text-gray-900 tabular-nums",
   },
   md: {
     list: "gap-x-5",

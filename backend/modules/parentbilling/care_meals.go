@@ -8,7 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// The Mensa of the monthly run (#4686, ADR 0166). The Träger sets for each
+// The Mensa of the monthly run (#4686, ADR 0168). The Träger sets for each
 // school how it bills the Mensa from a month on: a flat amount per child and
 // month (Pauschale) or a price per meal (Spitzabrechnung). The meals come
 // from the Mensa-Monatsfreigabe of the school; a month the OGS-Leitung has

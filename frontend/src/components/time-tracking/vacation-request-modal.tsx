@@ -369,7 +369,7 @@ export function VacationRequestModal({
                 />
               </div>
               {blockingVacations.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-gray-500">
+                <div className="mt-2 flex flex-wrap gap-3 text-xs text-gray-500">
                   <span className="inline-flex items-center gap-1">
                     <StatusDot
                       className="bg-moto-orange/50"

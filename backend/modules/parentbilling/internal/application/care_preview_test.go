@@ -748,3 +748,19 @@ func heldContracts(duplicates []parentbilling.CareDuplicate) []int64 {
 	slices.Sort(ids)
 	return ids
 }
+
+func TestCareReviewCountsEarlierInvoicesOnlyForItsSchools(t *testing.T) {
+	t.Parallel()
+	month, err := buildCareMonth(careMonthInput{
+		month: day(t, january2027), rule: parentbilling.MonthRuleVersionOnFirst,
+		invoiced: map[int64]parentbilling.CareInvoice{
+			contractMia:  {SchoolID: schoolIspringen},
+			contractNoah: {SchoolID: schoolBirkenfeld},
+		},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 2, month.billed)
+	assert.Equal(t, 1, narrowMonth(month, []int64{schoolIspringen}, nil).billed)
+	assert.Equal(t, 1, narrowMonth(month, []int64{schoolBirkenfeld}, nil).billed)
+	assert.Equal(t, 2, narrowMonth(month, []int64{schoolIspringen, schoolBirkenfeld}, nil).billed)
+}

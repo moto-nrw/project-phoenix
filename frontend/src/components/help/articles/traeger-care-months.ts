@@ -7,7 +7,7 @@ export function traegerCareMonthsTopic(): HelpTopic {
     title: "Monatsbeiträge abrechnen",
     question: "Wie rechne ich die Betreuung jeden Monat ab?",
     summary:
-      "Ein Monatslauf rechnet einen Monat nach den gültigen Verträgen ab. Der Beitrag eines Kindes ist die Summe seiner gebuchten Wochentage, mit den Preisen aus der Preisliste. Es zählt der Vertrag, nicht die Anwesenheit. Nach der Freigabe erstellen Sie die Schreiben, senden sie an die Familien und stornieren eine falsche Rechnung.",
+      "Ein Monatslauf rechnet einen Monat für die gewählten Schulen nach den gültigen Verträgen ab. Der Beitrag eines Kindes ist die Summe seiner gebuchten Wochentage, mit den Preisen aus der Preisliste. Es zählt der Vertrag, nicht die Anwesenheit. Vor der Freigabe prüfen Sie die Vorschau und schließen Rechnungen aus, die noch nicht stimmen. Nach der Freigabe erstellen Sie die Schreiben, senden sie an die Familien und stornieren eine falsche Rechnung.",
     group: "anmeldeverwaltung",
     audience: "traeger",
     icon: "CalendarCheck",
@@ -43,10 +43,27 @@ export function traegerCareMonthsTopic(): HelpTopic {
         title: "Monatslauf starten und prüfen",
         steps: [
           "Wählen Sie `Abrechnung` und dann den Reiter `Monatsbeiträge`.",
-          "Wählen Sie `Monatslauf starten`, dann den Monat und `Lauf starten`.",
+          "Wählen Sie `Monatslauf starten` und dann den Monat.",
+          "Wählen Sie bei `Schulen` die Schulen. Alle sind schon gewählt. Eine Schule, die schon in einem offenen Lauf dieses Monats ist, lässt sich nicht wählen.",
+          "Wählen Sie bei `Rechnungsdatum` das Datum, das auf jeder Rechnung steht, zum Beispiel den 30.10. für Oktober. Lassen Sie das Feld leer, gilt der Tag der Freigabe.",
+          "Wählen Sie `Vorschau öffnen`.",
           "Prüfen Sie die Rechnungen. Je Schule steht eine Karte. Jede Rechnung hat je Modul eine Zeile mit den gebuchten Wochentagen.",
           "Steht oben `Ohne Preis`, fehlt für einen gebuchten Wochentag ein Preis. Wählen Sie `Preis eintragen`. Danach kommt das Kind in den Lauf.",
           "Steht oben `Doppelter Vertrag – bitte prüfen`, rechnen zwei Verträge eines Kindes am selben Tag dasselbe Modul ab. Die Freigabe rechnet dieses Kind mit allen seinen Verträgen nicht ab, alle anderen Kinder schon. Nach der Freigabe steht es unter `Nicht abgerechnet – Doppelter Vertrag`. Beenden oder ändern Sie einen der Verträge. Starten Sie dann einen neuen Monatslauf für diesen Monat. Er rechnet nur dieses Kind ab.",
+        ],
+      },
+      {
+        title: "Vorschau prüfen und Rechnungen ausschließen",
+        description:
+          "Vor der Freigabe ändert sich nichts an einer Rechnung. Sie können aber eine Rechnung aus diesem Lauf nehmen. Das Kind kommt im nächsten Lauf dieses Monats wieder.",
+        steps: [
+          "Wählen Sie bei `Monatslauf` den Knopf `Prüfliste` und dann `Excel` oder `CSV`. Die Liste hat je Position eine Zeile. Rechnungsnummern stehen noch nicht darin.",
+          "Stimmt eine Rechnung noch nicht, wählen Sie in ihrer Zeile das Menü mit den drei Punkten und dann `Ausschließen`.",
+          "Schreiben Sie bei `Grund`, warum, zum Beispiel „Kündigung wird noch geprüft“. Wählen Sie `Ausschließen`.",
+          "Die Rechnung steht jetzt unter `Ausgeschlossen`. Sie zählt nicht zur Summe und bekommt bei der Freigabe keine Nummer.",
+          "Mit `Wieder aufnehmen` nehmen Sie sie zurück in den Lauf.",
+          "Sind alle Rechnungen ausgeschlossen, wählen Sie trotzdem `Lauf freigeben`. Der Lauf schließt ohne Rechnungen und gibt die Schulen wieder frei. Die Gründe bleiben im Verlauf. Ein neuer Lauf kann diese Kinder abrechnen.",
+          "Das Rechnungsdatum ändern Sie bei `Rechnungsdatum` mit `Ändern`.",
         ],
       },
       {
@@ -54,7 +71,8 @@ export function traegerCareMonthsTopic(): HelpTopic {
         steps: [
           "Wählen Sie `Lauf freigeben`.",
           "Prüfen Sie Zahl und Summe der Rechnungen und wählen Sie `Freigeben`.",
-          "Jede Rechnung bekommt ihre Nummer. Danach ändert sie sich nicht mehr.",
+          "Jede Rechnung bekommt ihre Nummer und das Rechnungsdatum. Danach ändert sie sich nicht mehr.",
+          "Hat sich seit Ihrer Prüfung etwas geändert, zum Beispiel ein Vertrag oder ein Preis, gibt moto nicht frei. Die Seite zeigt den neuen Stand. Prüfen Sie ihn und geben Sie dann frei.",
           "Die Familien sehen davon noch nichts. Sie bekommen erst das Schreiben, das Sie senden.",
         ],
       },
@@ -96,7 +114,7 @@ export function traegerCareMonthsTopic(): HelpTopic {
           "Hatte die Familie die Rechnung schon bekommen, bekommt sie ein Storno-Schreiben. Es steht als eigene Zeile unter der Rechnung. Senden Sie es über das Menü dieser Zeile mit `Senden`.",
           "Haben Sie die Rechnung zum Drucken heruntergeladen, bekommt der Storno auch ein Schreiben. Laden Sie es über `Drucken` und `Alle Schreiben drucken` herunter. Geben Sie es der Familie auf Papier.",
           "Wurde die Rechnung weder gesendet noch zum Drucken heruntergeladen, bekommt die Familie kein Storno. Sie sieht nichts davon.",
-          "Wählen Sie in der Meldung über den Rechnungen `Neu ausstellen`. Ein neuer Monatslauf für denselben Monat öffnet sich. Er zeigt die neue Rechnung als Vorschau. Geben Sie ihn frei und senden Sie das neue Schreiben. Danach verschwindet die Meldung zur Neuausstellung im alten Lauf.",
+          "Wählen Sie in der Meldung über den Rechnungen `Neu ausstellen`. Ein passender Prüflauf öffnet sich, sonst ein neuer Lauf. Ein neuer Lauf enthält nur Schulen mit noch offenen Stornos. Geben Sie ihn frei und senden Sie das neue Schreiben. Verteilen sich die Stornos auf mehrere Prüfläufe, wiederholen Sie `Neu ausstellen`. Sind alle Rechnungen neu ausgestellt, verschwindet die Meldung im alten Lauf.",
         ],
       },
     ],
@@ -110,6 +128,7 @@ export function traegerCareMonthsTopic(): HelpTopic {
       "Ferienpreise legen Sie im Ferienzeitraum fest. Die Preisliste gilt nur für die Monatsbeiträge.",
     ],
     troubleshootingDetails: [
+      "Eine Schule lässt sich beim Start nicht wählen: Sie ist schon in einem offenen Lauf dieses Monats. Öffnen Sie diesen Lauf in der Liste und geben Sie ihn frei.",
       "`Schreiben erstellen` geht nicht: Es fehlt eine Bankverbindung. Tragen Sie sie unter `Einstellungen`, `Abrechnungsvorgaben` ein.",
       "Ein Schreiben geht nicht raus, weil die Person nicht mehr im Vertrag steht: Stornieren Sie die Rechnung. Wählen Sie dann `Neu ausstellen`. Die neue Rechnung geht an die Person im Vertrag.",
       "`Erneut senden` fehlt: Die Mail ist noch unterwegs, oder die Adresse ist gesperrt. Der Hinweis bei der Rechnung sagt, was zu tun ist. Drucken Sie das Schreiben, wenn die Adresse gesperrt ist.",

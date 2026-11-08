@@ -19,6 +19,10 @@ type CareStudent struct {
 	Status        string
 	EnrolledFrom  *calendar.Date
 	EnrolledUntil *calendar.Date
+	// FirstCareFrom is School Membership's first-care bound (#6041, ADR
+	// 0166): the earliest day the child can have been cared for at this
+	// school, nil when unknown. It survives the activation.
+	FirstCareFrom *calendar.Date
 	UpdatedAt     time.Time
 }
 
@@ -27,6 +31,28 @@ type CareStudent struct {
 // still counts as care.
 func (s CareStudent) CareEndedOn(day calendar.Date) bool {
 	return s.EnrolledUntil != nil && day.After(*s.EnrolledUntil)
+}
+
+// AwaitsCareStartOn reports whether the child is not yet in care on day
+// (#6041), unless something shows it was there:
+//
+//   - day lies before the first-care bound, whatever the status: a new
+//     child approved for a later start, also after its activation;
+//   - or the child is pending, its start lies after day, and day is today
+//     or later.
+//
+// Without a bound only today and later days wait. A resumption or a renewal
+// stores a returning child exactly like a new one (pending, the new start,
+// the earlier start replaced), so holding back its past days would erase
+// real care from reports. An immediately activated child already takes part
+// before its regular start, and a pending child without a start is not
+// placed.
+func (s CareStudent) AwaitsCareStartOn(day, today calendar.Date) bool {
+	if s.FirstCareFrom != nil && *s.FirstCareFrom != "" && day.Before(*s.FirstCareFrom) {
+		return true
+	}
+	return s.Status == careplan.StudentStatusPending && s.EnrolledFrom != nil &&
+		*s.EnrolledFrom != "" && day.Before(*s.EnrolledFrom) && !day.Before(today)
 }
 
 // IsAlumnus reports whether the child left with a grade transition.

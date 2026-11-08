@@ -20,7 +20,7 @@ func init() {
 	Migrations.MustRegister(mealBillingMonthsUp, mealBillingMonthsDown)
 }
 
-// mealBillingMonthsUpSQL adds the meal billing of #4686 (ADR 0166):
+// mealBillingMonthsUpSQL adds the meal billing of #4686 (ADR 0168):
 //
 //   - schedule.meal_billing_months: the Mensa-Monatsfreigabe of Meal Plan.
 //     The OGS-Leitung confirms in its school transaction that attendance

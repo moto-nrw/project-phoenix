@@ -58,6 +58,7 @@ func (rs *CareBillingResource) RunRouter(protectedTraegerRoutes func(chi.Router,
 		billing.Post("/", rs.start)
 		billing.Get("/{id}", rs.detail)
 		billing.Post("/{id}/release", rs.release)
+		rs.mountReview(billing)
 		rs.mountLetters(billing)
 	})
 	return r
@@ -91,9 +92,12 @@ func (req *CarePriceListRequest) list() capability.CarePriceList {
 }
 
 // CareRunRequest is the body of POST /traeger/care-billing-runs: the first
-// day of the month to bill.
+// day of the month to bill, its schools (none bills every school without an
+// open run of the month) and an optional invoice date (#5916).
 type CareRunRequest struct {
-	BillingMonth calendar.Date `json:"billing_month"`
+	BillingMonth calendar.Date  `json:"billing_month"`
+	SchoolIDs    []int64        `json:"school_ids"`
+	InvoiceDate  *calendar.Date `json:"invoice_date"`
 }
 
 // Bind accepts the body; the Owner checks the month.
@@ -178,8 +182,10 @@ func (rs *CareBillingResource) start(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeParentBillingCareRunInvalid))
 		return
 	}
-	run, err := rs.billing.StartCareRun(r.Context(), reviewer, req.BillingMonth)
+	run, err := rs.billing.StartCareRun(r.Context(), reviewer,
+		capability.CareRunStart{BillingMonth: req.BillingMonth, SchoolIDs: req.SchoolIDs, InvoiceDate: req.InvoiceDate})
 	if err != nil {
+		tenant.MarkRollback(r.Context())
 		renderCareError(w, r, err)
 		return
 	}
@@ -207,12 +213,12 @@ func (rs *CareBillingResource) release(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	req := &BillingReleaseRequest{}
+	req := &CareReleaseRequest{}
 	if err := render.Bind(r, req); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	detail, err := rs.billing.ReleaseCareRun(r.Context(), reviewer, runID, capability.BillingRelease(*req))
+	detail, err := rs.billing.ReleaseCareRun(r.Context(), reviewer, runID, capability.CareRelease(*req))
 	if err != nil {
 		tenant.MarkRollback(r.Context())
 		renderCareError(w, r, err)
@@ -226,7 +232,8 @@ func (rs *CareBillingResource) release(w http.ResponseWriter, r *http.Request) {
 func renderCareError(w http.ResponseWriter, r *http.Request, err error) {
 	var fields validation.Errors
 	switch {
-	case errors.As(err, &fields) && fields["billing_month"] != nil:
+	case errors.As(err, &fields) && (fields["billing_month"] != nil || fields["school_ids"] != nil ||
+		fields["invoice_date"] != nil || fields["reason"] != nil || fields["format"] != nil):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeParentBillingCareRunInvalid))
 	case errors.As(err, &fields):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeParentBillingCareTariffInvalid))
@@ -234,6 +241,8 @@ func renderCareError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeParentBillingCareRunNotFound))
 	case errors.Is(err, capability.ErrCareTariffNotFound):
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeParentBillingCareTariffNotFound))
+	case errors.Is(err, capability.ErrCareExclusionConflict):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingCareExclusionConflict))
 	case errors.Is(err, capability.ErrCareRunOpen):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingCareRunOpen))
 	case errors.Is(err, capability.ErrCareVersionsOverlap):

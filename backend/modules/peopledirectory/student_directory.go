@@ -46,6 +46,10 @@ type StudentRecord struct {
 
 	EnrolledFrom  string `json:"enrolled_from,omitempty"`
 	EnrolledUntil string `json:"enrolled_until,omitempty"`
+	// FirstCareFrom is the earliest day the child can have been cared for
+	// at this school, empty when unknown (School Membership, #6041). Not on
+	// the wire.
+	FirstCareFrom string `json:"-"`
 
 	AddressStreet     *string `json:"address_street,omitempty"`
 	AddressCity       *string `json:"address_city,omitempty"`

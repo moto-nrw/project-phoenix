@@ -7,7 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// The Mensa-Monatsfreigabe (#4686, ADR 0166): at the end of a month the
+// The Mensa-Monatsfreigabe (#4686, ADR 0168): at the end of a month the
 // OGS-Leitung checks who ate and releases the month. A meal counts on a day
 // of the month that is a school day (no weekend, closing day, public holiday
 // or school holiday of the school calendar), on which the child is

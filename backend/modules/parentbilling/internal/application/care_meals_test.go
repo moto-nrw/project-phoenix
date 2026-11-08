@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// The Mensa of the monthly run (#4686, ADR 0166), computed by hand. The
+// The Mensa of the monthly run (#4686, ADR 0168), computed by hand. The
 // run bills April 2026 on 2 April 2026; the school is Ispringen (11), the
 // child Mia (student 9501, contract 501).
 
@@ -279,7 +279,7 @@ func TestCareMealTable(t *testing.T) {
 	}
 }
 
-// TestCareMealsJoinTheModuleInvoiceAndNoRuleReducesThem pins ADR 0166:
+// TestCareMealsJoinTheModuleInvoiceAndNoRuleReducesThem pins ADR 0168:
 // the Mensa goes onto the invoice of the child's modules, and no rule of
 // the chain (#4685) reaches it, because the rules act on modules. Mia books
 // Monday until 14:00 (32,00 €) and Noah Monday until 16:30 (45,50 €), one
@@ -356,4 +356,22 @@ func TestCareMealGapsSkipASchoolOutsideTheTraeger(t *testing.T) {
 	assert.Equal(t, []parentbilling.CareMealGap{
 		{SchoolID: schoolIspringen, SchoolName: "Ispringen", Month: day(t, "2026-03-01")},
 	}, month.mealGaps)
+}
+
+// The fingerprint of the review covers the Mensa months a run does not
+// bill (#5916): a month without a release that becomes no longer billable,
+// or a school that releases it, changes the reviewed state.
+func TestCareReviewFingerprintCoversTheMensaGaps(t *testing.T) {
+	t.Parallel()
+	run := parentbilling.CareRun{ID: 7, SchoolIDs: []int64{schoolIspringen}}
+	gap := parentbilling.CareMealGap{SchoolID: schoolIspringen, SchoolName: "Ispringen", Month: day(t, "2026-02-01")}
+	review := func(gaps ...parentbilling.CareMealGap) reviewedMonth {
+		return reviewedMonth{careMonth: careMonth{mealGaps: gaps, mealUnbilled: []parentbilling.CareMealUnbilled{}}}
+	}
+	open := previewFingerprint(run, parentbilling.MonthRuleVersionOnFirst, review(gap))
+	expired := gap
+	expired.Expired = true
+	assert.NotEqual(t, open, previewFingerprint(run, parentbilling.MonthRuleVersionOnFirst, review(expired)), "no longer billable")
+	assert.NotEqual(t, open, previewFingerprint(run, parentbilling.MonthRuleVersionOnFirst, review()), "released since the review")
+	assert.Equal(t, open, previewFingerprint(run, parentbilling.MonthRuleVersionOnFirst, review(gap)), "the same state")
 }
