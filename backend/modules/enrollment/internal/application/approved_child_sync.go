@@ -159,9 +159,41 @@ func (d *Decisions) childEnrollmentOnly(ctx context.Context, request *Request, c
 	if child.RolloverSourceChildID != nil && child.CreatedStudentID != nil {
 		// Approval already resolved the inherited student, across any number
 		// of rollovers. Descendants carry no MatchedStudentID of their own.
+		// Only a descendant of a parent pin is checked here; other
+		// descendants follow #6173.
+		fromPin, err := d.rolloverFromParentPin(ctx, child)
+		if err != nil || !fromPin {
+			return false, err
+		}
 		return d.parentStudentAuthorityLapsed(ctx, request, child.ID, *child.CreatedStudentID)
 	}
 	return d.parentPinLapsed(ctx, request, child)
+}
+
+// maxRolloverDepth bounds the walk to a rollover chain's first submission.
+const maxRolloverDepth = 50
+
+// rolloverFromParentPin reports whether a rollover descendant goes back to a
+// child the family pinned through its own relationship (#6053).
+func (d *Decisions) rolloverFromParentPin(ctx context.Context, child *RequestChild) (bool, error) {
+	source := child
+	for depth := 0; source.RolloverSourceChildID != nil; depth++ {
+		if depth >= maxRolloverDepth {
+			return false, fmt.Errorf("decision: rollover chain of child %d exceeds %d phases", child.ID, maxRolloverDepth)
+		}
+		next, err := decodedChildByID(ctx, d.deps.Children, *source.RolloverSourceChildID)
+		if err != nil && d.deps.Runtime.NotFound(err) {
+			return false, nil
+		}
+		if err != nil {
+			return false, fmt.Errorf("decision: load rollover source of child %d: %w", child.ID, err)
+		}
+		if next == nil {
+			return false, nil
+		}
+		source = next
+	}
+	return isParentPin(source), nil
 }
 
 func (d *Decisions) loadApprovedChildForSync(ctx context.Context, run *approvedChildSync) error {
