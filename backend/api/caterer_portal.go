@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/catererauth"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
@@ -55,9 +56,8 @@ func mountCatererPortal(root, tenantRouter chi.Router, limiters authRateLimiters
 			file, err := renderMealList(renderer, export, format)
 			return catererPortalHTTP.ExportFile(file), err
 		},
-		Resets:       portalauth.PasswordResetRoutes(identity, identityaccess.PasswordResetScopeCaterer),
-		SignIn:       caterers,
-		SecondFactor: caterers,
+		Resets: portalauth.PasswordResetRoutes(identity, identityaccess.PasswordResetScopeCaterer),
+		SignIn: catererauth.NewResource(caterers.CatererSignIn, caterers.CatererSecondFactor),
 	})
 	tenantRouter.Mount("/meal-caterer", resource.SchoolRouter(ProtectedTenantRoutes, requireMealPlanAccess(mealplanAPI.AccessWrite), common.RequiresPermission(permissions.AdminWildcard), requireMealPlanAccess(mealplanAPI.AccessParticipants)))
 	root.Mount("/caterer", resource.CatererRouter(limiters.authMiddleware(), CatererSessionChain))
