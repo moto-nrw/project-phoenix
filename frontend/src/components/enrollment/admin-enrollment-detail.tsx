@@ -86,7 +86,7 @@ import { formatCalendarDate } from "~/lib/localized-date-format";
 import { schoolClassLabel } from "~/lib/school-class-label";
 import { AdminChildDataCorrection } from "~/components/enrollment/admin-child-data-correction";
 import { AdminEnrollmentDeletionModal } from "~/components/enrollment/admin-enrollment-deletion-modal";
-import { ExistingChildChoiceModal } from "~/components/enrollment/existing-child-choice-modal";
+import { ChoiceModal } from "~/components/ui/choice-modal";
 import { Button, buttonClassName } from "~/components/ui/button";
 import NavigationLink from "~/components/ui/navigation-link";
 import { Alert } from "~/components/ui/alert";
@@ -442,15 +442,40 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
             />
           </ConfirmationModal>
           {existingChildChoiceChild ? (
-            <ExistingChildChoiceModal
-              key={existingChildChoiceChild.id}
+            <ChoiceModal
               isOpen
-              childName={`${existingChildChoiceChild.first_name} ${existingChildChoiceChild.last_name}`}
-              candidates={
-                existingChildChoiceChild.possible_existing_children ?? []
-              }
+              title="Ist das Kind schon angemeldet?"
+              description={`Bitte wählen Sie für ${existingChildChoiceChild.first_name} ${existingChildChoiceChild.last_name}. Beim bestehenden Kind wird nur die Anmeldung verlängert. Die Eltern aus dieser Anmeldung bekommen dadurch keinen Zugang zum Kind.`}
+              options={[
+                ...(
+                  existingChildChoiceChild.possible_existing_children ?? []
+                ).map((candidate) => ({
+                  value: candidate.student_id,
+                  label: "Bestehendes Kind verwenden",
+                  description: [
+                    `${candidate.first_name} ${candidate.last_name}`,
+                    candidate.school_class
+                      ? schoolClassLabel(candidate.school_class)
+                      : "",
+                    candidate.date_of_birth
+                      ? `geboren am ${formatPlainDate(candidate.date_of_birth)}`
+                      : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" · "),
+                })),
+                {
+                  value: "new",
+                  label: "Als neues Kind anlegen",
+                  description: "Nur wählen, wenn es ein anderes Kind ist.",
+                },
+              ]}
               onClose={() => setExistingChildChoiceChild(null)}
-              onConfirm={(choice) => {
+              onSelect={(value) => {
+                const choice: ExistingChildChoice =
+                  value === "new"
+                    ? { createNewStudent: true }
+                    : { existingStudentId: value };
                 const child = existingChildChoiceChild;
                 setExistingChildChoiceChild(null);
                 requestDecision(child, "approved", choice);

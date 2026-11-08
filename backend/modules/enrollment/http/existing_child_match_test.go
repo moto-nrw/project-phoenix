@@ -384,3 +384,85 @@ func TestExistingChild_OtherAudiencesTakeNoChoice(t *testing.T) {
 	require.ErrorIs(t, err, enrollmentNative.ErrExistingChildChoiceInvalid)
 	require.NoError(t, env.decide(t, enrollmentAPI.DecideInput{RequestID: res.Request.ID, ChildID: res.Children[0].ID}))
 }
+
+// A student created by an earlier approval already has an active request,
+// even though that request never needed a matched_student_id.
+func TestExistingChild_CreatedStudentBlocksOfficeChoiceAndSubmitPin(t *testing.T) {
+	t.Parallel()
+	for _, linked := range []bool{false, true} {
+		name := "office_choice"
+		if linked {
+			name = "parent_pin"
+		}
+		t.Run(name, func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			env := setupExistingChildTest(t, enrollmentNative.PhaseAudienceOpen)
+			first := env.submit(t, existingChildSubmission{email: "first@example.com", children: []enrollmentAPI.SubmitChild{
+				submitChild("Leni", "Neu", existingChildBirthday),
+			}})
+			require.NoError(t, env.decide(t, enrollmentAPI.DecideInput{RequestID: first.Request.ID, ChildID: first.Children[0].ID}))
+			created := env.child(t, first.Children[0].ID)
+			require.NotNil(t, created.CreatedStudentID)
+			assert.Nil(t, created.MatchedStudentID)
+			studentID := *created.CreatedStudentID
+			in := existingChildSubmission{email: "second@example.com", children: []enrollmentAPI.SubmitChild{
+				submitChild("Leni", "Neu", existingChildBirthday),
+			}}
+			if linked {
+				accountID := parentAccountLinkedTo(t, env.db, studentID, securityruntime.GuardianRolePrimaryGuardian)
+				in.accountID = &accountID
+			}
+			second := env.submit(t, in)
+			child := second.Children[0]
+			assert.Nil(t, child.MatchedStudentID, "a created student with an active request must not be pinned again")
+			if linked {
+				return
+			}
+			require.Len(t, env.candidates(t, second.Request.ID, child.ID), 1)
+			err := env.decide(t, enrollmentAPI.DecideInput{RequestID: second.Request.ID, ChildID: child.ID, ExistingStudentID: &studentID})
+			require.ErrorIs(t, err, enrollmentNative.ErrExistingStudentAlreadyRequested)
+			assert.Equal(t, enrollmentNative.ChildStatusSubmitted, env.child(t, child.ID).Status)
+		})
+	}
+}
+
+// A later confirmed request edit must not undo the school's corrections to
+// an office-matched child's master data, with or without field replacement.
+func TestExistingChild_OfficeMatchedSyncPreservesStudentMasterData(t *testing.T) {
+	t.Parallel()
+	env := setupExistingChildTest(t, enrollmentNative.PhaseAudienceOpen)
+	existing := enrolledChild(t, env.db, "Paul", "Offen", existingChildBirthday)
+	submitted := env.submit(t, existingChildSubmission{children: []enrollmentAPI.SubmitChild{
+		submitChild("Paul", "Offen", existingChildBirthday),
+	}})
+	child := submitted.Children[0]
+	require.NoError(t, env.decide(t, enrollmentAPI.DecideInput{RequestID: submitted.Request.ID, ChildID: child.ID, ExistingStudentID: &existing.ID}))
+
+	ctx := testpkg.Ctx(t)
+	birthday := calendar.NewDate(2018, 4, 16)
+	_, err := env.db.NewUpdate().TableExpr(`users.persons`).
+		Set("first_name = ?", "Paula").Set("last_name = ?", "Korrigiert").Set("birthday = ?", birthday).
+		Where("id = ?", existing.PersonID).Exec(ctx)
+	require.NoError(t, err)
+	student, err := testpkg.TenantQuery1(t, ctx, env.db, env.repos.Student.FindByID, any(existing.ID))
+	require.NoError(t, err)
+	student.SchoolClass = "3b"
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, env.repos.Student.Update, student))
+
+	for _, replace := range []bool{false, true} {
+		_, err = changeRequestApplierForTest(t, env.decisionTestEnv).SyncApprovedChildData(ctx, enrollmentAPI.SyncApprovedChildDataInput{
+			RequestID: submitted.Request.ID, ChildID: child.ID, ActorAccountID: env.creatorID, ReplaceTargetedData: replace,
+		})
+		require.NoError(t, err)
+		student, err := testpkg.TenantQuery1(t, ctx, env.db, env.repos.Student.FindByID, any(existing.ID))
+		require.NoError(t, err)
+		person, err := testpkg.TenantQuery1(t, ctx, env.db, env.repos.Person.FindByID, any(student.PersonID))
+		require.NoError(t, err)
+		assert.Equal(t, "Paula", person.FirstName)
+		assert.Equal(t, "Korrigiert", person.LastName)
+		require.NotNil(t, person.Birthday)
+		assert.Equal(t, birthday, *person.Birthday)
+		assert.Equal(t, "3b", student.SchoolClass)
+		assert.Empty(t, env.guardianLinks(t, existing.ID))
+	}
+}

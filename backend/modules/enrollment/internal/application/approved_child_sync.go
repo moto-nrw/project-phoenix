@@ -60,13 +60,12 @@ func (d *Decisions) SyncApprovedChildData(ctx context.Context, input enrollmentN
 	if err := d.loadApprovedChildForSync(ctx, run); err != nil {
 		return nil, err
 	}
-	if err := d.syncApprovedChildStudent(ctx, run); err != nil {
-		return nil, err
-	}
-	// An enrolled child the office chose for this request (#6053) keeps its
-	// guardians and their data: the submitting family holds no authorized
-	// relationship to it, so a confirmed edit links or updates none.
+	// An office match renews enrollment only (#6053). Later edits must keep
+	// the student's master data, guardians and form data untouched too.
 	if !run.child.MatchedByOffice {
+		if err := d.syncApprovedChildStudent(ctx, run); err != nil {
+			return nil, err
+		}
 		if err := d.syncApprovedChildGuardians(ctx, run); err != nil {
 			return nil, err
 		}

@@ -261,8 +261,6 @@ describe("AdminEnrollmentDetail child that may already be enrolled", () => {
       name: "Ist das Kind schon angemeldet?",
     });
     expect(mocks.decideAdminChild).not.toHaveBeenCalled();
-    const confirm = within(dialog).getByRole("button", { name: "Bestätigen" });
-    expect(confirm).toBeDisabled();
     expect(
       within(dialog).getByText(
         "Paul Offen · Klasse 1a · geboren am 15.04.2018",
@@ -270,9 +268,10 @@ describe("AdminEnrollmentDetail child that may already be enrolled", () => {
     ).toBeVisible();
 
     fireEvent.click(
-      within(dialog).getByRole("radio", { name: /Bestehendes Kind verwenden/ }),
+      within(dialog).getByRole("button", {
+        name: /Bestehendes Kind verwenden/,
+      }),
     );
-    fireEvent.click(confirm);
 
     await waitFor(() => {
       expect(mocks.decideAdminChild).toHaveBeenCalledWith(
@@ -285,6 +284,31 @@ describe("AdminEnrollmentDetail child that may already be enrolled", () => {
     });
   });
 
+  it("cancels the choice without approving the child", async () => {
+    mocks.getAdminRequest.mockResolvedValue(requestWithCandidate());
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Bestätigen" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Ist das Kind schon angemeldet?",
+    });
+    expect(
+      within(dialog).getByRole("button", {
+        name: /Bestehendes Kind verwenden/,
+      }),
+    ).toBeVisible();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Abbrechen" }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Bestätigen" })).toBeVisible();
+      expect(
+        screen.queryByRole("dialog", {
+          name: "Ist das Kind schon angemeldet?",
+        }),
+      ).not.toBeInTheDocument();
+    });
+    expect(mocks.decideAdminChild).not.toHaveBeenCalled();
+  });
+
   it("creates a new child when the office says it is another child", async () => {
     mocks.getAdminRequest.mockResolvedValue(requestWithCandidate());
     mocks.decideAdminChild.mockResolvedValue({ id: "child-1" });
@@ -295,9 +319,8 @@ describe("AdminEnrollmentDetail child that may already be enrolled", () => {
       name: "Ist das Kind schon angemeldet?",
     });
     fireEvent.click(
-      within(dialog).getByRole("radio", { name: /Als neues Kind anlegen/ }),
+      within(dialog).getByRole("button", { name: /Als neues Kind anlegen/ }),
     );
-    fireEvent.click(within(dialog).getByRole("button", { name: "Bestätigen" }));
 
     await waitFor(() => {
       expect(mocks.decideAdminChild).toHaveBeenCalledWith(
