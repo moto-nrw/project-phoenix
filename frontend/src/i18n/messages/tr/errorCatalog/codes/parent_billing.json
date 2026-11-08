@@ -51,6 +51,7 @@
   "care_tariff_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "care_tariff_month_billed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "care_tariff_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "care_exclusion_conflict": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "care_invoice_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "care_invoice_cancelled": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "care_recipient_changed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",

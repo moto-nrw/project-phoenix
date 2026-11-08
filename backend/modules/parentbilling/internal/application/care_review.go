@@ -1,0 +1,402 @@
+package application
+
+import (
+	"context"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"hash/fnv"
+	"slices"
+	"strings"
+
+	validation "github.com/go-ozzo/ozzo-validation"
+
+	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+)
+
+// The review of a monthly run before its release (#5916, ADR 0119
+// addendum 2026-11-08). The preview is computed for the whole month of the
+// Träger, so siblings and the rule chain see every child, and then narrowed
+// to the schools of the run; an excluded invoice stays visible but is not
+// issued. Nothing of the preview is stored.
+
+// Trail actions of the review.
+const (
+	runEventExclude     = "exclude"
+	runEventInclude     = "include"
+	runEventInvoiceDate = "invoice_date"
+)
+
+// CareReviewStore persists the review of a monthly run.
+type CareReviewStore interface {
+	// OpenCareRunSchools names per school the open run of the month.
+	OpenCareRunSchools(ctx context.Context, organizationID int64, month calendar.Date) (map[int64]int64, error)
+	SetCareRunInvoiceDate(ctx context.Context, organizationID, runID int64, invoiceDate *calendar.Date) error
+	// CareRunExclusions reads per contract the exclusion in force.
+	CareRunExclusions(ctx context.Context, organizationID, runID int64) (map[int64]parentbilling.CareExclusion, error)
+}
+
+// reviewedMonth is the preview of a calculated run: the invoices the
+// release issues, those it leaves out, and the state the reviewer checks.
+type reviewedMonth struct {
+	careMonth
+	excluded    []parentbilling.CareInvoice
+	fingerprint string
+}
+
+// reviewed computes the preview of a calculated run with the rule of the
+// Träger now, narrowed to its schools and without its excluded invoices.
+func (c *CareBilling) reviewed(ctx context.Context, organizationID int64, run parentbilling.CareRun) (string, reviewedMonth, error) {
+	rule, month, err := c.preview(ctx, organizationID, run)
+	if err != nil {
+		return "", reviewedMonth{}, err
+	}
+	exclusions, err := c.store.CareRunExclusions(ctx, organizationID, run.ID)
+	if err != nil {
+		return "", reviewedMonth{}, err
+	}
+	review := narrowMonth(month, run.SchoolIDs, exclusions)
+	review.fingerprint = previewFingerprint(run, rule, review)
+	return rule, review, nil
+}
+
+// narrowMonth keeps the part of the month the schools bill and moves the
+// excluded invoices aside.
+func narrowMonth(month careMonth, schoolIDs []int64, exclusions map[int64]parentbilling.CareExclusion) reviewedMonth {
+	inRun := func(schoolID int64) bool { return slices.Contains(schoolIDs, schoolID) }
+	review := reviewedMonth{careMonth: careMonth{invoices: []parentbilling.CareInvoice{}, unpriced: []parentbilling.CareUnpriced{},
+		duplicates: []parentbilling.CareDuplicate{}}, excluded: []parentbilling.CareInvoice{}}
+	for schoolID, count := range month.billedBySchool {
+		if inRun(schoolID) {
+			review.billed += count
+		}
+	}
+	for _, invoice := range month.invoices {
+		if !inRun(invoice.SchoolID) {
+			continue
+		}
+		if exclusion, ok := exclusions[invoice.ContractID]; ok {
+			invoice.Exclusion = &exclusion
+			review.excluded = append(review.excluded, invoice)
+			continue
+		}
+		review.invoices = append(review.invoices, invoice)
+	}
+	for _, unpriced := range month.unpriced {
+		if inRun(unpriced.SchoolID) {
+			review.unpriced = append(review.unpriced, unpriced)
+		}
+	}
+	for _, duplicate := range month.duplicates {
+		if slices.ContainsFunc(duplicate.Contracts, func(contract parentbilling.CareDuplicateContract) bool {
+			return inRun(contract.SchoolID)
+		}) {
+			review.duplicates = append(review.duplicates, duplicate)
+		}
+	}
+	return review
+}
+
+// fingerprintInvoice is what the fingerprint covers of an invoice the
+// review shows: the invoice as shown with its positions and reductions, the
+// child record and the payable cents the rule chain allocated.
+type fingerprintInvoice struct {
+	Invoice   parentbilling.CareInvoice `json:"invoice"`
+	StudentID *int64                    `json:"student_id"`
+	Payable   []int64                   `json:"payable"`
+}
+
+func fingerprintInvoices(invoices []parentbilling.CareInvoice) []fingerprintInvoice {
+	result := make([]fingerprintInvoice, len(invoices))
+	for i, invoice := range invoices {
+		payable := make([]int64, len(invoice.Positions))
+		for j, position := range invoice.Positions {
+			payable[j] = position.PayableCents
+		}
+		result[i] = fingerprintInvoice{Invoice: invoice, StudentID: invoice.StudentID, Payable: payable}
+	}
+	return result
+}
+
+// previewFingerprint names the reviewed state of a run: everything the
+// review shows. That is the schools, the invoice date and the month rule;
+// every invoice the release issues and every excluded one, each with its
+// recipient, positions and reductions (so a new evidence or rule changes
+// it); the bookings without a price; the children held back for a
+// duplicate contract; and the count of contracts already billed. A change
+// of any of them since the review makes the release refuse (#5916).
+// Whatever else a later change adds to the review (the Mensa of #4686)
+// belongs here too.
+func previewFingerprint(run parentbilling.CareRun, rule string, review reviewedMonth) string {
+	state, err := json.Marshal(struct {
+		Run         int64                         `json:"run"`
+		Schools     []int64                       `json:"schools"`
+		InvoiceDate *calendar.Date                `json:"invoice_date"`
+		Rule        string                        `json:"rule"`
+		Invoices    []fingerprintInvoice          `json:"invoices"`
+		Excluded    []fingerprintInvoice          `json:"excluded"`
+		Unpriced    []parentbilling.CareUnpriced  `json:"unpriced"`
+		Duplicates  []parentbilling.CareDuplicate `json:"duplicates"`
+		Billed      int                           `json:"billed"`
+	}{run.ID, run.SchoolIDs, run.InvoiceDate, rule, fingerprintInvoices(review.invoices),
+		fingerprintInvoices(review.excluded), review.unpriced, review.duplicates, review.billed})
+	if err != nil {
+		// Every value above marshals; a failure leaves no fingerprint a
+		// release could match.
+		return ""
+	}
+	// A change detector for the reviewer's own state, not a secret: a
+	// 128-bit FNV hash of the canonical JSON is enough to tell two states
+	// apart.
+	hash := fnv.New128a()
+	_, _ = hash.Write(state)
+	return hex.EncodeToString(hash.Sum(nil))
+}
+
+// runSchools resolves the schools a new run bills: the given ones, each a
+// school of the Träger, or every school of the Träger without an open run
+// of the month when none is given.
+func (c *CareBilling) runSchools(ctx context.Context, organizationID int64, month calendar.Date, requested []int64) ([]int64, error) {
+	schools, err := c.schools.TraegerSchools(ctx, organizationID)
+	if err != nil {
+		return nil, fmt.Errorf("parent billing: read the schools: %w", err)
+	}
+	own := make([]int64, len(schools))
+	for i, school := range schools {
+		own[i] = school.ID
+	}
+	if len(requested) == 0 {
+		open, err := c.store.OpenCareRunSchools(ctx, organizationID, month)
+		if err != nil {
+			return nil, err
+		}
+		free := slices.DeleteFunc(slices.Clone(own), func(id int64) bool { _, taken := open[id]; return taken })
+		if len(free) == 0 && len(own) > 0 {
+			return nil, parentbilling.ErrCareRunOpen
+		}
+		requested = free
+	}
+	result := []int64{}
+	for _, id := range requested {
+		if !slices.Contains(own, id) {
+			return nil, validation.Errors{"school_ids": errors.New("names a school that is not a school of the Träger")}
+		}
+		if !slices.Contains(result, id) {
+			result = append(result, id)
+		}
+	}
+	if len(result) == 0 {
+		return nil, validation.Errors{"school_ids": errors.New("needs at least one school")}
+	}
+	slices.Sort(result)
+	return result, nil
+}
+
+// CareRunSchools lists the schools of the Träger for a new run of a month,
+// each with the open run of the month that bills it.
+func (c *CareBilling) CareRunSchools(ctx context.Context, organizationID int64, month calendar.Date) ([]parentbilling.CareRunSchool, error) {
+	if organizationID <= 0 {
+		return nil, errTraegerRequired
+	}
+	if !isMonthStart(month) {
+		return nil, validation.Errors{"billing_month": errors.New("must be the first day of a month")}
+	}
+	schools, err := c.schools.TraegerSchools(ctx, organizationID)
+	if err != nil {
+		return nil, fmt.Errorf("parent billing: read the schools: %w", err)
+	}
+	open, err := c.store.OpenCareRunSchools(ctx, organizationID, month)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]parentbilling.CareRunSchool, len(schools))
+	for i, school := range schools {
+		result[i] = parentbilling.CareRunSchool{ID: school.ID, Name: school.Name}
+		if runID, taken := open[school.ID]; taken {
+			result[i].OpenRunID = &runID
+		}
+	}
+	return result, nil
+}
+
+// checkInvoiceDate accepts an invoice date from the first day of the month
+// before the billed month to the last day of the month after it: a run in
+// advance, within the month (SJR: October on 30.10.) or right after it.
+func checkInvoiceDate(month calendar.Date, invoiceDate *calendar.Date) error {
+	if invoiceDate == nil {
+		return nil
+	}
+	earliest := firstOfMonth(month.AddDays(-1))
+	latest := monthEnd(monthEnd(month).AddDays(1))
+	if invoiceDate.IsZero() || invoiceDate.Before(earliest) || invoiceDate.After(latest) {
+		return validation.Errors{"invoice_date": fmt.Errorf("must lie between %s and %s", earliest, latest)}
+	}
+	return nil
+}
+
+// openRun locks a run of the Träger for a change of its review; a released
+// run is ErrBillingRunReleased. The lock orders it with the release.
+func (c *CareBilling) openRun(ctx context.Context, reviewer parentbilling.HolidayReviewer, runID int64) (parentbilling.CareRun, error) {
+	if err := validReviewer(reviewer); err != nil {
+		return parentbilling.CareRun{}, err
+	}
+	if runID <= 0 {
+		return parentbilling.CareRun{}, parentbilling.ErrCareRunNotFound
+	}
+	run, err := c.store.CareRun(ctx, reviewer.OrganizationID, runID, true)
+	if err != nil {
+		return parentbilling.CareRun{}, err
+	}
+	if run.Status != parentbilling.RunCalculated {
+		return parentbilling.CareRun{}, parentbilling.ErrBillingRunReleased
+	}
+	return run, nil
+}
+
+// SetCareRunInvoiceDate sets the invoice date of a calculated run; nil
+// takes the day of the release.
+func (c *CareBilling) SetCareRunInvoiceDate(ctx context.Context, reviewer parentbilling.HolidayReviewer, runID int64, invoiceDate *calendar.Date) (parentbilling.CareRunDetail, error) {
+	run, err := c.openRun(ctx, reviewer, runID)
+	if err != nil {
+		return parentbilling.CareRunDetail{}, err
+	}
+	if err := checkInvoiceDate(run.BillingMonth, invoiceDate); err != nil {
+		return parentbilling.CareRunDetail{}, err
+	}
+	if err := c.store.SetCareRunInvoiceDate(ctx, reviewer.OrganizationID, run.ID, invoiceDate); err != nil {
+		return parentbilling.CareRunDetail{}, err
+	}
+	var value any
+	if invoiceDate != nil {
+		value = invoiceDate.String()
+	}
+	if err := c.store.InsertCareRunEvent(ctx, reviewer.OrganizationID, run.ID, reviewer.AccountID, runEventInvoiceDate,
+		map[string]any{"invoice_date": value}); err != nil {
+		return parentbilling.CareRunDetail{}, fmt.Errorf("parent billing: record the invoice date: %w", err)
+	}
+	return c.CareRun(ctx, reviewer, run.ID)
+}
+
+// ExcludeCareInvoice leaves the invoice of a contract out of the release of
+// the run, with a reason. The contract comes back in the next run of the
+// month.
+func (c *CareBilling) ExcludeCareInvoice(ctx context.Context, reviewer parentbilling.HolidayReviewer, runID, contractID int64, reason string) (parentbilling.CareRunDetail, error) {
+	reason = strings.TrimSpace(reason)
+	switch {
+	case reason == "":
+		return parentbilling.CareRunDetail{}, validation.Errors{"reason": errors.New("is required")}
+	case len([]rune(reason)) > parentbilling.MaxExclusionReasonLength:
+		return parentbilling.CareRunDetail{}, validation.Errors{"reason": fmt.Errorf("must be at most %d characters", parentbilling.MaxExclusionReasonLength)}
+	}
+	run, err := c.openRun(ctx, reviewer, runID)
+	if err != nil {
+		return parentbilling.CareRunDetail{}, err
+	}
+	_, review, err := c.reviewed(ctx, reviewer.OrganizationID, run)
+	if err != nil {
+		return parentbilling.CareRunDetail{}, err
+	}
+	index := slices.IndexFunc(review.invoices, func(invoice parentbilling.CareInvoice) bool { return invoice.ContractID == contractID })
+	if index < 0 {
+		return parentbilling.CareRunDetail{}, parentbilling.ErrCareExclusionConflict
+	}
+	if err := c.store.InsertCareRunEvent(ctx, reviewer.OrganizationID, run.ID, reviewer.AccountID, runEventExclude,
+		map[string]any{"contract_ids": []int64{contractID}, "school_id": review.invoices[index].SchoolID, "reason": reason}); err != nil {
+		return parentbilling.CareRunDetail{}, fmt.Errorf("parent billing: record the exclusion: %w", err)
+	}
+	return c.CareRun(ctx, reviewer, run.ID)
+}
+
+// IncludeCareInvoice takes an excluded invoice back into the release.
+func (c *CareBilling) IncludeCareInvoice(ctx context.Context, reviewer parentbilling.HolidayReviewer, runID, contractID int64) (parentbilling.CareRunDetail, error) {
+	run, err := c.openRun(ctx, reviewer, runID)
+	if err != nil {
+		return parentbilling.CareRunDetail{}, err
+	}
+	exclusions, err := c.store.CareRunExclusions(ctx, reviewer.OrganizationID, run.ID)
+	if err != nil {
+		return parentbilling.CareRunDetail{}, err
+	}
+	if _, excluded := exclusions[contractID]; !excluded {
+		return parentbilling.CareRunDetail{}, parentbilling.ErrCareExclusionConflict
+	}
+	if err := c.store.InsertCareRunEvent(ctx, reviewer.OrganizationID, run.ID, reviewer.AccountID, runEventInclude,
+		map[string]any{"contract_ids": []int64{contractID}}); err != nil {
+		return parentbilling.CareRunDetail{}, fmt.Errorf("parent billing: record the return: %w", err)
+	}
+	return c.CareRun(ctx, reviewer, run.ID)
+}
+
+// reviewDetail fills the review of a calculated run into its detail: the
+// invoices the release issues, then the excluded ones, and the schools.
+func (c *CareBilling) reviewDetail(ctx context.Context, organizationID int64, detail *parentbilling.CareRunDetail) error {
+	rule, review, err := c.reviewed(ctx, organizationID, detail.CareRun)
+	if err != nil {
+		return err
+	}
+	detail.MonthRule, detail.Unpriced, detail.Billed = rule, review.unpriced, review.billed
+	detail.Duplicates = review.duplicates
+	detail.Invoices = append(review.invoices, review.excluded...)
+	detail.Fingerprint = review.fingerprint
+	for _, invoice := range review.excluded {
+		detail.ExcludedCount++
+		detail.ExcludedCents += invoice.TotalCents
+	}
+	schools, err := c.schools.TraegerSchools(ctx, organizationID)
+	if err != nil {
+		return fmt.Errorf("parent billing: read the schools: %w", err)
+	}
+	detail.Schools = []parentbilling.CareSchool{}
+	for _, school := range schools {
+		if slices.Contains(detail.SchoolIDs, school.ID) {
+			detail.Schools = append(detail.Schools, school)
+		}
+	}
+	return nil
+}
+
+func excludedContracts(invoices []parentbilling.CareInvoice) []int64 {
+	ids := make([]int64, len(invoices))
+	for i, invoice := range invoices {
+		ids[i] = invoice.ContractID
+	}
+	return ids
+}
+
+// issueReviewed checks the review again in the release's transaction (the
+// schools, the exclusions, the invoice date and every invoice must be what
+// the reviewer saw) and issues the invoices on the invoice date of the run,
+// or today without one. A run whose invoices are all excluded issues none
+// and takes no number.
+func (c *CareBilling) issueReviewed(ctx context.Context, organizationID int64, run parentbilling.CareRun,
+	release parentbilling.CareRelease,
+) (string, reviewedMonth, calendar.Date, error) {
+	rule, month, err := c.reviewed(ctx, organizationID, run)
+	if err != nil {
+		return "", reviewedMonth{}, "", err
+	}
+	if len(month.invoices) == 0 && len(month.excluded) == 0 {
+		return "", reviewedMonth{}, "", parentbilling.ErrBillingRunEmpty
+	}
+	if len(month.invoices) != release.DocumentCount || month.total() != release.TotalCents ||
+		month.fingerprint == "" || month.fingerprint != release.Fingerprint {
+		return "", reviewedMonth{}, "", parentbilling.ErrBillingRunChanged
+	}
+	issuedOn := c.today()
+	if run.InvoiceDate != nil {
+		issuedOn = *run.InvoiceDate
+	}
+	if len(month.invoices) == 0 {
+		return rule, month, issuedOn, nil
+	}
+	pattern, err := numberPatternOf(ctx, c.store, organizationID, parentbilling.ServiceCare)
+	if err != nil {
+		return "", reviewedMonth{}, "", err
+	}
+	if err := c.issue(ctx, organizationID, run, rule, pattern, issuedOn, month.invoices); err != nil {
+		return "", reviewedMonth{}, "", err
+	}
+	return rule, month, issuedOn, nil
+}

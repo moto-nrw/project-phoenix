@@ -71,6 +71,13 @@ type careRunBody struct {
 	Billed            int   `json:"billed"`
 	PreviewCount      int   `json:"preview_count"`
 	PreviewCents      int64 `json:"preview_cents"`
+	// The review of #5916.
+	SchoolIDs     []int64 `json:"school_ids"`
+	InvoiceDate   *string `json:"invoice_date"`
+	IssuedOn      *string `json:"issued_on"`
+	ExcludedCount int     `json:"excluded_count"`
+	ExcludedCents int64   `json:"excluded_cents"`
+	Fingerprint   string  `json:"fingerprint"`
 }
 
 type careService struct {
@@ -163,7 +170,7 @@ func careRunPath(id int64, suffix string) string {
 }
 
 func careRelease(run careRunBody) map[string]any {
-	return map[string]any{"document_count": run.PreviewCount, "total_cents": run.PreviewCents}
+	return map[string]any{"document_count": run.PreviewCount, "total_cents": run.PreviewCents, "fingerprint": run.Fingerprint}
 }
 
 // The monthly run bills the SJR example through the routes: one position per
