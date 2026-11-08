@@ -11,6 +11,7 @@ import { EditActions } from "~/components/ui/edit-actions";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FileTypeIcon } from "~/components/ui/file-type-icon";
 import { FormModal } from "~/components/ui/form-modal";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { Input } from "~/components/ui/input";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { formatBytes } from "~/lib/files-api";
@@ -141,7 +142,11 @@ export function TraegerDocumentUploadModal({
         }}
       >
         {file ? (
-          <div className="flex items-center gap-3 rounded-xl border border-gray-200 px-4 py-3">
+          <InsetPanel
+            tone="white"
+            padding="md"
+            className="flex items-center gap-3"
+          >
             <FileTypeIcon
               contentType={file.type}
               className="h-8 w-8 shrink-0 text-gray-500"
@@ -162,7 +167,7 @@ export function TraegerDocumentUploadModal({
             >
               Andere Datei
             </Button>
-          </div>
+          </InsetPanel>
         ) : (
           <Dropzone
             accept={TRAEGER_DOCUMENT_ACCEPT}
