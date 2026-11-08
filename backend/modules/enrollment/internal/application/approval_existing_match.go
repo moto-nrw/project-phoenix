@@ -45,6 +45,36 @@ func childAwaitsExistingChildChoice(phase *enrollmentNative.Phase, child *Reques
 		child.MatchedStudentID == nil && child.RolloverSourceChildID == nil && child.CreatedStudentID == nil
 }
 
+// isParentPin reports whether the child carries a pin an open or
+// linked_parents submission set through the parent's relationship (#6053):
+// not the office's choice and not a rollover descendant.
+func isParentPin(phase *enrollmentNative.Phase, child *RequestChild) bool {
+	return audienceChecksEnrolledChildren(phase) && child != nil &&
+		child.MatchedStudentID != nil && !child.MatchedByOffice && child.RolloverSourceChildID == nil
+}
+
+// parentPinLapsed reports whether a parent's pin lost its authority: the
+// request's identity no longer holds parent_portal.enrollment.submit on its
+// relationship to the pinned child, because the school removed or narrowed
+// it after the submission. The pin was authorized at submission only, so
+// every approval and every later edit asks again before it links guardians,
+// grants portal access, invites or applies form data. Without the
+// authorizer the pin counts as lapsed.
+func (d *Decisions) parentPinLapsed(ctx context.Context, request *Request, phase *enrollmentNative.Phase, child *RequestChild) (bool, error) {
+	if !isParentPin(phase, child) {
+		return false, nil
+	}
+	submitter, err := reEnrollmentSubmitterForPersistedRequest(ctx, d.deps.LateInvites, request)
+	if err != nil {
+		return false, fmt.Errorf("decision: resolve re-enrollment identity of child %d: %w", child.ID, err)
+	}
+	granted, err := submitterMayRenewStudent(ctx, d.deps.GuardianAuthorizer, submitter, *child.MatchedStudentID, request.TenantID)
+	if err != nil {
+		return false, fmt.Errorf("decision: verify relationship of child %d: %w", child.ID, err)
+	}
+	return !granted, nil
+}
+
 // existingChildCandidates lists the enrolled children that may be the
 // child. Without the directory port the check fails closed.
 func (d *Decisions) existingChildCandidates(ctx context.Context, child *RequestChild) ([]enrollmentNative.ExistingChildCandidate, error) {
@@ -86,38 +116,66 @@ func validateExistingChildChoice(input enrollmentNative.DecideInput) error {
 //     then pinned exactly like an existing_students match, so the approval
 //     renews it — under the same phase-wide uniqueness guard;
 //   - no choice approves a fresh child only while no candidate exists.
+//
+// A parent's pin whose relationship authority lapsed since the submission
+// (parentPinLapsed) settles nothing: the child asks the office like an
+// unpinned one, and approval without a choice is refused even when no
+// candidate is left, because the stale pin must never reach the renewal
+// that links the family. "create new" drops the pin; "use existing" replaces
+// it with the office's enrollment-only pin.
 func (d *Decisions) resolveExistingChildChoice(ctx context.Context, target *decisionTarget, phase *enrollmentNative.Phase, input enrollmentNative.DecideInput) error {
 	if input.Status != enrollmentNative.DecisionApproved {
 		return nil
 	}
 	child := target.child
-	if !childAwaitsExistingChildChoice(phase, child) {
+	lapsed, err := d.parentPinLapsed(ctx, target.request, phase, child)
+	if err != nil {
+		return err
+	}
+	if !lapsed && !childAwaitsExistingChildChoice(phase, child) {
 		if input.ExistingStudentID != nil || input.CreateNewStudent {
 			return fmt.Errorf("%w: child %d needs no choice", enrollmentNative.ErrExistingChildChoiceInvalid, child.ID)
 		}
 		return nil
 	}
+	if lapsed {
+		d.logger().Info("decision: parent pin lost its relationship authority, asking the office",
+			slog.Int64("request_child_id", child.ID),
+			slog.Int64("student_id", *child.MatchedStudentID),
+		)
+	}
 	if input.CreateNewStudent {
 		d.logger().Info("decision: office chose a new child despite possible enrolled match",
 			slog.Int64("request_child_id", child.ID),
 		)
+		if lapsed {
+			return d.dropLapsedPin(ctx, target)
+		}
 		return nil
 	}
+	return d.applyEnrolledChildChoice(ctx, target, phase, input.ExistingStudentID, lapsed)
+}
+
+// applyEnrolledChildChoice handles an approval that asks the office and did
+// not choose a new child: without a choice it is refused while a candidate
+// exists or the parent pin lapsed; a chosen candidate is pinned for an
+// enrollment-only renewal.
+func (d *Decisions) applyEnrolledChildChoice(ctx context.Context, target *decisionTarget, phase *enrollmentNative.Phase, chosen *int64, lapsed bool) error {
+	child := target.child
 	candidates, err := d.existingChildCandidates(ctx, child)
 	if err != nil {
 		return err
 	}
-	if input.ExistingStudentID == nil {
-		if len(candidates) > 0 {
+	if chosen == nil {
+		if lapsed || len(candidates) > 0 {
 			return fmt.Errorf("%w: child %d has %d candidates", enrollmentNative.ErrChildPossiblyEnrolled, child.ID, len(candidates))
 		}
 		return nil
 	}
-	studentID := *input.ExistingStudentID
-	if !hasCandidate(candidates, studentID) {
-		return fmt.Errorf("%w: student %d is no candidate of child %d", enrollmentNative.ErrExistingChildChoiceInvalid, studentID, child.ID)
+	if !hasCandidate(candidates, *chosen) {
+		return fmt.Errorf("%w: student %d is no candidate of child %d", enrollmentNative.ErrExistingChildChoiceInvalid, *chosen, child.ID)
 	}
-	return d.pinChosenStudent(ctx, target, phase, studentID)
+	return d.pinChosenStudent(ctx, target, phase, *chosen)
 }
 
 // pinChosenStudent pins the office's chosen student on the child, after the
@@ -148,6 +206,35 @@ func (d *Decisions) pinChosenStudent(ctx context.Context, target *decisionTarget
 	return nil
 }
 
+// childAsksTheOffice reports whether the open child's approval needs the
+// office's choice: no pin settles it yet, or its parent pin lapsed.
+func (d *Decisions) childAsksTheOffice(ctx context.Context, request *Request, phase *enrollmentNative.Phase, child *RequestChild) (bool, error) {
+	if (&enrollmentNative.RequestChild{Status: child.Status}).IsTerminal() {
+		return false, nil
+	}
+	if childAwaitsExistingChildChoice(phase, child) {
+		return true, nil
+	}
+	if child.CreatedStudentID != nil {
+		return false, nil
+	}
+	return d.parentPinLapsed(ctx, request, phase, child)
+}
+
+// dropLapsedPin clears a lapsed parent pin before the office's "create new"
+// approval, so the child is created fresh and no later step reads the pin.
+func (d *Decisions) dropLapsedPin(ctx context.Context, target *decisionTarget) error {
+	child := target.child
+	if err := d.deps.Children.UpdateMatchedStudent(ctx, child.ID, nil); err != nil {
+		return fmt.Errorf("decision: drop lapsed pin of child %d: %w", child.ID, err)
+	}
+	child.MatchedStudentID, child.MatchedByOffice = nil, false
+	if target.raw != nil {
+		target.raw.MatchedStudentID, target.raw.MatchedByOffice = nil, false
+	}
+	return nil
+}
+
 func hasCandidate(candidates []enrollmentNative.ExistingChildCandidate, studentID int64) bool {
 	for _, candidate := range candidates {
 		if candidate.StudentID == studentID {
@@ -158,9 +245,10 @@ func hasCandidate(candidates []enrollmentNative.ExistingChildCandidate, studentI
 }
 
 // attachExistingChildCandidates fills the detail read's candidates of every
-// child whose approval still asks the office.
-func (d *Decisions) attachExistingChildCandidates(ctx context.Context, summary *enrollmentNative.DecisionSummary) error {
-	if summary == nil || !audienceChecksEnrolledChildren(summary.Phase) {
+// child whose approval still asks the office, including a child whose
+// parent pin lapsed.
+func (d *Decisions) attachExistingChildCandidates(ctx context.Context, request *Request, summary *enrollmentNative.DecisionSummary) error {
+	if summary == nil || request == nil || !audienceChecksEnrolledChildren(summary.Phase) {
 		return nil
 	}
 	children, err := childValues(summary.Children)
@@ -168,8 +256,11 @@ func (d *Decisions) attachExistingChildCandidates(ctx context.Context, summary *
 		return err
 	}
 	for _, child := range children {
-		if !childAwaitsExistingChildChoice(summary.Phase, child) ||
-			(&enrollmentNative.RequestChild{Status: child.Status}).IsTerminal() {
+		asks, err := d.childAsksTheOffice(ctx, request, summary.Phase, child)
+		if err != nil {
+			return err
+		}
+		if !asks {
 			continue
 		}
 		candidates, err := d.existingChildCandidates(ctx, child)

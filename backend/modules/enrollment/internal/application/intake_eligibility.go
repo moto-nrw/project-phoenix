@@ -238,26 +238,10 @@ func reEnrollmentSubmitterForPersistedRequest(ctx context.Context, lateInvites D
 // manual enrollment is the one bypass. It fails closed without an authorizer
 // or without any identity.
 func (s *Intake) assertGuardianMayReEnrollStudent(ctx context.Context, submitter reEnrollmentSubmitter, matchedStudentID *int64, tenantID int64, childIndex int) error {
-	if matchedStudentID == nil || submitter.AdminManaged {
+	if matchedStudentID == nil {
 		return nil
 	}
-	if s.deps.GuardianAuthorizer == nil {
-		return fmt.Errorf("%w: child %d", enrollmentNative.ErrChildEnrollmentNotPermitted, childIndex)
-	}
-	var (
-		granted bool
-		err     error
-	)
-	switch {
-	case submitter.GuardianAccountID != nil:
-		granted, err = s.deps.GuardianAuthorizer.AccountHasStudentPermission(ctx, *submitter.GuardianAccountID,
-			*matchedStudentID, tenantID, guardianPermissionEnrollmentSubmit)
-	case submitter.GuardianEmail != "":
-		granted, err = s.deps.GuardianAuthorizer.GuardianEmailHasStudentPermission(ctx, submitter.GuardianEmail,
-			*matchedStudentID, tenantID, guardianPermissionEnrollmentSubmit)
-	default:
-		return fmt.Errorf("%w: child %d", enrollmentNative.ErrChildEnrollmentNotPermitted, childIndex)
-	}
+	granted, err := submitterMayRenewStudent(ctx, s.deps.GuardianAuthorizer, submitter, *matchedStudentID, tenantID)
 	if err != nil {
 		return fmt.Errorf("submit: verify guardian re-enrollment permission for child %d: %w", childIndex, err)
 	}
@@ -265,6 +249,31 @@ func (s *Intake) assertGuardianMayReEnrollStudent(ctx context.Context, submitter
 		return fmt.Errorf("%w: child %d", enrollmentNative.ErrChildEnrollmentNotPermitted, childIndex)
 	}
 	return nil
+}
+
+// submitterMayRenewStudent reports whether the request identity holds
+// parent_portal.enrollment.submit on its own relationship to the student in
+// the tenant now. Staff manual enrollment is the one bypass. It answers false
+// without an authorizer or without any identity. Submission and every later
+// use of a parent's pin ask the same question, since the school can remove
+// the relationship in between (#6053).
+func submitterMayRenewStudent(ctx context.Context, authorizer GuardianStudentAuthorizer, submitter reEnrollmentSubmitter, studentID, tenantID int64) (bool, error) {
+	if submitter.AdminManaged {
+		return true, nil
+	}
+	if authorizer == nil {
+		return false, nil
+	}
+	switch {
+	case submitter.GuardianAccountID != nil:
+		return authorizer.AccountHasStudentPermission(ctx, *submitter.GuardianAccountID,
+			studentID, tenantID, guardianPermissionEnrollmentSubmit)
+	case submitter.GuardianEmail != "":
+		return authorizer.GuardianEmailHasStudentPermission(ctx, submitter.GuardianEmail,
+			studentID, tenantID, guardianPermissionEnrollmentSubmit)
+	default:
+		return false, nil
+	}
 }
 
 // resolveEnrolledChildPin pins the enrolled student an open or

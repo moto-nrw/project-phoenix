@@ -70,7 +70,10 @@ func (d *Decisions) applyApproval(
 		// syncTargetedFields=true: an existing_students submission is a full
 		// parent form, so the submitted targeted fields must land on the
 		// matched student — unlike the annual rollover, which carries no fresh
-		// form (#1663).
+		// form (#1663). An open or linked_parents parent pin only reaches
+		// this branch after resolveExistingChildChoice re-checked the
+		// relationship authority in this transaction; a lapsed pin is
+		// refused or replaced by the office's choice before (#6053).
 		return d.attachApprovalToExistingStudent(ctx, request, child, phase, *child.MatchedStudentID, reviewedBy, true)
 	}
 	return d.approveNewStudent(ctx, request, child, phase, reviewedBy)

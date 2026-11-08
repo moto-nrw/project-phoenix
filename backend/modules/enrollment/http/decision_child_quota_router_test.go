@@ -64,6 +64,7 @@ func matchExistingStudent(t *testing.T, db *bun.DB, harness offeringGuardHarness
 		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).Exec(harness.ctx)
 	require.NoError(t, err)
 	require.NoError(t, testpkg.TenantCommand2(t, harness.ctx, testpkg.SetupTestDB(t), harness.repos.Enrollment().UpdateMatchedStudent, harness.childID, &student.ID))
+	markExistingStudentsPhase(t, db, harness.ctx, harness.childID)
 	return student
 }
 

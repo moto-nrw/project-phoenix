@@ -127,7 +127,7 @@ func newParentInvitationDecisions(repos api.EnrollmentTestRepositories, reposCar
 		Offerings:      enrollmentCompose.NewCareOfferingRecords(reposCare.CarePlan),
 		Notifications:  NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: parentInvitationSettings()}, discardingOutbox{}, nil),
 		Bookings:       bookings,
-		GuardianAccess: guardianAccess,
+		GuardianAccess: guardianAccess, GuardianAuthorizer: repos.StudentGuardian,
 		People: owners.EnrollmentDecisionPeopleDirectory(
 			repos.Person, repos.Staff, repos.Student, repos.StudentGuardian, repos.GuardianProfile, repos.GuardianPhoneNumber, studentEnrollment,
 		),

@@ -60,15 +60,8 @@ func (d *Decisions) SyncApprovedChildData(ctx context.Context, input enrollmentN
 	if err := d.loadApprovedChildForSync(ctx, run); err != nil {
 		return nil, err
 	}
-	// An office match renews enrollment only (#6053). Later edits must keep
-	// the student's master data, guardians and form data untouched too.
-	if !run.child.MatchedByOffice {
-		if err := d.syncApprovedChildStudent(ctx, run); err != nil {
-			return nil, err
-		}
-		if err := d.syncApprovedChildGuardians(ctx, run); err != nil {
-			return nil, err
-		}
+	if err := d.syncApprovedChildRecords(ctx, run); err != nil {
+		return nil, err
 	}
 	child, err := d.deps.Children.ChildByID(ctx, run.child.ID)
 	if err == nil {
@@ -78,6 +71,40 @@ func (d *Decisions) SyncApprovedChildData(ctx context.Context, input enrollmentN
 		return nil, err
 	}
 	return child, nil
+}
+
+// syncApprovedChildRecords carries the edit onto the student's master data,
+// guardians and form data. An office match renews enrollment only (#6053), so
+// later edits keep all of them untouched too; so does an edit of a parent pin
+// whose relationship the school removed since, as the pin no longer
+// authorizes the family.
+func (d *Decisions) syncApprovedChildRecords(ctx context.Context, run *approvedChildSync) error {
+	enrollmentOnly, err := d.approvedChildEnrollmentOnly(ctx, run)
+	if err != nil || enrollmentOnly {
+		return err
+	}
+	if err := d.syncApprovedChildStudent(ctx, run); err != nil {
+		return err
+	}
+	return d.syncApprovedChildGuardians(ctx, run)
+}
+
+// approvedChildEnrollmentOnly reports whether a confirmed edit leaves the
+// student's master data, guardians and form data alone: for an office match,
+// and for a parent pin of an open or linked_parents phase whose relationship
+// authority lapsed after the approval.
+func (d *Decisions) approvedChildEnrollmentOnly(ctx context.Context, run *approvedChildSync) (bool, error) {
+	if run.child.MatchedByOffice {
+		return true, nil
+	}
+	if run.child.MatchedStudentID == nil || run.child.RolloverSourceChildID != nil {
+		return false, nil
+	}
+	phase, err := d.deps.Phases.Phase(ctx, run.request.PhaseID)
+	if err != nil {
+		return false, fmt.Errorf("decision: load phase for approved child sync: %w", err)
+	}
+	return d.parentPinLapsed(ctx, run.request, phase, run.child)
 }
 
 func (d *Decisions) loadApprovedChildForSync(ctx context.Context, run *approvedChildSync) error {

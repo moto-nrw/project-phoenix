@@ -137,8 +137,9 @@ func filterSummaryChildren(summary *enrollmentNative.DecisionSummary, studentID 
 func (d *Decisions) DecisionRequest(ctx context.Context, requestID int64) (publicResult *enrollmentNative.DecisionSummary, publicErr error) {
 	defer func() { publicErr = PublicError(publicErr) }()
 	req, err := d.deps.Requests.RequestByID(ctx, requestID, false)
+	var decoded *Request
 	if err == nil {
-		_, err = requestValue(req)
+		decoded, err = requestValue(req)
 	}
 	if err != nil {
 		return nil, careplan.ErrBookingRequestNotFound
@@ -149,7 +150,7 @@ func (d *Decisions) DecisionRequest(ctx context.Context, requestID int64) (publi
 	}
 	// Best effort: the detail still renders without the candidates, and the
 	// approval itself re-checks them and fails closed (#6053).
-	if err := d.attachExistingChildCandidates(ctx, summary); err != nil {
+	if err := d.attachExistingChildCandidates(ctx, decoded, summary); err != nil {
 		d.logger().Warn("decision: enrolled-child candidates unavailable",
 			slog.Int64("request_id", requestID),
 			slog.String("error", err.Error()),

@@ -99,7 +99,7 @@ func BuildEnrollmentDecisions(
 		Companions:        EnrollmentDecisionCompanions(NewStudentCompanionRepository(carePlan), carePlan.DeleteCompanionEdges),
 		PickupSchedules:   arrivalTimetable.NewEnrollmentPickupSchedules(careRows.PickupSchedules),
 		ArrivalSchedules:  arrivalTimetable.NewEnrollmentArrivalSchedules(careRows.ArrivalSchedules),
-		Bookings:          offerings.Bookings, GuardianAccess: identity,
+		Bookings:          offerings.Bookings, GuardianAccess: identity, GuardianAuthorizer: people.StudentGuardians,
 		StudentAudit:           EnrollmentDecisionStudentAudit(services.StudentAudit),
 		StudentConsents:        EnrollmentDecisionStudentConsents(services.StudentConsents),
 		CareWithdrawal:         schedules.Lifecycle,

@@ -297,7 +297,7 @@ func newOfferingGuardDecisions(repos api.EnrollmentTestRepositories, reposCare o
 		Offerings:      enrollmentCompose.NewCareOfferingRecords(reposCare.CarePlan),
 		Notifications:  NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: offeringGuardSettings(offeringsEnabled)}, discardingOutbox{}, nil),
 		Bookings:       bookings,
-		GuardianAccess: guardianAccess,
+		GuardianAccess: guardianAccess, GuardianAuthorizer: repos.StudentGuardian,
 		People: owners.EnrollmentDecisionPeopleDirectory(
 			repos.Person, repos.Staff, repos.Student, repos.StudentGuardian, repos.GuardianProfile, repos.GuardianPhoneNumber, studentEnrollment,
 		),
