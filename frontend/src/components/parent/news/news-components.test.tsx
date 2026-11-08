@@ -191,6 +191,21 @@ describe("Umfrage answering in the detail view", () => {
     ).toBeDisabled();
   });
 
+  it("dims the complete short poll card when the poll is closed", () => {
+    render(
+      <NewsDetailModal
+        item={poll({ response_deadline: "2020-01-01T00:00:00Z" })}
+        onClose={vi.fn()}
+        onUpdated={vi.fn()}
+      />,
+    );
+
+    const answer = screen.getByRole("radio", { name: "Ja" });
+    const fieldset = answer.closest("fieldset");
+    expect(fieldset).toBeDisabled();
+    expect(fieldset?.closest("section")).toHaveClass("opacity-60");
+  });
+
   it("withdraws a saved single-choice answer through an explicit action", async () => {
     const respond = vi
       .spyOn(parentApi, "respondToAnnouncement")

@@ -631,12 +631,10 @@ function PollChildCard({
   long: boolean;
 }>) {
   const status = usePollChildStatus(poll, child);
+  const disabled = poll.closed || poll.saving;
   return (
-    <SectionCard>
-      <fieldset
-        disabled={poll.closed || poll.saving}
-        className="disabled:opacity-60"
-      >
+    <SectionCard className={disabled ? "opacity-60" : ""}>
+      <fieldset disabled={disabled}>
         <legend className="mb-3 w-full">
           <span className="flex items-center justify-between gap-3">
             <span className="min-w-0 truncate text-base font-semibold text-gray-900">

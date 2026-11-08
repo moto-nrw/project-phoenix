@@ -181,6 +181,7 @@ function SchoolCard({
       titleClassName="break-words"
       leading={<ConceptIconTile concept={schoolsConcept} size="page" />}
       flush
+      bodyClassName=""
     >
       <ul className="divide-y divide-gray-100 border-t border-gray-100">
         {group.phases.map((phase) => (
