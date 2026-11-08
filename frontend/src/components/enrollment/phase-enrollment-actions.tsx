@@ -12,6 +12,8 @@ import {
   createLateInvite,
   createManualApprovedEnrollment,
   fetchManualEnrollmentBootstrap,
+  type AdminExistingChildCandidate,
+  type ExistingChildChoice,
 } from "~/lib/enrollment-admin-api";
 import type {
   SubmitEnrollmentPayload,
@@ -21,6 +23,7 @@ import type { Phase } from "~/lib/enrollment-phase-api";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
+import { ChoiceModal } from "~/components/ui/choice-modal";
 import {
   FormErrorAlert,
   LoadErrorAlert,
@@ -41,6 +44,11 @@ import {
   type EnrollmentFormPrefetchedData,
 } from "~/components/enrollment/enrollment-form-config";
 import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
+import {
+  existingChildChoiceDescription,
+  existingChildChoiceOptions,
+  sendWithExistingChildChoice,
+} from "~/components/enrollment/existing-child-choice";
 import {
   type CareOfferingBookingStats,
   fetchCareOfferingBookingStats,
@@ -210,6 +218,16 @@ export function ManualApprovedEnrollmentModal({
     useState(false);
   const [sendNotification, setSendNotification] = useState(false);
   const [statusUrl, setStatusUrl] = useState("");
+  // Whether the saved enrollment renewed an enrolled child (#6148).
+  const [renewedChildName, setRenewedChildName] = useState<string | null>(null);
+  // The open question „Ist das Kind schon angemeldet?“ and the answer the
+  // waiting submission resumes with.
+  const [existingChildQuestion, setExistingChildQuestion] = useState<{
+    firstName: string;
+    lastName: string;
+    candidates: AdminExistingChildCandidate[];
+    answer: (choice: ExistingChildChoice | null) => void;
+  } | null>(null);
   const [loading, setLoading] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const loadError = useApiLoadError();
@@ -232,6 +250,7 @@ export function ManualApprovedEnrollmentModal({
     setExternalConsentConfirmed(false);
     setSendNotification(false);
     setStatusUrl("");
+    setRenewedChildName(null);
     clearLoadError();
     clearChecks();
     setLoading(true);
@@ -296,14 +315,48 @@ export function ManualApprovedEnrollmentModal({
       return null;
     }
     checks.clear();
-    const result = await createManualApprovedEnrollment(phase.id, {
-      ...payload,
-      external_consent_confirmed: true,
-      reason: trimmedReason,
-      send_notification: sendNotification,
-    });
-    setStatusUrl(result.status_url);
-    return result;
+    setRenewedChildName(null);
+    const child = payload.children[0];
+    const result = await sendWithExistingChildChoice(
+      (choice) =>
+        createManualApprovedEnrollment(phase.id, {
+          ...payload,
+          external_consent_confirmed: true,
+          reason: trimmedReason,
+          send_notification: sendNotification,
+          ...(choice && "existingStudentId" in choice
+            ? { existing_student_id: choice.existingStudentId }
+            : {}),
+          ...(choice && "createNewStudent" in choice
+            ? { create_new_student: true as const }
+            : {}),
+        }).then((created) => ({ created, choice })),
+      // The form keeps its send button busy until the office answers.
+      (candidates) =>
+        new Promise<ExistingChildChoice | null>((resolve) => {
+          setExistingChildQuestion({
+            firstName: child?.first_name ?? "",
+            lastName: child?.last_name ?? "",
+            candidates,
+            answer: resolve,
+          });
+        }),
+    );
+    if (!result) return null;
+    const renewed =
+      result.choice !== undefined && "existingStudentId" in result.choice;
+    setRenewedChildName(
+      renewed
+        ? `${child?.first_name ?? ""} ${child?.last_name ?? ""}`.trim()
+        : null,
+    );
+    setStatusUrl(result.created.status_url);
+    return result.created;
+  };
+
+  const answerExistingChildQuestion = (choice: ExistingChildChoice | null) => {
+    existingChildQuestion?.answer(choice);
+    setExistingChildQuestion(null);
   };
 
   return (
@@ -328,7 +381,11 @@ export function ManualApprovedEnrollmentModal({
           {statusUrl ? (
             <Alert
               type="success"
-              message="Die manuelle Anmeldung wurde angelegt und freigegeben."
+              message={
+                renewedChildName
+                  ? `Die Anmeldung von ${renewedChildName} wurde verlängert. Es wurde kein neues Kind angelegt.`
+                  : "Die manuelle Anmeldung wurde angelegt und freigegeben."
+              }
               actionLayout="stacked"
               action={
                 <div className="flex items-center gap-2">
@@ -410,6 +467,30 @@ export function ManualApprovedEnrollmentModal({
           ) : null}
         </div>
       </SlideOverContent>
+      {existingChildQuestion ? (
+        <ChoiceModal
+          isOpen
+          title="Ist das Kind schon angemeldet?"
+          description={existingChildChoiceDescription({
+            first_name: existingChildQuestion.firstName,
+            last_name: existingChildQuestion.lastName,
+            possible_existing_children: existingChildQuestion.candidates,
+          })}
+          options={existingChildChoiceOptions({
+            first_name: existingChildQuestion.firstName,
+            last_name: existingChildQuestion.lastName,
+            possible_existing_children: existingChildQuestion.candidates,
+          })}
+          onClose={() => answerExistingChildQuestion(null)}
+          onSelect={(value) =>
+            answerExistingChildQuestion(
+              value === "new"
+                ? { createNewStudent: true }
+                : { existingStudentId: value },
+            )
+          }
+        />
+      ) : null}
     </SlideOver>
   );
 }

@@ -147,7 +147,7 @@ export interface CorrectAdminChildDataInput {
 }
 
 /** An enrolled child that may be the child of an enrollment (#6053). */
-interface AdminExistingChildCandidate {
+export interface AdminExistingChildCandidate {
   student_id: string;
   first_name: string;
   last_name: string;
@@ -613,6 +613,9 @@ export interface CreateManualApprovedEnrollmentInput extends SubmitEnrollmentPay
   external_consent_confirmed: boolean;
   reason: string;
   send_notification: boolean;
+  /** The office's answer when the child may already be enrolled (#6148). */
+  existing_student_id?: string;
+  create_new_student?: true;
 }
 
 export async function createManualApprovedEnrollment(

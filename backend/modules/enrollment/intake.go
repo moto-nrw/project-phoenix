@@ -152,6 +152,11 @@ type ManualApprovedEnrollmentInput struct {
 	Reason           string
 	SendNotification bool
 	ActorID          int64
+	// ExistingStudentID and CreateNewStudent are the office's answer when
+	// the child may already be enrolled (#6148), passed to the approval as
+	// in DecideInput.
+	ExistingStudentID *int64
+	CreateNewStudent  bool
 }
 
 // ManualApprovedEnrollmentResult is the created request, the approved child

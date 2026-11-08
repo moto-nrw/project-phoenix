@@ -204,7 +204,7 @@ func (d *Decisions) applyEnrolledChildChoice(ctx context.Context, target *decisi
 	}
 	if chosen == nil {
 		if lapsed || len(candidates) > 0 {
-			return fmt.Errorf("%w: child %d has %d candidates", enrollmentNative.ErrChildPossiblyEnrolled, child.ID, len(candidates))
+			return enrollmentNative.NewChildPossiblyEnrolledError(fmt.Sprintf("child %d has %d candidates", child.ID, len(candidates)), candidates)
 		}
 		return nil
 	}
