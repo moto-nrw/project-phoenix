@@ -81,7 +81,7 @@ function ShareStatus({ share }: Readonly<{ share: CareCostShare }>) {
 function ShareCell({ share }: Readonly<{ share: CareCostShare }>) {
   return (
     <div className="min-w-0">
-      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-900">
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-900 max-sm:justify-end">
         <span className="font-medium wrap-anywhere">
           {share.costBearerName}
         </span>
@@ -229,6 +229,7 @@ export default function TraegerKostentraegerPage() {
       key: "actions",
       header: "",
       align: "right",
+      stacked: "meta",
       className: "w-12 align-top",
       render: (contract) => (
         <OverflowMenu
