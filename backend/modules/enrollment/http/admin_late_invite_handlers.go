@@ -159,7 +159,7 @@ func (rs *Resource) createManualApprovedEnrollment(w http.ResponseWriter, r *htt
 			return createErr
 		}
 		result = out
-		return rs.enqueueDecisionInvite(ctx, out.PendingInvite)
+		return nil
 	})
 	if err != nil {
 		rs.mapManualEnrollmentError(w, r, err)

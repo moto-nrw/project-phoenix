@@ -105,7 +105,8 @@ func (s *Intake) findLateInviteForSubmit(ctx context.Context, token string, phas
 
 // CreateManualApprovedEnrollment submits a staff-created enrollment
 // (rate-limit skipped, closed window allowed, submission mails suppressed,
-// source admin_manual) and approves it in the caller's transaction.
+// source admin_manual) and approves it in the caller's transaction, with the
+// guardian invitation the approval owes.
 func (s *Intake) CreateManualApprovedEnrollment(ctx context.Context, input enrollment.ManualApprovedEnrollmentInput) (*enrollment.ManualApprovedEnrollmentResult, error) {
 	result, err := s.createManualApprovedEnrollment(ctx, input)
 	return result, publicError(err)
@@ -135,7 +136,7 @@ func (s *Intake) createManualApprovedEnrollment(ctx context.Context, input enrol
 	if len(submitted.Children) != 1 {
 		return nil, errors.New("manual approved enrollment produced " + strconv.Itoa(len(submitted.Children)) + " children")
 	}
-	decided, err := s.deps.ManualDecider.Decide(ctx, enrollment.DecideInput{
+	decided, err := s.deps.ManualDecider.DecideAndInvite(ctx, enrollment.DecideInput{
 		RequestID: submitted.Request.ID, ChildID: submitted.Children[0].ID, Status: enrollment.DecisionApproved,
 		Reason: input.Reason, ReviewedBy: input.ActorID,
 		SuppressParentEmail: !input.SendNotification, SuppressGuardianInvitation: !input.SendNotification,
@@ -148,7 +149,7 @@ func (s *Intake) createManualApprovedEnrollment(ctx context.Context, input enrol
 		return nil, err
 	}
 	return &enrollment.ManualApprovedEnrollmentResult{
-		Request: request, Child: decided.Child, StatusURL: submitted.StatusURL, PendingInvite: decided.PendingInvite,
+		Request: request, Child: decided.Child, StatusURL: submitted.StatusURL,
 	}, nil
 }
 

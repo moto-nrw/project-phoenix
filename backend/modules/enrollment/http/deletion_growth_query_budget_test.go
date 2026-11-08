@@ -21,7 +21,7 @@ func TestEnrollmentDeletionRouteGrowthQueryBudget(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
 	f := newDeletionTestFixture(t, db, "growth")
-	resource := enrollmentHTTP.NewResource(nil, nil, nil, nil, nil, nil, nil, nil, nil, f.service(nil, nil), enrollmentHTTP.GuardianInvitationRuntime{}, nil, nil, uploads.UploadFiles{}, enrollmentHTTP.DatabaseFailures{Transient: failures.IsTransientDatabaseError, Constraint: failures.IsConstraintViolation})
+	resource := enrollmentHTTP.NewResource(nil, nil, nil, nil, nil, nil, nil, nil, nil, f.service(nil, nil), nil, nil, uploads.UploadFiles{}, enrollmentHTTP.DatabaseFailures{Transient: failures.IsTransientDatabaseError, Constraint: failures.IsConstraintViolation})
 	router := testpkg.TenantRuntimeMiddleware(t, db)(resource.Router(api.TenantSessionChain))
 	account := testpkg.CreateTestAccount(t, db, "deletion-growth-reader")
 	token := testutil.MintTestJWT(t, sessiontoken.AppClaims{ID: int(account.ID), Sub: account.Email, Username: account.Email, TenantID: f.scope.TenantID, Roles: []string{"admin"}, Permissions: []string{"config:manage"}})

@@ -36,7 +36,6 @@ type Resource struct {
 	RolloverService      RolloverService
 	ChangeRequestService ChangeRequestService
 	DeletionService      EnrollmentDeletionService
-	GuardianInvitations  GuardianInvitationRuntime
 	GuardianProfiles     GuardianProfiles
 	SchoolService        SchoolDirectory
 	// ListExportService renders the compact per-phase registration
@@ -71,7 +70,6 @@ func NewResource(
 	rolloverSvc RolloverService,
 	changeRequestSvc ChangeRequestService,
 	deletionSvc EnrollmentDeletionService,
-	guardianInvitations GuardianInvitationRuntime,
 	guardianProfiles GuardianProfiles,
 	schoolService SchoolDirectory,
 	uploads common.UploadStorage,
@@ -97,7 +95,6 @@ func NewResource(
 		RolloverService:      rolloverSvc,
 		ChangeRequestService: changeRequestSvc,
 		DeletionService:      deletionSvc,
-		GuardianInvitations:  guardianInvitations,
 		GuardianProfiles:     guardianProfiles,
 		SchoolService:        schoolService,
 		transactions:         true,

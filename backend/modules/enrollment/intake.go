@@ -154,13 +154,13 @@ type ManualApprovedEnrollmentInput struct {
 	ActorID          int64
 }
 
-// ManualApprovedEnrollmentResult is the created request, the approved child,
-// its status link and the guardian invitation the approval owes.
+// ManualApprovedEnrollmentResult is the created request, the approved child
+// and its status link. The approval's guardian invitation is already created
+// in the same transaction.
 type ManualApprovedEnrollmentResult struct {
-	Request       *Request
-	Child         *RequestChild
-	StatusURL     string
-	PendingInvite *PendingGuardianInvite
+	Request   *Request
+	Child     *RequestChild
+	StatusURL string
 }
 
 // LegalTexts bundles the per-tenant legal texts of the public enrollment

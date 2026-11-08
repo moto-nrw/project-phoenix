@@ -31,8 +31,9 @@ type ChildOfferingsUpdate struct {
 	RosterImpact RosterImpact
 }
 
-// DecideOutcome is the refreshed child plus the post-commit guardian
-// invitation an approval owes.
+// DecideOutcome is the refreshed child plus the guardian invitation an
+// approval owes, which the caller must create in the same transaction. The
+// decide route uses DecisionCommand instead, which creates it (#6093).
 type DecideOutcome struct {
 	Child         *RequestChild
 	PendingInvite *PendingGuardianInvite
@@ -101,6 +102,9 @@ type ExportChildRow struct {
 type DecisionService interface {
 	// RequestReads is the caller's read state of the queue (#3778).
 	capability.RequestReads
+	// DecisionCommand is the owner's decision with the guardian invitation
+	// an approval owes (#6093); its outcome carries the owner's child.
+	capability.DecisionCommand
 	List(ctx context.Context, filters RequestFilters) ([]*RequestSummary, error)
 	ListByStudent(ctx context.Context, studentID int64) ([]*RequestSummary, error)
 	Get(ctx context.Context, requestID int64) (*RequestSummary, error)
@@ -120,10 +124,13 @@ func NewDecisionService(owner capability.Decisions) DecisionService {
 	if owner == nil {
 		return nil
 	}
-	return decisionService{owner: owner}
+	return decisionService{owner: owner, DecisionCommand: owner}
 }
 
-type decisionService struct{ owner capability.Decisions }
+type decisionService struct {
+	owner capability.Decisions
+	capability.DecisionCommand
+}
 
 func (c decisionService) CountUnreadRequests(ctx context.Context, accountID int64) (int, error) {
 	return c.owner.CountUnreadRequests(ctx, accountID)
