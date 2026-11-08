@@ -556,7 +556,7 @@ func (c *CareBilling) detail(ctx context.Context, reviewer parentbilling.Holiday
 		if err != nil {
 			return parentbilling.CareRunDetail{}, err
 		}
-		detail.DueDates = payments.run.List()
+		detail.DueDates = payments.run.InPaymentOrder()
 	} else {
 		rule, month, err := c.preview(ctx, reviewer.OrganizationID, run)
 		if err != nil {
@@ -564,7 +564,7 @@ func (c *CareBilling) detail(ctx context.Context, reviewer parentbilling.Holiday
 		}
 		detail.MonthRule, detail.Invoices, detail.Unpriced, detail.Billed = rule, month.invoices, month.unpriced, month.billed
 		detail.Duplicates = month.duplicates
-		detail.DueDates = month.dueDates.List()
+		detail.DueDates = month.dueDates.InPaymentOrder()
 	}
 	detail.DuplicateChildren = duplicateChildren(detail.Duplicates)
 	for _, invoice := range detail.Invoices {

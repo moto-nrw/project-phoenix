@@ -210,10 +210,12 @@ func overviewColumns(documents []parentbilling.BillingDocument) []ExportColumn {
 	if address {
 		columns = append(columns, billingRunAddressColumns...)
 	}
+	columns = append(columns, billingRunOverviewColumns[2:]...)
 	if paid {
+		// After the amount, so the columns before keep their places (#4689).
 		columns = append(columns, billingRunPaymentColumns...)
 	}
-	return append(columns, billingRunOverviewColumns[2:]...)
+	return columns
 }
 
 // overviewLines are the facts of the run under the title. The count names

@@ -16,6 +16,10 @@ import {
   familyName,
   paymentLabel,
 } from "~/components/traeger/billing-family-format";
+import {
+  PAYMENT_METHOD_LABELS,
+  paymentMethodsText,
+} from "~/components/traeger/billing-payment-format";
 import { BILLING_DOCUMENT_KIND_LABELS } from "~/components/traeger/billing-format";
 import { formatEuro } from "~/components/traeger/contribution-format";
 import { formatDateRange } from "~/components/traeger/holiday-period-format";
@@ -74,6 +78,14 @@ const COLUMNS: DataTableColumn<BillingFamilyDocument>[] = [
           </span>
           {reference ? (
             <span className="block text-sm text-gray-500">{reference}</span>
+          ) : null}
+          {document.kind === "invoice" && document.paymentMethod ? (
+            <span className="block text-sm text-gray-500">
+              {PAYMENT_METHOD_LABELS[document.paymentMethod]}
+              {document.dueOn
+                ? ` · fällig am ${formatDate(document.dueOn)}`
+                : ""}
+            </span>
           ) : null}
           {document.payment && document.payment.kind !== "family" ? (
             <span className="mt-1 flex max-w-80 min-w-0">
@@ -220,8 +232,8 @@ export default function TraegerBillingFamilyPage() {
         <>
           <BillingAmountCards amounts={family} />
           <SectionCard
-            title="Empfänger und Zahlungsart"
-            description="An diese Adresse gehen die Schreiben. Die Zahlungsart steht auf jeder Rechnung."
+            title="Empfänger und Zahlung"
+            description="An diese Adresse gehen die Schreiben. Wer zahlt und der Zahlungsweg stehen auf jeder Rechnung."
           >
             <DataGrid columns={2}>
               <DataField label="E-Mail-Adresse">
@@ -236,7 +248,11 @@ export default function TraegerBillingFamilyPage() {
                   "Keine eingetragen"
                 )}
               </DataField>
-              <DataField label="Zahlungsart" fullWidth>
+              <DataField label="Zahlungsweg">
+                {paymentMethodsText(family.paymentMethods) ??
+                  "Steht auf neuen Rechnungen"}
+              </DataField>
+              <DataField label="Wer zahlt" fullWidth>
                 {family.payments.length > 0 ? (
                   <span className="flex max-w-full min-w-0 flex-wrap gap-1.5">
                     {family.payments.map((payment) => (

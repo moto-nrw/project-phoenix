@@ -12,6 +12,16 @@ import type {
 } from "~/lib/email-delivery-status";
 import { traegerRequest } from "./traeger-api";
 import {
+  type BackendInvoicePayment,
+  type BackendRunDueDate,
+  type InvoicePayment,
+  type PostalAddress,
+  type RecipientKind,
+  type RunDueDate,
+  invoicePaymentFromBackend,
+  runDueDatesFromBackend,
+} from "./traeger-billing-terms-api";
+import {
   type BillingFile,
   type LetterMailStatus,
   billingFile,
@@ -124,7 +134,15 @@ export interface CareInvoice {
     readonly firstName: string;
     readonly lastName: string;
     readonly email: string;
+    /** Who gets it (#4689); "" on an invoice issued before. */
+    readonly kind?: RecipientKind | "";
+    /** The second parent when both parents get it. */
+    readonly secondName?: string;
+    /** The payer's address when another person pays. */
+    readonly address?: PostalAddress | null;
   };
+  /** How and by when it is paid (#4689); null on an invoice issued before. */
+  readonly payment?: InvoicePayment | null;
   readonly positions: readonly CarePosition[];
   /** The rules of the chain in their order (#4685); negative amounts. */
   readonly reductions: readonly CareReduction[];
@@ -187,6 +205,8 @@ export interface CareRunDetail extends CareRun {
   readonly previewCents: number;
   readonly numberPattern: string;
   readonly numberRangeSet: boolean;
+  /** The due dates of the run per payment method (#4689). */
+  readonly dueDates?: readonly RunDueDate[];
 }
 
 interface BackendModule {
@@ -238,7 +258,15 @@ interface BackendInvoice {
   school_name: string;
   child_first_name: string;
   child_last_name: string;
-  recipient: { first_name: string; last_name: string; email: string };
+  recipient: {
+    first_name: string;
+    last_name: string;
+    email: string;
+    kind?: RecipientKind | "";
+    second_name?: string;
+    address?: { street: string; postal_code: string; city: string } | null;
+  };
+  payment?: BackendInvoicePayment | null;
   positions:
     | {
         care_offering_id: number;
@@ -303,6 +331,7 @@ interface BackendRunDetail extends BackendRun {
   preview_cents: number;
   number_pattern: string;
   number_range_set: boolean;
+  due_dates?: BackendRunDueDate[] | null;
 }
 
 const TARIFFS_PATH = "/api/traeger/care-tariffs";
@@ -369,7 +398,17 @@ function invoiceFromBackend(invoice: BackendInvoice): CareInvoice {
       firstName: invoice.recipient.first_name,
       lastName: invoice.recipient.last_name,
       email: invoice.recipient.email,
+      kind: invoice.recipient.kind ?? "",
+      secondName: invoice.recipient.second_name ?? "",
+      address: invoice.recipient.address
+        ? {
+            street: invoice.recipient.address.street,
+            postalCode: invoice.recipient.address.postal_code,
+            city: invoice.recipient.address.city,
+          }
+        : null,
     },
+    payment: invoicePaymentFromBackend(invoice.payment),
     positions: (invoice.positions ?? []).map((position) => ({
       careOfferingId: id(position.care_offering_id),
       moduleName: position.module_name,
@@ -429,6 +468,7 @@ function detailFromBackend(detail: BackendRunDetail): CareRunDetail {
     previewCents: detail.preview_cents,
     numberPattern: detail.number_pattern,
     numberRangeSet: detail.number_range_set,
+    dueDates: runDueDatesFromBackend(detail.due_dates),
   };
 }
 

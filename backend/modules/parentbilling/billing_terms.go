@@ -193,8 +193,8 @@ type RunDueDate struct {
 	DueOn         calendar.Date `json:"due_on"`
 }
 
-// List answers the dates in the order of PaymentMethods.
-func (d RunDueDates) List() []RunDueDate {
+// InPaymentOrder answers the dates in the order of PaymentMethods.
+func (d RunDueDates) InPaymentOrder() []RunDueDate {
 	list := []RunDueDate{}
 	for _, method := range PaymentMethods {
 		if due, ok := d[method]; ok {

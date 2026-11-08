@@ -444,13 +444,13 @@ func (b *BillingRuns) detail(ctx context.Context, reviewer parentbilling.Holiday
 		if err != nil {
 			return parentbilling.BillingRunDetail{}, err
 		}
-		detail.DueDates = payments.run.List()
+		detail.DueDates = payments.run.InPaymentOrder()
 	} else {
 		current, err := b.preview(ctx, reviewer, run)
 		if err != nil {
 			return parentbilling.BillingRunDetail{}, err
 		}
-		detail.Documents, detail.Unbilled, detail.DueDates = current.documents, current.unbilled, current.dueDates.List()
+		detail.Documents, detail.Unbilled, detail.DueDates = current.documents, current.unbilled, current.dueDates.InPaymentOrder()
 		if detail.MissingDebtorNumbers, detail.PaymentTextMissingDebtorNumbers, err = b.missingDebtorNumbers(ctx, reviewer.OrganizationID, current.documents); err != nil {
 			return parentbilling.BillingRunDetail{}, err
 		}

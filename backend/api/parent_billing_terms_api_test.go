@@ -210,8 +210,12 @@ func TestCareByDirectDebitAndHolidayByTransferStaySeparateInvoices(t *testing.T)
 	_, err = f.db.ExecContext(context.Background(), `UPDATE parent_billing.care_invoices SET due_on = DATE '2030-03-01' WHERE id = ?`,
 		monthlyInvoice.ID)
 	require.Error(t, err, "an issued invoice never changes its due date")
-	_, err = f.db.ExecContext(context.Background(), `DELETE FROM parent_billing.run_due_dates WHERE care_run_id = ?`, monthly.ID)
+	_, err = f.db.ExecContext(context.Background(), `UPDATE parent_billing.run_due_dates SET due_on = DATE '2030-03-01'
+		WHERE care_run_id = ?`, monthly.ID)
 	require.ErrorContains(t, err, "never change", "the database keeps the dates of a released run")
+	_, err = f.db.ExecContext(context.Background(), `INSERT INTO parent_billing.run_due_dates (organization_id, care_run_id,
+		payment_method, due_on) SELECT organization_id, id, 'transfer', DATE '2030-03-01' FROM parent_billing.care_runs WHERE id = ?`, monthly.ID)
+	require.ErrorContains(t, err, "never change", "no date joins a released run")
 
 	// The family page shows both payment methods of the one family.
 	rec = traegerJSON(t, f.traeger, billing, http.MethodGet, "/traeger/billing-families", nil)

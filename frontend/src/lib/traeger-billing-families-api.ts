@@ -8,6 +8,7 @@
 
 import type { BillingDocumentKind } from "./traeger-billing-api";
 import { traegerRequest } from "./traeger-api";
+import type { PaymentMethod } from "./traeger-billing-terms-api";
 
 /** Who pays an invoice. */
 type BillingPaymentKind = "family" | "cost_bearer" | "exempt";
@@ -36,6 +37,8 @@ export interface BillingFamily extends BillingAmounts {
   readonly recipientEmail: string;
   readonly debtorNumbers: readonly string[];
   readonly payments: readonly BillingPayment[];
+  /** The payment methods of its invoices (#4689), in form order. */
+  readonly paymentMethods?: readonly PaymentMethod[];
   readonly invoiceCount: number;
   readonly openInvoiceCount: number;
   readonly documentCount: number;
@@ -63,6 +66,9 @@ export interface BillingFamilyDocument {
   readonly payment: BillingPayment | null;
   readonly status: BillingInvoiceStatus | null;
   readonly openCents: number;
+  /** How and by when it is paid (#4689); "" and null on documents issued before. */
+  readonly paymentMethod?: PaymentMethod | "";
+  readonly dueOn?: string | null;
 }
 
 export interface BillingFamilyDetail extends BillingFamily {
@@ -82,6 +88,7 @@ interface BackendFamily {
   recipient_email: string;
   debtor_numbers?: string[] | null;
   payments?: BackendPayment[] | null;
+  payment_methods?: PaymentMethod[] | null;
   invoice_count: number;
   open_invoice_count: number;
   document_count: number;
@@ -109,6 +116,8 @@ interface BackendFamilyDocument {
   payment?: BackendPayment | null;
   status?: BillingInvoiceStatus | "";
   open_cents: number;
+  payment_method?: PaymentMethod | "";
+  due_on?: string | null;
 }
 
 interface BackendFamilyDetail extends BackendFamily {
@@ -127,6 +136,7 @@ function familyFromBackend(family: BackendFamily): BillingFamily {
     recipientEmail: family.recipient_email,
     debtorNumbers: family.debtor_numbers ?? [],
     payments: (family.payments ?? []).map(paymentFromBackend),
+    paymentMethods: family.payment_methods ?? [],
     invoiceCount: family.invoice_count,
     openInvoiceCount: family.open_invoice_count,
     documentCount: family.document_count,
@@ -158,6 +168,8 @@ function documentFromBackend(
     payment: document.payment ? paymentFromBackend(document.payment) : null,
     status: document.status || null,
     openCents: document.open_cents,
+    paymentMethod: document.payment_method ?? "",
+    dueOn: document.due_on ?? null,
   };
 }
 

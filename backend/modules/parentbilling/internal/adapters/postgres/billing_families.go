@@ -11,24 +11,19 @@ import (
 // address of the registration the release copied (#4689), so a payer who
 // gets the invoice does not split the family; a cancellation or credit
 // belongs to the family of its invoice, a document issued before #4689 to
-// its recipient address, compared without case. familyKeySQL is the one
-// place that says so. The kinds of the
+// its recipient address, compared without case. The COALESCE in
+// familyDocumentsSQL is the one place that says so. The kinds of the
 // positions are parentbilling.LineCostTakeover and LineBenefitsExemption.
-
-// familyKeySQL is the family of a document; anchor is the alias.
-func familyKeySQL(alias, referenceAlias string) string {
-	return "COALESCE(" + alias + ".family_email, " + referenceAlias + ".family_email, LOWER(" + alias + ".recipient_email))"
-}
 
 // familyDocumentsSQL reads the issued documents of the Träger, the oldest
 // first, with the period of their run, the first names of their children,
 // the cost bearers their positions name and whether the exemption freed
 // them. The second filter keeps the documents of one family: the family of
 // the document with the given ID, or every family when that ID is zero.
-var familyDocumentsSQL = `SELECT document.id, document.run_id, document.kind, document.number, document.issued_on,
+const familyDocumentsSQL = `SELECT document.id, document.run_id, document.kind, document.number, document.issued_on,
 		run.period_name, document.service_from, document.service_until, document.reference_document_id,
 		reference.number AS reference_number, document.reason, document.recipient_first_name, document.recipient_last_name,
-		document.recipient_email, document.debtor_number, document.total_cents, ` + familyKeySQL("document", "reference") + ` AS family_key,
+		document.recipient_email, document.debtor_number, document.total_cents, COALESCE(document.family_email, reference.family_email, LOWER(document.recipient_email)) AS family_key,
 		document.payment_method, document.due_on,
 		COALESCE((SELECT json_agg(DISTINCT position.child_first_name ORDER BY position.child_first_name)
 			FROM parent_billing.document_positions AS position
@@ -44,8 +39,8 @@ var familyDocumentsSQL = `SELECT document.id, document.run_id, document.kind, do
 	JOIN parent_billing.runs AS run ON run.organization_id = document.organization_id AND run.id = document.run_id
 	LEFT JOIN parent_billing.documents AS reference
 		ON reference.organization_id = document.organization_id AND reference.id = document.reference_document_id
-	WHERE document.organization_id = ? AND (?::bigint = 0 OR ` + familyKeySQL("document", "reference") + ` = (
-		SELECT ` + familyKeySQL("anchor", "anchor_reference") + ` FROM parent_billing.documents AS anchor
+	WHERE document.organization_id = ? AND (?::bigint = 0 OR COALESCE(document.family_email, reference.family_email, LOWER(document.recipient_email)) = (
+		SELECT COALESCE(anchor.family_email, anchor_reference.family_email, LOWER(anchor.recipient_email)) FROM parent_billing.documents AS anchor
 		LEFT JOIN parent_billing.documents AS anchor_reference
 			ON anchor_reference.organization_id = anchor.organization_id AND anchor_reference.id = anchor.reference_document_id
 		WHERE anchor.organization_id = document.organization_id AND anchor.id = ?))

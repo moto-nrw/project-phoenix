@@ -73,18 +73,24 @@ func NewBillingTerms(store TermsStore, contracts parentbilling.CareContracts) *B
 // Träger set none.
 func (t *BillingTerms) ServiceTerms(ctx context.Context, organizationID int64) ([]parentbilling.ServiceTerms, error) {
 	if organizationID <= 0 {
-		return nil, errors.New("parent billing: the Träger is required")
+		return nil, errTraegerRequired
 	}
 	stored, err := t.store.ServiceTerms(ctx, organizationID)
 	if err != nil {
 		return nil, fmt.Errorf("parent billing: read the service terms: %w", err)
 	}
+	return termsList(stored), nil
+}
+
+// termsList answers the terms of every service of BillingServices in their
+// order, the defaults where the Träger set none.
+func termsList(stored []parentbilling.ServiceTerms) []parentbilling.ServiceTerms {
 	set := termsSetOf(stored)
 	list := make([]parentbilling.ServiceTerms, 0, len(parentbilling.BillingServices))
 	for _, service := range parentbilling.BillingServices {
 		list = append(list, set.Of(service.Service))
 	}
-	return list, nil
+	return list
 }
 
 // termsSetOf keys the stored terms of a Träger by service.
@@ -109,7 +115,11 @@ func (t *BillingTerms) SaveServiceTerms(ctx context.Context, reviewer parentbill
 	if err := t.store.SaveServiceTerms(ctx, reviewer.OrganizationID, reviewer.AccountID, normalized); err != nil {
 		return nil, err
 	}
-	return t.ServiceTerms(ctx, reviewer.OrganizationID)
+	stored, err := t.store.ServiceTerms(ctx, reviewer.OrganizationID)
+	if err != nil {
+		return nil, fmt.Errorf("parent billing: read the service terms: %w", err)
+	}
+	return termsList(stored), nil
 }
 
 func normalizeServiceTerms(terms parentbilling.ServiceTerms) (parentbilling.ServiceTerms, error) {

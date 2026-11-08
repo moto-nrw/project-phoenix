@@ -163,7 +163,7 @@ export function traegerBillingRunTopic(): HelpTopic {
           "Wählen Sie oben den Reiter `Familien`.",
           "Die Kacheln zeigen die Summen `Ausgestellt`, `Storniert`, `Gutgeschrieben` und `Offen`. Sie rechnen mit den Familien, die die Liste gerade zeigt.",
           "Suchen Sie die Familie nach Name, E-Mail oder Debitorennummer. Mit dem Filter `Mit offenem Betrag` sehen Sie nur Familien, die noch etwas zahlen sollen.",
-          "Wählen Sie die Familie. Sie sehen ihre Summen, ihre Zahlungsart und jedes Dokument mit Ferienzeitraum, Kindern, Betrag und Stand.",
+          "Wählen Sie die Familie. Sie sehen ihre Summen, wer zahlt, den Zahlungsweg und jedes Dokument mit Ferienzeitraum, Kindern, Betrag und Stand.",
           "Wählen Sie ein Dokument, um seinen Abrechnungslauf zu öffnen. Dort stornieren Sie oder schreiben gut.",
         ],
       },
@@ -185,7 +185,7 @@ export function traegerBillingRunTopic(): HelpTopic {
       "Hat die Familie bei der Anmeldung ihre Anschrift angegeben, steht sie im Schreiben und in der Übersicht für die Kämmerei. Die Rechnung behält sie, auch wenn die Anmeldung später gelöscht wird.",
       "Den Text des Schreibens legen Sie in den Einstellungen unter `Briefkopf und Vorlagen` fest. Erstellte Schreiben behalten den Text, mit dem sie entstanden sind.",
       "Offen heißt: Die Rechnung ist ausgestellt, nicht storniert und nicht gutgeschrieben. Ob die Familie schon gezahlt hat, prüft moto nicht. Das sehen Sie in Ihrer Buchhaltung.",
-      "Die Zahlungsart einer Rechnung ist `Familie zahlt selbst`, `Kostenübernahme` mit dem Namen des Kostenträgers oder `Beitragsfrei`. Eine stornierte Rechnung zählt dabei nicht mit.",
+      "Bei `Wer zahlt` steht `Familie zahlt selbst`, `Kostenübernahme` mit dem Namen des Kostenträgers oder `Beitragsfrei`. Eine stornierte Rechnung zählt dabei nicht mit.",
     ],
     differences: [
       "Sie sehen in der Navigation kein `Abrechnung`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
@@ -210,6 +210,7 @@ export function traegerBillingRunTopic(): HelpTopic {
     related: [
       HELP_TOPICS.traegerHolidayContribution,
       HELP_TOPICS.traegerHolidayRegistrationReview,
+      HELP_TOPICS.traegerBillingTerms,
     ],
   };
 }

@@ -71,6 +71,18 @@ Vertragspartei.
 - Die Mensa wird nur gebündelt, solange #4686 `InvoiceService` beachtet; eine
   eigene Mensa-Rechnung baut #4686.
 
+## Register
+
+- Pass-through-Budget `modules/parentbilling` 7 → 8, Summe 1406 → 1407:
+  `BillingTerms.ServiceTerms` prüft den Träger und ergänzt die gespeicherten
+  Bedingungen um die Standardwerte jeder Leistung (Evidence und Review mit
+  Entscheidung 0167).
+- Compose-LOC `modules/parentbilling/compose` 62 → 67, Summe 13088 → 13093:
+  der Konstruktor `NewBillingTerms`.
+- Query-Budgets `api.traeger.billing_terms` und `api.traeger.family_billing`
+  (je 2, exakt). Der Lauf liest Bedingungen, Abweichungen und Fälligkeiten in
+  einer Abfrage (`InvoicePaymentTerms`).
+
 ## Verworfene Optionen
 
 - **Eine Rechnung je Familie statt je Vertrag:** bräche Nummern, Storno,

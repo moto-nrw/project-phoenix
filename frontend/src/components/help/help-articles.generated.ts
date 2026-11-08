@@ -324,6 +324,8 @@ import type { traegerAccountsTopic as authored_traegerAccountsTopic } from "./ar
 
 import type { traegerBillingRunTopic as authored_traegerBillingRunTopic } from "./articles/traeger-billing-run";
 
+import type { traegerBillingTermsTopic as authored_traegerBillingTermsTopic } from "./articles/traeger-billing-terms";
+
 import type { traegerBriefkopfTopic as authored_traegerBriefkopfTopic } from "./articles/traeger-briefkopf";
 
 import type { traegerCareContractsTopic as authored_traegerCareContractsTopic } from "./articles/traeger-care-contracts";
@@ -10106,7 +10108,7 @@ export const traegerBillingRunTopic =
             "Wählen Sie oben den Reiter `Familien`.",
             "Die Kacheln zeigen die Summen `Ausgestellt`, `Storniert`, `Gutgeschrieben` und `Offen`. Sie rechnen mit den Familien, die die Liste gerade zeigt.",
             "Suchen Sie die Familie nach Name, E-Mail oder Debitorennummer. Mit dem Filter `Mit offenem Betrag` sehen Sie nur Familien, die noch etwas zahlen sollen.",
-            "Wählen Sie die Familie. Sie sehen ihre Summen, ihre Zahlungsart und jedes Dokument mit Ferienzeitraum, Kindern, Betrag und Stand.",
+            "Wählen Sie die Familie. Sie sehen ihre Summen, wer zahlt, den Zahlungsweg und jedes Dokument mit Ferienzeitraum, Kindern, Betrag und Stand.",
             "Wählen Sie ein Dokument, um seinen Abrechnungslauf zu öffnen. Dort stornieren Sie oder schreiben gut.",
           ],
         },
@@ -10128,7 +10130,7 @@ export const traegerBillingRunTopic =
         "Hat die Familie bei der Anmeldung ihre Anschrift angegeben, steht sie im Schreiben und in der Übersicht für die Kämmerei. Die Rechnung behält sie, auch wenn die Anmeldung später gelöscht wird.",
         "Den Text des Schreibens legen Sie in den Einstellungen unter `Briefkopf und Vorlagen` fest. Erstellte Schreiben behalten den Text, mit dem sie entstanden sind.",
         "Offen heißt: Die Rechnung ist ausgestellt, nicht storniert und nicht gutgeschrieben. Ob die Familie schon gezahlt hat, prüft moto nicht. Das sehen Sie in Ihrer Buchhaltung.",
-        "Die Zahlungsart einer Rechnung ist `Familie zahlt selbst`, `Kostenübernahme` mit dem Namen des Kostenträgers oder `Beitragsfrei`. Eine stornierte Rechnung zählt dabei nicht mit.",
+        "Bei `Wer zahlt` steht `Familie zahlt selbst`, `Kostenübernahme` mit dem Namen des Kostenträgers oder `Beitragsfrei`. Eine stornierte Rechnung zählt dabei nicht mit.",
       ],
       differences: [
         "Sie sehen in der Navigation kein `Abrechnung`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
@@ -10153,9 +10155,85 @@ export const traegerBillingRunTopic =
       related: [
         HELP_TOPICS.traegerHolidayContribution,
         HELP_TOPICS.traegerHolidayRegistrationReview,
+        HELP_TOPICS.traegerBillingTerms,
       ],
     };
   } satisfies typeof authored_traegerBillingRunTopic;
+
+export const traegerBillingTermsTopic =
+  function traegerBillingTermsTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerBillingTerms,
+      title: "Zahlung und Empfänger der Rechnungen",
+      question: "Wie lege ich fest, wie und bis wann Familien zahlen?",
+      summary:
+        "Je Leistung legen Sie den Zahlungsweg und das Zahlungsziel fest. Das Mittagessen steht auf der Rechnung der Betreuung oder auf einer eigenen Rechnung. Für eine einzelne Familie legen Sie einen anderen Empfänger, einen eigenen Zahlungsweg oder einen eigenen Zahltag fest.",
+      group: "anmeldeverwaltung",
+      audience: "traeger",
+      icon: "Users",
+      requirements: ["Ihre Rolle im Träger-Büro ist Abrechnung."],
+      steps: [],
+      instructionGroups: [
+        {
+          title: "Zahlung je Leistung festlegen",
+          description:
+            "Ohne Ihre Wahl zahlen alle Familien per Überweisung, innerhalb von 14 Tagen.",
+          steps: [
+            "Wählen Sie unten in der Navigation `Einstellungen` und dann `Abrechnungsvorgaben`.",
+            "In der Karte `Zahlung und Rechnungen` steht je Leistung eine Zeile: `Monatsbeitrag Betreuung`, `Mittagessen` und `Ferienbetreuung`.",
+            "Wählen Sie die Zeile der Leistung. Oder wählen Sie das Menü mit den drei Punkten und dann `Ändern`.",
+            "Wählen Sie den `Zahlungsweg`: `Überweisung` oder `Lastschrift`.",
+            "Tragen Sie das `Zahlungsziel in Tagen` ein. Das sind die Tage nach dem Rechnungsdatum.",
+            "Beim Mittagessen wählen Sie bei `Rechnung`: `Auf der Rechnung der Betreuung` oder `Eigene Rechnung`.",
+            "Wählen Sie `Speichern`.",
+          ],
+        },
+        {
+          title: "Fälligkeit eines Laufs festlegen",
+          description:
+            "Ein Lauf kann ein festes Datum haben, bis zu dem alle Familien zahlen. Das geht nur vor der Freigabe.",
+          steps: [
+            "Öffnen Sie den Lauf unter `Abrechnung`, bei den Monatsbeiträgen oder bei den Ferien.",
+            "Wählen Sie in der Karte des Laufs `Fälligkeiten ändern`.",
+            "Wählen Sie je Zahlungsweg ein Datum. Ohne Datum gilt das Zahlungsziel der Leistung.",
+            "Wählen Sie `Speichern`. Bei `Fällig` steht jetzt das Datum.",
+          ],
+        },
+        {
+          title: "Empfänger und Zahlung einer Familie ändern",
+          description:
+            "Das gilt für alle Rechnungen dieser Familie, auch für Geschwister. Die Familie ist die E-Mail-Adresse der Person im Vertrag.",
+          steps: [
+            "Öffnen Sie einen Monatslauf unter `Abrechnung` und `Monatsbeiträge`.",
+            "Wählen Sie bei der Rechnung des Kindes das Menü mit den drei Punkten und dann `Empfänger und Zahlung`.",
+            "Wählen Sie bei `Rechnung an`: `Person im Vertrag`, `Beide Eltern` oder `Andere Person`.",
+            "Bei `Beide Eltern` tragen Sie den Namen des zweiten Elternteils ein. Beide Namen stehen dann auf der Rechnung.",
+            "Bei `Andere Person` tragen Sie Name, E-Mail-Adresse und Anschrift ein. Die Rechnung geht dann an diese Person.",
+            "Wählen Sie bei Bedarf einen eigenen `Zahlungsweg`. `Wie die Leistung` nimmt den Zahlungsweg aus den Abrechnungsvorgaben.",
+            "Wählen Sie bei Bedarf einen `Eigenen Zahltag`, zum Beispiel den 15. des Monats.",
+            "Wählen Sie `Speichern`.",
+          ],
+        },
+      ],
+      result:
+        "Jede Rechnung zeigt den Zahlungsweg und das Datum, an dem sie fällig ist. Steht dahinter `Zahltag der Familie`, kommt das Datum von der Familie. Rechnungen an beide Eltern oder an eine andere Person tragen das Zeichen `Beide Eltern` oder `Abweichender Zahler`.",
+      notes: [
+        "Die Ferienbetreuung hat immer eine eigene Rechnung. Sie steht nie auf der Rechnung der Betreuung.",
+        "Bei `Lastschrift` buchen Sie den Betrag selbst ab. Dafür braucht die Familie ein SEPA-Mandat bei Ihnen. moto bucht kein Geld ab.",
+        "Unter `Abrechnung` und `Familien` sehen Sie bei jeder Familie den Zahlungsweg ihrer Rechnungen.",
+        "Welches Datum gilt: zuerst der eigene Zahltag der Familie, dann das Datum des Laufs, sonst das Zahlungsziel der Leistung.",
+      ],
+      differences: [
+        "Eine Rechnung zeigt keinen Zahlungsweg? Sie wurde ausgestellt, bevor es diese Angaben gab.",
+        "Bei einem freigegebenen Lauf fehlt `Fälligkeiten ändern`? Ausgestellte Rechnungen ändern sich nicht mehr.",
+      ],
+      troubleshootingDetails: [
+        "Änderungen erscheinen nicht auf einer Rechnung? Ausgestellte Rechnungen bleiben, wie sie sind. Die Änderung gilt ab dem nächsten Lauf. Eine falsche Rechnung stornieren Sie und stellen sie neu aus.",
+        "`Empfänger und Zahlung` lässt sich nicht speichern, weil eine E-Mail-Adresse fehlt? Im Vertrag steht keine E-Mail-Adresse. Tragen Sie sie im Vertrag ein.",
+      ],
+      related: [HELP_TOPICS.traegerCareMonths, HELP_TOPICS.traegerBillingRun],
+    };
+  } satisfies typeof authored_traegerBillingTermsTopic;
 
 /** `/traeger/einstellungen/briefkopf` (#4653, #5685): Logo, Absender und Fußzeile; dazu Ansprechpartner und Bankverbindungen. */
 export const traegerBriefkopfTopic =
@@ -10540,6 +10618,7 @@ export const traegerCareMonthsTopic =
       related: [
         HELP_TOPICS.traegerCareContracts,
         HELP_TOPICS.traegerBillingRun,
+        HELP_TOPICS.traegerBillingTerms,
       ],
     };
   } satisfies typeof authored_traegerCareMonthsTopic;

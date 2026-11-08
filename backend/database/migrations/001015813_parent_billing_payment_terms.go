@@ -139,28 +139,25 @@ COMMENT ON TABLE parent_billing.run_due_dates IS
 	'Due date of a monthly or holiday run per payment method (#4689); every invoice of the run with that method is due then unless its family deviates.';
 
 -- A due date belongs to a calculated run: once the run is released, its
--- invoices copied the dates and nothing may change them.
+-- invoices copied the dates and nothing may add or change one. A delete
+-- stays possible, so the erasure of a Träger cascades through its runs.
 CREATE FUNCTION parent_billing.refuse_released_due_date() RETURNS trigger
 LANGUAGE plpgsql AS $$
-DECLARE
-	row_care BIGINT := CASE WHEN TG_OP = 'DELETE' THEN OLD.care_run_id ELSE NEW.care_run_id END;
-	row_holiday BIGINT := CASE WHEN TG_OP = 'DELETE' THEN OLD.holiday_run_id ELSE NEW.holiday_run_id END;
-	row_organization BIGINT := CASE WHEN TG_OP = 'DELETE' THEN OLD.organization_id ELSE NEW.organization_id END;
 BEGIN
 	IF TG_OP = 'UPDATE' AND NEW.set_by_account_id IS NULL
 		AND to_jsonb(NEW) - 'set_by_account_id' = to_jsonb(OLD) - 'set_by_account_id' THEN
 		RETURN NEW;
 	END IF;
-	IF EXISTS (SELECT 1 FROM parent_billing.care_runs WHERE organization_id = row_organization AND id = row_care AND status = 'released')
-		OR EXISTS (SELECT 1 FROM parent_billing.runs WHERE organization_id = row_organization AND id = row_holiday AND status = 'released') THEN
+	IF EXISTS (SELECT 1 FROM parent_billing.care_runs WHERE organization_id = NEW.organization_id AND id = NEW.care_run_id AND status = 'released')
+		OR EXISTS (SELECT 1 FROM parent_billing.runs WHERE organization_id = NEW.organization_id AND id = NEW.holiday_run_id AND status = 'released') THEN
 		RAISE EXCEPTION 'the due dates of a released run never change' USING ERRCODE = '55000';
 	END IF;
-	RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+	RETURN NEW;
 END;
 $$;
 REVOKE ALL ON FUNCTION parent_billing.refuse_released_due_date() FROM PUBLIC;
 CREATE TRIGGER refuse_parent_billing_released_due_date
-	BEFORE INSERT OR UPDATE OR DELETE ON parent_billing.run_due_dates
+	BEFORE INSERT OR UPDATE ON parent_billing.run_due_dates
 	FOR EACH ROW EXECUTE FUNCTION parent_billing.refuse_released_due_date();
 
 ALTER TABLE parent_billing.care_invoices

@@ -250,7 +250,7 @@ func (rs *BillingTermsResource) setDueDates(w http.ResponseWriter, r *http.Reque
 		renderTermsError(w, r, err, common.CodeParentBillingDueDatesInvalid)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, RunDueDatesResponse{DueDates: dates.List()}, "Run due dates saved successfully")
+	common.Respond(w, r, http.StatusOK, RunDueDatesResponse{DueDates: dates.InPaymentOrder()}, "Run due dates saved successfully")
 }
 
 // renderTermsError answers a refused term, deviation or due date with the

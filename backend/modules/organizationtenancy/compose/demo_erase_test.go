@@ -220,7 +220,7 @@ func leaveVisitorTraces(t *testing.T, db *bun.DB, schoolID int64) visitorAccount
 		`WITH family AS (
 			INSERT INTO parent_billing.family_billing (organization_id, family_email, care_contract_id, recipient_kind,
 				payer_first_name, payer_last_name, payer_email, payer_street, payer_postal_code, payer_city)
-			SELECT organization_id, 'eltern@example.org', id, 'payer', '` + visitorFirst + `', '` + visitorLast + `',
+			SELECT organization_id, 'eltern-' || id || '@example.org', id, 'payer', '` + visitorFirst + `', '` + visitorLast + `',
 				'zahler@example.org', 'Amtsweg 2', '75175', 'Pforzheim'
 			FROM care_contract.contracts WHERE school_id = ?0
 			RETURNING id, organization_id, care_contract_id)
