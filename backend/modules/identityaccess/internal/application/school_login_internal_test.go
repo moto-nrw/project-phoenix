@@ -202,7 +202,7 @@ func TestSchoolMint_UnavailableMFAPolicyLockFailsClosed(t *testing.T) {
 	assert.Equal(t, []string{"LockMFAPolicy"}, f.store.calls, "a failed policy lock must abort before the mint touches any row")
 }
 
-func TestSchoolRefreshEligibility_ReportsRevokedPortalRoleAsAccessDenied(t *testing.T) {
+func TestSchoolRefreshGuard_ReportsRevokedPortalRoleAsAccessDenied(t *testing.T) {
 	t.Parallel()
 	f, account := newSchoolMintFixture(t)
 	f.store.roles[mappingKey{1, 10}] = nil
@@ -210,7 +210,7 @@ func TestSchoolRefreshEligibility_ReportsRevokedPortalRoleAsAccessDenied(t *test
 	var claims *domain.AccountClaimsPayload
 	err := f.runtime.WithAdminTx(context.Background(), func(txCtx context.Context) error {
 		var err error
-		claims, err = f.auth.schoolRefreshEligibility(10)(txCtx, account)
+		claims, err = sessionPolicies[domain.SessionKind(domain.PortalSchool.Name)].guard(f.auth, sessionBinding{op: "refresh token", renewal: refreshSession, tenantID: 10})(txCtx, account)
 		return err
 	})
 	require.ErrorIs(t, err, identityaccess.ErrTenantAccessDenied, "the refresh route maps the access-denied sentinel")

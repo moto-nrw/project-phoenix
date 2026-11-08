@@ -1,6 +1,6 @@
 {
   "scenario": "identity.session_validate.caterer",
-  "max": 8,
+  "max": 10,
   "exact": true,
-  "description": "modules/identityaccess — POST /auth/session/validate without a refresh token, which the BFF asks on every page view (#5399). One administrative transaction (BEGIN, SET LOCAL ROLE, ..., COMMIT) reads the family, the account and the facts its refresh decides, each once, without row locks and without claims. Facts: the caterer, its supplied schools and which of them are live. development: 8."
+  "description": "modules/identityaccess — POST /auth/session/validate without a refresh token, which the BFF asks on every page view (#5399). One administrative transaction (BEGIN, SET LOCAL ROLE, ..., COMMIT) reads, without row locks and without claims, the family, the account, then the session policy's facts through the definitions the refresh's guard reads under its locks (sessionPolicy.check), the MFA floor and the school the refresh keeps the session at. Facts: the caterer (1). MFA floor (the caterer's own choice): its enrollment (1). Kept at: the caterer again, its supplied schools and which of them are live (3). development: 8."
 }

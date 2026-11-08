@@ -657,18 +657,22 @@ old session back; the browser only saves requests.
    reads the access token's family and asks whether the session would still
    renew (`ValidateSessionTokens` in
    `backend/modules/identityaccess/internal/application/session_validation.go`,
-   the `check` entry of each kind in `session_policy.go`): the facts its
-   refresh decides (account, mapping, live school, portal role, guardian
-   school, caterer supply, Träger membership and right), each read once in one
-   administrative transaction, then the module booking. It writes nothing, so
-   it takes no row lock and builds no claims; its cost per kind is pinned in
+   `sessionPolicy.check` in `session_policy.go`): the facts its refresh
+   decides (account, mapping, live school, portal role, guardian school,
+   caterer supply, Träger membership and right, and the second-factor
+   floor), read in one administrative transaction
+   through the same per-kind definitions the refresh's guard reads under its
+   locks, then the module booking. It writes nothing, so it takes no row lock
+   and builds no claims; its cost per kind is pinned in
    `identity.session_validate.*`. The operator reads the latest operator
-   session of the family. Validation and refresh answer one state alike
+   session of the family, or the presented operator session without a lock.
+   Validation and refresh answer one state alike
    (`identityaccess.SessionOutcomeOf`, `portalauth.RenewalRules`): 401 means
    the session ended (revoked, foreign or expired token, inactive account,
    access to the school or Träger lost, the school inactive, the portal role
-   revoked); 403 `module.not_booked` means the school no longer books the
-   portal's module and the session stays, as at refresh; 503 means a read
+   revoked, a second factor the session has no proof of); 403
+   `module.not_booked` means the school no longer books the portal's module
+   and the session stays, as at refresh; 503 means a read
    could not run (`identity.mfa_status_unavailable` for the second-factor
    state). Access loss therefore ends the session at the next page view, not
    only at the next refresh. The BFF calls it through `sessionFamilyState`
@@ -742,7 +746,7 @@ Backend paths in this section are relative to `backend/`:
   `mfa_verified`, and mint and refresh refuse a caterer session without it.
   A caterer challenge is refused by every other portal's verify. Switching
   the factor on (`/caterer/account/mfa/confirm`) answers with a new proven
-  session; older sessions end at their next refresh. Recovery is the
+  session; older sessions end at their next refresh or validation. Recovery is the
   operator's reset (`DELETE /operator/caterers/{id}/accounts/{accountId}/mfa`, reason, operator
   audit, notice mail); school admins have none.
 - Träger login (ADR 0084, #4649) requires an active membership in
@@ -763,7 +767,8 @@ Backend paths in this section are relative to `backend/`:
   `org`-scope challenges, and mint and refresh refuse a session without
   `mfa_verified`. No trusted device. The operator reset
   (`DELETE /operator/organizations/{id}/traeger-members/{accountId}/mfa`)
-  revokes the proof, so the Träger session ends at its next refresh.
+  revokes the proof, so the Träger session ends at its next refresh or
+  validation.
 - Absprung into a school (ADR 0084 section 5, #4654): `POST
   /traeger/school-sessions` `{school_id}` needs the Träger right
   `traeger_school:switch` and answers `{handoff_token}`: the refresh token of a

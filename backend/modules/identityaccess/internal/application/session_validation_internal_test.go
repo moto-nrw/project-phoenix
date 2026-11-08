@@ -170,3 +170,20 @@ func TestValidateSessionTokensRefusesMissingAccess(t *testing.T) {
 		})
 	}
 }
+
+// An operator hand-off with its refresh token reads the session row without
+// locking it: validation writes nothing.
+func TestValidateSessionTokensLocksNoOperatorSession(t *testing.T) {
+	t.Parallel()
+	f := newAuthFixture(t)
+	f.store.addOperator(1, "operator@example.com", "unused", true)
+	expiry := time.Now().Add(time.Hour)
+	f.store.operatorTokens[1] = domain.OperatorSession{ID: 1, OperatorID: 1, Token: "handle", FamilyID: "family", Expiry: expiry}
+	claims := domain.SessionClaims{AccountID: 1, Scope: "platform", FamilyID: "family", ExpiresAt: expiry.Unix()}
+	access, refresh, err := (fakeCodec{}).IssueTokenPair(claims, domain.RefreshClaims{AccountID: 1, Scope: "platform", Token: "handle", ExpiresAt: expiry.Unix()})
+	require.NoError(t, err)
+
+	_, err = f.auth.ValidateSessionTokens(context.Background(), access, refresh, "platform")
+	require.NoError(t, err)
+	require.NotContains(t, f.store.recorded(), "FindOperatorSessionByToken(forUpdate)")
+}

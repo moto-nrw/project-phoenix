@@ -3,9 +3,22 @@ package application
 import (
 	"context"
 	"errors"
+	"fmt"
+	"log/slog"
+	"slices"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+)
+
+// renewal names what a binding serves. A sign-in or switch mints; a refresh
+// and a session validation renew, and answer one state alike.
+type renewal int
+
+const (
+	mintSession renewal = iota
+	refreshSession
+	validateSession
 )
 
 // sessionBinding is what a session of one kind rests on: the account, the
@@ -14,212 +27,378 @@ import (
 type sessionBinding struct {
 	// op names the operation in refusals.
 	op        string
+	renewal   renewal
 	accountID int64
 	tenantID  int64
 	orgID     int64
-	// booked are the guardian schools that book Eltern-App (parent sign-in).
+	// booked are the guardian schools that book Eltern-App, read before the
+	// transaction (parent sign-in and refresh).
 	booked []int64
 	// recheckMFAGate: the school sign-in passed its MFA gate without a
 	// challenge; the guard decides the gate again under the lock.
 	recheckMFAGate bool
 }
 
-// sessionPolicy is the session rules of one kind. The mint, the refresh
-// rotation and the session validation read them here.
+// refuse returns a renewal's refusal. A refresh logs its reason with the
+// other refresh rejections; a validation logs once when it answers.
+func (b sessionBinding) refuse(s *AccountAuthentication, reason string, err error) error {
+	if b.renewal == refreshSession {
+		s.logRefreshDecision("refresh_session_rejected", reason, b.accountID, b.tenantID)
+	}
+	return err
+}
+
+// factReads reads what a session rests on. Mint and refresh read under the
+// guard's share locks, in the lock order of the mint pipeline; a validation
+// writes nothing and reads the same facts without locks.
+type factReads struct{ locked bool }
+
+func (r factReads) school(ctx context.Context, s *AccountAuthentication, schoolID int64) (domain.School, bool, error) {
+	if r.locked {
+		return s.schools.LockSchoolShared(ctx, schoolID)
+	}
+	return s.schools.FindSchool(ctx, schoolID)
+}
+
+func (r factReads) mapping(ctx context.Context, s *AccountAuthentication, accountID, tenantID int64) (bool, error) {
+	var mapped bool
+	var err error
+	if r.locked {
+		mapped, _, err = s.store.LockActiveTenantMappingShared(ctx, accountID, tenantID)
+	} else {
+		mapped, _, err = s.store.HasActiveAccountTenant(ctx, accountID, tenantID)
+	}
+	return mapped, err
+}
+
+func (r factReads) roles(ctx context.Context, s *AccountAuthentication, accountID, tenantID int64) ([]domain.RoleAssignment, error) {
+	roles, _, err := s.store.ListAccountRolesAtTenant(ctx, accountID, tenantID, r.locked)
+	return roles, err
+}
+
+func (r factReads) permissionSources(ctx context.Context, s *AccountAuthentication, accountID, tenantID int64) error {
+	if !r.locked {
+		return nil
+	}
+	_, err := s.store.LockAccountPermissionSources(ctx, accountID, tenantID)
+	return err
+}
+
+// heldFacts is what the facts of a kind read and the claims or the booking
+// check go on with.
+type heldFacts struct {
+	roles           []domain.RoleAssignment
+	guardianSchools []int64
+}
+
+// portalBooking is the module a portal's sessions need booked (#4895).
+type portalBooking int
+
+const (
+	noBooking portalBooking = iota
+	schoolPortalBooking
+	parentPortalBooking
+)
+
+// sessionPolicy is the session rules of one kind. Each fact has one
+// definition: the mint and the refresh rotation run it under the guard's
+// locks (guard, renew), the session validation without them (check).
 type sessionPolicy struct {
-	// guard is the eligibility a sign-in or switch mints under.
-	guard func(s *AccountAuthentication, b sessionBinding) eligibility
-	// renew runs the reads a renewal needs before its transaction (school
-	// state, module booking, token shape) and returns the guard it runs
-	// under the account lock; refusals carry the sentinels the refresh route
-	// answers with.
-	renew func(ctx context.Context, s *AccountAuthentication, b sessionBinding) (eligibility, error)
-	// keptAt names the school a refreshed session is kept at.
+	// before runs the lock-free reads a renewal makes ahead of the facts:
+	// the token's shape and the school it is bound to. The refresh runs them
+	// before its transaction, the validation on its own.
+	before func(ctx context.Context, s *AccountAuthentication, b sessionBinding) error
+	// facts is what the account must still hold, read through r.
+	facts func(ctx context.Context, s *AccountAuthentication, b sessionBinding, r factReads) (heldFacts, error)
+	// claims builds the token claims under the account lock after the facts.
+	// A refusal belongs in facts: validation never builds claims.
+	claims func(ctx context.Context, s *AccountAuthentication, b sessionBinding, account domain.LoginAccount, held heldFacts) (*domain.AccountClaimsPayload, error)
+	// booking is the module the kind's school must book. The refresh reads
+	// it before its transaction, the validation after its own: the portal
+	// port reads in a transaction of its own.
+	booking portalBooking
+	// keptAt names the school a renewed session is kept at; a refusal there
+	// ends the session at refresh and validation alike.
 	keptAt func(s *AccountAuthentication, b sessionBinding) successorTenant
-	// check is what a session validation asks on its transaction: the facts
-	// renew and guard decide, each read once, without locks and without
-	// claims, refused with the sentinels the refresh answers with. It
-	// returns the module booking check that runs after the transaction, or
-	// nil.
-	check func(ctx context.Context, s *AccountAuthentication, b sessionBinding) (func(context.Context) error, error)
+}
+
+// guard is the eligibility a session mints or renews under: the facts under
+// the guard's locks, then the claims.
+func (p sessionPolicy) guard(s *AccountAuthentication, b sessionBinding) eligibility {
+	return func(ctx context.Context, account domain.LoginAccount) (*domain.AccountClaimsPayload, error) {
+		b.accountID = account.ID
+		held, err := p.facts(ctx, s, b, factReads{locked: true})
+		if err != nil {
+			return nil, err
+		}
+		if p.booking == parentPortalBooking {
+			if err := b.guardianAtBookedSchool(s, held.guardianSchools, b.booked); err != nil {
+				return nil, err
+			}
+		}
+		return p.claims(ctx, s, b, account, held)
+	}
+}
+
+// renew runs the reads a refresh makes before its transaction and returns
+// the guard it runs under the account lock. Every refusal leaves the
+// presented token valid.
+func (p sessionPolicy) renew(ctx context.Context, s *AccountAuthentication, b sessionBinding) (eligibility, error) {
+	if err := p.before(ctx, s, b); err != nil {
+		return nil, err
+	}
+	switch p.booking {
+	case schoolPortalBooking:
+		if err := s.requireSchoolPortal(ctx, "refresh school session", b.accountID, b.tenantID); err != nil {
+			return nil, b.refuse(s, "portal_module_not_booked", err)
+		}
+	case parentPortalBooking:
+		booked, err := s.requireParentPortalForAccount(ctx, "refresh parent session", b.accountID)
+		if err != nil {
+			return nil, b.refuse(s, "portal_module_not_booked", err)
+		}
+		b.booked = booked
+	case noBooking:
+	}
+	return p.guard(s, b), nil
+}
+
+// check is what a session validation asks on its transaction: what the
+// refresh reads before its transaction and the facts, without locks, then
+// the MFA floor and the school the session is kept at. session is the
+// family's latest generation or the presented refresh row. It returns the
+// module booking check that runs after the transaction, or nil.
+func (p sessionPolicy) check(ctx context.Context, s *AccountAuthentication, b sessionBinding, session domain.AccountSession) (func(context.Context) error, error) {
+	if err := p.before(ctx, s, b); err != nil {
+		return nil, err
+	}
+	held, err := p.facts(ctx, s, b, factReads{})
+	if err != nil {
+		return nil, err
+	}
+	if err := s.requireSessionFloor(ctx, b.accountID, session.TenantID, session, factReads{}); err != nil {
+		return nil, err
+	}
+	if _, err := p.keptAt(s, b)(ctx, b.accountID, session); err != nil {
+		return nil, err
+	}
+	switch p.booking {
+	case schoolPortalBooking:
+		return func(ctx context.Context) error {
+			return s.requireSchoolPortal(ctx, b.op, b.accountID, b.tenantID)
+		}, nil
+	case parentPortalBooking:
+		return func(ctx context.Context) error {
+			booked, err := s.bookedGuardianSchools(ctx, b.op, b.accountID, held.guardianSchools)
+			if err != nil {
+				return err
+			}
+			return b.guardianAtBookedSchool(s, held.guardianSchools, booked)
+		}, nil
+	case noBooking:
+	}
+	return nil, nil
 }
 
 var sessionPolicies = map[domain.SessionKind]sessionPolicy{
 	domain.SessionKind(domain.PortalTenant.Name): {
-		guard: func(s *AccountAuthentication, b sessionBinding) eligibility {
-			return s.tenantEligibility(b.op, b.tenantID)
-		},
-		renew: func(ctx context.Context, s *AccountAuthentication, b sessionBinding) (eligibility, error) {
-			if err := s.requireLiveSchool(ctx, b); err != nil {
-				return nil, err
+		before: requireLiveSchool,
+		facts:  tenantFacts,
+		claims: func(ctx context.Context, s *AccountAuthentication, b sessionBinding, account domain.LoginAccount, held heldFacts) (*domain.AccountClaimsPayload, error) {
+			if b.renewal != mintSession && domain.IsGuardianOnly(domain.RoleNames(held.roles)) {
+				return buildParentMetadata(account), nil
 			}
-			return s.tenantRefreshEligibility(b.tenantID), nil
+			return s.loadAccountMetadataForTenantInTx(ctx, account, b.tenantID)
 		},
 		keptAt: tokenSchool,
-		check: func(ctx context.Context, s *AccountAuthentication, b sessionBinding) (func(context.Context) error, error) {
-			roles, err := s.liveSchoolRoles(ctx, b)
-			if err != nil {
-				return nil, err
-			}
-			// A guardian-only role set renews as a parent session
-			// (tenantRefreshEligibility).
-			refusal := tenantPortalRefusal(&domain.AccountClaimsPayload{RoleNames: domain.RoleNames(roles), Roles: roles})
-			if refusal != nil && !errors.Is(refusal, identityaccess.ErrParentMustUseParentPortal) {
-				return nil, failed(b.op, refusal)
-			}
-			return nil, nil
-		},
 	},
 	domain.SessionKind(domain.PortalSchool.Name): {
-		guard: func(s *AccountAuthentication, b sessionBinding) eligibility {
-			return s.schoolEligibility(b.tenantID, b.recheckMFAGate)
-		},
-		renew: func(ctx context.Context, s *AccountAuthentication, b sessionBinding) (eligibility, error) {
-			if err := s.requireLiveSchool(ctx, b); err != nil {
-				return nil, err
+		before: func(ctx context.Context, s *AccountAuthentication, b sessionBinding) error {
+			if err := requireLiveSchool(ctx, s, b); err != nil {
+				return err
 			}
 			if !domain.PortalSchool.Holds(b.tenantID, b.orgID) {
-				s.logRefreshDecision("refresh_session_rejected", "school_token_without_tenant", b.accountID, b.tenantID)
-				return nil, failed("refresh school session", identityaccess.ErrTenantAccessDenied)
+				return b.refuse(s, "school_token_without_tenant", failed("refresh school session", identityaccess.ErrTenantAccessDenied))
 			}
-			if err := s.requireSchoolPortal(ctx, "refresh school session", b.accountID, b.tenantID); err != nil {
-				s.logRefreshDecision("refresh_session_rejected", "portal_module_not_booked", b.accountID, b.tenantID)
-				return nil, err
-			}
-			return s.schoolRefreshEligibility(b.tenantID), nil
+			return nil
 		},
-		keptAt: tokenSchool,
-		check: func(ctx context.Context, s *AccountAuthentication, b sessionBinding) (func(context.Context) error, error) {
-			roles, err := s.liveSchoolRoles(ctx, b)
+		facts: schoolFacts,
+		claims: func(ctx context.Context, s *AccountAuthentication, b sessionBinding, account domain.LoginAccount, _ heldFacts) (*domain.AccountClaimsPayload, error) {
+			if err := (factReads{locked: true}).permissionSources(ctx, s, account.ID, b.tenantID); err != nil {
+				return nil, fmt.Errorf("lock permission sources of account %d at school %d: %w", account.ID, b.tenantID, err)
+			}
+			payload, err := s.schoolClaimsPayloadInTx(ctx, account, b.tenantID)
 			if err != nil {
 				return nil, err
 			}
-			// A revoked portal role answers as at refresh
-			// (schoolRefreshEligibility).
-			if !domain.HasSchoolPortalRole(roles) {
-				return nil, failed(b.op, identityaccess.ErrTenantAccessDenied)
-			}
-			return func(ctx context.Context) error {
-				return s.requireSchoolPortal(ctx, b.op, b.accountID, b.tenantID)
-			}, nil
-		},
-	},
-	domain.SessionKind(domain.PortalParent.Name): {
-		guard: func(s *AccountAuthentication, b sessionBinding) eligibility {
-			return s.parentEligibility(b.op, b.booked)
-		},
-		renew: func(ctx context.Context, s *AccountAuthentication, b sessionBinding) (eligibility, error) {
-			if err := s.requireLiveSchool(ctx, b); err != nil {
-				return nil, err
-			}
-			booked, err := s.requireParentPortalForAccount(ctx, "refresh parent session", b.accountID)
-			if err != nil {
-				s.logRefreshDecision("refresh_session_rejected", "portal_module_not_booked", b.accountID, b.tenantID)
-				return nil, err
-			}
-			return s.parentRefreshEligibility(booked), nil
-		},
-		keptAt: tokenSchool,
-		check: func(ctx context.Context, s *AccountAuthentication, b sessionBinding) (func(context.Context) error, error) {
-			if b.tenantID > 0 {
-				if _, err := s.tenantAccessRefusal(ctx, b.accountID, b.tenantID); err != nil {
+			if b.recheckMFAGate {
+				if err := s.requireSchoolMintMFAPolicy(ctx, account.ID, b.tenantID, payload); err != nil {
 					return nil, err
 				}
 			}
-			guardianSchools, err := s.guardianSchoolsInTx(ctx, b.accountID, false)
-			if err != nil {
-				return nil, err
-			}
-			return func(ctx context.Context) error {
-				booked, err := s.bookedGuardianSchools(ctx, b.op, b.accountID, guardianSchools)
-				if err != nil {
-					return err
-				}
-				// No live guardian school left answers as at refresh
-				// (parentRefreshEligibility).
-				if len(booked) == 0 {
-					return failed(b.op, identityaccess.ErrTenantNotFound)
-				}
-				return nil
-			}, nil
+			return payload, nil
 		},
+		booking: schoolPortalBooking,
+		keptAt:  tokenSchool,
+	},
+	domain.SessionKind(domain.PortalParent.Name): {
+		before: requireLiveSchool,
+		facts: func(ctx context.Context, s *AccountAuthentication, b sessionBinding, r factReads) (heldFacts, error) {
+			guardianSchools, err := s.guardianSchoolsInTx(ctx, b.accountID, r.locked)
+			return heldFacts{guardianSchools: guardianSchools}, err
+		},
+		claims: func(_ context.Context, _ *AccountAuthentication, _ sessionBinding, account domain.LoginAccount, _ heldFacts) (*domain.AccountClaimsPayload, error) {
+			return buildParentMetadata(account), nil
+		},
+		booking: parentPortalBooking,
+		keptAt:  tokenSchool,
 	},
 	domain.SessionKind(domain.PortalCaterer.Name): {
-		guard: func(s *AccountAuthentication, _ sessionBinding) eligibility { return s.catererEligibility() },
-		renew: func(_ context.Context, s *AccountAuthentication, b sessionBinding) (eligibility, error) {
+		before: func(_ context.Context, s *AccountAuthentication, b sessionBinding) error {
 			// A caterer token never names a school (ADR 0077).
 			if b.tenantID != 0 {
-				s.logRefreshDecision("refresh_session_rejected", "caterer_token_with_tenant", b.accountID, b.tenantID)
-				return nil, failed("refresh caterer session", identityaccess.ErrInvalidToken)
+				return b.refuse(s, "caterer_token_with_tenant", failed("refresh caterer session", identityaccess.ErrInvalidToken))
 			}
-			return s.catererEligibility(), nil
+			return nil
+		},
+		facts: func(ctx context.Context, s *AccountAuthentication, b sessionBinding, _ factReads) (heldFacts, error) {
+			return heldFacts{}, s.requireCaterer(ctx, b.accountID)
+		},
+		claims: func(_ context.Context, _ *AccountAuthentication, _ sessionBinding, account domain.LoginAccount, _ heldFacts) (*domain.AccountClaimsPayload, error) {
+			return buildCatererMetadata(account), nil
 		},
 		keptAt: func(s *AccountAuthentication, _ sessionBinding) successorTenant { return s.catererSessionSchool },
-		check: func(ctx context.Context, s *AccountAuthentication, b sessionBinding) (func(context.Context) error, error) {
-			if b.tenantID != 0 {
-				return nil, failed(b.op, identityaccess.ErrInvalidToken)
-			}
-			// The refresh keeps the session at a live supplied school
-			// (catererSessionSchool); without one it ends.
-			_, err := s.catererSessionSchool(ctx, b.accountID, domain.AccountSession{})
-			return nil, err
-		},
 	},
 	domain.SessionKind(domain.PortalOrg.Name): {
-		guard: func(s *AccountAuthentication, b sessionBinding) eligibility { return s.traegerEligibility(b.orgID) },
-		renew: func(_ context.Context, s *AccountAuthentication, b sessionBinding) (eligibility, error) {
+		before: func(_ context.Context, s *AccountAuthentication, b sessionBinding) error {
 			if !domain.PortalOrg.Holds(b.tenantID, b.orgID) {
-				s.logRefreshDecision("refresh_session_rejected", "traeger_token_without_traeger", b.accountID, b.tenantID)
-				return nil, failed("refresh Träger session", identityaccess.ErrInvalidToken)
+				return b.refuse(s, "traeger_token_without_traeger", failed("refresh Träger session", identityaccess.ErrInvalidToken))
 			}
-			return s.traegerEligibility(b.orgID), nil
+			return nil
+		},
+		facts: func(ctx context.Context, s *AccountAuthentication, b sessionBinding, _ factReads) (heldFacts, error) {
+			return heldFacts{}, s.requireTraegerMember(ctx, b.accountID, b.orgID)
+		},
+		claims: func(ctx context.Context, s *AccountAuthentication, b sessionBinding, account domain.LoginAccount, _ heldFacts) (*domain.AccountClaimsPayload, error) {
+			return s.traegerClaims(ctx, account, b.orgID)
 		},
 		keptAt: func(*AccountAuthentication, sessionBinding) successorTenant {
 			return func(context.Context, int64, domain.AccountSession) (int64, error) { return 0, nil }
 		},
-		// The access token's shape was checked against the portal before.
-		check: func(ctx context.Context, s *AccountAuthentication, b sessionBinding) (func(context.Context) error, error) {
-			return nil, s.requireTraegerMember(ctx, b.accountID, b.orgID)
-		},
 	},
-	// A Träger school session has no mapping at its school; its guard
-	// re-checks the Träger instead (ADR 0084 section 5).
+	// A Träger school session has no mapping at its school; its facts are
+	// the Träger's instead (ADR 0084 section 5).
 	domain.SessionKindTraegerSchool: {
-		guard: func(s *AccountAuthentication, b sessionBinding) eligibility {
-			return s.traegerSchoolEligibility(b.orgID, b.tenantID)
-		},
-		renew: func(_ context.Context, s *AccountAuthentication, b sessionBinding) (eligibility, error) {
+		before: func(_ context.Context, s *AccountAuthentication, b sessionBinding) error {
 			if b.tenantID <= 0 {
-				s.logRefreshDecision("refresh_session_rejected", "traeger_school_token_without_school", b.accountID, b.tenantID)
-				return nil, failed("refresh Träger school session", identityaccess.ErrInvalidToken)
+				return b.refuse(s, "traeger_school_token_without_school", failed("refresh Träger school session", identityaccess.ErrInvalidToken))
 			}
-			return s.traegerSchoolEligibility(b.orgID, b.tenantID), nil
+			return nil
+		},
+		facts: func(ctx context.Context, s *AccountAuthentication, b sessionBinding, _ factReads) (heldFacts, error) {
+			return heldFacts{}, s.traegerGrantsSchool(ctx, b.accountID, b.orgID, b.tenantID)
+		},
+		claims: func(ctx context.Context, s *AccountAuthentication, b sessionBinding, account domain.LoginAccount, _ heldFacts) (*domain.AccountClaimsPayload, error) {
+			return s.traegerSchoolClaims(ctx, account, b.tenantID, b.orgID)
 		},
 		keptAt: tokenSchool,
-		check: func(ctx context.Context, s *AccountAuthentication, b sessionBinding) (func(context.Context) error, error) {
-			return nil, s.traegerGrantsSchool(ctx, b.accountID, b.orgID, b.tenantID)
-		},
 	},
 }
 
 // requireLiveSchool refuses the renewal of a school-bound session whose
-// mapping ended or whose school is gone or inactive before the transaction,
-// so the client can retry after reactivation. A token without a school
-// passes.
-func (s *AccountAuthentication) requireLiveSchool(ctx context.Context, b sessionBinding) error {
+// mapping ended or whose school is gone or inactive. The school check closes
+// the race with a concurrent soft delete that bulk deletes the school's
+// sessions. A token without a school passes.
+func requireLiveSchool(ctx context.Context, s *AccountAuthentication, b sessionBinding) error {
 	if b.tenantID <= 0 {
 		return nil
 	}
-	return s.validateTenantAccess(ctx, b.accountID, b.tenantID)
+	return globalIdentityRead(ctx, s.runtime, func(ctx context.Context) error {
+		reason, err := s.tenantAccessRefusal(ctx, b.accountID, b.tenantID)
+		switch {
+		case reason != "":
+			return b.refuse(s, reason, err)
+		case err != nil && b.renewal == refreshSession:
+			s.logger.Error("refresh_session_validation_failed",
+				slog.Int64("account_id", b.accountID),
+				slog.Int64("tenant_id", b.tenantID),
+				slog.Any("error", err))
+		}
+		return err
+	})
 }
 
-// liveSchoolRoles reads, without locks, the mapping and school a
-// school-bound session rests on and the account's roles there.
-func (s *AccountAuthentication) liveSchoolRoles(ctx context.Context, b sessionBinding) ([]domain.RoleAssignment, error) {
-	if _, err := s.tenantAccessRefusal(ctx, b.accountID, b.tenantID); err != nil {
-		return nil, err
+// tenantFacts: an active mapping at the school and a role set the tenant
+// portal serves. A refresh token from before the tenant claim names school
+// zero and has no mapping to check; its successor gets the default mapping.
+// A renewal lets a guardian-only role set pass: a refresh token from before
+// the scope claim renews it as a parent session. The guard always read the
+// roles without a lock.
+func tenantFacts(ctx context.Context, s *AccountAuthentication, b sessionBinding, r factReads) (heldFacts, error) {
+	if b.tenantID > 0 {
+		mapped, err := r.mapping(ctx, s, b.accountID, b.tenantID)
+		if err != nil {
+			return heldFacts{}, fmt.Errorf("re-check membership of account %d at school %d: %w", b.accountID, b.tenantID, err)
+		}
+		if !mapped {
+			return heldFacts{}, failed(b.op, identityaccess.ErrTenantAccessDenied)
+		}
 	}
-	return s.loadAccountRolesForTenant(ctx, b.accountID, b.tenantID)
+	roles, err := s.loadAccountRolesForTenant(ctx, b.accountID, b.tenantID)
+	if err != nil {
+		return heldFacts{}, err
+	}
+	refusal := tenantPortalRefusal(&domain.AccountClaimsPayload{RoleNames: domain.RoleNames(roles), Roles: roles})
+	if refusal != nil && (b.renewal == mintSession || !errors.Is(refusal, identityaccess.ErrParentMustUseParentPortal)) {
+		return heldFacts{}, failed(b.op, refusal)
+	}
+	return heldFacts{roles: roles}, nil
+}
+
+// schoolFacts: the school is alive and active, the mapping is active and
+// the account holds a school-portal role there. A renewal answers a revoked
+// portal role with ErrTenantAccessDenied, the sentinel the refresh route
+// maps.
+func schoolFacts(ctx context.Context, s *AccountAuthentication, b sessionBinding, r factReads) (heldFacts, error) {
+	school, found, err := r.school(ctx, s, b.tenantID)
+	if err != nil {
+		return heldFacts{}, fmt.Errorf("re-check school %d of a school session: %w", b.tenantID, err)
+	}
+	if !found || !school.Live() {
+		return heldFacts{}, identityaccess.ErrTenantNotFound
+	}
+	mapped, err := r.mapping(ctx, s, b.accountID, b.tenantID)
+	if err != nil {
+		return heldFacts{}, fmt.Errorf("re-check membership of account %d at school %d: %w", b.accountID, b.tenantID, err)
+	}
+	if !mapped {
+		return heldFacts{}, b.refuse(s, "tenant_access_revoked", identityaccess.ErrTenantAccessDenied)
+	}
+	roles, err := r.roles(ctx, s, b.accountID, b.tenantID)
+	if err != nil {
+		return heldFacts{}, fmt.Errorf("re-check school portal role of account %d at school %d: %w", b.accountID, b.tenantID, err)
+	}
+	if !domain.HasSchoolPortalRole(roles) {
+		if b.renewal == mintSession {
+			return heldFacts{}, identityaccess.ErrAccountNoSchoolPortalRole
+		}
+		return heldFacts{}, b.refuse(s, "school_portal_role_revoked", identityaccess.ErrTenantAccessDenied)
+	}
+	return heldFacts{roles: roles}, nil
+}
+
+// guardianAtBookedSchool: a guardian role at a live school that books
+// Eltern-App (#4895). A renewal answers its loss with ErrTenantNotFound, the
+// answer the refresh route gave when the successor found no school to be
+// kept at.
+func (b sessionBinding) guardianAtBookedSchool(s *AccountAuthentication, guardianSchools, booked []int64) error {
+	if slices.ContainsFunc(guardianSchools, func(id int64) bool { return slices.Contains(booked, id) }) {
+		return nil
+	}
+	if b.renewal == mintSession {
+		return failed(b.op, identityaccess.ErrAccountNoGuardianRole)
+	}
+	return b.refuse(s, "no_live_guardian_school", failed("refresh parent session", identityaccess.ErrTenantNotFound))
 }
 
 // tokenSchool keeps a refreshed session at the school of the presented
@@ -232,21 +411,6 @@ func tokenSchool(s *AccountAuthentication, b sessionBinding) successorTenant {
 		}
 		resolved, _, err := s.resolveAccountTenant(ctx, accountID, "")
 		return resolved, err
-	}
-}
-
-// parentRefreshEligibility reports a parent left without a live guardian
-// school as ErrTenantNotFound, the answer the refresh route gave when the
-// successor found no school to be kept at.
-func (s *AccountAuthentication) parentRefreshEligibility(booked []int64) eligibility {
-	parent := s.parentEligibility("refresh parent session", booked)
-	return func(ctx context.Context, account domain.LoginAccount) (*domain.AccountClaimsPayload, error) {
-		payload, err := parent(ctx, account)
-		if errors.Is(err, identityaccess.ErrAccountNoGuardianRole) {
-			s.logRefreshDecision("refresh_session_rejected", "no_live_guardian_school", account.ID, 0)
-			return nil, failed("refresh parent session", identityaccess.ErrTenantNotFound)
-		}
-		return payload, err
 	}
 }
 

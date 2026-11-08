@@ -17,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 )
 
-// parseRefreshClaims parses and validates the refresh JWT.
 func (s *AccountAuthentication) parseRefreshClaims(refreshToken string) (domain.RefreshClaims, error) {
 	claims, err := s.codec.ParseRefreshToken(refreshToken)
 	if err != nil {
@@ -111,7 +110,7 @@ func (s *AccountAuthentication) planRefresh(ctx context.Context, claims domain.R
 		return refreshPlan{}, failed("refresh session", identityaccess.ErrInvalidToken)
 	}
 	portal, _ := domain.PortalOfClaim(claims.Scope)
-	binding := sessionBinding{op: "refresh token", accountID: claims.AccountID, tenantID: claims.TenantID, orgID: claims.OrgID}
+	binding := sessionBinding{op: "refresh token", renewal: refreshSession, accountID: claims.AccountID, tenantID: claims.TenantID, orgID: claims.OrgID}
 	eligible, err := policy.renew(ctx, s, binding)
 	if err != nil {
 		return refreshPlan{}, err
@@ -186,7 +185,7 @@ func (r *refreshRotation) run(ctx context.Context) error {
 	if err := r.validateLineage(ctx, current); err != nil || r.rejectAfterCommit != nil {
 		return err
 	}
-	if err := r.service.requireMintFloor(ctx, r.account.ID, current.TenantID, current); err != nil {
+	if err := r.service.requireSessionFloor(ctx, r.account.ID, current.TenantID, current, factReads{locked: true}); err != nil {
 		return err
 	}
 	return r.persist(ctx, current, wasRecovered, now)
@@ -378,25 +377,6 @@ func (s *AccountAuthentication) logRefreshDecision(event, reason string, account
 		slog.Int64("tenant_id", tenantID))
 }
 
-// validateTenantAccessInTransaction ensures the account still has active
-// access to the tenant of the refresh token and that the school is alive and
-// active. The school check closes the race with a concurrent soft delete
-// that bulk deletes the school's sessions; an inactive school is refused
-// before the rotation so the client can retry after reactivation.
-func (s *AccountAuthentication) validateTenantAccessInTransaction(ctx context.Context, accountID, tenantID int64) error {
-	reason, err := s.tenantAccessRefusal(ctx, accountID, tenantID)
-	switch {
-	case reason != "":
-		s.logRefreshDecision("refresh_session_rejected", reason, accountID, tenantID)
-	case err != nil:
-		s.logger.Error("refresh_session_validation_failed",
-			slog.Int64("account_id", accountID),
-			slog.Int64("tenant_id", tenantID),
-			slog.Any("error", err))
-	}
-	return err
-}
-
 // tenantAccessRefusal reads the active mapping and the live school a
 // school-bound session rests on, without locks; reason names a refusal for
 // the log, and a failed read carries none.
@@ -563,12 +543,6 @@ func (s *AccountAuthentication) auditLogoutAtSchool(txCtx context.Context, accou
 		return nil
 	}
 	return s.logAuthEvent(txCtx, accountID, domain.AuthEventLogout, true, ipAddress, userAgent, "")
-}
-
-func (s *AccountAuthentication) validateTenantAccess(ctx context.Context, accountID, tenantID int64) error {
-	return globalIdentityRead(ctx, s.runtime, func(txCtx context.Context) error {
-		return s.validateTenantAccessInTransaction(txCtx, accountID, tenantID)
-	})
 }
 
 // sameAccountSessionLineage holds when next continues current's family.

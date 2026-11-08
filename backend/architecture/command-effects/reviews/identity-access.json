@@ -1287,6 +1287,28 @@
     },
     {
       "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.ValidateSessionTokens",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ValidateSessionTokens",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.ValidateSessionTokens. Exposed when session validation began reading the refresh's facts and MFA floor through the session policy's shared definitions (#6187 review 3); the refresh binding reaches the same entry and carries the same label. Validation writes nothing and takes no row lock (TestValidateSessionQueryBudget); transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.ValidateSessionTokens",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ValidateSessionTokens",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/internal/application.engine.ValidateSessionTokens. Exposed when session validation began reading the refresh's facts and MFA floor through the session policy's shared definitions (#6187 review 3); the refresh binding reaches the same entry and carries the same label. Validation writes nothing and takes no row lock (TestValidateSessionQueryBudget); transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginParentWithAudit",
       "classification": "platform",
       "effect": "scope",
@@ -2449,6 +2471,28 @@
       "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.SwitchTenant. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged. Re-reviewed for #5422: the mint and refresh paths behind this binding now carry the refresh family and the origin of its school-switch lineage into the refresh claims, and switches and the Träger Absprung record that origin on the new session under the account lock the mint already takes; this binding's unit, scope, transaction and lock order are unchanged. Re-reviewed for #5422 legacy Träger handoff deadline: source inheritance now runs in the existing locked mint transaction without retiring the Träger source; transaction participation, scope and effect classification are unchanged. Re-reviewed for the Träger handoff session cap: the session cap in the existing mint transaction now keeps the session that transaction just created and evicts among the account's other sessions; transaction participation, scope, lock order and effect classification are unchanged. Re-reviewed for #5981: the operator row write in this binding's evidence (Service.UpdateOperator) now takes the operator row lock with its read and applies its change to the locked row, inside the administrative unit it already joined, so a concurrent deactivation or password rotation is not reverted; transaction participation, scope, lock order and effect classification are unchanged. Re-reviewed for the closed portal table: the portal scope checks behind this binding read the table instead of literal scope strings, with identical values; unit, scope, transaction, lock order and effect classification are unchanged.",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ValidateSessionTokens",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.ValidateSessionTokens",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.ValidateSessionTokens. Exposed when session validation began reading the refresh's facts and MFA floor through the session policy's shared definitions (#6187 review 3); the refresh binding reaches the same entry and carries the same label. Validation writes nothing and takes no row lock (TestValidateSessionQueryBudget); transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ValidateSessionTokens",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.ValidateSessionTokens",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.ValidateSessionTokens. Exposed when session validation began reading the refresh's facts and MFA floor through the session policy's shared definitions (#6187 review 3); the refresh binding reaches the same entry and carries the same label. Validation writes nothing and takes no row lock (TestValidateSessionQueryBudget); transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime"
     },
     {

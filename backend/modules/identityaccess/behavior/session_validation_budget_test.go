@@ -23,9 +23,9 @@ import (
 
 // TestValidateSessionQueryBudget pins what the BFF's family check costs on
 // every page view, per session kind: one administrative transaction that
-// reads the family, the account and the kind's facts once, plus the module
-// booking for the school and parents portals. Validation writes nothing, so
-// it takes no row lock.
+// reads the family, the account, the kind's facts, its MFA floor and the
+// school it is kept at, plus the module booking for the school and parents
+// portals. Validation writes nothing, so it takes no row lock.
 func TestValidateSessionQueryBudget(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -71,6 +71,8 @@ func TestValidateSessionQueryBudget(t *testing.T) {
 			case "tenant":
 				assignSchoolSystemRole(t, db, accountID, school, "admin")
 				claims.Scope, claims.TenantID = "", school
+				// Administrative rights need the second factor (#3841).
+				row.MFAVerified = true
 			case "school":
 				assignSchoolSystemRole(t, db, accountID, school, "lehrkraft")
 				claims.TenantID = school
@@ -82,12 +84,12 @@ func TestValidateSessionQueryBudget(t *testing.T) {
 			case "org":
 				testpkg.CreateTestTraegerMember(t, db, organizationID, accountID, identityaccess.TraegerRoleSchoolAccess)
 				claims.OrgID = organizationID
-				row.TenantID, row.OrganizationID = 0, organizationID
+				row.TenantID, row.OrganizationID, row.MFAVerified = 0, organizationID, true
 			case "traeger_school":
 				testpkg.CreateTestTraegerMember(t, db, organizationID, accountID, identityaccess.TraegerRoleSchoolAccess)
 				portal = "tenant"
 				claims.Scope, claims.TenantID, claims.OrgID, claims.ViaTraeger = "", school, organizationID, true
-				row.PortalScope, row.OrganizationID = "tenant", organizationID
+				row.PortalScope, row.OrganizationID, row.MFAVerified = "tenant", organizationID, true
 			}
 			row.AccountID = accountID
 			row.Token = fmt.Sprintf("validate-budget-%s-%d", kind, time.Now().UnixNano())

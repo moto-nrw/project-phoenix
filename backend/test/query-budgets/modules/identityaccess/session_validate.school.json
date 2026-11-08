@@ -1,6 +1,6 @@
 {
   "scenario": "identity.session_validate.school",
-  "max": 12,
+  "max": 18,
   "exact": true,
-  "description": "modules/identityaccess — POST /auth/session/validate without a refresh token, which the BFF asks on every page view (#5399). One administrative transaction (BEGIN, SET LOCAL ROLE, ..., COMMIT) reads the family, the account and the facts its refresh decides, each once, without row locks and without claims. Facts: mapping, school, roles (school-portal role). Then the booking of Unterricht am Vormittag in the portal port's own tenant transaction (4). development: 9, which checked neither role nor booking."
+  "description": "modules/identityaccess — POST /auth/session/validate without a refresh token, which the BFF asks on every page view (#5399). One administrative transaction (BEGIN, SET LOCAL ROLE, ..., COMMIT) reads, without row locks and without claims, the family, the account, then the session policy's facts through the definitions the refresh's guard reads under its locks (sessionPolicy.check), the MFA floor and the school the refresh keeps the session at. Before: mapping and school (2). Facts: school, mapping, roles (3; school and mapping read twice, as at refresh). MFA floor (school policy): permissions, global and school override, security.mfa_mode (4). Then the booking of Unterricht am Vormittag in the portal port's own tenant transaction (4). development: 9, which checked neither role, floor nor booking."
 }

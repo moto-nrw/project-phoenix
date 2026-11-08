@@ -286,7 +286,7 @@ func (s *AccountAuthentication) authorizeMint(ctx context.Context, req mintReque
 	if err := s.adoptSourceFamily(ctx, account.ID, req.sourceFamilyID, session, loginTime); err != nil {
 		return nil, time.Time{}, refused(err)
 	}
-	if err := s.requireMintFloor(ctx, account.ID, req.tenantID, *session); err != nil {
+	if err := s.requireSessionFloor(ctx, account.ID, req.tenantID, *session, factReads{locked: true}); err != nil {
 		return nil, time.Time{}, refused(err)
 	}
 	return claims, loginTime, nil
@@ -393,10 +393,10 @@ func (s *AccountAuthentication) stampLiveAccount(ctx context.Context, accountID 
 	return loginTime, nil
 }
 
-// requireMintFloor is the MFA floor every mint and refresh applies to the
-// session it is about to persist.
-func (s *AccountAuthentication) requireMintFloor(ctx context.Context, accountID, tenantID int64, session domain.AccountSession) error {
-	if err := s.requireSessionMFA(ctx, accountID, tenantID, session.PortalScope, session.MFAVerified); err != nil {
+// requireSessionFloor is the MFA floor every mint and refresh applies to the
+// session it is about to persist, and a validation to the session it reads.
+func (s *AccountAuthentication) requireSessionFloor(ctx context.Context, accountID, tenantID int64, session domain.AccountSession, r factReads) error {
+	if err := s.requireSessionMFA(ctx, accountID, tenantID, session.PortalScope, session.MFAVerified, r); err != nil {
 		return err
 	}
 	return s.requireTraegerSchoolMFA(session)

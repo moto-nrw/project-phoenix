@@ -14,8 +14,8 @@ import (
 // ValidateSessionTokens verifies a frontend session hand-off (access token
 // plus optional refresh token for one portal) without consuming any refresh
 // recovery state. It asks whether the session would still renew: the facts
-// its refresh decides, read once, without locks and without building claims,
-// because validation writes nothing. A refusal carries the sentinel the
+// its refresh decides, through the refresh's own definitions, without locks
+// and without building claims, because validation writes nothing. A refusal carries the sentinel the
 // refresh answers with (identityaccess.SessionOutcomeOf); any other error is
 // a read that could not run.
 func (s *AccountAuthentication) ValidateSessionTokens(ctx context.Context, access, refresh, portal string) (_ identityaccess.SessionClaims, err error) {
@@ -85,7 +85,7 @@ func accountHandOffOf(claims domain.SessionClaims) (accountHandOff, error) {
 	return accountHandOff{
 		kind:    kind,
 		policy:  policy,
-		binding: sessionBinding{op: "validate session", accountID: claims.AccountID, tenantID: claims.TenantID, orgID: claims.OrgID},
+		binding: sessionBinding{op: "validate session", renewal: validateSession, accountID: claims.AccountID, tenantID: claims.TenantID, orgID: claims.OrgID},
 	}, nil
 }
 
@@ -93,6 +93,7 @@ func accountHandOffOf(claims domain.SessionClaims) (accountHandOff, error) {
 // row), the account and the facts of the session's kind on one
 // transaction, and returns the booking check that runs after it.
 func (s *AccountAuthentication) validateAccountSessionInTx(txCtx context.Context, handOff accountHandOff, claims domain.SessionClaims, refreshClaims *domain.RefreshClaims) (func(context.Context) error, error) {
+	var session domain.AccountSession
 	if refreshClaims == nil {
 		head, err := s.sessions.LatestAccountSessionInFamily(txCtx, claims.FamilyID)
 		if err := familyBacks(head, err, domain.AccessSession{
@@ -100,6 +101,7 @@ func (s *AccountAuthentication) validateAccountSessionInTx(txCtx context.Context
 		}); err != nil {
 			return nil, err
 		}
+		session = domain.AccountSession(head)
 	}
 	account, found, _, err := findLoginAccount(txCtx, s.runtime, s.store, claims.AccountID, false)
 	if err != nil {
@@ -108,21 +110,17 @@ func (s *AccountAuthentication) validateAccountSessionInTx(txCtx context.Context
 	if !found || !account.Active {
 		return nil, identityaccess.ErrInvalidToken
 	}
-	booked, err := handOff.policy.check(txCtx, s, handOff.binding)
-	if err != nil {
-		return nil, err
-	}
 	if refreshClaims != nil {
-		if err := s.validateRefreshRow(txCtx, handOff.kind, claims, *refreshClaims, account.ID); err != nil {
+		if session, err = s.validateRefreshRow(txCtx, handOff.kind, claims, *refreshClaims, account.ID); err != nil {
 			return nil, err
 		}
 	}
-	return booked, nil
+	return handOff.policy.check(txCtx, s, handOff.binding, session)
 }
 
 // logValidationRefusal records a refused validation once, apart from the
 // refresh's events. Every page view of a refused session asks, so a refusal
-// is Info; a read that failed is Warn. A missing module is already logged by
+// is Info; a read that failed, the second-factor state included, is Warn. A missing module is already logged by
 // the portal check (logPortalRefusal).
 func (s *AccountAuthentication) logValidationRefusal(err error, claims domain.SessionClaims, portal string) {
 	attrs := []any{
@@ -133,7 +131,7 @@ func (s *AccountAuthentication) logValidationRefusal(err error, claims domain.Se
 	}
 	switch identityaccess.SessionOutcomeOf(authenticationError(err)) {
 	case identityaccess.SessionModuleNotBooked:
-	case identityaccess.SessionUnclassified:
+	case identityaccess.SessionUnclassified, identityaccess.SessionUndecided:
 		s.logger.Warn("session_validation_failed", attrs...)
 	default:
 		s.logger.Info("session_validation_refused", attrs...)
@@ -176,7 +174,7 @@ func (s *AccountAuthentication) validateOperatorSession(ctx context.Context, cla
 	if refreshClaims == nil {
 		return nil
 	}
-	session, err := s.sessions.findOperatorSessionForUpdate(ctx, refreshClaims.Token)
+	session, err := s.sessions.findOperatorSessionByToken(ctx, refreshClaims.Token)
 	if errors.Is(err, identityaccess.ErrOperatorSessionNotFound) {
 		return identityaccess.ErrInvalidToken
 	}
@@ -201,18 +199,18 @@ func (s *AccountAuthentication) parseSessionRefresh(refresh string, claims domai
 	return refreshClaims, nil
 }
 
-func (s *AccountAuthentication) validateRefreshRow(ctx context.Context, kind domain.SessionKind, claims domain.SessionClaims, refreshClaims domain.RefreshClaims, accountID int64) error {
+func (s *AccountAuthentication) validateRefreshRow(ctx context.Context, kind domain.SessionKind, claims domain.SessionClaims, refreshClaims domain.RefreshClaims, accountID int64) (domain.AccountSession, error) {
 	session, err := s.sessions.findAccountSessionByToken(ctx, refreshClaims.Token)
 	if errors.Is(err, identityaccess.ErrAccountSessionNotFound) {
-		return identityaccess.ErrInvalidToken
+		return domain.AccountSession{}, identityaccess.ErrInvalidToken
 	}
 	if err != nil {
-		return err
+		return domain.AccountSession{}, err
 	}
 	if session.AccountID != accountID || (claims.TenantID > 0 && session.TenantID != claims.TenantID) || !sameTraeger(kind, claims.OrgID, session) || session.PortalScope != domain.PersistedPortalScope(claims.Scope) || !session.Expiry.After(time.Now()) || session.RotatedAt != nil || session.ReplacementTokenHash != nil || session.FamilyID != claims.FamilyID {
-		return identityaccess.ErrInvalidToken
+		return domain.AccountSession{}, identityaccess.ErrInvalidToken
 	}
-	return nil
+	return session, nil
 }
 
 // VerifyAccessSession confirms that the family an access token names still
