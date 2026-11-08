@@ -53,8 +53,9 @@ func careContractSignaturePorts(organizations HolidayOrganizations, settings Tra
 	delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, parentsURL string) careContractCompose.SignaturePorts {
 	return careContractCompose.SignaturePorts{
 		Ledger: owners.NewCareContractSignatures(), Links: owners.CareContractLinks(parentsURL),
-		Sender: owners.CareContractSender{Settings: settings},
-		Post:   owners.CareContractPost{Delivery: delivery, Outcomes: outcomes}, Runtime: owners.CareContractRuntime{},
+		Sender: owners.CareContractSigningSender{CareContractSender: owners.CareContractSender{Settings: settings},
+			MasterData: organizationTenancyCompose.NewTraegerMasterData()},
+		Post: owners.CareContractPost{Delivery: delivery, Outcomes: outcomes}, Runtime: owners.CareContractRuntime{},
 	}
 }
 
@@ -317,6 +318,7 @@ func (b careContractLetterheads) Letterhead(ctx context.Context, reviewer careco
 		AccentColor: texts[configModels.KeyBrandingPrimaryColor], SenderText: texts[configModels.KeyBrandingLetterheadText],
 		FooterText: texts[configModels.KeyBrandingFooterText], ContactName: profile.Contact.Name,
 		ContactPhone: profile.Contact.Phone, ContactEmail: profile.Contact.Email,
+		WithdrawalPhone: profile.Withdrawal.Phone, WithdrawalEmail: profile.Withdrawal.Email,
 		Template: carecontract.LetterTemplate{
 			Version: template.Version, Subject: template.Subject, Salutation: template.Salutation,
 			Body: template.Body, Closing: template.Closing,

@@ -311,7 +311,7 @@ describe("ResetPasswordPageContent — error display", () => {
     ).toBeInTheDocument();
   });
 
-  // The parents portal answers an expired or used link with 410. The page is
+  // Every portal answers an expired or used link with 410. The page is
   // unauthenticated: the link problem shows in the form, no redirect.
   it("keeps a 410 expired link in the form and does not redirect", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => undefined);

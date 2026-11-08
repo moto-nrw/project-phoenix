@@ -506,6 +506,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (m *TraegerMasterData) DocumentContact(ctx context.Context, organizationID int64) (organizationtenancy.TraegerDocumentContact, error) {\n\tif organizationID \u003c= 0 {\n\t\treturn organizationtenancy.TraegerDocumentContact{}, errTraegerRequired\n\t}\n\treturn m.store.FindDocumentContact(ctx, organizationID)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/internal/application/TraegerMasterData.DocumentContact",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
       "evidence": "func (m *TraegerMasterData) LogoImage(ctx context.Context, organizationID int64) (organizationtenancy.TraegerLogoImage, error) {\n\tif organizationID \u003c= 0 {\n\t\treturn organizationtenancy.TraegerLogoImage{}, errTraegerRequired\n\t}\n\tlogo, found, err := m.store.LogoImage(ctx, organizationID)\n\tif err != nil {\n\t\treturn organizationtenancy.TraegerLogoImage{}, err\n\t}\n\tif !found {\n\t\treturn organizationtenancy.TraegerLogoImage{}, organizationtenancy.ErrTraegerLogoNotFound\n\t}\n\treturn logo, nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/organizationtenancy/internal/application/TraegerMasterData.LogoImage",

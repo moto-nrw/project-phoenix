@@ -14,6 +14,7 @@ import {
 } from "~/lib/session-cookie-exit.server";
 import { portalOfScope } from "./portals";
 import {
+  familyBacksSession,
   sessionFamilyState,
   type SessionFamilyState,
 } from "./token-validation";
@@ -202,7 +203,7 @@ async function mayWrite(
     return false;
   // A new or renewed session only while its family is live, asked now.
   const state = await familyStateOf(states, written);
-  if (state === "live") return true;
+  if (familyBacksSession(state)) return true;
   // Without an answer, a refresh token this request was just issued (sign-in
   // or rotation) still lands: Identity & Access issues one only for a live
   // family, and dropping it would leave the browser on the consumed token

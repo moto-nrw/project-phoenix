@@ -1019,3 +1019,75 @@ describe("every portal logout revokes its session family (#5194)", () => {
     },
   );
 });
+
+// Integration run #6187/#6188: a redirecting signOut resolves its
+// callbackUrl against NEXTAUTH_URL, the tenant origin, so the parents and
+// school logout landed on the tenant's host root instead of the portal's
+// login.
+describe("a hosted portal's logout opens its own login", () => {
+  const portals = [
+    ["Schule", SchoolShellProvider, "NEXT_PUBLIC_SCHOOL_HOSTNAME", "/school"],
+    [
+      "Caterer",
+      CatererShellProvider,
+      "NEXT_PUBLIC_CATERER_HOSTNAME",
+      "/caterer",
+    ],
+    ["Eltern", ParentShellProvider, "NEXT_PUBLIC_PARENTS_HOSTNAME", "/parents"],
+  ] as const;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSignOut.mockResolvedValue(undefined);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(null, { status: 204 })),
+    );
+    vi.spyOn(window.location, "assign").mockImplementation(() => undefined);
+    mockUseSession.mockReturnValue({
+      data: {
+        user: { id: "7", name: "User", email: "u@example.com", roles: [] },
+      },
+      status: "authenticated",
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  it.each(portals)(
+    "%s: on the portal's host",
+    async (_portal, Provider, hostEnv) => {
+      vi.stubEnv(hostEnv, window.location.host);
+      const { result } = renderHook(() => useShellAuth(), {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <Provider>{children}</Provider>
+        ),
+      });
+
+      await result.current.logout();
+
+      expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
+      expect(window.location.assign).toHaveBeenCalledWith("/login");
+    },
+  );
+
+  it.each(portals)(
+    "%s: on another host, through the portal's prefix",
+    async (_portal, Provider, hostEnv, prefix) => {
+      vi.stubEnv(hostEnv, "portal.example.test");
+      const { result } = renderHook(() => useShellAuth(), {
+        wrapper: ({ children }: { children: ReactNode }) => (
+          <Provider>{children}</Provider>
+        ),
+      });
+
+      await result.current.logout();
+
+      expect(window.location.assign).toHaveBeenCalledWith(`${prefix}/login`);
+    },
+  );
+});

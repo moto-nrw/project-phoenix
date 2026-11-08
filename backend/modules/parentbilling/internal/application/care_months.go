@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strings"
 
 	validation "github.com/go-ozzo/ozzo-validation"
 
@@ -21,7 +20,10 @@ const careModuleHorizon = 365
 // CareStore persists the price list, the monthly runs and their invoices
 // of a Träger in its Träger transaction.
 type CareStore interface {
-	CareTariffs(ctx context.Context, organizationID int64) ([]parentbilling.CareTariff, error)
+	// CarePriceLists reads every price and the heads of the price lists with
+	// their free months in one read (#6196); ReplaceCarePrices writes the
+	// head of its list and DeleteCarePrices removes it.
+	CarePriceLists(ctx context.Context, organizationID int64) ([]parentbilling.CareTariff, []parentbilling.CarePriceListHead, error)
 	ReplaceCarePrices(ctx context.Context, organizationID, accountID int64, list parentbilling.CarePriceList) error
 	DeleteCarePrices(ctx context.Context, organizationID, schoolID int64, validFrom calendar.Date) (int64, error)
 	CareBilledUntil(ctx context.Context, organizationID int64) (map[int64]calendar.Date, error)
@@ -114,7 +116,7 @@ func (c *CareBilling) CareTariffs(ctx context.Context, reviewer parentbilling.Ho
 	if err != nil {
 		return parentbilling.CareTariffs{}, err
 	}
-	tariffs, err := c.store.CareTariffs(ctx, reviewer.OrganizationID)
+	tariffs, heads, err := c.store.CarePriceLists(ctx, reviewer.OrganizationID)
 	if err != nil {
 		return parentbilling.CareTariffs{}, err
 	}
@@ -132,7 +134,7 @@ func (c *CareBilling) CareTariffs(ctx context.Context, reviewer parentbilling.Ho
 			modules[i].SchoolName = names[modules[i].SchoolID]
 		}
 	}
-	return parentbilling.CareTariffs{Schools: schools, Modules: modules, Tariffs: withValidity(tariffs), BilledUntil: billed}, nil
+	return parentbilling.CareTariffs{Schools: schools, Modules: modules, Tariffs: withValidity(tariffs), Lists: heads, BilledUntil: billed}, nil
 }
 
 // bookedVersions reads the versions in force in the year before and the
@@ -170,38 +172,17 @@ func (c *CareBilling) ownSchool(ctx context.Context, organizationID, schoolID in
 // list names, by school and module. Counts and weekdays come from the
 // versions only.
 func careModules(versions []parentbilling.CareContractVersion, tariffs []parentbilling.CareTariff) []parentbilling.CareModule {
-	type key struct{ school, offering int64 }
-	modules := map[key]*parentbilling.CareModule{}
-	contracts := map[key]map[int64]bool{}
-	ensure := func(k key, schoolName, moduleName string) *parentbilling.CareModule {
-		module, ok := modules[k]
-		if !ok {
-			module = &parentbilling.CareModule{SchoolID: k.school, SchoolName: schoolName, CareOfferingID: k.offering,
-				ModuleName: moduleName, BookedWeekdays: []string{}}
-			modules[k] = module
-			contracts[k] = map[int64]bool{}
-		}
-		return module
-	}
+	book := moduleBook{modules: map[moduleKey]*parentbilling.CareModule{}, contracts: map[moduleKey]map[int64]bool{}}
 	for _, version := range versions {
-		for _, service := range version.Services {
-			k := key{version.SchoolID, service.CareOfferingID}
-			module := ensure(k, version.SchoolName, service.ModuleName)
-			if module.EndsAt == "" {
-				module.EndsAt = service.EndsAt
-			}
-			if !slices.Contains(module.BookedWeekdays, service.Weekday) {
-				module.BookedWeekdays = append(module.BookedWeekdays, service.Weekday)
-			}
-			contracts[k][version.ContractID] = true
-		}
+		book.addVersion(version)
 	}
 	for _, tariff := range tariffs {
-		ensure(key{tariff.SchoolID, tariff.CareOfferingID}, "", tariff.ModuleName)
+		book.ensure(moduleKey{tariff.SchoolID, tariff.CareOfferingID}, "", tariff.ModuleName)
 	}
-	result := make([]parentbilling.CareModule, 0, len(modules))
-	for k, module := range modules {
-		module.ContractCount = len(contracts[k])
+	result := make([]parentbilling.CareModule, 0, len(book.modules))
+	for k, module := range book.modules {
+		module.ContractCount = len(book.contracts[k])
+		slices.Sort(module.BookedDaysPerWeek)
 		slices.SortFunc(module.BookedWeekdays, func(a, b string) int { return compareOrdered(weekdayOrder[a], weekdayOrder[b]) })
 		result = append(result, *module)
 	}
@@ -209,6 +190,47 @@ func careModules(versions []parentbilling.CareContractVersion, tariffs []parentb
 		return firstNonZero(compareOrdered(a.SchoolID, b.SchoolID), compareOrdered(a.EndsAt, b.EndsAt), compareOrdered(a.ModuleName, b.ModuleName))
 	})
 	return result
+}
+
+// moduleBook collects the modules of the price list with their contracts.
+type moduleBook struct {
+	modules   map[moduleKey]*parentbilling.CareModule
+	contracts map[moduleKey]map[int64]bool
+}
+
+func (b moduleBook) ensure(k moduleKey, schoolName, moduleName string) *parentbilling.CareModule {
+	module, ok := b.modules[k]
+	if !ok {
+		module = &parentbilling.CareModule{SchoolID: k.schoolID, SchoolName: schoolName, CareOfferingID: k.offeringID,
+			ModuleName: moduleName, BookedWeekdays: []string{}, BookedDaysPerWeek: []int{}}
+		b.modules[k] = module
+		b.contracts[k] = map[int64]bool{}
+	}
+	return module
+}
+
+// addVersion adds the booked weekdays, day counts and the contract of a
+// version to its modules.
+func (b moduleBook) addVersion(version parentbilling.CareContractVersion) {
+	for _, service := range version.Services {
+		k := moduleKey{version.SchoolID, service.CareOfferingID}
+		module := b.ensure(k, version.SchoolName, service.ModuleName)
+		if module.EndsAt == "" {
+			module.EndsAt = service.EndsAt
+		}
+		if !slices.Contains(module.BookedWeekdays, service.Weekday) {
+			module.BookedWeekdays = append(module.BookedWeekdays, service.Weekday)
+		}
+		b.contracts[k][version.ContractID] = true
+	}
+	for offering, counts := range bookedDayCounts(version) {
+		module := b.modules[moduleKey{version.SchoolID, offering}]
+		for _, count := range counts {
+			if !slices.Contains(module.BookedDaysPerWeek, count) {
+				module.BookedDaysPerWeek = append(module.BookedDaysPerWeek, count)
+			}
+		}
+	}
 }
 
 // SaveCarePriceList sets the prices of a school from a month on. A month an
@@ -228,7 +250,7 @@ func (c *CareBilling) SaveCarePriceList(ctx context.Context, reviewer parentbill
 		}
 		return parentbilling.CareTariffs{}, validation.Errors{"school_id": errors.New("is no school of the Träger")}
 	}
-	if err := c.keepBilledPrices(ctx, reviewer.OrganizationID, list.SchoolID, list.ValidFrom, list.Prices); err != nil {
+	if err := c.keepBilledPrices(ctx, reviewer.OrganizationID, list.SchoolID, list.ValidFrom, &list); err != nil {
 		return parentbilling.CareTariffs{}, err
 	}
 	if err := c.store.ReplaceCarePrices(ctx, reviewer.OrganizationID, reviewer.AccountID, list); err != nil {
@@ -263,89 +285,6 @@ func (c *CareBilling) DeleteCarePriceList(ctx context.Context, reviewer parentbi
 		return parentbilling.CareTariffs{}, parentbilling.ErrCareTariffNotFound
 	}
 	return c.CareTariffs(ctx, reviewer)
-}
-
-// keepBilledPrices holds the monthly billing and refuses a change of the
-// price list of a school from validFrom on (replacement nil deletes it) that
-// would change a price an issued invoice billed: every module and weekday
-// billed in a month from validFrom on keeps its price. A booked weekday
-// without a price may still get one, also in a billed month, so a contract
-// a run left out can be billed by the next run of the month.
-func (c *CareBilling) keepBilledPrices(ctx context.Context, organizationID, schoolID int64, validFrom calendar.Date, replacement []parentbilling.CarePrice) error {
-	if err := c.store.LockCareBilling(ctx, organizationID); err != nil {
-		return fmt.Errorf("parent billing: hold the monthly billing: %w", err)
-	}
-	billed, err := c.store.CareBilledPrices(ctx, organizationID, schoolID)
-	if err != nil {
-		return err
-	}
-	tariffs, err := c.store.CareTariffs(ctx, organizationID)
-	if err != nil {
-		return err
-	}
-	after := make([]parentbilling.CareTariff, 0, len(tariffs)+len(replacement))
-	for _, tariff := range tariffs {
-		if tariff.SchoolID != schoolID || tariff.ValidFrom != validFrom {
-			after = append(after, tariff)
-		}
-	}
-	for _, price := range replacement {
-		after = append(after, parentbilling.CareTariff{SchoolID: schoolID, CareOfferingID: price.CareOfferingID,
-			Weekday: price.Weekday, ValidFrom: validFrom, MonthlyCents: price.MonthlyCents})
-	}
-	if changesBilledPrice(schoolID, validFrom, billed, newPriceBook(tariffs), newPriceBook(after)) {
-		return parentbilling.ErrCareTariffMonthBilled
-	}
-	return nil
-}
-
-// changesBilledPrice reports a billed weekday whose price in its month
-// differs between the two price lists.
-func changesBilledPrice(schoolID int64, validFrom calendar.Date, billed []parentbilling.CareBilledPrice, before, after priceBook) bool {
-	for _, entry := range billed {
-		if entry.Month.Before(validFrom) {
-			continue
-		}
-		was, wasSet := before.on(schoolID, entry.CareOfferingID, entry.Weekday, entry.Month)
-		now, nowSet := after.on(schoolID, entry.CareOfferingID, entry.Weekday, entry.Month)
-		if wasSet != nowSet || was != now {
-			return true
-		}
-	}
-	return false
-}
-
-// normalizePriceList checks a price list: a school, the first day of a
-// month, known weekdays, one price per module and weekday, amounts in cent.
-func normalizePriceList(list parentbilling.CarePriceList) (parentbilling.CarePriceList, error) {
-	errs := validation.Errors{}
-	if list.SchoolID <= 0 {
-		errs["school_id"] = errors.New("is required")
-	}
-	if !isMonthStart(list.ValidFrom) {
-		errs["valid_from"] = errors.New("must be the first day of a month")
-	}
-	seen := map[priceKey]bool{}
-	for i, price := range list.Prices {
-		key := priceKey{offeringID: price.CareOfferingID, weekday: price.Weekday}
-		switch {
-		case price.CareOfferingID <= 0 || weekdayOrder[price.Weekday] == 0:
-			errs["prices"] = errors.New("needs a module and a weekday")
-		case seen[key]:
-			errs["prices"] = errors.New("names a module and weekday twice")
-		case price.MonthlyCents < 0 || price.MonthlyCents > parentbilling.MaxMonthlyPriceCents:
-			errs["prices"] = errors.New("must be amounts in cent, not negative")
-		case strings.TrimSpace(price.ModuleName) == "" || len([]rune(price.ModuleName)) > parentbilling.MaxModuleNameLength:
-			errs["prices"] = errors.New("needs the name of the module")
-		}
-		seen[key] = true
-		price.ModuleName = strings.TrimSpace(price.ModuleName)
-		list.Prices[i] = price
-	}
-	if len(errs) > 0 {
-		return list, errs
-	}
-	return list, nil
 }
 
 // ListCareRuns lists the monthly runs, the latest month first, and
@@ -467,10 +406,12 @@ func (c *CareBilling) ReleaseCareRun(ctx context.Context, reviewer parentbilling
 	}
 	if err := c.store.InsertCareRunEvent(ctx, reviewer.OrganizationID, run.ID, reviewer.AccountID, runEventRelease,
 		map[string]any{"document_count": len(month.invoices), "total_cents": month.total(), "month_rule": rule,
+			"free_of_charge":     month.free,
 			"duplicate_children": duplicateChildren(month.duplicates), "issued_on": issuedOn.String(),
 			"excluded_contract_ids": excludedContracts(month.excluded)}); err != nil {
 		return parentbilling.CareRunDetail{}, fmt.Errorf("parent billing: record care release: %w", err)
 	}
+	released.FreeOfCharge = month.free
 	return c.detail(ctx, reviewer, released)
 }
 
@@ -554,7 +495,7 @@ func (c *CareBilling) careMonthInput(ctx context.Context, organizationID int64, 
 		return in, fmt.Errorf("parent billing: read the contract versions: %w", err)
 	}
 	contracts := versionContracts(in.versions)
-	if in.tariffs, err = c.store.CareTariffs(ctx, organizationID); err != nil {
+	if in.tariffs, in.lists, err = c.store.CarePriceLists(ctx, organizationID); err != nil {
 		return in, err
 	}
 	if in.invoiced, err = c.store.InvoicedContracts(ctx, organizationID, run.BillingMonth); err != nil {

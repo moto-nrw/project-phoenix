@@ -41,9 +41,12 @@ type careTariffRow struct {
 	SchoolID           int64         `bun:"school_id"`
 	CareOfferingID     int64         `bun:"care_offering_id"`
 	ModuleName         string        `bun:"module_name"`
-	Weekday            string        `bun:"weekday"`
+	Weekday            *string       `bun:"weekday"`
+	DaysPerWeek        *int          `bun:"days_per_week"`
 	ValidFrom          calendar.Date `bun:"valid_from,type:date"`
 	MonthlyCents       int64         `bun:"monthly_cents"`
+	SiblingCents       *int64        `bun:"sibling_cents"`
+	MealExtra          bool          `bun:"meal_extra"`
 	CreatedByAccountID *int64        `bun:"created_by_account_id"`
 	CreatedAt          time.Time     `bun:"created_at,nullzero,default:current_timestamp"`
 }
@@ -65,12 +68,15 @@ type careRunRow struct {
 	InvoiceDate        *calendar.Date `bun:"invoice_date,type:date"`
 	// SchoolIDs come from parent_billing.care_run_schools (#5916).
 	SchoolIDs []int64 `bun:"school_ids,array,scanonly"`
+	// The immutable release event stores the free-month count.
+	FreeOfCharge int `bun:"free_of_charge,scanonly"`
 }
 
 func (r careRunRow) run() parentbilling.CareRun {
 	run := parentbilling.CareRun{
 		ID: r.ID, BillingMonth: r.BillingMonth, Status: r.Status, CreatedAt: r.CreatedAt, ReleasedAt: r.ReleasedAt,
 		IssuedOn: r.IssuedOn, DocumentCount: r.DocumentCount, TotalCents: r.TotalCents,
+		FreeOfCharge: r.FreeOfCharge,
 		CareRunScope: parentbilling.CareRunScope{SchoolIDs: r.SchoolIDs, InvoiceDate: r.InvoiceDate},
 	}
 	if run.SchoolIDs == nil {
@@ -173,6 +179,9 @@ type careInvoicePositionRow struct {
 	ServiceFrom           calendar.Date   `bun:"service_from,type:date"`
 	ServiceUntil          calendar.Date   `bun:"service_until,type:date"`
 	Weekdays              json.RawMessage `bun:"weekdays,type:jsonb"`
+	DaysPerWeek           *int            `bun:"days_per_week"`
+	TierMonthlyCents      *int64          `bun:"tier_monthly_cents"`
+	MealExtra             bool            `bun:"meal_extra"`
 	AmountCents           int64           `bun:"amount_cents"`
 	NetCents              int64           `bun:"net_cents"`
 	PayableCents          int64           `bun:"payable_cents"`
@@ -186,14 +195,18 @@ func (s *Store) CareTariffs(ctx context.Context, organizationID int64) ([]parent
 	}
 	var rows []careTariffRow
 	if err := db.NewSelect().Model(&rows).Where("organization_id = ?", organizationID).
-		OrderExpr("school_id, valid_from, care_offering_id, weekday").Scan(ctx); err != nil {
+		OrderExpr("school_id, valid_from, care_offering_id, weekday, days_per_week").Scan(ctx); err != nil {
 		return nil, fmt.Errorf("read care tariffs: %w", err)
 	}
 	tariffs := make([]parentbilling.CareTariff, len(rows))
 	for i, row := range rows {
 		tariffs[i] = parentbilling.CareTariff{
 			ID: row.ID, SchoolID: row.SchoolID, CareOfferingID: row.CareOfferingID, ModuleName: row.ModuleName,
-			Weekday: row.Weekday, ValidFrom: row.ValidFrom, MonthlyCents: row.MonthlyCents, CreatedAt: row.CreatedAt,
+			DaysPerWeek: row.DaysPerWeek, ValidFrom: row.ValidFrom, MonthlyCents: row.MonthlyCents,
+			SiblingCents: row.SiblingCents, MealExtra: row.MealExtra, CreatedAt: row.CreatedAt,
+		}
+		if row.Weekday != nil {
+			tariffs[i].Weekday = *row.Weekday
 		}
 	}
 	return tariffs, nil
@@ -209,6 +222,14 @@ func (s *Store) ReplaceCarePrices(ctx context.Context, organizationID, accountID
 	if _, err := s.DeleteCarePrices(ctx, organizationID, list.SchoolID, list.ValidFrom); err != nil {
 		return err
 	}
+	free := list.FreeMonths
+	if free == nil {
+		free = []int{}
+	}
+	head := &carePriceListRow{OrganizationID: organizationID, SchoolID: list.SchoolID, ValidFrom: list.ValidFrom, FreeMonths: free}
+	if _, err := db.NewInsert().Model(head).Exec(ctx); err != nil {
+		return fmt.Errorf("insert care price list: %w", err)
+	}
 	if len(list.Prices) == 0 {
 		return nil
 	}
@@ -216,8 +237,13 @@ func (s *Store) ReplaceCarePrices(ctx context.Context, organizationID, accountID
 	for i, price := range list.Prices {
 		rows[i] = careTariffRow{
 			OrganizationID: organizationID, SchoolID: list.SchoolID, CareOfferingID: price.CareOfferingID,
-			ModuleName: price.ModuleName, Weekday: price.Weekday, ValidFrom: list.ValidFrom,
-			MonthlyCents: price.MonthlyCents, CreatedByAccountID: &accountID,
+			ModuleName: price.ModuleName, DaysPerWeek: price.DaysPerWeek, ValidFrom: list.ValidFrom,
+			MonthlyCents: price.MonthlyCents, SiblingCents: price.SiblingCents, MealExtra: price.MealExtra,
+			CreatedByAccountID: &accountID,
+		}
+		if price.Weekday != "" {
+			weekday := price.Weekday
+			rows[i].Weekday = &weekday
 		}
 	}
 	if _, err := db.NewInsert().Model(&rows).Exec(ctx); err != nil {
@@ -233,12 +259,23 @@ func (s *Store) DeleteCarePrices(ctx context.Context, organizationID, schoolID i
 	if err != nil {
 		return 0, err
 	}
+	heads, err := db.NewDelete().TableExpr("parent_billing.care_price_lists").
+		Where("organization_id = ?", organizationID).Where("school_id = ?", schoolID).Where("valid_from = ?", validFrom).Exec(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("delete care price list: %w", err)
+	}
 	result, err := db.NewDelete().TableExpr("parent_billing.care_tariffs").
 		Where("organization_id = ?", organizationID).Where("school_id = ?", schoolID).Where("valid_from = ?", validFrom).Exec(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("delete care tariffs: %w", err)
 	}
-	return result.RowsAffected()
+	prices, err := result.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	// A price list without prices (only free months) still counts as one.
+	lists, err := heads.RowsAffected()
+	return max(prices, lists), err
 }
 
 // CareBilledUntil names per school the last month an issued invoice bills.
@@ -272,9 +309,13 @@ func (s *Store) CareBilledPrices(ctx context.Context, organizationID, schoolID i
 	var rows []struct {
 		CareOfferingID int64         `bun:"care_offering_id"`
 		Weekday        string        `bun:"weekday"`
+		DaysPerWeek    *int          `bun:"days_per_week"`
 		Month          calendar.Date `bun:"billing_month,type:date"`
 	}
-	if err := db.NewRaw(`SELECT DISTINCT p.care_offering_id, w.value->>'weekday' AS weekday, i.billing_month
+	// A position priced by a scale billed its step, not its weekdays.
+	if err := db.NewRaw(`SELECT DISTINCT p.care_offering_id,
+			CASE WHEN p.days_per_week IS NULL THEN w.value->>'weekday' ELSE '' END AS weekday,
+			p.days_per_week, i.billing_month
 		FROM parent_billing.care_invoices AS i
 		JOIN parent_billing.care_invoice_positions AS p ON p.organization_id = i.organization_id AND p.invoice_id = i.id
 		CROSS JOIN LATERAL jsonb_array_elements(p.weekdays) AS w
@@ -283,7 +324,8 @@ func (s *Store) CareBilledPrices(ctx context.Context, organizationID, schoolID i
 	}
 	billed := make([]parentbilling.CareBilledPrice, len(rows))
 	for i, row := range rows {
-		billed[i] = parentbilling.CareBilledPrice{CareOfferingID: row.CareOfferingID, Weekday: row.Weekday, Month: row.Month}
+		billed[i] = parentbilling.CareBilledPrice{CareOfferingID: row.CareOfferingID, Weekday: row.Weekday,
+			DaysPerWeek: row.DaysPerWeek, Month: row.Month}
 	}
 	return billed, nil
 }
@@ -560,6 +602,7 @@ func carePositionRows(organizationID int64, rows []careInvoiceRow, invoices []pa
 				OrganizationID: organizationID, InvoiceID: rows[i].ID, Position: j + 1, CareOfferingID: position.CareOfferingID,
 				ModuleName: position.ModuleName, ContractVersionNumber: position.VersionNumber, ServiceFrom: position.ServiceFrom,
 				ServiceUntil: position.ServiceUntil, Weekdays: weekdays, AmountCents: position.AmountCents, NetCents: position.AmountCents, PayableCents: position.PayableCents,
+				DaysPerWeek: position.DaysPerWeek, TierMonthlyCents: position.TierMonthlyCents, MealExtra: position.MealExtra,
 			})
 		}
 	}
@@ -634,6 +677,7 @@ func (s *Store) CareRunInvoices(ctx context.Context, organizationID, runID int64
 		position := parentbilling.CarePosition{
 			CareOfferingID: row.CareOfferingID, ModuleName: row.ModuleName, VersionNumber: row.ContractVersionNumber,
 			ServiceFrom: row.ServiceFrom, ServiceUntil: row.ServiceUntil, AmountCents: row.AmountCents,
+			DaysPerWeek: row.DaysPerWeek, TierMonthlyCents: row.TierMonthlyCents, MealExtra: row.MealExtra,
 		}
 		if err := json.Unmarshal(row.Weekdays, &position.Weekdays); err != nil {
 			return nil, fmt.Errorf("read care invoice weekdays: %w", err)

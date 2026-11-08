@@ -27,6 +27,10 @@ func (guardSender) TraegerLetterhead(context.Context, int64) (string, error) {
 	return "Ganztag im Quartier e.V.\nAm Markt 4", nil
 }
 
+func (guardSender) WithdrawalReach(context.Context, int64) (carecontract.WithdrawalReach, error) {
+	return carecontract.WithdrawalReach{}, nil
+}
+
 // signatures binds the paper signature of the fixture's contracts.
 func (f raceFixture) signatures() *Signatures {
 	return NewSignatures(postgres.NewStore(), SignaturePorts{

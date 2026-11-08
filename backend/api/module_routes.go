@@ -145,10 +145,7 @@ var moduleRouteRules = []moduleRouteRule{
 	{"/api/enrollment/*/uploads", settings.ModuleOnlineAnmeldung},
 	{"/api/enrollment/phases/public", settings.ModuleOnlineAnmeldung},
 	{"/api/enrollment/form-bootstrap/public", settings.ModuleOnlineAnmeldung},
-	{"/api/enrollment/schema/public", settings.ModuleOnlineAnmeldung},
-	{"/api/enrollment/care-offerings/public", settings.ModuleOnlineAnmeldung},
 	{"/api/enrollment/legal", settings.ModuleOnlineAnmeldung},
-	{"/api/enrollment/captcha-config", settings.ModuleOnlineAnmeldung},
 	{"/api/enrollment/requests", settings.ModuleOnlineAnmeldung},
 
 	// Dienstplan.
@@ -220,10 +217,7 @@ var moduleRoutesLockedElsewhere = map[string]string{
 	"/api/enrollment/phases/public":           "Anmeldung: enrollment.enabled nur mit gebuchtem Modul",
 	"/api/enrollment/form-bootstrap/public":   "Anmeldung: enrollment.enabled nur mit gebuchtem Modul",
 	"/api/enrollment/requests":                "Anmeldung: Statuslink schließt mit dem Modul",
-	"/api/enrollment/schema/public":           "Anmeldung: Formularaufbau einer Phase, keine Personendaten",
-	"/api/enrollment/care-offerings/public":   "Anmeldung: Angebotsliste einer Phase, keine Personendaten",
 	"/api/enrollment/legal":                   "Anmeldung: Rechtstexte der Schule, keine Personendaten",
-	"/api/enrollment/captcha-config":          "Anmeldung: Captcha-Schlüssel, keine Personendaten",
 	"/public/enrollment-legal-documents":      "Anmeldung: Rechtstexte der Schule, keine Personendaten",
 	"/public/enrollment-form-legal-documents": "Anmeldung: Rechtstexte der Schule, keine Personendaten",
 }

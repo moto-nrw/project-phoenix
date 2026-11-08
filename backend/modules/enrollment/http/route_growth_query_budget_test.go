@@ -39,7 +39,6 @@ func TestEnrollmentCatalogRouteGrowthQueryBudget(t *testing.T) {
 	routes := []route{
 		{"/care-offerings/", "api.enrollment.growth.care_offerings", "", true},
 		{"/care-offerings/booking-stats?phase_id=" + phaseID, "api.enrollment.growth.booked_stats", "", true},
-		{"/care-offerings/public/" + slug + "/" + phaseID, "api.enrollment.growth.public_offerings", "offerings", false},
 		{"/form-bootstrap/public/" + slug + "/" + phaseID, "api.enrollment.growth.public_bootstrap", "offerings", false},
 		{"/phases/" + phaseID + "/manual-bootstrap", "api.enrollment.growth.manual_bootstrap", "offerings", false},
 	}
@@ -164,9 +163,8 @@ func TestEnrollmentCatalogRouteGrowthQueryBudget(t *testing.T) {
 	// Literal references keep each authored contract bound to this test.
 	querybudgets.AssertQueryBudget(t, "api.enrollment.growth.care_offerings", run(routes[0], 8))
 	querybudgets.AssertQueryBudget(t, "api.enrollment.growth.booked_stats", run(routes[1], 8))
-	querybudgets.AssertQueryBudget(t, "api.enrollment.growth.public_offerings", run(routes[2], 8))
-	querybudgets.AssertQueryBudget(t, "api.enrollment.growth.public_bootstrap", run(routes[3], 8))
-	querybudgets.AssertQueryBudget(t, "api.enrollment.growth.manual_bootstrap", run(routes[4], 8))
+	querybudgets.AssertQueryBudget(t, "api.enrollment.growth.public_bootstrap", run(routes[2], 8))
+	querybudgets.AssertQueryBudget(t, "api.enrollment.growth.manual_bootstrap", run(routes[3], 8))
 }
 
 type enrollmentGrowthFixture struct {

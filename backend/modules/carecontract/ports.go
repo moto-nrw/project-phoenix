@@ -145,7 +145,20 @@ type Letterhead struct {
 	ContactName  string
 	ContactPhone string
 	ContactEmail string
-	Template     LetterTemplate
+	// WithdrawalPhone and WithdrawalEmail are the Träger's own for
+	// withdrawals (#6200); empty takes the contact person's.
+	WithdrawalPhone string
+	WithdrawalEmail string
+	Template        LetterTemplate
+}
+
+// Reach is what the withdrawal notice names of the letterhead's phone and
+// e-mail.
+func (h Letterhead) Reach() WithdrawalReach {
+	return WithdrawalReach{
+		ContactPhone: h.ContactPhone, ContactEmail: h.ContactEmail,
+		WithdrawalPhone: h.WithdrawalPhone, WithdrawalEmail: h.WithdrawalEmail,
+	}
 }
 
 // Letterheads reads the letterhead in the Träger transaction of the

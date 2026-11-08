@@ -1,12 +1,9 @@
-/**
- * Tests for PasswordResetModal Component
- * Tests the rendering and basic functionality of password reset modal
- */
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { useRef, type ComponentProps } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import { PasswordResetModal } from "./password-reset-modal";
 
 /** The modal on the shared error path, as every owner mounts it. */
@@ -33,7 +30,6 @@ function rateLimited(retryAfterSeconds: number): ApiError {
 
 const modalOnCloseHistory: Array<() => void> = [];
 
-// Mock UI components
 vi.mock("~/components/ui/modal", () => ({
   Modal: ({
     isOpen,
@@ -100,14 +96,12 @@ vi.mock("~/components/ui/alert", () => ({
   ),
 }));
 
-// Mock auth-api
 const mockRequestPasswordReset = vi.fn();
 vi.mock("~/lib/auth-api", () => ({
   requestPasswordReset: (email: string): unknown =>
     mockRequestPasswordReset(email),
 }));
 
-// Mock localStorage
 const localStorageMock = (() => {
   let store: Record<string, string> = {};
 
@@ -139,26 +133,11 @@ describe("PasswordResetModal", () => {
     mockRequestPasswordReset.mockResolvedValue({});
   });
 
-  it("renders the modal when open", () => {
-    render(<ResetModal isOpen={true} onClose={mockOnClose} />);
-
-    expect(screen.getByTestId("modal")).toBeInTheDocument();
-  });
-
   it("renders password reset form", () => {
     render(<ResetModal isOpen={true} onClose={mockOnClose} />);
 
     expect(screen.getByText(/Passwort zurücksetzen/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/E-Mail-Adresse/i)).toBeInTheDocument();
-  });
-
-  it("renders email input field", () => {
-    render(<ResetModal isOpen={true} onClose={mockOnClose} />);
-
-    expect(screen.getByTestId("input-reset-email")).toHaveAttribute(
-      "data-control-size",
-      "default",
-    );
   });
 
   it("uses the requested email input size", () => {
@@ -174,26 +153,6 @@ describe("PasswordResetModal", () => {
       "data-control-size",
       "compact",
     );
-  });
-
-  it("renders submit and cancel buttons", () => {
-    render(<ResetModal isOpen={true} onClose={mockOnClose} />);
-
-    expect(
-      screen.getByRole("button", { name: /Abbrechen/i }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /Link senden/i }),
-    ).toBeInTheDocument();
-  });
-
-  it("handles email input changes", () => {
-    render(<ResetModal isOpen={true} onClose={mockOnClose} />);
-
-    const emailInput = screen.getByTestId("input-reset-email");
-    fireEvent.change(emailInput, { target: { value: "test@example.com" } });
-
-    expect(emailInput).toHaveValue("test@example.com");
   });
 
   it("keeps a stable modal close handler while typing", () => {
@@ -219,41 +178,15 @@ describe("PasswordResetModal", () => {
     await waitFor(() => {
       expect(screen.getByText(/E-Mail versendet!/i)).toBeInTheDocument();
     });
-  });
-
-  it("displays instructions in success state", async () => {
-    render(<ResetModal isOpen={true} onClose={mockOnClose} />);
-
-    const emailInput = screen.getByTestId("input-reset-email");
-    fireEvent.change(emailInput, { target: { value: "test@example.com" } });
-
-    const submitButton = screen.getByRole("button", { name: /Link senden/i });
-    fireEvent.click(submitButton);
-
-    await waitFor(() => {
-      expect(
-        screen.getByText(/Wir haben Ihnen eine E-Mail/i),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByText(/Bitte überprüfen Sie Ihren Posteingang/i),
-      ).toBeInTheDocument();
-    });
-  });
-
-  it("displays close button in success state", async () => {
-    render(<ResetModal isOpen={true} onClose={mockOnClose} />);
-
-    const emailInput = screen.getByTestId("input-reset-email");
-    fireEvent.change(emailInput, { target: { value: "test@example.com" } });
-
-    const submitButton = screen.getByRole("button", { name: /Link senden/i });
-    fireEvent.click(submitButton);
-
-    await waitFor(() => {
-      expect(
-        screen.getByRole("button", { name: /Schließen/i }),
-      ).toBeInTheDocument();
-    });
+    expect(
+      screen.getByText(/Wir haben Ihnen eine E-Mail/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Bitte überprüfen Sie Ihren Posteingang/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Schließen/i }),
+    ).toBeInTheDocument();
   });
 
   it("calls onClose when cancel button is clicked", () => {
@@ -299,6 +232,41 @@ describe("PasswordResetModal", () => {
         /Das Senden des Links konnte nicht bearbeitet werden/i,
       );
     });
+  });
+
+  it("marks a malformed address at the field without sending it", async () => {
+    render(<ResetModal isOpen={true} onClose={mockOnClose} />);
+
+    fireEvent.change(screen.getByTestId("input-reset-email"), {
+      target: { value: "lehrer@schule" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Link senden/i }));
+
+    expect(await screen.findByTestId("alert-error")).toHaveTextContent(
+      "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
+    );
+    expect(screen.getByTestId("input-reset-email")).toHaveAttribute(
+      "error",
+      "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
+    );
+    expect(mockRequestPasswordReset).not.toHaveBeenCalled();
+  });
+
+  it("shows the input text when the backend refuses the address", async () => {
+    mockRequestPasswordReset.mockRejectedValue(
+      new ApiError("a valid email is required", 400, { code: "general.input" }),
+    );
+    render(<ResetModal isOpen={true} onClose={mockOnClose} />);
+
+    fireEvent.change(screen.getByTestId("input-reset-email"), {
+      target: { value: "test@example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Link senden/i }));
+
+    expect(await screen.findByTestId("alert-error")).toHaveTextContent(
+      catalogText("general.input", "das Senden des Links"),
+    );
+    expect(mockRequestPasswordReset).toHaveBeenCalledWith("test@example.com");
   });
 
   it("handles rate limit errors with countdown", async () => {
@@ -366,7 +334,6 @@ describe("PasswordResetModal", () => {
 
     // Anker: das Formular steht da und der Knopf ist wieder frei.
     expect(screen.getByRole("button", { name: /Link senden/i })).toBeEnabled();
-    // Should not show the wait
     expect(
       screen.queryByText(/Einen neuen Link können Sie in/i),
     ).not.toBeInTheDocument();

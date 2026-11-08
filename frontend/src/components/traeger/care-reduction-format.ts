@@ -32,11 +32,12 @@ export function ruleEffect(
   rule: Pick<
     CareRule,
     "kind" | "discountBasisPoints" | "discountCents" | "priceCents" | "capCents"
-  >,
+  > & { readonly tariffSiblingPrice?: boolean },
 ): string {
   if (rule.kind === "cap" && rule.capCents !== null) {
     return `höchstens ${formatEuro(rule.capCents)} je Familie`;
   }
+  if (rule.tariffSiblingPrice) return "Geschwisterpreis laut Preisliste";
   if (rule.priceCents !== null) return `Preis ${formatEuro(rule.priceCents)}`;
   if (rule.discountBasisPoints !== null) {
     return `${percent(rule.discountBasisPoints)} weniger`;

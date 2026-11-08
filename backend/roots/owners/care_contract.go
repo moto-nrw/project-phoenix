@@ -160,6 +160,31 @@ func (s CareContractSender) TraegerLetterhead(ctx context.Context, organizationI
 	return texts[configModels.KeyBrandingLetterheadText], nil
 }
 
+// CareContractDocumentContact is Organisation & Tenancy's read of the
+// contact person and the withdrawal contact, without an account.
+type CareContractDocumentContact interface {
+	DocumentContact(ctx context.Context, organizationID int64) (organizationtenancy.TraegerDocumentContact, error)
+}
+
+// CareContractSigningSender is the sender of the signature: the letterhead
+// and, from the Träger's master data, the phone and e-mail the withdrawal
+// notice names (#6200), in the caller's Träger transaction.
+type CareContractSigningSender struct {
+	CareContractSender
+	MasterData CareContractDocumentContact
+}
+
+func (s CareContractSigningSender) WithdrawalReach(ctx context.Context, organizationID int64) (carecontract.WithdrawalReach, error) {
+	contact, err := s.MasterData.DocumentContact(ctx, organizationID)
+	if err != nil {
+		return carecontract.WithdrawalReach{}, err
+	}
+	return carecontract.WithdrawalReach{
+		ContactPhone: contact.Contact.Phone, ContactEmail: contact.Contact.Email,
+		WithdrawalPhone: contact.Withdrawal.Phone, WithdrawalEmail: contact.Withdrawal.Email,
+	}, nil
+}
+
 // CareContractOrganizations is Organisation & Tenancy as the reminders read
 // the Träger.
 type CareContractOrganizations interface {
