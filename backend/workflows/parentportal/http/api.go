@@ -29,10 +29,10 @@ import (
 // Resource bundles the parent-portal HTTP handlers + their deps.
 type Resource struct {
 	// Auth is the login runtime the composition root binds to Identity &
-	// Access (#3364); the zero value leaves the login route answering 500.
+	// Access (#3364); the zero value answers 503.
 	Auth LoginRuntime
-	// Resets is the reset runtime the composition root binds to Identity &
-	// Access (#3332); the zero value leaves the reset routes answering 500.
+	// Resets are the reset routes the composition root binds to Identity &
+	// Access with the parent scope (#3332); the zero value answers 500.
 	Resets          PasswordResetRuntime
 	ParentService   PortalService
 	RequestSharing  parentService.RequestSharingService
@@ -59,7 +59,7 @@ type Resource struct {
 type ResourceConfig struct {
 	// Auth is the login runtime the composition root binds (#3364).
 	Auth LoginRuntime
-	// Resets is the reset runtime the composition root binds (#3332).
+	// Resets are the reset routes the composition root binds (#3332).
 	Resets   PasswordResetRuntime
 	Parent   PortalService
 	Calendar calendarService.ParentCalendar

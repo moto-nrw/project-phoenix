@@ -4,16 +4,15 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
-
-const headerOperatorFrontendOrigin = "X-Moto-Frontend-Origin"
 
 var errOperatorPasskeyServiceUnavailable = errors.New("operator passkey service is not configured")
 
@@ -44,7 +43,7 @@ func (rs *PasskeyResource) PasskeyLoginOptions(w http.ResponseWriter, r *http.Re
 	if !rs.requirePasskey(w, r) {
 		return
 	}
-	origin := operatorPasskeyExpectedOrigin(r)
+	origin := common.PasskeyOrigin(r)
 	if origin == "" {
 		common.RenderError(w, r, common.ErrorInvalidRequest(ErrPasskeyOriginInvalid))
 		return
@@ -75,17 +74,15 @@ func (rs *PasskeyResource) PasskeyLoginVerify(w http.ResponseWriter, r *http.Req
 		SessionID:          req.SessionID,
 		CredentialResponse: req.Response,
 		IPAddress:          ipString,
-		UserAgent:          r.Header.Get("User-Agent"),
+		UserAgent:          r.UserAgent(),
 	})
 	if err != nil {
 		mapOperatorPasskeyError(w, r, err)
 		return
 	}
-	render.JSON(w, r, LoginResponse{
-		Status:       LoginStatusAuthenticated,
-		AccessToken:  result.AccessToken,
-		RefreshToken: result.RefreshToken,
-	})
+	render.JSON(w, r, portalauth.LoginBody(identityaccess.LoginResult{
+		Status: identityaccess.LoginStatusAuthenticated, AccessToken: result.AccessToken, RefreshToken: result.RefreshToken,
+	}))
 }
 
 func (rs *PasskeyResource) PasskeyEnrollmentChallenge(w http.ResponseWriter, r *http.Request) {
@@ -110,7 +107,7 @@ func (rs *PasskeyResource) PasskeyRegisterOptions(w http.ResponseWriter, r *http
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	origin := operatorPasskeyExpectedOrigin(r)
+	origin := common.PasskeyOrigin(r)
 	if origin == "" {
 		common.RenderError(w, r, common.ErrorInvalidRequest(ErrPasskeyOriginInvalid))
 		return
@@ -183,13 +180,6 @@ func (rs *PasskeyResource) PasskeyRevoke(w http.ResponseWriter, r *http.Request)
 	common.RespondNoContent(w, r)
 }
 
-func operatorPasskeyExpectedOrigin(r *http.Request) string {
-	if origin := strings.TrimSpace(r.Header.Get(headerOperatorFrontendOrigin)); origin != "" {
-		return origin
-	}
-	return strings.TrimSpace(r.Header.Get("Origin"))
-}
-
 func mapOperatorPasskeyError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, ErrOperatorInvalidCredentials),
@@ -205,10 +195,8 @@ func mapOperatorPasskeyError(w http.ResponseWriter, r *http.Request, err error) 
 	case errors.Is(err, ErrPasskeyNotFound):
 		common.RenderError(w, r, common.OperatorRejection(http.StatusNotFound, common.CodeIdentityPasskeyNotFound, "Passkey not found"))
 	default:
-		// AuthErrorRenderer keeps the typed operator errors (invalid
-		// credentials, inactive, unknown) on their own status codes and
-		// answers everything else, including a failed read or write of the
-		// passkey records, with a stable message.
+		// A failed read or write of the passkey records answers with the
+		// sign-in's stable message.
 		common.RenderError(w, r, AuthErrorRenderer(err))
 	}
 }

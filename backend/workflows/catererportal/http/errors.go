@@ -60,7 +60,7 @@ var secondFactorRules = []common.ErrorRule{
 	{Target: identityaccess.ErrInvalidToken, Render: common.FixedCodedRenderer(common.ErrorUnauthorizedWithCode, identityaccess.ErrMFACodeInvalid, common.CodeIdentityMfaCodeInvalid)},
 	{Target: identityaccess.ErrMFALocked, Render: common.FixedCodedRenderer(common.ErrorTooManyRequestsWithCode, identityaccess.ErrMFALocked, common.CodeIdentityMfaBlocked)},
 	{Target: identityaccess.ErrMFARateLimited, Render: common.FixedCodedRenderer(common.ErrorTooManyRequestsWithCode, identityaccess.ErrMFARateLimited, common.CodeIdentityMfaBlocked)},
-	{Target: identityaccess.ErrMFAStatusUnavailable, Render: common.FixedRenderer(common.ErrorServiceUnavailable, identityaccess.ErrMFAStatusUnavailable)},
+	{Target: identityaccess.ErrMFAStatusUnavailable, Render: common.FixedCodedRenderer(common.ErrorServiceUnavailableWithCode, identityaccess.ErrMFAStatusUnavailable, common.CodeIdentityMfaStatusUnavailable)},
 	{Target: identityaccess.ErrAccountMFAUnavailable, Render: common.FixedRenderer(common.ErrorServiceUnavailable, identityaccess.ErrAccountMFAUnavailable)},
 	{Target: identityaccess.ErrPasskeyFlowsUnavailable, Render: common.FixedRenderer(common.ErrorServiceUnavailable, identityaccess.ErrPasskeyFlowsUnavailable)},
 	{Target: identityaccess.ErrMFAAlreadyEnrolled, Render: common.FixedRenderer(common.ErrorConflict, identityaccess.ErrMFAAlreadyEnrolled)},

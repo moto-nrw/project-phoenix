@@ -7,6 +7,8 @@ import (
 	"net/http"
 
 	"github.com/go-chi/render"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
 )
 
 type CtxKey int
@@ -120,6 +122,23 @@ func MFAEnrollmentAuthenticator(next http.Handler) http.Handler {
 		ctx := context.WithValue(r.Context(), CtxEnrollmentClaims, enrollmentClaimsOf(decoded.Enrollment))
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+// EnrollmentAuthenticatorFor admits only the enrollment tokens of one
+// portal: the scope must name the portal and the school must fit its shape.
+// A route group of a portal mounts its own, so no enroll handler can be
+// reached with another portal's enrollment token.
+func EnrollmentAuthenticatorFor(portal tokenprimitives.PortalClaims) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return MFAEnrollmentAuthenticator(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			claims, ok := EnrollmentClaimsFromCtx(r.Context())
+			if !ok || claims.AccountID == 0 || claims.Scope != portal.Name || !tokenprimitives.EnrollmentFits(portal, claims.TenantID) {
+				renderUnauthorized(w, r, ErrTokenUnauthorized)
+				return
+			}
+			next.ServeHTTP(w, r)
+		}))
+	}
 }
 
 // renderUnauthorized renders an unauthorized response.

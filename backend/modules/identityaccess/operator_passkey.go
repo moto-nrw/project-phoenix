@@ -3,7 +3,6 @@ package identityaccess
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"time"
 )
 
@@ -15,11 +14,11 @@ var (
 	// ErrOperatorPasskeyNotFound reports a lookup without an active
 	// credential, or a use or revocation of a credential that is revoked,
 	// belongs to another operator or is gone.
-	ErrOperatorPasskeyNotFound = errors.New("operator passkey not found")
+	ErrOperatorPasskeyNotFound = notFoundError("operator passkey not found")
 	// ErrOperatorPasskeySessionNotFound reports a consumption that found no
 	// unconsumed, unexpired ceremony with that ID and purpose. The loser of
 	// two concurrent completions receives it.
-	ErrOperatorPasskeySessionNotFound = errors.New("operator passkey session not found")
+	ErrOperatorPasskeySessionNotFound = notFoundError("operator passkey session not found")
 )
 
 // The ceremony purposes a passkey session is bound to, in both portals.

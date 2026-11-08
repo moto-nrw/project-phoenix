@@ -93,7 +93,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (s Sessions) MFAEnrollment() []func(http.Handler) http.Handler {\n\treturn []func(http.Handler) http.Handler{s.tokenAuth.Verifier(), sessiontoken.MFAEnrollmentAuthenticator}\n}",
+      "evidence": "func (s Sessions) MFAEnrollment() []func(http.Handler) http.Handler {\n\treturn []func(http.Handler) http.Handler{s.tokenAuth.Verifier(), sessiontoken.EnrollmentAuthenticatorFor(tokenprimitives.PlatformClaims)}\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/inbound/operator/Sessions.MFAEnrollment",
       "owner": "modules/identityaccess"

@@ -70,7 +70,7 @@ func (rs *Resource) startStaffPreview(w http.ResponseWriter, r *http.Request) {
 	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	session, err := rs.AuthService.StartStaffPreview(
 		r.Context(), int64(claims.ID), claims.TenantID, req.AccountID,
-		claims.FamilyID, req.PreviousToken, getClientIP(r), r.Header.Get(headerUserAgent),
+		claims.FamilyID, req.PreviousToken, common.GetClientIPString(r), r.UserAgent(),
 	)
 	if err != nil {
 		renderStaffPreviewError(w, r, err)
@@ -101,7 +101,7 @@ func (rs *Resource) endStaffPreview(w http.ResponseWriter, r *http.Request) {
 
 	if _, err := rs.AuthService.EndStaffPreview(
 		r.Context(), req.PreviewToken,
-		getClientIP(r), r.Header.Get(headerUserAgent),
+		common.GetClientIPString(r), r.UserAgent(),
 	); err != nil {
 		renderStaffPreviewError(w, r, err)
 		return

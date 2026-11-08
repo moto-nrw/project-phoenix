@@ -21,6 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
 	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -235,7 +236,7 @@ func TestDemoAccessRedeemsRepeatedlyIntoALockedTenantSession(t *testing.T) {
 	adminID := env.provisionDemoAdmin(t)
 	token := env.requestToken(t)
 
-	var tokens authAPI.TokenResponse
+	var tokens portalauth.TokenResponse
 	for range 2 {
 		rr := env.post(t, "/demo/access/sessions", map[string]string{"token": token})
 		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
@@ -275,7 +276,7 @@ func TestDemoAccessKeepsEarlierVisitorsSignedIn(t *testing.T) {
 	env.provisionDemoAdmin(t)
 	token := env.requestToken(t)
 
-	var first authAPI.TokenResponse
+	var first portalauth.TokenResponse
 	for visitor := range 7 {
 		rr := env.post(t, "/demo/access/sessions", map[string]string{"token": token})
 		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())

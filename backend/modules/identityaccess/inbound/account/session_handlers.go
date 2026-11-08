@@ -10,153 +10,33 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
-const headerUserAgent = "User-Agent"
-
-// login handles user login. The handler is a thin orchestrator: it pulls
-// the trusted-device cookie off the request, calls LoginWithMFAGate, and
-// translates the discriminated LoginResult into a JSON shape the frontend
-// can branch on.
+// login signs a staff account in. The trusted-device cookie lets the MFA
+// gate skip the second factor on a device the account remembered.
 func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 	req := &LoginRequest{}
 	if err := render.Bind(r, req); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-
-	ipAddress := getClientIP(r)
-	userAgent := r.Header.Get(headerUserAgent)
-
-	// Pull the trusted-device cookie if the browser sent one. The MFA gate
-	// uses it to skip the second factor for users on a previously-marked
-	// device. Empty / missing cookie is fine — the service is nil-tolerant.
-	var trustedDeviceCookie string
-	if c, err := r.Cookie(trustedDeviceCookieName); err == nil {
-		trustedDeviceCookie = c.Value
-	}
-
-	if rs.Sessions == nil {
-		common.RenderError(w, r, common.ErrorServiceUnavailable(errors.New("login unavailable")))
+	if !common.RequireDependency(w, r, rs.Sessions != nil, errSessionsUnavailable) {
 		return
 	}
+	client := portalauth.ClientOf(r)
 	result, err := rs.Sessions.LoginWithMFAGate(
-		r.Context(), req.Email, req.Password, ipAddress, userAgent, req.TenantSlug, trustedDeviceCookie,
+		r.Context(), req.Email, req.Password, client.IP, client.UserAgent, req.TenantSlug, common.TrustedDevice(r),
 	)
 	if err != nil {
-		rs.handleLoginError(w, r, err)
+		portalauth.Render(w, r, err, portalauth.LoginRules)
 		return
 	}
-
-	switch result.Status {
-	case identityaccess.LoginStatusMFARequired:
-		tde := result.TrustedDeviceEnabled
-		tdd := result.TrustedDeviceDays
-		render.JSON(w, r, LoginResponse{
-			Status:               string(identityaccess.LoginStatusMFARequired),
-			ChallengeToken:       result.ChallengeToken,
-			MaskedEmail:          result.MaskedEmail,
-			TrustedDeviceEnabled: &tde,
-			TrustedDeviceDays:    &tdd,
-		})
-		return
-	case identityaccess.LoginStatusMFAEnrollmentRequired:
-		render.JSON(w, r, LoginResponse{
-			Status:                string(identityaccess.LoginStatusMFAEnrollmentRequired),
-			AccessToken:           result.AccessToken,
-			MaskedEmail:           result.MaskedEmail,
-			MFAEnrollmentRequired: true,
-		})
-		return
-	}
-
-	render.JSON(w, r, LoginResponse{
-		Status:       string(identityaccess.LoginStatusAuthenticated),
-		AccessToken:  result.AccessToken,
-		RefreshToken: result.RefreshToken,
-	})
+	portalauth.RenderLogin(w, r, result)
 }
 
-// handleLoginError centralises the error-to-HTTP mapping for /auth/login.
-// The Identity & Access flow reports which operation failed and carries the
-// public sentinel; the MFA sentinels still come from the retained MFA
-// service through the gate.
-func (rs *Resource) handleLoginError(w http.ResponseWriter, r *http.Request, err error) {
-	common.RenderError(w, r, loginErrorResponse(err))
-}
-
-// loginErrorResponse maps a refused login to its response: status and code
-// per reason (#2517), never more than the caller may learn.
-func loginErrorResponse(err error) render.Renderer {
-	var authErr *identityaccess.AuthenticationError
-	if !errors.As(err, &authErr) {
-		return common.ErrorInternalServer(err)
-	}
-	switch {
-	case errors.Is(err, identityaccess.ErrInvalidCredentials):
-		return common.ErrorUnauthorizedWithCode(identityaccess.ErrInvalidCredentials, common.CodeIdentityInvalidCredentials)
-	case errors.Is(err, identityaccess.ErrAccountNotFound):
-		// Mask the specific error so attackers can't enumerate accounts.
-		return common.ErrorUnauthorizedWithCode(identityaccess.ErrInvalidCredentials, common.CodeIdentityInvalidCredentials)
-	case errors.Is(err, identityaccess.ErrAccountInactive):
-		// The stable code the parents and school portals already send
-		// (#3376). Only reachable once the credential check accepted the
-		// password, so it tells a caller nothing about an account they do
-		// not own — and without it the frontend renders a deactivated
-		// account as "wrong password" and sends the owner into a reset
-		// loop that cannot help.
-		return common.ErrorUnauthorizedWithCode(
-			identityaccess.ErrAccountInactive, common.CodeIdentitySessionAccountInactive)
-	case errors.Is(err, identityaccess.ErrTenantNotFound):
-		return common.ErrorNotFound(identityaccess.ErrTenantNotFound)
-	case errors.Is(err, identityaccess.ErrTenantAccessDenied):
-		// Same code as a wrong password: the login page must not tell a
-		// caller that the address exists at another school (#2517).
-		return common.ErrorUnauthorizedWithCode(identityaccess.ErrTenantAccessDenied, common.CodeIdentityInvalidCredentials)
-	case errors.Is(err, identityaccess.ErrParentMustUseParentPortal):
-		// Guardian-only account at the staff login. The code is what the
-		// frontend switches on to point the user at the parents portal —
-		// matching on the English message text would be brittle. Safe to
-		// be specific: this branch is only reachable once the credential
-		// check has already accepted the password, so it tells the caller
-		// nothing about an account they don't own.
-		return common.ErrorForbiddenWithCode(
-			identityaccess.ErrParentMustUseParentPortal, common.CodeIdentityUseParentPortal)
-	case errors.Is(err, identityaccess.ErrMustUseSchoolPortal):
-		// School-portal-only account at the staff login (#2207). Same
-		// shape as the guardian split above: a stable code the frontend
-		// switches on to point the user at moto schule.
-		return common.ErrorForbiddenWithCode(
-			identityaccess.ErrMustUseSchoolPortal, common.CodeIdentityUseSchoolPortal)
-	default:
-		return mfaLoginErrorResponse(err, authErr)
-	}
-}
-
-// mfaLoginErrorResponse covers the refusals of the MFA gate during login.
-func mfaLoginErrorResponse(err error, authErr *identityaccess.AuthenticationError) render.Renderer {
-	switch {
-	case errors.Is(err, identityaccess.ErrMFARateLimited):
-		// MFA challenge initiation tripped the 3/15min sliding-window
-		// cap. Surface as 429 so the frontend shows the dedicated "too
-		// many code requests" message instead of a generic 5xx.
-		return common.ErrorTooManyRequestsWithCode(authErr.Err, common.CodeIdentityMfaBlocked)
-	case errors.Is(err, identityaccess.ErrMFALocked):
-		// Account hit the failed-attempt lockout threshold while we were
-		// preparing the next challenge. Same HTTP status as rate limit,
-		// distinct message body; the frontend shows one text for both.
-		return common.ErrorTooManyRequestsWithCode(authErr.Err, common.CodeIdentityMfaBlocked)
-	case errors.Is(err, identityaccess.ErrMFAStatusUnavailable):
-		// MFA gate couldn't determine required/enrolled status (settings
-		// or credentials lookup failed with a non-not-found error).
-		// Refuse this login rather than fail-open. 503 lets the client
-		// retry — the frontend renders it as "Bitte versuche es erneut".
-		return common.ErrorServiceUnavailable(authErr.Err)
-	default:
-		return common.ErrorInternalServer(err)
-	}
-}
+var errSessionsUnavailable = errors.New("account sessions are not composed")
 
 // register handles user registration
 func (rs *Resource) register(w http.ResponseWriter, r *http.Request) {
@@ -166,7 +46,6 @@ func (rs *Resource) register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Authorize role assignment (if role_id specified)
 	roleID, callerTenantID, shouldReturn := rs.authorizeRoleAssignment(w, r, req.RoleID)
 	if shouldReturn {
 		return
@@ -178,7 +57,10 @@ func (rs *Resource) register(w http.ResponseWriter, r *http.Request) {
 		Identity: schoolIdentityFrom(req.FirstName, req.LastName, req.TagID),
 	})
 	if err != nil {
-		rs.markProvisioningRollback(r)
+		// The account, its school mapping and its role were written in the
+		// request's tenant transaction, which commits below 500: roll it back
+		// so a refusal leaves no half-provisioned account (#2222).
+		rs.markRollback(r.Context())
 		rs.handleRegistrationError(w, r, err)
 		return
 	}
@@ -209,20 +91,6 @@ func schoolIdentityFrom(firstName, lastName string, tagID *string) *identityacce
 	}
 }
 
-// markProvisioningRollback tells the tenant middleware to roll back after a
-// refused account provisioning.
-//
-// The account, its school mapping and its role are written before the identity
-// step runs, all in the request's tenant transaction — which TenantTxMiddleware
-// commits for every response below 500. Without this a 400 leaves behind
-// exactly the half-written account #2222 is about: school access and a role,
-// no person, no staff record. The rollback marker is the established way to
-// refuse a request that has already touched the database (see
-// tenant.MarkRollback).
-func (rs *Resource) markProvisioningRollback(r *http.Request) {
-	rs.markRollback(r.Context())
-}
-
 // linkToTenant links an existing account to the caller's tenant.
 // Requires admin authentication with a valid tenant context.
 func (rs *Resource) linkToTenant(w http.ResponseWriter, r *http.Request) {
@@ -243,7 +111,7 @@ func (rs *Resource) linkToTenant(w http.ResponseWriter, r *http.Request) {
 		Identity: schoolIdentityFrom(req.FirstName, req.LastName, req.TagID),
 	})
 	if err != nil {
-		rs.markProvisioningRollback(r)
+		rs.markRollback(r.Context())
 
 		var authErr *identityaccess.AuthenticationError
 		if errors.As(err, &authErr) {
@@ -409,102 +277,41 @@ func buildSchoolIdentityResponse(identity *identityaccess.SchoolIdentity) *Schoo
 	}
 }
 
-// refreshToken handles token refresh
+// refreshToken rotates the presented refresh token. A refusal before the
+// rotation leaves the presented token valid.
 func (rs *Resource) refreshToken(w http.ResponseWriter, r *http.Request) {
-	// Get refresh token from context
-	refreshToken := sessiontoken.RefreshTokenFromCtx(r.Context())
-
-	// Get IP address and user agent for audit logging
-	ipAddress := getClientIP(r)
-	userAgent := r.Header.Get(headerUserAgent)
-
-	if rs.Sessions == nil {
-		common.RenderError(w, r, common.ErrorServiceUnavailable(errors.New("session refresh unavailable")))
+	if !common.RequireDependency(w, r, rs.Sessions != nil, errSessionsUnavailable) {
 		return
 	}
-	recoveryProof := r.Header.Get(sessiontoken.RecoveryProofHeader)
-	accessToken, newRefreshToken, err := rs.Sessions.RefreshTokenWithAudit(r.Context(), refreshToken, recoveryProof, ipAddress, userAgent)
+	client := portalauth.ClientOf(r)
+	accessToken, refreshToken, err := rs.Sessions.RefreshTokenWithAudit(
+		r.Context(), sessiontoken.RefreshTokenFromCtx(r.Context()), r.Header.Get(sessiontoken.RecoveryProofHeader), client.IP, client.UserAgent,
+	)
 	if err != nil {
-		renderRefreshError(w, r, err)
+		portalauth.Render(w, r, err, portalauth.RefreshRules)
 		return
 	}
-
-	// Special case for token refresh endpoint - frontend expects direct token response
-	render.JSON(w, r, TokenResponse{
-		AccessToken:  accessToken,
-		RefreshToken: newRefreshToken,
-	})
-}
-
-// renderRefreshError maps a refused refresh onto its response.
-func renderRefreshError(w http.ResponseWriter, r *http.Request, err error) {
-	if notBooked, ok := identityaccess.PortalNotBooked(err); ok {
-		// The school no longer books the portal's module (#4895). The
-		// presented refresh token stays untouched; the portal's next sign-in
-		// explains the missing module.
-		common.RenderError(w, r, common.ErrorModuleNotBooked(notBooked, notBooked.Module, notBooked.ModuleLabel))
-		return
-	}
-	var authErr *identityaccess.AuthenticationError
-	if errors.As(err, &authErr) {
-		switch {
-		case errors.Is(err, identityaccess.ErrMFAStatusUnavailable):
-			common.RenderError(w, r, common.ErrorServiceUnavailableWithCode(err, common.CodeIdentityMfaStatusUnavailable))
-		case errors.Is(err, identityaccess.ErrInvalidToken):
-			common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrInvalidToken))
-		case errors.Is(err, identityaccess.ErrTokenExpired):
-			common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrTokenExpired))
-		case errors.Is(err, identityaccess.ErrTokenNotFound):
-			common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrTokenNotFound))
-		case errors.Is(err, identityaccess.ErrAccountNotFound):
-			common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrAccountNotFound))
-		case errors.Is(err, identityaccess.ErrAccountInactive):
-			common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrAccountInactive))
-		case errors.Is(err, identityaccess.ErrTenantNotFound):
-			common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrTenantNotFound))
-		case errors.Is(err, identityaccess.ErrTenantAccessDenied):
-			common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrTenantAccessDenied))
-		case errors.Is(err, identityaccess.ErrNoTraegerMembership):
-			// The Träger membership ended or the Träger was switched off
-			// (#4649): the Träger session is over, like a revoked mapping.
-			common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrNoTraegerMembership))
-		case errors.Is(err, identityaccess.ErrMustUseSchoolPortal):
-			// The account is school-portal-only at this school (#2207).
-			// 401, not 403: the tenant session is simply over, and the
-			// frontend's refresh path turns a 401 into a clean logout.
-			common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrMustUseSchoolPortal))
-		default:
-			common.RenderError(w, r, common.ErrorInternalServer(err))
-		}
-		return
-	}
-	common.RenderError(w, r, common.ErrorInternalServer(err))
+	render.JSON(w, r, portalauth.TokenResponse{AccessToken: accessToken, RefreshToken: refreshToken})
 }
 
 // logout handles user logout
 func (rs *Resource) logout(w http.ResponseWriter, r *http.Request) {
-	// Get refresh token from context
-	refreshToken := sessiontoken.RefreshTokenFromCtx(r.Context())
-
-	// Get IP address and user agent for audit logging
-	ipAddress := getClientIP(r)
-	userAgent := r.Header.Get(headerUserAgent)
-
-	if rs.Sessions == nil {
-		common.RenderError(w, r, common.ErrorServiceUnavailable(errors.New("logout unavailable")))
+	if !common.RequireDependency(w, r, rs.Sessions != nil, errSessionsUnavailable) {
 		return
 	}
+	refreshToken := sessiontoken.RefreshTokenFromCtx(r.Context())
+	client := portalauth.ClientOf(r)
 	// The audit rows follow the commit and never fail the call. An error here
 	// means the family was not revoked: its access tokens stay valid, so the
 	// browser must not take the logout for done (#5194).
-	if err := rs.Sessions.LogoutWithAudit(r.Context(), refreshToken, ipAddress, userAgent); err != nil {
+	if err := rs.Sessions.LogoutWithAudit(r.Context(), refreshToken, client.IP, client.UserAgent); err != nil {
 		if errors.Is(err, identityaccess.ErrInvalidToken) {
 			// Not a refresh token of any session: nothing is left to revoke.
 			common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrInvalidToken))
 			return
 		}
 		slog.Default().ErrorContext(r.Context(), "logout did not revoke the session family",
-			slog.String("ip", ipAddress),
+			slog.String("ip", client.IP),
 			slog.String("error", err.Error()),
 		)
 		common.RenderError(w, r, common.ErrorServiceUnavailable(errors.New("logout could not revoke the session, please retry")))
@@ -522,7 +329,6 @@ func (rs *Resource) changePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get user ID from JWT claims
 	claims := sessiontoken.ClaimsFromCtx(r.Context())
 
 	err := rs.Sessions.ChangeAccountPassword(r.Context(), int64(claims.ID), req.CurrentPassword, req.NewPassword)
@@ -548,11 +354,6 @@ func (rs *Resource) changePassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.RespondNoContent(w, r)
-}
-
-// getClientIP extracts the real client IP address from the request
-func getClientIP(r *http.Request) string {
-	return common.GetClientIPString(r)
 }
 
 // canGrantRole asks Security Runtime whether a caller holding permissions may

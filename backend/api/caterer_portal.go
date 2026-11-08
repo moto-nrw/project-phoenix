@@ -5,9 +5,11 @@ import (
 	"errors"
 
 	"github.com/go-chi/chi/v5"
+
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
@@ -51,7 +53,7 @@ func mountCatererPortal(root, tenantRouter chi.Router, limiters authRateLimiters
 			file, err := renderMealList(renderer, export, format)
 			return catererPortalHTTP.ExportFile(file), err
 		},
-		Resets:       portalPasswordResets(identity, identityaccess.PasswordResetScopeCaterer),
+		Resets:       portalauth.PasswordResetRoutes(identity, identityaccess.PasswordResetScopeCaterer),
 		SignIn:       caterers,
 		SecondFactor: caterers,
 	})

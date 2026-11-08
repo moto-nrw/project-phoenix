@@ -3,7 +3,6 @@ package identityaccess
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"time"
 )
 
@@ -20,10 +19,10 @@ var (
 	// ErrAccountPasskeyNotFound reports a lookup without an active
 	// credential, or a use or revocation of a credential that is revoked,
 	// belongs to another account or is gone.
-	ErrAccountPasskeyNotFound = errors.New("account passkey not found")
+	ErrAccountPasskeyNotFound = notFoundError("account passkey not found")
 	// ErrAccountPasskeySessionNotFound reports a consumption that found no
 	// unconsumed, unexpired ceremony with that ID and purpose.
-	ErrAccountPasskeySessionNotFound = errors.New("account passkey session not found")
+	ErrAccountPasskeySessionNotFound = notFoundError("account passkey session not found")
 )
 
 // AccountPasskeyCredential is one registered WebAuthn credential of a

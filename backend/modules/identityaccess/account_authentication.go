@@ -9,13 +9,12 @@ import (
 
 // Account authentication (#3251): tenant, parent and school login, refresh,
 // tenant and school switching, logout, session validation, session cleanup
-// and session revocation. The error messages are the wire contract the
-// retained auth service established; HTTP layers switch on the sentinels.
+// and session revocation. HTTP layers classify the sentinels, never their
+// texts (ADR 0006).
 var (
-	ErrInvalidCredentials = errors.New("invalid username or password")
-	ErrAccountInactive    = errors.New("account is inactive")
-	ErrTenantNotFound     = errors.New("tenant not found")
-	// ErrTenantAccessDenied's text is mapped by the tenant frontend; keep it.
+	ErrInvalidCredentials        = errors.New("invalid username or password")
+	ErrAccountInactive           = errors.New("account is inactive")
+	ErrTenantNotFound            = errors.New("tenant not found")
 	ErrTenantAccessDenied        = errors.New("account does not have access to this tenant")
 	ErrParentMustUseParentPortal = errors.New("guardian accounts must log in at the parents portal")
 	ErrAccountNoGuardianRole     = errors.New("account is not a guardian at any school")
@@ -53,10 +52,8 @@ func PortalNotBooked(err error) (*PortalNotBookedError, bool) {
 	return nil, false
 }
 
-// AuthenticationError reports which operation of a flow failed. Its text is
-// the retained auth service's ("auth error during <op>: <cause>") so the
-// responses that render it stay unchanged; Err carries the public sentinel
-// for errors.Is.
+// AuthenticationError reports which operation of a flow failed; Err carries
+// the public sentinel for errors.Is.
 type AuthenticationError struct {
 	Op  string
 	Err error
@@ -85,6 +82,9 @@ const (
 	// account has no credential yet; the response carries an
 	// enrollment-scoped access token.
 	LoginStatusMFAEnrollmentRequired LoginStatus = "mfa_enrollment_required"
+	// LoginStatusOrganizationSelectionRequired: a member of several Träger
+	// repeats the Träger sign-in with one of the listed Träger.
+	LoginStatusOrganizationSelectionRequired LoginStatus = "organization_selection_required"
 )
 
 // LoginResult is the discriminated login response. Exactly one of

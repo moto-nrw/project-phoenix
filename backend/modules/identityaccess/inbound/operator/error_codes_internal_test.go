@@ -55,8 +55,8 @@ func TestOperatorIdentityErrorsAnswerWithCodes(t *testing.T) {
 	// The cases below never reach the access fallback.
 	rs := NewResource(nil, OperatorResponses(func(error) render.Renderer { return nil }))
 	assertCodes(t, []codeCase{
-		{"login invalid", rs.authError(identityaccess.ErrOperatorInvalidCredentials), http.StatusUnauthorized, "identity.invalid_credentials"},
-		{"login inactive", rs.authError(identityaccess.ErrOperatorInactive), http.StatusForbidden, "identity.account_inactive"},
+		{"login invalid", AuthErrorRenderer(identityaccess.ErrOperatorInvalidCredentials), http.StatusUnauthorized, "identity.invalid_credentials"},
+		{"login inactive", AuthErrorRenderer(identityaccess.ErrOperatorInactive), http.StatusForbidden, "identity.account_inactive"},
 		{"profile password", rs.profileError(identityaccess.ErrOperatorPasswordMismatch), http.StatusBadRequest, "identity.current_password_wrong"},
 		{"profile missing", rs.profileError(identityaccess.ErrOperatorNotFound), http.StatusNotFound, "identity.account_not_found"},
 		{"profile inactive", rs.profileError(identityaccess.ErrOperatorInactive), http.StatusForbidden, "identity.account_inactive"},

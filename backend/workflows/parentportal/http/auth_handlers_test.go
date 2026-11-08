@@ -28,28 +28,10 @@ type stubParentAuthService struct {
 	confirm     func(ctx context.Context, token, newPassword string) error
 }
 
-// The login refusals the stub reports. They are the stub's own sentinels, so
-// a test proves the handler's mapping and not the owner's error shapes.
-var (
-	errStubInvalidCredentials = errors.New("stub: invalid credentials")
-	errStubAccountInactive    = errors.New("stub: account is inactive")
-	errStubNotAGuardian       = errors.New("stub: account is not a guardian")
-	errStubPortalNotBooked    = errors.New("stub: eltern_app not booked")
-)
-
 func (s *stubParentAuthService) loginRuntime() parent.LoginRuntime {
 	return parent.LoginRuntime{
 		Login: func(ctx context.Context, email, password, ipAddress, userAgent string) (string, string, error) {
 			return s.loginParent(ctx, email, password, ipAddress, userAgent)
-		},
-		InvalidCredentials: func(err error) bool { return errors.Is(err, errStubInvalidCredentials) },
-		AccountInactive:    func(err error) bool { return errors.Is(err, errStubAccountInactive) },
-		NotAGuardian:       func(err error) bool { return errors.Is(err, errStubNotAGuardian) },
-		PortalNotBooked: func(err error) (string, string, bool) {
-			if errors.Is(err, errStubPortalNotBooked) {
-				return "eltern_app", "Eltern-App", true
-			}
-			return "", "", false
 		},
 	}
 }
@@ -148,120 +130,6 @@ func decodeError(t *testing.T, rr *httptest.ResponseRecorder) loginErrorBody {
 	var body loginErrorBody
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
 	return body
-}
-
-func TestParentLogin_InvalidCredentials_Returns401WithCode(t *testing.T) {
-	t.Parallel()
-
-	svc := &stubParentAuthService{
-		loginParent: func(_ context.Context, _, _, _, _ string) (string, string, error) {
-			return "", "", errStubInvalidCredentials
-		},
-	}
-	rr := postLogin(t, newTestResource(svc), map[string]string{
-		"email":    "parent@example.com",
-		"password": "wrong",
-	})
-
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
-	body := decodeError(t, rr)
-	assert.Equal(t, "care.invalid_credentials", body.Code,
-		"frontend disambiguates by this code; do not change without updating parent-config.ts")
-}
-
-func TestParentLogin_AccountNotFound_MaskedAsInvalidCredentials(t *testing.T) {
-	t.Parallel()
-
-	// Account-enumeration mask: unknown email returns the same wire shape
-	// as wrong password. If this test starts failing with code="account_not_found"
-	// or similar, the masking has been removed and we're leaking which
-	// emails exist — that's a security regression, not a test bug.
-	svc := &stubParentAuthService{
-		loginParent: func(_ context.Context, _, _, _, _ string) (string, string, error) {
-			return "", "", errStubInvalidCredentials
-		},
-	}
-	rr := postLogin(t, newTestResource(svc), map[string]string{
-		"email":    "unknown@example.com",
-		"password": "anything",
-	})
-
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
-	body := decodeError(t, rr)
-	assert.Equal(t, "care.invalid_credentials", body.Code)
-}
-
-func TestParentLogin_AccountInactive_Returns401WithDistinctCode(t *testing.T) {
-	t.Parallel()
-
-	// This is the case the frontend turns into
-	// "Ihr Konto ist deaktiviert. Bitte kontaktieren Sie die Schule."
-	// If the code is anything other than "identity.session_account_inactive", the parent
-	// gets the generic "check your credentials" message and is confused
-	// about why login fails — that was the bug this entire fix addressed.
-	svc := &stubParentAuthService{
-		loginParent: func(_ context.Context, _, _, _, _ string) (string, string, error) {
-			return "", "", errStubAccountInactive
-		},
-	}
-	rr := postLogin(t, newTestResource(svc), map[string]string{
-		"email":    "disabled@example.com",
-		"password": "correct",
-	})
-
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
-	body := decodeError(t, rr)
-	assert.Equal(t, "identity.session_account_inactive", body.Code)
-}
-
-func TestParentLogin_NotAGuardian_Returns403WithCode(t *testing.T) {
-	t.Parallel()
-
-	// Staff account hitting the parent portal. Backend MUST signal this
-	// distinctly so the frontend can mask it as invalid_credentials at
-	// the UI layer (account-enumeration mask) while keeping the
-	// staff-login hint in the German copy. Pre-fix this returned 403
-	// without a code and the frontend mis-mapped it to "Konto deaktiviert"
-	// — that mismatch is exactly what this test exists to prevent.
-	svc := &stubParentAuthService{
-		loginParent: func(_ context.Context, _, _, _, _ string) (string, string, error) {
-			return "", "", errStubNotAGuardian
-		},
-	}
-	rr := postLogin(t, newTestResource(svc), map[string]string{
-		"email":    "staff@example.com",
-		"password": "correct",
-	})
-
-	assert.Equal(t, http.StatusForbidden, rr.Code)
-	body := decodeError(t, rr)
-	assert.Equal(t, "care.not_a_guardian", body.Code)
-}
-
-func TestParentLogin_PortalNotBooked_Returns403ModuleNotBooked(t *testing.T) {
-	t.Parallel()
-
-	// None of the guardian's schools booked Eltern-App (#4895): the
-	// portal explains the missing module instead of a login error.
-	svc := &stubParentAuthService{
-		loginParent: func(_ context.Context, _, _, _, _ string) (string, string, error) {
-			return "", "", errStubPortalNotBooked
-		},
-	}
-	rr := postLogin(t, newTestResource(svc), map[string]string{
-		"email":    "parent@example.com",
-		"password": "correct",
-	})
-
-	assert.Equal(t, http.StatusForbidden, rr.Code)
-	var body struct {
-		Code    string            `json:"code"`
-		Details map[string]string `json:"details"`
-	}
-	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
-	assert.Equal(t, "module.not_booked", body.Code)
-	assert.Equal(t, "eltern_app", body.Details["module"])
-	assert.Equal(t, "Eltern-App", body.Details["module_label"])
 }
 
 func TestParentLogin_Success_Returns200WithTokens(t *testing.T) {

@@ -796,8 +796,19 @@ Backend paths in this section are relative to `backend/`:
   live in `tokenprimitives.AllPortalClaims()` and `internal/domain/portal.go`,
   pinned to each other by `TestPortalTableMatchesTheTokenGates`.
   `TestSchoolScopeRejectedOnAllAPIRoutes` checks school-token rejection under `/api`.
+- Every account portal answers a refused sign-in, MFA step, exchange, switch,
+  refresh or passkey sign-in through the owner's rule tables in
+  `modules/identityaccess/inbound/portalauth`, so one refusal has one status and
+  code in every portal; the parents login keeps `care.invalid_credentials`
+  (`ParentLoginRules`). The caterer portal may not import that package and keeps
+  its table in `workflows/catererportal/http/errors.go`; the operator keeps its
+  own bodies. Each enrollment route group mounts
+  `sessiontoken.EnrollmentAuthenticatorFor(portal)`, which admits only that
+  portal's enrollment token with the school its shape demands. An exchange
+  prepares the trusted device (policy and MFA reset generation), mints, then
+  stores the device and sets `common.TrustedDeviceCookie`.
 - MFA can insert a challenge between credentials and session. Inspect
-  `modules/identityaccess/account_mfa.go`, `modules/identityaccess/inbound/account/mfa_handlers.go`, `modules/identityaccess/inbound/operator/mfa.go`,
+  `modules/identityaccess/account_mfa.go`, `modules/identityaccess/inbound/portalauth`, `modules/identityaccess/inbound/account/mfa_handlers.go`, `modules/identityaccess/inbound/operator/mfa.go`,
   the token wire schema in `modules/identityaccess/tokenprimitives/session_wire.go`, and trusted-device settings
   `security.mfa_*`. Include the school frontend's MFA chain when changing its login.
 

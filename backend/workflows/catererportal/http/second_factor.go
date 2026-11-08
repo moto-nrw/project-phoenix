@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strings"
-	"time"
 
 	"github.com/go-chi/render"
 
@@ -18,46 +16,11 @@ import (
 // its remembered devices. The answers have the shapes of the school
 // portals' routes, so the portals share their frontend.
 
-// trustedDeviceCookieName is the remember-device cookie, as on the school
-// portals. The caterer portal's host keeps its own.
-const trustedDeviceCookieName = "mfa_trust_device"
-
-// headerFrontendOrigin names the origin the frontend served the ceremony
-// from; the BFF sets it.
-const headerFrontendOrigin = "X-Moto-Frontend-Origin"
-
 var (
 	errInvalidDeviceID  = errors.New("invalid device id")
 	errInvalidPasskeyID = errors.New("invalid passkey id")
 	errPasswordRequired = errors.New("current_password is required")
 )
-
-// trustedDeviceCookie is the remember-device cookie the browser sent.
-func trustedDeviceCookie(r *http.Request) string {
-	if cookie, err := r.Cookie(trustedDeviceCookieName); err == nil {
-		return cookie.Value
-	}
-	return ""
-}
-
-// setTrustedDeviceCookie writes the remembered device's cookie: HttpOnly,
-// Secure (browsers accept it on localhost), Lax for the sign-in's redirects.
-func setTrustedDeviceCookie(w http.ResponseWriter, value string, expiresAt time.Time) {
-	if value == "" {
-		return
-	}
-	http.SetCookie(w, &http.Cookie{
-		Name: trustedDeviceCookieName, Value: value, Path: "/", Expires: expiresAt,
-		MaxAge: int(time.Until(expiresAt).Seconds()), Secure: true, HttpOnly: true, SameSite: http.SameSiteLaxMode,
-	})
-}
-
-func expectedOrigin(r *http.Request) string {
-	if origin := strings.TrimSpace(r.Header.Get(headerFrontendOrigin)); origin != "" {
-		return origin
-	}
-	return strings.TrimSpace(r.Header.Get("Origin"))
-}
 
 // verifyMFA redeems the mailed code of a sign-in.
 func (rs *Resource) verifyMFA(w http.ResponseWriter, r *http.Request) {
@@ -68,13 +31,13 @@ func (rs *Resource) verifyMFA(w http.ResponseWriter, r *http.Request) {
 	}
 	session, err := rs.runtime.SignIn.VerifyCatererMFA(r.Context(), identityaccess.CatererMFAVerification{
 		ChallengeToken: req.ChallengeToken, Code: req.Code, RememberDevice: req.RememberDevice,
-		IPAddress: common.GetClientIPString(r), UserAgent: r.Header.Get("User-Agent"),
+		IPAddress: common.GetClientIPString(r), UserAgent: r.UserAgent(),
 	})
 	if err != nil {
 		renderSecondFactorFailure(w, r, err)
 		return
 	}
-	setTrustedDeviceCookie(w, session.TrustedDeviceCookie, session.TrustedDeviceExpiresAt)
+	common.SetTrustedDevice(w, session.TrustedDeviceCookie, session.TrustedDeviceExpiresAt)
 	render.JSON(w, r, TokenResponse{AccessToken: session.AccessToken, RefreshToken: session.RefreshToken})
 }
 
@@ -95,7 +58,7 @@ func (rs *Resource) resendMFA(w http.ResponseWriter, r *http.Request) {
 
 // passkeyLoginOptions starts a passkey sign-in on the caterer portal.
 func (rs *Resource) passkeyLoginOptions(w http.ResponseWriter, r *http.Request) {
-	options, err := rs.runtime.SignIn.BeginCatererPasskeyLogin(r.Context(), expectedOrigin(r))
+	options, err := rs.runtime.SignIn.BeginCatererPasskeyLogin(r.Context(), common.PasskeyOrigin(r))
 	if err != nil {
 		renderPasskeyLoginFailure(w, r, err)
 		return
@@ -112,7 +75,7 @@ func (rs *Resource) passkeyLoginVerify(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := rs.runtime.SignIn.FinishCatererPasskeyLogin(r.Context(), identityaccess.AccountPasskeyLoginFinish{
 		SessionID: req.SessionID, CredentialResponse: req.Response,
-		IPAddress: common.GetClientIPString(r), UserAgent: r.Header.Get("User-Agent"),
+		IPAddress: common.GetClientIPString(r), UserAgent: r.UserAgent(),
 	})
 	if err != nil {
 		renderPasskeyLoginFailure(w, r, err)
@@ -178,7 +141,7 @@ func (rs *Resource) confirmMFA(w http.ResponseWriter, r *http.Request) {
 	}
 	session, err := rs.runtime.SecondFactor.ConfirmCatererMFA(r.Context(), identityaccess.CatererMFAConfirmation{
 		AccountID: rs.currentAccountID(r.Context()), ChallengeToken: verify.ChallengeToken, Code: verify.Code,
-		IPAddress: common.GetClientIPString(r), UserAgent: r.Header.Get("User-Agent"),
+		IPAddress: common.GetClientIPString(r), UserAgent: r.UserAgent(),
 	})
 	if err != nil {
 		renderSecondFactorFailure(w, r, err)
@@ -195,7 +158,7 @@ func (rs *Resource) disableMFA(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errPasswordRequired))
 		return
 	}
-	err := rs.runtime.SecondFactor.DisableCatererMFA(r.Context(), rs.currentAccountID(r.Context()), request.CurrentPassword, common.GetClientIPString(r), r.Header.Get("User-Agent"))
+	err := rs.runtime.SecondFactor.DisableCatererMFA(r.Context(), rs.currentAccountID(r.Context()), request.CurrentPassword, common.GetClientIPString(r), r.UserAgent())
 	switch {
 	case err == nil:
 		common.RespondNoContent(w, r)
@@ -272,7 +235,7 @@ func (rs *Resource) passkeyRegisterOptions(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	options, err := rs.runtime.SecondFactor.BeginCatererPasskeyRegistration(r.Context(), identityaccess.CatererPasskeyRegistrationStart{
-		AccountID: rs.currentAccountID(r.Context()), ExpectedOrigin: expectedOrigin(r), Code: req.Code, Name: req.Name,
+		AccountID: rs.currentAccountID(r.Context()), ExpectedOrigin: common.PasskeyOrigin(r), Code: req.Code, Name: req.Name,
 	})
 	if err != nil {
 		renderSecondFactorFailure(w, r, err)

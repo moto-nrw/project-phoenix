@@ -12,12 +12,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // completeMFAExchangeStub is a narrow AuthService stub for the verify
@@ -125,7 +126,7 @@ func TestMFAVerify_SuccessReturnsTokenPair(t *testing.T) {
 	}))
 
 	require.Equal(t, http.StatusOK, rr.Code)
-	var resp TokenResponse
+	var resp portalauth.TokenResponse
 	require.NoError(t, json.NewDecoder(rr.Body).Decode(&resp))
 	assert.Equal(t, "access-tok", resp.AccessToken)
 	assert.Equal(t, "refresh-tok", resp.RefreshToken)
@@ -167,7 +168,7 @@ func TestMFAVerify_RememberDeviceIssuesTrustedCookie(t *testing.T) {
 	cookies := rr.Result().Cookies()
 	require.Len(t, cookies, 1, "remember_device=true must issue exactly one trusted-device cookie")
 	c := cookies[0]
-	assert.Equal(t, trustedDeviceCookieName, c.Name)
+	assert.Equal(t, "mfa_trust_device", c.Name)
 	assert.Equal(t, "td.cookie.value", c.Value)
 	assert.True(t, c.HttpOnly)
 	assert.Equal(t, http.SameSiteLaxMode, c.SameSite)
@@ -205,7 +206,7 @@ func TestMFAVerify_RememberDeviceFailureDoesNotBreakLogin(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code)
 	assert.Empty(t, rr.Result().Cookies(),
 		"cookie issuance failure must NOT produce a Set-Cookie with garbage")
-	var resp TokenResponse
+	var resp portalauth.TokenResponse
 	require.NoError(t, json.NewDecoder(rr.Body).Decode(&resp))
 	assert.NotEmpty(t, resp.AccessToken)
 }
@@ -308,6 +309,39 @@ func TestMFAVerify_SchoolPortalOnlyAccountReturnsPortalCode(t *testing.T) {
 	assert.Equal(t, "identity.use_school_portal", body["code"])
 }
 
+// A school deleted between challenge and exchange, or a guardian-only account
+// at the staff portal, is a refusal of the account, not a server failure.
+func TestMFAVerify_MintRefusalsAnswerLikeTheLogin(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name   string
+		cause  error
+		status int
+		code   string
+	}{
+		{"school gone", identityaccess.ErrTenantNotFound, http.StatusNotFound, "general.input"},
+		{"guardian only", identityaccess.ErrParentMustUseParentPortal, http.StatusForbidden, "identity.use_parent_portal"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			auth := &completeMFAExchangeStub{err: &identityaccess.AuthenticationError{Err: tc.cause}}
+			mfa := &trustedDeviceMFAStub{
+				verifyResult: identityaccess.VerifiedMFAChallenge{AccountID: 1, TenantID: testpkg.Tenant(t)},
+			}
+			rs := &Resource{ConstraintViolation: transactionFailures.IsConstraintViolation, Sessions: auth, MFAService: mfa}
+
+			rr := httptest.NewRecorder()
+			rs.mfaVerify(rr, verifyRequest(t, MFAVerifyRequest{ChallengeToken: "challenge.tok", Code: "123456"}))
+
+			require.Equal(t, tc.status, rr.Code)
+			var body map[string]any
+			require.NoError(t, json.NewDecoder(rr.Body).Decode(&body))
+			assert.Equal(t, tc.code, body["code"])
+		})
+	}
+}
+
 func TestMFAVerify_IssueTokensUnknownErrorMapsTo500(t *testing.T) {
 	t.Parallel()
 
@@ -340,7 +374,7 @@ func TestMFAVerify_RememberDeviceSettingsFailureDoesNotBreakLogin(t *testing.T) 
 	rs.mfaVerify(rr, verifyRequest(t, MFAVerifyRequest{ChallengeToken: "challenge.tok", Code: "123456", RememberDevice: true}))
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	assert.Equal(t, 1, auth.issueCalls)
-	var tokens TokenResponse
+	var tokens portalauth.TokenResponse
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &tokens))
 	assert.Equal(t, "private-access-token", tokens.AccessToken)
 	assert.Equal(t, "private-refresh-token", tokens.RefreshToken)

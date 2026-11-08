@@ -9,11 +9,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 )
 
 // loginGateStub satisfies AccountSessions by embedding the
@@ -78,7 +79,7 @@ func TestLogin_MFARequiredResponseShape(t *testing.T) {
 	rs.login(rr, newLoginRequest(t, "jane@example.com", "Test1234%"))
 
 	require.Equal(t, http.StatusOK, rr.Code)
-	var resp LoginResponse
+	var resp portalauth.LoginResponse
 	require.NoError(t, json.NewDecoder(rr.Body).Decode(&resp))
 	assert.Equal(t, "mfa_required", resp.Status)
 	assert.Equal(t, "fake.challenge.jwt", resp.ChallengeToken)
@@ -107,7 +108,7 @@ func TestLogin_AuthenticatedResponseShape(t *testing.T) {
 	rs.login(rr, newLoginRequest(t, "jane@example.com", "Test1234%"))
 
 	require.Equal(t, http.StatusOK, rr.Code)
-	var resp LoginResponse
+	var resp portalauth.LoginResponse
 	require.NoError(t, json.NewDecoder(rr.Body).Decode(&resp))
 	assert.Equal(t, "authenticated", resp.Status)
 	assert.Equal(t, "access.tok", resp.AccessToken)
@@ -140,7 +141,7 @@ func TestLogin_EnrollmentRequiredEmitsScopedToken(t *testing.T) {
 	rr := httptest.NewRecorder()
 	rs.login(rr, newLoginRequest(t, "x@y.de", "Test1234%"))
 
-	var resp LoginResponse
+	var resp portalauth.LoginResponse
 	require.NoError(t, json.NewDecoder(rr.Body).Decode(&resp))
 	assert.Equal(t, "mfa_enrollment_required", resp.Status)
 	assert.Equal(t, "enrollment.scoped.tok", resp.AccessToken)
@@ -166,7 +167,7 @@ func TestLogin_PassesTrustedDeviceCookie(t *testing.T) {
 		ConstraintViolation: transactionFailures.IsConstraintViolation, Sessions: stub}
 
 	req := newLoginRequest(t, "j@example.com", "Test1234%")
-	req.AddCookie(&http.Cookie{Name: trustedDeviceCookieName, Value: "trust.cookie.value"})
+	req.AddCookie(&http.Cookie{Name: "mfa_trust_device", Value: "trust.cookie.value"})
 
 	rs.login(httptest.NewRecorder(), req)
 

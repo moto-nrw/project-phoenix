@@ -9,22 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
-// authError maps login and refresh outcomes. An unknown or foreign operator
-// is indistinguishable from wrong credentials.
-func (rs *Resource) authError(err error) render.Renderer {
-	switch {
-	case errors.Is(err, identityaccess.ErrOperatorRefreshTokenInvalid):
-		return rs.responses.Unauthorized()
-	case errors.Is(err, identityaccess.ErrOperatorInvalidCredentials),
-		errors.Is(err, identityaccess.ErrOperatorNotFound):
-		return rs.responses.InvalidCredentials()
-	case errors.Is(err, identityaccess.ErrOperatorInactive):
-		return operatorInactive("Operator account is inactive")
-	default:
-		return rs.responses.AuthFallback(err)
-	}
-}
-
 // profileError maps profile and password change outcomes.
 func (rs *Resource) profileError(err error) render.Renderer {
 	if invalid, ok := errors.AsType[*identityaccess.InvalidInputError](err); ok {
@@ -70,29 +54,30 @@ func (rs *Resource) accessError(err error) render.Renderer {
 	}
 }
 
-// AuthErrorRenderer maps Identity & Access authentication outcomes to HTTP
-// responses. The bodies are fixed sentences, so the owner's sentinels decide
-// exactly the statuses and texts the retained typed errors decided (#3364).
-func AuthErrorRenderer(err error) render.Renderer {
-	switch {
-	case errors.Is(err, ErrOperatorInvalidCredentials):
-		return common.OperatorInvalidCredentials()
-	case errors.Is(err, ErrOperatorInactive):
-		return operatorInactive("Operator account is inactive")
-	case errors.Is(err, ErrOperatorNotFound):
-		return common.OperatorInvalidCredentials()
-	case errors.Is(err, ErrMFARateLimited):
-		return common.OperatorRejection(http.StatusTooManyRequests, common.CodeIdentityMfaBlocked, "Too many code requests, please wait")
-	case errors.Is(err, ErrMFALocked):
-		return common.OperatorRejection(http.StatusTooManyRequests, common.CodeIdentityMfaBlocked, "MFA account temporarily locked")
-	case errors.Is(err, ErrMFAChallengeTokenInvalid),
-		errors.Is(err, ErrMFACodeInvalid):
-		return common.OperatorRejection(http.StatusUnauthorized, common.CodeIdentityMfaCodeInvalid, "Invalid email or password")
-	case errors.Is(err, ErrMFAStatusUnavailable):
+// authRules classify the operator sign-in, refresh and second factor. An
+// unknown operator answers like a wrong password.
+var authRules = []common.ErrorRule{
+	{Target: identityaccess.ErrOperatorRefreshTokenInvalid, Render: func(error) render.Renderer { return common.OperatorUnauthorized() }},
+	{Target: ErrOperatorInvalidCredentials, Render: func(error) render.Renderer { return common.OperatorInvalidCredentials() }},
+	{Target: ErrOperatorNotFound, Render: func(error) render.Renderer { return common.OperatorInvalidCredentials() }},
+	{Target: ErrOperatorInactive, Render: func(error) render.Renderer { return operatorInactive("Operator account is inactive") }},
+	{Target: ErrMFARateLimited, Render: operatorRejection(http.StatusTooManyRequests, common.CodeIdentityMfaBlocked, "Too many code requests, please wait")},
+	{Target: ErrMFALocked, Render: operatorRejection(http.StatusTooManyRequests, common.CodeIdentityMfaBlocked, "MFA account temporarily locked")},
+	{Target: ErrMFAChallengeTokenInvalid, Render: operatorRejection(http.StatusUnauthorized, common.CodeIdentityMfaCodeInvalid, "Invalid email or password")},
+	{Target: ErrMFACodeInvalid, Render: operatorRejection(http.StatusUnauthorized, common.CodeIdentityMfaCodeInvalid, "Invalid email or password")},
+	{Target: ErrMFAStatusUnavailable, Render: func(error) render.Renderer {
 		return common.OperatorServiceUnavailable("MFA status temporarily unavailable, please retry")
-	default:
-		return common.OperatorInternal("Authentication failed")
-	}
+	}},
+}
+
+// AuthErrorRenderer answers an operator sign-in outcome; everything the
+// table does not name is a failed sign-in.
+var AuthErrorRenderer = common.RulesRenderer(authRules, func(error) render.Renderer {
+	return common.OperatorInternal("Authentication failed")
+})
+
+func operatorRejection(status int, code, message string) func(error) render.Renderer {
+	return func(error) render.Renderer { return common.OperatorRejection(status, code, message) }
 }
 
 // operatorInactive answers a deactivated operator account: 403 with the

@@ -2,7 +2,6 @@ package identityaccess
 
 import (
 	"context"
-	"errors"
 	"time"
 )
 
@@ -17,11 +16,11 @@ var (
 	// ErrOperatorInvitationNotFound reports an invitation that does not exist
 	// or is not in a state that allows the redemption, revocation or
 	// extension. The loser of two concurrent redemptions receives it.
-	ErrOperatorInvitationNotFound = errors.New("operator invitation not found")
+	ErrOperatorInvitationNotFound = notFoundError("operator invitation not found")
 	// ErrOperatorEmailChangeNotFound reports an e-mail change link that does
 	// not exist, is expired or was already used. The loser of two concurrent
 	// confirmations receives it.
-	ErrOperatorEmailChangeNotFound = errors.New("operator email change not found")
+	ErrOperatorEmailChangeNotFound = notFoundError("operator email change not found")
 )
 
 // TokenDelivery is the recorded outcome of mailing a one-time link.

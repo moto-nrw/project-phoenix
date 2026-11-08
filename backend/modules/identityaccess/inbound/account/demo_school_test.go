@@ -14,7 +14,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -62,7 +62,7 @@ func sessionClaims(t *testing.T, e demoEnv, token string) testutil.Claims {
 	t.Helper()
 	rr := e.post(t, "/demo/access/sessions", map[string]string{"token": token})
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
-	var tokens authAPI.TokenResponse
+	var tokens portalauth.TokenResponse
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &tokens))
 	segments := strings.Split(tokens.AccessToken, ".")
 	require.Len(t, segments, 3)
@@ -202,7 +202,7 @@ func TestDemoVisitorsDoNotSeeEachOthersSchool(t *testing.T) {
 	testpkg.MapAccountToTenant(t, env.db, firstVisitor.ID, secondSchool)
 	rr := env.post(t, "/demo/access/sessions", map[string]string{"token": firstToken})
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
-	var tokens authAPI.TokenResponse
+	var tokens portalauth.TokenResponse
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &tokens))
 	req := testutil.NewJSONRequest(t, http.MethodPost, "/auth/switch-tenant", map[string]string{"tenant_slug": secondSlug})
 	req.Header.Set("Authorization", "Bearer "+tokens.AccessToken)

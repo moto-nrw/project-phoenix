@@ -24,49 +24,50 @@ import (
 
 var (
 	// ErrAccountNotFound reports a lookup that matched no platform account.
-	ErrAccountNotFound = errors.New("account not found")
+	ErrAccountNotFound = notFoundError("account not found")
 	// ErrTenantRequired reports a tenant-scoped command without a tenant.
-	ErrTenantRequired = errors.New("tenant is required")
+	ErrTenantRequired = tenantRequiredError("tenant is required")
 	// ErrGuardianRoleMissing reports a tenant without a guardian base role.
-	ErrGuardianRoleMissing = errors.New("guardian role not found")
+	ErrGuardianRoleMissing = notFoundError("guardian role not found")
 	// ErrOperatorNotFound reports a lookup or update that matched no operator.
-	ErrOperatorNotFound = errors.New("operator not found")
+	ErrOperatorNotFound = notFoundError("operator not found")
 	// ErrOperatorSessionNotFound reports a lookup that matched no operator
 	// refresh session.
-	ErrOperatorSessionNotFound = errors.New("operator session not found")
+	ErrOperatorSessionNotFound = notFoundError("operator session not found")
 	// ErrOperatorSessionRotated reports a rotation hand-off on a session that
 	// was already rotated or does not exist.
-	ErrOperatorSessionRotated = errors.New("operator session was already rotated or not found")
+	ErrOperatorSessionRotated = conflictError("operator session was already rotated or not found")
 	// ErrAccountSessionNotFound reports a lookup that matched no account
 	// refresh session in the caller's tenant scope.
-	ErrAccountSessionNotFound = errors.New("account session not found")
+	ErrAccountSessionNotFound = notFoundError("account session not found")
 	// ErrAccountSessionRotated reports a rotation hand-off on an account
 	// session that was already rotated or does not exist.
-	ErrAccountSessionRotated = errors.New("account session was already rotated or not found")
+	ErrAccountSessionRotated = conflictError("account session was already rotated or not found")
 )
 
-// ErrorCode maps a capability error to the stable code recorded in metrics.
+// ErrorCode is the stable code metrics record for a capability error: the
+// class its sentinel declares, else "internal".
 func ErrorCode(err error) string {
-	switch {
-	case err == nil:
+	if err == nil {
 		return "none"
-	case errors.Is(err, ErrAccountNotFound), errors.Is(err, ErrRoleNotFound), errors.Is(err, ErrGuardianRoleMissing),
-		errors.Is(err, ErrOperatorNotFound), errors.Is(err, ErrOperatorSessionNotFound),
-		errors.Is(err, ErrAccountSessionNotFound), errors.Is(err, ErrSchoolNotFound), errors.Is(err, ErrAccountTenantAccessNotFound),
-		errors.Is(err, ErrOperatorMFACredentialNotFound), errors.Is(err, ErrOperatorMFAChallengeNotFound),
-		errors.Is(err, ErrOperatorTrustedDeviceNotFound), errors.Is(err, ErrOperatorInvitationNotFound),
-		errors.Is(err, ErrOperatorEmailChangeNotFound), errors.Is(err, ErrOperatorPasskeyNotFound),
-		errors.Is(err, ErrOperatorPasskeySessionNotFound), errors.Is(err, ErrAccountPasskeyNotFound),
-		errors.Is(err, ErrAccountPasskeySessionNotFound):
-		return "not_found"
-	case errors.Is(err, ErrOperatorSessionRotated), errors.Is(err, ErrAccountSessionRotated), errors.Is(err, ErrAccountTenantAccessExists),
-		errors.Is(err, ErrOperatorMFAChallengeStateChanged):
-		return "conflict"
-	case errors.Is(err, ErrTenantRequired):
-		return "tenant_required"
-	default:
-		return "internal"
 	}
+	var classed *classedError
+	if errors.As(err, &classed) {
+		return classed.class
+	}
+	return "internal"
+}
+
+// classedError is a sentinel that names its metrics class where it is
+// declared, so no list of sentinels has to be kept beside them.
+type classedError struct{ text, class string }
+
+func (e *classedError) Error() string { return e.text }
+
+func notFoundError(text string) error { return &classedError{text: text, class: "not_found"} }
+func conflictError(text string) error { return &classedError{text: text, class: "conflict"} }
+func tenantRequiredError(text string) error {
+	return &classedError{text: text, class: "tenant_required"}
 }
 
 // Account is the platform login fact enrollment acceptance needs: which

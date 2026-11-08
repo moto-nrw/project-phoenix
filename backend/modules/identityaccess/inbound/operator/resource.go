@@ -23,8 +23,8 @@ type Capability interface {
 // Responses are the operator surface's error bodies. OperatorResponses
 // builds them from api/common; the router in api/operator supplies the
 // school access fallback. The handlers here decide which body an outcome
-// gets. The three fallbacks render every outcome the handlers do not
-// classify themselves, such as the operator MFA errors a login can surface.
+// gets. The two fallbacks render every outcome the handlers do not classify
+// themselves.
 type Responses struct {
 	InvalidRequest     func(err error) render.Renderer
 	InvalidCredentials func() render.Renderer
@@ -32,7 +32,6 @@ type Responses struct {
 	NotFound           func(message string) render.Renderer
 	Forbidden          func(message string) render.Renderer
 	Conflict           func(message string) render.Renderer
-	AuthFallback       func(err error) render.Renderer
 	ProfileFallback    func(err error) render.Renderer
 	AccessFallback     func(err error) render.Renderer
 }
@@ -60,7 +59,6 @@ func OperatorResponses(accessFallback func(err error) render.Renderer) Responses
 		NotFound:           common.OperatorNotFound,
 		Forbidden:          common.OperatorForbidden,
 		Conflict:           common.OperatorConflict,
-		AuthFallback:       AuthErrorRenderer,
 		ProfileFallback:    ProfileErrorRenderer,
 		AccessFallback:     accessFallback,
 	}

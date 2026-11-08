@@ -27,6 +27,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
 )
 
 // StaffMessagingRouter is the school-portal mount supplied by the application
@@ -66,9 +67,9 @@ type Resource struct {
 	TenantContext func(context.Context, int64) context.Context
 	AuthService   AuthRuntime
 	MFAService    MFARuntime
-	// Resets is the reset runtime the composition root binds to Identity &
-	// Access (#3332); the zero value leaves the reset routes answering 500.
-	Resets         PasswordResetRuntime
+	// Resets are the public reset routes bound to Identity & Access with the
+	// school reset scope; the zero value answers 500.
+	Resets         common.PasswordResetRoutes
 	ClassDay       SchoolRouter
 	Timetable      SupervisionsRouter
 	StaffMessaging StaffMessagingRouter
@@ -82,13 +83,11 @@ type Resource struct {
 	ParentLetters SchoolRouter
 }
 
-// NewResource builds the school-portal resource. An incomplete resets
-// runtime leaves the public reset routes answering 500, exactly as a service
-// composed without the reset dependencies did.
+// NewResource builds the school-portal resource.
 func NewResource(
 	auth AuthRuntime,
 	mfa MFARuntime,
-	resets PasswordResetRuntime,
+	resets common.PasswordResetRoutes,
 	classDay SchoolRouter,
 	timetable SupervisionsRouter,
 	staffMessaging StaffMessagingRouter,
@@ -181,22 +180,18 @@ func (rs *Resource) mountAuthRoutes(r chi.Router, authRateLimiter func(http.Hand
 				r.Use(authRateLimiter)
 			}
 			r.Post("/login", rs.login)
-			r.Post("/password-reset", rs.initiatePasswordReset)
-			r.Post("/password-reset/confirm", rs.resetPassword)
+			r.Post("/password-reset", rs.Resets.ServeInitiate)
+			r.Post("/password-reset/confirm", rs.Resets.ServeConfirm)
 			// School MFA exchange: redeems ONLY challenges started with
 			// the school challenge scope and mints school-scope tokens.
 			r.Post("/mfa/verify", rs.mfaVerify)
 			r.Post("/mfa/resend", rs.mfaResend)
 		})
 
-		// Enrollment-only routes: accept the narrow SCHOOL-scope
-		// enrollment JWT the school login mints for accounts on an
-		// MFA-required school that have no credential yet. Own group with
-		// the dedicated enrollment authenticator so the enrollment token
-		// never reaches a fully authenticated handler; the handlers pin
-		// the school enrollment scope on top.
+		// Enrollment-only routes: only a school enrollment token enters, and
+		// it enters nothing else.
 		r.Group(func(r chi.Router) {
-			r.Use(sessiontoken.MFAEnrollmentAuthenticator)
+			r.Use(sessiontoken.EnrollmentAuthenticatorFor(tokenprimitives.SchoolClaims))
 			r.Route("/mfa/enroll", func(r chi.Router) {
 				r.Post("/start", rs.mfaEnrollStart)
 				r.Post("/confirm", rs.mfaEnrollConfirm)

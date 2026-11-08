@@ -242,50 +242,6 @@ func (req *LoginRequest) Bind(_ *http.Request) error {
 	)
 }
 
-// TokenResponse represents the token response payload
-type TokenResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-}
-
-// LoginResponse is the discriminated response shape /auth/login returns now
-// that MFA can short-circuit the token pair. The `status` field tells the
-// client which fields to read:
-//
-//   - status == "authenticated"           → access_token + refresh_token
-//     populated; the frontend stores them as before.
-//   - status == "mfa_required"             → challenge_token + masked_email
-//     populated; the frontend renders the code-entry UI and POSTs to
-//     /auth/mfa/verify.
-//   - status == "mfa_enrollment_required"  → access_token carries a
-//     short-lived enrollment-scoped JWT (no refresh_token). The frontend
-//     uses it as the Authorization header for /auth/mfa/enroll/* and
-//     replaces it with the real token pair returned by
-//     /auth/mfa/enroll/confirm. The token is REJECTED by the regular
-//     Authenticator middleware, so it cannot be used to bypass MFA.
-//
-// mfa_enrollment_required is retained as a legacy hint for clients that key
-// off the boolean rather than the status discriminator; new code should
-// branch on `status`.
-type LoginResponse struct {
-	Status                string `json:"status"`
-	AccessToken           string `json:"access_token,omitempty"`
-	RefreshToken          string `json:"refresh_token,omitempty"`
-	ChallengeToken        string `json:"challenge_token,omitempty"`
-	MaskedEmail           string `json:"masked_email,omitempty"`
-	MFAEnrollmentRequired bool   `json:"mfa_enrollment_required,omitempty"`
-	// TrustedDeviceEnabled is sent on the mfa_required branch so the
-	// frontend can hide the "remember this device" checkbox when the
-	// tenant admin has disabled the feature. A missing field defaults to
-	// "enabled" on the client for backwards compatibility.
-	TrustedDeviceEnabled *bool `json:"trusted_device_enabled,omitempty"`
-	// TrustedDeviceDays mirrors security.mfa_trusted_device_days for the
-	// tenant. The frontend uses it to render the dynamic "Auf diesem
-	// Gerät N Tage merken" label so the checkbox always reflects the
-	// cookie lifetime the backend will actually issue.
-	TrustedDeviceDays *int `json:"trusted_device_days,omitempty"`
-}
-
 // RegisterRequest represents the register request payload
 type RegisterRequest struct {
 	Email           string `json:"email"`

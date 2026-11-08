@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 )
 
 // completeOperatorMFAAuthStub satisfies OperatorAccess via
@@ -136,7 +136,7 @@ func TestOperatorMFAVerify_RememberDeviceIssuesCookie(t *testing.T) {
 	cookies := rr.Result().Cookies()
 	require.Len(t, cookies, 1, "remember_device=true must issue exactly one trusted-device cookie")
 	c := cookies[0]
-	assert.Equal(t, identityoperator.TrustedDeviceCookieName, c.Name)
+	assert.Equal(t, "mfa_trust_device", c.Name)
 	assert.Equal(t, "op.td.cookie", c.Value)
 	assert.True(t, c.HttpOnly)
 	assert.Equal(t, http.SameSiteLaxMode, c.SameSite)

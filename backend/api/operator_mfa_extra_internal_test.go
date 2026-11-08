@@ -12,12 +12,12 @@ import (
 	"testing"
 	"time"
 
-	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
+	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
 )
 
 // stubOperatorMFAServiceExtra implements OperatorMFAService with
@@ -290,8 +290,8 @@ func TestOperatorMFAEnrollConfirm_AlreadyEnrolledMintsSession(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 	var body struct {
-		Data    identityoperator.MFATokenResponse `json:"data"`
-		Message string                            `json:"message"`
+		Data    portalauth.TokenResponse `json:"data"`
+		Message string                   `json:"message"`
 	}
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
 	assert.Equal(t, "op-access", body.Data.AccessToken)

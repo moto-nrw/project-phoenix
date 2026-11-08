@@ -5,9 +5,9 @@ import (
 	"log/slog"
 	"net/http"
 
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-
 	"github.com/go-chi/chi/v5"
+	"github.com/spf13/viper"
+
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
@@ -16,11 +16,13 @@ import (
 	deliveryRuntime "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	tagScanOperatorAPI "github.com/moto-nrw/project-phoenix/modules/devicefleet/inbound/operator"
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
 	identityOperatorAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	provisioningOperatorAPI "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/operator"
@@ -36,7 +38,6 @@ import (
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
-	"github.com/spf13/viper"
 )
 
 // mountPortalRoutes mounts the root-level session portals: tenant auth,
@@ -169,7 +170,7 @@ func newParentResource(
 ) *parentAPI.Resource {
 	return parentAPI.NewResource(parentAPI.ResourceConfig{
 		Auth:        parentPortalLogin(identity),
-		Resets:      parentPasswordResets(identity),
+		Resets:      parentAPI.PasswordResetRuntime(portalauth.PasswordResetRoutes(identity, identityaccess.PasswordResetScopeParent)),
 		Parent:      parent,
 		Calendar:    calendarApp,
 		Conferences: calendarApp,

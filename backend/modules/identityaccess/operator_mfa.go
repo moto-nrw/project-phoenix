@@ -2,7 +2,6 @@ package identityaccess
 
 import (
 	"context"
-	"errors"
 	"net"
 	"time"
 )
@@ -15,17 +14,17 @@ import (
 var (
 	// ErrOperatorMFACredentialNotFound reports an operator without MFA
 	// enrollment.
-	ErrOperatorMFACredentialNotFound = errors.New("operator mfa credential not found")
+	ErrOperatorMFACredentialNotFound = notFoundError("operator mfa credential not found")
 	// ErrOperatorMFAChallengeNotFound reports an operator without an
 	// unconsumed, unexpired e-mail code.
-	ErrOperatorMFAChallengeNotFound = errors.New("operator mfa challenge not found")
+	ErrOperatorMFAChallengeNotFound = notFoundError("operator mfa challenge not found")
 	// ErrOperatorMFAChallengeStateChanged reports an activation or
 	// consumption that found the code no longer in the expected state. The
 	// loser of two concurrent verifications receives it.
-	ErrOperatorMFAChallengeStateChanged = errors.New("operator mfa challenge was already consumed or activated")
+	ErrOperatorMFAChallengeStateChanged = conflictError("operator mfa challenge was already consumed or activated")
 	// ErrOperatorTrustedDeviceNotFound reports a lookup without an active
 	// trusted device, or a revocation of a device already revoked or gone.
-	ErrOperatorTrustedDeviceNotFound = errors.New("operator trusted device not found")
+	ErrOperatorTrustedDeviceNotFound = notFoundError("operator trusted device not found")
 )
 
 // OperatorMFACredential records that an operator enrolled in e-mail MFA.

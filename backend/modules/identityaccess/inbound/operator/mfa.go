@@ -1,9 +1,8 @@
 package operator
 
 import (
+	"context"
 	"errors"
-	"log/slog"
-	"net"
 	"net/http"
 	"strconv"
 	"time"
@@ -12,6 +11,8 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
@@ -45,35 +46,25 @@ func (rs *MFAResource) requireMFA(w http.ResponseWriter, r *http.Request) bool {
 	return common.RequireDependency(w, r, rs.mfaService != nil, errOperatorMFAServiceUnavailable)
 }
 
-// operatorMFAError is an operator error body that also carries its code.
-func operatorMFAError(status int, message, code string) render.Renderer {
-	return &common.ErrResponse{HTTPStatusCode: status, Detail: message, Code: code}
+// mfaRules classify the operator second factor. The texts stay; the codes
+// let the shared code form name the reason (#2517).
+var mfaRules = []common.ErrorRule{
+	{Target: ErrMFAChallengeTokenInvalid, Render: operatorRejection(http.StatusUnauthorized, common.CodeIdentityMfaCodeInvalid, "Unauthorized")},
+	{Target: ErrMFACodeInvalid, Render: operatorRejection(http.StatusUnauthorized, common.CodeIdentityMfaCodeInvalid, "Unauthorized")},
+	{Target: ErrMFALocked, Render: operatorRejection(http.StatusTooManyRequests, common.CodeIdentityMfaBlocked, "MFA temporarily locked")},
+	{Target: ErrMFARateLimited, Render: operatorRejection(http.StatusTooManyRequests, common.CodeIdentityMfaBlocked, "Too many MFA emails — try again later")},
+	{Target: ErrMFANotEnrolled, Render: operatorRejection(http.StatusForbidden, common.CodeIdentityMfaNotEnrolled, "MFA is not enrolled for this operator")},
+	{Target: ErrMFAAlreadyEnrolled, Render: operatorRejection(http.StatusConflict, common.CodeIdentityMfaAlreadyEnrolled, "MFA is already enrolled")},
+	{Target: ErrMFAPermissionDenied, Render: func(error) render.Renderer { return common.OperatorForbidden("Permission denied") }},
+	{Target: ErrMFAStatusUnavailable, Render: func(error) render.Renderer {
+		return common.OperatorServiceUnavailable("MFA ist gerade nicht verfügbar. Bitte versuchen Sie es erneut.")
+	}},
 }
 
-// mapOperatorMFAError translates known MFA-service errors into HTTP responses.
-// Account and operator MFA answer with the same error identities, so one
-// errors.Is table serves both surfaces.
 func mapOperatorMFAError(w http.ResponseWriter, r *http.Request, err error) {
-	switch {
-	// The texts stay; the codes let the shared code form name the reason
-	// (#2517).
-	case errors.Is(err, ErrMFAChallengeTokenInvalid), errors.Is(err, ErrMFACodeInvalid):
-		common.RenderError(w, r, operatorMFAError(http.StatusUnauthorized, "Unauthorized", common.CodeIdentityMfaCodeInvalid))
-	case errors.Is(err, ErrMFALocked):
-		common.RenderError(w, r, operatorMFAError(http.StatusTooManyRequests, "MFA temporarily locked", common.CodeIdentityMfaBlocked))
-	case errors.Is(err, ErrMFARateLimited):
-		common.RenderError(w, r, operatorMFAError(http.StatusTooManyRequests, "Too many MFA emails — try again later", common.CodeIdentityMfaBlocked))
-	case errors.Is(err, ErrMFANotEnrolled):
-		common.RenderError(w, r, operatorMFAError(http.StatusForbidden, "MFA is not enrolled for this operator", common.CodeIdentityMfaNotEnrolled))
-	case errors.Is(err, ErrMFAAlreadyEnrolled):
-		common.RenderError(w, r, operatorMFAError(http.StatusConflict, "MFA is already enrolled", common.CodeIdentityMfaAlreadyEnrolled))
-	case errors.Is(err, ErrMFAPermissionDenied):
-		common.RenderError(w, r, common.OperatorForbidden("Permission denied"))
-	case errors.Is(err, ErrMFAStatusUnavailable):
-		common.RenderError(w, r, common.OperatorServiceUnavailable("MFA ist gerade nicht verfügbar. Bitte versuchen Sie es erneut."))
-	default:
-		common.RenderError(w, r, common.OperatorInternal("MFA operation failed"))
-	}
+	common.RenderError(w, r, common.RenderWithRules(err, mfaRules, func(error) render.Renderer {
+		return common.OperatorInternal("MFA operation failed")
+	}))
 }
 
 // ----- /auth/mfa/verify -----
@@ -123,7 +114,7 @@ func (rs *MFAResource) Resend(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.OperatorInvalidRequest(err))
 		return
 	}
-	renewed, err := rs.mfaService.ResendOperatorMFAChallenge(r.Context(), req.ChallengeToken, parseOperatorClientIP(r))
+	renewed, err := rs.mfaService.ResendOperatorMFAChallenge(r.Context(), req.ChallengeToken, common.ParseClientIP(r))
 	if err != nil {
 		mapOperatorMFAError(w, r, err)
 		return
@@ -133,20 +124,19 @@ func (rs *MFAResource) Resend(w http.ResponseWriter, r *http.Request) {
 
 // ----- /auth/mfa/enroll/start -----
 
-// EnrollStart triggers an email with a code that the operator must echo back
-// at /auth/mfa/enroll/confirm. No body — the enrollment-scoped JWT
-// identifies the operator. Authenticated by MFAEnrollmentAuthenticator,
-// which guarantees mfa_enrollment_pending=true and scope=platform.
+// EnrollStart mails the code the operator echoes back at
+// /auth/mfa/enroll/confirm. The route admits only an operator enrollment
+// token, which names the operator.
 func (rs *MFAResource) EnrollStart(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
 		return
 	}
 	claims, ok := sessiontoken.EnrollmentClaimsFromCtx(r.Context())
-	if !ok || claims.AccountID == 0 || claims.Scope != sessiontoken.MFAEnrollmentScopePlatform {
+	if !ok {
 		common.RenderError(w, r, common.OperatorUnauthorized())
 		return
 	}
-	if _, err := rs.mfaService.StartOperatorMFAChallenge(r.Context(), claims.AccountID, parseOperatorClientIP(r)); err != nil {
+	if _, err := rs.mfaService.StartOperatorMFAChallenge(r.Context(), claims.AccountID, common.ParseClientIP(r)); err != nil {
 		mapOperatorMFAError(w, r, err)
 		return
 	}
@@ -169,7 +159,7 @@ func (rs *MFAResource) EnrollConfirm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	claims, ok := sessiontoken.EnrollmentClaimsFromCtx(r.Context())
-	if !ok || claims.AccountID == 0 || claims.Scope != sessiontoken.MFAEnrollmentScopePlatform {
+	if !ok {
 		common.RenderError(w, r, common.OperatorUnauthorized())
 		return
 	}
@@ -257,86 +247,36 @@ func (rs *MFAResource) RevokeTrustedDevice(w http.ResponseWriter, r *http.Reques
 
 // ----- shared helpers -----
 
-// MFATokenResponse is the shape returned to clients after a successful MFA
-// challenge → token exchange. Mirrors the tenant TokenResponse.
-type MFATokenResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-}
-
-// completeMFAExchange runs once a challenge has been verified: mints the
-// access/refresh token pair, optionally issues a trusted-device cookie, and
-// writes the response. Both the email-code and recovery-code paths funnel
-// through here so cookie-handling stays in one place.
+// completeMFAExchange mints the operator session of a proven second factor
+// and remembers the device when asked. Operator MFA has no per-school device
+// policy and no reset generation that a mint could evict: an operator's
+// factor is reset only by the operator. Preparing therefore reads nothing and
+// the device is stored after the mint, like on the account portals.
 func (rs *MFAResource) completeMFAExchange(w http.ResponseWriter, r *http.Request, operatorID int64, rememberDevice bool) {
-	clientIP := common.ParseClientIP(r)
 	ipAddress := ""
-	if clientIP != nil {
+	if clientIP := common.ParseClientIP(r); clientIP != nil {
 		ipAddress = clientIP.String()
 	}
-	userAgent := r.Header.Get("User-Agent")
-
-	accessToken, refreshToken, err := rs.authService.IssueTokensForAuthenticatedOperator(
-		r.Context(), operatorID, ipAddress, userAgent,
-	)
+	prepare := portalauth.RememberDevice(rememberDevice, func(context.Context) (identityaccess.TrustedDeviceIssue, error) {
+		return func(ctx context.Context) (string, time.Time, error) {
+			return rs.mfaService.IssueOperatorTrustedDevice(ctx, operatorID, r.UserAgent(), common.ParseClientIP(r))
+		}, nil
+	})
+	tokens, err := portalauth.Exchange(w, r, operatorID, prepare, func(ctx context.Context) (string, string, error) {
+		return rs.authService.IssueTokensForAuthenticatedOperator(ctx, operatorID, ipAddress, r.UserAgent())
+	})
 	if err != nil {
-		switch {
-		case errors.Is(err, ErrOperatorInactive):
-			common.RenderError(w, r, operatorInactive("Operator account is inactive"))
-		case errors.Is(err, ErrOperatorNotFound):
-			// Reached after a correct second factor: a refused credential
-			// like the tenant exchange, not an expired session.
-			common.RenderError(w, r, common.OperatorRejection(http.StatusUnauthorized, common.CodeIdentityInvalidCredentials, "Unauthorized"))
-		default:
-			common.RenderError(w, r, common.OperatorInternal("Failed to issue tokens"))
-		}
+		common.RenderError(w, r, common.RenderWithRules(err, exchangeRules, func(error) render.Renderer {
+			return common.OperatorInternal("Failed to issue tokens")
+		}))
 		return
 	}
-
-	if rememberDevice {
-		if err := rs.issueTrustedDeviceCookie(w, r, operatorID); err != nil {
-			// Don't fail the whole login — log and proceed.
-			slog.Default().Warn("failed to issue operator trusted-device cookie",
-				slog.Int64("operator_id", operatorID),
-				slog.String("error", err.Error()),
-			)
-		}
-	}
-
-	common.Respond(w, r, http.StatusOK, &MFATokenResponse{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-	}, "MFA verification successful")
+	common.Respond(w, r, http.StatusOK, &tokens, "MFA verification successful")
 }
 
-// issueTrustedDeviceCookie hooks into MFAService.IssueTrustedDevice and
-// writes the resulting Set-Cookie header.
-func (rs *MFAResource) issueTrustedDeviceCookie(w http.ResponseWriter, r *http.Request, operatorID int64) error {
-	cookieValue, expiresAt, err := rs.mfaService.IssueOperatorTrustedDevice(
-		r.Context(), operatorID, r.Header.Get("User-Agent"), parseOperatorClientIP(r),
-	)
-	if err != nil {
-		return err
-	}
-	http.SetCookie(w, &http.Cookie{
-		Name:    TrustedDeviceCookieName,
-		Value:   cookieValue,
-		Path:    "/",
-		Expires: expiresAt,
-		MaxAge:  int(time.Until(expiresAt).Seconds()),
-		// Always Secure — Chrome ≥89, Firefox and Safari accept Secure
-		// cookies on `localhost` (and `*.localhost`) over HTTP as a
-		// special-cased "secure context". Production serves HTTPS, so
-		// the literal `true` is correct in every supported environment.
-		Secure:   true,
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-	})
-	return nil
-}
-
-// parseOperatorClientIP returns the request's client IP as a net.IP, or
-// nil when nothing parseable is on the request.
-func parseOperatorClientIP(r *http.Request) net.IP {
-	return common.ParseClientIP(r)
+// exchangeRules classify a refused mint after a correct second factor: a
+// refused credential like the tenant exchange, not an expired session.
+var exchangeRules = []common.ErrorRule{
+	{Target: ErrOperatorInactive, Render: func(error) render.Renderer { return operatorInactive("Operator account is inactive") }},
+	{Target: ErrOperatorNotFound, Render: operatorRejection(http.StatusUnauthorized, common.CodeIdentityInvalidCredentials, "Unauthorized")},
 }

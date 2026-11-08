@@ -11,7 +11,7 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 )
@@ -323,65 +323,25 @@ func normalizeAttendanceEditScope(value string) string {
 	return settings.AttendanceEditScopeOwn
 }
 
-// switchTenant handles POST /auth/switch-tenant
+// switchTenant moves the session to another school of the account. The
+// source session must prove a live second factor.
 func (rs *Resource) switchTenant(w http.ResponseWriter, r *http.Request) {
 	req := &SwitchTenantRequest{}
 	if err := render.Bind(r, req); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-
-	// Get account ID from JWT claims
+	if !common.RequireDependency(w, r, rs.Sessions != nil, errSessionsUnavailable) {
+		return
+	}
 	claims := sessiontoken.ClaimsFromCtx(r.Context())
-
-	if rs.Sessions == nil {
-		common.RenderError(w, r, common.ErrorServiceUnavailable(errors.New("tenant switch unavailable")))
-		return
-	}
-	accessToken, refreshToken, err := rs.Sessions.SwitchTenant(r.Context(), int64(claims.ID), req.TenantSlug, claims.FamilyID, getClientIP(r), r.Header.Get(headerUserAgent))
+	client := portalauth.ClientOf(r)
+	accessToken, refreshToken, err := rs.Sessions.SwitchTenant(r.Context(), int64(claims.ID), req.TenantSlug, claims.FamilyID, client.IP, client.UserAgent)
 	if err != nil {
-		if errors.Is(err, identityaccess.ErrInvalidToken) {
-			common.RenderError(w, r, common.ErrorUnauthorizedWithCode(
-				errors.New("tenant switch requires a live MFA-verified session; sign in again"), common.CodeIdentityMfaSessionRequired))
-			return
-		}
-		if errors.Is(err, identityaccess.ErrMFAStatusUnavailable) {
-			common.RenderError(w, r, common.ErrorServiceUnavailable(err))
-			return
-		}
-		var authErr *identityaccess.AuthenticationError
-		if errors.As(err, &authErr) {
-			switch {
-			case errors.Is(err, identityaccess.ErrAccountNotFound):
-				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrAccountNotFound))
-			case errors.Is(err, identityaccess.ErrAccountInactive):
-				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrAccountInactive))
-			case errors.Is(err, identityaccess.ErrTenantNotFound):
-				common.RenderError(w, r, common.ErrorNotFound(identityaccess.ErrTenantNotFound))
-			case errors.Is(err, identityaccess.ErrTenantAccessDenied):
-				// The message text stays for older clients; the switcher reads
-				// the code (#2517).
-				common.RenderError(w, r, common.ErrorUnauthorizedWithCode(identityaccess.ErrTenantAccessDenied, common.CodeIdentityTenantAccessDenied))
-			case errors.Is(err, identityaccess.ErrMustUseSchoolPortal):
-				common.RenderError(w, r, common.ErrorForbiddenWithCode(
-					identityaccess.ErrMustUseSchoolPortal, common.CodeIdentityUseSchoolPortal))
-			case errors.Is(err, identityaccess.ErrDemoSessionTenantLocked):
-				common.RenderError(w, r, common.ErrorForbiddenWithCode(
-					identityaccess.ErrDemoSessionTenantLocked, common.CodeIdentityDemoSession))
-			default:
-				common.RenderError(w, r, common.ErrorInternalServer(err))
-			}
-			return
-		}
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		portalauth.Render(w, r, err, portalauth.SwitchRules)
 		return
 	}
-
-	// Return tokens in the same format as login
-	render.JSON(w, r, TokenResponse{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-	})
+	render.JSON(w, r, portalauth.TokenResponse{AccessToken: accessToken, RefreshToken: refreshToken})
 }
 
 // listAccountTenants handles GET /auth/account/tenants

@@ -96,3 +96,9 @@ func PortalNamed(name string) (PortalClaims, bool) {
 	}
 	return PortalClaims{}, false
 }
+
+// EnrollmentFits reports whether an enrollment token's school fits the
+// portal. Enrollment tokens carry no Träger, so the check stops at the school.
+func EnrollmentFits(portal PortalClaims, tenantID int64) bool {
+	return portal.Tenant.holds(tenantID)
+}

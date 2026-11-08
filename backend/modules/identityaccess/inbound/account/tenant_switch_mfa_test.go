@@ -6,11 +6,12 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/stretchr/testify/require"
 )
 
 func TestTenantSwitchWithoutMFAProofIsUnauthorized(t *testing.T) {
@@ -56,7 +57,7 @@ func TestTenantSwitchPreservesVerifiedMFAAcrossOrganizationsAfterRotation(t *tes
 	req.Header.Set("Authorization", "Bearer "+access)
 	response := testutil.ExecuteRequest(router, req)
 	require.Equal(t, http.StatusOK, response.Code)
-	var tokens authAPI.TokenResponse
+	var tokens portalauth.TokenResponse
 	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &tokens))
 	require.NotEmpty(t, tokens.AccessToken)
 	require.NotEmpty(t, tokens.RefreshToken)
