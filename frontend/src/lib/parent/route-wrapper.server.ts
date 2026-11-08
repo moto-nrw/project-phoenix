@@ -1,18 +1,9 @@
-import {
-  parentAuth,
-  uncachedParentAuth,
-  withParentAuth,
-} from "~/server/auth/parent";
+import { parentPortal } from "~/server/auth/parent";
 import { unwrapEnvelope } from "../backend-client.server";
 import { makePortalHandlers } from "../portal-handlers.server";
 
 /** The parents portal's route handlers, on the parent session only. */
-export const parent = makePortalHandlers({
-  key: "parent",
-  auth: () => parentAuth(),
-  uncachedAuth: () => uncachedParentAuth(),
-  withAuth: (handler) => withParentAuth(handler),
-});
+export const parent = makePortalHandlers(parentPortal);
 
 export const {
   proxyGet,
@@ -33,9 +24,3 @@ export const parentApiPut = async <T, B = unknown>(
   token: string,
   body?: B,
 ) => unwrapEnvelope<T>(await parent.api("PUT", endpoint, token, body));
-
-export const parentApiPatch = async <T, B = unknown>(
-  endpoint: string,
-  token: string,
-  body?: B,
-) => unwrapEnvelope<T>(await parent.api("PATCH", endpoint, token, body));

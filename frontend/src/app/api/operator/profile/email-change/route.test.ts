@@ -12,11 +12,13 @@ vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: mockGetServerApiUrl,
 }));
 
-vi.mock("~/server/auth/operator", () => ({
-  operatorAuth: mockAuth,
-  uncachedOperatorAuth: mockAuth,
-  withOperatorAuth: (handler: unknown) => handler,
-}));
+vi.mock("~/server/auth/operator", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("operator", {
+    operatorAuth: mockAuth,
+    uncachedOperatorAuth: mockAuth,
+    withOperatorAuth: (handler: unknown) => handler,
+  }),
+);
 
 global.fetch = mockFetch as unknown as typeof fetch;
 

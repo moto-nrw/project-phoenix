@@ -18,11 +18,13 @@ vi.mock("~/env", () => ({
 const { setTenantSession } = vi.hoisted(() => ({
   setTenantSession: vi.fn().mockResolvedValue(undefined),
 }));
-vi.mock("~/server/auth", () => ({
-  setTenantSession,
-  withTenantSessionResponse: (handler: unknown) => handler,
-  withTenantAuth: (handler: unknown) => handler,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    setTenantSession,
+    withTenantSessionResponse: (handler: unknown) => handler,
+    withTenantAuth: (handler: unknown) => handler,
+  }),
+);
 
 const { POST } = await import("./route");
 

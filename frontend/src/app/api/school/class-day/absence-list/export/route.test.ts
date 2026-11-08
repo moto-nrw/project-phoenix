@@ -7,11 +7,13 @@ const { mockAuth, mockUncachedAuth } = vi.hoisted(() => ({
   mockUncachedAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
 }));
 
-vi.mock("~/server/auth/school", () => ({
-  schoolAuth: mockAuth,
-  uncachedSchoolAuth: mockUncachedAuth,
-  withSchoolAuth: <T>(handler: T) => handler,
-}));
+vi.mock("~/server/auth/school", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("school", {
+    schoolAuth: mockAuth,
+    uncachedSchoolAuth: mockUncachedAuth,
+    withSchoolAuth: <T>(handler: T) => handler,
+  }),
+);
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://backend:8080",
 }));

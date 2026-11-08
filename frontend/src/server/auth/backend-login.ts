@@ -1,12 +1,10 @@
 import "server-only";
 import type { CredentialsSignin } from "next-auth";
-import { getServerApiUrl } from "~/lib/server-api-url";
+import { sendBackend } from "~/lib/backend-client.server";
 import { authLogger } from "./jwt-claims";
 import { LOGIN_RATE_LIMITED, type LoginRefusalCode } from "~/lib/login-refusal";
 import type { PasswordLogin, PortalDescriptor } from "./portals";
 import type { TokenPair } from "./token-refresh";
-
-const LOGIN_TIMEOUT_MS = 10_000;
 
 export type LoginOutcome =
   | { ok: true; tokens: TokenPair }
@@ -29,17 +27,17 @@ async function errorCode(response: Response): Promise<string | undefined> {
 export async function loginAtBackend(
   portal: PortalDescriptor,
   body: Record<string, string>,
-  headers: Record<string, string>,
+  request: Request | undefined,
 ): Promise<LoginOutcome> {
   try {
-    const response = await fetch(
-      `${getServerApiUrl()}${portal.backend.authPrefix}/login`,
+    const response = await sendBackend(
+      `${portal.backend.authPrefix}/login`,
+      null,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...headers },
-        body: JSON.stringify(body),
-        cache: "no-store",
-        signal: AbortSignal.timeout(LOGIN_TIMEOUT_MS),
+        json: body,
+        request,
+        timeout: "login",
       },
     );
     if (!response.ok) {
@@ -55,8 +53,7 @@ export async function loginAtBackend(
     const data = (
       portal.backend.enveloped.includes("login") ? payload.data : payload
     ) as Partial<TokenPair> & { status?: unknown };
-    // An MFA-aware login answers 200 with the step it needs; the login page
-    // drives that through lib/mfa-api, never this provider.
+    // A login that answers 200 with a further step is no session here.
     if (
       (typeof data?.status === "string" && data.status !== "authenticated") ||
       typeof data?.access_token !== "string" ||
@@ -99,12 +96,10 @@ async function credentialsRefusal(
   return error;
 }
 
-/** Null: the portal reports no reason, Auth.js answers its generic refusal. */
 export async function refusalFor(
   login: PasswordLogin,
   outcome: Extract<LoginOutcome, { ok: false }>,
-): Promise<CredentialsSignin | null> {
-  if (login.refusals === "none") return null;
+): Promise<CredentialsSignin> {
   if (outcome.status === 429) return credentialsRefusal(LOGIN_RATE_LIMITED);
   const named = login.refusals.find((code) => code === outcome.code);
   return credentialsRefusal(named ?? "identity.invalid_credentials");

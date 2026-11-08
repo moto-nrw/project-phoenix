@@ -63,9 +63,9 @@ vi.mock("~/env", () => ({
   },
 }));
 
-// Mock next-auth's dynamic-import surface used by createOperatorLoginError.
+// Mock next-auth's dynamic-import surface used by credentialsRefusal.
 // In the vitest environment the ESM dynamic `import("next-auth")` inside
-// shared.ts fails with ERR_MODULE_NOT_FOUND because next-auth resolves
+// backend-login.ts fails with ERR_MODULE_NOT_FOUND because next-auth resolves
 // differently than at app runtime. A minimal CredentialsSignin stub lets
 // the import succeed and lets tests assert on the thrown error's `code`.
 class MockCredentialsSignin extends Error {
@@ -776,36 +776,17 @@ describe("authConfig", () => {
       expect(credentialsProvider).toBeDefined();
     });
 
-    it("should have authorize function that validates credentials", async () => {
-      const authorize = getTeacherAuthorize();
-
-      // Verify authorize function exists
-      expect(authorize).toBeDefined();
-      expect(typeof authorize).toBe("function");
-
-      // Verify it returns null for invalid/missing credentials (already tested in other tests)
-      const result = await authorize({}, new Request("http://localhost:3000"));
-      expect(result).toBeNull();
-    });
-
-    it("should return null for failed login", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 401,
-        text: async () => "Unauthorized",
-      });
-
+    // The tenant login page signs in through /api/auth/login (review L7).
+    it("refuses a password without asking the backend", async () => {
       const authorize = getTeacherAuthorize();
 
       const result = await authorize(
-        {
-          email: "test@example.com",
-          password: "wrongpassword",
-        },
+        { email: "test@example.com", password: "correct" },
         new Request("http://localhost:3000"),
       );
 
       expect(result).toBeNull();
+      expect(mockFetch).not.toHaveBeenCalled();
     });
 
     it("should return null for missing credentials", async () => {
@@ -1040,7 +1021,7 @@ describe("authConfig", () => {
       const result = await loginAtBackend(
         PORTALS.operator,
         { email: "op@test.com", password: "pass" },
-        {},
+        undefined,
       );
 
       expect(result).toEqual({
@@ -1065,7 +1046,7 @@ describe("authConfig", () => {
       const result = await loginAtBackend(
         PORTALS.tenant,
         { email: "teacher@test.com", password: "pass" },
-        {},
+        undefined,
       );
 
       expect(result).toEqual({
@@ -1087,7 +1068,7 @@ describe("authConfig", () => {
       const result = await loginAtBackend(
         PORTALS.school,
         { email: "teacher@test.com", password: "pass" },
-        {},
+        undefined,
       );
 
       expect(result).toEqual({ ok: false, status: 200, code: "mfa_required" });
@@ -1109,7 +1090,7 @@ describe("authConfig", () => {
       const result = await loginAtBackend(
         PORTALS.parent,
         { email: "parent@test.com", password: "pass" },
-        {},
+        undefined,
       );
 
       expect(result).toEqual({
@@ -1130,7 +1111,7 @@ describe("authConfig", () => {
         const result = await loginAtBackend(
           PORTALS.parent,
           { email: "parent@test.com", password: "pass" },
-          {},
+          undefined,
         );
         expect(result).toEqual({ ok: false, status, code: undefined });
       }
@@ -1142,7 +1123,7 @@ describe("authConfig", () => {
       const result = await loginAtBackend(
         PORTALS.parent,
         { email: "parent@test.com", password: "pass" },
-        {},
+        undefined,
       );
 
       expect(result).toEqual({ ok: false });
@@ -1162,69 +1143,6 @@ describe("authConfig", () => {
   });
 
   describe("Credentials authorize - teacher flow", () => {
-    it("should return user on successful teacher login", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          access_token: TEACHER_JWT,
-          refresh_token: "refresh-token",
-        }),
-      });
-
-      const authorize = getTeacherAuthorize();
-      const result = await authorize(
-        { email: "john@example.com", password: "correct" },
-        new Request("http://localhost:3000"),
-      );
-
-      expect(result).not.toBeNull();
-      expect(result?.id).toBe("1");
-      expect(result?.name).toBe("John Doe");
-      expect(result?.roles).toEqual(["teacher"]);
-    });
-
-    it("should return null when login returns invalid JWT", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          access_token: "not-a-valid-jwt",
-          refresh_token: "refresh-token",
-        }),
-      });
-
-      const authorize = getTeacherAuthorize();
-      const result = await authorize(
-        { email: "john@example.com", password: "correct" },
-        new Request("http://localhost:3000"),
-      );
-
-      expect(result).toBeNull();
-    });
-
-    it("should return null for missing credentials", async () => {
-      const authorize = getTeacherAuthorize();
-      const result = await authorize({}, new Request("http://localhost:3000"));
-
-      expect(result).toBeNull();
-      expect(mockFetch).not.toHaveBeenCalled();
-    });
-
-    it("should return null for failed login", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 401,
-        text: async () => "Unauthorized",
-      });
-
-      const authorize = getTeacherAuthorize();
-      const result = await authorize(
-        { email: "test@example.com", password: "wrong" },
-        new Request("http://localhost:3000"),
-      );
-
-      expect(result).toBeNull();
-    });
-
     it("should handle internal refresh", async () => {
       const authorize = getTeacherAuthorize();
       const result = await withServerSessionMutation(() =>
@@ -1279,138 +1197,15 @@ describe("authConfig", () => {
       ) => Promise<User | null>;
     }
 
-    it("should return user with platform scope on successful operator login", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          status: "success",
-          data: {
-            access_token: OPERATOR_JWT,
-            refresh_token: "op-refresh-token",
-            operator: {
-              id: 45,
-              email: "op@example.com",
-              display_name: "Op",
-            },
-          },
-        }),
-      });
-
-      const authorize = getOperatorAuthorize();
-      const result = await authorize(
+    // The operator login page signs in through its BFF login route.
+    it("refuses a password without asking the backend", async () => {
+      const result = await getOperatorAuthorize()(
         { email: "op@example.com", password: "correct" },
         new Request("http://localhost:3000"),
       );
-
-      expect(result).not.toBeNull();
-      expect(result?.id).toBe("45");
-      expect(result?.roles).toEqual(["operator"]);
-      expect(result?.scope).toBe("platform");
-    });
-
-    it("should forward only the canonical operator client IP", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          status: "success",
-          data: {
-            access_token: OPERATOR_JWT,
-            refresh_token: "op-refresh-token",
-            operator: {
-              id: 45,
-              email: "op@example.com",
-              display_name: "Op",
-            },
-          },
-        }),
-      });
-
-      const authorize = getOperatorAuthorize();
-      await authorize(
-        { email: "op@example.com", password: "correct" },
-        new Request("http://localhost:3000", {
-          headers: {
-            "x-forwarded-for": "203.0.113.10, 172.20.0.4",
-            "x-real-ip": "198.51.100.25",
-          },
-        }),
-      );
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        "http://server:8080/operator/auth/login",
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            "X-Forwarded-For": "172.20.0.4",
-          }) as HeadersInit,
-        }),
-      );
-    });
-
-    it("should return null for missing credentials", async () => {
-      const authorize = getOperatorAuthorize();
-      const result = await authorize({}, new Request("http://localhost:3000"));
 
       expect(result).toBeNull();
       expect(mockFetch).not.toHaveBeenCalled();
-    });
-
-    it("refuses a failed operator login as wrong credentials", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 401,
-        text: async () => "Unauthorized",
-      });
-
-      const authorize = getOperatorAuthorize();
-      await expect(
-        authorize(
-          { email: "op@example.com", password: "wrong" },
-          new Request("http://localhost:3000"),
-        ),
-      ).rejects.toMatchObject({ code: "identity.invalid_credentials" });
-    });
-
-    it("names an inactive operator by the backend's code", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        status: 403,
-        text: async () =>
-          JSON.stringify({ status: 403, code: "identity.account_inactive" }),
-      });
-
-      const authorize = getOperatorAuthorize();
-      await expect(
-        authorize(
-          { email: "op@example.com", password: "correct" },
-          new Request("http://localhost:3000"),
-        ),
-      ).rejects.toMatchObject({ code: "identity.account_inactive" });
-    });
-
-    it("should return null when operator login returns invalid JWT", async () => {
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          status: "success",
-          data: {
-            access_token: "not-a-jwt",
-            refresh_token: "op-refresh",
-            operator: {
-              id: 1,
-              email: "op@example.com",
-              display_name: "Op",
-            },
-          },
-        }),
-      });
-
-      const authorize = getOperatorAuthorize();
-      const result = await authorize(
-        { email: "op@example.com", password: "correct" },
-        new Request("http://localhost:3000"),
-      );
-
-      expect(result).toBeNull();
     });
 
     it("should handle internal refresh with platform scope", async () => {

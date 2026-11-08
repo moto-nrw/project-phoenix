@@ -5,11 +5,13 @@ const { auth, refresh } = vi.hoisted(() => ({
   auth: vi.fn(),
   refresh: vi.fn(),
 }));
-vi.mock("~/server/auth/caterer", () => ({
-  catererAuth: auth,
-  uncachedCatererAuth: refresh,
-  withCatererAuth: (handler: unknown) => handler,
-}));
+vi.mock("~/server/auth/caterer", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("caterer", {
+    catererAuth: auth,
+    uncachedCatererAuth: refresh,
+    withCatererAuth: (handler: unknown) => handler,
+  }),
+);
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://localhost:8080",
 }));

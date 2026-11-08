@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import type { PortalKey } from "~/server/auth/portals";
+import { decodeJwtPayload } from "~/server/auth/jwt-payload";
 import type { ServerSession } from "~/server/auth/session-types";
 import {
   ApiResponseError,
@@ -15,6 +15,7 @@ import {
 } from "./client-headers.server";
 import { sanitizeEndpoint } from "./log-sanitize";
 import { createLogger } from "./logger";
+import { captureBffException } from "./sentry-bff.server";
 import {
   createTokenExpiredResponse,
   createUnauthorizedResponse,
@@ -24,12 +25,24 @@ import { getServerApiUrl } from "./server-api-url";
 const logger = createLogger({ component: "BackendClient" });
 
 /**
- * How long the backend may take until its response headers arrive. Below
- * Cloudflare's 100 s origin timeout, so the BFF answers 503 before the edge
- * does.
- * A body still streaming (a large export) is not cut off.
+ * How long the backend may take until its response headers arrive, per kind
+ * of call. A body still streaming (a large export) is not cut off.
  */
-const BACKEND_HEADERS_TIMEOUT_MS = 90_000;
+const BACKEND_TIMEOUTS_MS = {
+  /** Below Cloudflare's 100 s origin timeout, so the BFF answers 503 first. */
+  default: 90_000,
+  /** A password, MFA or passkey step and the BFF logout. */
+  login: 10_000,
+  logout: 10_000,
+  /** Session upkeep inside Auth.js callbacks, which hold up the request:
+   * refresh, family and token checks, staff preview, a failed install's
+   * revocation. */
+  session: 5_000,
+  /** An image or document a public page embeds. */
+  publicAsset: 5_000,
+} as const;
+
+type BackendTimeout = keyof typeof BACKEND_TIMEOUTS_MS;
 
 export type BackendMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -46,8 +59,8 @@ export interface BackendCall {
   /** The browser request whose client identity travels along. */
   request?: Request;
   signal?: AbortSignal;
-  /** A tighter bound than the default header timeout. */
-  timeoutMs?: number;
+  /** A tighter budget than `default`; see BACKEND_TIMEOUTS_MS. */
+  timeout?: BackendTimeout;
 }
 
 /** Without a request at hand, the identity of the request being handled. */
@@ -80,24 +93,16 @@ function assertNoDotSegments(path: string): void {
   }
 }
 
-function tokenScope(bearer: string | null | undefined): {
-  tenantId?: number;
-  orgId?: number;
-  scope?: string;
-} {
-  const payload = bearer?.split(".")[1];
-  if (!payload) return {};
-  try {
-    const claims = JSON.parse(Buffer.from(payload, "base64url").toString());
-    return {
-      tenantId:
-        typeof claims.tenant_id === "number" ? claims.tenant_id : undefined,
-      orgId: typeof claims.org_id === "number" ? claims.org_id : undefined,
-      scope: typeof claims.scope === "string" ? claims.scope : undefined,
-    };
-  } catch {
-    return {};
-  }
+/** The tenant, organization and scope of a call's token, for log and metric. */
+function bearerClaims(bearer: string | null | undefined) {
+  const claims = bearer ? decodeJwtPayload(bearer) : null;
+  const number = (value: unknown) =>
+    typeof value === "number" ? value : undefined;
+  return {
+    tenantId: number(claims?.tenant_id),
+    orgId: number(claims?.org_id),
+    scope: typeof claims?.scope === "string" ? claims.scope : undefined,
+  };
 }
 
 function contentLength(response: Response): number | null {
@@ -122,7 +127,7 @@ export async function sendBackend(
   const timeout = new AbortController();
   const timer = setTimeout(
     () => timeout.abort(new Error("backend did not answer in time")),
-    call.timeoutMs ?? BACKEND_HEADERS_TIMEOUT_MS,
+    BACKEND_TIMEOUTS_MS[call.timeout ?? "default"],
   );
   const body = call.json === undefined ? call.body : JSON.stringify(call.json);
   const contentType =
@@ -161,7 +166,7 @@ export async function sendBackend(
     clearTimeout(timer);
     const durationMs = Date.now() - startedAt;
     const backendEndpoint = sanitizeEndpoint(path);
-    const claims = tokenScope(bearer);
+    const claims = bearerClaims(bearer);
     logger.info("frontend backend proxy request completed", {
       method,
       backend_endpoint: backendEndpoint,
@@ -210,11 +215,26 @@ export function unwrapEnvelope<T>(json: unknown): T {
 
 /** One portal's session, as its Auth.js instance reads it. */
 export interface PortalSession {
-  key: PortalKey;
   /** The request's session (cached for the request). */
   auth: () => Promise<ServerSession | null>;
   /** The session renewed now; called after a backend 401. */
   uncachedAuth: () => Promise<ServerSession | null>;
+  /** Whether the caller runs inside the portal's response wrapper. */
+  inRequestContext: () => boolean;
+}
+
+/**
+ * Outside the portal's response wrapper a session read can rotate the
+ * refresh token without its cookie leaving (#1938), and a renewal cannot
+ * force a refresh. A helper that reads the session refuses to run there.
+ */
+export function assertPortalRequestContext(portal: PortalSession): void {
+  if (portal.inRequestContext()) return;
+  const error = new Error(
+    "portal session helper called outside its portal's auth wrapper",
+  );
+  logger.error("portal_session_outside_auth_wrapper", { error: error.message });
+  throw error;
 }
 
 export interface SessionCall extends Omit<BackendCall, "request"> {
@@ -247,7 +267,13 @@ export async function renewSession(
   let session: ServerSession | null;
   try {
     session = await portal.uncachedAuth();
-  } catch {
+  } catch (error) {
+    // The session stays; a renewal that throws every time would otherwise
+    // be an endless, invisible series of 503s.
+    logger.warn("session_renewal_failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    captureBffException(error);
     return { outcome: "undecided" };
   }
   const token = session?.user?.token;
@@ -285,6 +311,7 @@ export function createBackendFetch(portal: PortalSession) {
     path: string,
     call: SessionCall = {},
   ): Promise<Response> {
+    assertPortalRequestContext(portal);
     const token = (await portal.auth())?.user?.token;
     if (!token) return createUnauthorizedResponse(request);
     const send = (bearer: string) =>

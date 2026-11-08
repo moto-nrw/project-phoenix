@@ -6,11 +6,13 @@ const { mockAuth, mockFetch } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
 }));
 
-vi.mock("~/server/auth/operator", () => ({
-  operatorAuth: mockAuth,
-  uncachedOperatorAuth: vi.fn(),
-  withOperatorAuth: (handler: unknown) => handler,
-}));
+vi.mock("~/server/auth/operator", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("operator", {
+    operatorAuth: mockAuth,
+    uncachedOperatorAuth: vi.fn(),
+    withOperatorAuth: (handler: unknown) => handler,
+  }),
+);
 
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://server:8080",

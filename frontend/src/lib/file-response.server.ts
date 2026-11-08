@@ -2,21 +2,10 @@ import { problemResponse } from "./api-response-error.server";
 import { forwardBackendResponse } from "./backend-proxy-response.server";
 
 export interface FileResponseOptions {
-  /**
-   * A file a person uploaded, which the browser may show inline: the
-   * backend's sandbox CSP and nosniff travel. The proxy sets the same
-   * sandbox for these routes (SANDBOXED_FILE_ROUTES in proxy.ts).
-   */
-  uploadedFile?: boolean;
   /** Keep the backend's Cache-Control, for a versioned image like a logo. */
   backendCacheControl?: boolean;
   /** The BFF's own Cache-Control for an image the browser may keep. */
   cacheControl?: string;
-  /**
-   * Read the whole file first and send its Content-Length, for a backend
-   * that streams without one. Otherwise the bytes stream through.
-   */
-  buffer?: boolean;
   /** Used when the backend names no type or disposition. */
   fallbackType?: string;
   fallbackDisposition?: string;
@@ -38,7 +27,9 @@ const FILE_HEADERS = [
 /**
  * The one answer of every download, export, PDF, ICS and Statistik file: the
  * backend's bytes with their file headers, or the backend's error as its
- * problem body. Never cached unless the caller names a cache policy.
+ * problem body. Never cached unless the caller names a cache policy. The
+ * backend's CSP does not travel: the proxy's CSP is the one the browser gets,
+ * the sandbox for an uploaded file included (SANDBOXED_FILE_ROUTES).
  */
 export async function fileResponse(
   backend: Response,
@@ -58,8 +49,6 @@ export async function fileResponse(
     const value = backend.headers.get(name);
     if (value) headers.set(name, value);
   }
-  const csp = backend.headers.get("Content-Security-Policy");
-  if (options.uploadedFile && csp) headers.set("Content-Security-Policy", csp);
   if (options.fallbackType && !headers.has("Content-Type")) {
     headers.set("Content-Type", options.fallbackType);
   }
@@ -75,12 +64,7 @@ export async function fileResponse(
       ((options.backendCacheControl && backend.headers.get("Cache-Control")) ||
         "no-store"),
   );
-  if (!options.buffer) {
-    return new Response(backend.body, { status: backend.status, headers });
-  }
-  const bytes = await backend.arrayBuffer();
-  headers.set("Content-Length", String(bytes.byteLength));
-  return new Response(bytes, { status: backend.status, headers });
+  return new Response(backend.body, { status: backend.status, headers });
 }
 
 /** An appointment file, for a backend answer that names no type. */

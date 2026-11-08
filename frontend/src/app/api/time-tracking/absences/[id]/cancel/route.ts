@@ -14,7 +14,7 @@ export const POST = createPostHandler(
       throw new Error("Invalid absence id");
     }
     const response = await apiPost<{ data: unknown }>(
-      `/api/time-tracking/absences/${id}/cancel`,
+      `/api/time-tracking/absences/${encodeURIComponent(id)}/cancel`,
       token,
       {},
     );

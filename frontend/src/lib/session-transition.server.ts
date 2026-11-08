@@ -4,10 +4,9 @@ import type { PortalDescriptor } from "~/server/auth/portals";
 import { problemResponse } from "./api-response-error.server";
 import { sendBackend } from "./backend-client.server";
 import { createLogger } from "./logger";
+import { captureBffException } from "./sentry-bff.server";
 
 const logger = createLogger({ component: "SessionTransition" });
-
-const ROLLBACK_TIMEOUT_MS = 5000;
 
 /** The backend call that revokes a freshly minted session. */
 export interface Rollback {
@@ -26,7 +25,7 @@ export async function revokeMintedSession(
       method: "POST",
       json: rollback.json,
       request,
-      timeoutMs: ROLLBACK_TIMEOUT_MS,
+      timeout: "session",
     });
     if (!response.ok) {
       logger.error("session_rollback_failed", {
@@ -34,8 +33,11 @@ export async function revokeMintedSession(
         status: response.status,
       });
     }
-  } catch {
-    logger.error("session_rollback_failed", { path: rollback.path });
+  } catch (error) {
+    logger.error("session_rollback_failed", {
+      path: rollback.path,
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 }
 
@@ -54,7 +56,11 @@ export async function installMintedSession(
   try {
     await install();
     return null;
-  } catch {
+  } catch (error) {
+    logger.error("session_install_failed", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    captureBffException(error, request);
     await revokeMintedSession(request, rollback);
     return problemResponse(500, "Session creation failed", request);
   }

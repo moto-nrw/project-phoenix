@@ -1,5 +1,5 @@
 import { proxyFileUpload } from "~/lib/file-upload-wrapper.server";
-import { proxyDelete } from "~/lib/route-proxy.server";
+import { proxyDelete } from "~/lib/route-wrapper.server";
 
 const path = "/api/settings/enrollment/legal-agb-document";
 

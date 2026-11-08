@@ -537,7 +537,14 @@ continues with fresh tokens.
 
 One table in `frontend/src/server/auth/portals.ts` holds these facts per
 portal; the Auth.js configs, entry modules, logout and login routes, layout
-snapshots and logout exemptions derive from it.
+snapshots and logout exemptions derive from it. Its browser- and edge-safe
+part, `PORTAL_ROUTES` in `frontend/src/lib/portal-paths.ts` (key, auth base
+path, host env name, App Router folder), is the only source of those facts
+for the proxy's host table, `portalOfHost`, the session cookie names and the
+sign-in pages. Each entry module exports its portal object
+(`tenantPortal`, `parentPortal`, …); route wrappers, login and logout routes
+take that one object, so a portal's session, wrapper and backend paths
+cannot be mixed up.
 
 | Portal | Host | Cookie | basePath | JWT scope | Backend login |
 |---|---|---|---|---|---|
@@ -580,8 +587,10 @@ The browser may submit passwords, the Träger handoff's one-time proof, MFA
 challenge proofs and limited enrollment tokens. These are not completed session
 pairs. Public login routes that install cookies enforce Same-Origin before
 calling the backend; failed installation revokes the freshly minted family.
-The regular parent Credentials login and Träger handoff continue to redeem
-credentials/proofs server-side. The internal Next.js cookie adapter remains
+The parent Credentials login and Träger handoff continue to redeem
+credentials/proofs server-side. Only the parents' Credentials provider takes
+a password; every other portal signs in through its BFF login route, and a
+password posted to its Auth.js callback is refused without a backend call. The internal Next.js cookie adapter remains
 pinned and protected by the cookie-order/chunk-deletion integration tests.
 
 ### Late responses after logout (#5399)

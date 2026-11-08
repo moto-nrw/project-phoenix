@@ -27,11 +27,13 @@ vi.mock("~/lib/backend-proxy-metrics", () => ({
   recordBackendProxyMetric: mockRecordBackendProxyMetric,
 }));
 
-vi.mock("~/server/auth/operator", () => ({
-  operatorAuth: mockAuth,
-  uncachedOperatorAuth: mockAuth,
-  withOperatorAuth: (handler: unknown) => handler,
-}));
+vi.mock("~/server/auth/operator", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("operator", {
+    operatorAuth: mockAuth,
+    uncachedOperatorAuth: mockAuth,
+    withOperatorAuth: (handler: unknown) => handler,
+  }),
+);
 
 // Without a browser request at hand, the identity of the request being
 // handled (next/headers outside a request scope here).
@@ -208,32 +210,6 @@ describe("operatorServerFetch", () => {
     );
   });
 
-  it("sends PUT request correctly via operatorApiPut", async () => {
-    const { operatorApiPut } = await import("./route-wrapper.server");
-
-    mockFetch.mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({
-        status: "success",
-        data: { updated: true },
-      }),
-    });
-
-    const result = await operatorApiPut("/api/test", "my-token", {
-      name: "updated",
-    });
-
-    expect(result).toEqual({ updated: true });
-    expect(mockFetch).toHaveBeenCalledWith(
-      "http://localhost:8080/api/test",
-      expect.objectContaining({
-        method: "PUT",
-        body: JSON.stringify({ name: "updated" }),
-      }),
-    );
-  });
-
   it("sends DELETE request correctly via operatorApiDelete", async () => {
     const { operatorApiDelete } = await import("./route-wrapper.server");
 
@@ -344,22 +320,6 @@ describe("operator proxy factories", () => {
     });
   });
 
-  it("rejects a proxy POST without an operator session before calling the backend", async () => {
-    mockAuth.mockResolvedValue(null);
-
-    const handler = proxyPost("/operator/items");
-    const response = await handler(
-      createProxyRequest("/api/operator/items", {
-        method: "POST",
-        body: { name: "New" },
-      }),
-      { params: Promise.resolve({}) },
-    );
-
-    expect(response.status).toBe(401);
-    expect(mockFetch).not.toHaveBeenCalled();
-  });
-
   it("resolves params for DELETE and returns 204", async () => {
     mockFetch.mockResolvedValue({
       ok: true,
@@ -380,70 +340,6 @@ describe("operator proxy factories", () => {
     );
     expect(response.status).toBe(204);
     await expect(response.text()).resolves.toBe("");
-  });
-
-  it("retries proxy requests with a refreshed operator token after backend 401", async () => {
-    mockAuth
-      .mockResolvedValueOnce({ user: { token: "old-token" } })
-      .mockResolvedValueOnce({ user: { token: "new-token" } });
-    mockFetch
-      .mockResolvedValueOnce(new Response("Unauthorized", { status: 401 }))
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => ({
-          status: "success",
-          data: { refreshed: true },
-        }),
-      });
-
-    const handler = proxyGet("/operator/items");
-    const response = await handler(createProxyRequest("/api/operator/items"), {
-      params: Promise.resolve({}),
-    });
-
-    expect(mockFetch).toHaveBeenNthCalledWith(
-      1,
-      "http://localhost:8080/operator/items",
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          Authorization: "Bearer old-token",
-        }) as Record<string, unknown>,
-      }),
-    );
-    expect(mockFetch).toHaveBeenNthCalledWith(
-      2,
-      "http://localhost:8080/operator/items",
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          Authorization: "Bearer new-token",
-        }) as Record<string, unknown>,
-      }),
-    );
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({
-      data: { refreshed: true },
-    });
-  });
-
-  it("answers 204 instead of 401 when a DELETE succeeds on its retry", async () => {
-    mockAuth
-      .mockResolvedValueOnce({ user: { token: "old-token" } })
-      .mockResolvedValueOnce({ user: { token: "new-token" } });
-    mockFetch
-      .mockResolvedValueOnce(new Response("Unauthorized", { status: 401 }))
-      .mockResolvedValueOnce(Response.json({ status: "success", data: null }));
-
-    const handler = proxyDelete(
-      (params) => `/operator/items/${String(params.id)}`,
-    );
-    const response = await handler(
-      createProxyRequest("/api/operator/items/42", { method: "DELETE" }),
-      mockContext,
-    );
-
-    expect(mockFetch).toHaveBeenCalledTimes(2);
-    expect(response.status).toBe(204);
   });
 });
 

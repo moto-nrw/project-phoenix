@@ -1,8 +1,14 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ServerSession } from "~/server/auth/session-types";
+import { testPortalBinding } from "~/test/portal-binding";
 import { createMockContext } from "~/test/route-test-helpers";
 import { makePortalHandlers } from "./portal-handlers.server";
+
+const { captureException } = vi.hoisted(() => ({
+  captureException: vi.fn(),
+}));
+vi.mock("@sentry/nextjs", () => ({ captureException }));
 
 vi.mock("./server-api-url", () => ({
   getServerApiUrl: () => "http://backend:8080",
@@ -16,13 +22,7 @@ const session = (token: string) => ({ user: { token } }) as ServerSession;
 const auth = vi.fn<() => Promise<ServerSession | null>>();
 const uncachedAuth = vi.fn<() => Promise<ServerSession | null>>();
 
-const portal = makePortalHandlers({
-  key: "parent",
-  auth,
-  uncachedAuth,
-  withAuth: (handler) => (request, context) =>
-    handler(request as never, context ?? createMockContext()),
-});
+const portal = makePortalHandlers(testPortalBinding(auth, uncachedAuth));
 
 function request(
   path: string,
@@ -54,6 +54,7 @@ const sent = (call = 0) => {
 };
 
 beforeEach(() => {
+  captureException.mockReset();
   fetchMock.mockReset();
   auth.mockReset().mockResolvedValue(session("token-1"));
   uncachedAuth.mockReset().mockResolvedValue(session("token-2"));
@@ -282,6 +283,28 @@ describe("401 retry", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  // A renewal that throws on every request would otherwise be an endless,
+  // silent series of 503s (review M1).
+  it("logs and reports a renewal that threw, once", async () => {
+    const failure = new Error("jwt callback broke");
+    uncachedAuth.mockRejectedValue(failure);
+    fetchMock.mockResolvedValueOnce(problem401());
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const response = await portal.proxyGet("/x")(
+      request("/api/x"),
+      createMockContext(),
+    );
+
+    expect(response.status).toBe(503);
+    expect(warn).toHaveBeenCalledWith("session_renewal_failed", {
+      error: "jwt callback broke",
+    });
+    expect(captureException).toHaveBeenCalledTimes(1);
+    expect(captureException).toHaveBeenCalledWith(failure, {});
+    warn.mockRestore();
+  });
+
   // A refusal the backend repeats for the renewed token is its decision, not
   // an ended session: its code reaches the browser (identity.mfa_session_required).
   it("keeps the backend's body when the renewed token is refused again", async () => {
@@ -408,6 +431,50 @@ describe("401 retry", () => {
   });
 });
 
+// Outside the portal's wrapper a session read can rotate the refresh token
+// without its cookie leaving (#1938); the helpers refuse to run there.
+describe("session helpers outside the portal's wrapper", () => {
+  it.each([
+    ["backendFetch", () => portal.backendFetch(request("/api/x"), "/x")],
+    ["downloadFile", () => portal.downloadFile(request("/api/x"), "/x")],
+    [
+      "forwardToBackend",
+      () => portal.forwardToBackend(request("/api/x"), "/x"),
+    ],
+    [
+      "runWithRenewal",
+      () => portal.runWithRenewal(request("/api/x"), "token-1", async () => 1),
+    ],
+  ])("%s throws and logs", async (_name, call) => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(call()).rejects.toThrow("outside its portal's auth wrapper");
+
+    expect(error).toHaveBeenCalledWith("portal_session_outside_auth_wrapper", {
+      error: "portal session helper called outside its portal's auth wrapper",
+    });
+    expect(auth).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+    error.mockRestore();
+  });
+
+  it("runs inside its own portal's wrapper only", async () => {
+    fetchMock.mockResolvedValueOnce(new Response("pdf"));
+    const route = testPortalBinding(auth).withAuth((req) =>
+      makePortalHandlers(testPortalBinding(auth)).downloadFile(req, "/x"),
+    );
+    await expect(route(request("/api/x"))).rejects.toThrow(
+      "outside its portal's auth wrapper",
+    );
+    await expect(
+      portal.route(async (req) => portal.downloadFile(req, "/x"))(
+        request("/api/x"),
+        createMockContext(),
+      ),
+    ).resolves.toHaveProperty("status", 200);
+  });
+});
+
 describe("file responses", () => {
   it("streams the file with its headers, nosniff and no-store", async () => {
     fetchMock.mockResolvedValueOnce(
@@ -504,28 +571,23 @@ describe("file responses", () => {
     expect(response.status).toBe(status);
   });
 
-  it("forwards the backend's sandbox CSP only for an uploaded file", async () => {
-    const withCsp = () =>
+  // The proxy's CSP is the one the browser gets; a second one from the
+  // backend would only look like it mattered (review L9).
+  it("does not pass the backend's CSP on", async () => {
+    fetchMock.mockResolvedValueOnce(
       new Response("pdf", {
         headers: { "Content-Security-Policy": "sandbox; default-src 'none'" },
-      });
-    fetchMock.mockResolvedValueOnce(withCsp()).mockResolvedValueOnce(withCsp());
+      }),
+    );
 
-    const upload = await portal.proxyFile("/upload", { uploadedFile: true })(
+    const response = await portal.proxyFile("/upload")(
       request("/api/upload"),
       createMockContext(),
     );
-    const export_ = await portal.proxyFile("/export")(
-      request("/api/export"),
-      createMockContext(),
-    );
 
-    expect(upload.headers.get("content-security-policy")).toBe(
-      "sandbox; default-src 'none'",
-    );
-    // Anker: the export is a real file answer.
-    expect(await export_.text()).toBe("pdf");
-    expect(export_.headers.get("content-security-policy")).toBeNull();
+    // Anker: a real file answer.
+    expect(await response.text()).toBe("pdf");
+    expect(response.headers.get("content-security-policy")).toBeNull();
   });
 
   it("answers a backend error as its problem body", async () => {

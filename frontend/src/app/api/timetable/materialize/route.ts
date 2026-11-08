@@ -2,7 +2,7 @@
 // a date window. With an empty body, the backend defaults to next Mon-Sun.
 // The planner UI passes the currently visible week's from/to so admins can
 // re-run materialization for that exact window.
-import { proxyPost } from "~/lib/route-proxy.server";
+import { proxyPost } from "~/lib/route-wrapper.server";
 
 interface MaterializeBody {
   from_date?: string;

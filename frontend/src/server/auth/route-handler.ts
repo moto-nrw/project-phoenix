@@ -229,9 +229,15 @@ export function createResponseAwareAuth(
       return finishResponse(response, current);
     };
 
+  /** Whether the caller runs inside this portal's withAuthResponse or
+   * withSessionResponse, where a renewed session's cookies can leave. */
+  const inRequestContext = (): boolean =>
+    requestSession.getStore() !== undefined;
+
   return {
     auth,
     uncachedAuth,
+    inRequestContext,
     withAuthResponse,
     mutateSession,
     withSessionResponse,

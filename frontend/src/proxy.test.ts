@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, it, expect, vi } from "vitest";
 import { NextRequest } from "next/server";
@@ -280,33 +280,35 @@ describe("sandbox CSP of uploaded files (#5275)", () => {
     expect(csp).not.toContain("sandbox");
   });
 
-  it("covers every BFF route that forwards the backend's CSP", () => {
+  // The proxy's CSP is the one the browser gets: Next sets it on the
+  // response before the route runs and keeps it over the route's own
+  // (review L9). So this list alone sandboxes an uploaded file.
+  it("sandboxes exactly the routes that stream an uploaded file", () => {
     const apiDir = path.join(__dirname, "app", "api");
-    const routes = readdirSync(apiDir, { recursive: true, encoding: "utf8" })
+    const sandboxed = readdirSync(apiDir, { recursive: true, encoding: "utf8" })
       .filter((file) => file.endsWith("route.ts"))
-      .filter((file) =>
-        // fileResponse forwards the backend's CSP only for uploadedFile.
-        /uploadedFile: true/.test(
-          readFileSync(path.join(apiDir, file), "utf8"),
-        ),
-      )
-      .map(
-        (file) =>
+      .map((file) => path.dirname(file).split(path.sep).join("/"))
+      .filter((dir) => {
+        const route =
           "/api/" +
-          path
-            .dirname(file)
-            .split(path.sep)
+          dir
+            .split("/")
             .map((segment) => (segment.startsWith("[") ? "1" : segment))
-            .join("/"),
-      );
-    expect(routes.length).toBe(7);
-    for (const route of routes) {
-      const host = hostFor(route);
-      const res = proxy(makeRequest(`http://${host}${route}`, host));
-      expect(res.headers.get("Content-Security-Policy"), route).toBe(
-        SANDBOX_CSP,
-      );
-    }
+            .join("/");
+        const host = hostFor(route);
+        const csp = proxy(makeRequest(`http://${host}${route}`, host)).headers;
+        return csp.get("Content-Security-Policy") === SANDBOX_CSP;
+      })
+      .sort();
+    expect(sandboxed).toEqual([
+      "announcement-attachments/[announcementId]/[attachmentId]/download",
+      "enrollment/admin/requests/[id]/uploads/[uploadId]",
+      "files/folders/[folderId]/files/[fileId]/download",
+      "parent/me/news/[announcementId]/attachments/[attachmentId]/download",
+      "staff/[id]/documents/[documentId]/download",
+      "students/[id]/documents/[documentId]/download",
+      "traeger/holiday-periods/[id]/registrations/[registrationId]/proofs/[proofId]",
+    ]);
   });
 });
 

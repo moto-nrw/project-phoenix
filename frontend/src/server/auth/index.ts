@@ -6,13 +6,7 @@ import { sessionTenantMismatchResponse } from "./tenant-host-check";
 /** The tenant portal, whose cookie spans every school subdomain. */
 const tenant = createPortalAuth(PORTALS.tenant);
 
-export const {
-  auth,
-  uncachedAuth,
-  handlers,
-  setSession: setTenantSession,
-  withSessionResponse: withTenantSessionResponse,
-} = tenant;
+export const { auth, handlers, setSession: setTenantSession } = tenant;
 
 /**
  * Every tenant BFF route. A session of another school than the request's
@@ -23,6 +17,9 @@ export const withTenantAuth: typeof tenant.withAuthResponse = (handler) =>
     const mismatch = await sessionTenantMismatchResponse(request, request.auth);
     return mismatch ?? handler(request, context);
   });
+
+/** The tenant portal, whose routes run in withTenantAuth. */
+export const tenantPortal = { ...tenant, withAuth: withTenantAuth };
 
 export async function setStaffPreviewSession(preview: {
   accessToken: string;

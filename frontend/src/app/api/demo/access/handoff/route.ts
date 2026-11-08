@@ -1,8 +1,8 @@
 import { captureBffException } from "~/lib/sentry-bff.server";
 import { type NextRequest, NextResponse } from "next/server";
-import { backendIdentityHeaders } from "~/lib/client-headers.server";
+import { sendBackend } from "~/lib/backend-client.server";
 import { createLogger } from "~/lib/logger";
-import { DEMO_TOKEN_COOKIE, demoBackendUrl } from "../forward";
+import { DEMO_TOKEN_COOKIE, demoBackendPath } from "../forward";
 import { withPrivateNoStore } from "~/lib/private-no-store";
 
 const logger = createLogger({ component: "DemoHandoffRoute" });
@@ -44,11 +44,8 @@ async function readySchoolUrl(
   token: string,
 ): Promise<string | null> {
   try {
-    const response = await fetch(demoBackendUrl("status"), {
-      headers: {
-        ...backendIdentityHeaders(request),
-        Authorization: `Bearer ${token}`,
-      },
+    const response = await sendBackend(demoBackendPath("status"), token, {
+      request,
     });
     if (!response.ok) return null;
     const body = (await response.json()) as {

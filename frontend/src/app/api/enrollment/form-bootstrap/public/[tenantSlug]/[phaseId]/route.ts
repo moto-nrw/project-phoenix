@@ -2,8 +2,7 @@ import { captureBffException } from "~/lib/sentry-bff.server";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { auth, withTenantAuth } from "~/server/auth";
-import { getServerApiUrl } from "~/lib/server-api-url";
-import { clientIdentityHeaders } from "~/lib/client-headers.server";
+import { sendBackend } from "~/lib/backend-client.server";
 import { createLogger } from "~/lib/logger";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import {
@@ -48,16 +47,16 @@ async function GETHandler(request: NextRequest, context: RouteContext) {
     }
     const isParentPortal = requestHostname === parentsHostname;
     const lateInvite = request.nextUrl.searchParams.get("late_invite")?.trim();
-    const backendUrl = new URL(
-      `${getServerApiUrl()}/api/enrollment/form-bootstrap/public/${encodeURIComponent(
+    const query = lateInvite
+      ? `?${new URLSearchParams({ late_invite: lateInvite })}`
+      : "";
+    const response = await sendBackend(
+      `/api/enrollment/form-bootstrap/public/${encodeURIComponent(
         tenantSlug,
-      )}/${encodeURIComponent(phaseId)}`,
+      )}/${encodeURIComponent(phaseId)}${query}`,
+      null,
+      { request },
     );
-    if (lateInvite) backendUrl.searchParams.set("late_invite", lateInvite);
-    const response = await fetch(backendUrl, {
-      headers: clientIdentityHeaders(request.headers),
-      cache: "no-store",
-    });
     if (!response.ok) {
       return forwardBackendResponse(response, request);
     }
@@ -82,15 +81,10 @@ async function GETHandler(request: NextRequest, context: RouteContext) {
       return NextResponse.json(payload, { status: response.status });
     }
 
-    const profileResponse = await fetch(
-      `${getServerApiUrl()}/api/enrollment/me/profile`,
-      {
-        headers: {
-          ...clientIdentityHeaders(request.headers),
-          Authorization: `Bearer ${token}`,
-        },
-        cache: "no-store",
-      },
+    const profileResponse = await sendBackend(
+      "/api/enrollment/me/profile",
+      token,
+      { request },
     ).catch((error: unknown) => {
       logger.warn("profile_prefetch_failed", {
         error: error instanceof Error ? error.message : String(error),

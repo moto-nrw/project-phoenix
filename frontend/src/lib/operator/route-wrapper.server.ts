@@ -1,10 +1,6 @@
 import type { NextRequest } from "next/server";
 import type { NextResponse } from "next/server";
-import {
-  operatorAuth,
-  uncachedOperatorAuth,
-  withOperatorAuth,
-} from "~/server/auth/operator";
+import { operatorPortal } from "~/server/auth/operator";
 import type { ErrorCode } from "~/lib/error-codes.generated";
 import { problemResponse } from "../api-response-error.server";
 import { unwrapEnvelope } from "../backend-client.server";
@@ -28,12 +24,7 @@ export function operatorErrorResponse(
 }
 
 /** The operator portal's route handlers, on the operator session only. */
-export const operator = makePortalHandlers({
-  key: "operator",
-  auth: () => operatorAuth(),
-  uncachedAuth: () => uncachedOperatorAuth(),
-  withAuth: (handler) => withOperatorAuth(handler),
-});
+export const operator = makePortalHandlers(operatorPortal);
 
 export const {
   proxyGet,
@@ -66,12 +57,6 @@ export const operatorApiPost = async <T, B = unknown>(
   token: string,
   body?: B,
 ) => unwrapEnvelope<T>(await operator.api("POST", endpoint, token, body));
-
-export const operatorApiPut = async <T, B = unknown>(
-  endpoint: string,
-  token: string,
-  body?: B,
-) => unwrapEnvelope<T>(await operator.api("PUT", endpoint, token, body));
 
 export const operatorApiDelete = async <T>(endpoint: string, token: string) =>
   unwrapEnvelope<T>(await operator.api("DELETE", endpoint, token));

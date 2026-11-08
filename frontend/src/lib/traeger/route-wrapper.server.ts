@@ -1,8 +1,4 @@
-import {
-  traegerAuth,
-  uncachedTraegerAuth,
-  withTraegerAuth,
-} from "~/server/auth/traeger";
+import { traegerPortal } from "~/server/auth/traeger";
 import { makePortalHandlers } from "../portal-handlers.server";
 
 /**
@@ -10,12 +6,7 @@ import { makePortalHandlers } from "../portal-handlers.server";
  * session only, so a Träger route never forwards a tenant, parent or school
  * token.
  */
-export const traeger = makePortalHandlers({
-  key: "traeger",
-  auth: () => traegerAuth(),
-  uncachedAuth: () => uncachedTraegerAuth(),
-  withAuth: (handler) => withTraegerAuth(handler),
-});
+export const traeger = makePortalHandlers(traegerPortal);
 
 export const { proxyGet, proxyPost, proxyPut, proxyDelete, proxyUpload } =
   traeger;

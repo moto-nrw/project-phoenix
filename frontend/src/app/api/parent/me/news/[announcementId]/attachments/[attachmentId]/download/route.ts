@@ -13,7 +13,6 @@ export const GET = withPrivateDownloadNoStore(
     {
       forwardQuery: ["student_id", "inline"],
       backendCacheControl: true,
-      uploadedFile: true,
     },
   ),
 );

@@ -13,11 +13,13 @@ const {
   mockGetServerApiUrl: vi.fn(() => "http://localhost:8080"),
 }));
 
-vi.mock("~/server/auth/operator", () => ({
-  operatorAuth: mockOperatorAuth,
-  uncachedOperatorAuth: mockUncachedOperatorAuth,
-  withOperatorAuth: (handler: unknown) => handler,
-}));
+vi.mock("~/server/auth/operator", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("operator", {
+    operatorAuth: mockOperatorAuth,
+    uncachedOperatorAuth: mockUncachedOperatorAuth,
+    withOperatorAuth: (handler: unknown) => handler,
+  }),
+);
 
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: mockGetServerApiUrl,

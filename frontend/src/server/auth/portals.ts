@@ -5,7 +5,11 @@ import {
   tenantSessionCookieName,
 } from "~/lib/session-cookie-exit.server";
 import type { LoginRefusalCode } from "~/lib/login-refusal";
-import { PORTAL_AUTH_BASE_PATHS, type PortalKey } from "~/lib/portal-paths";
+import {
+  PORTAL_ROUTES,
+  portalSignInPage,
+  type PortalKey,
+} from "~/lib/portal-paths";
 import {
   exactOriginRedirect,
   parentDomainRedirect,
@@ -50,7 +54,7 @@ export type LogoutTokenKind = "refresh" | "access";
 export interface PasswordLogin {
   /** Backend codes and login steps the login page may read from the refusal;
    * any other refusal reads as identity.invalid_credentials. */
-  refusals: "none" | readonly LoginRefusalCode[];
+  refusals: readonly LoginRefusalCode[];
 }
 
 /** What a decoded session cookie must carry to hydrate a layout. */
@@ -70,10 +74,7 @@ export interface PortalDescriptor {
   providerId: string;
   providerName: string;
   basePath: string;
-  /**
-   * The proxy rewrites /login on the portal's host to this path; Auth.js
-   * uses it verbatim, so it must match the App Router folder.
-   */
+  /** Auth.js' sign-in page; the App Router folder of the portal's login. */
   signInPage: string;
   /**
    * Null: Auth.js' default names (`authjs.*`, `__Secure-` on https), the
@@ -94,8 +95,15 @@ export interface PortalDescriptor {
     logout: { path: string; token: LogoutTokenKind };
     /** Steps whose answer is enveloped in `{ data }`. */
     enveloped: readonly BackendAuthStep[];
+    /** The password step may ask which organization to sign in to. */
+    organizationSelection?: true;
   };
-  /** Absent: sessions arrive only through server-side token seeding. */
+  /**
+   * A password sign-in through the Auth.js Credentials provider; only the
+   * parents' login page uses one. Absent: sessions arrive only through
+   * server-side token seeding (the BFF login routes) and, for the tenant,
+   * the Träger hand-off.
+   */
   passwordLogin?: PasswordLogin;
   snapshotClaims?: (claims: SnapshotClaims) => boolean;
   /** Discord, school slug login, Träger hand-off and the staff preview. */
@@ -150,8 +158,8 @@ export const PORTALS = {
     identity: "account",
     providerId: "credentials",
     providerName: "Credentials",
-    basePath: PORTAL_AUTH_BASE_PATHS.tenant,
-    signInPage: "/",
+    basePath: PORTAL_ROUTES.tenant.basePath,
+    signInPage: portalSignInPage("tenant"),
     cookieNames: tenantCookies(),
     redirect: parentDomainRedirect,
     backend: {
@@ -160,7 +168,6 @@ export const PORTALS = {
       logout: ACCOUNT_LOGOUT,
       enveloped: [],
     },
-    passwordLogin: { refusals: "none" },
     snapshotClaims: ({ tenantId }) => typeof tenantId === "number",
     tenantFeatures: true,
   },
@@ -172,8 +179,8 @@ export const PORTALS = {
     identity: "operator",
     providerId: "operator-credentials",
     providerName: "Operator Credentials",
-    basePath: PORTAL_AUTH_BASE_PATHS.operator,
-    signInPage: "/operator/login",
+    basePath: PORTAL_ROUTES.operator.basePath,
+    signInPage: portalSignInPage("operator"),
     cookieNames: hostOnlyCookies(PORTAL_SESSION_COOKIE_NAMES.operator, "lax"),
     redirect: subdomainRedirect,
     backend: {
@@ -183,7 +190,6 @@ export const PORTALS = {
       logout: { path: "/operator/auth/logout", token: "access" },
       enveloped: ["login", "mfa/verify", "mfa/enroll/confirm", "refresh"],
     },
-    passwordLogin: { refusals: ["identity.account_inactive"] },
   },
   parent: {
     key: "parent",
@@ -193,8 +199,8 @@ export const PORTALS = {
     identity: "account",
     providerId: "parent-credentials",
     providerName: "Parent Credentials",
-    basePath: PORTAL_AUTH_BASE_PATHS.parent,
-    signInPage: "/parents/login",
+    basePath: PORTAL_ROUTES.parent.basePath,
+    signInPage: portalSignInPage("parent"),
     // Strict: the portal handles guardian PII and has no cross-site flow
     // that needs the cookie; login is POST-only.
     cookieNames: hostOnlyCookies(PORTAL_SESSION_COOKIE_NAMES.parent, "strict"),
@@ -224,8 +230,8 @@ export const PORTALS = {
     identity: "account",
     providerId: "school-credentials",
     providerName: "School Credentials",
-    basePath: PORTAL_AUTH_BASE_PATHS.school,
-    signInPage: "/school/login",
+    basePath: PORTAL_ROUTES.school.basePath,
+    signInPage: portalSignInPage("school"),
     cookieNames: hostOnlyCookies(PORTAL_SESSION_COOKIE_NAMES.school, "strict"),
     redirect: exactOriginRedirect,
     backend: {
@@ -233,16 +239,6 @@ export const PORTALS = {
       refresh: ACCOUNT_REFRESH,
       logout: ACCOUNT_LOGOUT,
       enveloped: [],
-    },
-    passwordLogin: {
-      // The login page drives the second factor through lib/mfa-api; this
-      // provider only refuses an account that needs one.
-      refusals: [
-        "identity.session_account_inactive",
-        "school.no_school_portal_role",
-        "mfa_required",
-        "mfa_enrollment_required",
-      ],
     },
     // School tokens are tenant-bound; the portal keys its data cache on it.
     snapshotClaims: ({ tenantId }) =>
@@ -256,8 +252,8 @@ export const PORTALS = {
     identity: "account",
     providerId: "caterer-credentials",
     providerName: "Caterer Credentials",
-    basePath: PORTAL_AUTH_BASE_PATHS.caterer,
-    signInPage: "/caterer/login",
+    basePath: PORTAL_ROUTES.caterer.basePath,
+    signInPage: portalSignInPage("caterer"),
     cookieNames: hostOnlyCookies(PORTAL_SESSION_COOKIE_NAMES.caterer, "strict"),
     redirect: exactOriginRedirect,
     backend: {
@@ -265,12 +261,6 @@ export const PORTALS = {
       refresh: ACCOUNT_REFRESH,
       logout: ACCOUNT_LOGOUT,
       enveloped: ["login"],
-    },
-    passwordLogin: {
-      refusals: [
-        "identity.session_account_inactive",
-        "identity.caterer_without_school",
-      ],
     },
   },
   traeger: {
@@ -281,8 +271,8 @@ export const PORTALS = {
     identity: "account",
     providerId: "traeger-credentials",
     providerName: "Träger Credentials",
-    basePath: PORTAL_AUTH_BASE_PATHS.traeger,
-    signInPage: "/traeger/login",
+    basePath: PORTAL_ROUTES.traeger.basePath,
+    signInPage: portalSignInPage("traeger"),
     cookieNames: hostOnlyCookies(PORTAL_SESSION_COOKIE_NAMES.traeger, "strict"),
     redirect: exactOriginRedirect,
     backend: {
@@ -290,6 +280,7 @@ export const PORTALS = {
       refresh: ACCOUNT_REFRESH,
       logout: ACCOUNT_LOGOUT,
       enveloped: [],
+      organizationSelection: true,
     },
     // A Träger session never names a school (ADR 0084): a school session of
     // the Absprung lives in the tenant cookie.

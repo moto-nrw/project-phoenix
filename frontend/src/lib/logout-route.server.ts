@@ -7,12 +7,11 @@ import {
 } from "~/lib/api-response-error.server";
 import { sendBackend } from "~/lib/backend-client.server";
 import { createLogger } from "~/lib/logger";
+import type { PortalAuth } from "~/server/auth/portal-auth";
 import type { PortalDescriptor } from "~/server/auth/portals";
 import type { ServerSession } from "~/server/auth/session-types";
 
 const logger = createLogger({ component: "PortalLogoutRoute" });
-
-type SessionReader = () => Promise<ServerSession | null>;
 
 function logoutToken(
   portal: PortalDescriptor,
@@ -33,19 +32,18 @@ function logoutToken(
  * its 401 stands; a renewal that yields no new token answers 503, and the
  * browser keeps the session and offers the logout again.
  */
-export function createLogoutHandler(
-  portal: PortalDescriptor,
-  auth: SessionReader,
-  uncachedAuth: SessionReader,
+export function createLogoutRoute(
+  session: Pick<PortalAuth, "portal" | "auth" | "uncachedAuth" | "withAuth">,
 ) {
+  const { portal, auth, uncachedAuth } = session;
   const revoke = (request: NextRequest, token: string) =>
     sendBackend(portal.backend.logout.path, token, {
       method: "POST",
       request,
-      timeoutMs: 10_000,
+      timeout: "logout",
     });
 
-  return async (request: NextRequest) => {
+  return session.withAuth(async (request: NextRequest) => {
     try {
       const token = logoutToken(portal, await auth());
       if (!token) return problemResponse(401, "No active session", request);
@@ -71,5 +69,5 @@ export function createLogoutHandler(
       });
       return handleApiError(error, request);
     }
-  };
+  });
 }

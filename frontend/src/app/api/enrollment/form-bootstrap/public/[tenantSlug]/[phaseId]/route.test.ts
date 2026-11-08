@@ -9,10 +9,12 @@ const tenantHostname = "demo.localhost:3000";
 
 vi.stubEnv("NEXT_PUBLIC_PARENTS_HOSTNAME", parentsHostname);
 
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-  withTenantAuth: (handler: unknown) => handler,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockAuth,
+    withTenantAuth: (handler: unknown) => handler,
+  }),
+);
 
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://backend.test",
@@ -112,7 +114,9 @@ describe("GET /api/enrollment/form-bootstrap/public/[tenantSlug]/[phaseId]", () 
     expect(fetchMock).toHaveBeenLastCalledWith(
       "http://backend.test/api/enrollment/me/profile",
       expect.objectContaining({
-        headers: { Authorization: "Bearer tenant-token" },
+        headers: expect.objectContaining({
+          Authorization: "Bearer tenant-token",
+        }),
       }),
     );
   });

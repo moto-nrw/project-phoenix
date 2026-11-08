@@ -9,11 +9,13 @@ const { mockAuth, mockUncachedAuth, mockFetch, mockGetServerApiUrl } =
     mockGetServerApiUrl: vi.fn(() => "http://localhost:8080"),
   }));
 
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-  uncachedAuth: mockUncachedAuth,
-  withTenantAuth: (handler: unknown) => handler,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockAuth,
+    uncachedAuth: mockUncachedAuth,
+    withTenantAuth: (handler: unknown) => handler,
+  }),
+);
 
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: mockGetServerApiUrl,

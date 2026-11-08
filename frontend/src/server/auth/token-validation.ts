@@ -1,7 +1,6 @@
 import "server-only";
-import { getServerApiUrl } from "~/lib/server-api-url";
-import { incomingClientForwardHeaders } from "~/lib/client-headers.server";
-import type { JwtPayload } from "./jwt-payload";
+import { sendBackend } from "~/lib/backend-client.server";
+import { decodeJwtPayload, type JwtPayload } from "./jwt-payload";
 import { acceptsScope, type ValidationPortal } from "./portals";
 
 /** Only backend-verified claims may cross a client token-handoff boundary. */
@@ -21,20 +20,10 @@ export async function validateSessionToken(
   )
     return null;
   try {
-    const response = await fetch(`${getServerApiUrl()}/auth/session/validate`, {
+    const response = await sendBackend("/auth/session/validate", accessToken, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-        ...(await incomingClientForwardHeaders()),
-      },
-      body: JSON.stringify({
-        access_token: accessToken,
-        refresh_token: refreshToken,
-        portal,
-      }),
-      cache: "no-store",
-      signal: AbortSignal.timeout(5000),
+      json: { access_token: accessToken, refresh_token: refreshToken, portal },
+      timeout: "session",
     });
     if (!response.ok) return null;
     const claims = (await response.json()) as JwtPayload;
@@ -55,18 +44,6 @@ export async function validateSessionToken(
 /** live: the family backs the token; ended: revoked; unknown: no answer, or an expired token. */
 export type SessionFamilyState = "live" | "ended" | "unknown";
 
-/** The `exp` claim of an access token in seconds; null when unreadable. */
-function accessTokenExpiry(accessToken: string): number | null {
-  try {
-    const { exp } = JSON.parse(
-      Buffer.from(accessToken.split(".")[1] ?? "", "base64url").toString(),
-    ) as { exp?: unknown };
-    return typeof exp === "number" ? exp : null;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Asks Identity & Access whether the refresh-token family an access token
  * names still backs it (#5399). Without the refresh token the backend reads
@@ -82,19 +59,15 @@ export async function sessionFamilyState(
   // Identity & Access rejects an expired token before it reads the family,
   // so its refusal says nothing about the family. The session's refresh
   // decides; a revoked family ends there.
-  const expiry = accessTokenExpiry(accessToken);
-  if (expiry !== null && expiry * 1000 <= Date.now()) return "unknown";
+  const expiry = decodeJwtPayload(accessToken)?.exp;
+  if (typeof expiry === "number" && expiry * 1000 <= Date.now()) {
+    return "unknown";
+  }
   try {
-    const response = await fetch(`${getServerApiUrl()}/auth/session/validate`, {
+    const response = await sendBackend("/auth/session/validate", accessToken, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-        ...(await incomingClientForwardHeaders()),
-      },
-      body: JSON.stringify({ access_token: accessToken, portal }),
-      cache: "no-store",
-      signal: AbortSignal.timeout(5000),
+      json: { access_token: accessToken, portal },
+      timeout: "session",
     });
     if (response.ok) return "live";
     return response.status === 401 ? "ended" : "unknown";

@@ -8,6 +8,7 @@ import {
   createFileDownloadRoute,
   createFileExportRoute,
 } from "./export-proxy.server";
+import { withTenantAuth } from "~/server/auth";
 import type { ExtendedSession } from "~/test/route-test-helpers";
 
 // The shared body of the export routes that answer with a file. It bypasses
@@ -21,11 +22,13 @@ const { mockAuth, mockUncachedAuth } = vi.hoisted(() => ({
   mockUncachedAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
 }));
 
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-  uncachedAuth: mockUncachedAuth,
-  withTenantAuth: (handler: unknown) => handler,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockAuth,
+    uncachedAuth: mockUncachedAuth,
+    withTenantAuth: (handler: unknown) => handler,
+  }),
+);
 
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://server:8080",
@@ -53,9 +56,11 @@ function fileResponse(init: { disposition?: string | null } = {}) {
   return new Response(new Uint8Array([1, 2, 3, 4]), { status: 200, headers });
 }
 
-const route = createFileExportRoute({
-  backendPath: "/api/staff-shifts/export",
-});
+const route = withTenantAuth(
+  createFileExportRoute({
+    backendPath: "/api/staff-shifts/export",
+  }),
+);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -195,10 +200,12 @@ describe("createFileExportRoute", () => {
     const fetchMock = vi.fn().mockResolvedValue(fileResponse());
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    const normalizing = createFileExportRoute({
-      backendPath: "/api/staff-shifts/export",
-      normalizeBody: (raw) => ({ ...(raw as object), variant: "aushang" }),
-    });
+    const normalizing = withTenantAuth(
+      createFileExportRoute({
+        backendPath: "/api/staff-shifts/export",
+        normalizeBody: (raw) => ({ ...(raw as object), variant: "aushang" }),
+      }),
+    );
     await normalizing(exportRequest({ from: "2026-07-27" }));
 
     const init = fetchMock.mock.calls[0]?.[1] as { body: string };
@@ -214,10 +221,12 @@ describe("createFileExportRoute", () => {
     const fetchMock = vi.fn();
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    const normalizing = createFileExportRoute({
-      backendPath: "/api/staff-shifts/export",
-      normalizeBody: (raw) => raw,
-    });
+    const normalizing = withTenantAuth(
+      createFileExportRoute({
+        backendPath: "/api/staff-shifts/export",
+        normalizeBody: (raw) => raw,
+      }),
+    );
     const request = new NextRequest(
       "http://localhost:3000/api/staff-shifts/export",
       { method: "POST", body: "{not json" },
@@ -255,10 +264,12 @@ describe("createFileExportRoute", () => {
 });
 
 describe("createFileDownloadRoute", () => {
-  const download = createFileDownloadRoute<{ surveyId: string }>({
-    backendPath: ({ surveyId }) =>
-      `/api/surveys/${encodeURIComponent(surveyId)}/results/export`,
-  });
+  const download = withTenantAuth(
+    createFileDownloadRoute<{ surveyId: string }>({
+      backendPath: ({ surveyId }) =>
+        `/api/surveys/${encodeURIComponent(surveyId)}/results/export`,
+    }),
+  );
   const request = () =>
     new NextRequest("http://localhost:3000/api/surveys/7/results/export");
   const context = { params: Promise.resolve({ surveyId: "7" }) };

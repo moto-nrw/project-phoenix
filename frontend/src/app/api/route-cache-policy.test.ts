@@ -33,7 +33,8 @@ const PORTAL_PROXIES = ["proxyGet", "proxyPost", "proxyPut", "proxyPatch"];
  * `src/server/auth/portal-cache-control.test.ts`.
  */
 const POLICY_FACTORIES: Record<string, readonly string[]> = {
-  "~/lib/portal-login-route.server": ["createPortalLoginRoute"],
+  "~/lib/login-route.server": ["createPortalLoginRoute"],
+  "~/lib/logout-route.server": ["createLogoutRoute"],
   "~/lib/private-no-store": [
     "withPrivateNoStore",
     "withPrivateDownloadNoStore",
@@ -58,8 +59,9 @@ const POLICY_FACTORIES: Record<string, readonly string[]> = {
     "proxyFile",
     "tenant.route",
     "tenant.proxyFile",
+    ...PORTAL_PROXIES,
+    "proxyDelete",
   ],
-  "~/lib/route-proxy.server": [...PORTAL_PROXIES, "proxyDelete"],
   "~/lib/operator/route-wrapper.server": [
     ...PORTAL_PROXIES,
     "proxyDelete",

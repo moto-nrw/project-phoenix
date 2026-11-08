@@ -105,17 +105,23 @@ describe("POST /api/invitations/accept", () => {
 
     expect(global.fetch).toHaveBeenCalledWith(
       "http://server:8080/auth/invitations/invitation-token-123/accept",
-      {
+      expect.objectContaining({
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: expect.objectContaining({
+          "Content-Type": "application/json",
+        }),
         body: JSON.stringify({
           first_name: "John",
           last_name: "Doe",
           password: "Test1234!",
           confirm_password: "Test1234!",
         }),
-      },
+      }),
     );
+    // A new account carries no owner session.
+    expect(
+      vi.mocked(global.fetch).mock.calls[0]?.[1]?.headers,
+    ).not.toHaveProperty("Authorization");
 
     expect(response.status).toBe(200);
     const json = await parseJsonResponse<typeof backendResponse>(response);

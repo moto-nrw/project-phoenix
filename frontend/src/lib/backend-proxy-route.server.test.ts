@@ -22,16 +22,20 @@ const { mockAuth, mockUncachedAuth, mockOperatorAuth, mockUncachedOperator } =
     mockUncachedOperator: vi.fn(),
   }));
 
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-  uncachedAuth: mockUncachedAuth,
-  withTenantAuth: (handler: unknown) => handler,
-}));
-vi.mock("~/server/auth/operator", () => ({
-  operatorAuth: mockOperatorAuth,
-  uncachedOperatorAuth: mockUncachedOperator,
-  withOperatorAuth: (handler: unknown) => handler,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockAuth,
+    uncachedAuth: mockUncachedAuth,
+    withTenantAuth: (handler: unknown) => handler,
+  }),
+);
+vi.mock("~/server/auth/operator", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("operator", {
+    operatorAuth: mockOperatorAuth,
+    uncachedOperatorAuth: mockUncachedOperator,
+    withOperatorAuth: (handler: unknown) => handler,
+  }),
+);
 
 const BACKEND = "http://backend.test";
 const consoleSpies = suppressConsole("error");

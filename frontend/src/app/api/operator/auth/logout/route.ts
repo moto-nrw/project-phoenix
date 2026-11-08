@@ -1,11 +1,4 @@
-import { createLogoutHandler } from "~/lib/logout-route.server";
-import {
-  operatorAuth,
-  uncachedOperatorAuth,
-  withOperatorAuth,
-} from "~/server/auth/operator";
-import { PORTALS } from "~/server/auth/portals";
+import { createLogoutRoute } from "~/lib/logout-route.server";
+import { operatorPortal } from "~/server/auth/operator";
 
-export const POST = withOperatorAuth(
-  createLogoutHandler(PORTALS.operator, operatorAuth, uncachedOperatorAuth),
-);
+export const POST = createLogoutRoute(operatorPortal);

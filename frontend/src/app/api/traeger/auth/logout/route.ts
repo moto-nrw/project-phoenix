@@ -1,11 +1,4 @@
-import { createLogoutHandler } from "~/lib/logout-route.server";
-import {
-  traegerAuth,
-  uncachedTraegerAuth,
-  withTraegerAuth,
-} from "~/server/auth/traeger";
-import { PORTALS } from "~/server/auth/portals";
+import { createLogoutRoute } from "~/lib/logout-route.server";
+import { traegerPortal } from "~/server/auth/traeger";
 
-export const POST = withTraegerAuth(
-  createLogoutHandler(PORTALS.traeger, traegerAuth, uncachedTraegerAuth),
-);
+export const POST = createLogoutRoute(traegerPortal);

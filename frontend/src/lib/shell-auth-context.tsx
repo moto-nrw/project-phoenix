@@ -225,7 +225,7 @@ export function TeacherShellProvider({
               // sessionStorage unavailable (e.g. private browsing quota)
             }
             // Record the preview's end before revoking its family (#2893).
-            // Its refresh token is still the admin's (shared.ts), so logout
+            // Its refresh token is still the admin's (staff-preview.ts), so logout
             // needs no intermediate session restore or uncancellable update.
             if (session?.user?.isPreview) {
               try {

@@ -7,16 +7,20 @@ vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://server:8080",
 }));
 
-vi.mock("~/server/auth", () => ({
-  setTenantSession: vi.fn(),
-  withTenantSessionResponse: (handler: unknown) => handler,
-  withTenantAuth: (handler: unknown) => handler,
-}));
-vi.mock("~/server/auth/parent", () => ({
-  setParentSession: vi.fn(),
-  withParentSessionResponse: (handler: unknown) => handler,
-  withParentAuth: (handler: unknown) => handler,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    setTenantSession: vi.fn(),
+    withTenantSessionResponse: (handler: unknown) => handler,
+    withTenantAuth: (handler: unknown) => handler,
+  }),
+);
+vi.mock("~/server/auth/parent", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("parent", {
+    setParentSession: vi.fn(),
+    withParentSessionResponse: (handler: unknown) => handler,
+    withParentAuth: (handler: unknown) => handler,
+  }),
+);
 const fetchMock = vi.fn();
 
 function request(body: unknown) {

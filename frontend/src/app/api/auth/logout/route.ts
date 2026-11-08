@@ -1,7 +1,4 @@
-import { createLogoutHandler } from "~/lib/logout-route.server";
-import { auth, uncachedAuth, withTenantAuth } from "~/server/auth";
-import { PORTALS } from "~/server/auth/portals";
+import { createLogoutRoute } from "~/lib/logout-route.server";
+import { tenantPortal } from "~/server/auth";
 
-export const POST = withTenantAuth(
-  createLogoutHandler(PORTALS.tenant, auth, uncachedAuth),
-);
+export const POST = createLogoutRoute(tenantPortal);

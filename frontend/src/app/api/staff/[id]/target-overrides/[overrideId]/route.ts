@@ -1,4 +1,4 @@
-import { proxyDelete } from "~/lib/route-proxy.server";
+import { proxyDelete } from "~/lib/route-wrapper.server";
 import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 /**
@@ -10,5 +10,5 @@ export const DELETE = proxyDelete((p) => {
   if (!/^\d+$/.test(overrideId)) {
     throw new Error("Invalid override id");
   }
-  return `/api/staff/${requirePathSegmentParam(p)}/target-overrides/${overrideId}`;
+  return `/api/staff/${requirePathSegmentParam(p)}/target-overrides/${encodeURIComponent(overrideId)}`;
 });

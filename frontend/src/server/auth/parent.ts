@@ -2,11 +2,11 @@ import "server-only";
 import { createPortalAuth } from "./portal-auth";
 import { PORTALS } from "./portals";
 
+/** The parent portal; see createPortalAuth. */
+export const parentPortal = createPortalAuth(PORTALS.parent);
+
 export const {
   auth: parentAuth,
-  uncachedAuth: uncachedParentAuth,
   handlers: parentHandlers,
   withAuthResponse: withParentAuth,
-  withSessionResponse: withParentSessionResponse,
-  setSession: setParentSession,
-} = createPortalAuth(PORTALS.parent);
+} = parentPortal;

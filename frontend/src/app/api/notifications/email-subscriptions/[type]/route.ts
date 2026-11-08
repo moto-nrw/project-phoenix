@@ -12,7 +12,7 @@ function emailSubscriptionPath(
   if (typeof type !== "string" || !VALID_TYPE_PATTERN.test(type)) {
     return problemResponse(400, "Invalid notification type format", _request);
   }
-  return `/api/notifications/email-subscriptions/${type}`;
+  return `/api/notifications/email-subscriptions/${encodeURIComponent(type)}`;
 }
 
 /** Eigene Entscheidung für eine E-Mail-Benachrichtigung lesen (#3780). */

@@ -7,16 +7,20 @@ const { mockAuth, mockRevalidatePath, mockRevalidateTag } = vi.hoisted(() => ({
   mockRevalidateTag: vi.fn(),
 }));
 
-vi.mock("~/server/auth/operator", () => ({
-  operatorAuth: mockAuth,
-  uncachedOperatorAuth: mockAuth,
-  withOperatorAuth: (handler: unknown) => handler,
-}));
+vi.mock("~/server/auth/operator", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("operator", {
+    operatorAuth: mockAuth,
+    uncachedOperatorAuth: mockAuth,
+    withOperatorAuth: (handler: unknown) => handler,
+  }),
+);
 
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-  withTenantAuth: (handler: unknown) => handler,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockAuth,
+    withTenantAuth: (handler: unknown) => handler,
+  }),
+);
 
 vi.mock("next/cache", () => ({
   revalidatePath: mockRevalidatePath,

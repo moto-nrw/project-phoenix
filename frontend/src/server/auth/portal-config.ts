@@ -3,7 +3,6 @@ import type { NextAuthConfig } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import DiscordProvider from "next-auth/providers/discord";
 import { env } from "~/env";
-import { clientIdentityHeaders } from "~/lib/client-headers.server";
 import { loginAtBackend, refusalFor } from "./backend-login";
 import { buildAuthUser, parseJwtPayload, seededEmail } from "./jwt-claims";
 import type { PortalDescriptor } from "./portals";
@@ -23,9 +22,6 @@ function credentialFields(portal: PortalDescriptor) {
     ...(portal.passwordLogin && {
       email: { label: "Email", type: "email" },
       password: { label: "Password", type: "password" },
-    }),
-    ...(portal.tenantFeatures && {
-      tenantSlug: { label: "Tenant Slug", ...TEXT },
     }),
     internalRefresh: { label: "Internal Refresh", ...TEXT },
     token: { label: "Token", ...TEXT },
@@ -67,20 +63,10 @@ async function passwordUser(
   if (!email || !creds.password) return null;
   const outcome = await loginAtBackend(
     portal,
-    {
-      email,
-      password: creds.password,
-      ...(portal.tenantFeatures && creds.tenantSlug
-        ? { tenant_slug: creds.tenantSlug }
-        : {}),
-    },
-    clientIdentityHeaders(request?.headers ?? new Headers()),
+    { email, password: creds.password },
+    request,
   );
-  if (!outcome.ok) {
-    const refusal = await refusalFor(login, outcome);
-    if (refusal) throw refusal;
-    return null;
-  }
+  if (!outcome.ok) throw await refusalFor(login, outcome);
   const payload = parseJwtPayload(outcome.tokens.access_token);
   if (!payload) return null;
   return buildAuthUser(

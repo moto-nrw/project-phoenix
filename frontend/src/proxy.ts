@@ -9,6 +9,11 @@ import {
   resolvePlanungRedirect,
   type PlanungRedirectTarget,
 } from "~/components/timetable/planung-redirect";
+import {
+  HOSTED_PORTAL_KEYS,
+  PORTAL_ROUTES,
+  type HostedPortalKey,
+} from "~/lib/portal-paths";
 import { PORTAL_PAGES } from "./proxy-pages.generated";
 
 /**
@@ -29,26 +34,13 @@ function requiredEnv(name: string, value: string | undefined): string {
   return value;
 }
 
-const OPERATOR_HOSTNAME = requiredEnv(
-  "NEXT_PUBLIC_OPERATOR_HOSTNAME",
-  process.env.NEXT_PUBLIC_OPERATOR_HOSTNAME,
-);
-const PARENTS_HOSTNAME = requiredEnv(
-  "NEXT_PUBLIC_PARENTS_HOSTNAME",
-  process.env.NEXT_PUBLIC_PARENTS_HOSTNAME,
-);
-const SCHOOL_HOSTNAME = requiredEnv(
-  "NEXT_PUBLIC_SCHOOL_HOSTNAME",
-  process.env.NEXT_PUBLIC_SCHOOL_HOSTNAME,
-);
-const CATERER_HOSTNAME = requiredEnv(
-  "NEXT_PUBLIC_CATERER_HOSTNAME",
-  process.env.NEXT_PUBLIC_CATERER_HOSTNAME,
-);
-const TRAEGER_HOSTNAME = requiredEnv(
-  "NEXT_PUBLIC_TRAEGER_HOSTNAME",
-  process.env.NEXT_PUBLIC_TRAEGER_HOSTNAME,
-);
+/** Every portal host, checked at start-up. */
+const HOSTNAMES = Object.fromEntries(
+  HOSTED_PORTAL_KEYS.map((key) => {
+    const portal = PORTAL_ROUTES[key];
+    return [key, requiredEnv(portal.hostEnv, portal.hostname())];
+  }),
+) as Record<HostedPortalKey, string>;
 const TENANT_DOMAIN = requiredEnv("TENANT_DOMAIN", process.env.TENANT_DOMAIN);
 
 // --- CSP Headers ---
@@ -232,9 +224,10 @@ function sanitizedHeaders(request: NextRequest): Headers {
 
 /**
  * The sandbox of a file a person uploaded, as the backend sends it with an
- * inline file (#5275). The CSP set here replaces the route's own, so these
- * routes get it from the proxy: under the app CSP an embedded script of a PDF
- * would run on the app's origin.
+ * inline file (#5275): under the app CSP an embedded script of a PDF would
+ * run on the app's origin. Next sets the proxy's headers on the response
+ * before the route runs and keeps them over the route's own, so this list
+ * alone decides.
  */
 const SANDBOX_CSP_HEADER =
   "sandbox; default-src 'none'; img-src 'self'; style-src 'unsafe-inline'";
@@ -280,12 +273,7 @@ function secureRewrite(request: NextRequest, url: URL): NextResponse {
  * path namespace (`/login` → `/operator/login`) and only the BFF routes its
  * pages call: the tenant session cookie is domain-scoped and reaches every
  * portal host, so a tenant route must not run there. */
-interface PortalHost {
-  readonly hostname: string;
-  /** Path namespace of the portal's pages inside the App Router. */
-  readonly appPrefix: `/${string}`;
-  /** First segments of the pages under app/<portal>/ (generated). */
-  readonly pages: readonly string[];
+interface PortalHostRules {
   /** BFF routes the host serves: a string ending in "/" is a prefix, any
    * other string an exact path. Every other /api/ path answers 404. The
    * portal's own prefix also carries its client log route (`portalLogPath`). */
@@ -301,81 +289,78 @@ interface PortalHost {
   readonly exclusiveApi?: string;
 }
 
-const OPERATOR_HOST: PortalHost = {
-  hostname: OPERATOR_HOSTNAME,
-  appPrefix: "/operator",
-  pages: PORTAL_PAGES.operator,
-  api: ["/api/operator/"],
-  localized: false,
-  help: true,
+interface PortalHost extends PortalHostRules {
+  readonly hostname: string;
+  /** Path namespace of the portal's pages inside the App Router. */
+  readonly appPrefix: `/${string}`;
+  /** First segments of the pages under app/<portal>/ (generated). */
+  readonly pages: readonly string[];
+}
+
+const HOST_RULES: Record<HostedPortalKey, PortalHostRules> = {
+  operator: {
+    api: ["/api/operator/"],
+    localized: false,
+    help: true,
+  },
+  parent: {
+    api: [
+      "/api/parent/",
+      // Anonymous routes of the pages a link opens without a parent session:
+      // invitations, enrollment status and its uploads, holiday registration,
+      // contract signing, the demo entry and the school's login image.
+      "/api/public/",
+      "/api/tenant/resolve",
+      "/api/invitations/validate",
+      "/api/invitations/accept",
+      "/api/guardian-invitations/",
+      "/api/holiday-registrations/",
+      "/api/enrollment/requests/",
+      /^\/api\/enrollment\/[^/]+\/uploads$/,
+      "/api/demo/access/",
+    ],
+    localized: true,
+    help: true,
+  },
+  school: {
+    api: [
+      "/api/school/",
+      "/api/invitations/validate",
+      "/api/invitations/accept",
+    ],
+    localized: false,
+    help: true,
+  },
+  traeger: {
+    api: ["/api/traeger/"],
+    localized: false,
+    help: true,
+    // Bookmarks, help links and e-mails name these pages, also with /traeger.
+    movedPaths: [
+      ["/accounts", "/einstellungen/mitglieder"],
+      ["/access-log", "/einstellungen/zugriffsprotokoll"],
+      ["/briefkopf", "/einstellungen/briefkopf"],
+      ["/beitraege", "/einstellungen/abrechnung"],
+    ],
+  },
+  caterer: {
+    api: ["/api/caterer/"],
+    localized: false,
+    // The help has no caterer role and the portal links to no article.
+    help: false,
+    exclusiveApi: "/api/caterer",
+  },
 };
 
-const PARENTS_HOST: PortalHost = {
-  hostname: PARENTS_HOSTNAME,
-  appPrefix: "/parents",
-  pages: PORTAL_PAGES.parents,
-  api: [
-    "/api/parent/",
-    // Anonymous routes of the pages a link opens without a parent session:
-    // invitations, enrollment status and its uploads, holiday registration,
-    // contract signing, the demo entry and the school's login image.
-    "/api/public/",
-    "/api/tenant/resolve",
-    "/api/invitations/validate",
-    "/api/invitations/accept",
-    "/api/guardian-invitations/",
-    "/api/holiday-registrations/",
-    "/api/enrollment/requests/",
-    /^\/api\/enrollment\/[^/]+\/uploads$/,
-    "/api/demo/access/",
-  ],
-  localized: true,
-  help: true,
-};
-
-const SCHOOL_HOST: PortalHost = {
-  hostname: SCHOOL_HOSTNAME,
-  appPrefix: "/school",
-  pages: PORTAL_PAGES.school,
-  api: ["/api/school/", "/api/invitations/validate", "/api/invitations/accept"],
-  localized: false,
-  help: true,
-};
-
-const TRAEGER_HOST: PortalHost = {
-  hostname: TRAEGER_HOSTNAME,
-  appPrefix: "/traeger",
-  pages: PORTAL_PAGES.traeger,
-  api: ["/api/traeger/"],
-  localized: false,
-  help: true,
-  // Bookmarks, help links and e-mails name these pages, also with /traeger.
-  movedPaths: [
-    ["/accounts", "/einstellungen/mitglieder"],
-    ["/access-log", "/einstellungen/zugriffsprotokoll"],
-    ["/briefkopf", "/einstellungen/briefkopf"],
-    ["/beitraege", "/einstellungen/abrechnung"],
-  ],
-};
-
-const CATERER_HOST: PortalHost = {
-  hostname: CATERER_HOSTNAME,
-  appPrefix: "/caterer",
-  pages: PORTAL_PAGES.caterer,
-  api: ["/api/caterer/"],
-  localized: false,
-  // The help has no caterer role and the portal links to no article.
-  help: false,
-  exclusiveApi: "/api/caterer",
-};
-
-const PORTAL_HOSTS: readonly PortalHost[] = [
-  OPERATOR_HOST,
-  PARENTS_HOST,
-  SCHOOL_HOST,
-  TRAEGER_HOST,
-  CATERER_HOST,
-];
+const PORTAL_HOSTS: readonly PortalHost[] = HOSTED_PORTAL_KEYS.map((key) => {
+  const { appPrefix } = PORTAL_ROUTES[key];
+  const pages = (PORTAL_PAGES as Record<string, readonly string[]>)[
+    appPrefix.slice(1)
+  ];
+  // scripts/generate-portal-pages.mjs lists the same folders.
+  if (!pages) throw new Error(`No generated pages for app${appPrefix}`);
+  return { ...HOST_RULES[key], hostname: HOSTNAMES[key], appPrefix, pages };
+});
 
 function isUnder(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
@@ -469,12 +454,12 @@ function isLegacyParentsHost(hostname: string): boolean {
   const legacyParentsHost = `parents.${TENANT_DOMAIN}`;
   return (
     normalizeHostname(hostname) === legacyParentsHost &&
-    normalizeHostname(PARENTS_HOSTNAME) !== legacyParentsHost
+    normalizeHostname(HOSTNAMES.parent) !== legacyParentsHost
   );
 }
 
 function redirectLegacyParentsHost(request: NextRequest): NextResponse {
-  const url = new URL(`${originalProtocol(request)}://${PARENTS_HOSTNAME}`);
+  const url = new URL(`${originalProtocol(request)}://${HOSTNAMES.parent}`);
   url.pathname = request.nextUrl.pathname;
   url.search = request.nextUrl.search;
   return withSecurityHeaders(NextResponse.redirect(url, 302));
@@ -824,7 +809,7 @@ function routeRequest(request: NextRequest): NextResponse {
     const search = selectedTenantSlug
       ? `?from=staff&tenant=${encodeURIComponent(selectedTenantSlug)}`
       : "?from=staff";
-    const redirectUrl = `${protocol}//${SCHOOL_HOSTNAME}/login${search}`;
+    const redirectUrl = `${protocol}//${HOSTNAMES.school}/login${search}`;
     return withSecurityHeaders(NextResponse.redirect(redirectUrl));
   }
 

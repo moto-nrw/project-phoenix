@@ -7,11 +7,13 @@ const { mockParentAuth, mockUncachedParentAuth } = vi.hoisted(() => ({
   mockUncachedParentAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
 }));
 
-vi.mock("~/server/auth/parent", () => ({
-  parentAuth: mockParentAuth,
-  uncachedParentAuth: mockUncachedParentAuth,
-  withParentAuth: (handler: unknown) => handler,
-}));
+vi.mock("~/server/auth/parent", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("parent", {
+    parentAuth: mockParentAuth,
+    uncachedParentAuth: mockUncachedParentAuth,
+    withParentAuth: (handler: unknown) => handler,
+  }),
+);
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://backend:8080",
 }));

@@ -9,6 +9,5 @@ export const GET = withPrivateDownloadNoStore(
   proxyFile(
     (params) =>
       `/traeger/holiday-periods/${requirePathSegmentParam(params)}/registrations/${requirePathSegmentParam(params, "registrationId")}/proofs/${requirePathSegmentParam(params, "proofId")}`,
-    { uploadedFile: true },
   ),
 );

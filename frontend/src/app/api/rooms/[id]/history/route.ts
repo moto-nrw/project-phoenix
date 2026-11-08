@@ -94,7 +94,7 @@ async function GETHandler(request: NextRequest): Promise<NextResponse> {
 
   const queryString = queryParams.toString();
   const querySuffix = queryString ? "?" + queryString : "";
-  const endpoint = `/api/rooms/${roomId}/history${querySuffix}`;
+  const endpoint = `/api/rooms/${encodeURIComponent(roomId)}/history${querySuffix}`;
 
   try {
     const backendResponse = await apiGet<BackendResponseEnvelope>(

@@ -1,4 +1,4 @@
-import { proxyPost } from "~/lib/route-proxy.server";
+import { proxyPost } from "~/lib/route-wrapper.server";
 
 // "additional_supervision" ends the caller's own part in the running
 // supervision whose id is the active group (#4763).

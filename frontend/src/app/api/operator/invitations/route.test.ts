@@ -7,11 +7,13 @@ const { mockAuth, mockOperatorApiGet, mockUncachedAuth } = vi.hoisted(() => ({
   mockOperatorApiGet: vi.fn(),
 }));
 
-vi.mock("~/server/auth/operator", () => ({
-  operatorAuth: mockAuth,
-  uncachedOperatorAuth: mockUncachedAuth,
-  withOperatorAuth: (handler: unknown) => handler,
-}));
+vi.mock("~/server/auth/operator", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("operator", {
+    operatorAuth: mockAuth,
+    uncachedOperatorAuth: mockUncachedAuth,
+    withOperatorAuth: (handler: unknown) => handler,
+  }),
+);
 
 vi.mock("~/lib/operator/route-wrapper.server", async (importOriginal) => {
   const actual =

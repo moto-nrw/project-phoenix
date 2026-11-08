@@ -2,10 +2,9 @@ import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { problemResponse } from "~/lib/api-response-error.server";
 import { caterer } from "~/lib/caterer/route-wrapper.server";
 import { installLoginSession } from "~/lib/login-route.server";
-import { PORTALS } from "~/server/auth/portals";
 import { createLogger } from "~/lib/logger";
 import { captureBffException } from "~/lib/sentry-bff.server";
-import { setCatererSession, withCatererAuth } from "~/server/auth/caterer";
+import { catererPortal, withCatererAuth } from "~/server/auth/caterer";
 import { sessionMutationOriginError } from "~/server/auth/same-origin";
 
 const logger = createLogger({ component: "CatererMFAConfirmRoute" });
@@ -39,12 +38,7 @@ export const POST = withCatererAuth(async (request) => {
     const data = (await backend.json().catch(() => {
       throw new Error("Invalid MFA confirm response");
     })) as Record<string, unknown>;
-    const failure = await installLoginSession(
-      request,
-      data,
-      setCatererSession,
-      PORTALS.caterer.backend.logout,
-    );
+    const failure = await installLoginSession(request, data, catererPortal);
     return Response.json({ session_renewed: failure === null });
   } catch (error) {
     captureBffException(error, request);

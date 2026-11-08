@@ -1,29 +1,26 @@
 import { captureBffException } from "~/lib/sentry-bff.server";
 import { type NextRequest, NextResponse } from "next/server";
-import {
-  frontendOrigin,
-  backendIdentityHeaders,
-} from "~/lib/client-headers.server";
+import { sendBackend } from "~/lib/backend-client.server";
+import { frontendOrigin } from "~/lib/client-headers.server";
 import { createLogger } from "~/lib/logger";
 import {
   DEMO_TOKEN_COOKIE,
   DEMO_TOKEN_COOKIE_OPTIONS,
-  demoBackendUrl,
+  demoBackendPath,
 } from "../forward";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { problemResponse } from "~/lib/api-helpers.server";
 import { withPrivateNoStore } from "~/lib/private-no-store";
-
 import { clientEnv } from "~/env.client";
-import { setTenantSession, withTenantSessionResponse } from "~/server/auth";
-import {
-  setParentSession,
-  withParentSessionResponse,
-} from "~/server/auth/parent";
+import { tenantPortal } from "~/server/auth";
+import { parentPortal } from "~/server/auth/parent";
 import { sessionMutationOriginError } from "~/server/auth/same-origin";
 import { installLoginSession } from "~/lib/login-route.server";
-import { revokeMintedSession } from "~/lib/session-transition.server";
-import { PORTALS } from "~/server/auth/portals";
+import {
+  logoutRollback,
+  mintedPair,
+  revokeMintedSession,
+} from "~/lib/session-transition.server";
 
 const logger = createLogger({ component: "DemoSessionRoute" });
 
@@ -37,22 +34,21 @@ async function POSTHandler(request: NextRequest) {
   // Choose the cookie context from the proxy-owned host, never from a role
   // supplied by the browser or returned for a fixed-role demo link.
   const host = new URL(frontendOrigin(request)).host;
+  const isHost = (authority: string) =>
+    new URL(`http://${authority}`).host === host;
   if (
     [
       clientEnv.NEXT_PUBLIC_OPERATOR_HOSTNAME,
       clientEnv.NEXT_PUBLIC_SCHOOL_HOSTNAME,
       clientEnv.NEXT_PUBLIC_TRAEGER_HOSTNAME,
       clientEnv.NEXT_PUBLIC_CATERER_HOSTNAME,
-    ].some((authority) => new URL(`http://${authority}`).host === host)
+    ].some(isHost)
   ) {
     return problemResponse(403, "Unsupported demo portal", request);
   }
-  const parent =
-    host === new URL(`http://${clientEnv.NEXT_PUBLIC_PARENTS_HOSTNAME}`).host;
-  const withResponse = parent
-    ? withParentSessionResponse
-    : withTenantSessionResponse;
-  return withResponse((req) => redeem(req, parent))(request);
+  const parent = isHost(clientEnv.NEXT_PUBLIC_PARENTS_HOSTNAME);
+  const session = parent ? parentPortal : tenantPortal;
+  return session.withSessionResponse((req) => redeem(req, parent))(request);
 }
 
 async function redeem(request: NextRequest, parent: boolean) {
@@ -69,13 +65,10 @@ async function redeem(request: NextRequest, parent: boolean) {
   }
   const role = typeof body.role === "string" ? body.role : undefined;
   try {
-    const backend = await fetch(demoBackendUrl("sessions"), {
+    const backend = await sendBackend(demoBackendPath("sessions"), null, {
       method: "POST",
-      headers: {
-        ...backendIdentityHeaders(request),
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ token, role }),
+      json: { token, role },
+      request,
     });
     if (!backend.ok) return forwardBackendResponse(backend, request);
     const payload = (await backend.json().catch(() => {
@@ -88,23 +81,19 @@ async function redeem(request: NextRequest, parent: boolean) {
     ) {
       throw new Error("Invalid demo role");
     }
+    // The session belongs to the portal of its role, not of this host.
+    const minted = demo.role === "parent" ? parentPortal : tenantPortal;
     const matchesPortal = (demo.role === "parent") === parent;
     if (matchesPortal) {
-      const failure = await installLoginSession(
-        request,
-        payload,
-        parent ? setParentSession : setTenantSession,
-      );
+      const failure = await installLoginSession(request, payload, minted);
       if (failure) return failure;
     } else {
       // The entry page hands fixed-role links to the right portal. Revoke
       // this unused session family before returning only redirect metadata.
-      if (typeof payload.refresh_token !== "string" || !payload.refresh_token)
-        throw new Error("Missing demo session credentials");
-      await revokeMintedSession(request, {
-        path: PORTALS.tenant.backend.logout.path,
-        bearer: payload.refresh_token,
-      });
+      await revokeMintedSession(
+        request,
+        logoutRollback(minted.portal.backend.logout, mintedPair(payload)),
+      );
     }
     const response = NextResponse.json(
       {

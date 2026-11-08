@@ -10,6 +10,7 @@ import {
   isApiResponseError,
 } from "./api-response-error.server";
 import {
+  assertPortalRequestContext,
   createBackendFetch,
   readBackendJson,
   renewalFailureResponse,
@@ -85,11 +86,6 @@ interface GetProxyOptions extends ProxyOptions {
   forwardQuery?: readonly string[];
 }
 
-interface DeleteProxyOptions {
-  /** Forward the JSON request body, e.g. a confirmation payload. */
-  withBody?: boolean;
-}
-
 interface FileProxyOptions
   extends FileResponseOptions, Pick<SessionCall, "retry"> {
   /** POST forwards the JSON request body, read once for the retry. */
@@ -102,7 +98,8 @@ interface FileProxyOptions
 
 interface UploadProxyOptions {
   method?: "PUT" | "POST";
-  tooLargeCode?: ErrorCode;
+  /** The portal's code for a file over maxFileBytes. */
+  tooLargeCode: ErrorCode;
   /** Values the catalog text of tooLargeCode names, like max_mb. */
   tooLargeDetails?: Record<string, unknown>;
 }
@@ -136,6 +133,7 @@ export function makePortalHandlers(portal: PortalBinding) {
     token: string,
     run: (token: string) => Promise<T>,
   ): Promise<T | Response> {
+    assertPortalRequestContext(portal);
     try {
       return await run(token);
     } catch (error) {
@@ -268,15 +266,7 @@ export function makePortalHandlers(portal: PortalBinding) {
       }, options);
   }
 
-  function proxyDelete(endpoint: ProxyEndpoint, options?: DeleteProxyOptions) {
-    if (options?.withBody) {
-      return delWithBody(async (request, body, token, params) => {
-        await api("DELETE", resolve(endpoint, params), token, body, {
-          request,
-        });
-        return null;
-      });
-    }
+  function proxyDelete(endpoint: ProxyEndpoint) {
     return del(async (request, token, params) => {
       await api("DELETE", resolve(endpoint, params), token, undefined, {
         request,
@@ -311,19 +301,15 @@ export function makePortalHandlers(portal: PortalBinding) {
     options: FileResponseOptions & SessionCall = {},
   ): Promise<Response> {
     const {
-      uploadedFile,
       backendCacheControl,
       cacheControl,
-      buffer,
       fallbackType,
       fallbackDisposition,
       ...call
     } = options;
     return fileResponse(await backendFetch(request, path, call), request, {
-      uploadedFile,
       backendCacheControl,
       cacheControl,
-      buffer,
       fallbackType,
       fallbackDisposition,
     });
@@ -366,11 +352,11 @@ export function makePortalHandlers(portal: PortalBinding) {
   function proxyUpload(
     endpoint: ProxyEndpoint,
     maxFileBytes: number,
-    options: UploadProxyOptions = {},
+    options: UploadProxyOptions,
   ) {
     const tooLarge = () =>
       bffError(400, "Upload too large", {
-        code: options.tooLargeCode ?? "traeger.logo_too_large",
+        code: options.tooLargeCode,
         details: options.tooLargeDetails,
       });
     return portal.withAuth(async (request, context) => {

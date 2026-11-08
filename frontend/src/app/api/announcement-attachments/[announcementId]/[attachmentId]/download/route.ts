@@ -9,6 +9,6 @@ export const GET = withPrivateDownloadNoStore(
   proxyFile(
     (p) =>
       `/api/announcement-attachments/${requirePathSegmentParam(p, "announcementId")}/${requirePathSegmentParam(p, "attachmentId")}/download`,
-    { forwardQuery: ["inline"], uploadedFile: true },
+    { forwardQuery: ["inline"] },
   ),
 );

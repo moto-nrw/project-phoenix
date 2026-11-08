@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { auth, uncachedAuth, withTenantAuth } from "~/server/auth";
+import { auth, tenantPortal, withTenantAuth } from "~/server/auth";
 import { sendBackend } from "./backend-client.server";
 import { forwardJsonRequest, type JsonProxyOptions } from "./json-proxy.server";
 import { makePortalHandlers } from "./portal-handlers.server";
@@ -7,12 +7,7 @@ import { makePortalHandlers } from "./portal-handlers.server";
 export { isStringParam } from "./route-wrapper-utils.server";
 
 /** The tenant portal's route handlers; see makePortalHandlers. */
-export const tenant = makePortalHandlers({
-  key: "tenant",
-  auth: () => auth(),
-  uncachedAuth: () => uncachedAuth(),
-  withAuth: (handler) => withTenantAuth(handler),
-});
+export const tenant = makePortalHandlers(tenantPortal);
 
 export const {
   get: createGetHandler,
@@ -23,6 +18,11 @@ export const {
   delWithBody: createDeleteWithBodyHandler,
   jsonProxy: createTenantJsonProxy,
   proxyFile,
+  proxyGet,
+  proxyPost,
+  proxyPut,
+  proxyPatch,
+  proxyDelete,
 } = tenant;
 
 /**

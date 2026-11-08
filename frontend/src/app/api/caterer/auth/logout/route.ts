@@ -1,11 +1,4 @@
-import { createLogoutHandler } from "~/lib/logout-route.server";
-import {
-  catererAuth,
-  uncachedCatererAuth,
-  withCatererAuth,
-} from "~/server/auth/caterer";
-import { PORTALS } from "~/server/auth/portals";
+import { createLogoutRoute } from "~/lib/logout-route.server";
+import { catererPortal } from "~/server/auth/caterer";
 
-export const POST = withCatererAuth(
-  createLogoutHandler(PORTALS.caterer, catererAuth, uncachedCatererAuth),
-);
+export const POST = createLogoutRoute(catererPortal);

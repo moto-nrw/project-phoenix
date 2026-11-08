@@ -9,6 +9,5 @@ export const GET = withPrivateDownloadNoStore(
   proxyFile(
     (p) =>
       `/api/enrollment/admin/requests/${requirePathSegmentParam(p)}/uploads/${requirePathSegmentParam(p, "uploadId")}`,
-    { uploadedFile: true },
   ),
 );

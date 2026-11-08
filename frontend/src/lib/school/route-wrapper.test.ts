@@ -6,11 +6,13 @@ const { mockSchoolAuth, mockFetch } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
 }));
 
-vi.mock("~/server/auth/school", () => ({
-  schoolAuth: mockSchoolAuth,
-  uncachedSchoolAuth: mockSchoolAuth,
-  withSchoolAuth: (handler: unknown) => handler,
-}));
+vi.mock("~/server/auth/school", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("school", {
+    schoolAuth: mockSchoolAuth,
+    uncachedSchoolAuth: mockSchoolAuth,
+    withSchoolAuth: (handler: unknown) => handler,
+  }),
+);
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://localhost:8080",
 }));

@@ -1,6 +1,6 @@
 import "server-only";
 import type { JWT } from "next-auth/jwt";
-import { getServerApiUrl } from "~/lib/server-api-url";
+import { sendBackend } from "~/lib/backend-client.server";
 import {
   authLogger,
   parseJwtPayload,
@@ -10,7 +10,6 @@ import type { BackendEndpoint } from "./portals";
 import { accessTokenExpiresAt } from "./session-lifetime";
 import {
   applyRotation,
-  getRefreshAuditHeaders,
   isRenewalForced,
   rotateRefreshToken,
 } from "./token-refresh";
@@ -28,7 +27,6 @@ import { validateSessionToken } from "./token-validation";
 
 const PREVIEW_REFRESH_BUFFER_MS = 5 * 60 * 1000;
 const PREVIEW_ADMIN_TOKEN_MIN_TTL_MS = 60 * 1000;
-const PREVIEW_REQUEST_TIMEOUT_MS = 5_000;
 
 export interface PreviewStartUpdate {
   accessToken: string;
@@ -142,20 +140,11 @@ async function recordPreviewEnd(
 ): Promise<void> {
   if (!previewToken) return;
   try {
-    // Without the client's audit context the automatic end lands with the
-    // Docker-internal IP and Node as browser.
-    const response = await fetch(
-      `${getServerApiUrl()}/auth/staff-preview/end`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(await getRefreshAuditHeaders()),
-        },
-        body: JSON.stringify({ preview_token: previewToken }),
-        signal: AbortSignal.timeout(PREVIEW_REQUEST_TIMEOUT_MS),
-      },
-    );
+    const response = await sendBackend("/auth/staff-preview/end", null, {
+      method: "POST",
+      json: { preview_token: previewToken },
+      timeout: "session",
+    });
     if (!response.ok) {
       authLogger.warn("staff_preview_auto_end_not_recorded", {
         status: response.status,
@@ -225,25 +214,21 @@ export async function maintainPreviewSession(
   // Re-mint the preview token as the admin. The mint rotates nothing, so a
   // concurrent double-mint is harmless.
   try {
-    const response = await fetch(`${getServerApiUrl()}/auth/staff-preview`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${adminAccessToken}`,
-        "Content-Type": "application/json",
-        // A re-mint normally continues the same preview and writes no start
-        // event — but if the backend ever treats it as a new one, the audit
-        // row must carry the real client, not the Docker-internal hop.
-        ...(await getRefreshAuditHeaders()),
+    const response = await sendBackend(
+      "/auth/staff-preview",
+      adminAccessToken,
+      {
+        method: "POST",
+        // The expiring token comes along as previous_token: it proves this is
+        // the SAME preview instance, so the backend renews it instead of
+        // recording a second "preview started" in the audit trail.
+        json: {
+          account_id: token.previewTargetAccountId,
+          previous_token: token.token,
+        },
+        timeout: "session",
       },
-      // The expiring token comes along as previous_token: it proves this is
-      // the SAME preview instance, so the backend renews it instead of
-      // recording a second "preview started" in the audit trail.
-      body: JSON.stringify({
-        account_id: token.previewTargetAccountId,
-        previous_token: token.token,
-      }),
-      signal: AbortSignal.timeout(PREVIEW_REQUEST_TIMEOUT_MS),
-    });
+    );
 
     if (response.ok) {
       const data = (await response.json()) as {

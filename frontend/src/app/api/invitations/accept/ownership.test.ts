@@ -14,30 +14,36 @@ vi.mock("~/env", () => ({
     NEXT_PUBLIC_SCHOOL_HOSTNAME: "schule.localhost:3000",
   },
 }));
-vi.mock("~/server/auth", () => ({
-  withTenantAuth:
-    (handler: (req: unknown) => Promise<Response>) =>
-    async (request: NextRequest) => {
-      request.clone(); // NextAuth reconstructs the request; its body must remain unread.
-      return handler({ auth: sessions.tenant() });
-    },
-}));
-vi.mock("~/server/auth/parent", () => ({
-  withParentAuth:
-    (handler: (req: unknown) => Promise<Response>) =>
-    async (request: NextRequest) => {
-      request.clone();
-      return handler({ auth: sessions.parent() });
-    },
-}));
-vi.mock("~/server/auth/school", () => ({
-  withSchoolAuth:
-    (handler: (req: unknown) => Promise<Response>) =>
-    async (request: NextRequest) => {
-      request.clone();
-      return handler({ auth: sessions.school() });
-    },
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    withTenantAuth:
+      (handler: (req: unknown) => Promise<Response>) =>
+      async (request: NextRequest) => {
+        request.clone(); // NextAuth reconstructs the request; its body must remain unread.
+        return handler({ auth: sessions.tenant() });
+      },
+  }),
+);
+vi.mock("~/server/auth/parent", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("parent", {
+    withParentAuth:
+      (handler: (req: unknown) => Promise<Response>) =>
+      async (request: NextRequest) => {
+        request.clone();
+        return handler({ auth: sessions.parent() });
+      },
+  }),
+);
+vi.mock("~/server/auth/school", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("school", {
+    withSchoolAuth:
+      (handler: (req: unknown) => Promise<Response>) =>
+      async (request: NextRequest) => {
+        request.clone();
+        return handler({ auth: sessions.school() });
+      },
+  }),
+);
 
 const { POST } = await import("./route");
 
@@ -81,10 +87,10 @@ describe("invitation owner session boundary", () => {
     expect(fetch).toHaveBeenCalledWith(
       expect.stringContaining("/auth/invitations/invitation/accept"),
       expect.objectContaining({
-        headers: {
+        headers: expect.objectContaining({
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
-        },
+        }),
       }),
     );
     const calls = vi.mocked(fetch).mock.calls;

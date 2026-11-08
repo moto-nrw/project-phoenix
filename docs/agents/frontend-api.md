@@ -40,11 +40,15 @@ The same applies to `auth` and any other server-only import in mixed files.
 
 Every portal's route handlers come from one factory,
 `makePortalHandlers(portal)` (`lib/portal-handlers.server.ts`), bound once per
-portal in `lib/route-wrapper.server.ts` (tenant, with `lib/route-proxy.server.ts`
-for the pure proxies) and `lib/{operator,parent,school,caterer,traeger}/route-wrapper.server.ts`.
+portal in `lib/route-wrapper.server.ts` (tenant) and
+`lib/{operator,parent,school,caterer,traeger}/route-wrapper.server.ts` from the
+portal object its entry module exports (`tenantPortal`, `parentPortal`, …).
 It builds handlers (`get`, `post`, …, `del`), pure proxies (`proxyGet`, …),
 the verbatim `jsonProxy`, `proxyFile`/`downloadFile` and `proxyUpload`, all
-inside the portal's response wrapper. One response contract: data answers
+inside the portal's response wrapper. The helpers that read the session
+(`backendFetch`, `downloadFile`, `forwardToBackend`, `runWithRenewal`) throw
+outside that wrapper; `src/app/api/route-session-coverage.test.ts` runs every
+route and fails on a session read outside it. One response contract: data answers
 `{ success, message, data }`, a DELETE without a result answers 204, the
 envelope's `data` is unwrapped in one place, a handler may return a Response
 as it is. Public JSON routes use `createPublicJsonProxy`
@@ -56,8 +60,11 @@ exception in [the SSE contract](realtime.md).
 Every backend call goes through `sendBackend` (`lib/backend-client.server.ts`):
 base URL, bearer, one client identity set (`backendIdentityHeaders`: client
 IP, User-Agent, analytics session, Vorgangskennung, frontend origin),
-`cache: "no-store"`, Idempotency-Key, a 90 s header timeout, a refused
-`.`/`..` path segment, one log line and metric. The portal's `backendFetch`
+`cache: "no-store"`, Idempotency-Key, a header timeout from
+`BACKEND_TIMEOUTS_MS` (90 s by default; login, logout, session upkeep and
+public assets shorter), a refused `.`/`..` path segment, one log line and
+metric. Without a session (`bearer` null: public routes, login steps,
+refresh, token checks) the same path applies. The portal's `backendFetch`
 binds it to the request's session: a backend 401 repeats once with the
 renewed session. No session answers 401 "Unauthorized"; a renewal the backend
 refused (revoked or foreign family, invalid refresh token) answers 401
@@ -68,9 +75,12 @@ renewed token is the backend's own answer and passes through. An unreachable
 backend or a header timeout answers 503 `general.unavailable` everywhere.
 Retry is on by default; an
 endpoint that answers a refused credential with 401 (password change, MFA
-off, confirm code) passes `retry: { off: "<reason>" }`. A direct fetch that
-remains (public feeds, images) adds `clientIdentityHeaders(request.headers)`
-or `incomingClientForwardHeaders()`. Why and the full chain:
+off, confirm code) passes `retry: { off: "<reason>" }`. Only the SSE stream
+and the cached tenant resolve fetch the backend themselves; they add
+`clientIdentityHeaders(request.headers)` or the headers handed in. A route
+param in a backend path is encoded (`requirePathSegmentParam`,
+`encodeURIComponent`); a query key never replaces a route param. Why and
+the full chain:
 [Client IP and rate limits](contracts.md#client-ip-and-rate-limits).
 
 Backend error responses have one wire contract: the portal handlers

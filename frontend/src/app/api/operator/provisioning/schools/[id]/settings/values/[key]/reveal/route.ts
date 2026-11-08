@@ -19,7 +19,7 @@ export const GET = createOperatorGetHandler(
       throw bffError(400, "Invalid settings key format");
     }
     return await operatorApiGet(
-      `/operator/schools/${encodePathSegment(id)}/settings/values/${key}/reveal`,
+      `/operator/schools/${encodePathSegment(id)}/settings/values/${encodeURIComponent(key)}/reveal`,
       token,
     );
   },

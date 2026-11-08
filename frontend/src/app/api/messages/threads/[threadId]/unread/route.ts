@@ -18,7 +18,11 @@ export const POST = createPostHandler(
     if (!threadId) {
       throw new Error("Thread ID is required");
     }
-    await apiPost(`/api/messages/threads/${threadId}/unread`, token, {});
+    await apiPost(
+      `/api/messages/threads/${encodeURIComponent(threadId)}/unread`,
+      token,
+      {},
+    );
     return null;
   },
 );

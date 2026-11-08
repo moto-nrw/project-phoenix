@@ -30,30 +30,31 @@ export function allowedQueryString(
   return qs ? `?${qs}` : "";
 }
 
+/**
+ * The route params, then every query parameter the route does not name, so a
+ * query key never replaces a route param (`/x/5?id=7` keeps id 5). Without an
+ * `id` the last numeric path segment stands in.
+ */
 export async function extractParams(
   request: NextRequest,
   context: RouteContext,
 ): Promise<Record<string, unknown>> {
-  const safeParams: Record<string, unknown> = {};
-  const contextParams = await context.params;
-  if (contextParams) {
-    Object.entries(contextParams).forEach(([key, value]) => {
-      if (value !== undefined) {
-        safeParams[key] = value;
-      }
-    });
+  const params: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries((await context.params) ?? {})) {
+    if (value !== undefined) params[key] = value;
   }
   const url = new URL(request.url);
-  if (!safeParams.id) {
-    const potentialIds = url.pathname.split("/").filter((p) => /^\d+$/.test(p));
-    if (potentialIds.length > 0) {
-      safeParams.id = potentialIds.at(-1);
-    }
-  }
   url.searchParams.forEach((value, key) => {
-    safeParams[key] = value;
+    if (!(key in params)) params[key] = value;
   });
-  return safeParams;
+  if (!params.id) {
+    const id = url.pathname
+      .split("/")
+      .filter((part) => /^\d+$/.test(part))
+      .at(-1);
+    if (id) params.id = id;
+  }
+  return params;
 }
 
 /**

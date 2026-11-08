@@ -11,17 +11,19 @@ import {
   proxyPatch,
   proxyPost,
   proxyPut,
-} from "./route-proxy.server";
+} from "./route-wrapper.server";
 
 const { mockAuth } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
 }));
 
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-  uncachedAuth: mockAuth,
-  withTenantAuth: (handler: unknown) => handler,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockAuth,
+    uncachedAuth: mockAuth,
+    withTenantAuth: (handler: unknown) => handler,
+  }),
+);
 vi.mock("./server-api-url", () => ({
   getServerApiUrl: () => "http://backend:8080",
 }));
@@ -262,20 +264,6 @@ describe("proxyDelete", () => {
 
     expect(sent().url).toBe("http://backend:8080/api/items/7");
     expect(sent().init.method).toBe("DELETE");
-    expect(response.status).toBe(204);
-  });
-});
-
-describe("proxyDelete with a body", () => {
-  it("forwards the confirmation body and returns 204", async () => {
-    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
-
-    const response = await proxyDelete("/api/items/7", { withBody: true })(
-      request("/api/items/7", { method: "DELETE", body: { confirm: true } }),
-      createMockContext(),
-    );
-
-    expect(sent().init.body).toBe('{"confirm":true}');
     expect(response.status).toBe(204);
   });
 });

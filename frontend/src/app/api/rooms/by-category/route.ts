@@ -1,5 +1,5 @@
 // app/api/rooms/by-category/route.ts
-import { proxyGet } from "~/lib/route-proxy.server";
+import { proxyGet } from "~/lib/route-wrapper.server";
 import type { BackendRoom } from "~/lib/room-helpers";
 
 /**

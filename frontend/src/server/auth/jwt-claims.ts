@@ -1,28 +1,16 @@
 import "server-only";
 import type { JWT } from "next-auth/jwt";
 import { createLogger } from "~/lib/logger";
-import type { JwtPayload } from "./jwt-payload";
+import { decodeJwtPayload, type JwtPayload } from "./jwt-payload";
 import type { PortalIdentity } from "./portals";
 import type { AuthUser } from "./session-types";
 
 export const authLogger = createLogger({ component: "NextAuthConfig" });
 
 export function parseJwtPayload(tokenString: string): JwtPayload | null {
-  const payloadPart = tokenString.split(".")[1];
-  if (tokenString.split(".").length !== 3 || !payloadPart) {
-    authLogger.error("invalid jwt token format", {});
-    return null;
-  }
-  try {
-    return JSON.parse(
-      Buffer.from(payloadPart, "base64").toString(),
-    ) as JwtPayload;
-  } catch (e) {
-    authLogger.error("error parsing jwt", {
-      error: e instanceof Error ? e.message : String(e),
-    });
-    return null;
-  }
+  const payload = decodeJwtPayload(tokenString);
+  if (!payload) authLogger.error("invalid jwt token format", {});
+  return payload;
 }
 
 export function buildDisplayName(

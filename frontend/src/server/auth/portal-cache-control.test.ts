@@ -74,7 +74,7 @@ function backendJson(status: number, body: unknown): Response {
 const routes: Array<[string, () => Promise<Route>]> = [
   [
     "tenant",
-    async () => (await import("~/lib/route-proxy.server")).proxyGet("/api/x"),
+    async () => (await import("~/lib/route-wrapper.server")).proxyGet("/api/x"),
   ],
   [
     "tenant pass-through",

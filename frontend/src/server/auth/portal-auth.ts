@@ -14,7 +14,7 @@ import { createResponseAwareAuth } from "./route-handler";
  * function except through mutateSession, which hands their cookies to the
  * session cookie exit (#5399).
  */
-export function createPortalAuth(portal: PortalDescriptor) {
+export function createPortalAuth<const P extends PortalDescriptor>(portal: P) {
   const nextAuth = NextAuth(createPortalAuthConfig(portal));
   const { mutateSession, ...responseAware } = createResponseAwareAuth(
     nextAuth.auth,
@@ -55,9 +55,15 @@ export function createPortalAuth(portal: PortalDescriptor) {
     );
 
   return {
+    portal,
     ...responseAware,
+    /** The wrapper every authenticated BFF route of the portal runs in. */
+    withAuth: responseAware.withAuthResponse,
     handlers: nextAuth.handlers,
     setSession,
     updateSession,
   };
 }
+
+/** One portal's Auth.js instance with its descriptor; see createPortalAuth. */
+export type PortalAuth = ReturnType<typeof createPortalAuth<PortalDescriptor>>;

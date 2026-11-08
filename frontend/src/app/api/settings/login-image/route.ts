@@ -6,8 +6,7 @@ import {
   FileValidationError,
   postForm,
 } from "~/lib/file-upload-wrapper.server";
-import { proxyGet } from "~/lib/route-proxy.server";
-import { createDeleteHandler } from "~/lib/route-wrapper.server";
+import { createDeleteHandler, proxyGet } from "~/lib/route-wrapper.server";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "LoginImageRoute" });

@@ -33,14 +33,22 @@ vi.mock("~/server/auth/portal-config", async (original) => {
   };
 });
 
-import { createPortalLoginRoute } from "~/lib/portal-login-route.server";
+import { createPortalLoginRoute } from "~/lib/login-route.server";
 import { POST as demo } from "../demo/access/sessions/route";
-import { operatorHandlers } from "~/server/auth/operator";
-import { schoolHandlers } from "~/server/auth/school";
-import { traegerHandlers } from "~/server/auth/traeger";
-import { catererHandlers } from "~/server/auth/caterer";
+import { operatorHandlers, operatorPortal } from "~/server/auth/operator";
+import { schoolHandlers, schoolPortal } from "~/server/auth/school";
+import { traegerHandlers, traegerPortal } from "~/server/auth/traeger";
+import { catererHandlers, catererPortal } from "~/server/auth/caterer";
 import { parentHandlers } from "~/server/auth/parent";
-import { handlers as tenantHandlers } from "~/server/auth";
+import { handlers as tenantHandlers, tenantPortal } from "~/server/auth";
+
+const LOGIN = {
+  tenant: tenantPortal,
+  operator: operatorPortal,
+  school: schoolPortal,
+  caterer: catererPortal,
+  traeger: traegerPortal,
+};
 
 const backend = vi.fn();
 const claims = (scope: string) => ({
@@ -136,7 +144,7 @@ describe.each(portals)(
           )
           .mockResolvedValueOnce(Response.json(claims(scope)));
         const response = await createPortalLoginRoute(
-          portal,
+          LOGIN[portal],
           step,
         )(
           request(
@@ -211,7 +219,7 @@ describe.each(portals)(
       "rejects Origin %s before minting",
       async (origin) => {
         const response = await createPortalLoginRoute(
-          portal,
+          LOGIN[portal],
           "login",
         )(request(portal, {}, origin));
         expect(response.status).toBe(403);
@@ -223,7 +231,7 @@ describe.each(portals)(
       const problem = { code: "identity.use_parent_portal", status: 403 };
       backend.mockResolvedValueOnce(Response.json(problem, { status: 403 }));
       const response = await createPortalLoginRoute(
-        portal,
+        LOGIN[portal],
         "login",
       )(request(portal));
       expect(response.status).toBe(403);
@@ -236,7 +244,7 @@ describe.each(portals)(
         .mockResolvedValueOnce(Response.json(claims("wrong-portal")))
         .mockResolvedValueOnce(new Response(null, { status: 204 }));
       const response = await createPortalLoginRoute(
-        portal,
+        LOGIN[portal],
         "login",
       )(request(portal));
       expect(response.status).toBe(500);
@@ -273,7 +281,7 @@ describe.each(portals)(
           Response.json(wrap({ ...data, extra_token: "must-not-leak" })),
         );
         const response = await createPortalLoginRoute(
-          portal,
+          LOGIN[portal],
           "login",
         )(request(portal));
         expect(await response.json()).toEqual(wrap(data));
@@ -292,7 +300,7 @@ it("allowlists Träger organization selection without disclosing credentials", a
     }),
   );
   const response = await createPortalLoginRoute(
-    "traeger",
+    LOGIN.traeger,
     "login",
   )(request("traeger"));
   expect(await response.json()).toEqual({

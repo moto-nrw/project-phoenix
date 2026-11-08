@@ -1,4 +1,4 @@
-import { proxyGet, proxyPost } from "~/lib/route-proxy.server";
+import { proxyGet, proxyPost } from "~/lib/route-wrapper.server";
 
 type WorkTimeModel = Record<string, unknown>;
 type CreateBody = Record<string, unknown>;

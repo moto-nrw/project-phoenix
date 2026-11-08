@@ -3,8 +3,7 @@ import type { JWT } from "next-auth/jwt";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createHmac, randomBytes } from "node:crypto";
 import { env } from "~/env";
-import { canonicalForwardedFor } from "~/lib/client-headers.server";
-import { getServerApiUrl } from "~/lib/server-api-url";
+import { sendBackend } from "~/lib/backend-client.server";
 import { authLogger, parseJwtPayload } from "./jwt-claims";
 import type { BackendEndpoint } from "./portals";
 
@@ -45,7 +44,6 @@ export type Rotation =
   | { status: "terminal"; remembered: boolean }
   | { status: "transient" };
 
-const REFRESH_TIMEOUT_MS = 5_000;
 const REFRESH_CACHE_TTL_MS = 5 * 60 * 1000;
 const MAX_CACHE_ENTRIES = 100;
 
@@ -120,26 +118,6 @@ function refreshTokenExpiresAt(refreshToken: string): number | null {
   return payload.exp * 1000;
 }
 
-/** Client IP and User-Agent of the request being handled, if any. */
-export async function getRefreshAuditHeaders(): Promise<
-  Record<string, string>
-> {
-  try {
-    const { headers } = await import("next/headers");
-    const incoming = await headers();
-    const forwardedFor = canonicalForwardedFor(incoming);
-    const userAgent = incoming.get("user-agent");
-    return {
-      ...(forwardedFor && { "X-Forwarded-For": forwardedFor }),
-      ...(userAgent && { "User-Agent": userAgent }),
-    };
-  } catch {
-    // Auth callbacks can also run outside a request (for example in tests or
-    // maintenance code). Missing audit context must not break session renewal.
-    return {};
-  }
-}
-
 function pruneRefreshCache(): void {
   const now = Date.now();
   for (const [key, entry] of refreshCache) {
@@ -197,15 +175,10 @@ async function fetchRotation(
   token: JWT,
 ): Promise<Rotation> {
   try {
-    const response = await fetch(`${getServerApiUrl()}${endpoint.path}`, {
+    const response = await sendBackend(endpoint.path, refreshToken, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${refreshToken}`,
-        "Content-Type": "application/json",
-        "X-Refresh-Recovery-Proof": recoveryProof,
-        ...(await getRefreshAuditHeaders()),
-      },
-      signal: AbortSignal.timeout(REFRESH_TIMEOUT_MS),
+      headers: { "X-Refresh-Recovery-Proof": recoveryProof },
+      timeout: "session",
     });
     if (!response.ok) {
       authLogger.warn("proactive_token_refresh_failed", {
@@ -327,19 +300,13 @@ export async function redeemTraegerHandoff(
     return null;
   }
   try {
-    const response = await fetch(`${getServerApiUrl()}${endpoint.path}`, {
+    const response = await sendBackend(endpoint.path, handoffToken, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${handoffToken}`,
-        "Content-Type": "application/json",
-        // A fresh proof per redemption: the hand-off token alone, replayed
-        // within the recovery window, must not recover the session it
-        // opened. A lost answer means opening the school again.
-        "X-Refresh-Recovery-Proof": createRefreshRecoveryProof(),
-        ...(await getRefreshAuditHeaders()),
-      },
-      cache: "no-store",
-      signal: AbortSignal.timeout(REFRESH_TIMEOUT_MS),
+      // A fresh proof per redemption: the hand-off token alone, replayed
+      // within the recovery window, must not recover the session it
+      // opened. A lost answer means opening the school again.
+      headers: { "X-Refresh-Recovery-Proof": createRefreshRecoveryProof() },
+      timeout: "session",
     });
     if (!response.ok) {
       authLogger.warn("traeger_handoff_refused", { status: response.status });
