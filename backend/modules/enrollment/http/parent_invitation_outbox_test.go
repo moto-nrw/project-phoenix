@@ -53,7 +53,13 @@ func TestParentInvitationOutboxIsAtomicWithApproval(t *testing.T) {
 			students, err := owners.NewPeopleDirectory(database)
 			require.NoError(t, err)
 			bookings := newBookingMaterialization(t, db, api.WithBookingCatalog(newCareOfferingCatalog(t, db).Catalog), api.WithBookingSettings(offeringGuardSettings(false))).Bookings
-			decisions := newParentInvitationDecisions(repos, careRows, timetableRows, guardianAccess, students, bookings)
+			delivery, err := api.NewDeliveryTestModule(database, testpkg.TenantRuntime(t, db))
+			require.NoError(t, err)
+			invitations, err := api.NewGuardianInvitationServiceForTests(database, testpkg.TenantRuntime(t, db), api.GuardianInvitationTestConfig{
+				Outbox: owners.OutboxEnqueuer{Runtime: delivery.Runtime, Outbox: delivery.EmailOutbox},
+			})
+			require.NoError(t, err)
+			decisions := newParentInvitationDecisions(repos, careRows, timetableRows, guardianAccess, invitations, students, bookings)
 			decision := enrollmentAPI.NewDecisionService(enrollmentCompose.PublicDecisions(decisions))
 			intakeMails := &recordingOutbox{}
 			requests := newFixtureRequestRoot(owners.NewEnrollmentIntake(owners.EnrollmentIntakeSources{
@@ -63,17 +69,8 @@ func TestParentInvitationOutboxIsAtomicWithApproval(t *testing.T) {
 				LateInviteRepo: repos.Enrollment(), OutboxEnqueuer: intakeMails, Settings: stubTakeoverSettings{},
 				ManualDecider: decisions, FrontendURL: "http://localhost:3000", ParentsURL: "http://parents.localhost:3000", Logger: slog.Default(),
 			}))
-			delivery, err := api.NewDeliveryTestModule(database, testpkg.TenantRuntime(t, db))
-			require.NoError(t, err)
-			invitations, err := api.NewGuardianInvitationServiceForTests(database, testpkg.TenantRuntime(t, db), api.GuardianInvitationTestConfig{
-				Outbox: owners.OutboxEnqueuer{Runtime: delivery.Runtime, Outbox: delivery.EmailOutbox},
-			})
-			require.NoError(t, err)
 			resource := enrollmentAPI.NewResource(nil, nil, requests, nil, nil, decision, nil, nil, nil, nil,
-				enrollmentAPI.GuardianInvitationRuntime{Create: func(inviteCtx context.Context, profileID, actorID int64) error {
-					_, err := invitations.CreateGuardianInvitation(inviteCtx, identityaccess.GuardianInvitationRequest{GuardianProfileID: profileID, CreatedBy: actorID})
-					return err
-				}}, nil, nil, nativeUploads.UploadFiles{}, enrollmentAPI.DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation})
+				nil, nil, nativeUploads.UploadFiles{}, enrollmentAPI.DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation})
 			router := testpkg.TenantRuntimeMiddleware(t, db)(resource.Router(api.TenantSessionChain))
 			path, payload, wantStatus := fmt.Sprintf("/admin/requests/%d/children/%d/decide", request.ID, child.ID), []byte(`{"status":"approved"}`), http.StatusOK
 			if manual {
@@ -121,7 +118,7 @@ func TestParentInvitationOutboxIsAtomicWithApproval(t *testing.T) {
 	}
 }
 
-func newParentInvitationDecisions(repos api.EnrollmentTestRepositories, reposCare owners.TimetableCarePlanRows, reposTimetable owners.TimetableTestRepositories, guardianAccess TestDecisionGuardianAccess, studentEnrollment owners.EnrollmentDecisionPeople, bookings TestDecisionBookings) *TestDecisions {
+func newParentInvitationDecisions(repos api.EnrollmentTestRepositories, reposCare owners.TimetableCarePlanRows, reposTimetable owners.TimetableTestRepositories, guardianAccess TestDecisionGuardianAccess, invitations identityaccess.GuardianInvitations, studentEnrollment owners.EnrollmentDecisionPeople, bookings TestDecisionBookings) *TestDecisions {
 	return owners.NewEnrollmentDecisions(enrollmentCompose.DecisionDependencies{
 		Requests:       repos.Enrollment(),
 		Children:       repos.Enrollment(),
@@ -133,6 +130,8 @@ func newParentInvitationDecisions(repos api.EnrollmentTestRepositories, reposCar
 		Notifications:  NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: parentInvitationSettings()}, discardingOutbox{}, nil),
 		Bookings:       bookings,
 		GuardianAccess: guardianAccess,
+		// The approval creates its invitation through the owner command (#6093).
+		GuardianInvitations: invitations,
 		People: owners.EnrollmentDecisionPeopleDirectory(
 			repos.Person, repos.Staff, repos.Student, repos.StudentGuardian, repos.GuardianProfile, repos.GuardianPhoneNumber, studentEnrollment,
 		),

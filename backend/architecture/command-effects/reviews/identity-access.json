@@ -457,17 +457,6 @@
     },
     {
       "adr": "0098",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListGuardianInvitations",
-      "classification": "platform",
-      "effect": "scope",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.GuardianInvitations.ListGuardianInvitations",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.ListGuardianInvitations. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.Invitations.ListGuardianInvitations",
       "classification": "platform",
       "effect": "scope",
@@ -479,33 +468,11 @@
     },
     {
       "adr": "0098",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListOpenGuardianInvitations",
-      "classification": "platform",
-      "effect": "scope",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.GuardianInvitations.ListOpenGuardianInvitations",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.ListOpenGuardianInvitations. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.Invitations.ListOpenGuardianInvitations",
       "classification": "platform",
       "effect": "scope",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.GuardianInvitations.ListOpenGuardianInvitations",
       "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess/inbound/account.Invitations.ListOpenGuardianInvitations. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "adr": "0098",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListRedeemableGuardianInvitations",
-      "classification": "platform",
-      "effect": "scope",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.GuardianInvitations.ListRedeemableGuardianInvitations",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/identityaccess.Owner.ListRedeemableGuardianInvitations. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime"

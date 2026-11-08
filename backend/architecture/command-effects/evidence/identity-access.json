@@ -337,14 +337,6 @@
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListGuardianInvitations",
-      "binding_digest": "8a473a38dba3570396b965ca37711bf3",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.GuardianInvitations.ListGuardianInvitations",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
-      "target_owner": "tenant-runtime"
-    },
-    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.Invitations.ListGuardianInvitations",
       "binding_digest": "8a473a38dba3570396b965ca37711bf3",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.GuardianInvitations.ListGuardianInvitations",
@@ -353,25 +345,9 @@
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListOpenGuardianInvitations",
-      "binding_digest": "8a473a38dba3570396b965ca37711bf3",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.GuardianInvitations.ListOpenGuardianInvitations",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
-      "target_owner": "tenant-runtime"
-    },
-    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.Invitations.ListOpenGuardianInvitations",
       "binding_digest": "8a473a38dba3570396b965ca37711bf3",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.GuardianInvitations.ListOpenGuardianInvitations",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListRedeemableGuardianInvitations",
-      "binding_digest": "8a473a38dba3570396b965ca37711bf3",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.GuardianInvitations.ListRedeemableGuardianInvitations",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime"

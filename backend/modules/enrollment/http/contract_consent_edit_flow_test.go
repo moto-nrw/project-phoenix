@@ -67,7 +67,7 @@ func setupContractConsentTest(t *testing.T, tenantID int64) (*signatureEnv, int6
 	}))
 	resource := enrollmentAPI.NewResource(
 		nil, nil, requests, nil, nil, nil, nil, nil, nil,
-		nil, enrollmentAPI.GuardianInvitationRuntime{}, nil, nil,
+		nil, nil, nil,
 		nativeUploads.UploadFiles{}, enrollmentAPI.DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation})
 	return &signatureEnv{
 		db: db, router: testpkg.TenantRuntimeMiddleware(t, db)(resource.Router(api.TenantSessionChain)),
