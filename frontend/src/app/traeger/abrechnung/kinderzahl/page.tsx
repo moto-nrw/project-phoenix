@@ -9,8 +9,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { billingTabs } from "~/components/traeger/billing-family-format";
-import { FamilyChildrenChecks } from "~/components/traeger/family-children-checks";
 import {
+  checkReason,
   childrenLabel,
   familyName,
   NEEDS_CHECK,
@@ -20,11 +20,15 @@ import {
   validityLabel,
 } from "~/components/traeger/family-children-format";
 import { FamilyChildrenModal } from "~/components/traeger/family-children-modal";
+import { ChevronDown, ChevronUp, TriangleAlert } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
+import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
@@ -44,9 +48,17 @@ import {
 
 const logger = createLogger({ component: "TraegerKinderzahlPage" });
 
+/** Rows of „Zu prüfen“ shown before „N weitere anzeigen“. */
+const INITIAL_CHECKS = 5;
+
 function ContractChildrenCell({
   family,
 }: Readonly<{ family: FamilyChildren }>) {
+  if (family.children.length === 0) {
+    return (
+      <span className="text-sm text-gray-600">Noch kein wirksamer Vertrag</span>
+    );
+  }
   return (
     <div className="min-w-0">
       <p className="text-sm text-gray-900">
@@ -97,6 +109,7 @@ export default function TraegerKinderzahlPage() {
   const [checking, setChecking] = useState<FamilyChildren | null>(null);
   const [removing, setRemoving] = useState<FamilyChildren | null>(null);
   const [busy, setBusy] = useState(false);
+  const [checksExpanded, setChecksExpanded] = useState(false);
   const pageLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = pageLoad;
   const removeErrors = useApiFormError();
@@ -321,7 +334,76 @@ export default function TraegerKinderzahlPage() {
         />
       ) : null}
       {data && toCheck.length > 0 ? (
-        <FamilyChildrenChecks families={toCheck} onCheck={setChecking} />
+        <SectionCard
+          title="Zu prüfen"
+          titleBadge={
+            <StatusBadge tone="orange" label={`${toCheck.length} offen`} />
+          }
+          description="Bis Sie prüfen, zählt der Monatslauf die bisher bestätigte Zahl. Ohne sie zählen nur die Kinder mit Vertrag."
+          leading={
+            <TriangleAlert
+              className="text-moto-orange-strong mt-0.5 size-5 shrink-0"
+              aria-hidden="true"
+            />
+          }
+        >
+          <ResponsiveActionList>
+            {(checksExpanded ? toCheck : toCheck.slice(0, INITIAL_CHECKS)).map(
+              (family) => (
+                <li
+                  key={family.recipientEmail}
+                  className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center"
+                >
+                  <div className="min-w-0">
+                    <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-gray-900">
+                      {familyName(family)}
+                      <StatusBadge
+                        tone={STATUS_TONES[family.status]}
+                        label={STATUS_LABELS[family.status]}
+                      />
+                    </p>
+                    <p className="mt-0.5 text-sm text-gray-600">
+                      {checkReason(family)}
+                    </p>
+                  </div>
+                  <div className="flex w-full flex-col gap-2 min-[480px]:w-auto min-[480px]:flex-row sm:justify-end">
+                    <Button
+                      type="button"
+                      variant="surface"
+                      size="compact"
+                      aria-label={`Kinderzahl von ${familyName(family)} prüfen`}
+                      onClick={() => setChecking(family)}
+                    >
+                      Prüfen
+                    </Button>
+                  </div>
+                </li>
+              ),
+            )}
+          </ResponsiveActionList>
+          {toCheck.length > INITIAL_CHECKS ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="compact"
+              className="mt-3"
+              aria-expanded={checksExpanded}
+              onClick={() => setChecksExpanded((open) => !open)}
+            >
+              {checksExpanded ? (
+                <>
+                  <ChevronUp className="size-4" aria-hidden="true" />
+                  Weniger anzeigen
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="size-4" aria-hidden="true" />
+                  {toCheck.length - INITIAL_CHECKS} weitere anzeigen
+                </>
+              )}
+            </Button>
+          ) : null}
+        </SectionCard>
       ) : null}
       {data && families.length > 0 ? (
         <DataTable

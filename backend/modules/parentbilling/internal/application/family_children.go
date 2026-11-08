@@ -82,18 +82,26 @@ func (f *FamilyNumbers) FamilyChildren(ctx context.Context, reviewer parentbilli
 	if err != nil {
 		return parentbilling.FamilyChildrenSet{}, fmt.Errorf("parent billing: read the contract versions: %w", err)
 	}
+	counts, err := f.store.FamilyChildCounts(ctx, reviewer.OrganizationID)
+	if err != nil {
+		return parentbilling.FamilyChildrenSet{}, err
+	}
+	// The recipients of the contracts in force and of the contracts a number
+	// hangs on: a family that stated its number on a contract not yet in
+	// force still needs the check of the Abrechnung.
 	contracts := evidenceContracts(versions)
-	ids := make([]int64, len(contracts))
-	for i, contract := range contracts {
-		ids[i] = contract.ContractID
+	ids := make([]int64, 0, len(contracts)+len(counts))
+	for _, contract := range contracts {
+		ids = append(ids, contract.ContractID)
+	}
+	for _, count := range counts {
+		if !slices.Contains(ids, count.ContractID) {
+			ids = append(ids, count.ContractID)
+		}
 	}
 	recipients, err := f.contracts.Recipients(ctx, reviewer.OrganizationID, ids)
 	if err != nil {
 		return parentbilling.FamilyChildrenSet{}, fmt.Errorf("parent billing: read the contract parties: %w", err)
-	}
-	counts, err := f.store.FamilyChildCounts(ctx, reviewer.OrganizationID)
-	if err != nil {
-		return parentbilling.FamilyChildrenSet{}, err
 	}
 	families := groupFamilies(versions, recipients, counts, today)
 	if err := f.recordFamilyReads(ctx, reviewer, families); err != nil {
@@ -141,9 +149,18 @@ func groupFamilies(versions []parentbilling.CareContractVersion, recipients map[
 			SchoolName: contract.SchoolName, ChildFirstName: contract.ChildFirstName, ChildLastName: contract.ChildLastName})
 	}
 	for i := range counts {
-		if family, ok := byKey[counts[i].FamilyEmail]; ok {
-			family.Count = &counts[i]
+		family, ok := byKey[counts[i].FamilyEmail]
+		if !ok {
+			// A number without a contract in force, for example stated on a
+			// sent contract: the family shows with the recipient of that
+			// contract and no child with a contract yet.
+			recipient := recipients[counts[i].ContractID]
+			family = &parentbilling.FamilyChildren{RecipientFirstName: recipient.FirstName, RecipientLastName: recipient.LastName,
+				RecipientEmail: counts[i].FamilyEmail, Children: []parentbilling.FamilyContractChild{}}
+			byKey[counts[i].FamilyEmail] = family
+			order = append(order, counts[i].FamilyEmail)
 		}
+		family.Count = &counts[i]
 	}
 	families := make([]parentbilling.FamilyChildren, 0, len(order))
 	for _, key := range order {
@@ -172,6 +189,11 @@ func familyChildrenStatus(count *parentbilling.FamilyChildCount, today calendar.
 		count.StatedAt.After(*count.ConfirmedAt) && *count.StatedChildren != *count.ConfirmedChildren:
 		return parentbilling.FamilyChildrenChanged
 	case count.ValidFrom.After(today):
+		// A later confirmation: until it starts, an earlier one may still
+		// hold. Was there one that has ended, the family has a gap now.
+		if started, holds := count.CoveredOn(today); started && !holds {
+			return parentbilling.FamilyChildrenExpired
+		}
 		return parentbilling.FamilyChildrenUpcoming
 	case count.ValidUntil != nil && !count.ValidUntil.After(today.AddDays(parentbilling.FamilyChildrenExpiryNotice)):
 		return parentbilling.FamilyChildrenExpiring

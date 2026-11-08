@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -138,4 +139,45 @@ func TestFamilyChildrenSupersedesExpiredConfirmations(t *testing.T) {
 			assert.Equal(t, tc.children, children)
 		})
 	}
+}
+
+// A confirmation that ended and a later one that has not started leave a
+// gap: the family needs a check now, not „Gilt später“. Without an earlier
+// confirmation a later one is upcoming.
+func TestFamilyChildrenStatusShowsTheGapBeforeALaterConfirmation(t *testing.T) {
+	t.Parallel()
+	today := calendar.NewDate(2026, 12, 10)
+	confirmedAt := time.Date(2026, 12, 1, 9, 0, 0, 0, time.UTC)
+	later := parentbilling.FamilyChildCount{ConfirmedChildren: ptr(3), ValidFrom: ptr(calendar.NewDate(2027, 1, 1)), ConfirmedAt: &confirmedAt,
+		Confirmations: []parentbilling.FamilyChildConfirmation{
+			{Children: ptr(3), ValidFrom: ptr(calendar.NewDate(2027, 1, 1))},
+			{Children: ptr(2), ValidFrom: ptr(calendar.NewDate(2026, 8, 1)), ValidUntil: ptr(calendar.NewDate(2026, 11, 30))},
+		}}
+	assert.Equal(t, parentbilling.FamilyChildrenExpired, familyChildrenStatus(&later, today), "December has no number")
+	covered := later
+	covered.Confirmations = []parentbilling.FamilyChildConfirmation{
+		{Children: ptr(3), ValidFrom: ptr(calendar.NewDate(2027, 1, 1))},
+		{Children: ptr(2), ValidFrom: ptr(calendar.NewDate(2026, 8, 1)), ValidUntil: ptr(calendar.NewDate(2026, 12, 31))},
+	}
+	assert.Equal(t, parentbilling.FamilyChildrenUpcoming, familyChildrenStatus(&covered, today), "the earlier one holds until the later starts")
+	first := later
+	first.Confirmations = nil
+	assert.Equal(t, parentbilling.FamilyChildrenUpcoming, familyChildrenStatus(&first, today), "a first confirmation that starts later")
+}
+
+// A family that stated its number on a contract not yet in force shows for
+// the check, with the recipient of that contract and no child with a
+// contract.
+func TestFamilyChildrenListsAStatementOnASentContract(t *testing.T) {
+	t.Parallel()
+	statedAt := time.Date(2026, 9, 5, 8, 0, 0, 0, time.UTC)
+	counts := []parentbilling.FamilyChildCount{{ID: 5, ContractID: 77, FamilyEmail: "neu@example.org", StatedChildren: ptr(3), StatedAt: &statedAt}}
+	recipients := map[int64]parentbilling.CareRecipient{77: {FirstName: "Nora", LastName: "Neu", Email: "Neu@example.org"}}
+	families := groupFamilies(nil, recipients, counts, calendar.NewDate(2026, 9, 9))
+	require.Len(t, families, 1)
+	assert.Equal(t, "Nora", families[0].RecipientFirstName)
+	assert.Equal(t, "neu@example.org", families[0].RecipientEmail)
+	assert.Empty(t, families[0].Children)
+	require.NotNil(t, families[0].Count)
+	assert.Equal(t, parentbilling.FamilyChildrenStated, families[0].Status)
 }

@@ -161,12 +161,18 @@ export function FamilyChildrenModal({
           <InsetPanel>
             <DataGrid>
               <DataField label="Kinder mit Vertrag">
-                {childrenLabel(withContract)}
-                <span className="mt-0.5 block font-normal text-gray-600">
-                  {family.children
-                    .map((child) => child.childFirstName)
-                    .join(", ")}
-                </span>
+                {withContract === 0 ? (
+                  "Noch kein wirksamer Vertrag"
+                ) : (
+                  <>
+                    {childrenLabel(withContract)}
+                    <span className="mt-0.5 block font-normal text-gray-600">
+                      {family.children
+                        .map((child) => child.childFirstName)
+                        .join(", ")}
+                    </span>
+                  </>
+                )}
               </DataField>
               <DataField label="Angabe der Eltern">
                 {count?.statedChildren ? (

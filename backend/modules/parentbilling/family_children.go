@@ -91,6 +91,21 @@ type FamilyChildCount struct {
 	Confirmations []FamilyChildConfirmation `json:"-"`
 }
 
+// CoveredOn tells, for a day, whether an earlier confirmation was in force
+// and whether it still holds: the newest confirmation that started by then
+// decides, as in ConfirmedIn. started is false when no confirmation had
+// started by that day.
+func (c FamilyChildCount) CoveredOn(day calendar.Date) (started, holds bool) {
+	confirmations := append([]FamilyChildConfirmation{{Children: c.ConfirmedChildren, ValidFrom: c.ValidFrom, ValidUntil: c.ValidUntil}}, c.Confirmations...)
+	for _, confirmation := range confirmations {
+		if confirmation.Children == nil || confirmation.ValidFrom == nil || confirmation.ValidFrom.After(day) {
+			continue
+		}
+		return true, confirmation.ValidUntil == nil || !confirmation.ValidUntil.Before(day)
+	}
+	return false, false
+}
+
 // ConfirmedIn answers the confirmed number that holds on a day of the
 // month that starts on first. A newer confirmation replaces older ones
 // from its start onward, including after its expiry.

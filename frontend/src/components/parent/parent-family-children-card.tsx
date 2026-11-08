@@ -6,16 +6,19 @@
 // Geschwisterermäßigung. Gespeichert wird nur die Zahl.
 
 import { useLocale, useTranslations } from "next-intl";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { FieldLabel } from "~/components/ui/field-label";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { InsetPanel } from "~/components/ui/inset-panel";
 import { NumberStepper } from "~/components/ui/number-stepper";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import {
-  useApiErrorDisplay,
+  useApiFormError,
   useApiLoadError,
   useToast,
 } from "~/contexts/ToastContext";
@@ -54,7 +57,8 @@ export function ParentFamilyChildrenCard({
   const [saving, setSaving] = useState(false);
   const loadError = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = loadError;
-  const saveError = useApiErrorDisplay();
+  const formRef = useRef<HTMLFormElement>(null);
+  const saveError = useApiFormError(formRef);
   const { success } = useToast();
 
   const load = useCallback(async () => {
@@ -79,6 +83,7 @@ export function ParentFamilyChildrenCard({
   }, [load]);
 
   const submit = async () => {
+    saveError.clear();
     setSaving(true);
     try {
       setFamily(
@@ -138,50 +143,55 @@ export function ParentFamilyChildrenCard({
           ) : null}
           {family.canState ? (
             <form
+              ref={formRef}
               noValidate
-              className="flex flex-col gap-3 sm:flex-row sm:items-end"
+              className="space-y-3"
               onSubmit={(event) => {
                 event.preventDefault();
                 void submit();
               }}
             >
-              <div className="min-w-0">
-                <FieldLabel htmlFor="parent-family-children" required>
-                  {t("fieldLabel")}
-                </FieldLabel>
-                <NumberStepper
-                  id="parent-family-children"
-                  name="children"
-                  value={String(children)}
-                  onChange={(event) => {
-                    const next = Number(event.target.value);
-                    if (
-                      Number.isInteger(next) &&
-                      next >= 1 &&
-                      next <= MAX_CHILDREN
-                    )
-                      setChildren(next);
-                  }}
-                  onStep={(delta) =>
-                    setChildren((current) =>
-                      Math.min(MAX_CHILDREN, Math.max(1, current + delta)),
-                    )
-                  }
-                  canDecrement={children > 1}
-                  canIncrement={children < MAX_CHILDREN}
-                  decrementLabel={t("less")}
-                  incrementLabel={t("more")}
-                />
+              <FormErrorAlert message={saveError.error} />
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                <div className="min-w-0">
+                  <FieldLabel htmlFor="parent-family-children" required>
+                    {t("fieldLabel")}
+                  </FieldLabel>
+                  <NumberStepper
+                    id="parent-family-children"
+                    name="children"
+                    value={String(children)}
+                    onChange={(event) => {
+                      const next = Number(event.target.value);
+                      if (
+                        Number.isInteger(next) &&
+                        next >= 1 &&
+                        next <= MAX_CHILDREN
+                      )
+                        setChildren(next);
+                    }}
+                    onStep={(delta) =>
+                      setChildren((current) =>
+                        Math.min(MAX_CHILDREN, Math.max(1, current + delta)),
+                      )
+                    }
+                    canDecrement={children > 1}
+                    canIncrement={children < MAX_CHILDREN}
+                    decrementLabel={t("less")}
+                    incrementLabel={t("more")}
+                    error={saveError.fieldError("children")}
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="md"
+                  isLoading={saving}
+                  loadingText={t("sending")}
+                >
+                  {t("send")}
+                </Button>
               </div>
-              <Button
-                type="submit"
-                variant="primary"
-                size="md"
-                isLoading={saving}
-                loadingText={t("sending")}
-              >
-                {t("send")}
-              </Button>
             </form>
           ) : (
             <p className="text-sm text-gray-600">{t("noRight")}</p>

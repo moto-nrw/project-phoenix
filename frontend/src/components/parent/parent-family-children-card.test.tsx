@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import type { ParentFamilyChildren } from "~/lib/parent-family-children-api";
@@ -65,5 +65,18 @@ describe("ParentFamilyChildrenCard", () => {
     expect(
       await screen.findByRole("button", { name: "Angabe senden" }),
     ).toBeInTheDocument();
+  });
+
+  it("shows a failed statement inside the form, not only as a toast", async () => {
+    mocks.fetch.mockResolvedValue({ ...family, canState: true });
+    mocks.state.mockRejectedValue(new Error("network down"));
+    render(<ParentFamilyChildrenCard organizationId="4" contractId="75" />, {
+      wrapper: ToastProvider,
+    });
+    const send = await screen.findByRole("button", { name: "Angabe senden" });
+    const form = send.closest("form") as HTMLFormElement;
+    fireEvent.click(send);
+    expect(await within(form).findByRole("alert")).toBeInTheDocument();
+    expect(mocks.state).toHaveBeenCalledWith("4", "75", 3);
   });
 });
