@@ -21,6 +21,7 @@ import {
 } from "~/components/ui/form-error-alert";
 import { PdfPreview, useObjectUrl } from "~/components/ui/pdf-preview";
 import { SectionCard } from "~/components/ui/section-card";
+import { ParentFamilyChildrenCard } from "./parent-family-children-card";
 import { SignaturePad } from "~/components/ui/signature-pad";
 import {
   CardGridSkeleton,
@@ -112,12 +113,25 @@ export function ContractSigningView({
         <CardGridSkeleton cards={3} className="grid grid-cols-1 gap-5" />
       </SkeletonRegion>
     );
+  const familyChildren =
+    source.kind === "inbox" ? (
+      <ParentFamilyChildrenCard
+        organizationId={source.organizationId}
+        contractId={source.contractId}
+      />
+    ) : null;
   if (view.signature || view.status !== "versendet") {
-    return <SignedConfirmation view={view} />;
+    return (
+      <div className="space-y-5">
+        <SignedConfirmation view={view} />
+        {familyChildren}
+      </div>
+    );
   }
   return (
     <div className="space-y-5">
       <ContractFacts view={view} />
+      {familyChildren}
       <BookedCare view={view} />
       <ContractDocument source={source} view={view} />
       <WithdrawalNotice view={view} />

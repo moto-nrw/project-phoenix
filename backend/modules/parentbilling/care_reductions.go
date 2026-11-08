@@ -90,6 +90,9 @@ type CareRuleInput struct {
 	DiscountCents       *int64         `json:"discount_cents"`
 	PriceCents          *int64         `json:"price_cents"`
 	CapCents            *int64         `json:"cap_cents"`
+	// CountsFamilyChildren lets a sibling rule count the family's number
+	// (#5918); other kinds never do.
+	CountsFamilyChildren bool `json:"counts_family_children"`
 }
 
 // CareRuleSet is what the rule page shows: the care rules by kind and
@@ -182,4 +185,6 @@ type CareReductions interface {
 	// changes that one otherwise.
 	SaveCareEvidence(ctx context.Context, reviewer HolidayReviewer, evidenceID int64, input CareEvidenceInput) (CareEvidenceSet, error)
 	DeleteCareEvidence(ctx context.Context, reviewer HolidayReviewer, evidenceID int64) (CareEvidenceSet, error)
+	// The Abrechnung checks the children of the families (#5918).
+	FamilyChildrenOffice
 }

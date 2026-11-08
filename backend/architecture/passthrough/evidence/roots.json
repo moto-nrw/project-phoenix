@@ -6302,6 +6302,20 @@
     },
     {
       "build": "production",
+      "evidence": "func (d parentBillingDocuments) FamilyChildren(ctx context.Context, organizationID int64, reader parentportal.FamilyChildrenReader) (parentportal.FamilyChildren, error) {\n\tchildren, err := d.documents.ParentFamilyChildren(ctx, organizationID, parentbilling.ParentFamilyReader(reader))\n\treturn parentFamilyChildrenView(children), parentFamilyChildrenError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/parentBillingDocuments.FamilyChildren",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d parentBillingDocuments) StateFamilyChildren(ctx context.Context, organizationID int64, reader parentportal.FamilyChildrenReader, children int) (parentportal.FamilyChildren, error) {\n\tstated, err := d.documents.StateFamilyChildren(ctx, organizationID, parentbilling.ParentFamilyReader(reader), children)\n\treturn parentFamilyChildrenView(stated), parentFamilyChildrenError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/parentBillingDocuments.StateFamilyChildren",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (r parentCareRequestReads) FindIdentity(ctx context.Context, id int64) (int64, int64, string, error) {\n\trow, err := r.source.CareRequestIdentity(ctx, id)\n\tif err != nil {\n\t\treturn 0, 0, \"\", err\n\t}\n\tif row == nil {\n\t\treturn 0, 0, \"\", parentportal.ErrRequestSharingNotFound\n\t}\n\treturn row.SubmittedBy, row.StudentID, row.RequestKind, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/parentCareRequestReads.FindIdentity",
@@ -6354,6 +6368,13 @@
       "evidence": "func (d parentContractDocuments) ContractSigningView(ctx context.Context, organizationID, contractID int64, reader parentportal.BillingDocumentReader) (parentportal.ContractSigningView, error) {\n\tview, err := d.signing.InboxSigningView(ctx, organizationID, contractID, carecontract.InboxReader(reader))\n\treturn parentSigningView(view, err)\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/parentContractDocuments.ContractSigningView",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d parentContractDocuments) FamilyEmail(ctx context.Context, organizationID, contractID int64) (string, error) {\n\trecipients, err := d.billing.BillingRecipients(ctx, organizationID, []int64{contractID})\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\trecipient, found := recipients[contractID]\n\tif !found || recipient.Email == \"\" {\n\t\treturn \"\", parentportal.ErrBillingDocumentNotFound\n\t}\n\treturn recipient.Email, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/parentContractDocuments.FamilyEmail",
       "owner": "roots"
     },
     {
