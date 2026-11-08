@@ -8,6 +8,18 @@ import (
 // MaxBodyLines preserves the legacy predicate threshold.
 const MaxBodyLines = 14
 
+// FlowHelperLines is what condition 3 counts back for a method that hands its
+// work to a flow helper (ADR 0177): the helper takes over the nil guard (three
+// lines), the runtime binding and the deferred error translation (one line
+// each), and its function literal adds two framing lines. A collapse into the
+// helper therefore neither hides nor reveals a delegation.
+const FlowHelperLines = 3
+
+// flowHelpers are the free functions ADR 0177 names. They are Identity &
+// Access's unit-of-work helpers; no other free function of that name exists
+// in the scanned trees.
+var flowHelpers = map[string]bool{"runFlow": true, "runFlowErr": true, "runFlow2": true}
+
 // IsDelegation applies the four conditions documented by the legacy gate.
 func IsDelegation(fn *ast.FuncDecl, fset *token.FileSet) bool {
 	// (1) a method, not a free function.
@@ -26,6 +38,9 @@ func IsDelegation(fn *ast.FuncDecl, fset *token.FileSet) bool {
 	}
 	// (3) body line span.
 	span := fset.Position(fn.Body.Rbrace).Line - fset.Position(fn.Body.Lbrace).Line + 1
+	if callsFlowHelper(fn.Body) {
+		span += FlowHelperLines
+	}
 	if span > MaxBodyLines {
 		return false
 	}
@@ -34,6 +49,21 @@ func IsDelegation(fn *ast.FuncDecl, fset *token.FileSet) bool {
 	// are ignored: neither leaves the module. A second field call means the
 	// method combines two collaborators, which is orchestration.
 	return modulePassthroughFieldCalls(fn.Body, receiver) == 1
+}
+
+// callsFlowHelper reports whether body calls one of the flow helpers as a
+// free function; a method or a selector of that name is no flow helper.
+func callsFlowHelper(body *ast.BlockStmt) bool {
+	found := false
+	ast.Inspect(body, func(n ast.Node) bool {
+		if call, ok := n.(*ast.CallExpr); ok {
+			if name, ok := call.Fun.(*ast.Ident); ok && flowHelpers[name.Name] {
+				found = true
+			}
+		}
+		return !found
+	})
+	return found
 }
 
 // modulePassthroughFieldCalls counts the calls in body whose Fun is a selector

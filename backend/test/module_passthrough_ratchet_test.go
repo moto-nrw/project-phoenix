@@ -29,6 +29,11 @@ import (
 //  1. *ast.FuncDecl with a receiver (a method, not a free function).
 //  2. Exported name (first letter upper-case).
 //  3. Body line span (Rbrace.Line - Lbrace.Line + 1) at most 14.
+//     A method that calls one of Identity & Access's flow helpers
+//     (runFlow, runFlowErr, runFlow2) counts three lines more, the nil
+//     guard, runtime binding and deferred translation the helper takes over
+//     net of its literal's framing (ADR 0177), so a collapse into the helper
+//     neither hides nor reveals a delegation.
 //  4. The body contains EXACTLY ONE *ast.CallExpr whose Fun is a selector
 //     chain of the form <receiver>.<field>.<method>(...), that is, a call
 //     through a FIELD of the receiver. Direct calls to sister methods

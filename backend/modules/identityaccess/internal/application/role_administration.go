@@ -267,14 +267,11 @@ func (r *RoleAdministration) AssignRoleToAccount(ctx context.Context, accountID,
 //
 // The target is assigned first so the account never temporarily loses its
 // staff role; a later failure rolls back the complete exchange.
-func (r *RoleAdministration) ReplaceAccountRole(ctx context.Context, accountID, roleID int64) (err error) {
-	if r == nil {
-		return errRoleAdministrationUnavailable
-	}
-	defer func() { err = roleError(err) }()
-	ctx = bindRuntime(r.attach, ctx)
-	return r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		return r.replaceAccountRoleInTx(txCtx, accountID, roleID)
+func (r *RoleAdministration) ReplaceAccountRole(ctx context.Context, accountID, roleID int64) error {
+	return runFlowErr(ctx, r.flow(), func(ctx context.Context) error {
+		return r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+			return r.replaceAccountRoleInTx(txCtx, accountID, roleID)
+		})
 	})
 }
 

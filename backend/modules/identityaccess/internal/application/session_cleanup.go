@@ -11,17 +11,14 @@ import (
 
 // CountExpiredTokens reports how many refresh sessions a cleanup would
 // remove, across every school.
-func (s *AccountAuthentication) CountExpiredTokens(ctx context.Context) (_ int, err error) {
-	if s == nil {
-		return 0, errAccountAuthenticationUnavailable
-	}
-	defer func() { err = authenticationError(err) }()
-	ctx = bindRuntime(s.attach, ctx)
-	count, err := s.sessions.CountExpiredAccountSessions(ctx)
-	if err != nil {
-		return 0, failed("count expired tokens", err)
-	}
-	return count, nil
+func (s *AccountAuthentication) CountExpiredTokens(ctx context.Context) (int, error) {
+	return runFlow(ctx, s.flow(), func(ctx context.Context) (int, error) {
+		count, err := s.sessions.CountExpiredAccountSessions(ctx)
+		if err != nil {
+			return 0, failed("count expired tokens", err)
+		}
+		return count, nil
+	})
 }
 
 // CleanupExpiredTokens removes expired refresh sessions and then reconciles
@@ -69,42 +66,36 @@ func (s *AccountAuthentication) reconcileRevokedSessions(ctx context.Context) er
 
 // ListActiveSessions returns the account's live refresh sessions in the
 // caller's tenant scope.
-func (s *AccountAuthentication) ListActiveSessions(ctx context.Context, accountID int64) (_ []identityaccess.ActiveSession, err error) {
-	if s == nil {
-		return nil, errAccountAuthenticationUnavailable
-	}
-	defer func() { err = authenticationError(err) }()
-	ctx = bindRuntime(s.attach, ctx)
-	sessions, err := s.sessions.ListAccountSessions(ctx, ports.AccountSessionFilter{AccountID: accountID, Liveness: ports.AccountSessionsLive})
-	if err != nil {
-		return nil, failed("get active tokens", err)
-	}
-	active := make([]identityaccess.ActiveSession, 0, len(sessions))
-	for _, session := range sessions {
-		active = append(active, identityaccess.ActiveSession{
-			ID: session.ID, Expiry: session.Expiry, Mobile: session.Mobile, Identifier: session.Identifier, CreatedAt: session.CreatedAt,
-		})
-	}
-	return active, nil
+func (s *AccountAuthentication) ListActiveSessions(ctx context.Context, accountID int64) ([]identityaccess.ActiveSession, error) {
+	return runFlow(ctx, s.flow(), func(ctx context.Context) ([]identityaccess.ActiveSession, error) {
+		sessions, err := s.sessions.ListAccountSessions(ctx, ports.AccountSessionFilter{AccountID: accountID, Liveness: ports.AccountSessionsLive})
+		if err != nil {
+			return nil, failed("get active tokens", err)
+		}
+		active := make([]identityaccess.ActiveSession, 0, len(sessions))
+		for _, session := range sessions {
+			active = append(active, identityaccess.ActiveSession{
+				ID: session.ID, Expiry: session.Expiry, Mobile: session.Mobile, Identifier: session.Identifier, CreatedAt: session.CreatedAt,
+			})
+		}
+		return active, nil
+	})
 }
 
 // ListSessionIDs returns the identifiers of every session of the account in
 // the caller's tenant scope, for revision fingerprints.
-func (s *AccountAuthentication) ListSessionIDs(ctx context.Context, accountID int64) (_ []int64, err error) {
-	if s == nil {
-		return nil, errAccountAuthenticationUnavailable
-	}
-	defer func() { err = authenticationError(err) }()
-	ctx = bindRuntime(s.attach, ctx)
-	sessions, err := s.sessions.ListAccountSessions(ctx, ports.AccountSessionFilter{AccountID: accountID})
-	if err != nil {
-		return nil, err
-	}
-	ids := make([]int64, 0, len(sessions))
-	for _, session := range sessions {
-		ids = append(ids, session.ID)
-	}
-	return ids, nil
+func (s *AccountAuthentication) ListSessionIDs(ctx context.Context, accountID int64) ([]int64, error) {
+	return runFlow(ctx, s.flow(), func(ctx context.Context) ([]int64, error) {
+		sessions, err := s.sessions.ListAccountSessions(ctx, ports.AccountSessionFilter{AccountID: accountID})
+		if err != nil {
+			return nil, err
+		}
+		ids := make([]int64, 0, len(sessions))
+		for _, session := range sessions {
+			ids = append(ids, session.ID)
+		}
+		return ids, nil
+	})
 }
 
 func (s *AccountAuthentication) reconcileInactiveSessions(adminCtx context.Context) (map[int64]struct{}, error) {
