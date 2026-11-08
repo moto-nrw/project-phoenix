@@ -52,8 +52,18 @@ describe("CareRunMealsCard", () => {
     render(
       <CareRunMealsCard
         gaps={[
-          { schoolId: "3", schoolName: "OGS Nord", month: "2026-01-01" },
-          { schoolId: "3", schoolName: "OGS Nord", month: "2026-02-01" },
+          {
+            schoolId: "3",
+            schoolName: "OGS Nord",
+            month: "2026-01-01",
+            expired: false,
+          },
+          {
+            schoolId: "3",
+            schoolName: "OGS Nord",
+            month: "2026-02-01",
+            expired: false,
+          },
         ]}
         unbilled={[
           {
@@ -105,5 +115,45 @@ describe("CareRunMealsCard", () => {
     expect(screen.queryByText("Kind Nummer 7")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "2 weitere anzeigen" }));
     expect(screen.getByText("Kind Nummer 7")).toBeInTheDocument();
+  });
+
+  it("names months past the attendance retention apart from the missing releases", () => {
+    render(
+      <CareRunMealsCard
+        gaps={[
+          {
+            schoolId: "3",
+            schoolName: "OGS Nord",
+            month: "2026-01-01",
+            expired: true,
+          },
+          {
+            schoolId: "3",
+            schoolName: "OGS Nord",
+            month: "2026-02-01",
+            expired: true,
+          },
+          {
+            schoolId: "3",
+            schoolName: "OGS Nord",
+            month: "2026-03-01",
+            expired: false,
+          },
+        ]}
+        unbilled={[]}
+      />,
+    );
+    expect(
+      screen.getByText("1 Monat ohne Freigabe · 2 nicht mehr abrechenbar"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Freigabe fehlt für März 2026."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Nicht mehr abrechenbar: Januar 2026, Februar 2026. Die Anwesenheiten dieser Monate sind nach der Aufbewahrungsfrist gelöscht.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 });

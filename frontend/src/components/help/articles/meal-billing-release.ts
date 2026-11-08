@@ -36,7 +36,7 @@ export function mealBillingReleaseTopic(): HelpTopic {
       "Sie können einen Monat später freigeben, solange alle Anwesenheiten aufbewahrt werden. Der Träger rechnet ihn dann nachträglich ab.",
     ],
     troubleshootingDetails: [
-      "Liegt der Monat vor der Aufbewahrungsfrist, ist keine Freigabe möglich. Die Anwesenheiten können bereits gelöscht sein. Wenden Sie sich an Ihren Träger.",
+      "`Nicht mehr abrechenbar`: Die Anwesenheiten dieses Monats sind nach der Aufbewahrungsfrist gelöscht. Eine Freigabe ist nicht mehr möglich. Geben Sie Monate deshalb bald nach dem Monatsende frei.",
       "`Seit dem Laden hat sich der Monat geändert`: Jemand hat eine Anwesenheit oder Anmeldung geändert. Prüfen Sie die Liste noch einmal und geben Sie dann frei.",
       "Eine Freigabe lässt sich nicht zurücknehmen. Stimmt danach etwas nicht, wenden Sie sich an Ihren Träger.",
     ],

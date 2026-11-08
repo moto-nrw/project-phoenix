@@ -41,6 +41,8 @@ export interface CareMealGap {
   readonly schoolId: string;
   readonly schoolName: string;
   readonly month: string;
+  /** The attendance of the month is past the school's retention: nobody can release or bill it any more. */
+  readonly expired: boolean;
 }
 
 /** A released Mensa month of a child the run does not bill. */
@@ -67,6 +69,7 @@ export interface BackendMealGap {
   school_id: number;
   school_name: string;
   month: string;
+  expired?: boolean;
 }
 
 export interface BackendMealUnbilled {
@@ -120,6 +123,7 @@ export function mealGapsFromBackend(
     schoolId: id(gap.school_id),
     schoolName: gap.school_name,
     month: gap.month,
+    expired: gap.expired ?? false,
   }));
 }
 

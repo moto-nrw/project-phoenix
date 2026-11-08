@@ -45,6 +45,20 @@ export function MealPositionLine({
   );
 }
 
+/** The gaps of each school, in the order the run lists them. */
+function groupBySchool(
+  gaps: readonly CareMealGap[],
+): Map<string, CareMealGap[]> {
+  const bySchool = new Map<string, CareMealGap[]>();
+  for (const gap of gaps) {
+    bySchool.set(gap.schoolName, [
+      ...(bySchool.get(gap.schoolName) ?? []),
+      gap,
+    ]);
+  }
+  return bySchool;
+}
+
 const UNBILLED_REASONS: Record<CareMealUnbilled["reason"], string> = {
   no_contract: "Kein Vertrag an der Schule in diesem Monat.",
   contract_billed:
@@ -140,13 +154,10 @@ export function CareRunMealsCard({
   unbilled: readonly CareMealUnbilled[];
 }>) {
   if (gaps.length === 0 && unbilled.length === 0) return null;
-  const bySchool = new Map<string, CareMealGap[]>();
-  for (const gap of gaps) {
-    bySchool.set(gap.schoolName, [
-      ...(bySchool.get(gap.schoolName) ?? []),
-      gap,
-    ]);
-  }
+  const open = gaps.filter((gap) => !gap.expired);
+  const expired = gaps.filter((gap) => gap.expired);
+  const bySchool = groupBySchool(open);
+  const expiredBySchool = groupBySchool(expired);
   const groups = new Map<string, CareMealUnbilled[]>();
   for (const entry of unbilled) {
     const key = `${entry.schoolId}-${entry.month}-${entry.reason}`;
@@ -158,8 +169,11 @@ export function CareRunMealsCard({
       titleBadge={
         <span className="text-moto-orange-strong text-sm font-medium">
           {[
-            gaps.length > 0
-              ? `${gaps.length} ${gaps.length === 1 ? "Monat" : "Monate"} ohne Freigabe`
+            open.length > 0
+              ? `${open.length} ${open.length === 1 ? "Monat" : "Monate"} ohne Freigabe`
+              : null,
+            expired.length > 0
+              ? `${expired.length} nicht mehr abrechenbar`
               : null,
             unbilled.length > 0 ? `${unbilled.length} nicht abgerechnet` : null,
           ]
@@ -179,6 +193,20 @@ export function CareRunMealsCard({
             <p className="text-sm text-gray-600">
               Freigabe fehlt für{" "}
               {months.map((gap) => formatMonth(gap.month)).join(", ")}.
+            </p>
+          </li>
+        ))}
+        {[...expiredBySchool.entries()].map(([school, months]) => (
+          <li
+            key={`expired-${school}`}
+            className="flex flex-col gap-1 py-3 first:pt-0 last:pb-0 sm:col-span-2"
+          >
+            <p className="text-sm font-semibold text-gray-900">{school}</p>
+            <p className="text-sm text-gray-600">
+              Nicht mehr abrechenbar:{" "}
+              {months.map((gap) => formatMonth(gap.month)).join(", ")}. Die
+              Anwesenheiten dieser Monate sind nach der Aufbewahrungsfrist
+              gelöscht.
             </p>
           </li>
         ))}

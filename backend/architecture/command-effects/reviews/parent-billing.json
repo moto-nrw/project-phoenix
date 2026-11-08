@@ -225,6 +225,26 @@
       "target_owner": "delivery-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareMeals.MealAttendanceFrom",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareMeals.MealAttendanceFrom",
+      "reason": "Read-only: read the retention days from the resolved settings snapshot of a school; no database access, write, lock or scope change.",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsSnapshot.Int",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareMeals.MealAttendanceFrom",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareMeals.MealAttendanceFrom",
+      "reason": "Read-only: resolve the attendance retention of the Träger's Mensa schools in one administrative read of its own (tenant.ContextWithoutTransaction): the Träger transaction of the monthly run hides school settings by row security and shares nothing with it (ADR 0105); no write, lock or change of the run's scope.",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveManyForTenants",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareMeals.ReleasedMealMonths",
       "classification": "query",
       "effect": "query",

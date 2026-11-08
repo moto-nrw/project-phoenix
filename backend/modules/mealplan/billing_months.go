@@ -34,6 +34,10 @@ const (
 	BillingMonthOpen BillingMonthStatus = "open"
 	// BillingMonthReleased: the OGS-Leitung released the month.
 	BillingMonthReleased BillingMonthStatus = "released"
+	// BillingMonthExpired: the month ended without a release and its
+	// attendance may be deleted under the school's retention; nobody can
+	// release or bill it any more.
+	BillingMonthExpired BillingMonthStatus = "expired"
 )
 
 // BillingMonthChild is one child of a month: the school days it was

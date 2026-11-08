@@ -146,6 +146,7 @@ type careMealInput struct {
 	versions      []parentbilling.CareContractVersion
 	invoiced      map[int64]parentbilling.CareInvoice
 	recipients    map[int64]parentbilling.CareRecipient
+	attendance    map[int64]calendar.Date
 	childNames    map[mealNameKey]int64
 	contracts     map[int64][]parentbilling.CareContractVersion
 	contractOrder []int64
@@ -202,6 +203,10 @@ func (c *CareBilling) addMeals(ctx context.Context, organizationID int64, run pa
 	for _, meal := range billedMeals {
 		billed[meal] = true
 	}
+	attendance, err := c.meals.MealAttendanceFrom(ctx, mealSchools(tariffs))
+	if err != nil {
+		return fmt.Errorf("parent billing: read the attendance window of the schools: %w", err)
+	}
 	schools, err := c.schools.TraegerSchools(ctx, organizationID)
 	if err != nil {
 		return fmt.Errorf("parent billing: read the schools: %w", err)
@@ -211,7 +216,7 @@ func (c *CareBilling) addMeals(ctx context.Context, organizationID int64, run pa
 		names[school.ID] = school.Name
 	}
 	billMeals(month, careMealInput{month: run.BillingMonth, today: c.today(), schools: names, tariffs: tariffs, releases: releases,
-		billed: billed, versions: versions, invoiced: invoiced, recipients: recipients})
+		billed: billed, versions: versions, invoiced: invoiced, recipients: recipients, attendance: attendance})
 	return nil
 }
 
@@ -262,10 +267,12 @@ func billMeals(month *careMonth, in careMealInput) {
 }
 
 // addMealGap names an ended month a school bills its Mensa for without a
-// release.
+// release, and whether its attendance is past the school's retention.
 func addMealGap(month *careMonth, in careMealInput, school int64, m calendar.Date) {
 	if monthEnd(m).Before(in.today) {
-		month.mealGaps = append(month.mealGaps, parentbilling.CareMealGap{SchoolID: school, SchoolName: in.schools[school], Month: m})
+		from, known := in.attendance[school]
+		month.mealGaps = append(month.mealGaps, parentbilling.CareMealGap{SchoolID: school, SchoolName: in.schools[school], Month: m,
+			Expired: known && m.Before(from)})
 	}
 }
 

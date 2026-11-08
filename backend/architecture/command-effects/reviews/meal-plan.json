@@ -52,6 +52,16 @@
       "target_owner": "student-presence"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.BillingMonthOverview",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.BillingMonthOverview",
+      "reason": "Read-only: resolve the school attendance retention window in the caller school transaction to show ended months past it as expired in the Mensa month list; no write, lock or scope change.",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.AttendanceRetention.Days",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.ReleaseBillingMonth",
       "classification": "query",
       "effect": "query",

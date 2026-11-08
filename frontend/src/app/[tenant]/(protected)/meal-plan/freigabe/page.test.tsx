@@ -223,4 +223,28 @@ describe("MealBillingReleasePage", () => {
       ),
     ).toBeInTheDocument();
   });
+
+  it("names a month past the attendance retention as no longer billable, without a release", async () => {
+    fetchMealBillingMonths.mockResolvedValue([
+      { ...MONTHS[1], status: "expired" },
+    ]);
+    fetchMealBillingMonth.mockResolvedValue({
+      ...MARCH,
+      status: "expired",
+      childCount: 0,
+      mealCount: 0,
+      absenceCount: 0,
+      children: [],
+    });
+    renderPage();
+    expect(
+      await screen.findByText(
+        "Nicht mehr abrechenbar: Die Anwesenheiten dieses Monats sind nach der Aufbewahrungsfrist gelöscht. Eine Freigabe ist nicht mehr möglich.",
+      ),
+    ).toBeInTheDocument();
+    expect(fetchMealBillingMonth).toHaveBeenCalledWith("2026-03-01");
+    expect(
+      screen.queryByRole("button", { name: "Monat freigeben" }),
+    ).not.toBeInTheDocument();
+  });
 });

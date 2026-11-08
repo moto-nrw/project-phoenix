@@ -133,3 +133,31 @@ func TestBillingMonthWithExpiredAttendanceCannotBeReleased(t *testing.T) {
 	assert.Equal(t, mealplan.BillingMonthReleased, stored.Status)
 	assert.Equal(t, 1, stored.MealCount)
 }
+
+// A month that ended before the attendance window is no open month: the
+// list and the month name it "expired" without counting it, so nobody waits
+// for a release that cannot come (#4686).
+func TestBillingMonthBeforeTheAttendanceWindowShowsAsExpired(t *testing.T) {
+	t.Parallel()
+	months := releaseMonths(&releaseStore{organization: 7})
+	months.availableFrom = func(context.Context) (calendar.Date, error) { return "2026-03-03", nil }
+	months.presence = func(context.Context, calendar.Date, calendar.Date) (map[calendar.Date]map[int64]bool, error) {
+		panic("an expired month reads no attendance")
+	}
+
+	overview, err := months.BillingMonthOverview(context.Background())
+	require.NoError(t, err)
+	statuses := map[mealplan.Date]mealplan.BillingMonthStatus{}
+	for _, summary := range overview {
+		statuses[summary.Month] = summary.Status
+	}
+	assert.Equal(t, mealplan.BillingMonthRunning, statuses["2026-04-01"])
+	assert.Equal(t, mealplan.BillingMonthExpired, statuses["2026-03-01"], "March starts before the window")
+	assert.Equal(t, mealplan.BillingMonthExpired, statuses["2026-02-01"])
+
+	month, err := months.BillingMonth(context.Background(), "2026-03-01")
+	require.NoError(t, err)
+	assert.Equal(t, mealplan.BillingMonthExpired, month.Status)
+	assert.Empty(t, month.Children)
+	assert.Zero(t, month.MealCount)
+}

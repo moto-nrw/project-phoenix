@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The Mensa of the monthly run (#4686, ADR 0166), computed by hand. The
@@ -320,4 +321,22 @@ func TestCareMealsJoinTheModuleInvoiceAndNoRuleReducesThem(t *testing.T) {
 	}
 	assert.Equal(t, map[int64]int64{contractMia: 1600 + 960, contractNoah: 4550 + 960}, totals)
 	assert.Equal(t, int64(1600+960+4550+960), month.total(), "the release compares this sum")
+}
+
+// A month that starts before the attendance the school still keeps can no
+// longer be released: the run names it as no longer billable instead of a
+// release that never comes. The other gaps stay open.
+func TestCareMealGapBeforeTheAttendanceWindowIsExpired(t *testing.T) {
+	t.Parallel()
+	month, versions := mealMonth(t)
+	billMeals(&month, careMealInput{month: day(t, mealRunMonth), today: day(t, mealToday),
+		schools:    map[int64]string{schoolIspringen: "Ispringen"},
+		tariffs:    []parentbilling.CareMealTariff{mealTariff(t, parentbilling.MealModePerMeal, "2026-01-01", 480)},
+		attendance: map[int64]calendar.Date{schoolIspringen: day(t, "2026-02-10")},
+		versions:   versions})
+	assert.Equal(t, []parentbilling.CareMealGap{
+		{SchoolID: schoolIspringen, SchoolName: "Ispringen", Month: day(t, "2026-01-01"), Expired: true},
+		{SchoolID: schoolIspringen, SchoolName: "Ispringen", Month: day(t, "2026-02-01"), Expired: true},
+		{SchoolID: schoolIspringen, SchoolName: "Ispringen", Month: day(t, "2026-03-01")},
+	}, month.mealGaps)
 }

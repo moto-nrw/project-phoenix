@@ -6,17 +6,26 @@ import (
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	mealplanCompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // parentBillingCareMeals translates the released Mensa months of Meal Plan
 // for the monthly run (#4686). Both run in the caller's Träger transaction.
 type parentBillingCareMeals struct {
-	months mealplanModule.TraegerMealMonths
+	months     mealplanModule.TraegerMealMonths
+	attendance func(context.Context, []int64) (map[int64]calendar.Date, error)
 }
 
-func newParentBillingCareMeals() parentBillingCareMeals {
-	return parentBillingCareMeals{months: mealplanCompose.NewTraegerMealMonths()}
+func newParentBillingCareMeals(schoolSettings owners.MealAttendanceSchoolSettings) parentBillingCareMeals {
+	return parentBillingCareMeals{months: mealplanCompose.NewTraegerMealMonths(),
+		attendance: owners.MealAttendanceFrom(schoolSettings, calendar.TodayDate)}
+}
+
+// MealAttendanceFrom is the attendance window of each school, by the rule of
+// the Mensa-Monatsfreigabe.
+func (m parentBillingCareMeals) MealAttendanceFrom(ctx context.Context, schoolIDs []int64) (map[int64]calendar.Date, error) {
+	return m.attendance(ctx, schoolIDs)
 }
 
 func (m parentBillingCareMeals) ReleasedMealMonths(ctx context.Context, organizationID int64, until calendar.Date) ([]parentbilling.CareMealRelease, error) {

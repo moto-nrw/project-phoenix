@@ -6,7 +6,7 @@
 import { apiErrorFromResponse } from "./api-error";
 import { sessionFetch } from "./session-cache";
 
-export type MealBillingStatus = "running" | "open" | "released";
+export type MealBillingStatus = "running" | "open" | "released" | "expired";
 
 export interface MealBillingSummary {
   readonly month: string;

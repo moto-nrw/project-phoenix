@@ -27,14 +27,14 @@ import (
 // Betreuungsvertrag (#4678) with its evaluation of overruns (#4683) and the
 // office's decision of the parents' changes (#5979) mount beside them.
 func mountTraegerRoutes(root chi.Router, limiters authRateLimiters, identity TraegerPortalIdentity, organizations organizationtenancy.Capability,
-	persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerSettings, schoolSettings CareContractSchoolSettings,
+	persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerSettings, schoolSettings TraegerSchoolSettings,
 	delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, keys TurnstileKeys,
 	healthData enrollmentOwner.HolidayHealthCipher, statistics studentpresence.StatisticsReports, changes careplan.OfferingChangeCapability, parentsURL string, logger *slog.Logger) error {
 	if err := mountTraegerPortalRoutes(root, limiters, identity, organizations, persons, staff, audit, settings, healthData); err != nil {
 		return err
 	}
 	root.Mount("/traeger/holiday-registrations", NewHolidayRegistrationHTTP(organizations, delivery, keys, "", healthData, logger).Router())
-	mountParentBillingRoutes(root, organizations, settings, delivery, outcomes, healthData, logger)
+	mountParentBillingRoutes(root, organizations, settings, schoolSettings, delivery, outcomes, healthData, logger)
 	mountCareContractRoutes(root, organizations, settings, schoolSettings, delivery, outcomes, audit.Log,
 		owners.NewCareContractNoticeAddressees(persons, identity), parentsURL)
 	mountCareTimeOverrunRoutes(root, organizations, statistics, audit.Log)

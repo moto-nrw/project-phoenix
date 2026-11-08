@@ -12,6 +12,8 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
@@ -246,4 +248,31 @@ func TestCareMealMonthsReturnOnTheReissueAfterAStorno(t *testing.T) {
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM parent_billing.care_meal_positions WHERE organization_id = ?`,
 		f.office.organization).Scan(context.Background(), &positions))
 	assert.Equal(t, 2, positions, "the cancelled invoice and its reissue each keep their Mensa month")
+}
+
+// The monthly run asks for the attendance window of its schools from inside
+// its Träger transaction, whose row security hides the settings of the
+// schools. The binding reads each school's own retention in a read of its
+// own instead of falling back to the default (#4686): 40 days before
+// 8 November 2026 is 29 September, not the 365-day default.
+func TestCareMealAttendanceWindowReadsTheSchoolsRetentionInTheTraegerTransaction(t *testing.T) {
+	t.Parallel()
+	f := newCareBillingFixture(t, "Träger Mensa Aufbewahrung")
+	school := f.office.schools[0]
+	ctx := context.Background()
+	_, err := f.db.ExecContext(ctx, `INSERT INTO config.setting_values (tenant_id, setting_key, value)
+		VALUES (?, 'gdpr.attendance_retention_days', '40'::jsonb)`, school)
+	require.NoError(t, err)
+	unit := testpkg.TenantRuntime(t, f.db)
+	settings, err := owners.NewSettingsTestModule(testpkg.NewDatabase(t, f.db), unit)
+	require.NoError(t, err)
+	find := owners.MealAttendanceFrom(settings.Settings, func() calendar.Date { return calendar.NewDate(2026, 11, 8) })
+
+	var cutoffs map[int64]calendar.Date
+	require.NoError(t, testpkg.WithinTraeger(testpkg.ContextWithTenantRuntime(ctx, unit), f.office.organization,
+		func(ctx context.Context) error {
+			cutoffs, err = find(ctx, []int64{school})
+			return err
+		}))
+	assert.Equal(t, map[int64]calendar.Date{school: calendar.NewDate(2026, 9, 29)}, cutoffs)
 }

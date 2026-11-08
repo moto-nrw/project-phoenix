@@ -89,9 +89,16 @@ func (b *BillingMonths) BillingMonthOverview(ctx context.Context) ([]mealplan.Bi
 	for _, month := range stored {
 		released[month.Month] = month
 	}
+	availableFrom, err := b.attendanceFrom(ctx)
+	if err != nil {
+		return nil, err
+	}
 	result := make([]mealplan.BillingMonthSummary, 0, billingMonthsBack)
 	for month := current; !month.Before(earliest); month = monthStart(month.AddDays(-1)) {
 		summary := mealplan.BillingMonthSummary{Month: mealplan.Date(month.String()), Status: b.statusOf(month)}
+		if month.Before(availableFrom) {
+			summary.Status = mealplan.BillingMonthExpired
+		}
 		if entry, ok := released[month]; ok {
 			releasedAt, children, meals := entry.ReleasedAt, entry.ChildCount, entry.MealCount
 			summary.Status, summary.ReleasedAt, summary.ChildCount, summary.MealCount = mealplan.BillingMonthReleased, &releasedAt, &children, &meals
@@ -121,7 +128,29 @@ func (b *BillingMonths) monthView(ctx context.Context, month calendar.Date) (mea
 	if released {
 		return releasedView(stored), nil
 	}
+	availableFrom, err := b.attendanceFrom(ctx)
+	if err != nil {
+		return mealplan.BillingMonth{}, err
+	}
+	if month.Before(availableFrom) {
+		return mealplan.BillingMonth{Month: mealplan.Date(month.String()), Status: mealplan.BillingMonthExpired,
+			Children: []mealplan.BillingMonthChild{}}, nil
+	}
 	return b.compute(ctx, month)
+}
+
+// attendanceFrom is the earliest day whose attendance the school still
+// keeps. Expired evidence and absence look the same, so a month that starts
+// before it is not counted, even when the cleanup has not run yet.
+func (b *BillingMonths) attendanceFrom(ctx context.Context) (calendar.Date, error) {
+	availableFrom, err := b.availableFrom(ctx)
+	if err != nil {
+		return "", fmt.Errorf("meal plan billing months: read the attendance window: %w", err)
+	}
+	if availableFrom == "" {
+		return "", errors.New("meal plan billing months: the attendance window is empty")
+	}
+	return availableFrom, nil
 }
 
 // ReleaseBillingMonth computes the month again and stores it when it still
@@ -202,13 +231,11 @@ func releasedView(stored domain.StoredBillingMonth) mealplan.BillingMonth {
 // compute reads the kitchen lists, the school holidays and the attendance
 // of the month and counts them.
 func (b *BillingMonths) compute(ctx context.Context, month calendar.Date) (mealplan.BillingMonth, error) {
-	availableFrom, err := b.availableFrom(ctx)
+	availableFrom, err := b.attendanceFrom(ctx)
 	if err != nil {
-		return mealplan.BillingMonth{}, fmt.Errorf("meal plan billing months: read the attendance window: %w", err)
+		return mealplan.BillingMonth{}, err
 	}
-	// Expired evidence and absence look the same. Refuse a possible
-	// undercount even when cleanup has not yet run.
-	if availableFrom == "" || month.Before(availableFrom) {
+	if month.Before(availableFrom) {
 		return mealplan.BillingMonth{}, mealplan.ErrBillingMonthAttendanceExpired
 	}
 	last := monthLast(month)

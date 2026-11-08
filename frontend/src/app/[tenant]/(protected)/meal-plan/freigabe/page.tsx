@@ -67,13 +67,19 @@ const STATUS_LABELS: Record<MealBillingStatus, string> = {
   running: "Läuft noch",
   open: "Freigabe fehlt",
   released: "Freigegeben",
+  expired: "Nicht mehr abrechenbar",
 };
 
 const STATUS_TONES: Record<MealBillingStatus, "gray" | "orange" | "green"> = {
   running: "gray",
   open: "orange",
   released: "green",
+  expired: "gray",
 };
+
+/** Shown for a month whose attendance is past the retention. */
+const EXPIRED_MONTH_TEXT =
+  "Nicht mehr abrechenbar: Die Anwesenheiten dieses Monats sind nach der Aufbewahrungsfrist gelöscht. Eine Freigabe ist nicht mehr möglich.";
 
 function absentDays(child: MealBillingChild): string {
   return child.absentDates
@@ -314,7 +320,9 @@ export default function MealBillingReleasePage() {
         </ConfirmationModal>
       }
     >
-      {month ? (
+      {month?.status === "expired" ? (
+        <Alert type="info" message={EXPIRED_MONTH_TEXT} />
+      ) : month ? (
         <>
           {month.status === "running" ? (
             <Alert

@@ -96,11 +96,14 @@ type CareMealPosition struct {
 }
 
 // CareMealGap is an ended month a school bills its Mensa for that its
-// OGS-Leitung has not released yet ("Freigabe fehlt").
+// OGS-Leitung has not released yet ("Freigabe fehlt"). Expired: the month
+// starts before the attendance the school still keeps, so nobody can
+// release or bill it any more ("Nicht mehr abrechenbar").
 type CareMealGap struct {
 	SchoolID   int64         `json:"school_id"`
 	SchoolName string        `json:"school_name"`
 	Month      calendar.Date `json:"month"`
+	Expired    bool          `json:"expired"`
 }
 
 // CareMealUnbilled is a released Mensa month of a child the run does not
@@ -140,8 +143,13 @@ type CareMealRelease struct {
 
 // CareMeals is the Mensa-Monatsfreigabe of Meal Plan as the monthly run
 // reads it, in the caller's Träger transaction. The root binds it.
+//
+// MealAttendanceFrom names per school the earliest day whose attendance the
+// school still keeps; a month that starts before it can no longer be
+// released (the rule of the Mensa-Monatsfreigabe).
 type CareMeals interface {
 	ReleasedMealMonths(ctx context.Context, organizationID int64, until calendar.Date) ([]CareMealRelease, error)
+	MealAttendanceFrom(ctx context.Context, schoolIDs []int64) (map[int64]calendar.Date, error)
 }
 
 // CareMealBilling lets the Abrechnung of a Träger keep the Mensa prices of
