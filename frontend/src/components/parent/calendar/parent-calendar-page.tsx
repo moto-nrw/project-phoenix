@@ -714,7 +714,7 @@ function CalendarMonthPanel({
                     />
                   ))}
                   {moreCount > 0 ? (
-                    <span className="block px-1 text-[11px] font-medium text-gray-500">
+                    <span className="block px-1 text-xs font-medium text-gray-500">
                       {t("moreEvents", { count: moreCount })}
                     </span>
                   ) : null}
@@ -780,7 +780,7 @@ function MonthEventButton({
           aria-expanded={open}
           aria-controls={open ? panelId : undefined}
           data-rsvp-state={pending ? "pending" : undefined}
-          className={`h-auto min-h-7 w-full justify-start !rounded-l-none rounded-r-md border-l-4 px-1.5 py-1 text-left text-[11px] leading-4 font-semibold text-gray-900 hover:brightness-95 ${pending ? "border border-dashed border-gray-400" : "border-solid"}`}
+          className={`h-auto min-h-7 w-full justify-start !rounded-l-none rounded-r-md border-l-4 px-1.5 py-1 text-left text-xs leading-4 font-semibold text-gray-900 hover:brightness-95 ${pending ? "border border-dashed border-gray-400" : "border-solid"}`}
           style={{
             backgroundColor: colors.soft,
             backgroundImage: pending ? pendingHatch(colors.base) : undefined,

@@ -52,7 +52,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/planning/plan-block.tsx",
-    lines: [208],
+    lines: [213],
     reason: "Planungsblock im Raster: Kachel, kein Knopf",
   },
   {

@@ -279,7 +279,7 @@ export function LocationBadge({
         }
       />
       {showSinceTime && (
-        <span className="mt-0.5 text-[10px] text-gray-500">
+        <span className="mt-0.5 text-xs text-gray-500">
           seit {formattedTime} Uhr
         </span>
       )}

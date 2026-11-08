@@ -293,8 +293,8 @@ function TopicSearch({
           onChange={(event) => onQueryChange(event.target.value)}
           placeholder="Zum Beispiel: Abwesenheit"
           autoComplete="off"
-          controlSize="compact"
-          className="!h-11 ps-9 pe-3 text-base lg:!h-10 lg:text-sm"
+          controlSize="touch"
+          className="ps-9 pe-3"
         />
       </div>
       <p

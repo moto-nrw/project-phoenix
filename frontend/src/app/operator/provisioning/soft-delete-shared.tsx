@@ -235,7 +235,7 @@ export function DeletedEntityCard({
             Wiederherstellen
           </Button>
           {restoreDisabled && restoreDisabledReason && (
-            <p className="max-w-[16rem] text-right text-[11px] text-gray-500">
+            <p className="max-w-[16rem] text-right text-xs text-gray-500">
               {restoreDisabledReason}
             </p>
           )}
