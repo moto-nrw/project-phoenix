@@ -59,7 +59,10 @@ func (s *StudentService) ListNamesByIDs(ctx context.Context, ids []int64) (resul
 
 // ListNamesByClass reads in the caller's transaction: the class lists that
 // need the names (the absence list, #6165) already hold their school unit,
-// so the read opens no boundary of its own and fails without one.
+// so the read opens no boundary of its own and fails without one. It skips
+// the observation wrapper: its callable is an unresolved effect the
+// architecture inventory admits only by ADR, and the absence list needs the
+// read, not its timing.
 func (s *StudentService) ListNamesByClass(ctx context.Context, schoolClass string) ([]peopledirectory.StudentName, error) {
 	if err := s.tx.RequireTransaction(ctx); err != nil {
 		return nil, err
