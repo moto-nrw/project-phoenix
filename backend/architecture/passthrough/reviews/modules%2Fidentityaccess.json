@@ -842,7 +842,7 @@
     },
     {
       "decision": "0090",
-      "id": "modules/identityaccess/internal/application/OperatorMFAFlows.HasEnrollment",
+      "id": "modules/identityaccess/internal/application/OperatorMFAFlows.HasOperatorMFAEnrollment",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {

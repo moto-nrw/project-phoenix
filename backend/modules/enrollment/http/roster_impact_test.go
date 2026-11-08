@@ -54,9 +54,9 @@ func TestUpdateChildOfferings_ReportsHandMaintainedRegelterminAndRemovesFridays(
 		TenantID: testpkg.Tenant(t), PhaseID: env.sourcePhase.ID,
 		GuardianFirstName: "Eltern", GuardianLastName: "AmBerg",
 		GuardianEmail: "schule-am-berg-5102@example.com",
-		ConsentFlags: map[string]any{
+		ConsentFlags: testFormValues(map[string]any{
 			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
-		},
+		}),
 		Children: []enrollmentAPI.SubmitChild{{
 			FirstName: "Mia", LastName: "AmBerg",
 			DateOfBirth:       calendar.NewDate(2019, 3, 4),

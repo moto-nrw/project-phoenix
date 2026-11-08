@@ -19,7 +19,7 @@ func (s *ChangeRequests) emailNotificationsEnabled(ctx context.Context) bool {
 
 // enqueueAdminNotification fans a change-request mail out to every admin
 // recipient, with the admin deep link in the payload.
-func (s *ChangeRequests) enqueueAdminNotification(ctx context.Context, tenantID int64, req *Request, changeRequestID int64, kind string) {
+func (s *ChangeRequests) enqueueAdminNotification(ctx context.Context, tenantID int64, req *enrollment.Request, changeRequestID int64, kind string) {
 	if s.deps.Outbox == nil {
 		return
 	}
@@ -43,7 +43,7 @@ func (s *ChangeRequests) enqueueAdminNotification(ctx context.Context, tenantID 
 }
 
 // enqueueParentNotification sends a change-request mail to the guardian.
-func (s *ChangeRequests) enqueueParentNotification(ctx context.Context, tenantID int64, req *Request, changeRequestID int64, kind string) {
+func (s *ChangeRequests) enqueueParentNotification(ctx context.Context, tenantID int64, req *enrollment.Request, changeRequestID int64, kind string) {
 	if s.deps.Outbox == nil {
 		return
 	}
@@ -63,7 +63,7 @@ func (s *ChangeRequests) enqueueParentNotification(ctx context.Context, tenantID
 	}
 }
 
-func (s *ChangeRequests) enqueueChangeRequestMail(ctx context.Context, tenantID int64, req *Request, changeRequestID int64, kind string, payload map[string]any) {
+func (s *ChangeRequests) enqueueChangeRequestMail(ctx context.Context, tenantID int64, req *enrollment.Request, changeRequestID int64, kind string, payload map[string]any) {
 	if err := s.deps.Outbox.EnqueueMail(ctx, Mail{
 		Kind: kind, Payload: payload, RelatedEntityType: enrollment.MailRelatedRequest, RelatedEntityID: req.ID,
 	}); err != nil {
@@ -94,7 +94,7 @@ func (s *ChangeRequests) logChangeRequestNotificationFailure(err error, tenantID
 	)
 }
 
-func (s *ChangeRequests) emailPayload(ctx context.Context, req *Request, changeRequestID int64, recipient string) (map[string]any, error) {
+func (s *ChangeRequests) emailPayload(ctx context.Context, req *enrollment.Request, changeRequestID int64, recipient string) (map[string]any, error) {
 	brand, err := schoolBrand(ctx, s.deps.Notifications, req.TenantID, s.deps.ParentsURL)
 	if err != nil {
 		return nil, err

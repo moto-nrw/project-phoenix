@@ -25,10 +25,10 @@ func TestClassRosterIgnoresLeftoverCatalogWhenOfferingsDisabled(t *testing.T) {
 	svc := classRosterTestService(
 		[]*RosterStudent{{ID: studentID, PersonID: personID, SchoolClass: "1a"}},
 		map[int64]*RosterPerson{personID: {FirstName: "Lina", LastName: "Muster"}},
-		&fakeClassRosterRequestRepo{requests: []*Request{
+		&fakeClassRosterRequestRepo{requests: []*enrollmentNative.Request{
 			{ID: requestID, SubmittedAt: time.Date(2026, 1, 2, 8, 0, 0, 0, time.UTC)},
 		}},
-		&fakeClassRosterChildRepo{children: []*reportChild{
+		&fakeClassRosterChildRepo{children: []*enrollmentNative.RequestChild{
 			{ID: childID, RequestID: requestID, Status: enrollmentNative.ChildStatusApproved, CreatedStudentID: &studentID},
 		}},
 	)
@@ -114,7 +114,7 @@ func TestClassRosterScopesRequestLimitToSelectedClass(t *testing.T) {
 	requestID := int64(300)
 	childID := int64(400)
 	repo := &fakeClassRosterRequestRepo{
-		requests: []*Request{
+		requests: []*enrollmentNative.Request{
 			{ID: requestID, SubmittedAt: time.Date(2026, 1, 2, 8, 0, 0, 0, time.UTC)},
 		},
 	}
@@ -122,7 +122,7 @@ func TestClassRosterScopesRequestLimitToSelectedClass(t *testing.T) {
 		[]*RosterStudent{{ID: studentID, PersonID: personID, SchoolClass: "1a"}},
 		map[int64]*RosterPerson{personID: {FirstName: "Lina", LastName: "Muster"}},
 		repo,
-		&fakeClassRosterChildRepo{children: []*reportChild{
+		&fakeClassRosterChildRepo{children: []*enrollmentNative.RequestChild{
 			{ID: childID, RequestID: requestID, Status: enrollmentNative.ChildStatusApproved, CreatedStudentID: &studentID},
 		}},
 	)
@@ -143,16 +143,16 @@ func TestClassRosterAppliesChildLimitAfterClassFiltering(t *testing.T) {
 	personID := int64(300)
 	requestID := int64(400)
 	childID := int64(500)
-	children := make([]*reportChild, 0, maxReportRows+2)
+	children := make([]*enrollmentNative.RequestChild, 0, maxReportRows+2)
 	for i := 0; i <= maxReportRows; i++ {
-		children = append(children, &reportChild{
+		children = append(children, &enrollmentNative.RequestChild{
 			ID:               int64(1000 + i),
 			RequestID:        requestID,
 			Status:           enrollmentNative.ChildStatusApproved,
 			CreatedStudentID: &otherStudentID,
 		})
 	}
-	children = append(children, &reportChild{
+	children = append(children, &enrollmentNative.RequestChild{
 		ID:               childID,
 		RequestID:        requestID,
 		Status:           enrollmentNative.ChildStatusApproved,
@@ -161,7 +161,7 @@ func TestClassRosterAppliesChildLimitAfterClassFiltering(t *testing.T) {
 	svc := classRosterTestService(
 		[]*RosterStudent{{ID: studentID, PersonID: personID, SchoolClass: "1a"}},
 		map[int64]*RosterPerson{personID: {FirstName: "Lina", LastName: "Muster"}},
-		&fakeClassRosterRequestRepo{requests: []*Request{
+		&fakeClassRosterRequestRepo{requests: []*enrollmentNative.Request{
 			{ID: requestID, SubmittedAt: time.Date(2026, 1, 2, 8, 0, 0, 0, time.UTC)},
 		}},
 		&fakeClassRosterChildRepo{children: children},
@@ -217,7 +217,7 @@ func TestClassRosterLoadsGuardianContactsFromEnrollmentAndStudentFallback(t *tes
 			registeredPersonID: {FirstName: "Lina", LastName: "Muster"},
 			manualPersonID:     {FirstName: "Tom", LastName: "Ohne"},
 		},
-		&fakeClassRosterRequestRepo{requests: []*Request{{
+		&fakeClassRosterRequestRepo{requests: []*enrollmentNative.Request{{
 			ID:                requestID,
 			GuardianFirstName: "Eva",
 			GuardianLastName:  "Muster",
@@ -225,7 +225,7 @@ func TestClassRosterLoadsGuardianContactsFromEnrollmentAndStudentFallback(t *tes
 			GuardianPhone:     &primaryPhone,
 			SubmittedAt:       time.Date(2026, 1, 2, 8, 0, 0, 0, time.UTC),
 		}}},
-		&fakeClassRosterChildRepo{children: []*reportChild{{
+		&fakeClassRosterChildRepo{children: []*enrollmentNative.RequestChild{{
 			ID:               childID,
 			RequestID:        requestID,
 			Status:           enrollmentNative.ChildStatusApproved,

@@ -49,7 +49,7 @@ func submitApprovedAdjustmentChild(
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  lastName,
 		GuardianEmail:     email,
-		ConsentFlags: rawJSON(t, map[string]any{
+		ConsentFlags: enrollmentTest.FormValuesOf(map[string]any{
 			"agb":             true,
 			"data_processing": true,
 			"email_contact":   true,
@@ -501,7 +501,7 @@ func TestChangeRequestService_ApproveKeepsAppliedOfferingSwitch(t *testing.T) {
 		GuardianFirstName: "Elternteil",
 		GuardianLastName:  "SwitchKeeper",
 		GuardianEmail:     "change-request-switch@example.com",
-		ConsentFlags: rawJSON(t, map[string]any{
+		ConsentFlags: enrollmentTest.FormValuesOf(map[string]any{
 			"agb":             true,
 			"data_processing": true,
 			"email_contact":   true,

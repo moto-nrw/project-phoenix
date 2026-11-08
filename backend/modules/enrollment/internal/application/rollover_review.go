@@ -66,9 +66,6 @@ func (s *Rollovers) ListReviewQueue(ctx context.Context, phaseID int64) ([]*enro
 		return nil, fmt.Errorf("%w: phase_id is required", enrollmentNative.ErrRolloverInvalidRequest)
 	}
 	children, err := s.deps.Children.ChildrenByPhaseStatuses(ctx, phaseID, []string{enrollmentNative.ChildStatusPendingAdminReview})
-	if err == nil {
-		_, err = childValues(children)
-	}
 	if err != nil {
 		return nil, fmt.Errorf("rollover: list review queue: %w", err)
 	}
@@ -109,16 +106,10 @@ func (s *Rollovers) ListReviewQueue(ctx context.Context, phaseID int64) ([]*enro
 // the review rows.
 func (s *Rollovers) reviewQueueContext(ctx context.Context, requestIDs, sourceChildIDs []int64) (map[int64]*enrollmentNative.Request, map[int64]*enrollmentNative.RequestChild, error) {
 	requests, err := s.deps.Requests.RequestsByID(ctx, requestIDs)
-	if err == nil {
-		_, err = requestValues(requests)
-	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("rollover: load review queue requests: %w", err)
 	}
 	sourceChildren, err := s.deps.Children.ChildrenByID(ctx, sourceChildIDs)
-	if err == nil {
-		_, err = childValues(sourceChildren)
-	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("rollover: load review queue source children: %w", err)
 	}
@@ -386,7 +377,7 @@ func (s *Rollovers) promoteAutoRenewed(ctx context.Context, phase *enrollmentNat
 // savepoint and later rows can still proceed. Direct calls without a
 // transaction are retained for lightweight tests; they do not claim the
 // production atomicity contract documented on RunDeadlineWorker.
-func (s *Rollovers) decideAutoRenewedRow(ctx context.Context, row *RequestChild) error {
+func (s *Rollovers) decideAutoRenewedRow(ctx context.Context, row *enrollmentNative.RequestChild) error {
 	decide := func(decideCtx context.Context) error {
 		_, err := s.deps.Decisions.Decide(decideCtx, enrollmentNative.DecideInput{
 			RequestID: row.RequestID,

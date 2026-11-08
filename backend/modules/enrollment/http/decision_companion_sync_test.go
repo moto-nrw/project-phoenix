@@ -180,9 +180,9 @@ func narrowChildToBusMonday(t *testing.T, env *decisionTestEnv, childID int64) {
 	ctx := testpkg.Ctx(t)
 	child, err := enrollmentAPI.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
 	require.NoError(t, err)
-	child.CustomData = map[string]any{
+	child.CustomData = testFormValues(map[string]any{
 		"allowed_modes": map[string]any{"mon": []any{"bus"}},
-	}
+	})
 	require.NoError(t, enrollmentAPI.UpdateOwnerChildForTest(ctx, env.repos.Enrollment(), child))
 }
 

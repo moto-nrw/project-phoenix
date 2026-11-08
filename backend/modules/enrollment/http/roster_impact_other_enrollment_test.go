@@ -68,9 +68,9 @@ func (f *carryFixture) enrollAgain(phase *enrollmentNative.Phase, studentID int6
 		TenantID: testpkg.Tenant(f.t), PhaseID: phase.ID,
 		GuardianFirstName: "Eltern", GuardianLastName: "Muster",
 		GuardianEmail: fmt.Sprintf("carry-5366-%d@example.com", f.seq),
-		ConsentFlags: map[string]any{
+		ConsentFlags: testFormValues(map[string]any{
 			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
-		},
+		}),
 		Children: []enrollmentAPI.SubmitChild{{
 			FirstName: "Kind", LastName: "Muster",
 			DateOfBirth:       calendar.NewDate(2019, 3, 4),

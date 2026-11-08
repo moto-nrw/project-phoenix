@@ -17,8 +17,8 @@ func (s *Intake) FormLabels(ctx context.Context, requestID int64) (*enrollmentNa
 	return s.requestFormLabels(ctx, req)
 }
 
-func (s *Intake) labelledRequest(ctx context.Context, requestID int64) (*Request, error) {
-	req, err := decodedRequestByID(ctx, s.deps.Requests, requestID, false)
+func (s *Intake) labelledRequest(ctx context.Context, requestID int64) (*enrollmentNative.Request, error) {
+	req, err := s.deps.Requests.RequestByID(ctx, requestID, false)
 	if (err != nil && s.deps.Runtime.NotFound(err)) || (err == nil && req == nil) {
 		return nil, enrollmentNative.ErrRequestNotFound
 	}
@@ -39,7 +39,7 @@ func (s *Intake) FormLabelsByStatusToken(ctx context.Context, token string) (*en
 	return s.requestFormLabels(s.tenantContext(ctx, req.TenantID), req)
 }
 
-func (s *Intake) requestFormLabels(ctx context.Context, req *Request) (*enrollmentNative.RequestFormLabels, error) {
+func (s *Intake) requestFormLabels(ctx context.Context, req *enrollmentNative.Request) (*enrollmentNative.RequestFormLabels, error) {
 	snapshot, hasSnapshot := latestLegalBlocksSnapshot(req)
 	var schema *enrollmentNative.FormSchema
 	if schemaID := formLabelsSchemaID(req, snapshot); schemaID != nil {
@@ -85,9 +85,9 @@ func (s *Intake) requestFormLabels(ctx context.Context, req *Request) (*enrollme
 	return labels, nil
 }
 
-func latestLegalBlocksSnapshot(req *Request) (LegalBlocksSnapshotEntry, bool) {
+func latestLegalBlocksSnapshot(req *enrollmentNative.Request) (enrollmentNative.LegalBlocksSnapshotEntry, bool) {
 	if req == nil || len(req.LegalBlocksSnapshot) == 0 {
-		return LegalBlocksSnapshotEntry{}, false
+		return enrollmentNative.LegalBlocksSnapshotEntry{}, false
 	}
 	return req.LegalBlocksSnapshot[len(req.LegalBlocksSnapshot)-1], true
 }
@@ -95,7 +95,7 @@ func latestLegalBlocksSnapshot(req *Request) (LegalBlocksSnapshotEntry, bool) {
 // formLabelsSchemaID selects the form version the parent saw. Earlier
 // snapshots did not record that version, so their request schema remains the
 // best available fallback.
-func formLabelsSchemaID(req *Request, snapshot LegalBlocksSnapshotEntry) *int64 {
+func formLabelsSchemaID(req *enrollmentNative.Request, snapshot enrollmentNative.LegalBlocksSnapshotEntry) *int64 {
 	if snapshot.DisplayedFormSchemaID != 0 {
 		id := snapshot.DisplayedFormSchemaID
 		return &id
@@ -106,7 +106,7 @@ func formLabelsSchemaID(req *Request, snapshot LegalBlocksSnapshotEntry) *int64 
 	return req.SchemaID
 }
 
-func snapshotLegalBlocks(blocks []LegalBlockSnapshot) []enrollmentNative.LegalBlock {
+func snapshotLegalBlocks(blocks []enrollmentNative.LegalBlockSnapshot) []enrollmentNative.LegalBlock {
 	if len(blocks) == 0 {
 		return nil
 	}

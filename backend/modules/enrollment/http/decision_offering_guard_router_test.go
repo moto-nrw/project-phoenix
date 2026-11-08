@@ -174,10 +174,7 @@ func createOfferingGuardChild(t *testing.T, repos api.EnrollmentTestRepositories
 		GuardianFirstName: "Anna",
 		GuardianLastName:  "Beispiel",
 		GuardianEmail:     fmt.Sprintf("offering-guard-%d@example.test", testpkg.Tenant(t)),
-		ConsentFlags:      []byte("{}"),
-		CustomData:        []byte("{}"),
 		SubmissionSource:  enrollmentNative.RequestSourcePublic,
-		SourceMetadata:    []byte("{}"),
 		StatusToken:       fmt.Sprintf("offering-guard-%d-%d", testpkg.Tenant(t), time.Now().UnixNano()),
 		SubmittedAt:       time.Now(),
 	}
@@ -187,9 +184,8 @@ func createOfferingGuardChild(t *testing.T, repos api.EnrollmentTestRepositories
 		RequestID:        request.ID,
 		FirstName:        "Lina",
 		LastName:         "Beispiel",
-		DateOfBirth:      enrollmentNative.Date("2018-04-15"),
+		DateOfBirth:      calendar.NewDate(2018, 4, 15),
 		TargetGradeLevel: &grade,
-		CustomData:       []byte("{}"),
 		Status:           enrollmentNative.ChildStatusSubmitted,
 		ActivationMode:   enrollmentNative.ChildActivationScheduled,
 	}

@@ -113,7 +113,7 @@ func seedApprovedChildWithStudent(
 	guardianFirst, guardianLast, guardianEmail string,
 	childFirst, childLast string,
 	grade int16,
-) (sourceChild *enrollmentAPI.RequestChild, existingStudent *peopledirectory.StudentState) {
+) (sourceChild *enrollmentNative.RequestChild, existingStudent *peopledirectory.StudentState) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
 
@@ -124,12 +124,12 @@ func seedApprovedChildWithStudent(
 		GuardianFirstName: guardianFirst,
 		GuardianLastName:  guardianLast,
 		GuardianEmail:     guardianEmail,
-		ConsentFlags: map[string]any{
+		ConsentFlags: testFormValues(map[string]any{
 			"agb":             true,
 			"data_processing": true,
 			"email_contact":   true,
 			"photo":           false,
-		},
+		}),
 		Children: []enrollmentAPI.SubmitChild{
 			{
 				FirstName:        childFirst,

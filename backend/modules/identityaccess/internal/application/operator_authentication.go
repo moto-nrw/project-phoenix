@@ -95,7 +95,7 @@ func (s *OperatorAuthentication) loginWithMFAGate(ctx context.Context, email, pa
 	// An infrastructure error refuses this login instead of treating the
 	// operator as not enrolled, which would silently downgrade an enrolled
 	// operator to the enrollment flow.
-	enrolled, err := s.mfa.HasEnrollment(ctx, operator.ID)
+	enrolled, err := s.mfa.HasOperatorMFAEnrollment(ctx, operator.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -114,11 +114,11 @@ func (s *OperatorAuthentication) loginWithMFAGate(ctx context.Context, email, pa
 	}
 	trusted := false
 	if trustedDeviceCookie != "" {
-		ok, _ := s.mfa.VerifyTrustedDevice(ctx, operator.ID, trustedDeviceCookie)
+		ok, _ := s.mfa.VerifyOperatorTrustedDevice(ctx, operator.ID, trustedDeviceCookie)
 		trusted = ok
 	}
 	if !trusted {
-		challenge, err := s.mfa.StartChallenge(ctx, operator.ID, net.ParseIP(strings.TrimSpace(ipAddress)))
+		challenge, err := s.mfa.StartOperatorMFAChallenge(ctx, operator.ID, net.ParseIP(strings.TrimSpace(ipAddress)))
 		if err != nil {
 			return nil, fmt.Errorf("start operator mfa challenge: %w", err)
 		}
@@ -127,7 +127,7 @@ func (s *OperatorAuthentication) loginWithMFAGate(ctx context.Context, email, pa
 			ChallengeToken:       challenge,
 			MaskedEmail:          domain.MaskEmail(operator.Email),
 			TrustedDeviceEnabled: true,
-			TrustedDeviceDays:    s.mfa.TrustedDeviceDays(),
+			TrustedDeviceDays:    s.mfa.OperatorTrustedDeviceDays(),
 		}, nil
 	}
 	return s.authenticatedResult(ctx, operator, ipAddress)

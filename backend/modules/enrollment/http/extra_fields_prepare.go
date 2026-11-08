@@ -1,14 +1,16 @@
 package enrollmenthttp
 
-import enrollment "github.com/moto-nrw/project-phoenix/modules/enrollment"
+import (
+	"maps"
+
+	enrollment "github.com/moto-nrw/project-phoenix/modules/enrollment"
+)
 
 type preparedStudentExtraFields struct {
 	summary    *enrollment.DecisionSummary
 	customData map[string]any
-	err        error
 }
 
-// Decode once without consuming errors ahead of their original position.
 // Only linked children with populated answers contribute schema IDs.
 func prepareStudentExtraFields(summaries []*enrollment.DecisionSummary, studentID int64) ([]preparedStudentExtraFields, []int64) {
 	prepared := make([]preparedStudentExtraFields, 0, len(summaries))
@@ -22,10 +24,10 @@ func prepareStudentExtraFields(summaries []*enrollment.DecisionSummary, studentI
 		if child == nil {
 			continue
 		}
-		data, err := decodeEnrollmentCustomData(child.CustomData)
-		prepared = append(prepared, preparedStudentExtraFields{summary: summary, customData: data, err: err})
+		data := maps.Collect(child.CustomData.All())
+		prepared = append(prepared, preparedStudentExtraFields{summary: summary, customData: data})
 		id := *summary.Request.SchemaID
-		if err == nil && len(data) > 0 && !seen[id] {
+		if len(data) > 0 && !seen[id] {
 			seen[id] = true
 			ids = append(ids, id)
 		}

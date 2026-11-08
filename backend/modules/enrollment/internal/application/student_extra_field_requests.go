@@ -14,17 +14,7 @@ func (d *Decisions) StudentExtraFieldRequests(ctx context.Context, studentID int
 	if studentID <= 0 {
 		return nil, fmt.Errorf("decision: student_id required")
 	}
-	requests, err := d.deps.Requests.AdminRequests(ctx, enrollment.RequestListFilters{CreatedStudentID: studentID})
-	if err == nil {
-		_, err = requestValues(requests)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("decision: list requests by student: %w", err)
-	}
-	if len(requests) == 0 {
-		return []*enrollment.DecisionSummary{}, nil
-	}
-	return d.assembleRequests(ctx, requests, studentID)
+	return d.listDecisionRequests(ctx, enrollment.RequestListFilters{CreatedStudentID: studentID}, "decision: list requests by student")
 }
 
 // assembleRequests assembles every request from one phase, one child and one
@@ -80,9 +70,6 @@ func (d *Decisions) validateAssembledSummary(ctx context.Context, summary *enrol
 		// Missing/unreadable phases are tolerated by assemble; keep its
 		// scalar error and warning behavior for these requests.
 		return d.assemble(ctx, summary.Request)
-	}
-	if _, err := childValues(summary.Children); err != nil {
-		return nil, fmt.Errorf("decision: list children for request %d: %w", summary.Request.ID, err)
 	}
 	return summary, nil
 }

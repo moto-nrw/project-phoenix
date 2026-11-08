@@ -44,7 +44,7 @@ func TestStudentExtraFieldsKeepsCanceledSchemaFailure(t *testing.T) {
 	forms := &cancelAfterExtraFieldSchema{FormSchemaAdministration: f.resource.FormSchemaService}
 	summaries := make([]*enrollment.DecisionSummary, 0, 2)
 	for range 2 {
-		summaries = append(summaries, &enrollment.DecisionSummary{Request: &enrollment.Request{ID: schema.ID, SchemaID: &schema.ID}, Children: []*enrollment.RequestChild{{CreatedStudentID: &student.ID, CustomData: json.RawMessage(`{"note":"value"}`)}}})
+		summaries = append(summaries, &enrollment.DecisionSummary{Request: &enrollment.Request{ID: schema.ID, SchemaID: &schema.ID}, Children: []*enrollment.RequestChild{{CreatedStudentID: &student.ID, CustomData: testJSONFormValues(json.RawMessage(`{"note":"value"}`))}}})
 	}
 	resource := &enrollmentHTTP.StudentResource{EnrollmentDecision: &fakeEnrollmentDecisionService{summaries: summaries}, EnrollmentFormSchema: forms, StudentReadAccess: func(http.ResponseWriter, *http.Request) (int64, bool, bool) { return student.ID, true, true }, Logger: slog.New(slog.NewJSONHandler(&logs, nil))}
 	router := api.NewOwnerHTTPTestRouter(resource.Register, "/api/students")

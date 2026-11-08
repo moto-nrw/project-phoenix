@@ -331,12 +331,12 @@ func validSubmission(t *testing.T, phaseID int64) enrollmentAPI.SubmitRequest {
 		GuardianFirstName: "Anna",
 		GuardianLastName:  "Beispiel",
 		GuardianEmail:     "anna@example.com",
-		ConsentFlags: map[string]any{
+		ConsentFlags: testFormValues(map[string]any{
 			"agb":             true,
 			"data_processing": true,
 			"email_contact":   true,
 			"photo":           false,
-		},
+		}),
 		Children: []enrollmentAPI.SubmitChild{
 			{
 				FirstName:        "Lina",
@@ -370,7 +370,7 @@ func TestRequestService_SubmitLateInviteAcceptsDifferentGuardianEmail(t *testing
 	require.NotNil(t, result.Request)
 	assert.Equal(t, "submitted@example.test", result.Request.GuardianEmail)
 	assert.Equal(t, enrollmentNative.RequestSourceLateInvite, result.Request.SubmissionSource)
-	assert.EqualValues(t, created.Invite.ID, result.Request.SourceMetadata["late_invite_id"])
+	assert.EqualValues(t, created.Invite.ID, testFormValue(result.Request.SourceMetadata, "late_invite_id"))
 
 	used, err := testpkg.TenantQuery1(t, ctx, env.db, env.config.LateInviteRepo.LateInviteByUsedRequestID, result.Request.ID)
 	require.NoError(t, err)
@@ -724,7 +724,7 @@ func TestRequestService_Submit_NoLegalBlocksConfiguredRequiresNoConsentFlags(t *
 	ctx := testpkg.Ctx(t)
 
 	req := validSubmission(t, env.phaseID)
-	req.ConsentFlags = map[string]any{}
+	req.ConsentFlags = testFormValues(map[string]any{})
 	_, err := env.svc.Submit(ctx, req)
 	require.NoError(t, err)
 }
@@ -738,7 +738,7 @@ func TestRequestService_Submit_AGBToggleWithoutTextDoesNotRequireConsent(t *test
 	env.settings.boolValues[settingKeyLegalTermsEnabled] = true
 
 	req := validSubmission(t, env.phaseID)
-	req.ConsentFlags = map[string]any{}
+	req.ConsentFlags = testFormValues(map[string]any{})
 	_, err := env.svc.Submit(ctx, req)
 	require.NoError(t, err)
 }
@@ -753,7 +753,7 @@ func TestRequestService_Submit_AGBRequiredWhenTermsBlockConfigured(t *testing.T)
 	env.settings.stringValues[settingKeyLegalAGBText] = "Ganztag Info-Brief"
 
 	req := validSubmission(t, env.phaseID)
-	req.ConsentFlags = map[string]any{"agb": false}
+	req.ConsentFlags = testFormValues(map[string]any{"agb": false})
 	_, err := env.svc.Submit(ctx, req)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentNative.ErrInvalidSubmission))
@@ -771,7 +771,7 @@ func TestRequestService_Submit_StoresLegalBlocksSnapshotAndEditAppends(t *testin
 	env.settings.stringValues[settingKeyLegalPhotoText] = "Foto-Einwilligungstext"
 
 	req := validSubmission(t, env.phaseID)
-	req.ConsentFlags = map[string]any{"agb": true, "photo": false}
+	req.ConsentFlags = testFormValues(map[string]any{"agb": true, "photo": false})
 	result, err := env.svc.Submit(ctx, req)
 	require.NoError(t, err)
 	require.NotNil(t, result.Request)
@@ -796,7 +796,7 @@ func TestRequestService_Submit_StoresLegalBlocksSnapshotAndEditAppends(t *testin
 	// first; the pre-edit photo answer stays provable in entry 0 even
 	// though Request.ConsentFlags now holds the edited values.
 	replace := validSubmission(t, env.phaseID)
-	replace.ConsentFlags = map[string]any{"agb": true, "photo": true}
+	replace.ConsentFlags = testFormValues(map[string]any{"agb": true, "photo": true})
 	_, err = env.svc.ReplaceEditable(ctx, result.Request.StatusToken, replace)
 	require.NoError(t, err)
 
@@ -820,7 +820,7 @@ func TestRequestService_Submit_AGBTermsResolveFailureFailsClosed(t *testing.T) {
 	env.settings.boolErrors[settingKeyLegalTermsEnabled] = errors.New("bad bool setting")
 
 	req := validSubmission(t, env.phaseID)
-	req.ConsentFlags = map[string]any{}
+	req.ConsentFlags = testFormValues(map[string]any{})
 	_, err := env.svc.Submit(ctx, req)
 	require.Error(t, err)
 	assert.False(t, errors.Is(err, enrollmentNative.ErrInvalidSubmission))
@@ -852,12 +852,12 @@ func TestRequestService_Submit_DSGVORequiredWhenPrivacyBlockConfigured(t *testin
 	env.settings.stringValues[settingKeyLegalDSGVOText] = "Datenschutzinformation"
 
 	req := validSubmission(t, env.phaseID)
-	req.ConsentFlags = map[string]any{}
+	req.ConsentFlags = testFormValues(map[string]any{})
 	_, err := env.svc.Submit(ctx, req)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentNative.ErrInvalidSubmission))
 
-	req.ConsentFlags = map[string]any{"data_processing": true}
+	req.ConsentFlags = testFormValues(map[string]any{"data_processing": true})
 	_, err = env.svc.Submit(ctx, req)
 	require.NoError(t, err)
 }
@@ -888,7 +888,7 @@ func TestRequestService_Submit_PhotoLegalBlockIsOptional(t *testing.T) {
 	env.settings.stringValues[settingKeyLegalPhotoText] = "Fotoeinwilligung"
 
 	req := validSubmission(t, env.phaseID)
-	req.ConsentFlags = map[string]any{"photo": false}
+	req.ConsentFlags = testFormValues(map[string]any{"photo": false})
 	_, err := env.svc.Submit(ctx, req)
 	require.NoError(t, err)
 }
@@ -2934,19 +2934,19 @@ func TestRequestService_Submit_HiddenRequiredFieldDoesNotBlockAndIsNotPersisted(
 	// has_allergy=false → which_allergy is hidden + unanswered. The client
 	// also smuggles a stale value for the hidden field.
 	req := validSubmission(t, env.phaseID)
-	req.Children[0].CustomData = map[string]any{
+	req.Children[0].CustomData = testFormValues(map[string]any{
 		"has_allergy":   false,
 		"which_allergy": "smuggled value",
-	}
+	})
 
 	result, err := env.svc.Submit(ctx, req)
 	require.NoError(t, err, "a hidden required field must not block an otherwise valid submit")
 	require.Len(t, result.Children, 1)
 
 	child := result.Children[0]
-	_, hasHidden := child.CustomData["which_allergy"]
+	_, hasHidden := child.CustomData.Lookup("which_allergy")
 	assert.False(t, hasHidden, "value for the hidden field must be sanitized out before persisting")
-	assert.Equal(t, false, child.CustomData["has_allergy"], "visible controller answer is kept")
+	assert.Equal(t, false, testFormValue(child.CustomData, "has_allergy"), "visible controller answer is kept")
 }
 
 // TestRequestService_Submit_VisibleRequiredFieldStillEnforced is the positive
@@ -2977,7 +2977,7 @@ func TestRequestService_Submit_VisibleRequiredFieldStillEnforced(t *testing.T) {
 
 	// has_allergy=true → which_allergy is visible + required, but left blank.
 	req := validSubmission(t, env.phaseID)
-	req.Children[0].CustomData = map[string]any{"has_allergy": true}
+	req.Children[0].CustomData = testFormValues(map[string]any{"has_allergy": true})
 
 	_, err = env.svc.Submit(ctx, req)
 	require.Error(t, err, "a visible required field left blank must block the submit")
@@ -3009,15 +3009,15 @@ func TestRequestService_Submit_RequiredStructuredFieldValidatesEntries(t *testin
 
 	// Malformed: a single contact with no name and no email/phone.
 	bad := validSubmission(t, env.phaseID)
-	bad.Children[0].CustomData = map[string]any{"contacts": []any{map[string]any{}}}
+	bad.Children[0].CustomData = testFormValues(map[string]any{"contacts": []any{map[string]any{}}})
 	_, err = env.svc.Submit(ctx, bad)
 	require.Error(t, err, "a required contact_list with a malformed entry must be rejected at submit")
 
 	// Valid: a complete contact (name + email).
 	ok := validSubmission(t, env.phaseID)
-	ok.Children[0].CustomData = map[string]any{"contacts": []any{
+	ok.Children[0].CustomData = testFormValues(map[string]any{"contacts": []any{
 		map[string]any{"first_name": "Eva", "last_name": "Muster", "email": "eva@example.test"},
-	}}
+	}})
 	res, err := env.svc.Submit(ctx, ok)
 	require.NoError(t, err, "a valid required contact_list must be accepted")
 	require.Len(t, res.Children, 1)
@@ -3054,13 +3054,13 @@ func TestRequestService_Submit_AcceptsAllowedPickupTime(t *testing.T) {
 	publishPickupSchema(t, env, []string{"14:45", "16:00"})
 
 	req := validSubmission(t, env.phaseID)
-	req.Children[0].CustomData = map[string]any{
+	req.Children[0].CustomData = testFormValues(map[string]any{
 		"schedule_pickup": map[string]any{"mon": "14:45", "wed": "16:00"},
-	}
+	})
 	result, err := env.svc.Submit(ctx, req)
 	require.NoError(t, err, "times from the configured list must be accepted")
 	require.Len(t, result.Children, 1)
-	assert.NotNil(t, result.Children[0].CustomData["schedule_pickup"],
+	assert.NotNil(t, testFormValue(result.Children[0].CustomData, "schedule_pickup"),
 		"the constrained schedule answer must persist on the child")
 }
 
@@ -3094,15 +3094,15 @@ func TestRequestService_Submit_PrunesNonCareDayPickupTimes(t *testing.T) {
 	req := validSubmission(t, env.phaseID)
 	req.Children[0].OfferingIDs = []int64{offering.ID}
 	// The Friday pickup was never offered for a Tue/Thu child -> must be pruned.
-	req.Children[0].CustomData = map[string]any{
+	req.Children[0].CustomData = testFormValues(map[string]any{
 		"schedule_pickup": map[string]any{"tue": "15:00", "fri": "15:00"},
-	}
+	})
 
 	result, err := env.svc.Submit(ctx, req)
 	require.NoError(t, err)
 	require.Len(t, result.Children, 1)
 
-	sched, ok := result.Children[0].CustomData["schedule_pickup"].(map[string]any)
+	sched, ok := testFormValue(result.Children[0].CustomData, "schedule_pickup").(map[string]any)
 	require.True(t, ok, "schedule answer must persist as a map")
 	assert.Equal(t, "15:00", sched["tue"], "the care-day pickup is kept")
 	_, hasFri := sched["fri"]
@@ -3121,9 +3121,9 @@ func TestRequestService_Submit_RejectsOffListPickupTime(t *testing.T) {
 	publishPickupSchema(t, env, []string{"14:45", "16:00"})
 
 	req := validSubmission(t, env.phaseID)
-	req.Children[0].CustomData = map[string]any{
+	req.Children[0].CustomData = testFormValues(map[string]any{
 		"schedule_pickup": map[string]any{"mon": "15:00"},
-	}
+	})
 	_, err := env.svc.Submit(ctx, req)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentNative.ErrPickupTimeNotAllowed),
@@ -3161,16 +3161,16 @@ func TestRequestService_Submit_OffListPickupOnNonCareDayIsPrunedNotRejected(t *t
 	req.Children[0].OfferingIDs = []int64{offering.ID}
 	// tue: an allowed time on a care day. mon: an OFF-LIST time on a non-care
 	// day -- it must be pruned, not trip the allowed-times gate.
-	req.Children[0].CustomData = map[string]any{
+	req.Children[0].CustomData = testFormValues(map[string]any{
 		"schedule_pickup": map[string]any{"tue": "14:45", "mon": "15:00"},
-	}
+	})
 
 	result, err := env.svc.Submit(ctx, req)
 	require.NoError(t, err,
 		"an off-list time on a non-care day must be pruned, not rejected")
 	require.Len(t, result.Children, 1)
 
-	sched, ok := result.Children[0].CustomData["schedule_pickup"].(map[string]any)
+	sched, ok := testFormValue(result.Children[0].CustomData, "schedule_pickup").(map[string]any)
 	require.True(t, ok, "schedule answer must persist as a map")
 	assert.Equal(t, "14:45", sched["tue"], "the care-day pickup is kept")
 	_, hasMon := sched["mon"]
@@ -3189,17 +3189,17 @@ func TestRequestService_ReplaceEditable_RejectsOffListPickupTime(t *testing.T) {
 
 	// Submit a valid request first so there is something to edit.
 	first := validSubmission(t, env.phaseID)
-	first.Children[0].CustomData = map[string]any{
+	first.Children[0].CustomData = testFormValues(map[string]any{
 		"schedule_pickup": map[string]any{"mon": "14:45"},
-	}
+	})
 	submitted, err := env.svc.Submit(ctx, first)
 	require.NoError(t, err)
 
 	// Editing it to an off-list time must hit the same enforcement.
 	edit := validSubmission(t, env.phaseID)
-	edit.Children[0].CustomData = map[string]any{
+	edit.Children[0].CustomData = testFormValues(map[string]any{
 		"schedule_pickup": map[string]any{"mon": "15:00"},
-	}
+	})
 	_, err = env.svc.ReplaceEditable(ctx, submitted.Request.StatusToken, edit)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentNative.ErrPickupTimeNotAllowed),
@@ -3373,15 +3373,15 @@ func TestRequestService_Edit_AdminContextUsesPinnedSchema(t *testing.T) {
 	err = tenant.WithAdminTx(ctx, env.db, func(adminCtx context.Context, _ bun.Tx) error {
 		require.Zero(t, tenant.FromContext(adminCtx))
 		return env.svc.Edit(adminCtx, result.Request.StatusToken, enrollmentAPI.EditPatch{
-			CustomData:   map[string]any{"show_details": false, "details": "hidden", "unknown": "injected"},
-			ConsentFlags: map[string]any{"custom_permission": true, "photo": true, "unknown": true},
+			CustomData:   new(testFormValues(map[string]any{"show_details": false, "details": "hidden", "unknown": "injected"})),
+			ConsentFlags: new(testFormValues(map[string]any{"custom_permission": true, "photo": true, "unknown": true})),
 		})
 	})
 	require.NoError(t, err)
 	stored, _, err := env.svc.GetByStatusToken(ctx, result.Request.StatusToken)
 	require.NoError(t, err)
-	assert.Equal(t, map[string]any{"show_details": false}, stored.CustomData)
-	assert.Equal(t, map[string]any{"custom_permission": true}, stored.ConsentFlags)
+	assert.Equal(t, testFormValues(map[string]any{"show_details": false}), stored.CustomData)
+	assert.Equal(t, testFormValues(map[string]any{"custom_permission": true}), stored.ConsentFlags)
 }
 
 type failingEditSchemaCatalog struct {
@@ -3428,7 +3428,7 @@ func TestRequestService_NoticeAttachmentEvidenceSurvivesLaterPublication(t *test
 	env.phase.FormSchemaID = &first.ID
 	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, repoFactory.Enrollment().UpdatePhase, enrollmentAPI.OwnerPhaseForTest(env.phase)))
 	input := validSubmission(t, env.phaseID)
-	input.ConsentFlags = map[string]any{}
+	input.ConsentFlags = testFormValues(map[string]any{})
 	submitted, err := env.svc.Submit(ctx, input)
 	require.NoError(t, err, "information PDFs must not require any additional consent")
 	require.Len(t, submitted.Request.LegalBlocksSnapshot, 1)

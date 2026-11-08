@@ -29,7 +29,7 @@ func (d *Decisions) ListChildOfferings(ctx context.Context, requestID int64) (pu
 	if requestID <= 0 {
 		return nil, fmt.Errorf("decision: request_id required")
 	}
-	request, err := decodedRequestByID(ctx, d.deps.Requests, requestID, false)
+	request, err := d.deps.Requests.RequestByID(ctx, requestID, false)
 	if err != nil || request == nil {
 		return nil, fmt.Errorf("decision: load request for offerings: %w", err)
 	}
@@ -37,7 +37,7 @@ func (d *Decisions) ListChildOfferings(ctx context.Context, requestID int64) (pu
 	if err != nil || phase == nil {
 		return nil, fmt.Errorf("decision: load phase for offerings: %w", err)
 	}
-	children, err := decodedChildrenOfRequest(ctx, d.deps.Children, requestID, false)
+	children, err := d.deps.Children.ChildrenForRequest(ctx, requestID, false)
 	if err != nil {
 		return nil, fmt.Errorf("decision: list children for offerings: %w", err)
 	}

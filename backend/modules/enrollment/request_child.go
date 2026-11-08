@@ -1,38 +1,39 @@
 package enrollment
 
 import (
-	"encoding/json"
 	"slices"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // RequestChild is the intake record, distinct from any materialized student.
 type RequestChild struct {
-	ID                    int64           `json:"id"`
-	TenantID              int64           `json:"tenant_id"`
-	CreatedAt             time.Time       `json:"created_at"`
-	UpdatedAt             time.Time       `json:"updated_at"`
-	RequestID             int64           `json:"request_id"`
-	FirstName             string          `json:"first_name"`
-	LastName              string          `json:"last_name"`
-	DateOfBirth           Date            `json:"date_of_birth"`
-	TargetGradeLevel      *int16          `json:"target_grade_level,omitempty"`
-	TargetSchoolClass     *string         `json:"target_school_class,omitempty"`
-	CustomData            json.RawMessage `json:"custom_data"`
-	Status                string          `json:"status"`
-	StatusReason          *string         `json:"status_reason,omitempty"`
-	ActivationMode        string          `json:"activation_mode"`
-	ActivateOn            *Date           `json:"activate_on,omitempty"`
-	ReviewedAt            *time.Time      `json:"reviewed_at,omitempty"`
-	ReviewedBy            *int64          `json:"reviewed_by,omitempty"`
-	CreatedStudentID      *int64          `json:"created_student_id,omitempty"`
-	MatchedStudentID      *int64          `json:"matched_student_id,omitempty"`
-	SortOrder             int             `json:"sort_order"`
-	RolloverSourceChildID *int64          `json:"rollover_source_child_id,omitempty"`
-	ReviewReason          *string         `json:"review_reason,omitempty"`
+	ID                    int64          `json:"id"`
+	TenantID              int64          `json:"tenant_id"`
+	CreatedAt             time.Time      `json:"created_at"`
+	UpdatedAt             time.Time      `json:"updated_at"`
+	RequestID             int64          `json:"request_id"`
+	FirstName             string         `json:"first_name"`
+	LastName              string         `json:"last_name"`
+	DateOfBirth           calendar.Date  `json:"date_of_birth"`
+	TargetGradeLevel      *int16         `json:"target_grade_level,omitempty"`
+	TargetSchoolClass     *string        `json:"target_school_class,omitempty"`
+	CustomData            FormValues     `json:"custom_data"`
+	Status                string         `json:"status"`
+	StatusReason          *string        `json:"status_reason,omitempty"`
+	ActivationMode        string         `json:"activation_mode"`
+	ActivateOn            *calendar.Date `json:"activate_on,omitempty"`
+	ReviewedAt            *time.Time     `json:"reviewed_at,omitempty"`
+	ReviewedBy            *int64         `json:"reviewed_by,omitempty"`
+	CreatedStudentID      *int64         `json:"created_student_id,omitempty"`
+	MatchedStudentID      *int64         `json:"matched_student_id,omitempty"`
+	SortOrder             int            `json:"sort_order"`
+	RolloverSourceChildID *int64         `json:"rollover_source_child_id,omitempty"`
+	ReviewReason          *string        `json:"review_reason,omitempty"`
 	// WeeklyPlanOn is the day an approved future renewal's weekly plan
 	// applies (#6043). Read-only: plans are written through WeeklyPlans.
-	WeeklyPlanOn *Date `json:"weekly_plan_on,omitempty"`
+	WeeklyPlanOn *calendar.Date `json:"weekly_plan_on,omitempty"`
 }
 
 // PhaseResponseChild is a child selected for a phase response overview. A

@@ -181,7 +181,7 @@ func (d *Decisions) ApplyDueWeeklyPlans(ctx context.Context, asOf calendar.Date)
 // no longer approved or no longer cared for is dropped without applying.
 func (d *Decisions) applyWeeklyPlan(ctx context.Context, plan enrollmentNative.WeeklyPlan) (bool, error) {
 	requestChildID := plan.RequestChildID
-	child, err := decodedChildByID(ctx, d.deps.Children, requestChildID)
+	child, err := d.deps.Children.ChildByID(ctx, requestChildID)
 	if err != nil {
 		return false, fmt.Errorf("weekly plan: load request child: %w", err)
 	}
@@ -189,7 +189,7 @@ func (d *Decisions) applyWeeklyPlan(ctx context.Context, plan enrollmentNative.W
 	if err != nil || student == nil {
 		return false, d.finishWeeklyPlan(ctx, requestChildID, err)
 	}
-	request, err := decodedRequestByID(ctx, d.deps.Requests, child.RequestID, false)
+	request, err := d.deps.Requests.RequestByID(ctx, child.RequestID, false)
 	if err != nil {
 		return false, fmt.Errorf("weekly plan: load request: %w", err)
 	}
@@ -208,7 +208,7 @@ func (d *Decisions) applyWeeklyPlan(ctx context.Context, plan enrollmentNative.W
 // applyPlannedWeeklyFields shares activation semantics between the tick and
 // a correction made after the plan became due. Use the caller's student so
 // the correction's remaining fields cannot overwrite the activated plan.
-func (d *Decisions) applyPlannedWeeklyFields(ctx context.Context, request *Request, child *RequestChild, student *Student, actorAccountID int64, plan enrollmentNative.WeeklyPlan) error {
+func (d *Decisions) applyPlannedWeeklyFields(ctx context.Context, request *enrollmentNative.Request, child *enrollmentNative.RequestChild, student *Student, actorAccountID int64, plan enrollmentNative.WeeklyPlan) error {
 	before := *student
 	planSynced, err := d.applyTargetedFields(ctx, request, child, student, nil, actorAccountID, targetedFieldSyncOptions{
 		Replace:               plan.Replace,
@@ -239,7 +239,7 @@ func (d *Decisions) applyPlannedWeeklyFields(ctx context.Context, request *Reque
 
 // weeklyPlanStudent locks the student a due plan applies to; nil when the
 // plan no longer applies.
-func (d *Decisions) weeklyPlanStudent(ctx context.Context, child *RequestChild) (*Student, error) {
+func (d *Decisions) weeklyPlanStudent(ctx context.Context, child *enrollmentNative.RequestChild) (*Student, error) {
 	if child == nil || child.Status != enrollmentNative.ChildStatusApproved || child.CreatedStudentID == nil {
 		return nil, nil
 	}

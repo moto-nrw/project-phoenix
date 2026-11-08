@@ -7,27 +7,30 @@ import (
 
 // Request is a submission pinned to an immutable schema version.
 type Request struct {
-	ID                       int64           `json:"id"`
-	TenantID                 int64           `json:"tenant_id"`
-	CreatedAt                time.Time       `json:"created_at"`
-	UpdatedAt                time.Time       `json:"updated_at"`
-	SchemaID                 *int64          `json:"schema_id,omitempty"`
-	PhaseID                  int64           `json:"phase_id"`
-	GuardianFirstName        string          `json:"guardian_first_name"`
-	GuardianLastName         string          `json:"guardian_last_name"`
-	GuardianEmail            string          `json:"guardian_email"`
-	GuardianPhone            *string         `json:"guardian_phone,omitempty"`
-	GuardianAccountID        *int64          `json:"guardian_account_id,omitempty"`
-	ConsentFlags             json.RawMessage `json:"consent_flags"`
-	LegalBlocksSnapshot      json.RawMessage `json:"-"`
-	CustomData               json.RawMessage `json:"custom_data"`
-	SubmissionSource         string          `json:"submission_source"`
-	SourceMetadata           json.RawMessage `json:"source_metadata"`
-	StatusToken              string          `json:"status_token"`
-	StatusTokenExpires       *time.Time      `json:"status_token_expires,omitempty"`
-	SubmittedAt              time.Time       `json:"submitted_at"`
-	WithdrawnAt              *time.Time      `json:"withdrawn_at,omitempty"`
-	DecisionNotificationMode *string         `json:"-"`
+	ID                int64      `json:"id"`
+	TenantID          int64      `json:"tenant_id"`
+	CreatedAt         time.Time  `json:"created_at"`
+	UpdatedAt         time.Time  `json:"updated_at"`
+	SchemaID          *int64     `json:"schema_id,omitempty"`
+	PhaseID           int64      `json:"phase_id"`
+	GuardianFirstName string     `json:"guardian_first_name"`
+	GuardianLastName  string     `json:"guardian_last_name"`
+	GuardianEmail     string     `json:"guardian_email"`
+	GuardianPhone     *string    `json:"guardian_phone,omitempty"`
+	GuardianAccountID *int64     `json:"guardian_account_id,omitempty"`
+	ConsentFlags      FormValues `json:"consent_flags"`
+	// LegalBlocksSnapshot is append-only consent evidence (Art. 5 Abs. 2,
+	// Art. 7 Abs. 1 DSGVO): one entry per parent-facing (re)submission. Not
+	// part of the request API.
+	LegalBlocksSnapshot      []LegalBlocksSnapshotEntry `json:"-"`
+	CustomData               FormValues                 `json:"custom_data"`
+	SubmissionSource         string                     `json:"submission_source"`
+	SourceMetadata           FormValues                 `json:"source_metadata"`
+	StatusToken              string                     `json:"status_token"`
+	StatusTokenExpires       *time.Time                 `json:"status_token_expires,omitempty"`
+	SubmittedAt              time.Time                  `json:"submitted_at"`
+	WithdrawnAt              *time.Time                 `json:"withdrawn_at,omitempty"`
+	DecisionNotificationMode *string                    `json:"-"`
 }
 
 type RequestListFilters struct {
