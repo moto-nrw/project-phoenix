@@ -68,5 +68,58 @@ func seedBillingTerms(client *Client, auth AuthRef, runID int64, month calendar.
 			return fmt.Errorf("keep the deviation of a family: %w", err)
 		}
 	}
+	return seedSEPAMandates(client, auth, invoices)
+}
+
+// seedSEPAMandates gives the demo Träger its creditor identifier (the
+// Bundesbank's test identifier) and the SEPA mandates of the families that
+// pay by direct debit (#4695): one family's first mandate was revoked and
+// replaced, one family has none, so the review shows its hint and the
+// invoice goes as a transfer. The first family pays by transfer anyway.
+func seedSEPAMandates(client *Client, auth AuthRef, invoices []struct {
+	ContractID int64 `json:"contract_id"`
+	Recipient  struct {
+		LastName string `json:"last_name"`
+	} `json:"recipient"`
+}) error {
+	if _, err := client.PutWithAuth(auth, "/traeger/sepa-creditor/", map[string]any{
+		"creditor_id": "DE98ZZZ09999999999", "prenotification_days": 5, "missing_mandate": "transfer",
+	}); err != nil {
+		return fmt.Errorf("keep the SEPA creditor: %w", err)
+	}
+	for i, invoice := range invoices {
+		if i == 0 || i == 2 {
+			continue
+		}
+		mandate := map[string]any{
+			"contract_id": invoice.ContractID, "reference": fmt.Sprintf("SJR-2026-%04d", i), "signed_on": "2026-09-01",
+			"kind": "recurring", "sequence": "recurring", "account_holder": "Familie " + invoice.Recipient.LastName,
+			"iban": demoIBAN(9000 + i),
+		}
+		raw, err := client.PostWithAuth(auth, "/traeger/sepa-mandates/", mandate)
+		if err != nil {
+			return fmt.Errorf("keep the SEPA mandate of a family: %w", err)
+		}
+		if i != 1 {
+			continue
+		}
+		var created struct {
+			Data struct {
+				ID int64 `json:"id"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(raw, &created); err != nil {
+			return fmt.Errorf("read the SEPA mandate: %w", err)
+		}
+		if _, err := client.PostWithAuth(auth, fmt.Sprintf("/traeger/sepa-mandates/%d/revoke", created.Data.ID),
+			map[string]any{"revoked_on": "2026-10-01"}); err != nil {
+			return fmt.Errorf("revoke the SEPA mandate of a family: %w", err)
+		}
+		mandate["reference"], mandate["signed_on"], mandate["sequence"] = "SJR-2026-0101", "2026-10-02", "first"
+		mandate["iban"] = demoIBAN(9100 + i)
+		if _, err := client.PostWithAuth(auth, "/traeger/sepa-mandates/", mandate); err != nil {
+			return fmt.Errorf("keep the new SEPA mandate of a family: %w", err)
+		}
+	}
 	return nil
 }
