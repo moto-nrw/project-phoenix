@@ -15,7 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// The Jahresbescheide of the monthly care (#6219, ADR 0175). Every query
+// The Jahresbescheide of the monthly care (#6219, ADR 0177). Every query
 // names the Träger next to RLS; the scope tests run them as the admin role
 // without RLS.
 

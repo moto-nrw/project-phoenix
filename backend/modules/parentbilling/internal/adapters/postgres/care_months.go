@@ -427,7 +427,7 @@ func (s *Store) InvoicedContracts(ctx context.Context, organizationID int64, mon
 	// A Mensa-only invoice (#4686) has no module position; it still bills
 	// its contract, so the positions join from the left for an invoice with
 	// Mensa months. A month a Jahresbescheid nobody amended assesses bills
-	// its contract too (#6219, ADR 0175): it comes from the snapshot of the
+	// its contract too (#6219, ADR 0177): it comes from the snapshot of the
 	// month with the cents the rule chain allocated, and names the notice.
 	if err := db.NewRaw(`SELECT contract_id, school_id, recipient_email, family_email, total_cents, care_offering_id,
 		amount_cents, payable_cents, reductions, notice_number FROM (

@@ -113,7 +113,7 @@ func NewCareBillingHTTP(organizations HolidayOrganizations, settings TraegerBran
 }
 
 // NewCareNoticeHTTP binds the Jahresbescheide of the monthly care (#6219,
-// ADR 0175) to the right "Abrechnung" and to the same ports as the monthly
+// ADR 0177) to the right "Abrechnung" and to the same ports as the monthly
 // run, plus the letterhead of the Träger for page 1 of the Bescheid.
 func NewCareNoticeHTTP(organizations HolidayOrganizations, settings TraegerBrandingSettings, schoolSettings owners.MealAttendanceSchoolSettings,
 	marks owners.MealAttendanceMarks,

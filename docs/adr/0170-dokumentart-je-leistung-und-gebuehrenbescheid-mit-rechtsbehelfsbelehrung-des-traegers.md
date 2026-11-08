@@ -96,7 +96,7 @@ ein Jahr (§ 58 Abs. 2 VwGO), deshalb wird ohne sie kein Bescheid ausgestellt.
 - **Jahresbescheid mit Monatsraten:** Der Monatslauf stellt je Monat aus; ein
   Bescheid über einen Zeitraum mit Raten zum Monatsersten (MK-007) bräuchte
   einen eigenen Lauf über mehrere Monate. Vorgeschlagen in
-  [ADR 0175](0175-jahresbescheid-veranlagt-die-monate-eines-jahres-und-keine-monatsrechnung-rechnet-sie-noch-einmal-ab.md) (#6219).
+  [ADR 0177](0177-jahresbescheid-veranlagt-die-monate-eines-jahres-und-keine-monatsrechnung-rechnet-sie-noch-einmal-ab.md) (#6219).
 
 ## Register
 

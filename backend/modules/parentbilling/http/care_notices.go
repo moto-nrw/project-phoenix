@@ -15,7 +15,7 @@ import (
 )
 
 // CareNoticeResource serves the Jahresbescheide of the monthly care (#6219,
-// ADR 0175) at /traeger/care-notice-runs. Every route sits behind the Träger
+// ADR 0177) at /traeger/care-notice-runs. Every route sits behind the Träger
 // session, needs the Träger right "Abrechnung" and runs in the Träger
 // transaction of the session's Träger.
 type CareNoticeResource struct {
