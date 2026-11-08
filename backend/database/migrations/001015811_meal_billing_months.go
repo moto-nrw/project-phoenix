@@ -14,8 +14,7 @@ func init() {
 		Version:     mealBillingMonthsVersion,
 		Description: "Mensa: Monatsfreigabe der OGS und Abrechnung als Pauschale oder je Essen im Monatslauf (#4686)",
 		DependsOn: []string{
-			parentBillingCareMonthsVersion,         // the monthly runs and invoices the meal positions join
-			demoVisitorErasureContractPushVersion, // the erasure this one extends, and the last erasure before it
+			parentBillingCareLettersVersion, // the invoices, their Storno and reissue, and the erasure this one extends
 		},
 	})
 	Migrations.MustRegister(mealBillingMonthsUp, mealBillingMonthsDown)
@@ -185,6 +184,7 @@ CREATE TABLE parent_billing.care_meal_positions (
 	id BIGSERIAL PRIMARY KEY,
 	organization_id BIGINT NOT NULL,
 	invoice_id BIGINT NOT NULL,
+	replaces_invoice_id BIGINT,
 	position SMALLINT NOT NULL,
 	school_id BIGINT NOT NULL,
 	student_id BIGINT NOT NULL,
@@ -198,7 +198,6 @@ CREATE TABLE parent_billing.care_meal_positions (
 	CONSTRAINT fk_care_meal_positions_invoice FOREIGN KEY (organization_id, invoice_id)
 		REFERENCES parent_billing.care_invoices (organization_id, id) ON DELETE CASCADE,
 	CONSTRAINT uq_care_meal_positions_position UNIQUE (invoice_id, position),
-	CONSTRAINT uq_care_meal_positions_child_month UNIQUE (organization_id, school_id, student_id, meal_month),
 	CONSTRAINT chk_care_meal_positions_month CHECK (EXTRACT(DAY FROM meal_month) = 1),
 	CONSTRAINT chk_care_meal_positions_mode CHECK (
 		(mode = 'per_meal' AND quantity BETWEEN 1 AND 31 AND amount_cents = quantity * unit_cents)
@@ -206,6 +205,11 @@ CREATE TABLE parent_billing.care_meal_positions (
 	CONSTRAINT chk_care_meal_positions_amounts CHECK (
 		unit_cents >= 0 AND amount_cents >= 0 AND amount_cents = net_cents + tax_cents AND tax_cents = 0)
 );
+-- A child's Mensa month is billed once per invoice chain: once on a first
+-- invoice, once on the reissue of each cancelled one (ADR 0165), where
+-- replaces_invoice_id copies the invoice's.
+CREATE UNIQUE INDEX uq_care_meal_positions_child_month ON parent_billing.care_meal_positions
+	(organization_id, school_id, student_id, meal_month, replaces_invoice_id) NULLS NOT DISTINCT;
 COMMENT ON TABLE parent_billing.care_meal_positions IS
 	'A Mensa month of a child on an issued monthly invoice (#4686); billed once, never changes.';
 CREATE TRIGGER refuse_parent_billing_care_meal_position_change
@@ -241,7 +245,7 @@ DROP FUNCTION IF EXISTS schedule.refuse_meal_billing_change();
 DROP FUNCTION IF EXISTS schedule.meal_billing_school_organization(BIGINT);
 `
 
-// mealBillingErasureAnchor is the statement of the erasure of 1.15.808
+// mealBillingErasureAnchor is the statement of the erasure of 1.15.809
 // after which the released Mensa months of the demo schools go.
 const mealBillingErasureAnchor = `					DELETE FROM parent_billing.care_run_holds
 					WHERE school_ids && hidden_schools;
@@ -254,11 +258,11 @@ func mealBillingMonthsUp(ctx context.Context, db *bun.DB) error {
 	return installMealBillingErasure(ctx, db)
 }
 
-// mealBillingMonthsDown restores the erasure of 1.15.808 before it drops
+// mealBillingMonthsDown restores the erasure of 1.15.809 before it drops
 // the tables that erasure no longer names.
 func mealBillingMonthsDown(ctx context.Context, db *bun.DB) error {
-	if err := demoVisitorErasureContractPushUp(ctx, db); err != nil {
-		return fmt.Errorf("restore the demo visitor erasure of 1.15.808: %w", err)
+	if err := installDemoVisitorErasureOf809(ctx, db); err != nil {
+		return fmt.Errorf("restore the demo visitor erasure of 1.15.809: %w", err)
 	}
 	if _, err := db.ExecContext(ctx, mealBillingMonthsDownSQL); err != nil {
 		return fmt.Errorf("drop meal billing months: %w", err)

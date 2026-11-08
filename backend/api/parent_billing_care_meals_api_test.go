@@ -189,3 +189,47 @@ func TestCareMealPriceListQueryBudgetIsFlat(t *testing.T) {
 	assert.Len(t, list().Statements, len(first.Statements), "the Mensa prices read the same statements for any number of prices")
 	querybudgets.AssertQueryBudget(t, "api.traeger.care_meal_tariffs", first)
 }
+
+// A Storno takes the Mensa months back with the invoice (ADR 0165): the next
+// run of the month issues the invoice anew with the same Mensa months, and
+// the reissue bills them once.
+func TestCareMealMonthsReturnOnTheReissueAfterAStorno(t *testing.T) {
+	t.Parallel()
+	f := newCareBillingFixture(t, "Träger Mensa Storno")
+	db := testpkg.SetupTestDB(t)
+	brandCareTraeger(t, f)
+	school := f.office.schools[0]
+	contract := careContract(t, f.db, f.office.organization, school, "Mia", careMonth, sjrServices()...)
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careTariffsPath, carePriceList(school, "2029-09-01", 3200))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careMealTariffsPath, mealPrice(school, "2029-12-01", "flat", 5500))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	releaseMealMonth(t, db, f.office.organization, school, "2029-12-01", "Mia", 1)
+
+	run := f.startRun(t, careMonth)
+	preview := f.run(t, run.ID)
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/release"), careRelease(preview))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	issued := decodeSchoolPortalData[careRunBody](t, rec.Body.Bytes()).Invoices[0]
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/letters"), careLettersInput())
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost,
+		careRunPath(run.ID, fmt.Sprintf("/invoices/%d/cancellation", issued.ID)), map[string]any{"reason": "Falscher Betrag"})
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+
+	again := f.startRun(t, careMonth)
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodGet, careRunPath(again.ID, ""), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	reissue := decodeSchoolPortalData[careMealRunBody](t, rec.Body.Bytes())
+	require.Len(t, reissue.Invoices, 1)
+	assert.Equal(t, contract, reissue.Invoices[0].ContractID)
+	require.Len(t, reissue.Invoices[0].MealPositions, 1, "the reissue bills the Mensa month the Storno took back")
+	assert.Equal(t, int64(5500), reissue.Invoices[0].MealPositions[0].AmountCents)
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(again.ID, "/release"),
+		map[string]any{"document_count": reissue.PreviewCount, "total_cents": reissue.PreviewCents})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var positions int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM parent_billing.care_meal_positions WHERE organization_id = ?`,
+		f.office.organization).Scan(context.Background(), &positions))
+	assert.Equal(t, 2, positions, "the cancelled invoice and its reissue each keep their Mensa month")
+}

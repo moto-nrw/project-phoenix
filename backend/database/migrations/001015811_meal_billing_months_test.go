@@ -12,19 +12,19 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// mealBillingErasureStatement is what 1.15.811 adds to the erasure of 1.15.808.
+// mealBillingErasureStatement is what 1.15.811 adds to the erasure of 1.15.809.
 const mealBillingErasureStatement = `					-- A Mensa month a school released keeps its children with
 					-- their meals (#4686); it goes with the school.
 					DELETE FROM schedule.meal_billing_months
 					WHERE school_id = ANY (hidden_schools);
 `
 
-// TestMealBillingErasureExtendsTheErasureOf808 keeps the erasure of 1.15.811
-// the erasure of 1.15.808 with the one statement for the Mensa months.
-func TestMealBillingErasureExtendsTheErasureOf808(t *testing.T) {
+// TestMealBillingErasureExtendsTheErasureOf809 keeps the erasure of 1.15.811
+// the erasure of 1.15.809 with the one statement for the Mensa months.
+func TestMealBillingErasureExtendsTheErasureOf809(t *testing.T) {
 	t.Parallel()
-	require.Equal(t, 1, strings.Count(demoVisitorErasureContractPushUpSQL, mealBillingErasureAnchor))
-	assert.Equal(t, strings.Replace(demoVisitorErasureContractPushUpSQL, mealBillingErasureAnchor,
+	require.Equal(t, 1, strings.Count(demoVisitorErasureCareLettersUpSQL, mealBillingErasureAnchor))
+	assert.Equal(t, strings.Replace(demoVisitorErasureCareLettersUpSQL, mealBillingErasureAnchor,
 		mealBillingErasureAnchor+mealBillingErasureStatement, 1), demoVisitorErasureMealBillingSQL)
 }
 

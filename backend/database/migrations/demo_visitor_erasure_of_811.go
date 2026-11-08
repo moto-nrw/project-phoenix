@@ -16,12 +16,12 @@ func installMealBillingErasure(ctx context.Context, db *bun.DB) error {
 }
 
 // demoVisitorErasureMealBillingSQL is platform.erase_closed_demo_visitors of
-// 1.15.808 that also deletes the Mensa months the demo schools released
+// 1.15.809 that also deletes the Mensa months the demo schools released
 // (#4686). The rows name the children (first and last name) and, without a
 // name, still tie a child's ID to its meals; nothing removes them with the
 // school, because they belong to the Träger. The meal positions of the
 // Träger's invoices go with the invoices by cascade. The rest of the
-// function is unchanged; TestMealBillingErasureExtendsTheErasureOf808 keeps
+// function is unchanged; TestMealBillingErasureExtendsTheErasureOf809 keeps
 // it that way.
 const demoVisitorErasureMealBillingSQL = `
 		CREATE OR REPLACE FUNCTION platform.erase_closed_demo_visitors()
@@ -221,6 +221,45 @@ const demoVisitorErasureMealBillingSQL = `
 					-- trail of a monthly run names the contracts it showed; it goes
 					-- while those contracts still exist. The numbers leave a gap in
 					-- the Träger's number range, which ADR 0119 accepts here.
+					-- The letter of a monthly invoice or its Storno travels on
+					-- Delivery's outbox with the PDF and the address, and a push
+					-- announces it in the parents inbox (#4684, ADR 0165). A send
+					-- holds the run of its invoice: take the runs first, so a send
+					-- under way is seen before its copies are cleaned up.
+					PERFORM 1 FROM parent_billing.care_runs AS run
+					WHERE (run.organization_id, run.id) IN (
+						SELECT invoice.organization_id, invoice.run_id
+						FROM parent_billing.care_invoices AS invoice
+						WHERE invoice.school_id = ANY (hidden_schools))
+					ORDER BY run.organization_id, run.id
+					FOR UPDATE;
+					DELETE FROM platform.email_delivery AS delivery
+					USING parent_billing.care_letter_mailings AS mailing, parent_billing.care_letters AS letter,
+						parent_billing.care_invoices AS invoice
+					WHERE invoice.school_id = ANY (hidden_schools)
+						AND letter.organization_id = invoice.organization_id
+						AND letter.invoice_id = invoice.id
+						AND mailing.organization_id = letter.organization_id
+						AND mailing.letter_id = letter.id
+						AND delivery.outbox_id = mailing.delivery_id;
+					DELETE FROM platform.email_outbox AS outbox
+					USING parent_billing.care_letter_mailings AS mailing, parent_billing.care_letters AS letter,
+						parent_billing.care_invoices AS invoice
+					WHERE invoice.school_id = ANY (hidden_schools)
+						AND letter.organization_id = invoice.organization_id
+						AND letter.invoice_id = invoice.id
+						AND mailing.organization_id = letter.organization_id
+						AND mailing.letter_id = letter.id
+						AND outbox.organization_id = mailing.organization_id
+						AND outbox.id = mailing.delivery_id;
+					DELETE FROM platform.push_outbox AS push
+					USING parent_billing.care_letters AS letter, parent_billing.care_invoices AS invoice
+					WHERE invoice.school_id = ANY (hidden_schools)
+						AND letter.organization_id = invoice.organization_id
+						AND letter.invoice_id = invoice.id
+						AND push.organization_id = letter.organization_id
+						AND push.related_entity_type = 'parent_billing_document'
+						AND push.related_entity_id = letter.id;
 					DELETE FROM parent_billing.care_invoices
 					WHERE school_id = ANY (hidden_schools);
 					-- A child a release held back keeps its name in the run's

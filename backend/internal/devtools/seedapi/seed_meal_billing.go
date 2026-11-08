@@ -102,12 +102,20 @@ func seedMealRelease(client *Client) (string, error) {
 		return "", fmt.Errorf("read the Mensa months: %w", err)
 	}
 	var overview struct {
-		Data []seedMealMonthSummary `json:"data"`
+		Data json.RawMessage `json:"data"`
 	}
 	if err := json.Unmarshal(raw, &overview); err != nil {
 		return "", fmt.Errorf("read the Mensa months: %w", err)
 	}
-	for _, summary := range overview.Data {
+	// A school without the meal registration answers no list; it has no
+	// Mensa month to release.
+	var months []seedMealMonthSummary
+	if len(overview.Data) > 0 && overview.Data[0] == '[' {
+		if err := json.Unmarshal(overview.Data, &months); err != nil {
+			return "", fmt.Errorf("read the Mensa months: %w", err)
+		}
+	}
+	for _, summary := range months {
 		if summary.Status == "released" {
 			return "nothing new", nil
 		}

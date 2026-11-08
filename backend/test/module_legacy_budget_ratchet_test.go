@@ -231,10 +231,12 @@ var moduleLegacyFileBudgets = map[string]int{
 // modules/parentbilling/compose adds exactly 5 LOC.
 // ADR 0163: the office's decision of the parents' changes of
 // modules/carecontract/compose (+5) adds exactly 5 LOC.
+// ADR 0165: the constructor of the monthly letters of
+// modules/parentbilling/compose adds exactly 7 LOC.
 // ADR 0166: the Mensa-Monatsfreigabe of modules/mealplan/compose (+31) and
 // the Mensa of the monthly run of modules/parentbilling/compose (+7) add
 // exactly 38 LOC.
-const moduleComposeBudgetTotal = 13119
+const moduleComposeBudgetTotal = 13126
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -308,8 +310,10 @@ var moduleComposeBudgets = map[string]int{
 	// the test hook of the signing link (+17); ADR 0159: withdrawal and
 	// termination (+35); ADR 0163: the office's decision of the parents' changes (+5).
 	"modules/carecontract/compose": 178,
-	// Raised by ADR 0158: the monthly contribution constructor (+5).
-	"modules/parentbilling/compose":               62, // raised by ADR 0166
+	// Raised by ADR 0158: the monthly contribution constructor (+5);
+	// ADR 0165: the constructor of the monthly letters (+7);
+	// ADR 0166: the Mensa of the monthly run (+7).
+	"modules/parentbilling/compose":               69,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	"modules/peopledirectory/compose":    973,

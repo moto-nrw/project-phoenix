@@ -1529,7 +1529,6 @@ const TINY_TEXT_BASELINE_FILES = new Set([
   "src/components/staff/staff-session-table.tsx",
   "src/components/students/care-schedule-manager.tsx",
   "src/components/students/planned-status-days-modal.tsx",
-  "src/components/students/school-checkin-fab.tsx",
   "src/components/time-tracking/vacation-request-modal.tsx",
   "src/components/timetable/bulk-substitution-modal.tsx",
   "src/components/timetable/event-form/multi-select-field.tsx",
@@ -1571,7 +1570,6 @@ src/components/staff/absence-request-row.tsx|text-[11px]@107
 src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@489 text-[11px]@585 text-[11px]@594 text-[11px]@601
 src/components/staff/staff-session-table.tsx|text-[11px]@1194
 src/components/students/planned-status-days-modal.tsx|text-[10px]@935 text-[11px]@935
-src/components/students/school-checkin-fab.tsx|text-[10px]@200
 src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@372
 src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@530
 src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@147 text-[11px]@312
@@ -2578,11 +2576,92 @@ function unprefixedTokens(text) {
   return text.split(/\s+/).filter((token) => token && !token.includes(":"));
 }
 
-function hasButtonOptics(text) {
-  const tokens = unprefixedTokens(text).map((token) => token.replace(/^!/, ""));
-  const colour = tokens.some(
-    (token) => BG_COLOR_RE.test(token) || FRAME_COLOR_RE.test(token),
+// #5608: Die Kartenfläche bringt Weiß, Rahmen und Schatten mit; auf einem
+// Knopf ist sie ein Hintergrund wie `bg-white border-gray-200`.
+const SURFACE_AS_FILL = "moto-content-surface";
+
+// #5608: `<span>` und `<label>` mit `cursor-pointer` sowie ein `<label>` um
+// eine Dateiauswahl sind Knöpfe, wenn sie so aussehen: buttonClassName nehmen.
+const CLICKABLE_TEXT_ELEMENTS = new Set(["label", "span"]);
+
+// #5608: Farbe über `style` statt Klasse. Nur Hintergrund, Rahmen und
+// Schatten (Ring per inset-Schatten) zählen; Textfarbe allein macht keinen
+// Knopf.
+const STYLE_FILL_KEYS = new Set([
+  "background",
+  "border",
+  "backgroundColor",
+  "borderColor",
+  "boxShadow",
+]);
+
+function styleObjectHasFill(node, constants, depth) {
+  if (!node || depth > 4) return false;
+  if (
+    node.type === "TSAsExpression" ||
+    node.type === "TSSatisfiesExpression" ||
+    node.type === "ParenthesizedExpression"
+  ) {
+    return styleObjectHasFill(node.expression, constants, depth);
+  }
+  if (node.type === "LogicalExpression") {
+    return (
+      styleObjectHasFill(node.left, constants, depth) ||
+      styleObjectHasFill(node.right, constants, depth)
+    );
+  }
+  if (node.type === "Identifier") {
+    return styleObjectHasFill(constants.get(node.name), constants, depth + 1);
+  }
+  if (node.type === "ConditionalExpression") {
+    return (
+      styleObjectHasFill(node.consequent, constants, depth) ||
+      styleObjectHasFill(node.alternate, constants, depth)
+    );
+  }
+  if (node.type !== "ObjectExpression") return false;
+  return node.properties.some((property) => {
+    if (property.type === "SpreadElement") {
+      return styleObjectHasFill(property.argument, constants, depth + 1);
+    }
+    if (property.type !== "Property" || property.computed) return false;
+    const key =
+      property.key.type === "Identifier"
+        ? property.key.name
+        : String(property.key.value);
+    return STYLE_FILL_KEYS.has(key);
+  });
+}
+
+/** `<label>` whose direct children include `<input type="file">`. */
+function wrapsFileInput(openingElement) {
+  const children = openingElement.parent?.children ?? [];
+  return children.some(
+    (child) =>
+      child.type === "JSXElement" &&
+      jsxName(child.openingElement.name) === "input" &&
+      staticAttributeValue(jsxAttribute(child.openingElement, "type")) ===
+        "file",
   );
+}
+
+/** Static `style` of an element sets a background, frame or shadow colour. */
+function hasStyleFill(openingElement, constants) {
+  const value = jsxAttribute(openingElement, "style")?.value;
+  if (value?.type !== "JSXExpressionContainer") return false;
+  return styleObjectHasFill(value.expression, constants, 0);
+}
+
+function hasButtonOptics(text, { styleFill = false } = {}) {
+  const tokens = unprefixedTokens(text).map((token) => token.replace(/^!/, ""));
+  const colour =
+    styleFill ||
+    tokens.some(
+      (token) =>
+        token === SURFACE_AS_FILL ||
+        BG_COLOR_RE.test(token) ||
+        FRAME_COLOR_RE.test(token),
+    );
   return (
     colour &&
     tokens.some((token) => RADIUS_RE.test(token)) &&
@@ -2948,17 +3027,22 @@ const noHandRolledButton = makeRatchetRule({
     "Build actions from Button, ButtonLink or buttonClassName instead of a hand-styled native element.",
   message:
     "Kein eigener Knopf: Button, ButtonLink oder buttonClassName aus ~/components/ui/button nehmen (#5531, .claude/rules/frontend-ui-kit.md).",
-  detect: ({ classText: textOf, found, bindings }) => ({
+  detect: ({ classText: textOf, found, bindings, constants }) => ({
     JSXOpeningElement(node) {
-      const name = jsxName(node.name);
-      const isAction =
-        NATIVE_ACTION_ELEMENTS.has(name ?? "") ||
-        bindings.actionComponents.has(name ?? "") ||
-        staticAttributeValue(jsxAttribute(node, "role")) === "button";
-      if (!isAction) return;
+      const name = jsxName(node.name) ?? "";
       const className = jsxAttribute(node, "className");
       if (!className?.value) return;
-      if (hasButtonOptics(textOf(className.value))) found(node);
+      const text = textOf(className.value);
+      const isAction =
+        NATIVE_ACTION_ELEMENTS.has(name) ||
+        bindings.actionComponents.has(name) ||
+        staticAttributeValue(jsxAttribute(node, "role")) === "button" ||
+        (CLICKABLE_TEXT_ELEMENTS.has(name) &&
+          unprefixedTokens(text).includes("cursor-pointer")) ||
+        (name === "label" && wrapsFileInput(node));
+      if (!isAction) return;
+      const styleFill = hasStyleFill(node, constants);
+      if (hasButtonOptics(text, { styleFill })) found(node);
     },
   }),
 });

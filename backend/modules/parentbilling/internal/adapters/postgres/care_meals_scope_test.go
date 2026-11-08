@@ -68,11 +68,30 @@ func TestCareMealFiltersKeepTheTraegerBelowRLS(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, map[int64]calendar.Date{own.school: august}, until, "MealBilledUntil")
 
-		var otherInvoice int64
-		require.NoError(t, tx.NewRaw(`SELECT id FROM parent_billing.care_invoices WHERE run_id = ?`, other.released).Scan(ctx, &otherInvoice))
-		foreign := []parentbilling.CareInvoice{{ID: otherInvoice}}
-		require.NoError(t, attachCareMealPositions(ctx, tx, own.organization, foreign))
-		assert.Empty(t, foreign[0].MealPositions, "attachCareMealPositions of another Träger's invoice")
+		invoices, err := store.CareRunInvoices(ctx, own.organization, own.released)
+		require.NoError(t, err)
+		require.Len(t, invoices, 1)
+		assert.Equal(t, []parentbilling.CareMealPosition{{SchoolID: own.school, StudentID: 9501, MealMonth: august,
+			Mode: parentbilling.MealModePerMeal, Quantity: 2, UnitCents: 480, AmountCents: 960}}, invoices[0].MealPositions,
+			"CareRunInvoices reads the invoice's own Mensa months")
+
+		// A Mensa-only invoice bills its contract: a later run of the month
+		// leaves the contract out instead of a second invoice.
+		var mensaOnly int64
+		require.NoError(t, tx.NewRaw(`INSERT INTO parent_billing.care_invoices (organization_id, run_id, number, number_year,
+			number_sequence, issued_on, billing_month, care_contract_id, school_id, school_name, child_first_name, child_last_name,
+			recipient_first_name, recipient_last_name, recipient_email, month_rule, total_cents)
+			VALUES (?, ?, ?, 2029, 2, DATE '2029-09-01', DATE '2029-09-01', ?, ?, 'Schule', 'Ben', 'Beispiel', 'Eva', 'Beispiel', '',
+			'version_on_first', 960) RETURNING id`, own.organization, own.released, own.number+"-M", own.contract+7, own.school).Scan(ctx, &mensaOnly))
+		_, err = tx.ExecContext(ctx, `INSERT INTO parent_billing.care_meal_positions (organization_id, invoice_id, position, school_id,
+			student_id, meal_month, mode, quantity, unit_cents, amount_cents, net_cents)
+			VALUES (?, ?, 1, ?, 9502, DATE '2029-08-01', 'per_meal', 2, 480, 960, 960)`, own.organization, mensaOnly, own.school)
+		require.NoError(t, err)
+		invoiced, err := store.InvoicedContracts(ctx, own.organization, calendar.NewDate(2029, 9, 1))
+		require.NoError(t, err)
+		require.Contains(t, invoiced, own.contract+7, "a Mensa-only invoice bills its contract")
+		assert.Empty(t, invoiced[own.contract+7].Positions)
+		assert.Equal(t, int64(960), invoiced[own.contract+7].TotalCents)
 
 		deleted, err := store.DeleteCareMealTariff(ctx, own.organization, other.school, august)
 		require.NoError(t, err)

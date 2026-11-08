@@ -2,11 +2,11 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/uptrace/bun"
-	"github.com/uptrace/bun/dialect/pgdialect"
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -16,8 +16,17 @@ import (
 // prices of the Träger and the Mensa months on its issued invoices. The
 // request role inserts and reads positions and never changes them.
 
-// careMealMonthConstraint bills a child's Mensa month at most once.
+// careMealMonthConstraint bills a child's Mensa month at most once per
+// invoice chain: once on a first invoice, once on the reissue of each
+// cancelled one (ADR 0165).
 const careMealMonthConstraint = "uq_care_meal_positions_child_month"
+
+// notCancelled keeps the Mensa positions of invoices without a Storno: a
+// cancelled invoice bills nothing any more, so the next run of its month
+// bills its Mensa months again on the reissue (#4684, ADR 0165).
+const notCancelled = `NOT EXISTS (SELECT 1 FROM parent_billing.care_invoice_cancellations AS cancellation
+	WHERE cancellation.organization_id = care_meal_positions.organization_id
+		AND cancellation.invoice_id = care_meal_positions.invoice_id)`
 
 type careMealTariffRow struct {
 	bun.BaseModel `bun:"table:parent_billing.care_meal_tariffs"`
@@ -38,6 +47,7 @@ type careMealPositionRow struct {
 	ID             int64         `bun:"id,pk,autoincrement"`
 	OrganizationID int64         `bun:"organization_id"`
 	InvoiceID      int64         `bun:"invoice_id"`
+	Replaces       *int64        `bun:"replaces_invoice_id"`
 	Position       int           `bun:"position"`
 	SchoolID       int64         `bun:"school_id"`
 	StudentID      int64         `bun:"student_id"`
@@ -107,9 +117,13 @@ func (s *Store) BilledMealMonths(ctx context.Context, organizationID int64, from
 	if err != nil {
 		return nil, err
 	}
-	var rows []careMealPositionRow
-	if err := db.NewSelect().Model(&rows).Column("school_id", "student_id", "meal_month").
-		Where("organization_id = ?", organizationID).Where("meal_month BETWEEN ? AND ?", from, to).Scan(ctx); err != nil {
+	var rows []struct {
+		SchoolID  int64         `bun:"school_id"`
+		StudentID int64         `bun:"student_id"`
+		MealMonth calendar.Date `bun:"meal_month,type:date"`
+	}
+	if err := db.NewRaw(`SELECT school_id, student_id, meal_month FROM parent_billing.care_meal_positions
+		WHERE organization_id = ? AND meal_month BETWEEN ? AND ? AND `+notCancelled, organizationID, from, to).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("read billed Mensa months: %w", err)
 	}
 	billed := make([]parentbilling.CareBilledMeal, len(rows))
@@ -131,7 +145,7 @@ func (s *Store) MealBilledUntil(ctx context.Context, organizationID int64) (map[
 		Until    calendar.Date `bun:"until,type:date"`
 	}
 	if err := db.NewRaw(`SELECT school_id, MAX(meal_month) AS until FROM parent_billing.care_meal_positions
-		WHERE organization_id = ? GROUP BY school_id`, organizationID).Scan(ctx, &rows); err != nil {
+		WHERE organization_id = ? AND `+notCancelled+` GROUP BY school_id`, organizationID).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("read billed Mensa months: %w", err)
 	}
 	until := make(map[int64]calendar.Date, len(rows))
@@ -148,7 +162,8 @@ func insertCareMealPositions(ctx context.Context, db bun.IDB, organizationID int
 	var positions []careMealPositionRow
 	for i, invoice := range invoices {
 		for j, meal := range invoice.MealPositions {
-			positions = append(positions, careMealPositionRow{OrganizationID: organizationID, InvoiceID: rows[i].ID, Position: j + 1,
+			positions = append(positions, careMealPositionRow{OrganizationID: organizationID, InvoiceID: rows[i].ID,
+				Replaces: rows[i].ReplacesInvoiceID, Position: j + 1,
 				SchoolID: meal.SchoolID, StudentID: meal.StudentID, MealMonth: meal.MealMonth, Mode: meal.Mode, Quantity: meal.Quantity,
 				UnitCents: meal.UnitCents, AmountCents: meal.AmountCents, NetCents: meal.AmountCents})
 		}
@@ -165,31 +180,30 @@ func insertCareMealPositions(ctx context.Context, db bun.IDB, organizationID int
 	return nil
 }
 
-// attachCareMealPositions reads the Mensa months of issued invoices the
-// Träger's filter just read.
-func attachCareMealPositions(ctx context.Context, db bun.IDB, organizationID int64, invoices []parentbilling.CareInvoice) error {
-	if len(invoices) == 0 {
-		return nil
-	}
-	ids := make([]int64, len(invoices))
-	for i, invoice := range invoices {
-		ids[i] = invoice.ID
-	}
-	var rows []careMealPositionRow
-	if err := db.NewSelect().Model(&rows).Where("organization_id = ?", organizationID).
-		Where("invoice_id = ANY(?)", pgdialect.Array(ids)).OrderExpr("invoice_id, position").Scan(ctx); err != nil {
-		return fmt.Errorf("read Mensa positions: %w", err)
-	}
-	byInvoice := map[int64][]parentbilling.CareMealPosition{}
-	for _, row := range rows {
-		byInvoice[row.InvoiceID] = append(byInvoice[row.InvoiceID], parentbilling.CareMealPosition{SchoolID: row.SchoolID,
-			StudentID: row.StudentID, MealMonth: row.MealMonth, Mode: row.Mode, Quantity: row.Quantity, UnitCents: row.UnitCents,
-			AmountCents: row.AmountCents})
-	}
+// careInvoiceMealRow is an issued invoice with its Mensa months as JSON,
+// read in the statement of the invoice.
+type careInvoiceMealRow struct {
+	careInvoiceRow `bun:",extend"`
+	MealPositions  json.RawMessage `bun:"meal_positions,scanonly"`
+}
+
+// careInvoiceMealsColumn aggregates the Mensa months of the invoice the row
+// reads; the positions name their invoice, whose Träger the row filters on.
+const careInvoiceMealsColumn = `COALESCE((SELECT jsonb_agg(jsonb_build_object(
+		'school_id', m.school_id, 'student_id', m.student_id, 'meal_month', m.meal_month, 'mode', m.mode,
+		'quantity', m.quantity, 'unit_cents', m.unit_cents, 'amount_cents', m.amount_cents) ORDER BY m.position)
+	FROM parent_billing.care_meal_positions AS m
+	WHERE m.organization_id = care_invoice_row.organization_id AND m.invoice_id = care_invoice_row.id), '[]'::jsonb) AS meal_positions`
+
+// withCareMealPositions sets the Mensa months of the invoices rows[i] read.
+func withCareMealPositions(rows []careInvoiceMealRow, invoices []parentbilling.CareInvoice) error {
 	for i := range invoices {
-		invoices[i].MealPositions = byInvoice[invoices[i].ID]
-		if invoices[i].MealPositions == nil {
-			invoices[i].MealPositions = []parentbilling.CareMealPosition{}
+		invoices[i].MealPositions = []parentbilling.CareMealPosition{}
+		if len(rows[i].MealPositions) == 0 {
+			continue
+		}
+		if err := json.Unmarshal(rows[i].MealPositions, &invoices[i].MealPositions); err != nil {
+			return fmt.Errorf("read Mensa positions: %w", err)
 		}
 	}
 	return nil

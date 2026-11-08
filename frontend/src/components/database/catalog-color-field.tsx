@@ -69,9 +69,8 @@ export function CatalogColorField(props: {
           <Button
             type="button"
             onClick={() => onChange(null)}
-            variant="ghost"
-            size="compact"
-            className="h-auto px-0 py-0 text-gray-500 underline hover:text-gray-700"
+            variant="link"
+            size="md"
           >
             Zurücksetzen
           </Button>
