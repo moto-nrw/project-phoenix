@@ -444,10 +444,14 @@ Die Annahmen des Entwurfs gelten mit diesen Abweichungen:
    `data-import.public.identity-role`. Die Namensauflösung senkt die Eingabe in
    Go (`strings.ToLower`) und vergleicht sie mit SQL `LOWER(name)`
    (`modules/identityaccess/internal/application/school_role.go:33`,
-   `internal/adapters/postgres/school_role.go:44–47`). Der eindeutige Index
+   `internal/adapters/postgres/school_role.go:44–53`). Der eindeutige Index
    ist groß/klein-sensitiv (`idx_roles_name_tenant (tenant_id, name)`); zwei
-   Rollen einer Schule mit gleichem `LOWER(name)` sind möglich, `LIMIT 1`
-   wählt dann heute ohne Ordnung.
+   Rollen gleichen Rangs mit gleichem `LOWER(name)` sind möglich, und
+   `ORDER BY tenant_id IS NULL ASC LIMIT 1` (`:52–53`) legt zwischen ihnen
+   keine Ordnung fest. Haben sie verschiedene Rechte, hängen `RoleID` und
+   `role_grant_not_permitted` an dieser Wahl. Einen festen Tie-Break legt
+   [#6234](https://github.com/moto-nrw/project-phoenix/issues/6234) fest,
+   nicht dieses Addendum.
 6. **Update-Werte sind nicht mit dem Entwurf vergleichbar.** Der Entwurf
    nennt für das Update 332/3539, ohne die geänderten Spalten festzuhalten.
    Die Messung oben spielt unveränderte Zeilen ein; geänderte Werte kosten
@@ -459,10 +463,17 @@ Die Annahmen des Entwurfs gelten mit diesen Abweichungen:
    Senkt eine Update-Zeile die Kontingentzahl (Betreuung endet), kann der
    Batch passieren, obwohl sequenziell eine frühere Zeile abgelehnt würde.
    Punkt 8 unten regelt das.
-8. **Ein Batch-Deadlock verbraucht einen Retry.** Der Entwurf lässt
-   `40P01` aus dem Batchpfad die Transaktion wiederholen. Ohne Auflage
-   könnte ein Deadlock, den nur der Batchpfad erzeugt, die drei Versuche
-   aufbrauchen. Punkt 5 unten regelt das (Fehlerpunkt F8).
+8. **Ein Batch-Deadlock verbraucht einen Versuch.** Der Entwurf lässt
+   `40P01` aus dem Batchpfad die ganze Transaktion wiederholen. Die Laufzeit
+   zählt jeden solchen Fehler als Versuch (`tenant/runtime.go:324`, höchstens
+   drei Wiederholungen nach `:284`, also vier Versuche). Dem Zeilenpfad
+   blieben dann drei statt vier Versuche; ein 500 könnte einen heutigen
+   Erfolg ersetzen. Punkt 2 und Punkt 5 (F8) regeln das.
+9. **Zeilenergebnisse überleben den Savepoint.** `determineImportAction`
+   trägt Zeilenfehler wie `already_exists` und `not_found` sofort in das
+   Chunk-Ergebnis ein (`import_service.go:428–443`). Der Entwurf setzt beim
+   Rollback nur die Config zurück. Ein Ergebnis aus Schritt 2 bliebe stehen
+   und würde beim Replay ein zweites Mal gezählt. Punkt 2 regelt das.
 
 ### Entscheidung
 
@@ -487,11 +498,35 @@ Die Annahmen des Entwurfs gelten mit diesen Abweichungen:
    2. `determineImportAction` je Zeile in Verarbeitungsreihenfolge,
       unverändert.
    3. `SAVEPOINT chunk`, Batch-Kommandos, `RELEASE`.
-   4. Jeder Fehler in Schritt 3, außer `40P01`/`40001`: `ROLLBACK TO
-      SAVEPOINT chunk`, Speicherzustand der Config verwerfen (Namenskonsum,
-      Staff-Index, `rolesByID`, Command-Observations), erneut
-      `PreloadReferenceData`, dann das Segment im Zeilenpfad wiederholen
+   4. Jeder Fehler in Schritt 3, auch `40P01`/`40001`: `ROLLBACK TO
+      SAVEPOINT chunk`, Zeilenergebnisse und Zähler zurücksetzen (unten),
+      Speicherzustand der Config verwerfen (Namenskonsum, Staff-Index,
+      `rolesByID`, Command-Observations), erneut `PreloadReferenceData`,
+      dann das Segment in derselben Transaktion im Zeilenpfad wiederholen
       (Replay). Der Replay bestimmt das Ergebnis.
+
+   **Zurücksetzen der Zeilenergebnisse.** Vor Schritt 1 hält der Executor den
+   Stand des Chunk-Ergebnisses fest: `Errors` (Länge), `ErrorCount`,
+   `WarningCount`, `CreatedCount`, `UpdatedCount`. Beim Rollback setzt er
+   genau auf diesen Stand zurück. Damit fällt alles weg, was Schritt 1 bis 3
+   dieses Segments eingetragen haben, auch `duplicate_check_failed`,
+   `already_exists` und `not_found`; die Validierungsfehler des Chunks
+   (`importValidationSlice`, `batches.go:413–431`) und die Ergebnisse
+   früherer Segmente bleiben. Der Replay trägt dann jede Zeile genau einmal
+   ein. Danach entspricht das Chunk-Ergebnis in Inhalt, Reihenfolge und
+   Zählern exakt dem sequenziellen Lauf.
+
+   **Retry-Budget.** Ein `40P01`/`40001` aus Schritt 3 verlässt die
+   Transaktion nicht: Der Executor fängt ihn wie jeden anderen Fehler im
+   Savepoint ab (`ROLLBACK TO SAVEPOINT` hebt den abgebrochenen Teil auf und
+   gibt dessen Sperren frei), merkt sich am Versuchsobjekt, das die Laufzeit
+   für alle Wiederholungen wiederverwendet (`batches.go:269–274`), dass dieser
+   Chunk den Zeilenpfad nimmt, und spielt den Replay im selben Versuch ab.
+   Der Batch-Deadlock verbraucht so keinen Versuch. Der Zeilenpfad hat
+   Versuch 0 und die drei Wiederholungen der Laufzeit, also dasselbe Budget
+   wie heute; alle Wiederholungen dieses Chunks laufen im Zeilenpfad. Die
+   Laufzeit (`tenant/runtime.go`) ändert sich dafür nicht.
+
    Im Batchpfad entfällt der Zeilen-Savepoint der Configs; das Legacy-`Import()`
    behält ihn.
 3. **Batch-Formen.** Jedes Kommando tritt der Transaktion des Aufrufers bei
@@ -553,15 +588,15 @@ Die Annahmen des Entwurfs gelten mit diesen Abweichungen:
    | F2 Import-Lock, Checkpoint, Vorlast im Chunk | 500 `import.import_batch_failed` | gleich, unverändert vor dem Segment | frühere Chunks |
    | F3 `ResolveChunk` scheitert | – (gibt es heute nicht) | kein Ausgang: Rollback des Read-Savepoints, dann `FindExisting` je Zeile wie heute | – |
    | F4 Match-Fehler je Zeile, `already_exists`, `not_found` | Zeilenfehler, Chunk läuft weiter | gleich, gleiche Reihenfolge | wie heute |
-   | F5 Batch-Kommando scheitert (SQL-Fehler, `BusinessRejection`, Owner-Fehler) | – | kein Ausgang: `ROLLBACK TO SAVEPOINT chunk`, dann Replay | – |
+   | F5 Batch-Kommando scheitert (SQL-Fehler, `BusinessRejection`, Owner-Fehler) | – | kein Ausgang: `ROLLBACK TO SAVEPOINT chunk`, Zeilenergebnisse auf den Stand vor dem Segment, dann Replay | – |
    | F6 Replay scheitert in Zeile k | 500 `import.import_batch_failed`; 409 mit `details.rejection` bei `BusinessRejection` | gleich: dieselbe erste Fehlerzeile, derselbe Zeilenfehler, dieselben Details (etwa `occupied_places`, `requested_places`), dieselben bestätigten Zähler | frühere Chunks; vom Chunk nichts |
    | F7 Replay gelingt | – | Chunk committet wie heute; Observation `batch_fallback` | frühere Chunks und dieser Chunk |
-   | F8 `40P01`/`40001` im Batchpfad | – | Wiederholung der ganzen Transaktion; dieser Versuch nimmt für den Chunk den Zeilenpfad (Auflage, Befund 8) | wie heute nach Retry |
+   | F8 `40P01`/`40001` im Batchpfad | – | wie F5, im selben Versuch; kein Versuch verbraucht; der Chunk bleibt für alle Wiederholungen im Zeilenpfad (Punkt 2, Retry-Budget) | wie heute |
    | F9 `40P01`/`40001` im Zeilenpfad, Retries erschöpft | 500 | gleich | frühere Chunks |
    | F10 Checkpoint-Append | 500 | gleich | frühere Chunks |
 
    Abbruchpriorität: `StopOnError` vor dem Schreiben (`batches.go:103`), dann
-   wiederholbarer DB-Konflikt, dann die erste Fehlerzeile des Replays in
+   wiederholbarer DB-Konflikt im Zeilenpfad, dann die erste Fehlerzeile des Replays in
    Verarbeitungsreihenfolge, dann der Checkpoint. Im Erfolgsfall sind
    `Errors` (Inhalt und Reihenfolge), `CreatedCount`, `UpdatedCount` und
    `WarningCount` identisch; `Timestamp` ist kein Vertrag.
@@ -606,32 +641,85 @@ Die Annahmen des Entwurfs gelten mit diesen Abweichungen:
    durch Test belegt. Der Replay fordert dann in heutiger Reihenfolge an.
 
    Damit gilt bei Abbruch dieselbe Sperrmenge wie heute. Während des
-   Batch-Versuchs weicht der Batchpfad in zwei Punkten ab, die Entscheidung
-   E10 erlaubt:
-   - **Spätere Zeilen früher gesperrt.** Ein Kind oder Guardian einer späteren
-     Zeile mit kleinerer ID ist gesperrt, bevor eine frühere Zeile ihren
-     Konflikt erreicht. Begründung: Die anderen Mehrzeilen-Schreiber sperren
-     Kinder aufsteigend nach ID (Sammelgenehmigung, Student-Edit mit
-     Begleitern, Abschnitt #4640 oben); der heutige Import sperrt in
-     Verarbeitungsreihenfolge und kann gegen sie verklemmen. Die sortierte
-     Sperre senkt dieses Risiko.
-   - **Hinter einer Ablehnung kurz gesperrt.** Lehnt der Batch ab, waren die
-     Zeilen hinter k bis zum `ROLLBACK TO SAVEPOINT` gesperrt, nicht bis zum
-     Ende der Anfrage. Folge für Dritte: Eine gleichzeitige Löschung mit
-     `NOWAIT` (`peopledirectory/student_deletion.go:9`) kann in diesem Fenster
-     als belegt abgelehnt werden, wo sie heute je nach Zeitpunkt durchkäme.
-     Das ist eine Frage des Zeitpunkts, kein Vertrag.
+   Batch-Versuchs sperrt der Batchpfad aber spätere Zeilen, bevor eine
+   frühere Zeile ihren Konflikt erreicht hat, und nach einer Ablehnung in
+   Zeile k bleiben die Zeilen hinter k bis zum `ROLLBACK TO SAVEPOINT`
+   gesperrt. Das ist nur über Entscheidung E10 gedeckt.
 
-   Auflagen (E10): Sperren in fester PK-Reihenfolge wie die anderen
-   Schreiber; kein neues `NOWAIT`, kein `lock_timeout`; die erste
-   Fehlerstelle und ihr Status sind dieselben wie im Zeilenpfad (Punkt 5 dieses
-   Addendums);
-   vor der ersten Fehlerstelle wird nichts persistiert, was der Zeilenpfad
-   nicht persistiert (Chunk-Savepoint); ein Real-DB-Test mit parallelem
-   Schreiber je Sperrart belegt, dass kein neuer `40P01` entsteht und dass
-   nach dem Rollback eines abgelehnten Batches keine Sperre hinter k bleibt.
-   Die Gate-Reihenfolge von Entscheidungspunkt 5 dieses ADR (Klassen-Gate vor Recurrence vor
-   Transition) und „Gate vor Kontingent“ (`child_quota.go:14–24`) bleiben.
+   **Bedingung.** Eine Batch-Form darf spätere Zeilen nur früher sperren,
+   wenn sie alle Auflagen von E10 erfüllt. Wortlaut der Entscheidung vom
+   08.11.2026: „Ein Batch-Lock darf spätere Zeilen früher sperren. Auflagen:
+   Sperren in fester PK-Reihenfolge wie bei den anderen Schreibern;
+   `lock_timeout`/`NOWAIT` unverändert; die erste Fehlerstelle und ihr Status
+   (z. B. 409) sind dieselben wie sequenziell; vor der ersten Fehlerstelle
+   wird nichts persistiert, was vorher nicht persistiert wurde; Real-DB-Test
+   mit parallelem Schreiber gegen Deadlocks.“ Im Import heißt das:
+
+   1. **Sperren in fester PK-Reihenfolge wie bei den anderen Schreibern:**
+      Kinder, Guardians und andere bestehende Zeilen aufsteigend nach ID, wie
+      Sammelgenehmigung und Begleiter-Sperren (Abschnitt #4640 oben,
+      `modules/careplan/internal/application/companions.go:41–58`).
+   2. **`lock_timeout`/`NOWAIT` unverändert:** Der Import sperrt weiter
+      blockierend, ohne `NOWAIT` und ohne `lock_timeout`.
+   3. **Die erste Fehlerstelle und ihr Status (z. B. 409) sind dieselben wie
+      sequenziell:** durch den Replay (Punkt 5 dieses Addendums).
+   4. **Vor der ersten Fehlerstelle wird nichts persistiert, was vorher nicht
+      persistiert wurde:** durch den Chunk-Savepoint und das Zurücksetzen der
+      Zeilenergebnisse (Punkt 2).
+   5. **Real-DB-Test mit parallelem Schreiber gegen Deadlocks:** siehe
+      „Jeder Schritt prüft“ unten, mit blockierendem und mit
+      `NOWAIT`-Schreiber.
+
+   Erfüllt eine Batch-Form eine Auflage nicht, nimmt ihr Segment den
+   Zeilenpfad.
+
+   **Folge für parallele `NOWAIT`-Schreiber.** `NOWAIT` nehmen heute nur die
+   Begleiter-Protokolle, und nur für ein Kind mit kleinerer ID als einer schon
+   gehaltenen:
+
+   | Schreiber | `NOWAIT`-Stelle | Status bei belegtem Kind |
+   |---|---|---|
+   | Begleiter bearbeiten (Care Plan) | `modules/careplan/internal/application/companions.go:113` → `roots/owners/care_companion_students.go:90` → `modules/peopledirectory/internal/application/capability_student_directory.go:186` | 409 `students.companion_lock_busy` (`modules/careplan/http/companion_handlers.go:53–54`) |
+   | Änderungsantrag genehmigen (Enrollment) | `modules/enrollment/internal/application/change_request_apply.go:321` über denselben Begleiter-Graphen; Fernenden `departure_sync.go:285–289` | 409 `students.companion_lock_busy` (`modules/enrollment/http/change_request_handlers.go:368–369`) |
+   | Kind mit Begleitern bearbeiten (People) | `modules/peopledirectory/internal/application/student_write.go:323–328` | 409 `students.companion_lock_busy` (über `departure.ErrCompanionLockBusy`, `companion_handlers.go:53–54`) |
+   | Kind löschen (Workflow `studentdeletion`) | `workflows/studentdeletion/deletion.go:617–621`, `:630–636` | 409 `students.deletion_companion_lock_busy` (`workflows/studentdeletion/http/student_delete_handlers.go:229–231`) |
+
+   Hält der Import ein solches Kind, bekommen diese Schreiber heute wie
+   künftig sofort die 409 dieser Tabelle, kein Warten, keinen 500 und keinen
+   `40P01`. Neu ist nur das Fenster: Während des Batch-Versuchs kann auch ein
+   Kind belegt sein, dessen Zeile sequenziell noch nicht dran wäre oder das
+   hinter einer Ablehnung liegt. Eine solche Anfrage, die heute je nach
+   Zeitpunkt durchkäme, bekommt dann die 409; nach `COMMIT` oder `ROLLBACK
+   TO SAVEPOINT` gelingt dieselbe Anfrage. Blockierende Schreiber warten
+   höchstens so lange; ihr Status ändert sich nicht.
+
+   **Wahl: früher sperren, aber erst nach den Konfliktprüfungen, die vorher
+   möglich sind.** Vorzuziehen wäre, Kandidaten erst nach der
+   Konfliktprüfung zu sperren. Der Batchpfad tut das, wo die Lock-Reihenfolge
+   es zulässt:
+   - Alle Prüfungen, die keine Zeilensperre des Segments brauchen, laufen vorher: Validierung (F1),
+     `ResolveChunk` und `determineImportAction` (F3, F4). Eine dort
+     abgelehnte Zeile sperrt nichts.
+   - Bei der Kinderanlage läuft `CreateEnrollmentStudents` mit der
+     Kontingentprüfung vor `LinkGuardiansToStudents` und `AddGuardianPhones`.
+     Ein volles Kontingent sperrt also keinen bestehenden Guardian, wie im
+     Zeilenpfad, der das Kontingent jeder Zeile vor ihrem Guardian prüft.
+   - Beim Update geht das nicht: Die Reihenfolge Klassen-Gate → Kind →
+     Kontingent (`modules/peopledirectory/internal/application/student_enrollment.go:42–76`,
+     `child_quota.go:14–24`) verlangt die Kind-Sperre vor dem Read und vor
+     der Kontingentprüfung. Ein Kind erst nach dem Konflikt der vorigen Zeile
+     zu sperren hieße, jede Zeile vor der nächsten fertig zu schreiben, also
+     auf das gebündelte Update zu verzichten. Selbst eine Sperre je Zeile in
+     Verarbeitungsreihenfolge sperrte die Zeile k+1 vor dem Schreiben der
+     Zeile k. Sie kostete zudem ein Statement je Zeile (110 bei N110 gegen
+     ein nahezu konstantes Ziel) und behielte die unsortierte Reihenfolge,
+     die heute gegen die aufsteigend sperrenden Schreiber verklemmen kann.
+     Die Sortierung senkt dieses Risiko. Deshalb sperrt das Update früher,
+     unter den fünf Auflagen.
+
+   Die Gate-Reihenfolge von Entscheidungspunkt 5 dieses ADR (Klassen-Gate
+   vor Recurrence vor Transition) und „Gate vor Kontingent“
+   (`child_quota.go:14–24`) bleiben.
 8. **Kontingent.** `EnrollStudents` und `RenewEnrollments` prüfen das
    Kontingent einmal für den Batch. Das ist nur dann gleichwertig zur Prüfung
    je Zeile, wenn keine Zeile die Kontingentzahl senkt: Dann steigt die Zahl
@@ -652,7 +740,7 @@ aus der Messung abgeleitet, nicht gemessen.
 | Schritt | Issue | Umfang | Erwartet | Risiko |
 |---|---|---|---|---|
 | 1 | #5552 | Budget-Szenarien N10/N110 für alle Configs und Modi (`test/query-budgets/modules/dataimport/`, `max`, Vorschau `exact`); keine Verhaltensänderung | 0 | gering |
-| 2 | #5887 | Rollen aus `ListSchoolRoles` mit SQL-Schlüssel `LOWER(name)`, Tenant- vor Systemrolle, exakter Name vor Alias, bei Gleichstand gleichen Rangs die kleinste ID; `FindRolePermissionsByRoleIDs` einmal in `ValidateBatch` | Staff-Vorschau auf etwa 10 je N | gering |
+| 2 | #5887 | Rollen aus `ListSchoolRoles` mit SQL-Schlüssel `LOWER(name)`, Tenant- vor Systemrolle, exakter Name vor Alias; der Batch wählt exakt dieselbe Rolle wie der heutige Einzel-Read `FindSchoolRoleByName`. Hat ein Name mehr als einen Kandidaten gleichen Rangs, löst der Batch ihn mit diesem Einzel-Read auf, denn dessen Wahl ist heute nicht festgelegt (Befund 5); einen festen Tie-Break legt [#6234](https://github.com/moto-nrw/project-phoenix/issues/6234) fest. `FindRolePermissionsByRoleIDs` einmal in `ValidateBatch` | Staff-Vorschau auf etwa 10 je N | gering |
 | 3 | #5552 | kein Zeilen-Savepoint im Batchpfad | −2 je Zeile | gering |
 | 4 | #5827 | Chunk-Executor: Segmente, `ResolveChunk`, Chunk-Savepoint, Replay; erster Nutzer Klassenliste | Klassenliste N110 auf etwa 25 | mittel |
 | 5 | #5552 | Student-Create, Leafs: Personen, Guardians, Telefone, Link, Consent, Schedules, Consent-Verlauf | etwa −8 je Zeile | mittel |
@@ -671,10 +759,27 @@ Jeder Schritt prüft:
 - **Fehler in Zeile k:** k = 1, 5, 10 von 10 und k = 1, 55, 101, 110 von 110
   per Trigger, je Owner-Tabelle; Status, Code, Zeilenfehler, bestätigte
   Zähler und Persistenz wie im Zeilenpfad.
-- **Sperren:** die Real-DB-Tests aus Punkt 7, auch ein Kontingent-409 mit
-  einer Sperrprobe auf Zeilen hinter k nach dem Replay.
-- **Retry:** ein erzwungener `40P01` im Batchpfad läuft im zweiten Versuch im
-  Zeilenpfad und committet.
+- **Zeilenergebnisse:** Zeile 2 ist `already_exists` (bzw. `not_found` im
+  Update), das Batch-Kommando scheitert an Zeile 1. Nach dem Replay sind
+  `Errors` (Inhalt, Reihenfolge), `ErrorCount`, `WarningCount`,
+  `CreatedCount` und `UpdatedCount` identisch mit dem erzwungenen
+  Zeilenpfad; kein Zeilenfehler doppelt, keiner verloren. Dasselbe mit einem
+  `duplicate_check_failed` aus `ResolveChunk` und mit zwei Segmenten im
+  Chunk, von denen das zweite zurückrollt.
+- **Sperren, parallele Schreiber (E10, Auflage 5):** Real-DB-Tests mit zwei
+  Verbindungen und PostgreSQL-Sperrbeobachtung. (a) Ein blockierender,
+  aufsteigend sperrender Schreiber (Student-Edit mit Begleitern,
+  Sammelgenehmigung) gegen ein Update-Segment: kein `40P01`, beide
+  committen. (b) Ein `NOWAIT`-Schreiber der Tabelle in Punkt 7 auf ein Kind,
+  das der Batch-Versuch hält: genau die dort genannte 409, kein 500; nach
+  `COMMIT` bzw. `ROLLBACK TO SAVEPOINT` gelingt dieselbe Anfrage. (c) Ein
+  Kontingent-409 im Batch: Nach dem Replay hält die Transaktion keine Sperre
+  auf Zeilen hinter k; geprüft für Zeilen- und transaktionsgebundene
+  Advisory Locks.
+- **Retry-Budget:** ein erzwungener `40P01` im Batchpfad verbraucht keinen
+  Versuch. Danach scheitert der Zeilenpfad dreimal mit `40P01` und gelingt
+  im vierten Versuch; der Chunk committet wie heute. Ein vierter
+  Zeilenpfad-Deadlock endet wie heute mit 500.
 - **Bestehende Suiten grün:** `importtest/owner_failure_test.go`,
   `child_quota_batches_test.go`, `row_isolation_test.go`,
   `batches_test.go` (Rollback, Resume, parallele Uploads, Retry),
@@ -729,5 +834,5 @@ gemessen.
 - Die Ausnahme E3 wird größer, nicht breiter: dieselben Owner und
   Sperren, eine Batch-Form mehr. Die Architektur-Checks sehen das nicht
   (Abschnitt „Evidence and enforcement“); der Review prüft es.
-- Die Befunde 1, 3 und 4 korrigieren den Entwurf in #5552. Seine Tabelle
+- Die Befunde korrigieren den Entwurf in #5552. Seine Tabelle
   „Owner-Batch-Kommandos“ gilt mit den Einordnungen dieses Addendums.
