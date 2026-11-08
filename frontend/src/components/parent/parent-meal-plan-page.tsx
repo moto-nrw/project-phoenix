@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { InsetPanel } from "~/components/ui/inset-panel";
-import { useLocale } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Ban, Check, Minus, Utensils } from "lucide-react";
 import {
   CaretLeftIcon,
@@ -50,9 +50,9 @@ import { createLogger } from "~/lib/logger";
 import { usedMealAllergens } from "~/lib/meal-allergens";
 import {
   CareFacilityTermScope,
+  useCareFacilityTerm,
   useCareTermTranslations,
 } from "~/lib/care-facility-term";
-import { useParentCareTerms } from "~/lib/parent-care-term";
 import {
   MealAllergenLegend,
   MealAllergenMarks,
@@ -73,6 +73,8 @@ interface ChildOption {
   studentId: string;
   childName: string;
   registrationEnabled: boolean;
+  /** The school's term for its care (#6082). */
+  careTerm?: string;
 }
 
 // Parents read the meal plan for this and next week; with the registration on
@@ -1161,9 +1163,15 @@ export function ParentMealPlanPage() {
   const [selectedStudent, setSelectedStudent] = useState<string | null>(null);
   // Der Plan gehört zur Schule des gewählten Kindes; seine Texte nennen die
   // Betreuung so, wie diese Schule sie nennt (#6082).
-  const { forChild } = useParentCareTerms();
-  const childTerm = forChild(selectedStudent ?? undefined);
+  const accountTerm = useCareFacilityTerm();
+  const childTerm =
+    schools.find((school) => school.studentId === selectedStudent)?.careTerm ??
+    accountTerm;
   const t = useCareTermTranslations("parentMealPlan", childTerm);
+  // The school list loads once; its error text names no care term, so a
+  // switch to a child with another term must not reload it and reset the
+  // selection.
+  const tSchools = useTranslations("parentMealPlan");
   const [weekOffset, setWeekOffset] = useState<WeekOffset>(0);
   const [entries, setEntries] = useState<MealPlanEntry[]>([]);
   // The Monday the current `entries` were loaded for. Used to detect when
@@ -1227,6 +1235,7 @@ export function ParentMealPlanPage() {
               childName: `${child.first_name} ${child.last_name}`,
               registrationEnabled:
                 features[index]?.meal_registration_enabled === true,
+              careTerm: features[index]?.care_facility_term,
             });
           }
         });
@@ -1241,7 +1250,7 @@ export function ParentMealPlanPage() {
         });
         // Awaited so no empty state flashes before the error arrives.
         await showSchoolsError(err, {
-          object: t("errorObjectSchools"),
+          object: tSchools("errorObjectSchools"),
           retry: () => setSchoolsAttempt((attempt) => attempt + 1),
         });
       } finally {
@@ -1251,7 +1260,7 @@ export function ParentMealPlanPage() {
     return () => {
       cancelled = true;
     };
-  }, [clearSchoolsError, schoolsAttempt, showSchoolsError, t]);
+  }, [clearSchoolsError, schoolsAttempt, showSchoolsError, tSchools]);
 
   const selectedSchool = useMemo(
     () =>

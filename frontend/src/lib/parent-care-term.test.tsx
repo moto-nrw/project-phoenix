@@ -88,6 +88,22 @@ describe("care term in the parents portal (#6082)", () => {
     expect(screen.getByText("In der GTS/OGS")).toBeInTheDocument();
   });
 
+  it("says OGS outside the parents shell", () => {
+    let terms: ReturnType<typeof useParentCareTerms> | undefined;
+    function Probe() {
+      terms = useParentCareTerms();
+      return null;
+    }
+    render(
+      <ParentChildCareTermScope studentId="1">
+        <Today />
+        <Probe />
+      </ParentChildCareTermScope>,
+    );
+    expect(screen.getByText("In der OGS")).toBeInTheDocument();
+    expect(terms?.termOf("1")).toBe("OGS");
+  });
+
   it("keeps OGS while no school named its term", () => {
     link([child("1", "Sonnenschule"), undefined]);
     render(
@@ -107,7 +123,11 @@ describe("care term in the parents portal (#6082)", () => {
       terms = useParentCareTerms();
       return null;
     }
-    render(<Probe />);
+    render(
+      <ParentCareTermScope enabled>
+        <Probe />
+      </ParentCareTermScope>,
+    );
     expect(terms?.termOfSchool("Barnstorf")).toBe("GTS");
     expect(terms?.termOfSchool("Sonnenschule")).toBe("OGS");
     expect(terms?.termOfSchool("Unbekannt")).toBe("GTS/OGS");

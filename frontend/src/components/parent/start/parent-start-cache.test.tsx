@@ -34,7 +34,10 @@ vi.mock("next-auth/react", () => ({
       : null,
   }),
 }));
-vi.mock("~/lib/tenant-context", () => ({ useTenantSlugSafe: () => null }));
+vi.mock("~/lib/tenant-context", () => ({
+  useTenantSlugSafe: () => null,
+  useTenantSafe: () => null,
+}));
 vi.mock("~/lib/shell-auth-context", () => ({
   useShellAuth: () => ({ profile: { firstName: "Eltern" } }),
   useShellAuthSafe: () => undefined,

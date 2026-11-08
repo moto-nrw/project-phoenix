@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
+import { createContext, useContext, useMemo, type ReactNode } from "react";
 import {
   CareFacilityTermScope,
   normalizeCareFacilityTerm,
@@ -44,11 +44,21 @@ interface ParentCareTerms {
   readonly termOfSchool: (schoolName: string | undefined) => string;
 }
 
+/** Outside the parents shell no school is known: every text says „OGS“. */
+const NO_TERMS: ParentCareTerms = {
+  account: undefined,
+  forChild: () => undefined,
+  termOf: () => normalizeCareFacilityTerm(undefined),
+  termOfSchool: () => normalizeCareFacilityTerm(undefined),
+};
+
+const ParentCareTermsContext = createContext<ParentCareTerms>(NO_TERMS);
+
 /**
  * The care term of every linked child, from the child features the shell
  * already loads for each child (same cache entry, no extra request).
  */
-export function useParentCareTerms(enabled = true): ParentCareTerms {
+function useLoadedParentCareTerms(enabled: boolean): ParentCareTerms {
   const { data: children } = useParentChildren(enabled);
   const { data: features } = useParentFeatures(enabled ? children : undefined);
   return useMemo(() => {
@@ -76,7 +86,15 @@ export function useParentCareTerms(enabled = true): ParentCareTerms {
   }, [children, features]);
 }
 
-/** Gives every text inside the account's care term. */
+/** The care terms the parents shell loaded, for rows of several children. */
+export function useParentCareTerms(): ParentCareTerms {
+  return useContext(ParentCareTermsContext);
+}
+
+/**
+ * Loads the care terms once for the parents shell and gives every text
+ * inside the account's term.
+ */
 export function ParentCareTermScope({
   enabled,
   children,
@@ -84,9 +102,13 @@ export function ParentCareTermScope({
   readonly enabled: boolean;
   readonly children: ReactNode;
 }) {
-  const { account } = useParentCareTerms(enabled);
+  const terms = useLoadedParentCareTerms(enabled);
   return (
-    <CareFacilityTermScope term={account}>{children}</CareFacilityTermScope>
+    <ParentCareTermsContext.Provider value={terms}>
+      <CareFacilityTermScope term={terms.account}>
+        {children}
+      </CareFacilityTermScope>
+    </ParentCareTermsContext.Provider>
   );
 }
 
@@ -98,10 +120,7 @@ export function ParentChildCareTermScope({
   readonly studentId: string | undefined;
   readonly children: ReactNode;
 }) {
-  const { forChild } = useParentCareTerms();
-  return (
-    <CareFacilityTermScope term={forChild(studentId)}>
-      {children}
-    </CareFacilityTermScope>
-  );
+  const term = useParentCareTerms().forChild(studentId);
+  if (term === undefined) return children;
+  return <CareFacilityTermScope term={term}>{children}</CareFacilityTermScope>;
 }

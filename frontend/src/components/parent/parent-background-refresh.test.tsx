@@ -23,7 +23,10 @@ import { ChildPage } from "./child/child-page";
 import { ParentMessagesPage } from "./messages/parent-messages-page";
 import { ParentRealtimeBridge } from "./parent-realtime-bridge";
 vi.unmock("swr");
-vi.mock("~/lib/tenant-context", () => ({ useTenantSlugSafe: () => null }));
+vi.mock("~/lib/tenant-context", () => ({
+  useTenantSlugSafe: () => null,
+  useTenantSafe: () => null,
+}));
 vi.mock("~/lib/hooks/use-sse", () => ({ useSSE: () => undefined }));
 const params = new URLSearchParams();
 vi.mock("next/navigation", () => ({
