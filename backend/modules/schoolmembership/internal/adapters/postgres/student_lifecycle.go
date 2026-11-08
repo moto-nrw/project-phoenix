@@ -42,15 +42,19 @@ const carePausedAfterNext = `care_paused_after = CASE WHEN ?0 THEN "student".enr
 // earliest day the child can be cared for again: a start after the earlier
 // end (today for an activation before it), otherwise today, as care that
 // keeps its earlier start only resumes with this write. Every other write
-// keeps it like firstCareFromNext keeps the first-care bound. ?0 to ?2 as
-// there, ?3 the restart condition.
+// keeps it like firstCareFromNext keeps the first-care bound, except that a
+// reached end moves earlier only when the start itself changes: a restart
+// that kept an earlier start would otherwise lose its gap on the next save.
+// ?0 to ?2 as there, ?3 the restart condition.
 const careResumedFromNext = `care_resumed_from = CASE
 	WHEN ?3 THEN CASE
 		WHEN ?2::date IS NULL OR ?2::date <= "student".enrolled_until THEN ?0::date
 		WHEN ?1::text = 'active' THEN LEAST(?2::date, ?0::date)
 		ELSE ?2::date END
 	WHEN "student".care_resumed_from IS NULL THEN NULL
-	WHEN "student".care_resumed_from <= ?0::date THEN LEAST("student".care_resumed_from, ?2::date)
+	WHEN "student".care_resumed_from <= ?0::date THEN CASE
+		WHEN "student".enrolled_from IS NULL OR ?2::date <> "student".enrolled_from THEN LEAST("student".care_resumed_from, ?2::date)
+		ELSE "student".care_resumed_from END
 	WHEN ?1::text = 'active' OR ?2::date IS NULL THEN LEAST(?2::date, ?0::date)
 	ELSE ?2::date END`
 

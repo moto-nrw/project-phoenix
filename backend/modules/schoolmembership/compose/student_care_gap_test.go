@@ -88,8 +88,13 @@ func TestStudentMembershipKeepsTheCareGapOfAReturningChild(t *testing.T) {
 	// An Enrollment approval that matches an ended child keeps its earlier
 	// start and only pushes the end out: care resumes with this write.
 	extended := endedChild("Verlaengert")
-	renew(restartDay, extended, "active", "", "2100-07-31")
+	renew("2099-10-20", extended, "active", "2098-08-01", ended)
+	renew(restartDay, extended, "active", "2098-08-01", "2100-07-31")
 	assert.Equal(t, [2]string{ended, restartDay.String()}, gap(extended), "extending a passed end resumes care today")
+	renew("2099-11-20", extended, "active", "2098-08-01", "2100-07-31")
+	assert.Equal(t, [2]string{ended, restartDay.String()}, gap(extended), "saving it unchanged keeps the gap")
+	renew("2099-11-20", extended, "active", "2098-09-01", "2100-07-31")
+	assert.Equal(t, [2]string{ended, "2098-09-01"}, gap(extended), "a start corrected before the end empties the gap")
 
 	corrected := endedChild("Korrigiert")
 	renew(restartDay, corrected, "active", "", "2099-11-03")
