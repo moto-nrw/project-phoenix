@@ -2,8 +2,11 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
+
+	validation "github.com/go-ozzo/ozzo-validation"
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -297,6 +300,9 @@ func (c *CareReductions) SaveCareEvidence(ctx context.Context, reviewer parentbi
 	if err != nil {
 		return parentbilling.CareEvidenceSet{}, err
 	}
+	if err := c.levelFitsSchool(ctx, reviewer.OrganizationID, input, rules); err != nil {
+		return parentbilling.CareEvidenceSet{}, err
+	}
 	action := evidenceEventCreate
 	var contractID int64
 	if evidenceID == 0 {
@@ -313,6 +319,32 @@ func (c *CareReductions) SaveCareEvidence(ctx context.Context, reviewer parentbi
 		return parentbilling.CareEvidenceSet{}, fmt.Errorf("parent billing: record evidence change: %w", err)
 	}
 	return c.CareEvidences(ctx, reviewer)
+}
+
+// levelFitsSchool refuses an income level that does not apply at the school
+// of the contract: the monthly run would ignore it and the family would miss
+// the reduction it expects. The contract's school comes from its versions in
+// the window of the evidence page; a contract outside it is not checked.
+func (c *CareReductions) levelFitsSchool(ctx context.Context, organizationID int64, input parentbilling.CareEvidenceInput, rules []parentbilling.ContributionRule) error {
+	if input.RuleID == nil {
+		return nil
+	}
+	today := c.today()
+	versions, err := c.versions(ctx, organizationID, today.AddDays(-evidenceLookBack), today.AddDays(evidenceLookAhead))
+	if err != nil {
+		return err
+	}
+	for _, rule := range rules {
+		if rule.ID != *input.RuleID {
+			continue
+		}
+		for _, version := range versions {
+			if version.ContractID == input.ContractID && !slices.Contains(rule.SchoolIDs, version.SchoolID) {
+				return validation.Errors{"rule_id": errors.New("does not apply at the school of the contract")}
+			}
+		}
+	}
+	return nil
 }
 
 // DeleteCareEvidence removes an evidence and records it. An issued invoice

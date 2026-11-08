@@ -321,7 +321,7 @@ func reduceCareSiblingChild(child *rankedCareChild, rule *parentbilling.Contribu
 			continue
 		}
 		if entry.issued {
-			issuedTotal += entry.scoped(rule)
+			issuedTotal += entry.issuedAtSiblingStage(rule)
 			issuedDiscount += entry.issuedSiblingDiscount(rule.ID)
 		} else {
 			drafts = append(drafts, entry)
@@ -369,6 +369,28 @@ func (e *careChainEntry) finish() {
 		total += left
 	}
 	e.invoice.TotalCents = total
+}
+
+// issuedAtSiblingStage is what an issued invoice billed for the rule's
+// modules when the sibling rule ran: their base price less the income level
+// (shared by base price, as the chain shares it) and less this rule's
+// discount. The single-parent reduction and the cap came later and do not
+// count, so a later contract of the child never pays a fixed price twice.
+func (e *careChainEntry) issuedAtSiblingStage(rule *parentbilling.ContributionRule) int64 {
+	var base, total, income int64
+	for _, position := range e.invoice.Positions {
+		total += position.AmountCents
+	}
+	base = e.base(rule)
+	for _, reduction := range e.invoice.Reductions {
+		if reduction.Kind == parentbilling.RuleIncomeLevel {
+			income -= reduction.AmountCents
+		}
+	}
+	if total > 0 && income > 0 {
+		base -= roundHalfUp(income*e.base(rule), total)
+	}
+	return max(base-e.issuedSiblingDiscount(rule.ID), 0)
 }
 
 func (e *careChainEntry) issuedSiblingDiscount(ruleID int64) int64 {

@@ -218,12 +218,19 @@ export function CareRuleModal({
     if (kind !== "cap" && draft.effect === "share") {
       basisPoints = percentToBasisPoints(draft.value);
       if (basisPoints === null) {
-        fieldErrors.value = "Bitte einen Anteil wie 50 oder 12,5 eingeben.";
+        fieldErrors.discount_basis_points =
+          "Bitte einen Anteil wie 50 oder 12,5 eingeben.";
       }
     } else {
       cents = euroInputToCents(draft.value);
       if (cents === null) {
-        fieldErrors.value = "Bitte einen Betrag wie 25,00 eingeben.";
+        fieldErrors[
+          kind === "cap"
+            ? "cap_cents"
+            : draft.effect === "price"
+              ? "price_cents"
+              : "discount_cents"
+        ] = "Bitte einen Betrag wie 25,00 eingeben.";
       }
     }
     if (Object.keys(fieldErrors).length > 0) {
@@ -260,6 +267,16 @@ export function CareRuleModal({
       setSaving(false);
     }
   };
+
+  // The backend names the amount by its parameter; the form shows one field.
+  const valueField =
+    kind === "cap"
+      ? "cap_cents"
+      : draft.effect === "share"
+        ? "discount_basis_points"
+        : draft.effect === "price"
+          ? "price_cents"
+          : "discount_cents";
 
   const valueLabel =
     kind === "cap"
@@ -435,7 +452,7 @@ export function CareRuleModal({
         ) : null}
         <Input
           id="care-rule-value"
-          name="value"
+          name={valueField}
           label={valueLabel}
           required
           inputMode="decimal"
@@ -445,7 +462,7 @@ export function CareRuleModal({
               ? "Das Kind zahlt diesen Preis statt des Grundbeitrags."
               : undefined
           }
-          error={formErrors.fieldError("value")}
+          error={formErrors.fieldError(valueField)}
           onChange={(event) => set({ value: event.target.value })}
         />
       </form>

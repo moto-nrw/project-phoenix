@@ -274,6 +274,12 @@ func TestCareReductionsAreCheckedBeforeTheyAreSaved(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 		assert.Contains(t, rec.Body.String(), "parent_billing.care_evidence_invalid")
 	}
+	// A level of another school would be ignored by the run: refused.
+	otherLevels := f.saveRule(t, careRule("income_level", "Stufe Nord", []int64{f.office.schools[1]}, map[string]any{"price_cents": 1000}))
+	otherLevel := ruleNamed(t, otherLevels, "Stufe Nord")
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careEvidencesPath, careEvidence(contract, "income_level", &otherLevel))
+	assert.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), "parent_billing.care_evidence_invalid")
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careEvidencesPath, careEvidence(contract, "income_level", &level))
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careEvidencesPath, careEvidence(contract, "income_level", &level))

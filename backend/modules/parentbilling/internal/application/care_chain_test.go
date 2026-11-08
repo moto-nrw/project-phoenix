@@ -573,3 +573,28 @@ func TestCareSiblingFixedAmountsCountEarlierContractsOfTheChild(t *testing.T) {
 		})
 	}
 }
+
+// A later rule of the chain lowers an issued invoice below its amount at the
+// sibling stage. The fixed price still counts that amount: the child paid
+// 25,00 € at the sibling stage (12,50 € after 50 % for single parents), so a
+// later contract of the same child pays nothing more under the price.
+func TestCareSiblingFixedPriceCountsTheIssuedAmountAtTheSiblingStage(t *testing.T) {
+	t.Parallel()
+	rule := careRule(t, ruleSiblingIspringen, parentbilling.RuleSibling, []int64{schoolIspringen}, func(rule *parentbilling.ContributionRule) {
+		rule.SiblingFromChild, rule.PriceCents = ptr(2), ptr(int64(2500))
+	})
+	invoices := []parentbilling.CareInvoice{
+		{SchoolID: schoolIspringen, Recipient: parentbilling.CareRecipient{Email: familyEva}, Positions: []parentbilling.CarePosition{{AmountCents: 10000}}},
+		{SchoolID: schoolIspringen, Recipient: parentbilling.CareRecipient{Email: familyEva}, TotalCents: 1250,
+			Positions: []parentbilling.CarePosition{{AmountCents: 4000, PayableCents: 1250}},
+			Reductions: []parentbilling.CareReduction{
+				{Kind: parentbilling.RuleSibling, RuleID: rule.ID, AmountCents: -1500},
+				{Kind: parentbilling.RuleSingleParent, RuleID: ruleSingleParent, AmountCents: -1250},
+			}},
+		{SchoolID: schoolIspringen, Recipient: parentbilling.CareRecipient{Email: familyEva}, Positions: []parentbilling.CarePosition{{AmountCents: 4000}}},
+	}
+	applyCareChain([]*careChainEntry{{invoice: &invoices[0], child: "first"}, {invoice: &invoices[1], child: "second", issued: true}, {invoice: &invoices[2], child: "second"}},
+		careChainInput{month: day(t, billingMonth), rules: []parentbilling.ContributionRule{rule}})
+	assert.Equal(t, int64(0), invoices[2].TotalCents)
+	assert.Equal(t, int64(1250), invoices[1].TotalCents)
+}

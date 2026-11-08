@@ -175,10 +175,14 @@ export function CareEvidenceModal({
             label="Stufe"
             required
             value={draft.ruleId}
-            options={data.levels.map((level) => ({
-              value: level.id,
-              label: `${level.name} (${ruleEffect(level)})`,
-            }))}
+            options={data.levels
+              .filter((level) =>
+                level.schoolIds.includes(target?.contract.schoolId ?? ""),
+              )
+              .map((level) => ({
+                value: level.id,
+                label: `${level.name} (${ruleEffect(level)})`,
+              }))}
             error={formErrors.fieldError("rule_id")}
             onChange={(value) => set({ ruleId: value })}
           />

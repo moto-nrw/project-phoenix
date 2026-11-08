@@ -76,7 +76,9 @@ function RuleDetails({
     [
       names(rule.schoolIds, data),
       validityLabel(rule.validFrom, rule.validUntil, formatMonth),
-      modules ? `nur ${modules}` : "alle Module",
+      rule.careOfferingIds.length === 0
+        ? "alle Module"
+        : `nur ${modules || `${rule.careOfferingIds.length} nicht mehr angebotene Module`}`,
     ].join(" · "),
   ];
   if (rule.kind === "sibling") {
