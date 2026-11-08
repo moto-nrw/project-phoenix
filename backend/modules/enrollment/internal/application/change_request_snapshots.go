@@ -333,3 +333,35 @@ func trimmedOptionalString(value *string) string {
 	}
 	return strings.TrimSpace(*value)
 }
+
+// withEmptyFormValues returns a copy of a stored snapshot whose null answers
+// and consent flags read as {}. Snapshots taken before ADR 0170 recorded
+// empty values as null, the current snapshot records them as {}; without
+// this every older pending change request would read as a conflict.
+func withEmptyFormValues(snapshot map[string]any) map[string]any {
+	out := maps.Clone(snapshot)
+	for _, key := range []string{"consent_flags", "custom_data"} {
+		if value, ok := out[key]; ok && value == nil {
+			out[key] = map[string]any{}
+		}
+	}
+	children, ok := out["children"].([]any)
+	if !ok {
+		return out
+	}
+	copied := make([]any, len(children))
+	for i, child := range children {
+		copied[i] = child
+		row, ok := child.(map[string]any)
+		if !ok {
+			continue
+		}
+		if value, present := row["custom_data"]; present && value == nil {
+			row = maps.Clone(row)
+			row["custom_data"] = map[string]any{}
+			copied[i] = row
+		}
+	}
+	out["children"] = copied
+	return out
+}
