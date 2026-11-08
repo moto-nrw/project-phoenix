@@ -15,6 +15,9 @@ export const GET = createGetHandler(
     if (!VALID_KEY_PATTERN.test(key)) {
       throw bffError(400, "Invalid settings key format");
     }
-    return await apiGet(`/api/settings/values/${key}/reveal`, token);
+    return await apiGet(
+      `/api/settings/values/${encodeURIComponent(key)}/reveal`,
+      token,
+    );
   },
 );

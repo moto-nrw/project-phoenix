@@ -254,21 +254,6 @@ func matchChildrenByID(existing []*RequestChild, submitted []SubmitChild, matche
 	return used
 }
 
-func requestChildIdentityKey(firstName, lastName, dateOfBirth string) string {
-	return childNameKey(firstName) + "\x00" + childNameKey(lastName) + "\x00" + strings.TrimSpace(dateOfBirth)
-}
-
-// sameSubmittedIdentity reports whether an edited child still names the same
-// person as the stored child it was paired to; a changed identity drops a
-// stale existing-student pin (#1663).
-func sameSubmittedIdentity(existing *RequestChild, submitted SubmitChild) bool {
-	if existing == nil {
-		return false
-	}
-	return requestChildIdentityKey(existing.FirstName, existing.LastName, existing.DateOfBirth.String()) ==
-		requestChildIdentityKey(submitted.FirstName, submitted.LastName, submitted.DateOfBirth.String())
-}
-
 func editableCustomDataKeys(schema *enrollmentNative.FormSchema, appliesToChild bool) map[string]bool {
 	keys := make(map[string]bool)
 	if schema == nil {

@@ -10,5 +10,4 @@ export const GET = createPublicJsonProxy({
     }
     return `/auth/guardian-invitations/${encodeURIComponent(token)}`;
   },
-  contentTypeOnGet: false,
 });

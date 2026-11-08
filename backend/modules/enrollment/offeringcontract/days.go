@@ -8,9 +8,9 @@ var dayCodes = [...]string{"mon", "tue", "wed", "thu", "fri", "sat", "sun"}
 // schoolDays is the number of leading day codes that are school days.
 const schoolDays = 5
 
-// DayCode returns the code of the ISO weekday (Monday = 1), or "" outside
+// dayCode returns the code of the ISO weekday (Monday = 1), or "" outside
 // 1..7.
-func DayCode(isoWeekday int) string {
+func dayCode(isoWeekday int) string {
 	if isoWeekday < 1 || isoWeekday > len(dayCodes) {
 		return ""
 	}
@@ -23,7 +23,7 @@ func SchoolDayCode(isoWeekday int) string {
 	if isoWeekday > schoolDays {
 		return ""
 	}
-	return DayCode(isoWeekday)
+	return dayCode(isoWeekday)
 }
 
 // DayNumber returns the ISO weekday of the code (Monday = 1), or 0 for an

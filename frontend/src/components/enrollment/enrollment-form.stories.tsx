@@ -3,10 +3,8 @@ import { EnrollmentForm } from "./enrollment-form";
 import type { PublicFormSchema } from "~/lib/enrollment-form-schema-api";
 import type { PublicCareOffering } from "~/lib/enrollment-submission-api";
 
-// EnrollmentForm's Props require gradeLevelMax + onSubmitted; everything
-// else is optional. Passing prefetchedData avoids the async schema/offering
-// fetch entirely (loading state is `prefetchedData === undefined`), so the
-// story renders the real form synchronously with no backend.
+// With prefetchedData the form renders the phase synchronously, as the phase
+// pages do; without it the form would load a template preview.
 function schema(): PublicFormSchema {
   return {
     id: "7",

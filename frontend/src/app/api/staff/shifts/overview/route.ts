@@ -1,4 +1,4 @@
-import { proxyGet } from "~/lib/route-proxy.server";
+import { proxyGet } from "~/lib/route-wrapper.server";
 import type { BackendStaffScheduleOverview } from "~/lib/shift-helpers";
 
 /**

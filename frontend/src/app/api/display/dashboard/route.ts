@@ -8,8 +8,6 @@ export const GET = createPublicJsonProxy({
     request.headers.get("x-display-token")
       ? "/api/display/dashboard"
       : problemResponse(400, "token required", request),
-  cache: "no-store",
-  contentTypeOnGet: false,
   additionalHeaders: (request) => ({
     "X-Display-Token": request.headers.get("x-display-token") ?? "",
   }),

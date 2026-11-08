@@ -49,17 +49,6 @@ func TestOperatorInvalidCredentials(t *testing.T) {
 	assert.Equal(t, "Invalid email or password", errorText)
 }
 
-func TestOperatorNotFound(t *testing.T) {
-	t.Parallel()
-
-	renderer := common.OperatorNotFound("Resource not found")
-
-	status, statusText, errorText := extractOperatorErrResponse(t, renderer)
-	assert.Equal(t, http.StatusNotFound, status)
-	assert.Equal(t, status, statusText, "the envelope status is the HTTP status number")
-	assert.Equal(t, "Resource not found", errorText)
-}
-
 func TestOperatorForbidden(t *testing.T) {
 	t.Parallel()
 

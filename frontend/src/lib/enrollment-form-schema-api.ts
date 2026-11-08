@@ -6,6 +6,7 @@ import type { FileFieldOptions } from "~/lib/enrollment-uploads";
 import {
   readEnrollmentJSON,
   sendEnrollmentRequest,
+  withLateInviteQuery,
 } from "~/lib/enrollment-http";
 
 const logger = createLogger({ component: "EnrollmentFormSchemaAPI" });
@@ -29,7 +30,8 @@ export type FormFieldType =
 
 /**
  * Source of a field's visibility condition. Mirrors the backend
- * ConditionSource* constants in models/enrollment/form_schema.go.
+ * ConditionSource* constants in
+ * backend/modules/enrollment/form_schema_types.go.
  * - "field": another custom boolean/select field in the same schema
  * - "grade_level": the per-child core field target_grade_level
  * - "care_offering": the child's selected care offering IDs
@@ -56,7 +58,7 @@ export interface VisibilityCondition {
  * Reserved targets that link a form field to a downstream Stammdaten
  * column / association table. Empty string (or absent) keeps the
  * field as free custom_data only. Keep in sync with
- * backend/models/enrollment/form_schema.go ReservedTargets.
+ * backend/modules/enrollment/form_schema.go ReservedTargets.
  *
  * Photo consent and guardian phone number are NOT picker options:
  * the public base form already collects them (consent_flags.photo
@@ -156,7 +158,26 @@ interface FormFieldValidation {
   pattern?: string | null;
 }
 
-export const MAX_ENROLLMENT_DOCUMENT_BYTES = 10 * 1024 * 1024;
+const MAX_ENROLLMENT_DOCUMENT_BYTES = 10 * 1024 * 1024;
+/** The document limit as the editor names it ("10 MB"). */
+export const MAX_ENROLLMENT_DOCUMENT_SIZE_LABEL = `${MAX_ENROLLMENT_DOCUMENT_BYTES / (1024 * 1024)} MB`;
+
+/**
+ * Why a chosen file cannot become a form document (legal PDF or PDF
+ * attachment), or null. The backend checks the content again on upload.
+ */
+export function enrollmentDocumentProblem(
+  file: File,
+): "not_pdf" | "too_large" | null {
+  if (
+    file.type !== "application/pdf" &&
+    !file.name.toLowerCase().endsWith(".pdf")
+  ) {
+    return "not_pdf";
+  }
+  if (file.size > MAX_ENROLLMENT_DOCUMENT_BYTES) return "too_large";
+  return null;
+}
 
 export interface FormAttachment {
   label: string;
@@ -386,22 +407,6 @@ export interface PublicCaptchaConfig {
   site_key: string;
 }
 
-export async function fetchPublicCaptchaConfig(
-  tenantSlug: string,
-): Promise<PublicCaptchaConfig | null> {
-  const response = await sendEnrollmentRequest(
-    `/api/enrollment/captcha-config/${encodeURIComponent(tenantSlug)}`,
-    { cache: "no-store" },
-  );
-  if (!response.ok) {
-    logger.warn("public_captcha_config_failed", {
-      status: response.status,
-    });
-    return null;
-  }
-  return readEnrollmentJSON<PublicCaptchaConfig>(response);
-}
-
 export interface PublicLegalBlock {
   attachments?: FormAttachment[];
   key: string;
@@ -447,13 +452,10 @@ export async function fetchPublicLegalTexts(
   options: { lateInviteToken?: string } = {},
 ): Promise<PublicLegalTexts> {
   const path = `/api/enrollment/legal/${encodeURIComponent(tenantSlug)}`;
-  const params = new URLSearchParams();
-  if (phaseId) params.set("phaseId", phaseId);
-  if (options.lateInviteToken?.trim()) {
-    params.set("late_invite", options.lateInviteToken.trim());
-  }
-  const query = params.toString();
-  const url = query ? `${path}?${query}` : path;
+  const url = withLateInviteQuery(
+    phaseId ? `${path}?phaseId=${encodeURIComponent(phaseId)}` : path,
+    options.lateInviteToken,
+  );
   const response = await sendEnrollmentRequest(url, { cache: "no-store" });
   if (!response.ok) {
     throw await readEnrollmentError(
@@ -464,33 +466,6 @@ export async function fetchPublicLegalTexts(
     );
   }
   return readEnrollmentJSON<PublicLegalTexts>(response);
-}
-
-export async function fetchPublicActiveSchema(
-  tenantSlug: string,
-  phaseId: string,
-  options: { lateInviteToken?: string } = {},
-): Promise<PublicFormSchema | null> {
-  const path = `/api/enrollment/schema/public/${encodeURIComponent(
-    tenantSlug,
-  )}/${encodeURIComponent(phaseId)}`;
-  const trimmedToken = options.lateInviteToken?.trim();
-  const url = trimmedToken
-    ? `${path}?late_invite=${encodeURIComponent(trimmedToken)}`
-    : path;
-  const response = await sendEnrollmentRequest(url, { cache: "no-store" });
-  if (response.status === 404) {
-    return null;
-  }
-  if (!response.ok) {
-    throw await readEnrollmentError(
-      response,
-      "Formular konnte nicht geladen werden",
-      logger,
-      "public_schema_fetch_failed",
-    );
-  }
-  return readEnrollmentJSON<PublicFormSchema>(response);
 }
 
 /**

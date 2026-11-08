@@ -1,9 +1,6 @@
-import type { NextRequest } from "next/server";
-import { forwardJsonPost } from "~/lib/auth-proxy.server";
-import { withPrivateNoStore } from "~/lib/private-no-store";
+import { authStepProxy } from "~/lib/auth-proxy.server";
 
-async function POSTHandler(request: NextRequest) {
-  return forwardJsonPost(request, "/operator/auth/passkeys/login/options");
-}
-
-export const POST = withPrivateNoStore(POSTHandler);
+export const POST = authStepProxy(
+  "/operator/auth/passkeys/login/options",
+  "optional-json",
+);

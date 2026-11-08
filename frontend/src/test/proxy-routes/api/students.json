@@ -149,9 +149,6 @@
   "api/students/care-withdrawals": [
     "GET tenant /api/students/care-withdrawals"
   ],
-  "api/students/care-withdrawals/[completionId]": [
-    "DELETE tenant /api/students/care-withdrawals/completionId%2F1 body"
-  ],
   "api/students/care-withdrawals/[completionId]/care-end": [
     "POST tenant /api/students/care-withdrawals/completionId%2F1/care-end"
   ],

@@ -83,11 +83,6 @@ func OperatorUnauthorized() render.Renderer {
 	return operatorError(http.StatusUnauthorized, "Unauthorized")
 }
 
-// OperatorNotFound renders a 404.
-func OperatorNotFound(message string) render.Renderer {
-	return operatorError(http.StatusNotFound, message)
-}
-
 // OperatorConflict renders a 409.
 func OperatorConflict(message string) render.Renderer {
 	return operatorError(http.StatusConflict, message)

@@ -15,9 +15,11 @@ const { mockAuth, mockApiPost } = vi.hoisted(() => ({
   mockApiPost: vi.fn(),
 }));
 
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockAuth,
+  }),
+);
 
 vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/api-helpers.server")>()),
@@ -74,7 +76,7 @@ describe("POST /api/auth/password", () => {
 
     expect(response.status).toBe(401);
     const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Unauthenticated");
+    expect(json.detail).toBe("Unauthorized");
   });
 
   it("returns 400 when currentPassword is missing", async () => {

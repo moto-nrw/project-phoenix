@@ -12,6 +12,7 @@ import {
   enrollmentErrorReader,
   readEnrollmentJSON,
   sendEnrollmentRequest,
+  withLateInviteQuery,
 } from "~/lib/enrollment-http";
 
 import type {
@@ -254,123 +255,8 @@ export const EMPTY_SCHOOL_CLASS_CONFIG: PublicSchoolClassConfig = {
   collect_grade_1: false,
 };
 
-function parseSchoolClassConfig(raw: unknown): PublicSchoolClassConfig {
-  const obj = (raw ?? {}) as Partial<PublicSchoolClassConfig>;
-  return {
-    collect: obj.collect === true,
-    available_classes: Array.isArray(obj.available_classes)
-      ? obj.available_classes.filter((c): c is string => typeof c === "string")
-      : [],
-    require: obj.require === true,
-    collect_grade_1: obj.collect_grade_1 === true,
-  };
-}
-
-export interface PublicCareOfferingsResult {
-  offerings: PublicCareOffering[];
-  careOfferingSelectionMode: CareOfferingSelectionMode;
-  careRequired: boolean;
-  /**
-   * Concrete-class config (#1833). Present only when the backend
-   * includes `school_class` in the response; consumers coalesce to
-   * EMPTY_SCHOOL_CLASS_CONFIG when absent.
-   */
-  schoolClass?: PublicSchoolClassConfig;
-  collectGradeLevel: boolean;
-  careOfferingsEnabled: boolean;
-  /**
-   * Phase grade restriction (#1663); empty means unrestricted. Present only
-   * when the backend includes `eligible_grade_levels` in the response, so the
-   * normalized shape for a payload without it is unchanged — same convention
-   * as `schoolClass` above. Consumers coalesce to [].
-   */
-  eligibleGradeLevels?: number[];
-}
-
 export interface LateInviteFetchOptions {
   lateInviteToken?: string;
-}
-
-export interface PublicEnrollmentBootstrapFetchOptions extends LateInviteFetchOptions {
-  /**
-   * Omits browser credentials from this request. This is transport hardening
-   * for parent-portal callers, not the server-side portal boundary; the route
-   * decides profile enrichment from the proxy-preserved original host.
-   */
-  omitCredentials?: boolean;
-}
-
-function withLateInviteQuery(path: string, token?: string): string {
-  const trimmed = token?.trim();
-  if (!trimmed) return path;
-  return `${path}?late_invite=${encodeURIComponent(trimmed)}`;
-}
-
-/**
- * Fetches the public care-offering catalog for a given tenant slug
- * and phase. Returns the offerings plus the phase-level selection mode
- * so the form can render the hint and validate before submit. The
- * backend re-checks the mode on submit.
- */
-export async function fetchPublicCareOfferings(
-  tenantSlug: string,
-  phaseId: string,
-  options: LateInviteFetchOptions = {},
-): Promise<PublicCareOfferingsResult> {
-  const path = `/api/enrollment/care-offerings/public/${encodeURIComponent(
-    tenantSlug,
-  )}/${encodeURIComponent(phaseId)}`;
-  const response = await sendEnrollmentRequest(
-    withLateInviteQuery(path, options.lateInviteToken),
-    { cache: "no-store" },
-  );
-  if (!response.ok) {
-    throw await readError(
-      response,
-      "Betreuungsangebote konnten nicht geladen werden",
-    );
-  }
-  const payload = await readEnrollmentJSON<{
-    offerings?: PublicCareOffering[];
-    care_offering_selection_mode?: CareOfferingSelectionMode;
-    care_required?: boolean;
-    school_class?: unknown;
-    collect_grade_level?: boolean;
-    care_offerings_enabled?: boolean;
-    eligible_grade_levels?: unknown;
-  }>(response);
-  const mode =
-    payload?.care_offering_selection_mode ??
-    (payload?.care_required === true ? "at_least_one" : "optional");
-  return {
-    offerings: Array.isArray(payload?.offerings) ? payload.offerings : [],
-    careOfferingSelectionMode: mode,
-    careRequired: mode !== "optional",
-    collectGradeLevel: payload?.collect_grade_level !== false,
-    careOfferingsEnabled: payload?.care_offerings_enabled !== false,
-    // Attach the config only when the backend actually sent it, so the
-    // normalized shape for a payload without `school_class` is unchanged.
-    schoolClass:
-      payload?.school_class == null
-        ? undefined
-        : parseSchoolClassConfig(payload.school_class),
-    eligibleGradeLevels:
-      payload?.eligible_grade_levels == null
-        ? undefined
-        : parseGradeLevels(payload.eligible_grade_levels),
-  };
-}
-
-/**
- * Normalizes a grade-restriction list from an untrusted payload: keeps
- * positive integers only, so a backend that omits the field (or a stale
- * one that never sends it) reads as "no restriction" rather than throwing.
- */
-function parseGradeLevels(raw: unknown): number[] {
-  if (!Array.isArray(raw)) return [];
-  return raw.filter(
-    (g): g is number => typeof g === "number" && Number.isInteger(g) && g > 0,
-  );
 }
 
 export interface PublicPhase {
@@ -483,18 +369,13 @@ export interface PublicEnrollmentBootstrap {
 export async function fetchPublicEnrollmentBootstrap(
   tenantSlug: string,
   phaseId: string,
-  options: PublicEnrollmentBootstrapFetchOptions = {},
+  options: LateInviteFetchOptions = {},
 ): Promise<PublicEnrollmentBootstrap> {
   let path = `/api/enrollment/form-bootstrap/public/${encodeURIComponent(
     tenantSlug,
   )}/${encodeURIComponent(phaseId)}`;
   path = withLateInviteQuery(path, options.lateInviteToken);
-  const response = await sendEnrollmentRequest(
-    path,
-    options.omitCredentials
-      ? { cache: "no-store", credentials: "omit" }
-      : { cache: "no-store" },
-  );
+  const response = await sendEnrollmentRequest(path, { cache: "no-store" });
   if (!response.ok) {
     throw await readError(
       response,
@@ -529,25 +410,6 @@ export async function fetchParentEnrollmentBootstrap(
     );
   }
   return readEnrollmentJSON<PublicEnrollmentBootstrap>(response);
-}
-
-/**
- * Best-effort autofill payload for parents who already have a tenant
- * session. Returns null when not authenticated (HTTP 401) so the
- * caller can render the public form unchanged. Other errors propagate
- * as ApiError so SWR/effects can surface them.
- */
-export async function fetchMyEnrollmentProfile(): Promise<MeProfileResponse | null> {
-  const response = await sendEnrollmentRequest("/api/enrollment/me/profile", {
-    cache: "no-store",
-  });
-  if (response.status === 401) {
-    return null;
-  }
-  if (!response.ok) {
-    throw await readError(response, "Profil konnte nicht geladen werden");
-  }
-  return readEnrollmentJSON<MeProfileResponse>(response);
 }
 
 /**

@@ -3,7 +3,7 @@ package domain
 import "slices"
 
 // The domain may import no other package of its owner, so the portal names,
-// claims and token shapes repeat tokenprimitives.AllPortalClaims(); a test pins
+// claims and token shapes repeat the tokenprimitives portals; a test pins
 // the two tables to each other.
 
 // Shape says how a portal's access token carries a school or a Träger.

@@ -1,4 +1,4 @@
-import { createTenantJsonProxy } from "~/lib/backend-proxy-route.server";
+import { createTenantJsonProxy } from "~/lib/route-wrapper.server";
 import { problemResponse } from "~/lib/api-helpers.server";
 
 const path = (
@@ -15,20 +15,12 @@ const path = (
 export const GET = createTenantJsonProxy({
   method: "GET",
   path,
-  cache: "no-store",
-  explicitGetMethod: true,
-  retryOn401: true,
 });
 export const POST = createTenantJsonProxy({
   method: "POST",
   path,
-  cache: "no-store",
-  retryOn401: true,
 });
 export const DELETE = createTenantJsonProxy({
   method: "DELETE",
   path,
-  cache: "no-store",
-  retryOn401: true,
-  includeEmptyBody: true,
 });

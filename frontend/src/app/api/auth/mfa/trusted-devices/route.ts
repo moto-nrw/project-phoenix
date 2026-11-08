@@ -1,13 +1,6 @@
-import { forwardJsonPost } from "~/lib/auth-proxy.server";
-import { withTenantAuth } from "~/server/auth/tenant-route";
-import type { ServerAuthRequest } from "~/server/auth/route-handler";
+import { createTenantJsonProxy } from "~/lib/route-wrapper.server";
 
-async function GETHandler(request: ServerAuthRequest) {
-  return forwardJsonPost(request, "/auth/mfa/trusted-devices", {
-    sessionToken: request.auth?.user?.token ?? null,
-    method: "GET",
-    hasBody: false,
-  });
-}
-
-export const GET = withTenantAuth(GETHandler);
+export const GET = createTenantJsonProxy({
+  method: "GET",
+  path: "/auth/mfa/trusted-devices",
+});

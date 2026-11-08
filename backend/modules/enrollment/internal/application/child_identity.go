@@ -19,3 +19,24 @@ import (
 func childNameKey(name string) string {
 	return strings.ToLower(textnorm.Name(name))
 }
+
+// guardianEmailKey is the form in which two guardian e-mail addresses count
+// as the same address: without surrounding spaces and without regard to case.
+func guardianEmailKey(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
+}
+
+func requestChildIdentityKey(firstName, lastName, dateOfBirth string) string {
+	return childNameKey(firstName) + "\x00" + childNameKey(lastName) + "\x00" + strings.TrimSpace(dateOfBirth)
+}
+
+// sameSubmittedIdentity reports whether an edited child still names the same
+// person as the stored child it was paired to; a changed identity drops a
+// stale existing-student pin (#1663).
+func sameSubmittedIdentity(existing *RequestChild, submitted SubmitChild) bool {
+	if existing == nil {
+		return false
+	}
+	return requestChildIdentityKey(existing.FirstName, existing.LastName, existing.DateOfBirth.String()) ==
+		requestChildIdentityKey(submitted.FirstName, submitted.LastName, submitted.DateOfBirth.String())
+}

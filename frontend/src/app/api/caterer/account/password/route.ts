@@ -15,7 +15,7 @@ interface PasswordChangeBody {
 export const POST = createCatererJsonProxy({
   method: "POST",
   path: "/caterer/account/password",
-  forwardClientHeaders: true,
+  retry: { off: "a renewed session would send the current password twice" },
   mapJsonBody: (body) => {
     const fields = body as PasswordChangeBody;
     return {

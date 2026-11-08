@@ -30,7 +30,7 @@ func normalizeCareUsageFilters(filters enrollmentNative.CareUsageFilters) enroll
 }
 
 func validateCareUsageFilters(filters enrollmentNative.CareUsageFilters) error {
-	if filters.Status != "all" && !slices.Contains(allChildStatuses, filters.Status) {
+	if filters.Status != "all" && !slices.Contains(enrollmentNative.ChildStatuses(), filters.Status) {
 		return fmt.Errorf("%w: unsupported status %q", enrollmentNative.ErrReportInvalidFilter, filters.Status)
 	}
 	if filters.DayCount != nil && (*filters.DayCount < 0 || *filters.DayCount > 7) {

@@ -4,12 +4,11 @@
  */
 
 import type { NextRequest } from "next/server";
-import { catererAuth } from "~/server/auth/caterer";
-import { withCatererAuth } from "~/server/auth/caterer-route";
+import { catererPortal } from "~/server/auth/caterer";
 import { ingestClientLogs } from "~/lib/client-log-ingest.server";
 
 async function POSTHandler(request: NextRequest) {
-  return ingestClientLogs(request, await catererAuth(), "caterer");
+  return ingestClientLogs(request, await catererPortal.auth(), "caterer");
 }
 
-export const POST = withCatererAuth(POSTHandler);
+export const POST = catererPortal.withAuth(POSTHandler);

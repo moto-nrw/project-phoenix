@@ -1,78 +1,21 @@
+import { bffError } from "~/lib/api-response-error.server";
+import { parent } from "~/lib/parent/route-wrapper.server";
 import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
-import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
+
 // Erklärungen (#3430), Elternseite: der Nachweis als PDF der Schule für dieses
-// Konto und ein Kind.
-//
-// Eigener Handler statt des JSON-Proxys, weil hier Bytes durchlaufen. Ohne
-// Zugriff oder ohne eigene Antwort antwortet das Backend
-// mit 404.
-
-import type { NextRequest } from "next/server";
-import { sendWithTokenRefresh } from "~/lib/token-refresh-retry.server";
-import { NextResponse } from "next/server";
-import { parentAuth, uncachedParentAuth } from "~/server/auth/parent";
-import { withParentAuth } from "~/server/auth/parent-route";
-import { getServerApiUrl } from "~/lib/server-api-url";
-import { incomingAnalyticsSessionHeaders } from "~/lib/analytics-session-header.server";
-import { createLogger } from "~/lib/logger";
-import { problemResponse } from "~/lib/api-helpers.server";
-
-const logger = createLogger({ component: "ParentDeclarationProofPdf" });
-
-async function GETHandler(
-  request: NextRequest,
-  { params }: { params: Promise<{ announcementId: string }> },
-) {
-  const { announcementId } = await params;
-
-  const studentId = request.nextUrl.searchParams.get("student_id") ?? "";
-  if (!/^\d+$/.test(studentId)) {
-    return problemResponse(400, "student_id is required", request);
-  }
-
-  const session = await parentAuth();
-  const token = session?.user?.token;
-  if (!token) {
-    return problemResponse(401, "Unauthorized", request);
-  }
-
-  const backendUrl = `${getServerApiUrl()}/parent/me/news/${encodeURIComponent(announcementId)}/declaration/proof?student_id=${encodeURIComponent(studentId)}&format=pdf`;
-
-  const makeRequest = async (bearer: string) =>
-    fetch(backendUrl, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${bearer}`,
-        ...(await incomingAnalyticsSessionHeaders()),
-      },
-      cache: "no-store",
-    });
-
-  const upstream = await sendWithTokenRefresh(token, makeRequest, () =>
-    uncachedParentAuth(),
-  );
-
-  if (!upstream.ok) {
-    logger.warn("parent_declaration_proof_pdf_proxy_non_ok", {
-      announcement_id: announcementId,
-      status: upstream.status,
-    });
-    return forwardBackendResponse(upstream, request);
-  }
-
-  const headers = new Headers();
-  for (const name of [
-    "content-type",
-    "content-disposition",
-    "cache-control",
-    "content-length",
-    "x-content-type-options",
-  ]) {
-    const value = upstream.headers.get(name);
-    if (value) headers.set(name, value);
-  }
-
-  return new NextResponse(upstream.body, { status: 200, headers });
-}
-
-export const GET = withPrivateDownloadNoStore(withParentAuth(GETHandler));
+// Konto und ein Kind. Ohne Zugriff oder ohne eigene Antwort antwortet das
+// Backend mit 404.
+export const GET = withPrivateDownloadNoStore(
+  parent.route(async (request, _token, params) => {
+    const studentId = request.nextUrl.searchParams.get("student_id") ?? "";
+    if (!/^\d+$/.test(studentId)) {
+      throw bffError(400, "student_id is required");
+    }
+    return parent.downloadFile(
+      request,
+      `/parent/me/news/${requirePathSegmentParam(params, "announcementId")}/declaration/proof?student_id=${studentId}&format=pdf`,
+      { backendCacheControl: true },
+    );
+  }),
+);

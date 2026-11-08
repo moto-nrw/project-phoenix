@@ -15,7 +15,10 @@ export const POST = createPostHandler<null, Record<string, never>>(
     }
 
     const invitationId = String(rawId);
-    await apiPost(`/auth/invitations/${invitationId}/resend`, token);
+    await apiPost(
+      `/auth/invitations/${encodeURIComponent(invitationId)}/resend`,
+      token,
+    );
     return null;
   },
 );

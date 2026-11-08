@@ -4,7 +4,7 @@
 // Feldnamen der Prüfung folgen dem Backend ("fields.2.label"), damit Fehler
 // vom Server an derselben Frage landen.
 
-import { normalizeFieldKey } from "~/components/enrollment/form-field-builder";
+import { normalizeFieldKey } from "~/lib/enrollment-form-field-rules";
 import type { HolidayFormField } from "~/lib/traeger-holiday-form-api";
 
 /** A question as the holiday form stores it: no target, attachment or translation. */

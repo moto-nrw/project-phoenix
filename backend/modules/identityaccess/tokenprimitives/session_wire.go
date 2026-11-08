@@ -233,16 +233,6 @@ func DecodeChallenge(token Token, now time.Time) (ChallengeClaims, error) {
 	return decodeChallenge(wire, now)
 }
 
-// DecodeEnrollment reads an MFA enrollment token of a portal with an
-// enrollment of its own.
-func DecodeEnrollment(token Token, now time.Time) (EnrollmentClaims, error) {
-	wire, err := wireClaims(token)
-	if err != nil {
-		return EnrollmentClaims{}, err
-	}
-	return decodeEnrollment(wire, now)
-}
-
 // wireClaims returns the claims of a token as JSON values: numbers are
 // float64 and exp is a unix time.
 func wireClaims(token Token) (map[string]any, error) {
