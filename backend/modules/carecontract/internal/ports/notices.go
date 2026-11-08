@@ -20,11 +20,10 @@ const (
 )
 
 // NoticeState is what a declaration on a contract needs beyond its record:
-// the start of its first effective version, the end of its newest one, when
+// the end of its newest effective version, when
 // the parents got the withdrawal notice, their wish for an early start, and
 // the declaration made.
 type NoticeState struct {
-	FirstFrom   *calendar.Date
 	ContractEnd *calendar.Date
 	InformedAt  *time.Time
 	EarlyStart  bool
@@ -50,7 +49,6 @@ type NoticeEnd struct {
 	Text      string
 }
 
-// NewNotice is a declaration to store.
 type NewNotice struct {
 	DispatchedOn     *calendar.Date
 	ContractID       int64

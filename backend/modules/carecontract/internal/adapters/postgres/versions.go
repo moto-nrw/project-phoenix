@@ -19,7 +19,6 @@ import (
 // apart. A version holds from its effective date to the day before the next
 // effective version starts, or to its own end.
 
-// effectiveStatusSQL names the statuses of the timeline.
 const effectiveStatusSQL = `('` + carecontract.VersionEffective + `', '` + carecontract.VersionSuperseded + `')`
 
 // validUntilSQL is the last day version v holds; NULL when it holds open
@@ -41,7 +40,6 @@ const versionsSQL = `SELECT ` + versionColumns + `, v.source, ` + servicesSQL + 
 	FROM care_contract.contract_versions AS v
 	WHERE v.organization_id = ? AND v.contract_id = ? ORDER BY v.version_number`
 
-// Versions reads every version of a contract, oldest first.
 func (Store) Versions(ctx context.Context, organizationID, contractID int64) ([]carecontract.Version, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
@@ -171,7 +169,6 @@ func (Store) InsertVersion(ctx context.Context, organizationID, contractID int64
 	return insertVersion(ctx, db, organizationID, contractID, version)
 }
 
-// insertVersion stores one version with its services.
 func insertVersion(ctx context.Context, db bun.IDB, organizationID, contractID int64, version carecontract.Version) (int64, error) {
 	terms := version.Terms
 	source := version.Source
@@ -249,8 +246,6 @@ func nonNilIDs(ids []int64) []int64 {
 	return ids
 }
 
-// VersionDocument reads the stored PDF of one version; ok is false when the
-// version was never sent.
 func (Store) VersionDocument(ctx context.Context, organizationID, versionID int64) (carecontract.File, bool, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {

@@ -39,7 +39,7 @@
   "signedMail": "Otrzymasz e-mailem potwierdzenie z umową.",
   "withdrawalUntil": "Możesz odstąpić od umowy do {date}.",
   "earlyStartChosen": "Opieka rozpocznie się zgodnie z umową, także w okresie na odstąpienie.",
-  "alreadySigned": "Ta umowa jest już podpisana.",
+  "alreadyInForce": "Ta umowa już obowiązuje. Nie musisz niczego podpisywać.",
   "invalidTitle": "Ten link jest już nieważny",
   "invalidText": "Link został już użyty lub wygasł. Czy już podpisałeś? Wtedy nie musisz nic robić. Umowę znajdziesz w aplikacji dla rodziców w zakładce „Dokumenty”. Możesz też poprosić organizatora o nowy link.",
   "back": "Powrót do dokumentów",
