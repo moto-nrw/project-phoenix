@@ -52,7 +52,9 @@ auf. Sie führt keinen Owner ein (ADR 0057 Punkt 5, ADR 0070).
    abgerechnet hat, zählt im Rang mit. Die Kinderzahl der Familie (#5918,
    ADR 0088 §4 Nachtrag 2026-11-08) ergänzt die Zählung je Regel: Eine
    Regel, die sie nutzt, zählt `max(bestätigte Zahl, Kinder mit Vertrag)`;
-   die Geschwister ohne Vertrag stehen in der Reihenfolge vorn.
+   die Geschwister ohne Vertrag stehen in der Reihenfolge vorn. Kinder mit
+   Vertrag nur an Schulen außerhalb der Zählschulen der Regel gehen von der
+   Angabe ab (je Standort getrennt, SJR 08.11.2026).
 
    **Grenzen der Familie über die Mail-Adresse, bis #4689 und #5918
    hingenommen:** Nutzen zwei Familien dieselbe Rechnungsadresse, legt moto

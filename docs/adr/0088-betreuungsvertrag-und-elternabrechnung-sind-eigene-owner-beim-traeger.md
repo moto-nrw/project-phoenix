@@ -350,6 +350,15 @@ Punkt 4.
   zahlen: Bei 3 Kindern und einem Kind mit Vertrag ist es das 3. Kind. Ohne
   nutzbare Zahl zählt die Regel nur die Kinder mit Vertrag. Regeln ohne
   Nutzung, die Zählschulen und der Höchstbetrag bleiben unverändert.
+- **Standorte (SJR, 08.11.2026, wartet auf Bestätigung).** Geschwister werden
+  je Standort getrennt gezählt. Die Familienangabe nennt alle Kinder; ein Kind,
+  dessen Vertrag im Monat nur an einer Schule außerhalb der Zählschulen der
+  Regel liegt, zählt nicht mit:
+  `max(Angabe − Kinder mit Vertrag nur an anderen Schulen, Kinder mit Vertrag
+  an den Zählschulen)`. Geschwister ohne Vertrag gehören keinem Standort an
+  und zählen an jedem mit. Ob ein anderer Standort mitzählt, entscheidet die
+  Einstellung `Geschwister zählen an` der Regel; das ist ohne Codeänderung
+  umstellbar.
 - **Schlüssel der Familie.** Bis #4689 ist die Familie die Mail-Adresse des
   Rechnungsempfängers ohne Groß- und Kleinschreibung (ADR 0164 Punkt 4).
   Die Zahl hängt am Vertrag, an dem sie zuletzt angegeben oder bestätigt

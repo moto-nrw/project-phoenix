@@ -527,6 +527,57 @@ func TestCareMonthRuleChainTable(t *testing.T) {
 			totals:    map[int64]int64{contractMia: 8000},
 		},
 		{
+			// Each location apart (SJR 08.11.2026): the rule counts only
+			// Ispringen. The family states two children, Mia at Ispringen
+			// and Noah at Birkenfeld. Noah is no sibling at Ispringen, so
+			// Mia stays the 1st child: 40,00 €. Noah pays 45,00 €, no rule
+			// at Birkenfeld.
+			name: "a sibling at the other location does not count for the family's number",
+			children: []careChainChild{
+				{contractMia, schoolIspringen, familyEva, "2017-03-01", []parentbilling.CareContractService{mon1400}},
+				{contractNoah, schoolBirkenfeld, familyEva, "2015-03-01", []parentbilling.CareContractService{mon1400}},
+			},
+			rules:    familySiblingRule(true),
+			families: confirmedFamily(familyEva, 2, "2026-09-01", nil),
+			totals:   map[int64]int64{contractMia: 4000, contractNoah: 4500},
+		},
+		{
+			// Three children stated: Mia, Noah at Birkenfeld and one sibling
+			// without a contract. At Ispringen 3 − 1 = 2 count, the sibling
+			// without a contract first: Mia is the 2nd, 40,00 − 50 % =
+			// 20,00 €.
+			name: "a sibling without a contract counts at each location",
+			children: []careChainChild{
+				{contractMia, schoolIspringen, familyEva, "2017-03-01", []parentbilling.CareContractService{mon1400}},
+				{contractNoah, schoolBirkenfeld, familyEva, "2015-03-01", []parentbilling.CareContractService{mon1400}},
+			},
+			rules:    familySiblingRule(true),
+			families: confirmedFamily(familyEva, 3, "2026-09-01", nil),
+			totals:   map[int64]int64{contractMia: 2000, contractNoah: 4500},
+			lines:    map[int64][]reductionOf{contractMia: {{parentbilling.RuleSibling, -2000, 2}}},
+		},
+		{
+			// The rule's setting „Geschwister zählen an“ names both schools:
+			// Noah counts. Two stated, two with a contract; Noah (45,00 €)
+			// is the 1st, Mia (40,00 €) the 2nd: 20,00 €.
+			name: "a rule that counts both schools counts the sibling at the other location",
+			children: []careChainChild{
+				{contractMia, schoolIspringen, familyEva, "2017-03-01", []parentbilling.CareContractService{mon1400}},
+				{contractNoah, schoolBirkenfeld, familyEva, "2015-03-01", []parentbilling.CareContractService{mon1400}},
+			},
+			rules: func(t *testing.T) []parentbilling.ContributionRule {
+				return []parentbilling.ContributionRule{careRule(t, ruleSiblingIspringen, parentbilling.RuleSibling, []int64{schoolIspringen},
+					func(rule *parentbilling.ContributionRule) {
+						halfFromSecond(rule)
+						rule.CountsFamilyChildren = true
+						rule.CountSchoolIDs = []int64{schoolIspringen, schoolBirkenfeld}
+					})}
+			},
+			families: confirmedFamily(familyEva, 2, "2026-09-01", nil),
+			totals:   map[int64]int64{contractMia: 2000, contractNoah: 4500},
+			lines:    map[int64][]reductionOf{contractMia: {{parentbilling.RuleSibling, -2000, 2}}},
+		},
+		{
 			// An earlier run issued Mia's invoice at 80,00 € before the
 			// family's number of three was confirmed. The issued invoice
 			// stays as it is; Noah, billed now, is the 3rd: 30,00 €.
