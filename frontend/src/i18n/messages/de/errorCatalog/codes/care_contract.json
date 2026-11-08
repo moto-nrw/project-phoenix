@@ -17,7 +17,7 @@
   "paper_document_invalid": "Bitte laden Sie den unterschriebenen Vertrag als PDF hoch. Die Datei darf höchstens 10 MB groß sein.",
   "recipient_missing": "Für diesen Vertrag fehlt eine E-Mail-Adresse. Ohne Adresse kann keine Bestätigung verschickt werden.",
   "school_outside_traeger": "Diese Schule gehört nicht zu Ihrem Träger.",
-  "selection_invalid": "Bitte wählen Sie mindestens einen und höchstens 200 Einträge aus.",
+  "selection_invalid": "Diese Auswahl ist so nicht möglich. Bitte ändern Sie die Auswahl.",
   "signature_invalid": "Die Unterschrift fehlt oder ist leer. Bitte unterschreiben Sie noch einmal.",
   "signing_link_invalid": "Dieser Link gilt nicht mehr. Er war schon benutzt oder ist abgelaufen. Den Vertrag finden Sie in der Eltern-App unter „Dokumente“. Oder fragen Sie beim Träger nach einem neuen Link.",
   "special_termination_closed": "Dieser Vertrag sieht keine Sonderkündigung vor. Bitte wählen Sie die normale Kündigung.",

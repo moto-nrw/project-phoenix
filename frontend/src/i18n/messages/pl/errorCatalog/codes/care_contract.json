@@ -17,7 +17,7 @@
   "paper_document_invalid": "Prześlij podpisaną umowę jako plik PDF. Plik może mieć maksymalnie 10 MB.",
   "recipient_missing": "Ta umowa nie ma adresu e-mail. Bez adresu nie można wysłać potwierdzenia.",
   "school_outside_traeger": "This school does not belong to your provider.",
-  "selection_invalid": "Wybierz co najmniej jeden i najwyżej 200 wpisów.",
+  "selection_invalid": "Taki wybór nie jest możliwy. Zmień wybór.",
   "signature_invalid": "Brak podpisu lub podpis jest pusty. Podpisz jeszcze raz.",
   "signing_link_invalid": "Ten link jest już nieważny. Został użyty lub wygasł. Umowę znajdziesz w aplikacji dla rodziców w zakładce „Dokumenty”. Możesz też poprosić organizatora o nowy link.",
   "special_termination_closed": "Ta umowa nie przewiduje wypowiedzenia nadzwyczajnego. Proszę wybrać zwykłe wypowiedzenie.",

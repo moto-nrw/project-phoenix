@@ -109,6 +109,11 @@ type ValidationError struct {
 	Selection bool
 }
 
+// InvalidSelection refuses which or how many entries were chosen.
+func InvalidSelection(field, reason string) *ValidationError {
+	return &ValidationError{Fields: map[string]string{field: reason}, Selection: true}
+}
+
 func (e *ValidationError) Error() string {
 	if e.Selection {
 		return "the selection is invalid"

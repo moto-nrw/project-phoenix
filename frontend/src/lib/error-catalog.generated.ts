@@ -65,7 +65,7 @@ export const ERROR_CATALOG = {
       "care_contract.school_outside_traeger":
         "Diese Schule gehört nicht zu Ihrem Träger.",
       "care_contract.selection_invalid":
-        "Bitte wählen Sie mindestens einen und höchstens 200 Einträge aus.",
+        "Diese Auswahl ist so nicht möglich. Bitte ändern Sie die Auswahl.",
       "care_contract.signature_invalid":
         "Die Unterschrift fehlt oder ist leer. Bitte unterschreiben Sie noch einmal.",
       "care_contract.signing_link_invalid":
@@ -1766,7 +1766,7 @@ export const ERROR_CATALOG = {
       "care_contract.school_outside_traeger":
         "This school does not belong to your provider.",
       "care_contract.selection_invalid":
-        "Please select at least one and at most 200 entries.",
+        "This selection is not possible. Please change your selection.",
       "care_contract.signature_invalid":
         "The signature is missing or empty. Please sign again.",
       "care_contract.signing_link_invalid":
@@ -2358,7 +2358,7 @@ export const ERROR_CATALOG = {
       "care_contract.school_outside_traeger":
         "This school does not belong to your provider.",
       "care_contract.selection_invalid":
-        "Выберите не меньше одной и не больше 200 записей.",
+        "Такой выбор невозможен. Измените выбор.",
       "care_contract.signature_invalid":
         "Подпись отсутствует или пуста. Пожалуйста, подпишите ещё раз.",
       "care_contract.signing_link_invalid":
@@ -2843,7 +2843,7 @@ export const ERROR_CATALOG = {
       "care_contract.school_outside_traeger":
         "This school does not belong to your provider.",
       "care_contract.selection_invalid":
-        "Zgjidhni të paktën një dhe jo më shumë se 200 hyrje.",
+        "Kjo zgjedhje nuk është e mundur. Ndryshoni zgjedhjen.",
       "care_contract.signature_invalid":
         "Nënshkrimi mungon ose është bosh. Ju lutemi nënshkruani përsëri.",
       "care_contract.signing_link_invalid":
@@ -3343,7 +3343,7 @@ export const ERROR_CATALOG = {
       "care_contract.school_outside_traeger":
         "This school does not belong to your provider.",
       "care_contract.selection_invalid":
-        "Wybierz co najmniej jeden i najwyżej 200 wpisów.",
+        "Taki wybór nie jest możliwy. Zmień wybór.",
       "care_contract.signature_invalid":
         "Brak podpisu lub podpis jest pusty. Podpisz jeszcze raz.",
       "care_contract.signing_link_invalid":
@@ -3830,7 +3830,7 @@ export const ERROR_CATALOG = {
       "care_contract.school_outside_traeger":
         "This school does not belong to your provider.",
       "care_contract.selection_invalid":
-        "En az bir ve en fazla 200 kayıt seçin.",
+        "Bu seçim mümkün değil. Lütfen seçiminizi değiştirin.",
       "care_contract.signature_invalid":
         "İmza eksik veya boş. Lütfen tekrar imzalayın.",
       "care_contract.signing_link_invalid":
@@ -4323,7 +4323,7 @@ export const ERROR_CATALOG = {
       "care_contract.school_outside_traeger":
         "This school does not belong to your provider.",
       "care_contract.selection_invalid":
-        "Виберіть щонайменше один і не більше 200 записів.",
+        "Такий вибір неможливий. Змініть вибір.",
       "care_contract.signature_invalid":
         "Підпис відсутній або порожній. Будь ласка, підпишіть ще раз.",
       "care_contract.signing_link_invalid":

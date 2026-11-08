@@ -221,7 +221,7 @@ func (rs *Resource) send(w http.ResponseWriter, r *http.Request) {
 	if req.RecipientEmail == nil {
 		result, err = rs.contracts.SendContracts(r.Context(), reviewer, req.ContractIDs)
 	} else if len(req.ContractIDs) != 1 {
-		err = &carecontract.ValidationError{Fields: map[string]string{"contract_ids": "single_required"}, Selection: true}
+		err = carecontract.InvalidSelection("contract_ids", "single_required")
 	} else {
 		result, err = rs.contracts.ResendContract(r.Context(), reviewer, req.ContractIDs[0], *req.RecipientEmail)
 	}

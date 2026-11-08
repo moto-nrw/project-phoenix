@@ -17,7 +17,7 @@
   "paper_document_invalid": "Please upload the signed contract as a PDF. The file may be at most 10 MB.",
   "recipient_missing": "This contract has no e-mail address. Without an address no confirmation can be sent.",
   "school_outside_traeger": "This school does not belong to your provider.",
-  "selection_invalid": "Please select at least one and at most 200 entries.",
+  "selection_invalid": "This selection is not possible. Please change your selection.",
   "signature_invalid": "The signature is missing or empty. Please sign again.",
   "signing_link_invalid": "This link is no longer valid. It was already used or has expired. You can find the contract in the parent app under “Documents”, or ask the provider for a new link.",
   "special_termination_closed": "This contract has no special termination. Please choose the regular termination.",

@@ -17,7 +17,7 @@
   "paper_document_invalid": "Lütfen imzalı sözleşmeyi PDF olarak yükleyin. Dosya en fazla 10 MB olabilir.",
   "recipient_missing": "Bu sözleşmenin e-posta adresi yok. Adres olmadan onay gönderilemez.",
   "school_outside_traeger": "This school does not belong to your provider.",
-  "selection_invalid": "En az bir ve en fazla 200 kayıt seçin.",
+  "selection_invalid": "Bu seçim mümkün değil. Lütfen seçiminizi değiştirin.",
   "signature_invalid": "İmza eksik veya boş. Lütfen tekrar imzalayın.",
   "signing_link_invalid": "Bu bağlantı artık geçerli değil. Daha önce kullanıldı veya süresi doldu. Sözleşmeyi veli uygulamasında „Belgeler“ altında bulabilirsiniz. Ya da kurumdan yeni bir bağlantı isteyin.",
   "special_termination_closed": "Bu sözleşmede özel fesih yok. Lütfen normal feshi seçin.",

@@ -182,7 +182,7 @@ func (in *Intake) CreateContracts(ctx context.Context, reviewer carecontract.Rev
 	}
 	keys = uniqueKeys(keys)
 	if len(keys) == 0 || len(keys) > maxCreateBatch {
-		return carecontract.CreateResult{}, &carecontract.ValidationError{Fields: map[string]string{"contracts": "count"}, Selection: true}
+		return carecontract.CreateResult{}, carecontract.InvalidSelection("contracts", "count")
 	}
 	all, err := in.schools.TraegerSchools(ctx, reviewer.OrganizationID)
 	if err != nil {
