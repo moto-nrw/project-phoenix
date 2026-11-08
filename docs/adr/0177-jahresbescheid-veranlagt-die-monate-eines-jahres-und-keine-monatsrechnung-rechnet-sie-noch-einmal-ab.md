@@ -57,7 +57,9 @@ Forderungsstand nach Zahlungseingängen sind nicht belegt.
 3. **Keine Doppelabrechnung.** Ein Monat eines Bescheids, den niemand geändert
    hat, gilt für den Monatslauf als abgerechnet: `InvoicedContracts` liest ihn
    neben den Monatsrechnungen. Der Monatslauf stellt für diesen Vertrag und
-   Monat keine Rechnung aus und zählt ihn unter „schon abgerechnet“. Umgekehrt
+   Monat keine Rechnung aus und zählt ihn unter „schon abgerechnet“. Das gilt
+   nur für den Betreuungsbeitrag: Die Essen eines Bescheidmonats rechnet der
+   Monatslauf weiter ab (ADR 0168). Umgekehrt
    veranlagt der Bescheid keinen Monat, den eine Monatsrechnung abrechnet.
    Beide Freigaben halten dieselbe Sperre der Monatsabrechnung des Trägers und
    rechnen in ihr neu, deshalb gewinnt immer nur eine. Die Raten werden weiter
@@ -87,6 +89,12 @@ Forderungsstand nach Zahlungseingängen sind nicht belegt.
    ab. Sofort fällig ist im Änderungsbescheid nur eine Erhöhung eines
    vergangenen Monats. Unveränderte Verträge zählt der Lauf und stellt nichts
    aus.
+   Kann die Monatsrechnung einen Monat nicht rechnen (Buchung ohne Preis,
+   doppelter Vertrag), behält der Änderungsbescheid dort die bisherige
+   Festsetzung; ein fehlender Entwurf gilt nur als Abgang, wenn die Rechnung
+   gelang. Ohne bisherigen Bescheid bleibt der Monat beim Monatslauf. Ein
+   Lauf ohne Bescheid lässt sich abschließen, damit er das Jahr nicht
+   blockiert.
 6. **Unveränderlich (ADR 0119 Punkt 7).** Ein Trigger lehnt jede Änderung von
    Bescheid und Monaten ab, für jede Rolle. Ein freigegebener Lauf ändert sich
    nicht mehr, nur das Konto, das ihn begann, darf verschwinden. Die
