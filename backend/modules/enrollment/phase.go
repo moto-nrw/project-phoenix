@@ -104,6 +104,14 @@ const (
 	PhaseAudienceLinkedParents    = "linked_parents"
 )
 
+// OfficeMayCreateNewChild reports whether the office may answer a possibly
+// enrolled child with a new child. An existing_students phase renews enrolled
+// children only, so there the office renews the enrolled child or refuses the
+// enrollment (#6053).
+func OfficeMayCreateNewChild(phase *Phase) bool {
+	return phase == nil || phase.Audience != PhaseAudienceExistingStudents
+}
+
 var validPhaseAudiences = map[string]bool{
 	PhaseAudienceOpen:             true,
 	PhaseAudienceNewStudents:      true,

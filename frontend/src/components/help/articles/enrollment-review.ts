@@ -64,7 +64,7 @@ export function enrollmentReviewTopic(): HelpTopic {
       "Auf dem Handy erscheint nur ein Hinweis. Die Prüfung läuft am Computer.",
     ],
     troubleshootingDetails: [
-      "Steht dort `Die frühere Zuordnung ist nicht mehr gültig`, prüfen Sie die Angaben. Gibt es kein passendes Kind zur Auswahl, bleibt `Als neues Kind anlegen`. Wählen Sie das nur, wenn Sie wirklich ein neues Kind anlegen möchten.",
+      "Steht dort `Dieser Elternteil darf das Kind nicht mehr anmelden`, prüfen Sie Name und Geburtsdatum. Ist das Kind schon angemeldet, wählen Sie `Bestehendes Kind verwenden`. Die Eltern bekommen dadurch keinen Zugang. `Als neues Kind anlegen` wählen Sie nur, wenn es ein anderes Kind ist. Bei einer Anmeldung nur für angemeldete Kinder gibt es diese Wahl nicht. Passt kein Kind, lehnen Sie die Anmeldung ab.",
       "Eine Anmeldung war versehentlich abgelehnt? Wählen Sie `Anmeldung wiederherstellen`.",
       "Bei einem Nachweis steht `Keine Berechtigung zum Öffnen`? Dann fehlt Ihnen das Recht `Nachweise aus Anmeldungen ansehen`. Fragen Sie Ihre Leitung.",
       "Bei einem Nachweis steht `Nachweis gelöscht (Löschfrist abgelaufen)`? Die Frist ist vorbei. Bitten Sie die Eltern bei Bedarf um einen neuen Nachweis.",

@@ -54,6 +54,11 @@ func (s *ChangeRequests) correctApprovedChildData(ctx context.Context, input enr
 	if err := s.rejectOpenChangeRequestsForAdminCorrection(ctx, req, reason, input.ActorAccountID); err != nil {
 		return nil, err
 	}
+	correction := &enrollmentNative.ApprovedChildCorrection{
+		Name:     firstName != child.FirstName || lastName != child.LastName,
+		Birthday: input.DateOfBirth != child.DateOfBirth,
+		Class:    !sameGradeLevel(child.TargetGradeLevel, targetGradeLevel) || !sameOptionalString(child.TargetSchoolClass, targetSchoolClass),
+	}
 	child.FirstName, child.LastName, child.DateOfBirth = firstName, lastName, input.DateOfBirth
 	child.TargetGradeLevel, child.TargetSchoolClass = targetGradeLevel, targetSchoolClass
 	if err := updateDecodedChild(ctx, s.deps.Children, child); err != nil {
@@ -61,7 +66,7 @@ func (s *ChangeRequests) correctApprovedChildData(ctx context.Context, input enr
 	}
 	if _, err := s.deps.Decisions.SyncApprovedChildData(ctx, enrollmentNative.ApprovedChildSync{
 		RequestID: req.ID, ChildID: child.ID, ActorAccountID: input.ActorAccountID,
-		PreviousSnapshot: []byte("null"),
+		PreviousSnapshot: []byte("null"), Correction: correction,
 	}); err != nil {
 		return nil, fmt.Errorf("admin data correction: sync student: %w", err)
 	}

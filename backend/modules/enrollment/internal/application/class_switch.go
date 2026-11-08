@@ -92,21 +92,6 @@ func (d *Decisions) applyClassSwitch(ctx context.Context, change enrollmentNativ
 	if change.ChildStatus != enrollmentNative.ChildStatusApproved || change.CreatedStudentID == nil {
 		return false, nil
 	}
-	child, err := decodedChildByID(ctx, d.deps.Children, change.RequestChildID)
-	if err != nil {
-		return false, fmt.Errorf("class switch: load request child: %w", err)
-	}
-	if child == nil {
-		return false, nil
-	}
-	request, err := decodedRequestByID(ctx, d.deps.Requests, child.RequestID, false)
-	if err != nil {
-		return false, fmt.Errorf("class switch: load request: %w", err)
-	}
-	enrollmentOnly, err := d.childEnrollmentOnly(ctx, request, child)
-	if err != nil || enrollmentOnly {
-		return false, err
-	}
 	student, err := d.readEnrollmentStudent(ctx, *change.CreatedStudentID, "update")
 	if err != nil && d.deps.Runtime.NotFound(err) {
 		return false, nil

@@ -206,3 +206,40 @@ func TestExistingChild_ApprovedRevocationSurvivesAudienceChange(t *testing.T) {
 		})
 	}
 }
+
+// An existing_students phase renews enrolled children only. When the pin's
+// relationship lapsed before the approval, the office may renew the
+// enrollment of the enrolled child or refuse, but never create a second
+// child (#6053).
+func TestExistingChild_RevokedPinInExistingStudentsPhaseRefusesNewChild(t *testing.T) {
+	t.Parallel()
+	env := setupExistingChildTest(t, enrollmentNative.PhaseAudienceExistingStudents)
+	existing := enrolledChild(t, env.db, "Ida", "Bestand", existingChildBirthday)
+	accountID := parentAccountLinkedTo(t, env.db, existing.ID, securityruntime.GuardianRolePrimaryGuardian)
+	res := env.submit(t, existingChildSubmission{accountID: &accountID, children: []enrollmentAPI.SubmitChild{
+		submitChild("Ida", "Bestand", existingChildBirthday),
+	}})
+	child := res.Children[0]
+	require.NotNil(t, child.MatchedStudentID)
+	env.revokeGuardianLinks(t, existing.ID)
+
+	require.ErrorIs(t, env.decide(t, enrollmentAPI.DecideInput{RequestID: res.Request.ID, ChildID: child.ID}), enrollmentNative.ErrChildPossiblyEnrolled)
+	summary, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), env.db, env.decision.Get, res.Request.ID)
+	require.NoError(t, err)
+	require.Len(t, summary.ExistingChildCandidates[child.ID], 1)
+	assert.False(t, enrollmentNative.OfficeMayCreateNewChild(summary.Phase), "the detail offers no new child in an existing_students phase")
+
+	err = env.decide(t, enrollmentAPI.DecideInput{RequestID: res.Request.ID, ChildID: child.ID, CreateNewStudent: true})
+	require.ErrorIs(t, err, enrollmentNative.ErrExistingChildChoiceInvalid, "an existing_students phase never creates a second child")
+	assert.Equal(t, enrollmentNative.ChildStatusSubmitted, env.child(t, child.ID).Status)
+	assert.Equal(t, 1, studentsNamed(t, env.db, "Ida", "Bestand"))
+
+	env.decideOutcome(t, enrollmentAPI.DecideInput{RequestID: res.Request.ID, ChildID: child.ID, ExistingStudentID: &existing.ID})
+	renewed := env.child(t, child.ID)
+	require.NotNil(t, renewed.CreatedStudentID)
+	assert.Equal(t, existing.ID, *renewed.CreatedStudentID)
+	assert.True(t, renewed.MatchedByOffice, "the renewal is enrollment-only")
+	assert.Equal(t, 1, studentsNamed(t, env.db, "Ida", "Bestand"))
+	assert.Empty(t, env.guardianLinks(t, existing.ID))
+	assert.Zero(t, env.portalAccessRows(t, accountID))
+}

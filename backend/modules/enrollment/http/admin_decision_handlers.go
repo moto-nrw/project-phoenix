@@ -131,6 +131,10 @@ type AdminRequestChild struct {
 	// the office's choice: existing_student_id or create_new_student.
 	PossibleExistingChildren    []AdminExistingChildCandidate `json:"possible_existing_children,omitempty"`
 	ExistingChildChoiceRequired bool                          `json:"existing_child_choice_required,omitempty"`
+	// ExistingChildOnly marks a required choice whose phase renews enrolled
+	// children only: the office renews a candidate or refuses, it may not
+	// create a new child (#6053).
+	ExistingChildOnly bool `json:"existing_child_only,omitempty"`
 	// ReviewReason says why an open enrollment was left to the school,
 	// e.g. child_quota_reached for a renewal the automatic approval held
 	// back (#3570). Cleared by the next decision.
@@ -430,7 +434,7 @@ func (rs *Resource) toAdminRequestDetailSummary(ctx context.Context, summary *Re
 		}
 	}
 
-	attachExistingChildCandidates(detail.Children, summary.Children, summary.ExistingChildCandidates)
+	attachExistingChildCandidates(detail.Children, summary.Children, summary.ExistingChildCandidates, !capability.OfficeMayCreateNewChild(summary.Phase))
 	if rs.DecisionService != nil {
 		childOfferings, err := rs.DecisionService.ListChildOfferings(ctx, summary.Request.ID)
 		if err != nil {
@@ -451,12 +455,13 @@ func (rs *Resource) toAdminRequestDetailSummary(ctx context.Context, summary *Re
 // attachExistingChildCandidates fills the per-child candidates in place,
 // matching admin children to summary children positionally like
 // attachChildOfferings.
-func attachExistingChildCandidates(children []AdminRequestChild, summaryChildren []*RequestChild, candidates map[int64][]capability.ExistingChildCandidate) {
+func attachExistingChildCandidates(children []AdminRequestChild, summaryChildren []*RequestChild, candidates map[int64][]capability.ExistingChildCandidate, existingOnly bool) {
 	for i := range children {
 		if i >= len(summaryChildren) {
 			continue
 		}
 		_, children[i].ExistingChildChoiceRequired = candidates[summaryChildren[i].ID]
+		children[i].ExistingChildOnly = existingOnly && children[i].ExistingChildChoiceRequired
 		for _, candidate := range candidates[summaryChildren[i].ID] {
 			out := AdminExistingChildCandidate{
 				StudentID: strconv.FormatInt(candidate.StudentID, 10),

@@ -583,3 +583,39 @@ func TestExistingChild_ReplacementEditPreservesOfficeProtection(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, env.guardianLinks(t, existing.ID), "replacement must not authorize the unrelated family")
 }
+
+// A direct staff correction of an office-matched child writes only the
+// fields the office changed; the request's other data stays off the child
+// and no guardian is linked (#6053).
+func TestExistingChild_OfficeMatchedCorrectionAppliesOnlyCorrectedFields(t *testing.T) {
+	t.Parallel()
+	env := setupExistingChildTest(t, enrollmentNative.PhaseAudienceOpen)
+	existing := enrolledChild(t, env.db, "Paul", "Offen", existingChildBirthday)
+	submitted := env.submit(t, existingChildSubmission{children: []enrollmentAPI.SubmitChild{
+		submitChild("Paul", "Offen", existingChildBirthday),
+	}})
+	child := submitted.Children[0]
+	require.NoError(t, env.decide(t, enrollmentAPI.DecideInput{RequestID: submitted.Request.ID, ChildID: child.ID, ExistingStudentID: &existing.ID}))
+	ctx := testpkg.Ctx(t)
+	_, err := env.db.NewUpdate().TableExpr(`users.persons`).Set("first_name = ?", "Paula").Where("id = ?", existing.PersonID).Exec(ctx)
+	require.NoError(t, err)
+
+	corrected := calendar.NewDate(2018, 4, 16)
+	svc := newChangeRequestServiceWithDecisionForTest(t, env.decisionTestEnv)
+	require.NoError(t, testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		_, err := testpkg.TenantQuery1(t, txCtx, env.db, svc.CorrectApprovedChildData, enrollmentAPI.CorrectApprovedChildDataInput{
+			RequestID: submitted.Request.ID, ChildID: child.ID, FirstName: child.FirstName, LastName: child.LastName,
+			DateOfBirth: corrected, TargetGradeLevel: child.TargetGradeLevel, Reason: "Geburtsdatum berichtigt", ActorAccountID: env.creatorID,
+		})
+		return err
+	}))
+	person, err := testpkg.TenantQuery1(t, ctx, env.db, env.repos.Person.FindByID, any(existing.PersonID))
+	require.NoError(t, err)
+	require.NotNil(t, person.Birthday)
+	assert.Equal(t, corrected, *person.Birthday, "the corrected birthday reaches the child")
+	assert.Equal(t, "Paula", person.FirstName, "an uncorrected name keeps the school's master data")
+	student, err := testpkg.TenantQuery1(t, ctx, env.db, env.repos.Student.FindByID, any(existing.ID))
+	require.NoError(t, err)
+	assert.Equal(t, "1a", student.SchoolClass, "an uncorrected class keeps the school's master data")
+	assert.Empty(t, env.guardianLinks(t, existing.ID))
+}

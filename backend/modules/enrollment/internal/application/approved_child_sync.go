@@ -77,23 +77,29 @@ func (d *Decisions) SyncApprovedChildData(ctx context.Context, input enrollmentN
 // guardians and form data. An office match renews enrollment only (#6053), so
 // later edits keep all of them untouched too; so does an edit of a parent pin
 // whose relationship the school removed since, as the pin no longer
-// authorizes the family.
+// authorizes the family. Neither case cancels what the school already
+// approved: the planned weekly plan and class switch stay and apply at the
+// start. A direct staff correction is the school's own act, so it still
+// writes the fields it changed onto the child (#6053).
 func (d *Decisions) syncApprovedChildRecords(ctx context.Context, run *approvedChildSync) error {
 	enrollmentOnly, err := d.childEnrollmentOnly(ctx, run.request, run.child)
 	if err != nil {
 		return err
 	}
 	if enrollmentOnly {
-		if err := d.planClassSwitch(ctx, run.child.ID, nil); err != nil {
-			return err
+		if !run.input.Correction.Any() {
+			return nil
 		}
-		return d.finishWeeklyPlan(ctx, run.child.ID, nil)
+		return d.syncApprovedChildStudent(ctx, run, *run.input.Correction)
 	}
-	if err := d.syncApprovedChildStudent(ctx, run); err != nil {
+	if err := d.syncApprovedChildStudent(ctx, run, allChildFields); err != nil {
 		return err
 	}
 	return d.syncApprovedChildGuardians(ctx, run)
 }
+
+// allChildFields syncs every master-data field of the child.
+var allChildFields = enrollmentNative.ApprovedChildCorrection{Name: true, Birthday: true, Class: true}
 
 // childEnrollmentOnly leaves master data, guardians and form data alone
 // for an office match or an account-bound pin whose authority has lapsed.
@@ -129,7 +135,7 @@ func (d *Decisions) loadApprovedChildForSync(ctx context.Context, run *approvedC
 // (#2147 review round 15). The gates are taken unconditionally because
 // whether the confirmed edit actually changes the class is only known once
 // the row is locked.
-func (d *Decisions) syncApprovedChildStudent(ctx context.Context, run *approvedChildSync) error {
+func (d *Decisions) syncApprovedChildStudent(ctx context.Context, run *approvedChildSync, fields enrollmentNative.ApprovedChildCorrection) error {
 	if err := d.lockOfferingDerivedWrites(ctx); err != nil {
 		return err
 	}
@@ -140,22 +146,34 @@ func (d *Decisions) syncApprovedChildStudent(ctx context.Context, run *approvedC
 	if err != nil {
 		return fmt.Errorf("decision: load approved child student: %w", err)
 	}
-	if err := d.syncApprovedChildPerson(ctx, student.PersonID, run.child); err != nil {
+	if err := d.syncApprovedChildPerson(ctx, student.PersonID, run.child, fields); err != nil {
 		return err
 	}
 	run.student = student
+	if !fields.Class {
+		return nil
+	}
 	return d.syncApprovedChildClass(ctx, run)
 }
 
-func (d *Decisions) syncApprovedChildPerson(ctx context.Context, personID int64, child *RequestChild) error {
+// syncApprovedChildPerson writes the selected name and birthday fields of
+// the request child onto the child's person.
+func (d *Decisions) syncApprovedChildPerson(ctx context.Context, personID int64, child *RequestChild, fields enrollmentNative.ApprovedChildCorrection) error {
+	if !fields.Name && !fields.Birthday {
+		return nil
+	}
 	person, err := d.deps.People.Persons.PersonByID(ctx, personID)
 	if err != nil || person == nil {
 		return fmt.Errorf("decision: load approved child person: %w", err)
 	}
-	person.FirstName = child.FirstName
-	person.LastName = child.LastName
-	dob := child.DateOfBirth
-	person.Birthday = &dob
+	if fields.Name {
+		person.FirstName = child.FirstName
+		person.LastName = child.LastName
+	}
+	if fields.Birthday {
+		dob := child.DateOfBirth
+		person.Birthday = &dob
+	}
 	if err := d.deps.People.Persons.UpdatePerson(ctx, person); err != nil {
 		return fmt.Errorf("decision: sync approved child person: %w", err)
 	}

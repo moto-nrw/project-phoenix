@@ -362,6 +362,23 @@ type ApprovedChildSync struct {
 	// change, as the change request stored it.
 	PreviousSnapshot         json.RawMessage
 	PreviousRequestGuardians []*RequestGuardian
+	// Correction names the fields a direct staff correction changed. Where
+	// the request's own data no longer reaches the child (office match,
+	// lapsed parent pin), the trusted correction still writes exactly these
+	// fields onto the child (#6053).
+	Correction *ApprovedChildCorrection
+}
+
+// ApprovedChildCorrection lists the child fields a staff correction changed.
+type ApprovedChildCorrection struct {
+	Name     bool
+	Birthday bool
+	Class    bool
+}
+
+// Any reports whether the correction changed a child field.
+func (c *ApprovedChildCorrection) Any() bool {
+	return c != nil && (c.Name || c.Birthday || c.Class)
 }
 
 // ApprovedChildChanges is the side of the decision flow the change requests

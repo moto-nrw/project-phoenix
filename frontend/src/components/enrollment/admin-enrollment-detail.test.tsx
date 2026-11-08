@@ -246,22 +246,47 @@ describe("AdminEnrollmentDetail child that may already be enrolled", () => {
     };
   }
 
-  it("offers a new child when the required choice has no candidates", async () => {
+  // A parent pin whose relationship the school removed (#6053).
+  function revokedRequest(
+    extra: Record<string, unknown>,
+    withCandidate: boolean,
+  ) {
     const request = requestWithCandidate();
-    mocks.getAdminRequest.mockResolvedValue({
+    return {
       ...request,
       children: request.children.map((child) => ({
         ...child,
+        matched_student_id: "student-7",
         existing_child_choice_required: true,
-        possible_existing_children: [],
+        ...(withCandidate ? {} : { possible_existing_children: [] }),
+        ...extra,
       })),
-    });
+    };
+  }
+
+  it("offers a new child when the required choice has no candidates", async () => {
+    mocks.getAdminRequest.mockResolvedValue(revokedRequest({}, false));
     mocks.decideAdminChild.mockResolvedValue({ id: "child-1" });
     render(<AdminEnrollmentDetail requestId="request-1" />);
-    fireEvent.click(await screen.findByRole("button", { name: "Bestätigen" }));
+    expect(
+      await screen.findByText(
+        "Dieser Elternteil darf das Kind nicht mehr anmelden. Prüfen Sie bitte die Angaben.",
+      ),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
     const dialog = await screen.findByRole("dialog", {
       name: "Ist das Kind schon angemeldet?",
     });
+    expect(
+      within(dialog).getByText(
+        "Zu diesen Angaben wurde kein angemeldetes Kind gefunden. Prüfen Sie Name und Geburtsdatum. Ist das Kind schon vorhanden, wählen Sie „Abbrechen“.",
+      ),
+    ).toBeVisible();
+    expect(
+      within(dialog).getByText(
+        "Wählen Sie dies nur, wenn es ein anderes Kind ist.",
+      ),
+    ).toBeVisible();
     fireEvent.click(
       within(dialog).getByRole("button", { name: /Als neues Kind anlegen/ }),
     );
@@ -274,6 +299,63 @@ describe("AdminEnrollmentDetail child that may already be enrolled", () => {
         { createNewStudent: true },
       );
     });
+  });
+
+  it("offers no new child in a phase for enrolled children only", async () => {
+    mocks.getAdminRequest.mockResolvedValue(
+      revokedRequest({ existing_child_only: true }, true),
+    );
+    mocks.decideAdminChild.mockResolvedValue({ id: "child-1" });
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+    expect(
+      await screen.findByText(
+        "Dieser Elternteil darf das Kind nicht mehr anmelden. Prüfen Sie bitte die Angaben.",
+      ),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Ist das Kind schon angemeldet?",
+    });
+    const renew = within(dialog).getByRole("button", {
+      name: /Bestehendes Kind verwenden/,
+    });
+    expect(renew).toBeVisible();
+    expect(
+      within(dialog).queryByRole("button", { name: /Als neues Kind anlegen/ }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(renew);
+    await waitFor(() => {
+      expect(mocks.decideAdminChild).toHaveBeenCalledWith(
+        "request-1",
+        "child-1",
+        "approved",
+        undefined,
+        { existingStudentId: "student-7" },
+      );
+    });
+  });
+
+  it("explains a refusal when an enrolled-only phase finds no child", async () => {
+    mocks.getAdminRequest.mockResolvedValue(
+      revokedRequest({ existing_child_only: true }, false),
+    );
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Bestätigen" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Ist das Kind schon angemeldet?",
+    });
+    expect(
+      within(dialog).getByText(
+        "Zu diesen Angaben wurde kein angemeldetes Kind gefunden. Diese Anmeldung ist nur für Kinder, die schon angemeldet sind. Prüfen Sie Name und Geburtsdatum. Sonst lehnen Sie die Anmeldung ab.",
+      ),
+    ).toBeVisible();
+    expect(
+      within(dialog).getByRole("button", { name: "Abbrechen" }),
+    ).toBeVisible();
+    expect(
+      within(dialog).queryByRole("button", { name: /Als neues Kind anlegen/ }),
+    ).not.toBeInTheDocument();
+    expect(mocks.decideAdminChild).not.toHaveBeenCalled();
   });
 
   it("asks before approving and renews the chosen child", async () => {

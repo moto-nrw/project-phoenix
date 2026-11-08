@@ -640,49 +640,109 @@ func TestDecisionService_ApplyDueWeeklyPlans_ResolvesMissingAuthorFromReviewer(t
 	assert.Equal(t, r.reviewerStaffID, rows[0].CreatedBy)
 }
 
-func TestDecisionService_RevokedParentDeferredWeeklyPlanIsDropped(t *testing.T) {
+// revokedFutureRenewal approves an account-bound open-phase renewal of a
+// child in care whose weekly plan and class switch (2a → 3) wait for the
+// start, then removes the parent's relationship to the child (#6053).
+func revokedFutureRenewal(t *testing.T) (*futureRenewal, *existingChildEnv, int64) {
+	t.Helper()
+	r := setupFutureRenewal(t)
+	ctx := testpkg.Ctx(t)
+	accountID := parentAccountLinkedTo(t, r.env.db, r.studentID, securityruntime.GuardianRolePrimaryGuardian)
+	_, err := r.env.db.NewUpdate().TableExpr(`enrollment.requests`).Set("guardian_account_id = ?", accountID).Where("id = ?", r.requestID).Exec(ctx)
+	require.NoError(t, err)
+	_, err = r.env.db.NewUpdate().TableExpr(`enrollment.phases`).Set("audience = ?", enrollmentNative.PhaseAudienceOpen).Where("id = ?", r.env.sourcePhase.ID).Exec(ctx)
+	require.NoError(t, err)
+	submitted, err := enrollmentAPI.ReadOwnerChildForTest(ctx, r.env.repos.Enrollment(), r.childID)
+	require.NoError(t, err)
+	grade := int16(3)
+	submitted.TargetGradeLevel = &grade
+	require.NoError(t, enrollmentAPI.UpdateOwnerChildForTest(ctx, r.env.repos.Enrollment(), submitted))
+	r.approve(t)
+	child, err := enrollmentAPI.ReadOwnerChildForTest(ctx, r.env.repos.Enrollment(), r.childID)
+	require.NoError(t, err)
+	require.NotNil(t, child.WeeklyPlanOn)
+	plannedClass, err := testpkg.TenantQuery1(t, ctx, r.env.db, r.env.repos.Enrollment().ChildClassSwitch, r.childID)
+	require.NoError(t, err)
+	require.NotNil(t, plannedClass)
+	env := &existingChildEnv{decisionTestEnv: r.env}
+	env.revokeGuardianLinks(t, r.studentID)
+	return r, env, accountID
+}
+
+// assertApprovedPlanAppliesAtStart runs the start day's ticks and checks the
+// school's approved plan and class switch land without restoring the
+// revoked parent's link or portal access.
+func (r *futureRenewal) assertApprovedPlanAppliesAtStart(t *testing.T, env *existingChildEnv, accountID int64) {
+	t.Helper()
+	r.assertRunningPlan(t, "before the start")
+	switched, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), r.env.db, decisionOwner(t, r.env.decision).ApplyDueClassSwitches, r.start)
+	require.NoError(t, err)
+	assert.Equal(t, 1, switched, "the school's approved class switch applies at the start")
+	assert.Equal(t, "3", r.student(t).SchoolClass)
+	assert.Equal(t, 1, r.applyDue(t, r.start), "the school's approved weekly plan applies at the start")
+	assert.Equal(t, map[int]string{timetable.WeekdayMonday: "15:10"}, r.pickups(t))
+	assert.Equal(t, []int{timetable.WeekdayMonday}, r.careDays(t))
+	assert.Equal(t, peopleValues.DeparturePickup,
+		r.student(t).AllowedDepartureModes.DepartureDays().ModeFor(peopleValues.PickupDayMonday))
+	assert.Empty(t, env.guardianLinks(t, r.studentID), "applying the approved plan restores no guardian link")
+	assert.Zero(t, env.portalAccessRows(t, accountID), "applying the approved plan restores no portal access")
+}
+
+// The school approved the weekly plan and class switch while the parent's
+// relationship held. Removing the relationship later blocks new parent
+// writes, not the care the school already decided: the start applies both,
+// also after a confirmed edit, and links nobody (#6053).
+func TestDecisionService_RevokedParentKeepsApprovedDeferredPlan(t *testing.T) {
 	t.Parallel()
 	for _, syncEdit := range []bool{false, true} {
 		t.Run(fmt.Sprintf("confirmed_edit_%t", syncEdit), func(t *testing.T) {
 			testpkg.OwnTenant(t)
-			r := setupFutureRenewal(t)
-			accountID := parentAccountLinkedTo(t, r.env.db, r.studentID, securityruntime.GuardianRolePrimaryGuardian)
-			_, err := r.env.db.NewUpdate().TableExpr(`enrollment.requests`).Set("guardian_account_id = ?", accountID).Where("id = ?", r.requestID).Exec(testpkg.Ctx(t))
-			require.NoError(t, err)
-			_, err = r.env.db.NewUpdate().TableExpr(`enrollment.phases`).Set("audience = ?", enrollmentNative.PhaseAudienceOpen).Where("id = ?", r.env.sourcePhase.ID).Exec(testpkg.Ctx(t))
-			require.NoError(t, err)
-			submitted, err := enrollmentAPI.ReadOwnerChildForTest(testpkg.Ctx(t), r.env.repos.Enrollment(), r.childID)
-			require.NoError(t, err)
-			grade := int16(3)
-			submitted.TargetGradeLevel = &grade
-			require.NoError(t, enrollmentAPI.UpdateOwnerChildForTest(testpkg.Ctx(t), r.env.repos.Enrollment(), submitted))
-			r.approve(t)
-			child, err := enrollmentAPI.ReadOwnerChildForTest(testpkg.Ctx(t), r.env.repos.Enrollment(), r.childID)
-			require.NoError(t, err)
-			require.NotNil(t, child.WeeklyPlanOn)
-			plannedClass, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), r.env.db, r.env.repos.Enrollment().ChildClassSwitch, r.childID)
-			require.NoError(t, err)
-			require.NotNil(t, plannedClass)
-			env := &existingChildEnv{decisionTestEnv: r.env}
-			env.revokeGuardianLinks(t, r.studentID)
+			r, env, accountID := revokedFutureRenewal(t)
 			if syncEdit {
-				child.CustomData["pickup_times"] = map[string]any{"mon": "16:00"}
-				require.NoError(t, enrollmentAPI.UpdateOwnerChildForTest(testpkg.Ctx(t), r.env.repos.Enrollment(), child))
-				_, err = changeRequestApplierForTest(t, r.env).SyncApprovedChildData(testpkg.Ctx(t), enrollmentAPI.SyncApprovedChildDataInput{RequestID: r.requestID, ChildID: r.childID, ActorAccountID: r.reviewerAccountID, ReplaceTargetedData: true})
+				_, err := changeRequestApplierForTest(t, r.env).SyncApprovedChildData(testpkg.Ctx(t), enrollmentAPI.SyncApprovedChildDataInput{RequestID: r.requestID, ChildID: r.childID, ActorAccountID: r.reviewerAccountID, ReplaceTargetedData: true})
 				require.NoError(t, err)
 				afterEdit, err := enrollmentAPI.ReadOwnerChildForTest(testpkg.Ctx(t), r.env.repos.Enrollment(), r.childID)
 				require.NoError(t, err)
-				assert.Nil(t, afterEdit.WeeklyPlanOn, "a confirmed edit cancels the unauthorized pending plan immediately")
+				require.NotNil(t, afterEdit.WeeklyPlanOn, "a confirmed edit keeps the school's approved plan")
+				assert.Equal(t, r.start, *afterEdit.WeeklyPlanOn)
+				assert.Empty(t, env.guardianLinks(t, r.studentID), "the edit restores no guardian link")
 			}
-			switched, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), r.env.db, decisionOwner(t, r.env.decision).ApplyDueClassSwitches, r.start)
-			require.NoError(t, err)
-			assert.Zero(t, switched, "revoked authority cannot apply a deferred class change")
-			assert.Equal(t, "2a", r.student(t).SchoolClass)
-			assert.Zero(t, r.applyDue(t, r.start), "a revoked relationship cannot apply deferred form fields")
-			r.assertRunningPlan(t, "after revocation and due tick")
-			child, err = enrollmentAPI.ReadOwnerChildForTest(testpkg.Ctx(t), r.env.repos.Enrollment(), r.childID)
-			require.NoError(t, err)
-			assert.Nil(t, child.WeeklyPlanOn, "the unauthorized plan is discarded rather than retried")
+			r.assertApprovedPlanAppliesAtStart(t, env, accountID)
 		})
 	}
+}
+
+// A direct staff correction is a trusted school action. After the parent's
+// relationship was removed it still corrects the actual child and keeps the
+// approved plans, without relinking the parent (#6053).
+func TestChangeRequestService_CorrectApprovedChildData_AfterRevocationChangesChild(t *testing.T) {
+	t.Parallel()
+	r, env, accountID := revokedFutureRenewal(t)
+	ctx := testpkg.Ctx(t)
+	child, err := enrollmentAPI.ReadOwnerChildForTest(ctx, r.env.repos.Enrollment(), r.childID)
+	require.NoError(t, err)
+	svc := newChangeRequestServiceWithDecisionForTest(t, r.env)
+	require.NoError(t, testpkg.WithTenantTx(t, ctx, r.env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		_, err := testpkg.TenantQuery1(t, txCtx, r.env.db, svc.CorrectApprovedChildData, enrollmentAPI.CorrectApprovedChildDataInput{
+			RequestID: r.requestID, ChildID: r.childID,
+			FirstName: child.FirstName, LastName: "Berichtigt", DateOfBirth: child.DateOfBirth, TargetGradeLevel: child.TargetGradeLevel,
+			Reason: "Nachname berichtigt", ActorAccountID: r.reviewerAccountID,
+		})
+		return err
+	}))
+	person, err := testpkg.TenantQuery1(t, ctx, r.env.db, r.env.repos.Person.FindByID, any(r.student(t).PersonID))
+	require.NoError(t, err)
+	assert.Equal(t, "Berichtigt", person.LastName, "the correction reaches the actual child")
+	assert.Equal(t, "Mara", person.FirstName)
+	after, err := enrollmentAPI.ReadOwnerChildForTest(ctx, r.env.repos.Enrollment(), r.childID)
+	require.NoError(t, err)
+	require.NotNil(t, after.WeeklyPlanOn, "a surname correction keeps the approved weekly plan")
+	plannedClass, err := testpkg.TenantQuery1(t, ctx, r.env.db, r.env.repos.Enrollment().ChildClassSwitch, r.childID)
+	require.NoError(t, err)
+	require.NotNil(t, plannedClass, "a surname correction keeps the approved class switch")
+	assert.Equal(t, "3", plannedClass.To)
+	assert.Equal(t, "2a", r.student(t).SchoolClass, "the running class stays until the start")
+	assert.Empty(t, env.guardianLinks(t, r.studentID), "the correction restores no guardian link")
+	assert.Zero(t, env.portalAccessRows(t, accountID), "the correction restores no portal access")
+	r.assertApprovedPlanAppliesAtStart(t, env, accountID)
 }

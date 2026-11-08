@@ -192,6 +192,10 @@ export interface AdminRequestChild {
    */
   possible_existing_children?: AdminExistingChildCandidate[];
   existing_child_choice_required?: boolean;
+  /** The phase renews enrolled children only: no new child (#6053). */
+  existing_child_only?: boolean;
+  /** The enrolled child the approval renews (#1663, #6053). */
+  matched_student_id?: string;
   /**
    * Why an open enrollment was left to the school, e.g.
    * "child_quota_reached" for a renewal the automatic approval skipped

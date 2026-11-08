@@ -85,7 +85,11 @@ import { berlinTodayISO } from "~/lib/date-helpers";
 import { schoolClassLabel } from "~/lib/school-class-label";
 import { AdminChildDataCorrection } from "~/components/enrollment/admin-child-data-correction";
 import { AdminEnrollmentDeletionModal } from "~/components/enrollment/admin-enrollment-deletion-modal";
-import { ChoiceModal } from "~/components/ui/choice-modal";
+import {
+  ExistingChildChoiceDialog,
+  ExistingChildHint,
+  needsExistingChildChoice,
+} from "~/components/enrollment/existing-child-choice";
 import { Button, buttonClassName } from "~/components/ui/button";
 import NavigationLink from "~/components/ui/navigation-link";
 import { Alert } from "~/components/ui/alert";
@@ -387,8 +391,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
     if (
       status === "approved" &&
       existingChildChoice === undefined &&
-      (child.existing_child_choice_required === true ||
-        (child.possible_existing_children?.length ?? 0) > 0)
+      needsExistingChildChoice(child)
     ) {
       setExistingChildChoiceChild(child);
       return;
@@ -467,49 +470,10 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
             />
           </ConfirmationModal>
           {existingChildChoiceChild ? (
-            <ChoiceModal
-              isOpen
-              title="Ist das Kind schon angemeldet?"
-              description={
-                (existingChildChoiceChild.possible_existing_children?.length ??
-                  0) > 0
-                  ? `Bitte wählen Sie für ${existingChildChoiceChild.first_name} ${existingChildChoiceChild.last_name}. Beim bestehenden Kind wird nur die Anmeldung verlängert. Die Eltern aus dieser Anmeldung bekommen dadurch keinen Zugang zum Kind.`
-                  : "Die frühere Zuordnung ist nicht mehr gültig. Es gibt kein passendes Kind zur Auswahl. Prüfen Sie die Angaben vor dem Anlegen."
-              }
-              options={[
-                ...(
-                  existingChildChoiceChild.possible_existing_children ?? []
-                ).map((candidate) => ({
-                  value: candidate.student_id,
-                  label: "Bestehendes Kind verwenden",
-                  description: [
-                    `${candidate.first_name} ${candidate.last_name}`,
-                    candidate.school_class
-                      ? schoolClassLabel(candidate.school_class)
-                      : "",
-                    candidate.date_of_birth
-                      ? `geboren am ${formatPlainDate(candidate.date_of_birth)}`
-                      : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" · "),
-                })),
-                {
-                  value: "new",
-                  label: "Als neues Kind anlegen",
-                  description:
-                    (existingChildChoiceChild.possible_existing_children
-                      ?.length ?? 0) > 0
-                      ? "Nur wählen, wenn es ein anderes Kind ist."
-                      : "Die Anmeldung wird für ein neues Kind bestätigt.",
-                },
-              ]}
+            <ExistingChildChoiceDialog
+              child={existingChildChoiceChild}
               onClose={() => setExistingChildChoiceChild(null)}
-              onSelect={(value) => {
-                const choice: ExistingChildChoice =
-                  value === "new"
-                    ? { createNewStudent: true }
-                    : { existingStudentId: value };
+              onChoose={(choice) => {
                 const child = existingChildChoiceChild;
                 setExistingChildChoiceChild(null);
                 requestDecision(child, "approved", choice);
@@ -871,22 +835,7 @@ function ChildInformationCard({
             message="Beim Schuljahreswechsel war das Kinderkontingent voll. Darum wurde dieses Kind nicht automatisch verlängert. Bitte entscheiden Sie selbst."
           />
         ) : null}
-        {!terminal && (child.possible_existing_children?.length ?? 0) > 0 ? (
-          <Alert
-            type="warning"
-            announce="off"
-            message="Ein Kind mit diesem Namen und Geburtsdatum ist schon angemeldet. Beim Bestätigen wählen Sie, ob es dasselbe Kind ist."
-          />
-        ) : null}
-        {!terminal &&
-        child.existing_child_choice_required === true &&
-        (child.possible_existing_children?.length ?? 0) === 0 ? (
-          <Alert
-            type="warning"
-            announce="off"
-            message="Die frühere Zuordnung ist nicht mehr gültig. Prüfen Sie die Angaben vor dem Bestätigen."
-          />
-        ) : null}
+        {terminal ? null : <ExistingChildHint child={child} />}
         {child.status_reason ? (
           <InsetPanel
             framed

@@ -125,7 +125,9 @@ func validateExistingChildChoice(input enrollmentNative.DecideInput) error {
 // unpinned one, and approval without a choice is refused even when no
 // candidate is left, because the stale pin must never reach the renewal
 // that links the family. "create new" drops the pin; "use existing" replaces
-// it with the office's enrollment-only pin.
+// it with the office's enrollment-only pin. An existing_students phase renews
+// enrolled children only, so there "create new" is refused and the office
+// renews the enrollment or refuses the request.
 func (d *Decisions) resolveExistingChildChoice(ctx context.Context, target *decisionTarget, phase *enrollmentNative.Phase, input enrollmentNative.DecideInput) error {
 	if input.Status != enrollmentNative.DecisionApproved {
 		return nil
@@ -148,6 +150,9 @@ func (d *Decisions) resolveExistingChildChoice(ctx context.Context, target *deci
 		)
 	}
 	if input.CreateNewStudent {
+		if !enrollmentNative.OfficeMayCreateNewChild(phase) {
+			return fmt.Errorf("%w: phase %d renews enrolled children only", enrollmentNative.ErrExistingChildChoiceInvalid, phase.ID)
+		}
 		d.logger().Info("decision: office chose a new child despite possible enrolled match",
 			slog.Int64("request_child_id", child.ID),
 		)
