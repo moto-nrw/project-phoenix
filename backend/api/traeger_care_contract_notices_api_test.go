@@ -144,7 +144,7 @@ func TestCareContractNoticeNeedsTheRightStaysWithItsTraegerAndIsAudited(t *testi
 	rec = traegerJSON(t, f.traeger, token, http.MethodPost, path, map[string]any{"kind": "kuendigung", "termination_kind": "ordentlich",
 		"received_on": "2099-01-01"})
 	assert.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
-	assert.Contains(t, rec.Body.String(), "care_contract.contract_input_invalid")
+	assert.Contains(t, rec.Body.String(), "care_contract.field_invalid")
 
 	rec = traegerJSON(t, f.traeger, token, http.MethodPost, path, map[string]any{"kind": "kuendigung", "termination_kind": "ordentlich",
 		"received_on": concludedOn.String()})

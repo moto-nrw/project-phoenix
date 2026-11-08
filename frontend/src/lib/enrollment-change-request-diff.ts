@@ -1,4 +1,5 @@
 import type { Translations } from "~/lib/enrollment-translations";
+import { WEEKDAY_CODES, weekdayShortLabel } from "~/lib/weekdays";
 
 export interface EnrollmentChangeRequestDiffInput {
   readonly baseSnapshot: Record<string, unknown>;
@@ -109,15 +110,9 @@ export const DEFAULT_ENROLLMENT_CHANGE_REQUEST_DIFF_COPY: EnrollmentChangeReques
       phone: "Telefon",
       selected_days: "Tage",
     },
-    weekdayLabels: {
-      mon: "Mo",
-      tue: "Di",
-      wed: "Mi",
-      thu: "Do",
-      fri: "Fr",
-      sat: "Sa",
-      sun: "So",
-    },
+    weekdayLabels: Object.fromEntries(
+      WEEKDAY_CODES.map((code) => [code, weekdayShortLabel(code)]),
+    ),
     consentLabels: {
       agb: "AGB der Schule",
       data_processing: "Datenverarbeitung (DSGVO)",

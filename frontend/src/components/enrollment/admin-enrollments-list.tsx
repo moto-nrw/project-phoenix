@@ -1,5 +1,10 @@
 "use client";
 
+import { phaseHasPublicForm } from "~/lib/enrollment-phase-rules";
+import {
+  countChildStatuses,
+  isOpenChangeRequestStatus,
+} from "~/lib/enrollment-status";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
@@ -17,7 +22,6 @@ import {
 import {
   type AdminEnrollmentChangeRequest,
   type AdminRequestSummary,
-  type ChildStatus,
   listAdminEnrollmentChangeRequests,
   listAdminRequests,
 } from "~/lib/enrollment-admin-api";
@@ -228,10 +232,8 @@ export function AdminEnrollmentsList({
       requests: allRequests.length,
       openChangeRequests: changeRequestsFailed
         ? null
-        : changeRequests.filter(
-            (request) =>
-              request.status === "pending_review" ||
-              request.status === "needs_parent_response",
+        : changeRequests.filter((request) =>
+            isOpenChangeRequestStatus(request.status),
           ).length,
     });
   }, [
@@ -375,12 +377,6 @@ function readEnrollmentEnabled(
   return null;
 }
 
-const OPEN_STATUSES = new Set<ChildStatus>([
-  "submitted",
-  "under_review",
-  "pending_admin_review",
-]);
-
 function EnrollmentPhaseOverview({
   phases,
   requests,
@@ -393,24 +389,17 @@ function EnrollmentPhaseOverview({
   tenantPath: (path: string) => string;
 }>) {
   const phaseStats = useMemo(() => {
-    const stats = new Map<
-      string,
-      { total: number; open: number; approved: number; rejected: number }
-    >();
-    for (const phase of phases) {
-      stats.set(phase.id, { total: 0, open: 0, approved: 0, rejected: 0 });
-    }
+    const childrenByPhase = new Map<string, AdminRequestSummary["children"]>();
+    for (const phase of phases) childrenByPhase.set(phase.id, []);
     for (const request of requests) {
-      const entry = stats.get(request.phase_id);
-      if (!entry) continue;
-      for (const child of request.children) {
-        entry.total += 1;
-        if (OPEN_STATUSES.has(child.status)) entry.open += 1;
-        if (child.status === "approved") entry.approved += 1;
-        if (child.status === "rejected") entry.rejected += 1;
-      }
+      childrenByPhase.get(request.phase_id)?.push(...request.children);
     }
-    return stats;
+    return new Map(
+      [...childrenByPhase].map(([phaseId, children]) => [
+        phaseId,
+        countChildStatuses(children),
+      ]),
+    );
   }, [phases, requests]);
 
   const sortedPhases = useMemo(
@@ -543,20 +532,23 @@ function PhasePublicLinkActions({
   enrollmentsHref: string;
 }>) {
   const phaseUrl = useEnrollmentPublicUrl({ tenantSlug, phaseId: phase.id });
+  const publicForm = phaseHasPublicForm(phase);
 
   return (
     <>
-      <ButtonLink
-        href={formHref}
-        target="_blank"
-        rel="noreferrer"
-        variant="outline"
-        size="md"
-        className="inline-flex items-center justify-center gap-1.5"
-      >
-        Formular ansehen
-        <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-      </ButtonLink>
+      {publicForm ? (
+        <ButtonLink
+          href={formHref}
+          target="_blank"
+          rel="noreferrer"
+          variant="outline"
+          size="md"
+          className="inline-flex items-center justify-center gap-1.5"
+        >
+          Formular ansehen
+          <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+        </ButtonLink>
+      ) : null}
       <ButtonLink
         href={enrollmentsHref}
         variant="primary"
@@ -565,7 +557,7 @@ function PhasePublicLinkActions({
       >
         Anmeldungen ansehen
       </ButtonLink>
-      {phaseUrl ? (
+      {publicForm && phaseUrl ? (
         <PublicLinkCopyButton
           url={phaseUrl}
           componentId={`AdminEnrollmentsList:${phase.id}`}

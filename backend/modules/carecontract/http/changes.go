@@ -126,7 +126,7 @@ func RenderChangeError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, carecontract.ErrChangeDateOutOfRange):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeStudentsOfferingChangeDateOutOfRange))
 	case errors.Is(err, carecontract.ErrChangeInvalid):
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeCareContractContractInputInvalid))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeCareContractFieldInvalid))
 	default:
 		renderError(w, r, err)
 	}

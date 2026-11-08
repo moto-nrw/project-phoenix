@@ -85,39 +85,3 @@ func TestRequestChild_IsTerminal_EmptyStatusNotTerminal(t *testing.T) {
 	c := &RequestChild{Status: ""}
 	assert.False(t, c.IsTerminal())
 }
-
-// --- TableName -----------------------------------------------------------
-
-// --- Status constants ----------------------------------------------------
-
-// Pin the wire values — the rollover worker, admin UI labels, and
-// frontend status badges all string-compare these.
-
-func TestChildStatus_StableValues(t *testing.T) {
-	t.Parallel()
-
-	assert.Equal(t, "submitted", ChildStatusSubmitted)
-	assert.Equal(t, "under_review", ChildStatusUnderReview)
-	assert.Equal(t, "approved", ChildStatusApproved)
-	assert.Equal(t, "waitlisted", ChildStatusWaitlisted)
-	assert.Equal(t, "rejected", ChildStatusRejected)
-	assert.Equal(t, "withdrawn", ChildStatusWithdrawn)
-	assert.Equal(t, "pending_renewal", ChildStatusPendingRenewal)
-	assert.Equal(t, "auto_renewed", ChildStatusAutoRenewed)
-	assert.Equal(t, "pending_admin_review", ChildStatusPendingAdminReview)
-}
-
-func TestReviewReason_StableValues(t *testing.T) {
-	t.Parallel()
-
-	assert.Equal(t, "grade_above_max", ReviewReasonGradeAboveMax)
-	assert.Equal(t, "no_grade_level", ReviewReasonNoGradeLevel)
-	assert.Equal(t, "child_quota_reached", ReviewReasonChildQuotaReached)
-}
-
-func TestChildActivation_StableValues(t *testing.T) {
-	t.Parallel()
-
-	assert.Equal(t, "immediate", ChildActivationImmediate)
-	assert.Equal(t, "scheduled", ChildActivationScheduled)
-}

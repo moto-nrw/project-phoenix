@@ -12,9 +12,14 @@ import {
   type RolloverPreview,
   type RolloverResult,
 } from "~/lib/enrollment-phase-api";
-import { parseISODate, toISODate } from "~/lib/date-helpers";
+import {
+  fromDateTimeLocalValue,
+  parseISODate,
+  toDateTimeLocalValue,
+  toISODate,
+} from "~/lib/date-helpers";
 import { CHILD_STATUS_LABELS } from "~/components/enrollment/child-status-badge";
-import type { ChildStatus } from "~/lib/enrollment-admin-api";
+import type { ChildStatus } from "~/lib/enrollment-status";
 import { createLogger } from "~/lib/logger";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { CheckboxCard } from "~/components/ui/checkbox-card";
@@ -69,22 +74,6 @@ function prefillFromSource(source: Phase): RolloverInput {
   };
 }
 
-// Format `YYYY-MM-DDTHH:MM` (datetime-local input value) ↔ RFC3339.
-function localToRFC3339(local: string): string {
-  if (!local) return "";
-  return new Date(local).toISOString();
-}
-
-function rfc3339ToLocal(rfc: string | null | undefined): string {
-  if (!rfc) return "";
-  const d = new Date(rfc);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return (
-    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
-    `T${pad(d.getHours())}:${pad(d.getMinutes())}`
-  );
-}
-
 interface Props {
   readonly source: Phase;
   readonly onCancel: () => void;
@@ -111,7 +100,7 @@ export function RolloverForm({
     prefillFromSource(source),
   );
   const [deadlineLocal, setDeadlineLocal] = useState(
-    rfc3339ToLocal(draft.rollover_deadline),
+    toDateTimeLocalValue(draft.rollover_deadline),
   );
   const [submitting, setSubmitting] = useState(false);
   const formErrors = useApiFormError();
@@ -207,7 +196,7 @@ export function RolloverForm({
     try {
       const payload: RolloverInput = {
         ...draft,
-        rollover_deadline: localToRFC3339(deadlineLocal),
+        rollover_deadline: fromDateTimeLocalValue(deadlineLocal) ?? "",
       };
       const result = await createRollover(source.id, payload);
       onSuccess(result);
