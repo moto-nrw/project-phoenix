@@ -3043,7 +3043,7 @@ describe("EnrollmentFormEditor", () => {
       await waitFor(() => expect(questionInput).toHaveFocus());
       expect(scrollIntoView).toHaveBeenCalledTimes(1);
       expect(scrollIntoView.mock.contexts[0]).toBe(
-        questionInput.closest("article"),
+        questionInput.closest("section"),
       );
 
       fireEvent.click(screen.getByRole("button", { name: "Infotext" }));

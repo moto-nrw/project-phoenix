@@ -62,10 +62,7 @@ import {
 import { formatOfferingPrice } from "~/lib/care-offering-format";
 import { FeaturePill } from "~/components/enrollment/feature-pill";
 import { isSupportedGradeLevelMax } from "~/lib/grade-level";
-import {
-  BLOCKED_OFFERING_ROW_TONE,
-  OfferingRowShell,
-} from "~/components/enrollment/offering-row-shell";
+import { OfferingRowShell } from "~/components/enrollment/offering-row-shell";
 import { StatusBadge } from "~/components/ui/status-badge";
 import {
   DataField,
@@ -1406,7 +1403,7 @@ function BlockedOfferingRow({
   const inputId = `blocked-offering-${offering.id}`;
   const heldAutomatically = automaticDays.length > 0;
   return (
-    <OfferingRowShell tone={BLOCKED_OFFERING_ROW_TONE}>
+    <OfferingRowShell state="blocked">
       {/* A real <label> is load-bearing, not decoration: the kit Checkbox
           renders an sr-only input behind a pointer-events-none visual, so
           without the label wrapping it a mouse click on the box does nothing
@@ -1843,11 +1840,7 @@ export function ChildOfferingAdjustment({
                 return (
                   <OfferingRowShell
                     key={offering.id}
-                    tone={
-                      checked
-                        ? "border-moto-green/40 bg-moto-green/10"
-                        : "border-gray-200 bg-white"
-                    }
+                    state={checked ? "selected" : "available"}
                   >
                     {/* Wie in BlockedOfferingRow: das Kit-Checkbox-Feld ist
                         sr-only, erst das <label> mit htmlFor macht den Klick
