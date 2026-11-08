@@ -1,7 +1,9 @@
 package application
 
 import (
+	"slices"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -96,10 +98,17 @@ func TestCareMonthRuleChainTable(t *testing.T) {
 		invoiced []int64
 		// sameChild gives a contract the child of another one.
 		sameChild map[int64]int64
-		rules     func(t *testing.T) []parentbilling.ContributionRule
-		evidences func(t *testing.T) []parentbilling.CareEvidence
-		totals    map[int64]int64
-		lines     map[int64][]reductionOf
+		// sameFamily moves a contract into a family after the earlier run.
+		sameFamily map[int64]string
+		rules      func(t *testing.T) []parentbilling.ContributionRule
+		evidences  func(t *testing.T) []parentbilling.CareEvidence
+		// families are the numbers of the families (#5918); afterRelease
+		// gives them only to the run after the earlier one issued invoiced.
+		families     func(t *testing.T) []parentbilling.FamilyChildCount
+		afterRelease bool
+		uncounted    int
+		totals       map[int64]int64
+		lines        map[int64][]reductionOf
 	}{
 		{
 			// Mia 40 + 40 = 80,00 €, the first child; Noah 60,00 € the
@@ -416,6 +425,124 @@ func TestCareMonthRuleChainTable(t *testing.T) {
 			totals: map[int64]int64{contractNoah: 10000, contractLea: 1000},
 			lines:  map[int64][]reductionOf{contractLea: {{parentbilling.RuleSibling, -3000, 2}}},
 		},
+		{
+			// The family states two children and the Abrechnung confirmed
+			// it; only Mia has a contract. Her sibling without one comes
+			// first: Mia is the 2nd child, 80,00 − 50 % = 40,00 €.
+			name: "the family's number makes the only contract child the second",
+			children: []careChainChild{
+				{contractMia, schoolIspringen, familyEva, "2017-03-01", []parentbilling.CareContractService{mon1400, tue1400}},
+			},
+			rules:    familySiblingRule(true),
+			families: confirmedFamily(familyEva, 2, "2026-09-01", nil),
+			totals:   map[int64]int64{contractMia: 4000},
+			lines:    map[int64][]reductionOf{contractMia: {{parentbilling.RuleSibling, -4000, 2}}},
+		},
+		{
+			// Three children, two of them with a contract: Mia (80,00 €)
+			// is the 2nd, 40,00 €; Noah (60,00 €) the 3rd, 30,00 €.
+			name: "the family's number makes the contract children the second and third",
+			children: []careChainChild{
+				{contractMia, schoolIspringen, familyEva, "2017-03-01", []parentbilling.CareContractService{mon1400, tue1400}},
+				{contractNoah, schoolIspringen, familyEva, "2015-03-01", []parentbilling.CareContractService{mon1630}},
+			},
+			rules:    familySiblingRule(true),
+			families: confirmedFamily(familyEva, 3, "2026-09-01", nil),
+			totals:   map[int64]int64{contractMia: 4000, contractNoah: 3000},
+			lines: map[int64][]reductionOf{
+				contractMia:  {{parentbilling.RuleSibling, -4000, 2}},
+				contractNoah: {{parentbilling.RuleSibling, -3000, 3}},
+			},
+		},
+		{
+			// The family states one child, but two have a contract: the
+			// rule counts at least those two. Noah is the 2nd: 30,00 €.
+			name: "a number below the contract children counts the contracts",
+			children: []careChainChild{
+				{contractMia, schoolIspringen, familyEva, "2017-03-01", []parentbilling.CareContractService{mon1400, tue1400}},
+				{contractNoah, schoolIspringen, familyEva, "2015-03-01", []parentbilling.CareContractService{mon1630}},
+			},
+			rules:    familySiblingRule(true),
+			families: confirmedFamily(familyEva, 1, "2026-09-01", nil),
+			totals:   map[int64]int64{contractMia: 8000, contractNoah: 3000},
+			lines:    map[int64][]reductionOf{contractNoah: {{parentbilling.RuleSibling, -3000, 2}}},
+		},
+		{
+			// A rule that does not count the family keeps counting the
+			// contracts: Mia alone pays 80,00 €.
+			name: "a rule without the family's number counts the contracts",
+			children: []careChainChild{
+				{contractMia, schoolIspringen, familyEva, "2017-03-01", []parentbilling.CareContractService{mon1400, tue1400}},
+			},
+			rules:    familySiblingRule(false),
+			families: confirmedFamily(familyEva, 3, "2026-09-01", nil),
+			totals:   map[int64]int64{contractMia: 8000},
+		},
+		{
+			// The confirmation ended in December: in January the rule
+			// counts Mia alone and the run names the family as uncounted.
+			name: "an expired number counts the contracts",
+			children: []careChainChild{
+				{contractMia, schoolIspringen, familyEva, "2017-03-01", []parentbilling.CareContractService{mon1400, tue1400}},
+			},
+			rules:     familySiblingRule(true),
+			families:  confirmedFamily(familyEva, 3, "2026-09-01", ptr(calendar.NewDate(2026, 12, 31))),
+			uncounted: 1,
+			totals:    map[int64]int64{contractMia: 8000},
+		},
+		{
+			// A confirmation from the 16th holds for the month, like an
+			// evidence that starts within it.
+			name: "a number confirmed within the month holds for it",
+			children: []careChainChild{
+				{contractMia, schoolIspringen, familyEva, "2017-03-01", []parentbilling.CareContractService{mon1400, tue1400}},
+			},
+			rules:    familySiblingRule(true),
+			families: confirmedFamily(familyEva, 2, "2027-01-16", nil),
+			totals:   map[int64]int64{contractMia: 4000},
+		},
+		{
+			// The parents stated three, the Abrechnung has not confirmed
+			// it: Mia counts alone and the family is uncounted.
+			name: "a number the parents only stated does not count",
+			children: []careChainChild{
+				{contractMia, schoolIspringen, familyEva, "2017-03-01", []parentbilling.CareContractService{mon1400, tue1400}},
+			},
+			rules: familySiblingRule(true),
+			families: func(*testing.T) []parentbilling.FamilyChildCount {
+				return []parentbilling.FamilyChildCount{{FamilyEmail: familyEva, StatedChildren: ptr(3), StatedAt: ptr(time.Date(2026, 12, 1, 9, 0, 0, 0, time.UTC))}}
+			},
+			uncounted: 1,
+			totals:    map[int64]int64{contractMia: 8000},
+		},
+		{
+			// Another family's number never reaches Eva's family.
+			name: "another family's number does not count",
+			children: []careChainChild{
+				{contractMia, schoolIspringen, familyEva, "2017-03-01", []parentbilling.CareContractService{mon1400, tue1400}},
+			},
+			rules:     familySiblingRule(true),
+			families:  confirmedFamily(familyOther, 3, "2026-09-01", nil),
+			uncounted: 1,
+			totals:    map[int64]int64{contractMia: 8000},
+		},
+		{
+			// An earlier run issued Mia's invoice at 80,00 € before the
+			// family's number of three was confirmed. The issued invoice
+			// stays as it is; Noah, billed now, is the 3rd: 30,00 €.
+			name: "an issued invoice stays when the number comes later",
+			children: []careChainChild{
+				{contractMia, schoolIspringen, familyEva, "2017-03-01", []parentbilling.CareContractService{mon1400, tue1400}},
+				{contractNoah, schoolIspringen, familyOther, "2015-03-01", []parentbilling.CareContractService{mon1630}},
+			},
+			invoiced:     []int64{contractMia},
+			sameFamily:   map[int64]string{contractNoah: familyEva},
+			rules:        familySiblingRule(true),
+			families:     confirmedFamily(familyEva, 3, "2026-09-01", nil),
+			afterRelease: true,
+			totals:       map[int64]int64{contractNoah: 3000},
+			lines:        map[int64][]reductionOf{contractNoah: {{parentbilling.RuleSibling, -3000, 3}}},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -440,6 +567,9 @@ func TestCareMonthRuleChainTable(t *testing.T) {
 			if tc.evidences != nil {
 				in.evidences = tc.evidences(t)
 			}
+			if tc.families != nil && !tc.afterRelease {
+				in.familyCounts = tc.families(t)
+			}
 			if len(tc.invoiced) > 0 {
 				prior, err := buildCareMonth(in)
 				require.NoError(t, err)
@@ -451,8 +581,17 @@ func TestCareMonthRuleChainTable(t *testing.T) {
 					}
 				}
 			}
+			if tc.families != nil && tc.afterRelease {
+				in.familyCounts = tc.families(t)
+			}
+			for contract, family := range tc.sameFamily {
+				in.recipients[contract] = parentbilling.CareRecipient{FirstName: "Eva", LastName: "Beispiel", Email: family}
+			}
+			issued := deepCopyInvoices(in.invoiced)
 			month, err := buildCareMonth(in)
 			require.NoError(t, err)
+			assert.Equal(t, issued, in.invoiced, "an issued invoice never changes")
+			assert.Equal(t, tc.uncounted, month.uncounted, "families a rule counts without a confirmed number")
 			totals := map[int64]int64{}
 			for _, invoice := range month.invoices {
 				totals[invoice.ContractID] = invoice.TotalCents
@@ -646,4 +785,33 @@ func TestCareSiblingFixedPriceCountsTheIssuedAmountAtTheSiblingStage(t *testing.
 		careChainInput{month: day(t, billingMonth), rules: []parentbilling.ContributionRule{rule}})
 	assert.Equal(t, int64(0), invoices[2].TotalCents)
 	assert.Equal(t, int64(1250), invoices[1].TotalCents)
+}
+
+// familySiblingRule is half from the second child at Ispringen that counts
+// the family's number or not (#5918).
+func familySiblingRule(counts bool) func(t *testing.T) []parentbilling.ContributionRule {
+	return func(t *testing.T) []parentbilling.ContributionRule {
+		return []parentbilling.ContributionRule{careRule(t, ruleSiblingIspringen, parentbilling.RuleSibling, []int64{schoolIspringen},
+			func(rule *parentbilling.ContributionRule) { halfFromSecond(rule); rule.CountsFamilyChildren = counts })}
+	}
+}
+
+// confirmedFamily is a number the Abrechnung confirmed from from on.
+func confirmedFamily(family string, children int, from string, until *calendar.Date) func(t *testing.T) []parentbilling.FamilyChildCount {
+	return func(t *testing.T) []parentbilling.FamilyChildCount {
+		return []parentbilling.FamilyChildCount{{FamilyEmail: family, ConfirmedChildren: ptr(children),
+			ValidFrom: ptr(day(t, from)), ValidUntil: until, ConfirmedAt: ptr(time.Date(2026, 12, 1, 9, 0, 0, 0, time.UTC))}}
+	}
+}
+
+// deepCopyInvoices copies the issued invoices with their positions and
+// reductions, so a change by the run shows.
+func deepCopyInvoices(invoices map[int64]parentbilling.CareInvoice) map[int64]parentbilling.CareInvoice {
+	copied := make(map[int64]parentbilling.CareInvoice, len(invoices))
+	for id, invoice := range invoices {
+		invoice.Positions = slices.Clone(invoice.Positions)
+		invoice.Reductions = slices.Clone(invoice.Reductions)
+		copied[id] = invoice
+	}
+	return copied
 }

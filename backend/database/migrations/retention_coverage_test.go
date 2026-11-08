@@ -281,6 +281,8 @@ var tableRetentions = map[string]tableRetention{
 	"parent_billing.care_evidence_events":                   parent("care_contract.contracts"),
 	"parent_billing.care_evidences":                         parent("care_contract.contracts"),
 	"parent_billing.care_invoice_reductions":                parent("parent_billing.care_invoices"),
+	"parent_billing.family_child_count_events":              parent("care_contract.contracts"),
+	"parent_billing.family_child_counts":                    parent("care_contract.contracts"),
 	"parent_billing.care_invoice_positions":                 parent("parent_billing.care_invoices"),
 	"parent_billing.care_invoices":                          own("an issued monthly invoice never changes and stays when its contract goes (§ 147 AO, ADR 0088 section 9, ADR 0119); it goes with platform.organizations when the Träger is erased after its export (#4657); the period of a single invoice follows with #4720"),
 	"parent_billing.care_run_events":                        own("the trail of a monthly run stays with the issued invoices it documents (ADR 0119); it goes with platform.organizations when the Träger is erased (#4657); actor_account_id SET NULL on account delete"),

@@ -20,6 +20,10 @@ import (
 // statement names the Träger in its own filter, also below row level
 // security.
 
+// familyChildCountColumns are the columns a row reads back.
+const familyChildCountColumns = "id, organization_id, family_email, care_contract_id, stated_children, stated_at, " +
+	"confirmed_children, valid_from, valid_until, confirmed_at, updated_at"
+
 // familyChildContractKey keeps a number to a contract of its Träger.
 const familyChildContractKey = "fk_family_child_counts_contract"
 
@@ -97,7 +101,7 @@ func (s *Store) StateFamilyChildren(ctx context.Context, organizationID, account
 		ON CONFLICT (organization_id, family_email) DO UPDATE SET care_contract_id = EXCLUDED.care_contract_id,
 			stated_children = EXCLUDED.stated_children, stated_at = EXCLUDED.stated_at,
 			stated_by_account_id = EXCLUDED.stated_by_account_id, updated_at = CURRENT_TIMESTAMP
-		RETURNING id`, organizationID, family, contractID, children, accountID).Scan(ctx, &id)
+		RETURNING id`, organizationID, family, contractID, children, accountOrNull(accountID)).Scan(ctx, &id)
 	return id, familyChildWriteError(err)
 }
 
@@ -116,9 +120,17 @@ func (s *Store) ConfirmFamilyChildren(ctx context.Context, organizationID, accou
 			confirmed_children = EXCLUDED.confirmed_children, valid_from = EXCLUDED.valid_from, valid_until = EXCLUDED.valid_until,
 			confirmed_at = EXCLUDED.confirmed_at, confirmed_by_account_id = EXCLUDED.confirmed_by_account_id,
 			updated_at = CURRENT_TIMESTAMP
-		RETURNING id`, organizationID, family, input.ContractID, input.Children, input.ValidFrom, input.ValidUntil, accountID).
+		RETURNING id`, organizationID, family, input.ContractID, input.Children, input.ValidFrom, input.ValidUntil, accountOrNull(accountID)).
 		Scan(ctx, &id)
 	return id, familyChildWriteError(err)
+}
+
+// accountOrNull binds no account as NULL.
+func accountOrNull(accountID int64) *int64 {
+	if accountID <= 0 {
+		return nil
+	}
+	return &accountID
 }
 
 // familyChildWriteError reports a contract of another Träger as a missing
@@ -141,7 +153,7 @@ func (s *Store) DeleteFamilyChildren(ctx context.Context, organizationID int64, 
 	}
 	var rows []familyChildCountRow
 	if err := db.NewDelete().Model(&rows).Where("organization_id = ?", organizationID).Where("family_email = ?", family).
-		Returning("*").Scan(ctx); err != nil {
+		Returning(familyChildCountColumns).Scan(ctx); err != nil {
 		return parentbilling.FamilyChildCount{}, fmt.Errorf("delete family child count: %w", err)
 	}
 	if len(rows) == 0 {
@@ -170,10 +182,7 @@ func (s *Store) InsertFamilyChildEvents(ctx context.Context, organizationID int6
 	if err != nil {
 		return err
 	}
-	var account *int64
-	if event.AccountID > 0 {
-		account = &event.AccountID
-	}
+	account := accountOrNull(event.AccountID)
 	if _, err := db.ExecContext(ctx, `INSERT INTO parent_billing.family_child_count_events
 			(organization_id, care_contract_id, family_child_count_id, action, actor, actor_account_id, children, valid_from, valid_until)
 		SELECT ?, target.contract_id, NULLIF(target.count_id, 0), ?, ?, ?, ?, ?, ?
