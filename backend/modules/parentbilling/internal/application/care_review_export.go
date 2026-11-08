@@ -142,6 +142,13 @@ func reviewInvoiceRows(invoices []parentbilling.CareInvoice, invoiceDate string)
 				"position": reduction.Name, "amount": formatAmount(reduction.AmountCents),
 			}))
 		}
+		// The cost bearer shares come off what the family pays (#4687).
+		for _, share := range invoice.CostShares {
+			rows = append(rows, withValues(base, map[string]string{
+				"position": "Übernimmt " + share.CostBearerName + " (" + costShareText(share) + ")",
+				"amount":   formatAmount(-share.AmountCents),
+			}))
+		}
 	}
 	return rows, total
 }

@@ -257,8 +257,14 @@ guards=(
   src/test/proxy-routes.table.test.ts
   src/test/session-cookie-writers.test.ts
   src/lib/moto-concepts.test.ts
-  scripts/opaque.test.ts
 )
+for guard in "${guards[@]}"; do
+  if [ ! -f "$repo_root/frontend/$guard" ]; then
+    echo "Guard test does not exist: frontend/$guard" >&2
+    exit 1
+  fi
+done
+guards+=(scripts/opaque.test.ts)
 # CI validates the real inventory and AST regressions in the frontend node job
 # after installing its parser dependency. These fixtures verify dispatch only.
 guard_only_call="pnpm:exec vitest run ${guards[*]}"
