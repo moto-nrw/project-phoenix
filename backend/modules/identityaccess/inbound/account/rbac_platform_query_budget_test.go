@@ -118,7 +118,7 @@ func TestRBACPlatformCatalogueDenialsQueryBudget(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, tenant.ScopePlatform, refreshClaims.Scope)
 	require.Zero(t, refreshClaims.TenantID)
-	renewed, nextRefresh, err := f.module.Auth.RefreshOperatorToken(context.Background(), refresh)
+	renewed, nextRefresh, err := f.module.Auth.RefreshOperatorToken(context.Background(), refresh, "")
 	require.NoError(t, err)
 	require.NotEmpty(t, nextRefresh)
 	require.Equal(t, family, rbacPlatformClaims(t, renewed, operator.ID))

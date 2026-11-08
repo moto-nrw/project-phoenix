@@ -99,7 +99,7 @@ func TestEveryAccountSessionIsWrittenBehindTheLiveAccountCheck(t *testing.T) {
 	// Both writers open their transaction through the one mint unit.
 	assert.Contains(t, persist, "s.mintUnit(ctx, ", "the mint transaction opens through mintUnit")
 	rotate := functionSource(t, "session_refresh.go", "func (s *AccountAuthentication) refreshSessionInTransaction(")
-	assert.Contains(t, rotate, "s.mintUnit(ctx, rotation.run)", "the rotation transaction opens through mintUnit")
+	assert.Contains(t, rotate, "s.mintUnit(ctx, rotated.run)", "the rotation transaction opens through mintUnit")
 	ledger := functionSource(t, "account_login.go", "func (s *AccountAuthentication) logAuthEvent(")
 	assert.Contains(t, ledger, "s.ledgerUnit(", "an authentication event opens its school transaction through ledgerUnit")
 	refresh := functionSource(t, "session_refresh.go", "func (r *refreshRotation) run(")

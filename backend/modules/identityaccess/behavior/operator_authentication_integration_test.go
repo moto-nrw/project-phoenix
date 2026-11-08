@@ -151,7 +151,7 @@ func TestIntegration_OperatorRefresh_RotatesAndRevokesReplay(t *testing.T) {
 	require.NoError(t, err)
 	predecessor := refreshHandle(t, issued)
 
-	access, refresh, err := identity.RefreshOperatorToken(ctx, issued)
+	access, refresh, err := identity.RefreshOperatorToken(ctx, issued, "")
 	require.NoError(t, err)
 	assert.NotEmpty(t, access)
 	assert.NotEmpty(t, refresh)
@@ -162,17 +162,17 @@ func TestIntegration_OperatorRefresh_RotatesAndRevokesReplay(t *testing.T) {
 	require.NoError(t, db.NewSelect().TableExpr("platform.operator_refresh_tokens").Column("replacement_token").Where("token = ?", sha256Hex(predecessor)).Scan(ctx, &replacement))
 	assert.Equal(t, sha256Hex(successor), replacement, "the database names both sessions by hash only")
 
-	_, _, err = identity.RefreshOperatorToken(ctx, operatorRefreshJWT(t, operator.ID+1_000_000, successor, tokenprimitives.PortalPlatform))
+	_, _, err = identity.RefreshOperatorToken(ctx, operatorRefreshJWT(t, operator.ID+1_000_000, successor, tokenprimitives.PortalPlatform), "")
 	require.ErrorIs(t, err, identityaccess.ErrOperatorRefreshTokenInvalid, "another operator's handle is refused")
-	_, _, err = identity.RefreshOperatorToken(ctx, operatorRefreshJWT(t, operator.ID, successor, ""))
+	_, _, err = identity.RefreshOperatorToken(ctx, operatorRefreshJWT(t, operator.ID, successor, ""), "")
 	require.ErrorIs(t, err, identityaccess.ErrOperatorRefreshTokenInvalid, "a token without platform scope is refused")
-	_, _, err = identity.RefreshOperatorToken(ctx, "not-a-jwt")
+	_, _, err = identity.RefreshOperatorToken(ctx, "not-a-jwt", "")
 	require.ErrorIs(t, err, identityaccess.ErrOperatorRefreshTokenInvalid, "an unsigned value is refused")
 	assert.Equal(t, 2, countOperatorSessions(t, db, operator.ID), "the refusals rotate and revoke nothing")
 
 	// Without the recovery proof the request cannot prove possession of the
 	// rotated predecessor: the replay revokes the family and commits.
-	_, _, err = identity.RefreshOperatorToken(ctx, issued)
+	_, _, err = identity.RefreshOperatorToken(ctx, issued, "")
 	require.ErrorIs(t, err, identityaccess.ErrOperatorRefreshTokenInvalid)
 	assert.Equal(t, 0, countOperatorSessions(t, db, operator.ID), "replay revocation commits")
 	assert.Equal(t, 1, countOperatorAudit(t, db, operator.ID, "token_revoked"))
@@ -184,7 +184,7 @@ func TestIntegration_OperatorRefresh_RotatesAndRevokesReplay(t *testing.T) {
 	assert.EqualValues(t, 2, changes["revoked_token_count"])
 	assert.NotEmpty(t, changes["family_fingerprint"])
 
-	_, _, err = identity.RefreshOperatorToken(ctx, refresh)
+	_, _, err = identity.RefreshOperatorToken(ctx, refresh, "")
 	require.ErrorIs(t, err, identityaccess.ErrOperatorRefreshTokenInvalid, "the revoked successor is gone too")
 }
 
@@ -200,7 +200,7 @@ func TestIntegration_OperatorRefresh_RefusesDeactivatedOperator(t *testing.T) {
 	_, err = db.NewUpdate().Table("platform.operators").Set("active = false").Where("id = ?", operator.ID).Exec(ctx)
 	require.NoError(t, err)
 
-	_, _, err = identity.RefreshOperatorToken(ctx, issued)
+	_, _, err = identity.RefreshOperatorToken(ctx, issued, "")
 	require.ErrorIs(t, err, identityaccess.ErrOperatorInactive)
 	assert.Equal(t, 1, countOperatorSessions(t, db, operator.ID), "the refusal rolls back without rotating")
 	_, _, err = identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID, "127.0.0.1", "ua")
@@ -228,7 +228,7 @@ func TestIntegration_OperatorPasswordChange_RevokesSessions(t *testing.T) {
 
 	require.NoError(t, identity.ChangeOperatorPassword(ctx, operator.ID, testPassword, newPassword))
 	assert.Equal(t, 0, countOperatorSessions(t, db, operator.ID), "a password change revokes every operator refresh session")
-	_, _, err = identity.RefreshOperatorToken(ctx, issued)
+	_, _, err = identity.RefreshOperatorToken(ctx, issued, "")
 	require.ErrorIs(t, err, identityaccess.ErrOperatorRefreshTokenInvalid)
 	assert.Equal(t, 2, countOperatorAudit(t, db, operator.ID, "token_revoked"), "one revocation entry per family")
 

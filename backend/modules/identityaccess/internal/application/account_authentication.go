@@ -43,10 +43,7 @@ type AccountAuthentication struct {
 	mintUnit   func(ctx context.Context, fn func(context.Context) error) error
 	ledgerUnit func(ctx context.Context, tenantID int64, fn func(context.Context) error) error
 	attach     func(context.Context) context.Context
-	// withRecoveryProof binds a refresh-token recovery proof to the request
-	// context, where the rotation policy reads its hash.
-	withRecoveryProof func(ctx context.Context, proof string) context.Context
-	rotation          ports.Rotation
+	rotation   ports.Rotation
 	// caterers lets a caterer session refresh only while its account
 	// belongs to a caterer (ADR 0077).
 	caterers ports.CatererStore
@@ -76,11 +73,8 @@ type AccountAuthenticationDependencies struct {
 	Push           ports.PushSubscriptionCleanup
 	Runtime        ports.Runtime
 	// Attach binds the composed unit of work ahead of every public flow.
-	Attach func(context.Context) context.Context
-	// WithRecoveryProof binds a refresh-token recovery proof to the request
-	// context, where the rotation policy reads its hash.
-	WithRecoveryProof func(ctx context.Context, proof string) context.Context
-	Rotation          ports.Rotation
+	Attach   func(context.Context) context.Context
+	Rotation ports.Rotation
 	// Caterers is optional: without it no caterer session refreshes.
 	Caterers ports.CatererStore
 	Logger   *slog.Logger
@@ -126,7 +120,7 @@ func NewAccountAuthentication(sessions *Service, deps AccountAuthenticationDepen
 	return &AccountAuthentication{
 		sessions: sessions, store: deps.Store, schools: deps.Schools, traeger: deps.Traeger, portalModules: deps.PortalModules, persons: deps.Persons, passwords: deps.Passwords, passwordPolicy: deps.PasswordPolicy,
 		codec: deps.Codec, mfa: deps.MFA, mfaLock: deps.MFALock, audit: deps.Audit, push: deps.Push,
-		runtime: deps.Runtime, mintUnit: deps.Runtime.WithAdminTx, ledgerUnit: deps.Runtime.WithTenantTx, attach: deps.Attach, withRecoveryProof: deps.WithRecoveryProof, rotation: deps.Rotation, caterers: deps.Caterers, logger: logger,
+		runtime: deps.Runtime, mintUnit: deps.Runtime.WithAdminTx, ledgerUnit: deps.Runtime.WithTenantTx, attach: deps.Attach, rotation: deps.Rotation, caterers: deps.Caterers, logger: logger,
 	}, nil
 }
 
@@ -279,10 +273,7 @@ func (s *AccountAuthentication) RefreshTokenWithAudit(ctx context.Context, refre
 	if s == nil {
 		return "", "", errAccountAuthenticationUnavailable
 	}
-	if s.withRecoveryProof != nil {
-		ctx = s.withRecoveryProof(ctx, recoveryProof)
-	}
-	access, refresh, err := s.refreshTokenWithAudit(bindRuntime(s.attach, ctx), refreshToken, ipAddress, userAgent)
+	access, refresh, err := s.refreshTokenWithAudit(bindRuntime(s.attach, ctx), refreshToken, domain.NewRecoveryProof(recoveryProof), ipAddress, userAgent)
 	return access, refresh, authenticationError(err)
 }
 

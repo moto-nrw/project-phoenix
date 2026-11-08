@@ -404,17 +404,6 @@
       "target_role": "http"
     },
     {
-      "id": "identity-access.http.refresh-rotation",
-      "description": "The operator refresh route passes the rotation recovery proof to the capability (#3252).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "identity-access",
-      "source_role": "http",
-      "target_owner": "identity-access",
-      "target_role": "application"
-    },
-    {
       "id": "identity-access.http.settings-public",
       "description": "The tenant shell of the account routes reads the tenant settings through the public Settings Platform contract (#2736).",
       "scopes": [

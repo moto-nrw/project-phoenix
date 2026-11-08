@@ -10,7 +10,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application/rotation"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
@@ -423,7 +422,7 @@ func (rs *Resource) refreshToken(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorServiceUnavailable(errors.New("session refresh unavailable")))
 		return
 	}
-	recoveryProof := r.Header.Get(rotation.RecoveryProofHeader)
+	recoveryProof := r.Header.Get(sessiontoken.RecoveryProofHeader)
 	accessToken, newRefreshToken, err := rs.Sessions.RefreshTokenWithAudit(r.Context(), refreshToken, recoveryProof, ipAddress, userAgent)
 	if err != nil {
 		renderRefreshError(w, r, err)

@@ -38,14 +38,13 @@ func refreshSingleflightKey(refreshToken string, proofHash []byte) string {
 // pair. Concurrent calls with the same refresh token and recovery proof are
 // deduplicated; the caller's context keeps cancelling the transaction so an
 // interrupted rotation rolls back and the presented token stays valid.
-func (s *AccountAuthentication) refreshTokenWithAudit(ctx context.Context, refreshToken, ipAddress, userAgent string) (string, string, error) {
+func (s *AccountAuthentication) refreshTokenWithAudit(ctx context.Context, refreshToken string, proof domain.RecoveryProof, ipAddress, userAgent string) (string, string, error) {
 	sfCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	// A refresh token alone must not join another caller's in-flight
 	// recovery: the key binds the independent proof hash as well.
-	proofHash := s.rotation.RecoveryProofHash(ctx)
-	v, err, shared := s.refreshSF.Do(refreshSingleflightKey(refreshToken, proofHash), func() (any, error) {
-		return s.doRefreshTokenWithAudit(sfCtx, refreshToken, ipAddress, userAgent)
+	v, err, shared := s.refreshSF.Do(refreshSingleflightKey(refreshToken, proof.Hash()), func() (any, error) {
+		return s.doRefreshTokenWithAudit(sfCtx, refreshToken, proof, ipAddress, userAgent)
 	})
 	if shared {
 		s.logger.Info("concurrent_refresh_deduplicated", "shared", true)
@@ -57,7 +56,7 @@ func (s *AccountAuthentication) refreshTokenWithAudit(ctx context.Context, refre
 	return result.accessToken, result.refreshToken, nil
 }
 
-func (s *AccountAuthentication) doRefreshTokenWithAudit(ctx context.Context, refreshToken, ipAddress, userAgent string) (*refreshResult, error) {
+func (s *AccountAuthentication) doRefreshTokenWithAudit(ctx context.Context, refreshToken string, proof domain.RecoveryProof, ipAddress, userAgent string) (*refreshResult, error) {
 	claims, err := s.parseRefreshClaims(refreshToken)
 	if err != nil {
 		s.logRefreshDecision("refresh_session_rejected", "invalid_format", 0, 0)
@@ -70,24 +69,24 @@ func (s *AccountAuthentication) doRefreshTokenWithAudit(ctx context.Context, ref
 	// The portal's guard runs inside the rotation transaction: either the
 	// rotation and the claims commit together, or the transaction rolls back
 	// and the presented refresh token is still the caller's.
-	rotation, err := s.refreshSessionInTransaction(ctx, claims, ipAddress, userAgent, plan)
+	rotated, err := s.refreshSessionInTransaction(ctx, claims, proof, ipAddress, userAgent, plan)
 	if err != nil {
 		return nil, err
 	}
-	if rotation.recovered {
+	if rotated.recovered {
 		s.logger.Info("refresh_rotation_recovered",
 			slog.Int64("account_id", claims.AccountID),
-			slog.Int64("tenant_id", rotation.newSession.TenantID),
-			slog.Int("generation", rotation.newSession.Generation))
+			slog.Int64("tenant_id", rotated.newSession.TenantID),
+			slog.Int("generation", rotated.newSession.Generation))
 	}
-	access, refresh := buildClaims(rotation.account, rotation.newSession, rotation.payload, rotation.account.Email)
+	access, refresh := buildClaims(rotated.account, rotated.newSession, rotated.payload, rotated.account.Email)
 	accessToken, refreshTokenString, err := s.codec.IssueTokenPair(access, refresh)
 	if err != nil {
 		return nil, failed("generate tokens", err)
 	}
 	// Filed at the school the successor is kept at, which the refresh
 	// validated: the route carries no tenant.
-	s.auditSession(ctx, rotation.account.ID, mintAudit{event: domain.AuthEventTokenRefresh, ipAddress: ipAddress, userAgent: userAgent, schoolID: rotation.newSession.TenantID})
+	s.auditSession(ctx, rotated.account.ID, mintAudit{event: domain.AuthEventTokenRefresh, ipAddress: ipAddress, userAgent: userAgent, schoolID: rotated.newSession.TenantID})
 	return &refreshResult{accessToken: accessToken, refreshToken: refreshTokenString}, nil
 }
 
@@ -219,19 +218,19 @@ func traegerSchoolRefresh(claims domain.RefreshClaims) bool {
 // that lock, then
 // the presented session is locked, validated, and either recovered from a
 // committed hand-off or rotated.
-func (s *AccountAuthentication) refreshSessionInTransaction(ctx context.Context, claims domain.RefreshClaims, ipAddress, userAgent string, plan refreshPlan) (*refreshRotation, error) {
-	rotation := &refreshRotation{service: s, claims: claims, ipAddress: ipAddress, userAgent: userAgent, plan: plan}
-	if err := s.mintUnit(ctx, rotation.run); err != nil {
+func (s *AccountAuthentication) refreshSessionInTransaction(ctx context.Context, claims domain.RefreshClaims, proof domain.RecoveryProof, ipAddress, userAgent string, plan refreshPlan) (*refreshRotation, error) {
+	rotated := &refreshRotation{service: s, claims: claims, proof: proof, ipAddress: ipAddress, userAgent: userAgent, plan: plan}
+	if err := s.mintUnit(ctx, rotated.run); err != nil {
 		s.auditRejectedRefresh(ctx, claims.AccountID, ipAddress, userAgent, err)
 		return nil, failed("refresh transaction", err)
 	}
-	if rotation.revokedForPush != nil {
-		s.queuePushCleanup(ctx, rotation.revokedForPush.AccountID, []domain.AccountSession{*rotation.revokedForPush}, "family")
+	if rotated.revokedForPush != nil {
+		s.queuePushCleanup(ctx, rotated.revokedForPush.AccountID, []domain.AccountSession{*rotated.revokedForPush}, "family")
 	}
-	if rotation.rejectAfterCommit != nil {
-		return nil, failed("refresh transaction", rotation.rejectAfterCommit)
+	if rotated.rejectAfterCommit != nil {
+		return nil, failed("refresh transaction", rotated.rejectAfterCommit)
 	}
-	return rotation, nil
+	return rotated, nil
 }
 
 // successorTenant names the tenant the successor of the current session is
@@ -243,6 +242,7 @@ type successorTenant func(ctx context.Context, accountID int64, current domain.A
 type refreshRotation struct {
 	service           *AccountAuthentication
 	claims            domain.RefreshClaims
+	proof             domain.RecoveryProof
 	ipAddress         string
 	userAgent         string
 	plan              refreshPlan
@@ -269,7 +269,7 @@ func (r *refreshRotation) run(ctx context.Context) error {
 	if err := r.validatePresented(ctx, presented, now); err != nil || r.rejectAfterCommit != nil {
 		return err
 	}
-	current, wasRecovered, err := r.service.resolveRefreshHandoff(ctx, presented, now)
+	current, wasRecovered, err := r.service.handoffs().Resolve(ctx, presented, r.proof, now)
 	if err != nil {
 		if errors.Is(err, identityaccess.ErrInvalidToken) {
 			return r.reject(ctx, current, "replay_detected", "revoke replayed refresh-token family", identityaccess.ErrInvalidToken)
@@ -382,7 +382,7 @@ func (r *refreshRotation) persist(ctx context.Context, current domain.AccountSes
 		r.newSession = current
 	} else {
 		var err error
-		r.newSession, err = r.service.createAndPersistSuccessor(ctx, current, r.account.ID, effectiveTenantID, r.claims.Scope, now)
+		r.newSession, err = r.service.createAndPersistSuccessor(ctx, current, r.account.ID, effectiveTenantID, r.claims.Scope, r.proof, now)
 		if err != nil {
 			return err
 		}
@@ -402,63 +402,27 @@ func (s *AccountAuthentication) auditRejectedRefresh(ctx context.Context, accoun
 	}
 }
 
-// resolveRefreshHandoff follows a bounded, validated successor chain. A chain
-// exists only when a previous rotation committed but its response may not
-// have reached the browser; outside the grace period reuse is replay. The
-// request proves possession of the presented token; later hops are trusted
-// only after their persisted links were validated.
-func (s *AccountAuthentication) resolveRefreshHandoff(ctx context.Context, presented domain.AccountSession, now time.Time) (domain.AccountSession, bool, error) {
-	current := presented
-	proofValidated := false
-	for hop := 0; hop < s.rotation.MaxRecoveryHops(); hop++ {
-		if current.RotatedAt == nil {
-			return current, current.ID != presented.ID, nil
-		}
-		if current.ReplacementTokenHash == nil || current.RotatedAt.After(now) || now.Sub(*current.RotatedAt) > s.rotation.RecoveryGrace() {
-			return current, false, identityaccess.ErrInvalidToken
-		}
-		if err := s.requireAccountRecoveryProof(ctx, current.RecoveryProofHash, proofValidated); err != nil {
-			return current, false, err
-		}
-		proofValidated = true
-		next, err := s.handoffSuccessor(ctx, current)
-		if err != nil {
-			return current, false, err
-		}
-		current = next
+// handoffs follows the rotation hand-offs of account refresh sessions.
+func (s *AccountAuthentication) handoffs() domain.HandoffChain[domain.AccountSession] {
+	return domain.HandoffChain[domain.AccountSession]{
+		Link: func(session domain.AccountSession) domain.HandoffLink {
+			return domain.HandoffLink{ID: session.ID, Token: session.Token, RotatedAt: session.RotatedAt, ReplacementTokenHash: session.ReplacementTokenHash, RecoveryProofHash: session.RecoveryProofHash}
+		},
+		Successor:   s.sessions.findAccountSessionForUpdate,
+		SameLineage: sameAccountSessionLineage,
+		Grace:       s.rotation.RecoveryGrace(),
+		MaxHops:     s.rotation.MaxRecoveryHops(),
+		Invalid:     identityaccess.ErrInvalidToken,
+		NotFound:    identityaccess.ErrAccountSessionNotFound,
+		Portal:      "account",
 	}
-	return current, false, identityaccess.ErrInvalidToken
-}
-
-// handoffSuccessor locks the session a rotated one handed off to. Only the
-// hash of the successor is stored, so its raw value is recomputed from the
-// token this hop was presented with (#4902); a hand-off recorded before
-// #4902 named a random successor and is not recoverable.
-func (s *AccountAuthentication) handoffSuccessor(ctx context.Context, current domain.AccountSession) (domain.AccountSession, error) {
-	successorToken := domain.SuccessorRefreshToken(current.Token)
-	if domain.HashToken(successorToken) != *current.ReplacementTokenHash {
-		return domain.AccountSession{}, identityaccess.ErrInvalidToken
-	}
-	next, err := s.sessions.findAccountSessionForUpdate(ctx, successorToken)
-	if errors.Is(err, identityaccess.ErrAccountSessionNotFound) {
-		return domain.AccountSession{}, identityaccess.ErrInvalidToken
-	}
-	if err != nil {
-		return domain.AccountSession{}, fmt.Errorf("follow refresh-token handoff: %w", err)
-	}
-	// Tenant 0 is the legacy pre-tenant-claim state whose first successor
-	// may carry the resolved tenant; modern lineage stays pinned.
-	if !sameAccountSessionLineage(current, next) {
-		return domain.AccountSession{}, identityaccess.ErrInvalidToken
-	}
-	return next, nil
 }
 
 // createAndPersistSuccessor mints the successor and records the bounded
 // predecessor hand-off atomically. The successor follows from the presented
 // token, so a lost response can be recomputed although only hashes are
 // stored (#4902).
-func (s *AccountAuthentication) createAndPersistSuccessor(ctx context.Context, predecessor domain.AccountSession, accountID, tenantID int64, scope string, now time.Time) (domain.AccountSession, error) {
+func (s *AccountAuthentication) createAndPersistSuccessor(ctx context.Context, predecessor domain.AccountSession, accountID, tenantID int64, scope string, proof domain.RecoveryProof, now time.Time) (domain.AccountSession, error) {
 	expiry := now.Add(s.codec.RefreshExpiry())
 	if predecessor.FamilyExpiryCap != nil && predecessor.FamilyExpiryCap.Before(expiry) {
 		expiry = *predecessor.FamilyExpiryCap
@@ -492,7 +456,7 @@ func (s *AccountAuthentication) createAndPersistSuccessor(ctx context.Context, p
 		return domain.AccountSession{}, err
 	}
 	stored := domain.AccountSession(created)
-	if err := s.sessions.MarkAccountSessionRotated(ctx, predecessor.ID, stored.Token, s.rotation.RecoveryProofHash(ctx), now); err != nil {
+	if err := s.sessions.MarkAccountSessionRotated(ctx, predecessor.ID, stored.Token, proof.Hash(), now); err != nil {
 		return domain.AccountSession{}, err
 	}
 	if err := s.sessions.DeleteExpiredRotatedAccountSessions(ctx, accountID, now); err != nil {
@@ -694,16 +658,10 @@ func (s *AccountAuthentication) validateTenantAccess(ctx context.Context, claims
 	return globalIdentityRead(ctx, s.runtime, func(txCtx context.Context) error { return s.validateTenantAccessInTransaction(txCtx, claims) })
 }
 
-func (s *AccountAuthentication) requireAccountRecoveryProof(ctx context.Context, proofHash []byte, alreadyValidated bool) error {
-	if !alreadyValidated {
-		if !s.rotation.MatchesRecoveryProof(ctx, proofHash) {
-			return identityaccess.ErrInvalidToken
-		}
-
-	}
-	return nil
-}
-
+// sameAccountSessionLineage holds when next continues current's family.
+// Tenant 0 is the legacy pre-tenant-claim state whose first successor may
+// carry the resolved tenant; a caterer session may be re-pinned to another
+// supplied school.
 func sameAccountSessionLineage(current, next domain.AccountSession) bool {
 	sameTenant := current.TenantID == 0 || next.TenantID == current.TenantID
 	catererRepin := current.PortalScope == domain.PortalCaterer.Name && next.PortalScope == domain.PortalCaterer.Name

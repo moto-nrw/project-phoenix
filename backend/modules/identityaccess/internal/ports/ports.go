@@ -538,7 +538,5 @@ type PasswordHasher interface {
 type Rotation interface {
 	RecoveryGrace() time.Duration
 	MaxRecoveryHops() int
-	RecoveryProofHash(ctx context.Context) []byte
-	MatchesRecoveryProof(ctx context.Context, expected []byte) bool
 	FamilyFingerprint(familyID string) string
 }

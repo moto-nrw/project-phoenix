@@ -25,7 +25,7 @@ import (
 // Mock OperatorAuthService
 type mockOperatorAuthService struct {
 	loginFn                          func(ctx context.Context, email, password string, clientIP net.IP) (string, string, *identityaccess.Operator, error)
-	refreshTokenFn                   func(ctx context.Context, refreshToken string) (string, string, error)
+	refreshTokenFn                   func(ctx context.Context, refreshToken, recoveryProof string) (string, string, error)
 	logoutFn                         func(ctx context.Context, operatorID int64, familyID string) error
 	getOperatorFn                    func(ctx context.Context, id int64) (*identityaccess.Operator, error)
 	latestOperatorSessionFn          func(ctx context.Context, familyID string) (identityaccess.OperatorSession, error)
@@ -63,9 +63,9 @@ func (m *mockOperatorAuthService) IssueTokensForAuthenticatedOperator(ctx contex
 	return "", "", nil
 }
 
-func (m *mockOperatorAuthService) RefreshOperatorToken(ctx context.Context, refreshToken string) (string, string, error) {
+func (m *mockOperatorAuthService) RefreshOperatorToken(ctx context.Context, refreshToken, recoveryProof string) (string, string, error) {
 	if m.refreshTokenFn != nil {
-		return m.refreshTokenFn(ctx, refreshToken)
+		return m.refreshTokenFn(ctx, refreshToken, recoveryProof)
 	}
 	return "", "", nil
 }
@@ -475,18 +475,17 @@ func TestLoginRequest_Bind(t *testing.T) {
 }
 
 // recoveryProofHeader is the HTTP contract of the refresh recovery proof
-// (auth/rotation.RecoveryProofHeader), spelled out so the router test does not
-// import the rotation policy.
+// (sessiontoken.RecoveryProofHeader), spelled out because the frontend sends
+// exactly this name.
 const recoveryProofHeader = "X-Refresh-Recovery-Proof"
 
 func TestRefreshToken_Success(t *testing.T) {
 	t.Parallel()
 
-	var handedThrough string
+	var handedThrough, handedProof string
 	mockService := &mockOperatorAuthService{
-		refreshTokenFn: func(ctx context.Context, refreshToken string) (string, string, error) {
-			handedThrough = refreshToken
-			// COVERAGE GAP (#2736): the header → recovery-proof context wiring is no longer asserted; it needs auth/rotation, which this package may not import.
+		refreshTokenFn: func(ctx context.Context, refreshToken, recoveryProof string) (string, string, error) {
+			handedThrough, handedProof = refreshToken, recoveryProof
 			return "new-access-token", "new-refresh-token", nil
 		},
 	}
@@ -518,6 +517,7 @@ func TestRefreshToken_Success(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, tokenString, handedThrough, "the handler hands the presented refresh JWT to the capability")
+	assert.Equal(t, "independent-recovery-secret", handedProof, "the recovery proof header reaches the capability")
 
 	var response map[string]interface{}
 	err := json.Unmarshal(rr.Body.Bytes(), &response)
@@ -547,7 +547,7 @@ func TestRefreshToken_ServiceError(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{
-		refreshTokenFn: func(ctx context.Context, refreshToken string) (string, string, error) {
+		refreshTokenFn: func(ctx context.Context, refreshToken, recoveryProof string) (string, string, error) {
 			return "", "", identityoperator.ErrOperatorInactive
 		},
 	}
@@ -580,7 +580,7 @@ func TestRefreshToken_InvalidRefreshSessionMapsToUnauthorized(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{
-		refreshTokenFn: func(ctx context.Context, refreshToken string) (string, string, error) {
+		refreshTokenFn: func(ctx context.Context, refreshToken, recoveryProof string) (string, string, error) {
 			return "", "", identityaccess.ErrOperatorRefreshTokenInvalid
 		},
 	}

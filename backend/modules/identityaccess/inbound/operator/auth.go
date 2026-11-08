@@ -8,7 +8,6 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application/rotation"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
@@ -146,8 +145,7 @@ func (rs *Resource) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx := rotation.WithRecoveryProof(r.Context(), r.Header.Get(rotation.RecoveryProofHeader))
-	accessToken, refreshToken, err := rs.identity.RefreshOperatorToken(ctx, presented)
+	accessToken, refreshToken, err := rs.identity.RefreshOperatorToken(r.Context(), presented, r.Header.Get(sessiontoken.RecoveryProofHeader))
 	if err != nil {
 		common.RenderError(w, r, rs.authError(err))
 		return

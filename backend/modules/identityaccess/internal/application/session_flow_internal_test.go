@@ -50,7 +50,7 @@ func TestTenantSessionLifecycle(t *testing.T) {
 	require.Len(t, f.audit.eventsOfType(domain.AuthEventLogin), 1)
 	assert.True(t, f.audit.eventsOfType(domain.AuthEventLogin)[0].Success)
 
-	_, rotated, err := f.auth.refreshTokenWithAudit(ctx, refresh, "192.0.2.1", "tests")
+	_, rotated, err := f.auth.refreshTokenWithAudit(ctx, refresh, domain.RecoveryProof{}, "192.0.2.1", "tests")
 	require.NoError(t, err)
 	rotatedClaims := decodeRefresh(t, rotated)
 	assert.NotEqual(t, refreshClaims.Token, rotatedClaims.Token, "a refresh rotates the session handle")
@@ -135,7 +135,7 @@ func TestRefreshToken_RejectionsRevokeFamilyWithoutIssuingTokens(t *testing.T) {
 			f.store.sessions[presented.ID] = presented
 			f.store.calls = nil
 
-			access, rotated, err := f.auth.refreshTokenWithAudit(ctx, refresh, "", "tests")
+			access, rotated, err := f.auth.refreshTokenWithAudit(ctx, refresh, domain.RecoveryProof{}, "", "tests")
 
 			require.ErrorIs(t, err, tt.want)
 			assert.Empty(t, access)
@@ -172,13 +172,13 @@ func TestRefreshHandoffAcrossCatererRepinning(t *testing.T) {
 			now := time.Now()
 			replacement := domain.SuccessorRefreshToken("predecessor")
 			replacementHash := domain.HashToken(replacement)
-			current := domain.AccountSession{ID: 1, Token: "predecessor", AccountID: 1, TenantID: 10, PortalScope: domain.PortalCaterer.Name, FamilyID: "family", RotatedAt: &now, ReplacementTokenHash: &replacementHash, RecoveryProofHash: fakeRotation{}.RecoveryProofHash(withProof(context.Background(), "recovery"))}
+			current := domain.AccountSession{ID: 1, Token: "predecessor", AccountID: 1, TenantID: 10, PortalScope: domain.PortalCaterer.Name, FamilyID: "family", RotatedAt: &now, ReplacementTokenHash: &replacementHash, RecoveryProofHash: domain.NewRecoveryProof("recovery").Hash()}
 			next := domain.AccountSession{ID: 2, Token: replacement, AccountID: current.AccountID, TenantID: 20, PortalScope: domain.PortalCaterer.Name, FamilyID: current.FamilyID, Generation: 1}
 			if test.alter != nil {
 				test.alter(&next)
 			}
 			f.store.sessions[next.ID] = next
-			recovered, ok, err := f.auth.resolveRefreshHandoff(withProof(context.Background(), test.proof), current, now)
+			recovered, ok, err := f.auth.handoffs().Resolve(context.Background(), current, domain.NewRecoveryProof(test.proof), now)
 			if test.wantError {
 				require.ErrorIs(t, err, identityaccess.ErrInvalidToken)
 				return
@@ -207,7 +207,7 @@ func TestRefreshRequiresMFAAfterPrivilegeGrant(t *testing.T) {
 	f.mfa.configured = true
 	f.mfa.policyInTx = domain.MFAPolicyForMode(domain.MFAModeOff)
 	f.store.permissions[mappingKey{1, 10}] = []string{"student_documents:health"}
-	access, successor, err := f.auth.refreshTokenWithAudit(ctx, refresh, "", "tests")
+	access, successor, err := f.auth.refreshTokenWithAudit(ctx, refresh, domain.RecoveryProof{}, "", "tests")
 	require.ErrorIs(t, err, identityaccess.ErrInvalidToken)
 	assert.Empty(t, access)
 	assert.Empty(t, successor)

@@ -38,7 +38,7 @@ func TestIntegration_OperatorLogout_RevokesOnlyTheFamily(t *testing.T) {
 	require.ErrorIs(t, err, identityaccess.ErrOperatorSessionNotFound, "the logged-out family is gone")
 	_, err = identity.LatestOperatorSessionInFamily(ctx, otherFamily)
 	require.NoError(t, err, "the other device keeps its family")
-	_, _, err = identity.RefreshOperatorToken(ctx, refresh)
+	_, _, err = identity.RefreshOperatorToken(ctx, refresh, "")
 	require.ErrorIs(t, err, identityaccess.ErrOperatorRefreshTokenInvalid)
 	assert.Equal(t, 1, countOperatorAudit(t, db, operator.ID, "token_revoked"))
 

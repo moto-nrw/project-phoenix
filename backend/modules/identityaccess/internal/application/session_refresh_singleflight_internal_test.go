@@ -46,7 +46,7 @@ func TestAuthService_RefreshToken_ConcurrentSingleflight(t *testing.T) {
 		results := make(chan result, concurrency)
 		for range concurrency {
 			go func() {
-				at, rt, e := f.auth.refreshTokenWithAudit(ctx, refreshToken, "", "")
+				at, rt, e := f.auth.refreshTokenWithAudit(ctx, refreshToken, domain.RecoveryProof{}, "", "")
 				results <- result{at, rt, e}
 			}()
 		}
