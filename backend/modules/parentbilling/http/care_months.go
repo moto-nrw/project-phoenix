@@ -231,7 +231,10 @@ func (rs *CareBillingResource) release(w http.ResponseWriter, r *http.Request) {
 // it shares with the holiday run keep their codes.
 func renderCareError(w http.ResponseWriter, r *http.Request, err error) {
 	var fields validation.Errors
+	var invalidChange amendmentInvalid
 	switch {
+	case errors.As(err, &invalidChange):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeParentBillingCareAmendmentInvalid))
 	case errors.As(err, &fields) && (fields["billing_month"] != nil || fields["school_ids"] != nil ||
 		fields["invoice_date"] != nil || fields["reason"] != nil || fields["format"] != nil):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeParentBillingCareRunInvalid))
@@ -243,6 +246,12 @@ func renderCareError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeParentBillingCareTariffNotFound))
 	case errors.Is(err, capability.ErrCareExclusionConflict):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingCareExclusionConflict))
+	case errors.Is(err, capability.ErrCareAmendmentConflict):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingCareAmendmentConflict))
+	case errors.Is(err, capability.ErrCareAmendmentsUnresolved):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingCareAmendmentsUnresolved))
+	case errors.Is(err, capability.ErrCareAmendmentDisabled):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeParentBillingCareAmendmentDisabled))
 	case errors.Is(err, capability.ErrCareRunOpen):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingCareRunOpen))
 	case errors.Is(err, capability.ErrCareVersionsOverlap):

@@ -44,10 +44,14 @@ type reviewedMonth struct {
 	careMonth
 	excluded    []parentbilling.CareInvoice
 	fingerprint string
+	// conflicts counts the changes in conflict on the invoices the release
+	// issues (#6197).
+	conflicts int
 }
 
 // reviewed computes the preview of a calculated run with the rule of the
-// Träger now, narrowed to its schools and without its excluded invoices.
+// Träger now, narrowed to its schools and without its excluded invoices,
+// with the changes of its invoices (#6197).
 func (c *CareBilling) reviewed(ctx context.Context, organizationID int64, run parentbilling.CareRun) (string, reviewedMonth, error) {
 	rule, month, err := c.preview(ctx, organizationID, run)
 	if err != nil {
@@ -58,6 +62,9 @@ func (c *CareBilling) reviewed(ctx context.Context, organizationID int64, run pa
 		return "", reviewedMonth{}, err
 	}
 	review := narrowMonth(month, run.SchoolIDs, exclusions)
+	if err := c.amendReviewed(ctx, organizationID, run, &review); err != nil {
+		return "", reviewedMonth{}, err
+	}
 	review.fingerprint = previewFingerprint(run, rule, review)
 	return rule, review, nil
 }
@@ -394,6 +401,10 @@ func (c *CareBilling) reviewDetail(ctx context.Context, reviewer parentbilling.H
 	detail.UncountedFamilies = review.uncounted
 	detail.Invoices = append(review.invoices, review.excluded...)
 	detail.Fingerprint = review.fingerprint
+	detail.AmendmentConflicts = review.conflicts
+	if detail.Amendable, err = c.settings.CareAmendable(ctx, organizationID); err != nil {
+		return fmt.Errorf("parent billing: read the changes the Träger allows: %w", err)
+	}
 	for _, invoice := range review.excluded {
 		detail.ExcludedCount++
 		detail.ExcludedCents += invoice.TotalCents
@@ -433,6 +444,9 @@ func (c *CareBilling) issueReviewed(ctx context.Context, organizationID int64, r
 	}
 	if len(month.invoices) == 0 && len(month.excluded) == 0 {
 		return "", reviewedMonth{}, "", parentbilling.ErrBillingRunEmpty
+	}
+	if month.conflicts > 0 {
+		return "", reviewedMonth{}, "", parentbilling.ErrCareAmendmentsUnresolved
 	}
 	if len(month.invoices) != release.DocumentCount || month.total() != release.TotalCents ||
 		month.fingerprint == "" || month.fingerprint != release.Fingerprint {

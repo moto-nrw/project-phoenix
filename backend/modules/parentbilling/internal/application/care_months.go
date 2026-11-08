@@ -64,6 +64,8 @@ type CareStore interface {
 	paymentTermsReader
 	// CareReviewStore keeps the review of a run (#5916).
 	CareReviewStore
+	// CareAmendmentStore keeps the changes of its invoices (#6197).
+	CareAmendmentStore
 }
 
 // CareBilling serves parentbilling.CareBilling. The contract versions and

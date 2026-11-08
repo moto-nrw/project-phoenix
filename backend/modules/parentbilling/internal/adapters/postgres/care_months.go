@@ -153,6 +153,7 @@ func (row careInvoiceRow) invoice(positions []parentbilling.CarePosition, reduct
 		invoice.Reductions = []parentbilling.CareReduction{}
 	}
 	invoice.CostShares = []parentbilling.CareInvoiceCostShare{}
+	invoice.Amendments = []parentbilling.CareAmendment{}
 	if invoice.Positions == nil {
 		invoice.Positions = []parentbilling.CarePosition{}
 	}
@@ -522,7 +523,8 @@ func (s *Store) IssueCareInvoices(ctx context.Context, organizationID int64, run
 }
 
 // insertCareInvoiceParts stores what the invoices just issued carry: their
-// positions, reductions, Mensa months (#4686) and cost bearer shares (#4687);
+// positions, reductions, Mensa months (#4686), the changes of the review
+// (#6197) and cost bearer shares (#4687);
 // rows run parallel to invoices.
 func insertCareInvoiceParts(ctx context.Context, db bun.IDB, organizationID int64, rows []careInvoiceRow, invoices []parentbilling.CareInvoice) error {
 	positions, err := carePositionRows(organizationID, rows, invoices)
@@ -538,6 +540,9 @@ func insertCareInvoiceParts(ctx context.Context, db bun.IDB, organizationID int6
 		return err
 	}
 	if err := insertCareMealPositions(ctx, db, organizationID, rows, invoices); err != nil {
+		return err
+	}
+	if err := insertCareCorrections(ctx, db, organizationID, rows, invoices); err != nil {
 		return err
 	}
 	return insertCareCostShares(ctx, db, organizationID, rows, invoices)
@@ -620,6 +625,10 @@ func (s *Store) CareRunInvoices(ctx context.Context, organizationID, runID int64
 	if err != nil {
 		return nil, err
 	}
+	corrections, err := careCorrectionsOf(ctx, db, organizationID, ids)
+	if err != nil {
+		return nil, err
+	}
 	byInvoice := map[int64][]parentbilling.CarePosition{}
 	for _, row := range positions {
 		position := parentbilling.CarePosition{
@@ -634,6 +643,9 @@ func (s *Store) CareRunInvoices(ctx context.Context, organizationID, runID int64
 	invoices := make([]parentbilling.CareInvoice, len(rows))
 	for i, row := range rows {
 		invoices[i] = row.invoice(byInvoice[row.ID], reductions[row.ID])
+		if applied := corrections[row.ID]; len(applied) > 0 {
+			invoices[i].Amendments = applied
+		}
 		if len(row.CostShares) > 0 {
 			invoices[i].CostShares = row.CostShares
 		}

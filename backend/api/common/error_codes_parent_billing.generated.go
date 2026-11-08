@@ -18,6 +18,10 @@ const CodeParentBillingBillingRunNotReleased = "parent_billing.billing_run_not_r
 const CodeParentBillingBillingRunOpen = "parent_billing.billing_run_open"
 const CodeParentBillingBillingRunReleased = "parent_billing.billing_run_released"
 const CodeParentBillingBillingTermsInvalid = "parent_billing.billing_terms_invalid"
+const CodeParentBillingCareAmendmentConflict = "parent_billing.care_amendment_conflict"
+const CodeParentBillingCareAmendmentDisabled = "parent_billing.care_amendment_disabled"
+const CodeParentBillingCareAmendmentInvalid = "parent_billing.care_amendment_invalid"
+const CodeParentBillingCareAmendmentsUnresolved = "parent_billing.care_amendments_unresolved"
 const CodeParentBillingCareCostShareInvalid = "parent_billing.care_cost_share_invalid"
 const CodeParentBillingCareCostShareNotFound = "parent_billing.care_cost_share_not_found"
 const CodeParentBillingCareCostShareOverlap = "parent_billing.care_cost_share_overlap"
@@ -94,6 +98,10 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingBillingRunOpen, "business_rejection"},
 	{CodeParentBillingBillingRunReleased, "business_rejection"},
 	{CodeParentBillingBillingTermsInvalid, "input"},
+	{CodeParentBillingCareAmendmentConflict, "business_rejection"},
+	{CodeParentBillingCareAmendmentDisabled, "permission"},
+	{CodeParentBillingCareAmendmentInvalid, "input"},
+	{CodeParentBillingCareAmendmentsUnresolved, "business_rejection"},
 	{CodeParentBillingCareCostShareInvalid, "input"},
 	{CodeParentBillingCareCostShareNotFound, "business_rejection"},
 	{CodeParentBillingCareCostShareOverlap, "business_rejection"},
