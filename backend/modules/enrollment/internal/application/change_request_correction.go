@@ -54,11 +54,10 @@ func (s *ChangeRequests) correctApprovedChildData(ctx context.Context, input enr
 	if err := s.rejectOpenChangeRequestsForAdminCorrection(ctx, req, reason, input.ActorAccountID); err != nil {
 		return nil, err
 	}
-	correction := &enrollmentNative.ApprovedChildCorrection{
-		Name:     firstName != child.FirstName || lastName != child.LastName,
-		Birthday: input.DateOfBirth != child.DateOfBirth,
-		Class:    !sameGradeLevel(child.TargetGradeLevel, targetGradeLevel) || !sameOptionalString(child.TargetSchoolClass, targetSchoolClass),
-	}
+	correction := correctedChildFields(child, SubmitChild{
+		FirstName: firstName, LastName: lastName, DateOfBirth: input.DateOfBirth,
+		TargetGradeLevel: targetGradeLevel, TargetSchoolClass: targetSchoolClass,
+	})
 	child.FirstName, child.LastName, child.DateOfBirth = firstName, lastName, input.DateOfBirth
 	child.TargetGradeLevel, child.TargetSchoolClass = targetGradeLevel, targetSchoolClass
 	if err := updateDecodedChild(ctx, s.deps.Children, child); err != nil {
@@ -71,6 +70,18 @@ func (s *ChangeRequests) correctApprovedChildData(ctx context.Context, input enr
 		return nil, fmt.Errorf("admin data correction: sync student: %w", err)
 	}
 	return s.recordAdminCorrection(ctx, req, children, child, baseSnapshot, reason, input.ActorAccountID)
+}
+
+// correctedChildFields names the child fields a direct correction changes,
+// so the sync can apply exactly those where the request's own data no longer
+// reaches the child (#6053).
+func correctedChildFields(child *RequestChild, corrected SubmitChild) *enrollmentNative.ApprovedChildCorrection {
+	return &enrollmentNative.ApprovedChildCorrection{
+		Name:     corrected.FirstName != child.FirstName || corrected.LastName != child.LastName,
+		Birthday: corrected.DateOfBirth != child.DateOfBirth,
+		Class: !sameGradeLevel(child.TargetGradeLevel, corrected.TargetGradeLevel) ||
+			!sameOptionalString(child.TargetSchoolClass, corrected.TargetSchoolClass),
+	}
 }
 
 // lockApprovalGates takes the class-writes and recurrence gates a
