@@ -2,5 +2,6 @@
   "scenario": "api.auth.mfa.trusted_devices.positive_growth",
   "max": 4,
   "exact": true,
-  "description": "GET /auth/mfa/trusted-devices: composed MFA flow behind protected resource, JWT and tenant RLS; all DTO fields exactly match 3/8 persisted active device fixtures; host liveness excluded."
+  "description": "GET /auth/mfa/trusted-devices: composed MFA flow behind protected resource, JWT and tenant RLS; all DTO fields exactly match 3/8 persisted active device fixtures; host liveness excluded.",
+  "route": "GET /auth/mfa/trusted-devices"
 }

@@ -97,7 +97,7 @@ func newKioskDataBudgetFixture(t *testing.T) (*bun.DB, http.Handler, activityCon
 // existing BEFORE UPDATE trigger also stamps updated_at. Reusing
 // a device here would warm the existing debouncer and schedule a delayed write.
 // No timers/cache overrides, sleeps, new caches or fake auth are introduced.
-func requestKioskData(t *testing.T, db *bun.DB, handler http.Handler, devices DeviceTestModule, path string, withPIN bool) (*httptest.ResponseRecorder, []string) {
+func requestKioskData(t *testing.T, db *bun.DB, handler http.Handler, devices DeviceTestModule, path string, withPIN bool) (*httptest.ResponseRecorder, testpkg.QueryMeasurement) {
 	t.Helper()
 	device := testpkg.CreateTestDevice(t, db, "kiosk-data-budget")
 	require.NotNil(t, device.APIKey)
@@ -121,7 +121,7 @@ func requestKioskData(t *testing.T, db *bun.DB, handler http.Handler, devices De
 	counter.Reset()
 	started := time.Now().Truncate(time.Microsecond)
 	response := httptest.NewRecorder()
-	handler.ServeHTTP(response, request)
+	testpkg.MeasuredHTTPRequest(counter, handler, response, request)
 	finished := time.Now().Add(time.Microsecond)
 	require.NoError(t, db.NewRaw("SELECT clock_timestamp()").Scan(testpkg.Ctx(t), &databaseFinished))
 	queries := counter.Queries()
@@ -134,6 +134,7 @@ func requestKioskData(t *testing.T, db *bun.DB, handler http.Handler, devices De
 	require.Len(t, updates, 1, "fresh successful auth writes last_seen once; domain GET must add no DML")
 	heartbeat := strings.ToLower(strings.Join(strings.Fields(updates[0]), " "))
 	require.Contains(t, heartbeat, "update iot.devices")
+
 	// UpdateDeviceLastSeen names only last_seen and moves it forward only.
 	// updated_at is trigger-owned, not a second explicitly writable column.
 	_, setAndWhere, hasSet := strings.Cut(heartbeat, " set ")
@@ -146,12 +147,14 @@ func requestKioskData(t *testing.T, db *bun.DB, handler http.Handler, devices De
 	require.NotContains(t, assignment, ",", "heartbeat must explicitly assign only last_seen")
 	require.Contains(t, heartbeat, fmt.Sprintf(`"device".id = %d`, device.ID))
 	require.EqualValues(t, 1, counter.WriteRows())
+
 	// Owner reads are deliberately outside the counter's request context.
 	after, err := devices.IoT.Fleet().FindDeviceByAPIKey(testpkg.Ctx(t), *device.APIKey)
 	require.NoError(t, err)
 	require.NotNil(t, after.LastSeen)
 	require.False(t, after.LastSeen.Before(started))
 	require.False(t, after.LastSeen.After(finished))
+
 	// 001003009_iot_devices installs BEFORE UPDATE update_modified_column;
 	// 000001_core_functions assigns NEW.updated_at = now(). RecordLastSeen
 	// masks any ambient transaction, so its own tenant write unit is opened
@@ -168,7 +171,7 @@ func requestKioskData(t *testing.T, db *bun.DB, handler http.Handler, devices De
 	before.UpdatedAt = after.UpdatedAt
 	require.Equal(t, before, after, "only bounded last_seen and trigger-owned updated_at may change")
 	require.NotEmpty(t, queries)
-	return response, queries
+	return response, counter.Measurement(queries)
 }
 
 func decodeKioskDataRows[T any](t *testing.T, response *httptest.ResponseRecorder, message string) []T {
@@ -235,7 +238,7 @@ func TestKioskDataQueryBudgetActivities(t *testing.T) {
 			want[activity.ID] = kioskBudgetActivity{ID: activity.ID, Name: activity.Name, Category: category.Name, IsOccupied: occupied}
 		}
 	}
-	run := func() []string {
+	run := func() testpkg.QueryMeasurement {
 		t.Helper()
 		// The production GroupFilter{} query has NO ORDER BY. Do not invent
 		// name/ID order or sort the measured wire. Capture an original control
@@ -262,7 +265,7 @@ func TestKioskDataQueryBudgetActivities(t *testing.T) {
 	querybudgets.AssertQueryBudget(t, "api.iot.activities.list", small)
 	add(3, 8)
 	large := run()
-	require.Len(t, large, len(small), "3→8 distinct activities and occupancy relations must stay flat")
+	require.Len(t, large.Statements, len(small.Statements), "3→8 distinct activities and occupancy relations must stay flat")
 	querybudgets.AssertQueryBudget(t, "api.iot.activities.list", large)
 }
 
@@ -288,7 +291,7 @@ func TestKioskDataQueryBudgetAvailableRooms(t *testing.T) {
 				IsOccupied: true, IsOpenRoom: room.IsOpenRoom, IsSchulhof: false})
 		}
 	}
-	run := func() []string {
+	run := func() testpkg.QueryMeasurement {
 		t.Helper()
 		response, queries := requestKioskData(t, db, handler, devices, "/api/iot/rooms/available?capacity=10", true)
 		rows := decodeKioskDataRows[kioskBudgetRoom](t, response, "Available rooms retrieved successfully")
@@ -316,7 +319,7 @@ func TestKioskDataQueryBudgetAvailableRooms(t *testing.T) {
 	querybudgets.AssertQueryBudget(t, "api.iot.rooms.available", small)
 	add(3, 8)
 	large := run()
-	require.Len(t, large, len(small), "3→8 distinct occupied rooms/sessions/activities/supervisors must stay flat")
+	require.Len(t, large.Statements, len(small.Statements), "3→8 distinct occupied rooms/sessions/activities/supervisors must stay flat")
 	querybudgets.AssertQueryBudget(t, "api.iot.rooms.available", large)
 }
 
@@ -351,7 +354,7 @@ func TestKioskDataQueryBudgetTeachers(t *testing.T) {
 			}})
 		}
 	}
-	run := func() []string {
+	run := func() testpkg.QueryMeasurement {
 		t.Helper()
 		response, queries := requestKioskData(t, db, handler, devices, "/api/iot/teachers/", false)
 		rows := decodeKioskDataRows[kioskBudgetTeacher](t, response, "Available teachers retrieved successfully")
@@ -380,7 +383,7 @@ func TestKioskDataQueryBudgetTeachers(t *testing.T) {
 	querybudgets.AssertQueryBudget(t, "api.iot.teachers.list", small)
 	add(3, 8)
 	large := run()
-	require.Len(t, large, len(small), "3→8 distinct teacher/staff/person/account chains must stay flat")
+	require.Len(t, large.Statements, len(small.Statements), "3→8 distinct teacher/staff/person/account chains must stay flat")
 	querybudgets.AssertQueryBudget(t, "api.iot.teachers.list", large)
 }
 

@@ -2,5 +2,6 @@
   "scenario": "api.students.presence25.pickup_times.n8",
   "max": 9,
   "exact": true,
-  "description": "Full protected POST pickup_times, positive N8; complete response entries asserted."
+  "description": "Full protected POST pickup_times, positive N8; complete response entries asserted.",
+  "route": "POST /api/students/pickup-times/bulk"
 }

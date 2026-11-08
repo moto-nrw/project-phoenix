@@ -2,5 +2,6 @@
   "scenario": "api.enrollment.growth.care_usage",
   "max": 9,
   "exact": true,
-  "description": "Positive mounted handler, all SQL including transaction envelope; real persistence and N3/N8 returned rows."
+  "description": "Positive mounted handler, all SQL including transaction envelope; real persistence and N3/N8 returned rows.",
+  "route": "GET /api/enrollment/admin/reports/care-usage"
 }

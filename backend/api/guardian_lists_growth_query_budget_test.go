@@ -273,25 +273,25 @@ func TestGuardianListsPositiveGrowthQueryBudget(t *testing.T) {
 			t.Logf("MEASURE guardian.%s N%d=%d", name, n, counter.Total())
 			switch name {
 			case "search":
-				querybudgets.AssertQueryBudget(t, "api.guardians.search.http_positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "api.guardians.search.http_positive_growth", counter.Measurement(counter.Queries()))
 			case "without-account":
-				querybudgets.AssertQueryBudget(t, "api.guardians.without_account.http_positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "api.guardians.without_account.http_positive_growth", counter.Measurement(counter.Queries()))
 			case "invitable":
-				querybudgets.AssertQueryBudget(t, "api.guardians.invitable.http_positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "api.guardians.invitable.http_positive_growth", counter.Measurement(counter.Queries()))
 			case "detail":
-				querybudgets.AssertQueryBudget(t, "api.guardians.detail.http_positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "api.guardians.detail.http_positive_growth", counter.Measurement(counter.Queries()))
 			case "delete-preview":
-				querybudgets.AssertQueryBudget(t, "api.guardians.delete_preview.http_positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "api.guardians.delete_preview.http_positive_growth", counter.Measurement(counter.Queries()))
 			case "phones":
-				querybudgets.AssertQueryBudget(t, "api.guardians.phones.http_positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "api.guardians.phones.http_positive_growth", counter.Measurement(counter.Queries()))
 			case "students":
-				querybudgets.AssertQueryBudget(t, "api.guardians.students.http_positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "api.guardians.students.http_positive_growth", counter.Measurement(counter.Queries()))
 			case "payment_overview":
-				querybudgets.AssertQueryBudget(t, "api.guardians.payment_overview.http_positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "api.guardians.payment_overview.http_positive_growth", counter.Measurement(counter.Queries()))
 			case "payment_export":
-				querybudgets.AssertQueryBudget(t, "api.guardians.payment_export.http_positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "api.guardians.payment_export.http_positive_growth", counter.Measurement(counter.Queries()))
 			case "bulk_invite":
-				querybudgets.AssertQueryBudget(t, "api.guardians.bulk_invite.http_positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "api.guardians.bulk_invite.http_positive_growth", counter.Measurement(counter.Queries()))
 			}
 		}
 	}

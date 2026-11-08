@@ -41,7 +41,7 @@ func TestStudentImportBatchQueryBudget(t *testing.T) {
 
 	rows := tenStudentBatch(2)
 	run(rows, true)
-	querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.preview", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.preview", counter.Measurement(counter.Queries()))
 	require.EqualValues(t, 1, counter.WriteRows())
 
 	run(rows, false)
@@ -52,7 +52,7 @@ func TestStudentImportBatchQueryBudget(t *testing.T) {
 	// each new child takes the class-write gate and Kinderkontingent lock
 	// before reading the limit, also without a Kinderkontingent. The count
 	// scales with the rows, so the ceiling holds for this ten-row file only.
-	querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.import", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.import", counter.Measurement(counter.Queries()))
 	require.Empty(t, counter.Selects("users.guardian_phone_numbers"), "new-profile create proves the phone list is empty")
 	// BUN labels RawQuery as SELECT, including the three owner INSERTs of each
 	// guardian link; this is the driver-reported DML counter, not physical
@@ -64,9 +64,9 @@ func TestStudentImportBatchQueryBudget(t *testing.T) {
 	// either path costs 110 statements here instead of 10 above.
 	large := studentBatch(3, 11*studentBatchRows)
 	run(large, true)
-	querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.preview_110", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.preview_110", counter.Measurement(counter.Queries()))
 	run(large, false)
-	querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.import_110", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.import_110", counter.Measurement(counter.Queries()))
 	require.Empty(t, counter.Selects("users.guardian_phone_numbers"), "each new profile carries its fact only within its write transaction")
 	t.Logf("import statements: %d rows -> %d, %d rows -> %d", studentBatchRows, smallImport, len(large), counter.Total())
 }

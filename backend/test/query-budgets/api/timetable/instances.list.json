@@ -2,5 +2,6 @@
   "scenario": "api.timetable.instances.list",
   "max": 5,
   "exact": false,
-  "description": "modules/timetable/http — GET /instances over a week, 8 instances on 3 days\nfrom one template with an education group: instances + one display-metadata\nprojection + staff batch + student batch + one pickup-cutoff window read."
+  "description": "modules/timetable/http — GET /instances over a week, 8 instances on 3 days\nfrom one template with an education group: instances + one display-metadata\nprojection + staff batch + student batch + one pickup-cutoff window read.",
+  "route": "GET /api/timetable/instances/"
 }

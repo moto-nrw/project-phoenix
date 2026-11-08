@@ -2,5 +2,6 @@
   "scenario": "api.enrollment.growth.booked_stats",
   "max": 10,
   "exact": true,
-  "description": "Positive mounted booking-stats handler, N3/N8 offerings each with a real approved booked child; assert booked=1 per offering. All SQL including tenant transaction and actual student-grade enrichment. Empty occupancy is not this scenario."
+  "description": "Positive mounted booking-stats handler, N3/N8 offerings each with a real approved booked child; assert booked=1 per offering. All SQL including tenant transaction and actual student-grade enrichment. Empty occupancy is not this scenario.",
+  "route": "GET /api/enrollment/care-offerings/booking-stats"
 }

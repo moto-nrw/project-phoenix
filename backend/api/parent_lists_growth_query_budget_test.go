@@ -436,40 +436,40 @@ func TestParentListsPositiveGrowthQueryBudget(t *testing.T) {
 			t.Logf("MEASURE parent.%s N%d=%d", name, n, counter.Total())
 			switch name {
 			case "children":
-				querybudgets.AssertQueryBudget(t, "parent.children.children.http_positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "parent.children.children.http_positive_growth", counter.Measurement(counter.Queries()))
 			case "guardians":
-				querybudgets.AssertQueryBudget(t, "parent.children.guardians.http_positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "parent.children.guardians.http_positive_growth", counter.Measurement(counter.Queries()))
 			case "related_accounts":
 				if n == 3 {
-					querybudgets.AssertQueryBudget(t, "parent.children.related_accounts.http_positive_growth.n3", counter.Queries())
+					querybudgets.AssertQueryBudget(t, "parent.children.related_accounts.http_positive_growth.n3", counter.Measurement(counter.Queries()))
 				}
 				if n == 8 {
-					querybudgets.AssertQueryBudget(t, "parent.children.related_accounts.http_positive_growth.n8", counter.Queries())
+					querybudgets.AssertQueryBudget(t, "parent.children.related_accounts.http_positive_growth.n8", counter.Measurement(counter.Queries()))
 				}
 			case "master_data":
-				querybudgets.AssertQueryBudget(t, "parent.children.master_data.http_positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "parent.children.master_data.http_positive_growth", counter.Measurement(counter.Queries()))
 			case "master_data_requests":
-				querybudgets.AssertQueryBudget(t, "parent.children.master_data_requests.http_positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "parent.children.master_data_requests.http_positive_growth", counter.Measurement(counter.Queries()))
 			case "sharing_options":
-				querybudgets.AssertQueryBudget(t, "parent.children.sharing_options.http_positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "parent.children.sharing_options.http_positive_growth", counter.Measurement(counter.Queries()))
 			case "sharing":
-				querybudgets.AssertQueryBudget(t, "parent.children.sharing.http_positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "parent.children.sharing.http_positive_growth", counter.Measurement(counter.Queries()))
 			case "events":
-				querybudgets.AssertQueryBudget(t, "parent.children.events.http_positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "parent.children.events.http_positive_growth", counter.Measurement(counter.Queries()))
 			case "consents":
-				querybudgets.AssertQueryBudget(t, "parent.children.consents.http_positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "parent.children.consents.http_positive_growth", counter.Measurement(counter.Queries()))
 			case "care_exception":
-				querybudgets.AssertQueryBudget(t, "parent.children.care_exception.http_positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "parent.children.care_exception.http_positive_growth", counter.Measurement(counter.Queries()))
 			case "excused_requests":
-				querybudgets.AssertQueryBudget(t, "parent.children.excused_requests.http_positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "parent.children.excused_requests.http_positive_growth", counter.Measurement(counter.Queries()))
 			case "pickup_requests":
-				querybudgets.AssertQueryBudget(t, "parent.children.pickup_requests.http_positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "parent.children.pickup_requests.http_positive_growth", counter.Measurement(counter.Queries()))
 			case "care_offerings":
-				querybudgets.AssertQueryBudget(t, "parent.children.care_offerings.http_positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "parent.children.care_offerings.http_positive_growth", counter.Measurement(counter.Queries()))
 			case "offering_catalog":
-				querybudgets.AssertQueryBudget(t, "parent.children.offering_catalog.http_positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "parent.children.offering_catalog.http_positive_growth", counter.Measurement(counter.Queries()))
 			case "meal_participation":
-				querybudgets.AssertQueryBudget(t, "parent.children.meal_participation.http_positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "parent.children.meal_participation.http_positive_growth", counter.Measurement(counter.Queries()))
 			}
 		}
 	}

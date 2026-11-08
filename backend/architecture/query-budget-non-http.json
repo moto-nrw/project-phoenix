@@ -1,0 +1,5 @@
+{
+  "api.enrollment.request_mails": "TestRequestMailOutcomesQueryBudget calls RequestMailOutcomes through tenantCall; it issues no HTTP request.",
+  "api.invitations.mail_states": "TestSchoolInvitationMailStatesQueryBudget calls SchoolInvitationMailStates directly inside the tenant transaction; it issues no HTTP request.",
+  "api.parent.child_courses": "TestCourseCatalogQueryBudget calls the Care Plan CourseCatalog use case directly inside the tenant transaction; it issues no HTTP request."
+}

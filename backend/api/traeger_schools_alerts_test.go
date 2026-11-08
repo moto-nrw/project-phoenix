@@ -211,11 +211,11 @@ func TestTraegerSchoolsAlertsQueryBudgetIsFlat(t *testing.T) {
 	testpkg.CreateTestTraegerMember(t, db, organization, account.ID, identityaccess.TraegerRoleReadOnly)
 	code, answer := traegerSignIn(t, router, account.Email, password, 0)
 	require.Equal(t, http.StatusOK, code)
-	read := func() []string {
+	read := func() testpkg.QueryMeasurement {
 		counter := testpkg.CaptureQueriesForContext(t, db)
 		rec := traegerSchoolsAlerts(t, router, answer.AccessToken, counter)
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		return counter.Selects("")
+		return counter.Measurement(counter.Selects(""))
 	}
 	three := read()
 	for _, name := range []string{"OGS Vier", "OGS Fünf"} {
@@ -223,6 +223,6 @@ func TestTraegerSchoolsAlertsQueryBudgetIsFlat(t *testing.T) {
 		testpkg.CreateTestStudentForTenant(t, db, school, "Kind", name, "1a")
 		insertEnrollmentChildren(t, db, school, false, "submitted")
 	}
-	assert.Len(t, read(), len(three), "the hints read the same statements for any number of schools")
+	assert.Len(t, read().Statements, len(three.Statements), "the hints read the same statements for any number of schools")
 	querybudgets.AssertQueryBudget(t, "api.traeger.schools_alerts", three)
 }

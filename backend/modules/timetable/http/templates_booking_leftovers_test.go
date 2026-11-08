@@ -530,7 +530,7 @@ func TestBookingLeftoversQueryBudget(t *testing.T) {
 	measured.Use(render.SetContentType(render.ContentTypeJSON))
 	measured.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			next.ServeHTTP(w, r.WithContext(testpkg.WithTestTenantRuntime(t, r.Context())))
+			testpkg.MeasuredHTTPRequest(counter, next, w, r.WithContext(testpkg.WithTestTenantRuntime(t, r.Context())))
 		})
 	})
 	measured.Get("/templates/booking-leftovers", s.res.listBookingLeftovers)
@@ -560,7 +560,7 @@ func TestBookingLeftoversQueryBudget(t *testing.T) {
 
 	t.Logf("query budget: 2 templates → %d queries, 6 templates → %d queries", small, large)
 	assert.Equal(t, small, large, "query count must not grow with the number of Regeltermine and children")
-	querybudgets.AssertQueryBudget(t, "api.timetable.templates.booking_leftovers", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.timetable.templates.booking_leftovers", counter.Measurement(counter.Queries()))
 }
 
 // leftoverClosedThursday closes the first Thursday after the fixed Monday.

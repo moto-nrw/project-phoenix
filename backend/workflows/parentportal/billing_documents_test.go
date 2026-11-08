@@ -284,7 +284,7 @@ func TestDocumentInboxQueryBudget(t *testing.T) {
 		assert.Len(t, documents, n)
 		assert.EqualValues(t, 1, counter.WriteRows(), "one read trail entry per inbox request, not per document")
 		t.Logf("billing documents N=%d total=%d", n, counter.Total())
-		querybudgets.AssertQueryBudget(t, "workflows.parentportal.billing_documents.list", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "workflows.parentportal.billing_documents.list", counter.Measurement(counter.Queries()))
 		if n == 1 {
 			smallStatements = counter.Total()
 		} else {
@@ -313,7 +313,7 @@ func TestContractInboxQueryBudget(t *testing.T) {
 	documents, err := portal.ListBillingDocuments(counter.Context(ctx), chain.AccountID, parentService.DocumentInboxContracts)
 	require.NoError(t, err)
 	assert.Len(t, documents, 3)
-	querybudgets.AssertQueryBudget(t, "workflows.parentportal.contract_documents.list", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "workflows.parentportal.contract_documents.list", counter.Measurement(counter.Queries()))
 }
 
 // inboxContract stores a care contract of the Träger for child as the
