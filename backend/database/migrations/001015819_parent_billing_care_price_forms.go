@@ -7,14 +7,14 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const parentBillingCarePriceFormsVersion = "1.15.817"
+const parentBillingCarePriceFormsVersion = "1.15.819"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     parentBillingCarePriceFormsVersion,
 		Description: "Elternabrechnung: Staffel nach Tagen je Woche, Geschwisterpreis je Modul und beitragsfreie Monate im Tarif (#6196)",
 		DependsOn: []string{
-			parentBillingCareReviewVersion,     // the last migration of the monthly billing before this one
+			parentBillingCostShareScopeVersion, // the last migration of the monthly billing before this one
 			parentBillingCareReductionsVersion, // the care rules and reductions this one extends
 		},
 	})

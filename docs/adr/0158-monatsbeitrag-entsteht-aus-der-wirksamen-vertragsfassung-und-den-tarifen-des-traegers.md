@@ -218,6 +218,6 @@ offenen Lauf. Die Freigabe stellt das Rechnungsdatum des Laufs aus. Details im
    gehören zum Fingerabdruck; eine Änderung danach lässt die Freigabe
    ablehnen.
 
-Register: Migration `1.15.817`; `policy/parent-billing.json` mit
+Register: Migration `1.15.819`; `policy/parent-billing.json` mit
 `parent_billing.care_price_lists`; Datenlebenszyklus und Aufbewahrung je ein
 Eintrag (keine Personendaten).
