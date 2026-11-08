@@ -6,6 +6,17 @@
  * dates stay "YYYY-MM-DD".
  */
 
+import {
+  type BackendMealGap,
+  type BackendMealPosition,
+  type BackendMealUnbilled,
+  type CareMealGap,
+  type CareMealPosition,
+  type CareMealUnbilled,
+  mealGapsFromBackend,
+  mealPositionsFromBackend,
+  mealUnbilledFromBackend,
+} from "./traeger-care-meal-api";
 import { traegerRequest } from "./traeger-api";
 
 export type CareWeekday = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
@@ -119,6 +130,8 @@ export interface CareInvoice {
   readonly positions: readonly CarePosition[];
   /** The rules of the chain in their order (#4685); negative amounts. */
   readonly reductions: readonly CareReduction[];
+  /** The Mensa months of the child (#4686); no rule reduces them. */
+  readonly mealPositions: readonly CareMealPosition[];
   readonly totalCents: number;
 }
 
@@ -178,6 +191,10 @@ export interface CareRunDetail extends CareRun {
   readonly previewCents: number;
   readonly numberPattern: string;
   readonly numberRangeSet: boolean;
+  /** Ended months a school has not released for the Mensa (#4686). */
+  readonly mealGaps: readonly CareMealGap[];
+  /** Released Mensa months of children the run does not bill (#4686). */
+  readonly mealUnbilled: readonly CareMealUnbilled[];
 }
 
 interface BackendModule {
@@ -260,6 +277,7 @@ interface BackendInvoice {
         amount_cents: number;
       }[]
     | null;
+  meal_positions?: BackendMealPosition[] | null;
   total_cents: number;
 }
 
@@ -294,6 +312,8 @@ interface BackendRunDetail extends BackendRun {
   preview_cents: number;
   number_pattern: string;
   number_range_set: boolean;
+  meal_gaps?: BackendMealGap[] | null;
+  meal_unbilled?: BackendMealUnbilled[] | null;
 }
 
 const TARIFFS_PATH = "/api/traeger/care-tariffs";
@@ -385,6 +405,7 @@ function invoiceFromBackend(invoice: BackendInvoice): CareInvoice {
       capCents: reduction.cap_cents,
       amountCents: reduction.amount_cents,
     })),
+    mealPositions: mealPositionsFromBackend(invoice.meal_positions),
     totalCents: invoice.total_cents,
   };
 }
@@ -420,6 +441,8 @@ function detailFromBackend(detail: BackendRunDetail): CareRunDetail {
     previewCents: detail.preview_cents,
     numberPattern: detail.number_pattern,
     numberRangeSet: detail.number_range_set,
+    mealGaps: mealGapsFromBackend(detail.meal_gaps),
+    mealUnbilled: mealUnbilledFromBackend(detail.meal_unbilled),
   };
 }
 

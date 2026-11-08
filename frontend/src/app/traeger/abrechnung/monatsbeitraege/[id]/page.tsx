@@ -19,6 +19,7 @@ import {
   CareDuplicatesCard,
   CareUnpricedCard,
 } from "~/components/traeger/care-run-invoices";
+import { CareRunMealsCard } from "~/components/traeger/care-run-meals";
 import { formatEuro } from "~/components/traeger/contribution-format";
 import { HolidayHeadFacts } from "~/components/traeger/holiday-period-head";
 import { Alert } from "~/components/ui/alert";
@@ -237,6 +238,9 @@ export default function TraegerCareRunPage() {
           ) : null}
           <CareDuplicatesCard duplicates={run.duplicates} released={!preview} />
           {preview ? <CareUnpricedCard unpriced={run.unpriced} /> : null}
+          {preview ? (
+            <CareRunMealsCard gaps={run.mealGaps} unbilled={run.mealUnbilled} />
+          ) : null}
           <CareRunInvoices
             invoices={run.invoices}
             month={run.billingMonth}

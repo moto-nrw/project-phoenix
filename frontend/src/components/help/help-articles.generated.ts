@@ -122,6 +122,8 @@ import type { manageActivityTopic as authored_manageActivityTopic } from "./arti
 
 import type { manageStudentTopic as authored_manageStudentTopic } from "./articles/manage-student";
 
+import type { mealBillingReleaseTopic as authored_mealBillingReleaseTopic } from "./articles/meal-billing-release";
+
 import type { mealCatererTopic as authored_mealCatererTopic } from "./articles/meal-caterer";
 
 import type { mealOrderingTopic as authored_mealOrderingTopic } from "./articles/meal-ordering";
@@ -327,6 +329,8 @@ import type { traegerBillingRunTopic as authored_traegerBillingRunTopic } from "
 import type { traegerBriefkopfTopic as authored_traegerBriefkopfTopic } from "./articles/traeger-briefkopf";
 
 import type { traegerCareContractsTopic as authored_traegerCareContractsTopic } from "./articles/traeger-care-contracts";
+
+import type { traegerCareMealsTopic as authored_traegerCareMealsTopic } from "./articles/traeger-care-meals";
 
 import type { traegerCareMonthsTopic as authored_traegerCareMonthsTopic } from "./articles/traeger-care-months";
 
@@ -4359,6 +4363,49 @@ export const manageStudentTopic = function manageStudentTopic(): HelpTopic {
     ],
   };
 } satisfies typeof authored_manageStudentTopic;
+
+/**
+ * Die Mensa-Freigabe (#4686): Die OGS-Leitung prüft am Monatsende, wer
+ * gegessen hat, und gibt den Monat für die Abrechnung des Trägers frei.
+ */
+export const mealBillingReleaseTopic =
+  function mealBillingReleaseTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.leadMealBillingRelease,
+      title: "Mensa-Monat freigeben",
+      question: "Wie gebe ich die Mensa eines Monats für die Abrechnung frei?",
+      summary:
+        "Am Monatsende prüfen Sie, wer gegessen hat. Dann geben Sie den Monat frei. Erst danach rechnet der Träger die Mensa ab.",
+      group: "elternarbeit",
+      audience: "lead",
+      icon: "ClipboardList",
+      requirements: [
+        "`Anmeldung zum Mittagessen` ist eingeschaltet.",
+        "Sie dürfen den Speiseplan pflegen und Listen mit Namen sehen.",
+        "Der Monat ist vorbei. Freigeben können Sie ab dem 1. des nächsten Monats.",
+      ],
+      steps: [
+        "Öffnen Sie in der Seitenleiste `Speiseplan`.",
+        "Wählen Sie oben `Mensa-Freigabe`.",
+        "Wählen Sie den Monat. Ein Monat mit `Freigabe fehlt` wartet auf Sie.",
+        "Prüfen Sie in der Liste die Spalte `Nicht da`. Dort stehen die Tage, an denen ein angemeldetes Kind nicht da war.",
+        "Fehlt eine Anwesenheit, tragen Sie sie zuerst nach. Laden Sie die Seite danach neu.",
+        "Wählen Sie `Monat freigeben` und bestätigen Sie mit `Freigeben`.",
+      ],
+      result:
+        "Der Monat steht auf `Freigegeben`. Der Träger rechnet die Essen mit dem nächsten Monatslauf ab. Die Zahlen bleiben so.",
+      notes: [
+        "Ein Essen zählt, wenn das Kind angemeldet und da war. Tage, an denen die Eltern abgemeldet haben, zählen nicht.",
+        "Ferien, Feiertage und Schließtage zählen nie.",
+        "Sie können einen Monat auch später freigeben. Der Träger rechnet ihn dann nachträglich ab.",
+      ],
+      troubleshootingDetails: [
+        "`Seit dem Laden hat sich der Monat geändert`: Jemand hat eine Anwesenheit oder Anmeldung geändert. Prüfen Sie die Liste noch einmal und geben Sie dann frei.",
+        "Eine Freigabe lässt sich nicht zurücknehmen. Stimmt danach etwas nicht, wenden Sie sich an Ihren Träger.",
+      ],
+      related: [HELP_TOPICS.leadMealPlan],
+    };
+  } satisfies typeof authored_mealBillingReleaseTopic;
 
 /**
  * Der Caterer der Schule (ADR 0077): Einladung per E-Mail unter
@@ -10420,6 +10467,63 @@ export const traegerCareContractsTopic =
       ],
     };
   } satisfies typeof authored_traegerCareContractsTopic;
+
+/**
+ * Mensa-Abrechnung des Trägers (#4686): je Schule je Essen oder als
+ * Pauschale, abgerechnet im Monatslauf aus der Freigabe der OGS-Leitung.
+ */
+export const traegerCareMealsTopic =
+  function traegerCareMealsTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerCareMeals,
+      title: "Mensa abrechnen",
+      question: "Wie rechne ich das Essen ab, je Essen oder als Pauschale?",
+      summary:
+        "Sie legen je Schule fest, wie die Mensa abgerechnet wird. Der Monatslauf setzt freigegebene Monate auf die Rechnung des Kindes.",
+      group: "anmeldeverwaltung",
+      audience: "traeger",
+      icon: "UtensilsCrossed",
+      requirements: [
+        "Ihre Rolle im Träger-Büro ist Abrechnung.",
+        "Die OGS-Leitung gibt jeden Monat in moto frei. Erst dann wird er abgerechnet.",
+      ],
+      steps: [],
+      instructionGroups: [
+        {
+          title: "Preis festlegen",
+          steps: [
+            "Wählen Sie `Abrechnung` und dann den Reiter `Mensa`.",
+            "Wählen Sie bei der Schule `Preis festlegen`.",
+            "Wählen Sie bei `Gültig ab` den ersten Monat.",
+            "Wählen Sie die Abrechnungsart: `Je Essen` oder `Pauschale`.",
+            "Tragen Sie den Betrag ein, zum Beispiel 4,80 je Essen.",
+            "Wählen Sie `Preis speichern`.",
+          ],
+        },
+        {
+          title: "Im Monatslauf",
+          description:
+            "Die Mensa steht im Monatslauf als eigene Zeile je Monat auf der Rechnung des Kindes, zum Beispiel „2 Mittagessen im Januar 2026“.",
+          steps: [
+            "Wählen Sie `Abrechnung` und dann den Reiter `Monatsbeiträge`.",
+            "Starten oder öffnen Sie den Lauf eines Monats.",
+            "Die Karte `Mensa` nennt Monate, die eine Schule noch nicht freigegeben hat, und Kinder ohne Vertrag.",
+            "Prüfen Sie die Rechnungen und geben Sie den Lauf frei.",
+          ],
+        },
+      ],
+      result:
+        "Jeder freigegebene Mensa-Monat steht genau einmal auf einer Rechnung. Gibt eine Schule einen Monat später frei, rechnet ihn der nächste Lauf nachträglich ab.",
+      notes: [
+        "Ermäßigungen wie Geschwister oder Einkommensstufen gelten nur für die Module. Die Mensa zahlen Eltern voll.",
+        "Ein Preis, mit dem schon abgerechnet ist, bleibt für diese Monate. Ändern Sie ihn ab einem späteren Monat.",
+      ],
+      related: [
+        HELP_TOPICS.traegerCareMonths,
+        HELP_TOPICS.traegerCareReductions,
+      ],
+    };
+  } satisfies typeof authored_traegerCareMealsTopic;
 
 export const traegerCareMonthsTopic =
   function traegerCareMonthsTopic(): HelpTopic {

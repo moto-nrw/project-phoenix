@@ -756,6 +756,16 @@ export const ERROR_CATALOG = {
         "Im Raum {room_name} ist kein Platz mehr. Bitte wählen Sie einen anderen Raum.",
       "iot.student_already_active":
         "{object} ist bereits im Raum {room_name}. Bitte prüfen Sie den aktuellen Aufenthalt.",
+      "meals.billing_month_changed":
+        "Seit dem Laden hat sich der Monat geändert. Bitte prüfen Sie ihn noch einmal und geben Sie ihn dann frei.",
+      "meals.billing_month_invalid":
+        "Diesen Monat gibt es hier nicht. Wählen Sie einen der letzten 12 Monate.",
+      "meals.billing_month_no_traeger":
+        "Ihre Schule gehört zu keinem Träger. Deshalb rechnet niemand die Mensa ab.",
+      "meals.billing_month_released":
+        "Dieser Monat ist schon freigegeben. Eine Freigabe lässt sich nicht ändern.",
+      "meals.billing_month_running":
+        "Der Monat ist noch nicht vorbei. Sie können ihn ab dem 1. des nächsten Monats freigeben.",
       "meals.child_not_enrolled":
         "{object} geht nicht. Das Kind ist an diesem Tag nicht in der Betreuung.",
       "meals.day_closed":
@@ -825,6 +835,12 @@ export const ERROR_CATALOG = {
         "Diesen Nachweis gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "parent_billing.care_evidence_overlap":
         "Für diese Zeit gibt es schon einen Nachweis dieser Art. Beenden Sie zuerst den alten Nachweis.",
+      "parent_billing.care_meal_tariff_invalid":
+        "Bitte prüfen Sie den Mensa-Preis: Schule, erster Monat, Abrechnungsart und Betrag.",
+      "parent_billing.care_meal_tariff_month_billed":
+        "Mit diesem Mensa-Preis ist schon eine Rechnung ausgestellt. Er bleibt für diese Monate. Ändern Sie ihn ab einem späteren Monat.",
+      "parent_billing.care_meal_tariff_not_found":
+        "Diesen Mensa-Preis gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "parent_billing.care_rule_in_use":
         "Diese Einkommensstufe ist bei Kindern eingetragen. Ändern oder löschen Sie zuerst deren Nachweise.",
       "parent_billing.care_run_invalid": "Bitte wählen Sie einen Monat.",

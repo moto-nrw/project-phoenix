@@ -26,6 +26,7 @@ import {
 } from "./care-billing-format";
 import { formatEuro } from "./contribution-format";
 import { reductionExplanation } from "./care-reduction-format";
+import { MealPositionLine } from "./care-run-meals";
 
 interface SchoolGroup {
   readonly schoolId: string;
@@ -160,7 +161,9 @@ function invoiceColumns(month: string): DataTableColumn<CareInvoice>[] {
               position={position}
               month={month}
               showAmount={
-                invoice.positions.length > 1 || invoice.reductions.length > 0
+                invoice.positions.length > 1 ||
+                invoice.reductions.length > 0 ||
+                invoice.mealPositions.length > 0
               }
             />
           ))}
@@ -169,6 +172,9 @@ function invoiceColumns(month: string): DataTableColumn<CareInvoice>[] {
               key={`${reduction.kind}-${index}`}
               reduction={reduction}
             />
+          ))}
+          {invoice.mealPositions.map((position) => (
+            <MealPositionLine key={position.mealMonth} position={position} />
           ))}
         </ul>
       ),
