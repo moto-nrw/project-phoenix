@@ -654,13 +654,27 @@ old session back; the browser only saves requests.
    access token, which the backend refuses before it reads the family, leave
    the shown session as it is; its own refresh decides.
 3. **Family check.** `POST /auth/session/validate` without a refresh token
-   reads the access token's family (`ValidateSessionTokens`,
-   `verifyAccessFamily` in
-   `backend/modules/identityaccess/internal/application/session_validation.go`):
-   `VerifyAccessSession` for account portals, the latest operator session of
-   the family for the operator. 401 means revoked, foreign or an expired
-   token, 503 means the family could not be read. The BFF calls it through
-   `sessionFamilyState` (`frontend/src/server/auth/token-validation.ts`).
+   reads the access token's family and asks whether the session would still
+   renew (`ValidateSessionTokens` in
+   `backend/modules/identityaccess/internal/application/session_validation.go`,
+   the `check` entry of each kind in `session_policy.go`): the facts its
+   refresh decides (account, mapping, live school, portal role, guardian
+   school, caterer supply, Träger membership and right), each read once in one
+   administrative transaction, then the module booking. It writes nothing, so
+   it takes no row lock and builds no claims; its cost per kind is pinned in
+   `identity.session_validate.*`. The operator reads the latest operator
+   session of the family. Validation and refresh answer one state alike
+   (`identityaccess.SessionOutcomeOf`, `portalauth.RenewalRules`): 401 means
+   the session ended (revoked, foreign or expired token, inactive account,
+   access to the school or Träger lost, the school inactive, the portal role
+   revoked); 403 `module.not_booked` means the school no longer books the
+   portal's module and the session stays, as at refresh; 503 means a read
+   could not run (`identity.mfa_status_unavailable` for the second-factor
+   state). Access loss therefore ends the session at the next page view, not
+   only at the next refresh. The BFF calls it through `sessionFamilyState`
+   (`frontend/src/server/auth/token-validation.ts`), which reads 401 as
+   ended and every other refusal, 403 included, as unknown: the shown session
+   stays and its own refresh decides.
 
 Invariants: no response sets a session cookie of a family Identity & Access
 answers as revoked while the response is built, whichever tab, subdomain or frozen
