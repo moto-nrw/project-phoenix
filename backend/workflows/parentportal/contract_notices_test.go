@@ -142,6 +142,39 @@ func TestInboxOffersTheEndOnlyWithTheRelationshipRight(t *testing.T) {
 	}
 }
 
+// The inbox offers the withdrawal function „Vertrag widerrufen“ (§ 356a
+// BGB, #6105) while the withdrawal period may run, and the withdrawal
+// notice names exactly that label. Once the right expired the button goes.
+func TestInboxOffersTheWithdrawalWhileThePeriodRuns(t *testing.T) {
+	t.Parallel()
+	portal, db := noticePortal(t)
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	var organization int64
+	require.NoError(t, db.NewRaw(`SELECT organization_id FROM platform.schools WHERE id = ?`, chain.TenantID).Scan(ctx, &organization))
+	testpkg.OwnTraegerCareContracts(t, db, organization)
+	contract := activeInboxContract(t, db, organization, chain.TenantID, chain.StudentID, "Felix", chain.Email)
+	var link int64
+	require.NoError(t, db.NewRaw(`SELECT id FROM users.student_guardian_relationships WHERE student_id = ? AND guardian_profile_id = ?`,
+		chain.StudentID, chain.GuardianProfileID).Scan(ctx, &link))
+	require.NoError(t, testpkg.SetTestStudentGuardianPermissions(ctx, db, link, map[string]interface{}{
+		"parent_portal.access": true, "parent_portal.enrollments.view": true, "parent_portal.enrollment.submit": true,
+	}))
+
+	documents, err := portal.ListBillingDocuments(ctx, chain.AccountID, parentService.DocumentInboxContracts)
+	require.NoError(t, err)
+	require.Len(t, documents, 1)
+	assert.True(t, documents[0].CanWithdrawContract, "concluded today, inside the period")
+
+	_, err = db.ExecContext(ctx, `UPDATE care_contract.contracts SET concluded_at = NOW() - INTERVAL '2 years' WHERE id = ?`, contract)
+	require.NoError(t, err)
+	documents, err = portal.ListBillingDocuments(ctx, chain.AccountID, parentService.DocumentInboxContracts)
+	require.NoError(t, err)
+	require.Len(t, documents, 1)
+	assert.True(t, documents[0].CanEndContract, "the contract can still be terminated")
+	assert.False(t, documents[0].CanWithdrawContract, "the right of withdrawal expired")
+}
+
 // The parents' extraordinary termination reaches the Betreuungsvertrag with
 // its reason (§ 312k Abs. 2 BGB) and comes back with an open end and the
 // receipt with its time in the confirmation (§ 312k Abs. 4 BGB).

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Inbox serves carecontract.Inbox (ADR 0088 section 7, ADR 0126, ADR 0153):
@@ -43,16 +44,18 @@ func (in *Inbox) InboxContracts(ctx context.Context, organizationID int64, reade
 		return nil, err
 	}
 	reader.Email = email
-	contracts, err := in.store.InboxContracts(ctx, organizationID, reader)
+	rows, err := in.store.InboxContracts(ctx, organizationID, reader)
 	if err != nil {
 		return nil, fmt.Errorf("care contract: read inbox: %w", err)
 	}
-	if len(contracts) == 0 {
-		return contracts, nil
+	if len(rows) == 0 {
+		return []carecontract.InboxContract{}, nil
 	}
-	ids := make([]int64, len(contracts))
-	for i, contract := range contracts {
-		ids[i] = contract.ID
+	today := calendar.DateFromTime(time.Now())
+	contracts, ids := make([]carecontract.InboxContract, len(rows)), make([]int64, len(rows))
+	for i, row := range rows {
+		contracts[i], ids[i] = row.Contract, row.Contract.ID
+		contracts[i].CanWithdraw = row.Contract.CanEnd && withdrawalMayRun(row.Concluded, row.InformedAt, today)
 	}
 	if err := trail(ctx, in.store, organizationID, reader.AccountID, 0, 0, ActionRead, map[string]any{"inbox": "list", "contract_ids": ids}); err != nil {
 		return nil, err
@@ -92,4 +95,23 @@ func inboxAddress(organizationID int64, reader carecontract.InboxReader) (string
 		return "", carecontract.ErrInboxDocumentNotFound
 	}
 	return email, nil
+}
+
+// withdrawalMayRun tells whether the withdrawal period of a concluded
+// contract may still run on day (#6105). informedAt is the earliest recorded
+// provision of the notice; a later delivery proof only moves it earlier, so
+// the end computed from it is never before the true end. A paper contract
+// without a recorded notice has no known end yet: the withdrawal function
+// stays reachable until the right expires (§ 356 Abs. 3 Satz 2 BGB) and the
+// declaration page decides.
+func withdrawalMayRun(concluded *carecontract.Concluded, informedAt *time.Time, day calendar.Date) bool {
+	if concluded == nil {
+		return false
+	}
+	until := withdrawalUntil(concluded, informedAt)
+	if until == nil {
+		expiry := nextWorkingDay(addMonths(calendar.DateFromTime(concluded.At), 12).AddDays(carecontract.WithdrawalDays))
+		until = &expiry
+	}
+	return !day.After(*until)
 }

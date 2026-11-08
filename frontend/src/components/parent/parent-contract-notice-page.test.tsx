@@ -96,14 +96,20 @@ describe("ParentContractNoticePage (#4682, § 312k BGB)", () => {
     ).toBeInTheDocument();
   });
 
+  // § 356a BGB (#6105): the withdrawal function carries the statutory labels
+  // „Vertrag widerrufen“ and „Widerruf bestätigen“.
   it("offers the withdrawal only within its period", async () => {
     mocks.fetchMyContractNoticeOptions.mockResolvedValue(active);
     render(<ParentContractNoticePage organizationId="2" contractId="27" />);
-    fireEvent.click(await screen.findByRole("radio", { name: /Widerrufen/ }));
+    fireEvent.click(
+      await screen.findByRole("radio", { name: /Vertrag widerrufen/ }),
+    );
     expect(
-      screen.getByRole("button", { name: "Jetzt widerrufen" }),
+      screen.getByRole("button", { name: "Widerruf bestätigen" }),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Jetzt widerrufen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Widerruf bestätigen" }),
+    );
     await waitFor(() =>
       expect(mocks.declareMyContractNotice).toHaveBeenCalledWith("2", "27", {
         kind: "widerruf",
@@ -121,8 +127,50 @@ describe("ParentContractNoticePage (#4682, § 312k BGB)", () => {
       await screen.findByRole("radio", { name: /Ordentlich kündigen zum/ }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("radio", { name: /Widerrufen/ }),
+      screen.queryByRole("radio", { name: /Vertrag widerrufen/ }),
     ).not.toBeInTheDocument();
+  });
+
+  it("opens with the withdrawal chosen from „Vertrag widerrufen“ (#6105)", async () => {
+    mocks.fetchMyContractNoticeOptions.mockResolvedValue(active);
+    render(
+      <ParentContractNoticePage
+        organizationId="2"
+        contractId="27"
+        withdrawal
+      />,
+    );
+    expect(
+      await screen.findByRole("radio", { name: /Vertrag widerrufen/ }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Vertrag widerrufen" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Widerruf bestätigen" }),
+    ).toBeInTheDocument();
+  });
+
+  it("says that the withdrawal period is over when opened for a withdrawal", async () => {
+    mocks.fetchMyContractNoticeOptions.mockResolvedValue({
+      ...active,
+      withdrawalUntil: null,
+    });
+    render(
+      <ParentContractNoticePage
+        organizationId="2"
+        contractId="27"
+        withdrawal
+      />,
+    );
+    expect(
+      await screen.findByText(
+        "Die Widerrufsfrist ist vorbei. Sie können den Vertrag nur noch kündigen.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("radio", { name: /Ordentlich kündigen zum/ }),
+    ).toBeChecked();
   });
 
   // § 312k Abs. 2 BGB: the parents name the kind of their termination, and

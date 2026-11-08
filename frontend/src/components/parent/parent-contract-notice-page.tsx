@@ -4,8 +4,10 @@
  * Vertrag kündigen (#4682, § 312k BGB): the page behind „Verträge hier
  * kündigen“. The parents see their contract and what it allows today, pick a
  * termination or, within its period, a withdrawal, and confirm with „jetzt
- * kündigen“. The confirmation shows here at once and goes out by mail. A
- * contract they ended before shows its confirmation again.
+ * kündigen“ or „Widerruf bestätigen“. The confirmation shows here at once and
+ * goes out by mail. A contract they ended before shows its confirmation
+ * again. Opened from „Vertrag widerrufen“, the withdrawal function of § 356a
+ * BGB (#6105), the page has the withdrawal chosen.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -63,7 +65,12 @@ const KIND_LABELS = {
 export function ParentContractNoticePage({
   organizationId,
   contractId,
-}: Readonly<{ organizationId: string; contractId: string }>) {
+  withdrawal = false,
+}: Readonly<{
+  organizationId: string;
+  contractId: string;
+  withdrawal?: boolean;
+}>) {
   const t = useTranslations("parentContractNotice");
   const [options, setOptions] = useState<ContractNoticeOptions | null>(null);
   const today = useBerlinToday();
@@ -111,7 +118,13 @@ export function ParentContractNoticePage({
   return (
     <ParentPage>
       <ParentPageHeader
-        title={ended ? t("doneHeading") : t("title")}
+        title={
+          ended
+            ? t("doneHeading")
+            : withdrawal
+              ? t("titleWithdrawal")
+              : t("title")
+        }
         description={ended ? undefined : t("description")}
         backHref={DOCUMENTS_HREF}
         backLabel={t("back")}
@@ -133,6 +146,7 @@ export function ParentContractNoticePage({
           options={options}
           optionsDay={optionsDay}
           requireSelection={requireSelection}
+          withdrawal={withdrawal}
           onRefresh={read}
           organizationId={organizationId}
           contractId={contractId}
@@ -171,6 +185,7 @@ function NoticeForm({
   options,
   optionsDay,
   requireSelection,
+  withdrawal,
   onRefresh,
   organizationId,
   contractId,
@@ -179,6 +194,7 @@ function NoticeForm({
   options: ContractNoticeOptions;
   optionsDay: string;
   requireSelection: boolean;
+  withdrawal: boolean;
   onRefresh: () => Promise<void>;
   organizationId: string;
   contractId: string;
@@ -186,8 +202,13 @@ function NoticeForm({
 }>) {
   const t = useTranslations("parentContractNotice");
   const locale = useLocale();
+  const withdrawalOpen = options.withdrawalUntil !== null;
   const [choice, setChoice] = useState<Choice | null>(
-    requireSelection ? null : "ordentlich",
+    requireSelection
+      ? null
+      : withdrawal && withdrawalOpen
+        ? "widerruf"
+        : "ordentlich",
   );
   const [sending, setSending] = useState(false);
   const [reason, setReason] = useState("");
@@ -273,7 +294,7 @@ function NoticeForm({
       value: "widerruf",
       title: t("withdrawal"),
       hint: t("withdrawalHint", { date: date(options.withdrawalUntil) }),
-      shown: options.withdrawalUntil !== null,
+      shown: withdrawalOpen,
     },
   ];
 
@@ -293,6 +314,9 @@ function NoticeForm({
             <FormErrorAlert message={errors.error} />
             {choice === null ? (
               <Alert type="warning" message={t("datesChanged")} />
+            ) : null}
+            {withdrawal && !withdrawalOpen ? (
+              <Alert type="info" message={t("withdrawalClosed")} />
             ) : null}
             <fieldset className="space-y-2">
               <legend className="sr-only">{t("chooseTitle")}</legend>
