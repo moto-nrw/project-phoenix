@@ -102,11 +102,9 @@ export function StepWiederholung({
         invalid={Boolean(fieldErrors.seriesEndDate)}
         calendarLayout="popover"
         placeholder="Bis zum Ende des Zeitraums"
+        hint="Danach gibt es keine Termine mehr."
         onChange={(next) => update("seriesEndDate", next)}
       />
-      <p className="mt-1 text-xs text-gray-500">
-        Danach gibt es keine Termine mehr.
-      </p>
     </Field>
   );
   const legacyWeekendWeekdays = form.weekdays.filter((iso) => iso > 5);

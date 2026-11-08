@@ -318,7 +318,7 @@ const ROW_ACTION_BASELINE = new Map(
     ],
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
       "Antwort entfernen@1587",
-      "Entfernen@2029",
+      "Entfernen@2027",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
       "Bedingung löschen@1993",

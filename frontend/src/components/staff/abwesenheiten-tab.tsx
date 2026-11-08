@@ -1271,22 +1271,18 @@ function VacationOpeningModal({
           moto errechnet daraus die vor der Einführung bereits genommenen Tage.
           Der Jahresanspruch bleibt unverändert.
         </p>
-        <div>
-          <ISODatePicker
-            label="Stichtag"
-            id="vacation-opening-date"
-            min={`${year}-01-01`}
-            max={maxEffectiveDateKey}
-            value={effectiveDate}
-            onChange={setEffectiveDate}
-            calendarLayout="popover"
-            hideClearButton
-            error={formErrors.fieldError("effective_date")}
-          />
-          <p className="mt-1 text-xs text-gray-400">
-            Der Stichtag muss im Jahr {year} und vor dem heutigen Tag liegen.
-          </p>
-        </div>
+        <ISODatePicker
+          label="Stichtag"
+          id="vacation-opening-date"
+          min={`${year}-01-01`}
+          max={maxEffectiveDateKey}
+          value={effectiveDate}
+          onChange={setEffectiveDate}
+          calendarLayout="popover"
+          hideClearButton
+          hint={`Der Stichtag muss im Jahr ${year} und vor dem heutigen Tag liegen.`}
+          error={formErrors.fieldError("effective_date")}
+        />
         <Input
           label="Resturlaub zum Stichtag (Tage)"
           id="vacation-opening-remaining"
