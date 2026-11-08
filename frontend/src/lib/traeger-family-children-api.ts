@@ -31,7 +31,7 @@ export interface FamilyChildCount {
   readonly confirmedAt: string | null;
 }
 
-export interface FamilyContractChild {
+interface FamilyContractChild {
   readonly contractId: string;
   readonly schoolName: string;
   readonly childFirstName: string;
@@ -107,9 +107,7 @@ function countFromBackend(count: BackendCount): FamilyChildCount {
   };
 }
 
-export function familyChildrenSetFromBackend(
-  body: BackendSet,
-): FamilyChildrenSet {
+function familyChildrenSetFromBackend(body: BackendSet): FamilyChildrenSet {
   return {
     families: (body.families ?? []).map((family) => ({
       recipientFirstName: family.recipient_first_name,
