@@ -248,8 +248,10 @@ const SANDBOXED_FILE_ROUTES: readonly RegExp[] = [
   /^\/api\/students\/care-schedule-change-requests\/[^/]+\/proof$/,
   // The paper-signed contract a Träger uploads (#4679).
   /^\/api\/traeger\/contracts\/[^/]+\/paper-signature$/,
-  // Documents a Träger attaches to a holiday-period form.
+  // Documents a Träger attaches to a holiday-period form, in the Träger
+  // portal and on the public registration link (#6179).
   /^\/api\/traeger\/holiday-periods\/[^/]+\/form\/documents\/[^/]+$/,
+  /^\/api\/holiday-registrations\/[^/]+\/documents\/[^/]+$/,
   // Träger documents, in the Träger portal and shared with a school (#4692).
   /^\/api\/(?:traeger-documents|traeger\/documents)\/[^/]+\/file$/,
 ];

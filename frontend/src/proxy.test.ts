@@ -246,6 +246,7 @@ const SANDBOX_CSP =
 /** The host a BFF route is served on in production. */
 function hostFor(route: string): string {
   if (route.startsWith("/api/parent/")) return PARENTS_HOSTNAME;
+  if (route.startsWith("/api/holiday-registrations/")) return PARENTS_HOSTNAME;
   if (route.startsWith("/api/traeger/")) return TRAEGER_HOSTNAME;
   return "school-a.localhost:3000";
 }
@@ -264,6 +265,7 @@ describe("sandbox CSP of uploaded files (#5275)", () => {
     "/api/traeger/holiday-periods/7/form/documents/8",
     "/api/traeger-documents/9/file",
     "/api/traeger/documents/1/file",
+    "/api/holiday-registrations/token/documents/2",
   ])("runs %s in the sandbox, not under the app CSP", (route) => {
     const host = hostFor(route);
     const res = proxy(makeRequest(`http://${host}${route}?inline=1`, host));
@@ -311,6 +313,7 @@ describe("sandbox CSP of uploaded files (#5275)", () => {
       "announcement-attachments/[announcementId]/[attachmentId]/download",
       "enrollment/admin/requests/[id]/uploads/[uploadId]",
       "files/folders/[folderId]/files/[fileId]/download",
+      "holiday-registrations/[token]/documents/[documentId]",
       "parent/me/news/[announcementId]/attachments/[attachmentId]/download",
       "staff/[id]/documents/[documentId]/download",
       "students/[id]/documents/[documentId]/download",
