@@ -1354,7 +1354,7 @@ describe("authConfig", () => {
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
-    it("should throw CredentialsSignin with invalid_credentials on failed operator login", async () => {
+    it("refuses a failed operator login as wrong credentials", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 401,
@@ -1367,7 +1367,24 @@ describe("authConfig", () => {
           { email: "op@example.com", password: "wrong" },
           new Request("http://localhost:3000"),
         ),
-      ).rejects.toThrow();
+      ).rejects.toMatchObject({ code: "identity.invalid_credentials" });
+    });
+
+    it("names an inactive operator by the backend's code", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        text: async () =>
+          JSON.stringify({ status: 403, code: "identity.account_inactive" }),
+      });
+
+      const authorize = getOperatorAuthorize();
+      await expect(
+        authorize(
+          { email: "op@example.com", password: "correct" },
+          new Request("http://localhost:3000"),
+        ),
+      ).rejects.toMatchObject({ code: "identity.account_inactive" });
     });
 
     it("should return null when operator login returns invalid JWT", async () => {
@@ -1564,12 +1581,8 @@ describe("authConfig", () => {
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
-    it("should throw account_inactive when backend returns code account_inactive", async () => {
-      // This is the regression test for the second bug. Pre-fix the
-      // frontend dropped the body, so 401-inactive merged with 401-
-      // wrong-password and parents with deactivated accounts saw the
-      // generic "check your credentials" message. The test ensures
-      // the body code now wins over the bare status.
+    // The refusal carries the backend's registry code (error-path rule 1).
+    it("names an inactive account by its code, not by the bare 401", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 401,
@@ -1587,10 +1600,10 @@ describe("authConfig", () => {
           { email: "disabled@example.com", password: "correct" },
           new Request("http://localhost:3000"),
         ),
-      ).rejects.toMatchObject({ code: "account_inactive" });
+      ).rejects.toMatchObject({ code: "identity.session_account_inactive" });
     });
 
-    it("should throw portal_not_booked when no guardian school booked Eltern-App", async () => {
+    it("names module.not_booked when no guardian school booked Eltern-App", async () => {
       // #4895: the parents portal follows the module Eltern-App. The login
       // page explains the school's decision instead of a login error.
       mockFetch.mockResolvedValueOnce({
@@ -1611,18 +1624,12 @@ describe("authConfig", () => {
           { email: "parent@example.com", password: "correct" },
           new Request("http://localhost:3000"),
         ),
-      ).rejects.toMatchObject({ code: "portal_not_booked" });
+      ).rejects.toMatchObject({ code: "module.not_booked" });
     });
 
-    it("should throw not_a_guardian when backend returns code not_a_guardian", async () => {
-      // Staff account hitting the parent portal. This code used to be
-      // masked to invalid_credentials so the UI would not confirm the
-      // email belongs to staff. The mask was dropped deliberately: the
-      // backend only reaches this branch AFTER validateLoginCredentials
-      // accepted the password (services/auth/auth_login_parent.go), so
-      // the caller already owns the account and learns nothing new. The
-      // mask did cost real users the one hint they needed — parents
-      // stuck on the wrong portal kept resetting their password instead.
+    it("names care.not_a_guardian for a staff account", async () => {
+      // Unmasked on purpose: the backend answers it only after the password
+      // check passed, so the caller already owns the account.
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 403,
@@ -1640,10 +1647,10 @@ describe("authConfig", () => {
           { email: "staff@example.com", password: "correct" },
           new Request("http://localhost:3000"),
         ),
-      ).rejects.toMatchObject({ code: "not_a_guardian" });
+      ).rejects.toMatchObject({ code: "care.not_a_guardian" });
     });
 
-    it("should throw invalid_credentials when backend returns code invalid_credentials", async () => {
+    it("reads a code the parent login does not name as wrong credentials", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 401,
@@ -1661,7 +1668,7 @@ describe("authConfig", () => {
           { email: "parent@example.com", password: "wrong" },
           new Request("http://localhost:3000"),
         ),
-      ).rejects.toMatchObject({ code: "invalid_credentials" });
+      ).rejects.toMatchObject({ code: "identity.invalid_credentials" });
     });
 
     it("should throw rate_limited on 429", async () => {
@@ -1680,11 +1687,7 @@ describe("authConfig", () => {
       ).rejects.toMatchObject({ code: "rate_limited" });
     });
 
-    it("should throw invalid_credentials when backend returns no code (legacy)", async () => {
-      // If a pre-this-change backend is hit, body has no code. The
-      // provider falls back to invalid_credentials, which still shows
-      // a sensible message (the German copy covers wrong-password
-      // and includes the staff-login hint). This is the safety net.
+    it("reads a refusal without a code as wrong credentials", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 401,
@@ -1698,7 +1701,7 @@ describe("authConfig", () => {
           { email: "parent@example.com", password: "wrong" },
           new Request("http://localhost:3000"),
         ),
-      ).rejects.toMatchObject({ code: "invalid_credentials" });
+      ).rejects.toMatchObject({ code: "identity.invalid_credentials" });
     });
 
     it("should handle internal refresh with parent scope", async () => {

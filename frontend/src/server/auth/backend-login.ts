@@ -2,11 +2,8 @@ import "server-only";
 import type { CredentialsSignin } from "next-auth";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { authLogger } from "./jwt-claims";
-import {
-  INVALID_CREDENTIALS,
-  type PasswordLogin,
-  type PortalDescriptor,
-} from "./portals";
+import { LOGIN_RATE_LIMITED, type LoginRefusalCode } from "~/lib/login-refusal";
+import type { PasswordLogin, PortalDescriptor } from "./portals";
 import type { TokenPair } from "./token-refresh";
 
 const LOGIN_TIMEOUT_MS = 10_000;
@@ -93,7 +90,9 @@ export async function loginAtBackend(
  * The CredentialsSignin the login pages read by its `code`. Imported on use:
  * next-auth's entry pulls in next/server, which only resolves inside Next.
  */
-async function credentialsRefusal(code: string): Promise<CredentialsSignin> {
+async function credentialsRefusal(
+  code: LoginRefusalCode,
+): Promise<CredentialsSignin> {
   const { CredentialsSignin } = await import("next-auth");
   const error = new CredentialsSignin();
   error.code = code;
@@ -106,12 +105,7 @@ export async function refusalFor(
   outcome: Extract<LoginOutcome, { ok: false }>,
 ): Promise<CredentialsSignin | null> {
   if (login.refusals === "none") return null;
-  if (outcome.status === 429) return credentialsRefusal("rate_limited");
-  const byStatus =
-    outcome.status === undefined
-      ? undefined
-      : login.refusalsByStatus?.[outcome.status];
-  const byCode =
-    outcome.code === undefined ? undefined : login.refusals[outcome.code];
-  return credentialsRefusal(byStatus ?? byCode ?? INVALID_CREDENTIALS);
+  if (outcome.status === 429) return credentialsRefusal(LOGIN_RATE_LIMITED);
+  const named = login.refusals.find((code) => code === outcome.code);
+  return credentialsRefusal(named ?? "identity.invalid_credentials");
 }

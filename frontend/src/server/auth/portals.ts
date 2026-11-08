@@ -4,6 +4,7 @@ import {
   PORTAL_SESSION_COOKIE_NAMES,
   tenantSessionCookieName,
 } from "~/lib/session-cookie-exit.server";
+import type { LoginRefusalCode } from "~/lib/login-refusal";
 import { PORTAL_AUTH_BASE_PATHS, type PortalKey } from "~/lib/portal-paths";
 import {
   exactOriginRedirect,
@@ -47,10 +48,9 @@ export interface BackendEndpoint {
 export type LogoutTokenKind = "refresh" | "access";
 
 export interface PasswordLogin {
-  /** CredentialsSignin codes the login pages map back to their texts. */
-  refusals: "none" | Readonly<Record<string, string>>;
-  /** A refusal by HTTP status, for backends that answer without a code. */
-  refusalsByStatus?: Readonly<Record<number, string>>;
+  /** Backend codes and login steps the login page may read from the refusal;
+   * any other refusal reads as identity.invalid_credentials. */
+  refusals: "none" | readonly LoginRefusalCode[];
 }
 
 /** What a decoded session cookie must carry to hydrate a layout. */
@@ -140,9 +140,6 @@ function tenantCookies(): PortalDescriptor["cookieNames"] {
   };
 }
 
-const INVALID = "invalid_credentials";
-const INACTIVE = "account_inactive";
-
 export const PORTALS = {
   tenant: {
     key: "tenant",
@@ -186,10 +183,7 @@ export const PORTALS = {
       logout: { path: "/operator/auth/logout", token: "access" },
       enveloped: ["login", "mfa/verify", "mfa/enroll/confirm", "refresh"],
     },
-    passwordLogin: {
-      refusals: {},
-      refusalsByStatus: { 403: INACTIVE },
-    },
+    passwordLogin: { refusals: ["identity.account_inactive"] },
   },
   parent: {
     key: "parent",
@@ -214,12 +208,12 @@ export const PORTALS = {
     passwordLogin: {
       // care.not_a_guardian is reachable only after the password check
       // (LoginParentWithAudit), so naming it confirms nothing to a stranger.
-      refusals: {
-        "identity.session_account_inactive": INACTIVE,
-        "care.not_a_guardian": "not_a_guardian",
+      refusals: [
+        "identity.session_account_inactive",
+        "care.not_a_guardian",
         // None of the guardian's schools booked Eltern-App (#4895).
-        "module.not_booked": "portal_not_booked",
-      },
+        "module.not_booked",
+      ],
     },
   },
   school: {
@@ -243,12 +237,12 @@ export const PORTALS = {
     passwordLogin: {
       // The login page drives the second factor through lib/mfa-api; this
       // provider only refuses an account that needs one.
-      refusals: {
-        "identity.session_account_inactive": INACTIVE,
-        "school.no_school_portal_role": "no_school_portal_role",
-        mfa_required: "mfa_required",
-        mfa_enrollment_required: "mfa_enrollment_required",
-      },
+      refusals: [
+        "identity.session_account_inactive",
+        "school.no_school_portal_role",
+        "mfa_required",
+        "mfa_enrollment_required",
+      ],
     },
     // School tokens are tenant-bound; the portal keys its data cache on it.
     snapshotClaims: ({ tenantId }) =>
@@ -273,10 +267,10 @@ export const PORTALS = {
       enveloped: ["login"],
     },
     passwordLogin: {
-      refusals: {
-        "identity.session_account_inactive": INACTIVE,
-        "identity.caterer_without_school": "caterer_without_school",
-      },
+      refusals: [
+        "identity.session_account_inactive",
+        "identity.caterer_without_school",
+      ],
     },
   },
   traeger: {
@@ -306,9 +300,6 @@ export const PORTALS = {
 
 /** Every portal, for code that derives one entry per portal. */
 export const ALL_PORTALS: readonly PortalDescriptor[] = Object.values(PORTALS);
-
-/** Refusal code for a password login the backend refused. */
-export const INVALID_CREDENTIALS = INVALID;
 
 /** The portal a session's scope claim belongs to; the tenant by default. */
 export function portalOfScope(scope: unknown): PortalDescriptor {
