@@ -49,21 +49,21 @@ func TestEnrollmentExportsPositiveGrowthQueryBudget(t *testing.T) {
 			names = append(names, name)
 		}
 	}
-	run := func() [][]string {
+	run := func() []testpkg.QueryMeasurement {
 		routes := []struct{ path, body string }{
 			{fmt.Sprintf("/phases/%d/export", env.phaseID), `{"format":"xlsx"}`},
 			{fmt.Sprintf("/admin/students/%d/requests/export", student.ID), `{"format":"xlsx"}`},
 			{"/admin/reports/care-usage/export", fmt.Sprintf(`{"format":"xlsx","filters":{"phase_id":"%d","status":"all"}}`, env.phaseID)},
 		}
-		results := make([][]string, len(routes))
+		results := make([]testpkg.QueryMeasurement, len(routes))
 		for i, route := range routes {
 			req := httptest.NewRequest(http.MethodPost, route.path, strings.NewReader(route.body))
 			req.Header.Set("Authorization", "Bearer "+token)
 			req.Header.Set("Content-Type", "application/json")
 			rec := httptest.NewRecorder()
 			counter.Reset()
-			router.ServeHTTP(rec, req)
-			results[i] = counter.Queries()
+			testpkg.MeasuredHTTPRequest(counter, testpkg.MountedQueryBudgetRouter("/api/enrollment", router), rec, req)
+			results[i] = counter.Measurement(counter.Queries())
 			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 			require.Contains(t, rec.Header().Get("Content-Type"), "spreadsheetml")
 			require.Contains(t, rec.Header().Get("Content-Disposition"), ".xlsx")
@@ -91,7 +91,7 @@ func TestEnrollmentExportsPositiveGrowthQueryBudget(t *testing.T) {
 	add(5)
 	large := run()
 	for i := range large {
-		t.Logf("export route %d requests N3=%d N8=%d", i, len(small[i]), len(large[i]))
+		t.Logf("export route %d requests N3=%d N8=%d", i, len(small[i].Statements), len(large[i].Statements))
 	}
 	querybudgets.AssertQueryBudget(t, "api.enrollment.growth.phase_export", large[0])
 	querybudgets.AssertQueryBudget(t, "api.enrollment.growth.student_export", large[1])

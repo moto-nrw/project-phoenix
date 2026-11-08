@@ -61,7 +61,7 @@ func TestPopulatedStaffRecipientsRealRoot(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer "+token)
 		counter.Reset()
 		counter.Start()
-		rec := routetest.ExecuteRequestForTest(t, router, req)
+		rec := routetest.ExecuteRequestForTest(t, testpkg.MountedQueryBudgetRouter("/api/staff-messages", router), req)
 		counter.Stop()
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 		var response struct {
@@ -76,7 +76,7 @@ func TestPopulatedStaffRecipientsRealRoot(t *testing.T) {
 		queries, err := json.Marshal(counter.Queries())
 		require.NoError(t, err)
 		t.Logf("populated_staff_recipients n=%d total=%d selects=%d persons=%d queries_json=%s", target, counter.Total(), len(counter.Operation("SELECT")), len(counter.Selects("users.persons")), queries)
-		querybudgets.AssertQueryBudget(t, "modules.peopledirectory.staff_recipients.list", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "modules.peopledirectory.staff_recipients.list", counter.Measurement(counter.Queries()))
 		if target == 3 {
 			smallStatements = counter.Total()
 		} else {
@@ -163,7 +163,7 @@ func TestEmptyStaffRecipientsRealRoot(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer "+token)
 		counter.Reset()
 		counter.Start()
-		rec := routetest.ExecuteRequestForTest(t, router, req)
+		rec := routetest.ExecuteRequestForTest(t, testpkg.MountedQueryBudgetRouter("/api/staff-messages", router), req)
 		counter.Stop()
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 		var response struct {
@@ -180,9 +180,9 @@ func TestEmptyStaffRecipientsRealRoot(t *testing.T) {
 		require.NoError(t, err)
 		t.Logf("empty_staff_recipients n=%d total=%d selects=%d persons=%d queries_json=%s", target, counter.Total(), len(counter.Operation("SELECT")), len(counter.Selects("users.persons")), queries)
 		if target == 0 {
-			querybudgets.AssertQueryBudget(t, "modules.peopledirectory.staff_recipients.empty_no_staff", counter.Queries())
+			querybudgets.AssertQueryBudget(t, "modules.peopledirectory.staff_recipients.empty_no_staff", counter.Measurement(counter.Queries()))
 		} else {
-			querybudgets.AssertQueryBudget(t, "modules.peopledirectory.staff_recipients.empty_inactive_staff", counter.Queries())
+			querybudgets.AssertQueryBudget(t, "modules.peopledirectory.staff_recipients.empty_inactive_staff", counter.Measurement(counter.Queries()))
 		}
 		assert.Empty(t, counter.Matching(func(query string) bool {
 			return strings.Contains(query, "users.persons") && strings.Contains(query, "1 = 0")

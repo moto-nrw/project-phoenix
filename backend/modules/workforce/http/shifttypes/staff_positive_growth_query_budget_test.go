@@ -38,9 +38,9 @@ func newStaffGrowthFixture(t *testing.T) staffGrowthFixture {
 	require.NoError(t, err)
 	router = testpkg.TenantRuntimeMiddleware(t, db)(router)
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Growth", "Reader")
-	return staffGrowthFixture{db, router, staff.ID, account.ID}
+	return staffGrowthFixture{db, testpkg.MountedQueryBudgetRouter("/api", router), staff.ID, account.ID}
 }
-func (f staffGrowthFixture) get(t *testing.T, path string) (*httptest.ResponseRecorder, []string) {
+func (f staffGrowthFixture) get(t *testing.T, path string) (*httptest.ResponseRecorder, testpkg.QueryMeasurement) {
 	t.Helper()
 	require.Same(t, testpkg.SetupTestDB(t), f.db)
 	claims := testutil.DefaultTestClaims()
@@ -53,11 +53,11 @@ func (f staffGrowthFixture) get(t *testing.T, path string) (*httptest.ResponseRe
 	// and JWT creation are outside capture. Outer server liveness is excluded.
 	counter := testpkg.CaptureQueries(t, f.db)
 	rec := httptest.NewRecorder()
-	f.router.ServeHTTP(rec, req)
+	testpkg.MeasuredHTTPRequest(counter, f.router, rec, req)
 	counter.Stop()
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
-	return rec, counter.Queries()
+	return rec, counter.Measurement(counter.Queries())
 }
 func staffGrowthData(t *testing.T, rec *httptest.ResponseRecorder) any {
 	t.Helper()
@@ -118,8 +118,8 @@ func TestStaffAbsencePositiveGrowthQueryBudget(t *testing.T) {
 
 					require.Equal(t, strconv.FormatInt(expected, 10), fmt.Sprint(item.(map[string]any)["id"]))
 				}
-				t.Logf("route=%s N=%d statements=%d scope=full-resource-request", path, n, len(queries))
-				counts = append(counts, len(queries))
+				t.Logf("route=%s N=%d statements=%d scope=full-resource-request", path, n, len(queries.Statements))
+				counts = append(counts, len(queries.Statements))
 				switch route {
 				case "pending":
 					querybudgets.AssertQueryBudget(t, "workforce.staff_growth.absences_pending", queries)
@@ -182,8 +182,8 @@ func TestStaffQualificationPositiveGrowthQueryBudget(t *testing.T) {
 				for i, name := range matched {
 					require.Equal(t, fmt.Sprintf("Growth %02d", i), name)
 				}
-				t.Logf("route=%s N=%d statements=%d scope=full-resource-request", path, n, len(queries))
-				counts = append(counts, len(queries))
+				t.Logf("route=%s N=%d statements=%d scope=full-resource-request", path, n, len(queries.Statements))
+				counts = append(counts, len(queries.Statements))
 				switch route {
 				case "qualifications":
 					querybudgets.AssertQueryBudget(t, "workforce.staff_growth.qualifications_subject", queries)
@@ -272,8 +272,8 @@ func TestStaffRecordPositiveGrowthQueryBudget(t *testing.T) {
 						require.Equal(t, i, index)
 					}
 				}
-				t.Logf("route=%s N=%d statements=%d scope=full-resource-request", path, n, len(queries))
-				counts = append(counts, len(queries))
+				t.Logf("route=%s N=%d statements=%d scope=full-resource-request", path, n, len(queries.Statements))
+				counts = append(counts, len(queries.Statements))
 				switch route {
 				case "schedule":
 					querybudgets.AssertQueryBudget(t, "workforce.staff_growth.schedule", queries)
@@ -405,8 +405,8 @@ func TestStaffReportingPositiveGrowthQueryBudget(t *testing.T) {
 						}
 					}
 				}
-				t.Logf("route=%s N=%d statements=%d scope=full-resource-request", path, n, len(queries))
-				counts = append(counts, len(queries))
+				t.Logf("route=%s N=%d statements=%d scope=full-resource-request", path, n, len(queries.Statements))
+				counts = append(counts, len(queries.Statements))
 				switch route {
 				case "overview":
 					querybudgets.AssertQueryBudget(t, "workforce.staff_growth.overview", queries)

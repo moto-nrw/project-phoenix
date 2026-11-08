@@ -144,13 +144,13 @@ type careMealInput struct {
 	releases   []parentbilling.CareMealRelease
 	billed     map[CareMealKey]bool
 	versions   []parentbilling.CareContractVersion
-	invoiced   map[int64]bool
+	invoiced   map[int64]parentbilling.CareInvoice
 	recipients map[int64]parentbilling.CareRecipient
 }
 
 // addMeals reads the Mensa of the run and adds it to the preview.
 func (c *CareBilling) addMeals(ctx context.Context, organizationID int64, run parentbilling.CareRun, month *careMonth,
-	versions []parentbilling.CareContractVersion, invoiced map[int64]bool, recipients map[int64]parentbilling.CareRecipient,
+	versions []parentbilling.CareContractVersion, invoiced map[int64]parentbilling.CareInvoice, recipients map[int64]parentbilling.CareRecipient,
 ) error {
 	tariffs, err := c.mealStore.CareMealTariffs(ctx, organizationID)
 	if err != nil || len(tariffs) == 0 {
@@ -304,7 +304,7 @@ func placeMeal(month *careMonth, in careMealInput, position parentbilling.CareMe
 		}
 	}
 	for _, contractID := range contracts {
-		if in.invoiced[contractID] {
+		if _, issued := in.invoiced[contractID]; issued {
 			unbilled.Reason = parentbilling.MealUnbilledContractBilled
 			month.mealUnbilled = append(month.mealUnbilled, unbilled)
 			return

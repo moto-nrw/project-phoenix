@@ -176,6 +176,8 @@ type CarePosition struct {
 	ServiceUntil   calendar.Date      `json:"service_until"`
 	Weekdays       []CareWeekdayPrice `json:"weekdays"`
 	AmountCents    int64              `json:"amount_cents"`
+	// PayableCents preserves the rule chain allocation for later runs of the month.
+	PayableCents int64 `json:"-"`
 }
 
 // CareRecipient is the contract party an invoice goes to.
@@ -198,8 +200,12 @@ type CareInvoice struct {
 	ChildLastName  string         `json:"child_last_name"`
 	Recipient      CareRecipient  `json:"recipient"`
 	Positions      []CarePosition `json:"positions"`
+	// Reductions are the rules of the chain in their order (#4685); the
+	// total is the positions less the reductions.
+	Reductions []CareReduction `json:"reductions"`
 	// MealPositions are the Mensa months of the child the invoice bills
-	// (#4686); TotalCents includes them.
+	// (#4686). No rule of the chain reduces them; TotalCents adds them in
+	// full.
 	MealPositions []CareMealPosition `json:"meal_positions"`
 	TotalCents    int64              `json:"total_cents"`
 }

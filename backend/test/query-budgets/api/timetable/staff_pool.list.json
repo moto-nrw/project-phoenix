@@ -2,5 +2,6 @@
   "scenario": "api.timetable.staff_pool.list",
   "max": 7,
   "exact": true,
-  "description": "Timetable HTTP route: populated N3/N8 growth, including real owner reads; SELECT statements only."
+  "description": "Timetable HTTP route: populated N3/N8 growth, including real owner reads; SELECT statements only.",
+  "route": "GET /api/timetable/instances/{id}/staff-pool"
 }

@@ -51,6 +51,10 @@
   "care_tariff_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "care_tariff_month_billed": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "care_tariff_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "care_rule_in_use": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "care_evidence_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "care_evidence_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "care_evidence_overlap": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "care_meal_tariff_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "care_meal_tariff_month_billed": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "care_meal_tariff_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан."

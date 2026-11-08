@@ -40,7 +40,7 @@ func TestRBACPermissionsListQueryBudget(t *testing.T) {
 	decoyDTO := rbacBudgetPermissionDTO(decoy.ID, decoyName, "Other resource remains globally readable", resource+"-other", firstAction, decoy.CreatedAt, decoy.UpdatedAt)
 	global = append(global, decoyDTO)
 	want := []map[string]any{}
-	var measurements [][]string
+	var measurements []testpkg.QueryMeasurement
 	for _, n := range []int{0, 3, 8} {
 		for len(want) < n {
 			action := fmt.Sprintf("read-%d-%d", f.actor, len(want))

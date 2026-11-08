@@ -744,8 +744,7 @@ const SURFACE_BREAKPOINT_VALUES = new Map([
 ]);
 const SURFACE_ARBITRARY_BREAKPOINT_RE =
   /^(min|max)-\[(\d+(?:\.\d+)?)(?:px|rem|em)\]$/;
-const SURFACE_INTERACTION_VARIANT_RE =
-  /^(?:hover|focus(?:-visible|-within)?)$/;
+const SURFACE_INTERACTION_VARIANT_RE = /^(?:hover|focus(?:-visible|-within)?)$/;
 const SURFACE_CONTROL_ELEMENTS = new Set([
   "a",
   "button",
@@ -1372,11 +1371,9 @@ const noDeadSurfaceUtility = {
         if (chunks.some((chunk) => deadSurfaceTokens(chunk).length > 0)) {
           return; // already reported by the Literal/TemplateLiteral visitors
         }
-        const combos = classCombinations(
-          node.value,
-          new Set(),
-          sourceCode,
-        ) ?? [chunks.join(" ")];
+        const combos = classCombinations(node.value, new Set(), sourceCode) ?? [
+          chunks.join(" "),
+        ];
         const rendered = combos.find(
           (combo) => deadSurfaceTokens(combo).length > 0,
         );
@@ -1558,11 +1555,9 @@ const noWhiteOnWarmFill = {
         const chunks = [];
         collectStaticStrings(node.value, chunks);
         if (chunks.some((chunk) => whiteOnWarmFill(chunk))) return;
-        const combos = classCombinations(
-          node.value,
-          new Set(),
-          sourceCode,
-        ) ?? [chunks.join(" ")];
+        const combos = classCombinations(node.value, new Set(), sourceCode) ?? [
+          chunks.join(" "),
+        ];
         const rendered = combos.find((combo) => whiteOnWarmFill(combo));
         if (rendered !== undefined) check(node, rendered);
       },
@@ -1776,7 +1771,9 @@ const noHandRolledPageCard = {
           )
             continue;
           const initializer = definition.node.init;
-          if (HANDROLLED_SURFACE_RE.test(staticStringValue(initializer) ?? "")) {
+          if (
+            HANDROLLED_SURFACE_RE.test(staticStringValue(initializer) ?? "")
+          ) {
             return true;
           }
           if (initializer.type === "CallExpression") {
@@ -1785,11 +1782,14 @@ const noHandRolledPageCard = {
               new Set(),
               context.sourceCode,
             );
-            if (combinations?.some((combo) => HANDROLLED_SURFACE_RE.test(combo))) {
+            if (
+              combinations?.some((combo) => HANDROLLED_SURFACE_RE.test(combo))
+            ) {
               return true;
             }
           }
-          if (isReportedPageCardConstant(initializer, seenVariables)) return true;
+          if (isReportedPageCardConstant(initializer, seenVariables))
+            return true;
         }
         return false;
       };
@@ -4234,11 +4234,9 @@ const noHandRolledPortalNav = {
       TemplateLiteral(node) {
         const chunks = [];
         collectStaticStrings(node, chunks);
-        const combinations = classCombinations(
-          node,
-          new Set(),
-          sourceCode,
-        ) ?? [chunks.join(" ")];
+        const combinations = classCombinations(node, new Set(), sourceCode) ?? [
+          chunks.join(" "),
+        ];
         const rendered = combinations?.find(hasPortalNavShellSignature);
         if (rendered !== undefined) check(node, rendered);
       },
@@ -4383,9 +4381,9 @@ function roleLiterals(node) {
 const noHandRolledMenu = makeRatchetRule({
   ruleName: "no-hand-rolled-menu",
   description:
-    "Menus and listboxes come from OverflowMenu, CustomSelect or ListboxDropdown instead of own ARIA roles.",
+    "Menus and listboxes come from OverflowMenu, CustomSelect, ListboxDropdown or SuggestInput instead of own ARIA roles or a native datalist.",
   message:
-    "Kein eigenes Menü: Aktionen über `OverflowMenu`, eine Auswahl über `CustomSelect` oder `ListboxDropdown` (#5601, .claude/rules/frontend-ui-kit.md).",
+    "Kein eigenes Menü: Aktionen über `OverflowMenu`, eine Auswahl über `CustomSelect` oder `ListboxDropdown`, Freitext mit Vorschlägen über `SuggestInput` (#5601, .claude/rules/frontend-ui-kit.md).",
   baselines: {},
   allowlist: [],
   kitFile: "src/components/ui/page-header/OverflowMenu.tsx",
@@ -4394,6 +4392,16 @@ const noHandRolledMenu = makeRatchetRule({
     JSXAttribute(node) {
       if (node.name?.name !== "role") return;
       if (roleLiterals(node.value).some((role) => MENU_ROLE_RE.test(role))) {
+        found(node);
+      }
+    },
+    // Native Vorschlagsliste: eigene Optik je Browser, ohne Tastaturführung
+    // des Kits und ohne iOS-Behandlung beim Tippen.
+    JSXOpeningElement(node) {
+      if (
+        node.name?.type === "JSXIdentifier" &&
+        node.name.name === "datalist"
+      ) {
         found(node);
       }
     },
@@ -4600,7 +4608,7 @@ const noUppercaseLabel = makeRatchetRule({
   description:
     "Group headings come from SectionLabel; no `uppercase tracking-*` class chain outside the UI kit.",
   message:
-    "Keine Versalien-Überschrift: Gruppenkopf oder Zwischenüberschrift über `SectionLabel` (`as`, `required`) aus ~/components/ui/section-label, Gruppenkopf einer Liste über `ListGroupHeader`, Mini-Tag über `StatusBadge size=\"xs\"`, Tabellenkopf über `DataTable` (#5590, .claude/rules/frontend-ui-kit.md).",
+    'Keine Versalien-Überschrift: Gruppenkopf oder Zwischenüberschrift über `SectionLabel` (`as`, `required`) aus ~/components/ui/section-label, Gruppenkopf einer Liste über `ListGroupHeader`, Mini-Tag über `StatusBadge size="xs"`, Tabellenkopf über `DataTable` (#5590, .claude/rules/frontend-ui-kit.md).',
   baselines: {},
   allowlist: [],
   kitFile: "src/components/ui/section-label.tsx",

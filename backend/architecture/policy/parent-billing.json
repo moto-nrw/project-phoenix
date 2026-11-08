@@ -45,6 +45,18 @@
   ],
   "data_objects": [
     {
+      "name": "parent_billing.care_evidence_events",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_evidences",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_invoice_reductions",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.care_invoice_positions",
       "write_owner": "parent-billing"
     },

@@ -2,5 +2,6 @@
   "scenario": "api.activities.student_enrollments.complete",
   "max": 10,
   "exact": true,
-  "description": "Student activities, N1/N3/N8 groups: full signed-request permission/TenantTx frame plus student gate, enrollment/group sets and the four roster reads. Occurrence counts retain history, alumni/care exclusions and reader/decode failures. Not a cold-auth production floor."
+  "description": "Student activities, N1/N3/N8 groups: full signed-request permission/TenantTx frame plus student gate, enrollment/group sets and the four roster reads. Occurrence counts retain history, alumni/care exclusions and reader/decode failures. Not a cold-auth production floor.",
+  "route": "GET /api/activities/students/{studentId}"
 }

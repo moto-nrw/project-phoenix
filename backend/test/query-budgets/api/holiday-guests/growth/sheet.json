@@ -2,5 +2,6 @@
   "scenario": "api.holiday_guests.growth.sheet",
   "max": 6,
   "exact": true,
-  "description": "Positive mounted handler, confirmed registrations and real guest transfer; N3/N8 response collection, tenant transaction and audit writes counted."
+  "description": "Positive mounted handler, confirmed registrations and real guest transfer; N3/N8 response collection, tenant transaction and audit writes counted.",
+  "route": "GET /api/holiday-guests/{studentId}"
 }

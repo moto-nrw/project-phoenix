@@ -61,9 +61,9 @@ func TestTenantPrologQueryBudgetAndScope(t *testing.T) {
 				}
 				counter.Stop()
 				if scope == "tenant" {
-					querybudgets.AssertQueryBudget(t, "modules.transactionruntime.tenant_prolog", counter.Queries())
+					querybudgets.AssertQueryBudget(t, "modules.transactionruntime.tenant_prolog", counter.Measurement(counter.Queries()))
 				} else {
-					querybudgets.AssertQueryBudget(t, "modules.transactionruntime.traeger_prolog", counter.Queries())
+					querybudgets.AssertQueryBudget(t, "modules.transactionruntime.traeger_prolog", counter.Measurement(counter.Queries()))
 				}
 				var restoredRole, restoredScope string
 				require.NoError(t, db.NewRaw("SELECT current_user, coalesce(current_setting(?, true), '')", key).Scan(ctx, &restoredRole, &restoredScope))

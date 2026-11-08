@@ -27,12 +27,12 @@ func TestGradeTransitionGrowthQueryBudget(t *testing.T) {
 	transition := testpkg.CreateTestGradeTransition(t, tc.db, "2030-2031", account.ID)
 	transitionIDs := []int64{transition.ID}
 	var studentIDs []int64
-	get := func(path string, target any) []string {
+	get := func(path string, target any) testpkg.QueryMeasurement {
 		req := httptest.NewRequest(http.MethodGet, path, nil)
 		req.Header.Set("Authorization", "Bearer "+token)
 		rec := httptest.NewRecorder()
 		counter.Reset()
-		router.ServeHTTP(rec, req)
+		testpkg.MeasuredHTTPRequest(counter, testpkg.MountedQueryBudgetRouter("/api/admin/grade-transitions", router), rec, req)
 		queries := counter.Queries()
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 		var envelope struct {
@@ -40,7 +40,7 @@ func TestGradeTransitionGrowthQueryBudget(t *testing.T) {
 		}
 		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &envelope))
 		require.NoError(t, json.Unmarshal(envelope.Data, target))
-		return queries
+		return counter.Measurement(queries)
 	}
 	add := func(n int) {
 		for range n {
@@ -56,7 +56,7 @@ func TestGradeTransitionGrowthQueryBudget(t *testing.T) {
 			}
 		}
 	}
-	run := func(n int) [][]string {
+	run := func(n int) []testpkg.QueryMeasurement {
 		var rows []gradehttp.TransitionResponse
 		list := get("/?page_size=100", &rows)
 		require.Len(t, rows, n)
@@ -109,14 +109,14 @@ func TestGradeTransitionGrowthQueryBudget(t *testing.T) {
 			require.Equal(t, 1, mapping.StudentCount)
 			require.Equal(t, "promote", mapping.Action)
 		}
-		return [][]string{list, classQ, detailQ, historyQ, previewQ}
+		return []testpkg.QueryMeasurement{list, classQ, detailQ, historyQ, previewQ}
 	}
 	add(3)
 	small := run(3)
 	add(5)
 	large := run(8)
 	for i := range large {
-		t.Logf("grade route %d N3=%d N8=%d", i, len(small[i]), len(large[i]))
+		t.Logf("grade route %d N3=%d N8=%d", i, len(small[i].Statements), len(large[i].Statements))
 	}
 	querybudgets.AssertQueryBudget(t, "api.grade_transitions.growth.list", large[0])
 	querybudgets.AssertQueryBudget(t, "api.grade_transitions.growth.classes", large[1])

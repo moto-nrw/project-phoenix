@@ -51,7 +51,7 @@ func TestGetArrivalSettingsQueryBudget(t *testing.T) {
 		require.Len(t, counter.Selects("config.setting_values"), 1)
 		require.Empty(t, counter.Selects("config.traeger_setting_values"), "these keys are school-only")
 		require.Zero(t, counter.WriteRows(), "the settings reader must not write")
-		querybudgets.AssertQueryBudget(t, "api.students.arrival_settings", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "api.students.arrival_settings", counter.Measurement(counter.Queries()))
 		t.Logf("%d maintained periods: %d statements, one settings read, no writes", len(expected), counter.Total())
 		return counter.Total()
 	}

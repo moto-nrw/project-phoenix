@@ -55,8 +55,8 @@ type MonthlyBilling interface {
 	parentbilling.CareMealBilling
 }
 
-// NewCareBilling builds the monthly contribution of the care contract (#4684) and its Mensa (#4686) over the contracts, settings and released Mensa months the root binds.
-func NewCareBilling(contracts parentbilling.CareContracts, schools parentbilling.CareSchools, settings parentbilling.CareBillingSettings, meals parentbilling.CareMeals) MonthlyBilling {
+// NewCareBilling builds the monthly contribution of the care contract (#4684), its rule chain (#4685) and its Mensa (#4686) over the contracts, schools, settings and released Mensa months the root binds.
+func NewCareBilling(contracts parentbilling.CareContracts, schools parentbilling.CareSchools, settings parentbilling.CareBillingSettings, meals parentbilling.CareMeals) (MonthlyBilling, parentbilling.CareReductions) {
 	store := postgres.NewStore()
-	return application.NewCareBilling(store, contracts, schools, settings, store, meals, calendar.TodayDate)
+	return application.NewCareBilling(store, contracts, schools, settings, store, meals, calendar.TodayDate), application.NewCareReductions(postgres.NewStore(), contracts, schools, calendar.TodayDate)
 }
