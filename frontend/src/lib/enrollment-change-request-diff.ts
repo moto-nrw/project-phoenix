@@ -363,7 +363,7 @@ function recordArrayDiffRows(
             beforeRecord[childKey],
             afterRecord[childKey],
             `${rowLabel} · ${labels[childKey] ?? childKey}`,
-            metadataKeys,
+            NO_METADATA_KEYS,
             customDataLabels,
             rowLabel,
           ),

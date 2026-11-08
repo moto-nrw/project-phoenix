@@ -350,7 +350,7 @@ describe("buildEnrollmentChangeRequestDiffGroups", () => {
     ]);
   });
 
-  it("suppresses child custom-data rows that only touch metadata", () => {
+  it("keeps child custom-data fields named like metadata", () => {
     const groups = buildEnrollmentChangeRequestDiffGroups({
       baseSnapshot: {
         children: [
@@ -371,7 +371,20 @@ describe("buildEnrollmentChangeRequestDiffGroups", () => {
       diff: { changed: ["children"] },
     });
 
-    expect(groups).toEqual([]);
+    expect(groups[0]?.rows).toEqual([
+      {
+        id: "Kind 1 · Zusatzangaben · id",
+        label: "Kind 1 · Zusatzangaben · id",
+        before: "internal",
+        after: "changed",
+      },
+      {
+        id: "Kind 1 · Zusatzangaben · status",
+        label: "Kind 1 · Zusatzangaben · status",
+        before: "approved",
+        after: "pending",
+      },
+    ]);
   });
 });
 

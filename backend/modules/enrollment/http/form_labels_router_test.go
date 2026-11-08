@@ -75,6 +75,37 @@ func TestAdminFormLabelsKeepTheDisplayedQuestionsAndHistoricalConsents(t *testin
 	}}, labels.LegalBlocks)
 }
 
+func TestAdminFormLabelsIgnoreDisabledSchemaLegalBlocksWithoutSnapshot(t *testing.T) {
+	t.Parallel()
+	env := setupReviewListTest(t)
+	ctx := testpkg.Ctx(t)
+
+	legalBlocks, err := json.Marshal([]capability.FormLegalBlock{
+		{Key: "enabled_consent", Kind: capability.LegalBlockKindConsent, Title: "Aktive Zustimmung", Label: "Aktiv", Enabled: true, Source: capability.LegalBlockSourceCustom},
+		{Key: "disabled_consent", Kind: capability.LegalBlockKindConsent, Title: "Deaktivierte Zustimmung", Label: "Deaktiviert", Enabled: false, Source: capability.LegalBlockSourceCustom},
+	})
+	require.NoError(t, err)
+	_, err = env.db.NewUpdate().
+		TableExpr("enrollment.form_schemas").
+		Set("legal_blocks = ?::jsonb", string(legalBlocks)).
+		Where("id = ?", env.schemaID).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Exec(ctx)
+	require.NoError(t, err)
+	_, err = env.db.NewUpdate().
+		TableExpr("enrollment.requests").
+		Set("legal_blocks_snapshot = '[]'::jsonb").
+		Where("id = ?", env.requestID).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	labels := decodeFormLabels(t, env.getPath(t, fmt.Sprintf("/admin/requests/%d/form-labels", env.requestID), env.token))
+	require.Equal(t, []enrollmentAPI.FormLabelLegalBlock{{
+		Key: "enabled_consent", Title: "Aktive Zustimmung",
+	}}, labels.LegalBlocks)
+}
+
 func TestAdminFormLabelsUnknownRequestIsNotFound(t *testing.T) {
 	t.Parallel()
 	env := setupReviewListTest(t)

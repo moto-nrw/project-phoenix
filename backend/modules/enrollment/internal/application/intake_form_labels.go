@@ -74,7 +74,7 @@ func (s *Intake) requestFormLabels(ctx context.Context, req *Request) (*enrollme
 		seen[b.Key] = true
 	}
 	for _, b := range schema.LegalBlocks {
-		if seen[b.Key] {
+		if !b.Enabled || seen[b.Key] {
 			continue
 		}
 		seen[b.Key] = true
