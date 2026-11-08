@@ -62,6 +62,9 @@ type StudentStore interface {
 	// ListByIDs returns the rows for ids, alumni included.
 	ListByIDs(context.Context, []int64) ([]peopledirectory.Student, domain.OperationStats, error)
 	ListNamesByIDs(context.Context, []int64) ([]peopledirectory.StudentName, domain.OperationStats, error)
+	// ListNamesByClass returns the names of one class, alumni included,
+	// ordered by id.
+	ListNamesByClass(context.Context, string) ([]peopledirectory.StudentName, domain.OperationStats, error)
 	// ListByClasses returns the non-alumni rows of the classes, ordered by
 	// class then id.
 	ListByClasses(context.Context, []string) ([]peopledirectory.Student, domain.OperationStats, error)

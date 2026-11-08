@@ -57,6 +57,17 @@ func (s *StudentService) ListNamesByIDs(ctx context.Context, ids []int64) (resul
 	return result, err
 }
 
+// ListNamesByClass reads in the caller's transaction: the class lists that
+// need the names (the absence list, #6165) already hold their school unit,
+// so the read opens no boundary of its own and fails without one.
+func (s *StudentService) ListNamesByClass(ctx context.Context, schoolClass string) ([]peopledirectory.StudentName, error) {
+	if err := s.tx.RequireTransaction(ctx); err != nil {
+		return nil, err
+	}
+	names, _, err := s.store.ListNamesByClass(ctx, schoolClass)
+	return names, err
+}
+
 // ListAcrossTenantsByIDs reads in a separate admin transaction so a hosting
 // tenant's row-level security does not hide visiting students.
 func (s *StudentService) ListAcrossTenantsByIDs(ctx context.Context, ids []int64) (result []peopledirectory.Student, err error) {
