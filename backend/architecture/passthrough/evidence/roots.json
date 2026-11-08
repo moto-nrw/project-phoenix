@@ -6295,7 +6295,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (d parentBillingDocuments) BillingDocumentLetter(ctx context.Context, organizationID, documentID int64, reader parentportal.BillingDocumentReader) (parentportal.BillingDocumentFile, error) {\n\tfile, err := d.documents.ParentDocumentLetter(ctx, organizationID, documentID, parentbilling.ParentDocumentReader{AccountID: reader.AccountID, Email: reader.Email})\n\tif errors.Is(err, parentbilling.ErrParentDocumentNotFound) {\n\t\treturn parentportal.BillingDocumentFile{}, fmt.Errorf(\"%w: %w\", parentportal.ErrBillingDocumentNotFound, err)\n\t}\n\tif err != nil {\n\t\treturn parentportal.BillingDocumentFile{}, err\n\t}\n\treturn parentportal.BillingDocumentFile(file), nil\n}",
+      "evidence": "func (d parentBillingDocuments) BillingDocumentLetter(ctx context.Context, organizationID, documentID int64, reader parentportal.BillingDocumentReader) (parentportal.BillingDocumentFile, error) {\n\tfile, err := d.documents.ParentDocumentLetter(ctx, organizationID, documentID, parentBillingReader(reader))\n\tif errors.Is(err, parentbilling.ErrParentDocumentNotFound) {\n\t\treturn parentportal.BillingDocumentFile{}, fmt.Errorf(\"%w: %w\", parentportal.ErrBillingDocumentNotFound, err)\n\t}\n\tif err != nil {\n\t\treturn parentportal.BillingDocumentFile{}, err\n\t}\n\treturn parentportal.BillingDocumentFile(file), nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/parentBillingDocuments.BillingDocumentLetter",
       "owner": "roots"

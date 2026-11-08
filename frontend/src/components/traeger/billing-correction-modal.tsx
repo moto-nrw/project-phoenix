@@ -27,6 +27,11 @@ import {
   correctBillingRun,
   creditBillingDocument,
 } from "~/lib/traeger-billing-api";
+import {
+  type CareLetterMailing,
+  type CareLetters,
+  cancelCareInvoice,
+} from "~/lib/traeger-care-billing-api";
 import { totalAfterRemovingCarriedCorrection } from "./billing-carried-correction-model";
 import { formatEuro } from "./contribution-format";
 import { centsToEuroInput, euroInputToCents } from "./holiday-period-model";
@@ -43,6 +48,7 @@ export type BillingCorrectionTarget =
       readonly registrationId: string;
       readonly child: BillingChild;
     }
+  | { readonly kind: "care-cancellation"; readonly invoice: CareLetterMailing }
   | { readonly kind: "cancellation"; readonly document: BillingDocument }
   | {
       readonly kind: "credit";
@@ -63,6 +69,8 @@ function modeOf(target: BillingCorrectionTarget): {
   saveLabel: string;
   object: string;
   intro: string;
+  effect?: string;
+  nextStep?: string;
   amount: {
     id: string;
     name: string;
@@ -74,6 +82,24 @@ function modeOf(target: BillingCorrectionTarget): {
   reasonPlaceholder: string;
 } {
   switch (target.kind) {
+    case "care-cancellation":
+      return {
+        title: `Rechnung ${target.invoice.number} stornieren?`,
+        saveLabel: "Stornieren",
+        object: "der Storno",
+        intro: `Der Storno nimmt ${formatEuro(target.invoice.totalCents)} für ${target.invoice.childFirstName} ${target.invoice.childLastName} zurück. Er bekommt eine eigene Nummer.`,
+        effect:
+          target.invoice.sends > 0
+            ? "Die Familie bekommt ein Storno-Schreiben. Senden Sie es danach."
+            : target.invoice.printed
+              ? "Die Rechnung wurde zum Drucken heruntergeladen. Geben Sie der Familie das Storno-Schreiben auf Papier."
+              : "Die Familie hat die Rechnung noch nicht bekommen. Sie bekommt auch kein Storno.",
+        nextStep:
+          "Die neue Rechnung stellt ein neuer Monatslauf für denselben Monat aus.",
+        amount: null,
+        reasonPlaceholder:
+          "Zum Beispiel: Falscher Empfänger. Neue Rechnung folgt.",
+      };
     case "cancellation":
       return {
         title: `Rechnung ${target.document.number} stornieren?`,
@@ -140,7 +166,8 @@ function amountError(
   target: BillingCorrectionTarget,
   cents: number | null,
 ): string | null {
-  if (target.kind === "cancellation") return null;
+  if (target.kind === "cancellation" || target.kind === "care-cancellation")
+    return null;
   if (target.kind === "credit") {
     if (cents === null || cents <= 0)
       return "Bitte geben Sie einen Betrag wie 5,00 an.";
@@ -169,14 +196,16 @@ export function BillingCorrectionModal({
   onClose,
   onCorrected,
   onIssued,
+  onCareCancelled,
 }: Readonly<{
   runId: string;
   target: BillingCorrectionTarget | null;
   onClose: () => void;
   /** After a correction of the preview, with the run it returns. */
-  onCorrected: (run: BillingRunDetail) => void;
+  onCorrected?: (run: BillingRunDetail) => void;
   /** After a Storno or a Gutschrift, with the document it issued. */
   onIssued?: (issued: BillingDocument) => void;
+  onCareCancelled?: (letters: CareLetters) => void;
 }>) {
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
@@ -198,7 +227,29 @@ export function BillingCorrectionModal({
     current: BillingCorrectionTarget,
     cents: number | null,
   ) => {
-    if (current.kind === "cancellation") {
+    if (current.kind === "care-cancellation") {
+      const letters = await cancelCareInvoice(
+        runId,
+        current.invoice.invoiceId,
+        reason.trim(),
+      );
+      const storno = letters.documents.find(
+        (document) =>
+          document.kind === "cancellation" &&
+          document.invoiceId === current.invoice.invoiceId,
+      );
+      const issued = storno
+        ? `Storno ${storno.number} ist ausgestellt.`
+        : "Der Storno ist ausgestellt.";
+      success(
+        storno?.hasLetter
+          ? current.invoice.sends > 0
+            ? `${issued} Senden Sie das Storno-Schreiben an die Familie.`
+            : `${issued} Geben Sie der Familie das Storno-Schreiben auf Papier.`
+          : `${issued} Die Familie bekommt kein Schreiben.`,
+      );
+      onCareCancelled?.(letters);
+    } else if (current.kind === "cancellation") {
       const issued = await cancelBillingDocument(
         runId,
         current.document.id,
@@ -221,7 +272,7 @@ export function BillingCorrectionModal({
         { totalCents: cents ?? 0, reason: reason.trim() },
       );
       success("Die Korrektur ist geändert.");
-      onCorrected(run);
+      onCorrected?.(run);
     } else {
       const run = await correctBillingRun(runId, {
         registrationId: current.registrationId,
@@ -230,7 +281,7 @@ export function BillingCorrectionModal({
         reason: reason.trim(),
       });
       success("Der Betrag ist korrigiert.");
-      onCorrected(run);
+      onCorrected?.(run);
     }
   };
 
@@ -276,6 +327,11 @@ export function BillingCorrectionModal({
           onSave={() => formRef.current?.requestSubmit()}
           saving={saving}
           saveLabel={mode?.saveLabel ?? "Korrigieren"}
+          savingLabel={
+            target?.kind === "care-cancellation"
+              ? "Wird storniert …"
+              : undefined
+          }
         />
       }
     >
@@ -290,6 +346,12 @@ export function BillingCorrectionModal({
           }}
         >
           <p className="text-sm text-gray-700">{mode.intro}</p>
+          {mode.effect ? (
+            <p className="text-sm font-medium text-gray-900">{mode.effect}</p>
+          ) : null}
+          {mode.nextStep ? (
+            <p className="text-sm text-gray-700">{mode.nextStep}</p>
+          ) : null}
           {mode.amount ? (
             <Input
               controlSize="compact"
@@ -307,6 +369,7 @@ export function BillingCorrectionModal({
             id="billing-correction-reason"
             name="reason"
             label="Begründung"
+            required={target?.kind === "care-cancellation"}
             placeholder={mode.reasonPlaceholder}
             value={reason}
             maxLength={500}

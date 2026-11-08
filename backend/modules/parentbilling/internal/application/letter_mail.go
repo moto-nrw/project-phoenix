@@ -16,6 +16,8 @@ import (
 const (
 	letterMailTemplate     = "billing-letter.html"
 	correctionMailTemplate = "billing-correction-letter.html"
+	// careLetterMailTemplate carries the letter of a monthly invoice (#4684).
+	careLetterMailTemplate = "billing-care-letter.html"
 )
 
 // RenderLetterMail turns the payload of a claimed letter mail into the mail
@@ -35,6 +37,10 @@ func RenderLetterMail(_ context.Context, payload json.RawMessage) (parentbilling
 		subject, template = "Storno Ihrer Rechnung", correctionMailTemplate
 	case parentbilling.DocumentCredit:
 		subject, template = "Gutschrift zu Ihrer Rechnung", correctionMailTemplate
+	case parentbilling.MailDocumentCareInvoice:
+		subject, template = "Ihre Rechnung", careLetterMailTemplate
+	case parentbilling.MailDocumentCareCancellation:
+		subject, template = "Storno Ihrer Rechnung", correctionMailTemplate
 	}
 	if mail.PeriodName != "" {
 		subject += ": " + mail.PeriodName

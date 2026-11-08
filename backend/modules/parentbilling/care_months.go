@@ -198,8 +198,11 @@ type CareInvoice struct {
 	SchoolName     string         `json:"school_name"`
 	ChildFirstName string         `json:"child_first_name"`
 	ChildLastName  string         `json:"child_last_name"`
-	Recipient      CareRecipient  `json:"recipient"`
-	Positions      []CarePosition `json:"positions"`
+	// StudentID is the child record the contract names, nil without one; the
+	// parents inbox shows the letter only for it (ADR 0165).
+	StudentID *int64         `json:"-"`
+	Recipient CareRecipient  `json:"recipient"`
+	Positions []CarePosition `json:"positions"`
 	// Reductions are the rules of the chain in their order (#4685); the
 	// total is the positions less the reductions.
 	Reductions []CareReduction `json:"reductions"`
