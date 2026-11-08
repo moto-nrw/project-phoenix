@@ -160,6 +160,7 @@ const TRAEGER_PAGE_TITLES: ReadonlyArray<
   ["/einstellungen/mitglieder", "Mitglieder und Rollen"],
   ["/einstellungen/briefkopf", "Briefkopf und Vorlagen"],
   ["/einstellungen/abrechnung", "Abrechnungsvorgaben"],
+  ["/einstellungen/dokumentarten", "Dokumentarten"],
   ["/einstellungen/zugriffsprotokoll", "Zugriffsprotokoll"],
   ["/einstellungen", "Allgemein"],
 ];

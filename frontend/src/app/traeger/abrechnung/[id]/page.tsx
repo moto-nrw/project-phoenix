@@ -40,6 +40,7 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import NavigationLink from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { runDocumentKindLabel } from "~/components/traeger/run-document-kind";
 import { TenantPage } from "~/components/ui/tenant-page";
 import {
   useApiErrorDisplay,
@@ -193,7 +194,11 @@ export default function TraegerBillingRunPage() {
   const preview = run?.status === "calculated";
   const corrections =
     run?.documents.filter((document) => document.kind !== "invoice") ?? [];
-  const canRelease = preview && run.numberRangeSet && run.previewCount > 0;
+  const canRelease =
+    preview &&
+    run.numberRangeSet &&
+    run.previewCount > 0 &&
+    !run.legalRemedyMissing;
   const paymentTextGaps = preview ? run.paymentTextMissingDebtorNumbers : 0;
 
   return (
@@ -338,6 +343,9 @@ export default function TraegerBillingRunPage() {
               <DataField label="Abrechnung">
                 Im Voraus, nach den bestätigten Buchungen
               </DataField>
+              <DataField label="Dokumentart">
+                {runDocumentKindLabel(run.documentKind)}
+              </DataField>
               <DataField label="Fällig">
                 {runDueDatesText(run.dueDates ?? []) ??
                   "Nach dem Zahlungsziel der Ferienbetreuung"}
@@ -353,6 +361,24 @@ export default function TraegerBillingRunPage() {
               </DataField>
             </DataGrid>
           </SectionCard>
+          {preview && run.legalRemedyMissing ? (
+            <Alert
+              type="warning"
+              title="Rechtsbehelfsbelehrung fehlt"
+              message="Dieser Lauf stellt Gebührenbescheide aus. In der Vorlage „Bescheid“ fehlt die Rechtsbehelfsbelehrung. Wer das Recht „Einstellungen“ hat, muss sie eintragen. Danach können Sie freigeben."
+              action={
+                <ButtonLink
+                  href={traegerPath(
+                    "/traeger/einstellungen/briefkopf/vorlagen/bescheid",
+                  )}
+                  variant="surface"
+                  size="compact"
+                >
+                  Vorlage öffnen
+                </ButtonLink>
+              }
+            />
+          ) : null}
           {preview && !run.numberRangeSet ? (
             <Alert
               type="warning"
@@ -399,6 +425,7 @@ export default function TraegerBillingRunPage() {
                 .map((document) => document.payment)}
               letters={run.letters}
               onCreated={(letters) => setRun({ ...run, letters })}
+              documentKind={run.documentKind}
             />
           ) : null}
           {run.status === "released" && run.letters ? (

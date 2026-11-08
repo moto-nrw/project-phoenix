@@ -232,7 +232,7 @@ func (l *CareLetters) send(ctx context.Context, reviewer parentbilling.HolidayRe
 		IdempotencyKey: fmt.Sprintf("parent-billing-care-letter:%d:%d", letter.record.ID, earlier+1),
 		GuardianName:   fullName(letter.invoice.Recipient.FirstName, letter.invoice.Recipient.LastName),
 		TraegerName:    traeger, PeriodName: carePeriodName(current.run.BillingMonth), Number: letter.number,
-		DocumentKind: mailKind, Filename: letter.record.File.Filename, PDF: letter.record.File.Data,
+		DocumentKind: mailKind, LetterKind: letterKindOf(letter.invoice.DocumentKind), Filename: letter.record.File.Filename, PDF: letter.record.File.Data,
 	})
 	if err != nil {
 		return parentbilling.CareLetterSend{}, fmt.Errorf("parent billing: enqueue care letter mail: %w", err)

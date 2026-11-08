@@ -1,0 +1,8 @@
+{
+  "api/traeger/billing-document-kinds": [
+    "GET traeger /traeger/billing-document-kinds"
+  ],
+  "api/traeger/billing-document-kinds/[service]": [
+    "PUT traeger /traeger/billing-document-kinds/service%2F1"
+  ]
+}

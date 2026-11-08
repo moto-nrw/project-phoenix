@@ -1,0 +1,7 @@
+{
+  "scenario": "api.traeger.billing_document_kinds",
+  "max": 3,
+  "exact": true,
+  "description": "modules/parentbilling — GET /traeger/billing-document-kinds (#4688):\nthe Träger binding of the Träger transaction, the chosen kinds of the\nTräger and the current template of the fee notice. Flat in the number\nof choices.",
+  "route": "GET /traeger/billing-document-kinds/"
+}

@@ -263,7 +263,7 @@ func (m *BillingLetterMail) send(ctx context.Context, reviewer parentbilling.Hol
 		IdempotencyKey: fmt.Sprintf("parent-billing-letter:%d:%d", document.ID, len(current.mailings[document.ID])+1),
 		GuardianName:   strings.TrimSpace(document.RecipientFirstName + " " + document.RecipientLastName),
 		TraegerName:    traeger, PeriodName: current.run.PeriodName, Number: document.Number,
-		DocumentKind: document.Kind, Filename: file.Filename, PDF: file.Data,
+		DocumentKind: document.Kind, LetterKind: letterKindOf(document.DocumentKind), Filename: file.Filename, PDF: file.Data,
 	})
 	if err != nil {
 		return parentbilling.BillingLetterSend{}, fmt.Errorf("parent billing: enqueue letter mail: %w", err)

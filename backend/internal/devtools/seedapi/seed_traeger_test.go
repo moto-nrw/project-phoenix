@@ -207,6 +207,8 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 		"POST /traeger/holiday-contributions/5/sibling-groups Bearer traeger-token",
 		"POST /traeger/holiday-contributions/5/registrations/12/cancel Bearer traeger-token",
 		"PUT /traeger/number-ranges/holiday Bearer traeger-token",
+		// The Abrechnung chooses the kind of document (#4688).
+		"PUT /traeger/billing-document-kinds/holiday Bearer traeger-token",
 		"POST /traeger/billing-runs/ Bearer traeger-token",
 		"GET /traeger/billing-runs/9 Bearer traeger-token",
 		"POST /traeger/billing-runs/9/corrections Bearer traeger-token",

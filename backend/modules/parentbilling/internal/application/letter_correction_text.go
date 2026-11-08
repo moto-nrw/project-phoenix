@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/templates"
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 )
 
@@ -42,8 +43,12 @@ func runLetterContent(run parentbilling.BillingRun, documents []parentbilling.Bi
 	return content
 }
 
-// cancellationLetter writes the letter of a cancellation.
+// cancellationLetter writes the letter of a cancellation; a fee notice is
+// lifted by an Aufhebungsbescheid (#4688).
 func cancellationLetter(content letterContent) Letter {
+	if content.document.DocumentKind == parentbilling.DocumentKindFeeNotice {
+		return noticeCancellationLetter(content)
+	}
 	letter := correctionLetterFrame(content, "Storno")
 	letter.Blocks = append([]LetterBlock{
 		{Text: fmt.Sprintf("wir stornieren die Rechnung %s für „%s“. Grund: %s",
@@ -54,8 +59,12 @@ func cancellationLetter(content letterContent) Letter {
 	return letter
 }
 
-// creditLetter writes the letter of a credit.
+// creditLetter writes the letter of a credit; a fee notice is lowered by an
+// Änderungsbescheid (#4688).
 func creditLetter(content letterContent) Letter {
+	if content.document.DocumentKind == parentbilling.DocumentKindFeeNotice {
+		return noticeCreditLetter(content)
+	}
 	letter := correctionLetterFrame(content, "Gutschrift")
 	left := fmt.Sprintf("Für die Rechnung %s müssen Sie jetzt noch %s bezahlen.", content.document.ReferenceNumber, formatEuro(content.leftCents))
 	if content.leftCents <= 0 {
@@ -74,22 +83,35 @@ func creditLetter(content letterContent) Letter {
 // without its body: the layout of the Träger, the address field, the facts
 // and the question block at the end.
 func correctionLetterFrame(content letterContent, kind string) Letter {
+	return correctionFrame(content, kind, "Rechnung")
+}
+
+// correctionFrame is correctionLetterFrame for a document that refers to an
+// invoice or, for a fee notice, to a Bescheid.
+func correctionFrame(content letterContent, kind, reference string) Letter {
 	document, head := content.document, content.letterhead
 	sender := textLines(head.SenderText)
-	facts := []LetterFact{{Label: kind + "-Nummer", Value: document.Number}, {Label: "Zur Rechnung", Value: document.ReferenceNumber}}
+	facts := []LetterFact{{Label: kind + "-Nummer", Value: document.Number}, {Label: "Zum " + reference, Value: document.ReferenceNumber}}
+	if reference == "Rechnung" {
+		facts[1].Label = "Zur Rechnung"
+	}
 	for _, fact := range letterFacts(content) {
-		if fact.Label != "Rechnungsnummer" && fact.Label != "Zahlen bis" {
+		if fact.Label != numberLabel(document.DocumentKind) && fact.Label != "Zahlen bis" {
 			facts = append(facts, fact)
 		}
 	}
+	link := " zum "
+	if reference == "Rechnung" {
+		link = " zur "
+	}
 	letter := Letter{
-		Title:       kind + " " + document.Number + " zur Rechnung " + document.ReferenceNumber,
+		Title:       kind + " " + document.Number + link + reference + " " + document.ReferenceNumber,
 		AccentColor: head.AccentColor,
 		Logo:        head.Logo,
 		Sender:      sender,
 		Recipient:   recipientLines(document),
 		Facts:       facts,
-		Subject:     kind + " zur Rechnung " + document.ReferenceNumber + ": " + content.run.PeriodName,
+		Subject:     kind + link + reference + " " + document.ReferenceNumber + ": " + content.run.PeriodName,
 		Salutation:  "Sehr geehrte Familie " + strings.TrimSpace(document.RecipientLastName) + ",",
 		Closing:     nonBlank("Mit freundlichen Grüßen", firstLine(sender)),
 		Footer:      nonBlank(append(textLines(head.FooterText), bankLine(head.BankAccount))...),
@@ -132,4 +154,50 @@ func sentence(text string) string {
 		return text
 	}
 	return text + "."
+}
+
+// noticeCancellationLetter writes the Aufhebungsbescheid of a fee notice:
+// a Storno of a fee notice lifts the notice as a whole (#4688, ADR 0119
+// addendum 2026-11-08). It keeps the number and the minus positions of the
+// Storno and prints the Träger's legal remedy when the template has one.
+func noticeCancellationLetter(content letterContent) Letter {
+	letter := correctionFrame(content, "Aufhebungsbescheid", "Bescheid")
+	letter.Blocks = append([]LetterBlock{
+		{Text: fmt.Sprintf("wir heben den Gebührenbescheid %s für „%s“ auf. Grund: %s",
+			invoiceReference(content), content.run.PeriodName, sentence(content.document.Reason))},
+		{Facts: correctionFacts(content.document, "Aufgehoben gesamt")},
+		{Text: "Der Bescheid gilt nicht mehr. Sie müssen den Betrag nicht bezahlen. Haben Sie schon bezahlt? Dann melden Sie sich bitte bei uns.", Bold: true},
+	}, letter.Blocks...)
+	letter.Blocks = append(letter.Blocks, correctionLegalRemedy(content)...)
+	return letter
+}
+
+// noticeCreditLetter writes the Änderungsbescheid of a fee notice: a
+// Gutschrift lowers the fee the notice set (#4688).
+func noticeCreditLetter(content letterContent) Letter {
+	letter := correctionFrame(content, "Änderungsbescheid", "Bescheid")
+	left := fmt.Sprintf("Nach dem Bescheid %s müssen Sie jetzt noch %s bezahlen.", content.document.ReferenceNumber, formatEuro(content.leftCents))
+	if content.leftCents <= 0 {
+		left = fmt.Sprintf("Nach dem Bescheid %s müssen Sie nichts mehr bezahlen.", content.document.ReferenceNumber)
+	}
+	letter.Blocks = append([]LetterBlock{
+		{Text: fmt.Sprintf("wir ändern den Gebührenbescheid %s für „%s“ und setzen den Beitrag um %s niedriger fest. Grund: %s",
+			invoiceReference(content), content.run.PeriodName, formatEuro(-content.document.TotalCents), sentence(content.document.Reason))},
+		{Facts: correctionFacts(content.document, "Weniger gesamt")},
+		{Text: left + " Haben Sie schon mehr bezahlt? Dann melden Sie sich bitte bei uns.", Bold: true},
+	}, letter.Blocks...)
+	letter.Blocks = append(letter.Blocks, correctionLegalRemedy(content)...)
+	return letter
+}
+
+// correctionLegalRemedy prints the legal remedy of the template of the fee
+// notice when it has one. A notice that only lowers the fee needs none, so
+// a missing one does not hold the Storno back.
+func correctionLegalRemedy(content letterContent) []LetterBlock {
+	template := content.letterhead.Template.LegalRemedy
+	if strings.TrimSpace(template) == "" {
+		return nil
+	}
+	values := letterValues(content)
+	return legalRemedyBlocks(templates.Fill(templates.Template{LegalRemedy: template}, values).LegalRemedy)
 }

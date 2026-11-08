@@ -1,0 +1,22 @@
+{{define "billing-notice-letter.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    <h1>Ihr Gebührenbescheid</h1>
+
+    <p>Guten Tag{{if .GuardianName}} {{.GuardianName}}{{end}},</p>
+
+    <p>im Anhang finden Sie Ihren Gebührenbescheid{{if .PeriodName}} für <strong>{{.PeriodName}}</strong>{{end}}{{if .Number}} mit der Nummer <strong>{{.Number}}</strong>{{end}}.</p>
+
+    <p>Der Bescheid legt fest, wie viel Sie für die Betreuung bezahlen.</p>
+
+    <div class="highlight-box">
+        <p style="margin: 0; font-size: 14px;"><strong>Was müssen Sie tun?</strong></p>
+        <p style="margin: 8px 0 0 0; font-size: 14px;">Öffnen Sie den Bescheid im Anhang. Dort steht, wie viel Sie bis wann bezahlen müssen. Am Ende steht, wie Sie widersprechen können.</p>
+    </div>
+
+    <p class="security-note">Bitte antworten Sie nicht auf diese E-Mail. Bei Fragen wenden Sie sich an den Träger{{if .SchoolName}} ({{.SchoolName}}){{end}}. Die Kontaktdaten stehen im Bescheid.</p>
+</div>
+
+{{template "footer" .}}
+{{end}}

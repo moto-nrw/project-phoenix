@@ -59,6 +59,8 @@
   "care_evidence_invalid": "Der Nachweis konnte nicht gespeichert werden. Bitte prüfen Sie die markierten Felder.",
   "care_evidence_not_found": "Diesen Nachweis gibt es nicht mehr. Bitte laden Sie die Seite neu.",
   "care_evidence_overlap": "Für diese Zeit gibt es schon einen Nachweis dieser Art. Beenden Sie zuerst den alten Nachweis.",
+  "document_kind_invalid": "Diese Dokumentart gibt es für diese Leistung nicht. Bitte wählen Sie eine aus der Liste.",
+  "legal_remedy_missing": "Der Gebührenbescheid braucht eine Rechtsbehelfsbelehrung. Tragen Sie sie in der Vorlage „Bescheid“ ein. Danach können Sie freigeben.",
   "care_cost_share_invalid": "Der Kostenträger-Anteil konnte nicht gespeichert werden. Bitte prüfen Sie die markierten Felder.",
   "care_cost_share_not_found": "Diesen Kostenträger-Anteil gibt es nicht mehr. Bitte laden Sie die Seite neu.",
   "care_cost_share_overlap": "Für diese Zeit gibt es schon einen Anteil dieser Art. Beenden Sie zuerst den alten Anteil.",
