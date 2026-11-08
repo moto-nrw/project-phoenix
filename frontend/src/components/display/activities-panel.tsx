@@ -5,6 +5,8 @@ import type {
   DashboardUpcomingActivity,
 } from "~/lib/display-api";
 import { LOCATION_COLORS } from "~/lib/location-helper";
+import { InsetPanel } from "~/components/ui/inset-panel";
+import { SectionCard } from "~/components/ui/section-card";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { activitiesConcept } from "~/lib/concepts/activities";
 
@@ -15,7 +17,7 @@ interface ActivitiesPanelProps {
 
 export function ActivitiesPanel({ running, upcoming }: ActivitiesPanelProps) {
   return (
-    <section className="moto-content-surface rounded-2xl border p-6 lg:p-8">
+    <SectionCard>
       <div className="mb-5 flex items-center gap-4">
         <ConceptIconTile concept={activitiesConcept} size="display" />
         <h2 className="text-3xl font-bold text-gray-900">Aktivitäten</h2>
@@ -30,9 +32,12 @@ export function ActivitiesPanel({ running, upcoming }: ActivitiesPanelProps) {
           {running.length > 0 && (
             <ul className="space-y-3">
               {running.map((activity) => (
-                <li
+                <InsetPanel
+                  as="li"
                   key={activity.id}
-                  className="moto-content-surface flex items-center gap-4 rounded-2xl border p-4"
+                  tone="white"
+                  padding="md"
+                  className="flex items-center gap-4"
                 >
                   <span
                     className="h-4 w-4 shrink-0 animate-pulse rounded-full"
@@ -56,7 +61,7 @@ export function ActivitiesPanel({ running, upcoming }: ActivitiesPanelProps) {
                       </span>
                     )}
                   </p>
-                </li>
+                </InsetPanel>
               ))}
             </ul>
           )}
@@ -68,9 +73,12 @@ export function ActivitiesPanel({ running, upcoming }: ActivitiesPanelProps) {
               </h3>
               <ul className="space-y-2">
                 {upcoming.map((activity) => (
-                  <li
+                  <InsetPanel
+                    as="li"
                     key={activity.id}
-                    className="moto-content-surface flex items-center gap-4 rounded-2xl border p-4"
+                    tone="white"
+                    padding="md"
+                    className="flex items-center gap-4"
                   >
                     <p
                       className="text-2xl font-bold tabular-nums"
@@ -86,13 +94,13 @@ export function ActivitiesPanel({ running, upcoming }: ActivitiesPanelProps) {
                         {activity.room_name || activity.category}
                       </p>
                     </div>
-                  </li>
+                  </InsetPanel>
                 ))}
               </ul>
             </div>
           )}
         </div>
       )}
-    </section>
+    </SectionCard>
   );
 }

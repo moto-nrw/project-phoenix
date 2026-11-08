@@ -39,10 +39,16 @@ type requestChildRow struct {
 	ClassSwitchFrom *string          `bun:"class_switch_from"`
 	ClassSwitchTo   *string          `bun:"class_switch_to"`
 	ClassSwitchOn   *enrollment.Date `bun:"class_switch_on,type:date"`
+	// The day an approved future re-enrollment's weekly plan replaces the
+	// running one (#6043). Written and read only through the weekly-plan
+	// methods, never through the RequestChild record.
+	WeeklyPlanOn       *enrollment.Date `bun:"weekly_plan_on,type:date"`
+	WeeklyPlanReplaces bool             `bun:"weekly_plan_replaces,notnull,default:false"`
+	WeeklyPlanAuthor   *int64           `bun:"weekly_plan_author"`
 }
 
 func (r requestChildRow) value() *enrollment.RequestChild {
-	return &enrollment.RequestChild{ID: r.ID, TenantID: r.TenantID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, RequestID: r.RequestID, FirstName: r.FirstName, LastName: r.LastName, DateOfBirth: r.DateOfBirth, TargetGradeLevel: r.TargetGradeLevel, TargetSchoolClass: r.TargetSchoolClass, CustomData: r.CustomData, Status: r.Status, StatusReason: r.StatusReason, ActivationMode: r.ActivationMode, ActivateOn: r.ActivateOn, ReviewedAt: r.ReviewedAt, ReviewedBy: r.ReviewedBy, CreatedStudentID: r.CreatedStudentID, MatchedStudentID: r.MatchedStudentID, MatchedByOffice: r.MatchedByOffice, SortOrder: r.SortOrder, RolloverSourceChildID: r.RolloverSourceChildID, ReviewReason: r.ReviewReason}
+	return &enrollment.RequestChild{ID: r.ID, TenantID: r.TenantID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, RequestID: r.RequestID, FirstName: r.FirstName, LastName: r.LastName, DateOfBirth: r.DateOfBirth, TargetGradeLevel: r.TargetGradeLevel, TargetSchoolClass: r.TargetSchoolClass, CustomData: r.CustomData, Status: r.Status, StatusReason: r.StatusReason, ActivationMode: r.ActivationMode, ActivateOn: r.ActivateOn, ReviewedAt: r.ReviewedAt, ReviewedBy: r.ReviewedBy, CreatedStudentID: r.CreatedStudentID, MatchedStudentID: r.MatchedStudentID, MatchedByOffice: r.MatchedByOffice, SortOrder: r.SortOrder, RolloverSourceChildID: r.RolloverSourceChildID, ReviewReason: r.ReviewReason, WeeklyPlanOn: r.WeeklyPlanOn}
 }
 func childStorage(r *enrollment.RequestChild) *requestChildRow {
 	return &requestChildRow{ID: r.ID, TenantID: r.TenantID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, RequestID: r.RequestID, FirstName: r.FirstName, LastName: r.LastName, DateOfBirth: r.DateOfBirth, TargetGradeLevel: r.TargetGradeLevel, TargetSchoolClass: r.TargetSchoolClass, CustomData: r.CustomData, Status: r.Status, StatusReason: r.StatusReason, ActivationMode: r.ActivationMode, ActivateOn: r.ActivateOn, ReviewedAt: r.ReviewedAt, ReviewedBy: r.ReviewedBy, CreatedStudentID: r.CreatedStudentID, MatchedStudentID: r.MatchedStudentID, MatchedByOffice: r.MatchedByOffice, SortOrder: r.SortOrder, RolloverSourceChildID: r.RolloverSourceChildID, ReviewReason: r.ReviewReason}

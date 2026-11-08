@@ -11,9 +11,12 @@ import (
 // ParentDocumentStore reads the inbox of one recipient in the Träger
 // transaction and records each read in the trail of its run.
 type ParentDocumentStore interface {
-	RecipientDocuments(ctx context.Context, organizationID int64, email string) ([]parentbilling.ParentDocument, error)
-	RecipientDocumentLetter(ctx context.Context, organizationID, documentID int64, email string) (int64, parentbilling.BillingLetterFile, error)
+	RecipientDocuments(ctx context.Context, organizationID int64, email string, children []parentbilling.ParentDocumentChild) ([]parentbilling.ParentDocument, error)
+	// RecipientDocumentLetter also tells whether the run is a monthly run.
+	RecipientDocumentLetter(ctx context.Context, organizationID, documentID int64, email string, children []parentbilling.ParentDocumentChild) (int64, bool, parentbilling.BillingLetterFile, error)
 	InsertRunEvent(ctx context.Context, organizationID, runID, accountID int64, action string, details map[string]any) error
+	// InsertCareRunEvent records the read of a letter of a monthly run (#4684).
+	InsertCareRunEvent(ctx context.Context, organizationID, runID, accountID int64, action string, details map[string]any) error
 }
 
 // ParentDocuments serves parentbilling.ParentDocuments (#4671, ADR 0126).
@@ -42,22 +45,27 @@ func (p *ParentDocuments) ListParentDocuments(ctx context.Context, organizationI
 	if err != nil {
 		return nil, err
 	}
-	documents, err := p.store.RecipientDocuments(ctx, organizationID, email)
+	documents, err := p.store.RecipientDocuments(ctx, organizationID, email, reader.Children)
 	if err != nil {
 		return nil, fmt.Errorf("parent billing: read inbox: %w", err)
 	}
-	byRun := map[int64][]int64{}
-	var runs []int64
-	for _, document := range documents {
-		if _, seen := byRun[document.RunID]; !seen {
-			runs = append(runs, document.RunID)
-		}
-		byRun[document.RunID] = append(byRun[document.RunID], document.DocumentID)
+	type runKey struct {
+		id   int64
+		care bool
 	}
-	for _, runID := range runs {
-		if err := p.store.InsertRunEvent(ctx, organizationID, runID, reader.AccountID, runEventRead,
-			map[string]any{"inbox": "list", "document_ids": byRun[runID]}); err != nil {
-			return nil, fmt.Errorf("parent billing: record inbox read: %w", err)
+	byRun := map[runKey][]int64{}
+	var runs []runKey
+	for _, document := range documents {
+		key := runKey{id: document.RunID, care: document.CareRun}
+		if _, seen := byRun[key]; !seen {
+			runs = append(runs, key)
+		}
+		byRun[key] = append(byRun[key], document.DocumentID)
+	}
+	for _, run := range runs {
+		if err := p.recordRead(ctx, organizationID, run.id, run.care, reader.AccountID,
+			map[string]any{"inbox": "list", "document_ids": byRun[run]}); err != nil {
+			return nil, err
 		}
 	}
 	return documents, nil
@@ -73,15 +81,27 @@ func (p *ParentDocuments) ParentDocumentLetter(ctx context.Context, organization
 	if documentID <= 0 {
 		return parentbilling.BillingLetterFile{}, parentbilling.ErrParentDocumentNotFound
 	}
-	runID, file, err := p.store.RecipientDocumentLetter(ctx, organizationID, documentID, email)
+	runID, care, file, err := p.store.RecipientDocumentLetter(ctx, organizationID, documentID, email, reader.Children)
 	if err != nil {
 		return parentbilling.BillingLetterFile{}, err
 	}
-	if err := p.store.InsertRunEvent(ctx, organizationID, runID, reader.AccountID, runEventRead,
+	if err := p.recordRead(ctx, organizationID, runID, care, reader.AccountID,
 		map[string]any{"inbox": "download", "document_id": documentID}); err != nil {
-		return parentbilling.BillingLetterFile{}, fmt.Errorf("parent billing: record inbox read: %w", err)
+		return parentbilling.BillingLetterFile{}, err
 	}
 	return file, nil
+}
+
+// recordRead writes the read into the trail of the holiday or monthly run.
+func (p *ParentDocuments) recordRead(ctx context.Context, organizationID, runID int64, care bool, accountID int64, details map[string]any) error {
+	insert := p.store.InsertRunEvent
+	if care {
+		insert = p.store.InsertCareRunEvent
+	}
+	if err := insert(ctx, organizationID, runID, accountID, runEventRead, details); err != nil {
+		return fmt.Errorf("parent billing: record inbox read: %w", err)
+	}
+	return nil
 }
 
 // readerAddress is the address that selects the documents of the reader.

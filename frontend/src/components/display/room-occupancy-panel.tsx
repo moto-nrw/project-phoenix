@@ -2,6 +2,8 @@
 
 import type { DashboardRoomOccupancy } from "~/lib/display-api";
 import { LOCATION_COLORS } from "~/lib/location-helper";
+import { InsetPanel } from "~/components/ui/inset-panel";
+import { SectionCard } from "~/components/ui/section-card";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { roomsConcept } from "~/lib/concepts/rooms";
 
@@ -30,7 +32,7 @@ function occupancyColor(
 
 export function RoomOccupancyPanel({ rooms, totals }: RoomOccupancyPanelProps) {
   return (
-    <section className="moto-content-surface rounded-2xl border p-6 lg:p-8">
+    <SectionCard>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <ConceptIconTile concept={roomsConcept} size="display" />
@@ -59,10 +61,7 @@ export function RoomOccupancyPanel({ rooms, totals }: RoomOccupancyPanelProps) {
               ? Math.min(room.student_count / (room.capacity ?? 1), 1)
               : 0;
             return (
-              <li
-                key={room.name}
-                className="moto-content-surface rounded-2xl border p-5"
-              >
+              <InsetPanel as="li" key={room.name} tone="white" padding="md">
                 <div className="flex items-baseline justify-between gap-3">
                   <p className="truncate text-2xl font-semibold text-gray-900">
                     {room.name}
@@ -96,11 +95,11 @@ export function RoomOccupancyPanel({ rooms, totals }: RoomOccupancyPanelProps) {
                     />
                   </div>
                 )}
-              </li>
+              </InsetPanel>
             );
           })}
         </ul>
       )}
-    </section>
+    </SectionCard>
   );
 }

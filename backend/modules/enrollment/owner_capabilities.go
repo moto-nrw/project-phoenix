@@ -131,6 +131,14 @@ type ClassSwitches interface {
 	DueClassSwitches(ctx context.Context, asOf Date) ([]DueClassSwitch, error)
 }
 
+// WeeklyPlans records and reads the weekly plan an approved future
+// re-enrollment applies at its start (#6043).
+type WeeklyPlans interface {
+	SetChildWeeklyPlan(ctx context.Context, childID int64, plan *WeeklyPlan) error
+	ChildWeeklyPlan(ctx context.Context, childID int64) (*WeeklyPlan, error)
+	DueWeeklyPlans(ctx context.Context, asOf Date) ([]WeeklyPlan, error)
+}
+
 // ChangeRequestQueries reads change requests, their review queue and messages.
 type ChangeRequestQueries interface {
 	ChangeRequestByID(ctx context.Context, id int64) (*ChangeRequest, error)

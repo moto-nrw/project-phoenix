@@ -7,7 +7,6 @@ import {
   buttonRatchetBaseline,
 } from "./ui-kit-button-baseline.mjs";
 import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
-import { surfaceBaseline } from "./ui-kit-surface-baseline.mjs";
 
 // UI-kit drift ratchet (issue #1629).
 //
@@ -29,7 +28,7 @@ import { surfaceBaseline } from "./ui-kit-surface-baseline.mjs";
 //                                     in the kit except SURFACE_KIT_CONTROLS;
 //                                     outside the kit also rounded-md/lg,
 //                                     bg-white/NN and frames without fill
-//                                     (#5594, shrink-only baseline); use
+//                                     (#5594, hard-zero); use
 //                                     moto-content-surface (cards),
 //                                     AnchoredPopover or OverflowMenu (floating panels),
 //                                     ChoiceTile (selectable rows) or a kit
@@ -44,7 +43,7 @@ import { surfaceBaseline } from "./ui-kit-surface-baseline.mjs";
 //
 //   ui-kit/no-tiny-text             — sub-12px text utilities; shrink-only
 //                                     baseline
-//   ui-kit/no-tenant-kicker         — no blue mini-heading in the tenant portal
+//   ui-kit/no-tenant-kicker         — no mini-heading above a title outside parents
 //   ui-kit/no-hand-rolled-page-card — no `moto-content-surface … rounded-2xl`
 //                                     spelled out outside the kit (all of
 //                                     app/ and components/ since #5594,
@@ -909,62 +908,6 @@ function isWideSurfaceTokenGroup(tokens) {
   return !anyFill && padded;
 }
 
-/**
- * Shrink-only Baseline je Datei für Regeln mit eigenem Besucher (#5594): die
- * Funde aus `count` werden gesammelt und erst gemeldet, wenn eine Datei mehr
- * hat, als `baselines[ruleName][file]` erlaubt. Ein Fund hinter
- * `oxlint-disable-next-line <rule>` zählt nicht mit, genau wie im Generator.
- * Mit `countEnv=count` meldet die Regel jeden Fund; daraus schreibt
- * `pnpm run ui-kit:surface-baseline` die Zahlen.
- */
-function withFileBaseline({ ruleName, baselines, countEnv }, create) {
-  return (context) => {
-    const key = fileKey(context);
-    const findings = [];
-    const visitors = create(context, (descriptor) => findings.push(descriptor));
-    if (!visitors || Object.keys(visitors).length === 0) return {};
-    const exit = visitors["Program:exit"];
-    return {
-      ...visitors,
-      "Program:exit"(node) {
-        exit?.(node);
-        const disabledLines = new Set();
-        for (const comment of context.sourceCode?.getAllComments?.() ?? []) {
-          if (
-            comment.value.includes("oxlint-disable-next-line") &&
-            comment.value.includes(`ui-kit/${ruleName}`)
-          ) {
-            disabledLines.add(comment.loc.end.line + 1);
-          }
-        }
-        const counted = findings.filter(
-          (descriptor) => !disabledLines.has(descriptor.node.loc?.start.line),
-        );
-        const baseline = baselines[ruleName]?.[key] ?? 0;
-        const countMode = process.env[countEnv] === "count";
-        if (!countMode && counted.length <= baseline) return;
-        for (const descriptor of counted) {
-          context.report(
-            countMode || baseline === 0
-              ? descriptor
-              : {
-                  ...descriptor,
-                  messageId: "overBaseline",
-                  data: {
-                    found: String(counted.length),
-                    baseline: String(baseline),
-                  },
-                },
-          );
-        }
-      },
-    };
-  };
-}
-
-const SURFACE_OVER_BASELINE =
-  "Diese Datei hat {{found}} handgebaute Flächen, die Baseline erlaubt {{baseline}}. Neue Flächen aus dem Kit bauen: SectionCard, TileCard, InsetPanel oder moto-content-surface (#5594, Abbau: pnpm run ui-kit:surface-baseline).";
-
 const noHandRolledSurface = {
   meta: {
     type: "problem",
@@ -975,200 +918,184 @@ const noHandRolledSurface = {
     messages: {
       handRolledSurface:
         "Hand-rolled card surface ('{{match}}'). Use moto-content-surface (cards), AnchoredPopover or OverflowMenu (floating panels), ChoiceTile (selectable rows and tiles) or a kit surface component (SectionCard) instead. A deliberate non-card match may stay behind `// oxlint-disable-next-line ui-kit/no-hand-rolled-surface` with the reason recorded in the PR description (issue #2933).",
-      overBaseline: SURFACE_OVER_BASELINE,
     },
     schema: [],
   },
-  create: withFileBaseline(
-    {
-      ruleName: "no-hand-rolled-surface",
-      baselines: surfaceBaseline,
-      countEnv: "UI_KIT_SURFACE_RATCHET",
-    },
-    (context, report) => {
-      const key = fileKey(context);
-      const countMode = process.env.UI_KIT_SURFACE_RATCHET === "count";
-      if (!key.startsWith("src/")) return {};
-      if (EXEMPT_FILE_RE.test(key)) return {};
-      if (SURFACE_KIT_CONTROLS.has(key)) return {};
-      // Die Eltern-Ausnahmen aus #2619 gelten nur für die Schärfung; die
-      // alte Kette bleibt auch dort hart null.
-      const widened =
-        !key.startsWith(UI_KIT_DIR) && !INSET_PARENT_EXCEPTIONS.includes(key);
+  create(context) {
+    const report = (descriptor) => context.report(descriptor);
+    const key = fileKey(context);
+    if (!key.startsWith("src/")) return {};
+    if (EXEMPT_FILE_RE.test(key)) return {};
+    if (SURFACE_KIT_CONTROLS.has(key)) return {};
+    // Die Eltern-Ausnahmen aus #2619 gelten nur für die Schärfung; die
+    // alte Kette bleibt auch dort hart null.
+    const widened =
+      !key.startsWith(UI_KIT_DIR) && !INSET_PARENT_EXCEPTIONS.includes(key);
 
-      // Die alte Kette ist hart null und meldet sofort, an der Baseline vorbei.
-      const check = (node, text) => {
-        if (!isSurfaceCombo(text)) return;
-        // Der Generator zählt ausschließlich die shrink-only Schärfung.
-        if (countMode) return;
-        context.report({
-          node,
-          messageId: "handRolledSurface",
-          data: { match: "rounded-xl/2xl … border … bg-white" },
-        });
-      };
-      const surfaceComboKey = (text) => text.trim().replace(/\s+/g, " ");
-      // Literal-/Template- und konstante cn()-Treffer melden sich schon an
-      // ihrer Definition. Die Verwendungen einer Konstanten dürfen diese
-      // alte Kette nicht nochmals melden, wohl aber einen anderen, erweiterten
-      // Zweig derselben className-Expression.
-      const separatelyReportedSurfaceCombos = (
-        value,
-        seenVariables = new Set(),
-        seenNodes = new WeakSet(),
-      ) => {
-        const reported = new Set();
-        const collect = (node) => {
-          if (!node || typeof node !== "object" || seenNodes.has(node)) return;
-          seenNodes.add(node);
-          if (
-            node.type === "JSXExpressionContainer" ||
-            node.type === "ChainExpression" ||
-            node.type === "TSAsExpression" ||
-            node.type === "TSTypeAssertion" ||
-            node.type === "TypeCastExpression"
-          ) {
-            collect(node.expression);
-            return;
+    const check = (node, text) => {
+      if (!isSurfaceCombo(text)) return;
+      context.report({
+        node,
+        messageId: "handRolledSurface",
+        data: { match: "rounded-xl/2xl … border … bg-white" },
+      });
+    };
+    const surfaceComboKey = (text) => text.trim().replace(/\s+/g, " ");
+    // Literal-/Template- und konstante cn()-Treffer melden sich schon an
+    // ihrer Definition. Die Verwendungen einer Konstanten dürfen diese
+    // alte Kette nicht nochmals melden, wohl aber einen anderen, erweiterten
+    // Zweig derselben className-Expression.
+    const separatelyReportedSurfaceCombos = (
+      value,
+      seenVariables = new Set(),
+      seenNodes = new WeakSet(),
+    ) => {
+      const reported = new Set();
+      const collect = (node) => {
+        if (!node || typeof node !== "object" || seenNodes.has(node)) return;
+        seenNodes.add(node);
+        if (
+          node.type === "JSXExpressionContainer" ||
+          node.type === "ChainExpression" ||
+          node.type === "TSAsExpression" ||
+          node.type === "TSTypeAssertion" ||
+          node.type === "TypeCastExpression"
+        ) {
+          collect(node.expression);
+          return;
+        }
+        if (node.type === "Literal" && typeof node.value === "string") {
+          if (isSurfaceCombo(node.value)) {
+            reported.add(surfaceComboKey(node.value));
           }
-          if (node.type === "Literal" && typeof node.value === "string") {
-            if (isSurfaceCombo(node.value)) {
-              reported.add(surfaceComboKey(node.value));
-            }
-            return;
-          }
-          if (node.type === "TemplateLiteral") {
-            for (const quasi of node.quasis) {
-              if (isSurfaceCombo(quasi.value.raw)) {
-                reported.add(surfaceComboKey(quasi.value.raw));
-              }
-            }
-            return;
-          }
-          if (node.type === "Identifier") {
-            const variable = findVariable(context.sourceCode, node);
-            if (!variable || seenVariables.has(variable)) return;
-            seenVariables.add(variable);
-            for (const definition of variable.defs) {
-              if (
-                definition.type !== "Variable" ||
-                definition.node.type !== "VariableDeclarator" ||
-                definition.parent?.kind !== "const" ||
-                !definition.node.init
-              )
-                continue;
-              const initializer = definition.node.init;
-              if (initializer.type === "CallExpression") {
-                const combinations = classCombinations(
-                  initializer,
-                  new Set(),
-                  context.sourceCode,
-                );
-                for (const combo of combinations ?? []) {
-                  if (isSurfaceCombo(combo))
-                    reported.add(surfaceComboKey(combo));
-                }
-              }
-              collect(initializer);
-            }
-            return;
-          }
-          if (node.type === "ConditionalExpression") {
-            collect(node.consequent);
-            collect(node.alternate);
-            return;
-          }
-          if (node.type === "LogicalExpression") {
-            collect(node.left);
-            collect(node.right);
-          }
-        };
-        collect(value);
-        return reported;
-      };
-
-      return {
-        Literal(node) {
-          if (typeof node.value === "string") check(node, node.value);
-        },
-        TemplateLiteral(node) {
+          return;
+        }
+        if (node.type === "TemplateLiteral") {
           for (const quasi of node.quasis) {
-            check(node, quasi.value.raw);
-          }
-        },
-        VariableDeclarator(node) {
-          if (
-            node.parent?.kind !== "const" ||
-            node.init?.type !== "CallExpression"
-          )
-            return;
-          const chunks = [];
-          collectStaticStrings(node.init, chunks);
-          if (chunks.some(isSurfaceCombo)) return;
-          const combos = classCombinations(
-            node.init,
-            new Set(),
-            context.sourceCode,
-          );
-          const rendered = combos?.find((combo) => isSurfaceCombo(combo));
-          if (rendered !== undefined) check(node, rendered);
-        },
-        JSXAttribute(node) {
-          if (
-            node.name.type !== "JSXIdentifier" ||
-            node.name.name !== "className"
-          )
-            return;
-          const chunks = [];
-          collectStaticStrings(node.value, chunks);
-          if (chunks.some(isSurfaceCombo)) return;
-          const reported = separatelyReportedSurfaceCombos(node.value);
-          const combinations = classCombinations(
-            node.value,
-            new Set(),
-            context.sourceCode,
-          ) ?? [chunks.join(" ")];
-          for (const combo of new Set(combinations)) {
-            if (
-              isSurfaceCombo(combo) &&
-              !reported.has(surfaceComboKey(combo))
-            ) {
-              check(node.parent ?? node, combo);
+            if (isSurfaceCombo(quasi.value.raw)) {
+              reported.add(surfaceComboKey(quasi.value.raw));
             }
           }
-        },
-        JSXOpeningElement(node) {
-          if (!widened) return;
-          if (SURFACE_CONTROL_ELEMENTS.has(jsxName(node.name) ?? "")) return;
-          const className = jsxAttribute(node, "className");
-          if (!className?.value) return;
-          const chunks = [];
-          collectStaticStrings(className.value, chunks);
-          const combinations = classCombinations(
-            className.value,
-            new Set(),
-            context.sourceCode,
-          ) ?? [chunks.join(" ")];
-          if (
-            combinations.some(
-              (combo) =>
-                !isSurfaceCombo(combo) &&
-                isWideSurfaceTokens(combo.split(/\s+/)),
+          return;
+        }
+        if (node.type === "Identifier") {
+          const variable = findVariable(context.sourceCode, node);
+          if (!variable || seenVariables.has(variable)) return;
+          seenVariables.add(variable);
+          for (const definition of variable.defs) {
+            if (
+              definition.type !== "Variable" ||
+              definition.node.type !== "VariableDeclarator" ||
+              definition.parent?.kind !== "const" ||
+              !definition.node.init
             )
-          ) {
-            report({
-              node,
-              messageId: "handRolledSurface",
-              data: {
-                match:
-                  "rounded-md…2xl … border … bg-white(/NN) oder Rahmen mit Polster",
-              },
-            });
+              continue;
+            const initializer = definition.node.init;
+            if (initializer.type === "CallExpression") {
+              const combinations = classCombinations(
+                initializer,
+                new Set(),
+                context.sourceCode,
+              );
+              for (const combo of combinations ?? []) {
+                if (isSurfaceCombo(combo)) reported.add(surfaceComboKey(combo));
+              }
+            }
+            collect(initializer);
           }
-        },
+          return;
+        }
+        if (node.type === "ConditionalExpression") {
+          collect(node.consequent);
+          collect(node.alternate);
+          return;
+        }
+        if (node.type === "LogicalExpression") {
+          collect(node.left);
+          collect(node.right);
+        }
       };
-    },
-  ),
+      collect(value);
+      return reported;
+    };
+
+    return {
+      Literal(node) {
+        if (typeof node.value === "string") check(node, node.value);
+      },
+      TemplateLiteral(node) {
+        for (const quasi of node.quasis) {
+          check(node, quasi.value.raw);
+        }
+      },
+      VariableDeclarator(node) {
+        if (
+          node.parent?.kind !== "const" ||
+          node.init?.type !== "CallExpression"
+        )
+          return;
+        const chunks = [];
+        collectStaticStrings(node.init, chunks);
+        if (chunks.some(isSurfaceCombo)) return;
+        const combos = classCombinations(
+          node.init,
+          new Set(),
+          context.sourceCode,
+        );
+        const rendered = combos?.find((combo) => isSurfaceCombo(combo));
+        if (rendered !== undefined) check(node, rendered);
+      },
+      JSXAttribute(node) {
+        if (
+          node.name.type !== "JSXIdentifier" ||
+          node.name.name !== "className"
+        )
+          return;
+        const chunks = [];
+        collectStaticStrings(node.value, chunks);
+        if (chunks.some(isSurfaceCombo)) return;
+        const reported = separatelyReportedSurfaceCombos(node.value);
+        const combinations = classCombinations(
+          node.value,
+          new Set(),
+          context.sourceCode,
+        ) ?? [chunks.join(" ")];
+        for (const combo of new Set(combinations)) {
+          if (isSurfaceCombo(combo) && !reported.has(surfaceComboKey(combo))) {
+            check(node.parent ?? node, combo);
+          }
+        }
+      },
+      JSXOpeningElement(node) {
+        if (!widened) return;
+        if (SURFACE_CONTROL_ELEMENTS.has(jsxName(node.name) ?? "")) return;
+        const className = jsxAttribute(node, "className");
+        if (!className?.value) return;
+        const chunks = [];
+        collectStaticStrings(className.value, chunks);
+        const combinations = classCombinations(
+          className.value,
+          new Set(),
+          context.sourceCode,
+        ) ?? [chunks.join(" ")];
+        if (
+          combinations.some(
+            (combo) =>
+              !isSurfaceCombo(combo) && isWideSurfaceTokens(combo.split(/\s+/)),
+          )
+        ) {
+          report({
+            node,
+            messageId: "handRolledSurface",
+            data: {
+              match:
+                "rounded-md…2xl … border … bg-white(/NN) oder Rahmen mit Polster",
+            },
+          });
+        }
+      },
+    };
+  },
 };
 
 const noRounded3xl = makeClassStringRule({
@@ -1602,7 +1529,6 @@ const TINY_TEXT_BASELINE_FILES = new Set([
   "src/components/staff/staff-session-table.tsx",
   "src/components/students/care-schedule-manager.tsx",
   "src/components/students/planned-status-days-modal.tsx",
-  "src/components/students/school-checkin-fab.tsx",
   "src/components/time-tracking/vacation-request-modal.tsx",
   "src/components/timetable/bulk-substitution-modal.tsx",
   "src/components/timetable/event-form/multi-select-field.tsx",
@@ -1644,7 +1570,6 @@ src/components/staff/absence-request-row.tsx|text-[11px]@107
 src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@489 text-[11px]@585 text-[11px]@594 text-[11px]@601
 src/components/staff/staff-session-table.tsx|text-[11px]@1194
 src/components/students/planned-status-days-modal.tsx|text-[10px]@935 text-[11px]@935
-src/components/students/school-checkin-fab.tsx|text-[10px]@200
 src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@372
 src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@530
 src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@147 text-[11px]@312
@@ -1657,7 +1582,7 @@ src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@179 text-[11px
 src/components/timetable/staff-pool-slide-over.tsx|text-[11px]@482
 src/components/timetable/substitution-person-card.tsx|text-[11px]@59 text-[11px]@338 text-[11px]@345 text-[11px]@352 text-[11px]@360
 src/components/timetable/substitution-slide-over.tsx|text-[11px]@744
-src/components/timetable/template-card.tsx|text-[10px]@198
+src/components/timetable/template-card.tsx|text-[10px]@209
 src/components/timetable/vertretung-day-list.tsx|text-[11px]@348 text-[11px]@388 text-[11px]@395 text-[11px]@416 text-[11px]@422
 src/components/timetable/weekly-calendar-grid.tsx|text-[11px]@461 text-[10px]@484 text-[10px]@519 text-[11px]@519
 src/components/ui/avatar.tsx|text-[10px]@32
@@ -1679,34 +1604,187 @@ const noTinyText = makeClassStringRule({
   message:
     "'{{match}}' liegt unter dem Typo-Boden (12 px). Werte, Saetze und Bedienelemente sind text-sm oder groesser; text-xs nur fuer Versalien-Labels. Die Baseline in scripts/oxlint-plugin-ui-kit.mjs ist shrink-only.",
 });
-// ui-kit/no-tenant-kicker — die blaue Mini-Überschrift über einer Überschrift
-// ist im Tenant-Portal abgeschafft (sie trug sechs verschiedene Bedeutungen im
-// selben Slot). Kein Baseline-Eintrag: der Bestand ist auf null gebracht. Das
-// Schul- und das Operator-Portal gehören seit #5604 dazu; nur das Elternportal
-// behält seinen Kicker (ADR 0149).
+// ui-kit/no-tenant-kicker — die Mini-Überschrift über einer Überschrift ist
+// außerhalb des Elternportals abgeschafft (sie trug sechs verschiedene
+// Bedeutungen im selben Slot). Hard-zero, kein Baseline-Eintrag. Das Schul-
+// und das Operator-Portal gehören seit #5604 dazu, Hilfe, öffentliche
+// Anmeldung, Login-Seiten und alle übrigen Portale seit #5607; nur das
+// Elternportal behält seinen Kicker (ADR 0149), dazu `/start` und die
+// NFC-Druckanleitung (Epic #5576).
+// Funde:
+// - die Prop `kicker` oder `eyebrow` (AuthShell), auch als Schlüssel eines
+//   Objekts, das als Props verteilt wird,
+// - ein handgeschriebener Kicker: das Element direkt vor einem `h1`/`h2`
+//   (auch vor einem Fragment oder Ternär, das mit der Überschrift beginnt) ist
+//   ein `SectionLabel`, eine Status-Pille oder ein kleiner Text mit Gewicht
+//   und Farbe (`text-xs`/`text-sm` + `font-medium|semibold|bold` + Textfarbe,
+//   auch `text-[var(--…)]`), oder trägt `uppercase`. Status gehört als Pille
+//   neben den Titel, der Ort in Brotkrumen und Seitenleiste.
 const OTHER_PORTALS_RE = /(^|\/)(components\/parent|app\/parents)\//;
+const KICKER_EXEMPT_DIRS = ["src/app/start/", "src/app/help/nfc/"];
+// Tragen nur die übersetzte Kopfzeile des Elternportals: AuthShell zeigt
+// `eyebrow` nur, wenn eine Seite unter app/parents sie setzt; die Reset-Seite
+// reicht die Übersetzung aus app/parents/reset-password weiter.
+const KICKER_PARENT_CARRIERS = [
+  "src/components/auth/auth-shell.tsx",
+  "src/components/auth/reset-password-page-content.tsx",
+];
+const KICKER_PROPS = new Set(["kicker", "eyebrow"]);
+const KICKER_COMPONENTS = new Set([
+  "SectionLabel",
+  "StatusBadge",
+  "StatusColorBadge",
+]);
+const KICKER_TEXT_TAGS = new Set(["p", "span", "div", "small", "strong"]);
+const TITLE_TAGS = new Set(["h1", "h2"]);
+const KICKER_TEXT_COLOR_RE =
+  /^text-(?:\[(?:var\(--|#)[^\]]*\]|moto-[\w-]+|(?:gray|slate|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d+|black|white)(?:\/\d+)?$/;
+
+function elementName(element) {
+  return jsxName(element?.openingElement?.name);
+}
+
+function isKickerClassText(text) {
+  const utilities = classUtilities(text);
+  if (utilities.includes("uppercase")) return true;
+  return (
+    utilities.some((token) => token === "text-xs" || token === "text-sm") &&
+    utilities.some((token) => /^font-(?:medium|semibold|bold)$/.test(token)) &&
+    utilities.some((token) => KICKER_TEXT_COLOR_RE.test(token))
+  );
+}
+
+function isKickerElement(element, constants) {
+  const name = elementName(element);
+  if (!name) return false;
+  if (KICKER_COMPONENTS.has(name)) return true;
+  if (!KICKER_TEXT_TAGS.has(name)) return false;
+  const classAttribute = element.openingElement.attributes.find(
+    (attribute) =>
+      attribute.type === "JSXAttribute" && attribute.name?.name === "className",
+  );
+  if (!classAttribute?.value) return false;
+  return classTextAlternatives(classAttribute.value, constants).some(
+    isKickerClassText,
+  );
+}
+
+function isMeaningfulJsxChild(child) {
+  if (child.type === "JSXText") return child.value.trim() !== "";
+  if (child.type === "JSXExpressionContainer") {
+    return child.expression?.type !== "JSXEmptyExpression";
+  }
+  return true;
+}
+
+// Ein Kicker steht vor dem Titel, auch wenn der Titel erst in einem
+// Fragment oder einem Ternär-Zweig beginnt.
+function startsWithTitle(node, depth = 0) {
+  if (!node || depth > 4) return false;
+  switch (node.type) {
+    case "JSXElement":
+      return TITLE_TAGS.has(elementName(node));
+    case "JSXFragment": {
+      const first = node.children.find(isMeaningfulJsxChild);
+      return startsWithTitle(first, depth + 1);
+    }
+    case "JSXExpressionContainer":
+    case "ParenthesizedExpression":
+      return startsWithTitle(node.expression, depth + 1);
+    case "ConditionalExpression":
+      return (
+        startsWithTitle(node.consequent, depth + 1) ||
+        startsWithTitle(node.alternate, depth + 1)
+      );
+    case "LogicalExpression":
+      return startsWithTitle(node.right, depth + 1);
+    default:
+      return false;
+  }
+}
+
+// Das Element, das ein Kind-Knoten rendert: direkt, als `cond && <X/>` oder
+// als Ternär-Zweig.
+function renderedElements(node, depth = 0) {
+  if (!node || depth > 4) return [];
+  switch (node.type) {
+    case "JSXElement":
+      return [node];
+    case "JSXExpressionContainer":
+    case "ParenthesizedExpression":
+      return renderedElements(node.expression, depth + 1);
+    case "ConditionalExpression":
+      return [
+        ...renderedElements(node.consequent, depth + 1),
+        ...renderedElements(node.alternate, depth + 1),
+      ];
+    case "LogicalExpression":
+      return renderedElements(node.right, depth + 1);
+    default:
+      return [];
+  }
+}
+
+function checkKickerChildren(children, constants, report) {
+  const meaningful = children.filter(isMeaningfulJsxChild);
+  for (let index = 0; index + 1 < meaningful.length; index += 1) {
+    if (!startsWithTitle(meaningful[index + 1])) continue;
+    for (const element of renderedElements(meaningful[index])) {
+      if (isKickerElement(element, constants)) report(element.openingElement);
+    }
+  }
+}
 
 const noTenantKicker = {
   meta: {
     docs: {
       description:
-        "Disallow the blue mini-heading (kicker) outside the parents portal.",
+        "Disallow the mini-heading (kicker) above a title outside the parents portal.",
     },
     messages: {
       kicker:
-        "Keine Mini-Überschrift über dem Titel. Wo man ist, sagen Brotkrumen und Seitenleiste (siehe .claude/rules/frontend-ui-kit.md, Abschnitt Page scaffolding).",
+        "Keine Mini-Überschrift über dem Titel. Wo man ist, sagen Brotkrumen und Seitenleiste; ein Status steht als StatusBadge neben dem Titel (siehe .claude/rules/frontend-ui-kit.md, Abschnitt Page scaffolding).",
     },
   },
   create(context) {
     const filename = context.filename ?? context.getFilename?.() ?? "";
     if (OTHER_PORTALS_RE.test(filename.replace(/\\/g, "/"))) return {};
     if (/\.(test|stories)\.[jt]sx?$/.test(filename)) return {};
+    const key = fileKey(context);
+    if (!key.startsWith("src/")) return {};
+    if (KICKER_EXEMPT_DIRS.some((dir) => key.startsWith(dir))) return {};
+    if (KICKER_PARENT_CARRIERS.includes(key)) return {};
+    const constants = new Map();
 
     return {
+      VariableDeclarator(node) {
+        if (node.id?.type === "Identifier" && node.init) {
+          constants.set(node.id.name, node.init);
+        }
+      },
       JSXAttribute(node) {
-        if (node.name?.name === "kicker") {
+        if (KICKER_PROPS.has(node.name?.name)) {
           context.report({ node, messageId: "kicker" });
         }
+      },
+      // `<AuthShell {...SHELL_COPY}>`: die Kopfzeile kommt aus einem Objekt.
+      Property(node) {
+        if (node.parent?.type !== "ObjectExpression") return;
+        const name =
+          node.key?.type === "Identifier" ? node.key.name : node.key?.value;
+        if (KICKER_PROPS.has(name)) {
+          context.report({ node, messageId: "kicker" });
+        }
+      },
+      JSXElement(node) {
+        checkKickerChildren(node.children, constants, (target) =>
+          context.report({ node: target, messageId: "kicker" }),
+        );
+      },
+      JSXFragment(node) {
+        checkKickerChildren(node.children, constants, (target) =>
+          context.report({ node: target, messageId: "kicker" }),
+        );
       },
     };
   },
@@ -1724,13 +1802,21 @@ const HANDROLLED_SURFACE_RE =
   /moto-content-surface[^"'`]*rounded-2xl|rounded-2xl[^"'`]*moto-content-surface/;
 
 // #5594: die Regel gilt für jede `.tsx` unter `app/` und `components/` außer dem
-// Kit, nicht mehr nur für Seitendateien. Der Bestand steht in der shrink-only
-// Baseline (ui-kit-surface-baseline.json); die Eltern-Ausnahmen aus #2619 sind
-// dieselben wie bei no-hand-rolled-inset.
+// Kit, nicht mehr nur für Seitendateien. Hard-zero seit dem Abbau der Baseline.
+// Eltern-Ausnahmen aus #2619: Kinderkarten, Kinderwahl und Startseite des
+// Elternportals samt ihrer Aufgabenliste behalten ihre Flächen. Nie anfassen,
+// auch nicht für das Kit. Exakte Pfade, kein Präfix.
+const PAGE_CARD_EXEMPT_FILES = [
+  "src/components/parent/child/child-day-card.tsx",
+  "src/components/parent/child/child-switcher.tsx",
+  "src/components/parent/start/parent-start-page.tsx",
+  "src/components/parent/start/todo-list.tsx",
+];
+
 function isPageCardScope(key) {
   if (!/\.tsx$/.test(key) || EXEMPT_FILE_RE.test(key)) return false;
   if (key.startsWith(UI_KIT_DIR)) return false;
-  if (INSET_PARENT_EXCEPTIONS.includes(key)) return false;
+  if (PAGE_CARD_EXEMPT_FILES.includes(key)) return false;
   return key.startsWith("src/app/") || key.startsWith("src/components/");
 }
 
@@ -1743,120 +1829,110 @@ const noHandRolledPageCard = {
     messages: {
       surface:
         "Keine eigene Kartenfläche. SectionCard (Fläche, mit oder ohne Titel), TileCard (anklickbare Kachel), StatCard (Kennzahl) oder TenantPageHeaderSkeleton nehmen; innere Karten `moto-content-surface rounded-xl` (siehe .claude/rules/frontend-ui-kit.md, #5594).",
-      overBaseline: SURFACE_OVER_BASELINE,
     },
   },
-  create: withFileBaseline(
-    {
-      ruleName: "no-hand-rolled-page-card",
-      baselines: surfaceBaseline,
-      countEnv: "UI_KIT_SURFACE_RATCHET",
-    },
-    (context, report) => {
-      if (!isPageCardScope(fileKey(context))) return {};
-      const isReportedPageCardConstant = (value, seenVariables = new Set()) => {
-        if (value?.type === "JSXExpressionContainer") {
-          return isReportedPageCardConstant(value.expression, seenVariables);
+  create(context) {
+    const report = (descriptor) => context.report(descriptor);
+    if (!isPageCardScope(fileKey(context))) return {};
+    const isReportedPageCardConstant = (value, seenVariables = new Set()) => {
+      if (value?.type === "JSXExpressionContainer") {
+        return isReportedPageCardConstant(value.expression, seenVariables);
+      }
+      if (value?.type !== "Identifier") return false;
+      const variable = findVariable(context.sourceCode, value);
+      if (!variable || seenVariables.has(variable)) return false;
+      seenVariables.add(variable);
+      for (const definition of variable.defs) {
+        if (
+          definition.type !== "Variable" ||
+          definition.node.type !== "VariableDeclarator" ||
+          definition.parent?.kind !== "const" ||
+          !definition.node.init
+        )
+          continue;
+        const initializer = definition.node.init;
+        if (HANDROLLED_SURFACE_RE.test(staticStringValue(initializer) ?? "")) {
+          return true;
         }
-        if (value?.type !== "Identifier") return false;
-        const variable = findVariable(context.sourceCode, value);
-        if (!variable || seenVariables.has(variable)) return false;
-        seenVariables.add(variable);
-        for (const definition of variable.defs) {
-          if (
-            definition.type !== "Variable" ||
-            definition.node.type !== "VariableDeclarator" ||
-            definition.parent?.kind !== "const" ||
-            !definition.node.init
-          )
-            continue;
-          const initializer = definition.node.init;
-          if (
-            HANDROLLED_SURFACE_RE.test(staticStringValue(initializer) ?? "")
-          ) {
-            return true;
-          }
-          if (initializer.type === "CallExpression") {
-            const combinations = classCombinations(
-              initializer,
-              new Set(),
-              context.sourceCode,
-            );
-            if (
-              combinations?.some((combo) => HANDROLLED_SURFACE_RE.test(combo))
-            ) {
-              return true;
-            }
-          }
-          if (isReportedPageCardConstant(initializer, seenVariables))
-            return true;
-        }
-        return false;
-      };
-
-      return {
-        Literal(node) {
-          if (
-            typeof node.value === "string" &&
-            HANDROLLED_SURFACE_RE.test(node.value)
-          ) {
-            report({ node, messageId: "surface" });
-          }
-        },
-        TemplateElement(node) {
-          const raw = node.value?.cooked ?? node.value?.raw ?? "";
-          if (HANDROLLED_SURFACE_RE.test(raw)) {
-            report({ node, messageId: "surface" });
-          }
-        },
-        VariableDeclarator(node) {
-          if (
-            node.parent?.kind !== "const" ||
-            node.init?.type !== "CallExpression"
-          )
-            return;
-          const chunks = [];
-          collectStaticStrings(node.init, chunks);
-          if (chunks.some((chunk) => HANDROLLED_SURFACE_RE.test(chunk))) {
-            return;
-          }
-          const combos = classCombinations(
-            node.init,
+        if (initializer.type === "CallExpression") {
+          const combinations = classCombinations(
+            initializer,
             new Set(),
             context.sourceCode,
           );
-          if (combos?.some((combo) => HANDROLLED_SURFACE_RE.test(combo))) {
-            report({ node, messageId: "surface" });
-          }
-        },
-        JSXAttribute(node) {
           if (
-            node.name.type !== "JSXIdentifier" ||
-            node.name.name !== "className"
-          )
-            return;
+            combinations?.some((combo) => HANDROLLED_SURFACE_RE.test(combo))
+          ) {
+            return true;
+          }
+        }
+        if (isReportedPageCardConstant(initializer, seenVariables)) return true;
+      }
+      return false;
+    };
 
-          const chunks = [];
-          collectStaticStrings(node.value, chunks);
-          if (chunks.some((chunk) => HANDROLLED_SURFACE_RE.test(chunk))) {
-            return; // already reported by the Literal/TemplateElement visitors
-          }
-          if (isReportedPageCardConstant(node.value)) return;
-          const combos = classCombinations(
-            node.value,
-            new Set(),
-            context.sourceCode,
-          ) ?? [chunks.join(" ")];
-          const rendered = combos.find((combo) =>
-            HANDROLLED_SURFACE_RE.test(combo),
-          );
-          if (rendered !== undefined) {
-            report({ node, messageId: "surface" });
-          }
-        },
-      };
-    },
-  ),
+    return {
+      Literal(node) {
+        if (
+          typeof node.value === "string" &&
+          HANDROLLED_SURFACE_RE.test(node.value)
+        ) {
+          report({ node, messageId: "surface" });
+        }
+      },
+      TemplateElement(node) {
+        const raw = node.value?.cooked ?? node.value?.raw ?? "";
+        if (HANDROLLED_SURFACE_RE.test(raw)) {
+          report({ node, messageId: "surface" });
+        }
+      },
+      VariableDeclarator(node) {
+        if (
+          node.parent?.kind !== "const" ||
+          node.init?.type !== "CallExpression"
+        )
+          return;
+        const chunks = [];
+        collectStaticStrings(node.init, chunks);
+        if (chunks.some((chunk) => HANDROLLED_SURFACE_RE.test(chunk))) {
+          return;
+        }
+        const combos = classCombinations(
+          node.init,
+          new Set(),
+          context.sourceCode,
+        );
+        if (combos?.some((combo) => HANDROLLED_SURFACE_RE.test(combo))) {
+          report({ node, messageId: "surface" });
+        }
+      },
+      JSXAttribute(node) {
+        if (
+          node.name.type !== "JSXIdentifier" ||
+          node.name.name !== "className"
+        )
+          return;
+
+        const chunks = [];
+        collectStaticStrings(node.value, chunks);
+        if (chunks.some((chunk) => HANDROLLED_SURFACE_RE.test(chunk))) {
+          return; // already reported by the Literal/TemplateElement visitors
+        }
+        if (isReportedPageCardConstant(node.value)) return;
+        const combos = classCombinations(
+          node.value,
+          new Set(),
+          context.sourceCode,
+        ) ?? [chunks.join(" ")];
+        const rendered = combos.find((combo) =>
+          HANDROLLED_SURFACE_RE.test(combo),
+        );
+        if (rendered !== undefined) {
+          report({ node, messageId: "surface" });
+        }
+      },
+    };
+  },
 };
 
 // ui-kit/no-tabs-as-value-switcher — `ui/Tabs` ist Radix und schaltet
@@ -2500,11 +2576,92 @@ function unprefixedTokens(text) {
   return text.split(/\s+/).filter((token) => token && !token.includes(":"));
 }
 
-function hasButtonOptics(text) {
-  const tokens = unprefixedTokens(text).map((token) => token.replace(/^!/, ""));
-  const colour = tokens.some(
-    (token) => BG_COLOR_RE.test(token) || FRAME_COLOR_RE.test(token),
+// #5608: Die Kartenfläche bringt Weiß, Rahmen und Schatten mit; auf einem
+// Knopf ist sie ein Hintergrund wie `bg-white border-gray-200`.
+const SURFACE_AS_FILL = "moto-content-surface";
+
+// #5608: `<span>` und `<label>` mit `cursor-pointer` sowie ein `<label>` um
+// eine Dateiauswahl sind Knöpfe, wenn sie so aussehen: buttonClassName nehmen.
+const CLICKABLE_TEXT_ELEMENTS = new Set(["label", "span"]);
+
+// #5608: Farbe über `style` statt Klasse. Nur Hintergrund, Rahmen und
+// Schatten (Ring per inset-Schatten) zählen; Textfarbe allein macht keinen
+// Knopf.
+const STYLE_FILL_KEYS = new Set([
+  "background",
+  "border",
+  "backgroundColor",
+  "borderColor",
+  "boxShadow",
+]);
+
+function styleObjectHasFill(node, constants, depth) {
+  if (!node || depth > 4) return false;
+  if (
+    node.type === "TSAsExpression" ||
+    node.type === "TSSatisfiesExpression" ||
+    node.type === "ParenthesizedExpression"
+  ) {
+    return styleObjectHasFill(node.expression, constants, depth);
+  }
+  if (node.type === "LogicalExpression") {
+    return (
+      styleObjectHasFill(node.left, constants, depth) ||
+      styleObjectHasFill(node.right, constants, depth)
+    );
+  }
+  if (node.type === "Identifier") {
+    return styleObjectHasFill(constants.get(node.name), constants, depth + 1);
+  }
+  if (node.type === "ConditionalExpression") {
+    return (
+      styleObjectHasFill(node.consequent, constants, depth) ||
+      styleObjectHasFill(node.alternate, constants, depth)
+    );
+  }
+  if (node.type !== "ObjectExpression") return false;
+  return node.properties.some((property) => {
+    if (property.type === "SpreadElement") {
+      return styleObjectHasFill(property.argument, constants, depth + 1);
+    }
+    if (property.type !== "Property" || property.computed) return false;
+    const key =
+      property.key.type === "Identifier"
+        ? property.key.name
+        : String(property.key.value);
+    return STYLE_FILL_KEYS.has(key);
+  });
+}
+
+/** `<label>` whose direct children include `<input type="file">`. */
+function wrapsFileInput(openingElement) {
+  const children = openingElement.parent?.children ?? [];
+  return children.some(
+    (child) =>
+      child.type === "JSXElement" &&
+      jsxName(child.openingElement.name) === "input" &&
+      staticAttributeValue(jsxAttribute(child.openingElement, "type")) ===
+        "file",
   );
+}
+
+/** Static `style` of an element sets a background, frame or shadow colour. */
+function hasStyleFill(openingElement, constants) {
+  const value = jsxAttribute(openingElement, "style")?.value;
+  if (value?.type !== "JSXExpressionContainer") return false;
+  return styleObjectHasFill(value.expression, constants, 0);
+}
+
+function hasButtonOptics(text, { styleFill = false } = {}) {
+  const tokens = unprefixedTokens(text).map((token) => token.replace(/^!/, ""));
+  const colour =
+    styleFill ||
+    tokens.some(
+      (token) =>
+        token === SURFACE_AS_FILL ||
+        BG_COLOR_RE.test(token) ||
+        FRAME_COLOR_RE.test(token),
+    );
   return (
     colour &&
     tokens.some((token) => RADIUS_RE.test(token)) &&
@@ -2870,17 +3027,22 @@ const noHandRolledButton = makeRatchetRule({
     "Build actions from Button, ButtonLink or buttonClassName instead of a hand-styled native element.",
   message:
     "Kein eigener Knopf: Button, ButtonLink oder buttonClassName aus ~/components/ui/button nehmen (#5531, .claude/rules/frontend-ui-kit.md).",
-  detect: ({ classText: textOf, found, bindings }) => ({
+  detect: ({ classText: textOf, found, bindings, constants }) => ({
     JSXOpeningElement(node) {
-      const name = jsxName(node.name);
-      const isAction =
-        NATIVE_ACTION_ELEMENTS.has(name ?? "") ||
-        bindings.actionComponents.has(name ?? "") ||
-        staticAttributeValue(jsxAttribute(node, "role")) === "button";
-      if (!isAction) return;
+      const name = jsxName(node.name) ?? "";
       const className = jsxAttribute(node, "className");
       if (!className?.value) return;
-      if (hasButtonOptics(textOf(className.value))) found(node);
+      const text = textOf(className.value);
+      const isAction =
+        NATIVE_ACTION_ELEMENTS.has(name) ||
+        bindings.actionComponents.has(name) ||
+        staticAttributeValue(jsxAttribute(node, "role")) === "button" ||
+        (CLICKABLE_TEXT_ELEMENTS.has(name) &&
+          unprefixedTokens(text).includes("cursor-pointer")) ||
+        (name === "label" && wrapsFileInput(node));
+      if (!isAction) return;
+      const styleFill = hasStyleFill(node, constants);
+      if (hasButtonOptics(text, { styleFill })) found(node);
     },
   }),
 });
@@ -4757,46 +4919,73 @@ const NAV_ROW_ARROWS = new Set([
   "ChevronRightIcon",
 ]);
 
-/** Kinder einer Zeile, auch hinter `&&`, `?:` und einer lokalen Konstante. */
-function navRowChildren(element, constants) {
-  const direct = [...flatJsxChildren(element)];
-  for (const child of element.children ?? []) {
-    if (
-      child.type === "JSXExpressionContainer" &&
-      child.expression.type === "Identifier"
-    ) {
-      const init = constants.get(child.expression.name);
-      if (init?.type === "JSXElement") direct.push(init);
-    }
-  }
-  return direct;
-}
-
-function isNavRowArrow(element) {
-  if (NAV_ROW_ARROWS.has(jsxName(element.openingElement.name))) return true;
-  return element.children.some(
-    (inner) => inner.type === "JSXText" && inner.value.trim() === "›",
+function isNavRowArrow(element, classText) {
+  if (!NAV_ROW_ARROWS.has(jsxName(element.openingElement.name))) return false;
+  // Der gedrehte Pfeil zeigt einen aufklappbaren Abschnitt an, keine Navigation.
+  const className = jsxAttribute(element.openingElement, "className");
+  return !(
+    className?.value &&
+    classText(className.value)
+      .split(/\s+/)
+      .some((token) => /^-?rotate-/.test(token))
   );
 }
+
+/** Pfeile auch hinter JSX-Hüllen und in lokalen Konstanten einer Zeile finden. */
+function containsNavRowArrow(node, constants, classText, seen = new Set()) {
+  if (!node) return false;
+  if (node.type === "JSXElement") {
+    if (isNavRowArrow(node, classText)) return true;
+    return node.children.some((child) =>
+      containsNavRowArrow(child, constants, classText, seen),
+    );
+  }
+  if (node.type === "JSXText") return node.value.trim() === "›";
+  if (node.type === "JSXFragment") {
+    return node.children.some((child) =>
+      containsNavRowArrow(child, constants, classText, seen),
+    );
+  }
+  if (node.type === "JSXExpressionContainer") {
+    return containsNavRowArrow(node.expression, constants, classText, seen);
+  }
+  if (node.type === "Identifier") {
+    if (seen.has(node.name)) return false;
+    seen.add(node.name);
+    return containsNavRowArrow(
+      constants.get(node.name),
+      constants,
+      classText,
+      seen,
+    );
+  }
+  if (node.type === "LogicalExpression") {
+    return containsNavRowArrow(node.right, constants, classText, seen);
+  }
+  if (node.type === "ConditionalExpression") {
+    return (
+      containsNavRowArrow(node.consequent, constants, classText, seen) ||
+      containsNavRowArrow(node.alternate, constants, classText, seen)
+    );
+  }
+  return false;
+}
+
+// Startseite des Elternportals (#2619): die Aufgabenliste behält ihre Zeilen
+// mit Ungelesen-Punkt am Icon. Nie anfassen, auch nicht für das Kit.
+const NAV_ROW_PARENT_EXCEPTIONS = ["src/components/parent/start/todo-list.tsx"];
 
 const noHandRolledNavRow = makeRatchetRule({
   ruleName: "no-hand-rolled-nav-row",
   description: "Rows that lead elsewhere with an arrow come from ListRowLink.",
   message:
-    "Keine eigene Navigationszeile: `ListRowLink` (`icon`, `title`, `subtitle`, `badge`, Pfeil), einzeln mit `framed` (#5593, .claude/rules/frontend-ui-kit.md).",
-  // Shrink-only: Auswahlzustand (DatabaseListItem), eigene Kante (Tagesplan) und
-  // Ungelesen-Zeilen des Elternportals passen noch nicht in `ListRowLink`.
-  baselines: {
-    "no-hand-rolled-nav-row": {
-      "src/components/database/database-list-item.tsx": 2,
-      "src/components/parent/messages/group-threads-section.tsx": 1,
-      "src/components/parent/messages/parent-messages-page.tsx": 1,
-      "src/components/timetable/tagesplan-view.tsx": 1,
-    },
-  },
+    "Keine eigene Navigationszeile: `ListRowLink` (`icon`, `title`, `subtitle`, `badge`, Pfeil; `selected`, `accent`, dreizeilig mit `overline`/`meta`/`unread`), einzeln mit `framed` (#5593, .claude/rules/frontend-ui-kit.md).",
+  // Hard-zero: Auswahl, farbige Kante und Ungelesen-Zeilen kann `ListRowLink`.
+  baselines: {},
   allowlist: [],
   kitFile: "src/components/ui/list-row-link.tsx",
   exemptDir: UI_KIT_DIR,
+  exemptFiles: NAV_ROW_PARENT_EXCEPTIONS,
   detect: ({ classText, constants, found }) => ({
     JSXElement(node) {
       if (!NAV_ROW_ELEMENTS.has(jsxName(node.openingElement.name))) return;
@@ -4810,8 +4999,13 @@ const noHandRolledNavRow = makeRatchetRule({
       if (!tokens.includes("w-full") && !tokens.includes("justify-between")) {
         return;
       }
-      const arrow = navRowChildren(node, constants).find(isNavRowArrow);
-      if (arrow) found(node);
+      if (
+        node.children.some((child) =>
+          containsNavRowArrow(child, constants, classText),
+        )
+      ) {
+        found(node);
+      }
     },
   }),
 });

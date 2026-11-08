@@ -133,7 +133,11 @@ type AdminRequestChild struct {
 	// ReviewReason says why an open enrollment was left to the school,
 	// e.g. child_quota_reached for a renewal the automatic approval held
 	// back (#3570). Cleared by the next decision.
-	ReviewReason *string        `json:"review_reason,omitempty"`
+	ReviewReason *string `json:"review_reason,omitempty"`
+	// WeeklyPlanOn is the day the approved weekly plan of a renewal applies
+	// when the child's care was still running at approval (#6043). Until
+	// then the running pickup times, care days and Heimweg stay.
+	WeeklyPlanOn string         `json:"weekly_plan_on,omitempty"`
 	CustomData   map[string]any `json:"custom_data,omitempty"`
 	// Offerings is the per-child Betreuungsangebote selection that is on
 	// file RIGHT NOW — exactly the set a correction replaces. Populated
@@ -243,6 +247,7 @@ func toAdminRequestSummary(s *RequestSummary) AdminRequestSummary {
 			CreatedStudentID:  optionalInt64String(c.CreatedStudentID),
 			MatchedStudentID:  optionalInt64String(c.MatchedStudentID),
 			ReviewReason:      c.ReviewReason,
+			WeeklyPlanOn:      optionalDateString(c.WeeklyPlanOn),
 			CustomData:        c.CustomData,
 		})
 	}
@@ -762,6 +767,7 @@ func newAdminRequestChild(child *RequestChild) AdminRequestChild {
 		CreatedStudentID:  optionalInt64String(child.CreatedStudentID),
 		MatchedStudentID:  optionalInt64String(child.MatchedStudentID),
 		ReviewReason:      child.ReviewReason,
+		WeeklyPlanOn:      optionalDateString(child.WeeklyPlanOn),
 	}
 }
 

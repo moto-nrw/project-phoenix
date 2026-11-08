@@ -28,6 +28,8 @@ export function enrollmentReviewTopic(): HelpTopic {
       "Sie entscheiden je Kind. Eine Anmeldung kann mehrere Kinder enthalten.",
       // #6053
       "Ist schon ein Kind mit diesem Namen und Geburtsdatum angemeldet, fragt moto beim `Bestätigen` nach. Wählen Sie `Bestehendes Kind verwenden`, verlängert moto nur die Anmeldung dieses Kindes. Die Eltern aus der Anmeldung bekommen dadurch keinen Zugang. Ist es ein anderes Kind, wählen Sie `Als neues Kind anlegen`.",
+      // #6043: Wiederanmeldung vor dem Start der Betreuung.
+      "Wird ein Kind schon betreut und beginnt die Anmeldung später? Dann gelten Abholzeiten, Betreuungstage und Heimweg daraus erst ab dem Start. Bis dahin bleiben die bisherigen. Das Datum steht beim Kind. Steht der Hinweis nach dem Start noch da, gelten weiter die bisherigen. Melden Sie sich dann beim moto-Team.",
       // #5934
       "Unter `E-Mails an die Familie` sehen Sie, ob die Mails zu dieser Anmeldung angekommen sind. Steht dort `Adresse prüfen`, sprechen Sie die Familie direkt an.",
       "Auf der Seite der Phase steht unter `Freie Plätze je Angebot`, wie viele Plätze noch frei sind. `Belegt` zählt die Kinder am vollsten Tag bis zum Ende der Phase.",

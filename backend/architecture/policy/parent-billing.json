@@ -57,6 +57,10 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.care_invoice_cancellations",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.care_invoice_positions",
       "write_owner": "parent-billing"
     },
@@ -65,7 +69,19 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.care_letter_mailings",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_letters",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.care_run_events",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_run_letters",
       "write_owner": "parent-billing"
     },
     {

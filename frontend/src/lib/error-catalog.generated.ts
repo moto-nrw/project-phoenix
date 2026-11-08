@@ -829,6 +829,12 @@ export const ERROR_CATALOG = {
         "Diesen Nachweis gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "parent_billing.care_evidence_overlap":
         "Für diese Zeit gibt es schon einen Nachweis dieser Art. Beenden Sie zuerst den alten Nachweis.",
+      "parent_billing.care_invoice_cancelled":
+        "Diese Rechnung ist storniert. Sie wird nicht mehr verschickt.",
+      "parent_billing.care_invoice_not_found":
+        "Diese Rechnung gibt es in diesem Lauf nicht. Bitte laden Sie die Seite neu.",
+      "parent_billing.care_recipient_changed":
+        "Die Rechnung geht an eine Person, die nicht mehr im Vertrag steht. Bitte stornieren Sie die Rechnung. Der nächste Lauf stellt sie neu aus.",
       "parent_billing.care_rule_in_use":
         "Diese Einkommensstufe ist bei Kindern eingetragen. Ändern oder löschen Sie zuerst deren Nachweise.",
       "parent_billing.care_run_invalid": "Bitte wählen Sie einen Monat.",

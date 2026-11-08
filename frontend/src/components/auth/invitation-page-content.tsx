@@ -125,7 +125,6 @@ export function InvitationPageContent({
   if (isLoading) {
     return (
       <AuthShell
-        eyebrow="Einladung"
         title="Konto einrichten"
         subtitle="Wir prüfen Ihre Einladung."
         variant="tenant"
@@ -139,7 +138,6 @@ export function InvitationPageContent({
 
   return (
     <AuthShell
-      eyebrow="Einladung"
       title={
         invitation?.requiresAccountLogin
           ? "Schule hinzufügen"

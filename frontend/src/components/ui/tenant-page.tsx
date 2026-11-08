@@ -333,7 +333,7 @@ function TenantPageInfo({
           // Sichtbar 32 px wie die übrigen Symbolknöpfe; die Trefferfläche
           // reicht per Pseudoelement auf 44 px, die Untergrenze für eine
           // Touch-Fläche, ohne die Titelzeile höher zu machen.
-          className="relative shrink-0 text-gray-500 after:absolute after:-inset-1.5 after:content-['']"
+          className="relative shrink-0 after:absolute after:-inset-1.5 after:content-['']"
         >
           <Info aria-hidden="true" className="h-[18px] w-[18px]" />
         </Button>

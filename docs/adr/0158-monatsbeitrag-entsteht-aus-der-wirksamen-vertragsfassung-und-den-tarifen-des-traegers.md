@@ -170,3 +170,12 @@ zweite (`heldView`).
   `api.traeger.care_tariffs` (6, exact).
 - Datenlebenszyklus und Aufbewahrung: je fünf Einträge.
 - Migrationen `1.15.789` (Tabellen) und `1.15.805` (`platform.erase_closed_demo_visitors`, auf der Fassung von 1.15.797).
+
+## Nachtrag 2026-11-08: Schreiben, Versand und Storno (#4684)
+
+Punkt 11 nannte „Senden und Druck der Schreiben“ als offen. Die Monatsrechnungen
+bekommen Schreiben, Versand, Postfach, Sammeldruck, Storno und Neuausstellung
+über die Strecke der Ferienrechnungen in eigenen Tabellen:
+[ADR 0165](0165-monatsrechnungen-nehmen-schreiben-versand-und-storno-der-ferienrechnungen.md).
+Punkt 5 („ein Vertrag hat je Monat höchstens eine Rechnung“) gilt seitdem für
+die erste Rechnung; eine stornierte Rechnung ersetzt höchstens eine neue.

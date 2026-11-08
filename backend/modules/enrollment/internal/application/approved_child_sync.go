@@ -273,8 +273,13 @@ func (d *Decisions) syncApprovedChildGuardianFields(ctx context.Context, run *ap
 // departure plan.
 func (d *Decisions) syncApprovedChildTargetedFields(ctx context.Context, run *approvedChildSync, guardian *GuardianProfile, keep map[int64]bool) error {
 	student := run.student
+	scope, err := d.approvedChildTargetScope(ctx, run)
+	if err != nil {
+		return err
+	}
 	beforeTargetedSync := *student
 	planSynced, terr := d.applyTargetedFields(ctx, run.request, run.child, student, guardian, run.input.ActorAccountID, targetedFieldSyncOptions{
+		Scope:                  scope,
 		Replace:                run.input.ReplaceTargetedData,
 		PreviousSnapshot:       run.snapshot,
 		KeepGuardianProfileIDs: keep,
@@ -301,7 +306,7 @@ func (d *Decisions) syncApprovedChildTargetedFields(ctx context.Context, run *ap
 	// and the Laufgemeinschaft search keep showing the pre-sync links. After
 	// the refusal returns above, so a rolled-back sync stays silent.
 	if planSynced {
-		d.deferStudentPlanBroadcasts(ctx, student.ID)
+		d.deferStudentPlanBroadcasts(ctx, student.ID, true)
 	}
 	return nil
 }
@@ -333,9 +338,15 @@ func (d *Decisions) checkTargetedSyncErrors(run *approvedChildSync, terr error) 
 	return nil
 }
 
+// studentUpdatedOnly passes on the student update and drops the companion
+// signal, for a plan write that changed no companion link.
+type studentUpdatedOnly struct{ StudentPlanBroadcasts }
+
+func (studentUpdatedOnly) BroadcastStudentCompanionsChanged(int64, string) error { return nil }
+
 // deferStudentPlanBroadcasts announces, after the surrounding tenant
-// transaction commits, that an enrollment sync replaced a child's departure
-// plan. Two events, because they invalidate different caches — exactly like
+// transaction commits, that an enrollment sync applied a child's weekly or
+// departure plan. Two events, because they invalidate different caches — like
 // the master-data-review and care-request emitters:
 //
 //   - student_updated: the plan itself lives on the student record, so the
@@ -345,13 +356,18 @@ func (d *Decisions) checkTargetedSyncErrors(run *approvedChildSync, terr error) 
 //     approved change.
 //   - student_companions_changed: a narrowed plan makes the owner trim
 //     "läuft mit" links, which are rows on ANOTHER child's card too — the
-//     signal every mounted companion view refetches on.
+//     signal every mounted companion view refetches on. Only sent when the
+//     write actually changed companion links (#6043): a false signal makes
+//     open companion editors drop their drafts.
 //
 // Fire-and-forget: a lost event costs a stale card, never data.
-func (d *Decisions) deferStudentPlanBroadcasts(ctx context.Context, studentID int64) {
+func (d *Decisions) deferStudentPlanBroadcasts(ctx context.Context, studentID int64, companionsChanged bool) {
 	broadcasts := d.deps.Broadcasts
 	if broadcasts == nil {
 		return
+	}
+	if !companionsChanged {
+		broadcasts = studentUpdatedOnly{broadcasts}
 	}
 	tenantID := d.deps.Runtime.TenantID(ctx)
 	d.deps.Runtime.AfterCommit(ctx, func() {
