@@ -201,15 +201,15 @@ type fakeOperatorMFA struct {
 }
 
 func (m *fakeOperatorMFA) Configured() bool { return m.configured }
-func (m *fakeOperatorMFA) HasEnrollment(context.Context, int64) (bool, error) {
+func (m *fakeOperatorMFA) HasOperatorMFAEnrollment(context.Context, int64) (bool, error) {
 	m.calls = append(m.calls, "HasEnrollment")
 	return m.enrolled, m.enrolledErr
 }
-func (m *fakeOperatorMFA) VerifyTrustedDevice(_ context.Context, _ int64, cookie string) (bool, error) {
+func (m *fakeOperatorMFA) VerifyOperatorTrustedDevice(_ context.Context, _ int64, cookie string) (bool, error) {
 	m.calls = append(m.calls, "VerifyTrustedDevice")
 	return cookie != "" && cookie == m.trustedCookie, nil
 }
-func (m *fakeOperatorMFA) StartChallenge(context.Context, int64, net.IP) (string, error) {
+func (m *fakeOperatorMFA) StartOperatorMFAChallenge(context.Context, int64, net.IP) (string, error) {
 	m.calls = append(m.calls, "StartChallenge")
 	if m.challengeErr != nil {
 		return "", m.challengeErr
@@ -219,7 +219,7 @@ func (m *fakeOperatorMFA) StartChallenge(context.Context, int64, net.IP) (string
 	}
 	return m.challenge, nil
 }
-func (m *fakeOperatorMFA) TrustedDeviceDays() int { return 90 }
+func (m *fakeOperatorMFA) OperatorTrustedDeviceDays() int { return 90 }
 
 type fakeOperatorAudit struct {
 	mu      sync.Mutex
