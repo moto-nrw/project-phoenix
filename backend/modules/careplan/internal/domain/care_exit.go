@@ -448,14 +448,19 @@ func ParticipatingOn(
 // AdministrativelyVisibleOn is the participation the administrative child
 // list shows: retained children (a pending withdrawal task, actual presence)
 // stay, and a pending child waiting for its scheduled care start stays
-// findable for the school to prepare it (#6041).
+// findable for the school to prepare it (#6041), unless care has ended or
+// the child is an alumnus.
 func AdministrativelyVisibleOn(
 	studentIDs []int64, students map[int64]CareStudent, boundaries map[int64]calendar.Date,
 	on, today calendar.Date, retained map[int64]bool,
 ) map[int64]bool {
 	visible := ParticipatingOn(studentIDs, students, boundaries, on, today, retained)
 	for _, id := range studentIDs {
-		if students[id].AwaitsCareStartOn(on, today) {
+		if boundary, ended := boundaries[id]; ended && !on.Before(boundary) {
+			continue
+		}
+		student := students[id]
+		if !student.IsAlumnus() && student.AwaitsCareStartOn(on, today) {
 			visible[id] = true
 		}
 	}

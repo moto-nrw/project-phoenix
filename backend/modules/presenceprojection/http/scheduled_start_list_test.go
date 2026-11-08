@@ -32,6 +32,9 @@ func TestStudentListCountsAScheduledChildOnlyFromItsCareStart(t *testing.T) {
 
 	scheduled := testpkg.CreateTestStudent(t, tc.db, "Geplant", "Februarstart", "1a")
 	testpkg.SetStudentLifecycle(t, tc.db, scheduled.ID, testpkg.StudentStatusPending, &start, &until)
+	endedScheduled := testpkg.CreateTestStudent(t, tc.db, "Beendet", "VorBeginn", "1a")
+	ended := today.AddDays(-1)
+	testpkg.SetStudentLifecycle(t, tc.db, endedScheduled.ID, testpkg.StudentStatusPending, &start, &ended)
 	immediate := testpkg.CreateTestStudent(t, tc.db, "Sofort", "Aktiviert", "1a")
 	testpkg.SetStudentLifecycle(t, tc.db, immediate.ID, testpkg.StudentStatusActive, &start, &until)
 	renewed := testpkg.CreateTestStudent(t, tc.db, "Laufend", "Verlaengert", "2a")
@@ -84,10 +87,12 @@ func TestStudentListCountsAScheduledChildOnlyFromItsCareStart(t *testing.T) {
 
 	all, _ := listed("?page_size=500&care_status=all")
 	assert.True(t, all[scheduled.ID], "the administrative view of every child keeps the scheduled child")
+	assert.True(t, all[endedScheduled.ID], "the explicit view of all children still includes ended care")
 	// The child management (Datenverwaltung → Kinder) asks with
 	// include_pending_withdrawals and must still find the child to prepare it.
 	managed, managedTotal := listed("?page_size=500&include_pending_withdrawals=true")
 	assert.True(t, managed[scheduled.ID], "the child management keeps the scheduled child")
+	assert.False(t, managed[endedScheduled.ID], "a scheduled start does not restore ended care without presence or a withdrawal task")
 	assert.Equal(t, 4, managedTotal)
 
 	exported := func(date string) string {

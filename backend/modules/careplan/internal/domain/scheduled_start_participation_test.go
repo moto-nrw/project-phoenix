@@ -67,7 +67,7 @@ func TestAdministrativeVisibilityKeepsAScheduledChild(t *testing.T) {
 	students := map[int64]CareStudent{
 		scheduled:     {Status: careplan.StudentStatusPending, EnrolledFrom: &start},
 		endedChild:    {Status: careplan.StudentStatusInactive, EnrolledUntil: &ended},
-		alumnus:       {Status: careplan.StudentStatusAlumnus},
+		alumnus:       {Status: careplan.StudentStatusAlumnus, FirstCareFrom: &start},
 		retainedEnded: {Status: careplan.StudentStatusInactive, EnrolledUntil: &ended},
 	}
 	ids := []int64{scheduled, endedChild, alumnus, retainedEnded}
@@ -77,6 +77,55 @@ func TestAdministrativeVisibilityKeepsAScheduledChild(t *testing.T) {
 	assert.False(t, visible[endedChild], "an ended care stays out")
 	assert.False(t, visible[alumnus])
 	assert.True(t, visible[retainedEnded], "a pending withdrawal task still retains the child")
+}
+
+func TestAdministrativeVisibilityPreservesScheduledDepartureBoundaries(t *testing.T) {
+	t.Parallel()
+	const studentID int64 = 1
+	today := calendar.Date("2026-11-07")
+	start := calendar.Date("2027-02-03")
+	yesterday, tomorrow := today.AddDays(-1), today.AddDays(1)
+	for _, kind := range []struct {
+		name    string
+		student CareStudent
+	}{
+		{"pending_start", CareStudent{Status: careplan.StudentStatusPending, EnrolledFrom: &start}},
+		{"first_care_bound", CareStudent{Status: careplan.StudentStatusInactive, FirstCareFrom: &start}},
+	} {
+		for _, tc := range []struct {
+			name     string
+			until    *calendar.Date
+			pending  *calendar.Date
+			retained bool
+			visible  bool
+		}{
+			{name: "without_departure", visible: true},
+			{name: "last_enrollment_day", until: &today, visible: true},
+			{name: "expired_enrollment", until: &yesterday},
+			{name: "future_completion", pending: &tomorrow, visible: true},
+			{name: "completion_day", pending: &today},
+			{name: "expired_completion", pending: &yesterday},
+			{name: "enrollment_ends_first", until: &yesterday, pending: &tomorrow},
+			{name: "completion_ends_first", until: &tomorrow, pending: &today},
+			{name: "retained_after_enrollment", until: &yesterday, retained: true, visible: true},
+			{name: "retained_after_completion", pending: &today, retained: true, visible: true},
+		} {
+			t.Run(kind.name+"/"+tc.name, func(t *testing.T) {
+				t.Parallel()
+				student := kind.student
+				student.EnrolledUntil = tc.until
+				students := map[int64]CareStudent{studentID: student}
+				pending := make(map[int64]calendar.Date)
+				if tc.pending != nil {
+					pending[studentID] = *tc.pending
+				}
+				boundaries := ParticipationBoundaries(students, pending)
+				visible := AdministrativelyVisibleOn([]int64{studentID}, students, boundaries, today, today,
+					map[int64]bool{studentID: tc.retained})
+				assert.Equal(t, tc.visible, visible[studentID])
+			})
+		}
+	}
 }
 
 // The scheduled start also holds for retained reports: a child that only
