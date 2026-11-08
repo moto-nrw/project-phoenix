@@ -1,10 +1,11 @@
 "use client";
 
 // Empfänger und Zahlung einer Familie (#4689): an wen ihre Rechnungen gehen
-// und wie sie zahlt. Geöffnet aus dem Monatslauf für die Familie eines
+// und wie sie zahlt, mit ihrem SEPA-Mandat (#4695). Geöffnet aus dem Monatslauf für die Familie eines
 // Vertrags; eine eigene Seite, damit die Seite des Laufs das Formular nicht
 // lädt. Die gespeicherte Abweichung wird bei jedem Öffnen frisch gelesen.
 
+import { SepaMandateStatusCard } from "~/components/traeger/sepa-mandate-status-card";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { findFamilyBilling } from "~/components/traeger/billing-payment-format";
@@ -123,6 +124,7 @@ export default function TraegerFamilyBillingPage() {
           />
         </SectionCard>
       ) : null}
+      {loaded ? <SepaMandateStatusCard contractId={contractId} /> : null}
     </TenantPage>
   );
 }

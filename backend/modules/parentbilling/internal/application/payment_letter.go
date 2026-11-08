@@ -45,16 +45,41 @@ func paymentFacts(payment *parentbilling.InvoicePayment, letters calendar.Date) 
 		return []LetterFact{{Label: "Zahlen bis", Value: due}}
 	}
 	if isDirectDebit(payment) {
-		return []LetterFact{{Label: "Zahlungsweg", Value: paymentMethodLabel(payment.Method)}, {Label: "Abbuchung am", Value: due}}
+		facts := []LetterFact{{Label: "Zahlungsweg", Value: paymentMethodLabel(payment.Method)}, {Label: "Abbuchung am", Value: due}}
+		if mandate := payment.Mandate; mandate != nil {
+			// The pre-notification of the SEPA direct debit (#4695, ADR 0171):
+			// the account only as its mask.
+			facts = append(facts, LetterFact{Label: "Konto", Value: mandate.IBANMasked},
+				LetterFact{Label: "Mandatsreferenz", Value: mandate.Reference},
+				LetterFact{Label: "Gläubiger-ID", Value: mandate.CreditorID})
+		}
+		return facts
 	}
 	return []LetterFact{{Label: "Zahlungsweg", Value: paymentMethodLabel(payment.Method)}, {Label: "Zahlen bis", Value: due}}
 }
 
 // directDebitText says when the Träger collects the amount; the payment
 // text of the Träger asks for a transfer, so a direct debit never uses it.
-func directDebitText(amountCents int64, due calendar.Date, reference string) string {
-	return fmt.Sprintf("Wir buchen %s am %s von Ihrem Konto ab. Verwendungszweck: %s. Sie müssen nichts überweisen.",
-		formatEuro(amountCents), germanDate(due), reference)
+// With its mandate the sentence is the pre-notification of the SEPA direct
+// debit (#4695, ADR 0171): amount, date, the masked account, the creditor
+// identifier and the mandate reference.
+func directDebitText(amountCents int64, due calendar.Date, reference string, mandate *parentbilling.InvoiceMandate) string {
+	if mandate == nil {
+		return fmt.Sprintf("Wir buchen %s am %s von Ihrem Konto ab. Verwendungszweck: %s. Sie müssen nichts überweisen.",
+			formatEuro(amountCents), germanDate(due), reference)
+	}
+	return fmt.Sprintf("Wir buchen %s am %s per SEPA-Lastschrift von Ihrem Konto %s ab. "+
+		"Gläubiger-ID: %s. Mandatsreferenz: %s. Verwendungszweck: %s. "+
+		"Sie müssen nichts überweisen. Bitte achten Sie darauf, dass das Konto an diesem Tag gedeckt ist.",
+		formatEuro(amountCents), germanDate(due), mandate.IBANMasked, mandate.CreditorID, mandate.Reference, reference)
+}
+
+// paymentMandate is the mandate of a payment, nil without one.
+func paymentMandate(payment *parentbilling.InvoicePayment) *parentbilling.InvoiceMandate {
+	if payment == nil {
+		return nil
+	}
+	return payment.Mandate
 }
 
 // billingRecipientLines are the lines of the address field: another payer

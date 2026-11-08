@@ -135,6 +135,13 @@ type careInvoiceRow struct {
 	PaymentMethod       *string        `bun:"payment_method"`
 	DueOn               *calendar.Date `bun:"due_on,type:date"`
 	DueSource           *string        `bun:"due_source"`
+	MandateID           *int64         `bun:"mandate_id"`
+	MandateReference    *string        `bun:"mandate_reference"`
+	MandateSignedOn     *calendar.Date `bun:"mandate_signed_on,type:date"`
+	CreditorID          *string        `bun:"creditor_id"`
+	DebtorIBANMasked    *string        `bun:"debtor_iban_masked"`
+	SequenceType        *string        `bun:"sequence_type"`
+	DebitGap            *string        `bun:"debit_gap"`
 	// CostShares are the issued cost bearer shares (#4687), read in the same
 	// statement as the invoice.
 	CostShares []parentbilling.CareInvoiceCostShare `bun:"cost_shares,type:jsonb,scanonly"`
@@ -153,7 +160,7 @@ func (row careInvoiceRow) invoice(positions []parentbilling.CarePosition, reduct
 		Recipient: parentbilling.CareRecipient{FirstName: row.RecipientFirstName, LastName: row.RecipientLastName, Email: row.RecipientEmail,
 			Kind: textOf(row.RecipientKind), SecondName: textOf(row.RecipientSecondName)},
 		Positions: positions, Reductions: reductions, TotalCents: row.TotalCents, DocumentKind: row.DocumentKind,
-		FamilyEmail: textOf(row.FamilyEmail), Payment: paymentOf(row.PaymentMethod, row.DueOn, row.DueSource),
+		FamilyEmail: textOf(row.FamilyEmail), Payment: row.snapshot().payment(),
 	}
 	if row.RecipientStreet != nil && row.RecipientPostalCode != nil && row.RecipientCity != nil {
 		invoice.Recipient.Address = &parentbilling.PostalAddress{Street: *row.RecipientStreet,
@@ -555,7 +562,7 @@ func (s *Store) IssueCareInvoices(ctx context.Context, organizationID int64, run
 		if address := invoice.Recipient.Address; address != nil {
 			rows[i].RecipientStreet, rows[i].RecipientPostalCode, rows[i].RecipientCity = &address.Street, &address.PostalCode, &address.City
 		}
-		rows[i].PaymentMethod, rows[i].DueOn, rows[i].DueSource = paymentColumns(invoice.Payment)
+		rows[i].setPayment(snapshotOf(invoice.Payment))
 	}
 	if _, err := db.NewInsert().Model(&rows).Returning("id").Exec(ctx); err != nil {
 		switch constraintOf(err) {
@@ -771,4 +778,18 @@ func careDocumentKind(kind string) string {
 		return parentbilling.DocumentKindInvoice
 	}
 	return kind
+}
+
+// snapshot is the copied payment of the row (#4689, #4695).
+func (r careInvoiceRow) snapshot() paymentSnapshot {
+	return paymentSnapshot{PaymentMethod: r.PaymentMethod, DueOn: r.DueOn, DueSource: r.DueSource, MandateID: r.MandateID,
+		MandateReference: r.MandateReference, MandateSignedOn: r.MandateSignedOn, CreditorID: r.CreditorID,
+		DebtorIBANMasked: r.DebtorIBANMasked, SequenceType: r.SequenceType, DebitGap: r.DebitGap}
+}
+
+// setPayment copies a payment onto the row.
+func (r *careInvoiceRow) setPayment(s paymentSnapshot) {
+	r.PaymentMethod, r.DueOn, r.DueSource, r.MandateID = s.PaymentMethod, s.DueOn, s.DueSource, s.MandateID
+	r.MandateReference, r.MandateSignedOn, r.CreditorID = s.MandateReference, s.MandateSignedOn, s.CreditorID
+	r.DebtorIBANMasked, r.SequenceType, r.DebitGap = s.DebtorIBANMasked, s.SequenceType, s.DebitGap
 }
