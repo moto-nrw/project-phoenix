@@ -2378,12 +2378,12 @@ const noEmDashEmptyValue = {
 //     Mindesthöhe, Polster, Radius, Schriftgröße/-gewicht, Hintergrund, Text-,
 //     Ring- und Schattenfarbe, scale). Reine Layout-Klassen bleiben erlaubt.
 //
-// Ein Fund je Element. Die Zahl je Datei steht in ui-kit-button-baseline.json
-// (Ist-Stand, shrink-only: mehr Funde schlagen hier fehl; dass die Baseline
-// nach einem Abbau gesenkt wird, prüft oxlint-plugin-ui-kit.test.ts über
-// `ui-kit-button-baseline-update.mjs --check`). Bewusste Ausnahmen stehen mit Begründung in der
-// Allowlist in ui-kit-button-baseline.mjs. Neu erzeugen:
-// `pnpm run ui-kit:button-baseline`.
+// Ein Fund je Element. Hart null seit #6182: Die Baseline in
+// ui-kit-button-baseline.json ist für beide Regeln leer und darf nicht wieder
+// wachsen (`ui-kit-button-baseline-update.mjs` verweigert das, der Test
+// prüft es über `--check`). Fehlt ein Aussehen, kommt eine Kit-Variante dazu.
+// Bewusste Ausnahmen stehen mit Begründung in der Allowlist in
+// ui-kit-button-baseline.mjs.
 
 const BUTTON_KIT_FILE = "src/components/ui/button.tsx";
 const NATIVE_ACTION_ELEMENTS = new Set([

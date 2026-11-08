@@ -133,8 +133,9 @@ export function PlanningContextBar({
           </div>
         )}
 
-        {/* Die Segmente füllen die Gruppe in der Höhe (`h-full`): mit der
-            Kit-Höhe h-8 blieb unter jedem Knopf ein weißer Streifen stehen.
+        {/* Die Segmente füllen die Gruppe in der Höhe (`variant="segment"`):
+            mit der Kit-Höhe h-8 blieb unter jedem Knopf ein weißer Streifen
+            stehen.
             Eine Gruppe, drei Segmente: die Zeitnavigation liest sich als ein
             Bedienelement statt als zwei schwebende Pfeile mit Text dazwischen.
             Mobil sitzt sie rechts neben dem Datumsblock, ab md rückt sie per
@@ -149,8 +150,7 @@ export function PlanningContextBar({
           <Button
             type="button"
             size="icon"
-            variant="ghost"
-            className="h-full rounded-none"
+            variant="segment"
             onClick={onPrevious}
             disabled={!onPrevious}
             aria-label={previousLabel}
@@ -165,8 +165,7 @@ export function PlanningContextBar({
             <Button
               type="button"
               size="compact"
-              variant="ghost"
-              className="h-full rounded-none px-3"
+              variant="segment"
               onClick={onToday}
               disabled={!onToday}
             >
@@ -176,8 +175,7 @@ export function PlanningContextBar({
           <Button
             type="button"
             size="icon"
-            variant="ghost"
-            className="h-full rounded-none"
+            variant="segment"
             onClick={onNext}
             disabled={!onNext}
             aria-label={nextLabel}
@@ -187,13 +185,14 @@ export function PlanningContextBar({
         </div>
 
         {/* Außerhalb der Gruppe ist „Heute" kein Dauergast: er steht nur da,
-            wenn er etwas tut. Rechts von der Gruppe kann nichts springen. */}
+            wenn er etwas tut. Rechts von der Gruppe kann nichts springen.
+            `field` ist so hoch wie die Gruppe (40 px, per Finger 44 px). */}
         {navigationInGroup && onToday && (
           <Button
             type="button"
-            size="compact"
+            size="field"
             variant="ghost"
-            className="h-10 px-3 text-gray-600 max-sm:h-11 md:order-2"
+            className="md:order-2"
             onClick={onToday}
           >
             {todayLabel}
@@ -346,24 +345,19 @@ export function PlanningDayChip({
   const quietText = selected ? "text-white/80" : "text-gray-500";
 
   return (
-    <button
+    <Button
       ref={buttonRef}
       type="button"
+      variant={stacked ? "day_chip_stacked" : "day_chip"}
+      size="md"
       onClick={onClick}
       aria-label={ariaLabel}
       aria-pressed={selected}
+      // Unter dem Telefon teilen sich die Tage die Breite gleichmäßig.
+      // `scroll-mx-1` hält beim automatischen Heranscrollen den Rand frei
+      // (#2031).
       className={cn(
-        stacked
-          ? "flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-lg px-1 py-1.5 transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-          : // 36 px und `text-sm`: der Tages-Chip ist ein Bedienelement in der
-            // Kontextzeile, kein Kleingedrucktes. `scroll-mx-1` hält beim
-            // automatischen Heranscrollen den Rand frei (#2031).
-            "inline-flex h-9 shrink-0 scroll-mx-1 items-center gap-1 rounded-md px-2.5 text-sm focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none",
-        selected
-          ? "bg-gray-900 text-white"
-          : stacked
-            ? "text-gray-600 hover:bg-gray-100"
-            : "text-gray-600 hover:bg-gray-100 hover:text-gray-900",
+        stacked ? "min-w-0 flex-1" : "shrink-0 scroll-mx-1",
         className,
       )}
     >
@@ -410,6 +404,6 @@ export function PlanningDayChip({
           ) : null}
         </>
       )}
-    </button>
+    </Button>
   );
 }

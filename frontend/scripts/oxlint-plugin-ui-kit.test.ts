@@ -2389,24 +2389,30 @@ describe.concurrent("ui-kit/no-hand-rolled-button", () => {
     expect(result.output).not.toContain("no-hand-rolled-button");
   });
 
-  it("keeps the shrink-only baseline: equal and fewer pass, more fails", async () => {
-    const [file, count] = Object.entries(
-      buttonRatchetBaseline["no-hand-rolled-button"] ?? {},
-    )[0]!;
-    // Andere Klassenketten derselben Datei fallen weg: Die Sonde ersetzt sie.
-    const [equal, more, fewer] = await Promise.all([
-      lintSource(handRolled(count), file),
-      lintSource(handRolled(count + 1), file),
-      lintSource(handRolled(count - 1), file),
+  // #6182: hart null. Die Baseline ist leer; schon ein Fund in einer Datei,
+  // die früher in der Baseline stand, schlägt fehl.
+  it("is hard-zero: one finding fails, also in a former baseline file", async () => {
+    expect(buttonRatchetBaseline["no-hand-rolled-button"]).toEqual({});
+    expect(buttonRatchetBaseline["no-button-override"]).toEqual({});
+    const [filterButton, override] = await Promise.all([
+      lintSource(
+        handRolled(1),
+        "src/components/ui/page-header/FilterButton.tsx",
+      ),
+      lintSource(
+        `import { Button } from "~/components/ui/button";
+        function Probe() {
+          return <Button variant="ghost_tone" size="compact" className="underline py-1">Kopieren</Button>;
+        }
+        void Probe;`,
+        "src/components/ui/request-id-button.tsx",
+      ),
     ]);
-    expect(equal.output).not.toContain("no-hand-rolled-button");
 
-    expect(more.status).toBe(1);
-    expect(more.output).toContain("ui-kit(no-hand-rolled-button)");
-
-    // Weniger Funde sind im Lint erlaubt; die gesenkte Baseline verlangt der
-    // Test „button ratchet baseline“ unten.
-    expect(fewer.output).not.toContain("no-hand-rolled-button");
+    expect(filterButton.status).toBe(1);
+    expect(filterButton.output).toContain("ui-kit(no-hand-rolled-button)");
+    expect(override.status).toBe(1);
+    expect(override.output).toContain("ui-kit(no-button-override)");
   });
 
   it("allows only the documented allowlist location", async () => {
@@ -2629,21 +2635,14 @@ describe("button ratchet baseline", () => {
       }
       sources.set(entry.file, lines);
     }
-    // Der zusätzliche Fund liegt in einer Datei, die die echte Baseline schon
-    // zählt, und bleibt innerhalb dieser Zahl. Liest das Skript versehentlich
-    // die Standard-Baseline statt UI_KIT_BUTTON_BASELINE_PATH, sieht es keine
-    // Erhöhung, schreibt und endet mit 0; dann wird dieser Test rot.
-    const [baselinedFile] = Object.keys(
-      buttonRatchetBaseline["no-hand-rolled-button"] ?? {},
-    ).filter((file) => file.endsWith(".tsx"));
-    expect(baselinedFile).toBeDefined();
-    const baselinedLines = sources.get(baselinedFile!) ?? [
+    // Der zusätzliche Fund liegt außerhalb jeder Allowlist-Zeile. Die Baseline
+    // ist seit #6182 leer: Das Skript darf ihn nicht in die Baseline
+    // aufnehmen.
+    const extraFile = "src/components/probe.tsx";
+    sources.set(extraFile, [
       `import { Button } from "~/components/ui/button";`,
-    ];
-    baselinedLines.push(
       `export const probeExtra = ${findingAt["no-hand-rolled-button"]};`,
-    );
-    sources.set(baselinedFile!, baselinedLines);
+    ]);
     for (const [file, lines] of sources) {
       mkdirSync(dirname(join(directory, file)), { recursive: true });
       writeFileSync(join(directory, file), `${lines.join("\n")}\n`);

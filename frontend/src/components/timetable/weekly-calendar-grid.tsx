@@ -29,6 +29,7 @@ import { Alert } from "~/components/ui/alert";
 import { CapacityStrip } from "~/components/ui/planning/capacity-strip";
 import { EmptyState } from "~/components/ui/empty-state";
 import { PlanAddAffordance } from "~/components/ui/planning/plan-add-affordance";
+import { SectionCard } from "~/components/ui/section-card";
 import {
   assignBlockLanes,
   buildDayColumnTemplate,
@@ -345,9 +346,8 @@ export function WeeklyCalendarGrid({
   );
 
   return (
-    <div
-      // oxlint-disable-next-line ui-kit/no-hand-rolled-page-card -- Rahmen des Planrasters, kein Abschnitt: er trägt die Spaltenvariablen des Rasters per style, das SectionCard nicht annimmt
-      className="moto-content-surface overflow-hidden rounded-2xl border"
+    <SectionCard
+      padding="none"
       style={
         {
           "--day-grid-cols": smColumns.template,
@@ -712,6 +712,6 @@ export function WeeklyCalendarGrid({
           {legend}
         </div>
       ) : null}
-    </div>
+    </SectionCard>
   );
 }
