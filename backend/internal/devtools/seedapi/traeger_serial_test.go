@@ -49,6 +49,9 @@ func runOverlapping(t *testing.T, organizations []int64, wantRunning int32) int3
 	}
 	assert.Eventually(t, func() bool { return running.Load() >= wantRunning }, time.Second, time.Millisecond,
 		"independent runs must enter before any finishes")
+	// Without the lock the waiting schools would enter here as well.
+	assert.Never(t, func() bool { return running.Load() > wantRunning }, 50*time.Millisecond, time.Millisecond,
+		"a school of the same Träger must not enter while another runs")
 	close(release)
 	done.Wait()
 	return peak.Load()
