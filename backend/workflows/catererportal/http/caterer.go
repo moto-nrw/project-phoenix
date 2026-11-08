@@ -159,7 +159,7 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := rs.runtime.SignIn.LoginCaterer(r.Context(), identityaccess.CatererLoginRequest{
 		Email: request.Email, Password: request.Password, IPAddress: common.GetClientIPString(r),
-		UserAgent: r.Header.Get("User-Agent"), TrustedDeviceCookie: trustedDeviceCookie(r),
+		UserAgent: r.UserAgent(), TrustedDeviceCookie: common.TrustedDevice(r),
 	})
 	if err != nil {
 		renderSecondFactorFailure(w, r, err)

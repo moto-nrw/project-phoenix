@@ -10,10 +10,11 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/stretchr/testify/require"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	accountHTTP "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/stretchr/testify/require"
 )
 
 type resetAfterVerification struct {
@@ -123,13 +124,12 @@ func TestMFAResetBetweenVerificationAndExchangeRefusesBothPortals(t *testing.T) 
 				if !afterMint {
 					require.False(t, strings.Contains(response.Body.String(), "access_token"))
 				}
-				stored, err := module.Auth.ListAccountSessions(t.Context(), identityaccess.AccountSessionFilter{AccountID: account.ID})
-				require.NoError(t, err)
+				var stored []bool
+				require.NoError(t, db.NewRaw(`SELECT mfa_verified FROM auth.tokens WHERE account_id = ?`, account.ID).Scan(t.Context(), &stored))
 				if afterMint {
-					require.Equal(t, 1, len(stored))
-					require.False(t, stored[0].MFAVerified)
+					require.Equal(t, []bool{false}, stored)
 				} else {
-					require.Zero(t, len(stored))
+					require.Empty(t, stored)
 				}
 				devices, err := module.MFA.ListTrustedDevices(t.Context(), account.ID, tenantID)
 				require.NoError(t, err)

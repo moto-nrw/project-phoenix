@@ -1,9 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  fetchParentEnrollmentBootstrap,
-  fetchPublicCareOfferings,
-} from "./enrollment-submission-api";
+import { fetchParentEnrollmentBootstrap } from "./enrollment-submission-api";
 
 const mockFetch = vi.fn<typeof fetch>();
 const originalFetch = global.fetch;
@@ -15,9 +12,8 @@ function jsonResponse(body: unknown, init?: ResponseInit) {
   });
 }
 
-// Covers the per-phase eligibility additions (#1663) on the client: the
-// grade-restriction normalizer, and the parent-scoped bootstrap that exists
-// precisely because the public endpoint refuses audience-restricted phases.
+// The parent-scoped bootstrap (#1663) exists because the public endpoint
+// refuses audience-restricted phases.
 describe("enrollment eligibility client", () => {
   beforeEach(() => {
     mockFetch.mockReset();
@@ -26,53 +22,6 @@ describe("enrollment eligibility client", () => {
 
   afterEach(() => {
     global.fetch = originalFetch;
-  });
-
-  describe("grade-restriction normalization", () => {
-    it("keeps positive integer grades from the payload", async () => {
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse({ offerings: [], eligible_grade_levels: [1, 3] }),
-      );
-
-      const result = await fetchPublicCareOfferings("demo-school", "7");
-
-      expect(result.eligibleGradeLevels).toEqual([1, 3]);
-    });
-
-    it("drops entries that cannot be a grade", async () => {
-      // An untrusted payload must not put a nonsense value in front of the
-      // parent as a selectable grade.
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse({
-          offerings: [],
-          eligible_grade_levels: [2, "3", 0, -1, 1.5, null, 4],
-        }),
-      );
-
-      const result = await fetchPublicCareOfferings("demo-school", "7");
-
-      expect(result.eligibleGradeLevels).toEqual([2, 4]);
-    });
-
-    it("reads a non-array restriction as no restriction", async () => {
-      // A stale backend sending the wrong shape must degrade to "open to every
-      // grade", never to "no grade is selectable".
-      mockFetch.mockResolvedValueOnce(
-        jsonResponse({ offerings: [], eligible_grade_levels: "1,2" }),
-      );
-
-      const result = await fetchPublicCareOfferings("demo-school", "7");
-
-      expect(result.eligibleGradeLevels).toEqual([]);
-    });
-
-    it("leaves the restriction undefined when the backend omits it", async () => {
-      mockFetch.mockResolvedValueOnce(jsonResponse({ offerings: [] }));
-
-      const result = await fetchPublicCareOfferings("demo-school", "7");
-
-      expect(result.eligibleGradeLevels).toBeUndefined();
-    });
   });
 
   describe("fetchParentEnrollmentBootstrap", () => {

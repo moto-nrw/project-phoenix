@@ -235,7 +235,7 @@ func mergeReplacementAnswers(schema *enrollmentNative.FormSchema, editReq *Submi
 // the capacity gate.
 func (s *Intake) prepareReplacementWrite(ctx context.Context, editReq *SubmitRequest, plan *replacePlan) error {
 	plan.matchedExisting = matchExistingChildrenBySubmittedIdentity(plan.children, editReq.Children)
-	emailLC := lowerTrim(plan.req.GuardianEmail)
+	emailLC := guardianEmailKey(plan.req.GuardianEmail)
 	if err := s.deps.Requests.AcquireSubmissionDedupLock(ctx, plan.phase.ID, enrollmentNative.SubmissionDedupLockKey(emailLC)); err != nil {
 		return fmt.Errorf("edit replace: acquire dedup lock: %w", err)
 	}

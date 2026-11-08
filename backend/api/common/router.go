@@ -32,7 +32,7 @@ func ProtectedTenantRoutes(r chi.Router, fn func(r chi.Router, withTx Middleware
 }
 
 // ProtectedParentGroup registers a route group behind the parents-portal
-// chain (Verifier → Authenticator → ParentMiddleware).
+// chain (Verifier → Authenticator → ParentScopeMiddleware).
 //
 // There is no tenant middleware and no tenant transaction: a parent token is
 // deliberately cross-tenant, because a guardian's children can attend several
@@ -55,7 +55,7 @@ func ProtectedSchoolRoutes(r chi.Router, fn func(r chi.Router, withTx Middleware
 
 	r.Group(func(gr chi.Router) {
 		gr.Use(authenticate)
-		// Preview tokens are never school-scope, so SchoolMiddleware already
+		// Preview tokens are never school-scope, so SchoolScopeMiddleware already
 		// rejects them — this is defense-in-depth mirroring the tenant group.
 		gr.Use(preview)
 		gr.Use(scope)

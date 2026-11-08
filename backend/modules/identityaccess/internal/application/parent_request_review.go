@@ -150,11 +150,11 @@ func (p *ParentRequestReview) AbsenceScope(ctx context.Context, permissions []st
 }
 
 // allStaffScope lets every verified staff member of the token's own school
-// review, but no platform, parent or cross-school token.
+// review, but no other portal's or cross-school token.
 func (p *ParentRequestReview) allStaffScope(ctx context.Context) (bool, []int64, error) {
 	caller := p.caller.principal(ctx)
-	if caller.AccountID <= 0 || caller.ClaimsTenantID <= 0 || caller.ClaimsTenantID != caller.TenantID ||
-		(caller.Scope != "" && caller.Scope != "tenant" && caller.Scope != "org") {
+	portal, _ := domain.PortalOfClaim(caller.Scope)
+	if caller.AccountID <= 0 || caller.ClaimsTenantID <= 0 || caller.ClaimsTenantID != caller.TenantID || portal.Name != domain.PortalTenant.Name {
 		return false, nil, nil
 	}
 	staffID, err := p.caller.StaffID(ctx)

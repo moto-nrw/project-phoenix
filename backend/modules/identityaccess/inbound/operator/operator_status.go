@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/render"
+
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
@@ -38,7 +39,7 @@ func (rs *InvitationsResource) changeOperatorStatus(w http.ResponseWriter, r *ht
 	common.Respond(w, r, http.StatusOK, operatorListItem(operator), "")
 }
 
-func operatorListItem(operator Operator) *OperatorListItem {
+func operatorListItem(operator identityaccess.Operator) *OperatorListItem {
 	item := &OperatorListItem{
 		ID: operator.ID, Email: operator.Email, DisplayName: operator.DisplayName, Active: operator.Active,
 		LastLogin: operator.LastLogin, DeactivatedAt: operator.DeactivatedAt, CreatedAt: operator.CreatedAt,
@@ -52,9 +53,9 @@ func operatorListItem(operator Operator) *OperatorListItem {
 
 func operatorStatusErrorRenderer(err error) render.Renderer {
 	switch {
-	case errors.Is(err, ErrOperatorNotFound):
-		return common.OperatorRejection(http.StatusNotFound, common.CodeIdentityAccountNotFound, "Operator not found")
-	case errors.Is(err, ErrOperatorSelfDeactivation):
+	case errors.Is(err, identityaccess.ErrOperatorNotFound):
+		return common.OperatorRejection(http.StatusNotFound, common.CodeIdentityAccountNotFound, "identityaccess.Operator not found")
+	case errors.Is(err, identityaccess.ErrOperatorSelfDeactivation):
 		return common.OperatorRejection(http.StatusConflict, common.CodeIdentityOperatorSelfDeactivation, "an operator cannot deactivate their own account")
 	default:
 		return common.OperatorInternal("Failed to change the operator status")

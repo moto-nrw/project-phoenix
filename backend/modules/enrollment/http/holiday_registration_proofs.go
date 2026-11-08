@@ -2,6 +2,7 @@ package enrollmenthttp
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -29,7 +30,10 @@ func (rs *HolidayRegistrationResource) uploadProof(w http.ResponseWriter, r *htt
 		renderHolidayRegistrationError(w, r, err)
 		return
 	}
-	if err := rs.proofs.CountHolidayProofUpload(r.Context(), link, remoteIPFromRequest(r)); err != nil {
+	remoteIP := remoteIPFromRequest(r)
+	if err := rs.countAttempt(r.Context(), link.OrganizationID, func(txCtx context.Context) error {
+		return rs.registrations.CountHolidayProofUpload(txCtx, link.OrganizationID, remoteIP)
+	}); err != nil {
 		renderHolidayRegistrationError(w, r, err)
 		return
 	}

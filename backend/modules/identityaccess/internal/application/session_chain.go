@@ -3,8 +3,8 @@ package application
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 )
 
 // revokeSessionChain revokes every session a logout of presented must end
@@ -14,7 +14,7 @@ import (
 // continuation is ambiguous fails the logout instead. It runs inside
 // the logout's transaction under the account lock.
 func (s *AccountAuthentication) revokeSessionChain(ctx context.Context, presented domain.AccountSession) ([]domain.AccountSession, error) {
-	listed, err := s.sessions.ListAccountSessions(ctx, identityaccess.AccountSessionFilter{AccountID: presented.AccountID})
+	listed, err := s.sessions.ListAccountSessions(ctx, ports.AccountSessionFilter{AccountID: presented.AccountID})
 	if err != nil {
 		return nil, err
 	}

@@ -1,10 +1,11 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- public/parents token flow is outside tenant-router
 import { usePathname, useRouter } from "next/navigation";
 
 import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
+import { prefetchedDataFromBootstrap } from "~/components/enrollment/enrollment-form-config";
 import { PublicEnrollmentContentSkeleton } from "~/components/enrollment/public-enrollment-shell";
 import { TenantProvider } from "~/lib/tenant-context";
 import { useAnalyticsSchoolPolicy } from "~/lib/hooks/use-analytics-school-policy";
@@ -158,6 +159,12 @@ function EnrollmentEditPageContent({ params, adjustOnly = false }: Props) {
     },
     [router, statusHref, toast, t, bootstrap?.edit_mode],
   );
+  // The edit path re-runs the submit's eligibility gates, so the form gets
+  // the same narrowed grade set (#1663).
+  const prefetchedData = useMemo(
+    () => (bootstrap ? prefetchedDataFromBootstrap(bootstrap) : undefined),
+    [bootstrap],
+  );
 
   if (loading) {
     return (
@@ -241,20 +248,7 @@ function EnrollmentEditPageContent({ params, adjustOnly = false }: Props) {
           phaseID={bootstrap.draft.phase_id}
           gradeLevelMax={bootstrap.grade_level_max}
           onSubmitted={handleSubmitted}
-          prefetchedData={{
-            schema: bootstrap.schema,
-            offerings: bootstrap.offerings,
-            careOfferingSelectionMode: bootstrap.care_offering_selection_mode,
-            collectGradeLevel: bootstrap.collect_grade_level,
-            careOfferingsEnabled: bootstrap.care_offerings_enabled,
-            captchaConfig: null,
-            legalTexts: bootstrap.legal_texts,
-            profile: null,
-            schoolClass: bootstrap.school_class,
-            // The edit path re-runs the same eligibility gates as submit, so
-            // the grade select must offer the same narrowed set (#1663).
-            eligibleGradeLevels: bootstrap.phase.eligible_grade_levels ?? [],
-          }}
+          prefetchedData={prefetchedData}
           initialDraft={bootstrap.draft}
           statusToken={token}
           submitter={submitter}

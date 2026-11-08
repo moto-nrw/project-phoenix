@@ -22,6 +22,8 @@ type ParentDocumentStore interface {
 // ParentDocuments serves parentbilling.ParentDocuments (#4671, ADR 0126).
 type ParentDocuments struct {
 	parentbilling.DocumentPushValidity
+	// The parents' statement of the children of their family (#5918).
+	*FamilyNumbers
 	store ParentDocumentStore
 }
 
@@ -31,11 +33,12 @@ var _ parentbilling.ParentDocuments = (*ParentDocuments)(nil)
 func NewParentDocuments(store interface {
 	ParentDocumentStore
 	parentbilling.DocumentPushValidity
+	FamilyChildrenStore
 }) *ParentDocuments {
 	if store == nil {
 		panic("parent billing: the store is required")
 	}
-	return &ParentDocuments{store: store, DocumentPushValidity: store}
+	return &ParentDocuments{store: store, DocumentPushValidity: store, FamilyNumbers: NewParentFamilyChildren(store)}
 }
 
 // ListParentDocuments lists the sent documents of the Träger addressed to

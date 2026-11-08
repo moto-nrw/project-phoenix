@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -27,46 +26,47 @@ func newSchoolMintFixture(t *testing.T) (*authFixture, domain.LoginAccount) {
 	return f, f.store.accounts[1]
 }
 
-func runSchoolMintGuard(t *testing.T, f *authFixture, account domain.LoginAccount, opts ...schoolMintOption) (*domain.AccountClaimsPayload, error) {
-	t.Helper()
-	var claims *domain.AccountClaimsPayload
-	guard := f.auth.schoolMintGuard(account.ID, 10, &claims, opts...)
-	err := f.runtime.WithAdminTx(context.Background(), func(txCtx context.Context) error {
-		return guard(txCtx, account)
+// mintSchool runs the school mint pipeline for school 10.
+func mintSchool(f *authFixture, account domain.LoginAccount, recheckMFAGate bool) (mintedSession, error) {
+	return f.auth.mintAccountSession(context.Background(), mintRequest{
+		portal: domain.PortalSchool, account: account, tenantID: 10,
+		eligible: f.auth.schoolEligibility(10, recheckMFAGate),
 	})
-	return claims, err
 }
 
-func staticPolicy(required bool, err error) mfaPolicyResolver {
-	return func(context.Context) (ports.MFAPolicy, error) {
-		if err != nil {
-			return nil, err
+// requireOrdered asserts that want appears in calls in this order.
+func requireOrdered(t *testing.T, calls, want []string, message string) {
+	t.Helper()
+	next := 0
+	for _, call := range calls {
+		if next < len(want) && call == want[next] {
+			next++
 		}
-		return fakePolicy{func([]string) bool { return required }}, nil
 	}
+	assert.Equal(t, len(want), next, "%s: %v in %v", message, want, calls)
 }
 
-func TestSchoolMintGuard_LiveSessionPasses(t *testing.T) {
+func TestSchoolMint_LiveSessionPasses(t *testing.T) {
 	t.Parallel()
 	f, account := newSchoolMintFixture(t)
 
-	claims, err := runSchoolMintGuard(t, f, account)
+	minted, err := mintSchool(f, account, false)
 	require.NoError(t, err)
-	// The guard is also where the JWT payload comes from: a nil payload on a
-	// passing guard would mint a token with no roles and no permissions.
+	claims := minted.claims
 	require.NotNil(t, claims)
-	assert.Equal(t, domain.ScopeSchool, claims.Scope)
+	assert.Equal(t, domain.PortalSchool.Claim, claims.Scope)
 	assert.Equal(t, int64(10), claims.TenantID)
 	assert.Equal(t, []string{"lehrkraft"}, claims.RoleNames)
 	assert.Equal(t, []string{"school:read"}, claims.Permissions)
-	assert.Equal(t, []string{
-		"FindLoginAccount(forUpdate)", "LockActiveTenantMappingShared", "HasActiveAccountTenant",
+	assert.Len(t, f.store.sessionsOf(account.ID), 1)
+	requireOrdered(t, f.store.calls, []string{
+		"FindLoginAccount(forUpdate)", "LockActiveTenantMappingShared",
 		"ListAccountRolesAtTenant(forShare)", "LockAccountPermissionSources",
-		"ListAccountRolesAtTenant", "ListAccountPermissionsAtTenant",
-	}, f.store.calls, "the account row is locked first, then the mapping and role rows, then the permission sources")
+		"ListAccountRolesAtTenant", "ListAccountPermissionsAtTenant", "RecordAccountLogin", "InsertAccountSession",
+	}, "the account row is locked first, then the mapping and role rows, then the permission sources")
 }
 
-func TestSchoolMintGuard_Refusals(t *testing.T) {
+func TestSchoolMint_Refusals(t *testing.T) {
 	t.Parallel()
 	cases := map[string]struct {
 		arrange func(f *authFixture)
@@ -106,125 +106,112 @@ func TestSchoolMintGuard_Refusals(t *testing.T) {
 			t.Parallel()
 			f, account := newSchoolMintFixture(t)
 			tc.arrange(f)
-			claims, err := runSchoolMintGuard(t, f, account)
+			minted, err := mintSchool(f, account, false)
 			require.ErrorIs(t, err, tc.want)
-			assert.Nil(t, claims, "an aborted mint must not publish claims")
+			assert.Nil(t, minted.claims, "an aborted mint must not publish claims")
+			assert.Empty(t, f.store.sessionsOf(account.ID), "a refused mint persists nothing")
+			assert.NotContains(t, f.store.calls, "RecordAccountLogin", "a refused mint records no login")
 		})
 	}
 }
 
-func TestSchoolMintGuard_ClaimsDropPermissionRevokedMidFlight(t *testing.T) {
+func TestSchoolMint_ClaimsDropPermissionRevokedMidFlight(t *testing.T) {
 	t.Parallel()
 	f, account := newSchoolMintFixture(t)
 	// The permissions are read under the lock, not from the pre-transaction
 	// snapshot: a revocation that committed first is reflected in the claims.
 	f.store.permissions[mappingKey{1, 10}] = nil
 
-	claims, err := runSchoolMintGuard(t, f, account)
+	minted, err := mintSchool(f, account, false)
 	require.NoError(t, err)
-	require.NotNil(t, claims)
-	assert.Empty(t, claims.Permissions)
+	require.NotNil(t, minted.claims)
+	assert.Empty(t, minted.claims.Permissions)
 }
 
-func TestCreateRefreshSessionGuarded_GuardRefusalWritesNoToken(t *testing.T) {
-	t.Parallel()
+func newSchoolMintFixtureWithMFA(t *testing.T, requiredInTx bool) (*authFixture, domain.LoginAccount) {
+	t.Helper()
 	f, account := newSchoolMintFixture(t)
-	f.store.inactive[mappingKey{1, 10}] = true
-	var claims *domain.AccountClaimsPayload
-
-	_, err := f.auth.createRefreshSessionGuarded(context.Background(), account, 10, domain.ScopeSchool, f.auth.schoolMintGuard(account.ID, 10, &claims), "")
-	require.ErrorIs(t, err, identityaccess.ErrTenantAccessDenied, "the guard's sentinel surfaces verbatim")
-	assert.Empty(t, f.store.sessionsOf(account.ID), "a refused mint persists nothing")
-	assert.NotContains(t, f.store.calls, "RecordAccountLogin", "a refused mint records no login")
-	assert.NotContains(t, f.store.calls, "InsertAccountSession")
+	f.mfa.configured = true
+	f.mfa.policyInTx = fakePolicy{func([]string) bool { return requiredInTx }}
+	return f, account
 }
 
-func TestSchoolMintGuard_MFARequirementAppearingMidLoginAbortsMint(t *testing.T) {
+func TestSchoolMint_MFARequirementAppearingMidLoginAbortsMint(t *testing.T) {
 	t.Parallel()
-	f, account := newSchoolMintFixture(t)
+	f, account := newSchoolMintFixtureWithMFA(t, true)
 
-	claims, err := runSchoolMintGuard(t, f, account, withMFAGateRecheck(staticPolicy(true, nil)))
+	minted, err := mintSchool(f, account, true)
 	require.ErrorIs(t, err, errSchoolMFARequiredAtMint)
-	assert.Nil(t, claims)
+	assert.Nil(t, minted.claims)
 	assert.Empty(t, f.store.sessionsOf(account.ID))
 }
 
-func TestSchoolMintGuard_MFARecheckPassesWhenNotRequired(t *testing.T) {
+func TestSchoolMint_MFARecheckPassesWhenNotRequired(t *testing.T) {
 	t.Parallel()
-	f, account := newSchoolMintFixture(t)
+	f, account := newSchoolMintFixtureWithMFA(t, false)
 
-	claims, err := runSchoolMintGuard(t, f, account, withMFAGateRecheck(staticPolicy(false, nil)))
+	minted, err := mintSchool(f, account, true)
 	require.NoError(t, err)
-	require.NotNil(t, claims)
+	require.NotNil(t, minted.claims)
 }
 
-func TestSchoolMintGuard_MFAPolicyIsReadInsideTheMintTransaction(t *testing.T) {
+func TestSchoolMint_MFAPolicyIsReadInsideTheMintTransaction(t *testing.T) {
 	t.Parallel()
-	f, account := newSchoolMintFixture(t)
+	f, account := newSchoolMintFixtureWithMFA(t, false)
 
-	_, err := runSchoolMintGuard(t, f, account, withMFAGateRecheck(f.auth.freshSchoolMFAPolicy(account.ID, 10)))
+	_, err := mintSchool(f, account, true)
 	require.NoError(t, err)
-	require.Len(t, f.mfa.policyInTxInAdminTx, 1)
+	require.NotEmpty(t, f.mfa.policyInTxInAdminTx)
 	assert.True(t, f.mfa.policyInTxInAdminTx[0], "the policy is re-read past the request cache, on the mint transaction")
 }
 
-func TestSchoolMintGuard_UnreadableMFAPolicyFailsClosed(t *testing.T) {
+func TestSchoolMint_UnreadableMFAPolicyFailsClosed(t *testing.T) {
 	t.Parallel()
-	f, account := newSchoolMintFixture(t)
+	f, account := newSchoolMintFixtureWithMFA(t, false)
+	f.mfa.policyInTxErr = errDB
 
-	claims, err := runSchoolMintGuard(t, f, account, withMFAGateRecheck(staticPolicy(false, errDB)))
+	minted, err := mintSchool(f, account, true)
 	require.ErrorIs(t, err, identityaccess.ErrMFAStatusUnavailable)
-	assert.Nil(t, claims)
+	assert.Nil(t, minted.claims)
 }
 
-func TestSchoolMintGuard_TakesMFAPolicyLockBeforeTheAccountRow(t *testing.T) {
+func TestSchoolMint_TakesMFAPolicyLockOnceBeforeTheAccountRow(t *testing.T) {
 	t.Parallel()
 	// Writing the school's mfa_mode takes a foreign-key lock on the writing
 	// admin's own account row, so the mint pins the policy before it locks
 	// auth.accounts; the reverse order deadlocks an admin who flips mfa_mode
 	// while their own school login is in flight.
-	f, account := newSchoolMintFixture(t)
+	f, account := newSchoolMintFixtureWithMFA(t, false)
 
-	claims, err := runSchoolMintGuard(t, f, account, withMFAGateRecheck(staticPolicy(false, nil)))
+	_, err := mintSchool(f, account, true)
 	require.NoError(t, err)
-	require.NotNil(t, claims)
 	require.GreaterOrEqual(t, len(f.store.calls), 2)
 	assert.Equal(t, []string{"LockMFAPolicy", "FindLoginAccount(forUpdate)"}, f.store.calls[:2],
 		"the policy lock must be the first lock of the mint transaction")
+	assert.Equal(t, []string{"LockMFAPolicy"}, f.mfaLock.calls, "one policy lock per mint")
 }
 
-func TestSchoolMintGuard_UnavailableMFAPolicyLockFailsClosed(t *testing.T) {
+func TestSchoolMint_UnavailableMFAPolicyLockFailsClosed(t *testing.T) {
 	t.Parallel()
-	f, account := newSchoolMintFixture(t)
+	f, account := newSchoolMintFixtureWithMFA(t, false)
 	f.mfaLock.err = errors.New("lock unavailable")
 
-	claims, err := runSchoolMintGuard(t, f, account, withMFAGateRecheck(staticPolicy(false, nil)))
+	minted, err := mintSchool(f, account, true)
 	require.ErrorIs(t, err, identityaccess.ErrMFAStatusUnavailable)
-	assert.Nil(t, claims)
+	assert.Nil(t, minted.claims)
 	assert.Equal(t, []string{"LockMFAPolicy"}, f.store.calls, "a failed policy lock must abort before the mint touches any row")
 }
 
-func TestSchoolMintGuard_WithoutRecheckTakesNoPolicyLock(t *testing.T) {
-	t.Parallel()
-	// The MFA exchange and the school switch have their second factor
-	// settled; taking the policy lock there would serialize those mints
-	// against every mfa_mode write for nothing.
-	f, account := newSchoolMintFixture(t)
-
-	claims, err := runSchoolMintGuard(t, f, account)
-	require.NoError(t, err)
-	require.NotNil(t, claims)
-	assert.Empty(t, f.mfaLock.calls)
-}
-
-func TestSchoolRefreshMintGuard_ReportsRevokedPortalRoleAsAccessDenied(t *testing.T) {
+func TestSchoolRefreshEligibility_ReportsRevokedPortalRoleAsAccessDenied(t *testing.T) {
 	t.Parallel()
 	f, account := newSchoolMintFixture(t)
 	f.store.roles[mappingKey{1, 10}] = nil
-	var claims *domain.AccountClaimsPayload
 
+	var claims *domain.AccountClaimsPayload
 	err := f.runtime.WithAdminTx(context.Background(), func(txCtx context.Context) error {
-		return f.auth.schoolRefreshMintGuard(account.ID, 10, &claims)(txCtx, account)
+		var err error
+		claims, err = f.auth.schoolRefreshEligibility(10)(txCtx, account)
+		return err
 	})
 	require.ErrorIs(t, err, identityaccess.ErrTenantAccessDenied, "the refresh route maps the access-denied sentinel")
 	assert.Nil(t, claims)
@@ -344,5 +331,5 @@ func TestLoadSchoolMetadataForTenant_LookupFailuresPropagate(t *testing.T) {
 
 	payload, err := f.auth.loadSchoolMetadataForTenant(context.Background(), account, 10)
 	require.NoError(t, err)
-	assert.Equal(t, domain.ScopeSchool, payload.Scope)
+	assert.Equal(t, domain.PortalSchool.Claim, payload.Scope)
 }

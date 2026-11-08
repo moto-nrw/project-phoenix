@@ -38,7 +38,7 @@ const acceptedContractApplicationsSQL = `SELECT child.id AS request_child_id,
 	FROM enrollment.request_children AS child
 	JOIN enrollment.requests AS request ON request.id = child.request_id AND request.tenant_id = child.tenant_id
 	JOIN enrollment.phases AS phase ON phase.id = request.phase_id AND phase.tenant_id = request.tenant_id
-	WHERE child.tenant_id = ? AND child.status = 'approved' AND request.withdrawn_at IS NULL
+	WHERE child.tenant_id = ? AND child.status = ? AND request.withdrawn_at IS NULL
 		AND (cardinality(?::bigint[]) = 0 OR child.id = ANY(?::bigint[]))
 	ORDER BY child.last_name, child.first_name, child.id`
 
@@ -52,7 +52,7 @@ func (s ContractApplicationStore) AcceptedContractApplications(ctx context.Conte
 		requestChildIDs = []int64{}
 	}
 	var rows []contractApplicationRow
-	if err := tx.NewRaw(acceptedContractApplicationsSQL, tenantID, pgdialect.Array(requestChildIDs),
+	if err := tx.NewRaw(acceptedContractApplicationsSQL, tenantID, enrollment.ChildStatusApproved, pgdialect.Array(requestChildIDs),
 		pgdialect.Array(requestChildIDs)).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("enrollment postgres: contract applications: %w", err)
 	}

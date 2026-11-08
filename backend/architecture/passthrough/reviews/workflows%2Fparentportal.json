@@ -516,6 +516,11 @@
       "reason": "Workflow step (#4682): it resolves the children whose relationship grants parent_portal.enrollment.submit, the Träger and the account's address, and runs the declaration in that Träger's transaction."
     },
     {
+      "decision": "0088",
+      "id": "workflows/parentportal/internal/care/Service.FamilyChildren",
+      "reason": "Workflow step (#5918): it resolves the children whose relationship grants parent_portal.enrollments.view, the Träger and the account's address, checks the contract in the inbox and reads the number in that Träger's transaction."
+    },
+    {
       "decision": "0090",
       "id": "workflows/parentportal/internal/care/Service.RequireCareRunningForUpdate",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
@@ -524,6 +529,11 @@
       "decision": "0090",
       "id": "workflows/parentportal/internal/care/Service.SetMealParticipationDay",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0088",
+      "id": "workflows/parentportal/internal/care/Service.StateFamilyChildren",
+      "reason": "Workflow step (#5918): it resolves the children whose relationship grants parent_portal.enrollment.submit, checks the contract in the inbox and stores the parents' number in that Träger's transaction."
     },
     {
       "decision": "0090",

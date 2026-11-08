@@ -30,7 +30,6 @@ type fakeTenantKey struct{}
 type fakeScopeKey struct{}
 type fakeOrgKey struct{}
 type fakeHooksKey struct{}
-type fakeProofKey struct{}
 
 type fakeHooks struct{ fns []func() }
 
@@ -150,16 +149,8 @@ func withScope(ctx context.Context, scope string, orgID int64) context.Context {
 
 type fakeRotation struct{}
 
-func (fakeRotation) RecoveryGrace() time.Duration { return 5 * time.Minute }
-func (fakeRotation) MaxRecoveryHops() int         { return 8 }
-func (fakeRotation) RecoveryProofHash(ctx context.Context) []byte {
-	proof, _ := ctx.Value(fakeProofKey{}).([]byte)
-	return proof
-}
-func (fakeRotation) MatchesRecoveryProof(ctx context.Context, expected []byte) bool {
-	actual, _ := ctx.Value(fakeProofKey{}).([]byte)
-	return len(expected) == 32 && len(actual) == 32 && string(expected) == string(actual)
-}
+func (fakeRotation) RecoveryGrace() time.Duration             { return 5 * time.Minute }
+func (fakeRotation) MaxRecoveryHops() int                     { return 8 }
 func (fakeRotation) FamilyFingerprint(familyID string) string { return "fp:" + familyID }
 
 type mappingKey struct{ accountID, tenantID int64 }
@@ -1140,4 +1131,14 @@ func (s *fakeStore) SavePasswordLoginState(_ context.Context, id int64, operator
 	}
 	s.passwordStates[id] = state
 	return nil
+}
+
+// tenantPasswordLogin is the tenant password login of a fixture without a
+// configured second factor, which always answers with a token pair.
+func tenantPasswordLogin(auth *AccountAuthentication, ctx context.Context, email, password, ipAddress, userAgent string) (string, string, error) {
+	result, err := auth.loginWithMFAGate(ctx, email, password, ipAddress, userAgent, "", "")
+	if err != nil {
+		return "", "", err
+	}
+	return result.AccessToken, result.RefreshToken, nil
 }

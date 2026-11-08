@@ -425,6 +425,7 @@ export default function TraegerBillingRunPage() {
                 .map((document) => document.payment)}
               letters={run.letters}
               onCreated={(letters) => setRun({ ...run, letters })}
+              documentKind={run.documentKind}
             />
           ) : null}
           {run.status === "released" && run.letters ? (

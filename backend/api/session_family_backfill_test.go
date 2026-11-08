@@ -45,7 +45,7 @@ func TestBackfilledLegacyChainStaysSignedInAndRevocable(t *testing.T) {
 
 	// A chain with a rotated predecessor in its hand-off grace, then made
 	// what a chain from before 1.4.7 is: no family on any of its rows.
-	_, first, err := identity.IssueTokensForAuthenticatedAccount(ctx, account.ID, testpkg.Tenant(t), "", "")
+	_, first, err := identity.IssueTokensForPasskey(ctx, account.ID, testpkg.Tenant(t), "", "")
 	require.NoError(t, err)
 	_, head, err := identity.RefreshTokenWithAudit(ctx, first, "", "", "")
 	require.NoError(t, err)
@@ -104,7 +104,7 @@ func backfillDuringRotation(t *testing.T, withPredecessor bool) {
 	require.NoError(t, err)
 	account := testpkg.CreateTestAccount(t, db, "backfill-concurrent-rotation")
 	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
-	_, head, err := identity.IssueTokensForAuthenticatedAccount(ctx, account.ID, testpkg.Tenant(t), "", "")
+	_, head, err := identity.IssueTokensForPasskey(ctx, account.ID, testpkg.Tenant(t), "", "")
 	require.NoError(t, err)
 	if withPredecessor {
 		_, head, err = identity.RefreshTokenWithAudit(ctx, head, "", "", "")

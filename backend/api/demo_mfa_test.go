@@ -62,7 +62,7 @@ func TestDemoAdminEnrollsAndSignsInAgainWithoutExternalMail(t *testing.T) {
 	_, err = module.MFA.VerifyMFACodeForAccount(ctx, account.ID, school, code, identityaccess.MFAChallengeScopeTenant)
 	require.NoError(t, err)
 	require.NoError(t, module.MFA.EnrollMFA(testpkg.TenantContext(school), account.ID))
-	_, _, err = module.Auth.IssueTokensForAuthenticatedAccount(ctx, account.ID, school, "", "")
+	_, _, err = module.Auth.IssueTokensForPasskey(ctx, account.ID, school, "", "")
 	require.NoError(t, err)
 	// The simulator's next password login still needs a genuine new code.
 	login, err = module.Auth.LoginWithMFAGate(ctx, account.Email, password, "", "", slug, "")
@@ -72,7 +72,7 @@ func TestDemoAdminEnrollsAndSignsInAgainWithoutExternalMail(t *testing.T) {
 	code = <-codes
 	_, err = module.MFA.VerifyMFAChallenge(ctx, login.ChallengeToken, code)
 	require.NoError(t, err)
-	_, refresh, err := module.Auth.IssueTokensForAuthenticatedAccount(ctx, account.ID, school, "", "")
+	_, refresh, err := module.Auth.IssueTokensForPasskey(ctx, account.ID, school, "", "")
 	require.NoError(t, err)
 	_, _, err = module.Auth.RefreshTokenWithAudit(ctx, refresh, "", "", "")
 	require.NoError(t, err)

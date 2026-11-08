@@ -31,29 +31,7 @@ export function DocumentTemplatePreviewBody({
               {block.text}
             </p>
           ) : null}
-          {block.rows.length > 0 ? (
-            <DataTable
-              columns={[
-                {
-                  key: "label",
-                  header: "Bezeichnung",
-                  render: (row) => row.label,
-                },
-                {
-                  key: "value",
-                  header: "Wert",
-                  render: (row) => row.value,
-                  align: "right",
-                  className: "whitespace-nowrap tabular-nums",
-                },
-              ]}
-              rows={block.rows.map((row, rowIndex) => ({ ...row, rowIndex }))}
-              getRowKey={(row) => row.rowIndex}
-              rowClassName={(row) =>
-                row.bold ? "font-semibold text-gray-900" : ""
-              }
-            />
-          ) : null}
+          {block.rows.length > 0 ? <PreviewRows rows={block.rows} /> : null}
         </div>
       ))}
       {preview.legalRemedy && preview.legalRemedy.length > 0 ? (
@@ -70,6 +48,7 @@ export function DocumentTemplatePreviewBody({
               {block.text ? (
                 <p className="whitespace-pre-line">{block.text}</p>
               ) : null}
+              {block.rows.length > 0 ? <PreviewRows rows={block.rows} /> : null}
             </div>
           ))}
         </div>
@@ -82,5 +61,32 @@ export function DocumentTemplatePreviewBody({
         </div>
       ) : null}
     </div>
+  );
+}
+
+/** Die Tabelle eines Absatzes, im Brieftext wie in der Belehrung (#4688). */
+function PreviewRows({
+  rows,
+}: Readonly<{ rows: DocumentTemplatePreview["blocks"][number]["rows"] }>) {
+  return (
+    <DataTable
+      columns={[
+        {
+          key: "label",
+          header: "Bezeichnung",
+          render: (row) => row.label,
+        },
+        {
+          key: "value",
+          header: "Wert",
+          render: (row) => row.value,
+          align: "right",
+          className: "whitespace-nowrap tabular-nums",
+        },
+      ]}
+      rows={rows.map((row, rowIndex) => ({ ...row, rowIndex }))}
+      getRowKey={(row) => row.rowIndex}
+      rowClassName={(row) => (row.bold ? "font-semibold text-gray-900" : "")}
+    />
   );
 }

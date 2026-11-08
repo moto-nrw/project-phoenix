@@ -92,7 +92,7 @@ func TestMFAResendRejectsExpiredCredentialBeforeDelivery(t *testing.T) {
 	mailer := &cancelingMFAMailer{err: errors.New("must not be called")}
 	svc, _, db, tokenAuth := newSynchronousDeliveryMFAService(t, mailer)
 	account := testpkg.CreateTestAccount(t, db, "mfa-sync-expired-token")
-	expiredToken, err := tokentest.CreateMFAChallengeJWT(tokenAuth, sessiontoken.MFAChallengeClaims{
+	expiredToken, err := tokentest.CreateMFAChallengeJWT(tokenAuth, tokentest.MFAChallengeClaims{
 		AccountID:  account.ID,
 		Scope:      identityaccess.MFAChallengeScopeTenant,
 		MFAPending: true,
@@ -100,7 +100,7 @@ func TestMFAResendRejectsExpiredCredentialBeforeDelivery(t *testing.T) {
 
 	require.NoError(t, err)
 
-	renewed, err := svc.ResendMFAChallenge(context.Background(), expiredToken, net.ParseIP("203.0.113.72"))
+	renewed, err := svc.ResendMFAChallengeForScope(context.Background(), expiredToken, net.ParseIP("203.0.113.72"), identityaccess.MFAChallengeScopeTenant)
 
 	require.ErrorIs(t, err, identityaccess.ErrMFAChallengeTokenInvalid)
 	assert.Empty(t, renewed)

@@ -39,17 +39,7 @@ func (h *HolidayRegistrations) CountHolidayProofUpload(ctx context.Context, orga
 	if remoteIP == "" {
 		return nil
 	}
-	attempts, err := h.deps.Registrations.CountHolidayRegistrationAttempt(ctx, organizationID, uploadRateLimit.keyType, remoteIP, uploadRateLimit.window, rateLimitRetention)
-	if err != nil {
-		return fmt.Errorf("enrollment: count holiday proof upload: %w", err)
-	}
-	if attempts > uploadRateLimit.maxAttempts {
-		h.deps.Logger.Info("holiday proof upload rate-limited",
-			slog.Int("attempts", attempts),
-			slog.Int64("organization_id", organizationID))
-		return enrollment.ErrUploadRateLimited
-	}
-	return nil
+	return h.countHolidayAttempt(ctx, organizationID, rateLimitKey{uploadRateLimit, remoteIP})
 }
 
 // UploadHolidayProof stores the file as an unclaimed proof of the link's

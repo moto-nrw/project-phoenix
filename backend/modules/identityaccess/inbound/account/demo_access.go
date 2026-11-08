@@ -11,8 +11,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
 )
 
 // DemoAccesses is the Identity & Access capability behind the public demo
@@ -109,7 +111,7 @@ func (rs *DemoResource) requestAccess(w http.ResponseWriter, r *http.Request) {
 	// token out of every server and proxy log.
 	err := rs.accesses.RequestDemoAccess(r.Context(), identityaccess.DemoAccessRequest{
 		Email: body.Email, FirstName: body.FirstName, LastName: body.LastName, SchoolName: body.SchoolName,
-		Source: body.Source, ContactOptIn: body.ContactOptIn, Role: body.Role, ClientIP: getClientIP(r),
+		Source: body.Source, ContactOptIn: body.ContactOptIn, Role: body.Role, ClientIP: common.GetClientIPString(r),
 		EntryURLPrefix: rs.origins.Waiting + "/demo#token=",
 	})
 	if err != nil {
@@ -143,7 +145,7 @@ func (rs *DemoResource) accessStatus(w http.ResponseWriter, r *http.Request) {
 // demoSessionResponse is the token pair plus what the demo banner shows and
 // reports (#3467). access_id is a string, like every ID on the wire.
 type demoSessionResponse struct {
-	TokenResponse
+	portalauth.TokenResponse
 	Demo demoSessionFacts `json:"demo"`
 }
 
@@ -168,13 +170,13 @@ func (rs *DemoResource) createSession(w http.ResponseWriter, r *http.Request) {
 		rs.renderError(w, r, identityaccess.ErrDemoAccessUnknown)
 		return
 	}
-	entry, err := rs.accesses.RedeemDemoAccess(r.Context(), body.Token, body.Role, getClientIP(r), r.UserAgent())
+	entry, err := rs.accesses.RedeemDemoAccess(r.Context(), body.Token, body.Role, common.GetClientIPString(r), r.UserAgent())
 	if err != nil {
 		rs.renderError(w, r, err)
 		return
 	}
 	render.JSON(w, r, demoSessionResponse{
-		TokenResponse: TokenResponse{AccessToken: entry.AccessToken, RefreshToken: entry.RefreshToken},
+		TokenResponse: portalauth.TokenResponse{AccessToken: entry.AccessToken, RefreshToken: entry.RefreshToken},
 		Demo:          demoSessionFacts{AccessID: strconv.FormatInt(entry.AccessID, 10), Role: entry.Role, Source: entry.Source, FixedRole: entry.FixedRole},
 	})
 }
@@ -191,7 +193,7 @@ func (rs *DemoResource) resetAccess(w http.ResponseWriter, r *http.Request) {
 		rs.renderError(w, r, identityaccess.ErrDemoAccessUnknown)
 		return
 	}
-	if err := rs.accesses.ResetDemoAccess(r.Context(), body.Token, getClientIP(r)); err != nil {
+	if err := rs.accesses.ResetDemoAccess(r.Context(), body.Token, common.GetClientIPString(r)); err != nil {
 		rs.renderError(w, r, err)
 		return
 	}

@@ -546,11 +546,6 @@ func ErrorBadGatewayWrap(clientMsg string, cause error) render.Renderer {
 	}
 }
 
-// ErrorGone returns a 410 Gone error response
-func ErrorGone(err error) render.Renderer {
-	return newErrResponse(http.StatusGone, err)
-}
-
 // ErrorGoneWithCode returns a 410 Gone with a stable error code.
 func ErrorGoneWithCode(err error, code string) render.Renderer {
 	resp := newErrResponse(http.StatusGone, err)

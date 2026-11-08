@@ -9,6 +9,7 @@ import (
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
 	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/communication/http/operatorannouncements"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityOperatorAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	provisioningOperatorAPI "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/operator"
@@ -34,13 +35,13 @@ type operatorIdentity struct {
 	// routes are not mounted.
 	account     *identityOperatorAPI.Resource
 	access      identityOperatorAPI.OperatorAccess
-	passkeys    identityOperatorAPI.OperatorPasskeys
-	mfa         identityOperatorAPI.OperatorMFA
+	passkeys    identityaccess.OperatorPasskeyFlows
+	mfa         identityaccess.OperatorMFAFlows
 	invitations identityOperatorAPI.OperatorAccess
 	// accountMFA is the tenant-side MFA service. The operator dashboard
 	// reuses it to read and write the MFA state of school staff accounts;
 	// mfa is the operator's own MFA service (operator login flow).
-	accountMFA identityOperatorAPI.AccountMFA
+	accountMFA identityaccess.AccountMFA
 	// caterers is the reset of a caterer's second factor (#4497). Without
 	// it the caterer routes are not mounted.
 	caterers identityOperatorAPI.CatererMFA
@@ -69,18 +70,11 @@ func (in operatorIdentity) routes() operatorIdentityRoutes {
 		sessions:    in.sessions,
 		account:     in.account,
 		passkeys:    identityOperatorAPI.NewPasskeyResource(in.passkeys),
-		mfa:         identityOperatorAPI.NewMFAResource(in.access, in.mfa, in.sessions.TokenAuth()),
+		mfa:         identityOperatorAPI.NewMFAResource(in.access, in.mfa),
 		mfaAdmin:    &identityOperatorAPI.SchoolAccountMFAResource{TenantMFAService: in.accountMFA},
 		profile:     identityOperatorAPI.NewProfileResource(in.access),
 		invitations: identityOperatorAPI.NewInvitationsResource(in.invitations),
 	}
-}
-
-// operatorIdentityResponses hands the operator surface's error bodies to the
-// Identity & Access operator routes. The school access routes fall back to
-// the provisioning error mapping.
-func operatorIdentityResponses() identityOperatorAPI.Responses {
-	return identityOperatorAPI.OperatorResponses(provisioningOperatorAPI.ProvisioningErrorRenderer)
 }
 
 // operatorSchoolSettings are the settings routes: Settings Platform's values

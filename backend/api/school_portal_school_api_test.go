@@ -20,8 +20,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	classdayhttp "github.com/moto-nrw/project-phoenix/modules/classday/http"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
 	"github.com/moto-nrw/project-phoenix/modules/schoolportal"
@@ -61,7 +64,7 @@ func setupSchoolRoute(t *testing.T, clocks ...func() time.Time) (*bun.DB, *schoo
 	})
 	resource := NewSchoolPortalHTTP(
 		services.SchoolAuth, services.SchoolMFA,
-		schoolportal.PasswordResetRuntime{}, classDayResource, timetableResource,
+		common.PasswordResetRoutes{}, classDayResource, timetableResource,
 		emptySchoolMessagingRouter{},
 		nil,
 		newSchoolNotificationsForTests(delivery),
@@ -237,9 +240,9 @@ func TestSchoolMFAEndpoints_RejectForeignScopes(t *testing.T) {
 	_, accountID := registerLehrkraft(t, db, resource, tenantID, "school-foreign-scope")
 
 	tokenAuth := testutil.TestTokenAuth(t)
-	tenantChallenge, err := tokentest.CreateMFAChallengeJWT(tokenAuth, sessiontoken.MFAChallengeClaims{
+	tenantChallenge, err := tokentest.CreateMFAChallengeJWT(tokenAuth, tokentest.MFAChallengeClaims{
 		AccountID: accountID,
-		Scope:     sessiontoken.MFAChallengeScopeTenant,
+		Scope:     tokentest.MFAChallengeScopeTenant,
 		TenantID:  tenantID,
 	}, 5*time.Minute)
 
@@ -318,7 +321,7 @@ func TestSchoolMFAVerify_MintsSchoolSession(t *testing.T) {
 	assert.True(t, verifiedChallenge,
 		"the school verify endpoint must redeem the challenge through the school-scoped runtime")
 
-	var tokens schoolportal.TokenResponse
+	var tokens portalauth.TokenResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &tokens))
 	require.NotEmpty(t, tokens.AccessToken)
 	require.NotEmpty(t, tokens.RefreshToken)
@@ -413,10 +416,10 @@ func TestSchoolMFAStatusUnavailable_Returns503(t *testing.T) {
 
 	mfa := stubSchoolMFA(schoolportal.MFARuntime{
 		ResendChallenge: func(context.Context, string, net.IP) (string, error) {
-			return "", errStubMFAUnavailable
+			return "", identityaccess.ErrMFAStatusUnavailable
 		},
 		StartChallenge: func(context.Context, int64, int64, net.IP) (string, error) {
-			return "", errStubMFAUnavailable
+			return "", identityaccess.ErrMFAStatusUnavailable
 		},
 	})
 	schoolRouter := newSchoolRouter(resource, mfa)
@@ -502,7 +505,7 @@ func TestSchoolMFAEnroll_BoundToItsOwnChallenge(t *testing.T) {
 	rec := httptest.NewRecorder()
 	schoolRouter.ServeHTTP(rec, req)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	var started schoolportal.EnrollStartResponse
+	var started portalauth.EnrollStartResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &started))
 	assert.Equal(t, startedChallengeID, started.ChallengeToken)
 	assert.True(t, startedChallenge, "enroll/start must drive the school-scoped runtime")
@@ -534,7 +537,7 @@ func TestSchoolMFAEnroll_BoundToItsOwnChallenge(t *testing.T) {
 		rec := confirm(t)
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
-		var tokens schoolportal.TokenResponse
+		var tokens portalauth.TokenResponse
 		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &tokens))
 		require.NotEmpty(t, tokens.AccessToken)
 

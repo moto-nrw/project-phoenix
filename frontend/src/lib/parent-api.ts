@@ -735,8 +735,7 @@ async function fetchEnrollmentEndpoint(
 /**
  * Fetches the parent's autofill payload for the embedded enrollment
  * form, scoped to a specific tenant slug. Returns null on 401 so the
- * form can render without prefill rather than failing. This matches the
- * public path's fetchMyEnrollmentProfile contract.
+ * form can render without prefill rather than failing.
  */
 export async function fetchParentEnrollmentProfile(
   tenantSlug: string,

@@ -3,7 +3,7 @@
 // These tests verify HTTP request/response handling, status codes, and error responses.
 // They use real services with a test database (no mocks). Requests run through the
 // production middleware chain by mounting Resource.Router(rootAPI.ProtectedTenantRoutes) (Verifier → Authenticator →
-// TenantMiddleware → TenantTxMiddleware) — the same code path the real server uses.
+// TenantScopeMiddleware → TenantTxMiddleware) — the same code path the real server uses.
 package httpadapter_test
 
 import (

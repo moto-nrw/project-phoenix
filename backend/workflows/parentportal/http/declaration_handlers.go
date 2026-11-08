@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
@@ -183,7 +184,7 @@ func (rs *Resource) passwordConfirmer(accountID int64) parentService.PasswordCon
 	}
 	return func(ctx context.Context, password string) error {
 		err := rs.Auth.ConfirmPassword(ctx, accountID, password)
-		if err != nil && rs.Auth.InvalidCredentials != nil && rs.Auth.InvalidCredentials(err) {
+		if err != nil && portalauth.WrongPassword(err) {
 			return parentService.ErrDeclarationPasswordIncorrect
 		}
 		return err

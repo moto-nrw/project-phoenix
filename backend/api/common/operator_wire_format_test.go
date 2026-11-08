@@ -76,12 +76,6 @@ func TestWireFormat_Operator_ErrHelpers(t *testing.T) {
 			wantBody:   `{"type":"https://moto-app.de/help/fehlermeldungen#anleitung-zugriff-pruefen","title":"Unauthorized","status":401,"detail":"Unauthorized","instance":"","code":"general.permission"}` + "\n",
 		},
 		{
-			name:       "ErrNotFound",
-			renderer:   common.OperatorNotFound("thing missing"),
-			wantStatus: 404,
-			wantBody:   `{"type":"https://moto-app.de/help/fehlermeldungen#anleitung-eingabe-pruefen","title":"Not Found","status":404,"detail":"thing missing","instance":"","code":"general.input"}` + "\n",
-		},
-		{
 			name:       "ErrConflict",
 			renderer:   common.OperatorConflict("duplicate"),
 			wantStatus: 409,

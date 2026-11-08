@@ -1,0 +1,7 @@
+{
+  "scenario": "api.traeger.family_children",
+  "max": 8,
+  "exact": true,
+  "description": "modules/parentbilling — GET /traeger/family-children (#5918): the\nTräger transaction with BEGIN, COMMIT and its Träger binding, the contract versions in force\nand their parties (Betreuungsvertrag), the numbers of the families, one\ninsert of the read of every shown number into the trail and the care\nrules that count the family. Flat in the number of families.",
+  "route": "GET /traeger/family-children/"
+}

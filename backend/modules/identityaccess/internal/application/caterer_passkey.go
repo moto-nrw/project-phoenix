@@ -21,7 +21,7 @@ func (f *AccountPasskeyFlows) startCatererEnrollmentChallenge(ctx context.Contex
 	if err != nil || !found {
 		return domain.PasskeyEnrollmentChallenge{}, domain.ErrAccountNotFound
 	}
-	token, err := f.mfa.StartChallenge(ctx, accountID, 0, domain.MFAChallengeScopeCaterer, ip)
+	token, err := f.mfa.StartChallenge(ctx, accountID, 0, domain.PortalCaterer.Name, ip)
 	if err != nil {
 		return domain.PasskeyEnrollmentChallenge{}, err
 	}
@@ -31,7 +31,7 @@ func (f *AccountPasskeyFlows) startCatererEnrollmentChallenge(ctx context.Contex
 // beginCatererRegistration verifies the caterer's mailed code and starts the
 // attestation. The caller checked the origin against the caterer host.
 func (f *AccountPasskeyFlows) beginCatererRegistration(ctx context.Context, accountID int64, expectedOrigin, code string) (domain.PasskeyCeremonyOptions, error) {
-	if err := f.mfa.VerifyCodeForAccount(ctx, accountID, 0, code, domain.MFAChallengeScopeCaterer); err != nil {
+	if err := f.mfa.VerifyCodeForAccount(ctx, accountID, 0, code, domain.PortalCaterer.Name); err != nil {
 		return domain.PasskeyCeremonyOptions{}, err
 	}
 	account, found, err := f.accounts.FindAccountIdentity(ctx, accountID)

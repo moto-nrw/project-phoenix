@@ -101,7 +101,7 @@ func (rs *Resource) getEnrollmentProfile(w http.ResponseWriter, r *http.Request)
 // getEnrollmentBootstrap serves the enrollment form-load payload for the
 // authenticated parents portal. It mirrors the anonymous public
 // /form-bootstrap endpoint. Tenant comes from the path slug (admin-tx
-// resolves it); the parent JWT (scope=parent, enforced by ParentMiddleware)
+// resolves it); the parent JWT (scope=parent, enforced by ParentScopeMiddleware)
 // is the authorization boundary. Captcha is skipped — the JWT is the
 // anti-bot signal.
 //
@@ -388,7 +388,7 @@ func (rs *Resource) runParentEnrollmentSubmit(r *http.Request, accountID int64, 
 		// The owner binds the wire request for the resolved tenant, stamps the
 		// guardian account id and the submit eligibility, and submits under
 		// the tenant context. A parse failure returns before the submission.
-		out.respond, out.submitErr = submit(tenantCtx, school.ID, accountID, status.HasSubmitPermission, getClientIP(r))
+		out.respond, out.submitErr = submit(tenantCtx, school.ID, accountID, status.HasSubmitPermission, common.GetClientIPString(r))
 		// Return the submit error so the tenant transaction rolls back any rows the
 		// service already inserted before failing (see the function doc).
 		// nil is returned on success. respondParentEnrollment maps the

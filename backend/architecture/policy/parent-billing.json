@@ -61,6 +61,14 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.family_child_count_events",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.family_child_counts",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.care_invoice_positions",
       "write_owner": "parent-billing"
     },

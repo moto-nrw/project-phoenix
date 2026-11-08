@@ -1,0 +1,18 @@
+{
+  "title": "Dzieci w Państwa rodzinie",
+  "description": "Przy zniżce dla rodzeństwa organ prowadzący liczy wszystkie dzieci w rodzinie. Liczą się też dzieci bez umowy o opiekę.",
+  "fieldLabel": "Ile dzieci ma Państwa rodzina?",
+  "less": "Jedno dziecko mniej",
+  "more": "Jedno dziecko więcej",
+  "send": "Wyślij",
+  "sending": "Wysyłanie …",
+  "saved": "Organ prowadzący otrzymał Państwa odpowiedź i ją sprawdzi.",
+  "errorObject": "liczba dzieci",
+  "confirmedBadge": "Potwierdzone",
+  "confirmedFrom": "{count, plural, one {1 dziecko} few {# dzieci} many {# dzieci} other {# dzieci}}, obowiązuje od {from}.",
+  "confirmedUntil": "{count, plural, one {1 dziecko} few {# dzieci} many {# dzieci} other {# dzieci}}, obowiązuje od {from} do {until}.",
+  "pendingBadge": "W trakcie sprawdzania",
+  "pending": "Państwa odpowiedź z {date}: {count, plural, one {1 dziecko} few {# dzieci} many {# dzieci} other {# dzieci}}. Organ prowadzący ją sprawdza.",
+  "noRight": "Liczbę podają rodzice, którzy mogą wysyłać zgłoszenia dla tego dziecka.",
+  "onlyNumber": "Zapisujemy tylko liczbę. Imion pozostałych dzieci nie potrzebujemy."
+}

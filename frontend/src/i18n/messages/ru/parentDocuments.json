@@ -41,5 +41,6 @@
   "terminatedOn": "Расторгнут с {date}",
   "withdrawn": "Отказ",
   "showConfirmation": "Посмотреть подтверждение",
-  "terminationInReview": "Расторгнут, дата окончания проверяется"
+  "terminationInReview": "Расторгнут, дата окончания проверяется",
+  "familyChildren": "Указать детей в семье"
 }
