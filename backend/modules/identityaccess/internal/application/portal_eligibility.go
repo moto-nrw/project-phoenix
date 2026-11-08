@@ -148,15 +148,8 @@ func (s *AccountAuthentication) parentEligibility(op string, bookedSchoolIDs []i
 // are the Träger roles and their rights; no school role enters them.
 func (s *AccountAuthentication) traegerEligibility(organizationID int64) eligibility {
 	return func(ctx context.Context, account domain.LoginAccount) (*domain.AccountClaimsPayload, error) {
-		if s.traeger == nil {
-			return nil, errTraegerMembershipsUnavailable
-		}
-		organizations, err := s.traeger.ListAccountTraegerOrganizations(ctx, account.ID)
-		if err != nil {
+		if err := s.requireTraegerMember(ctx, account.ID, organizationID); err != nil {
 			return nil, err
-		}
-		if !containsTraeger(organizations, organizationID) {
-			return nil, failed("Träger session", identityaccess.ErrNoTraegerMembership)
 		}
 		roles, _, err := s.store.ListTraegerRoles(ctx, organizationID, account.ID)
 		if err != nil {
@@ -175,27 +168,48 @@ func (s *AccountAuthentication) traegerEligibility(organizationID int64) eligibi
 	}
 }
 
+func (s *AccountAuthentication) requireTraegerMember(ctx context.Context, accountID, organizationID int64) error {
+	if s.traeger == nil {
+		return errTraegerMembershipsUnavailable
+	}
+	organizations, err := s.traeger.ListAccountTraegerOrganizations(ctx, accountID)
+	if err != nil {
+		return err
+	}
+	if !containsTraeger(organizations, organizationID) {
+		return failed("Träger session", identityaccess.ErrNoTraegerMembership)
+	}
+	return nil
+}
+
 // traegerSchoolEligibility: an active membership at an active Träger, the
 // right "In OGS wechseln", and a live, active school of that Träger. A school
 // that left the Träger ends the session at its next refresh; a school the
 // Träger gained is reachable without a grant of its own.
 func (s *AccountAuthentication) traegerSchoolEligibility(organizationID, schoolID int64) eligibility {
 	return func(ctx context.Context, account domain.LoginAccount) (*domain.AccountClaimsPayload, error) {
-		if s.traeger == nil {
-			return nil, errTraegerMembershipsUnavailable
-		}
-		if err := s.requireTraegerSchoolSwitch(ctx, account.ID, organizationID); err != nil {
+		if err := s.traegerGrantsSchool(ctx, account.ID, organizationID, schoolID); err != nil {
 			return nil, err
-		}
-		school, found, err := s.schools.FindSchool(ctx, schoolID)
-		if err != nil {
-			return nil, fmt.Errorf("look up school %d of a Träger school session: %w", schoolID, err)
-		}
-		if !found || school.Deleted || !school.Active || school.OrganizationID != organizationID {
-			return nil, failed("Träger school session", identityaccess.ErrTraegerSchoolNotFound)
 		}
 		return s.traegerSchoolClaims(ctx, account, schoolID, organizationID)
 	}
+}
+
+func (s *AccountAuthentication) traegerGrantsSchool(ctx context.Context, accountID, organizationID, schoolID int64) error {
+	if s.traeger == nil {
+		return errTraegerMembershipsUnavailable
+	}
+	if err := s.requireTraegerSchoolSwitch(ctx, accountID, organizationID); err != nil {
+		return err
+	}
+	school, found, err := s.schools.FindSchool(ctx, schoolID)
+	if err != nil {
+		return fmt.Errorf("look up school %d of a Träger school session: %w", schoolID, err)
+	}
+	if !found || school.Deleted || !school.Active || school.OrganizationID != organizationID {
+		return failed("Träger school session", identityaccess.ErrTraegerSchoolNotFound)
+	}
+	return nil
 }
 
 // catererEligibility: the account belongs to a caterer (ADR 0077). The live

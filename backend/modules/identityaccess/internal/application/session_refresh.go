@@ -105,7 +105,7 @@ type refreshPlan struct {
 // that books its module again lets the session continue.
 func (s *AccountAuthentication) planRefresh(ctx context.Context, claims domain.RefreshClaims) (refreshPlan, error) {
 	kind, ok := claims.SessionKind()
-	policy, known := s.sessionPolicy(kind)
+	policy, known := sessionPolicies[kind]
 	if !ok || !known {
 		s.logRefreshDecision("refresh_session_rejected", "unknown_scope", claims.AccountID, claims.TenantID)
 		return refreshPlan{}, failed("refresh session", identityaccess.ErrInvalidToken)
@@ -378,46 +378,51 @@ func (s *AccountAuthentication) logRefreshDecision(event, reason string, account
 		slog.Int64("tenant_id", tenantID))
 }
 
-// validateTenantAccess ensures the account still has active access to the
-// tenant of the refresh token and that the school is alive and active. The
-// school check closes the race with a concurrent soft delete that bulk
-// deletes the school's sessions; an inactive school is refused before the
-// rotation so the client can retry after reactivation.
+// validateTenantAccessInTransaction ensures the account still has active
+// access to the tenant of the refresh token and that the school is alive and
+// active. The school check closes the race with a concurrent soft delete
+// that bulk deletes the school's sessions; an inactive school is refused
+// before the rotation so the client can retry after reactivation.
 func (s *AccountAuthentication) validateTenantAccessInTransaction(ctx context.Context, accountID, tenantID int64) error {
-	exists, _, err := s.store.HasActiveAccountTenant(ctx, accountID, tenantID)
-	if err != nil {
+	reason, err := s.tenantAccessRefusal(ctx, accountID, tenantID)
+	switch {
+	case reason != "":
+		s.logRefreshDecision("refresh_session_rejected", reason, accountID, tenantID)
+	case err != nil:
 		s.logger.Error("refresh_session_validation_failed",
-			slog.String("reason", "tenant_lookup_error"),
 			slog.Int64("account_id", accountID),
 			slog.Int64("tenant_id", tenantID),
 			slog.Any("error", err))
-		return failed("validate tenant access", fmt.Errorf("tenant access lookup failed: %w", err))
+	}
+	return err
+}
+
+// tenantAccessRefusal reads the active mapping and the live school a
+// school-bound session rests on, without locks; reason names a refusal for
+// the log, and a failed read carries none.
+func (s *AccountAuthentication) tenantAccessRefusal(ctx context.Context, accountID, tenantID int64) (reason string, err error) {
+	exists, _, err := s.store.HasActiveAccountTenant(ctx, accountID, tenantID)
+	if err != nil {
+		return "", failed("validate tenant access", fmt.Errorf("tenant access lookup failed: %w", err))
 	}
 	if !exists {
-		s.logRefreshDecision("refresh_session_rejected", "tenant_access_revoked", accountID, tenantID)
-		return failed("validate tenant access", identityaccess.ErrTenantAccessDenied)
+		return "tenant_access_revoked", failed("validate tenant access", identityaccess.ErrTenantAccessDenied)
 	}
 	school, found, err := s.schools.FindSchool(ctx, tenantID)
 	if err != nil {
-		s.logger.Error("failed to look up school during refresh validation",
-			slog.Int64("account_id", accountID),
-			slog.Int64("tenant_id", tenantID),
-			slog.Any("error", err))
-		return failed("validate tenant access", fmt.Errorf("school lookup failed: %w", err))
+		return "", failed("validate tenant access", fmt.Errorf("school lookup failed: %w", err))
 	}
-	if !found {
-		s.logRefreshDecision("refresh_session_rejected", "tenant_not_found", accountID, tenantID)
-		return failed("validate tenant access", identityaccess.ErrTenantNotFound)
+	switch {
+	case !found:
+		reason = "tenant_not_found"
+	case school.Deleted:
+		reason = "tenant_deleted"
+	case !school.Active:
+		reason = "tenant_inactive"
+	default:
+		return "", nil
 	}
-	if school.Deleted {
-		s.logRefreshDecision("refresh_session_rejected", "tenant_deleted", accountID, tenantID)
-		return failed("validate tenant access", identityaccess.ErrTenantNotFound)
-	}
-	if !school.Active {
-		s.logRefreshDecision("refresh_session_rejected", "tenant_inactive", accountID, tenantID)
-		return failed("validate tenant access", identityaccess.ErrTenantNotFound)
-	}
-	return nil
+	return reason, failed("validate tenant access", identityaccess.ErrTenantNotFound)
 }
 
 // LogoutWithAudit invalidates the presented refresh-token family with the

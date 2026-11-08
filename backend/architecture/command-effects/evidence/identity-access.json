@@ -945,22 +945,6 @@
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.ValidateSessionTokens",
-      "binding_digest": "857665f5ba0ef01b1a278a317f381e92",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ValidateSessionTokens",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.engine.ValidateSessionTokens",
-      "binding_digest": "481c11bdfa5e980988905d969f5aacfd",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ValidateSessionTokens",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
-      "target_owner": "tenant-runtime"
-    },
-    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.LoginParentWithAudit",
       "binding_digest": "70f1b5a584d18b6fa71a0e01888699f8",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentAccountLogin.LoginParentWithAudit",
@@ -1814,22 +1798,6 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.SwitchTenant",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ValidateSessionTokens",
-      "binding_digest": "857665f5ba0ef01b1a278a317f381e92",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.ValidateSessionTokens",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ValidateSessionTokens",
-      "binding_digest": "481c11bdfa5e980988905d969f5aacfd",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.ValidateSessionTokens",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime"
     },
     {

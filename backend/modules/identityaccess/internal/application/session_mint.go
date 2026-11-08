@@ -265,7 +265,7 @@ func (s *AccountAuthentication) authorizeMint(ctx context.Context, req mintReque
 			return nil, time.Time{}, refused(err)
 		}
 	}
-	policy, ok := s.sessionPolicy(domain.SessionKindOf(req.portal, req.orgID > 0))
+	policy, ok := sessionPolicies[domain.SessionKindOf(req.portal, req.orgID > 0)]
 	if !ok {
 		return nil, time.Time{}, refused(failed("mint session", identityaccess.ErrInvalidToken))
 	}

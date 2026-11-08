@@ -1,0 +1,6 @@
+{
+  "scenario": "identity.session_validate.school",
+  "max": 12,
+  "exact": true,
+  "description": "modules/identityaccess — POST /auth/session/validate without a refresh token, which the BFF asks on every page view (#5399). One administrative transaction (BEGIN, SET LOCAL ROLE, ..., COMMIT) reads the family, the account and the facts its refresh decides, each once, without row locks and without claims. Facts: mapping, school, roles (school-portal role). Then the booking of Unterricht am Vormittag in the portal port's own tenant transaction (4). development: 9, which checked neither role nor booking."
+}

@@ -11,18 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// admittingTraegerSchool is an admitting Träger school guard, so the tests
-// reach the proof re-check of the Absprung.
-func admittingTraegerSchool() map[domain.SessionKind]sessionPolicy {
-	return admitting(domain.SessionKindTraegerSchool, func(context.Context, domain.LoginAccount) (*domain.AccountClaimsPayload, error) {
-		return &domain.AccountClaimsPayload{TenantID: 10, OrgID: 7, ViaTraeger: true}, nil
-	})
-}
-
 // runTraegerSchoolHandoffGuard mints the Absprung session of the fixture.
 func runTraegerSchoolHandoffGuard(t *testing.T, f *authFixture, familyID string, proof bool) error {
 	t.Helper()
 	f.store.addAccount(1, "buero@traeger.example", "hash:secret", true)
+	f.schools.add(10, 7, "school-10", true, false)
 	_, err := f.auth.mintAccountSession(context.Background(), mintRequest{
 		portal: domain.PortalTenant, account: f.store.accounts[1], tenantID: 10, orgID: 7,
 		proof:          mintProof{kind: proofTraegerSession, traegerFamilyID: familyID, traegerVerified: proof},
@@ -40,7 +33,7 @@ func TestTraegerSchoolHandoffGuard_RefusesARevokedTraegerFamilyWithoutMFA(t *tes
 	f := newAuthFixture(t)
 	require.False(t, f.mfa.Configured(), "the fixture runs without a second factor")
 
-	f.auth.policies = admittingTraegerSchool()
+	f.auth.store, f.auth.traeger = admittedStore{fakeStore: f.store}, validationMemberships{}
 	err := runTraegerSchoolHandoffGuard(t, f, "logged-out-traeger-family", false)
 
 	require.ErrorIs(t, err, identityaccess.ErrInvalidToken, "no school session out of a revoked Träger family")
@@ -58,7 +51,7 @@ func TestTraegerSchoolHandoffGuard_AdmitsALiveTraegerFamily(t *testing.T) {
 	}
 	f.store.mu.Unlock()
 
-	f.auth.policies = admittingTraegerSchool()
+	f.auth.store, f.auth.traeger = admittedStore{fakeStore: f.store}, validationMemberships{}
 	err := runTraegerSchoolHandoffGuard(t, f, "live-traeger-family", false)
 
 	assert.NoError(t, err)

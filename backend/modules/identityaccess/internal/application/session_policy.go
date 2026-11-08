@@ -25,17 +25,23 @@ type sessionBinding struct {
 }
 
 // sessionPolicy is the session rules of one kind. The mint, the refresh
-// rotation and the session validation read them here and restate none.
+// rotation and the session validation read them here.
 type sessionPolicy struct {
 	// guard is the eligibility a sign-in or switch mints under.
 	guard func(s *AccountAuthentication, b sessionBinding) eligibility
 	// renew runs the reads a renewal needs before its transaction (school
 	// state, module booking, token shape) and returns the guard it runs
-	// under the account lock. Refresh and validation renew alike; refusals
-	// carry the sentinels the refresh route answers with.
+	// under the account lock; refusals carry the sentinels the refresh route
+	// answers with.
 	renew func(ctx context.Context, s *AccountAuthentication, b sessionBinding) (eligibility, error)
 	// keptAt names the school a refreshed session is kept at.
 	keptAt func(s *AccountAuthentication, b sessionBinding) successorTenant
+	// check is what a session validation asks on its transaction: the facts
+	// renew and guard decide, each read once, without locks and without
+	// claims, refused with the sentinels the refresh answers with. It
+	// returns the module booking check that runs after the transaction, or
+	// nil.
+	check func(ctx context.Context, s *AccountAuthentication, b sessionBinding) (func(context.Context) error, error)
 }
 
 var sessionPolicies = map[domain.SessionKind]sessionPolicy{
@@ -50,6 +56,19 @@ var sessionPolicies = map[domain.SessionKind]sessionPolicy{
 			return s.tenantRefreshEligibility(b.tenantID), nil
 		},
 		keptAt: tokenSchool,
+		check: func(ctx context.Context, s *AccountAuthentication, b sessionBinding) (func(context.Context) error, error) {
+			roles, err := s.liveSchoolRoles(ctx, b)
+			if err != nil {
+				return nil, err
+			}
+			// A guardian-only role set renews as a parent session
+			// (tenantRefreshEligibility).
+			refusal := tenantPortalRefusal(&domain.AccountClaimsPayload{RoleNames: domain.RoleNames(roles), Roles: roles})
+			if refusal != nil && !errors.Is(refusal, identityaccess.ErrParentMustUseParentPortal) {
+				return nil, failed(b.op, refusal)
+			}
+			return nil, nil
+		},
 	},
 	domain.SessionKind(domain.PortalSchool.Name): {
 		guard: func(s *AccountAuthentication, b sessionBinding) eligibility {
@@ -70,6 +89,20 @@ var sessionPolicies = map[domain.SessionKind]sessionPolicy{
 			return s.schoolRefreshEligibility(b.tenantID), nil
 		},
 		keptAt: tokenSchool,
+		check: func(ctx context.Context, s *AccountAuthentication, b sessionBinding) (func(context.Context) error, error) {
+			roles, err := s.liveSchoolRoles(ctx, b)
+			if err != nil {
+				return nil, err
+			}
+			// A revoked portal role answers as at refresh
+			// (schoolRefreshEligibility).
+			if !domain.HasSchoolPortalRole(roles) {
+				return nil, failed(b.op, identityaccess.ErrTenantAccessDenied)
+			}
+			return func(ctx context.Context) error {
+				return s.requireSchoolPortal(ctx, b.op, b.accountID, b.tenantID)
+			}, nil
+		},
 	},
 	domain.SessionKind(domain.PortalParent.Name): {
 		guard: func(s *AccountAuthentication, b sessionBinding) eligibility {
@@ -87,6 +120,29 @@ var sessionPolicies = map[domain.SessionKind]sessionPolicy{
 			return s.parentRefreshEligibility(booked), nil
 		},
 		keptAt: tokenSchool,
+		check: func(ctx context.Context, s *AccountAuthentication, b sessionBinding) (func(context.Context) error, error) {
+			if b.tenantID > 0 {
+				if _, err := s.tenantAccessRefusal(ctx, b.accountID, b.tenantID); err != nil {
+					return nil, err
+				}
+			}
+			guardianSchools, err := s.guardianSchoolsInTx(ctx, b.accountID, false)
+			if err != nil {
+				return nil, err
+			}
+			return func(ctx context.Context) error {
+				booked, err := s.bookedGuardianSchools(ctx, b.op, b.accountID, guardianSchools)
+				if err != nil {
+					return err
+				}
+				// No live guardian school left answers as at refresh
+				// (parentRefreshEligibility).
+				if len(booked) == 0 {
+					return failed(b.op, identityaccess.ErrTenantNotFound)
+				}
+				return nil
+			}, nil
+		},
 	},
 	domain.SessionKind(domain.PortalCaterer.Name): {
 		guard: func(s *AccountAuthentication, _ sessionBinding) eligibility { return s.catererEligibility() },
@@ -99,6 +155,15 @@ var sessionPolicies = map[domain.SessionKind]sessionPolicy{
 			return s.catererEligibility(), nil
 		},
 		keptAt: func(s *AccountAuthentication, _ sessionBinding) successorTenant { return s.catererSessionSchool },
+		check: func(ctx context.Context, s *AccountAuthentication, b sessionBinding) (func(context.Context) error, error) {
+			if b.tenantID != 0 {
+				return nil, failed(b.op, identityaccess.ErrInvalidToken)
+			}
+			// The refresh keeps the session at a live supplied school
+			// (catererSessionSchool); without one it ends.
+			_, err := s.catererSessionSchool(ctx, b.accountID, domain.AccountSession{})
+			return nil, err
+		},
 	},
 	domain.SessionKind(domain.PortalOrg.Name): {
 		guard: func(s *AccountAuthentication, b sessionBinding) eligibility { return s.traegerEligibility(b.orgID) },
@@ -111,6 +176,10 @@ var sessionPolicies = map[domain.SessionKind]sessionPolicy{
 		},
 		keptAt: func(*AccountAuthentication, sessionBinding) successorTenant {
 			return func(context.Context, int64, domain.AccountSession) (int64, error) { return 0, nil }
+		},
+		// The access token's shape was checked against the portal before.
+		check: func(ctx context.Context, s *AccountAuthentication, b sessionBinding) (func(context.Context) error, error) {
+			return nil, s.requireTraegerMember(ctx, b.accountID, b.orgID)
 		},
 	},
 	// A Träger school session has no mapping at its school; its guard
@@ -127,17 +196,10 @@ var sessionPolicies = map[domain.SessionKind]sessionPolicy{
 			return s.traegerSchoolEligibility(b.orgID, b.tenantID), nil
 		},
 		keptAt: tokenSchool,
+		check: func(ctx context.Context, s *AccountAuthentication, b sessionBinding) (func(context.Context) error, error) {
+			return nil, s.traegerGrantsSchool(ctx, b.accountID, b.orgID, b.tenantID)
+		},
 	},
-}
-
-// sessionPolicy returns the rules of a kind; policies replaces the table in
-// tests that isolate one step of the mint.
-func (s *AccountAuthentication) sessionPolicy(kind domain.SessionKind) (sessionPolicy, bool) {
-	if policy, ok := s.policies[kind]; ok {
-		return policy, true
-	}
-	policy, ok := sessionPolicies[kind]
-	return policy, ok
 }
 
 // requireLiveSchool refuses the renewal of a school-bound session whose
@@ -149,6 +211,15 @@ func (s *AccountAuthentication) requireLiveSchool(ctx context.Context, b session
 		return nil
 	}
 	return s.validateTenantAccess(ctx, b.accountID, b.tenantID)
+}
+
+// liveSchoolRoles reads, without locks, the mapping and school a
+// school-bound session rests on and the account's roles there.
+func (s *AccountAuthentication) liveSchoolRoles(ctx context.Context, b sessionBinding) ([]domain.RoleAssignment, error) {
+	if _, err := s.tenantAccessRefusal(ctx, b.accountID, b.tenantID); err != nil {
+		return nil, err
+	}
+	return s.loadAccountRolesForTenant(ctx, b.accountID, b.tenantID)
 }
 
 // tokenSchool keeps a refreshed session at the school of the presented

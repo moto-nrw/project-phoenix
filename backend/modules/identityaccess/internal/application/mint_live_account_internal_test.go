@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,18 +25,14 @@ func TestSessionMintRefusesAnAccountErasedAfterItsChecks(t *testing.T) {
 		t.Run("portal "+portal.Name, func(t *testing.T) {
 			t.Parallel()
 			f := newAuthFixture(t)
-			f.seedStaff(1, 10, "user")
+			f.auth.store, f.auth.caterers, f.auth.traeger = admitEveryPortal(f, 1, 10, 7), admittedCaterer{}, validationMemberships{}
 			f.store.erasedBeforeMint = true
-			tenantID := int64(10)
+			tenantID, orgID := int64(10), int64(0)
 			if portal.Name == domain.PortalOrg.Name {
-				tenantID = 0
+				tenantID, orgID = 0, 7
 			}
-			admit := func(context.Context, domain.LoginAccount) (*domain.AccountClaimsPayload, error) {
-				return &domain.AccountClaimsPayload{Scope: portal.Claim}, nil
-			}
-			f.auth.policies = admitting(domain.SessionKind(portal.Name), admit)
 			_, err := f.auth.mintAccountSession(context.Background(), mintRequest{
-				portal: portal, account: f.store.accounts[1], tenantID: tenantID,
+				portal: portal, account: f.store.accounts[1], tenantID: tenantID, orgID: orgID, booked: []int64{10},
 			})
 			require.ErrorIs(t, err, domain.ErrAccountNotFound)
 			assert.Empty(t, f.store.sessionsOf(1), "no session for the erased account")
@@ -132,10 +130,34 @@ func functionSource(t *testing.T, file, signature string) string {
 	return text[start : start+end]
 }
 
-// admitting replaces the guard of one session kind, for tests of a later
-// pipeline step.
-func admitting(kind domain.SessionKind, admit eligibility) map[domain.SessionKind]sessionPolicy {
-	return map[domain.SessionKind]sessionPolicy{
-		kind: {guard: func(*AccountAuthentication, sessionBinding) eligibility { return admit }},
-	}
+// admittedStore holds what the guards of the caterer, Träger and Träger
+// school sessions ask beyond the login fakes: a caterer, the Träger right
+// "In OGS wechseln" and the school's admin role.
+type admittedStore struct{ *fakeStore }
+
+type admittedCaterer struct{ ports.CatererStore }
+
+func (admittedCaterer) FindCatererOfAccount(context.Context, int64) (domain.Caterer, bool, domain.OperationStats, error) {
+	return domain.Caterer{ID: 1}, true, stats(), nil
+}
+
+func (s admittedStore) ListTraegerRoles(context.Context, int64, int64) ([]string, domain.OperationStats, error) {
+	return []string{identityaccess.TraegerRoleSchoolAccess}, stats(), nil
+}
+
+func (s admittedStore) FindTraegerSchoolRole(context.Context, string, int64) (domain.RoleAssignment, []string, bool, domain.OperationStats, error) {
+	return domain.RoleAssignment{RoleID: 900, Name: domain.AdminRoleName, IsSystem: true}, nil, true, stats(), nil
+}
+
+// admitEveryPortal gives the account what the real guards of the tenant,
+// parent and school sessions demand at the school of the Träger: a mapping
+// with a staff, guardian and teacher role. The returned store adds the Träger
+// right and the school's admin role; admittedCaterer the caterer.
+func admitEveryPortal(f *authFixture, accountID, tenantID, organizationID int64) admittedStore {
+	f.seedStaff(accountID, tenantID, "user")
+	f.store.addMapping(accountID, tenantID,
+		domain.RoleAssignment{RoleID: 101, Name: domain.GuardianRoleName},
+		domain.RoleAssignment{RoleID: 102, Name: domain.LehrkraftRoleName, IsSystem: true})
+	f.schools.add(tenantID, organizationID, fmt.Sprintf("school-%d", tenantID), true, false)
+	return admittedStore{fakeStore: f.store}
 }

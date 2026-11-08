@@ -1,0 +1,6 @@
+{
+  "scenario": "identity.session_validate.traeger_school",
+  "max": 9,
+  "exact": true,
+  "description": "modules/identityaccess — POST /auth/session/validate without a refresh token, which the BFF asks on every page view (#5399). One administrative transaction (BEGIN, SET LOCAL ROLE, ..., COMMIT) reads the family, the account and the facts its refresh decides, each once, without row locks and without claims. Facts: the Träger memberships, the Träger roles (right \"In OGS wechseln\") and the school of the Träger."
+}
