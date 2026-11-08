@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -69,7 +70,7 @@ func (s *Reports) rosterDay(ctx context.Context, filters enrollment.ClassRosterF
 	out := &enrollment.ClassRosterDay{
 		PhaseNames: make([]string, 0, len(phases)),
 		Rows:       rows,
-		Students:   classDayStudents(students, classDayKeyOf(planWeekday)),
+		Students:   classDayStudents(students, offeringContract.SchoolDayCode(planWeekday)),
 	}
 	for _, phase := range phases {
 		out.PhaseNames = append(out.PhaseNames, phase.name)
@@ -262,25 +263,6 @@ func appendMissingStrings(base []string, add []string) []string {
 		}
 	}
 	return base
-}
-
-// classDayKeyOf maps an ISO weekday onto the report day keys ("mon"
-// .."fri"). Weekend weekdays return "".
-func classDayKeyOf(isoWeekday int) string {
-	switch isoWeekday {
-	case 1:
-		return "mon"
-	case 2:
-		return "tue"
-	case 3:
-		return "wed"
-	case 4:
-		return "thu"
-	case 5:
-		return "fri"
-	default:
-		return ""
-	}
 }
 
 // classDayStudents lists the loaded students with the departure modes their

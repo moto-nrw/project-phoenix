@@ -36,9 +36,7 @@ type Request struct {
 	// recording the resolved legal blocks exactly as the form rendered
 	// them. Settings-sourced blocks are not versioned anywhere else, so
 	// without this record a later settings edit would silently change
-	// what a stored request "accepted". Not part of the request API yet
-	// (deliberate, like DecisionNotificationMode) — admin-facing display
-	// is a follow-up.
+	// what a stored request "accepted". Not part of the request API.
 	LegalBlocksSnapshot []LegalBlocksSnapshotEntry `json:"-"`
 	CustomData          map[string]any             `json:"custom_data"`
 	SubmissionSource    string                     `json:"submission_source"`
@@ -52,17 +50,6 @@ type Request struct {
 	// decision is made. It is internal state, not part of the request API.
 	DecisionNotificationMode *string `json:"-"`
 }
-
-// Consent-flag keys stored in Request.ConsentFlags. These are the
-// canonical string keys shared across the submit validation, the
-// decision service (which stamps the matching student consent
-// timestamps), and the public form.
-//
-// KEEP IN SYNC with the consent_flags object built in
-// frontend/src/components/enrollment/enrollment-form.tsx.
-
-// RequestStatus values - derived, not stored. Documented here as the
-// canonical source for the derivation logic the request service applies.
 
 // LegalBlockSnapshot preserves the wording shown with a legacy submission.
 type LegalBlockSnapshot struct {

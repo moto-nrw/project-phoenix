@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 func (r *Store) UpdateChildStatus(ctx context.Context, id int64, newStatus string, reason *string, reviewedBy int64) error {
@@ -65,7 +67,7 @@ func (r *Store) HoldAutoRenewedChild(ctx context.Context, id int64, reviewReason
 	res, err := db.NewUpdate().
 		TableExpr(`enrollment.request_children AS "request_child"`).
 		Where(`"request_child".tenant_id = ?`, tenantID).
-		Set("status = ?", "submitted").
+		Set("status = ?", enrollment.ChildStatusSubmitted).
 		Set("review_reason = ?", reviewReason).
 		Set("updated_at = NOW()").
 		Where(`"request_child".id = ?`, id).
