@@ -8,7 +8,6 @@ import {
 } from "./ui-kit-button-baseline.mjs";
 import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
 import { surfaceBaseline } from "./ui-kit-surface-baseline.mjs";
-import { uppercaseLabelBaseline } from "./ui-kit-uppercase-label-baseline.mjs";
 
 // UI-kit drift ratchet (issue #1629).
 //
@@ -79,7 +78,7 @@ import { uppercaseLabelBaseline } from "./ui-kit-uppercase-label-baseline.mjs";
 //   ui-kit/no-white-on-warm-fill    — no white text on orange (SCHOOLYARD) or
 //                                     amber (WARNING) fills
 //
-// ui-kit/no-uppercase-label (#5590, shrink-only baseline): no `uppercase
+// ui-kit/no-uppercase-label (#5590, hard-zero): no `uppercase
 // tracking-*` class chain outside the kit; group headings use SectionLabel.
 //
 // ui-kit/no-hand-rolled-empty-state (#5597, hard-zero): a dashed, centered box
@@ -1640,14 +1639,14 @@ src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@226 text-[11px]@275
 src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@238
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@46
-src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@978
+src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@959
 src/components/enrollment/enrollment-form.tsx|text-[11px]@2189
 src/components/files/files-page.tsx|text-[11px]@181
-src/components/guardians/guardian-list.tsx|text-[10px]@466
-src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@716 text-[11px]@781
+src/components/guardians/guardian-list.tsx|text-[10px]@468
+src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@717 text-[11px]@783
 src/components/parent/parent-meal-plan-page.tsx|text-[11px]@461 text-[11px]@546
 src/components/staff/absence-request-row.tsx|text-[11px]@107
-src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@488 text-[11px]@584 text-[11px]@593 text-[11px]@600
+src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@489 text-[11px]@585 text-[11px]@594 text-[11px]@601
 src/components/staff/staff-session-table.tsx|text-[11px]@1194
 src/components/students/planned-status-days-modal.tsx|text-[10px]@935 text-[11px]@935
 src/components/students/school-checkin-fab.tsx|text-[10px]@200
@@ -1658,14 +1657,14 @@ src/components/timetable/event-form/step-termin.tsx|text-[10px]@170
 src/components/timetable/gap-jump-list.tsx|text-[11px]@132 text-[11px]@147
 src/components/timetable/instance-block.tsx|text-[10px]@298 text-[10px]@332 text-[10px]@339 text-[10px]@349
 src/components/timetable/instance-detail-modal.tsx|text-[11px]@1388 text-[11px]@1541 text-[11px]@1669
-src/components/timetable/month-planner-grid.tsx|text-[11px]@141 text-[11px]@150 text-[11px]@171 text-[10px]@237
+src/components/timetable/month-planner-grid.tsx|text-[11px]@142 text-[11px]@151 text-[11px]@172 text-[10px]@238
 src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@179 text-[11px]@255 text-[10px]@321 text-[11px]@398 text-[11px]@405
 src/components/timetable/staff-pool-slide-over.tsx|text-[11px]@482
 src/components/timetable/substitution-person-card.tsx|text-[11px]@59 text-[11px]@338 text-[11px]@345 text-[11px]@352 text-[11px]@360
 src/components/timetable/substitution-slide-over.tsx|text-[11px]@744
 src/components/timetable/template-card.tsx|text-[10px]@198
-src/components/timetable/vertretung-day-list.tsx|text-[11px]@352 text-[11px]@392 text-[11px]@399 text-[11px]@420 text-[11px]@426
-src/components/timetable/weekly-calendar-grid.tsx|text-[11px]@460 text-[10px]@483 text-[10px]@518 text-[11px]@518
+src/components/timetable/vertretung-day-list.tsx|text-[11px]@348 text-[11px]@388 text-[11px]@395 text-[11px]@416 text-[11px]@422
+src/components/timetable/weekly-calendar-grid.tsx|text-[11px]@461 text-[10px]@484 text-[10px]@519 text-[11px]@519
 src/components/ui/avatar.tsx|text-[10px]@32
 src/components/ui/planning/coverage-indicator.tsx|text-[11px]@61 text-[11px]@163
 src/components/ui/location-badge.tsx|text-[10px]@282
@@ -2771,6 +2770,7 @@ function makeRatchetRule({
   countEnv = "UI_KIT_BUTTON_RATCHET",
   kitFile = BUTTON_KIT_FILE,
   exemptDir = null,
+  exemptDirs = [],
   exemptFiles = [],
   followStaticClassSources = false,
   onlySrc = false,
@@ -2791,7 +2791,8 @@ function makeRatchetRule({
         EXEMPT_FILE_RE.test(key) ||
         key.endsWith(kitFile) ||
         (exemptDir !== null && key.startsWith(exemptDir)) ||
-        exemptFiles.some((prefix) => key.startsWith(prefix)) ||
+        exemptDirs.some((dir) => key.startsWith(dir)) ||
+        exemptFiles.includes(key) ||
         (onlySrc && !key.startsWith("src/")) ||
         key.includes("src/test/")
       ) {
@@ -4494,12 +4495,17 @@ const noHandRolledListRow = makeRatchetRule({
 // im `className` eines Elements (auch über Ternär-Zweige und `cn(…)`) oder in
 // einer anderen Zeichenkette, etwa einer Konstante. Ausnahmen laut Epic: `/start`
 // und die NFC-Druckanleitung; der Kicker des Elternportals kommt über das Kit
-// (`SectionCard kicker`). Start mit shrink-only Baseline je Datei, Abbau je
-// Bereich in Sub-Issues.
+// (`SectionCard kicker`). Hard-zero seit dem Abbau der Baseline.
+// Eltern-Ausnahmen aus #2619: Kinderkarten, Kinderwahl und Startseite des
+// Elternportals behalten ihre Versalien. Nie anfassen, auch nicht für das Kit.
 const UPPERCASE_LABEL_EXEMPT_FILES = [
   "src/app/start/page.tsx",
-  "src/app/help/nfc/",
+  "src/components/parent/child/child-day-card.tsx",
+  "src/components/parent/child/child-switcher.tsx",
+  "src/components/parent/start/parent-start-page.tsx",
 ];
+
+const UPPERCASE_LABEL_EXEMPT_DIRS = ["src/app/help/nfc/"];
 
 function isUppercaseLabelText(text) {
   const utilities = classUtilities(text);
@@ -4595,11 +4601,11 @@ const noUppercaseLabel = makeRatchetRule({
     "Group headings come from SectionLabel; no `uppercase tracking-*` class chain outside the UI kit.",
   message:
     "Keine Versalien-Überschrift: Gruppenkopf oder Zwischenüberschrift über `SectionLabel` (`as`, `required`) aus ~/components/ui/section-label, Gruppenkopf einer Liste über `ListGroupHeader`, Mini-Tag über `StatusBadge size=\"xs\"`, Tabellenkopf über `DataTable` (#5590, .claude/rules/frontend-ui-kit.md).",
-  baselines: uppercaseLabelBaseline,
+  baselines: {},
   allowlist: [],
-  countEnv: "UI_KIT_UPPERCASE_LABEL_RATCHET",
   kitFile: "src/components/ui/section-label.tsx",
   exemptDir: UI_KIT_DIR,
+  exemptDirs: UPPERCASE_LABEL_EXEMPT_DIRS,
   exemptFiles: UPPERCASE_LABEL_EXEMPT_FILES,
   onlySrc: true,
   detect: ({ constants, found }) => {

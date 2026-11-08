@@ -62,6 +62,7 @@ import {
 import { FormModal } from "~/components/ui/form-modal";
 import { Alert } from "~/components/ui/alert";
 import { SectionCard } from "~/components/ui/section-card";
+import { TileCard } from "~/components/ui/tile-card";
 import { Textarea } from "~/components/ui/textarea";
 import { BackAction } from "~/components/ui/back-link";
 import { Button, ButtonLink, buttonClassName } from "~/components/ui/button";
@@ -1167,8 +1168,8 @@ export function EnrollmentFormEditor({
     <AttachmentUploadContext.Provider value={attachmentLifecycle}>
       <FieldErrorContext.Provider value={fieldError}>
         <div ref={builderRef} className="flex flex-col space-y-5">
-          <section className="moto-content-surface overflow-hidden rounded-2xl border">
-            <div className="border-b border-gray-100 px-5 py-3 sm:px-6">
+          <SectionCard padding="none">
+            <div className="compact:px-4 border-b border-gray-100 px-5 py-3 max-sm:px-4">
               <BackAction
                 onClick={requestBackToOverview}
                 disabled={saving || hasPendingLegalDocumentUpload}
@@ -1176,7 +1177,7 @@ export function EnrollmentFormEditor({
               />
             </div>
             <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_430px]">
-              <div className="space-y-6 p-5 sm:p-6">
+              <div className="compact:p-4 space-y-6 p-5 max-sm:p-4">
                 {/* Ein Neuladen nach dem Speichern kann scheitern; der Entwurf
                 bleibt dann stehen. */}
                 <LoadErrorAlert error={loadError} />
@@ -1324,7 +1325,7 @@ export function EnrollmentFormEditor({
                 </section>
               </div>
 
-              <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 sm:p-6 lg:border-t-0 lg:border-l">
+              <aside className="moto-dotted-background moto-dotted-background--split compact:p-4 border-t border-gray-100 p-5 max-sm:p-4 lg:border-t-0 lg:border-l">
                 <FormPreview
                   fields={fields}
                   coreRequirements={coreRequirements}
@@ -1350,7 +1351,7 @@ export function EnrollmentFormEditor({
                 />
               </aside>
             </div>
-          </section>
+          </SectionCard>
           <UnsavedChangesDialog
             pendingNavigation={pendingNavigation}
             saving={saving || hasPendingLegalDocumentUpload}
@@ -1395,9 +1396,13 @@ function EnrollmentFormsOverview({
       {/* Karte als Flex-Spalte und das Raster darin `flex-1`: wächst die
           Karte bis zur Unterkante, läuft die graue Seitenspalte mit bis
           dorthin, statt über dem Kartenrand zu enden. */}
-      <section className="moto-content-surface flex flex-col overflow-hidden rounded-2xl border">
+      <SectionCard
+        padding="none"
+        className="flex flex-col"
+        bodyClassName="flex min-h-0 flex-1 flex-col"
+      >
         <div className="grid flex-1 gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
-          <div className="space-y-6 p-5 sm:p-6">
+          <div className="compact:p-4 space-y-6 p-5 max-sm:p-4">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 className="text-base font-semibold text-gray-900">
@@ -1446,14 +1451,14 @@ function EnrollmentFormsOverview({
             </section>
           </div>
 
-          <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 sm:p-6 lg:border-t-0 lg:border-l">
+          <aside className="moto-dotted-background moto-dotted-background--split compact:p-4 border-t border-gray-100 p-5 max-sm:p-4 lg:border-t-0 lg:border-l">
             <OverviewGuide
               templateCount={templates.length}
               assignedTemplateCount={assignedTemplateCount}
             />
           </aside>
         </div>
-      </section>
+      </SectionCard>
     </div>
   );
 }
@@ -1474,7 +1479,7 @@ function TemplateOverviewList({
   onDelete: (schema: FormSchema) => void;
 }>) {
   return (
-    <div className="moto-content-surface overflow-hidden rounded-2xl border">
+    <SectionCard padding="none">
       <div className="divide-y divide-gray-100">
         <BaseTemplateOverviewRow />
         {templates.map((schema) => (
@@ -1491,7 +1496,7 @@ function TemplateOverviewList({
           />
         ))}
       </div>
-    </div>
+    </SectionCard>
   );
 }
 
@@ -1727,13 +1732,17 @@ function FormTemplateDetail({
   return (
     // Flex-Spalte, siehe die Übersicht derselben Seite.
     <div className="flex flex-col space-y-5">
-      <section className="moto-content-surface flex flex-col overflow-hidden rounded-2xl border">
+      <SectionCard
+        padding="none"
+        className="flex flex-col"
+        bodyClassName="flex min-h-0 flex-1 flex-col"
+      >
         <div className="grid flex-1 gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
           <div>
-            <div className="border-b border-gray-100 px-5 py-3 sm:px-6">
+            <div className="compact:px-4 border-b border-gray-100 px-5 py-3 max-sm:px-4">
               <BackAction onClick={onBack} label="Zurück zur Übersicht" />
             </div>
-            <div className="space-y-5 p-5 sm:p-6">
+            <div className="compact:p-4 space-y-5 p-5 max-sm:p-4">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <h2 className="text-xl font-semibold text-gray-900">
@@ -1802,7 +1811,7 @@ function FormTemplateDetail({
             </div>
           </div>
 
-          <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 sm:p-6 lg:border-t-0 lg:border-l">
+          <aside className="moto-dotted-background moto-dotted-background--split compact:p-4 border-t border-gray-100 p-5 max-sm:p-4 lg:border-t-0 lg:border-l">
             <div className="sticky top-6 space-y-4">
               <div>
                 <h2 className="text-base font-semibold text-gray-900">
@@ -1857,7 +1866,7 @@ function FormTemplateDetail({
                 </span>
               </a>
 
-              <div className="moto-content-surface rounded-2xl border p-4">
+              <InsetPanel tone="white" padding="md">
                 <h3 className="text-sm font-semibold text-gray-900">Status</h3>
                 <div className="mt-4 space-y-3">
                   <GuideStep
@@ -1881,11 +1890,11 @@ function FormTemplateDetail({
                     done={assignedPhases.length > 0}
                   />
                 </div>
-              </div>
+              </InsetPanel>
             </div>
           </aside>
         </div>
-      </section>
+      </SectionCard>
     </div>
   );
 }
@@ -2196,7 +2205,7 @@ function BuilderTemplateSummary({
   ).length;
 
   return (
-    <section className="moto-content-surface rounded-2xl border p-4">
+    <SectionCard>
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_280px]">
         <div className="min-w-0">
           <h2 className="text-base font-semibold text-gray-900">
@@ -2248,7 +2257,7 @@ function BuilderTemplateSummary({
           />
         </div>
       ) : null}
-    </section>
+    </SectionCard>
   );
 }
 
@@ -2269,7 +2278,7 @@ function CoreFieldsSection({
   ] satisfies ReadonlyArray<{ title: string; fields: CoreField[] }>;
 
   return (
-    <section className="moto-content-surface rounded-2xl border p-5">
+    <SectionCard>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-base font-semibold text-gray-900">
@@ -2297,7 +2306,7 @@ function CoreFieldsSection({
           />
         ))}
       </div>
-    </section>
+    </SectionCard>
   );
 }
 
@@ -2314,7 +2323,7 @@ function SignatureRequirementSection({
   disabled: boolean;
 }>) {
   return (
-    <section className="moto-content-surface rounded-2xl border p-5">
+    <SectionCard>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-base font-semibold text-gray-900">
@@ -2338,7 +2347,7 @@ function SignatureRequirementSection({
           />
         </div>
       </div>
-    </section>
+    </SectionCard>
   );
 }
 
@@ -2730,7 +2739,7 @@ export function LegalBlocksSection({
   };
 
   return (
-    <section className="moto-content-surface rounded-2xl border p-5">
+    <SectionCard>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-base font-semibold text-gray-900">
@@ -2880,7 +2889,7 @@ export function LegalBlocksSection({
           Eigene Zustimmung hinzufügen
         </Button>
       </div>
-    </section>
+    </SectionCard>
   );
 }
 
@@ -3362,10 +3371,9 @@ function FormPreview({
               </span>
             </a>
           ) : onPreviewClick ? (
-            <button
-              type="button"
+            <TileCard
               onClick={onPreviewClick}
-              className="moto-content-surface moto-hover-elevated flex w-full items-start gap-3 rounded-2xl border p-3 text-left focus-visible:outline-2 focus-visible:outline-gray-400"
+              className="flex items-start gap-3"
             >
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
                 <ExternalLink className="h-4 w-4" aria-hidden="true" />
@@ -3379,9 +3387,13 @@ function FormPreview({
                   Tab.
                 </span>
               </span>
-            </button>
+            </TileCard>
           ) : (
-            <div className="moto-content-surface flex items-start gap-3 rounded-2xl border p-3 text-left opacity-70">
+            <InsetPanel
+              tone="white"
+              padding="sm"
+              className="flex items-start gap-3 opacity-70"
+            >
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
                 <ExternalLink className="h-4 w-4" aria-hidden="true" />
               </span>
@@ -3393,7 +3405,7 @@ function FormPreview({
                   Speichern Sie die Vorlage zuerst.
                 </span>
               </span>
-            </div>
+            </InsetPanel>
           )}
         </>
       }
@@ -3437,10 +3449,7 @@ function FormPreview({
             {enabledLegalBlocks.map((block) => {
               const previewText = legalBlockPreviewText(block);
               return (
-                <div
-                  key={block.key}
-                  className="rounded-lg border border-gray-200 bg-white px-3 py-2"
-                >
+                <InsetPanel key={block.key} tone="white" padding="compact">
                   <div className="flex items-start gap-2.5">
                     <span
                       className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
@@ -3484,7 +3493,7 @@ function FormPreview({
                       ) : null}
                     </div>
                   </div>
-                </div>
+                </InsetPanel>
               );
             })}
           </div>

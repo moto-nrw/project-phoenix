@@ -1,6 +1,7 @@
 "use client";
 
 import { FramedList } from "~/components/ui/framed-list";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import {
@@ -114,9 +115,12 @@ export function OfferingPreviewList({
       ) : null}
       <ul className="flex flex-col gap-2">
         {preview.weekdays.map((day) => (
-          <li
+          <InsetPanel
+            as="li"
             key={day.weekday}
-            className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
+            tone="white"
+            padding="compact"
+            className="text-sm"
           >
             <div className="flex items-baseline justify-between gap-3">
               <p className="font-medium text-gray-900">
@@ -132,7 +136,7 @@ export function OfferingPreviewList({
             {day.removed.length > 0 ? (
               <DroppedChildren dropped={day.removed} />
             ) : null}
-          </li>
+          </InsetPanel>
         ))}
       </ul>
     </div>

@@ -302,7 +302,7 @@ func (s *Service) notifyReleaseTo(ctx context.Context, organizationID, releaseID
 func (s *Service) releaseChildren(ctx context.Context, organizationID, accountID int64, schools []int64, groupID *int64) ([]*ChildSummary, SharedDocumentReader, error) {
 	var reached []*ChildSummary
 	var reader SharedDocumentReader
-	err := s.billingDocumentAccess(ctx, accountID, func(adminCtx context.Context, children []*ChildSummary) error {
+	err := s.accountDocumentAccess(ctx, accountID, func(adminCtx context.Context, children []*ChildSummary) error {
 		groups, err := s.permittedSchoolGroups(adminCtx, children)
 		if err != nil || len(groups) == 0 {
 			return err

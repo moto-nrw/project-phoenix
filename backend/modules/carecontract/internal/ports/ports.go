@@ -64,7 +64,6 @@ type NewContract struct {
 	EarlyStart bool
 }
 
-// NewParty is the party of a new draft.
 type NewParty struct {
 	FirstName string
 	LastName  string
@@ -98,7 +97,6 @@ type SentDocument struct {
 	VersionID int64
 }
 
-// StoredMailing is a send of the contract as stored.
 type StoredMailing struct {
 	WithdrawalNotice bool
 	OutboxID         int64

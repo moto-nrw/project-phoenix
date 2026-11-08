@@ -16,6 +16,8 @@ import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
+import type { CareContractStatus } from "~/lib/traeger-care-contracts-api";
+import { TERMINATION_KIND_LABELS } from "./care-contract-format";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import type { ContractNoticeOptions } from "~/lib/care-contract-notices";
 import { fetchContractNoticeOptions } from "~/lib/care-contract-notices-api";
@@ -54,13 +56,6 @@ const SetNoticeEndModal = dynamic(
   { ssr: false },
 );
 
-/** How the parents terminated, as the office reads it. */
-const TERMINATION_LABELS = {
-  ordentlich: "Ordentlich",
-  sonderkuendigung: "Sonderkündigung",
-  ausserordentlich: "Außerordentlich, aus wichtigem Grund",
-} as const;
-
 /** How the office decided the end of an extraordinary termination. */
 const DECISION_LABELS = {
   festgelegt: { label: "Grund anerkannt", tone: "green" },
@@ -80,7 +75,7 @@ export function CareContractNoticeCard({
   onChanged,
 }: Readonly<{
   contractId: string;
-  status: string;
+  status: CareContractStatus;
   /** When the contract was concluded: no declaration can be older. */
   concludedAt: string;
   onChanged: () => void;
@@ -111,7 +106,6 @@ export function CareContractNoticeCard({
 
   const notice = options?.notice ?? null;
   const active = options?.status === "aktiv";
-  // An extraordinary termination waits for the end the office sets.
   const endPending =
     notice?.terminationKind === "ausserordentlich" && notice.endsOn === null;
 
@@ -287,7 +281,6 @@ function ActiveFacts({
   );
 }
 
-/** The declaration as recorded, with its confirmation as sent. */
 function NoticeFacts({
   notice,
 }: Readonly<{ notice: NonNullable<ContractNoticeOptions["notice"]> }>) {
@@ -306,7 +299,7 @@ function NoticeFacts({
         </DataField>
         {notice.terminationKind ? (
           <DataField label="Art der Kündigung">
-            {TERMINATION_LABELS[notice.terminationKind]}
+            {TERMINATION_KIND_LABELS[notice.terminationKind]}
           </DataField>
         ) : null}
         {notice.endDecision ? (

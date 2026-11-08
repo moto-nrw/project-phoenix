@@ -108,6 +108,30 @@ func NewPushDispatcher(runtime *Runtime, provider Provider) *delivery.PushDispat
 
 type ProviderAdapter struct{ Provider Provider }
 
+// PrepareBatch lets the provider resolve object authority once per claimed
+// push batch. The returned context is local to this run, never a retry cache.
+func (p ProviderAdapter) PrepareBatch(ctx context.Context, intents []domain.Intent) context.Context {
+	batch, ok := p.Provider.(interface {
+		PreparePushBatch(context.Context, []deliveryContract.ClaimedIntent) context.Context
+	})
+	if !ok {
+		return ctx
+	}
+	pushes := make([]deliveryContract.ClaimedIntent, 0, len(intents))
+	for _, intent := range intents {
+		var recipient deliveryContract.PushRecipient
+		if json.Unmarshal(intent.Recipient, &recipient) != nil || recipient.Deferred {
+			continue
+		}
+		pushes = append(pushes, deliveryContract.ClaimedIntent{
+			ID: intent.ID, TenantID: intent.TenantID, Template: intent.Template,
+			RelatedEntityType: intent.RelatedEntityType, RelatedEntityID: intent.RelatedEntityID,
+			PushRecipient: recipient,
+		})
+	}
+	return batch.PreparePushBatch(ctx, pushes)
+}
+
 func (p ProviderAdapter) Send(ctx context.Context, intent domain.Intent) (deliveryContract.ProviderResult, error) {
 	claimed := deliveryContract.ClaimedIntent{
 		ID: intent.ID, TenantID: intent.TenantID, OrganizationID: intent.OrganizationID, Transport: deliveryContract.Transport(intent.Transport),

@@ -1,0 +1,6 @@
+{
+  "scenario": "api.traeger.care_rules",
+  "max": 8,
+  "exact": true,
+  "description": "modules/parentbilling — GET /traeger/care-rules (#4685): the Träger\nbinding of the Träger transaction, the care rules, the schools of the\nTräger (Organisation & Tenancy), the contract versions in force of the\nyear before and of the year after the current month (Betreuungsvertrag,\none statement each) and the prices for the modules of the price list.\nFlat in the number of rules, schools and contracts."
+}

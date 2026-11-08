@@ -58,6 +58,7 @@ import { sickConcept } from "~/lib/concepts/sick";
 import { staffPlanConcept } from "~/lib/concepts/staffPlan";
 import { timeTrackingConcept } from "~/lib/concepts/timeTracking";
 import { PlanningDayChip } from "~/components/ui/planning/planning-context-bar";
+import { SectionCard } from "~/components/ui/section-card";
 
 // Week matrix built on the generic kit ResourceGrid: rows are staff, columns
 // the weekdays Mo–Fr. All domain-to-block mapping lives here in the screen
@@ -714,7 +715,7 @@ export function DienstplanResourceGrid({
           die Anlege-Geste identisch. */}
       {isCompact && mobileColumn ? (
         <div>
-          <div className="moto-content-surface overflow-hidden rounded-2xl border">
+          <SectionCard padding="none">
             <div className="flex gap-1 border-b border-gray-200 bg-white p-2">
               {columns.map((column, index) => {
                 const isSelected = index === safeMobileDayIndex;
@@ -771,7 +772,7 @@ export function DienstplanResourceGrid({
                 aria-label="Legende Dienstarten und Zustände"
               />
             </div>
-          </div>
+          </SectionCard>
         </div>
       ) : (
         <div>

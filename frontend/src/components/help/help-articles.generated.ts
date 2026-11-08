@@ -330,6 +330,8 @@ import type { traegerCareContractsTopic as authored_traegerCareContractsTopic } 
 
 import type { traegerCareMonthsTopic as authored_traegerCareMonthsTopic } from "./articles/traeger-care-months";
 
+import type { traegerCareReductionsTopic as authored_traegerCareReductionsTopic } from "./articles/traeger-care-reductions";
+
 import type { traegerCareTimeOverrunsTopic as authored_traegerCareTimeOverrunsTopic } from "./articles/traeger-care-time-overruns";
 
 import type { traegerDashboardTopic as authored_traegerDashboardTopic } from "./articles/traeger-dashboard";
@@ -5833,7 +5835,7 @@ export const parentDocumentsTopic = function parentDocumentsTopic(): HelpTopic {
       "Das sind die Bestätigungsschreiben der Ferienbetreuung und die Betreuungsverträge. Das Bestätigungsschreiben ist auch Ihre Rechnung.",
       "Beim Betreuungsvertrag stehen die gebuchte Betreuung und der Beginn auf der Karte. Prüfen Sie im PDF jeden Wochentag und den Beitrag. Stimmt etwas nicht, melden Sie sich beim Träger.",
       "Steht beim Vertrag `Abgeschlossen` statt `Unterschrieben`? Dann gilt er seit der Annahme Ihrer Anmeldung. Sie müssen nichts unterschreiben. Heben Sie ihn gut auf.",
-      "Sie möchten den Vertrag beenden? Wählen Sie beim Vertrag `Verträge hier kündigen`. Wählen Sie den Termin oder innerhalb der angezeigten Frist `Widerrufen`. Wählen Sie dann `Jetzt kündigen`. Sie bekommen sofort eine Bestätigung per Mail und auf dem Bildschirm, mit Datum und Uhrzeit des Eingangs. Ändern sich die Termine nach Mitternacht? Wählen Sie dann erneut.",
+      "Sie möchten den Vertrag beenden? Wählen Sie beim Vertrag `Verträge hier kündigen`. Wählen Sie den Termin oder innerhalb der angezeigten Frist `Widerrufen`. Wählen Sie dann `Jetzt kündigen` oder `Jetzt widerrufen`. Sie bekommen sofort eine Bestätigung per Mail und auf dem Bildschirm, mit Datum und Uhrzeit des Eingangs. Ändern sich die Termine nach Mitternacht? Wählen Sie dann erneut.",
       "Haben Sie einen wichtigen Grund, den Vertrag früher zu beenden? Wählen Sie `Außerordentlich kündigen` und schreiben Sie Ihren Grund auf. Der Träger prüft ihn. Erkennt er ihn an, legt er das Vertragsende fest. Erkennt er ihn nicht an, gilt Ihre Kündigung als ordentliche Kündigung zum nächsten möglichen Termin. Die Entscheidung bekommen Sie per Mail. Sie steht auch beim Vertrag unter `Mitteilung des Trägers zum Vertragsende`. Bis dahin findet die Betreuung wie gebucht statt.",
       "Bei einem gekündigten Vertrag steht `Gekündigt zum` und das Datum. Bis dahin findet die Betreuung wie gebucht statt. Mit `Bestätigung ansehen` öffnen Sie Ihre Bestätigung.",
       "Sie möchten andere Tage oder Zeiten? Beantragen Sie das bei Ihrem Kind mit `Betreuung ändern`. Bestätigt die Schule, bekommt Ihr Vertrag eine neue Version.",
@@ -10494,6 +10496,88 @@ export const traegerCareMonthsTopic =
       ],
     };
   } satisfies typeof authored_traegerCareMonthsTopic;
+
+export const traegerCareReductionsTopic =
+  function traegerCareReductionsTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerCareReductions,
+      title: "Ermäßigungen im Monatsbeitrag",
+      question:
+        "Wie lege ich Geschwister, Einkommensstufen und Höchstbeträge fest?",
+      summary:
+        "Sie legen fest, wann eine Familie weniger zahlt. Der Monatslauf rechnet jede Ermäßigung selbst aus. Sie steht als eigene Zeile auf der Rechnung.",
+      group: "anmeldeverwaltung",
+      audience: "traeger",
+      icon: "SlidersHorizontal",
+      requirements: [
+        "Ihre Rolle im Träger-Büro ist Abrechnung.",
+        "Die Preise der Module stehen in der `Preisliste`.",
+      ],
+      steps: [],
+      instructionGroups: [
+        {
+          title: "Regel anlegen",
+          description:
+            "Es gibt vier Arten: Einkommensstufen, Geschwister, Alleinerziehende und Höchstbetrag. Der Monatslauf rechnet sie in dieser Reihenfolge.",
+          steps: [
+            "Wählen Sie `Abrechnung` und dann den Reiter `Ermäßigungen`.",
+            "Wählen Sie bei der Art den Knopf `Regel anlegen`, `Stufe anlegen` oder `Höchstbetrag anlegen`.",
+            "Geben Sie einen Namen ein. Er steht so auf der Rechnung.",
+            "Wählen Sie die Monate und die Schulen, für die die Regel gilt.",
+            "Soll die Regel nur für einzelne Module gelten, wählen Sie die Module. Sonst lassen Sie das Feld leer.",
+            "Wählen Sie die Wirkung: `Anteil weniger`, `Betrag weniger` oder `Fester Preis`. Tragen Sie die Zahl ein.",
+            "Wählen Sie `Regel speichern`.",
+          ],
+        },
+        {
+          title: "Geschwister",
+          description:
+            "Geschwister sind Kinder mit derselben Rechnungsadresse. Das Kind mit dem höchsten Beitrag ist das 1. Kind. Bei gleichem Beitrag zählt das ältere Kind zuerst.",
+          steps: [
+            "Wählen Sie bei `Ab dem Kind`, ab welchem Kind die Ermäßigung gilt, zum Beispiel ab dem 2. Kind.",
+            "Wählen Sie bei `Geschwister zählen an` die Schulen, deren Kinder mitzählen. Lassen Sie das Feld leer, zählen nur die Schulen der Regel.",
+            "`Fester Preis` heißt: Das Kind zahlt genau diesen Betrag. `Betrag weniger` zieht den Betrag vom Preis ab.",
+          ],
+        },
+        {
+          title: "Nachweis eintragen",
+          description:
+            "Einkommensstufe und Ermäßigung für Alleinerziehende brauchen einen Nachweis je Kind.",
+          steps: [
+            "Wählen Sie `Abrechnung` und dann den Reiter `Nachweise`.",
+            "Wählen Sie beim Kind das Menü und dann `Einkommensstufe eintragen` oder `Alleinerziehend eintragen`.",
+            "Wählen Sie die Stufe. Nennen Sie den geprüften Nachweis, zum Beispiel Einkommensteuerbescheid 2025.",
+            "Tragen Sie ein, wann Sie ihn geprüft haben und ab wann er gilt.",
+            "Wählen Sie `Nachweis speichern`.",
+          ],
+        },
+        {
+          title: "Nachweise ändern und vorab eintragen",
+          description:
+            "Die Liste zeigt alle Zeiträume, auch abgelaufene und zukünftige.",
+          steps: [
+            "Wählen Sie beim Kind das Menü. Jeder Nachweis zeigt seinen Zeitraum.",
+            "Wählen Sie beim passenden Zeitraum `Einkommensstufe ändern` oder `Alleinerziehend ändern`.",
+            "Für einen weiteren Zeitraum wählen Sie `Einkommensstufe eintragen` oder `Alleinerziehend eintragen`.",
+            "Beenden Sie den bisherigen Zeitraum, bevor der neue beginnt. Zeiträume derselben Art dürfen sich nicht überschneiden.",
+            "Wählen Sie `Nachweis speichern`.",
+          ],
+        },
+      ],
+      result:
+        "Der nächste Monatslauf rechnet die Ermäßigungen aus. Jede Rechnung zeigt jede Ermäßigung mit Namen und Betrag. Bei Geschwistern steht dabei, das wievielte Kind es ist.",
+      differences: [
+        "Geschwister erkennt moto an derselben E-Mail-Adresse der Rechnung. Haben zwei Familien dieselbe Adresse, zählen ihre Kinder zusammen. Hat eine Familie zwei Adressen, zählen ihre Kinder nicht als Geschwister. Gleichen Sie die Adresse dann im Vertrag an.",
+        "Gilt ein Nachweis erst ab Mitte des Monats, zählt er für den ganzen Monat.",
+        "Eine Rechnung, die schon ausgestellt ist, bleibt, wie sie ist. Eine geänderte Regel gilt ab dem nächsten Monatslauf.",
+      ],
+      notes: [
+        "moto speichert nur die Art des Nachweises und das Prüfdatum. Das Dokument und das Einkommen bleiben bei Ihnen.",
+        "Jedes Öffnen der Seite `Nachweise` steht im Zugriffsprotokoll.",
+      ],
+      related: [HELP_TOPICS.traegerCareMonths, HELP_TOPICS.traegerAccessLog],
+    };
+  } satisfies typeof authored_traegerCareReductionsTopic;
 
 /**
  * `/traeger/zeitvergleich` (#4683): wie oft Kinder an den Schulen des Trägers

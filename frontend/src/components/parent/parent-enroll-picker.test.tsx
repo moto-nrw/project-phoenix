@@ -116,6 +116,12 @@ describe("ParentEnrollPicker", () => {
     expect(
       screen.getByRole("heading", { name: "OGS Süd" }),
     ).toBeInTheDocument();
+    const schoolCard = screen
+      .getByRole("heading", { name: "OGS Nord" })
+      .closest("section");
+    const phaseList = schoolCard?.querySelector("ul");
+    expect(phaseList).toHaveClass("border-t");
+    expect(phaseList?.parentElement).not.toHaveClass("compact:mt-3", "mt-4");
 
     // Phase links point at /parents/anmeldung/{subdomain}/{phaseId} — the slug
     // would not resolve for a school whose slug differs from its subdomain.

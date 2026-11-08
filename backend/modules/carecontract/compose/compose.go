@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// ContractPorts and IntakePorts are the ports the root binds.
 type (
 	ContractPorts = application.ContractPorts
 	IntakePorts   = application.IntakePorts
@@ -63,7 +62,6 @@ func NewOverrunEvaluations(ports OverrunPorts) carecontract.OverrunEvaluations {
 	return application.NewOverruns(application.OverrunPorts(ports), calendar.TodayDate)
 }
 
-// OverrunPorts are the ports the root binds for the evaluation.
 type OverrunPorts struct {
 	Schools   carecontract.TraegerSchools
 	CareTimes carecontract.SchoolCareTimes

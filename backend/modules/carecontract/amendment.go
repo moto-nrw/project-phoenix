@@ -52,7 +52,6 @@ const (
 	SkipApplicationGone = "application_gone"
 )
 
-// ErrVersionNotFound reports a version number the contract does not have.
 var ErrVersionNotFound = errors.New("care contract version not found")
 
 // AmendmentRun answers one run over the active contracts of a Träger: the
@@ -63,14 +62,12 @@ type AmendmentRun struct {
 	Skipped []AmendmentSkip   `json:"skipped"`
 }
 
-// AmendedContract is a new version of one contract.
 type AmendedContract struct {
 	ContractID    int64         `json:"contract_id"`
 	VersionNumber int           `json:"version_number"`
 	EffectiveFrom calendar.Date `json:"effective_from"`
 }
 
-// AmendmentSkip is a contract the run left unchanged, with its reason.
 type AmendmentSkip struct {
 	ContractID int64  `json:"contract_id"`
 	Reason     string `json:"reason"`

@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
+import { SectionLabel } from "~/components/ui/section-label";
 import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
 import { Modal } from "~/components/ui/modal";
@@ -268,9 +269,7 @@ export function CreateSchoolModal({
         </div>
 
         <div className="border-t border-gray-100 pt-4">
-          <p className="mb-3 text-xs font-medium text-gray-500 uppercase">
-            Kontaktdaten
-          </p>
+          <SectionLabel className="mb-3">Kontaktdaten</SectionLabel>
           <div className="space-y-3">
             <Input
               id="school-address"

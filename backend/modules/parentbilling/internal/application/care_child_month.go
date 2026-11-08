@@ -3,6 +3,7 @@ package application
 import (
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
@@ -110,6 +111,18 @@ func childrenOf(byContract map[int64][]parentbilling.CareContractVersion, order 
 		children[i] = groups[key]
 	}
 	return children
+}
+
+// childKeys names per contract the child it bills, as childrenOf groups
+// them (ADR 0158 E1).
+func childKeys(byContract map[int64][]parentbilling.CareContractVersion, order []int64) map[int64]string {
+	keys := map[int64]string{}
+	for i, child := range childrenOf(byContract, order) {
+		for _, contractID := range child {
+			keys[contractID] = "child:" + strconv.Itoa(i)
+		}
+	}
+	return keys
 }
 
 // childKeyOf is the child a contract bills: its record, the one record

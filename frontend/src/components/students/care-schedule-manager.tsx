@@ -113,6 +113,7 @@ import { Loading } from "~/components/ui/loading";
 import { PlanningDayChip } from "~/components/ui/planning/planning-context-bar";
 import { CARE_SCHEDULE_STALE_EVENT } from "~/lib/care-schedule-stale";
 import { groupKeys } from "~/lib/swr/groups-keys";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "CareScheduleManager" });
 const statusDayDateFormatter = new Intl.DateTimeFormat("de-DE", {
@@ -1615,17 +1616,14 @@ function CareAppointmentSection({
   return (
     <div className="space-y-1.5">
       {appointments.map((appointment) => (
-        <div
-          key={appointment.key}
-          className="rounded-lg border border-gray-100 bg-white px-3 py-2.5 shadow-sm"
-        >
+        <InsetPanel key={appointment.key} tone="white" padding="compact">
           <div className="text-sm font-semibold text-gray-500">
             {appointment.timeRange}
           </div>
           <div className="text-sm font-semibold text-gray-900">
             {appointment.title}
           </div>
-        </div>
+        </InsetPanel>
       ))}
     </div>
   );

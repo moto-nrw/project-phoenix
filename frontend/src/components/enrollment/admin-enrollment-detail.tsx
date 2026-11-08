@@ -62,10 +62,7 @@ import {
 import { formatOfferingPrice } from "~/lib/care-offering-format";
 import { FeaturePill } from "~/components/enrollment/feature-pill";
 import { isSupportedGradeLevelMax } from "~/lib/grade-level";
-import {
-  BLOCKED_OFFERING_ROW_TONE,
-  OfferingRowShell,
-} from "~/components/enrollment/offering-row-shell";
+import { OfferingRowShell } from "~/components/enrollment/offering-row-shell";
 import { StatusBadge } from "~/components/ui/status-badge";
 import {
   DataField,
@@ -474,9 +471,9 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
         </>
       }
     >
-      <section className="moto-content-surface overflow-hidden rounded-2xl border">
+      <SectionCard padding="none">
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_430px]">
-          <div className="space-y-6 p-4 sm:p-6">
+          <div className="space-y-6 p-5 max-sm:p-4">
             {/* Ein gescheitertes Neuladen nach einer Änderung: die Seite zeigt
                 weiter den letzten Stand und sagt, dass er veraltet sein kann. */}
             <LoadErrorAlert error={loadError.error} />
@@ -545,7 +542,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
             </SectionCard>
           </div>
 
-          <aside className="border-t border-gray-100 bg-gray-50/70 p-4 sm:p-6 lg:border-t-0 lg:border-l">
+          <aside className="border-t border-gray-100 bg-gray-50/70 p-5 max-sm:p-4 lg:border-t-0 lg:border-l">
             <LoadErrorAlert error={requestMailsError} className="mb-4" />
             {/* Stays away while no mail exists: a card that always reads „keine
                 Mail“ tells the school nothing. */}
@@ -609,7 +606,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
             />
           </aside>
         </div>
-      </section>
+      </SectionCard>
     </TenantPage>
   );
 }
@@ -723,8 +720,8 @@ function ChildInformationCard({
       : "/students",
   );
   return (
-    <article className="moto-content-surface overflow-hidden rounded-2xl border">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 p-4">
+    <SectionCard padding="none">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 p-5 max-sm:p-4">
         <div>
           <h3 className="text-base font-semibold text-gray-900">
             {child.first_name} {child.last_name}
@@ -774,7 +771,7 @@ function ChildInformationCard({
           {isHeldForChildQuota(child) ? <ChildQuotaHeldBadge /> : null}
         </div>
       </div>
-      <div className="space-y-4 p-4">
+      <div className="space-y-4 p-5 max-sm:p-4">
         {isHeldForChildQuota(child) ? (
           <Alert
             type="warning"
@@ -858,7 +855,7 @@ function ChildInformationCard({
           />
         )}
       </div>
-    </article>
+    </SectionCard>
   );
 }
 
@@ -991,10 +988,7 @@ function ReviewSidebar({
 
       {data.children.map((child) => {
         return (
-          <section
-            key={child.id}
-            className="moto-content-surface rounded-2xl border p-4"
-          >
+          <SectionCard key={child.id}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <h3 className="truncate text-sm font-semibold text-gray-900">
@@ -1024,7 +1018,7 @@ function ReviewSidebar({
                 ? "Entscheidung abgeschlossen"
                 : "Entscheidung ausstehend"}
             </InsetPanel>
-          </section>
+          </SectionCard>
         );
       })}
     </div>
@@ -1210,11 +1204,7 @@ export function RequestExtraSection({
   if (!hasCustom && !hasConsents) return null;
 
   return (
-    <section className="moto-content-surface space-y-3 rounded-2xl border p-4 sm:p-6">
-      <h2 className="text-base font-semibold text-gray-900">
-        Zusätzliche Angaben
-      </h2>
-
+    <SectionCard title="Zusätzliche Angaben" bodyClassName="mt-3 space-y-3">
       {hasConsents && (
         <div>
           <SectionLabel>Zustimmungen</SectionLabel>
@@ -1267,7 +1257,7 @@ export function RequestExtraSection({
           </DataGrid>
         </InfoSection>
       )}
-    </section>
+    </SectionCard>
   );
 }
 
@@ -1456,7 +1446,7 @@ function BlockedOfferingRow({
   const inputId = `blocked-offering-${offering.id}`;
   const heldAutomatically = automaticDays.length > 0;
   return (
-    <OfferingRowShell tone={BLOCKED_OFFERING_ROW_TONE}>
+    <OfferingRowShell state="blocked">
       {/* A real <label> is load-bearing, not decoration: the kit Checkbox
           renders an sr-only input behind a pointer-events-none visual, so
           without the label wrapping it a mouse click on the box does nothing
@@ -1837,7 +1827,7 @@ export function ChildOfferingAdjustment({
     return null;
 
   return (
-    <div className="rounded-lg border border-gray-100 bg-white p-3">
+    <InsetPanel framed>
       {withdrawalCreated ? (
         <Alert
           type="warning"
@@ -1893,11 +1883,7 @@ export function ChildOfferingAdjustment({
                 return (
                   <OfferingRowShell
                     key={offering.id}
-                    tone={
-                      checked
-                        ? "border-moto-green/40 bg-moto-green/10"
-                        : "border-gray-200 bg-white"
-                    }
+                    state={checked ? "selected" : "available"}
                   >
                     {/* Wie in BlockedOfferingRow: das Kit-Checkbox-Feld ist
                         sr-only, erst das <label> mit htmlFor macht den Klick
@@ -2098,7 +2084,7 @@ export function ChildOfferingAdjustment({
           Abmeldung muss anschließend abgeschlossen werden.
         </p>
       </ConfirmationModal>
-    </div>
+    </InsetPanel>
   );
 }
 
