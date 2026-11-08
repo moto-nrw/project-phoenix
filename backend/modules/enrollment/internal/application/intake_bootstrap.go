@@ -142,16 +142,6 @@ func (s *Intake) LoadEnrolleeFormBootstrap(ctx context.Context, phaseID int64, n
 		})
 }
 
-// LoadPublicCareOfferings is the offering-only projection of the public form
-// load: phase gate, capabilities and active offerings.
-func (s *Intake) LoadPublicCareOfferings(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollmentNative.PublicFormBootstrapData, error) {
-	return s.assemblePublicBootstrap(ctx,
-		func(ctx context.Context) (*enrollmentNative.Phase, error) {
-			return s.loadPublicPhaseWithLateInvite(ctx, phaseID, now, lateInviteToken)
-		},
-		publicBootstrapOptions{classifyStages: true})
-}
-
 // LoadManualEnrollmentBootstrap mirrors LoadPublicFormBootstrap for the staff
 // manual enrollmentNative. It does not wrap stage errors.
 func (s *Intake) LoadManualEnrollmentBootstrap(ctx context.Context, phaseID int64) (*enrollmentNative.PublicFormBootstrapData, error) {
