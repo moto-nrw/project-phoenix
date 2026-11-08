@@ -78,19 +78,7 @@ type LoginImageResolver interface {
 // Everything here runs in the request's tenant transaction. The message and
 // durable outbox row therefore commit or roll back together.
 func (s *Service) notifyGuardianEmail(ctx context.Context, thread *ParentMessageThread, messageID int64) error {
-	if thread == nil || thread.GuardianAccountID <= 0 {
-		return nil
-	}
-	if s.Outbox == nil || s.GuardianProfiles == nil {
-		return nil
-	}
-	if s.ParentsURL == "" {
-		s.Logger.Warn("messaging: guardian e-mail skipped, no parents portal URL configured",
-			slog.Int64("thread_id", thread.ID),
-		)
-		return nil
-	}
-	if !s.guardianAcceptsMessageMail(ctx, thread) {
+	if !s.guardianMessageMailWanted(ctx, thread) {
 		return nil
 	}
 
@@ -142,6 +130,25 @@ func (s *Service) notifyGuardianEmail(ctx context.Context, thread *ParentMessage
 		return fmt.Errorf("messaging: enqueue guardian message e-mail: %w", err)
 	}
 	return nil
+}
+
+// guardianMessageMailWanted reports whether the thread's guardian gets a
+// new-message mail at all: a guardian account, the outbox and profile ports,
+// a parents portal URL and no opt-out.
+func (s *Service) guardianMessageMailWanted(ctx context.Context, thread *ParentMessageThread) bool {
+	if thread == nil || thread.GuardianAccountID <= 0 {
+		return false
+	}
+	if s.Outbox == nil || s.GuardianProfiles == nil {
+		return false
+	}
+	if s.ParentsURL == "" {
+		s.Logger.Warn("messaging: guardian e-mail skipped, no parents portal URL configured",
+			slog.Int64("thread_id", thread.ID),
+		)
+		return false
+	}
+	return s.guardianAcceptsMessageMail(ctx, thread)
 }
 
 func NewParentMessageRenderer(cfg ParentMessageRendererConfig, policy deliveryPorts.LocaleNormalizer) deliveryPorts.MailRenderer {
