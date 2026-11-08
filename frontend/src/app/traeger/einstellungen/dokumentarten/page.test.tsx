@@ -66,6 +66,7 @@ describe("TraegerDocumentKindsPage", () => {
   });
 
   it("shows the kinds of each service and saves a new choice", async () => {
+    session.permissions.push("traeger_settings:manage");
     kindsApi.fetchDocumentKinds.mockResolvedValue(overview("invoice", false));
     kindsApi.saveDocumentKind.mockResolvedValue(overview("fee_notice", false));
     renderPage();
@@ -110,6 +111,24 @@ describe("TraegerDocumentKindsPage", () => {
       "href",
       expect.stringContaining("/einstellungen/briefkopf/vorlagen/bescheid"),
     );
+  });
+
+  it("explains the settings permission and offers viewing to billing-only users", async () => {
+    kindsApi.fetchDocumentKinds.mockResolvedValue(
+      overview("fee_notice", false),
+    );
+    renderPage();
+    expect(
+      await screen.findByText(
+        "Ohne Belehrung können Sie keinen Gebührenbescheid freigeben. Bitten Sie eine Person mit dem Recht „Einstellungen“, sie einzutragen.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "Vorlage ansehen" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Belehrung eintragen" }),
+    ).not.toBeInTheDocument();
   });
 
   it("names the version of the legal remedy once it is written", async () => {

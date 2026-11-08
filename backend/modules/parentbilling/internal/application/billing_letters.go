@@ -8,6 +8,7 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation"
 
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/templates"
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -233,17 +234,17 @@ func (b *BillingLetters) material(ctx context.Context, reviewer parentbilling.Ho
 // legal remedy when required, which only the letters of the invoices do: a
 // Storno or a Gutschrift lowers the fee and prints the remedy if there is
 // one.
-func withDocumentTemplate(ctx context.Context, templates parentbilling.BillingDocumentTemplates, organizationID int64,
+func withDocumentTemplate(ctx context.Context, source parentbilling.BillingDocumentTemplates, organizationID int64,
 	head parentbilling.Letterhead, documentKind string, required bool,
 ) (parentbilling.Letterhead, error) {
 	if documentKind == "" || documentKind == parentbilling.DocumentKindConfirmation {
 		return head, nil
 	}
-	template, err := templates.DocumentTemplate(ctx, organizationID, documentKind)
+	template, err := source.DocumentTemplate(ctx, organizationID, documentKind)
 	if err != nil {
 		return parentbilling.Letterhead{}, fmt.Errorf("parent billing: read the template of the document: %w", err)
 	}
-	if required && documentKind == parentbilling.DocumentKindFeeNotice && strings.TrimSpace(template.LegalRemedy) == "" {
+	if required && documentKind == parentbilling.DocumentKindFeeNotice && templates.LacksLegalRemedy(templates.KindFeeNotice, letterTemplate(template, templates.KindFeeNotice)) {
 		return parentbilling.Letterhead{}, parentbilling.ErrLegalRemedyMissing
 	}
 	head.Template = template

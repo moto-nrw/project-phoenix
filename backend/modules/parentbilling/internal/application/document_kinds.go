@@ -8,6 +8,7 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation"
 
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/templates"
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 )
 
@@ -66,7 +67,7 @@ func (d *DocumentKinds) ListDocumentKinds(ctx context.Context, organizationID in
 	if err != nil {
 		return parentbilling.DocumentKindOverview{}, fmt.Errorf("parent billing: read the template of the fee notice: %w", err)
 	}
-	overview.LegalRemedySet = strings.TrimSpace(template.LegalRemedy) != ""
+	overview.LegalRemedySet = !templates.LacksLegalRemedy(templates.KindFeeNotice, letterTemplate(template, templates.KindFeeNotice))
 	overview.FeeNoticeTemplateVersion = template.Version
 	return overview, nil
 }
@@ -125,7 +126,7 @@ func (g documentKindGate) current(ctx context.Context, organizationID int64, ser
 	if err != nil {
 		return parentbilling.DocumentKindState{}, fmt.Errorf("parent billing: read the template of the fee notice: %w", err)
 	}
-	state.LegalRemedyMissing = strings.TrimSpace(template.LegalRemedy) == ""
+	state.LegalRemedyMissing = templates.LacksLegalRemedy(templates.KindFeeNotice, letterTemplate(template, templates.KindFeeNotice))
 	return state, nil
 }
 

@@ -118,7 +118,7 @@ func TestInvoiceKindWritesAnInvoiceWithoutConfirmation(t *testing.T) {
 	text := blockText(letter)
 	assert.Contains(t, text, "für Lina und Ben berechnen wir Ihnen:")
 	assert.NotContains(t, text, "Rechtsbehelfsbelehrung")
-	assert.NotContains(t, text, "Notfallnummern", "the invoice has no emergency numbers")
+	assert.Contains(t, text, "Notfallnummern", "the invoice keeps the emergency numbers entered for its letter")
 	assert.Equal(t, "rechnung-", letterFilePrefix(parentbilling.DocumentKindInvoice))
 }
 
@@ -429,4 +429,68 @@ func TestLaterHolidayNoticeCorrectionsLoadTheirLegalRemedy(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestCareCancellationRemedyNamesTheCancellation(t *testing.T) {
+	t.Parallel()
+	content := careLetterSJR()
+	content.letterhead.Template.LegalRemedy = "Gegen Bescheid {{bescheidnummer}} vom {{datum}} ist Widerspruch möglich."
+	content.cancellation = &parentbilling.CareCancellation{Number: "MB-2027-0009", IssuedOn: calendar.NewDate(2027, 1, 20)}
+	text := blockText(careNoticeCancellationLetter(content))
+	assert.Contains(t, text, "Gegen Bescheid MB-2027-0009 vom 20.01.2027 ist Widerspruch möglich.")
+}
+
+func TestCareFeeNoticeKeepsIntentionallyEmptyTemplateSections(t *testing.T) {
+	t.Parallel()
+	content := careLetterSJR()
+	content.letterhead.Template = hardtNoticeTemplate()
+	content.letterhead.Template.Salutation, content.letterhead.Template.Closing = "", ""
+	letter := careNoticeLetter(content)
+	assert.Equal(t, "Gebührenbescheid MB-2027-0001", letter.Title)
+	assert.Empty(t, letter.Salutation)
+	assert.Empty(t, letter.Closing)
+}
+
+func TestHolidayInvoiceAndNoticeKeepLetterInputsOutsideTheirTemplates(t *testing.T) {
+	t.Parallel()
+	for _, kind := range []string{parentbilling.DocumentKindInvoice, parentbilling.DocumentKindFeeNotice} {
+		t.Run(kind, func(t *testing.T) {
+			content := noticeContent(t)
+			content.document.DocumentKind = kind
+			if kind == parentbilling.DocumentKindInvoice {
+				content.letterhead.Template = parentbilling.LetterTemplate{}
+			}
+			letter := confirmationLetter(content)
+			text := blockText(letter)
+			assert.Contains(t, text, content.input.Notes)
+			for _, contact := range content.input.EmergencyContacts {
+				assert.Contains(t, text, contact.Name+": "+contact.Phone)
+			}
+			if kind == parentbilling.DocumentKindFeeNotice {
+				notes, remedy := strings.Index(text, content.input.Notes), strings.Index(text, "# Rechtsbehelfsbelehrung")
+				require.NotEqual(t, -1, notes)
+				require.NotEqual(t, -1, remedy)
+				assert.Less(t, notes, remedy)
+			}
+
+			content.input.Notes, content.input.EmergencyContacts = "  ", nil
+			empty := blockText(confirmationLetter(content))
+			assert.NotContains(t, empty, "# Hinweise")
+			assert.NotContains(t, empty, "# Notfallnummern")
+		})
+	}
+}
+
+func TestFeeNoticeGuardsRejectRemediesWithoutRenderedText(t *testing.T) {
+	t.Parallel()
+	double := &documentKindDouble{remedy: "{{ansprechperson}}"}
+	require.NoError(t, double.SetDocumentKind(context.Background(), 1, parentbilling.ServiceHoliday, parentbilling.DocumentKindFeeNotice))
+	gate := newDocumentKindGate(double, double)
+	_, err := gate.issuable(context.Background(), 1, parentbilling.ServiceHoliday)
+	assert.ErrorIs(t, err, parentbilling.ErrLegalRemedyMissing)
+	_, err = withDocumentTemplate(context.Background(), double, 1, parentbilling.Letterhead{}, parentbilling.DocumentKindFeeNotice, true)
+	assert.ErrorIs(t, err, parentbilling.ErrLegalRemedyMissing)
+	overview, err := NewDocumentKinds(double, double).ListDocumentKinds(context.Background(), 1)
+	require.NoError(t, err)
+	assert.False(t, overview.LegalRemedySet)
 }

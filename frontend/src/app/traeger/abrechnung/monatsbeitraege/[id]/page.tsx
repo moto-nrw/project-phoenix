@@ -40,10 +40,7 @@ import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
-import {
-  runDocumentKindLabel,
-  RunLegalRemedyNotice,
-} from "~/components/traeger/run-document-kind";
+import { runDocumentKindLabel } from "~/components/traeger/run-document-kind";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { WizardStepper } from "~/components/ui/wizard-stepper";
 import {
@@ -438,8 +435,23 @@ export default function TraegerCareRunPage() {
               ) : null}
             </DataGrid>
           </SectionCard>
-          {preview && run.previewCount > 0 ? (
-            <RunLegalRemedyNotice missing={run.legalRemedyMissing} />
+          {preview && run.previewCount > 0 && run.legalRemedyMissing ? (
+            <Alert
+              type="warning"
+              title="Rechtsbehelfsbelehrung fehlt"
+              message="Dieser Lauf stellt Gebührenbescheide aus. In der Vorlage „Bescheid“ fehlt die Rechtsbehelfsbelehrung. Wer das Recht „Einstellungen“ hat, muss sie eintragen. Danach können Sie freigeben."
+              action={
+                <ButtonLink
+                  href={traegerPath(
+                    "/traeger/einstellungen/briefkopf/vorlagen/bescheid",
+                  )}
+                  variant="surface"
+                  size="compact"
+                >
+                  Vorlage öffnen
+                </ButtonLink>
+              }
+            />
           ) : null}
           {preview && run.previewCount > 0 && !run.numberRangeSet ? (
             <Alert

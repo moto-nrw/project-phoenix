@@ -12,7 +12,6 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import { DocumentTemplateInvoiceFields } from "~/components/traeger/document-template-invoice-fields";
-import { DocumentTemplateLegalRemedyField } from "~/components/traeger/document-template-legal-remedy-field";
 import { DocumentTemplatePlaceholdersCard } from "~/components/traeger/document-template-placeholders-card";
 import { DocumentTemplatePreviewBody } from "~/components/traeger/document-template-preview-body";
 import { DocumentTemplateVersionsCard } from "~/components/traeger/document-template-versions-card";
@@ -365,12 +364,29 @@ function TemplateEditorPage({
                     disabled={!canEdit || saving}
                   />
                   {hasLegalRemedy(kind) ? (
-                    <DocumentTemplateLegalRemedyField
-                      value={draft.legalRemedy ?? ""}
-                      onChange={(value) => set("legalRemedy", value)}
-                      error={formErrors.fieldError("legal_remedy")}
-                      disabled={!canEdit || saving}
-                    />
+                    <div className="flex flex-col gap-2">
+                      <Textarea
+                        id="template-legal-remedy"
+                        label="Rechtsbehelfsbelehrung"
+                        name="legal_remedy"
+                        hint="Steht auf jedem Gebührenbescheid nach dem Brieftext. Nennen Sie Frist, Stelle und Form des Widerspruchs."
+                        rows={6}
+                        value={draft.legalRemedy ?? ""}
+                        onChange={(event) =>
+                          set("legalRemedy", event.target.value)
+                        }
+                        error={formErrors.fieldError("legal_remedy")}
+                        maxLength={5000}
+                        disabled={!canEdit || saving}
+                      />
+                      {(draft.legalRemedy ?? "").trim() === "" ? (
+                        <Alert
+                          type="warning"
+                          size="compact"
+                          message="Ohne Rechtsbehelfsbelehrung gibt moto keinen Gebührenbescheid frei."
+                        />
+                      ) : null}
+                    </div>
                   ) : null}
                   {invoice ? (
                     <DocumentTemplateInvoiceFields

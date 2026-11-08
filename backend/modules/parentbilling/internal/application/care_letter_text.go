@@ -238,12 +238,8 @@ func careNoticeLetter(content careLetterContent) Letter {
 	filled := templates.Fill(letterTemplate(head.Template, templates.KindFeeNotice), values)
 	letter := careLetterFrame(content, "Gebührenbescheid "+invoice.Number, filled.Subject)
 	letter.Facts = careLetterFacts(content, []LetterFact{{Label: "Bescheidnummer", Value: invoice.Number}})
-	if filled.Salutation != "" {
-		letter.Salutation = filled.Salutation
-	}
-	if len(filled.Closing) > 0 {
-		letter.Closing = filled.Closing
-	}
+	letter.Salutation = filled.Salutation
+	letter.Closing = filled.Closing
 	letter.Blocks = letterBlocks(filled.Blocks)
 	if notes := strings.TrimSpace(content.input.Notes); notes != "" {
 		letter.Blocks = append(letter.Blocks, LetterBlock{Heading: "Hinweise", Text: notes})
@@ -312,7 +308,10 @@ func careNoticeCancellationLetter(content careLetterContent) Letter {
 		letter.Blocks = append(letter.Blocks, LetterBlock{Text: question})
 	}
 	if remedy := strings.TrimSpace(head.Template.LegalRemedy); remedy != "" {
-		filled := templates.Fill(templates.Template{LegalRemedy: remedy}, careNoticeValues(content))
+		values := careNoticeValues(content)
+		values["bescheidnummer"] = templates.Value{Text: cancellation.Number}
+		values["datum"] = templates.Value{Text: germanDate(cancellation.IssuedOn)}
+		filled := templates.Fill(templates.Template{LegalRemedy: remedy}, values)
 		letter.Blocks = append(letter.Blocks, legalRemedyBlocks(filled.LegalRemedy)...)
 	}
 	return letter

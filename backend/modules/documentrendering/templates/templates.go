@@ -190,7 +190,17 @@ func HasLegalRemedy(kind Kind) bool {
 // the legal remedy the time limit for an appeal grows to one year (§ 58
 // Abs. 2 VwGO).
 func LacksLegalRemedy(kind Kind, template Template) bool {
-	return HasLegalRemedy(kind) && strings.TrimSpace(template.LegalRemedy) == ""
+	if !HasLegalRemedy(kind) {
+		return false
+	}
+	// Legal text must survive even when optional placeholder values are
+	// absent. A heading or a placeholder alone is no remedy text.
+	for _, block := range fillLegalRemedy(template.LegalRemedy, nil) {
+		if block.Text != "" {
+			return false
+		}
+	}
+	return true
 }
 
 // Check accepts a normalized template of kind: subject and body are
@@ -280,7 +290,7 @@ func Fill(template Template, values map[string]Value) Filled {
 	return Filled{
 		Subject:     oneLine(subject),
 		Salutation:  oneLine(salutation),
-		Blocks:      fillBody(template.Body, values),
+		Blocks:      fillBody(template.Body, values, true),
 		Closing:     lines(closing),
 		LegalRemedy: fillLegalRemedy(template.LegalRemedy, values),
 	}
@@ -291,7 +301,7 @@ func fillLegalRemedy(text string, values map[string]Value) []Block {
 	if strings.TrimSpace(text) == "" {
 		return nil
 	}
-	return fillBody(text, values)
+	return fillBody(text, values, false)
 }
 
 func knows(kind Kind, name string) bool {
@@ -330,10 +340,10 @@ func (v Value) inline() string {
 	return strings.Join(parts, "; ")
 }
 
-func fillBody(body string, values map[string]Value) []Block {
+func fillBody(body string, values map[string]Value, omitEmpty bool) []Block {
 	blocks := []Block{}
 	for _, paragraph := range paragraphs(body) {
-		blocks = append(blocks, fillParagraph(paragraph, values)...)
+		blocks = append(blocks, fillParagraph(paragraph, values, omitEmpty)...)
 	}
 	return blocks
 }
@@ -359,8 +369,9 @@ func paragraphs(body string) [][]string {
 }
 
 // fillParagraph keeps standalone tables in order with the surrounding text.
-// The whole paragraph is left out when every placeholder in it is empty.
-func fillParagraph(paragraph []string, values map[string]Value) []Block {
+// When omitEmpty is true, a paragraph whose placeholders are all empty is
+// left out. Legal-remedy paragraphs keep their literal text instead.
+func fillParagraph(paragraph []string, values map[string]Value, omitEmpty bool) []Block {
 	var blocks []Block
 	var block Block
 	var count placeholderCount
@@ -387,7 +398,7 @@ func fillParagraph(paragraph []string, values map[string]Value) []Block {
 		}
 	}
 	appendBlock(paragraph[start:], nil)
-	if count.allEmpty() {
+	if omitEmpty && count.allEmpty() {
 		return nil
 	}
 	return blocks

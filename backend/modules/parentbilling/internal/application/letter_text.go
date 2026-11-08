@@ -85,6 +85,21 @@ func confirmationLetter(content letterContent) Letter {
 	document, head := content.document, content.letterhead
 	kind := templateKindOf(document.DocumentKind)
 	filled := templates.Fill(letterTemplate(head.Template, kind), letterValues(content))
+	blocks := letterBlocks(filled.Blocks)
+	if kind != templates.KindConfirmation {
+		if notes := strings.TrimSpace(content.input.Notes); notes != "" {
+			blocks = append(blocks, LetterBlock{Heading: "Hinweise", Text: notes})
+		}
+		if len(content.input.EmergencyContacts) > 0 {
+			facts := make([]LetterFact, 0, len(content.input.EmergencyContacts))
+			for _, contact := range content.input.EmergencyContacts {
+				facts = append(facts, LetterFact{Label: contact.Name, Value: contact.Phone})
+			}
+			blocks = append(blocks, LetterBlock{Heading: "Notfallnummern",
+				Text: "In dringenden Fällen und wenn Ihr Kind krank ist, erreichen Sie die Betreuung hier:", Facts: facts})
+		}
+	}
+	blocks = append(blocks, legalRemedyBlocks(filled.LegalRemedy)...)
 	return Letter{
 		Title:       documentTitle(document.DocumentKind) + " " + document.Number,
 		AccentColor: head.AccentColor,
@@ -94,7 +109,7 @@ func confirmationLetter(content letterContent) Letter {
 		Facts:       letterFacts(content),
 		Subject:     filled.Subject,
 		Salutation:  filled.Salutation,
-		Blocks:      append(letterBlocks(filled.Blocks), legalRemedyBlocks(filled.LegalRemedy)...),
+		Blocks:      blocks,
 		Closing:     filled.Closing,
 		Footer:      nonBlank(append(textLines(head.FooterText), bankLine(head.BankAccount))...),
 	}

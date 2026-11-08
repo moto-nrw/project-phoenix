@@ -74,6 +74,13 @@ function useDocumentKinds(enabled: boolean) {
 export default function TraegerDocumentKindsPage() {
   const { data: session } = useSession();
   const canBill = hasPermission(session ?? null, BILLING_RIGHT);
+  const canEditTemplates = hasPermission(
+    session ?? null,
+    "traeger_settings:manage",
+  );
+  const remedyInstruction = canEditTemplates
+    ? "Tragen Sie sie zuerst in der Vorlage ein."
+    : "Bitten Sie eine Person mit dem Recht „Einstellungen“, sie einzutragen.";
   const { overview, setOverview, error } = useDocumentKinds(canBill);
   const notice = overview?.services.some(
     (service) => service.documentKind === "fee_notice",
@@ -108,15 +115,19 @@ export default function TraegerDocumentKindsPage() {
           ))}
           <SectionCard
             title="Rechtsbehelfsbelehrung"
-            description="Steht auf jedem Gebührenbescheid. Den Text schreiben Sie in der Vorlage „Bescheid“."
+            description="Steht auf jedem Gebührenbescheid. Den Text ändert, wer das Recht „Einstellungen“ hat."
             concept={documentTemplatesConcept}
             action={
               <ButtonLink
                 href={traegerPath(NOTICE_TEMPLATE_PATH)}
-                variant={overview.legalRemedySet ? "outline" : "primary"}
+                variant={
+                  overview.legalRemedySet || !canEditTemplates
+                    ? "outline"
+                    : "primary"
+                }
                 size="md"
               >
-                {overview.legalRemedySet
+                {overview.legalRemedySet || !canEditTemplates
                   ? "Vorlage ansehen"
                   : "Belehrung eintragen"}
               </ButtonLink>
@@ -133,7 +144,7 @@ export default function TraegerDocumentKindsPage() {
                 title="Noch keine Rechtsbehelfsbelehrung"
                 message={
                   notice
-                    ? "Ohne Belehrung können Sie keinen Gebührenbescheid freigeben. Tragen Sie sie zuerst in der Vorlage ein."
+                    ? `Ohne Belehrung können Sie keinen Gebührenbescheid freigeben. ${remedyInstruction}`
                     : "Sie brauchen sie erst, wenn eine Leistung Gebührenbescheide ausstellt."
                 }
               />

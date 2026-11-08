@@ -195,3 +195,22 @@ func TestTheFeeNoticeNamesTheDebtorNumberBuchungszeichen(t *testing.T) {
 	assert.Contains(t, letter.Facts, templates.Row{Label: "Buchungszeichen", Value: "10234"})
 	assert.Equal(t, "Debitorennummer", templates.DebtorNumberLabel(templates.KindInvoice))
 }
+
+func TestLegalRemedyKeepsLiteralTextWhenOptionalPlaceholdersAreEmpty(t *testing.T) {
+	t.Parallel()
+	template := templates.Template{Body: "Kontakt: {{ansprechperson}}", LegalRemedy: "# Rechtsbehelfsbelehrung\nWiderspruch binnen eines Monats. Kontakt: {{ansprechperson}}\n\nSchriftlich bei {{traeger}} einlegen."}
+	filled := templates.Fill(template, nil)
+	assert.Empty(t, filled.Blocks, "ordinary optional paragraphs still disappear")
+	assert.Equal(t, []templates.Block{
+		{Heading: "Rechtsbehelfsbelehrung", Text: "Widerspruch binnen eines Monats. Kontakt:"},
+		{Text: "Schriftlich bei  einlegen."},
+	}, filled.LegalRemedy)
+	assert.False(t, templates.LacksLegalRemedy(templates.KindFeeNotice, template))
+}
+
+func TestLegalRemedyNeedsRenderedTextNotOnlyPlaceholdersOrAHeading(t *testing.T) {
+	t.Parallel()
+	for _, text := range []string{"{{ansprechperson}}", "# Rechtsbehelfsbelehrung\n{{ansprechperson}}", "**{{ansprechperson}}**"} {
+		assert.True(t, templates.LacksLegalRemedy(templates.KindFeeNotice, templates.Template{LegalRemedy: text}), text)
+	}
+}

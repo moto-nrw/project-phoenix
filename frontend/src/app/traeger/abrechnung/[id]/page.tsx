@@ -40,10 +40,7 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import NavigationLink from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
-import {
-  runDocumentKindLabel,
-  RunLegalRemedyNotice,
-} from "~/components/traeger/run-document-kind";
+import { runDocumentKindLabel } from "~/components/traeger/run-document-kind";
 import { TenantPage } from "~/components/ui/tenant-page";
 import {
   useApiErrorDisplay,
@@ -364,8 +361,23 @@ export default function TraegerBillingRunPage() {
               </DataField>
             </DataGrid>
           </SectionCard>
-          {preview ? (
-            <RunLegalRemedyNotice missing={run.legalRemedyMissing} />
+          {preview && run.legalRemedyMissing ? (
+            <Alert
+              type="warning"
+              title="Rechtsbehelfsbelehrung fehlt"
+              message="Dieser Lauf stellt Gebührenbescheide aus. In der Vorlage „Bescheid“ fehlt die Rechtsbehelfsbelehrung. Wer das Recht „Einstellungen“ hat, muss sie eintragen. Danach können Sie freigeben."
+              action={
+                <ButtonLink
+                  href={traegerPath(
+                    "/traeger/einstellungen/briefkopf/vorlagen/bescheid",
+                  )}
+                  variant="surface"
+                  size="compact"
+                >
+                  Vorlage öffnen
+                </ButtonLink>
+              }
+            />
           ) : null}
           {preview && !run.numberRangeSet ? (
             <Alert
