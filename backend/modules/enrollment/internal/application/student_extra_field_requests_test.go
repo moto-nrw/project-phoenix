@@ -4,14 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/stretchr/testify/require"
 )
 
-// Compare the route-specific batch with the retained scalar decision read,
-// including validation of excluded siblings and tolerant phase lookups.
+// Compare both batched history reads (#5778) with the scalar per-request
+// assembly they replaced, including validation of excluded siblings and
+// tolerant phase lookups. The oracle below is that former read, independent
+// of the shared batch.
 func TestStudentExtraFieldRequestsPreservesScalarResults(t *testing.T) {
 	t.Parallel()
 	for _, scenario := range []string{"historical phases", "missing phase", "phase batch failure", "children batch failure", "guardians batch failure", "invalid sibling", "invalid later child", "invalid request", "optional guardians", "empty", "invalid student"} {
@@ -39,17 +42,36 @@ func TestStudentExtraFieldRequestsPreservesScalarResults(t *testing.T) {
 				studentID = 0
 			}
 			decisions := NewDecisions(DecisionDependencies{Requests: records, Children: records, Phases: records, Guardians: guardians, Settings: unusedDecisionSettings{}})
-			want, wantErr := decisions.StudentDecisionRequests(t.Context(), studentID)
-			got, err := decisions.StudentExtraFieldRequests(t.Context(), studentID)
-			if wantErr != nil {
-				require.EqualError(t, err, wantErr.Error())
-				require.Nil(t, got)
-				return
+			want, wantErr := scalarStudentDecisionRequests(t.Context(), decisions, studentID)
+			for _, read := range []func(context.Context, int64) ([]*enrollment.DecisionSummary, error){decisions.StudentDecisionRequests, decisions.StudentExtraFieldRequests} {
+				got, err := read(t.Context(), studentID)
+				if wantErr != nil {
+					require.EqualError(t, err, wantErr.Error())
+					require.Nil(t, got)
+					continue
+				}
+				require.NoError(t, err)
+				require.Equal(t, want, got)
 			}
-			require.NoError(t, err)
-			require.Equal(t, want, got)
 		})
 	}
+}
+
+// scalarStudentDecisionRequests is the student history read before #5778:
+// every request assembled on its own.
+func scalarStudentDecisionRequests(ctx context.Context, d *Decisions, studentID int64) (result []*enrollment.DecisionSummary, err error) {
+	defer func() { err = PublicError(err) }()
+	if studentID <= 0 {
+		return nil, errors.New("decision: student_id required")
+	}
+	requests, err := d.deps.Requests.AdminRequests(ctx, enrollment.RequestListFilters{CreatedStudentID: studentID})
+	if err == nil {
+		_, err = requestValues(requests)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("decision: list requests by student: %w", err)
+	}
+	return d.assembleAll(ctx, requests, studentID)
 }
 
 type extraFieldRequestStub struct {

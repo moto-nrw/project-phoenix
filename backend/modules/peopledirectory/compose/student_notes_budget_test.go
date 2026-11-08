@@ -82,5 +82,5 @@ func TestStudentNotesListQueryBudget(t *testing.T) {
 	large := list(8)
 
 	assert.Equal(t, small, large, "the statement count must not grow with the note card")
-	querybudgets.AssertQueryBudget(t, "modules.peopledirectory.student_notes.list", reads())
+	querybudgets.AssertQueryBudget(t, "modules.peopledirectory.student_notes.list", counter.Measurement(reads()))
 }

@@ -12,6 +12,7 @@ import { EditActions } from "~/components/ui/edit-actions";
 import type { FormError } from "~/components/ui/form-error";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
+import { SuggestInput } from "~/components/ui/suggest-input";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { SectionCard } from "~/components/ui/section-card";
 import { Textarea } from "~/components/ui/textarea";
@@ -518,32 +519,20 @@ function KontoEditForm({
             // Berechtigung (#4574). Abgesetzt von der Rolle, damit niemand
             // hier Rechte zu vergeben meint.
             <div className="border-t border-gray-100 pt-3">
-              <Input
+              <SuggestInput
                 controlSize="compact"
                 label="Position"
                 id="konto-position"
                 name="role"
-                list="konto-position-suggestions"
                 value={draft.position}
-                onChange={(event) => onPatch({ position: event.target.value })}
+                onValueChange={(position) => onPatch({ position })}
+                suggestions={editing.existingPositions}
+                listLabel="Vorschläge für die Position"
                 placeholder="z. B. Pädagogische Fachkraft, OGS-Büro"
                 disabled={saving}
                 error={fieldError("role")}
-                aria-describedby="konto-position-hint"
+                hint="Nur zur Anzeige in der Personalliste. Ändert keine Rechte."
               />
-              <p
-                id="konto-position-hint"
-                className="mt-1 text-xs text-gray-600"
-              >
-                Nur zur Anzeige in der Personalliste. Ändert keine Rechte.
-              </p>
-              {editing.existingPositions.length > 0 ? (
-                <datalist id="konto-position-suggestions">
-                  {editing.existingPositions.map((position) => (
-                    <option key={position} value={position} />
-                  ))}
-                </datalist>
-              ) : null}
             </div>
           ) : null}
           {teacher.tag_id ? (

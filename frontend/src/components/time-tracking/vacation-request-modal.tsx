@@ -24,6 +24,7 @@ import { createLogger } from "~/lib/logger";
 import { timeTrackingService } from "~/lib/time-tracking-api";
 import type { StaffAbsence } from "~/lib/time-tracking-helpers";
 import { StatusDot } from "~/components/ui/status-dot";
+import { SectionLabel } from "~/components/ui/section-label";
 
 // Forward-looking presets specific to vacation requests. Covers ~90% of
 // real-world cases (single Brückentag, current/next week, current/next
@@ -344,9 +345,9 @@ export function VacationRequestModal({
         >
           <div className="space-y-5">
             <div>
-              <p className="mb-2 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+              <SectionLabel as="p" className="mb-2">
                 Zeitraum
-              </p>
+              </SectionLabel>
               <div className="moto-content-surface overflow-hidden rounded-xl border">
                 <RangeCalendarInline
                   value={range}
@@ -368,7 +369,7 @@ export function VacationRequestModal({
                 />
               </div>
               {blockingVacations.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-gray-500">
+                <div className="mt-2 flex flex-wrap gap-3 text-xs text-gray-500">
                   <span className="inline-flex items-center gap-1">
                     <StatusDot
                       className="bg-moto-orange/50"
@@ -410,10 +411,10 @@ export function VacationRequestModal({
                   }}
                 />
               ) : (
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                <fieldset className="space-y-2">
+                  <SectionLabel as="legend">
                     Halbe Tage an den Rändern
-                  </p>
+                  </SectionLabel>
                   <SwitchRow
                     label="Erster Tag halbtags"
                     description="Nur Vor- oder Nachmittag am Startdatum."
@@ -426,7 +427,7 @@ export function VacationRequestModal({
                     checked={endHalf}
                     onCheckedChange={setEndHalf}
                   />
-                </div>
+                </fieldset>
               ))}
 
             <div>

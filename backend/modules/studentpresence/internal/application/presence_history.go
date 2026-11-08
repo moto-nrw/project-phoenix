@@ -75,6 +75,9 @@ func (w *PresenceHistoryWriter) RecordPresenceHistory(ctx context.Context, days 
 		if err != nil {
 			return err
 		}
+		if recorded, err := w.recordPastPresenceBatch(txCtx, days, records); recorded || err != nil {
+			return err
+		}
 		for _, day := range days {
 			if err := w.recordPastDay(txCtx, day, &records); err != nil {
 				return err
@@ -110,12 +113,7 @@ func (w *PresenceHistoryWriter) recordPastAttendance(ctx context.Context, day st
 	if recorded[key] {
 		return nil
 	}
-	checkOut := day.CheckOut
-	deviceID := day.DeviceID
-	row := &ports.Attendance{StudentID: day.StudentID, Date: day.Date, CheckInTime: day.CheckIn,
-		CheckOutTime: &checkOut, DeviceID: day.DeviceID, CheckedOutDeviceID: &deviceID}
-	row.CreatedAt, row.UpdatedAt = day.CheckIn, checkOut
-	if _, err := w.store.RecordAttendance(ctx, row); err != nil {
+	if _, err := w.store.RecordAttendance(ctx, pastAttendanceRow(day)); err != nil {
 		return fmt.Errorf("record past attendance of student %d on %s: %w", day.StudentID, day.Date, err)
 	}
 	recorded[key] = true
@@ -127,12 +125,7 @@ func (w *PresenceHistoryWriter) recordPastVisit(ctx context.Context, day student
 	key := pastSessionKey{date: day.Date, activityGroupID: visit.ActivityGroupID, roomID: visit.RoomID}
 	session, ok := records.sessions[key]
 	if !ok {
-		end := visit.SessionEnd
-		activityID, deviceID := visit.ActivityGroupID, day.DeviceID
-		recorded, _, err := w.store.RecordGroup(ctx, studentpresence.LiveGroup{
-			CreatedAt: visit.SessionStart, UpdatedAt: end, StartTime: visit.SessionStart, EndTime: &end, LastActivity: end,
-			ActivityGroupID: &activityID, DeviceID: &deviceID, RoomID: visit.RoomID,
-		})
+		recorded, _, err := w.store.RecordGroup(ctx, pastSessionRow(day))
 		if err != nil {
 			return fmt.Errorf("record past session in room %d on %s: %w", visit.RoomID, day.Date, err)
 		}
@@ -148,14 +141,40 @@ func (w *PresenceHistoryWriter) recordPastVisit(ctx context.Context, day student
 		}
 		return fmt.Errorf("%w: student %d has a different visit in room %d on %s", studentpresence.ErrPresenceHistoryInvalid, day.StudentID, visit.RoomID, day.Date)
 	}
-	exit := visit.Exit
-	row := &studentpresence.Visit{CreatedAt: visit.Entry, UpdatedAt: exit, StudentID: day.StudentID,
-		ActiveGroupID: session.ID, EntryTime: visit.Entry, ExitTime: &exit}
+	row := pastVisitRow(day)
+	row.ActiveGroupID = session.ID
 	if _, err := w.store.RecordVisit(ctx, row); err != nil {
 		return fmt.Errorf("record past visit of student %d on %s: %w", day.StudentID, day.Date, err)
 	}
 	records.visits[visitKey] = append(records.visits[visitKey], *row)
 	return nil
+}
+
+func pastAttendanceRow(day studentpresence.PastPresenceDay) *ports.Attendance {
+	checkOut := day.CheckOut
+	deviceID := day.DeviceID
+	row := &ports.Attendance{StudentID: day.StudentID, Date: day.Date, CheckInTime: day.CheckIn,
+		CheckOutTime: &checkOut, DeviceID: day.DeviceID, CheckedOutDeviceID: &deviceID}
+	row.CreatedAt, row.UpdatedAt = day.CheckIn, checkOut
+	return row
+}
+
+func pastSessionRow(day studentpresence.PastPresenceDay) studentpresence.LiveGroup {
+	visit := day.Visit
+	end := visit.SessionEnd
+	activityID, deviceID := visit.ActivityGroupID, day.DeviceID
+	return studentpresence.LiveGroup{
+		CreatedAt: visit.SessionStart, UpdatedAt: end, StartTime: visit.SessionStart, EndTime: &end, LastActivity: end,
+		ActivityGroupID: &activityID, DeviceID: &deviceID, RoomID: visit.RoomID,
+	}
+}
+
+// pastVisitRow leaves the session to the caller.
+func pastVisitRow(day studentpresence.PastPresenceDay) *studentpresence.Visit {
+	visit := day.Visit
+	exit := visit.Exit
+	return &studentpresence.Visit{CreatedAt: visit.Entry, UpdatedAt: exit, StudentID: day.StudentID,
+		EntryTime: visit.Entry, ExitTime: &exit}
 }
 
 // loadPastPresenceRecords recognizes only rows with the deterministic seed

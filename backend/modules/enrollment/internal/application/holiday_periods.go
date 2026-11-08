@@ -42,7 +42,7 @@ type HolidayPeriodStore interface {
 	// UpdateHolidayPeriod writes the period and makes its weeks and time
 	// models those of input: kept by ID, added without one, removed when
 	// left out.
-	UpdateHolidayPeriod(ctx context.Context, organizationID, periodID int64, input enrollment.HolidayPeriodInput) error
+	UpdateHolidayPeriod(ctx context.Context, organizationID, periodID int64, input enrollment.HolidayPeriodInput, effectiveOn calendar.Date) error
 	PublishHolidayPeriod(ctx context.Context, organizationID, periodID int64) error
 	// HolidayWeeksBookedTogether lists the pairs of the period's weeks one
 	// child has booked, those of a cancelled registration included: reopening
@@ -54,17 +54,21 @@ type HolidayPeriodStore interface {
 type HolidayPeriods struct {
 	store HolidayPeriodStore
 	forms HolidayFormStore
+	today func() calendar.Date
 }
 
 var _ enrollment.HolidayPeriods = (*HolidayPeriods)(nil)
 
 // NewHolidayPeriods builds the holiday period commands over store; forms
 // receives the first version of a new period's form (#5198).
-func NewHolidayPeriods(store HolidayPeriodStore, forms HolidayFormStore) *HolidayPeriods {
+func NewHolidayPeriods(store HolidayPeriodStore, forms HolidayFormStore, today func() calendar.Date) *HolidayPeriods {
 	if store == nil || forms == nil {
 		panic("enrollment: the holiday period store and the form store are required")
 	}
-	return &HolidayPeriods{store: store, forms: forms}
+	if today == nil {
+		today = calendar.TodayDate
+	}
+	return &HolidayPeriods{store: store, forms: forms, today: today}
 }
 
 // ListHolidayPeriods returns every period of the Träger, newest first.
@@ -128,7 +132,7 @@ func (h *HolidayPeriods) UpdateHolidayPeriod(ctx context.Context, organizationID
 	if err := h.refuseBookedTogether(ctx, organizationID, periodID, input.Weeks); err != nil {
 		return enrollment.HolidayPeriod{}, err
 	}
-	if err := h.store.UpdateHolidayPeriod(ctx, organizationID, periodID, input); err != nil {
+	if err := h.store.UpdateHolidayPeriod(ctx, organizationID, periodID, input, h.today()); err != nil {
 		return enrollment.HolidayPeriod{}, err
 	}
 	return foundHolidayPeriod(h.store.FindHolidayPeriod(ctx, organizationID, periodID, false))

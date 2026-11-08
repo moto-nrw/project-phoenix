@@ -31,7 +31,6 @@ type BookedContract struct {
 	Versions   []BookedVersion
 }
 
-// BookedDay is what a contract books on one day.
 type BookedDay struct {
 	// InForce reports that a version of the contract covers the day. A day
 	// outside every version leaves the Soll to the care plan.
@@ -103,7 +102,8 @@ func clockMinutes(clock calendar.WallClock) int { return clock.Hour()*60 + clock
 
 // BookedCare reads the booked care of the contracts at the school whose
 // tenant transaction the caller holds. Drafts stay out: the school's policy
-// does not show them, and they promise nothing yet.
+// does not show them, and they promise nothing yet. A sent contract counts
+// before its conclusion, unlike in billing (ADR 0156, #6107).
 type BookedCare interface {
 	// BookedCare lists the contracts of the children with a version that
 	// overlaps [from, to], by child. A child the school has no contract for

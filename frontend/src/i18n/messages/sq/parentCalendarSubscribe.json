@@ -2,6 +2,7 @@
   "title": "Abononi kalendarin",
   "description": "Abononi takimet një herë në kalendarin e telefonit tuaj. Takimet e reja, të ndryshuara dhe të anuluara shfaqen më pas automatikisht, pa i shtuar një nga një.",
   "showLink": "Shfaqni lidhjen e abonimit",
+  "loading": "Po ngarkohet …",
   "subscribe": "Abononi në kalendar",
   "linkLabel": "Lidhja e abonimit (për kopjim)",
   "copy": "Kopjo",

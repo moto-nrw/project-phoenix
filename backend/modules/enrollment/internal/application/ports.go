@@ -132,6 +132,9 @@ type CaptchaSiteVerify interface {
 // NotificationSettings resolves the tenant's decision notification mode.
 type NotificationSettings interface {
 	NotifyPerDecision(ctx context.Context) (string, error)
+	// CareFacilityTerm is the school's term for its care in the mail
+	// header, resolved for the tenant in context (#6042).
+	CareFacilityTerm(ctx context.Context) (string, error)
 }
 
 // NotificationModePin atomically pins a request's decision notification

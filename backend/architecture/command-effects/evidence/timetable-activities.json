@@ -3257,6 +3257,30 @@
       "target_owner": "student-presence"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.PresenceDaysBetween",
+      "binding_digest": "538ce5e10c5c9499a7ea52255186ce88",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.PresenceDaysBetween",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.PresenceDaysBetween",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.PresenceDaysBetween",
+      "binding_digest": "c8e25a45d274828e97d7bf6ceb8f7be7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.PresenceDaysBetween",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PresenceDaysBetween",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PresenceDaysBetween",
+      "binding_digest": "c8e25a45d274828e97d7bf6ceb8f7be7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.PresenceDaysBetween",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PresenceDaysBetween",
+      "target_owner": "student-presence"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.QueryGroupSupervisions",
       "binding_digest": "469db7e193bc8a911272db092b28510d",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.QueryGroupSupervisions",
@@ -5702,6 +5726,22 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PrepareVisitWrites",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PrepareVisitWrites",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.PresenceDaysBetween",
+      "binding_digest": "4f07cd4bfdfa365ada1ca1d64dc1fb26",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PresenceDaysBetween",
+      "source_owner": "timetable-activities",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.PresenceDaysBetween",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PresenceDaysBetween",
+      "binding_digest": "c8e25a45d274828e97d7bf6ceb8f7be7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PresenceDaysBetween",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PresenceDaysBetween",
       "target_owner": "student-presence"
     },
     {

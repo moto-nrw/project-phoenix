@@ -429,10 +429,10 @@ func TestCourseWaitlistsQueryBudget(t *testing.T) {
 	theater := testpkg.CreateTestActivityGroupWithLimit(t, tc.db, "Theater-AG", 1)
 
 	counter := testpkg.CaptureQueries(t, tc.db)
-	run := func() []string {
+	run := func() testpkg.QueryMeasurement {
 		counter.Reset()
 		fetchCourseWaitlists(t, tc, claims, "")
-		return counter.Queries()
+		return counter.Measurement(counter.Queries())
 	}
 	setCourseCapacity := func(request courseWaitlistRequest) {
 		t.Helper()
@@ -449,7 +449,7 @@ func TestCourseWaitlistsQueryBudget(t *testing.T) {
 	setCourseCapacity(createCourseWaitlistRequest(t, tc, theater.ID, "Kind", "Vier"))
 	large := run()
 
-	t.Logf("1 request → %d statements, 4 requests over 2 AGs → %d statements", len(small), len(large))
-	assert.Len(t, large, len(small), "the statement count must not grow with the queue")
+	t.Logf("1 request → %d statements, 4 requests over 2 AGs → %d statements", len(small.Statements), len(large.Statements))
+	assert.Len(t, large.Statements, len(small.Statements), "the statement count must not grow with the queue")
 	querybudgets.AssertQueryBudget(t, "api.students.course_waitlists.list", large)
 }

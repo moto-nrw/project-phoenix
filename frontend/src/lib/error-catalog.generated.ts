@@ -30,6 +30,14 @@ export const ERROR_CATALOG = {
         "Der Stichtag muss zwischen dem 1. und dem 28. des Monats liegen. Bitte wählen Sie einen dieser Tage.",
       "care_contract.application_not_found":
         "Diese Anmeldung gibt es nicht mehr oder sie ist nicht angenommen. Bitte laden Sie die Seite neu.",
+      "care_contract.change_contract_not_active":
+        "Dieser Vertrag gilt nicht mehr. Änderungswünsche entscheidet jetzt die Schule.",
+      "care_contract.change_ends_care":
+        "Die Eltern melden damit die ganze Betreuung ab. Das ist eine Kündigung. Bitte tragen Sie sie unter „Vertrag beenden“ ein oder lehnen Sie den Wunsch ab.",
+      "care_contract.change_not_applicable":
+        "Die Schule lässt diese Änderung gerade nicht zu. Bitte sprechen Sie mit der Schule.",
+      "care_contract.change_not_found":
+        "Diesen Änderungswunsch gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "care_contract.contract_input_invalid":
         "Bitte wählen Sie mindestens einen und höchstens 200 Einträge aus.",
       "care_contract.contract_not_draft":
@@ -40,6 +48,8 @@ export const ERROR_CATALOG = {
         "Diesen Vertrag gibt es nicht. Bitte öffnen Sie ihn über „Verträge“.",
       "care_contract.contract_not_signable":
         "Dieser Vertrag ist schon unterschrieben oder wartet nicht auf eine Unterschrift. Bitte laden Sie die Seite neu.",
+      "care_contract.field_invalid":
+        "Einige Angaben stimmen nicht. Bitte prüfen Sie Ihre Eingaben.",
       "care_contract.letterhead_too_long":
         "Absender oder Fußzeile sind zu lang für den Vertrag. Bitte kürzen Sie sie unter „Briefkopf und Vorlagen“.",
       "care_contract.notice_end_not_open":
@@ -54,6 +64,8 @@ export const ERROR_CATALOG = {
         "Für diesen Vertrag fehlt eine E-Mail-Adresse. Ohne Adresse kann keine Bestätigung verschickt werden.",
       "care_contract.school_outside_traeger":
         "Diese Schule gehört nicht zu Ihrem Träger.",
+      "care_contract.selection_invalid":
+        "Diese Auswahl ist so nicht möglich. Bitte ändern Sie die Auswahl.",
       "care_contract.signature_invalid":
         "Die Unterschrift fehlt oder ist leer. Bitte unterschreiben Sie noch einmal.",
       "care_contract.signing_link_invalid":
@@ -811,6 +823,37 @@ export const ERROR_CATALOG = {
         "Für diesen Ferienzeitraum gibt es schon einen Lauf in der Vorschau. Bitte öffnen Sie diesen Lauf.",
       "parent_billing.billing_run_released":
         "Der Lauf ist schon freigegeben. Ausgestellte Rechnungen lassen sich nicht ändern.",
+      "parent_billing.billing_terms_invalid":
+        "Die Zahlungsbedingungen konnten nicht gespeichert werden. Bitte prüfen Sie Ihre Eingaben.",
+      "parent_billing.care_evidence_invalid":
+        "Der Nachweis konnte nicht gespeichert werden. Bitte prüfen Sie die markierten Felder.",
+      "parent_billing.care_evidence_not_found":
+        "Diesen Nachweis gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "parent_billing.care_evidence_overlap":
+        "Für diese Zeit gibt es schon einen Nachweis dieser Art. Beenden Sie zuerst den alten Nachweis.",
+      "parent_billing.care_exclusion_conflict":
+        "Diese Rechnung hat sich gerade geändert. Bitte laden Sie die Seite neu.",
+      "parent_billing.care_invoice_cancelled":
+        "Diese Rechnung ist storniert. Sie wird nicht mehr verschickt.",
+      "parent_billing.care_invoice_not_found":
+        "Diese Rechnung gibt es in diesem Lauf nicht. Bitte laden Sie die Seite neu.",
+      "parent_billing.care_recipient_changed":
+        "Die Rechnung geht an eine Person, die nicht mehr im Vertrag steht. Bitte stornieren Sie die Rechnung. Der nächste Lauf stellt sie neu aus.",
+      "parent_billing.care_rule_in_use":
+        "Diese Einkommensstufe ist bei Kindern eingetragen. Ändern oder löschen Sie zuerst deren Nachweise.",
+      "parent_billing.care_run_invalid": "Bitte wählen Sie einen Monat.",
+      "parent_billing.care_run_not_found":
+        "Diesen Monatslauf gibt es nicht. Bitte öffnen Sie ihn über „Abrechnung“ und „Monatsbeiträge“.",
+      "parent_billing.care_run_open":
+        "Eine gewählte Schule ist in diesem Monat schon in einem offenen Lauf. Öffnen Sie diesen Lauf oder wählen Sie andere Schulen.",
+      "parent_billing.care_tariff_invalid":
+        "Bitte prüfen Sie die Preise. Jeder Preis ist ein Betrag in Euro, nicht unter 0 €, und gilt ab dem 1. eines Monats.",
+      "parent_billing.care_tariff_month_billed":
+        "Mit diesem Preis ist schon eine Rechnung ausgestellt. Er bleibt für diesen Monat. Ändern Sie ihn ab einem späteren Monat.",
+      "parent_billing.care_tariff_not_found":
+        "Diese Preisliste gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "parent_billing.care_versions_overlap":
+        "Ein Vertrag hat an einem Tag zwei gültige Fassungen. Bitte melden Sie das dem Support. Der Lauf rechnet diesen Monat nicht ab.",
       "parent_billing.carried_correction_not_found":
         "Diese Korrektur wird in diesem Lauf nicht mehr vorgeschlagen. Bitte laden Sie die Seite neu.",
       "parent_billing.contribution_rule_invalid":
@@ -833,8 +876,16 @@ export const ERROR_CATALOG = {
         "Bitte prüfen Sie die Debitorennummer.",
       "parent_billing.debtor_number_locked":
         "Für diese Anmeldung gibt es schon eine Rechnung. Die Debitorennummer lässt sich nicht mehr ändern.",
+      "parent_billing.due_dates_invalid":
+        "Die Fälligkeiten konnten nicht gespeichert werden. Bitte prüfen Sie die Daten.",
+      "parent_billing.family_billing_invalid":
+        "Empfänger und Zahlung konnten nicht gespeichert werden. Bitte prüfen Sie Ihre Eingaben.",
+      "parent_billing.family_billing_not_found":
+        "Diese Abweichung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "parent_billing.family_not_found":
         "Zu dieser Familie gibt es keine Rechnung. Bitte öffnen Sie sie über die Liste „Familien“.",
+      "parent_billing.family_unknown":
+        "Für diesen Vertrag fehlt eine E-Mail-Adresse. Bitte tragen Sie sie im Vertrag ein.",
       "parent_billing.holiday_quote_invalid":
         "Der Beitrag lässt sich für diese Wochen nicht berechnen. Bitte laden Sie die Seite neu.",
       "parent_billing.invoice_cancelled":
@@ -1680,6 +1731,14 @@ export const ERROR_CATALOG = {
     codes: {
       "care_contract.application_not_found":
         "This application no longer exists or is not accepted. Please reload the page.",
+      "care_contract.change_contract_not_active":
+        "This contract is no longer in force. The school now decides change requests.",
+      "care_contract.change_ends_care":
+        "The parents give up all care with this. That is a termination. Please record it under “End contract” or reject the request.",
+      "care_contract.change_not_applicable":
+        "The school does not allow this change right now. Please talk to the school.",
+      "care_contract.change_not_found":
+        "This change request no longer exists. Please reload the page.",
       "care_contract.contract_input_invalid":
         "Please select at least one and at most 200 entries.",
       "care_contract.contract_not_draft":
@@ -1690,6 +1749,8 @@ export const ERROR_CATALOG = {
         "This contract does not exist. Please open it from “Contracts”.",
       "care_contract.contract_not_signable":
         "This contract is already signed or is not waiting for a signature. Please reload the page.",
+      "care_contract.field_invalid":
+        "Some details are not valid. Please check your entries.",
       "care_contract.letterhead_too_long":
         "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
       "care_contract.notice_end_not_open":
@@ -1704,6 +1765,8 @@ export const ERROR_CATALOG = {
         "This contract has no e-mail address. Without an address no confirmation can be sent.",
       "care_contract.school_outside_traeger":
         "This school does not belong to your provider.",
+      "care_contract.selection_invalid":
+        "This selection is not possible. Please change your selection.",
       "care_contract.signature_invalid":
         "The signature is missing or empty. Please sign again.",
       "care_contract.signing_link_invalid":
@@ -2260,6 +2323,14 @@ export const ERROR_CATALOG = {
     codes: {
       "care_contract.application_not_found":
         "This application no longer exists or is not accepted. Please reload the page.",
+      "care_contract.change_contract_not_active":
+        "This contract is no longer in force. The school now decides change requests.",
+      "care_contract.change_ends_care":
+        "The parents give up all care with this. That is a termination. Please record it under “End contract” or reject the request.",
+      "care_contract.change_not_applicable":
+        "The school does not allow this change right now. Please talk to the school.",
+      "care_contract.change_not_found":
+        "This change request no longer exists. Please reload the page.",
       "care_contract.contract_input_invalid":
         "Please select at least one and at most 200 entries.",
       "care_contract.contract_not_draft":
@@ -2270,6 +2341,8 @@ export const ERROR_CATALOG = {
         "This contract does not exist. Please open it from “Contracts”.",
       "care_contract.contract_not_signable":
         "Этот договор уже подписан или не ожидает подписи. Пожалуйста, обновите страницу.",
+      "care_contract.field_invalid":
+        "Некоторые данные указаны неверно. Проверьте введённые данные.",
       "care_contract.letterhead_too_long":
         "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
       "care_contract.notice_end_not_open":
@@ -2284,6 +2357,8 @@ export const ERROR_CATALOG = {
         "У этого договора нет адреса электронной почты. Без адреса подтверждение отправить нельзя.",
       "care_contract.school_outside_traeger":
         "This school does not belong to your provider.",
+      "care_contract.selection_invalid":
+        "Такой выбор невозможен. Измените выбор.",
       "care_contract.signature_invalid":
         "Подпись отсутствует или пуста. Пожалуйста, подпишите ещё раз.",
       "care_contract.signing_link_invalid":
@@ -2733,6 +2808,14 @@ export const ERROR_CATALOG = {
     codes: {
       "care_contract.application_not_found":
         "This application no longer exists or is not accepted. Please reload the page.",
+      "care_contract.change_contract_not_active":
+        "This contract is no longer in force. The school now decides change requests.",
+      "care_contract.change_ends_care":
+        "The parents give up all care with this. That is a termination. Please record it under “End contract” or reject the request.",
+      "care_contract.change_not_applicable":
+        "The school does not allow this change right now. Please talk to the school.",
+      "care_contract.change_not_found":
+        "This change request no longer exists. Please reload the page.",
       "care_contract.contract_input_invalid":
         "Please select at least one and at most 200 entries.",
       "care_contract.contract_not_draft":
@@ -2743,6 +2826,8 @@ export const ERROR_CATALOG = {
         "This contract does not exist. Please open it from “Contracts”.",
       "care_contract.contract_not_signable":
         "Kjo kontratë është nënshkruar tashmë ose nuk pret nënshkrim. Ju lutemi rifreskoni faqen.",
+      "care_contract.field_invalid":
+        "Disa të dhëna nuk janë të sakta. Kontrolloni të dhënat.",
       "care_contract.letterhead_too_long":
         "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
       "care_contract.notice_end_not_open":
@@ -2757,6 +2842,8 @@ export const ERROR_CATALOG = {
         "Kjo kontratë nuk ka adresë e-maili. Pa adresë nuk mund të dërgohet konfirmim.",
       "care_contract.school_outside_traeger":
         "This school does not belong to your provider.",
+      "care_contract.selection_invalid":
+        "Kjo zgjedhje nuk është e mundur. Ndryshoni zgjedhjen.",
       "care_contract.signature_invalid":
         "Nënshkrimi mungon ose është bosh. Ju lutemi nënshkruani përsëri.",
       "care_contract.signing_link_invalid":
@@ -3221,6 +3308,14 @@ export const ERROR_CATALOG = {
     codes: {
       "care_contract.application_not_found":
         "This application no longer exists or is not accepted. Please reload the page.",
+      "care_contract.change_contract_not_active":
+        "This contract is no longer in force. The school now decides change requests.",
+      "care_contract.change_ends_care":
+        "The parents give up all care with this. That is a termination. Please record it under “End contract” or reject the request.",
+      "care_contract.change_not_applicable":
+        "The school does not allow this change right now. Please talk to the school.",
+      "care_contract.change_not_found":
+        "This change request no longer exists. Please reload the page.",
       "care_contract.contract_input_invalid":
         "Please select at least one and at most 200 entries.",
       "care_contract.contract_not_draft":
@@ -3231,6 +3326,8 @@ export const ERROR_CATALOG = {
         "This contract does not exist. Please open it from “Contracts”.",
       "care_contract.contract_not_signable":
         "Ta umowa jest już podpisana lub nie czeka na podpis. Odśwież stronę.",
+      "care_contract.field_invalid":
+        "Niektóre dane są nieprawidłowe. Sprawdź wpisane dane.",
       "care_contract.letterhead_too_long":
         "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
       "care_contract.notice_end_not_open":
@@ -3245,6 +3342,8 @@ export const ERROR_CATALOG = {
         "Ta umowa nie ma adresu e-mail. Bez adresu nie można wysłać potwierdzenia.",
       "care_contract.school_outside_traeger":
         "This school does not belong to your provider.",
+      "care_contract.selection_invalid":
+        "Taki wybór nie jest możliwy. Zmień wybór.",
       "care_contract.signature_invalid":
         "Brak podpisu lub podpis jest pusty. Podpisz jeszcze raz.",
       "care_contract.signing_link_invalid":
@@ -3696,6 +3795,14 @@ export const ERROR_CATALOG = {
     codes: {
       "care_contract.application_not_found":
         "This application no longer exists or is not accepted. Please reload the page.",
+      "care_contract.change_contract_not_active":
+        "This contract is no longer in force. The school now decides change requests.",
+      "care_contract.change_ends_care":
+        "The parents give up all care with this. That is a termination. Please record it under “End contract” or reject the request.",
+      "care_contract.change_not_applicable":
+        "The school does not allow this change right now. Please talk to the school.",
+      "care_contract.change_not_found":
+        "This change request no longer exists. Please reload the page.",
       "care_contract.contract_input_invalid":
         "Please select at least one and at most 200 entries.",
       "care_contract.contract_not_draft":
@@ -3706,6 +3813,8 @@ export const ERROR_CATALOG = {
         "This contract does not exist. Please open it from “Contracts”.",
       "care_contract.contract_not_signable":
         "Bu sözleşme zaten imzalandı veya imza beklemiyor. Lütfen sayfayı yenileyin.",
+      "care_contract.field_invalid":
+        "Bazı bilgiler doğru değil. Girdiğiniz bilgileri kontrol edin.",
       "care_contract.letterhead_too_long":
         "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
       "care_contract.notice_end_not_open":
@@ -3720,6 +3829,8 @@ export const ERROR_CATALOG = {
         "Bu sözleşmenin e-posta adresi yok. Adres olmadan onay gönderilemez.",
       "care_contract.school_outside_traeger":
         "This school does not belong to your provider.",
+      "care_contract.selection_invalid":
+        "Bu seçim mümkün değil. Lütfen seçiminizi değiştirin.",
       "care_contract.signature_invalid":
         "İmza eksik veya boş. Lütfen tekrar imzalayın.",
       "care_contract.signing_link_invalid":
@@ -4177,6 +4288,14 @@ export const ERROR_CATALOG = {
     codes: {
       "care_contract.application_not_found":
         "This application no longer exists or is not accepted. Please reload the page.",
+      "care_contract.change_contract_not_active":
+        "This contract is no longer in force. The school now decides change requests.",
+      "care_contract.change_ends_care":
+        "The parents give up all care with this. That is a termination. Please record it under “End contract” or reject the request.",
+      "care_contract.change_not_applicable":
+        "The school does not allow this change right now. Please talk to the school.",
+      "care_contract.change_not_found":
+        "This change request no longer exists. Please reload the page.",
       "care_contract.contract_input_invalid":
         "Please select at least one and at most 200 entries.",
       "care_contract.contract_not_draft":
@@ -4187,6 +4306,8 @@ export const ERROR_CATALOG = {
         "This contract does not exist. Please open it from “Contracts”.",
       "care_contract.contract_not_signable":
         "Цей договір уже підписано або він не очікує підпису. Будь ласка, оновіть сторінку.",
+      "care_contract.field_invalid":
+        "Деякі дані вказано неправильно. Перевірте введені дані.",
       "care_contract.letterhead_too_long":
         "The sender or footer is too long for the contract. Please shorten it under “Letterhead and templates”.",
       "care_contract.notice_end_not_open":
@@ -4201,6 +4322,8 @@ export const ERROR_CATALOG = {
         "У цього договору немає адреси електронної пошти. Без адреси підтвердження надіслати не можна.",
       "care_contract.school_outside_traeger":
         "This school does not belong to your provider.",
+      "care_contract.selection_invalid":
+        "Такий вибір неможливий. Змініть вибір.",
       "care_contract.signature_invalid":
         "Підпис відсутній або порожній. Будь ласка, підпишіть ще раз.",
       "care_contract.signing_link_invalid":

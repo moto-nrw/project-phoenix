@@ -2,5 +2,6 @@
   "scenario": "api.active.combined.list",
   "max": 4,
   "exact": true,
-  "description": "GET /api/active/combined/ through setupProtectedRouter with real owner stores, permissions and TenantTx. Empty then 3/8 open and 3/8 ended combinations plus a future-ended control; unfiltered and active=true/1/false/0 variants each measure exactly four complete request statements. Valid signed fixture claims, not cold production login/auth cost."
+  "description": "GET /api/active/combined/ through setupProtectedRouter with real owner stores, permissions and TenantTx. Empty then 3/8 open and 3/8 ended combinations plus a future-ended control; unfiltered and active=true/1/false/0 variants each measure exactly four complete request statements. Valid signed fixture claims, not cold production login/auth cost.",
+  "route": "GET /api/active/combined/"
 }

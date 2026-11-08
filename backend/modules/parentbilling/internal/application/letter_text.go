@@ -141,7 +141,7 @@ func letterValues(content letterContent) map[string]templates.Value {
 		values["datum"] = text(germanDate(*document.IssuedOn))
 	}
 	if document.TotalCents > 0 {
-		values["zahlen_bis"] = text(germanDate(content.input.PaymentDueOn))
+		values["zahlen_bis"] = text(germanDate(dueOnOf(document.Payment, content.input.PaymentDueOn)))
 	}
 	return values
 }
@@ -184,11 +184,8 @@ func letterBlocks(blocks []templates.Block) []LetterBlock {
 // person who registered and, when the invoice has one, the street and the
 // postal code with the city.
 func recipientLines(document parentbilling.BillingDocument) []string {
-	lines := []string{"Familie " + document.RecipientLastName, fullName(document.RecipientFirstName, document.RecipientLastName)}
-	if address := document.RecipientAddress; address != nil {
-		lines = append(lines, address.Street, strings.TrimSpace(address.PostalCode)+" "+strings.TrimSpace(address.City))
-	}
-	return nonBlank(lines...)
+	return billingRecipientLines(document.RecipientKind, document.RecipientFirstName, document.RecipientLastName,
+		document.RecipientSecondName, document.RecipientAddress)
 }
 
 func letterFacts(content letterContent) []LetterFact {
@@ -200,7 +197,7 @@ func letterFacts(content letterContent) []LetterFact {
 		facts = append(facts, LetterFact{Label: "Datum", Value: germanDate(*content.document.IssuedOn)})
 	}
 	if content.document.TotalCents > 0 {
-		facts = append(facts, LetterFact{Label: "Zahlen bis", Value: germanDate(content.input.PaymentDueOn)})
+		facts = append(facts, paymentFacts(content.document.Payment, content.input.PaymentDueOn)...)
 	}
 	head := content.letterhead
 	for _, fact := range []LetterFact{
@@ -286,20 +283,24 @@ func paymentText(content letterContent) string {
 		}
 		return "Sie müssen für diese Betreuung nichts bezahlen."
 	}
-	if text := strings.TrimSpace(content.letterhead.PaymentText); text != "" {
-		return strings.NewReplacer(
-			placeholderAmount, formatEuro(content.document.TotalCents),
-			placeholderPaymentDueOn, germanDate(content.input.PaymentDueOn),
-			placeholderInvoiceNumber, content.document.Number,
-			placeholderDebtorNumber, strings.TrimSpace(content.document.DebtorNumber),
-		).Replace(text)
-	}
+	due := dueOnOf(content.document.Payment, content.input.PaymentDueOn)
 	reference := "die Rechnungsnummer " + content.document.Number
 	if number := strings.TrimSpace(content.document.DebtorNumber); number != "" {
 		reference = "Ihre Debitorennummer " + number
 	}
+	if isDirectDebit(content.document.Payment) {
+		return directDebitText(content.document.TotalCents, due, strings.TrimPrefix(strings.TrimPrefix(reference, "die "), "Ihre "))
+	}
+	if text := strings.TrimSpace(content.letterhead.PaymentText); text != "" {
+		return strings.NewReplacer(
+			placeholderAmount, formatEuro(content.document.TotalCents),
+			placeholderPaymentDueOn, germanDate(due),
+			placeholderInvoiceNumber, content.document.Number,
+			placeholderDebtorNumber, strings.TrimSpace(content.document.DebtorNumber),
+		).Replace(text)
+	}
 	return fmt.Sprintf("Bitte überweisen Sie %s bis zum %s auf das Konto unten. Geben Sie als Verwendungszweck %s an.",
-		formatEuro(content.document.TotalCents), germanDate(content.input.PaymentDueOn), reference)
+		formatEuro(content.document.TotalCents), germanDate(due), reference)
 }
 
 // costBearerName is the name of the cost bearer of the first cost takeover

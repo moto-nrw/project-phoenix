@@ -43,7 +43,7 @@ func TestFeedbackListsPositiveGrowthQueryBudget(t *testing.T) {
 		for _, path := range []string{"/", fmt.Sprintf("/student/%d", student.ID), "/date/2026-08-31", "/mensa", "/date-range?start_date=2026-08-01&end_date=2026-08-31"} {
 			request := testutil.NewAuthenticatedRequest(t, http.MethodGet, "/feedback"+path, nil, testutil.WithJWTBearer(token))
 			counter := testpkg.CaptureQueries(t, db)
-			response := testutil.ExecuteRequest(router, request)
+			response := testutil.ExecuteRequest(testpkg.MountedQueryBudgetRouter("/api", router), request)
 			counter.Stop()
 			require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 			var body struct {
@@ -75,15 +75,15 @@ func TestFeedbackListsPositiveGrowthQueryBudget(t *testing.T) {
 			t.Logf("path=/feedback%s N=%d statements=%d scope=full-resource-with-real-settings-permission-and-tenant-transaction", path, n, counter.Total())
 			switch path {
 			case "/":
-				querybudgets.AssertQueryBudget(t, "api.feedback.list.positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "api.feedback.list.positive_growth", counter.Measurement(counter.Queries()))
 			case "/date/2026-08-31":
-				querybudgets.AssertQueryBudget(t, "api.feedback.date.positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "api.feedback.date.positive_growth", counter.Measurement(counter.Queries()))
 			case "/mensa":
-				querybudgets.AssertQueryBudget(t, "api.feedback.mensa.positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "api.feedback.mensa.positive_growth", counter.Measurement(counter.Queries()))
 			case "/date-range?start_date=2026-08-01&end_date=2026-08-31":
-				querybudgets.AssertQueryBudget(t, "api.feedback.date_range.positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "api.feedback.date_range.positive_growth", counter.Measurement(counter.Queries()))
 			default:
-				querybudgets.AssertQueryBudget(t, "api.feedback.student.positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "api.feedback.student.positive_growth", counter.Measurement(counter.Queries()))
 			}
 		}
 	}

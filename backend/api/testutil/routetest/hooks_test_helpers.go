@@ -19,7 +19,7 @@ var MintTestJWT = testpkg.MintTestJWT
 func ExecuteRequestForTest(t *testing.T, router chi.Router, req *http.Request) *httptest.ResponseRecorder {
 	t.Helper()
 	rr := httptest.NewRecorder()
-	ctx := testpkg.WithTestTenantRuntime(t, req.Context())
+	ctx := queryBudgetRouteContext(testpkg.WithTestTenantRuntime(t, req.Context()))
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
 		ctx = tenant.WithTenantID(ctx, tenantID)
 	}

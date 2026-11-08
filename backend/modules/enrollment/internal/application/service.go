@@ -61,6 +61,9 @@ type Store interface {
 	SetChildClassSwitch(context.Context, int64, *enrollment.ClassSwitch) error
 	ChildClassSwitch(context.Context, int64) (*enrollment.ClassSwitch, error)
 	DueClassSwitches(context.Context, enrollment.Date) ([]enrollment.DueClassSwitch, error)
+	SetChildWeeklyPlan(context.Context, int64, *enrollment.WeeklyPlan) error
+	ChildWeeklyPlan(context.Context, int64) (*enrollment.WeeklyPlan, error)
+	DueWeeklyPlans(context.Context, enrollment.Date) ([]enrollment.WeeklyPlan, error)
 	UpdateMatchedStudent(context.Context, int64, *int64) error
 	RestoreWithdrawnChildren(context.Context, int64, []int64) ([]int64, error)
 	TransitionPhaseChildren(context.Context, int64, string, string) (int, error)
@@ -121,7 +124,7 @@ type Store interface {
 	DeleteSchemaLineage(ctx context.Context, name string) error
 	LockSchemaLineages(ctx context.Context) error
 	SchemaReferencesLegalDocument(ctx context.Context, storedURL, publicURL string) (bool, error)
-	CleanupExpired(context.Context) (int, error)
+	CleanupExpired(ctx context.Context, olderThan time.Duration) (int, error)
 	BackfillGuardianAccountID(context.Context, int64, string) (int, error)
 	Schema(context.Context, int64) (*enrollment.FormSchema, error)
 	StudentExtraFieldSchemas(context.Context, []int64) ([]enrollment.SchemaVersionResult, error)
@@ -176,7 +179,5 @@ func NewService(store Store, transactions OwnerTransactions, observers ...func(e
 	}
 	return service
 }
-
-const submissionRateLimitRetentionDays = 1
 
 var _ enrollment.Owner = (*Service)(nil)

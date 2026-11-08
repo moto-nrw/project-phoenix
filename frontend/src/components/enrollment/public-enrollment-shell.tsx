@@ -2,18 +2,19 @@
 
 import Image from "next/image";
 import { Check, ChevronRight } from "lucide-react";
-import { useTranslations } from "next-intl";
+
 import { loginImageSrc, type TenantInfo } from "~/lib/tenant-api";
 import { LanguageSwitcher } from "~/components/parent/language-switcher";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 export function PublicEnrollmentBrand({
   tenant,
 }: {
   readonly tenant: TenantInfo | null;
 }) {
-  const t = useTranslations("enrollmentPublic");
+  const t = useCareTermTranslations("enrollmentPublic");
   const schoolName = tenant?.name ?? t("fallbackSchool");
   const logoUrl = getTenantLogoUrl(tenant);
   const initials = schoolName
@@ -42,9 +43,6 @@ export function PublicEnrollmentBrand({
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          {t("brandEyebrow")}
-        </p>
         <p className="truncate text-lg font-semibold text-gray-900">
           {schoolName}
         </p>
@@ -81,7 +79,7 @@ export function PublicEnrollmentSteps({
 }: {
   readonly current: "phase" | "form" | "done";
 }) {
-  const t = useTranslations("enrollmentPublic");
+  const t = useCareTermTranslations("enrollmentPublic");
   const steps = [
     { id: "phase", label: t("steps.phase") },
     { id: "form", label: t("steps.form") },

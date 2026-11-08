@@ -2,5 +2,6 @@
   "scenario": "communication18.list.n8",
   "max": 6,
   "exact": true,
-  "description": "Literal protected staff parent-announcement list route. Exactly N3/N8 announcements (N-2 poll notices plus two published class letters); each poll has N targets/options. Complete transaction plus actual settings, audience and delivery owners; foreign-tenant and missing-auth checks. Measured fixture contract, not a global minimum."
+  "description": "Literal protected staff parent-announcement list route. Exactly N3/N8 announcements (N-2 poll notices plus two published class letters); each poll has N targets/options. Complete transaction plus actual settings, audience and delivery owners; foreign-tenant and missing-auth checks. Measured fixture contract, not a global minimum.",
+  "route": "GET /api/parent-announcements/"
 }

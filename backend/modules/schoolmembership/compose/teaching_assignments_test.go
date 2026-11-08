@@ -314,7 +314,7 @@ func TestClassAssignmentListQueryBudget(t *testing.T) {
 		return counter.Total()
 	}
 	assertFlatTeachingAssignmentListBudget(t, add, list)
-	querybudgets.AssertQueryBudget(t, "modules.schoolmembership.list_class_assignments", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "modules.schoolmembership.list_class_assignments", counter.Measurement(counter.Queries()))
 }
 
 // TestGroupAssignmentListQueryBudget guards the list against per-row lookups.
@@ -343,5 +343,5 @@ func TestGroupAssignmentListQueryBudget(t *testing.T) {
 		return counter.Total()
 	}
 	assertFlatTeachingAssignmentListBudget(t, add, list)
-	querybudgets.AssertQueryBudget(t, "modules.schoolmembership.list_group_assignments", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "modules.schoolmembership.list_group_assignments", counter.Measurement(counter.Queries()))
 }

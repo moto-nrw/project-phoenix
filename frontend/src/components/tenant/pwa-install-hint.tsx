@@ -183,6 +183,7 @@ export function PwaInstallHint({
     // utilities cannot override and which made this card blend into the page.
     // A brand-green tint (GROUP_ROOM_SHADES.bgHover) and a 2px brand border
     // separate the promotion from the neutral content cards around it.
+    // oxlint-disable-next-line ui-kit/no-hand-rolled-surface -- schwebender Installationshinweis in Markengrün über der Seite, keine Inhaltskarte
     <section
       aria-labelledby="pwa-install-hint-title"
       className="fixed bottom-[calc(5.75rem+var(--moto-floating-fab-offset,0rem)+var(--moto-checkin-bar-offset,0rem)+env(safe-area-inset-bottom))] left-1/2 z-40 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 rounded-2xl border-2 p-4 shadow-lg lg:bottom-8"

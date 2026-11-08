@@ -62,7 +62,7 @@ func TestStudentRequestsNoInformationSchemaQueries(t *testing.T) {
 	// Student requests must not run schema-detection queries in the request
 	// path; resolve schema capabilities at startup instead (#2059).
 	querybudgets.AssertQueryBudget(t, "api.students.requests.schema_introspection",
-		counter.Matching(isSchemaIntrospectionQuery))
+		counter.Measurement(counter.Matching(isSchemaIntrospectionQuery)))
 }
 
 // TestListStudentsQueryBudget guards the plain student list (the most
@@ -117,7 +117,7 @@ func TestListStudentsQueryBudget(t *testing.T) {
 
 			assert.Equal(t, smallCount, largeCount,
 				"query count must be independent of the student count (no per-student N+1)")
-			querybudgets.AssertQueryBudget(t, "api.students.list", counter.Queries())
+			querybudgets.AssertQueryBudget(t, "api.students.list", counter.Measurement(counter.Queries()))
 		})
 	}
 }

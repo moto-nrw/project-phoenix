@@ -1,0 +1,7 @@
+{
+  "scenario": "api.traeger.family_billing",
+  "max": 2,
+  "exact": true,
+  "description": "modules/parentbilling — GET /traeger/family-billing (#4689):\nthe Träger binding of the Träger transaction, then the deviations of the\nfamilies; the trail of the read is one insert. Flat in the number of families.",
+  "route": "GET /traeger/family-billing/"
+}

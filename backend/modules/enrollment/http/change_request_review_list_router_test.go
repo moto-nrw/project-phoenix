@@ -257,7 +257,7 @@ func (env *reviewListEnv) getPath(t *testing.T, path string, token string) *http
 	req := httptest.NewRequest(http.MethodGet, path, nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
-	env.router.ServeHTTP(rec, req)
+	testpkg.MountedQueryBudgetRouter("/api/enrollment", env.router).ServeHTTP(rec, req)
 	return rec
 }
 
@@ -266,7 +266,7 @@ func (env *reviewListEnv) get(t *testing.T, query string, token string) *httptes
 	req := httptest.NewRequest(http.MethodGet, "/admin/change-requests/list?"+query, nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
-	env.router.ServeHTTP(rec, req)
+	testpkg.MountedQueryBudgetRouter("/api/enrollment", env.router).ServeHTTP(rec, req)
 	return rec
 }
 

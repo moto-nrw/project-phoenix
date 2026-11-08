@@ -11,16 +11,19 @@ import (
 // Store is the persistence port over the School Membership tables in the
 // public vocabulary; it returns the public sentinels. Reads honour the
 // tenant in context when one is present.
+//
+// The writes that move a child's status or start keep its first-care bound
+// (#6041, ADR 0166) on the given Berlin day (YYYY-MM-DD) of the application.
 type Store interface {
-	TransitionStudentStatus(context.Context, int64, string, string) (bool, domain.OperationStats, error)
+	TransitionStudentStatus(ctx context.Context, id int64, expected, next, today string) (bool, domain.OperationStats, error)
 	EnrollStudent(context.Context, schoolmembership.StudentEnrollment) (int64, domain.OperationStats, error)
-	RenewStudentEnrollment(context.Context, schoolmembership.StudentEnrollment) (int64, domain.OperationStats, error)
+	RenewStudentEnrollment(ctx context.Context, input schoolmembership.StudentEnrollment, today string) (int64, domain.OperationStats, error)
 	AssignStudentGroup(context.Context, int64, *int64) (bool, domain.OperationStats, error)
 	LockStudentClassWrites(context.Context, bool) (domain.OperationStats, error)
 	EndStudentCare(context.Context, []int64, string) (int64, domain.OperationStats, error)
 	ResumeStudentCare(context.Context, int64, string, string, string) (bool, domain.OperationStats, error)
 	GraduateStudents(context.Context, []int64) (int64, domain.OperationStats, error)
-	ReactivateStudents(context.Context, []int64, string) ([]int64, domain.OperationStats, error)
+	ReactivateStudents(ctx context.Context, ids []int64, status, today string) ([]int64, domain.OperationStats, error)
 	ChangeStudentClass(context.Context, []int64, string, string) (int64, domain.OperationStats, error)
 	// LockChildQuota serializes the counting writes of the tenant in
 	// context. The lock is exclusive and held until the transaction ends.

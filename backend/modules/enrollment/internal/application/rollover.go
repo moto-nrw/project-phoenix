@@ -26,7 +26,6 @@ type (
 	}
 	RolloverChildren interface {
 		enrollment.SubmittedOfferingCommands
-		RequestChildOfferingsAtDate(context.Context, int64, enrollment.Date) ([]*enrollment.RequestChildOffering, error)
 		RequestChildOfferingsForChildrenAtDate(context.Context, []int64, enrollment.Date) ([]*enrollment.RequestChildOffering, error)
 		InsertChild(context.Context, *enrollment.RequestChild) error
 		ChildrenByID(context.Context, []int64) ([]*enrollment.RequestChild, error)
@@ -52,8 +51,14 @@ type (
 	// and applies the class switches renewals planned for the new school
 	// year once it starts (#3917).
 	RolloverDecider interface {
+		// LockApprovalGates takes the class-writes and recurrence gates the
+		// tick's approvals, class switches and weekly plans write under.
+		LockApprovalGates(ctx context.Context) error
 		Decide(ctx context.Context, input enrollment.DecideInput) (*enrollment.DecideOutcome, error)
 		ApplyDueClassSwitches(ctx context.Context, asOf calendar.Date) (int, error)
+		// ApplyDueWeeklyPlans applies the weekly plans renewals approved
+		// before their start planned for that day (#6043).
+		ApplyDueWeeklyPlans(ctx context.Context, asOf calendar.Date) (int, error)
 	}
 )
 
@@ -119,7 +124,10 @@ type rolloverRequestInput struct {
 	// source-phase reference in the target phase is exactly the mixed-phase
 	// state #2249 forbids.
 	offeringIDMap map[int64]int64
-	result        *enrollment.RolloverResult
+	// sourceOfferings reads every source child's booking effective at the
+	// end of the source phase once, at the first child copy (#5836).
+	sourceOfferings *rolloverSourceOfferings
+	result          *enrollment.RolloverResult
 }
 
 // CreatePhaseFromSource is the workhorse:
@@ -192,6 +200,7 @@ func (s *Rollovers) runCreate(ctx context.Context, tenantID int64, req enrollmen
 		maxGrade:          maxGrade,
 		collectGradeLevel: collectGradeLevel,
 		offeringIDMap:     offeringIDMap,
+		sourceOfferings:   newRolloverSourceOfferings(sourceChildren),
 		result:            result,
 	})
 }

@@ -38,7 +38,7 @@ func TestParticipantsRouteGrowthQueryBudget(t *testing.T) {
 		}
 		counter.Reset()
 		response := httptest.NewRecorder()
-		router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, fmt.Sprintf("/instances/%d/participants", s.InstanceID), nil))
+		testpkg.MountedQueryBudgetRouter("/api/timetable", router).ServeHTTP(response, httptest.NewRequest(http.MethodGet, fmt.Sprintf("/instances/%d/participants", s.InstanceID), nil))
 		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 		var body timetablehttp.InstanceParticipantsResponse
 		decodeGrowthEnvelope(t, response, &body)
@@ -53,19 +53,19 @@ func TestParticipantsRouteGrowthQueryBudget(t *testing.T) {
 		}
 		require.ElementsMatch(t, s.StudentIDs, ids)
 		require.Zero(t, counter.WriteRows(), "read request must not write")
-		queries := counter.Operation("SELECT")
+		queries := counter.Measurement(counter.Operation("SELECT"))
 		if n == 3 {
-			small = len(queries)
+			small = len(queries.Statements)
 		} else {
-			require.Equal(t, small, len(queries))
+			require.Equal(t, small, len(queries.Statements))
 		}
-		t.Logf("participants growth N%d statements=%d", n, len(queries))
+		t.Logf("participants growth N%d statements=%d", n, len(queries.Statements))
 		querybudgets.AssertQueryBudget(t, "api.timetable.instance_participants.list", queries)
 	}
 	foreign := testpkg.NewTenantScope(t, s.DB)
 	foreignRouter := s.Router(foreign.Context())
 	response := httptest.NewRecorder()
-	foreignRouter.ServeHTTP(response, httptest.NewRequest(http.MethodGet, fmt.Sprintf("/instances/%d/participants", s.InstanceID), nil))
+	testpkg.MountedQueryBudgetRouter("/api/timetable", foreignRouter).ServeHTTP(response, httptest.NewRequest(http.MethodGet, fmt.Sprintf("/instances/%d/participants", s.InstanceID), nil))
 	require.Equal(t, http.StatusNotFound, response.Code, response.Body.String())
 }
 
@@ -98,7 +98,7 @@ func TestStaffPoolAndConflictsRouteGrowthQueryBudgets(t *testing.T) {
 			}
 			counter.Reset()
 			response := httptest.NewRecorder()
-			measured.ServeHTTP(response, httptest.NewRequest(http.MethodGet, path, nil))
+			testpkg.MountedQueryBudgetRouter("/api/timetable", measured).ServeHTTP(response, httptest.NewRequest(http.MethodGet, path, nil))
 			require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 			if pool {
 				var body timetablehttp.StaffPoolResponse
@@ -110,13 +110,13 @@ func TestStaffPoolAndConflictsRouteGrowthQueryBudgets(t *testing.T) {
 				require.Len(t, body.Warnings, 2*n)
 			}
 			require.Zero(t, counter.WriteRows(), "read request must not write")
-			queries := counter.Operation("SELECT")
+			queries := counter.Measurement(counter.Operation("SELECT"))
 			if n == 3 {
-				small[scenario] = len(queries)
+				small[scenario] = len(queries.Statements)
 			} else {
-				require.Equal(t, small[scenario], len(queries), scenario)
+				require.Equal(t, small[scenario], len(queries.Statements), scenario)
 			}
-			t.Logf("%s growth N%d statements=%d", scenario, n, len(queries))
+			t.Logf("%s growth N%d statements=%d", scenario, n, len(queries.Statements))
 			if pool {
 				querybudgets.AssertQueryBudget(t, "api.timetable.staff_pool.list", queries)
 			} else {
@@ -128,13 +128,13 @@ func TestStaffPoolAndConflictsRouteGrowthQueryBudgets(t *testing.T) {
 	foreignRouter := s.Router(foreign.Context())
 	foreignRequest := testpkg.MeasuredTenantRequest(t, s.DB, foreign.TenantID, counter, foreignRouter)
 	response := httptest.NewRecorder()
-	foreignRequest.ServeHTTP(response, httptest.NewRequest(http.MethodGet, fmt.Sprintf("/conflicts?date=%s&start_time=14:00&end_time=15:00&staff_ids=%s&student_ids=%s", s.Date, strings.Join(staffIDs, ","), strings.Join(studentIDs, ",")), nil))
+	testpkg.MountedQueryBudgetRouter("/api/timetable", foreignRequest).ServeHTTP(response, httptest.NewRequest(http.MethodGet, fmt.Sprintf("/conflicts?date=%s&start_time=14:00&end_time=15:00&staff_ids=%s&student_ids=%s", s.Date, strings.Join(staffIDs, ","), strings.Join(studentIDs, ",")), nil))
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 	var foreignConflicts timetablehttp.PlannedConflictsResponse
 	decodeGrowthEnvelope(t, response, &foreignConflicts)
 	require.Empty(t, foreignConflicts.Warnings)
 	response = httptest.NewRecorder()
-	foreignRequest.ServeHTTP(response, httptest.NewRequest(http.MethodGet, fmt.Sprintf("/instances/%d/staff-pool", target.ID), nil))
+	testpkg.MountedQueryBudgetRouter("/api/timetable", foreignRequest).ServeHTTP(response, httptest.NewRequest(http.MethodGet, fmt.Sprintf("/instances/%d/staff-pool", target.ID), nil))
 	require.Equal(t, http.StatusNotFound, response.Code, response.Body.String())
 }
 
@@ -174,13 +174,13 @@ func TestStudentWeekPopulatedGrowthQueryBudget(t *testing.T) {
 		}
 		require.Equal(t, n, count)
 		require.Zero(t, counter.WriteRows(), "read request must not write")
-		queries := counter.Operation("SELECT")
+		queries := counter.Measurement(counter.Operation("SELECT"))
 		if n == 3 {
-			small = len(queries)
+			small = len(queries.Statements)
 		} else {
-			require.Equal(t, small, len(queries))
+			require.Equal(t, small, len(queries.Statements))
 		}
-		t.Logf("student week growth N%d statements=%d", n, len(queries))
+		t.Logf("student week growth N%d statements=%d", n, len(queries.Statements))
 		querybudgets.AssertQueryBudget(t, "api.timetable.student_week.14d", queries)
 	}
 }
@@ -207,7 +207,7 @@ func TestDeviationHistoryPopulatedQueryBudget(t *testing.T) {
 		}
 		counter.Reset()
 		response := httptest.NewRecorder()
-		router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, fmt.Sprintf("/deviations/history?date=%s&date_to=%s", date, date), nil))
+		testpkg.MountedQueryBudgetRouter("/api/timetable", router).ServeHTTP(response, httptest.NewRequest(http.MethodGet, fmt.Sprintf("/deviations/history?date=%s&date_to=%s", date, date), nil))
 		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 		var body timetablehttp.DeviationHistoryResponse
 		decodeGrowthEnvelope(t, response, &body)
@@ -221,20 +221,20 @@ func TestDeviationHistoryPopulatedQueryBudget(t *testing.T) {
 			require.Equal(t, "krank", *event.Reason)
 		}
 		require.Zero(t, counter.WriteRows(), "read request must not write")
-		queries := counter.Operation("SELECT")
+		queries := counter.Measurement(counter.Operation("SELECT"))
 		if n == 3 {
-			small = len(queries)
+			small = len(queries.Statements)
 		} else {
-			t.Logf("history statement growth N3=%d N8=%d", small, len(queries))
+			t.Logf("history statement growth N3=%d N8=%d", small, len(queries.Statements))
 		}
-		require.Len(t, queries, n+4, "one membership per identity; unused Employment reads are removed under E1 (#5892)")
+		require.Len(t, queries.Statements, n+4, "one membership per identity; unused Employment reads are removed under E1 (#5892)")
 		require.Empty(t, counter.Selects("staff_employment_profiles"))
-		t.Logf("deviation history N%d statements=%d", n, len(queries))
+		t.Logf("deviation history N%d statements=%d", n, len(queries.Statements))
 		querybudgets.AssertQueryBudget(t, "api.timetable.deviation_history.list", queries)
 	}
 	foreign := testpkg.NewTenantScope(t, s.DB)
 	response := httptest.NewRecorder()
-	s.Router(foreign.Context()).ServeHTTP(response, httptest.NewRequest(http.MethodGet, fmt.Sprintf("/deviations/history?date=%s&date_to=%s", date, date), nil))
+	testpkg.MountedQueryBudgetRouter("/api/timetable", s.Router(foreign.Context())).ServeHTTP(response, httptest.NewRequest(http.MethodGet, fmt.Sprintf("/deviations/history?date=%s&date_to=%s", date, date), nil))
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 	var empty timetablehttp.DeviationHistoryResponse
 	decodeGrowthEnvelope(t, response, &empty)
@@ -270,13 +270,13 @@ func TestStudentDayPopulatedGrowthQueryBudget(t *testing.T) {
 		require.Equal(t, date.String(), body.Date)
 		require.Len(t, body.Instances, n)
 		require.Zero(t, counter.WriteRows())
-		queries := counter.Queries()
+		queries := counter.Measurement(counter.Queries())
 		if n == 3 {
-			small = len(queries)
+			small = len(queries.Statements)
 		} else {
-			require.Equal(t, small, len(queries))
+			require.Equal(t, small, len(queries.Statements))
 		}
-		t.Logf("student day growth N%d statements=%d", n, len(queries))
+		t.Logf("student day growth N%d statements=%d", n, len(queries.Statements))
 		querybudgets.AssertQueryBudget(t, "api.timetable.student_day.populated", queries)
 	}
 	response := doGrowthGet(t, router, fmt.Sprintf("/student/%d/day?date=%s", s.StudentID, date.AddDays(1)))
@@ -304,7 +304,7 @@ func decodeGrowthEnvelope(t *testing.T, w *httptest.ResponseRecorder, target any
 func doGrowthGet(t *testing.T, router chi.Router, path string) *httptest.ResponseRecorder {
 	t.Helper()
 	w := httptest.NewRecorder()
-	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
+	testpkg.MountedQueryBudgetRouter("/api/timetable", router).ServeHTTP(w, httptest.NewRequest(http.MethodGet, path, nil))
 	return w
 }
 func doGrowthDev(t *testing.T, router chi.Router, instanceID int64, body any) *httptest.ResponseRecorder {
@@ -314,6 +314,6 @@ func doGrowthDev(t *testing.T, router chi.Router, instanceID int64, body any) *h
 	request := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/instances/%d/deviations", instanceID), bytes.NewReader(raw))
 	request.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
-	router.ServeHTTP(w, request)
+	testpkg.MountedQueryBudgetRouter("/api/timetable", router).ServeHTTP(w, request)
 	return w
 }

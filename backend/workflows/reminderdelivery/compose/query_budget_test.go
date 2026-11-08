@@ -40,5 +40,5 @@ func TestPresentStudentsInRoomsQueryBudget(t *testing.T) {
 	add(3, 8)
 	large := run()
 	assert.Equal(t, len(small), len(large))
-	querybudgets.AssertQueryBudget(t, "services.reminders.present_students_in_rooms.reads", large)
+	querybudgets.AssertQueryBudget(t, "services.reminders.present_students_in_rooms.reads", counter.Measurement(large))
 }

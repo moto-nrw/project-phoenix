@@ -1,5 +1,13 @@
 "use client";
 
+import {
+  APPROVAL_WITHOUT_OFFERING_COPY,
+  approvalNeedsOfferingConfirm,
+} from "~/components/enrollment/approval-without-offering";
+import { materializeCareSelection } from "~/lib/care-offering-selection";
+import { isTerminalChildStatus } from "~/lib/enrollment-status";
+import type { ChildStatus } from "~/lib/enrollment-status";
+import { WEEKDAY_CODES, weekdayShortLabel } from "~/lib/weekdays";
 import { ApiError } from "~/lib/api-error";
 import { InsetPanel } from "~/components/ui/inset-panel";
 import {
@@ -32,7 +40,6 @@ import {
   type AdminRequestGuardian,
   type AdminRequestSchemaField,
   type AdminRequestSummary,
-  type ChildStatus,
   type DecisionStatus,
   decideAdminChild,
   announceAdminRequestOpened,
@@ -56,14 +63,12 @@ import {
 import {
   type CareOfferingBookingStats,
   fetchCareOfferingBookingStats,
-  formatOfferingOccupancy,
-  offeringIsFull,
 } from "~/lib/care-offering-booking-stats";
 import { formatOfferingPrice } from "~/lib/care-offering-format";
 import { FeaturePill } from "~/components/enrollment/feature-pill";
-import { isSupportedGradeLevelMax } from "~/lib/grade-level";
+import { supportedGradeLevelMax } from "~/lib/grade-level";
 import {
-  BLOCKED_OFFERING_ROW_TONE,
+  OfferingOccupancyLine,
   OfferingRowShell,
 } from "~/components/enrollment/offering-row-shell";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -73,6 +78,7 @@ import {
   InfoSection,
 } from "~/components/ui/detail-modal-components";
 import { SectionCard } from "~/components/ui/section-card";
+import { SectionLabel } from "~/components/ui/section-label";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { Textarea } from "~/components/ui/textarea";
@@ -81,7 +87,9 @@ import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 import { EnrollmentRequestUploadList } from "~/components/enrollment/admin-enrollment-upload-list";
 import { AdminEnrollmentSignature } from "~/components/enrollment/admin-enrollment-signature";
 import { formatCalendarDate } from "~/lib/localized-date-format";
-import { schoolClassLabel } from "~/lib/school-class-label";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
+import { berlinTodayISO } from "~/lib/date-helpers";
+import { enrolledClassLabel } from "~/lib/school-class-label";
 import { AdminChildDataCorrection } from "~/components/enrollment/admin-child-data-correction";
 import { AdminEnrollmentDeletionModal } from "~/components/enrollment/admin-enrollment-deletion-modal";
 import { Button, buttonClassName } from "~/components/ui/button";
@@ -125,12 +133,6 @@ import { announceChangeRequestsChanged } from "~/lib/change-requests-refresh";
 
 const logger = createLogger({ component: "AdminEnrollmentDetail" });
 
-const TERMINAL: ReadonlySet<ChildStatus> = new Set([
-  "approved",
-  "rejected",
-  "withdrawn",
-]);
-
 interface ActionDef {
   status: DecisionStatus;
   label: string;
@@ -159,6 +161,10 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
   const tenantPath = useTenantAwarePath();
   const router = useTenantRouter();
   const [data, setData] = useState<AdminRequestDetail | null>(null);
+  const today = useBerlinToday();
+  const [weeklyPlanCheckedOn, setWeeklyPlanCheckedOn] = useState<string | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const toast = useToast();
   const loadError = useApiLoadError();
@@ -193,8 +199,10 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
       if (!options?.quiet) setLoading(true);
       clearLoadError();
       try {
+        const checkedOn = berlinTodayISO();
         const fresh = await getAdminRequest(requestId);
         setData(fresh);
+        setWeeklyPlanCheckedOn(checkedOn);
         // Das Öffnen hat die Anmeldung für diese Person gelesen (#3778).
         announceAdminRequestOpened();
       } catch (err) {
@@ -236,6 +244,25 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const hasPendingWeeklyPlan = data?.children.some(
+    (child) => child.status === "approved" && child.weekly_plan_on,
+  );
+  useEffect(() => {
+    if (hasPendingWeeklyPlan && weeklyPlanCheckedOn !== today) {
+      void load({ quiet: true });
+    }
+  }, [today, weeklyPlanCheckedOn, hasPendingWeeklyPlan, load]);
+
+  useEffect(() => {
+    if (!hasPendingWeeklyPlan) return;
+    const refreshOnVisible = () => {
+      if (document.visibilityState === "visible") void load({ quiet: true });
+    };
+    document.addEventListener("visibilitychange", refreshOnVisible);
+    return () =>
+      document.removeEventListener("visibilitychange", refreshOnVisible);
+  }, [hasPendingWeeklyPlan, load]);
 
   const availableActions = waitlistEnabled
     ? ACTIONS
@@ -333,11 +360,14 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
     status: DecisionStatus,
   ) => {
     if (
-      status === "approved" &&
-      careOfferingsEnabled &&
-      data.care_offering_selection_mode === "optional" &&
-      child.offerings_unavailable !== true &&
-      (child.offerings?.length ?? 0) === 0
+      approvalNeedsOfferingConfirm({
+        status,
+        careOfferingsEnabled,
+        selectionMode: data.care_offering_selection_mode,
+        bookedOfferings: child.offerings_unavailable
+          ? undefined
+          : (child.offerings?.length ?? 0),
+      })
     ) {
       setApprovalWithoutOfferingChildId(child.id);
       return;
@@ -391,12 +421,12 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
               setApprovalWithoutOfferingChildId(null);
               if (childId !== null) void handleDecide(childId, "approved");
             }}
-            title="Anmeldung bestätigen"
-            confirmText="Trotzdem bestätigen"
+            title={APPROVAL_WITHOUT_OFFERING_COPY.title}
+            confirmText={APPROVAL_WITHOUT_OFFERING_COPY.confirmText}
           >
             <Alert
               type="warning"
-              message="Für dieses Kind ist kein Betreuungsangebot gebucht. Das Kind wird trotzdem in die OGS aufgenommen."
+              message={APPROVAL_WITHOUT_OFFERING_COPY.message}
             />
           </ConfirmationModal>
           <ConfirmationModal
@@ -446,9 +476,9 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
         </>
       }
     >
-      <section className="moto-content-surface overflow-hidden rounded-2xl border">
+      <SectionCard padding="none">
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_430px]">
-          <div className="space-y-6 p-4 sm:p-6">
+          <div className="space-y-6 p-5 max-sm:p-4">
             {/* Ein gescheitertes Neuladen nach einer Änderung: die Seite zeigt
                 weiter den letzten Stand und sagt, dass er veraltet sein kann. */}
             <LoadErrorAlert error={loadError.error} />
@@ -484,6 +514,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
                   phaseId={data.phase_id}
                   phaseName={data.phase_name}
                   child={child}
+                  weeklyPlanToday={weeklyPlanCheckedOn === today ? today : null}
                   busy={busyChildId === child.id}
                   reason={reasons[child.id] ?? ""}
                   schemaFields={data.schema_fields}
@@ -516,7 +547,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
             </SectionCard>
           </div>
 
-          <aside className="border-t border-gray-100 bg-gray-50/70 p-4 sm:p-6 lg:border-t-0 lg:border-l">
+          <aside className="border-t border-gray-100 bg-gray-50/70 p-5 max-sm:p-4 lg:border-t-0 lg:border-l">
             <LoadErrorAlert error={requestMailsError} className="mb-4" />
             {/* Stays away while no mail exists: a card that always reads „keine
                 Mail“ tells the school nothing. */}
@@ -580,7 +611,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
             />
           </aside>
         </div>
-      </section>
+      </SectionCard>
     </TenantPage>
   );
 }
@@ -662,6 +693,7 @@ function ChildInformationCard({
   reason,
   requestId,
   schemaFields,
+  weeklyPlanToday,
 }: Readonly<{
   actions: ActionDef[];
   busy: boolean;
@@ -678,13 +710,11 @@ function ChildInformationCard({
   onDelete: () => void;
   reason: string;
   schemaFields?: AdminRequestSchemaField[];
+  weeklyPlanToday: string | null;
 }>) {
-  const terminal = TERMINAL.has(child.status);
+  const terminal = isTerminalChildStatus(child.status);
   const canDeleteFromEnrollment =
-    child.created_student_id === undefined &&
-    (child.status === "rejected" ||
-      child.status === "withdrawn" ||
-      child.status === "approved");
+    terminal && child.created_student_id === undefined;
   const tenantPath = useTenantAwarePath();
   const studentHref = tenantPath(
     child.created_student_id
@@ -692,8 +722,8 @@ function ChildInformationCard({
       : "/students",
   );
   return (
-    <article className="moto-content-surface overflow-hidden rounded-2xl border">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 p-4">
+    <SectionCard padding="none">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 p-5 max-sm:p-4">
         <div>
           <h3 className="text-base font-semibold text-gray-900">
             {child.first_name} {child.last_name}
@@ -703,16 +733,8 @@ function ChildInformationCard({
               tone="gray"
               label={`Geburtsdatum: ${formatPlainDate(child.date_of_birth)}`}
             />
-            {child.target_school_class ? (
-              <StatusBadge
-                tone="gray"
-                label={schoolClassLabel(child.target_school_class)}
-              />
-            ) : child.target_grade_level ? (
-              <StatusBadge
-                tone="gray"
-                label={`${child.target_grade_level}. Klasse`}
-              />
+            {enrolledClassLabel(child) ? (
+              <StatusBadge tone="gray" label={enrolledClassLabel(child)} />
             ) : null}
           </div>
         </div>
@@ -743,7 +765,7 @@ function ChildInformationCard({
           {isHeldForChildQuota(child) ? <ChildQuotaHeldBadge /> : null}
         </div>
       </div>
-      <div className="space-y-4 p-4">
+      <div className="space-y-4 p-5 max-sm:p-4">
         {isHeldForChildQuota(child) ? (
           <Alert
             type="warning"
@@ -767,6 +789,15 @@ function ChildInformationCard({
           <p className="text-xs text-gray-500">
             Letzte Entscheidung: {formatDateTime(child.reviewed_at)}
           </p>
+        ) : null}
+        {child.status === "approved" &&
+        child.weekly_plan_on &&
+        weeklyPlanToday ? (
+          <Alert
+            type={child.weekly_plan_on < weeklyPlanToday ? "warning" : "info"}
+            announce="off"
+            message={weeklyPlanMessage(child.weekly_plan_on, weeklyPlanToday)}
+          />
         ) : null}
         <ChildOfferings
           offerings={child.offerings}
@@ -818,7 +849,7 @@ function ChildInformationCard({
           />
         )}
       </div>
-    </article>
+    </SectionCard>
   );
 }
 
@@ -951,21 +982,14 @@ function ReviewSidebar({
 
       {data.children.map((child) => {
         return (
-          <section
-            key={child.id}
-            className="moto-content-surface rounded-2xl border p-4"
-          >
+          <SectionCard key={child.id}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <h3 className="truncate text-sm font-semibold text-gray-900">
                   {child.first_name} {child.last_name}
                 </h3>
                 <p className="mt-1 text-xs text-gray-500">
-                  {child.target_school_class
-                    ? schoolClassLabel(child.target_school_class)
-                    : child.target_grade_level
-                      ? `${child.target_grade_level}. Klasse`
-                      : "Keine Klassenstufe"}
+                  {enrolledClassLabel(child) || "Keine Klassenstufe"}
                 </p>
               </div>
               <ChildStatusBadge status={child.status} />
@@ -980,11 +1004,11 @@ function ReviewSidebar({
               padding="compact"
               className="mt-3 text-sm text-gray-600"
             >
-              {TERMINAL.has(child.status)
+              {isTerminalChildStatus(child.status)
                 ? "Entscheidung abgeschlossen"
                 : "Entscheidung ausstehend"}
             </InsetPanel>
-          </section>
+          </SectionCard>
         );
       })}
     </div>
@@ -1109,7 +1133,7 @@ function summarizeChildren(children: AdminRequestChild[]) {
   let open = 0;
   let approved = 0;
   for (const child of children) {
-    if (!TERMINAL.has(child.status)) open += 1;
+    if (!isTerminalChildStatus(child.status)) open += 1;
     if (child.status === "approved") approved += 1;
   }
   return { open, approved };
@@ -1123,6 +1147,17 @@ export function formatDateTime(
     ...options,
     timeZone: "Europe/Berlin",
   });
+}
+
+// Only classify a pending plan against the day its enrollment was fetched.
+// A mounted page must recheck the plan before reporting an overdue failure.
+function weeklyPlanMessage(on: string, today: string): string {
+  if (on < today) {
+    return `Abholzeiten, Betreuungstage und Heimweg aus dieser Anmeldung sollten ab ${formatPlainDate(on)} gelten. moto konnte sie noch nicht übernehmen. Darum gelten noch die bisherigen. moto versucht es jede Stunde neu. Bleibt dieser Hinweis, melden Sie sich bitte beim moto-Team.`;
+  }
+  return on === today
+    ? "Abholzeiten, Betreuungstage und Heimweg aus dieser Anmeldung gelten ab heute. moto übernimmt sie im Lauf des Tages."
+    : `Abholzeiten, Betreuungstage und Heimweg aus dieser Anmeldung gelten ab ${formatPlainDate(on)}. Bis dahin bleiben die bisherigen.`;
 }
 
 export function formatPlainDate(value: string): string {
@@ -1159,16 +1194,10 @@ export function RequestExtraSection({
   if (!hasCustom && !hasConsents) return null;
 
   return (
-    <section className="moto-content-surface space-y-3 rounded-2xl border p-4 sm:p-6">
-      <h2 className="text-base font-semibold text-gray-900">
-        Zusätzliche Angaben
-      </h2>
-
+    <SectionCard title="Zusätzliche Angaben" bodyClassName="mt-3 space-y-3">
       {hasConsents && (
         <div>
-          <h3 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-            Zustimmungen
-          </h3>
+          <SectionLabel>Zustimmungen</SectionLabel>
           <ul className="mt-1.5 space-y-1 text-sm">
             {Object.entries(request.consent_flags ?? {}).map(([key, val]) => (
               <li key={key} className="flex items-center gap-2">
@@ -1218,7 +1247,7 @@ export function RequestExtraSection({
           </DataGrid>
         </InfoSection>
       )}
-    </section>
+    </SectionCard>
   );
 }
 
@@ -1227,16 +1256,6 @@ export function RequestExtraSection({
 // schedule (Mo, Di, …). For parent_choice offerings the badge marks
 // only the days the parent picked, prefixed with the picked count
 // so admins can spot half-week selections at a glance.
-const DAY_LABEL_DE: Record<string, string> = {
-  mon: "Mo",
-  tue: "Di",
-  wed: "Mi",
-  thu: "Do",
-  fri: "Fr",
-  sat: "Sa",
-  sun: "So",
-};
-
 export function ChildOfferings({
   offerings,
   upcomingOfferings,
@@ -1257,23 +1276,19 @@ export function ChildOfferings({
   const rows = [...(offerings ?? []), ...(upcomingOfferings ?? [])];
   if (unavailable) {
     return (
-      <div className="border-moto-orange/30 bg-moto-orange-soft mt-3 rounded-lg border p-3">
-        <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-          Betreuungsangebote
-        </h4>
-        <p className="text-moto-orange-strong mt-1.5 text-sm">
-          Die gebuchten Angebote konnten nicht geladen werden. Bitte die Seite
-          neu laden, bevor Sie über dieses Kind entscheiden.
-        </p>
-      </div>
+      <Alert
+        type="warning"
+        announce="off"
+        title="Betreuungsangebote"
+        message="Die gebuchten Angebote konnten nicht geladen werden. Bitte die Seite neu laden, bevor Sie über dieses Kind entscheiden."
+        className="mt-3"
+      />
     );
   }
   if (rows.length === 0) return null;
   return (
     <InsetPanel framed className="mt-3">
-      <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-        Betreuungsangebote
-      </h4>
+      <SectionLabel as="h4">Betreuungsangebote</SectionLabel>
       <ul className="mt-1.5 space-y-2 text-sm">
         {rows.map((o) => {
           const parentChoice = o.days_of_week_mode === "parent_choice";
@@ -1355,22 +1370,6 @@ function OfferingAttributePills({
  * nothing when there is no stats entry, so a failed stats load degrades to
  * the previous UI instead of an empty placeholder (#2186).
  */
-function OfferingOccupancyLine({
-  stats,
-}: Readonly<{ stats: CareOfferingBookingStats | undefined }>) {
-  const label = formatOfferingOccupancy(stats);
-  if (!label) return null;
-  return (
-    <span
-      className={`mt-1 block text-xs ${
-        offeringIsFull(stats) ? "text-moto-amber-strong" : "text-gray-500"
-      }`}
-    >
-      {label}
-    </span>
-  );
-}
-
 /**
  * An offering the child's grade level rules out. Parents never see these;
  * admins must, or a configured restriction reads as a missing feature
@@ -1411,7 +1410,7 @@ function BlockedOfferingRow({
   const inputId = `blocked-offering-${offering.id}`;
   const heldAutomatically = automaticDays.length > 0;
   return (
-    <OfferingRowShell tone={BLOCKED_OFFERING_ROW_TONE}>
+    <OfferingRowShell state="blocked">
       {/* A real <label> is load-bearing, not decoration: the kit Checkbox
           renders an sr-only input behind a pointer-events-none visual, so
           without the label wrapping it a mouse click on the box does nothing
@@ -1473,9 +1472,7 @@ export function ChildOfferingAdjustment({
   // The tenant's configured ceiling, so a blocked-offering reason names only
   // grades this school actually has (#2186 review).
   const { tenant } = useTenant();
-  const gradeLevelMax = isSupportedGradeLevelMax(tenant?.gradeLevelMax)
-    ? tenant.gradeLevelMax
-    : null;
+  const gradeLevelMax = supportedGradeLevelMax(tenant?.gradeLevelMax);
   // Der Bearbeiten-Zustand der Fläche (Bauart 2 Regel 3, #3119): die
   // Auswahl erscheint an Ort und Stelle, kein Modal.
   const [editing, setEditing] = useState(false);
@@ -1625,10 +1622,23 @@ export function ChildOfferingAdjustment({
     latestOpenEditorRef.current = openEditor;
   });
 
-  const preview = useMemo(
-    () => materializeClientOfferingPreview(catalog, selected, days, child),
-    [catalog, child, days, selected],
-  );
+  const preview = useMemo(() => {
+    const { automaticDays } = materializeCareSelection(
+      catalog,
+      { offeringIds: selected, offeringDays: days },
+      child.target_grade_level || undefined,
+    );
+    return {
+      automaticDays: Object.fromEntries(
+        catalog.map((offering) => [
+          offering.id,
+          offering.available_days.filter((day) =>
+            automaticDays[offering.id]?.has(day),
+          ),
+        ]),
+      ),
+    };
+  }, [catalog, child.target_grade_level, days, selected]);
 
   // Blocked offerings are excluded from `catalog`, so the client-side preview
   // above never covers them. Their derived days therefore have to come from
@@ -1792,7 +1802,7 @@ export function ChildOfferingAdjustment({
     return null;
 
   return (
-    <div className="rounded-lg border border-gray-100 bg-white p-3">
+    <InsetPanel framed>
       {withdrawalCreated ? (
         <Alert
           type="warning"
@@ -1802,9 +1812,7 @@ export function ChildOfferingAdjustment({
       {careOfferingsEnabled ? (
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-              Nachbearbeitung
-            </h4>
+            <SectionLabel as="h4">Nachbearbeitung</SectionLabel>
             <p className="mt-1 text-sm text-gray-600">
               {child.offerings_unavailable
                 ? "Die gebuchten Angebote konnten nicht geladen werden. Bitte die Seite neu laden, eine Korrektur würde sonst auf einem unbekannten Stand aufsetzen."
@@ -1850,11 +1858,7 @@ export function ChildOfferingAdjustment({
                 return (
                   <OfferingRowShell
                     key={offering.id}
-                    tone={
-                      checked
-                        ? "border-moto-green/40 bg-moto-green/10"
-                        : "border-gray-200 bg-white"
-                    }
+                    state={checked ? "selected" : "available"}
                   >
                     {/* Wie in BlockedOfferingRow: das Kit-Checkbox-Feld ist
                         sr-only, erst das <label> mit htmlFor macht den Klick
@@ -1914,7 +1918,7 @@ export function ChildOfferingAdjustment({
                               handleDayToggle(offering, day)
                             }
                           >
-                            {DAY_LABEL_DE[day] ?? day}
+                            {weekdayShortLabel(day)}
                           </ToggleChip>
                         ))}
                       </div>
@@ -1924,9 +1928,9 @@ export function ChildOfferingAdjustment({
               })}
               {blockedCatalog.length > 0 ? (
                 <div className="space-y-2 pt-1">
-                  <p className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+                  <SectionLabel as="p">
                     Für dieses Kind nicht wählbar
-                  </p>
+                  </SectionLabel>
                   {blockedCatalog.map((offering) => (
                     <BlockedOfferingRow
                       key={offering.id}
@@ -1999,10 +2003,10 @@ export function ChildOfferingAdjustment({
             careOfferingsEnabled ? "mt-3 border-t border-gray-100 pt-3" : ""
           }
         >
-          <div className="flex items-center gap-2 text-xs font-medium tracking-wide text-gray-500 uppercase">
+          <SectionLabel as="p" className="flex items-center gap-2">
             <MotoConceptIcon concept={changeHistoryConcept} size={14} />
             Änderungshistorie
-          </div>
+          </SectionLabel>
           <ul className="mt-2 space-y-2">
             {history.slice(0, 5).map((entry) => (
               <li key={entry.id} className="text-xs leading-5 text-gray-600">
@@ -2055,7 +2059,7 @@ export function ChildOfferingAdjustment({
           Abmeldung muss anschließend abgeschlossen werden.
         </p>
       </ConfirmationModal>
-    </div>
+    </InsetPanel>
   );
 }
 
@@ -2138,106 +2142,6 @@ function adjustmentPayloadOfferings(
   return payload;
 }
 
-function materializeClientOfferingPreview(
-  catalog: CareOffering[],
-  selected: Set<string>,
-  days: Record<string, string[]>,
-  child: AdminRequestChild,
-): { automaticDays: Record<string, string[]> } {
-  const byID = new Map(catalog.map((offering) => [offering.id, offering]));
-  const selectedDaysByOffering = new Map<string, string[]>();
-  for (const offering of catalog) {
-    if (!selected.has(offering.id)) continue;
-    selectedDaysByOffering.set(
-      offering.id,
-      offering.days_of_week_mode === "fixed"
-        ? offering.available_days
-        : (days[offering.id] ?? []),
-    );
-  }
-  const automaticDays: Record<string, string[]> = {};
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const target of catalog) {
-      if (
-        target.days_of_week_mode !== "parent_choice" ||
-        !autoAddAppliesToChild(target, child)
-      ) {
-        continue;
-      }
-      const daySet = new Set<string>();
-      for (const triggerID of target.auto_add_trigger_offering_ids ?? []) {
-        const trigger = byID.get(triggerID);
-        if (!trigger || !selectedDaysByOffering.has(triggerID)) continue;
-        for (const day of selectedDaysByOffering.get(triggerID) ?? []) {
-          if (target.available_days.includes(day)) daySet.add(day);
-        }
-      }
-      if (target.is_required && target.includes_lunch) {
-        for (const offering of catalog) {
-          if (offering.id === target.id || offering.counts_as_care === false) {
-            continue;
-          }
-          for (const day of selectedDaysByOffering.get(offering.id) ?? []) {
-            if (target.available_days.includes(day)) daySet.add(day);
-          }
-        }
-      }
-      const ordered = target.available_days.filter((day) => daySet.has(day));
-      if (ordered.length === 0) continue;
-      if (!sameStringArray(automaticDays[target.id] ?? [], ordered)) {
-        automaticDays[target.id] = ordered;
-        changed = true;
-      }
-      const merged = unionDaysInOrder(
-        target.available_days,
-        selectedDaysByOffering.get(target.id) ?? [],
-        ordered,
-      );
-      if (
-        !sameStringArray(selectedDaysByOffering.get(target.id) ?? [], merged)
-      ) {
-        selectedDaysByOffering.set(target.id, merged);
-        changed = true;
-      }
-    }
-  }
-  return { automaticDays };
-}
-
-function unionDaysInOrder(
-  order: readonly string[],
-  ...groups: readonly string[][]
-): string[] {
-  const selected = new Set(groups.flat());
-  return order.filter((day) => selected.has(day));
-}
-
-function sameStringArray(left: readonly string[], right: readonly string[]) {
-  return (
-    left.length === right.length &&
-    left.every((value, idx) => value === right[idx])
-  );
-}
-
-function autoAddAppliesToChild(
-  offering: CareOffering,
-  child: AdminRequestChild,
-): boolean {
-  const levels = offering.auto_add_grade_levels ?? [];
-  if (
-    levels.length > 0 &&
-    (!child.target_grade_level || !levels.includes(child.target_grade_level))
-  ) {
-    return false;
-  }
-  return (
-    (offering.auto_add_trigger_offering_ids?.length ?? 0) > 0 ||
-    (offering.is_required && offering.includes_lunch)
-  );
-}
-
 type OfferingAdjustmentSnapshot = AdminOfferingAdjustment["before"][number];
 
 export interface OfferingAdjustmentChangeLine {
@@ -2246,7 +2150,7 @@ export interface OfferingAdjustmentChangeLine {
   readonly text: string;
 }
 
-const WEEKDAY_ORDER = Object.keys(DAY_LABEL_DE);
+const WEEKDAY_ORDER: readonly string[] = WEEKDAY_CODES;
 const GERMAN_LIST = new Intl.ListFormat("de", { type: "conjunction" });
 
 // describeOfferingAdjustmentChanges turns the before/after audit snapshots of
@@ -2381,7 +2285,7 @@ function formatAdminOfferingDaySource(o: AdminRequestChildOffering): string {
 }
 
 function formatAdminDays(days: readonly string[]): string {
-  return days.map((d) => DAY_LABEL_DE[d] ?? d).join(", ");
+  return days.map((d) => weekdayShortLabel(d)).join(", ");
 }
 
 // Reserved child custom-data key carrying the coupled "mit wem" note for the

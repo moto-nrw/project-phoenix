@@ -15,9 +15,9 @@ import (
 
 // A holiday guest of the hosting school stands in "Alle Kinder" only from the
 // first day of its week (#5630, ADR 0120 Nachtrag zu Punkt 2), on the list
-// the page really reads: GET /api/students. The school's own child with a
-// later start stays as it was, and the administrative view that asks for
-// every child still sees the waiting guest.
+// the page really reads: GET /api/students. The school's own child scheduled
+// for a later start waits for it as well (#6041), and the administrative view
+// that asks for every child still sees both.
 func TestStudentListShowsAHolidayGuestOnlyFromTheFirstDayOfItsWeek(t *testing.T) {
 	t.Parallel()
 	tc := setupStudentsRouteWithCareLifecycle(t, false, fixedCalendarClock)
@@ -63,11 +63,13 @@ func TestStudentListShowsAHolidayGuestOnlyFromTheFirstDayOfItsWeek(t *testing.T)
 	rows := listed("?page_size=500")
 	assert.False(t, rows[waiting.ID], "before its week the holiday guest is not in the child list")
 	assert.True(t, rows[arrived.ID], "from the first day of its week the holiday guest is in the child list")
-	assert.True(t, rows[ownLater.ID], "an own child with a later start stays in the child list as before")
+	// Since #6041 a scheduled own child also waits for its care start.
+	assert.False(t, rows[ownLater.ID], "an own child scheduled for a later start is not in the running list yet")
 	assert.True(t, rows[own.ID])
 	assert.True(t, rows[checkedIn.ID], "a holiday guest actually present stays in the child list")
 
 	all := listed("?page_size=500&care_status=all")
 	assert.True(t, all[waiting.ID], "the administrative view of every child keeps the waiting guest")
 	assert.True(t, all[arrived.ID])
+	assert.True(t, all[ownLater.ID], "the administrative view keeps the scheduled own child")
 }

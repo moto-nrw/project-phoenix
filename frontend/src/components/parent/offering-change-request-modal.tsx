@@ -498,10 +498,7 @@ export function OfferingChangeRequestModal({
                   const unavailable =
                     item.is_active === false && !item.selected;
                   return (
-                    <div
-                      key={item.id}
-                      className="rounded-xl border border-gray-200 p-3"
-                    >
+                    <ChoiceTile as="div" key={item.id} className="block p-3">
                       <label className="flex cursor-pointer items-start gap-3">
                         <Checkbox
                           checked={selected}
@@ -588,7 +585,7 @@ export function OfferingChangeRequestModal({
                             })}
                           </p>
                         )}
-                    </div>
+                    </ChoiceTile>
                   );
                 })}
                 {dayConflicts.map((conflict) => (
@@ -610,16 +607,14 @@ export function OfferingChangeRequestModal({
                   required
                   disabled={loading}
                   onChange={(date) => void loadForEffectiveDate(date)}
-                />
-                <p className="mt-1 text-xs text-gray-500">
-                  {t("careOfferingsModal.effectiveFromHint", {
+                  hint={t("careOfferingsModal.effectiveFromHint", {
                     date: formatDate(
                       catalog.earliest_effective_from,
                       false,
                       locale,
                     ),
                   })}
-                </p>
+                />
               </div>
 
               <Textarea

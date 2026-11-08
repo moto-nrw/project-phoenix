@@ -76,4 +76,25 @@ describe("WeekdayToggleGroup", () => {
     fireEvent.click(monday);
     expect(onToggle).not.toHaveBeenCalled();
   });
+
+  it("reads the hint out with the group", () => {
+    render(
+      <WeekdayToggleGroup
+        ariaLabel="Wochentage"
+        days={DAYS}
+        value={[]}
+        onToggle={vi.fn()}
+        hint="Ohne Auswahl gilt der Hinweis an jedem Tag."
+      />,
+    );
+
+    const hint = screen.getByText(
+      "Ohne Auswahl gilt der Hinweis an jedem Tag.",
+    );
+    expect(hint.id).not.toBe("");
+    expect(screen.getByRole("group", { name: "Wochentage" })).toHaveAttribute(
+      "aria-describedby",
+      hint.id,
+    );
+  });
 });

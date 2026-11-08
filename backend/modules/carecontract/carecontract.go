@@ -16,6 +16,7 @@ package carecontract
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -26,14 +27,21 @@ import (
 // acceptance, #4680, or with the signature, #4679) reaches StatusActive;
 // a withdrawal or termination (#4682, notice.go) moves it further.
 const (
-	StatusDraft  = "entwurf"
-	StatusSent   = "versendet"
-	StatusSigned = "unterschrieben"
-	StatusActive = "aktiv"
-	StatusEnded  = "beendet"
+	StatusDraft      = "entwurf"
+	StatusSent       = "versendet"
+	StatusActive     = "aktiv"
+	StatusTerminated = "gekuendigt"
+	StatusWithdrawn  = "widerrufen"
+	StatusEnded      = "beendet"
 )
 
-// StatusTerminated and StatusWithdrawn (notice.go, #4682) follow aktiv.
+// JoinNames lists names as the contract and its mails write them: "A, B und C".
+func JoinNames(names []string) string {
+	if len(names) <= 1 {
+		return strings.Join(names, "")
+	}
+	return strings.Join(names[:len(names)-1], ", ") + " und " + names[len(names)-1]
+}
 
 // The states of a version (ADR 0088 section 2). A draft's version waits as
 // VersionRequested until a later step makes it effective.
@@ -47,7 +55,6 @@ const (
 	VersionReplaced = "ersetzt"
 )
 
-// The term of a contract template.
 const (
 	TermOpenEnded   = "open_ended"
 	TermSchoolYear  = "school_year"
@@ -68,50 +75,51 @@ const (
 	MailRelatedContract = "care_contract"
 )
 
-// InboxKindContract is the kind of a contract in the parents' inbox.
-const InboxKindContract = "care_contract"
-
 var (
 	// ErrContractNotFound reports a contract that is not one of the Träger.
 	ErrContractNotFound = errors.New("care contract not found")
 	// ErrApplicationNotFound reports an application child that is unknown,
 	// not accepted, or books no care offering at a school of the Träger.
-	ErrApplicationNotFound = errors.New("accepted application not found")
-	// ErrSchoolOutsideTraeger reports a school of another Träger.
+	ErrApplicationNotFound  = errors.New("accepted application not found")
 	ErrSchoolOutsideTraeger = errors.New("the school does not belong to the Träger")
-	// ErrOfferingNotFound reports an offering the school does not have.
-	ErrOfferingNotFound = errors.New("care offering not found")
-	// ErrContractExists reports an application child that has a contract
-	// already.
-	ErrContractExists = errors.New("the application has a contract")
-	// ErrContractNotDraft reports a write that only a draft allows.
-	ErrContractNotDraft = errors.New("the contract is no draft")
+	ErrOfferingNotFound     = errors.New("care offering not found")
+	ErrContractExists       = errors.New("the application has a contract")
+	ErrContractNotDraft     = errors.New("the contract is no draft")
 	// ErrContractNotSendable reports a contract that cannot be sent
 	// (signed, ended, or active without its frozen document).
 	ErrContractNotSendable = errors.New("the contract can no longer be sent")
-	// ErrRecipientMissing reports a party without an address.
-	ErrRecipientMissing = errors.New("the contract party has no e-mail address")
-	// ErrMailPending reports a send while the last mail still waits.
-	ErrMailPending = errors.New("the last mail of the contract still waits")
+	ErrRecipientMissing    = errors.New("the contract party has no e-mail address")
+	ErrMailPending         = errors.New("the last mail of the contract still waits")
 	// ErrMailDelayed reports a send while the server still tries the last mail.
 	ErrMailDelayed = errors.New("the last mail of the contract is delayed")
 	// ErrMailBlocked reports a send a stop, a list or the provider would hold back.
-	ErrMailBlocked = errors.New("a mail to this address would stay back")
-	// ErrMailBlockUnreadable reports a block moto could not read just now.
+	ErrMailBlocked         = errors.New("a mail to this address would stay back")
 	ErrMailBlockUnreadable = errors.New("the mail provider's block could not be read")
 	// ErrLetterheadTooLong reports a letterhead or footer that leaves too
 	// little room for the contract.
-	ErrLetterheadTooLong = errors.New("the letterhead leaves too little room for the contract")
-	// ErrInboxDocumentNotFound reports a contract outside the reader's inbox.
+	ErrLetterheadTooLong     = errors.New("the letterhead leaves too little room for the contract")
 	ErrInboxDocumentNotFound = errors.New("contract not found in the inbox")
 )
 
-// ValidationError names the refused fields of an input.
+// ValidationError marks every refused input with its reason. Selection says
+// that the refusal concerns which or how many entries were chosen (count,
+// page size) rather than values the user typed into fields.
 type ValidationError struct {
-	Fields map[string]string
+	Fields    map[string]string
+	Selection bool
 }
 
-func (e *ValidationError) Error() string { return "the contract template is invalid" }
+// InvalidSelection refuses which or how many entries were chosen.
+func InvalidSelection(field, reason string) *ValidationError {
+	return &ValidationError{Fields: map[string]string{field: reason}, Selection: true}
+}
+
+func (e *ValidationError) Error() string {
+	if e.Selection {
+		return "the selection is invalid"
+	}
+	return "the input is invalid"
+}
 
 // Reviewer is the account of the Träger-Büro that acts, with its Träger.
 type Reviewer struct {
@@ -159,6 +167,10 @@ type OfferingTemplate struct {
 	// (#4682); empty like AcceptanceText.
 	WithdrawalText string `json:"withdrawal_text"`
 	EarlyStartText string `json:"early_start_text"`
+	// TermText and NoticeText are the term and the notice period as the
+	// contract PDF prints them; empty without a template.
+	TermText   string `json:"term_text"`
+	NoticeText string `json:"notice_text"`
 }
 
 // CandidateKey names one accepted application child.
@@ -202,6 +214,8 @@ type Candidate struct {
 	Services        []Service     `json:"services"`
 	EffectiveFrom   calendar.Date `json:"effective_from"`
 	TemplateIssue   string        `json:"template_issue"`
+	// ModulesText names the booked modules as the contract does.
+	ModulesText string `json:"modules_text"`
 	// MailBlock names, for a child the conclusion at the acceptance (Weg b)
 	// could conclude, why the mail to the parents' address would stay back
 	// now (#4680): MailBlockStopped or MailBlockAddress. The contract then
@@ -235,7 +249,6 @@ const (
 	SkipAcceptanceChanged   = "acceptance_changed"
 )
 
-// ContractFilter selects the contracts of the list.
 type ContractFilter struct {
 	Status   string
 	SchoolID int64
@@ -244,20 +257,21 @@ type ContractFilter struct {
 	Limit    int
 }
 
-// ContractSummary is one contract in the list.
 type ContractSummary struct {
-	ID             int64         `json:"id"`
-	Status         string        `json:"status"`
-	SchoolID       int64         `json:"school_id"`
-	SchoolName     string        `json:"school_name"`
-	ChildFirstName string        `json:"child_first_name"`
-	ChildLastName  string        `json:"child_last_name"`
-	ModuleNames    []string      `json:"module_names"`
-	PartyName      string        `json:"party_name"`
-	PartyEmail     string        `json:"party_email"`
-	EffectiveFrom  calendar.Date `json:"effective_from"`
-	CreatedAt      time.Time     `json:"created_at"`
-	SentAt         *time.Time    `json:"sent_at"`
+	ID             int64    `json:"id"`
+	Status         string   `json:"status"`
+	SchoolID       int64    `json:"school_id"`
+	SchoolName     string   `json:"school_name"`
+	ChildFirstName string   `json:"child_first_name"`
+	ChildLastName  string   `json:"child_last_name"`
+	ModuleNames    []string `json:"module_names"`
+	// ModulesText names the modules as the contract does: "A, B und C".
+	ModulesText   string        `json:"modules_text"`
+	PartyName     string        `json:"party_name"`
+	PartyEmail    string        `json:"party_email"`
+	EffectiveFrom calendar.Date `json:"effective_from"`
+	CreatedAt     time.Time     `json:"created_at"`
+	SentAt        *time.Time    `json:"sent_at"`
 	// Concluded is how and when the contract was concluded; nil before.
 	Concluded *Concluded `json:"concluded"`
 	// EndsOn is the last day of a terminated contract (#4682); nil
@@ -303,7 +317,6 @@ type Version struct {
 	ValidUntil *calendar.Date `json:"valid_until"`
 }
 
-// Party is a party to the contract.
 type Party struct {
 	FirstName  string `json:"first_name"`
 	LastName   string `json:"last_name"`
@@ -342,7 +355,6 @@ const (
 	MailBlockUnreadable = "provider_unknown"
 )
 
-// ContractDetail is one contract with its version, parties and sends.
 type ContractDetail struct {
 	ContractSummary
 	Version  Version   `json:"version"`
@@ -358,6 +370,11 @@ type ContractDetail struct {
 	// Versions are all versions of the contract, oldest first (#4681). The
 	// version above is the one in force today, else the next one.
 	Versions []Version `json:"versions"`
+	// The term up to the contract's last day, the notice period and the
+	// monthly fee of the version above, as the contract PDF prints them.
+	TermText   string `json:"term_text"`
+	NoticeText string `json:"notice_text"`
+	FeeText    string `json:"fee_text"`
 }
 
 // File is a rendered PDF.
@@ -369,19 +386,16 @@ type File struct {
 	Data             []byte
 }
 
-// SendResult answers a send of several contracts.
 type SendResult struct {
 	Sent    []int64    `json:"sent"`
 	Skipped []SendSkip `json:"skipped"`
 }
 
-// SendSkip is a contract the send left out, with its reason.
 type SendSkip struct {
 	ID     int64  `json:"id"`
 	Reason string `json:"reason"`
 }
 
-// The reasons of a SendSkip.
 const (
 	SkipRecipientMissing    = "recipient_missing"
 	SkipPartnerMissing      = "partner_missing"
@@ -401,7 +415,6 @@ const (
 type Contracts interface {
 	// ListContracts lists the contracts of the filter, newest first.
 	ListContracts(ctx context.Context, reviewer Reviewer, filter ContractFilter) (ContractList, error)
-	// Contract reads one contract.
 	Contract(ctx context.Context, reviewer Reviewer, contractID int64) (ContractDetail, error)
 	// ContractDocument answers the PDF: the stored one once sent, before
 	// that a preview with the current template, which stores nothing.
@@ -459,12 +472,13 @@ type InboxContract struct {
 	ID          int64         `json:"id"`
 	ChildNames  []string      `json:"child_names"`
 	ModuleNames []string      `json:"module_names"`
+	ModulesText string        `json:"modules_text"`
 	SchoolName  string        `json:"school_name"`
 	SentAt      time.Time     `json:"sent_at"`
 	EffectiveOn calendar.Date `json:"effective_on"`
+	CanSign     bool          `json:"can_sign"`
 	// Status and SignedAt tell the parents whether the contract waits for
 	// their signature (#4679).
-	CanSign  bool       `json:"can_sign"`
 	Status   string     `json:"status"`
 	SignedAt *time.Time `json:"signed_at"`
 	// Replaced tells that a change on the first day of the sent version
@@ -549,5 +563,4 @@ type ContractMailContent struct {
 	Concluded        bool
 }
 
-// ContractMailRenderer renders the payload of a claimed contract mail.
 type ContractMailRenderer func(ctx context.Context, payload []byte) (RenderedContractMail, error)

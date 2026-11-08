@@ -27,7 +27,7 @@ import (
 // the result.
 func NewCalendarFacts(
 	staff calendarStaffRows, students calendarStudentRows, guardians calendarCompose.GuardianDirectory,
-	relationships calendarRelationshipRows, children ParentChildLinkSource, groups EducationGroupRows,
+	children ParentChildLinkSource, groups EducationGroupRows,
 ) calendarCompose.Config {
 	cfg := calendarCompose.Config{}
 	if staff != nil {
@@ -38,9 +38,6 @@ func NewCalendarFacts(
 	}
 	if guardians != nil {
 		cfg.GuardianProfileRepo = guardians
-	}
-	if relationships != nil {
-		cfg.StudentGuardianRepo = calendarRelationshipPort{source: relationships}
 	}
 	if children != nil {
 		cfg.ChildRepo = calendarChildPort{source: children}
@@ -243,24 +240,9 @@ func (p calendarGuardianPort) FindActivePortalProfilesByIDs(ctx context.Context,
 	return calendarMapByID(value, calendarGuardian), err
 }
 
-type calendarRelationshipPort struct {
-	source calendarRelationshipRows
-}
-
-// calendarRelationshipRows and calendarPersonRows are the guardian links
-// and the persons the calendar reads.
-type (
-	calendarRelationshipRows interface {
-		FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*peopledirectory.GuardianRelationshipSnapshot, error)
-	}
-	calendarPersonRows interface {
-		FindByAccountID(ctx context.Context, accountID int64) (*peopledirectory.DirectoryPersonSnapshot, error)
-	}
-)
-
-func (p calendarRelationshipPort) FindByGuardianProfileID(ctx context.Context, id int64) ([]*calendarCompose.StudentGuardian, error) {
-	value, err := p.source.FindByGuardianProfileID(ctx, id)
-	return CalendarMapSlice(value, calendarRelationship), err
+// calendarPersonRows are the persons the calendar reads.
+type calendarPersonRows interface {
+	FindByAccountID(ctx context.Context, accountID int64) (*peopledirectory.DirectoryPersonSnapshot, error)
 }
 
 type calendarPersonPort struct {
@@ -392,13 +374,6 @@ func calendarGuardian(value *peopledirectory.GuardianProfileSnapshot) *calendarC
 		return nil
 	}
 	return &calendarCompose.GuardianProfile{ID: value.ID, AccountID: value.AccountID, Email: value.Email, FirstName: value.FirstName, LastName: value.LastName, PortalLocale: value.PortalLocale}
-}
-
-func calendarRelationship(value *peopledirectory.GuardianRelationshipSnapshot) *calendarCompose.StudentGuardian {
-	if value == nil {
-		return nil
-	}
-	return &calendarCompose.StudentGuardian{GuardianProfileID: value.GuardianProfileID, StudentID: value.StudentID, PortalAccess: securityruntime.GuardianPermissionGrantedJSON(value.Permissions, peopledirectory.GuardianPermissionPortalAccess)}
 }
 
 func calendarAccount(value identityaccess.ParentCalendarFeedAccount) *calendarCompose.Account {

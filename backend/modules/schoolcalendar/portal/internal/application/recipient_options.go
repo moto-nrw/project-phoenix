@@ -117,23 +117,48 @@ func (s *service) parentRecipientOptions(ctx context.Context, query recipientQue
 	if err != nil {
 		return nil, err
 	}
+	visible, err := s.guardiansWithPortalVisibleStudent(ctx, parents, activeParents)
+	if err != nil {
+		return nil, err
+	}
 	parentOptions := make([]ParentOption, 0, min(limit, len(parents)))
 	for _, parent := range parents {
 		if len(parentOptions) >= limit {
 			break
 		}
-		if _, ok := activeParents[parent.ID]; !ok {
-			continue
-		}
-		visible, err := s.guardianHasPortalVisibleStudent(ctx, parent.ID)
-		if err != nil {
-			return nil, err
-		}
-		if visible {
+		if _, ok := activeParents[parent.ID]; ok && visible[parent.ID] {
 			parentOptions = append(parentOptions, ParentOption{ID: formatID(parent.ID), Name: guardianName(parent)})
 		}
 	}
 	return parentOptions, nil
+}
+
+// guardiansWithPortalVisibleStudent names the active candidates holding
+// parent_portal.access on at least one child relationship. One portal-contact
+// read answers all of them (#5784, decision E2: an early shared read may
+// replace the former per-parent READ COMMITTED reads; the picker takes no
+// lock, and creating the appointment resolves its targets afresh).
+func (s *service) guardiansWithPortalVisibleStudent(ctx context.Context, parents []*ports.GuardianProfile, active map[int64]*ports.GuardianProfile) (map[int64]bool, error) {
+	ids := make([]int64, 0, len(active))
+	for _, parent := range parents {
+		if _, ok := active[parent.ID]; ok {
+			ids = append(ids, parent.ID)
+		}
+	}
+	visible := make(map[int64]bool, len(ids))
+	if len(ids) == 0 {
+		return visible, nil
+	}
+	contacts, err := s.cfg.GuardianProfileRepo.ListPortalContacts(ctx, ids, nil)
+	if err != nil {
+		return nil, err
+	}
+	for _, contact := range contacts {
+		if contact.Relationship != nil && contact.Relationship.PortalAccess {
+			visible[contact.Profile.ID] = true
+		}
+	}
+	return visible, nil
 }
 
 func (s *service) groupRecipientOptions(ctx context.Context, query string, limit int) ([]GroupOption, error) {
@@ -197,19 +222,6 @@ func (s *service) studentRecipientOptions(ctx context.Context, query string, lim
 		}
 	}
 	return studentOptions, nil
-}
-
-func (s *service) guardianHasPortalVisibleStudent(ctx context.Context, guardianProfileID int64) (bool, error) {
-	links, err := s.cfg.StudentGuardianRepo.FindByGuardianProfileID(ctx, guardianProfileID)
-	if err != nil {
-		return false, err
-	}
-	for _, link := range links {
-		if link.PortalAccess {
-			return true, nil
-		}
-	}
-	return false, nil
 }
 
 func staffName(staff *ports.Staff) string {

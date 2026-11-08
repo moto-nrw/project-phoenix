@@ -47,6 +47,7 @@ func (s *OfferingChanges) PreviewDecision(
 		return nil, fmt.Errorf("offering change: resolve booking authority for preview: %w", err)
 	}
 	return &careplan.OfferingChangePreview{
+		Diff:                              diff.entries,
 		Selections:                        offeringPreviewSelections(ids, diff.selected),
 		ManualPlanningConflicts:           conflicts,
 		ArrivalExpectationsFollowBookings: arrivalExpectationsFollowBookings,

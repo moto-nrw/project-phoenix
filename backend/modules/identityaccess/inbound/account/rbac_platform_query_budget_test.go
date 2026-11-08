@@ -61,7 +61,7 @@ func TestRBACPlatformCatalogueDenialsQueryBudget(t *testing.T) {
 	resource := fmt.Sprintf("rbac-platform-%d", f.actor)
 	var addedRoles []identityaccess.Role
 	var addedPermissions []identityaccess.Permission
-	var roleMeasurements, permissionMeasurements [][]string
+	var roleMeasurements, permissionMeasurements []testpkg.QueryMeasurement
 	for _, n := range []int{0, 3, 8} {
 		for len(addedRoles) < n {
 			ctx := testpkg.Ctx(t)
@@ -133,7 +133,7 @@ func TestRBACPlatformCatalogueDenialsQueryBudget(t *testing.T) {
 		for _, absent := range []string{"", "not-a-jwt"} {
 			rr, queries := rbacPlatformGet(t, f, path, absent, operator.ID, family)
 			rbacBudgetUnauthorized(t, rr)
-			require.Empty(t, queries, "missing/invalid tokens must not open even the admin transaction")
+			require.Empty(t, queries.Statements, "missing/invalid tokens must not open even the admin transaction")
 			require.Empty(t, observations)
 		}
 	}
@@ -209,7 +209,7 @@ func rbacPlatformState(t *testing.T, f *rbacBudgetFixture, operatorID int64, fam
 	return state
 }
 
-func rbacPlatformGet(t *testing.T, f *rbacBudgetFixture, path, token string, operatorID int64, family string) (*httptest.ResponseRecorder, []string) {
+func rbacPlatformGet(t *testing.T, f *rbacBudgetFixture, path, token string, operatorID int64, family string) (*httptest.ResponseRecorder, testpkg.QueryMeasurement) {
 	t.Helper()
 	before := rbacPlatformState(t, f, operatorID, family)
 	req := testutil.NewJSONRequest(t, http.MethodGet, path, nil)
@@ -246,7 +246,7 @@ func rbacPlatformGet(t *testing.T, f *rbacBudgetFixture, path, token string, ope
 		require.Empty(t, f.counter.Operation(operation))
 	}
 	require.Zero(t, f.counter.WriteRows())
-	return rr, queries
+	return rr, f.counter.Measurement(queries)
 }
 
 func rbacPlatformDenied(t *testing.T, f *rbacBudgetFixture, rr *httptest.ResponseRecorder, events []api.TenantRequestEventForTests) {

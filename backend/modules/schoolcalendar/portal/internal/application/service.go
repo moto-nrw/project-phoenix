@@ -58,7 +58,6 @@ type Config struct {
 	StaffRepo           ports.StaffDirectory
 	StudentRepo         ports.StudentDirectory
 	GuardianProfileRepo ports.GuardianDirectory
-	StudentGuardianRepo ports.GuardianRelationships
 	ChildRepo           ports.Children
 	// ElternAppBookings keeps the children of schools without the parents'
 	// app out of the parent calendar and its feed; required with ChildRepo.

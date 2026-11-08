@@ -314,30 +314,30 @@ const ROW_ACTION_BASELINE = new Map(
       "aus Zielen entfernen@785",
     ],
     "src/app/[tenant]/(protected)/meal-plan/page.tsx": [
-      "Gericht entfernen@798",
+      "Gericht entfernen@801",
     ],
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
-      "Antwort entfernen@1588",
-      "Entfernen@2033",
+      "Antwort entfernen@1587",
+      "Entfernen@2022",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
-      "Bedingung löschen@2007",
+      "Bedingung löschen@1988",
     ],
     "src/components/enrollment/enrollment-form-editor.tsx": [
       "abweichend bearbeiten@2514",
       "Auswahlzeit entfernen@3438",
     ],
     "src/components/guardians/guardian-form-modal.tsx": [
-      "Entfernen@589",
-      "Telefonnummer entfernen@857",
+      "Entfernen@590",
+      "Telefonnummer entfernen@859",
     ],
     "src/components/staff/shift-edit-modal.tsx": ["Entfernen@1310"],
     "src/components/staff/stammdaten-section-forms.tsx": [
       "Qualifikation entfernen@477",
     ],
-    "src/components/students/companion-picker.tsx": ["entfernen@298"],
+    "src/components/students/companion-picker.tsx": ["entfernen@297"],
     "src/components/students/student-create-modal.tsx": [
-      "Erziehungsberechtigte/n entfernen@802",
+      "Erziehungsberechtigte/n entfernen@804",
     ],
     "src/components/timetable/substitution-slide-over.tsx": [
       "Rückgängig Entfernen@810",
@@ -1465,8 +1465,8 @@ const FORM_CONTEXT_EXCEPTIONS = new Map(
   Object.entries({
     // Übergabe einer Gruppe: Erklärung und die Gruppe, um die es geht.
     "src/components/groups/group-transfer-modal.tsx": [
-      "InfoSection@222",
-      "DataGrid@236",
+      "InfoSection@223",
+      "DataGrid@237",
     ],
   }),
 );
@@ -1575,7 +1575,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
     // seinen eigenen Fuß (BAUARTEN-SPEC Bauart 2 Regel 4, #3115); die Anzeige
     // liegt auf der Route `parent-announcements/[id]`.
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
-      "Umfrage bearbeiten Neue Umfrage Elternbrief bearbeiten Neuer Elternbrief Einverständnis bearbeiten Neues Einverständnis Elternmitteilung bearbeiten Neue Elternmitteilung@1492",
+      "Umfrage bearbeiten Neue Umfrage Elternbrief bearbeiten Neuer Elternbrief Einverständnis bearbeiten Neues Einverständnis Elternmitteilung bearbeiten Neue Elternmitteilung@1493",
     ],
     // Einträge ohne eigene Objektansicht (Termin, Schließtag,
     // Kalenderzeitraum, Jahrgangswechsel, Klassenlisteneintrag,
@@ -1586,7 +1586,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Termin bearbeiten Termin erstellen@1065",
     ],
     "src/app/[tenant]/(protected)/database/students/class-list/page.tsx": [
-      "edit Eintrag bearbeiten Klassenlisteneintrag anlegen@603",
+      "edit Eintrag bearbeiten Klassenlisteneintrag anlegen@604",
     ],
     // Seit #5604 gilt die Regel im Schul- und Operator-Portal. Diese Formulare
     // haben keine eigene Objektroute; ein Umbau geht über das Seitengerüst
@@ -1598,7 +1598,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Träger bearbeiten@83",
     ],
     "src/app/operator/provisioning/edit-school-modal.tsx": [
-      "Schule bearbeiten@157",
+      "Schule bearbeiten@158",
     ],
     "src/app/school/kalender/page.tsx": [
       "Schultermin anlegen Schultermin bearbeiten@326",
@@ -1607,10 +1607,10 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Schuljahreswechsel bearbeiten Neuer Schuljahreswechsel@268",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
-      "Betreuungsangebot duplizieren new Neues Betreuungsangebot Betreuungsangebot bearbeiten@998",
+      "Betreuungsangebot duplizieren new Neues Betreuungsangebot Betreuungsangebot bearbeiten@975",
     ],
     "src/components/enrollment/phases-editor.tsx": [
-      "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@952",
+      "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@953",
     ],
     "src/components/files/folder-modal.tsx": [
       "Ordner bearbeiten Neuer Ordner@147",
@@ -1629,7 +1629,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
     // Betreuung): keine Feldgruppe des Datensatzes, aus dem Kebab der
     // Personalakte geöffnet (#3116).
     "src/components/auth/mfa-admin-override-modal.tsx": [
-      "Zwei-Faktor-Authentifizierung verwalten@386",
+      "Zwei-Faktor-Authentifizierung verwalten@387",
     ],
     "src/components/teachers/caregiver-capability-modal.tsx": [
       "resolve Zuordnungen auflösen: Betreuung verwalten:@334",

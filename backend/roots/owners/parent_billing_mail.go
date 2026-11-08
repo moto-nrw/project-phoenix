@@ -74,7 +74,7 @@ func careContractNoticeMailRenderer(render carecontract.NoticeMailRenderer, defa
 			Subject: mail.Subject, Template: mail.Template,
 			Content: map[string]any{
 				"GuardianName": mail.GuardianName, "SchoolName": mail.TraegerName,
-				"Withdrawal": mail.Withdrawal, "Paragraphs": mail.Paragraphs,
+				"Withdrawal": mail.Withdrawal, "Heading": mail.Heading, "Paragraphs": mail.Paragraphs,
 			},
 		}, nil
 	})

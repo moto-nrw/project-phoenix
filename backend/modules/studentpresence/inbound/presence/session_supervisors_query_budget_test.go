@@ -73,7 +73,7 @@ func TestSessionSupervisorsQueryBudget(t *testing.T) {
 	require.NoError(t, db.NewRaw("SELECT nextval(pg_get_serial_sequence('active.groups', 'id'))").Scan(ctx, &missingGroupID))
 	counter := testpkg.CaptureQueriesForContext(t, db)
 	counter.Stop()
-	request := func(groupID, accountID, schoolID int64, label string, status int) ([]byte, []string) {
+	request := func(groupID, accountID, schoolID int64, label string, status int) ([]byte, testpkg.QueryMeasurement) {
 		t.Helper()
 		path := fmt.Sprintf("/active/groups/%d/supervisors", groupID)
 		claims := testutil.AdminTestClaimsForTenant(int(accountID), schoolID)
@@ -81,7 +81,7 @@ func TestSessionSupervisorsQueryBudget(t *testing.T) {
 		counter.Start()
 		req := testutil.NewRequest("GET", path, nil)
 		req = req.WithContext(counter.Context(req.Context()))
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, claims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, testpkg.MountedQueryBudgetRouter("/api", router), req, claims, []string{permissions.GroupsRead})
 		counter.Stop()
 		queries := counter.Queries()
 		rawSQL, marshalErr := json.Marshal(queries)
@@ -92,7 +92,7 @@ func TestSessionSupervisorsQueryBudget(t *testing.T) {
 		for _, operation := range []string{"INSERT", "UPDATE", "DELETE", "MERGE"} {
 			require.Empty(t, counter.Operation(operation))
 		}
-		return rr.Body.Bytes(), queries
+		return rr.Body.Bytes(), counter.Measurement(queries)
 	}
 	assertRows := func(body []byte, want []*testpkg.GroupSupervisorRow) {
 		t.Helper()
@@ -138,7 +138,7 @@ func TestSessionSupervisorsQueryBudget(t *testing.T) {
 	}
 	type sample struct {
 		size    int
-		queries []string
+		queries testpkg.QueryMeasurement
 	}
 	var samples []sample
 	want := make([]*testpkg.GroupSupervisorRow, 0, 8)
@@ -155,7 +155,7 @@ func TestSessionSupervisorsQueryBudget(t *testing.T) {
 		samples = append(samples, sample{size, queries})
 	}
 	require.Len(t, samples, 3)
-	require.Equal(t, len(samples[1].queries), len(samples[2].queries), "N3 to N8 must not add per-supervision reads")
+	require.Equal(t, len(samples[1].queries.Statements), len(samples[2].queries.Statements), "N3 to N8 must not add per-supervision reads")
 	body, _ := request(endedGroup.ID, account.ID, tenantID, "ended_own_parent", testutil.StatusOK)
 	assertRows(body, []*testpkg.GroupSupervisorRow{endedParentRow})
 	for _, control := range []struct {
