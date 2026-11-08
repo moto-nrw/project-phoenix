@@ -4,7 +4,8 @@
 // Bankverbindungen (#4653) sieht jede Rolle mit „Übersicht lesen“, ändern darf
 // sie, wer „Einstellungen“ hat. Rechnungsnummern der Ferien (#4668) und der
 // Monatsbeiträge (#4684), Ermäßigungen (#4664), Kostenträger (#5627) und
-// Zahlung und Rechnungen je Leistung (#4689) gehören zum Recht „Abrechnung“.
+// Zahlung und Rechnungen je Leistung (#4689) und die Lastschrift mit
+// Gläubiger-ID (#4695) gehören zum Recht „Abrechnung“.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
@@ -13,6 +14,7 @@ import { ContributionRulesCard } from "~/components/traeger/contribution-rules-c
 import { CostBearersCard } from "~/components/traeger/cost-bearers-card";
 import { metadataLoadError } from "~/components/traeger/metadata-load-error";
 import { NumberRangeCard } from "~/components/traeger/number-range-card";
+import { SepaCreditorCard } from "~/components/traeger/sepa-creditor-card";
 import { TraegerBankAccountsCard } from "~/components/traeger/traeger-bank-accounts-card";
 import { useTraegerMasterData } from "~/components/traeger/use-traeger-master-data";
 import { Alert } from "~/components/ui/alert";
@@ -35,6 +37,7 @@ import {
   fetchContributionRules,
   fetchCostBearers,
 } from "~/lib/traeger-contributions-api";
+import { type SepaCreditor, fetchSepaCreditor } from "~/lib/traeger-sepa-api";
 
 const logger = createLogger({ component: "TraegerAbrechnungsvorgabenPage" });
 
@@ -51,6 +54,7 @@ interface BillingDefaults {
   readonly numberRange: NumberRange;
   readonly careNumberRange: NumberRange;
   readonly terms: BillingTerms;
+  readonly creditor: SepaCreditor;
 }
 
 function useBillingDefaults(enabled: boolean) {
@@ -65,16 +69,24 @@ function useBillingDefaults(enabled: boolean) {
     if (!enabledRef.current) return;
     const generation = ++loadGeneration.current;
     try {
-      const [rules, bearers, numberRange, careNumberRange, terms] =
+      const [rules, bearers, numberRange, careNumberRange, terms, creditor] =
         await Promise.all([
           fetchContributionRules(),
           fetchCostBearers(),
           fetchHolidayNumberRange(),
           fetchCareNumberRange(),
           fetchBillingTerms(),
+          fetchSepaCreditor(),
         ]);
       if (!enabledRef.current || generation !== loadGeneration.current) return;
-      setData({ rules, bearers, numberRange, careNumberRange, terms });
+      setData({
+        rules,
+        bearers,
+        numberRange,
+        careNumberRange,
+        terms,
+        creditor,
+      });
       setFailure(undefined);
       clearLoadError();
     } catch (err) {
@@ -155,6 +167,10 @@ export default function TraegerAbrechnungsvorgabenPage() {
         <>
           <BillingTermsCard
             data={billing.data.terms}
+            onChanged={billing.load}
+          />
+          <SepaCreditorCard
+            creditor={billing.data.creditor}
             onChanged={billing.load}
           />
           <NumberRangeCard

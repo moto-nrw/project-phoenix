@@ -114,6 +114,24 @@ func NewBillingRuns(store RunStore, registrations parentbilling.HolidayBillingRe
 		kinds: newDocumentKindGate(store, templates), today: today}
 }
 
+// checkRelease refuses a release of nothing, of a preview that changed since
+// the review, and one that would issue a direct debit without a mandate while
+// the Träger holds such releases back (ADR 0171).
+func checkRelease(current preview, release parentbilling.BillingRelease) error {
+	if len(current.documents) == 0 {
+		return parentbilling.ErrBillingRunEmpty
+	}
+	if len(current.documents) != release.DocumentCount || current.total() != release.TotalCents {
+		return parentbilling.ErrBillingRunChanged
+	}
+	if slices.ContainsFunc(current.documents, func(document parentbilling.BillingDocument) bool {
+		return debitBlocked(document.TotalCents, document.Payment)
+	}) {
+		return parentbilling.ErrDirectDebitWithoutMandate
+	}
+	return nil
+}
+
 func validReviewer(reviewer parentbilling.HolidayReviewer) error {
 	if reviewer.OrganizationID <= 0 || reviewer.AccountID <= 0 {
 		return errTraegerRequired
@@ -268,11 +286,8 @@ func (b *BillingRuns) ReleaseBillingRun(ctx context.Context, reviewer parentbill
 	if err != nil {
 		return parentbilling.BillingRunDetail{}, err
 	}
-	if len(current.documents) == 0 {
-		return parentbilling.BillingRunDetail{}, parentbilling.ErrBillingRunEmpty
-	}
-	if len(current.documents) != release.DocumentCount || current.total() != release.TotalCents {
-		return parentbilling.BillingRunDetail{}, parentbilling.ErrBillingRunChanged
+	if err := checkRelease(current, release); err != nil {
+		return parentbilling.BillingRunDetail{}, err
 	}
 	documentKind, err := b.releasedKind(ctx, reviewer.OrganizationID, run.Service, release)
 	if err != nil {
@@ -453,6 +468,9 @@ func (b *BillingRuns) preview(ctx context.Context, reviewer parentbilling.Holida
 	}
 	result.dueDates = payments.run
 	if err := recordDeviationReads(ctx, b.store, reviewer, payments.deviationsRead()); err != nil {
+		return preview{}, err
+	}
+	if err := recordMandateReads(ctx, b.store, reviewer, payments.mandatesRead()); err != nil {
 		return preview{}, err
 	}
 	return result, nil

@@ -6,6 +6,7 @@
 // behält sein PDF und lässt sich erneut senden. Ein abgeschlossener Vertrag
 // (#4680) zeigt, wann und wie er zustande kam; erneut senden lässt er sich mit demselben PDF.
 
+import { SepaMandateStatusCard } from "~/components/traeger/sepa-mandate-status-card";
 import { Download, RotateCw, Send, Trash2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -470,6 +471,9 @@ export default function TraegerVertragPage() {
                   </p>
                 )}
               </SectionCard>
+              {party?.email ? (
+                <SepaMandateStatusCard contractId={contract.id} />
+              ) : null}
               <SectionCard
                 title="Versand"
                 description={

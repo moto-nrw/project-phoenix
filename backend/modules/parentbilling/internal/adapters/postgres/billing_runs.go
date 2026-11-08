@@ -134,6 +134,13 @@ type documentRow struct {
 	PaymentMethod       *string        `bun:"payment_method"`
 	DueOn               *calendar.Date `bun:"due_on,type:date"`
 	DueSource           *string        `bun:"due_source"`
+	MandateID           *int64         `bun:"mandate_id"`
+	MandateReference    *string        `bun:"mandate_reference"`
+	MandateSignedOn     *calendar.Date `bun:"mandate_signed_on,type:date"`
+	CreditorID          *string        `bun:"creditor_id"`
+	DebtorIBANMasked    *string        `bun:"debtor_iban_masked"`
+	SequenceType        *string        `bun:"sequence_type"`
+	DebitGap            *string        `bun:"debit_gap"`
 }
 
 type documentPositionRow struct {
@@ -596,7 +603,7 @@ func (s *Store) selectDocuments(ctx context.Context, organizationID int64, where
 		}
 		documents[i].FamilyEmail = textOf(row.FamilyEmail)
 		documents[i].RecipientKind, documents[i].RecipientSecondName = textOf(row.RecipientKind), textOf(row.RecipientSecondName)
-		documents[i].Payment = paymentOf(row.PaymentMethod, row.DueOn, row.DueSource)
+		documents[i].Payment = row.snapshot().payment()
 	}
 	return documents, nil
 }
@@ -629,7 +636,7 @@ func issuedDocumentRow(organizationID int64, run parentbilling.BillingRun, year 
 	}
 	row.FamilyEmail, row.RecipientKind = textRef(document.FamilyEmail), textRef(document.RecipientKind)
 	row.RecipientSecondName = textRef(document.RecipientSecondName)
-	row.PaymentMethod, row.DueOn, row.DueSource = paymentColumns(document.Payment)
+	row.setPayment(snapshotOf(document.Payment))
 	return row
 }
 
@@ -695,4 +702,18 @@ func constraintOf(err error) string {
 		return pgErr.Field('n')
 	}
 	return ""
+}
+
+// snapshot is the copied payment of the row (#4689, #4695).
+func (r documentRow) snapshot() paymentSnapshot {
+	return paymentSnapshot{PaymentMethod: r.PaymentMethod, DueOn: r.DueOn, DueSource: r.DueSource, MandateID: r.MandateID,
+		MandateReference: r.MandateReference, MandateSignedOn: r.MandateSignedOn, CreditorID: r.CreditorID,
+		DebtorIBANMasked: r.DebtorIBANMasked, SequenceType: r.SequenceType, DebitGap: r.DebitGap}
+}
+
+// setPayment copies a payment onto the row.
+func (r *documentRow) setPayment(s paymentSnapshot) {
+	r.PaymentMethod, r.DueOn, r.DueSource, r.MandateID = s.PaymentMethod, s.DueOn, s.DueSource, s.MandateID
+	r.MandateReference, r.MandateSignedOn, r.CreditorID = s.MandateReference, s.MandateSignedOn, s.CreditorID
+	r.DebtorIBANMasked, r.SequenceType, r.DebitGap = s.DebtorIBANMasked, s.SequenceType, s.DebitGap
 }
