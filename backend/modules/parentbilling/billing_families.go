@@ -97,6 +97,12 @@ type BillingFamily struct {
 // The recipient, the family key and the facts behind the payment come from
 // the store; the family shows the recipient once and never sends the rest.
 type BillingFamilyDocument struct {
+	// Service is the holiday care ("holiday") or the monthly care ("care",
+	// #4689); the run of a document is a run of its service.
+	Service string `json:"service"`
+	// RecipientKind and RecipientSecondName say who got the invoice (#4689).
+	RecipientKind       string          `json:"recipient_kind"`
+	RecipientSecondName string          `json:"recipient_second_name"`
 	ID                  int64           `json:"id"`
 	RunID               int64           `json:"run_id"`
 	Kind                string          `json:"kind"`

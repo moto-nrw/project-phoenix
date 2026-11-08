@@ -48,6 +48,8 @@ export interface BillingFamily extends BillingAmounts {
 
 export interface BillingFamilyDocument {
   readonly id: string;
+  /** Holiday care or monthly care (#4689); the run belongs to it. */
+  readonly service: "holiday" | "care";
   readonly runId: string;
   readonly kind: BillingDocumentKind;
   readonly number: string;
@@ -101,6 +103,7 @@ interface BackendFamily {
 
 interface BackendFamilyDocument {
   id: number;
+  service?: string;
   run_id: number;
   kind: BillingDocumentKind;
   number: string;
@@ -153,6 +156,7 @@ function documentFromBackend(
 ): BillingFamilyDocument {
   return {
     id: String(document.id),
+    service: document.service === "care" ? "care" : "holiday",
     runId: String(document.run_id),
     kind: document.kind,
     number: document.number,

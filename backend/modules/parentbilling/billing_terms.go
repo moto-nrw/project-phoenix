@@ -140,16 +140,6 @@ func (s TermsSet) Of(service string) ServiceTerms {
 	return DefaultServiceTerms(service)
 }
 
-// InvoiceService answers the service whose invoice carries the positions of
-// service: itself unless it is bundled. The lunch of #4686 asks it to know
-// whether its positions join the care invoice.
-func (s TermsSet) InvoiceService(service string) string {
-	if lead := s.Of(service).BundleWith; lead != "" {
-		return lead
-	}
-	return service
-}
-
 // FamilyBilling is the deviation of one family. FamilyEmail is the key, the
 // mail address of the registration. PaymentMethod empty and DueDay nil keep
 // the terms of the service and the date of the run.

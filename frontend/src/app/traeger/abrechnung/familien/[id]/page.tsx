@@ -277,12 +277,14 @@ export default function TraegerBillingFamilyPage() {
             <DataTable
               columns={COLUMNS}
               rows={[...family.documents]}
-              getRowKey={(document) => document.id}
+              getRowKey={(document) => `${document.service}-${document.id}`}
               stackedOnMobile
               onRowClick={(document) =>
                 router.push(
                   traegerPath(
-                    `/traeger/abrechnung/${encodeURIComponent(document.runId)}`,
+                    document.service === "care"
+                      ? `/traeger/abrechnung/monatsbeitraege/${encodeURIComponent(document.runId)}`
+                      : `/traeger/abrechnung/${encodeURIComponent(document.runId)}`,
                   ),
                 )
               }

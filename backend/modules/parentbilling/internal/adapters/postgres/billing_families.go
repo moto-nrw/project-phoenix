@@ -2,6 +2,8 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -16,14 +18,20 @@ import (
 // positions are parentbilling.LineCostTakeover and LineBenefitsExemption.
 
 // familyDocumentsSQL reads the issued documents of the Träger, the oldest
-// first, with the period of their run, the first names of their children,
-// the cost bearers their positions name and whether the exemption freed
-// them. The second filter keeps the documents of one family: the family of
-// the document with the given ID, or every family when that ID is zero.
-const familyDocumentsSQL = `SELECT document.id, document.run_id, document.kind, document.number, document.issued_on,
-		run.period_name, document.service_from, document.service_until, document.reference_document_id,
+// first: the holiday invoices with their cancellations and credits and,
+// since #4689, the monthly invoices with their Storno (service "care"). It
+// reads the period of a holiday run, the first names of the children, the
+// cost bearers the positions name and whether the exemption freed them. The
+// last filter keeps the documents of one family: the family of the invoice
+// the anchor names (a holiday document by its ID, a monthly invoice by its
+// negated ID), or every family when the anchor is zero.
+const familyDocumentsSQL = `WITH family_rows AS (
+	SELECT 'holiday' AS service, document.id, document.run_id, document.kind, document.number, document.issued_on,
+		document.issued_at, run.period_name, document.service_from, document.service_until, document.reference_document_id,
 		reference.number AS reference_number, document.reason, document.recipient_first_name, document.recipient_last_name,
-		document.recipient_email, document.debtor_number, document.total_cents, COALESCE(document.family_email, reference.family_email, LOWER(document.recipient_email)) AS family_key,
+		document.recipient_email, document.recipient_kind, document.recipient_second_name, document.debtor_number,
+		document.total_cents,
+		COALESCE(document.family_email, reference.family_email, LOWER(document.recipient_email)) AS family_key,
 		document.payment_method, document.due_on,
 		COALESCE((SELECT json_agg(DISTINCT position.child_first_name ORDER BY position.child_first_name)
 			FROM parent_billing.document_positions AS position
@@ -39,14 +47,38 @@ const familyDocumentsSQL = `SELECT document.id, document.run_id, document.kind, 
 	JOIN parent_billing.runs AS run ON run.organization_id = document.organization_id AND run.id = document.run_id
 	LEFT JOIN parent_billing.documents AS reference
 		ON reference.organization_id = document.organization_id AND reference.id = document.reference_document_id
-	WHERE document.organization_id = ? AND (?::bigint = 0 OR COALESCE(document.family_email, reference.family_email, LOWER(document.recipient_email)) = (
-		SELECT COALESCE(anchor.family_email, anchor_reference.family_email, LOWER(anchor.recipient_email)) FROM parent_billing.documents AS anchor
-		LEFT JOIN parent_billing.documents AS anchor_reference
-			ON anchor_reference.organization_id = anchor.organization_id AND anchor_reference.id = anchor.reference_document_id
-		WHERE anchor.organization_id = document.organization_id AND anchor.id = ?))
-	ORDER BY document.id`
+	WHERE document.organization_id = ?0
+	UNION ALL
+	SELECT 'care', invoice.id, invoice.run_id, 'invoice', invoice.number, invoice.issued_on, invoice.issued_at, '',
+		invoice.billing_month, (invoice.billing_month + INTERVAL '1 month' - INTERVAL '1 day')::date, NULL, NULL, '',
+		invoice.recipient_first_name, invoice.recipient_last_name, invoice.recipient_email, invoice.recipient_kind,
+		invoice.recipient_second_name, NULL, invoice.total_cents, COALESCE(invoice.family_email, LOWER(invoice.recipient_email)),
+		invoice.payment_method, invoice.due_on, json_build_array(invoice.child_first_name), '[]'::json, false
+	FROM parent_billing.care_invoices AS invoice
+	WHERE invoice.organization_id = ?0
+	UNION ALL
+	SELECT 'care', cancellation.id, cancellation.run_id, 'cancellation', cancellation.number, cancellation.issued_on,
+		cancellation.issued_at, '', invoice.billing_month, (invoice.billing_month + INTERVAL '1 month' - INTERVAL '1 day')::date,
+		invoice.id, invoice.number, cancellation.reason, invoice.recipient_first_name, invoice.recipient_last_name,
+		invoice.recipient_email, invoice.recipient_kind, invoice.recipient_second_name, NULL, cancellation.total_cents,
+		COALESCE(invoice.family_email, LOWER(invoice.recipient_email)), NULL, NULL, json_build_array(invoice.child_first_name),
+		'[]'::json, false
+	FROM parent_billing.care_invoice_cancellations AS cancellation
+	JOIN parent_billing.care_invoices AS invoice
+		ON invoice.organization_id = cancellation.organization_id AND invoice.id = cancellation.invoice_id
+	WHERE cancellation.organization_id = ?0
+)
+SELECT * FROM family_rows
+WHERE ?1::bigint = 0 OR family_key = (
+	SELECT anchor.family_key FROM family_rows AS anchor
+	WHERE anchor.kind = 'invoice' AND ((anchor.service = 'holiday' AND anchor.id = ?1) OR (anchor.service = 'care' AND anchor.id = -?1)))
+ORDER BY issued_at, service DESC, id`
 
 type familyDocumentRow struct {
+	Service             string         `bun:"service"`
+	IssuedAt            time.Time      `bun:"issued_at"`
+	RecipientKind       *string        `bun:"recipient_kind"`
+	RecipientSecondName *string        `bun:"recipient_second_name"`
 	ID                  int64          `bun:"id"`
 	RunID               int64          `bun:"run_id"`
 	Kind                string         `bun:"kind"`
@@ -79,7 +111,7 @@ func (s *Store) FamilyDocuments(ctx context.Context, organizationID, familyID in
 		return nil, err
 	}
 	var rows []familyDocumentRow
-	if err := db.NewRaw(familyDocumentsSQL, organizationID, familyID, familyID).Scan(ctx, &rows); err != nil {
+	if err := db.NewRaw(familyDocumentsSQL, organizationID, familyID).Scan(ctx, &rows); err != nil {
 		return nil, err
 	}
 	documents := make([]parentbilling.BillingFamilyDocument, len(rows))
@@ -104,6 +136,7 @@ func (row familyDocumentRow) document() parentbilling.BillingFamilyDocument {
 		document.DebtorNumber = *row.DebtorNumber
 	}
 	document.PaymentMethod, document.DueOn = textOf(row.PaymentMethod), row.DueOn
+	document.Service, document.RecipientKind, document.RecipientSecondName = row.Service, textOf(row.RecipientKind), textOf(row.RecipientSecondName)
 	return document
 }
 
@@ -114,25 +147,45 @@ func nonNil(values []string) []string {
 	return values
 }
 
-// InsertRunEvents appends one entry to the trail of each run, in one
-// statement.
-func (s *Store) InsertRunEvents(ctx context.Context, organizationID, accountID int64, action string, details map[int64]map[string]any) error {
-	if len(details) == 0 {
+// InsertRunEvents appends one entry to the trail of each holiday run
+// (holiday) and of each monthly run (care), in one statement.
+func (s *Store) InsertRunEvents(ctx context.Context, organizationID, accountID int64, action string, holiday, care map[int64]map[string]any) error {
+	if len(holiday) == 0 && len(care) == 0 {
 		return nil
 	}
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return err
 	}
-	rows := make([]runEventRow, 0, len(details))
-	for runID, detail := range details {
-		if detail == nil {
-			detail = map[string]any{}
-		}
-		rows = append(rows, runEventRow{
-			OrganizationID: organizationID, RunID: runID, Action: action, ActorAccountID: &accountID, Details: detail,
-		})
+	type entry struct {
+		RunID   int64          `json:"run_id"`
+		Details map[string]any `json:"details"`
 	}
-	_, err = db.NewInsert().Model(&rows).Exec(ctx)
+	entries := func(details map[int64]map[string]any) ([]byte, error) {
+		list := make([]entry, 0, len(details))
+		for runID, detail := range details {
+			if detail == nil {
+				detail = map[string]any{}
+			}
+			list = append(list, entry{RunID: runID, Details: detail})
+		}
+		return json.Marshal(list)
+	}
+	holidayEntries, err := entries(holiday)
+	if err != nil {
+		return err
+	}
+	careEntries, err := entries(care)
+	if err != nil {
+		return err
+	}
+	_, err = db.ExecContext(ctx, `WITH holiday AS (
+			INSERT INTO parent_billing.run_events (organization_id, run_id, action, actor_account_id, details)
+			SELECT ?0, entry.run_id, ?1, ?2, entry.details
+			FROM jsonb_to_recordset(?3::jsonb) AS entry(run_id bigint, details jsonb))
+		INSERT INTO parent_billing.care_run_events (organization_id, run_id, action, actor_account_id, details)
+		SELECT ?0, entry.run_id, ?1, ?2, entry.details
+		FROM jsonb_to_recordset(?4::jsonb) AS entry(run_id bigint, details jsonb)`,
+		organizationID, action, accountID, string(holidayEntries), string(careEntries))
 	return err
 }

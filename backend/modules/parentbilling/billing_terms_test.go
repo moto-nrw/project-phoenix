@@ -85,12 +85,12 @@ func TestResolveRecipientKeepsTheRegistrationUnlessTheFamilyDeviates(t *testing.
 func TestTermsSetBundlesTheLunchWithTheCareByDefault(t *testing.T) {
 	t.Parallel()
 	defaults := parentbilling.TermsSet{}
-	assert.Equal(t, parentbilling.ServiceCare, defaults.InvoiceService(parentbilling.ServiceMeal), "bundled: lunch on the care invoice")
-	assert.Equal(t, parentbilling.ServiceHoliday, defaults.InvoiceService(parentbilling.ServiceHoliday), "the holiday care stays apart")
-	assert.Equal(t, parentbilling.ServiceCare, defaults.InvoiceService(parentbilling.ServiceCare))
+	assert.Equal(t, parentbilling.ServiceCare, defaults.Of(parentbilling.ServiceMeal).BundleWith, "bundled: lunch on the care invoice")
+	assert.Empty(t, defaults.Of(parentbilling.ServiceHoliday).BundleWith, "the holiday care stays apart")
+	assert.Empty(t, defaults.Of(parentbilling.ServiceCare).BundleWith)
 
 	separate := parentbilling.TermsSet{parentbilling.ServiceMeal: {Service: parentbilling.ServiceMeal, PaymentMethod: parentbilling.PaymentTransfer}}
-	assert.Equal(t, parentbilling.ServiceMeal, separate.InvoiceService(parentbilling.ServiceMeal), "separate: an invoice of its own")
+	assert.Empty(t, separate.Of(parentbilling.ServiceMeal).BundleWith, "separate: an invoice of its own")
 	assert.Equal(t, parentbilling.DefaultDueDays, defaults.Of(parentbilling.ServiceCare).DueDays)
 }
 

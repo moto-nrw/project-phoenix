@@ -163,7 +163,12 @@ func billingRunOverview(run parentbilling.BillingRun, documents []parentbilling.
 // overviewRecipient is the recipient of an invoice in its rows: the name
 // and, when the invoice has them, the debtor number and the postal address.
 func overviewRecipient(document parentbilling.BillingDocument) map[string]string {
-	recipient := map[string]string{"recipient": strings.TrimSpace(document.RecipientLastName + ", " + document.RecipientFirstName)}
+	name := strings.TrimSpace(document.RecipientLastName + ", " + document.RecipientFirstName)
+	if second := strings.TrimSpace(document.RecipientSecondName); second != "" {
+		// Both parents get the invoice (#4689): the overview names both.
+		name += " und " + second
+	}
+	recipient := map[string]string{"recipient": name}
 	if number := strings.TrimSpace(document.DebtorNumber); number != "" {
 		recipient["debtor_number"] = number
 	}

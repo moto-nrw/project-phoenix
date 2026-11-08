@@ -218,10 +218,46 @@ func TestCareByDirectDebitAndHolidayByTransferStaySeparateInvoices(t *testing.T)
 		payment_method, due_on) SELECT organization_id, id, 'transfer', DATE '2030-03-01' FROM parent_billing.care_runs WHERE id = ?`, monthly.ID)
 	require.ErrorContains(t, err, "never change", "no date joins a released run")
 
-	// The family page shows both payment methods of the one family.
+	// The families view counts the holiday and the monthly invoice of the
+	// one family, with both payment methods, and opens both runs.
 	rec = traegerJSON(t, f.traeger, billing, http.MethodGet, "/traeger/billing-families", nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	assert.Contains(t, rec.Body.String(), `"payment_methods":["transfer"]`, "the holiday invoice names its payment method")
+	type familyBody struct {
+		ID             int64    `json:"id"`
+		InvoiceCount   int      `json:"invoice_count"`
+		IssuedCents    int64    `json:"issued_cents"`
+		PaymentMethods []string `json:"payment_methods"`
+		Documents      []struct {
+			Service       string `json:"service"`
+			RunID         int64  `json:"run_id"`
+			Number        string `json:"number"`
+			PaymentMethod string `json:"payment_method"`
+			PeriodName    string `json:"period_name"`
+		} `json:"documents"`
+	}
+	families := decodeSchoolPortalData[[]familyBody](t, rec.Body.Bytes())
+	var both *familyBody
+	for i := range families {
+		if families[i].InvoiceCount == 2 {
+			both = &families[i]
+		}
+	}
+	require.NotNil(t, both, "one family with the holiday and the monthly invoice: %s", rec.Body.String())
+	assert.Equal(t, holidayInvoice.TotalCents+monthlyInvoice.TotalCents, both.IssuedCents)
+	assert.Equal(t, []string{"direct_debit", "transfer"}, both.PaymentMethods)
+	rec = traegerJSON(t, f.traeger, billing, http.MethodGet, fmt.Sprintf("/traeger/billing-families/%d", both.ID), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	detail := decodeSchoolPortalData[familyBody](t, rec.Body.Bytes())
+	require.Len(t, detail.Documents, 2)
+	services := map[string]int64{}
+	for _, document := range detail.Documents {
+		services[document.Service] = document.RunID
+	}
+	assert.Equal(t, map[string]int64{"care": monthly.ID, "holiday": holiday.ID}, services, "each document names the run of its service")
+	var careReads int
+	require.NoError(t, f.db.NewRaw(`SELECT count(*) FROM parent_billing.care_run_events WHERE run_id = ? AND action = 'read'
+		AND details->>'view' IN ('families', 'family')`, monthly.ID).Scan(context.Background(), &careReads))
+	assert.Equal(t, 2, careReads, "the list and the family page record their read of the monthly invoice")
 
 	// The overview for the Kämmerei names payment method and due date.
 	rec = traegerJSON(t, f.traeger, billing, http.MethodGet, billingRunPath(holiday.ID, "/export?format=csv"), nil)
@@ -310,6 +346,21 @@ func TestFamilyDeviationReachesTheNextReleaseOnly(t *testing.T) {
 	assert.Equal(t, family, familyEmail, "the release copies the family")
 	assert.Equal(t, "payer", kind)
 	assert.Equal(t, "Amtsweg 2", street)
+
+	// A family with monthly invoices only opens by the negated ID of its
+	// first invoice (#4689): both months, the payer's invoice included.
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodGet, "/traeger/billing-families", nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	listed := decodeSchoolPortalData[[]struct {
+		ID           int64 `json:"id"`
+		InvoiceCount int   `json:"invoice_count"`
+	}](t, rec.Body.Bytes())
+	require.Len(t, listed, 1, "the payer does not split the family")
+	assert.Negative(t, listed[0].ID)
+	assert.Equal(t, 2, listed[0].InvoiceCount)
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodGet, fmt.Sprintf("/traeger/billing-families/%d", listed[0].ID), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"recipient_kind":"payer"`)
 
 	// Back to the registration: the deviation goes away.
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPut, familyBillingPath, map[string]any{"contract_id": contract, "recipient_kind": "applicant"})
