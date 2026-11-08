@@ -13,6 +13,7 @@ import {
 
 import { ChevronRight } from "lucide-react";
 
+import { BELOW_MD, useResolvedMediaQuery } from "~/lib/hooks/use-media-query";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -816,6 +817,14 @@ export function DataTable<T>({
   const cellCount = shownColumns.length + (selection ? 1 : 0);
   const selectAllId = useId();
   const keyboardClickable = clickable && !rowControls;
+  // Only one of the two layouts belongs in the document (#6220). Both run the
+  // same cell renderers, so a named control would otherwise exist twice:
+  // duplicate ids break its label, and the API error path focuses the first
+  // `name` match, which may be the hidden copy. Until the breakpoint is known
+  // (server render, hydration) both stay and CSS picks one, so nothing jumps.
+  const phone = useResolvedMediaQuery(BELOW_MD);
+  const showStacked = stackedOnMobile && phone !== false;
+  const showTable = !stackedOnMobile || phone !== true;
 
   const [sort, setSort] = useState<{
     key: string;
@@ -908,7 +917,7 @@ export function DataTable<T>({
         </div>
       )}
 
-      {stackedOnMobile && (
+      {showStacked && (
         <div className="md:hidden" data-testid="data-table-stacked">
           <StackedRows
             // The phone layout has its own detail choice. Desktop column
@@ -940,296 +949,308 @@ export function DataTable<T>({
           wird im inneren Container. Sonst zeichnet der Browser die
           Scrollleiste quer durch die abgerundeten Ecken und über den unteren
           Rand hinaus. */}
-      <div
-        className={
-          stackedOnMobile
-            ? `${surfaceClass} hidden grow md:block`
-            : `${surfaceClass} grow`
-        }
-        data-testid={stackedOnMobile ? "data-table-table" : undefined}
-      >
-        {heading ? <SurfaceHeading heading={heading} /> : null}
-        <div className="overflow-x-auto">
-          <table className={tableClass}>
-            <thead>
-              <tr className={headRowClass}>
-                {selection ? (
-                  <th scope="col" className={`${headCell} w-12 pr-0!`}>
-                    <label
-                      htmlFor={selectAllId}
-                      className="flex cursor-pointer items-center"
-                    >
-                      <Checkbox
-                        id={selectAllId}
-                        checked={allSelected}
-                        ref={(input: HTMLInputElement | null) => {
-                          if (input) input.indeterminate = someSelected;
-                        }}
-                        disabled={selection.disabled || allRowKeys.length === 0}
-                        onChange={() =>
-                          selection.onChange(allRowKeys, !allSelected)
-                        }
-                      />
-                      <span className="sr-only">Alle auswählen</span>
-                    </label>
-                  </th>
-                ) : null}
-                {shownColumns.map((col) => {
-                  const align = alignClass[col.align ?? "left"];
-                  const sortable = Boolean(col.sortValue);
-                  const active = sort?.key === col.key;
-                  const pinned =
-                    col.key === PINNED_COLUMN_KEY
-                      ? `${pinnedCellClass} bg-white`
-                      : "";
-                  if (!sortable) {
+      {showTable && (
+        <div
+          className={
+            stackedOnMobile
+              ? `${surfaceClass} hidden grow md:block`
+              : `${surfaceClass} grow`
+          }
+          data-testid={stackedOnMobile ? "data-table-table" : undefined}
+        >
+          {heading ? <SurfaceHeading heading={heading} /> : null}
+          <div className="overflow-x-auto">
+            <table className={tableClass}>
+              <thead>
+                <tr className={headRowClass}>
+                  {selection ? (
+                    <th scope="col" className={`${headCell} w-12 pr-0!`}>
+                      <label
+                        htmlFor={selectAllId}
+                        className="flex cursor-pointer items-center"
+                      >
+                        <Checkbox
+                          id={selectAllId}
+                          checked={allSelected}
+                          ref={(input: HTMLInputElement | null) => {
+                            if (input) input.indeterminate = someSelected;
+                          }}
+                          disabled={
+                            selection.disabled || allRowKeys.length === 0
+                          }
+                          onChange={() =>
+                            selection.onChange(allRowKeys, !allSelected)
+                          }
+                        />
+                        <span className="sr-only">Alle auswählen</span>
+                      </label>
+                    </th>
+                  ) : null}
+                  {shownColumns.map((col) => {
+                    const align = alignClass[col.align ?? "left"];
+                    const sortable = Boolean(col.sortValue);
+                    const active = sort?.key === col.key;
+                    const pinned =
+                      col.key === PINNED_COLUMN_KEY
+                        ? `${pinnedCellClass} bg-white`
+                        : "";
+                    if (!sortable) {
+                      return (
+                        <th
+                          key={col.key}
+                          scope="col"
+                          title={col.headerTitle}
+                          className={`${headCell} ${align} ${pinned} ${col.headerClassName ?? ""}`}
+                        >
+                          {col.headerSrOnly ? (
+                            <span className="sr-only">{col.header}</span>
+                          ) : (
+                            col.header
+                          )}
+                        </th>
+                      );
+                    }
+                    const ariaSort: "ascending" | "descending" | "none" = active
+                      ? sort?.direction === "asc"
+                        ? "ascending"
+                        : "descending"
+                      : "none";
+                    const indicator = active
+                      ? sort?.direction === "asc"
+                        ? "↑"
+                        : "↓"
+                      : "↕";
+                    // Accessible name combines the visible header with a state hint.
+                    // We deliberately avoid embedding the column header verbatim
+                    // into a separate aria-label so the button's name is always
+                    // strictly more specific than the column header text — this
+                    // keeps name-based queries that target row-action buttons
+                    // (e.g. {name: "Konten"}) from matching the sort header.
+                    // The aria-sort attribute on the <th> communicates the
+                    // current sort direction to assistive tech independently.
+                    const stateHint = active
+                      ? sort?.direction === "asc"
+                        ? "aufsteigend sortiert"
+                        : "absteigend sortiert"
+                      : "Spalte sortieren";
                     return (
                       <th
                         key={col.key}
                         scope="col"
+                        aria-sort={ariaSort}
                         title={col.headerTitle}
                         className={`${headCell} ${align} ${pinned} ${col.headerClassName ?? ""}`}
                       >
-                        {col.headerSrOnly ? (
-                          <span className="sr-only">{col.header}</span>
-                        ) : (
-                          col.header
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => toggleSort(col.key)}
+                          className={`inline-flex items-center gap-1 font-medium transition-colors select-none hover:text-gray-700 focus:rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 ${align}`}
+                        >
+                          <span>{col.header}</span>
+                          <span
+                            aria-hidden="true"
+                            className={
+                              active ? "text-gray-700" : "text-gray-300"
+                            }
+                          >
+                            {indicator}
+                          </span>
+                          <span className="sr-only">{` – ${stateHint}`}</span>
+                        </button>
                       </th>
                     );
-                  }
-                  const ariaSort: "ascending" | "descending" | "none" = active
-                    ? sort?.direction === "asc"
-                      ? "ascending"
-                      : "descending"
-                    : "none";
-                  const indicator = active
-                    ? sort?.direction === "asc"
-                      ? "↑"
-                      : "↓"
-                    : "↕";
-                  // Accessible name combines the visible header with a state hint.
-                  // We deliberately avoid embedding the column header verbatim
-                  // into a separate aria-label so the button's name is always
-                  // strictly more specific than the column header text — this
-                  // keeps name-based queries that target row-action buttons
-                  // (e.g. {name: "Konten"}) from matching the sort header.
-                  // The aria-sort attribute on the <th> communicates the
-                  // current sort direction to assistive tech independently.
-                  const stateHint = active
-                    ? sort?.direction === "asc"
-                      ? "aufsteigend sortiert"
-                      : "absteigend sortiert"
-                    : "Spalte sortieren";
-                  return (
-                    <th
-                      key={col.key}
-                      scope="col"
-                      aria-sort={ariaSort}
-                      title={col.headerTitle}
-                      className={`${headCell} ${align} ${pinned} ${col.headerClassName ?? ""}`}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => toggleSort(col.key)}
-                        className={`inline-flex items-center gap-1 font-medium transition-colors select-none hover:text-gray-700 focus:rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 ${align}`}
-                      >
-                        <span>{col.header}</span>
-                        <span
-                          aria-hidden="true"
-                          className={active ? "text-gray-700" : "text-gray-300"}
-                        >
-                          {indicator}
-                        </span>
-                        <span className="sr-only">{` – ${stateHint}`}</span>
-                      </button>
-                    </th>
-                  );
-                })}
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading ? (
-                <SkeletonBodyRows
-                  columnCount={cellCount}
-                  rows={loadingRowCount}
-                />
-              ) : sortedRows.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={cellCount}
-                    className="compact:py-6 px-5 py-10 text-center text-sm text-gray-500"
-                  >
-                    {emptyState ?? "Keine Einträge vorhanden."}
-                  </td>
+                  })}
                 </tr>
-              ) : (
-                visibleRows.map((row) => {
-                  const rowKey = getRowKey(row);
-                  const active =
-                    activeRowKey != null && rowKey === activeRowKey;
-                  const selected =
-                    selection?.selectedKeys.has(String(rowKey)) ?? false;
-                  const canExpand =
-                    expandable !== undefined &&
-                    (expandable.canExpand?.(row) ?? true);
-                  const expanded = canExpand && expandedKey === rowKey;
-                  const toggle = () =>
-                    setExpandedKey((prev) => (prev === rowKey ? null : rowKey));
-                  const tinted = selected || active || expanded;
-                  const interactive = clickable || canExpand;
-                  const tone = tinted ? null : (rowTone?.(row) ?? null);
-                  const rowClasses = [
-                    `${bodyRowClass} transition-colors`,
-                    interactive ? "group cursor-pointer hover:bg-gray-50" : "",
-                    tinted ? "bg-gray-50" : "",
-                    tone ? ROW_TONE_CLASS[tone] : "",
-                    active ? ACTIVE_ROW_CLASS : "",
-                    rowClassName ? rowClassName(row) : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ");
-                  const handleRowKey =
-                    canExpand || keyboardClickable
-                      ? (event: KeyboardEvent<HTMLTableRowElement>) => {
-                          if (event.target !== event.currentTarget) return;
-                          if (event.key !== "Enter" && event.key !== " ") {
-                            return;
+              </thead>
+              <tbody>
+                {isLoading ? (
+                  <SkeletonBodyRows
+                    columnCount={cellCount}
+                    rows={loadingRowCount}
+                  />
+                ) : sortedRows.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={cellCount}
+                      className="compact:py-6 px-5 py-10 text-center text-sm text-gray-500"
+                    >
+                      {emptyState ?? "Keine Einträge vorhanden."}
+                    </td>
+                  </tr>
+                ) : (
+                  visibleRows.map((row) => {
+                    const rowKey = getRowKey(row);
+                    const active =
+                      activeRowKey != null && rowKey === activeRowKey;
+                    const selected =
+                      selection?.selectedKeys.has(String(rowKey)) ?? false;
+                    const canExpand =
+                      expandable !== undefined &&
+                      (expandable.canExpand?.(row) ?? true);
+                    const expanded = canExpand && expandedKey === rowKey;
+                    const toggle = () =>
+                      setExpandedKey((prev) =>
+                        prev === rowKey ? null : rowKey,
+                      );
+                    const tinted = selected || active || expanded;
+                    const interactive = clickable || canExpand;
+                    const tone = tinted ? null : (rowTone?.(row) ?? null);
+                    const rowClasses = [
+                      `${bodyRowClass} transition-colors`,
+                      interactive
+                        ? "group cursor-pointer hover:bg-gray-50"
+                        : "",
+                      tinted ? "bg-gray-50" : "",
+                      tone ? ROW_TONE_CLASS[tone] : "",
+                      active ? ACTIVE_ROW_CLASS : "",
+                      rowClassName ? rowClassName(row) : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ");
+                    const handleRowKey =
+                      canExpand || keyboardClickable
+                        ? (event: KeyboardEvent<HTMLTableRowElement>) => {
+                            if (event.target !== event.currentTarget) return;
+                            if (event.key !== "Enter" && event.key !== " ") {
+                              return;
+                            }
+                            event.preventDefault();
+                            if (canExpand) toggle();
+                            else onRowClick?.(row);
                           }
-                          event.preventDefault();
-                          if (canExpand) toggle();
-                          else onRowClick?.(row);
-                        }
-                      : undefined;
-                  const summary = summaryRow?.(row);
-                  return (
-                    <Fragment key={rowKey}>
-                      <tr
-                        aria-current={active ? "true" : undefined}
-                        aria-expanded={canExpand ? expanded : undefined}
-                        aria-label={
-                          canExpand
-                            ? expandable.rowLabel(row, expanded)
-                            : undefined
-                        }
-                        className={rowClasses}
-                        onClick={
-                          canExpand
-                            ? toggle
-                            : onRowClick
-                              ? () => onRowClick(row)
+                        : undefined;
+                    const summary = summaryRow?.(row);
+                    return (
+                      <Fragment key={rowKey}>
+                        <tr
+                          aria-current={active ? "true" : undefined}
+                          aria-expanded={canExpand ? expanded : undefined}
+                          aria-label={
+                            canExpand
+                              ? expandable.rowLabel(row, expanded)
                               : undefined
-                        }
-                        onKeyDown={handleRowKey}
-                        tabIndex={
-                          canExpand || keyboardClickable ? 0 : undefined
-                        }
-                        role={
-                          !canExpand && keyboardClickable ? "button" : undefined
-                        }
-                      >
-                        {selection ? (
-                          <td
-                            className={`${bodyCell} w-12 pr-0!`}
-                            // The checkbox toggles the mark; it must not also
-                            // open the row.
-                            onClick={(event) => event.stopPropagation()}
-                          >
-                            <label className="flex cursor-pointer items-center">
-                              <Checkbox
-                                checked={selected}
-                                disabled={selection.disabled}
-                                onChange={() =>
-                                  selection.onChange(
-                                    [String(rowKey)],
-                                    !selected,
-                                  )
-                                }
-                              />
-                              <span className="sr-only">
-                                {`${selection.rowLabel(row)} auswählen`}
-                              </span>
-                            </label>
-                          </td>
-                        ) : null}
-                        {shownColumns.map((col, colIndex) => {
-                          const align = alignClass[col.align ?? "left"];
-                          const pinned =
-                            col.key === PINNED_COLUMN_KEY
-                              ? pinnedBodyCellClass(tinted, interactive, tone)
-                              : "";
-                          return (
+                          }
+                          className={rowClasses}
+                          onClick={
+                            canExpand
+                              ? toggle
+                              : onRowClick
+                                ? () => onRowClick(row)
+                                : undefined
+                          }
+                          onKeyDown={handleRowKey}
+                          tabIndex={
+                            canExpand || keyboardClickable ? 0 : undefined
+                          }
+                          role={
+                            !canExpand && keyboardClickable
+                              ? "button"
+                              : undefined
+                          }
+                        >
+                          {selection ? (
                             <td
-                              key={col.key}
-                              className={`${bodyCell} text-gray-900 ${align} ${pinned} ${col.className ?? ""}`}
+                              className={`${bodyCell} w-12 pr-0!`}
+                              // The checkbox toggles the mark; it must not also
+                              // open the row.
+                              onClick={(event) => event.stopPropagation()}
                             >
-                              {expandable && colIndex === 0 ? (
-                                <div className="flex items-center gap-2">
-                                  {canExpand ? (
-                                    <ChevronRight
-                                      aria-hidden="true"
-                                      className={`h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform ${expanded ? "rotate-90" : ""}`}
-                                    />
-                                  ) : (
-                                    <span className="h-3.5 w-3.5 shrink-0" />
-                                  )}
-                                  <div className="min-w-0">
-                                    {col.render(row)}
-                                  </div>
-                                </div>
-                              ) : (
-                                col.render(row)
-                              )}
+                              <label className="flex cursor-pointer items-center">
+                                <Checkbox
+                                  checked={selected}
+                                  disabled={selection.disabled}
+                                  onChange={() =>
+                                    selection.onChange(
+                                      [String(rowKey)],
+                                      !selected,
+                                    )
+                                  }
+                                />
+                                <span className="sr-only">
+                                  {`${selection.rowLabel(row)} auswählen`}
+                                </span>
+                              </label>
                             </td>
-                          );
-                        })}
-                      </tr>
-                      {renderSubRows?.(row, expanded).map((subRow) => (
-                        <ExtraRow
-                          key={subRow.key}
-                          row={subRow}
-                          columns={shownColumns}
-                          cellCount={cellCount}
-                          rowClass={subRowClass}
-                          cellClass={extraCell}
-                          leadingEmptyCell={selection !== undefined}
-                          indentFirstCell={expandable !== undefined}
-                        />
-                      ))}
-                      {summary ? (
-                        <ExtraRow
-                          row={summary}
-                          columns={shownColumns}
-                          cellCount={cellCount}
-                          rowClass={summaryRowClass}
-                          cellClass={extraCell}
-                          leadingEmptyCell={selection !== undefined}
-                          indentFirstCell={false}
-                        />
-                      ) : null}
-                    </Fragment>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-        {/* Unter dem Scrollbereich, nicht in der Tabelle: in einer Zeile
+                          ) : null}
+                          {shownColumns.map((col, colIndex) => {
+                            const align = alignClass[col.align ?? "left"];
+                            const pinned =
+                              col.key === PINNED_COLUMN_KEY
+                                ? pinnedBodyCellClass(tinted, interactive, tone)
+                                : "";
+                            return (
+                              <td
+                                key={col.key}
+                                className={`${bodyCell} text-gray-900 ${align} ${pinned} ${col.className ?? ""}`}
+                              >
+                                {expandable && colIndex === 0 ? (
+                                  <div className="flex items-center gap-2">
+                                    {canExpand ? (
+                                      <ChevronRight
+                                        aria-hidden="true"
+                                        className={`h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform ${expanded ? "rotate-90" : ""}`}
+                                      />
+                                    ) : (
+                                      <span className="h-3.5 w-3.5 shrink-0" />
+                                    )}
+                                    <div className="min-w-0">
+                                      {col.render(row)}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  col.render(row)
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                        {renderSubRows?.(row, expanded).map((subRow) => (
+                          <ExtraRow
+                            key={subRow.key}
+                            row={subRow}
+                            columns={shownColumns}
+                            cellCount={cellCount}
+                            rowClass={subRowClass}
+                            cellClass={extraCell}
+                            leadingEmptyCell={selection !== undefined}
+                            indentFirstCell={expandable !== undefined}
+                          />
+                        ))}
+                        {summary ? (
+                          <ExtraRow
+                            row={summary}
+                            columns={shownColumns}
+                            cellCount={cellCount}
+                            rowClass={summaryRowClass}
+                            cellClass={extraCell}
+                            leadingEmptyCell={selection !== undefined}
+                            indentFirstCell={false}
+                          />
+                        ) : null}
+                      </Fragment>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+          {/* Unter dem Scrollbereich, nicht in der Tabelle: in einer Zeile
             stünde der Knopf in der Mitte der ganzen Tabellenbreite und auf
             dem Handy halb außerhalb der Karte (#4975). */}
-        {!isLoading && hasMore && (
-          <div className="border-t border-gray-100 px-5 py-3 text-center">
-            <Button
-              type="button"
-              variant="surface"
-              size="md"
-              onClick={loadMore}
-            >
-              {`Mehr laden (${visibleRows.length} von ${sortedRows.length})`}
-            </Button>
-          </div>
-        )}
-      </div>
+          {!isLoading && hasMore && (
+            <div className="border-t border-gray-100 px-5 py-3 text-center">
+              <Button
+                type="button"
+                variant="surface"
+                size="md"
+                onClick={loadMore}
+              >
+                {`Mehr laden (${visibleRows.length} von ${sortedRows.length})`}
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
