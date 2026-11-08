@@ -73,7 +73,7 @@ func setupAutoApproveIntegrationEnvWithDecision(
 		Phases:         repoFactory.Enrollment(),
 		Offerings:      enrollmentCompose.NewCareOfferingRecords(repoFactoryCare.CarePlan),
 		Bookings:       testBookings(t, env, settings),
-		GuardianAccess: testGuardianAccess(env.db),
+		GuardianAccess: testGuardianAccess(env.db), GuardianAuthorizer: repoFactory.StudentGuardian,
 		People: owners.EnrollmentDecisionPeopleDirectory(
 			repoFactory.Person, repoFactory.Staff, repoFactory.Student, repoFactory.StudentGuardian, repoFactory.GuardianProfile, nil, studentEnrollment,
 		),

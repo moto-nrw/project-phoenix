@@ -233,6 +233,7 @@ func (s *ChangeRequests) syncApprovedChild(ctx context.Context, run *approval, e
 	_, err = s.deps.Decisions.SyncApprovedChildData(ctx, enrollmentNative.ApprovedChildSync{
 		RequestID: run.req.ID, ChildID: existing.ID, ActorAccountID: run.input.ActorAccountID,
 		ReplaceTargetedData: true, PreviousSnapshot: snapshot, PreviousRequestGuardians: run.previousGuardians,
+		ChildDataChanged: childSnapshotChanged(run.row.BaseSnapshot, run.row.ProposedSnapshot, existing.ID),
 	})
 	return err
 }

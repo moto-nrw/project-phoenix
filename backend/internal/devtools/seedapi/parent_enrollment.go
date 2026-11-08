@@ -496,23 +496,11 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 				"mittagessen": {"mon", "tue", "wed", "thu"},
 			}, "", ""),
 	}
-	if len(parents) > 2 {
-		parent := parents[2]
-		submissions = append(submissions, enrollmentSubmission{
-			source: "parent",
-			auth:   parentAuths[parent.Email],
-			path:   "/parent/enrollments/" + rt.Bootstrap.TenantSlug + "/submit",
-			body: withDemoCoGuardian(s.enrollmentSubmissionWithDays(phaseID, offerings, "Lina", "Amini", "2019-02-14", 1,
-				"Shirin", "Amini", parent.Email, "parent-authenticated",
-				[]int64{offerings["ogs-ganztag"], offerings["mittagessen"]}, map[int64][]string{
-					offerings["ogs-ganztag"]: {"mon", "tue", "wed", "thu"},
-					offerings["mittagessen"]: {"mon", "tue", "wed", "thu"},
-				},
-			), scopedEmail("reza.amini@email.de", rt.FixedSeeder.accountScope)),
-			status: "approved",
-			reason: "Zusage: vier Betreuungstage",
-		})
+	later, err := s.laterSeedSubmissions(rt, phaseID, offerings, parents, parentAuths)
+	if err != nil {
+		return state, err
 	}
+	submissions = append(submissions, later...)
 	lateInviteBody := s.enrollmentSubmissionWithDays(phaseID, offerings, "Miriam", "Nachtrag", "2018-10-12", 2,
 		"Miriam", "Nachtrag", "spaete.anmeldung@example.test", "late-invite-submission",
 		[]int64{offerings["ogs-kurz"]}, map[int64][]string{offerings["ogs-kurz"]: {"tue", "thu"}},

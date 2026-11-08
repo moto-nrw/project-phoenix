@@ -50,6 +50,18 @@ func (d *Decisions) applyApproval(
 	// submission and approval nulls this reference via ON DELETE SET NULL, so
 	// we only reach here with a live student and otherwise fall through to a
 	// fresh create.
+	if child.MatchedStudentID != nil && child.MatchedByOffice {
+		d.logger().Info("decision: office-chosen enrolled child — renewing enrollment only",
+			slog.Int64("request_child_id", child.ID),
+			slog.Int64("student_id", *child.MatchedStudentID),
+		)
+		// syncTargetedFields=false: the submitting family holds no authorized
+		// relationship to the child the office chose, so the renewal links
+		// none of the request's guardians, invites nobody and applies none of
+		// the form's fields to the child (#6053). Guardians are linked through
+		// the school's guardian management, as for any other child.
+		return d.attachApprovalToExistingStudent(ctx, request, child, phase, *child.MatchedStudentID, reviewedBy, false)
+	}
 	if child.MatchedStudentID != nil {
 		d.logger().Info("decision: existing-student re-enrollment — updating matched student",
 			slog.Int64("request_child_id", child.ID),
@@ -58,7 +70,10 @@ func (d *Decisions) applyApproval(
 		// syncTargetedFields=true: an existing_students submission is a full
 		// parent form, so the submitted targeted fields must land on the
 		// matched student — unlike the annual rollover, which carries no fresh
-		// form (#1663).
+		// form (#1663). An open or linked_parents parent pin only reaches
+		// this branch after resolveExistingChildChoice re-checked the
+		// relationship authority in this transaction; a lapsed pin is
+		// refused or replaced by the office's choice before (#6053).
 		return d.attachApprovalToExistingStudent(ctx, request, child, phase, *child.MatchedStudentID, reviewedBy, true)
 	}
 	return d.approveNewStudent(ctx, request, child, phase, reviewedBy)

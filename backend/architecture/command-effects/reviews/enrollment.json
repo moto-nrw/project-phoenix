@@ -7184,6 +7184,16 @@
       "target_owner": "delivery-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentStudentRecords.EnrolledMatchCandidates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.StudentRecords.EnrolledMatchCandidates",
+      "reason": "Read of the school's enrolled children with an enrollment child's name and birthday (#6053): modules/peopledirectory/ports.StudentRepository.FindEnrolledMatchCandidates, a plain tenant-scoped SELECT. No mutation or locking read at this terminal.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindEnrolledMatchCandidates",
+      "target_owner": "people-directory"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentStudentRecords.FindStudent",
       "classification": "query",
       "effect": "query",

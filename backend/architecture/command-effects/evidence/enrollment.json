@@ -5369,6 +5369,14 @@
       "target_owner": "delivery-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentStudentRecords.EnrolledMatchCandidates",
+      "binding_digest": "86de67833f5eefb2ca7ee29a3506467f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.StudentRecords.EnrolledMatchCandidates",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindEnrolledMatchCandidates",
+      "target_owner": "people-directory"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentStudentRecords.FindStudent",
       "binding_digest": "45a1675cf35c08cb0a895170afb91030",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.StudentRecords.FindStudent",

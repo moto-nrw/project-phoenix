@@ -187,6 +187,12 @@
       "legacy": "enrollment.change_request_child_locked"
     },
     {
+      "code": "enrollment.change_request_parent_not_permitted",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.change_request_parent_not_permitted"
+    },
+    {
       "code": "enrollment.change_request_conflict",
       "class": "business_rejection",
       "parameters": [],
@@ -233,6 +239,12 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "enrollment.child_already_requested"
+    },
+    {
+      "code": "enrollment.child_possibly_enrolled",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.child_possibly_enrolled"
     },
     {
       "code": "enrollment.child_ambiguous",
@@ -367,6 +379,12 @@
       "class": "permission",
       "parameters": [],
       "legacy": "enrollment.edit_not_allowed"
+    },
+    {
+      "code": "enrollment.existing_child_choice_invalid",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.existing_child_choice_invalid"
     },
     {
       "code": "enrollment.export_too_large",

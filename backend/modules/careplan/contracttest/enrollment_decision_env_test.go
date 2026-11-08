@@ -370,7 +370,7 @@ func composeDecisions(
 		Offerings:      enrollmentTest.NewCareOfferingRecords(repoFactoryCare.CarePlan()),
 		Notifications:  testNotifications(repoFactory.Enrollment(), settings, nil),
 		Bookings:       bookings,
-		GuardianAccess: guardianAccess,
+		GuardianAccess: guardianAccess, GuardianAuthorizer: repoFactoryPeople.StudentGuardian,
 		People: owners.EnrollmentDecisionPeopleDirectory(
 			repoFactoryPeople.Person, repoFactoryPeople.Staff, repoFactoryPeople.Student, repoFactoryPeople.StudentGuardian, repoFactoryPeople.GuardianProfile, repoFactoryPeople.GuardianPhoneNumber, students,
 		),

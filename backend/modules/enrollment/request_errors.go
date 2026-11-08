@@ -56,4 +56,15 @@ var (
 	// secret, provider down) is not one of them: it stays a server error.
 	ErrCaptchaRequired = errors.New("captcha token is required")
 	ErrCaptchaFailed   = errors.New("captcha verification failed")
+	// ErrChildPossiblyEnrolled refuses an approval in an open or
+	// linked_parents phase whose child has no pinned student while the school
+	// already cares for a child with the same name and birthday (#6053). The
+	// office chooses: renew that child or create a new one. Mapped to 409
+	// Conflict.
+	ErrChildPossiblyEnrolled = errors.New("child may already be enrolled; choose the existing child or create a new one")
+	// ErrExistingChildChoiceInvalid refuses an office choice that does not
+	// fit the child: a student that is not one of its candidates, a choice
+	// for a child whose student is already settled, or both choices at once.
+	// Mapped to 409 Conflict, since a reload shows the current candidates.
+	ErrExistingChildChoiceInvalid = errors.New("the chosen existing child does not fit this enrollment")
 )

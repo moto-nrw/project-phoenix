@@ -90,6 +90,9 @@ func TestDecideAdminChild_ApprovalOfferingGuard(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Each case approves the same fixture child: in a shared tenant a
+			// later case would find the earlier one already enrolled (#6053).
+			testpkg.OwnTenant(t)
 			harness := setupOfferingGuardRouterTest(t, tt.mode, tt.link, tt.offeringsEnabled, false)
 			rec := executeApprovalDecision(t, harness)
 			require.Equal(t, tt.wantStatus, rec.Code)
@@ -290,7 +293,7 @@ func newOfferingGuardDecisions(repos api.EnrollmentTestRepositories, reposCare o
 		Offerings:      enrollmentCompose.NewCareOfferingRecords(reposCare.CarePlan),
 		Notifications:  NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: offeringGuardSettings(offeringsEnabled)}, discardingOutbox{}, nil),
 		Bookings:       bookings,
-		GuardianAccess: guardianAccess,
+		GuardianAccess: guardianAccess, GuardianAuthorizer: repos.StudentGuardian,
 		People: owners.EnrollmentDecisionPeopleDirectory(
 			repos.Person, repos.Staff, repos.Student, repos.StudentGuardian, repos.GuardianProfile, repos.GuardianPhoneNumber, studentEnrollment,
 		),
