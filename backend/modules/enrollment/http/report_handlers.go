@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -368,13 +367,8 @@ func parseCareOfferingIDsFromQuery(values []string) ([]int64, error) {
 
 func parseCareUsageExportRequest(r *http.Request) (lists.Format, careUsageExportParams, error) {
 	var body careUsageExportRequest
-	if r.Body != nil {
-		raw, _ := io.ReadAll(io.LimitReader(r.Body, 1<<16))
-		if len(raw) > 0 {
-			if err := json.Unmarshal(raw, &body); err != nil {
-				return "", careUsageExportParams{}, fmt.Errorf("invalid export request body: %w", err)
-			}
-		}
+	if err := decodeOptionalJSONBody(r, &body); err != nil {
+		return "", careUsageExportParams{}, err
 	}
 	format := lists.Format(strings.ToLower(string(body.Format)))
 	if format == "" {
@@ -406,13 +400,8 @@ func parseCareUsageExportRequest(r *http.Request) (lists.Format, careUsageExport
 
 func parseClassRosterExportRequest(r *http.Request) (lists.Format, capability.ClassRosterFilters, error) {
 	var body classRosterExportRequest
-	if r.Body != nil {
-		raw, _ := io.ReadAll(io.LimitReader(r.Body, 1<<16))
-		if len(raw) > 0 {
-			if err := json.Unmarshal(raw, &body); err != nil {
-				return "", capability.ClassRosterFilters{}, fmt.Errorf("invalid export request body: %w", err)
-			}
-		}
+	if err := decodeOptionalJSONBody(r, &body); err != nil {
+		return "", capability.ClassRosterFilters{}, err
 	}
 	format := lists.Format(strings.ToLower(string(body.Format)))
 	if format == "" {

@@ -677,11 +677,6 @@
     },
     {
       "decision": "0090",
-      "id": "api/holidayProofUnits.CountHolidayProofUpload",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
       "id": "api/holidayProofUnits.UploadHolidayProof",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },

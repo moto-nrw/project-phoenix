@@ -131,15 +131,8 @@ func writeExportFile(w http.ResponseWriter, file lists.File) {
 // so a typo can't silently widen the export to everyone.
 func parsePhaseExportRequest(r *http.Request) (lists.Format, string, error) {
 	var body phaseExportRequest
-	if r.Body != nil {
-		if raw, _ := io.ReadAll(io.LimitReader(r.Body, 1<<16)); len(raw) > 0 {
-			// A present-but-malformed body is a client bug — surface it
-			// rather than silently defaulting. An empty body is still fine
-			// (falls through to the defaults below).
-			if err := json.Unmarshal(raw, &body); err != nil {
-				return "", "", fmt.Errorf("invalid export request body: %w", err)
-			}
-		}
+	if err := decodeOptionalJSONBody(r, &body); err != nil {
+		return "", "", err
 	}
 	// Normalise both sources to lower case so "PDF"/"XLSX" from either
 	// the JSON body or the ?format= query param resolve identically.
@@ -165,14 +158,36 @@ func parsePhaseExportRequest(r *http.Request) (lists.Format, string, error) {
 		childStatus = "" // explicit "all" == no filter
 	}
 	if childStatus != "" {
-		// Validate against the known child statuses (the German-label map
-		// is the authoritative key set) so an unknown value is a 400, not a
-		// silent full export.
-		if _, ok := statusLabelsDE[childStatus]; !ok {
+		// An unknown value is a 400, not a silent full export.
+		if !slices.Contains(capability.ChildStatuses(), childStatus) {
 			return "", "", fmt.Errorf("unsupported child_status %q", childStatus)
 		}
 	}
 	return format, childStatus, nil
+}
+
+// exportBodyLimit caps the JSON body of an export request.
+const exportBodyLimit = 1 << 16
+
+// decodeOptionalJSONBody decodes the export request body into dst. An empty
+// body leaves dst at its defaults. A present-but-malformed body is a client
+// bug and a body that cannot be read is no empty body; both are errors, so
+// neither silently drops a filter.
+func decodeOptionalJSONBody(r *http.Request, dst any) error {
+	if r.Body == nil {
+		return nil
+	}
+	raw, err := io.ReadAll(io.LimitReader(r.Body, exportBodyLimit))
+	if err != nil {
+		return fmt.Errorf("read export request body: %w", err)
+	}
+	if len(raw) == 0 {
+		return nil
+	}
+	if err := json.Unmarshal(raw, dst); err != nil {
+		return fmt.Errorf("invalid export request body: %w", err)
+	}
+	return nil
 }
 
 func buildPhaseExportFile(svc lists.DocumentRenderer, data *PhaseExport, format lists.Format, childStatus string) (lists.File, error) {

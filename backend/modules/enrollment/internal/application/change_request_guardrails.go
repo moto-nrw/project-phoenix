@@ -38,7 +38,7 @@ func (s *ChangeRequests) validateAccountLinkedGuardianEdits(ctx context.Context,
 	}
 	emails := make([]string, 0, len(editReq.AdditionalGuardians))
 	for _, guardian := range editReq.AdditionalGuardians {
-		emails = append(emails, lowerTrim(optionalString(guardian.Email)))
+		emails = append(emails, guardianEmailKey(optionalString(guardian.Email)))
 	}
 	profiles, err := s.guardianProfilesByEmails(ctx, emails)
 	if err != nil {
@@ -53,7 +53,7 @@ func (s *ChangeRequests) validateAccountLinkedGuardianEdits(ctx context.Context,
 }
 
 func (s *ChangeRequests) checkAccountLinkedCoGuardian(ctx context.Context, i int, guardian SubmitGuardian, existing []*enrollment.RequestGuardian, profiles map[string]*GuardianProfile) error {
-	email := lowerTrim(optionalString(guardian.Email))
+	email := guardianEmailKey(optionalString(guardian.Email))
 	if email == "" {
 		return nil
 	}
@@ -106,7 +106,7 @@ func (s *ChangeRequests) primaryGuardianProfile(ctx context.Context, req *Reques
 			return profile, nil
 		}
 	}
-	email := lowerTrim(req.GuardianEmail)
+	email := guardianEmailKey(req.GuardianEmail)
 	if email == "" {
 		return nil, nil
 	}
@@ -114,7 +114,7 @@ func (s *ChangeRequests) primaryGuardianProfile(ctx context.Context, req *Reques
 }
 
 func matchingRequestGuardian(rows []*enrollment.RequestGuardian, profileID int64, email string) *enrollment.RequestGuardian {
-	email = lowerTrim(email)
+	email = guardianEmailKey(email)
 	for _, row := range rows {
 		if row == nil {
 			continue
@@ -122,7 +122,7 @@ func matchingRequestGuardian(rows []*enrollment.RequestGuardian, profileID int64
 		if row.GuardianProfileID != nil && *row.GuardianProfileID == profileID {
 			return row
 		}
-		if email != "" && lowerTrim(optionalString(row.Email)) == email {
+		if email != "" && guardianEmailKey(optionalString(row.Email)) == email {
 			return row
 		}
 	}
@@ -155,7 +155,7 @@ func (s *ChangeRequests) guardianProfilesByEmails(ctx context.Context, emails []
 	normalized := make([]string, 0, len(emails))
 	seen := make(map[string]bool, len(emails))
 	for _, email := range emails {
-		email = lowerTrim(email)
+		email = guardianEmailKey(email)
 		if email != "" && !seen[email] {
 			seen[email] = true
 			normalized = append(normalized, email)
@@ -171,7 +171,7 @@ func (s *ChangeRequests) guardianProfilesByEmails(ctx context.Context, emails []
 	}
 	for _, profile := range profiles {
 		if profile != nil && profile.Email != nil {
-			result[lowerTrim(*profile.Email)] = profile
+			result[guardianEmailKey(*profile.Email)] = profile
 		}
 	}
 	return result, nil

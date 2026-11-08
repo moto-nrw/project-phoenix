@@ -46,6 +46,7 @@ on:
       - "frontend/src/components/database/database-form.tsx"
       - "frontend/src/components/database/database-create-action.tsx"
       - "frontend/src/components/dashboard/sidebar*.tsx"
+      - "frontend/src/components/ui/sidebar-*.tsx"
       - "frontend/src/components/dashboard/mobile-bottom-nav.tsx"
       - "frontend/src/components/admin/invitation-form.tsx"
       - "frontend/src/components/active-supervisions/planned-now-section.tsx"

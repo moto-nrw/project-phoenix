@@ -93,7 +93,7 @@ func TestValidatePhaseEligibility_AllowClosedPhaseBypassesGradeRestriction(t *te
 	t.Parallel()
 
 	svc := NewIntake(IntakeDependencies{Settings: intakeSettingsFake{}})
-	err := svc.validatePhaseEligibility(context.Background(), gradeEligibilityPhase(3), SubmitRequest{
+	err := validateTrustedSubmission(svc, gradeEligibilityPhase(3), SubmitRequest{
 		AllowClosedPhase: true,
 		Children:         []SubmitChild{{FirstName: "Kim", TargetGradeLevel: gradeLevelPtr(1)}},
 	})

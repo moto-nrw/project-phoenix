@@ -2,9 +2,9 @@
 
 import { NavLink } from "~/components/ui/nav-link";
 import {
-  UnreadBadge,
-  type UnreadBadgeTone,
-} from "~/components/messaging/unread-badge";
+  NotificationBadge,
+  type NotificationBadgeTone,
+} from "~/components/ui/notification-badge";
 import { SIDEBAR_SUB_ITEM_CLASSES } from "~/components/ui/sidebar-geometry";
 import { ModuleLockMark } from "~/components/ui/module-lock-mark";
 
@@ -16,7 +16,7 @@ interface SidebarSubItemProps {
   // Domain-colored pill for unread messages or pending requests. Distinct from
   // `count`, which is the muted gray attendance count.
   readonly badgeCount?: number;
-  readonly badgeTone?: UnreadBadgeTone;
+  readonly badgeTone?: NotificationBadgeTone;
   readonly badgeNoun?: string;
   // Ziel der geführten Tour der ersten Schritte (#2832).
   readonly tourId?: string;
@@ -30,8 +30,8 @@ export function SidebarSubItem({
   isActive,
   count,
   badgeCount = 0,
-  badgeTone,
-  badgeNoun,
+  badgeTone = "parents",
+  badgeNoun = "ungelesene Nachrichten",
   tourId,
   locked = false,
 }: SidebarSubItemProps) {
@@ -49,10 +49,10 @@ export function SidebarSubItem({
       {locked ? (
         <ModuleLockMark className="ml-2" />
       ) : badgeCount > 0 ? (
-        <UnreadBadge
+        <NotificationBadge
           count={badgeCount}
           tone={badgeTone}
-          noun={badgeNoun}
+          ariaLabel={`${badgeCount} ${badgeNoun}`}
           className="ml-2"
         />
       ) : (

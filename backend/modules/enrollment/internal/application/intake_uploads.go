@@ -127,13 +127,9 @@ func (s *Intake) CountUploadAttempt(ctx context.Context, tenantID int64, remoteI
 	if strings.TrimSpace(remoteIP) == "" {
 		return nil
 	}
-	err := s.enforceRateLimit(ctx, tenantID, func(ctx context.Context) error {
+	return s.enforceRateLimit(ctx, tenantID, func(ctx context.Context) error {
 		return s.countRateLimitAttempt(ctx, tenantID, uploadRateLimit, strings.TrimSpace(remoteIP))
 	})
-	if errors.Is(err, enrollmentNative.ErrRateLimited) {
-		return enrollmentNative.ErrUploadRateLimited
-	}
-	return err
 }
 
 // newUploadStoredName is a random object name with the detected extension.

@@ -28,8 +28,7 @@ func NewStore(resolve func(context.Context) (bun.IDB, error), tenantID func(cont
 // row level.
 func (r *Store) IncrementAttempts(ctx context.Context, tenantID int64, keyType, keyValue string, window time.Duration) (*enrollment.SubmissionRateLimitState, error) {
 	type result struct {
-		Attempts int       `bun:"attempts"`
-		RetryAt  time.Time `bun:"retry_at"`
+		Attempts int `bun:"attempts"`
 	}
 
 	windowSeconds := int64(window.Seconds())
@@ -59,15 +58,12 @@ func (r *Store) IncrementAttempts(ctx context.Context, tenantID int64, keyType, 
 		Set("attempts = CASE WHEN submission_rate_limits.window_start > NOW() - (? * INTERVAL '1 second') THEN submission_rate_limits.attempts + 1 ELSE 1 END", windowSeconds).
 		Set("window_start = CASE WHEN submission_rate_limits.window_start > NOW() - (? * INTERVAL '1 second') THEN submission_rate_limits.window_start ELSE NOW() END", windowSeconds).
 		Set("updated_at = NOW()").
-		Returning("attempts, window_start + (? * INTERVAL '1 second') AS retry_at", windowSeconds).
+		Returning("attempts").
 		Scan(ctx, &state)
 	if err != nil {
 		return nil, fmt.Errorf("increment enrollment submission rate limit: %w", err)
 	}
-	return &enrollment.SubmissionRateLimitState{
-		Attempts: state.Attempts,
-		RetryAt:  state.RetryAt,
-	}, nil
+	return &enrollment.SubmissionRateLimitState{Attempts: state.Attempts}, nil
 }
 
 // CleanupExpired removes the school's rows whose window_start is older than

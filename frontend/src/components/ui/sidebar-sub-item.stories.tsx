@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { SidebarSubItem } from "./sidebar-sub-item";
 
 const meta = {
-  title: "components/dashboard/SidebarSubItem",
+  title: "components/ui/SidebarSubItem",
   component: SidebarSubItem,
   parameters: {
     layout: "padded",
