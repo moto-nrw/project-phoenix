@@ -309,6 +309,25 @@ func (s *Intake) resolveEnrolledChildPin(ctx context.Context, tenantID int64, ph
 	return id, nil
 }
 
+// submittedChildPin is the pin of a submitted child: the existing_students
+// match, else the relationship match of an open or linked_parents phase.
+func (s *Intake) submittedChildPin(ctx context.Context, tenantID int64, phase *enrollmentNative.Phase, childIndex int, child SubmitChild, submitter reEnrollmentSubmitter) (*int64, error) {
+	pin, err := s.resolveMatchedStudentID(ctx, tenantID, phase, childIndex, child)
+	if err != nil || pin != nil {
+		return pin, err
+	}
+	return s.resolveEnrolledChildPin(ctx, tenantID, phase, child, submitter)
+}
+
+// enrolledChildPinUnlessPinned keeps an edit's carried pin and otherwise
+// resolves the relationship match (#6053).
+func (s *Intake) enrolledChildPinUnlessPinned(ctx context.Context, tenantID int64, phase *enrollmentNative.Phase, child SubmitChild, submitter reEnrollmentSubmitter, pin *int64) (*int64, error) {
+	if pin != nil {
+		return pin, nil
+	}
+	return s.resolveEnrolledChildPin(ctx, tenantID, phase, child, submitter)
+}
+
 // guardMatchedStudentUnique refuses a child pinned to a student another
 // active request of the phase already targets. The phase-wide advisory lock
 // makes the check race-free across distinct guardian emails. It applies
