@@ -225,8 +225,8 @@ func (f *billingPushFixture) contract(t *testing.T) (contractID, versionID int64
 	testpkg.OwnTraegerCareContracts(t, f.db, f.organization)
 	require.NoError(t, f.db.NewRaw(`INSERT INTO care_contract.contracts (organization_id,school_id,request_child_id,student_id,status,sent_at)
  VALUES (?,?,?,?,'versendet',NOW()) RETURNING id`, f.organization, f.chain.TenantID, testpkg.UniqueTestTenantID(t), f.chain.StudentID).Scan(f.ctx, &contractID))
-	require.NoError(t, f.db.NewRaw(`INSERT INTO care_contract.contract_versions (organization_id,contract_id,version_number,effective_from,child_first_name,child_last_name,school_name,term_kind,notice_months,notice_to)
- VALUES (?,?,1,'2027-08-01','Test','Child','School','open_ended',1,'month_end') RETURNING id`, f.organization, contractID).Scan(f.ctx, &versionID))
+	require.NoError(t, f.db.NewRaw(`INSERT INTO care_contract.contract_versions (organization_id,contract_id,version_number,effective_from,child_first_name,child_last_name,school_name,term_kind,notice_months,notice_to,special_termination,special_termination_note,statute_required,statute_title,statute_url,contract_partner)
+ VALUES (?,?,1,'2027-08-01','Test','Child','School','open_ended',1,'month_end',false,'',false,'','','') RETURNING id`, f.organization, contractID).Scan(f.ctx, &versionID))
 	var documentID int64
 	require.NoError(t, f.db.NewRaw(`INSERT INTO care_contract.contract_documents (organization_id,contract_id,contract_version_id,template_version,filename,pdf)
  VALUES (?,?,?,0,'contract.pdf',?) RETURNING id`, f.organization, contractID, versionID, []byte("%PDF-contract")).Scan(f.ctx, &documentID))
@@ -281,7 +281,7 @@ func TestContractDevicePushRechecksVersionAndExactChild(t *testing.T) {
 				require.NoError(t, err)
 			case "newer version":
 				_, err := f.db.ExecContext(f.ctx, `INSERT INTO care_contract.contract_versions (organization_id,contract_id,version_number,effective_from,status,child_first_name,child_last_name,school_name,term_kind,notice_months,notice_to)
-     VALUES (?,?,2,'2027-09-01','wirksam','Test','Child','School','open_ended',1,'month_end')`, f.organization, contractID)
+     VALUES (?,?,2,'2027-09-01','wirksam','Test','Child','School','open_ended',1,'month_end',false,'',false,'','','')`, f.organization, contractID)
 				require.NoError(t, err)
 			}
 			counter := testpkg.CaptureQueriesForContext(t, f.db)
