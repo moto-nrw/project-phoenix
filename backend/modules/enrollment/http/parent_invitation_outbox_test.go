@@ -129,7 +129,7 @@ func newParentInvitationDecisions(repos api.EnrollmentTestRepositories, reposCar
 		Offerings:      enrollmentCompose.NewCareOfferingRecords(reposCare.CarePlan),
 		Notifications:  NewTestNotifications(repos.Enrollment(), notifyModeSettings{settings: parentInvitationSettings()}, discardingOutbox{}, nil),
 		Bookings:       bookings,
-		GuardianAccess: guardianAccess,
+		GuardianAccess: guardianAccess, GuardianAuthorizer: repos.StudentGuardian,
 		// The approval creates its invitation through the owner command (#6093).
 		GuardianInvitations: invitations,
 		People: owners.EnrollmentDecisionPeopleDirectory(

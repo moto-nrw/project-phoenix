@@ -241,6 +241,58 @@
       "target_owner": "workforce"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionBoundary.Assign",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Assign",
+      "reason": "Read-only target already reviewed as query: school-structure reaches auth/authorize/permissions.Principal.HasPermission (security-runtime) through *modules/schoolstructure/internal/application/groups.substitutionBoundary.Assign. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/auth/authorize/permissions.Principal.HasPermission",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionBoundary.Assign",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Assign",
+      "reason": "Read-only target already reviewed as query: school-structure reaches modules/settings/records.BatchSettingsService.ResolveString (settings-platform) through *modules/schoolstructure/internal/application/groups.substitutionBoundary.Assign. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionBoundary.Assign",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Assign",
+      "reason": "Read-only target already reviewed as query: school-structure reaches modules/settings/records.SettingsService.ResolveString (settings-platform) through *modules/schoolstructure/internal/application/groups.substitutionBoundary.Assign. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionBoundary.Assign",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Assign",
+      "reason": "Read-only target already reviewed as query: school-structure reaches modules/workforce.CanSeeAllSubstitutions (workforce) through *modules/schoolstructure/internal/application/groups.substitutionBoundary.Assign. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/workforce.CanSeeAllSubstitutions",
+      "target_owner": "workforce"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0176",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionBoundary.Assign",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Assign",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/schoolstructure/internal/application/groups.SubstitutionDependencies.Now. Reached through *modules/schoolstructure/internal/application/groups.substitutionBoundary.Assign; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "school-structure",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.SubstitutionDependencies.Now",
+      "target_owner": ""
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionModule.Assign",
       "classification": "query",
       "effect": "query",
@@ -293,6 +345,28 @@
       "target_owner": ""
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionBoundary.End",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.End",
+      "reason": "Read-only target already reviewed as query: school-structure reaches auth/authorize/permissions.Principal.HasPermission (security-runtime) through *modules/schoolstructure/internal/application/groups.substitutionBoundary.End. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/auth/authorize/permissions.Principal.HasPermission",
+      "target_owner": "security-runtime"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0176",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionBoundary.End",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.End",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/schoolstructure/internal/application/groups.SubstitutionDependencies.Now. Reached through *modules/schoolstructure/internal/application/groups.substitutionBoundary.End; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "school-structure",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.SubstitutionDependencies.Now",
+      "target_owner": ""
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionModule.End",
       "classification": "query",
       "effect": "query",
@@ -310,6 +384,58 @@
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.End",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/schoolstructure/internal/application/groups.SubstitutionDependencies.Now. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "school-structure",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.SubstitutionDependencies.Now",
+      "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionBoundary.Overview",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Overview",
+      "reason": "Read-only target already reviewed as query: school-structure reaches auth/authorize/permissions.Principal.HasPermission (security-runtime) through *modules/schoolstructure/internal/application/groups.substitutionBoundary.Overview. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/auth/authorize/permissions.Principal.HasPermission",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionBoundary.Overview",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Overview",
+      "reason": "Read-only target already reviewed as query: school-structure reaches modules/settings/records.BatchSettingsService.ResolveString (settings-platform) through *modules/schoolstructure/internal/application/groups.substitutionBoundary.Overview. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionBoundary.Overview",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Overview",
+      "reason": "Read-only target already reviewed as query: school-structure reaches modules/settings/records.SettingsService.ResolveString (settings-platform) through *modules/schoolstructure/internal/application/groups.substitutionBoundary.Overview. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionBoundary.Overview",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Overview",
+      "reason": "Read-only target already reviewed as query: school-structure reaches modules/workforce.CanSeeAllSubstitutions (workforce) through *modules/schoolstructure/internal/application/groups.substitutionBoundary.Overview. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/workforce.CanSeeAllSubstitutions",
+      "target_owner": "workforce"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0176",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionBoundary.Overview",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Overview",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/schoolstructure/internal/application/groups.SubstitutionDependencies.Now. Reached through *modules/schoolstructure/internal/application/groups.substitutionBoundary.Overview; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); a changed value or closure needs a fresh approval ADR.",
       "source_owner": "school-structure",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.SubstitutionDependencies.Now",
       "target_owner": ""

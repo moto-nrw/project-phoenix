@@ -113,6 +113,9 @@ type ChildCommands interface {
 	UpdateChildActivationPlan(ctx context.Context, id int64, mode string, on *Date) error
 	LinkCreatedStudent(ctx context.Context, childID, studentID int64) error
 	UpdateMatchedStudent(ctx context.Context, childID int64, studentID *int64) error
+	// PinOfficeChosenStudent pins the enrolled student the office chose at
+	// approval and marks the pin as the office's (#6053).
+	PinOfficeChosenStudent(ctx context.Context, childID, studentID int64) error
 	RestoreWithdrawnChildren(ctx context.Context, id int64, waitlistedIDs []int64) ([]int64, error)
 	TransitionPhaseChildren(ctx context.Context, id int64, currentStatus, newStatus string) (int, error)
 	UpdateChildStatus(ctx context.Context, id int64, status string, reason *string, reviewedBy int64) error

@@ -41,6 +41,11 @@ type (
 		UpdateChildStatus(context.Context, int64, string, *string, int64) error
 		UpdateChildActivationPlan(context.Context, int64, string, *enrollmentNative.Date) error
 		LinkCreatedStudent(context.Context, int64, int64) error
+		// PinOfficeChosenStudent pins the student the office chose (#6053).
+		PinOfficeChosenStudent(context.Context, int64, int64) error
+		// UpdateMatchedStudent drops a parent pin whose authority lapsed
+		// when the office creates the child anew (#6053).
+		UpdateMatchedStudent(context.Context, int64, *int64) error
 		// The planned class switch of an approved re-enrollment (#3917).
 		SetChildClassSwitch(context.Context, int64, *enrollmentNative.ClassSwitch) error
 		ChildClassSwitch(context.Context, int64) (*enrollmentNative.ClassSwitch, error)
@@ -237,8 +242,12 @@ type DecisionDependencies struct {
 	// approval rewrites an existing student's class, the same gate Care
 	// Plan's booking materialization serializes its roster writes with.
 	LockTemplateRecurrence func(context.Context) error
-	Pickups                WeeklyPickupHooks
-	Runtime                Runtime
+	// GuardianAuthorizer re-checks a parent's pin against the current
+	// relationship before an approval or a later edit acts on it (#6053).
+	// Without it such a pin authorizes nothing.
+	GuardianAuthorizer GuardianStudentAuthorizer
+	Pickups            WeeklyPickupHooks
+	Runtime            Runtime
 	// IsTransient reports a database failure worth one more attempt of a
 	// decision that opened its own unit. Nil never retries.
 	IsTransient func(error) bool

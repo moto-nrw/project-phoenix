@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi, afterEach } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import type { BillingFamilyDetail } from "~/lib/traeger-billing-families-api";
 
@@ -20,6 +20,14 @@ vi.mock("next/navigation", () => ({
 }));
 
 import TraegerBillingFamilyPage from "./page";
+import {
+  DESKTOP_WIDTH,
+  PHONE_WIDTH,
+  setViewportWidth,
+} from "~/test/helpers/viewport";
+
+// DataTable renders only the layout for the window width (#6220).
+afterEach(() => setViewportWidth(DESKTOP_WIDTH));
 
 const FAMILY: BillingFamilyDetail = {
   id: "4",
@@ -146,6 +154,7 @@ describe("TraegerBillingFamilyPage", () => {
   });
 
   it("keeps all document details in the mobile list", async () => {
+    setViewportWidth(PHONE_WIDTH);
     renderPage();
     await screen.findByRole("heading", { name: "Sabine Schneider" });
 

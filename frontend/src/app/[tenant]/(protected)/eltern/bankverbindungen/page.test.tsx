@@ -10,6 +10,11 @@ import {
 import { ApiError } from "~/lib/api-error";
 import type { PaymentOverviewRow } from "~/lib/guardian-payment-api";
 import { catalogText } from "~/test/error-catalog-text";
+import {
+  DESKTOP_WIDTH,
+  PHONE_WIDTH,
+  setViewportWidth,
+} from "~/test/helpers/viewport";
 
 const mockFetchOverview = vi.fn();
 const mockExport = vi.fn();
@@ -92,8 +97,9 @@ describe("BankverbindungenPage", () => {
     expect(mockFetchOverview).not.toHaveBeenCalled();
   });
 
-  // jsdom applies no CSS, so the stacked and the table layout both render.
-  // Scoping every row query keeps the assertions unambiguous.
+  // DataTable renders only the layout for the window width (#6220): the
+  // table at the default desktop width, the stacked list at phone width.
+  afterEach(() => setViewportWidth(DESKTOP_WIDTH));
   const table = () => within(screen.getByTestId("data-table-table"));
   const stacked = () => within(screen.getByTestId("data-table-stacked"));
 
@@ -135,7 +141,26 @@ describe("BankverbindungenPage", () => {
 
     expect(table().queryByText("Mia Schneider")).not.toBeInTheDocument();
     expect(table().getByText("Lea Wolf")).toBeInTheDocument();
+    expect(screen.queryByTestId("data-table-stacked")).not.toBeInTheDocument();
+  });
+
+  it("narrows the phone list to the children still missing an IBAN", async () => {
+    setViewportWidth(PHONE_WIDTH);
+    mockFetchOverview.mockResolvedValue([
+      row({}),
+      row({ studentId: "2", studentName: "Lea Wolf", ibanMasked: "" }),
+    ]);
+
+    render(<BankverbindungenPage />);
+    await waitFor(() =>
+      expect(stacked().getByText("Mia Schneider")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Ohne IBAN (1)" }));
+
+    expect(stacked().queryByText("Mia Schneider")).not.toBeInTheDocument();
     expect(stacked().getByText("Lea Wolf")).toBeInTheDocument();
+    expect(screen.queryByTestId("data-table-table")).not.toBeInTheDocument();
   });
 
   it("downloads in the chosen format", async () => {
@@ -173,6 +198,7 @@ describe("BankverbindungenPage", () => {
   // The defect this layout exists to fix: in the table the IBAN is a fourth
   // column that a phone viewport cannot show.
   it("carries the IBAN as a labelled field in the stacked layout", async () => {
+    setViewportWidth(PHONE_WIDTH);
     mockFetchOverview.mockResolvedValue([row({})]);
 
     render(<BankverbindungenPage />);
@@ -187,6 +213,7 @@ describe("BankverbindungenPage", () => {
   });
 
   it("reveals the rest of a long list on demand instead of rendering it all", async () => {
+    setViewportWidth(PHONE_WIDTH);
     mockFetchOverview.mockResolvedValue(
       Array.from({ length: 30 }, (_, i) =>
         row({ studentId: String(i), studentName: `Kind ${i}` }),
@@ -233,7 +260,7 @@ describe("BankverbindungenPage", () => {
     resolveOverview([]);
     expect(
       await screen.findAllByText("Noch keine Kinder in der Liste"),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
     expect(actions).toBeDisabled();
   });
 

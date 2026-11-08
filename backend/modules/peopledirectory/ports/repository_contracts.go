@@ -135,6 +135,12 @@ type StudentRepository interface {
 	// also one whose care has ended, with its membership interval (#5994).
 	FindBornOn(ctx context.Context, dates []calendar.Date) ([]peopledirectory.StudentBorn, error)
 
+	// FindEnrolledMatchCandidates returns the enrolled (active or pending)
+	// children of the context's school with the given name and birthday,
+	// compared like ExistsEnrolledByNameAndBirthday, with the details the
+	// office needs to tell them apart (#6053). A missing school is an error.
+	FindEnrolledMatchCandidates(ctx context.Context, firstName, lastName string, birthday calendar.Date) ([]peopledirectory.StudentMatchCandidate, error)
+
 	// ListWithOptions retrieves students with query options
 	// ListByGroupIDsIncludingAlumni is the care-participation candidate set:
 	// the rule that follows decides per child whether a graduate still counts.

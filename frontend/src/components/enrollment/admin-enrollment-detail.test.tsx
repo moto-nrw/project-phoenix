@@ -4,6 +4,7 @@ import {
   render as renderComponent,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -129,6 +130,241 @@ describe("AdminEnrollmentDetail mail updates", () => {
     unmount();
     interval.mockRestore();
     visibility.mockRestore();
+  });
+});
+
+describe("AdminEnrollmentDetail child that may already be enrolled", () => {
+  function requestWithCandidate() {
+    return {
+      id: "request-1",
+      phase_id: "phase-1",
+      phase_name: "2026/27",
+      guardian_first_name: "Mara",
+      guardian_last_name: "Beispiel",
+      guardian_email: "mara@example.test",
+      submitted_at: "2026-08-05T10:00:00Z",
+      status_token: "status-token",
+      children: [
+        {
+          id: "child-1",
+          first_name: "Paul",
+          last_name: "Offen",
+          date_of_birth: "2018-04-15",
+          status: "submitted",
+          activation_mode: "scheduled",
+          offerings: [{ offering_id: "o-1", offering_name: "Ganztag" }],
+          possible_existing_children: [
+            {
+              student_id: "student-7",
+              first_name: "Paul",
+              last_name: "Offen",
+              date_of_birth: "2018-04-15",
+              school_class: "1a",
+            },
+          ],
+        },
+      ],
+    };
+  }
+
+  // A parent pin whose relationship the school removed (#6053).
+  function revokedRequest(
+    extra: Record<string, unknown>,
+    withCandidate: boolean,
+  ) {
+    const request = requestWithCandidate();
+    return {
+      ...request,
+      children: request.children.map((child) => ({
+        ...child,
+        matched_student_id: "student-7",
+        existing_child_choice_required: true,
+        ...(withCandidate ? {} : { possible_existing_children: [] }),
+        ...extra,
+      })),
+    };
+  }
+
+  it("offers a new child when the required choice has no candidates", async () => {
+    mocks.getAdminRequest.mockResolvedValue(revokedRequest({}, false));
+    mocks.decideAdminChild.mockResolvedValue({ id: "child-1" });
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+    expect(
+      await screen.findByText(
+        "Dieser Elternteil darf das Kind nicht mehr anmelden. Prüfen Sie bitte die Angaben.",
+      ),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Ist das Kind schon angemeldet?",
+    });
+    expect(
+      within(dialog).getByText(
+        "Zu diesen Angaben wurde kein angemeldetes Kind gefunden. Prüfen Sie Name und Geburtsdatum. Ist das Kind schon vorhanden, wählen Sie „Abbrechen“.",
+      ),
+    ).toBeVisible();
+    expect(
+      within(dialog).getByText(
+        "Wählen Sie dies nur, wenn es ein anderes Kind ist.",
+      ),
+    ).toBeVisible();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: /Als neues Kind anlegen/ }),
+    );
+    await waitFor(() => {
+      expect(mocks.decideAdminChild).toHaveBeenCalledWith(
+        "request-1",
+        "child-1",
+        "approved",
+        undefined,
+        { createNewStudent: true },
+      );
+    });
+  });
+
+  it("offers no new child in a phase for enrolled children only", async () => {
+    mocks.getAdminRequest.mockResolvedValue(
+      revokedRequest({ existing_child_only: true }, true),
+    );
+    mocks.decideAdminChild.mockResolvedValue({ id: "child-1" });
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+    expect(
+      await screen.findByText(
+        "Dieser Elternteil darf das Kind nicht mehr anmelden. Prüfen Sie bitte die Angaben.",
+      ),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Ist das Kind schon angemeldet?",
+    });
+    const renew = within(dialog).getByRole("button", {
+      name: /Bestehendes Kind verwenden/,
+    });
+    expect(renew).toBeVisible();
+    expect(
+      within(dialog).queryByRole("button", { name: /Als neues Kind anlegen/ }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(renew);
+    await waitFor(() => {
+      expect(mocks.decideAdminChild).toHaveBeenCalledWith(
+        "request-1",
+        "child-1",
+        "approved",
+        undefined,
+        { existingStudentId: "student-7" },
+      );
+    });
+  });
+
+  it("explains a refusal when an enrolled-only phase finds no child", async () => {
+    mocks.getAdminRequest.mockResolvedValue(
+      revokedRequest({ existing_child_only: true }, false),
+    );
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Bestätigen" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Ist das Kind schon angemeldet?",
+    });
+    expect(
+      within(dialog).getByText(
+        "Zu diesen Angaben wurde kein angemeldetes Kind gefunden. Diese Anmeldung ist nur für Kinder, die schon angemeldet sind. Prüfen Sie Name und Geburtsdatum. Sonst lehnen Sie die Anmeldung ab.",
+      ),
+    ).toBeVisible();
+    expect(
+      within(dialog).getByRole("button", { name: "Abbrechen" }),
+    ).toBeVisible();
+    expect(
+      within(dialog).queryByRole("button", { name: /Als neues Kind anlegen/ }),
+    ).not.toBeInTheDocument();
+    expect(mocks.decideAdminChild).not.toHaveBeenCalled();
+  });
+
+  it("asks before approving and renews the chosen child", async () => {
+    mocks.getAdminRequest.mockResolvedValue(requestWithCandidate());
+    mocks.decideAdminChild.mockResolvedValue({ id: "child-1" });
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+    expect(
+      await screen.findByText(
+        "Ein Kind mit diesem Namen und Geburtsdatum ist schon angemeldet. Beim Bestätigen wählen Sie, ob es dasselbe Kind ist.",
+      ),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "Ist das Kind schon angemeldet?",
+    });
+    expect(mocks.decideAdminChild).not.toHaveBeenCalled();
+    expect(
+      within(dialog).getByText(
+        "Paul Offen · Klasse 1a · geboren am 15.04.2018",
+      ),
+    ).toBeVisible();
+
+    fireEvent.click(
+      within(dialog).getByRole("button", {
+        name: /Bestehendes Kind verwenden/,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.decideAdminChild).toHaveBeenCalledWith(
+        "request-1",
+        "child-1",
+        "approved",
+        undefined,
+        { existingStudentId: "student-7" },
+      );
+    });
+  });
+
+  it("cancels the choice without approving the child", async () => {
+    mocks.getAdminRequest.mockResolvedValue(requestWithCandidate());
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Bestätigen" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Ist das Kind schon angemeldet?",
+    });
+    expect(
+      within(dialog).getByRole("button", {
+        name: /Bestehendes Kind verwenden/,
+      }),
+    ).toBeVisible();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Abbrechen" }));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Bestätigen" })).toBeVisible();
+      expect(
+        screen.queryByRole("dialog", {
+          name: "Ist das Kind schon angemeldet?",
+        }),
+      ).not.toBeInTheDocument();
+    });
+    expect(mocks.decideAdminChild).not.toHaveBeenCalled();
+  });
+
+  it("creates a new child when the office says it is another child", async () => {
+    mocks.getAdminRequest.mockResolvedValue(requestWithCandidate());
+    mocks.decideAdminChild.mockResolvedValue({ id: "child-1" });
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Bestätigen" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Ist das Kind schon angemeldet?",
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: /Als neues Kind anlegen/ }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.decideAdminChild).toHaveBeenCalledWith(
+        "request-1",
+        "child-1",
+        "approved",
+        undefined,
+        { createNewStudent: true },
+      );
+    });
   });
 });
 
@@ -890,19 +1126,30 @@ describe("AdminEnrollmentDetail future renewal (#6043)", () => {
         children: [{ ...approvedChild, weekly_plan_on: "2027-02-03" }],
       })
       .mockResolvedValue({ ...request, children: [approvedChild] });
-    vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
-    render(<AdminEnrollmentDetail requestId="request-1" />);
-    const notice = await screen.findByText(
-      /aus dieser Anmeldung gelten ab heute/,
-    );
+    const visibility = vi
+      .spyOn(document, "visibilityState", "get")
+      .mockReturnValue("hidden");
+    try {
+      // Flush the loaded render's effects before sending visibility events.
+      await act(async () => {
+        render(<AdminEnrollmentDetail requestId="request-1" />);
+      });
+      // Anker: Die Anmeldung mit ausstehendem Wochenplan ist geladen.
+      const notice = screen.getByText(/aus dieser Anmeldung gelten ab heute/);
+      expect(notice).toBeVisible();
 
-    fireEvent(document, new Event("visibilitychange"));
-    expect(mocks.getAdminRequest).toHaveBeenCalledTimes(1);
-    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
-    fireEvent(document, new Event("visibilitychange"));
+      fireEvent(document, new Event("visibilitychange"));
+      expect(mocks.getAdminRequest).toHaveBeenCalledTimes(1);
+      visibility.mockReturnValue("visible");
+      await act(async () => {
+        fireEvent(document, new Event("visibilitychange"));
+      });
 
-    await waitFor(() => expect(notice).not.toBeInTheDocument());
-    expect(mocks.getAdminRequest).toHaveBeenCalledTimes(2);
+      expect(notice).not.toBeInTheDocument();
+      expect(mocks.getAdminRequest).toHaveBeenCalledTimes(2);
+    } finally {
+      visibility.mockRestore();
+    }
   });
 
   it("checks the pending plan again before showing a warning after midnight", async () => {

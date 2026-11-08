@@ -67,6 +67,12 @@ type DecideInput struct {
 	ReviewedBy                 int64  // admin's auth account id
 	SuppressParentEmail        bool
 	SuppressGuardianInvitation bool
+	// ExistingStudentID and CreateNewStudent are the office's answer when the
+	// child of an open or linked_parents phase may already be enrolled
+	// (#6053): renew that student, or create a new child. At most one is set,
+	// and only for an approval.
+	ExistingStudentID *int64
+	CreateNewStudent  bool
 }
 
 // DecideOutcome is what Decide returns: the refreshed child plus the
@@ -102,6 +108,22 @@ type DecisionSummary struct {
 	Children   []*RequestChild
 	Guardians  []*RequestGuardian
 	LateInvite *LateInvite
+	// ExistingChildCandidates are, per request child id, the enrolled
+	// children that may be the same child (#6053). Only the detail read
+	// fills it, and only for children whose approval still asks the office.
+	// A present key requires an office choice even when its candidates are empty.
+	ExistingChildCandidates map[int64][]ExistingChildCandidate
+}
+
+// ExistingChildCandidate is an enrolled child of the school with the name
+// and birthday an enrollment names (#6053), compared like the
+// existing_students match.
+type ExistingChildCandidate struct {
+	StudentID   int64
+	FirstName   string
+	LastName    string
+	DateOfBirth *Date
+	SchoolClass string
 }
 
 // ChildOfferingRow is one care-offering selection for a child, as
@@ -344,6 +366,28 @@ type ApprovedChildSync struct {
 	// change, as the change request stored it.
 	PreviousSnapshot         json.RawMessage
 	PreviousRequestGuardians []*RequestGuardian
+	// ChildDataChanged marks a family's change request that proposes new
+	// data for this child. A family whose relationship to the pinned child
+	// lapsed may no longer change it (#6053).
+	ChildDataChanged bool
+	// Correction names the fields a direct staff correction changed. Where
+	// the request's own data no longer reaches the child (office match,
+	// lapsed parent pin), the trusted correction still writes exactly these
+	// fields onto the child (#6053).
+	Correction *ApprovedChildCorrection
+}
+
+// ApprovedChildCorrection lists the child fields a staff correction changed.
+type ApprovedChildCorrection struct {
+	FirstName bool
+	LastName  bool
+	Birthday  bool
+	Class     bool
+}
+
+// Any reports whether the correction changed a child field.
+func (c *ApprovedChildCorrection) Any() bool {
+	return c != nil && (c.FirstName || c.LastName || c.Birthday || c.Class)
 }
 
 // ApprovedChildChanges is the side of the decision flow the change requests

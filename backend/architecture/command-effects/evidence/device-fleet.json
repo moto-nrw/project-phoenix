@@ -25,6 +25,102 @@
       "target_owner": "care-plan"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.Service.Dashboard",
+      "binding_digest": "254b1092e6cc57ba35b7b9721de56e87",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Capability.Dashboard",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.Group.ParticipantLimit",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.Service.Dashboard",
+      "binding_digest": "7a79275e7f9b29e4892b725b3677147c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Capability.Dashboard",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.IsPlannedInstanceStatus",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.Service.Dashboard",
+      "binding_digest": "0c69655e959ac523aab9c0216b38446d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Capability.Dashboard",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.SessionRecords.ListSessionInstances",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.Service.Dashboard",
+      "binding_digest": "2836e5b0fe20637318145f1b5195d238",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Capability.Dashboard",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateCatalog.ListTemplateGroups",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.Service.Dashboard",
+      "binding_digest": "3238843e5622c14cc0041161a6d83f37",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Capability.Dashboard",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.SessionRecords.ListSessionInstances",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.Service.Dashboard",
+      "binding_digest": "a3142b9ffae0dc20f88a30ab4e5d9b81",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Capability.Dashboard",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.SessionRecords.ListTemplateGroups",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Capability.Dashboard",
+      "binding_digest": "254b1092e6cc57ba35b7b9721de56e87",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Query.Dashboard",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.Group.ParticipantLimit",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Capability.Dashboard",
+      "binding_digest": "7a79275e7f9b29e4892b725b3677147c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Query.Dashboard",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.IsPlannedInstanceStatus",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Capability.Dashboard",
+      "binding_digest": "0c69655e959ac523aab9c0216b38446d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Query.Dashboard",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.SessionRecords.ListSessionInstances",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Capability.Dashboard",
+      "binding_digest": "2836e5b0fe20637318145f1b5195d238",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Query.Dashboard",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateCatalog.ListTemplateGroups",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Capability.Dashboard",
+      "binding_digest": "3238843e5622c14cc0041161a6d83f37",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Query.Dashboard",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.SessionRecords.ListSessionInstances",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Capability.Dashboard",
+      "binding_digest": "a3142b9ffae0dc20f88a30ab4e5d9b81",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Query.Dashboard",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.SessionRecords.ListTemplateGroups",
+      "target_owner": "timetable-activities"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.deviceSchoolDirectory.FindSchool",
       "binding_digest": "ad6e400458907724a36bc50ebaeda165",
       "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.SchoolDirectory.FindSchool",

@@ -892,3 +892,23 @@ func (m *mockDecisionService) UnreadRequestIDs(context.Context, int64, []int64) 
 func (m *mockDecisionService) MarkRequestsRead(context.Context, int64, []int64) error { return nil }
 func (m *mockDecisionService) MarkAllRequestsRead(context.Context, int64) error       { return nil }
 func (m *mockDecisionService) MarkRequestUnread(context.Context, int64, int64) error  { return nil }
+
+func TestAttachExistingChildCandidates_EmptyRequiredChoice(t *testing.T) {
+	t.Parallel()
+	children := []AdminRequestChild{{}}
+	attachExistingChildCandidates(children, []*capability.RequestChild{{ID: 7}}, map[int64][]capability.ExistingChildCandidate{7: {}}, false)
+	encoded, err := json.Marshal(children[0])
+	require.NoError(t, err)
+	var fields map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(encoded, &fields))
+	assert.Equal(t, "true", string(fields["existing_child_choice_required"]))
+	assert.NotContains(t, fields, "existing_child_only")
+}
+
+func TestAttachExistingChildCandidates_ExistingStudentsPhaseOffersNoNewChild(t *testing.T) {
+	t.Parallel()
+	children := []AdminRequestChild{{}, {}}
+	attachExistingChildCandidates(children, []*capability.RequestChild{{ID: 7}, {ID: 8}}, map[int64][]capability.ExistingChildCandidate{7: {{StudentID: 3}}}, true)
+	assert.True(t, children[0].ExistingChildOnly, "a required choice of an existing_students phase offers no new child")
+	assert.False(t, children[1].ExistingChildOnly, "a child without a choice carries no flag")
+}

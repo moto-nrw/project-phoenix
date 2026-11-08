@@ -39,10 +39,13 @@ const acceptedContractApplicationsSQL = `SELECT child.id AS request_child_id,
 	JOIN enrollment.requests AS request ON request.id = child.request_id AND request.tenant_id = child.tenant_id
 	JOIN enrollment.phases AS phase ON phase.id = request.phase_id AND phase.tenant_id = request.tenant_id
 	WHERE child.tenant_id = ? AND child.status = ? AND request.withdrawn_at IS NULL
+		AND NOT child.matched_by_office
 		AND (cardinality(?::bigint[]) = 0 OR child.id = ANY(?::bigint[]))
 	ORDER BY child.last_name, child.first_name, child.id`
 
-// AcceptedContractApplications lists the accepted children of the school.
+// AcceptedContractApplications lists accepted children whose submissions may
+// supply the contract party. An office match renews care only: its unrelated
+// submitter cannot become the existing student's contract party.
 func (s ContractApplicationStore) AcceptedContractApplications(ctx context.Context, requestChildIDs []int64) ([]enrollment.ContractApplication, error) {
 	tx, tenantID, err := tenant.CurrentTenantTransaction[bun.Tx](ctx)
 	if err != nil {
