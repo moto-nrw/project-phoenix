@@ -51,7 +51,7 @@ func TestPresenceGroups20YardQueryBudget(t *testing.T) {
 	counter.Stop()
 	type sample struct {
 		n   int
-		sql []string
+		sql testpkg.QueryMeasurement
 	}
 	var samples []sample
 	for _, n := range []int{3, 8} {
@@ -84,7 +84,7 @@ func TestPresenceGroups20YardQueryBudget(t *testing.T) {
 		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
 		require.Equal(t, yardHTTP.SchulhofStatusResponse{Exists: true, RoomID: activity.PlannedRoomID, RoomName: "Schulhof", ActivityGroupID: &activity.ID, ActiveGroupID: &group.ID, IsUserSupervising: true, SupervisionID: &expected[0].ID, SupervisorCount: n, StudentCount: n, Supervisors: expected}, body.Data)
 		t.Logf("PRESENCE20_YARD n=%d statements=%d sql=%q body=%s", n, counter.Total(), counter.Queries(), rr.Body.String())
-		samples = append(samples, sample{n, counter.Queries()})
+		samples = append(samples, sample{n, counter.Measurement(counter.Queries())})
 	}
 	denied := testutil.ExecuteRequest(router, testutil.NewRequest("GET", "/api/active/schulhof/status", nil))
 	require.Equal(t, 401, denied.Code)

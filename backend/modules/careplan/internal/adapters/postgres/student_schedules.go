@@ -737,8 +737,21 @@ func arrivalScheduleFromPublic(v careplan.ArrivalSchedule) arrivalScheduleRow {
 func arrivalScheduleToPublic(v arrivalScheduleRow) careplan.ArrivalSchedule {
 	return careplan.ArrivalSchedule{ID: v.ID, TenantID: v.TenantID, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt, StudentID: v.StudentID, Weekday: v.Weekday, ExpectedArrival: v.ExpectedArrival, Notes: v.Notes, CreatedBy: v.CreatedBy}
 }
+
+// arrivalExceptionFromPublic copies the arrival time: a create scans the
+// stored row back (RETURNING *), and a TIME scan carries no date. Through a
+// shared pointer it would rewrite the caller's value to year 0, which the next
+// child of the same class report can no longer store (#5824).
 func arrivalExceptionFromPublic(v careplan.ArrivalException) arrivalExceptionRow {
-	return arrivalExceptionRow{ID: v.ID, TenantID: v.TenantID, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt, StudentID: v.StudentID, ExceptionDate: calendarDate(v.ExceptionDate), ExpectedArrival: v.ExpectedArrival, Reason: v.Reason, Source: v.Source, CreatedBy: v.CreatedBy, CreatedByGuardian: v.CreatedByGuardian}
+	return arrivalExceptionRow{ID: v.ID, TenantID: v.TenantID, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt, StudentID: v.StudentID, ExceptionDate: calendarDate(v.ExceptionDate), ExpectedArrival: copiedTime(v.ExpectedArrival), Reason: v.Reason, Source: v.Source, CreatedBy: v.CreatedBy, CreatedByGuardian: v.CreatedByGuardian}
+}
+
+func copiedTime(value *time.Time) *time.Time {
+	if value == nil {
+		return nil
+	}
+	copied := *value
+	return &copied
 }
 func arrivalExceptionToPublic(v arrivalExceptionRow) careplan.ArrivalException {
 	return careplan.ArrivalException{ID: v.ID, TenantID: v.TenantID, CreatedAt: v.CreatedAt, UpdatedAt: v.UpdatedAt, StudentID: v.StudentID, ExceptionDate: careplan.Date(v.ExceptionDate), ExpectedArrival: v.ExpectedArrival, Reason: v.Reason, Source: v.Source, CreatedBy: v.CreatedBy, CreatedByGuardian: v.CreatedByGuardian}

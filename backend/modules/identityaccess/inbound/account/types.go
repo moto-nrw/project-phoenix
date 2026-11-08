@@ -156,6 +156,11 @@ type TenantResolveResponse struct {
 	// staff member's navigation follows it, also without config:read. A lookup
 	// error fails the shell request.
 	ChildSearchOnlyNavigation bool `json:"child_search_only_navigation"`
+	// CareFacilityTerm is the school's resolved enrollment.care_facility_term
+	// setting (#6042), "OGS" by default. The public enrollment form, its
+	// status page and the embedded parent form fill it into their fixed
+	// texts before anyone signs in. A lookup error fails the shell request.
+	CareFacilityTerm string `json:"care_facility_term"`
 	// TraegerName is the Träger the school portal shows (#4656). It is set
 	// only while the Träger runs more than one operational school; a Träger
 	// with a single OGS sees no Träger level, so the field is omitted.
@@ -189,6 +194,7 @@ type tenantShellSettings struct {
 	earlyCheckoutTolerance    int
 	weekendFollowsFriday      bool
 	childSearchOnlyNavigation bool
+	careFacilityTerm          string
 }
 
 // SwitchTenantRequest represents the switch-tenant request payload

@@ -83,13 +83,13 @@ func TestPresence25VisitGrowthQueryBudget(t *testing.T) {
 					require.ElementsMatch(t, expected, result.Data)
 				}
 				t.Logf("presence25 %s N%d: %d full-route statements", path, n, counter.Total())
-				assertPresence25VisitBudget(t, route.name, n, counter.Queries())
+				assertPresence25VisitBudget(t, route.name, n, counter.Measurement(counter.Queries()))
 			}
 		})
 	}
 }
 
-func assertPresence25VisitBudget(t *testing.T, route string, n int, queries []string) {
+func assertPresence25VisitBudget(t *testing.T, route string, n int, queries querybudgets.Measurement) {
 	t.Helper()
 	switch fmt.Sprintf("%s.n%d", route, n) {
 	case "list.n3":

@@ -300,13 +300,13 @@ func TestCareTimeOverrunsQueryBudgetWithOwnHolidayBookings(t *testing.T) {
 	bookChild("Anna", calendar.NewDate(2018, 1, 2))
 
 	counter := testpkg.CaptureQueriesForContext(t, tc.db)
-	run := func() []string {
+	run := func() testpkg.QueryMeasurement {
 		t.Helper()
 		counter.Reset()
 		req := httptest.NewRequest(http.MethodGet, "/care-time-overruns?from=2026-06-08&to=2026-06-12", nil)
 		rec := authExec(t, tc, req.WithContext(counter.Context(req.Context())), claims, reportPermissions)
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		return counter.Queries()
+		return counter.Measurement(counter.Queries())
 	}
 	run() // the first list records its access; measure the steady state
 	one := run()
@@ -315,7 +315,7 @@ func TestCareTimeOverrunsQueryBudgetWithOwnHolidayBookings(t *testing.T) {
 	bookChild("Cleo", calendar.NewDate(2019, 4, 5))
 	three := run()
 
-	assert.Len(t, three, len(one), "the own children of all holiday bookings are read in one batch")
+	assert.Len(t, three.Statements, len(one.Statements), "the own children of all holiday bookings are read in one batch")
 	querybudgets.AssertQueryBudget(t, "api.statistics.care_time_overruns_own_holiday_bookings", three)
 }
 

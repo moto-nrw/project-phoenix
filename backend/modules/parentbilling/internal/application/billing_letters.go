@@ -244,10 +244,11 @@ func debtorNumbersForPaymentText(head parentbilling.Letterhead, documents []pare
 // debtor number while the invoice asks for payment without one. The billing
 // run counts these invoices before the release, which copies the number and
 // locks it (#5621, #5622). A cancellation or a credit asks for no payment
-// (#4690).
+// (#4690). A direct debit never prints the payment text (#4689), so it needs
+// no debtor number for it.
 func lacksDebtorNumberForPaymentText(paymentText string, document parentbilling.BillingDocument) bool {
 	return document.TotalCents > 0 && strings.TrimSpace(document.DebtorNumber) == "" &&
-		strings.Contains(paymentText, placeholderDebtorNumber)
+		!isDirectDebit(document.Payment) && strings.Contains(paymentText, placeholderDebtorNumber)
 }
 
 func (b *BillingLetters) render(content letterContent) (parentbilling.BillingLetterFile, error) {

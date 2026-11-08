@@ -11,6 +11,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { releaseFakeTimers, setTestClock } from "~/test/clock";
 
 // Errors and success messages run through the real display path (#2515).
 const render = (ui: ReactElement) =>
@@ -1064,6 +1065,83 @@ describe("ChildOfferingAdjustment", () => {
             { offering_id: "offering-1", selected_days: ["mon", "tue"] },
           ],
         }),
+      );
+    });
+  });
+
+  it("excludes deselected manual days from chained automatic bookings", async () => {
+    mocks.listCareOfferings.mockResolvedValue([
+      catalogOffering({ id: "a", name: "Ganztag" }),
+      catalogOffering({
+        id: "b",
+        name: "Randstunde",
+        days_of_week_mode: "parent_choice",
+        available_days: ["mon", "tue"],
+        auto_add_trigger_offering_ids: ["a"],
+      }),
+      catalogOffering({
+        id: "c",
+        name: "Folgeangebot",
+        days_of_week_mode: "parent_choice",
+        available_days: ["mon", "tue"],
+        auto_add_trigger_offering_ids: ["b"],
+      }),
+    ]);
+    mocks.updateAdminChildOfferings.mockResolvedValue({});
+    renderAdjustment(
+      adjustmentChild({
+        offerings: [
+          {
+            offering_id: "a",
+            offering_name: "Ganztag",
+            days_of_week_mode: "fixed",
+            available_days: ["mon"],
+          },
+          {
+            offering_id: "b",
+            offering_name: "Randstunde",
+            days_of_week_mode: "parent_choice",
+            available_days: ["mon", "tue"],
+            selected_days: ["tue"],
+            manual_selected_days: ["tue"],
+          },
+        ],
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    const intermediate = await screen.findByRole("checkbox", {
+      name: /Randstunde/,
+    });
+    const downstream = screen.getByRole("checkbox", { name: /Folgeangebot/ });
+    expect(intermediate).toBeChecked();
+    expect(downstream).toHaveAccessibleName(
+      "Folgeangebot automatisch mitgebucht: Mo, Di",
+    );
+
+    fireEvent.click(intermediate);
+    expect(downstream).toHaveAccessibleName(
+      "Folgeangebot automatisch mitgebucht: Mo",
+    );
+
+    fireEvent.click(intermediate);
+    expect(downstream).toHaveAccessibleName(
+      "Folgeangebot automatisch mitgebucht: Mo, Di",
+    );
+    fireEvent.click(intermediate);
+    expect(downstream).toHaveAccessibleName(
+      "Folgeangebot automatisch mitgebucht: Mo",
+    );
+    fireEvent.change(screen.getByLabelText("Begründung"), {
+      target: { value: "Randstunde abgewählt" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(mocks.updateAdminChildOfferings).toHaveBeenCalledWith(
+        "request-1",
+        "child-1",
+        expect.objectContaining({ offerings: [{ offering_id: "a" }] }),
       );
     });
   });
@@ -2217,5 +2295,223 @@ describe("describeOfferingAdjustmentChanges", () => {
     );
     expect(screen.getByText("Randstunde abgemeldet")).toBeVisible();
     expect(screen.queryByText(/Vorher:/)).not.toBeInTheDocument();
+  });
+});
+
+describe("AdminEnrollmentDetail future renewal (#6043)", () => {
+  const request = {
+    id: "request-1",
+    phase_id: "phase-1",
+    phase_name: "Ab Februar",
+    guardian_first_name: "Mara",
+    guardian_last_name: "Beispiel",
+    guardian_email: "mara@example.test",
+    submitted_at: "2026-12-01T10:00:00Z",
+    status_token: "status-token",
+  };
+  const approvedChild = {
+    id: "child-1",
+    first_name: "Lina",
+    last_name: "Kind",
+    date_of_birth: "2018-04-15",
+    status: "approved" as const,
+    activation_mode: "scheduled",
+    created_student_id: "42",
+  };
+
+  it("names the day the approved weekly plan applies", async () => {
+    vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
+    mocks.getAdminRequest.mockResolvedValue({
+      ...request,
+      children: [{ ...approvedChild, weekly_plan_on: "2027-02-03" }],
+    });
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+
+    expect(
+      await screen.findByText(
+        "Abholzeiten, Betreuungstage und Heimweg aus dieser Anmeldung gelten ab 03.02.2027. Bis dahin bleiben die bisherigen.",
+      ),
+    ).toBeVisible();
+  });
+
+  it("says on the start day that the weekly plan applies today", async () => {
+    setTestClock("2027-02-03T09:00:00+01:00");
+    vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
+    mocks.getAdminRequest.mockResolvedValue({
+      ...request,
+      children: [{ ...approvedChild, weekly_plan_on: "2027-02-03" }],
+    });
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+
+    expect(
+      await screen.findByText(
+        "Abholzeiten, Betreuungstage und Heimweg aus dieser Anmeldung gelten ab heute. moto übernimmt sie im Lauf des Tages.",
+      ),
+    ).toBeVisible();
+  });
+
+  // A plan the hourly run could not apply stays set after its day; the
+  // previous values still apply and the office learns what to do (#6043).
+  it("warns that an overdue weekly plan has not applied yet", async () => {
+    setTestClock("2027-02-10T09:00:00+01:00");
+    vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
+    mocks.getAdminRequest.mockResolvedValue({
+      ...request,
+      children: [{ ...approvedChild, weekly_plan_on: "2027-02-03" }],
+    });
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+
+    expect(
+      await screen.findByText(
+        "Abholzeiten, Betreuungstage und Heimweg aus dieser Anmeldung sollten ab 03.02.2027 gelten. moto konnte sie noch nicht übernehmen. Darum gelten noch die bisherigen. moto versucht es jede Stunde neu. Bleibt dieser Hinweis, melden Sie sich bitte beim moto-Team.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.queryByText(/gelten ab 03\.02\.2027/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows no hint once the weekly plan applies", async () => {
+    vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
+    mocks.getAdminRequest.mockResolvedValue({
+      ...request,
+      children: [approvedChild],
+    });
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+
+    expect(await screen.findAllByText("Mara Beispiel")).not.toHaveLength(0);
+    expect(
+      screen.queryByText(/aus dieser Anmeldung gelten ab/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("refreshes an applied weekly plan when the tab becomes visible", async () => {
+    setTestClock("2027-02-03T09:00:00+01:00");
+    vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
+    mocks.getAdminRequest
+      .mockResolvedValueOnce({
+        ...request,
+        children: [{ ...approvedChild, weekly_plan_on: "2027-02-03" }],
+      })
+      .mockResolvedValue({ ...request, children: [approvedChild] });
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+    const notice = await screen.findByText(
+      /aus dieser Anmeldung gelten ab heute/,
+    );
+
+    fireEvent(document, new Event("visibilitychange"));
+    expect(mocks.getAdminRequest).toHaveBeenCalledTimes(1);
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    fireEvent(document, new Event("visibilitychange"));
+
+    await waitFor(() => expect(notice).not.toBeInTheDocument());
+    expect(mocks.getAdminRequest).toHaveBeenCalledTimes(2);
+  });
+
+  it("checks the pending plan again before showing a warning after midnight", async () => {
+    vi.useFakeTimers();
+    setTestClock("2027-02-03T23:59:30+01:00");
+    vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
+    mocks.getAdminRequest.mockResolvedValueOnce({
+      ...request,
+      children: [{ ...approvedChild, weekly_plan_on: "2027-02-03" }],
+    });
+    let finishRefresh!: (value: unknown) => void;
+    mocks.getAdminRequest.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishRefresh = resolve;
+        }),
+    );
+    await act(async () => {
+      render(<AdminEnrollmentDetail requestId="request-1" />);
+    });
+    expect(
+      screen.getByText(/aus dieser Anmeldung gelten ab heute/),
+    ).toBeVisible();
+
+    await act(async () => {
+      vi.advanceTimersByTime(60_000);
+    });
+
+    // Anker: Die Anmeldung bleibt während des erneuten Abrufs geladen.
+    expect(screen.getAllByText("Mara Beispiel")).not.toHaveLength(0);
+    expect(
+      screen.queryByText(/moto konnte sie noch nicht übernehmen/),
+    ).not.toBeInTheDocument();
+    expect(mocks.getAdminRequest).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      finishRefresh({ ...request, children: [approvedChild] });
+    });
+    releaseFakeTimers();
+
+    // Anker: Die Anmeldung bleibt nach der Übernahme geladen.
+    expect(screen.getAllByText("Mara Beispiel")).not.toHaveLength(0);
+    expect(
+      screen.queryByText(
+        /Abholzeiten, Betreuungstage und Heimweg aus dieser Anmeldung/,
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not turn stale data into a warning when the midnight refresh fails", async () => {
+    vi.useFakeTimers();
+    setTestClock("2027-02-03T23:59:30+01:00");
+    vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
+    mocks.getAdminRequest
+      .mockResolvedValueOnce({
+        ...request,
+        children: [{ ...approvedChild, weekly_plan_on: "2027-02-03" }],
+      })
+      .mockRejectedValue(new Error("offline"));
+    await act(async () => {
+      render(<AdminEnrollmentDetail requestId="request-1" />);
+    });
+    expect(
+      screen.getByText(/aus dieser Anmeldung gelten ab heute/),
+    ).toBeVisible();
+
+    await act(async () => {
+      vi.advanceTimersByTime(60_000);
+    });
+    releaseFakeTimers();
+
+    // Anker: Die Anmeldung bleibt trotz des fehlgeschlagenen Abrufs geladen.
+    expect(screen.getAllByText("Mara Beispiel")).not.toHaveLength(0);
+    expect(
+      screen.queryByText(/moto konnte sie noch nicht übernehmen/),
+    ).not.toBeInTheDocument();
+    expect(mocks.getAdminRequest).toHaveBeenCalledTimes(2);
+  });
+
+  it("warns after midnight when a fresh response still has the pending plan", async () => {
+    vi.useFakeTimers();
+    setTestClock("2027-02-03T23:59:30+01:00");
+    vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
+    mocks.getAdminRequest.mockResolvedValue({
+      ...request,
+      children: [{ ...approvedChild, weekly_plan_on: "2027-02-03" }],
+    });
+    await act(async () => {
+      render(<AdminEnrollmentDetail requestId="request-1" />);
+    });
+    expect(
+      screen.getByText(/aus dieser Anmeldung gelten ab heute/),
+    ).toBeVisible();
+
+    await act(async () => {
+      vi.advanceTimersByTime(60_000);
+    });
+    releaseFakeTimers();
+
+    expect(
+      screen.getByText(/moto konnte sie noch nicht übernehmen/),
+    ).toBeVisible();
+    expect(mocks.getAdminRequest).toHaveBeenCalledTimes(2);
   });
 });

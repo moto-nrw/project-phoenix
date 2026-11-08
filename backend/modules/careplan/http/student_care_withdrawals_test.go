@@ -156,7 +156,7 @@ func TestListStudentCareWithdrawalsQueryBudget(t *testing.T) {
 
 	counter := testpkg.CaptureQueries(t, tc.db)
 	type measurement struct {
-		statements []string
+		statements testpkg.QueryMeasurement
 		rows       int64
 		total      int
 		items      int
@@ -174,7 +174,7 @@ func TestListStudentCareWithdrawalsQueryBudget(t *testing.T) {
 		}
 		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
 		rows, _ := counter.Rows()
-		return measurement{statements: counter.Queries(), rows: rows, total: body.Data.Total, items: len(body.Data.Items)}
+		return measurement{statements: counter.Measurement(counter.Queries()), rows: rows, total: body.Data.Total, items: len(body.Data.Items)}
 	}
 
 	addResolved(1)
@@ -183,11 +183,11 @@ func TestListStudentCareWithdrawalsQueryBudget(t *testing.T) {
 	large := run()
 
 	t.Logf("1 withdrawal → %d statements/%d rows, 4 withdrawals → %d statements/%d rows",
-		len(small.statements), small.rows, len(large.statements), large.rows)
+		len(small.statements.Statements), small.rows, len(large.statements.Statements), large.rows)
 	assert.Equal(t, 1, small.total)
 	assert.Equal(t, 4, large.total, "total counts the child's completed withdrawals, not the page")
 	assert.Equal(t, 1, large.items, "the page holds page_size tasks")
-	assert.Len(t, large.statements, len(small.statements), "statement count must not grow with the child's withdrawals")
+	assert.Len(t, large.statements.Statements, len(small.statements.Statements), "statement count must not grow with the child's withdrawals")
 	assert.Equal(t, small.rows, large.rows, "rows read must not grow; only the requested page may be loaded")
 	querybudgets.AssertQueryBudget(t, "api.students.care_withdrawals.student_list", large.statements)
 }

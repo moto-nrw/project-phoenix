@@ -61,12 +61,12 @@ func TestEnrollmentCatalogRouteGrowthQueryBudget(t *testing.T) {
 			require.NoError(t, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, &enrollment.RequestChildOffering{RequestChildID: child.ID, CareOfferingID: o.ID, SelectedDays: []string{"mon"}}))
 		}
 	}
-	run := func(r route, n int) []string {
+	run := func(r route, n int) testpkg.QueryMeasurement {
 		req := httptest.NewRequest(http.MethodGet, r.path, nil)
 		req.Header.Set("Authorization", "Bearer "+token)
 		response := httptest.NewRecorder()
 		counter.Reset()
-		router.ServeHTTP(response, req)
+		testpkg.MeasuredHTTPRequest(counter, testpkg.MountedQueryBudgetRouter("/api/enrollment", router), response, req)
 		queries := counter.Queries()
 		require.Equal(t, http.StatusOK, response.Code, "%s: %s", r.path, response.Body.String())
 		var body struct {
@@ -97,21 +97,21 @@ func TestEnrollmentCatalogRouteGrowthQueryBudget(t *testing.T) {
 				require.Equal(t, 1, row.Booked)
 			}
 		}
-		return queries
+		return counter.Measurement(queries)
 	}
 	add(3)
-	small := make([][]string, len(routes))
+	small := make([]testpkg.QueryMeasurement, len(routes))
 	for i, r := range routes {
 		small[i] = run(r, 3)
 	}
 	add(5)
 	for i, r := range routes {
 		large := run(r, 8)
-		require.Equal(t, len(small[i]), len(large), r.path)
-		t.Logf("%s N3=%d N8=%d", r.scenario, len(small[i]), len(large))
+		require.Equal(t, len(small[i].Statements), len(large.Statements), r.path)
+		t.Logf("%s N3=%d N8=%d", r.scenario, len(small[i].Statements), len(large.Statements))
 	}
 	// Status and edit bootstrap grow the sibling collection with a nonempty catalog.
-	requestReads := func(n int) [][]string {
+	requestReads := func(n int) []testpkg.QueryMeasurement {
 		input := validSubmission(t, env.phaseID)
 		input.GuardianEmail = fmt.Sprintf("growth%d@example.test", n)
 		input.Children = nil
@@ -123,13 +123,16 @@ func TestEnrollmentCatalogRouteGrowthQueryBudget(t *testing.T) {
 		submitted, submitErr := requests.Submit(ctx, input)
 		require.NoError(t, submitErr)
 		require.NotEmpty(t, submitted.Request.StatusToken)
-		result := make([][]string, 2)
+		result := make([]testpkg.QueryMeasurement, 2)
 		for i, suffix := range []string{"", "/edit-bootstrap"} {
 			path := "/requests/" + submitted.Request.StatusToken + suffix
 			counter.Reset()
 			rec := httptest.NewRecorder()
-			router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
-			result[i] = counter.Queries()
+			// Production mounts the request-scoped settings cache router-wide
+			// (api/serve_middleware.go); the token pages count with it, so a
+			// further school setting costs no statement of its own (#6042).
+			testpkg.MeasuredHTTPRequest(counter, testpkg.MountedQueryBudgetRouter("/api/enrollment", api.RequestSettingsCacheMiddleware(router)), rec, httptest.NewRequest(http.MethodGet, path, nil))
+			result[i] = counter.Measurement(counter.Queries())
 			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 			var body struct {
 				Data map[string]json.RawMessage `json:"data"`
@@ -153,8 +156,8 @@ func TestEnrollmentCatalogRouteGrowthQueryBudget(t *testing.T) {
 	requestSmall := requestReads(3)
 	requestLarge := requestReads(8)
 	for i := range requestSmall {
-		require.Equal(t, len(requestSmall[i]), len(requestLarge[i]))
-		t.Logf("request route %d N3=%d N8=%d", i, len(requestSmall[i]), len(requestLarge[i]))
+		require.Equal(t, len(requestSmall[i].Statements), len(requestLarge[i].Statements))
+		t.Logf("request route %d N3=%d N8=%d", i, len(requestSmall[i].Statements), len(requestLarge[i].Statements))
 	}
 	querybudgets.AssertQueryBudget(t, "api.enrollment.growth.status", requestLarge[0])
 	querybudgets.AssertQueryBudget(t, "api.enrollment.growth.edit_bootstrap", requestLarge[1])

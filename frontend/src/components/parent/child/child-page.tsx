@@ -11,6 +11,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { ButtonLink } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { SectionLabel } from "~/components/ui/section-label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import {
   PickupTimeModal,
@@ -651,9 +652,7 @@ function PickupSummary({
         aria-hidden="true"
       />
       <div className="min-w-0">
-        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          {t("today.pickupLabel")}
-        </p>
+        <SectionLabel as="p">{t("today.pickupLabel")}</SectionLabel>
         <p className="mt-1 text-sm leading-6 font-medium text-gray-900">
           <PlannedPickup care={care} />
         </p>

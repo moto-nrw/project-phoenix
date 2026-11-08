@@ -30,6 +30,13 @@
     },
     {
       "build": "test-support",
+      "evidence": "func (r *mountedQueryBudgetRouter) ServeHTTP(w http.ResponseWriter, req *http.Request) {\n\tctx := req.Context()\n\tif chi.RouteContext(ctx) == nil {\n\t\tctx = context.WithValue(ctx, chi.RouteCtxKey, chi.NewRouteContext())\n\t}\n\tcloned := req.Clone(ctx)\n\tcloned.URL.Path = r.prefix + req.URL.Path\n\tif req.URL.RawPath != \"\" {\n\t\tcloned.URL.RawPath = r.prefix + req.URL.RawPath\n\t}\n\tcloned.RequestURI = cloned.URL.RequestURI()\n\tr.Router.ServeHTTP(w, cloned)\n}",
+      "form": "unclassified-evidence",
+      "id": "test/mountedQueryBudgetRouter.ServeHTTP",
+      "owner": "source/test"
+    },
+    {
+      "build": "test-support",
       "evidence": "func (w *statusWriter) WriteHeader(status int) {\n\t*w.status = status\n\tw.ResponseWriter.WriteHeader(status)\n}",
       "form": "unclassified-evidence",
       "id": "test/statusWriter.WriteHeader",

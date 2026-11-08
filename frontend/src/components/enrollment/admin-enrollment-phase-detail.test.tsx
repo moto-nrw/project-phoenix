@@ -46,16 +46,13 @@ vi.mock("~/lib/enrollment-phase-api", () => ({
   listPhases: mocks.listPhases,
 }));
 
-vi.mock("~/lib/enrollment-export-api", () => ({
-  exportPhaseRegistrations: mocks.exportPhaseRegistrations,
-}));
-
 vi.mock("~/lib/enrollment-report-api", async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
     exportCareUsageReport: mocks.exportCareUsageReport,
     exportPhaseClassRoster: mocks.exportPhaseClassRoster,
+    exportPhaseRegistrations: mocks.exportPhaseRegistrations,
     getCareUsageReport: mocks.getCareUsageReport,
   };
 });
@@ -340,6 +337,21 @@ describe("AdminEnrollmentPhaseDetail", () => {
       screen.getByRole("link", { name: "Elternansicht öffnen" }),
     ).toHaveAttribute("href", "/demo/anmeldung/1");
   });
+
+  it.each(["linked_parents", "existing_students"])(
+    "offers no public parent link for the %s audience",
+    async (audience) => {
+      mocks.listPhases.mockResolvedValue([{ ...phase, audience }]);
+      await renderPhase();
+
+      expect(
+        screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
+      ).toBeVisible();
+      expect(
+        screen.queryByRole("link", { name: "Elternansicht öffnen" }),
+      ).not.toBeInTheDocument();
+    },
+  );
 
   it("renders care offerings and starts with all statuses", async () => {
     await renderPhase();

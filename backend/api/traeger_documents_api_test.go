@@ -26,6 +26,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	organizationtenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
@@ -97,7 +99,11 @@ func newTraegerDocumentsFixtureOn(t *testing.T, db *bun.DB) traegerDocumentsFixt
 	require.NoError(t, err)
 	ledger, err := auditCompose.NewObservedCommand(audit.AppendStore, slog.Default(), func(string, time.Duration, int, error) {})
 	require.NoError(t, err)
-	require.NoError(t, mountTraegerDocumentRoutes(router, tenantRouter, testpkg.NewDatabase(t, db), organizations, audit.DataAccessLog, ledger))
+	delivery, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{
+		DB: db, People: owners.EnrollmentFlowGuardianDirectory{}, Observe: func(deliveryContract.Observation) {},
+	})
+	require.NoError(t, err)
+	require.NoError(t, mountTraegerDocumentRoutes(router, tenantRouter, testpkg.NewDatabase(t, db), organizations, audit.DataAccessLog, ledger, delivery.Module))
 	router.Mount("/api", tenantRouter)
 	f := traegerDocumentsFixture{db: db, portal: portal, router: testpkg.SessionVerifier(router)}
 	f.office = f.newOffice(t, "Träger Dokumente", identityaccess.TraegerRoleDocuments)
@@ -350,14 +356,14 @@ func TestTraegerDocumentListsReadFlat(t *testing.T) {
 	t.Parallel()
 	f := newTraegerDocumentsFixture(t)
 	lead := f.staff(t, f.office.schools[0], permissions.FilesManage)
-	read := func(token, path string) []string {
+	read := func(token, path string) testpkg.QueryMeasurement {
 		counter := testpkg.CaptureQueriesForContext(t, f.db)
 		req := httptest.NewRequest(http.MethodGet, path, nil)
 		req.Header.Set("Authorization", "Bearer "+token)
 		rec := httptest.NewRecorder()
-		f.router.ServeHTTP(rec, req.WithContext(counter.Context(req.Context())))
+		testpkg.MeasuredHTTPRequest(counter, f.router, rec, req.WithContext(counter.Context(req.Context())))
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		return counter.Selects("")
+		return counter.Measurement(counter.Selects(""))
 	}
 	add := func() {
 		document := f.uploaded(t, f.office.token, "Liste")
@@ -368,8 +374,8 @@ func TestTraegerDocumentListsReadFlat(t *testing.T) {
 	traeger, school := read(f.office.token, "/traeger/documents/"), read(lead, "/api/traeger-documents/")
 	add()
 	add()
-	assert.Len(t, read(f.office.token, "/traeger/documents/"), len(traeger))
-	assert.Len(t, read(lead, "/api/traeger-documents/"), len(school))
+	assert.Len(t, read(f.office.token, "/traeger/documents/").Statements, len(traeger.Statements))
+	assert.Len(t, read(lead, "/api/traeger-documents/").Statements, len(school.Statements))
 	querybudgets.AssertQueryBudget(t, "api.traeger.documents", traeger)
 	querybudgets.AssertQueryBudget(t, "api.school.traeger_documents", school)
 }

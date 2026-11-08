@@ -47,8 +47,8 @@ func (s *Service) RenewEnrollment(ctx context.Context, input schoolmembership.St
 		if gateErr != nil {
 			return gateErr
 		}
-		return s.countingWrite(txCtx, stats, func(writeCtx context.Context) error {
-			id, queryStats, writeErr := s.store.RenewStudentEnrollment(writeCtx, input)
+		return s.countingWriteAfterClassGate(txCtx, stats, func(writeCtx context.Context) error {
+			id, queryStats, writeErr := s.store.RenewStudentEnrollment(writeCtx, input, s.today())
 			stats.Add(queryStats)
 			result = id
 			return writeErr

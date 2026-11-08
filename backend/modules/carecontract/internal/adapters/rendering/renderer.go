@@ -12,14 +12,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 )
 
-// Renderer lays out a contract letter.
 type Renderer struct {
 	letters lists.LetterRenderer
 }
 
 var _ application.LetterRenderer = (*Renderer)(nil)
 
-// NewRenderer returns the renderer over Document Rendering.
 func NewRenderer() *Renderer { return &Renderer{letters: lists.NewLetterRenderer()} }
 
 // RenderContract renders the contract letter as a PDF.

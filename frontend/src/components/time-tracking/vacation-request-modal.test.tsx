@@ -7,6 +7,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import type { ReactNode } from "react";
 import type { DateRange, Matcher } from "react-day-picker";
@@ -317,5 +318,31 @@ describe("VacationRequestModal questioned absences", () => {
     expect(mocks.toastSuccess).toHaveBeenCalledWith(
       "Der Urlaubsantrag ist gesendet.",
     );
+  });
+
+  it("names the two half-day switches of a range as one group", () => {
+    render(
+      <VacationRequestModal
+        isOpen
+        onClose={vi.fn()}
+        onSubmitted={vi.fn()}
+        remainingDays={20}
+        existingVacations={[]}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Test-Zeitraum wählen" }),
+    );
+
+    const group = screen.getByRole("group", {
+      name: "Halbe Tage an den Rändern",
+    });
+    expect(
+      within(group).getByRole("switch", { name: /Erster Tag halbtags/ }),
+    ).toBeInTheDocument();
+    expect(
+      within(group).getByRole("switch", { name: /Letzter Tag halbtags/ }),
+    ).toBeInTheDocument();
   });
 });

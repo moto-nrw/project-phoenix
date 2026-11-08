@@ -7,6 +7,30 @@
       "legacy": "care_contract.application_not_found"
     },
     {
+      "code": "care_contract.change_contract_not_active",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "care_contract.change_contract_not_active"
+    },
+    {
+      "code": "care_contract.change_ends_care",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "care_contract.change_ends_care"
+    },
+    {
+      "code": "care_contract.change_not_applicable",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "care_contract.change_not_applicable"
+    },
+    {
+      "code": "care_contract.change_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "care_contract.change_not_found"
+    },
+    {
       "code": "care_contract.contract_input_invalid",
       "class": "input",
       "parameters": [],
@@ -35,6 +59,12 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "care_contract.contract_not_signable"
+    },
+    {
+      "code": "care_contract.field_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "care_contract.field_invalid"
     },
     {
       "code": "care_contract.letterhead_too_long",
@@ -77,6 +107,12 @@
       "class": "permission",
       "parameters": [],
       "legacy": "care_contract.school_outside_traeger"
+    },
+    {
+      "code": "care_contract.selection_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "care_contract.selection_invalid"
     },
     {
       "code": "care_contract.signature_invalid",

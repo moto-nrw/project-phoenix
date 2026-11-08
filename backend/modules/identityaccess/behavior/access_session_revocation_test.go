@@ -293,7 +293,7 @@ func TestVerifyAccessSessionQueryBudget(t *testing.T) {
 	}
 	rotated := run()
 	assert.Len(t, rotated, len(fresh), "the check must not grow with the generations of the family")
-	querybudgets.AssertQueryBudget(t, "identity.access_session.verify", rotated)
+	querybudgets.AssertQueryBudget(t, "identity.access_session.verify", counter.Measurement(rotated))
 }
 
 // TestPortalLogoutEndsOnlyThatPortalsAccessTokens pins #5194 for the parent

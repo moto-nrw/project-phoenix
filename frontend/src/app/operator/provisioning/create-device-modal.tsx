@@ -4,6 +4,7 @@ import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
 import { CopyField } from "~/components/ui/copy-field";
 import { Modal } from "~/components/ui/modal";
+import { Alert } from "~/components/ui/alert";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
@@ -124,18 +125,18 @@ export function CreateDeviceModal({
     return (
       <Modal isOpen={isOpen} onClose={onClose} title="Gerät erstellt">
         <div className="space-y-4">
-          <div className="border-moto-green/20 bg-moto-green/10 rounded-lg border p-4">
-            <p className="text-moto-green-strong text-sm font-medium">
-              Gerät erfolgreich erstellt
-            </p>
-            <div className="text-moto-green-strong mt-2 space-y-1 text-sm">
-              <p>
+          <Alert
+            type="success"
+            announce="off"
+            title="Gerät erfolgreich erstellt"
+            message={
+              <>
                 Geräte-ID:{" "}
                 <span className="font-mono">{createdDevice.deviceId}</span>
-              </p>
-              <p>Schule: {createdDevice.schoolName}</p>
-            </div>
-          </div>
+              </>
+            }
+            details={<p className="mt-1">Schule: {createdDevice.schoolName}</p>}
+          />
 
           <p className="text-sm text-gray-600">
             Kopieren Sie den API-Key jetzt. Er wird nur einmal angezeigt.

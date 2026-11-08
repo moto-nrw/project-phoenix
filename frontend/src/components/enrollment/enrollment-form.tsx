@@ -1,5 +1,10 @@
 "use client";
 
+import { isValidContactEmail, isValidContactPhone } from "~/lib/contact-format";
+import {
+  materializeCareSelection,
+  type MaterializedCareSelection,
+} from "~/lib/care-offering-selection";
 import { DocumentAttachmentList } from "~/components/enrollment/attachment-list";
 import { InsetPanel } from "~/components/ui/inset-panel";
 import {
@@ -8,7 +13,7 @@ import {
   useEnrollmentUploadTarget,
 } from "~/components/enrollment/enrollment-file-upload";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
 import { Check, Lock, Plus } from "lucide-react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { DateOfBirthPicker } from "~/components/enrollment/date-of-birth-picker";
@@ -17,6 +22,7 @@ import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FieldLabel, RequiredMark } from "~/components/ui/field-label";
 import { DataField, DataGrid } from "~/components/ui/data-field";
 import { SectionCard } from "~/components/ui/section-card";
+import { SectionLabel } from "~/components/ui/section-label";
 import { Input } from "~/components/ui/input";
 import { useTenant } from "~/lib/tenant-context";
 import germanEnrollmentFormMessages from "~/i18n/messages/de/enrollmentForm.json";
@@ -27,7 +33,6 @@ import {
   submitEnrollment,
   type MeProfileChild,
   type MeProfileResponse,
-  type CareOfferingSelectionMode,
   type PublicCareOffering,
   type SubmitChildPayload,
   type SubmitGuardianPayload,
@@ -37,6 +42,7 @@ import {
   type PublicSchoolClassConfig,
   EMPTY_SCHOOL_CLASS_CONFIG,
 } from "~/lib/enrollment-submission-api";
+import type { CareOfferingSelectionMode } from "~/lib/enrollment-phase-api";
 import {
   fetchPublicActiveSchema,
   fetchPublicCaptchaConfig,
@@ -105,6 +111,10 @@ import {
 } from "~/components/ui/signature-pad";
 import { signatureRequestBody } from "~/lib/signature";
 import {
+  useCareFacilityTerm,
+  useCareTermTranslations,
+} from "~/lib/care-facility-term";
+import {
   AT_MOST_ONE_PER_DAY,
   type CareOfferingDayConflict,
   careOfferingDayConflicts,
@@ -120,29 +130,14 @@ import {
   careOfferingIsAvailable,
   careOfferingRuleExcludesNobody,
 } from "~/lib/care-offering-availability";
+import { type CareOfferingBookingStats } from "~/lib/care-offering-booking-stats";
 import {
-  type CareOfferingBookingStats,
-  formatOfferingOccupancy,
-  offeringIsFull,
-} from "~/lib/care-offering-booking-stats";
-import {
-  BLOCKED_OFFERING_ROW_TONE,
+  OfferingOccupancyLine,
   OfferingRowShell,
+  type OfferingRowState,
 } from "~/components/enrollment/offering-row-shell";
 
 const logger = createLogger({ component: "EnrollmentForm" });
-
-// Mirror of the backend canonical phone format
-// (backend/models/users/phone_validation.go). Optional country code +
-// 7..15 chars of digits/spaces/hyphens. Kept in sync so a value the form
-// accepts can't later be rejected at student creation on approval.
-const GUARDIAN_PHONE_PATTERN = /^(\+[0-9]{1,3}\s?)?[0-9\s-]{7,15}$/;
-
-// Mirror of the backend canonical email format
-// (backend/models/users/email_validation.go), the single rule enforced both
-// at enrollment submit AND at student creation on approval. Kept in sync so a
-// value the form accepts can never be rejected later at approval.
-const GUARDIAN_EMAIL_PATTERN = /^[A-Za-z0-9._%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$/;
 
 // Student lifecycle statuses the backend counts as "enrolled"
 // (users.StudentStatusActive / StudentStatusPending — see
@@ -225,6 +220,13 @@ interface Props {
   readonly previewMode?: boolean;
   readonly previewSchema?: PublicFormSchema | null;
   /**
+   * STAFF PREVIEW ONLY (#6044). The offerings of one phase, loaded by the
+   * staff page, for a preview without a public phase link: an inactive or
+   * closed phase answers the public form with an error, so the school could
+   * not see its offerings before parents could.
+   */
+  readonly previewOfferings?: PreviewCareOfferings;
+  /**
    * Optional overrides for the autofill fetcher and submitter, used
    * by the parents portal to swap in parent-scope endpoints
    * (/api/parent/...) instead of the default tenant-scope ones. When
@@ -279,6 +281,15 @@ interface Props {
   readonly withoutSignature?: boolean;
 }
 
+export interface PreviewCareOfferings {
+  schoolClass?: PublicSchoolClassConfig;
+  collectGradeLevel?: boolean;
+  careOfferingsEnabled?: boolean;
+  offerings: PublicCareOffering[];
+  careOfferingSelectionMode: CareOfferingSelectionMode;
+  eligibleGradeLevels: number[];
+}
+
 export interface EnrollmentFormPrefetchedData {
   schema: PublicFormSchema | null;
   offerings: PublicCareOffering[];
@@ -328,6 +339,7 @@ export function EnrollmentForm({
   uploadEndpoint,
   previewMode = false,
   previewSchema,
+  previewOfferings,
   profileFetcher,
   submitter,
   skipCaptcha,
@@ -341,15 +353,17 @@ export function EnrollmentForm({
   offeringBookingStats,
   withoutSignature = false,
 }: Props) {
-  const intl = useTranslations("enrollmentForm");
+  const intl = useCareTermTranslations("enrollmentForm");
+  const careTerm = useCareFacilityTerm();
   const activeLocale = useLocale();
   // School-written texts follow the same opt-in as the form chrome: staff
   // previews stay German even when a parent locale cookie exists (#3377).
   const contentLocale = localizedCopy ? activeLocale : DEFAULT_LOCALE;
   const tr = useMemo(
-    () => makeEnrollmentFormTranslator(intl, localizedCopy),
-    [intl, localizedCopy],
+    () => makeEnrollmentFormTranslator(intl, localizedCopy, careTerm),
+    [intl, localizedCopy, careTerm],
   );
+  const loadErrorObject = tr("errorObject");
   const { tenantSlug } = useTenant();
   const signatureLabels = useMemo(
     (): SignaturePadLabels => ({
@@ -394,6 +408,11 @@ export function EnrollmentForm({
   const isExistingStudentsPhase =
     prefetchedData?.audience === "existing_students";
   const initialOfferings = prefetchedData?.offerings ?? [];
+  const templatePreview =
+    previewMode &&
+    !phaseID &&
+    prefetchedData === undefined &&
+    previewOfferings === undefined;
   const initialCollectGradeLevel = prefetchedData?.collectGradeLevel !== false;
   const initialRequiredOfferingIDs = initialOfferings
     .filter((o) => o.is_required && careOfferingIsAvailable(o, undefined))
@@ -709,14 +728,20 @@ export function EnrollmentForm({
                 lateInviteFetchOptions,
               )
             : Promise.resolve({
-                offerings: [],
-                careOfferingSelectionMode: "optional" as const,
+                offerings: previewOfferings?.offerings ?? [],
+                careOfferingSelectionMode:
+                  previewOfferings?.careOfferingSelectionMode ??
+                  ("optional" as const),
                 careRequired: false,
-                schoolClass: EMPTY_SCHOOL_CLASS_CONFIG,
-                collectGradeLevel: true,
-                careOfferingsEnabled: true,
-                // No phase, so no phase-level grade restriction (preview).
-                eligibleGradeLevels: [] as number[],
+                schoolClass:
+                  previewOfferings?.schoolClass ?? EMPTY_SCHOOL_CLASS_CONFIG,
+                collectGradeLevel:
+                  previewOfferings?.collectGradeLevel !== false,
+                careOfferingsEnabled:
+                  previewOfferings?.careOfferingsEnabled !== false,
+                // Without a phase there is no phase-level grade restriction.
+                eligibleGradeLevels:
+                  previewOfferings?.eligibleGradeLevels ?? [],
               }),
           // Deliberately silent: the profile only prefills the guardian
           // fields, which the parent can type in. The client logs the
@@ -791,7 +816,7 @@ export function EnrollmentForm({
           code: (err as Partial<ApiError> | undefined)?.code,
         });
         void showLoadError(err, {
-          object: tr("errorObject"),
+          object: loadErrorObject,
           retry: () => setLoadAttempt((n) => n + 1),
         });
       } finally {
@@ -807,10 +832,11 @@ export function EnrollmentForm({
     phaseID,
     prefetchedData,
     previewSchema,
+    previewOfferings,
     lateInviteFetchOptions,
     profileFetcher,
     skipCaptcha,
-    tr,
+    loadErrorObject,
     loadAttempt,
     clearLoadError,
     showLoadError,
@@ -832,7 +858,7 @@ export function EnrollmentForm({
     child: ChildDraft,
     childOfferings: readonly PublicCareOffering[],
   ) =>
-    materializeCareOfferings(
+    materializeChildCare(
       child,
       childOfferings,
       careOfferingGradeForChild(child),
@@ -1047,7 +1073,7 @@ export function EnrollmentForm({
     const trimmedEmail = guardianEmail.trim();
     if (!trimmedEmail) {
       newFieldErrors.guardian_email = tr("errors.email");
-    } else if (!GUARDIAN_EMAIL_PATTERN.test(trimmedEmail)) {
+    } else if (!isValidContactEmail(trimmedEmail)) {
       newFieldErrors.guardian_email = tr("errors.validEmail");
     }
     // Phone is optional, but reject an invalid format before submit so the
@@ -1058,7 +1084,7 @@ export function EnrollmentForm({
       schema?.core_requirements?.guardian_phone === true;
     if (guardianPhoneRequired && !trimmedPhone) {
       newFieldErrors.guardian_phone = tr("errors.phone");
-    } else if (trimmedPhone && !GUARDIAN_PHONE_PATTERN.test(trimmedPhone)) {
+    } else if (trimmedPhone && !isValidContactPhone(trimmedPhone)) {
       newFieldErrors.guardian_phone = tr("errors.validPhone");
     }
     // Additional guardians: a card with ANY field filled must carry both
@@ -1078,11 +1104,11 @@ export function EnrollmentForm({
         newFieldErrors[`additional_guardian_${i}_last_name`] =
           tr("errors.lastName");
       }
-      if (gEmail && !GUARDIAN_EMAIL_PATTERN.test(gEmail)) {
+      if (gEmail && !isValidContactEmail(gEmail)) {
         newFieldErrors[`additional_guardian_${i}_email`] =
           tr("errors.validEmail");
       }
-      if (gPhone && !GUARDIAN_PHONE_PATTERN.test(gPhone)) {
+      if (gPhone && !isValidContactPhone(gPhone)) {
         newFieldErrors[`additional_guardian_${i}_phone`] =
           tr("errors.validPhone");
       }
@@ -1144,18 +1170,18 @@ export function EnrollmentForm({
             relevantCareDaysForChild(
               c,
               childOfferings,
-              previewMode,
+              templatePreview,
               careOfferingGradeForChild(c),
               offerings.length > 0,
             ),
-            careDaysAreConstrained(offerings, previewMode),
+            careDaysAreConstrained(offerings, templatePreview),
           )
         ) {
           newFieldErrors[`children_${i}_custom_${field.key}`] =
             requiredMessageForField(
               field,
               tr,
-              careDaysAreConstrained(offerings, previewMode),
+              careDaysAreConstrained(offerings, templatePreview),
             );
         }
       }
@@ -1168,7 +1194,7 @@ export function EnrollmentForm({
       const relevantDays = relevantCareDaysForChild(
         c,
         childOfferings,
-        previewMode,
+        templatePreview,
         careOfferingGradeForChild(c),
         offerings.length > 0,
       );
@@ -1401,7 +1427,7 @@ export function EnrollmentForm({
             relevantCareDaysForChild(
               c,
               childOfferings,
-              previewMode,
+              templatePreview,
               careOfferingGradeForChild(c),
               offerings.length > 0,
             ),
@@ -1766,9 +1792,9 @@ export function EnrollmentForm({
                 className="moto-content-surface space-y-5 rounded-xl border p-3 sm:p-4"
               >
                 <div className="flex items-center justify-between gap-3">
-                  <h3 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
+                  <SectionLabel>
                     {tr("sections.additionalGuardianLabel", { index: i + 1 })}
-                  </h3>
+                  </SectionLabel>
                   <Button
                     type="button"
                     variant="ghost_danger"
@@ -1902,9 +1928,11 @@ export function EnrollmentForm({
             profile.children.length > 0 &&
             !lockChildStructure &&
             isNewStudentsPhase && (
-              <p className="border-moto-orange/30 bg-moto-orange/5 rounded-lg border px-4 py-3 text-sm text-gray-700">
-                {tr("sections.newStudentsOnlyNotice")}
-              </p>
+              <Alert
+                type="warning"
+                announce="off"
+                message={tr("sections.newStudentsOnlyNotice")}
+              />
             )}
 
           {reusableChildren.length > 0 &&
@@ -2077,13 +2105,19 @@ export function EnrollmentForm({
                           : tr("locked.noCare")}
                     </DataField>
                   </DataGrid>
-                  <p className="border-moto-blue/30 bg-moto-blue/5 rounded-lg border px-3 py-2 text-sm leading-6 text-gray-700">
-                    {tr("locked.hint", {
-                      name: name || tr("structured.child"),
-                    })}
-                    <br />
-                    {tr("locked.noAccess")}
-                  </p>
+                  <Alert
+                    type="info"
+                    announce="off"
+                    message={
+                      <p className="leading-6">
+                        {tr("locked.hint", {
+                          name: name || tr("structured.child"),
+                        })}
+                        <br />
+                        {tr("locked.noAccess")}
+                      </p>
+                    }
+                  />
                 </SectionCard>
               );
             }
@@ -2093,11 +2127,11 @@ export function EnrollmentForm({
                 className="moto-content-surface space-y-5 rounded-xl border p-3 sm:p-4"
               >
                 <div className="flex items-center justify-between gap-3">
-                  <h3 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
+                  <SectionLabel>
                     {restrictToOfferings && child.first_name
                       ? `${child.first_name} ${child.last_name}`.trim()
                       : `${tr("structured.child")} ${i + 1}`}
-                  </h3>
+                  </SectionLabel>
                   {children.length > 1 && !lockChildStructure && (
                     <Button
                       type="button"
@@ -2348,6 +2382,7 @@ export function EnrollmentForm({
                               : tr("care.optionalHint")}{" "}
                           {tr("care.reviewHint")}
                         </p>
+                        {/* oxlint-disable-next-line ui-kit/no-hand-rolled-notice -- roter Fehlerrahmen um die Angebotsauswahl, solange sie ungültig ist; kein Hinweis */}
                         <div
                           aria-invalid={
                             childOfferingErrors[i] ? true : undefined
@@ -2597,13 +2632,13 @@ export function EnrollmentForm({
                           relevantDays={relevantCareDaysForChild(
                             child,
                             childOfferings,
-                            previewMode,
+                            templatePreview,
                             careOfferingGradeForChild(child),
                             offerings.length > 0,
                           )}
                           careConstrained={careDaysAreConstrained(
                             offerings,
-                            previewMode,
+                            templatePreview,
                           )}
                           singleMode={
                             f.type === "weekday_multi_mode" &&
@@ -2901,8 +2936,9 @@ const GERMAN_ENROLLMENT_FORM_MESSAGES = germanEnrollmentFormMessages as Record<
 >;
 
 function makeEnrollmentFormTranslator(
-  intl: ReturnType<typeof useTranslations<"enrollmentForm">>,
+  intl: ReturnType<typeof useCareTermTranslations>,
   localizedCopy: boolean,
+  careTerm: string,
 ): EnrollmentFormTranslator {
   if (localizedCopy) {
     return Object.assign(
@@ -2914,7 +2950,9 @@ function makeEnrollmentFormTranslator(
     (key: string, values?: TranslationValues) => {
       const value = readGermanMessage(key);
       if (typeof value !== "string") return key;
-      return interpolateMessage(value, values);
+      // The German staff preview names the school's care like the parents'
+      // form does (#6042).
+      return interpolateMessage(value, { careTerm, ...values });
     },
     { raw: (key: string) => readGermanMessage(key) },
   );
@@ -3095,27 +3133,6 @@ function offeringRuleHint(rule: string, tr: TranslationFn): string {
 // checkbox. The day picker stays available for parent_choice offerings in
 // both cases.
 /**
- * Occupancy line under an offering in ADMIN flows (#2186). Renders nothing
- * without stats, so the parent form and a failed stats load look exactly as
- * they did before.
- */
-function OfferingOccupancyLine({
-  stats,
-}: Readonly<{ stats: CareOfferingBookingStats | undefined }>) {
-  const label = formatOfferingOccupancy(stats);
-  if (!label) return null;
-  return (
-    <div
-      className={`mt-1 text-xs ${
-        offeringIsFull(stats) ? "text-moto-amber-strong" : "text-gray-500"
-      }`}
-    >
-      {label}
-    </div>
-  );
-}
-
-/**
  * An offering an availability rule rules out for this child, shown greyed
  * with the reason. Admin flows only — for parents, silently omitting an
  * unavailable offering is the correct behaviour (#2186).
@@ -3137,7 +3154,7 @@ function BlockedOfferingCard({
     gradeLevelMax,
   );
   return (
-    <OfferingRowShell tone={BLOCKED_OFFERING_ROW_TONE}>
+    <OfferingRowShell state="blocked">
       <div className="flex items-start gap-3">
         <span
           aria-hidden
@@ -3193,18 +3210,18 @@ function OfferingCard({
     !required &&
     toggleLocked &&
     offering.available_days.some((day) => automaticDays?.has(day) ?? false);
-  let stateClass = "border-gray-200 bg-white hover:border-gray-300";
+  let rowState: OfferingRowState = "available";
   if (dayError) {
-    stateClass = "border-moto-red bg-moto-red/5";
+    rowState = "invalid";
   } else if (autoIncluded || checked) {
-    stateClass = "border-moto-green/40 bg-moto-green/10";
+    rowState = "selected";
   } else if (required || toggleLocked) {
-    stateClass = "border-gray-200 bg-gray-50";
+    rowState = "locked";
   }
   const inputId = `children-${childIndex}-offering-${offering.id}`;
 
   return (
-    <OfferingRowShell tone={stateClass} invalid={dayError}>
+    <OfferingRowShell state={rowState}>
       <label
         htmlFor={inputId}
         className={`flex items-start gap-3 ${
@@ -3609,7 +3626,7 @@ function selectedCareDaysForChild(
   offerings: readonly PublicCareOffering[],
   gradeLevel: string | undefined,
 ): string[] {
-  const materialized = materializeCareOfferings(child, offerings, gradeLevel);
+  const materialized = materializeChildCare(child, offerings, gradeLevel);
   const days = new Set<string>();
   for (const id of materialized.offeringIds) {
     const offering = offerings.find((o) => o.id === id);
@@ -3627,114 +3644,17 @@ function selectedCareDaysForChild(
   return WEEKDAYS.filter((day) => days.has(day));
 }
 
-interface MaterializedCareSelection {
-  offeringIds: Set<string>;
-  offeringDays: Record<string, Set<string>>;
-  automaticDays: Record<string, Set<string>>;
-}
-
-function materializeCareOfferings(
+function materializeChildCare(
   child: ChildDraft,
   offerings: readonly PublicCareOffering[],
   gradeLevel: string | undefined,
 ): MaterializedCareSelection {
-  const offeringIds = new Set(child.offering_ids);
-  const offeringDays: Record<string, Set<string>> = {};
-  const automaticDays: Record<string, Set<string>> = {};
-  for (const [id, days] of Object.entries(child.offering_days)) {
-    offeringDays[id] = new Set(days);
-  }
-
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const target of offerings) {
-      if (!autoAddAppliesToGrade(gradeLevel, target)) continue;
-      const triggerIDs = target.auto_add_trigger_offering_ids ?? [];
-      if (triggerIDs.length === 0 && !isRequiredLunchOffering(target)) continue;
-
-      const auto = new Set<string>();
-      const targetDays = new Set(target.available_days);
-      for (const triggerID of triggerIDs) {
-        if (!offeringIds.has(triggerID)) continue;
-        const trigger = offerings.find((offering) => offering.id === triggerID);
-        if (!trigger) continue;
-        const triggerDays =
-          trigger.days_of_week_mode === "parent_choice"
-            ? Array.from(offeringDays[triggerID] ?? new Set<string>())
-            : trigger.available_days;
-        for (const day of triggerDays) {
-          if (targetDays.has(day)) auto.add(day);
-        }
-      }
-      if (isRequiredLunchOffering(target)) {
-        for (const source of offerings) {
-          if (source.id === target.id || !(source.counts_as_care ?? true)) {
-            continue;
-          }
-          if (!offeringIds.has(source.id)) {
-            continue;
-          }
-          const sourceDays =
-            source.days_of_week_mode === "parent_choice"
-              ? Array.from(offeringDays[source.id] ?? new Set<string>())
-              : source.available_days;
-          for (const day of sourceDays) {
-            if (targetDays.has(day)) auto.add(day);
-          }
-        }
-      }
-      if (auto.size === 0) continue;
-
-      if (!offeringIds.has(target.id)) {
-        offeringIds.add(target.id);
-        changed = true;
-      }
-      if (!sameSet(automaticDays[target.id], auto)) {
-        automaticDays[target.id] = auto;
-        changed = true;
-      }
-      const merged = new Set(offeringDays[target.id] ?? []);
-      const beforeSize = merged.size;
-      for (const day of auto) merged.add(day);
-      if (
-        merged.size !== beforeSize ||
-        !sameSet(offeringDays[target.id], merged)
-      ) {
-        offeringDays[target.id] = merged;
-        changed = true;
-      }
-    }
-  }
-
-  return { offeringIds, offeringDays, automaticDays };
-}
-
-function sameSet(left: Set<string> | undefined, right: Set<string>): boolean {
-  if (!left || left.size !== right.size) return false;
-  for (const value of left) {
-    if (!right.has(value)) return false;
-  }
-  return true;
-}
-
-function isRequiredLunchOffering(offering: PublicCareOffering): boolean {
-  return (
-    offering.is_required &&
-    offering.includes_lunch &&
-    offering.days_of_week_mode === "parent_choice"
+  const grade = Number(gradeLevel);
+  return materializeCareSelection(
+    offerings,
+    { offeringIds: child.offering_ids, offeringDays: child.offering_days },
+    Number.isFinite(grade) && grade > 0 ? grade : undefined,
   );
-}
-
-function autoAddAppliesToGrade(
-  gradeValue: string | undefined,
-  offering: PublicCareOffering,
-): boolean {
-  const gradeLevels = offering.auto_add_grade_levels ?? [];
-  if (gradeLevels.length === 0) return true;
-  const grade = Number(gradeValue);
-  if (!Number.isFinite(grade) || grade <= 0) return false;
-  return gradeLevels.includes(grade);
 }
 
 function relevantCareDaysForChild(
@@ -3817,7 +3737,7 @@ function ExistingChildrenPanel({
   tr,
 }: ExistingChildrenPanelProps) {
   return (
-    <div className="border-moto-green/40 bg-moto-green/5 rounded-lg border p-4">
+    <InsetPanel framed padding="md">
       <h3 className="text-sm font-semibold text-gray-900">
         {tr("structured.existingTitle")}
       </h3>
@@ -3856,6 +3776,6 @@ function ExistingChildrenPanel({
           );
         })}
       </ul>
-    </div>
+    </InsetPanel>
   );
 }

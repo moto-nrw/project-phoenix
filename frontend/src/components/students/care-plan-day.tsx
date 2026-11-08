@@ -30,6 +30,7 @@ import type {
 } from "~/lib/student-care-plan-api";
 import { parseTimeToMinutes } from "~/lib/timetable-helpers";
 import { InsetPanel } from "~/components/ui/inset-panel";
+import { ColorBar } from "~/components/ui/color-bar";
 
 interface CarePlanDayTimelineProps {
   readonly day: CarePlanDay | null;
@@ -174,26 +175,35 @@ function InstanceBlock({
 }) {
   const cancelled = instance.status === "cancelled";
   return (
-    <div
-      className="rounded-lg border border-l-4 border-gray-200 bg-white px-3 py-2 shadow-sm"
-      style={{ borderLeftColor: LOCATION_COLORS.GROUP_ROOM }}
-    >
-      <div className="flex items-baseline justify-between gap-2">
-        <span
-          className={`truncate font-semibold text-gray-900 ${
-            compact ? "text-sm" : ""
-          } ${cancelled ? "line-through" : ""}`}
-        >
-          {instance.title}
-        </span>
-        <span className="shrink-0 text-xs text-gray-500 tabular-nums">
-          {instance.startTime}–{instance.endTime}
-        </span>
+    // Weiße Innenfläche mit dem Farbbalken der Gruppe als Typkennzeichen
+    // (#6135). Kein PlanBlock: dessen 12-px-Titel wären in der Tagesansicht
+    // des Kindes zu klein.
+    <InsetPanel tone="white" padding="compact" className="flex gap-2.5">
+      <ColorBar
+        color={LOCATION_COLORS.GROUP_ROOM}
+        size="lg"
+        className="self-center"
+      />
+      <div className="min-w-0 flex-1">
+        {/* In einer schmalen Wochenspalte bricht die Zeit unter den Titel um,
+            statt ihn auf null Breite zu kürzen. */}
+        <div className="flex flex-wrap items-baseline justify-between gap-x-2">
+          <span
+            className={`max-w-full min-w-0 truncate font-semibold text-gray-900 ${
+              compact ? "text-sm" : ""
+            } ${cancelled ? "line-through" : ""}`}
+          >
+            {instance.title}
+          </span>
+          <span className="shrink-0 text-xs text-gray-500 tabular-nums">
+            {instance.startTime}–{instance.endTime}
+          </span>
+        </div>
+        <div className="mt-0.5">
+          <AttendanceTag instance={instance} />
+        </div>
       </div>
-      <div className="mt-0.5">
-        <AttendanceTag instance={instance} />
-      </div>
-    </div>
+    </InsetPanel>
   );
 }
 

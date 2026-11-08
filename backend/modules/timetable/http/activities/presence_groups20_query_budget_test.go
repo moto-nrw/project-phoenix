@@ -49,7 +49,7 @@ func TestPresenceGroups20ActivitiesQueryBudget(t *testing.T) {
 	type sample struct {
 		key string
 		n   int
-		sql []string
+		sql testpkg.QueryMeasurement
 	}
 	var samples []sample
 	for _, n := range []int{3, 8} {
@@ -160,7 +160,7 @@ func TestPresenceGroups20ActivitiesQueryBudget(t *testing.T) {
 
 			}
 			t.Logf("PRESENCE20_ACTIVITIES key=%s n=%d statements=%d sql=%q body=%s", route.key, n, counter.Total(), counter.Queries(), rr.Body.String())
-			samples = append(samples, sample{route.key, n, counter.Queries()})
+			samples = append(samples, sample{route.key, n, counter.Measurement(counter.Queries())})
 			denied := testutil.ExecuteRequest(router, testutil.NewRequest("GET", path, nil))
 			require.Equal(t, 401, denied.Code)
 		}
@@ -181,7 +181,7 @@ func TestPresenceGroups20ActivitiesQueryBudget(t *testing.T) {
 	}
 }
 
-func assertPresence20ActivitiesBudget(t *testing.T, key string, n int, queries []string) {
+func assertPresence20ActivitiesBudget(t *testing.T, key string, n int, queries querybudgets.Measurement) {
 	t.Helper()
 	switch fmt.Sprintf("%s.n%d", key, n) {
 	case "list.n3":

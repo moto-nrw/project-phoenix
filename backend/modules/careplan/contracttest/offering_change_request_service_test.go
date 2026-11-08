@@ -217,7 +217,7 @@ func TestCourseCatalogQueryBudget(t *testing.T) {
 		assert.True(t, courseItem.Waitlisted)
 		assert.Zero(t, counter.WriteRows())
 		t.Logf("course catalog N=%d items=%d total=%d", n, len(catalog.Items), counter.Total())
-		querybudgets.AssertQueryBudget(t, "api.parent.child_courses", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "api.parent.child_courses", counter.Measurement(counter.Queries()))
 		if n == 1 {
 			smallStatements, smallItems = counter.Total(), len(catalog.Items)
 		} else {

@@ -383,7 +383,7 @@ func (d *DemoAccess) knownSchool(ctx context.Context, email string) (domain.Demo
 		if err := d.store.LockDemoSchool(ctx, lockedSlug); err != nil {
 			return domain.DemoAccess{}, false, false, err
 		}
-		known, found, err = d.store.FindActiveDemoAccessByEmail(ctx, email, d.now())
+		known, found, err = d.store.RereadActiveDemoAccessByEmail(ctx, email, d.now())
 		if err != nil || !found {
 			return known, found, false, err
 		}

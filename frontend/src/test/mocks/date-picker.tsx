@@ -34,9 +34,10 @@ export function isoDatePickerMock() {
       disabled,
       label,
       error,
+      hint,
     }: ISODatePickerProps) => (
-      // The real component renders its own label and error text, so the stub has
-      // to as well — otherwise getByLabelText stops finding the field.
+      // The real component renders its own label, hint and error text, so the
+      // stub has to as well — otherwise getByLabelText stops finding the field.
       <div>
         {label && <label htmlFor={id}>{label}</label>}
         <input
@@ -52,6 +53,7 @@ export function isoDatePickerMock() {
           disabled={disabled}
           onChange={(event) => onChange(event.target.value)}
         />
+        {hint && <p>{hint}</p>}
         {error && <p role="alert">{error}</p>}
       </div>
     ),

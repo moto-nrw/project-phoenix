@@ -3,7 +3,6 @@ package carecontracthttp
 import (
 	"errors"
 	"net/http"
-	"sort"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -23,7 +22,6 @@ type NoticeResource struct {
 	requireContract common.Middleware
 }
 
-// NewNoticeResource binds the routes to the owner and the right check.
 func NewNoticeResource(notices carecontract.Notices, requireContract common.Middleware) *NoticeResource {
 	if notices == nil || requireContract == nil {
 		panic("care contract http: the notices and the right check are required")
@@ -40,6 +38,7 @@ func (rs *NoticeResource) Router(protectedTraegerRoutes func(chi.Router, func(ch
 		open.Get("/{id}", rs.options)
 		open.Post("/{id}", rs.declare)
 		open.Put("/{id}/ends-on", rs.setEnd)
+		open.Post("/{id}/reason-rejection", rs.rejectReason)
 	})
 	return r
 }
@@ -59,13 +58,12 @@ func (rs *NoticeResource) options(w http.ResponseWriter, r *http.Request) {
 	}
 	options, err := rs.notices.NoticeOptions(r.Context(), reviewer, id, receivedOn)
 	if err != nil {
-		RenderNoticeError(w, r, err)
+		renderNoticeError(w, r, err)
 		return
 	}
 	common.Respond(w, r, http.StatusOK, options, "Contract notice options retrieved successfully")
 }
 
-// NoticeRequest is the body of a declaration.
 type NoticeRequest struct {
 	carecontract.NoticeInput
 }
@@ -85,7 +83,7 @@ func (rs *NoticeResource) declare(w http.ResponseWriter, r *http.Request) {
 	}
 	options, err := rs.notices.DeclareNotice(r.Context(), reviewer, id, req.NoticeInput)
 	if err != nil {
-		RenderNoticeError(w, r, err)
+		renderNoticeError(w, r, err)
 		return
 	}
 	common.Respond(w, r, http.StatusOK, options, "Contract notice recorded successfully")
@@ -112,10 +110,37 @@ func (rs *NoticeResource) setEnd(w http.ResponseWriter, r *http.Request) {
 	}
 	options, err := rs.notices.SetNoticeEnd(r.Context(), reviewer, id, req.EndsOn)
 	if err != nil {
-		RenderNoticeError(w, r, err)
+		renderNoticeError(w, r, err)
 		return
 	}
 	common.Respond(w, r, http.StatusOK, options, "Contract end recorded successfully")
+}
+
+// ReasonRejectionRequest is the refusal of the reason of an extraordinary
+// termination; ExpectedEndsOn is the end the office was shown.
+type ReasonRejectionRequest struct {
+	ExpectedEndsOn calendar.Date `json:"expected_ends_on"`
+}
+
+// Bind accepts the body; the owner checks the day.
+func (req *ReasonRejectionRequest) Bind(*http.Request) error { return nil }
+
+func (rs *NoticeResource) rejectReason(w http.ResponseWriter, r *http.Request) {
+	reviewer, id, ok := contractKey(w, r)
+	if !ok {
+		return
+	}
+	req := &ReasonRejectionRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	options, err := rs.notices.RejectNoticeReason(r.Context(), reviewer, id, req.ExpectedEndsOn)
+	if err != nil {
+		renderNoticeError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, options, "Contract notice reason rejected successfully")
 }
 
 var noticeErrorRules = []struct {
@@ -130,23 +155,10 @@ var noticeErrorRules = []struct {
 	{carecontract.ErrNoticeEndNotOpen, common.CodeCareContractNoticeEndNotOpen},
 }
 
-// RenderNoticeError answers an error of a declaration with its registered
-// code; the parents portal uses it as well.
-func RenderNoticeError(w http.ResponseWriter, r *http.Request, err error) {
+func renderNoticeError(w http.ResponseWriter, r *http.Request, err error) {
 	var invalid *carecontract.ValidationError
 	if errors.As(err, &invalid) {
-		names := make([]string, 0, len(invalid.Fields))
-		for name := range invalid.Fields {
-			names = append(names, name)
-		}
-		sort.Strings(names)
-		fields := make([]common.FieldError, len(names))
-		for i, name := range names {
-			fields[i] = common.FieldError{Field: name, Reason: invalid.Fields[name]}
-		}
-		response := common.ErrorValidation("the declaration is invalid", fields).(*common.ErrResponse)
-		response.Code = common.CodeCareContractContractInputInvalid
-		common.RenderError(w, r, response)
+		common.RenderError(w, r, validationError(invalid))
 		return
 	}
 	for _, rule := range noticeErrorRules {

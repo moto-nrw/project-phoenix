@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/uptrace/bun"
 )
 
@@ -25,13 +26,13 @@ func (r *Store) RestoreWithdrawnChildren(ctx context.Context, requestID int64, w
 		err := db.NewUpdate().
 			TableExpr(`enrollment.request_children AS "request_child"`).
 			Where(`"request_child".tenant_id = ?`, tenantID).
-			Set("status = ?", "waitlisted").
+			Set("status = ?", enrollment.ChildStatusWaitlisted).
 			Set("status_reason = NULL").
 			Set("reviewed_at = NULL").
 			Set("reviewed_by = NULL").
 			Set("updated_at = NOW()").
 			Where(`"request_child".request_id = ?`, requestID).
-			Where(`"request_child".status = ?`, "withdrawn").
+			Where(`"request_child".status = ?`, enrollment.ChildStatusWithdrawn).
 			Where(`"request_child".id IN (?)`, bun.List(waitlistedChildIDs)).
 			Returning(`"request_child".id`).
 			Scan(ctx, &waitlisted)
@@ -44,13 +45,13 @@ func (r *Store) RestoreWithdrawnChildren(ctx context.Context, requestID int64, w
 	q := db.NewUpdate().
 		TableExpr(`enrollment.request_children AS "request_child"`).
 		Where(`"request_child".tenant_id = ?`, tenantID).
-		Set("status = ?", "submitted").
+		Set("status = ?", enrollment.ChildStatusSubmitted).
 		Set("status_reason = NULL").
 		Set("reviewed_at = NULL").
 		Set("reviewed_by = NULL").
 		Set("updated_at = NOW()").
 		Where(`"request_child".request_id = ?`, requestID).
-		Where(`"request_child".status = ?`, "withdrawn")
+		Where(`"request_child".status = ?`, enrollment.ChildStatusWithdrawn)
 	if len(waitlistedChildIDs) > 0 {
 		q = q.Where(`"request_child".id NOT IN (?)`, bun.List(waitlistedChildIDs))
 	}

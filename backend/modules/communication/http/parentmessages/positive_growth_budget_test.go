@@ -54,7 +54,7 @@ func TestParentMessagePositiveGrowthQueryBudget(t *testing.T) {
 			counter.Reset()
 			counter.Start()
 		}
-		rec := testutil.ExecuteRequestForTest(t, router, req)
+		rec := testutil.ExecuteRequestForTest(t, testpkg.MountedQueryBudgetRouter("/api/messages", router), req)
 		counter.Stop()
 		if measure {
 			require.Equal(t, 200, rec.Code, rec.Body.String())
@@ -157,15 +157,15 @@ func TestParentMessagePositiveGrowthQueryBudget(t *testing.T) {
 			}
 			switch entry.name {
 			case "guardians":
-				querybudgets.AssertQueryBudget(t, "api.parent_messages.guardians.positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "api.parent_messages.guardians.positive_growth", counter.Measurement(counter.Queries()))
 			case "student_threads":
-				querybudgets.AssertQueryBudget(t, "api.parent_messages.student_threads.positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "api.parent_messages.student_threads.positive_growth", counter.Measurement(counter.Queries()))
 			case "thread":
-				querybudgets.AssertQueryBudget(t, "api.parent_messages.thread.positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "api.parent_messages.thread.positive_growth", counter.Measurement(counter.Queries()))
 			case "group_audience":
-				querybudgets.AssertQueryBudget(t, "api.parent_messages.group_audience.positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "api.parent_messages.group_audience.positive_growth", counter.Measurement(counter.Queries()))
 			case "group_thread":
-				querybudgets.AssertQueryBudget(t, "api.parent_messages.group_thread.positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "api.parent_messages.group_thread.positive_growth", counter.Measurement(counter.Queries()))
 			}
 		}
 	}
@@ -177,7 +177,7 @@ func TestParentMessagePositiveGrowthQueryBudget(t *testing.T) {
 	for _, path := range []string{"/threads/" + threadIDs[0], "/group-threads/" + groupID} {
 		req := httptest.NewRequest("GET", path, nil)
 		req.Header.Set("Authorization", "Bearer "+foreignToken)
-		rec := testutil.ExecuteRequestForTest(t, router, req)
+		rec := testutil.ExecuteRequestForTest(t, testpkg.MountedQueryBudgetRouter("/api/messages", router), req)
 		require.Equal(t, 404, rec.Code, rec.Body.String())
 	}
 }

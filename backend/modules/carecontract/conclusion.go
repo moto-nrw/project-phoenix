@@ -76,7 +76,6 @@ type Conclusion interface {
 	AmendFromBookings(ctx context.Context, organizationID int64) (AmendmentRun, error)
 }
 
-// Concluded tells how and when a contract was concluded.
 type Concluded struct {
 	Method string    `json:"method"`
 	At     time.Time `json:"at"`

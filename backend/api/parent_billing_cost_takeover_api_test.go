@@ -385,22 +385,22 @@ func TestCostBearerListAndReimbursementListQueryBudgetsAreFlat(t *testing.T) {
 	t.Parallel()
 	f := newReviewFixture(t, "Träger Budget Kostenträger")
 	billing := traegerColleague(t, f, identityaccess.TraegerRoleBilling)
-	get := func(path string, all bool) []string {
+	get := func(path string, all bool) testpkg.QueryMeasurement {
 		counter := testpkg.CaptureQueriesForContext(t, f.db)
 		req := httptest.NewRequest(http.MethodGet, path, nil)
 		req.Header.Set("Authorization", "Bearer "+billing)
 		rec := httptest.NewRecorder()
-		f.traeger.ServeHTTP(rec, req.WithContext(counter.Context(req.Context())))
+		testpkg.MeasuredHTTPRequest(counter, f.traeger, rec, req.WithContext(counter.Context(req.Context())))
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 		if all {
-			return counter.Queries()
+			return counter.Measurement(counter.Queries())
 		}
-		return counter.Selects("")
+		return counter.Measurement(counter.Selects(""))
 	}
 	office := createCostBearer(t, f, billing, youthOffice())
 	one := get(costBearersPath, false)
 	createCostBearer(t, f, billing, map[string]any{"name": "Sozialamt Musterstadt", "active": true})
-	assert.Len(t, get(costBearersPath, false), len(one), "the list reads the same statements for any number of cost bearers")
+	assert.Len(t, get(costBearersPath, false).Statements, len(one.Statements), "the list reads the same statements for any number of cost bearers")
 	querybudgets.AssertQueryBudget(t, "api.traeger.cost_bearers", one)
 
 	confirmSiblingsWithTakeover(t, f, office)

@@ -425,7 +425,7 @@ func registerParentMessageTypes() {
 	RegisterType(TypeDefinition{
 		Key:         TypeParentBillingDocument,
 		Label:       "Neues Dokument vom Träger",
-		Description: "Wenn der Träger Ihnen ein Dokument schickt, zum Beispiel ein Bestätigungsschreiben.",
+		Description: "Wenn der Träger Ihnen ein Dokument schickt oder freigibt, zum Beispiel einen Vertrag.",
 		Group:       GroupMessages,
 		Portal:      PortalParent,
 		SortOrder:   3,

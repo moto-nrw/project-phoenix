@@ -24,6 +24,7 @@ import { ChoiceTile } from "~/components/ui/choice-tile";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Modal } from "~/components/ui/modal";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import {
   HOME_BOARD_COLUMNS,
@@ -799,105 +800,107 @@ function BlockToolbar({
   const [adding, setAdding] = useState(false);
 
   return (
-    <div className="moto-content-surface flex flex-wrap items-center gap-3 rounded-2xl border p-4">
-      {definition && placement ? (
-        <>
-          <span className="flex items-center gap-2">
-            <MotoConceptIcon concept={definition.concept} size={20} />
-            <span className="text-sm font-semibold text-gray-900">
-              {definition.label}
-            </span>
-          </span>
-
-          {definition.spans.length > 1 ? (
+    <SectionCard overflow="visible">
+      <div className="flex flex-wrap items-center gap-3">
+        {definition && placement ? (
+          <>
             <span className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">Breite</span>
-              <SegmentedControl
-                ariaLabel={`Breite von ${definition.label}`}
-                items={definition.spans.map((span) => ({
-                  value: String(span),
-                  label: SPAN_LABEL[span],
-                }))}
-                value={String(placement.span)}
-                onChange={(next) =>
-                  onSpanChange(placement.key, Number(next) as HomeBlockSpan)
-                }
-              />
+              <MotoConceptIcon concept={definition.concept} size={20} />
+              <span className="text-sm font-semibold text-gray-900">
+                {definition.label}
+              </span>
             </span>
-          ) : (
-            // Eine Kennzahl hat genau eine Breite. Das steht da, damit
-            // niemand den fehlenden Regler für einen Fehler hält.
-            <span className="text-sm text-gray-500">
-              Kennzahlen sind immer schmal.
-            </span>
-          )}
 
-          {isRequired ? (
-            <span className="text-sm text-gray-500">
-              Die Schule zeigt diesen Baustein immer.
-            </span>
-          ) : (
-            <Button
-              type="button"
-              variant="outline_danger"
-              size="md"
-              className="gap-1"
-              onClick={() => onRemove(placement.key)}
-            >
-              <Trash2 className="h-4 w-4" aria-hidden="true" />
-              Entfernen
-            </Button>
-          )}
-        </>
-      ) : (
-        <span className="min-w-0 flex-1 text-sm text-gray-600">
-          {arrangeable
-            ? "Karte ziehen, um sie zu verschieben. "
-            : // Ein Tablet oder Handy zeichnet die Spalten nicht; ein Zug
-              // hätte dort kein Ziel. Das steht da, damit niemand vergeblich
-              // zieht.
-              "Verschieben geht am großen Bildschirm. "}
-          Anklicken, um die Breite zu ändern.
-        </span>
-      )}
+            {definition.spans.length > 1 ? (
+              <span className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Breite</span>
+                <SegmentedControl
+                  ariaLabel={`Breite von ${definition.label}`}
+                  items={definition.spans.map((span) => ({
+                    value: String(span),
+                    label: SPAN_LABEL[span],
+                  }))}
+                  value={String(placement.span)}
+                  onChange={(next) =>
+                    onSpanChange(placement.key, Number(next) as HomeBlockSpan)
+                  }
+                />
+              </span>
+            ) : (
+              // Eine Kennzahl hat genau eine Breite. Das steht da, damit
+              // niemand den fehlenden Regler für einen Fehler hält.
+              <span className="text-sm text-gray-500">
+                Kennzahlen sind immer schmal.
+              </span>
+            )}
 
-      {/* Rechts stehen die beiden Aktionen, die immer gehen — auch ohne
+            {isRequired ? (
+              <span className="text-sm text-gray-500">
+                Die Schule zeigt diesen Baustein immer.
+              </span>
+            ) : (
+              <Button
+                type="button"
+                variant="outline_danger"
+                size="md"
+                className="gap-1"
+                onClick={() => onRemove(placement.key)}
+              >
+                <Trash2 className="h-4 w-4" aria-hidden="true" />
+                Entfernen
+              </Button>
+            )}
+          </>
+        ) : (
+          <span className="min-w-0 flex-1 text-sm text-gray-600">
+            {arrangeable
+              ? "Karte ziehen, um sie zu verschieben. "
+              : // Ein Tablet oder Handy zeichnet die Spalten nicht; ein Zug
+                // hätte dort kein Ziel. Das steht da, damit niemand vergeblich
+                // zieht.
+                "Verschieben geht am großen Bildschirm. "}
+            Anklicken, um die Breite zu ändern.
+          </span>
+        )}
+
+        {/* Rechts stehen die beiden Aktionen, die immer gehen — auch ohne
           ausgewählte Karte. „Bausteine" ist der Weg zu allem, was man noch
           hinzufügen kann; vorher lag diese Liste unter der Fläche und damit
           außerhalb des Bildes. */}
-      <span className="flex w-full flex-wrap items-center gap-1 sm:ml-auto sm:w-auto sm:flex-nowrap">
-        <Button
-          type="button"
-          variant="outline"
-          size="md"
-          className="gap-1"
-          onClick={() => setAdding(true)}
-        >
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          Bausteine
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="md"
-          className="whitespace-nowrap"
-          disabled={restoring}
-          onClick={onRestoreDefault}
-        >
-          Standardansicht wiederherstellen
-        </Button>
-      </span>
+        <span className="flex w-full flex-wrap items-center gap-1 sm:ml-auto sm:w-auto sm:flex-nowrap">
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            className="gap-1"
+            onClick={() => setAdding(true)}
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Bausteine
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="md"
+            className="whitespace-nowrap"
+            disabled={restoring}
+            onClick={onRestoreDefault}
+          >
+            Standardansicht wiederherstellen
+          </Button>
+        </span>
 
-      <AddBlockModal
-        open={adding}
-        onClose={() => setAdding(false)}
-        addable={addable}
-        onAdd={(key) => {
-          onAdd(key);
-          setAdding(false);
-        }}
-      />
-    </div>
+        <AddBlockModal
+          open={adding}
+          onClose={() => setAdding(false)}
+          addable={addable}
+          onAdd={(key) => {
+            onAdd(key);
+            setAdding(false);
+          }}
+        />
+      </div>
+    </SectionCard>
   );
 }
 

@@ -33,6 +33,7 @@ import {
 } from "./holiday-registration-model";
 import { HolidayRegistrationContribution } from "./holiday-registration-contribution";
 import { useWeekLabels } from "./holiday-registration-sections";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 function contactLine(contact: ContactDraft): string {
   return [contact.name, contact.relationship, contact.phone]
@@ -50,7 +51,7 @@ function AnswerFields({
   answers: Readonly<Record<string, unknown>>;
 }>) {
   const t = useTranslations("holidayRegistration");
-  const tr = useTranslations("enrollmentForm");
+  const tr = useCareTermTranslations("enrollmentForm");
   const locale = useLocale();
   const text = (field: HolidayFormField): string => {
     const value = answers[field.key];
@@ -104,7 +105,7 @@ export function HolidayRegistrationSummary({
   onBenefitsProofsChange: (proofs: NewUploadValue[]) => void;
 }>) {
   const t = useTranslations("holidayRegistration");
-  const uploadText = useTranslations("enrollmentForm");
+  const uploadText = useCareTermTranslations("enrollmentForm");
   const locale = useLocale();
   // A proof of benefits uploads through the public link (#5238); the send
   // button waits until every chosen file has arrived.

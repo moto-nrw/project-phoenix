@@ -22,6 +22,7 @@ import {
   type CorrectionTarget,
 } from "./decision-correction-dialog";
 import { HistoryWithdrawalCard } from "./withdrawal-cards";
+import { SectionCard } from "~/components/ui/section-card";
 
 const CORRECTABLE_KINDS: readonly string[] = [
   "master_data",
@@ -110,7 +111,7 @@ export function HistoryRequestList({
 }>) {
   const [target, setTarget] = useState<CorrectionTarget | null>(null);
   return (
-    <div className="moto-content-surface overflow-hidden rounded-2xl border">
+    <SectionCard padding="none">
       <RequestRowHeader view="history" />
       {withdrawals.map((row) => (
         <HistoryWithdrawalCard key={`care_withdrawal:${row.id}`} row={row} />
@@ -145,6 +146,6 @@ export function HistoryRequestList({
           }}
         />
       )}
-    </div>
+    </SectionCard>
   );
 }

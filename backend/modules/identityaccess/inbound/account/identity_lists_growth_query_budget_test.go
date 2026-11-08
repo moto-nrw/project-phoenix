@@ -53,7 +53,7 @@ func TestIdentityRoleDetailPermissionsGrowthQueryBudget(t *testing.T) {
 		var got []string
 		require.NoError(t, json.Unmarshal(raw, &got))
 		require.ElementsMatch(t, names, got)
-		t.Logf("identity role detail N%d statements=%d", n, len(queries))
+		t.Logf("identity role detail N%d statements=%d", n, len(queries.Statements))
 		querybudgets.AssertQueryBudget(t, "api.auth.roles.detail.permissions_growth", queries)
 	}
 }
@@ -96,7 +96,7 @@ func TestIdentityAccountsGrowthQueryBudget(t *testing.T) {
 		} {
 			rr, queries := f.get(t, tc.path, token)
 			rbacBudgetCollection(t, rr, "Accounts retrieved successfully", tc.rows)
-			t.Logf("%s N%d statements=%d", tc.scenario, n, len(queries))
+			t.Logf("%s N%d statements=%d", tc.scenario, n, len(queries.Statements))
 			if tc.scenario == "api.auth.accounts.list.positive_growth" {
 				querybudgets.AssertQueryBudget(t, "api.auth.accounts.list.positive_growth", queries)
 			} else {
@@ -123,7 +123,7 @@ func TestIdentityStaffPreviewCandidatesGrowthQueryBudget(t *testing.T) {
 		}
 		rr, queries := f.get(t, "/auth/staff-preview/candidates", token)
 		rbacBudgetCollection(t, rr, "Preview candidates retrieved", want)
-		t.Logf("identity preview N%d statements=%d", n, len(queries))
+		t.Logf("identity preview N%d statements=%d", n, len(queries.Statements))
 		querybudgets.AssertQueryBudget(t, "api.auth.staff_preview.candidates.positive_growth", queries)
 	}
 }
@@ -143,7 +143,7 @@ func TestIdentityAccountTokensGrowthQueryBudget(t *testing.T) {
 		}
 		rr, queries := f.get(t, fmt.Sprintf("/auth/accounts/%d/tokens/", account.ID), token)
 		rbacBudgetCollection(t, rr, "Active tokens retrieved successfully", want)
-		t.Logf("identity tokens N%d statements=%d", n, len(queries))
+		t.Logf("identity tokens N%d statements=%d", n, len(queries.Statements))
 		querybudgets.AssertQueryBudget(t, "api.auth.accounts.tokens.positive_growth", queries)
 	}
 }
@@ -168,7 +168,7 @@ func TestIdentityAccountPasskeysGrowthQueryBudget(t *testing.T) {
 		raw, err := json.Marshal(want)
 		require.NoError(t, err)
 		require.JSONEq(t, string(raw), rr.Body.String())
-		t.Logf("identity passkeys N%d statements=%d", n, len(queries))
+		t.Logf("identity passkeys N%d statements=%d", n, len(queries.Statements))
 		querybudgets.AssertQueryBudget(t, "api.auth.passkeys.positive_growth", queries)
 	}
 }
@@ -194,7 +194,7 @@ func TestIdentityTrustedDevicesGrowthQueryBudget(t *testing.T) {
 		var rows []map[string]any
 		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &rows))
 		require.ElementsMatch(t, want, rows, string(raw))
-		t.Logf("identity trusted devices N%d statements=%d", n, len(queries))
+		t.Logf("identity trusted devices N%d statements=%d", n, len(queries.Statements))
 		querybudgets.AssertQueryBudget(t, "api.auth.mfa.trusted_devices.positive_growth", queries)
 	}
 }

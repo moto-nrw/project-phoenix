@@ -9,26 +9,20 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/carecontract/internal/ports"
 )
 
-// The persistence port and its values live in the ports package.
 type (
-	Store          = ports.Store
-	TemplateRow    = ports.TemplateRow
-	ContractKey    = ports.ContractKey
-	NewContract    = ports.NewContract
-	NewParty       = ports.NewParty
-	ContractRecord = ports.ContractRecord
-	StoredMailing  = ports.StoredMailing
-	Event          = ports.Event
-	// AmendableContract is an active contract with its newest effective
-	// version (#4681).
+	Store             = ports.Store
+	TemplateRow       = ports.TemplateRow
+	ContractKey       = ports.ContractKey
+	NewContract       = ports.NewContract
+	NewParty          = ports.NewParty
+	ContractRecord    = ports.ContractRecord
+	StoredMailing     = ports.StoredMailing
+	Event             = ports.Event
 	AmendableContract = ports.AmendableContract
-	// SentDocument is the newest stored PDF of a contract (#4681).
-	SentDocument = ports.SentDocument
-	// VersionStep is what a new version does to the timeline (#4681).
-	VersionStep = ports.VersionStep
+	SentDocument      = ports.SentDocument
+	VersionStep       = ports.VersionStep
 )
 
-// The actions of the trail.
 const (
 	ActionRead     = ports.ActionRead
 	ActionCreate   = ports.ActionCreate
@@ -38,12 +32,10 @@ const (
 	ActionConclude = ports.ActionConclude
 )
 
-// LetterRenderer lays out a contract letter as a PDF.
 type LetterRenderer interface {
 	RenderContract(letter Letter, filenameBase string) (carecontract.File, error)
 }
 
-// Clock answers the instant.
 type Clock struct {
 	Now func() time.Time
 }

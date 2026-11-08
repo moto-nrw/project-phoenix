@@ -10,21 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// allChildStatuses is every status the child model knows. Kept explicit so
-// a future status shows up as a compile-visible gap here rather than a
-// silently mis-counted preview.
-var allChildStatuses = []string{
-	enrollmentNative.ChildStatusSubmitted,
-	enrollmentNative.ChildStatusUnderReview,
-	enrollmentNative.ChildStatusApproved,
-	enrollmentNative.ChildStatusWaitlisted,
-	enrollmentNative.ChildStatusRejected,
-	enrollmentNative.ChildStatusWithdrawn,
-	enrollmentNative.ChildStatusPendingRenewal,
-	enrollmentNative.ChildStatusAutoRenewed,
-	enrollmentNative.ChildStatusPendingAdminReview,
-}
-
 // PreviewPhaseFromSource classifies the source phase's children without
 // writing anything. Shares classifyRolloverGrade with the create path,
 // so the numbers the admin confirms are the numbers the rollover
@@ -222,9 +207,20 @@ func renewalInitialStatus(mode string) string {
 // RunDeadlineWorker is the scheduled resolver. The caller (scheduler tick
 // or CLI) wraps it in a tenant transaction so the bulk updates run as
 // phoenix_tenant with RLS scoping to the current tenant.
+//
+// With the decision flow wired, the tick takes the approval gates before its
+// first bulk transition (ADR 0162): its class switches and weekly plans need
+// them, and a tick that had moved children first and waited for the
+// recurrence gate later deadlocked with an approval that holds the gates and
+// waits for one of those children (#6043 review).
 func (s *Rollovers) RunDeadlineWorker(ctx context.Context, asOf time.Time) (*enrollmentNative.DeadlineWorkerSummary, error) {
 	if s.deps.Phases == nil || s.deps.Children == nil {
 		return nil, fmt.Errorf("rollover deadline: required repos not wired")
+	}
+	if s.deps.Decisions != nil {
+		if err := s.deps.Decisions.LockApprovalGates(ctx); err != nil {
+			return nil, fmt.Errorf("rollover deadline: lock approval gates: %w", err)
+		}
 	}
 	summary := &enrollmentNative.DeadlineWorkerSummary{}
 	values, err := s.deps.Phases.PhasesWithExpiredRolloverDeadline(ctx, asOf)
@@ -246,6 +242,11 @@ func (s *Rollovers) RunDeadlineWorker(ctx context.Context, asOf time.Time) (*enr
 	summary.ClassSwitchesApplied = applied
 	if err != nil {
 		return summary, fmt.Errorf("rollover deadline: apply class switches: %w", err)
+	}
+	applied, err = s.deps.Decisions.ApplyDueWeeklyPlans(ctx, calendar.DateFromTime(asOf))
+	summary.WeeklyPlansApplied = applied
+	if err != nil {
+		return summary, fmt.Errorf("rollover deadline: apply weekly plans: %w", err)
 	}
 	return summary, nil
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { SectionLabel } from "~/components/ui/section-label";
 import { useRef, useState, type ReactNode } from "react";
 import { useParams } from "next/navigation";
 import { RoleGuard } from "~/components/auth/role-guard";
@@ -439,10 +440,10 @@ function DaySection({
 }: Readonly<{ title: string; count?: number; children: ReactNode }>) {
   return (
     <section>
-      <h3 className="mb-1 text-xs font-semibold tracking-wide text-gray-500 uppercase">
+      <SectionLabel className="mb-1">
         {title}
         {count !== undefined && ` (${count})`}
-      </h3>
+      </SectionLabel>
       {children}
     </section>
   );

@@ -114,7 +114,7 @@ func (f *rbacBudgetFixture) state(t *testing.T) rbacBudgetState {
 	return state
 }
 
-func (f *rbacBudgetFixture) get(t *testing.T, path, token string) (*httptest.ResponseRecorder, []string) {
+func (f *rbacBudgetFixture) get(t *testing.T, path, token string) (*httptest.ResponseRecorder, testpkg.QueryMeasurement) {
 	t.Helper()
 	before := f.state(t)
 	req := testutil.NewJSONRequest(t, http.MethodGet, path, nil)
@@ -147,7 +147,7 @@ func (f *rbacBudgetFixture) get(t *testing.T, path, token string) (*httptest.Res
 	for id, rows := range before.Mappings {
 		require.ElementsMatch(t, rows, after.Mappings[id])
 	}
-	return rr, queries
+	return rr, f.counter.Measurement(queries)
 }
 
 func rbacBudgetCollection(t *testing.T, rr *httptest.ResponseRecorder, message string, want []map[string]any) {

@@ -227,14 +227,14 @@ func TestTraegerDocumentTemplatesQueryBudget(t *testing.T) {
 	t.Parallel()
 	db, router := newMasterDataPortal(t)
 	office := newMasterDataOffice(t, db, router, "Träger Budget Vorlagen", identityaccess.TraegerRoleAdministration)
-	read := func(path string) []string {
+	read := func(path string) testpkg.QueryMeasurement {
 		counter := testpkg.CaptureQueriesForContext(t, db)
 		req := httptest.NewRequest(http.MethodGet, path, nil)
 		req.Header.Set("Authorization", "Bearer "+office.token)
 		rec := httptest.NewRecorder()
-		router.ServeHTTP(rec, req.WithContext(counter.Context(req.Context())))
+		testpkg.MeasuredHTTPRequest(counter, router, rec, req.WithContext(counter.Context(req.Context())))
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		return counter.Selects("")
+		return counter.Measurement(counter.Selects(""))
 	}
 	overview, versions := read(documentTemplatesPath), read(documentTemplatesPath+"/rechnung")
 	for i, kind := range []string{"rechnung", "mahnung", "rechnung"} {
@@ -245,8 +245,8 @@ func TestTraegerDocumentTemplatesQueryBudget(t *testing.T) {
 		body.Closing += string(rune('a' + i))
 		require.Equal(t, http.StatusCreated, saveTemplate(t, router, office, kind, body).Code)
 	}
-	assert.Len(t, read(documentTemplatesPath), len(overview), "the overview reads the same statements for any number of versions")
-	assert.Len(t, read(documentTemplatesPath+"/rechnung"), len(versions), "the versions read the same statements for any number of versions")
+	assert.Len(t, read(documentTemplatesPath).Statements, len(overview.Statements), "the overview reads the same statements for any number of versions")
+	assert.Len(t, read(documentTemplatesPath+"/rechnung").Statements, len(versions.Statements), "the versions read the same statements for any number of versions")
 	querybudgets.AssertQueryBudget(t, "api.traeger.document_templates", overview)
 	querybudgets.AssertQueryBudget(t, "api.traeger.document_template_versions", versions)
 }

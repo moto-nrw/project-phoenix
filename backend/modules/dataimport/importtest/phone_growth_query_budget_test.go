@@ -30,9 +30,9 @@ func TestStudentImportPhoneGrowthQueryBudget(t *testing.T) {
 			require.NoError(t, err)
 			require.Zero(t, result.ErrorCount)
 			if n == 3 {
-				querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.phone_growth.n3", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.phone_growth.n3", counter.Measurement(counter.Queries()))
 			} else {
-				querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.phone_growth.n8", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.phone_growth.n8", counter.Measurement(counter.Queries()))
 			}
 			require.EqualValues(t, 5*n+1, counter.WriteRows())
 			require.Empty(t, counter.Selects("users.guardian_phone_numbers"), "new guardians need no phone-list or count read before their first number")

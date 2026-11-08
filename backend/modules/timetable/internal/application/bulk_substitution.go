@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -130,11 +132,18 @@ func staffField(label string) string {
 // planBulkDays runs Phase A for every selected date under the already-held day
 // locks: classify the day-wide absence or substitution without writing a row.
 // A day where the person has no plannable assignments classifies to an empty
-// plan and stays a no-op.
+// plan and stays a no-op. The read sets of all dates load before the first
+// classification (#5808); Phase A writes nothing, so every date still
+// classifies against the rows read after all its locks.
 func (s *staffDeviations) planBulkDays(ctx context.Context, in timetable.BulkSubstitutionInput, dates []calendar.Date, reason *string) ([]bulkDayPlan, error) {
+	deviations := bulkDeviationInput(in, reason)
+	readSets, err := s.loadBulkDeviationReadSets(ctx, deviations, dates)
+	if err != nil {
+		return nil, err
+	}
 	plans := make([]bulkDayPlan, 0, len(dates))
-	for _, date := range dates {
-		plan, err := s.planBulkDay(ctx, in, date, reason)
+	for i, date := range dates {
+		plan, err := planBulkDay(in, deviations, date, readSets[i])
 		if err != nil {
 			return nil, err
 		}
@@ -143,32 +152,77 @@ func (s *staffDeviations) planBulkDays(ctx context.Context, in timetable.BulkSub
 	return plans, nil
 }
 
-func (s *staffDeviations) planBulkDay(ctx context.Context, in timetable.BulkSubstitutionInput, date calendar.Date, reason *string) (bulkDayPlan, error) {
+// bulkDeviationInput is the single-day deviation input every selected date
+// classifies: a day-wide absence, or a day-wide substitution.
+func bulkDeviationInput(in timetable.BulkSubstitutionInput, reason *string) timetable.ApplyDeviationsInput {
 	if in.SubstituteStaffID == nil {
-		absences := []timetable.DeviationAbsenceInput{{
+		return timetable.ApplyDeviationsInput{Absences: []timetable.DeviationAbsenceInput{{
 			StaffID: in.AbsentStaffID,
 			Reason:  reason,
-		}}
-		readSet, err := s.loadDeviationReadSet(ctx, 0, timetable.ApplyDeviationsInput{Absences: absences}, date)
+		}}}
+	}
+	return timetable.ApplyDeviationsInput{Substitutions: []timetable.DeviationSubstitutionInput{{
+		AbsentStaffID:     in.AbsentStaffID,
+		SubstituteStaffID: *in.SubstituteStaffID,
+		Reason:            in.Reason,
+	}}}
+}
+
+// loadBulkDeviationReadSets reads the Phase-A rows of every selected date.
+// Each date keeps its own assignment read; the staff, instance and
+// instance-staff reads run once for all dates. Every date's read set holds
+// exactly the rows its single-date read would return, so a row whose
+// instance is gone still fails that date's classification.
+func (s *staffDeviations) loadBulkDeviationReadSets(ctx context.Context, in timetable.ApplyDeviationsInput, dates []calendar.Date) ([]*deviationReadSet, error) {
+	staffIDs := deviationInputStaffIDs(in)
+	staff, err := s.deps.Staff.FindByIDs(ctx, staffIDs)
+	if err != nil {
+		return nil, timetable.DeviationInternal("load staff failed", err)
+	}
+	rowsByDate := make([][]*scheduleModel.InstanceStaff, len(dates))
+	instanceIDsByDate := make([][]int64, len(dates))
+	allInstanceIDs := newOrderedIDs()
+	for i, date := range dates {
+		rows, err := assignmentsOfStaffMembersOn(ctx, s.deps.InstanceStaff, staffIDs, date)
 		if err != nil {
-			return bulkDayPlan{}, bulkDayError(date, err)
+			return nil, bulkDayError(date, timetable.DeviationInternal("load staff assignments failed", err))
 		}
-		absencePlan, err := planAbsences(absences, date, readSet)
+		rowsByDate[i] = rows
+		instanceIDsByDate[i] = deviationInputInstanceIDs(0, in, rows)
+		for _, id := range instanceIDsByDate[i] {
+			allInstanceIDs.add(id)
+		}
+	}
+	instances, err := instancesByID(ctx, s.deps.Instances.Reads, allInstanceIDs.ids)
+	if err != nil {
+		return nil, timetable.DeviationInternal("load target instances failed", err)
+	}
+	allRows, err := staffOfInstances(ctx, s.deps.InstanceStaff, allInstanceIDs.ids)
+	if err != nil {
+		return nil, timetable.DeviationInternal("load instance staff failed", err)
+	}
+	readSets := make([]*deviationReadSet, len(dates))
+	for i := range dates {
+		ids := make(map[int64]bool, len(instanceIDsByDate[i]))
+		for _, id := range instanceIDsByDate[i] {
+			ids[id] = true
+		}
+		dayInstances := slices.DeleteFunc(slices.Clone(instances), func(instance *scheduleModel.ActivityInstance) bool { return !ids[instance.ID] })
+		dayRows := slices.DeleteFunc(slices.Clone(allRows), func(row *scheduleModel.InstanceStaff) bool { return !ids[row.InstanceID] })
+		readSets[i] = newDeviationReadSet(staff, staffIDs, rowsByDate[i], dayInstances, dayRows)
+	}
+	return readSets, nil
+}
+
+func planBulkDay(in timetable.BulkSubstitutionInput, deviations timetable.ApplyDeviationsInput, date calendar.Date, readSet *deviationReadSet) (bulkDayPlan, error) {
+	if in.SubstituteStaffID == nil {
+		absencePlan, err := planAbsences(deviations.Absences, date, readSet)
 		if err != nil {
 			return bulkDayPlan{}, bulkDayError(date, err)
 		}
 		return bulkDayPlan{date: date, absencePlan: absencePlan}, nil
 	}
 
-	subs := []timetable.DeviationSubstitutionInput{{
-		AbsentStaffID:     in.AbsentStaffID,
-		SubstituteStaffID: *in.SubstituteStaffID,
-		Reason:            in.Reason,
-	}}
-	readSet, err := s.loadDeviationReadSet(ctx, 0, timetable.ApplyDeviationsInput{Substitutions: subs}, date)
-	if err != nil {
-		return bulkDayPlan{}, bulkDayError(date, err)
-	}
 	// The substitute must not already be absent in the DB on this date —
 	// the same day-wide rule validateDeviationStaff enforces (#1840).
 	for _, row := range readSet.rowsByStaff[*in.SubstituteStaffID] {
@@ -179,11 +233,11 @@ func (s *staffDeviations) planBulkDay(ctx context.Context, in timetable.BulkSubs
 		}
 	}
 
-	subPlan, _, err := planSubstitutions(subs, nil, nil, readSet)
+	subPlan, _, err := planSubstitutions(deviations.Substitutions, nil, nil, readSet)
 	if err != nil {
 		return bulkDayPlan{}, bulkDayError(date, err)
 	}
-	return bulkDayPlan{date: date, subPlan: subPlan, subs: subs}, nil
+	return bulkDayPlan{date: date, subPlan: subPlan, subs: deviations.Substitutions}, nil
 }
 
 // executeBulkPlans runs Phase B: every classified write, stale-ack clearing on

@@ -2,5 +2,6 @@
   "scenario": "api.groups.presence20.supervisors.n8",
   "max": 10,
   "exact": true,
-  "description": "Production group resource, positive N8, complete tenant request SQL."
+  "description": "Production group resource, positive N8, complete tenant request SQL.",
+  "route": "GET /api/groups/{id}/supervisors"
 }

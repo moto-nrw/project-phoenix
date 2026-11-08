@@ -2,6 +2,7 @@
   "title": "Takvime abone ol",
   "description": "Randevulara telefonunuzun takviminde bir kez abone olun. Yeni, değişen ve iptal edilen randevular sonrasında otomatik olarak görünür. Her randevuyu tek tek eklemeniz gerekmez.",
   "showLink": "Abonelik bağlantısını göster",
+  "loading": "Yükleniyor …",
   "subscribe": "Takvimde abone ol",
   "linkLabel": "Abonelik bağlantısı (kopyalamak için)",
   "copy": "Kopyala",
