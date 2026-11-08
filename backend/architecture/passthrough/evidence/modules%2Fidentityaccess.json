@@ -1178,9 +1178,9 @@
     },
     {
       "build": "production",
-      "evidence": "func (f *OperatorMFAFlows) HasEnrollment(ctx context.Context, operatorID int64) (bool, error) {\n\tcredential, found, err := f.findCredential(ctx, operatorID)\n\tif err != nil {\n\t\tf.logger.Warn(\"operator mfa enrollment lookup failed; refusing login\", slog.Int64(\"operator_id\", operatorID), slog.String(\"error\", err.Error()))\n\t\treturn false, identityaccess.ErrMFAStatusUnavailable\n\t}\n\treturn found \u0026\u0026 credential.ID \u003e 0, nil\n}",
+      "evidence": "func (f *OperatorMFAFlows) HasOperatorMFAEnrollment(ctx context.Context, operatorID int64) (bool, error) {\n\tif f == nil {\n\t\treturn false, identityaccess.ErrOperatorMFAUnavailable\n\t}\n\tcredential, found, err := f.findCredential(ctx, operatorID)\n\tif err != nil {\n\t\tf.logger.Warn(\"operator mfa enrollment lookup failed; refusing login\", slog.Int64(\"operator_id\", operatorID), slog.String(\"error\", err.Error()))\n\t\treturn false, identityaccess.ErrMFAStatusUnavailable\n\t}\n\treturn found \u0026\u0026 credential.ID \u003e 0, nil\n}",
       "form": "unclassified-evidence",
-      "id": "modules/identityaccess/internal/application/OperatorMFAFlows.HasEnrollment",
+      "id": "modules/identityaccess/internal/application/OperatorMFAFlows.HasOperatorMFAEnrollment",
       "owner": "modules/identityaccess"
     },
     {
@@ -1192,7 +1192,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (f *OperatorMFAFlows) ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {\n\tclaims, err := f.codec.ParseChallengeToken(challengeToken)\n\tif err != nil || claims.Scope != domain.PortalPlatform.Name {\n\t\treturn \"\", identityaccess.ErrMFAChallengeTokenInvalid\n\t}\n\treturn f.StartChallenge(ctx, claims.AccountID, ip)\n}",
+      "evidence": "func (f *OperatorMFAFlows) ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {\n\tclaims, err := f.codec.ParseChallengeToken(challengeToken)\n\tif err != nil || claims.Scope != domain.PortalPlatform.Name {\n\t\treturn \"\", identityaccess.ErrMFAChallengeTokenInvalid\n\t}\n\treturn f.StartOperatorMFAChallenge(ctx, claims.AccountID, ip)\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/application/OperatorMFAFlows.ResendChallenge",
       "owner": "modules/identityaccess"
