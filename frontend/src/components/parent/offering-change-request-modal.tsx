@@ -607,16 +607,14 @@ export function OfferingChangeRequestModal({
                   required
                   disabled={loading}
                   onChange={(date) => void loadForEffectiveDate(date)}
-                />
-                <p className="mt-1 text-xs text-gray-500">
-                  {t("careOfferingsModal.effectiveFromHint", {
+                  hint={t("careOfferingsModal.effectiveFromHint", {
                     date: formatDate(
                       catalog.earliest_effective_from,
                       false,
                       locale,
                     ),
                   })}
-                </p>
+                />
               </div>
 
               <Textarea
