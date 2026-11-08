@@ -126,7 +126,11 @@ const parentTestimonialPanelCopy: AuthTestimonialPanelCopy = {
 };
 
 interface AuthShellProps {
-  readonly eyebrow: string;
+  /**
+   * Kopfzeile über dem Titel. Nur das Elternportal setzt sie (ADR 0149);
+   * alle anderen Portale tragen keinen Kicker (#5607).
+   */
+  readonly eyebrow?: string;
   readonly title: string;
   readonly subtitle: string;
   readonly children: ReactNode;
@@ -246,9 +250,11 @@ export function AuthShell({
           <SectionCard overflow="visible">
             {brand && <div className="mb-8 flex justify-center">{brand}</div>}
             <div className="mb-9 text-center">
-              <SectionLabel as="p" className="mb-3">
-                {eyebrow}
-              </SectionLabel>
+              {eyebrow ? (
+                <SectionLabel as="p" className="mb-3">
+                  {eyebrow}
+                </SectionLabel>
+              ) : null}
               <h1
                 className={cn(
                   "text-3xl font-semibold tracking-normal text-gray-950 sm:text-4xl",

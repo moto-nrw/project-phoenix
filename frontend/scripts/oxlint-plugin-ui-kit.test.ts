@@ -1186,6 +1186,116 @@ function SectionCard(_: { kicker?: string; title: string }) {
   });
 });
 
+describe.concurrent(
+  "ui-kit/no-tenant-kicker: hand-written kicker (#5607)",
+  () => {
+    const handWritten = `// oxlint-disable-next-line ui-kit/no-shadow-kit-name
+function SectionLabel(_: { as?: string; children: string }) {
+      return null;
+    }
+    // oxlint-disable-next-line ui-kit/no-shadow-kit-name
+    function StatusBadge(_: { label: string }) {
+      return null;
+    }
+    function Probe({ open }: { open: boolean }) {
+      return (
+        <div>
+          <section>
+            <SectionLabel as="p">Für die Leitung</SectionLabel>
+            <h1>Was möchten Sie erledigen?</h1>
+          </section>
+          <section>
+            <p className="text-xs font-semibold text-[var(--class-day-blue)]">Klassenansicht</p>
+            <h2>Heute</h2>
+          </section>
+          <section>
+            {open ? <StatusBadge label="Aktiv" /> : null}
+            <h2>Hausaufgaben</h2>
+          </section>
+          <section>
+            <span className="text-sm font-medium text-moto-green-strong">Schritt 1</span>
+            {open ? <><h1>Rolle</h1></> : <h1>Schule</h1>}
+          </section>
+        </div>
+      );
+    }
+    void Probe;`;
+
+    it("reports a label, a coloured line and a status pill right above a title", async () => {
+      const result = await lintSource(
+        handWritten,
+        "src/components/help/probe.tsx",
+      );
+
+      expect(result.status).toBe(1);
+      expect(result.output.match(/ui-kit\(no-tenant-kicker\)/g)).toHaveLength(
+        4,
+      );
+    });
+
+    it("reports eyebrow as a prop and as a spread object key", async () => {
+      const result = await lintSource(
+        `function AuthShell(_: { eyebrow?: string; title: string }) {
+        return null;
+      }
+      const SHELL_COPY = { eyebrow: "Träger-Portal", title: "Willkommen" };
+      function Probe() {
+        return (
+          <>
+            <AuthShell eyebrow="Schulportal" title="Willkommen" />
+            <AuthShell {...SHELL_COPY} />
+          </>
+        );
+      }
+      void Probe;`,
+        "src/app/school/login/page.tsx",
+      );
+
+      expect(result.status).toBe(1);
+      expect(result.output.match(/ui-kit\(no-tenant-kicker\)/g)).toHaveLength(
+        2,
+      );
+    });
+
+    it("allows a status line under the title and a label above a subheading", async () => {
+      const result = await lintSource(
+        `// oxlint-disable-next-line ui-kit/no-shadow-kit-name
+function SectionLabel(_: { as?: string; children: string }) {
+        return null;
+      }
+      function Probe() {
+        return (
+          <section>
+            <h1>Was möchten Sie erledigen?</h1>
+            <p className="mt-3 text-sm text-gray-600">Für die Leitung</p>
+            <SectionLabel as="p">Kontakt</SectionLabel>
+            <h3>Eltern</h3>
+            <p className="text-sm text-gray-600">Stand heute</p>
+            <h2>Liste</h2>
+          </section>
+        );
+      }
+      void Probe;`,
+        "src/components/help/probe.tsx",
+      );
+
+      expect(result.status, result.output).toBe(0);
+      expect(result.output).not.toContain("no-tenant-kicker");
+    });
+
+    it.each([
+      "src/app/parents/login/page.tsx",
+      "src/components/parent/probe.tsx",
+      "src/app/start/page.tsx",
+      "src/app/help/nfc/erste-schritte/page.tsx",
+    ])("leaves the allowed kicker in %s alone", async (path) => {
+      const result = await lintSource(handWritten, path);
+
+      expect(result.output, path).not.toContain("no-tenant-kicker");
+    });
+  },
+);
+
 describe.concurrent("ui-kit/no-shadow-kit-name", () => {
   it("reports a local function and a local constant named like a kit export", async () => {
     const result = await lintSource(

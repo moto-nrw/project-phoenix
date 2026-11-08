@@ -219,7 +219,6 @@ export default function OperatorLoginPage() {
 
   return (
     <AuthShell
-      eyebrow="Operator"
       title="Operator Dashboard"
       subtitle="Melden Sie sich an, um Plattformbetrieb, Träger und Schulen zu verwalten."
       variant="operator"
