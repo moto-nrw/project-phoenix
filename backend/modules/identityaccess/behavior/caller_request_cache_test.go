@@ -110,10 +110,10 @@ func TestIdentityRequestCacheDedupesChain(t *testing.T) {
 
 	// Each stage is loaded once per request. Group reach and the unassigned
 	// substitution facet share the complete successful substitution read.
-	querybudgets.AssertQueryBudget(t, "services.usercontext.identity_chain.persons", counter.bucket("persons"))
-	querybudgets.AssertQueryBudget(t, "services.usercontext.identity_chain.staff", counter.bucket("staff"))
-	querybudgets.AssertQueryBudget(t, "services.usercontext.identity_chain.teachers", counter.bucket("teachers"))
-	querybudgets.AssertQueryBudget(t, "services.usercontext.identity_chain.substitutions", counter.bucket("substitutions"))
+	querybudgets.AssertQueryBudget(t, "services.usercontext.identity_chain.persons", counter.Measurement(counter.bucket("persons")))
+	querybudgets.AssertQueryBudget(t, "services.usercontext.identity_chain.staff", counter.Measurement(counter.bucket("staff")))
+	querybudgets.AssertQueryBudget(t, "services.usercontext.identity_chain.teachers", counter.Measurement(counter.bucket("teachers")))
+	querybudgets.AssertQueryBudget(t, "services.usercontext.identity_chain.substitutions", counter.Measurement(counter.bucket("substitutions")))
 
 	// A second full chain on the same context must be entirely memo-served.
 	counter.Reset()

@@ -44,7 +44,7 @@ import { surfaceBaseline } from "./ui-kit-surface-baseline.mjs";
 //
 //   ui-kit/no-tiny-text             — sub-12px text utilities; shrink-only
 //                                     baseline
-//   ui-kit/no-tenant-kicker         — no blue mini-heading in the tenant portal
+//   ui-kit/no-tenant-kicker         — no mini-heading above a title outside parents
 //   ui-kit/no-hand-rolled-page-card — no `moto-content-surface … rounded-2xl`
 //                                     spelled out outside the kit (all of
 //                                     app/ and components/ since #5594,
@@ -744,8 +744,7 @@ const SURFACE_BREAKPOINT_VALUES = new Map([
 ]);
 const SURFACE_ARBITRARY_BREAKPOINT_RE =
   /^(min|max)-\[(\d+(?:\.\d+)?)(?:px|rem|em)\]$/;
-const SURFACE_INTERACTION_VARIANT_RE =
-  /^(?:hover|focus(?:-visible|-within)?)$/;
+const SURFACE_INTERACTION_VARIANT_RE = /^(?:hover|focus(?:-visible|-within)?)$/;
 const SURFACE_CONTROL_ELEMENTS = new Set([
   "a",
   "button",
@@ -1372,11 +1371,9 @@ const noDeadSurfaceUtility = {
         if (chunks.some((chunk) => deadSurfaceTokens(chunk).length > 0)) {
           return; // already reported by the Literal/TemplateLiteral visitors
         }
-        const combos = classCombinations(
-          node.value,
-          new Set(),
-          sourceCode,
-        ) ?? [chunks.join(" ")];
+        const combos = classCombinations(node.value, new Set(), sourceCode) ?? [
+          chunks.join(" "),
+        ];
         const rendered = combos.find(
           (combo) => deadSurfaceTokens(combo).length > 0,
         );
@@ -1558,11 +1555,9 @@ const noWhiteOnWarmFill = {
         const chunks = [];
         collectStaticStrings(node.value, chunks);
         if (chunks.some((chunk) => whiteOnWarmFill(chunk))) return;
-        const combos = classCombinations(
-          node.value,
-          new Set(),
-          sourceCode,
-        ) ?? [chunks.join(" ")];
+        const combos = classCombinations(node.value, new Set(), sourceCode) ?? [
+          chunks.join(" "),
+        ];
         const rendered = combos.find((combo) => whiteOnWarmFill(combo));
         if (rendered !== undefined) check(node, rendered);
       },
@@ -1684,34 +1679,187 @@ const noTinyText = makeClassStringRule({
   message:
     "'{{match}}' liegt unter dem Typo-Boden (12 px). Werte, Saetze und Bedienelemente sind text-sm oder groesser; text-xs nur fuer Versalien-Labels. Die Baseline in scripts/oxlint-plugin-ui-kit.mjs ist shrink-only.",
 });
-// ui-kit/no-tenant-kicker — die blaue Mini-Überschrift über einer Überschrift
-// ist im Tenant-Portal abgeschafft (sie trug sechs verschiedene Bedeutungen im
-// selben Slot). Kein Baseline-Eintrag: der Bestand ist auf null gebracht. Das
-// Schul- und das Operator-Portal gehören seit #5604 dazu; nur das Elternportal
-// behält seinen Kicker (ADR 0149).
+// ui-kit/no-tenant-kicker — die Mini-Überschrift über einer Überschrift ist
+// außerhalb des Elternportals abgeschafft (sie trug sechs verschiedene
+// Bedeutungen im selben Slot). Hard-zero, kein Baseline-Eintrag. Das Schul-
+// und das Operator-Portal gehören seit #5604 dazu, Hilfe, öffentliche
+// Anmeldung, Login-Seiten und alle übrigen Portale seit #5607; nur das
+// Elternportal behält seinen Kicker (ADR 0149), dazu `/start` und die
+// NFC-Druckanleitung (Epic #5576).
+// Funde:
+// - die Prop `kicker` oder `eyebrow` (AuthShell), auch als Schlüssel eines
+//   Objekts, das als Props verteilt wird,
+// - ein handgeschriebener Kicker: das Element direkt vor einem `h1`/`h2`
+//   (auch vor einem Fragment oder Ternär, das mit der Überschrift beginnt) ist
+//   ein `SectionLabel`, eine Status-Pille oder ein kleiner Text mit Gewicht
+//   und Farbe (`text-xs`/`text-sm` + `font-medium|semibold|bold` + Textfarbe,
+//   auch `text-[var(--…)]`), oder trägt `uppercase`. Status gehört als Pille
+//   neben den Titel, der Ort in Brotkrumen und Seitenleiste.
 const OTHER_PORTALS_RE = /(^|\/)(components\/parent|app\/parents)\//;
+const KICKER_EXEMPT_DIRS = ["src/app/start/", "src/app/help/nfc/"];
+// Tragen nur die übersetzte Kopfzeile des Elternportals: AuthShell zeigt
+// `eyebrow` nur, wenn eine Seite unter app/parents sie setzt; die Reset-Seite
+// reicht die Übersetzung aus app/parents/reset-password weiter.
+const KICKER_PARENT_CARRIERS = [
+  "src/components/auth/auth-shell.tsx",
+  "src/components/auth/reset-password-page-content.tsx",
+];
+const KICKER_PROPS = new Set(["kicker", "eyebrow"]);
+const KICKER_COMPONENTS = new Set([
+  "SectionLabel",
+  "StatusBadge",
+  "StatusColorBadge",
+]);
+const KICKER_TEXT_TAGS = new Set(["p", "span", "div", "small", "strong"]);
+const TITLE_TAGS = new Set(["h1", "h2"]);
+const KICKER_TEXT_COLOR_RE =
+  /^text-(?:\[(?:var\(--|#)[^\]]*\]|moto-[\w-]+|(?:gray|slate|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d+|black|white)(?:\/\d+)?$/;
+
+function elementName(element) {
+  return jsxName(element?.openingElement?.name);
+}
+
+function isKickerClassText(text) {
+  const utilities = classUtilities(text);
+  if (utilities.includes("uppercase")) return true;
+  return (
+    utilities.some((token) => token === "text-xs" || token === "text-sm") &&
+    utilities.some((token) => /^font-(?:medium|semibold|bold)$/.test(token)) &&
+    utilities.some((token) => KICKER_TEXT_COLOR_RE.test(token))
+  );
+}
+
+function isKickerElement(element, constants) {
+  const name = elementName(element);
+  if (!name) return false;
+  if (KICKER_COMPONENTS.has(name)) return true;
+  if (!KICKER_TEXT_TAGS.has(name)) return false;
+  const classAttribute = element.openingElement.attributes.find(
+    (attribute) =>
+      attribute.type === "JSXAttribute" && attribute.name?.name === "className",
+  );
+  if (!classAttribute?.value) return false;
+  return classTextAlternatives(classAttribute.value, constants).some(
+    isKickerClassText,
+  );
+}
+
+function isMeaningfulJsxChild(child) {
+  if (child.type === "JSXText") return child.value.trim() !== "";
+  if (child.type === "JSXExpressionContainer") {
+    return child.expression?.type !== "JSXEmptyExpression";
+  }
+  return true;
+}
+
+// Ein Kicker steht vor dem Titel, auch wenn der Titel erst in einem
+// Fragment oder einem Ternär-Zweig beginnt.
+function startsWithTitle(node, depth = 0) {
+  if (!node || depth > 4) return false;
+  switch (node.type) {
+    case "JSXElement":
+      return TITLE_TAGS.has(elementName(node));
+    case "JSXFragment": {
+      const first = node.children.find(isMeaningfulJsxChild);
+      return startsWithTitle(first, depth + 1);
+    }
+    case "JSXExpressionContainer":
+    case "ParenthesizedExpression":
+      return startsWithTitle(node.expression, depth + 1);
+    case "ConditionalExpression":
+      return (
+        startsWithTitle(node.consequent, depth + 1) ||
+        startsWithTitle(node.alternate, depth + 1)
+      );
+    case "LogicalExpression":
+      return startsWithTitle(node.right, depth + 1);
+    default:
+      return false;
+  }
+}
+
+// Das Element, das ein Kind-Knoten rendert: direkt, als `cond && <X/>` oder
+// als Ternär-Zweig.
+function renderedElements(node, depth = 0) {
+  if (!node || depth > 4) return [];
+  switch (node.type) {
+    case "JSXElement":
+      return [node];
+    case "JSXExpressionContainer":
+    case "ParenthesizedExpression":
+      return renderedElements(node.expression, depth + 1);
+    case "ConditionalExpression":
+      return [
+        ...renderedElements(node.consequent, depth + 1),
+        ...renderedElements(node.alternate, depth + 1),
+      ];
+    case "LogicalExpression":
+      return renderedElements(node.right, depth + 1);
+    default:
+      return [];
+  }
+}
+
+function checkKickerChildren(children, constants, report) {
+  const meaningful = children.filter(isMeaningfulJsxChild);
+  for (let index = 0; index + 1 < meaningful.length; index += 1) {
+    if (!startsWithTitle(meaningful[index + 1])) continue;
+    for (const element of renderedElements(meaningful[index])) {
+      if (isKickerElement(element, constants)) report(element.openingElement);
+    }
+  }
+}
 
 const noTenantKicker = {
   meta: {
     docs: {
       description:
-        "Disallow the blue mini-heading (kicker) outside the parents portal.",
+        "Disallow the mini-heading (kicker) above a title outside the parents portal.",
     },
     messages: {
       kicker:
-        "Keine Mini-Überschrift über dem Titel. Wo man ist, sagen Brotkrumen und Seitenleiste (siehe .claude/rules/frontend-ui-kit.md, Abschnitt Page scaffolding).",
+        "Keine Mini-Überschrift über dem Titel. Wo man ist, sagen Brotkrumen und Seitenleiste; ein Status steht als StatusBadge neben dem Titel (siehe .claude/rules/frontend-ui-kit.md, Abschnitt Page scaffolding).",
     },
   },
   create(context) {
     const filename = context.filename ?? context.getFilename?.() ?? "";
     if (OTHER_PORTALS_RE.test(filename.replace(/\\/g, "/"))) return {};
     if (/\.(test|stories)\.[jt]sx?$/.test(filename)) return {};
+    const key = fileKey(context);
+    if (!key.startsWith("src/")) return {};
+    if (KICKER_EXEMPT_DIRS.some((dir) => key.startsWith(dir))) return {};
+    if (KICKER_PARENT_CARRIERS.includes(key)) return {};
+    const constants = new Map();
 
     return {
+      VariableDeclarator(node) {
+        if (node.id?.type === "Identifier" && node.init) {
+          constants.set(node.id.name, node.init);
+        }
+      },
       JSXAttribute(node) {
-        if (node.name?.name === "kicker") {
+        if (KICKER_PROPS.has(node.name?.name)) {
           context.report({ node, messageId: "kicker" });
         }
+      },
+      // `<AuthShell {...SHELL_COPY}>`: die Kopfzeile kommt aus einem Objekt.
+      Property(node) {
+        if (node.parent?.type !== "ObjectExpression") return;
+        const name =
+          node.key?.type === "Identifier" ? node.key.name : node.key?.value;
+        if (KICKER_PROPS.has(name)) {
+          context.report({ node, messageId: "kicker" });
+        }
+      },
+      JSXElement(node) {
+        checkKickerChildren(node.children, constants, (target) =>
+          context.report({ node: target, messageId: "kicker" }),
+        );
+      },
+      JSXFragment(node) {
+        checkKickerChildren(node.children, constants, (target) =>
+          context.report({ node: target, messageId: "kicker" }),
+        );
       },
     };
   },
@@ -1776,7 +1924,9 @@ const noHandRolledPageCard = {
           )
             continue;
           const initializer = definition.node.init;
-          if (HANDROLLED_SURFACE_RE.test(staticStringValue(initializer) ?? "")) {
+          if (
+            HANDROLLED_SURFACE_RE.test(staticStringValue(initializer) ?? "")
+          ) {
             return true;
           }
           if (initializer.type === "CallExpression") {
@@ -1785,11 +1935,14 @@ const noHandRolledPageCard = {
               new Set(),
               context.sourceCode,
             );
-            if (combinations?.some((combo) => HANDROLLED_SURFACE_RE.test(combo))) {
+            if (
+              combinations?.some((combo) => HANDROLLED_SURFACE_RE.test(combo))
+            ) {
               return true;
             }
           }
-          if (isReportedPageCardConstant(initializer, seenVariables)) return true;
+          if (isReportedPageCardConstant(initializer, seenVariables))
+            return true;
         }
         return false;
       };
@@ -4234,11 +4387,9 @@ const noHandRolledPortalNav = {
       TemplateLiteral(node) {
         const chunks = [];
         collectStaticStrings(node, chunks);
-        const combinations = classCombinations(
-          node,
-          new Set(),
-          sourceCode,
-        ) ?? [chunks.join(" ")];
+        const combinations = classCombinations(node, new Set(), sourceCode) ?? [
+          chunks.join(" "),
+        ];
         const rendered = combinations?.find(hasPortalNavShellSignature);
         if (rendered !== undefined) check(node, rendered);
       },
@@ -4383,9 +4534,9 @@ function roleLiterals(node) {
 const noHandRolledMenu = makeRatchetRule({
   ruleName: "no-hand-rolled-menu",
   description:
-    "Menus and listboxes come from OverflowMenu, CustomSelect or ListboxDropdown instead of own ARIA roles.",
+    "Menus and listboxes come from OverflowMenu, CustomSelect, ListboxDropdown or SuggestInput instead of own ARIA roles or a native datalist.",
   message:
-    "Kein eigenes Menü: Aktionen über `OverflowMenu`, eine Auswahl über `CustomSelect` oder `ListboxDropdown` (#5601, .claude/rules/frontend-ui-kit.md).",
+    "Kein eigenes Menü: Aktionen über `OverflowMenu`, eine Auswahl über `CustomSelect` oder `ListboxDropdown`, Freitext mit Vorschlägen über `SuggestInput` (#5601, .claude/rules/frontend-ui-kit.md).",
   baselines: {},
   allowlist: [],
   kitFile: "src/components/ui/page-header/OverflowMenu.tsx",
@@ -4394,6 +4545,16 @@ const noHandRolledMenu = makeRatchetRule({
     JSXAttribute(node) {
       if (node.name?.name !== "role") return;
       if (roleLiterals(node.value).some((role) => MENU_ROLE_RE.test(role))) {
+        found(node);
+      }
+    },
+    // Native Vorschlagsliste: eigene Optik je Browser, ohne Tastaturführung
+    // des Kits und ohne iOS-Behandlung beim Tippen.
+    JSXOpeningElement(node) {
+      if (
+        node.name?.type === "JSXIdentifier" &&
+        node.name.name === "datalist"
+      ) {
         found(node);
       }
     },
@@ -4600,7 +4761,7 @@ const noUppercaseLabel = makeRatchetRule({
   description:
     "Group headings come from SectionLabel; no `uppercase tracking-*` class chain outside the UI kit.",
   message:
-    "Keine Versalien-Überschrift: Gruppenkopf oder Zwischenüberschrift über `SectionLabel` (`as`, `required`) aus ~/components/ui/section-label, Gruppenkopf einer Liste über `ListGroupHeader`, Mini-Tag über `StatusBadge size=\"xs\"`, Tabellenkopf über `DataTable` (#5590, .claude/rules/frontend-ui-kit.md).",
+    'Keine Versalien-Überschrift: Gruppenkopf oder Zwischenüberschrift über `SectionLabel` (`as`, `required`) aus ~/components/ui/section-label, Gruppenkopf einer Liste über `ListGroupHeader`, Mini-Tag über `StatusBadge size="xs"`, Tabellenkopf über `DataTable` (#5590, .claude/rules/frontend-ui-kit.md).',
   baselines: {},
   allowlist: [],
   kitFile: "src/components/ui/section-label.tsx",
@@ -4749,46 +4910,73 @@ const NAV_ROW_ARROWS = new Set([
   "ChevronRightIcon",
 ]);
 
-/** Kinder einer Zeile, auch hinter `&&`, `?:` und einer lokalen Konstante. */
-function navRowChildren(element, constants) {
-  const direct = [...flatJsxChildren(element)];
-  for (const child of element.children ?? []) {
-    if (
-      child.type === "JSXExpressionContainer" &&
-      child.expression.type === "Identifier"
-    ) {
-      const init = constants.get(child.expression.name);
-      if (init?.type === "JSXElement") direct.push(init);
-    }
-  }
-  return direct;
-}
-
-function isNavRowArrow(element) {
-  if (NAV_ROW_ARROWS.has(jsxName(element.openingElement.name))) return true;
-  return element.children.some(
-    (inner) => inner.type === "JSXText" && inner.value.trim() === "›",
+function isNavRowArrow(element, classText) {
+  if (!NAV_ROW_ARROWS.has(jsxName(element.openingElement.name))) return false;
+  // Der gedrehte Pfeil zeigt einen aufklappbaren Abschnitt an, keine Navigation.
+  const className = jsxAttribute(element.openingElement, "className");
+  return !(
+    className?.value &&
+    classText(className.value)
+      .split(/\s+/)
+      .some((token) => /^-?rotate-/.test(token))
   );
 }
+
+/** Pfeile auch hinter JSX-Hüllen und in lokalen Konstanten einer Zeile finden. */
+function containsNavRowArrow(node, constants, classText, seen = new Set()) {
+  if (!node) return false;
+  if (node.type === "JSXElement") {
+    if (isNavRowArrow(node, classText)) return true;
+    return node.children.some((child) =>
+      containsNavRowArrow(child, constants, classText, seen),
+    );
+  }
+  if (node.type === "JSXText") return node.value.trim() === "›";
+  if (node.type === "JSXFragment") {
+    return node.children.some((child) =>
+      containsNavRowArrow(child, constants, classText, seen),
+    );
+  }
+  if (node.type === "JSXExpressionContainer") {
+    return containsNavRowArrow(node.expression, constants, classText, seen);
+  }
+  if (node.type === "Identifier") {
+    if (seen.has(node.name)) return false;
+    seen.add(node.name);
+    return containsNavRowArrow(
+      constants.get(node.name),
+      constants,
+      classText,
+      seen,
+    );
+  }
+  if (node.type === "LogicalExpression") {
+    return containsNavRowArrow(node.right, constants, classText, seen);
+  }
+  if (node.type === "ConditionalExpression") {
+    return (
+      containsNavRowArrow(node.consequent, constants, classText, seen) ||
+      containsNavRowArrow(node.alternate, constants, classText, seen)
+    );
+  }
+  return false;
+}
+
+// Startseite des Elternportals (#2619): die Aufgabenliste behält ihre Zeilen
+// mit Ungelesen-Punkt am Icon. Nie anfassen, auch nicht für das Kit.
+const NAV_ROW_PARENT_EXCEPTIONS = ["src/components/parent/start/todo-list.tsx"];
 
 const noHandRolledNavRow = makeRatchetRule({
   ruleName: "no-hand-rolled-nav-row",
   description: "Rows that lead elsewhere with an arrow come from ListRowLink.",
   message:
-    "Keine eigene Navigationszeile: `ListRowLink` (`icon`, `title`, `subtitle`, `badge`, Pfeil), einzeln mit `framed` (#5593, .claude/rules/frontend-ui-kit.md).",
-  // Shrink-only: Auswahlzustand (DatabaseListItem), eigene Kante (Tagesplan) und
-  // Ungelesen-Zeilen des Elternportals passen noch nicht in `ListRowLink`.
-  baselines: {
-    "no-hand-rolled-nav-row": {
-      "src/components/database/database-list-item.tsx": 2,
-      "src/components/parent/messages/group-threads-section.tsx": 1,
-      "src/components/parent/messages/parent-messages-page.tsx": 1,
-      "src/components/timetable/tagesplan-view.tsx": 1,
-    },
-  },
+    "Keine eigene Navigationszeile: `ListRowLink` (`icon`, `title`, `subtitle`, `badge`, Pfeil; `selected`, `accent`, dreizeilig mit `overline`/`meta`/`unread`), einzeln mit `framed` (#5593, .claude/rules/frontend-ui-kit.md).",
+  // Hard-zero: Auswahl, farbige Kante und Ungelesen-Zeilen kann `ListRowLink`.
+  baselines: {},
   allowlist: [],
   kitFile: "src/components/ui/list-row-link.tsx",
   exemptDir: UI_KIT_DIR,
+  exemptFiles: NAV_ROW_PARENT_EXCEPTIONS,
   detect: ({ classText, constants, found }) => ({
     JSXElement(node) {
       if (!NAV_ROW_ELEMENTS.has(jsxName(node.openingElement.name))) return;
@@ -4802,8 +4990,13 @@ const noHandRolledNavRow = makeRatchetRule({
       if (!tokens.includes("w-full") && !tokens.includes("justify-between")) {
         return;
       }
-      const arrow = navRowChildren(node, constants).find(isNavRowArrow);
-      if (arrow) found(node);
+      if (
+        node.children.some((child) =>
+          containsNavRowArrow(child, constants, classText),
+        )
+      ) {
+        found(node);
+      }
     },
   }),
 });

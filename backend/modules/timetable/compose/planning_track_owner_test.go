@@ -193,7 +193,7 @@ func TestPlanningTrackListQueryBudgetStaysFlat(t *testing.T) {
 		counter := testpkg.CaptureQueries(t, db)
 		_, err := module.ListPlanningTracks(ctx, timetable.PlanningTrackFilter{Ordered: true})
 		require.NoError(t, err)
-		querybudgets.AssertQueryBudget(t, "modules.timetable.planning_tracks.list", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "modules.timetable.planning_tracks.list", counter.Measurement(counter.Queries()))
 
 		return nil
 	}))

@@ -137,7 +137,7 @@ func TestFlowE_StudentDayWithUnplannedVisit(t *testing.T) {
 	weekTo := target.AddDays(13).Format("2006-01-02")
 	path := fmt.Sprintf("/student/%d/week?from=%s&to=%s", studentB.ID, weekFrom, weekTo)
 	rr = s.do("GET", path, nil, s.primaryAdminClaims())
-	weekQueries := qc.Queries()
+	weekQueries := qc.Measurement(qc.Queries())
 	require.Equal(t, http.StatusOK, rr.Code, "week body=%s", rr.Body.String())
 
 	var weekResp struct {
@@ -155,7 +155,7 @@ func TestFlowE_StudentDayWithUnplannedVisit(t *testing.T) {
 	// the end-to-end count is higher; match PR-B1 / PR-C2 convention and log
 	// instead of strict-assert, but guard against pathological fan-out
 	// (e.g. per-day loop) with a generous upper bound of 25.
-	t.Logf("query-budget /student/%d/week (14 days): %d queries (PR target ≤ 12 handler-queries only)", studentB.ID, len(weekQueries))
+	t.Logf("query-budget /student/%d/week (14 days): %d queries (PR target ≤ 12 handler-queries only)", studentB.ID, len(weekQueries.Statements))
 	querybudgets.AssertQueryBudget(t, "e2e.timetable.student_week.14d", weekQueries)
 
 	// --- Tenant isolation -------------------------------------------------

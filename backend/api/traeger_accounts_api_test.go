@@ -394,19 +394,19 @@ func TestTraegerAccountListQueryBudgetIsFlat(t *testing.T) {
 	for range 2 {
 		traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleReadOnly)
 	}
-	list := func() []string {
+	list := func() testpkg.QueryMeasurement {
 		counter := testpkg.CaptureQueriesForContext(t, db)
 		req := httptest.NewRequest(http.MethodGet, "/traeger/accounts/", nil)
 		req.Header.Set("Authorization", "Bearer "+admin.AccessToken)
 		rec := httptest.NewRecorder()
-		router.ServeHTTP(rec, req.WithContext(counter.Context(req.Context())))
+		testpkg.MeasuredHTTPRequest(counter, router, rec, req.WithContext(counter.Context(req.Context())))
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		return counter.Selects("")
+		return counter.Measurement(counter.Selects(""))
 	}
 	three := list()
 	traegerMember(t, db, router, organizationID, identityaccess.TraegerRoleBilling)
 	traegerMember(t, db, router, organizationID, identityaccess.TraegerRolePersonnel)
-	assert.Len(t, list(), len(three), "the member list reads the same statements for any number of people")
+	assert.Len(t, list().Statements, len(three.Statements), "the member list reads the same statements for any number of people")
 	querybudgets.AssertQueryBudget(t, "api.traeger.accounts", three)
 }
 

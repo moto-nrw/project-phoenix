@@ -290,7 +290,7 @@ func TestActivityInstanceListQueryBudgetStaysFlat(t *testing.T) {
 		counter := testpkg.CaptureQueries(t, db)
 		_, err := module.ListActivityInstances(ctx, timetable.ActivityInstanceFilter{ActivityGroupID: &fixture.groupID})
 		require.NoError(t, err)
-		querybudgets.AssertQueryBudget(t, "modules.timetable.activity_instances.list", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "modules.timetable.activity_instances.list", counter.Measurement(counter.Queries()))
 
 		return nil
 	}))

@@ -47,7 +47,7 @@ func TestCalendarTargetResolutionQueryBudget(t *testing.T) {
 	large := run(8)
 	t.Logf("query budget: 3 targets → %d reads, 8 targets → %d reads", len(small), len(large))
 	assert.Equal(t, len(small), len(large))
-	querybudgets.AssertQueryBudget(t, "services.calendar.resolve_targets.reads", large)
+	querybudgets.AssertQueryBudget(t, "services.calendar.resolve_targets.reads", counter.Measurement(large))
 }
 
 func TestCalendarReminderScanQueryBudget(t *testing.T) {
@@ -93,5 +93,5 @@ func TestCalendarReminderScanQueryBudget(t *testing.T) {
 	large := run(5)
 	t.Logf("query budget: 3 reminders → %d reads, 8 reminders → %d reads", len(small), len(large))
 	assert.Equal(t, len(small), len(large))
-	querybudgets.AssertQueryBudget(t, "services.calendar.reminder_scan.reads", large)
+	querybudgets.AssertQueryBudget(t, "services.calendar.reminder_scan.reads", counter.Measurement(large))
 }

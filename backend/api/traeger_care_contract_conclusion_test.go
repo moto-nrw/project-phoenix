@@ -246,7 +246,7 @@ func TestCareContractConclusionModesNameTheWayOfEverySchool(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/traeger/contracts/conclusion-modes", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
-	f.traeger.ServeHTTP(rec, req.WithContext(counter.Context(req.Context())))
+	testpkg.MeasuredHTTPRequest(counter, f.traeger, rec, req.WithContext(counter.Context(req.Context())))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	modes := map[int64]string{}
 	for _, school := range decodeSchoolPortalData[[]carecontract.SchoolConclusion](t, rec.Body.Bytes()) {
@@ -260,7 +260,7 @@ func TestCareContractConclusionModesNameTheWayOfEverySchool(t *testing.T) {
 		}
 		assert.Equal(t, want, modes[school], "school %d: its own value, else the Träger's", school)
 	}
-	querybudgets.AssertQueryBudget(t, "api.traeger.care_contract_conclusion_modes", counter.Selects(""))
+	querybudgets.AssertQueryBudget(t, "api.traeger.care_contract_conclusion_modes", counter.Measurement(counter.Selects("")))
 
 	// Without the right "Verträge verwalten" the route answers 403.
 	billing := traegerColleague(t, f.reviewFixture, identityaccess.TraegerRoleBilling)

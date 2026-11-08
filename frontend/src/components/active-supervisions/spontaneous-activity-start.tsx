@@ -3,16 +3,15 @@
 import { Plus, Search } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { InsetPanel } from "~/components/ui/inset-panel";
-import type { FormEvent, KeyboardEvent } from "react";
+import type { FormEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
-import { FieldLabel } from "~/components/ui/field-label";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
-import { Input } from "~/components/ui/input";
+import { SuggestInput } from "~/components/ui/suggest-input";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { activityService } from "~/lib/activity-service";
 import type { Activity } from "~/lib/activity-helpers";
@@ -29,7 +28,6 @@ import { StatusBadge } from "~/components/ui/status-badge";
 import { ExternalCaregiverEntry } from "~/components/staff/external-caregiver-entry";
 import { staffConcept } from "~/lib/concepts/staff";
 import { IconTile } from "~/components/ui/icon-tile";
-import { foldForSearch } from "~/lib/search-fold";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { SectionCard } from "~/components/ui/section-card";
 
@@ -89,15 +87,6 @@ function findSelectedActivity(
   );
 }
 
-function consumeListboxEscape(event: KeyboardEvent): void {
-  // Keep Escape from reaching FormModal's document-level handler (which would
-  // close the whole modal and wipe the draft). stopImmediatePropagation is
-  // required because that listener sits on the same document node as React's
-  // delegated listener, where plain stopPropagation would not stop it.
-  event.preventDefault();
-  event.nativeEvent.stopImmediatePropagation();
-}
-
 function isRoomOccupied(
   room: RoomOption,
   occupiedRoomIds: ReadonlySet<string>,
@@ -138,9 +127,6 @@ export function SpontaneousActivityStart({
     clear: clearLoadError,
   } = useApiLoadError();
   const [loadAttempt, setLoadAttempt] = useState(0);
-  const [activityMenuOpen, setActivityMenuOpen] = useState(false);
-  const [activeActivityIndex, setActiveActivityIndex] = useState(0);
-  const activityFieldRef = useRef<HTMLDivElement>(null);
   const occupiedRoomIdSet = useMemo(
     () => new Set(occupiedRoomIds),
     [occupiedRoomIds],
@@ -250,21 +236,6 @@ export function SpontaneousActivityStart({
     showLoadError,
   ]);
 
-  // Close the activity suggestions when clicking outside the field.
-  useEffect(() => {
-    if (!activityMenuOpen) return;
-    const handlePointerDown = (event: MouseEvent) => {
-      if (
-        activityFieldRef.current &&
-        !activityFieldRef.current.contains(event.target as Node)
-      ) {
-        setActivityMenuOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handlePointerDown);
-    return () => document.removeEventListener("mousedown", handlePointerDown);
-  }, [activityMenuOpen]);
-
   const selectedActivity = useMemo(
     () => findSelectedActivity(activities, activityInput),
     [activities, activityInput],
@@ -280,16 +251,10 @@ export function SpontaneousActivityStart({
     !isSelectedRoomOccupied &&
     !isStarting;
   const suggestedActivities = activities.slice(0, 5);
-  const filteredActivities = useMemo(() => {
-    const query = foldForSearch(activityInput.trim());
-    const matches = query
-      ? activities.filter((activity) =>
-          foldForSearch(activity.name).includes(query),
-        )
-      : activities;
-    return matches.slice(0, 8);
-  }, [activities, activityInput]);
-  const activityListboxOpen = activityMenuOpen && filteredActivities.length > 0;
+  const activityNames = useMemo(
+    () => activities.map((activity) => activity.name),
+    [activities],
+  );
   const roomOptions = useMemo(
     () =>
       rooms.map((room) => ({
@@ -301,16 +266,6 @@ export function SpontaneousActivityStart({
       })),
     [rooms, occupiedRoomIdSet],
   );
-
-  useEffect(() => {
-    if (!activityListboxOpen) {
-      setActiveActivityIndex(0);
-      return;
-    }
-    setActiveActivityIndex((prev) =>
-      Math.min(prev, filteredActivities.length - 1),
-    );
-  }, [activityListboxOpen, filteredActivities.length]);
 
   function toggleStaff(staffId: string) {
     setAdditionalStaffIds((prev) =>
@@ -340,14 +295,6 @@ export function SpontaneousActivityStart({
     setAdditionalStaffIds([]);
     clearFormErrors();
     clearLoadError();
-    setActivityMenuOpen(false);
-    setActiveActivityIndex(0);
-  }
-
-  function selectActivitySuggestion(activity: Activity) {
-    setActivityInput(activity.name);
-    setActivityMenuOpen(false);
-    setActiveActivityIndex(0);
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -440,142 +387,21 @@ export function SpontaneousActivityStart({
         >
           <LoadErrorAlert error={loadError} />
 
-          <div
-            ref={activityFieldRef}
-            onBlur={(event) => {
-              const nextFocusedNode = event.relatedTarget;
-              if (
-                !(nextFocusedNode instanceof Node) ||
-                !event.currentTarget.contains(nextFocusedNode)
-              ) {
-                setActivityMenuOpen(false);
-              }
-            }}
-          >
-            <FieldLabel htmlFor="activity">Aktivität</FieldLabel>
-            <div className="relative">
-              <Search
-                className="pointer-events-none absolute top-1/2 left-3 z-10 h-4 w-4 -translate-y-1/2 text-gray-400"
-                aria-hidden="true"
-              />
-              <Input
-                name="activity"
-                error={formErrors.fieldError("activity")}
-                controlSize="compact"
-                className="pl-9"
-                value={activityInput}
-                onChange={(event) => {
-                  setActivityInput(event.target.value);
-                  setActivityMenuOpen(true);
-                  setActiveActivityIndex(0);
-                }}
-                onFocus={() => {
-                  setActivityMenuOpen(true);
-                  setActiveActivityIndex(0);
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === "Escape" && activityListboxOpen) {
-                    consumeListboxEscape(event);
-                    setActivityMenuOpen(false);
-                    return;
-                  }
-                  if (!activityListboxOpen) return;
-
-                  if (event.key === "ArrowDown") {
-                    event.preventDefault();
-                    setActiveActivityIndex(
-                      (prev) => (prev + 1) % filteredActivities.length,
-                    );
-                    return;
-                  }
-                  if (event.key === "ArrowUp") {
-                    event.preventDefault();
-                    setActiveActivityIndex(
-                      (prev) =>
-                        (prev - 1 + filteredActivities.length) %
-                        filteredActivities.length,
-                    );
-                    return;
-                  }
-                  if (event.key === "Home") {
-                    event.preventDefault();
-                    setActiveActivityIndex(0);
-                    return;
-                  }
-                  if (event.key === "End") {
-                    event.preventDefault();
-                    setActiveActivityIndex(filteredActivities.length - 1);
-                    return;
-                  }
-                  if (event.key === "Enter") {
-                    const activeActivity =
-                      filteredActivities[activeActivityIndex];
-                    if (activeActivity) {
-                      event.preventDefault();
-                      selectActivitySuggestion(activeActivity);
-                    }
-                  }
-                }}
-                placeholder="Aktivität suchen oder neu eingeben"
-                autoComplete="off"
-                role="combobox"
-                tabIndex={0}
-                aria-expanded={activityListboxOpen}
-                aria-controls="spontaneous-activity-listbox"
-                aria-activedescendant={
-                  activityListboxOpen
-                    ? `spontaneous-activity-option-${filteredActivities[activeActivityIndex]?.id}`
-                    : undefined
-                }
-                aria-autocomplete="list"
-                required
-              />
-              {activityListboxOpen ? (
-                <ul
-                  id="spontaneous-activity-listbox"
-                  // Offen (#5601): Das Kit hat kein Eingabefeld mit Vorschlägen.
-                  // oxlint-disable-next-line ui-kit/no-hand-rolled-menu -- Freitext mit Vorschlägen, kein Kit-Baustein
-                  role="listbox"
-                  // oxlint-disable-next-line ui-kit/no-hand-rolled-popover -- Freitext mit Vorschlägen, kein Kit-Baustein
-                  className="moto-popover-surface absolute top-full left-0 z-50 mt-1 max-h-60 w-full overflow-y-auto rounded-xl border py-1"
-                >
-                  {filteredActivities.map((activity, index) => (
-                    <li key={activity.id} role="presentation">
-                      <button
-                        id={`spontaneous-activity-option-${activity.id}`}
-                        type="button"
-                        // oxlint-disable-next-line ui-kit/no-hand-rolled-menu -- Freitext mit Vorschlägen, kein Kit-Baustein
-                        role="option"
-                        // Keep options out of the tab order: focus stays on the
-                        // combobox input (aria-activedescendant drives the active
-                        // option). Otherwise Tab lands on an option button, where
-                        // Escape would bubble to FormModal's document listener and
-                        // close the whole modal instead of just the listbox.
-                        tabIndex={-1}
-                        aria-selected={index === activeActivityIndex}
-                        onMouseEnter={() => setActiveActivityIndex(index)}
-                        // Select on pointer-down and keep focus on the input.
-                        // Safari/iOS does not focus a clicked button, so the
-                        // input would blur with relatedTarget === null, the
-                        // blur handler would close the menu, and the option
-                        // would unmount before its click fired — making pointer
-                        // selection unreliable on touch. preventDefault stops
-                        // the focus shift (no blur, menu stays open); we run the
-                        // selection here so a missed onClick can't drop it.
-                        onPointerDown={(event) => {
-                          event.preventDefault();
-                          selectActivitySuggestion(activity);
-                        }}
-                        className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50 aria-selected:bg-gray-100 aria-selected:text-gray-900"
-                      >
-                        {activity.name}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </div>
-          </div>
+          <SuggestInput
+            name="activity"
+            label="Aktivität"
+            listLabel="Vorschläge für die Aktivität"
+            error={formErrors.fieldError("activity")}
+            controlSize="compact"
+            leadingIcon={<Search />}
+            value={activityInput}
+            onValueChange={setActivityInput}
+            suggestions={activityNames}
+            maxSuggestions={8}
+            highlightFirst
+            placeholder="Aktivität suchen oder neu eingeben"
+            required
+          />
 
           {suggestedActivities.length > 0 ? (
             <div className="flex flex-wrap gap-2">

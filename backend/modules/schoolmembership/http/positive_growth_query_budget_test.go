@@ -52,7 +52,7 @@ func TestStaffDirectoryPositiveGrowthQueryBudget(t *testing.T) {
 				// fixture creation and token signing are outside capture.
 				counter := testpkg.CaptureQueries(t, db)
 				rec := httptest.NewRecorder()
-				router.ServeHTTP(rec, req)
+				testpkg.MountedQueryBudgetRouter("/api", router).ServeHTTP(rec, req)
 				counter.Stop()
 				require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 				var body struct {
@@ -81,9 +81,9 @@ func TestStaffDirectoryPositiveGrowthQueryBudget(t *testing.T) {
 						require.Len(t, row, 4)
 					}
 				}
-				queries := counter.Queries()
-				counts = append(counts, len(queries))
-				t.Logf("route=/staff/%s N=%d statements=%d scope=full-resource-request", route, n, len(queries))
+				queries := counter.Measurement(counter.Queries())
+				counts = append(counts, len(queries.Statements))
+				t.Logf("route=/staff/%s N=%d statements=%d scope=full-resource-request", route, n, len(queries.Statements))
 				switch route {
 				case "available":
 					querybudgets.AssertQueryBudget(t, "workforce.staff_growth.directory_available", queries)
@@ -129,7 +129,7 @@ func TestStaffShiftPositiveGrowthQueryBudget(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer "+testutil.MintTestJWT(t, claims))
 		counter := testpkg.CaptureQueries(t, db)
 		rec := httptest.NewRecorder()
-		router.ServeHTTP(rec, req)
+		testpkg.MountedQueryBudgetRouter("/api", router).ServeHTTP(rec, req)
 		counter.Stop()
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 		var body struct {
@@ -143,9 +143,9 @@ func TestStaffShiftPositiveGrowthQueryBudget(t *testing.T) {
 			require.Equal(t, strconv.FormatInt(staff.ID, 10), fmt.Sprint(row["staff_id"]))
 			require.Equal(t, float64(30), row["break_minutes"])
 		}
-		queries := counter.Queries()
-		counts = append(counts, len(queries))
-		t.Logf("route=/staff-shifts/ N=%d statements=%d scope=full-resource-request", n, len(queries))
+		queries := counter.Measurement(counter.Queries())
+		counts = append(counts, len(queries.Statements))
+		t.Logf("route=/staff-shifts/ N=%d statements=%d scope=full-resource-request", n, len(queries.Statements))
 		querybudgets.AssertQueryBudget(t, "workforce.staff_growth.shifts", queries)
 	}
 	require.Equal(t, counts[0], counts[1])

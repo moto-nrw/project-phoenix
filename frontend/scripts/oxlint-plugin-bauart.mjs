@@ -314,7 +314,7 @@ const ROW_ACTION_BASELINE = new Map(
       "aus Zielen entfernen@785",
     ],
     "src/app/[tenant]/(protected)/meal-plan/page.tsx": [
-      "Gericht entfernen@798",
+      "Gericht entfernen@801",
     ],
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
       "Antwort entfernen@1587",
@@ -1586,7 +1586,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Termin bearbeiten Termin erstellen@1065",
     ],
     "src/app/[tenant]/(protected)/database/students/class-list/page.tsx": [
-      "edit Eintrag bearbeiten Klassenlisteneintrag anlegen@603",
+      "edit Eintrag bearbeiten Klassenlisteneintrag anlegen@604",
     ],
     // Seit #5604 gilt die Regel im Schul- und Operator-Portal. Diese Formulare
     // haben keine eigene Objektroute; ein Umbau geht über das Seitengerüst

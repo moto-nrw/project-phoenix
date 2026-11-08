@@ -69,7 +69,7 @@ func TestStudents20ArrivalGrowthQueryBudget(t *testing.T) {
 		require.Equal(t, expectedNotes, body.Data.Notes)
 		require.Equal(t, expectedSchedules, body.Data.Schedules)
 		require.Zero(t, counter.WriteRows())
-		assertStudents20CareplanBudget(t, "arrival", n, counter.Queries())
+		assertStudents20CareplanBudget(t, "arrival", n, counter.Measurement(counter.Queries()))
 		t.Logf("students20 arrival N%d SQL=%d", n, counter.Total())
 	}
 	guest := testpkg.CreateTestAccount(t, tc.db, "s20-arrival-guest@example.com")
@@ -120,7 +120,7 @@ func TestStudents20ClassExceptionsGrowthQueryBudget(t *testing.T) {
 		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
 		require.Equal(t, studentsAPI.ClassArrivalExceptionListResponse{SchoolClass: "S20", CanEdit: true, Exceptions: expected}, body.Data)
 		require.Zero(t, counter.WriteRows())
-		assertStudents20CareplanBudget(t, "class_exceptions", n, counter.Queries())
+		assertStudents20CareplanBudget(t, "class_exceptions", n, counter.Measurement(counter.Queries()))
 		t.Logf("students20 class_exceptions N%d SQL=%d", n, counter.Total())
 	}
 }
@@ -175,7 +175,7 @@ func TestStudents20CompanionsGrowthQueryBudget(t *testing.T) {
 		require.Equal(t, expected, body.Data)
 		require.NotContains(t, rr.Body.String(), "Unrelated")
 		require.Zero(t, counter.WriteRows())
-		assertStudents20CareplanBudget(t, "companions", n, counter.Queries())
+		assertStudents20CareplanBudget(t, "companions", n, counter.Measurement(counter.Queries()))
 		t.Logf("students20 companions N%d SQL=%d", n, counter.Total())
 	}
 	guest := testpkg.CreateTestAccount(t, tc.db, "s20-companion-guest@example.com")
@@ -217,7 +217,7 @@ func TestStudents20CareEndPreviewGrowthQueryBudget(t *testing.T) {
 		delete(body.Data, "token")
 		require.Equal(t, map[string]any{"last_care_day": studentsTestToday.String(), "reason": careplan.CareExitReasonMovedAway, "blocked": false, "students": toStudents20Any(expected)}, body.Data)
 		require.Zero(t, counter.WriteRows())
-		assertStudents20CareplanBudget(t, "care_end_preview", n, counter.Queries())
+		assertStudents20CareplanBudget(t, "care_end_preview", n, counter.Measurement(counter.Queries()))
 		t.Logf("students20 care_end_preview N%d SQL=%d", n, counter.Total())
 	}
 }
@@ -252,7 +252,7 @@ func TestStudents20ExportGrowthQueryBudget(t *testing.T) {
 		queries := counter.Queries()
 		require.Equal(t, expected, rows)
 		require.Zero(t, counter.WriteRows())
-		assertStudents20CareplanBudget(t, "export", n, counter.Queries())
+		assertStudents20CareplanBudget(t, "export", n, counter.Measurement(counter.Queries()))
 		t.Logf("students20 export N%d SQL=%d", n, len(queries))
 	}
 }
@@ -283,7 +283,7 @@ func TestStudents20EndedCareGrowthQueryBudget(t *testing.T) {
 		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
 		require.Equal(t, map[string]any{"items": expected, "total": float64(n), "page": float64(1), "page_size": float64(50)}, body.Data)
 		require.Zero(t, counter.WriteRows())
-		assertStudents20CareplanBudget(t, "ended_care", n, counter.Queries())
+		assertStudents20CareplanBudget(t, "ended_care", n, counter.Measurement(counter.Queries()))
 		t.Logf("students20 ended_care N%d SQL=%d", n, counter.Total())
 	}
 }
@@ -332,7 +332,7 @@ func TestStudents20WithdrawalPreviewGrowthQueryBudget(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, careplan.WithdrawalStatePending, stored.State)
 		require.Equal(t, child.ID, *stored.StudentID)
-		assertStudents20CareplanBudget(t, "withdrawal_preview", n, counter.Queries())
+		assertStudents20CareplanBudget(t, "withdrawal_preview", n, counter.Measurement(counter.Queries()))
 		t.Logf("students20 withdrawal_preview N%d SQL=%d", n, counter.Total())
 	}
 }
@@ -376,7 +376,7 @@ func TestStudents20DocumentsGrowthQueryBudget(t *testing.T) {
 		require.Equal(t, expected, body.Data.Documents)
 		require.Equal(t, []studentsAPI.StudentDocumentCategory{{Value: "betreuungsvertrag", Label: "Betreuungsvertrag"}, {Value: "abholvollmacht", Label: "Abholvollmacht"}, {Value: "schwimmerlaubnis", Label: "Schwimmerlaubnis"}, {Value: "attest", Label: "Ärztliches Attest", Sensitive: true}, {Value: "impfnachweis", Label: "Impfnachweis", Sensitive: true}, {Value: "medikamentenplan", Label: "Medikamentenplan", Sensitive: true}, {Value: "sorgerecht", Label: "Sorgerechtsnachweis", Sensitive: true}, {Value: "unfallanzeige", Label: "Unfallanzeige", Sensitive: true}, {Value: "sonstiges", Label: "Sonstiges"}}, body.Data.VisibleCategories)
 		require.Zero(t, counter.WriteRows())
-		assertStudents20CareplanBudget(t, "documents", n, counter.Queries())
+		assertStudents20CareplanBudget(t, "documents", n, counter.Measurement(counter.Queries()))
 		t.Logf("students20 documents N%d SQL=%d", n, counter.Total())
 	}
 	foreignTenant, _ := testpkg.CreateTestTenant(t, tc.db)
@@ -456,14 +456,14 @@ func TestStudents20OfferingPreviewsGrowthQueryBudget(t *testing.T) {
 					require.Equal(t, map[string]any{"effective_from": studentsTestToday.String(), "current_plan": plan, "proposed_plan": plan, "deviates_from_offering": false, "resolution_required": false, "matching_offerings": matches, "offering_catalog": map[string]any{"phase_id": strconv.FormatInt(fixture.phase.ID, 10), "phase_name": fixture.phase.Name, "selection_mode": "optional", "earliest_effective_from": studentsTestToday.String(), "latest_effective_from": string(fixture.phase.ServiceEndDate), "items": items}}, body.Data)
 				}
 				require.Zero(t, counter.WriteRows())
-				assertStudents20CareplanBudget(t, route, n, counter.Queries())
+				assertStudents20CareplanBudget(t, route, n, counter.Measurement(counter.Queries()))
 				t.Logf("students20 %s N%d SQL=%d", route, n, counter.Total())
 			}
 		})
 	}
 }
 
-func assertStudents20CareplanBudget(t *testing.T, route string, n int, queries []string) {
+func assertStudents20CareplanBudget(t *testing.T, route string, n int, queries querybudgets.Measurement) {
 	t.Helper()
 	switch fmt.Sprintf("%s.n%d", route, n) {
 	case "arrival.n3":

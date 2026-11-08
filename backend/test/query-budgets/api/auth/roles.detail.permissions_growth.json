@@ -2,5 +2,6 @@
   "scenario": "api.auth.roles.detail.permissions_growth",
   "max": 5,
   "exact": true,
-  "description": "GET /auth/roles/{id}/: protected route-sized production resource, real JWT and tenant RLS transaction; exact role fields and 3/8 persisted permission names. Host session liveness excluded."
+  "description": "GET /auth/roles/{id}/: protected route-sized production resource, real JWT and tenant RLS transaction; exact role fields and 3/8 persisted permission names. Host session liveness excluded.",
+  "route": "GET /auth/roles/{id}/"
 }

@@ -61,7 +61,6 @@ export default function RootPage() {
 
   return (
     <AuthShell
-      eyebrow="Einrichtung auswählen"
       title="Willkommen"
       subtitle="Wählen Sie Ihre Einrichtung aus."
       variant="tenant-select"

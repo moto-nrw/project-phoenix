@@ -18,7 +18,7 @@ func TestEnrollmentSchemaPositiveGrowthQueryBudget(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	router := f.router(t)
 	counter := testpkg.CaptureQueries(t, f.env.db)
-	run := func(n int) [][]string {
+	run := func(n int) []testpkg.QueryMeasurement {
 		fields := make([]enrollment.FormField, n)
 		for i := range fields {
 			fields[i] = enrollment.FormField{Key: fmt.Sprintf("field%d", i), Label: fmt.Sprintf("Field %d", i), Type: enrollment.FormFieldText, SortOrder: i}
@@ -44,13 +44,13 @@ func TestEnrollmentSchemaPositiveGrowthQueryBudget(t *testing.T) {
 		require.Equal(t, fmt.Sprint(schema.ID), public.ID)
 		require.Equal(t, fields, public.Fields)
 		require.Equal(t, schema.Version, public.Version)
-		return [][]string{previewQ, publicQ}
+		return []testpkg.QueryMeasurement{previewQ, publicQ}
 	}
 	small := run(3)
 	large := run(8)
 	for i := range large {
-		require.Equal(t, len(small[i]), len(large[i]))
-		t.Logf("schema route %d fields N3=%d N8=%d", i, len(small[i]), len(large[i]))
+		require.Equal(t, len(small[i].Statements), len(large[i].Statements))
+		t.Logf("schema route %d fields N3=%d N8=%d", i, len(small[i].Statements), len(large[i].Statements))
 	}
 	querybudgets.AssertQueryBudget(t, "api.enrollment.growth.schema_preview", large[0])
 	querybudgets.AssertQueryBudget(t, "api.enrollment.growth.public_schema", large[1])
