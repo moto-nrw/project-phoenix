@@ -2,7 +2,6 @@ package migrations
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 
 	"github.com/uptrace/bun"
@@ -249,15 +248,10 @@ const mealBillingErasureAnchor = `					DELETE FROM parent_billing.care_run_holds
 `
 
 func mealBillingMonthsUp(ctx context.Context, db *bun.DB) error {
-	return db.RunInTx(ctx, &sql.TxOptions{}, func(ctx context.Context, tx bun.Tx) error {
-		if _, err := tx.ExecContext(ctx, mealBillingMonthsUpSQL); err != nil {
-			return fmt.Errorf("create meal billing months: %w", err)
-		}
-		if _, err := tx.ExecContext(ctx, demoVisitorErasureMealBillingSQL); err != nil {
-			return fmt.Errorf("erase the Mensa months of retired demo schools: %w", err)
-		}
-		return nil
-	})
+	if _, err := db.ExecContext(ctx, mealBillingMonthsUpSQL); err != nil {
+		return fmt.Errorf("create meal billing months: %w", err)
+	}
+	return installMealBillingErasure(ctx, db)
 }
 
 // mealBillingMonthsDown restores the erasure of 1.15.808 before it drops

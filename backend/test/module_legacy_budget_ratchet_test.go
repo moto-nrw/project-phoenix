@@ -244,6 +244,8 @@ const moduleComposeBudgetTotal = 13119
 // composition starts small and is no reason to raise the total; split code
 // keeps its LOC counted. ADR 0078 raised modules/mealplan/compose and
 // workflows/parentportal/compose for the meal ordering rules.
+// ADR 0166 raised modules/mealplan/compose for the Mensa-Monatsfreigabe and
+// modules/parentbilling/compose for the Mensa of the monthly run.
 var moduleComposeBudgets = map[string]int{
 	"modules/appointments/compose": 45,
 	// ADR 0103: the signature ledger constructor, construction only.

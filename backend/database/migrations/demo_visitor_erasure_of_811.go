@@ -1,5 +1,20 @@
 package migrations
 
+import (
+	"context"
+	"fmt"
+
+	"github.com/uptrace/bun"
+)
+
+// installMealBillingErasure installs the erasure of 1.15.811.
+func installMealBillingErasure(ctx context.Context, db *bun.DB) error {
+	if _, err := db.ExecContext(ctx, demoVisitorErasureMealBillingSQL); err != nil {
+		return fmt.Errorf("erase the Mensa months of retired demo schools: %w", err)
+	}
+	return nil
+}
+
 // demoVisitorErasureMealBillingSQL is platform.erase_closed_demo_visitors of
 // 1.15.808 that also deletes the Mensa months the demo schools released
 // (#4686). The rows name the children (first and last name) and, without a
