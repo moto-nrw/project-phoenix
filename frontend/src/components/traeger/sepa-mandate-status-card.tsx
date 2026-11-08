@@ -23,7 +23,7 @@ type State =
   | { readonly kind: "loaded"; readonly inForce: SepaMandate | undefined };
 
 /** The address of the mandate page of a contract's family. */
-export function sepaMandatePath(contractId: string): string {
+function sepaMandatePath(contractId: string): string {
   return traegerPath(
     `/traeger/abrechnung/lastschrift/${encodeURIComponent(contractId)}`,
   );

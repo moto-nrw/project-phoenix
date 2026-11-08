@@ -100,10 +100,10 @@ export interface RunDueDate {
 }
 
 /** Why an invoice of a family that pays by direct debit is not collected (#4695). */
-export type DebitGap = "mandate_missing" | "creditor_missing";
+type DebitGap = "mandate_missing" | "creditor_missing";
 
 /** The SEPA mandate an invoice by direct debit is collected with (#4695). */
-export interface InvoiceMandate {
+interface InvoiceMandate {
   readonly reference: string;
   readonly signedOn: string;
   readonly creditorId: string;
