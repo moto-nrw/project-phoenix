@@ -13,7 +13,7 @@ import { schoolClassLabel } from "~/lib/school-class-label";
 // when its approval is refused with the candidates (#6148).
 
 /** What the choice dialog needs to know about the child. */
-type ExistingChildChoiceSubject = Pick<
+export type ExistingChildChoiceSubject = Pick<
   AdminRequestChild,
   | "first_name"
   | "last_name"
@@ -147,4 +147,19 @@ export async function sendWithExistingChildChoice<T>(
     if (!choice) return null;
     return send(choice);
   }
+}
+
+/**
+ * The name of the enrolled child the office chose to renew, as the school
+ * knows it; null when the office chose no enrolled child.
+ */
+export function renewedChildNameOf(
+  choice: ExistingChildChoice | undefined,
+  candidates: readonly AdminExistingChildCandidate[],
+): string | null {
+  if (!choice || !("existingStudentId" in choice)) return null;
+  const chosen = candidates.find(
+    (candidate) => candidate.student_id === choice.existingStudentId,
+  );
+  return chosen ? `${chosen.first_name} ${chosen.last_name}` : null;
 }

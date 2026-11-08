@@ -159,6 +159,16 @@ export interface AdminExistingChildCandidate {
 export type ExistingChildChoice =
   { existingStudentId: string } | { createNewStudent: true };
 
+/** The choice in the wire fields the decision and the manual enrollment take. */
+export function existingChildChoiceFields(
+  choice: ExistingChildChoice | undefined,
+): { existing_student_id?: string; create_new_student?: true } {
+  if (!choice) return {};
+  return "existingStudentId" in choice
+    ? { existing_student_id: choice.existingStudentId }
+    : { create_new_student: true };
+}
+
 export interface AdminRequestChild {
   id: string;
   first_name: string;
@@ -712,12 +722,7 @@ export async function decideAdminChild(
       child_id: childId,
       status,
       reason: reason ?? "",
-      ...(existingChildChoice && "existingStudentId" in existingChildChoice
-        ? { existing_student_id: existingChildChoice.existingStudentId }
-        : {}),
-      ...(existingChildChoice && "createNewStudent" in existingChildChoice
-        ? { create_new_student: true }
-        : {}),
+      ...existingChildChoiceFields(existingChildChoice),
     }),
   });
   if (!response.ok) {

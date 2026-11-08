@@ -3,6 +3,7 @@ import { ApiError } from "~/lib/api-error";
 import {
   existingChildChoiceOptions,
   possiblyEnrolledCandidates,
+  renewedChildNameOf,
   sendWithExistingChildChoice,
 } from "./existing-child-choice";
 
@@ -118,5 +119,22 @@ describe("existingChildChoiceOptions for the manual enrollment", () => {
         description: "Wählen Sie dies nur, wenn es ein anderes Kind ist.",
       },
     ]);
+  });
+});
+
+describe("renewedChildNameOf (#6148)", () => {
+  it("names the chosen enrolled child as the school knows it", () => {
+    expect(
+      renewedChildNameOf({ existingStudentId: "42" }, [
+        { ...candidate, first_name: "Mara-Sophie" },
+      ]),
+    ).toBe("Mara-Sophie Papier");
+  });
+
+  it("names no child for a new child or no choice", () => {
+    expect(renewedChildNameOf({ createNewStudent: true }, [candidate])).toBe(
+      null,
+    );
+    expect(renewedChildNameOf(undefined, [candidate])).toBe(null);
   });
 });

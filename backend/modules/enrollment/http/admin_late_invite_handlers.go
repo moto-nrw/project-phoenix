@@ -115,7 +115,7 @@ func (req *AdminManualApprovedEnrollmentRequest) Bind(r *http.Request) error {
 // existingChildChoice parses the office's answer, nil when it chose no
 // enrolled child.
 func (req *AdminManualApprovedEnrollmentRequest) existingChildChoice() (*int64, error) {
-	existing, err := (&AdminDecideRequest{ExistingStudentID: req.ExistingStudentID}).existingStudentID()
+	existing, err := parseExistingStudentID(req.ExistingStudentID)
 	if err != nil {
 		return nil, err
 	}

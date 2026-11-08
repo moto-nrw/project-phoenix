@@ -12,6 +12,7 @@ import {
   createLateInvite,
   createManualApprovedEnrollment,
   fetchManualEnrollmentBootstrap,
+  existingChildChoiceFields,
   type AdminExistingChildCandidate,
   type ExistingChildChoice,
 } from "~/lib/enrollment-admin-api";
@@ -47,7 +48,9 @@ import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-b
 import {
   existingChildChoiceDescription,
   existingChildChoiceOptions,
+  renewedChildNameOf,
   sendWithExistingChildChoice,
+  type ExistingChildChoiceSubject,
 } from "~/components/enrollment/existing-child-choice";
 import {
   type CareOfferingBookingStats,
@@ -223,9 +226,7 @@ export function ManualApprovedEnrollmentModal({
   // The open question „Ist das Kind schon angemeldet?“ and the answer the
   // waiting submission resumes with.
   const [existingChildQuestion, setExistingChildQuestion] = useState<{
-    firstName: string;
-    lastName: string;
-    candidates: AdminExistingChildCandidate[];
+    subject: ExistingChildChoiceSubject;
     answer: (choice: ExistingChildChoice | null) => void;
   } | null>(null);
   // True from sending until the answer is in, the question included.
@@ -319,6 +320,7 @@ export function ManualApprovedEnrollmentModal({
     checks.clear();
     setRenewedChildName(null);
     const child = payload.children[0];
+    let renewalCandidates: AdminExistingChildCandidate[] = [];
     setSending(true);
     const result = await sendWithExistingChildChoice(
       (choice) =>
@@ -327,32 +329,25 @@ export function ManualApprovedEnrollmentModal({
           external_consent_confirmed: true,
           reason: trimmedReason,
           send_notification: sendNotification,
-          ...(choice && "existingStudentId" in choice
-            ? { existing_student_id: choice.existingStudentId }
-            : {}),
-          ...(choice && "createNewStudent" in choice
-            ? { create_new_student: true as const }
-            : {}),
+          ...existingChildChoiceFields(choice),
         }).then((created) => ({ created, choice })),
       // The form keeps its send button busy until the office answers.
       (candidates) =>
         new Promise<ExistingChildChoice | null>((resolve) => {
+          renewalCandidates = candidates;
           setExistingChildQuestion({
-            firstName: child?.first_name ?? "",
-            lastName: child?.last_name ?? "",
-            candidates,
+            subject: {
+              first_name: child?.first_name ?? "",
+              last_name: child?.last_name ?? "",
+              possible_existing_children: candidates,
+            },
             answer: resolve,
           });
         }),
     ).finally(() => setSending(false));
     if (!result) return null;
-    const renewed =
-      result.choice !== undefined && "existingStudentId" in result.choice;
-    setRenewedChildName(
-      renewed
-        ? `${child?.first_name ?? ""} ${child?.last_name ?? ""}`.trim()
-        : null,
-    );
+    // The renewed child is named as the school knows it, not as typed.
+    setRenewedChildName(renewedChildNameOf(result.choice, renewalCandidates));
     setStatusUrl(result.created.status_url);
     return result.created;
   };
@@ -478,16 +473,10 @@ export function ManualApprovedEnrollmentModal({
         <ChoiceModal
           isOpen
           title="Ist das Kind schon angemeldet?"
-          description={existingChildChoiceDescription({
-            first_name: existingChildQuestion.firstName,
-            last_name: existingChildQuestion.lastName,
-            possible_existing_children: existingChildQuestion.candidates,
-          })}
-          options={existingChildChoiceOptions({
-            first_name: existingChildQuestion.firstName,
-            last_name: existingChildQuestion.lastName,
-            possible_existing_children: existingChildQuestion.candidates,
-          })}
+          description={existingChildChoiceDescription(
+            existingChildQuestion.subject,
+          )}
+          options={existingChildChoiceOptions(existingChildQuestion.subject)}
           onClose={() => answerExistingChildQuestion(null)}
           onSelect={(value) =>
             answerExistingChildQuestion(

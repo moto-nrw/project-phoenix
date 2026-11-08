@@ -555,7 +555,13 @@ func (req *AdminDecideRequest) Bind(_ *http.Request) error { return nil }
 
 // existingStudentID parses the chosen enrolled child, nil when none is chosen.
 func (req *AdminDecideRequest) existingStudentID() (*int64, error) {
-	raw := strings.TrimSpace(req.ExistingStudentID)
+	return parseExistingStudentID(req.ExistingStudentID)
+}
+
+// parseExistingStudentID reads the office's chosen enrolled child of a
+// decision or a manual enrollment, nil when none is chosen.
+func parseExistingStudentID(value string) (*int64, error) {
+	raw := strings.TrimSpace(value)
 	if raw == "" {
 		return nil, nil
 	}
