@@ -153,10 +153,11 @@ func ParseMFAEnrollmentJWT(a *sessiontoken.TokenAuth, tokenString string) (*sess
 	if err != nil {
 		return nil, err
 	}
-	claims, err := tokenprimitives.DecodeEnrollment(token, time.Now())
-	if err != nil {
-		return nil, err
+	verified := tokenprimitives.DecodeVerified(token, time.Now())
+	if verified.EnrollmentErr != nil {
+		return nil, verified.EnrollmentErr
 	}
+	claims := verified.Enrollment
 	return &sessiontoken.MFAEnrollmentClaims{
 		AccountID: claims.AccountID, Scope: claims.Scope, TenantID: claims.TenantID, MFAEnrollmentPending: true,
 		CommonClaims: sessiontoken.CommonClaims{ExpiresAt: claims.ExpiresAt},

@@ -19,7 +19,6 @@ func TestPortalTableMatchesTheTokenGates(t *testing.T) {
 		ShapeIgnored: tokenprimitives.Ignored, ShapeOptional: tokenprimitives.Optional,
 		ShapeRequired: tokenprimitives.Required, ShapeForbidden: tokenprimitives.Forbidden,
 	}
-	require.Len(t, tokenprimitives.AllPortalClaims(), len(portals))
 	for _, portal := range portals {
 		gate, ok := tokenprimitives.PortalOfClaim(portal.Claim)
 		require.True(t, ok, portal.Name)

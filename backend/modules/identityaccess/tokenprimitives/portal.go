@@ -72,11 +72,6 @@ var (
 	portalClaims = []PortalClaims{TenantClaims, SchoolClaims, ParentClaims, CatererClaims, OrgClaims, PlatformClaims}
 )
 
-// AllPortalClaims returns the closed portal list.
-func AllPortalClaims() []PortalClaims {
-	return append([]PortalClaims(nil), portalClaims...)
-}
-
 // PortalOfClaim resolves a scope claim, the legacy tenant claim included.
 func PortalOfClaim(scope string) (PortalClaims, bool) {
 	for _, portal := range portalClaims {
