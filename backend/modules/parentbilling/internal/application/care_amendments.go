@@ -59,6 +59,14 @@ func keyPositions(invoice *parentbilling.CareInvoice) {
 	}
 }
 
+// keyIssuedPositions gives the positions of issued invoices the keys the
+// review named them by, so a removed position still shows as removed.
+func keyIssuedPositions(invoices []parentbilling.CareInvoice) {
+	for i := range invoices {
+		keyPositions(&invoices[i])
+	}
+}
+
 // removablePosition is what taking a position off costs the family: the
 // module after the reductions of the chain, a Mensa month in full.
 func removablePosition(invoice parentbilling.CareInvoice, key string) (string, int64, bool) {

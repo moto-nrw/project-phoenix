@@ -531,11 +531,7 @@ func (c *CareBilling) detail(ctx context.Context, reviewer parentbilling.Holiday
 		if err != nil {
 			return parentbilling.CareRunDetail{}, err
 		}
-		// The issued positions get the keys the review named them by, so a
-		// removed position still shows as removed (#6197).
-		for i := range invoices {
-			keyPositions(&invoices[i])
-		}
+		keyIssuedPositions(invoices)
 		detail.Invoices = invoices
 		// A released run shows what its release stored (E5): its invoices
 		// and the snapshot of the children it held back. It reads no
