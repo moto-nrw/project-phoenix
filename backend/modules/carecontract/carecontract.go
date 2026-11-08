@@ -101,11 +101,20 @@ var (
 	ErrInboxDocumentNotFound = errors.New("contract not found in the inbox")
 )
 
+// ValidationError marks every refused input with its reason. Selection says
+// that the refusal concerns which or how many entries were chosen (count,
+// page size) rather than values the user typed into fields.
 type ValidationError struct {
-	Fields map[string]string
+	Fields    map[string]string
+	Selection bool
 }
 
-func (e *ValidationError) Error() string { return "the contract template is invalid" }
+func (e *ValidationError) Error() string {
+	if e.Selection {
+		return "the selection is invalid"
+	}
+	return "the input is invalid"
+}
 
 // Reviewer is the account of the Träger-Büro that acts, with its Träger.
 type Reviewer struct {

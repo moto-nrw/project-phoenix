@@ -151,10 +151,10 @@ func (c *Contracts) listContracts(ctx context.Context, reviewer carecontract.Rev
 		return carecontract.ContractList{}, err
 	}
 	if filter.Status != "" && !knownStatus(filter.Status) {
-		return carecontract.ContractList{}, &carecontract.ValidationError{Fields: map[string]string{"status": "unknown"}}
+		return carecontract.ContractList{}, &carecontract.ValidationError{Fields: map[string]string{"status": "unknown"}, Selection: true}
 	}
 	if filter.Offset < 0 || filter.Limit < 0 || filter.Limit > 100 {
-		return carecontract.ContractList{}, &carecontract.ValidationError{Fields: map[string]string{"contracts": "invalid_pagination"}}
+		return carecontract.ContractList{}, &carecontract.ValidationError{Fields: map[string]string{"contracts": "invalid_pagination"}, Selection: true}
 	}
 	if filter.Limit == 0 {
 		filter.Limit = 50
@@ -320,7 +320,7 @@ func (c *Contracts) SendContracts(ctx context.Context, reviewer carecontract.Rev
 	}
 	ids := uniqueIDs(contractIDs)
 	if len(ids) == 0 || len(ids) > maxSendBatch {
-		return carecontract.SendResult{}, &carecontract.ValidationError{Fields: map[string]string{"contract_ids": "count"}}
+		return carecontract.SendResult{}, &carecontract.ValidationError{Fields: map[string]string{"contract_ids": "count"}, Selection: true}
 	}
 	return c.sendContracts(ctx, reviewer, ids, "")
 }
@@ -331,7 +331,7 @@ func (c *Contracts) ResendContract(ctx context.Context, reviewer carecontract.Re
 		return carecontract.SendResult{}, err
 	}
 	if contractID <= 0 {
-		return carecontract.SendResult{}, &carecontract.ValidationError{Fields: map[string]string{"contract_ids": "count"}}
+		return carecontract.SendResult{}, &carecontract.ValidationError{Fields: map[string]string{"contract_ids": "count"}, Selection: true}
 	}
 	address := strings.TrimSpace(email)
 	parsed, err := mail.ParseAddress(address)
