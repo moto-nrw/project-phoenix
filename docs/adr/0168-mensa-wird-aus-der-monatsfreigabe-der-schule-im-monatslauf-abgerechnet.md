@@ -22,6 +22,8 @@ ein. Sie führt keinen Owner und keinen zweiten Lauf ein.
    (`parent_billing.care_meal_tariffs`). Kein Preis steht im Code. Ein Preis,
    mit dem eine Rechnung einen Mensa-Monat der Schule abgerechnet hat, ändert
    sich für diese Monate nie (409 `parent_billing.care_meal_tariff_month_billed`).
+   Eine stornierte Rechnung rechnet nicht mehr ab: Nach einem Storno darf der
+   Träger einen falschen Preis korrigieren, die Neuausstellung nutzt ihn.
 2. **Zählung.** Ein Essen zählt an einem Kalendertag des Monats in
    Europe/Berlin, der laut Schulkalender kein Wochenende, Schließtag,
    Feiertag oder Ferientag ist, wenn das Kind nach allen Abmeldungen der
@@ -69,6 +71,11 @@ ein. Sie führt keinen Owner und keinen zweiten Lauf ein.
    Menge, Preis und Betrag und ändert sich nie (Trigger wie ADR 0119 Punkt 7).
    Eine Korrektur einer freigegebenen Fehlzeit geht über Storno und
    Neuausstellung (ADR 0119), nicht über eine Änderung.
+   In der Prüfphase des Laufs (#5916) gehören die Mensa-Positionen, die Monate
+   ohne Freigabe, die nicht mehr abrechenbaren Monate und die nicht
+   abgerechneten Kinder zum Fingerabdruck des geprüften Stands. Eine
+   ausgeschlossene Rechnung stellt auch ihre Mensa nicht aus; ein späterer
+   Lauf rechnet sie ab.
 8. **Protokoll.** Jedes Lesen eines Laufs nennt in `care_run_events` die
    Verträge und die Schülerdatensätze der Mensa ohne Vertrag.
 9. **Demo-Löschung.** `platform.erase_closed_demo_visitors` (1.15.811) löscht
