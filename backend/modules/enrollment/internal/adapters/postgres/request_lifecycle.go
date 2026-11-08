@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -114,7 +115,7 @@ func (r *Store) SettledRequestsBefore(ctx context.Context, withdrawnCutoff, reje
 			WHERE renewal.request_id = request.id AND renewal.tenant_id = request.tenant_id
 			  AND source_phase.service_end_date >= ?)`, calendar.TodayDate()).
 		GroupExpr("request.id").
-		Having("BOOL_OR(rc.status = ?)", "withdrawn").
+		Having("BOOL_OR(rc.status = ?)", enrollment.ChildStatusWithdrawn).
 		Having("BOOL_AND(rc.created_student_id IS NULL)").
 		Having(`BOOL_AND(CASE rc.status
 			WHEN 'withdrawn' THEN COALESCE(rc.reviewed_at, rc.updated_at) < ?
@@ -140,7 +141,7 @@ func (r *Store) FullyRejectedRequestsBefore(ctx context.Context, cutoff time.Tim
 	err = db.NewSelect().TableExpr("enrollment.requests AS request").ColumnExpr("request.id").
 		Join("JOIN enrollment.request_children AS rc ON rc.request_id = request.id AND rc.tenant_id = request.tenant_id").
 		Where("request.tenant_id = ?", tenantID).GroupExpr("request.id").
-		Having("COUNT(rc.id) > 0").Having("BOOL_AND(rc.status = ?)", "rejected").
+		Having("COUNT(rc.id) > 0").Having("BOOL_AND(rc.status = ?)", enrollment.ChildStatusRejected).
 		Having("BOOL_AND(rc.reviewed_at IS NOT NULL AND rc.reviewed_at < ?)", cutoff).
 		OrderExpr("request.id").Scan(ctx, &ids)
 	if err != nil {

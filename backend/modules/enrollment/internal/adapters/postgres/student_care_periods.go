@@ -42,7 +42,7 @@ func (r *Store) StudentCarePeriodsByStudentIDs(ctx context.Context, studentIDs [
 		Join("JOIN enrollment.requests AS request ON request.id = child.request_id AND request.tenant_id = child.tenant_id").
 		Join("JOIN enrollment.phases AS phase ON phase.id = request.phase_id AND phase.tenant_id = request.tenant_id").
 		ColumnExpr("child.created_student_id AS student_id, child.id AS request_child_id, request.id AS request_id, phase.id AS phase_id, phase.name AS phase_name, phase.service_start_date, phase.service_end_date, child.target_grade_level, child.target_school_class").
-		Where("child.tenant_id = ? AND child.created_student_id IN (?) AND child.status = ?", tenantID, bun.List(studentIDs), "approved").
+		Where("child.tenant_id = ? AND child.created_student_id IN (?) AND child.status = ?", tenantID, bun.List(studentIDs), enrollment.ChildStatusApproved).
 		OrderExpr("phase.service_start_date DESC, child.id DESC").Scan(ctx, &rows)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list care periods by student: %w", err)
