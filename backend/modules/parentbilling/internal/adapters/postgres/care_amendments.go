@@ -157,6 +157,18 @@ func (s *Store) CarriedCareCorrections(ctx context.Context, organizationID int64
 	return carried, nil
 }
 
+// careInvoiceCorrectionsColumn reads the corrections of each issued invoice
+// under its own Träger, by position, as one JSON array beside the invoice
+// row, in the shape of parentbilling.CareAmendment.
+const careInvoiceCorrectionsColumn = `COALESCE((SELECT jsonb_agg(jsonb_build_object(
+		'id', correction.id, 'kind', correction.kind, 'label', correction.label, 'amount_cents', correction.amount_cents,
+		'position_key', correction.position_key, 'before', correction.before_value, 'after', correction.after_value,
+		'reason', correction.reason, 'account_id', correction.account_id, 'amended_at', correction.amended_at,
+		'carried', correction.carried_from_number <> '', 'carried_from_number', correction.carried_from_number)
+		ORDER BY correction.position)
+	FROM parent_billing.care_invoice_corrections AS correction
+	WHERE correction.organization_id = care_invoice_row.organization_id AND correction.invoice_id = care_invoice_row.id), '[]'::jsonb) AS corrections`
+
 // insertCareCorrections copies the changes a release applied onto its
 // invoices; rows run parallel to invoices.
 func insertCareCorrections(ctx context.Context, db bun.IDB, organizationID int64, rows []careInvoiceRow, invoices []parentbilling.CareInvoice) error {

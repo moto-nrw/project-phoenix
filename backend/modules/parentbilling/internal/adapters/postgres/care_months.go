@@ -137,6 +137,9 @@ type careInvoiceRow struct {
 	// CostShares are the issued cost bearer shares (#4687), read in the same
 	// statement as the invoice.
 	CostShares []parentbilling.CareInvoiceCostShare `bun:"cost_shares,type:jsonb,scanonly"`
+	// Corrections are the changes the release applied (#6197), read in the
+	// same statement as the invoice.
+	Corrections []parentbilling.CareAmendment `bun:"corrections,type:jsonb,scanonly"`
 }
 
 // invoice is the issued invoice of the row with its positions and reductions
@@ -645,7 +648,7 @@ func (s *Store) CareRunInvoices(ctx context.Context, organizationID, runID int64
 	// The Mensa months (#4686) come with their invoice in one statement.
 	var rows []careInvoiceMealRow
 	if err := db.NewSelect().Model(&rows).ModelTableExpr(`parent_billing.care_invoices AS "care_invoice_row"`).
-		ColumnExpr("?TableColumns").ColumnExpr(careInvoiceMealsColumn).ColumnExpr(careInvoiceCostSharesColumn).
+		ColumnExpr("?TableColumns").ColumnExpr(careInvoiceMealsColumn).ColumnExpr(careInvoiceCostSharesColumn).ColumnExpr(careInvoiceCorrectionsColumn).
 		Where("care_invoice_row.organization_id = ?", organizationID).Where("care_invoice_row.run_id = ?", runID).
 		OrderExpr("care_invoice_row.number_sequence").Scan(ctx); err != nil {
 		return nil, fmt.Errorf("read care invoices: %w", err)
@@ -668,10 +671,6 @@ func (s *Store) CareRunInvoices(ctx context.Context, organizationID, runID int64
 	if err != nil {
 		return nil, err
 	}
-	corrections, err := careCorrectionsOf(ctx, db, organizationID, ids)
-	if err != nil {
-		return nil, err
-	}
 	byInvoice := map[int64][]parentbilling.CarePosition{}
 	for _, row := range positions {
 		position := parentbilling.CarePosition{
@@ -687,8 +686,8 @@ func (s *Store) CareRunInvoices(ctx context.Context, organizationID, runID int64
 	invoices := make([]parentbilling.CareInvoice, len(rows))
 	for i, row := range rows {
 		invoices[i] = row.invoice(byInvoice[row.ID], reductions[row.ID])
-		if applied := corrections[row.ID]; len(applied) > 0 {
-			invoices[i].Amendments = applied
+		if len(row.Corrections) > 0 {
+			invoices[i].Amendments = row.Corrections
 		}
 		if len(row.CostShares) > 0 {
 			invoices[i].CostShares = row.CostShares
