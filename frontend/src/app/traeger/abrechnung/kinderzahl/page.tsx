@@ -38,6 +38,7 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { parentsConcept } from "~/lib/concepts/parents";
+import { berlinTodayISO } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
   type FamilyChildren,
@@ -104,6 +105,7 @@ function StatedCell({ family }: Readonly<{ family: FamilyChildren }>) {
 }
 
 export default function TraegerKinderzahlPage() {
+  const today = berlinTodayISO();
   const [data, setData] = useState<FamilyChildrenSet | null>(null);
   const [search, setSearch] = useState("");
   const [checking, setChecking] = useState<FamilyChildren | null>(null);
@@ -363,7 +365,7 @@ export default function TraegerKinderzahlPage() {
                       />
                     </p>
                     <p className="mt-0.5 text-sm text-gray-600">
-                      {checkReason(family)}
+                      {checkReason(family, today)}
                     </p>
                   </div>
                   <div className="flex w-full flex-col gap-2 min-[480px]:w-auto min-[480px]:flex-row sm:justify-end">

@@ -189,16 +189,29 @@ func familyChildrenStatus(count *parentbilling.FamilyChildCount, today calendar.
 		count.StatedAt.After(*count.ConfirmedAt) && *count.StatedChildren != *count.ConfirmedChildren:
 		return parentbilling.FamilyChildrenChanged
 	case count.ValidFrom.After(today):
-		// A later confirmation: until it starts, an earlier one may still
-		// hold. Was there one that has ended, the family has a gap now.
-		if started, holds := count.CoveredOn(today); started && !holds {
-			return parentbilling.FamilyChildrenExpired
-		}
-		return parentbilling.FamilyChildrenUpcoming
+		return laterConfirmationStatus(count, today)
 	case count.ValidUntil != nil && !count.ValidUntil.After(today.AddDays(parentbilling.FamilyChildrenExpiryNotice)):
 		return parentbilling.FamilyChildrenExpiring
 	}
 	return parentbilling.FamilyChildrenConfirmed
+}
+
+// laterConfirmationStatus is the state of a family whose newest
+// confirmation starts after today: the earlier one in force decides. Has it
+// ended, the family has a gap now; does it end within the notice and leave a
+// gap before the later one, the family needs a check before it.
+func laterConfirmationStatus(count *parentbilling.FamilyChildCount, today calendar.Date) string {
+	current, started := count.InForceOn(today)
+	switch {
+	case !started || current.ValidUntil == nil:
+		return parentbilling.FamilyChildrenUpcoming
+	case current.ValidUntil.Before(today):
+		return parentbilling.FamilyChildrenExpired
+	case current.ValidUntil.AddDays(1).Before(*count.ValidFrom) &&
+		!current.ValidUntil.After(today.AddDays(parentbilling.FamilyChildrenExpiryNotice)):
+		return parentbilling.FamilyChildrenExpiring
+	}
+	return parentbilling.FamilyChildrenUpcoming
 }
 
 // recordFamilyReads records the read of every number shown, on the contract

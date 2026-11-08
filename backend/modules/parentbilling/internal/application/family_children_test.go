@@ -160,6 +160,12 @@ func TestFamilyChildrenStatusShowsTheGapBeforeALaterConfirmation(t *testing.T) {
 		{Children: ptr(2), ValidFrom: ptr(calendar.NewDate(2026, 8, 1)), ValidUntil: ptr(calendar.NewDate(2026, 12, 31))},
 	}
 	assert.Equal(t, parentbilling.FamilyChildrenUpcoming, familyChildrenStatus(&covered, today), "the earlier one holds until the later starts")
+	// November: the earlier confirmation still holds but ends within the
+	// notice and leaves December without a number: check it now.
+	assert.Equal(t, parentbilling.FamilyChildrenExpiring, familyChildrenStatus(&later, calendar.NewDate(2026, 11, 10)),
+		"the warning comes before the gap")
+	assert.Equal(t, parentbilling.FamilyChildrenUpcoming, familyChildrenStatus(&covered, calendar.NewDate(2026, 12, 10)),
+		"no gap, no warning")
 	first := later
 	first.Confirmations = nil
 	assert.Equal(t, parentbilling.FamilyChildrenUpcoming, familyChildrenStatus(&first, today), "a first confirmation that starts later")

@@ -62,9 +62,21 @@ export function statedOn(count: FamilyChildCount): string {
 }
 
 /** What the Abrechnung has to check, in one short line. */
-export function checkReason(family: FamilyChildren): string {
+export function checkReason(family: FamilyChildren, today: string): string {
   const count = family.count;
   if (!count) return "";
+  // A later confirmation is stored as the current one: the state then
+  // belongs to the earlier confirmation, whose end the page does not know.
+  const later =
+    count.validFrom !== null && count.validFrom > today
+      ? formatDate(count.validFrom)
+      : null;
+  if (later && family.status === "expired") {
+    return `Die bisherige Kinderzahl ist abgelaufen. Die neue gilt erst ab ${later}.`;
+  }
+  if (later && family.status === "expiring") {
+    return `Die bisherige Kinderzahl läuft bald ab. Die neue gilt erst ab ${later}.`;
+  }
   switch (family.status) {
     case "stated":
       return `Eltern geben ${childrenLabel(count.statedChildren ?? 0)} an (am ${statedOn(count)}).`;
