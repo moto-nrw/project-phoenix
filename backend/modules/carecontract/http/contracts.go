@@ -221,7 +221,7 @@ func (rs *Resource) send(w http.ResponseWriter, r *http.Request) {
 	if req.RecipientEmail == nil {
 		result, err = rs.contracts.SendContracts(r.Context(), reviewer, req.ContractIDs)
 	} else if len(req.ContractIDs) != 1 {
-		err = &carecontract.ValidationError{Fields: map[string]string{"contract_ids": "single_required"}}
+		err = carecontract.InvalidSelection("contract_ids", "single_required")
 	} else {
 		result, err = rs.contracts.ResendContract(r.Context(), reviewer, req.ContractIDs[0], *req.RecipientEmail)
 	}
@@ -391,14 +391,12 @@ func renderError(w http.ResponseWriter, r *http.Request, err error) {
 	common.RenderError(w, r, common.ErrorInternalServer(err))
 }
 
-// validationError marks every refused field. A template names its fields;
-// a list or a batch names the input as a whole.
+// validationError marks every refused field. The application says whether
+// the refusal concerns the selection or the values of fields.
 func validationError(invalid *carecontract.ValidationError) render.Renderer {
-	code := common.CodeCareContractTemplateInvalid
-	for name := range invalid.Fields {
-		if name == "status" || name == "contracts" || name == "contract_ids" || name == "recipient_email" {
-			code = common.CodeCareContractContractInputInvalid
-		}
+	code := common.CodeCareContractFieldInvalid
+	if invalid.Selection {
+		code = common.CodeCareContractSelectionInvalid
 	}
 	return fieldsInvalid(invalid.Error(), invalid, code)
 }

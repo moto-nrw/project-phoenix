@@ -77,16 +77,6 @@ type LegalBlocksSnapshotEntry struct {
 	DisplayedFormSchemaID int64 `json:"displayed_form_schema_id,omitempty"`
 }
 
-// RequestStatus values - derived, not stored. Documented here as the
-// canonical source for the derivation logic the request service applies.
-const (
-	RequestStatusSubmitted   = "submitted"    // every child still submitted
-	RequestStatusUnderReview = "under_review" // at least one child under_review, no decisions yet
-	RequestStatusPartial     = "partial"      // some children decided, others pending
-	RequestStatusFinalized   = "finalized"    // all children in a terminal status
-	RequestStatusWithdrawn   = "withdrawn"    // request withdrawn (withdrawn_at set)
-)
-
 const (
 	RequestSourcePublic      = "public"
 	RequestSourceLateInvite  = "late_invite"

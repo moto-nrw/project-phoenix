@@ -2,12 +2,11 @@ package application
 
 import (
 	"context"
-
 	"fmt"
-	"slices"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
 )
 
 // RecordSubmittedOfferingChoices accepts an identical retry, but never replaces
@@ -28,7 +27,7 @@ func (m *Service) RecordSubmittedOfferingChoices(ctx context.Context, childID in
 			return fmt.Errorf("submitted offering choice request child mismatch")
 		}
 		for _, day := range choice.SelectedDays {
-			if !slices.Contains([]string{"mon", "tue", "wed", "thu", "fri", "sat", "sun"}, day) {
+			if !offeringContract.IsDayCode(day) {
 				return fmt.Errorf("invalid submitted offering day %q", day)
 			}
 		}
