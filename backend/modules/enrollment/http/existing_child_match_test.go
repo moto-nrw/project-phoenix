@@ -538,3 +538,48 @@ func TestExistingChild_OfficeProtectionSurvivesRolloverDescendants(t *testing.T)
 		roll.SourcePhaseID = result.Phase.ID
 	}
 }
+
+func TestExistingChild_ReplacementEditPreservesOfficeProtection(t *testing.T) {
+	t.Parallel()
+	env := setupExistingChildTest(t, enrollmentNative.PhaseAudienceOpen)
+	ctx := testpkg.Ctx(t)
+	existing := enrolledChild(t, env.db, "Paul", "Offen", existingChildBirthday)
+	submitted := env.submit(t, existingChildSubmission{children: []enrollmentAPI.SubmitChild{
+		submitChild("Paul", "Offen", existingChildBirthday),
+	}})
+	require.NoError(t, env.decide(t, enrollmentAPI.DecideInput{RequestID: submitted.Request.ID, ChildID: submitted.Children[0].ID, ExistingStudentID: &existing.ID}))
+	roll, err := testpkg.TenantQuery1(t, ctx, env.db, env.rolloverSvc.CreatePhaseFromSource,
+		validRolloverRequest(env.rolloverTestEnv, enrollmentNative.PhaseRolloverModeOptOut, true))
+	require.NoError(t, err)
+	children, err := testpkg.TenantQuery2(t, ctx, env.db, env.repos.Enrollment().ChildrenByPhaseStatuses, roll.Phase.ID, []string{enrollmentNative.ChildStatusAutoRenewed})
+	require.NoError(t, err)
+	require.Len(t, children, 1)
+	child := children[0]
+	require.True(t, child.MatchedByOffice)
+	require.NoError(t, testpkg.TenantCommand4(t, ctx, env.db, env.repos.Enrollment().UpdateChildStatus, child.ID, enrollmentNative.ChildStatusSubmitted, nil, env.creatorID))
+	req, err := enrollmentAPI.ReadOwnerRequestForTest(ctx, env.repos.Enrollment(), child.RequestID)
+	require.NoError(t, err)
+	editChild := submitChild("Paul", "Offen", existingChildBirthday)
+	editChild.TargetGradeLevel = child.TargetGradeLevel
+	replaced, err := env.matching.ReplaceEditable(ctx, req.StatusToken, enrollmentAPI.SubmitRequest{
+		TenantID: testpkg.Tenant(t), PhaseID: roll.Phase.ID,
+		GuardianFirstName: "Eva", GuardianLastName: "Bestand", GuardianEmail: req.GuardianEmail,
+		ConsentFlags: rolloverConsentFlags(), Children: []enrollmentAPI.SubmitChild{editChild},
+	})
+	require.NoError(t, err)
+	require.Len(t, replaced.Children, 1)
+	replacement := replaced.Children[0]
+	assert.True(t, replacement.MatchedByOffice, "replacement must carry enrollment-only protection")
+	require.NotNil(t, replacement.RolloverSourceChildID)
+	assert.Equal(t, *child.RolloverSourceChildID, *replacement.RolloverSourceChildID)
+	outcome := env.decideOutcome(t, enrollmentAPI.DecideInput{RequestID: req.ID, ChildID: replacement.ID})
+	assert.Nil(t, outcome.PendingInvite)
+	planned, err := testpkg.TenantQuery1(t, ctx, env.db, env.repos.Enrollment().ChildClassSwitch, replacement.ID)
+	require.NoError(t, err)
+	assert.Nil(t, planned, "replacement must not plan a class change")
+	_, err = changeRequestApplierForTest(t, env.decisionTestEnv).SyncApprovedChildData(ctx, enrollmentAPI.SyncApprovedChildDataInput{
+		RequestID: req.ID, ChildID: replacement.ID, ActorAccountID: env.creatorID, ReplaceTargetedData: true,
+	})
+	require.NoError(t, err)
+	assert.Empty(t, env.guardianLinks(t, existing.ID), "replacement must not authorize the unrelated family")
+}

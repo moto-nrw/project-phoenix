@@ -144,3 +144,42 @@ func editedChild(t *testing.T, env *signatureEnv, requestID int64) int64 {
 	require.Len(t, ids, 1)
 	return ids[0]
 }
+
+func TestAcceptedContractApplicationsExcludeOfficeMatches(t *testing.T) {
+	t.Parallel()
+	env, schemaID := setupContractConsentTest(t, testpkg.Tenant(t))
+	ctx := testpkg.Ctx(t)
+	submitted, err := env.requests.Submit(ctx, enrollmentAPI.SubmitRequest{
+		TenantID: testpkg.Tenant(t), PhaseID: env.phaseID, DisplayedFormSchemaID: schemaID,
+		GuardianFirstName: "Erika", GuardianLastName: "Muster", GuardianEmail: "erika.muster@example.com",
+		ConsentFlags: map[string]any{"agb": true, "data_processing": true, "email_contact": true, "care_contract": true},
+		Children: []enrollmentAPI.SubmitChild{
+			{FirstName: "Lina", LastName: "Muster", DateOfBirth: existingChildBirthday, TargetGradeLevel: testpkg.Int16Ptr(1)},
+			{FirstName: "Paul", LastName: "Offen", DateOfBirth: existingChildBirthday, TargetGradeLevel: testpkg.Int16Ptr(1)},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, submitted.Children, 2)
+	owner := enrollmentCompose.New()
+	_, reviewer := testpkg.CreateTestPersonWithAccount(t, env.db, "Contract", "Reviewer")
+	for i, child := range submitted.Children {
+		student := enrolledChild(t, env.db, child.FirstName, child.LastName, existingChildBirthday)
+		require.NoError(t, testpkg.TenantCommand2(t, ctx, env.db, owner.LinkCreatedStudent, child.ID, student.ID))
+		if i == 1 {
+			require.NoError(t, testpkg.TenantCommand2(t, ctx, env.db, owner.PinOfficeChosenStudent, child.ID, student.ID))
+		}
+		require.NoError(t, testpkg.TenantCommand4(t, ctx, env.db, owner.UpdateChildStatus, child.ID, capability.ChildStatusApproved, nil, reviewer.ID))
+	}
+	read := enrollmentCompose.NewContractApplications(securityruntime.Fingerprint)
+	for _, ids := range [][]int64{nil, {submitted.Children[0].ID, submitted.Children[1].ID}} {
+		found, err := testpkg.TenantQuery1(t, ctx, env.db, read.AcceptedContractApplications, ids)
+		require.NoError(t, err)
+		require.Len(t, found, 1, "office matches must not supply an unauthorized contract party")
+		assert.Equal(t, submitted.Children[0].ID, found[0].RequestChildID)
+		require.Len(t, found[0].Acceptances, 1, "legitimate contract evidence remains available")
+		assert.Equal(t, "erika.muster@example.com", found[0].GuardianEmail)
+	}
+	found, err := testpkg.TenantQuery1(t, ctx, env.db, read.AcceptedContractApplications, []int64{submitted.Children[1].ID})
+	require.NoError(t, err)
+	assert.Empty(t, found, "explicit child selection must not bypass the party restriction")
+}

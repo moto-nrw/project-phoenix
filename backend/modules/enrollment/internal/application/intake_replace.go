@@ -378,6 +378,7 @@ func (s *Intake) createReplacementChildren(ctx context.Context, editReq *SubmitR
 		if matched := plan.matchedExisting[i]; matched != nil {
 			row.ActivationMode, row.ActivateOn = matched.ActivationMode, matched.ActivateOn
 			row.RolloverSourceChildID, row.ReviewReason = matched.RolloverSourceChildID, matched.ReviewReason
+			row.MatchedByOffice = matched.MatchedByOffice
 		}
 		// A rollover child resolves its student through the rollover source
 		// chain at approval, so a pin would be dead data.

@@ -161,3 +161,28 @@ func (s *extraFieldRequestStub) RequestGuardians(_ context.Context, ids []int64)
 	}
 	return rows, nil
 }
+
+func TestStudentExtraFieldRequestsExcludeOfficeMatchesButKeepHistory(t *testing.T) {
+	t.Parallel()
+	for _, failure := range []string{"", "phase batch failure", "children batch failure", "guardians batch failure"} {
+		t.Run(failure, func(t *testing.T) {
+			records := extraFieldRequestRecords(t)
+			records.batchFailure = failure
+			for _, child := range records.children[2:] {
+				child.MatchedByOffice = true
+				child.CustomData = json.RawMessage(`{"health_info":"unrelated answer"}`)
+			}
+			decisions := NewDecisions(DecisionDependencies{Requests: records, Children: records, Phases: records, Guardians: records, Settings: unusedDecisionSettings{}})
+			extra, err := decisions.StudentExtraFieldRequests(t.Context(), 41)
+			require.NoError(t, err)
+			require.Len(t, extra, 1, "only authorized submission answers belong in the student profile")
+			require.Equal(t, int64(1), extra[0].Request.ID)
+			require.Len(t, extra[0].Children, 1)
+			require.False(t, extra[0].Children[0].MatchedByOffice)
+			history, err := decisions.StudentDecisionRequests(t.Context(), 41)
+			require.NoError(t, err)
+			require.Len(t, history, 2, "office matches remain in enrollment history")
+			require.True(t, history[0].Children[0].MatchedByOffice)
+		})
+	}
+}
