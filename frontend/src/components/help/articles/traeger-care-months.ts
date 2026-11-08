@@ -74,7 +74,7 @@ export function traegerCareMonthsTopic(): HelpTopic {
       {
         title: "Schreiben senden und drucken",
         description:
-          "Jede Familie bekommt ihr Schreiben per E-Mail. Hat sie mit dieser Adresse ein Konto in der Eltern-App, liegt es auch dort unter `Dokumente`.",
+          "Jede Familie bekommt ihr Schreiben per E-Mail. Hat sie mit dieser Adresse ein Konto in der Eltern-App, liegt es auch dort unter `Dokumente`. Das geht nur, wenn das Kind einen Schülerdatensatz hat. Sonst steht bei der Rechnung `Nicht in der Eltern-App`, und die Familie bekommt das Schreiben per E-Mail oder gedruckt.",
         steps: [
           "Wählen Sie im freigegebenen Lauf bei `Schreiben an die Familien` den Knopf `Schreiben öffnen`. Dort steht schon, wie viele Schreiben gesendet sind.",
           "Wählen Sie bei `Schreiben an die Familien` den Knopf `An alle senden`. Prüfen Sie die Zahl und bestätigen Sie, zum Beispiel mit `3 Schreiben senden`.",

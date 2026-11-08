@@ -49,6 +49,7 @@ const letter = (
   cancelled: false,
   cancellationNumber: "",
   hasLetter: true,
+  inInbox: true,
   status: "not_sent",
   sends: 0,
   attempts: 0,
@@ -92,6 +93,21 @@ describe("CareRunLetterInvoices (#4684)", () => {
     ).toBeGreaterThan(0);
     expect(screen.getAllByText("An die Familie").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Nicht gesendet").length).toBeGreaterThan(0);
+  });
+
+  it("says when a letter stays out of the parents app", () => {
+    render(
+      <CareRunLetterInvoices
+        invoices={[invoice()]}
+        month="2027-01-01"
+        letterActions={actions([letter({ inInbox: false })])}
+      />,
+    );
+    expect(
+      screen.getAllByText(
+        "Nicht in der Eltern-App: Das Kind hat noch keinen Schülerdatensatz.",
+      ).length,
+    ).toBeGreaterThan(0);
   });
 
   it("offers send and Storno for an invoice not sent yet", () => {
@@ -182,6 +198,7 @@ describe("CareRunLetterInvoices (#4684)", () => {
             number: "MB-2027-0009",
             totalCents: -9600,
             hasLetter: false,
+            inInbox: true,
           }),
         ])}
       />,

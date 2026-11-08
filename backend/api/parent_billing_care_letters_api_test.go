@@ -35,6 +35,7 @@ type careLetterDocumentBody struct {
 	Cancelled          bool   `json:"cancelled"`
 	CancellationNumber string `json:"cancellation_number"`
 	HasLetter          bool   `json:"has_letter"`
+	InInbox            bool   `json:"in_inbox"`
 	Printed            bool   `json:"printed"`
 	Replaced           bool   `json:"replaced"`
 	Status             string `json:"status"`
@@ -53,6 +54,7 @@ type careLettersBody struct {
 		Failed       int `json:"failed"`
 		NotSent      int `json:"not_sent"`
 		WithoutEmail int `json:"without_email"`
+		WithoutInbox int `json:"without_inbox"`
 	} `json:"summary"`
 }
 
@@ -210,6 +212,10 @@ func TestCareLettersSendEveryFamilyOnceAndShowTheirState(t *testing.T) {
 	assert.Equal(t, 2, state.Summary.Letters)
 	assert.Equal(t, 1, state.Summary.Queued)
 	assert.Equal(t, 1, state.Summary.WithoutEmail)
+	// The fixture's contracts name no child record: the office learns that
+	// both letters reach the family by mail or on paper only.
+	assert.False(t, careLetterOf(state, mia, "invoice").InInbox)
+	assert.Equal(t, 2, state.Summary.WithoutInbox)
 
 	_, err := f.db.ExecContext(context.Background(), `UPDATE platform.email_outbox SET status = 'dead_letter' WHERE id = ?`, mails[0].ID)
 	require.NoError(t, err)

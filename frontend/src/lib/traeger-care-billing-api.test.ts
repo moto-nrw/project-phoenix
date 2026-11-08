@@ -32,6 +32,7 @@ const INVOICE = {
   cancelled: true,
   cancellation_number: "MB-2027-0009",
   has_letter: true,
+  in_inbox: true,
   printed: true,
   replaced: true,
   status: "sent",
@@ -45,6 +46,7 @@ const INVOICE = {
 const STORNO = {
   ...INVOICE,
   kind: "cancellation",
+  in_inbox: false,
   number: "MB-2027-0009",
   total_cents: -9600,
   reason: "Falscher Empfänger",
@@ -87,6 +89,7 @@ describe("traeger-care-billing-api letters (#4684)", () => {
             failed: 0,
             not_sent: 1,
             without_email: 0,
+            without_inbox: 1,
           },
         },
       }),
@@ -113,6 +116,7 @@ describe("traeger-care-billing-api letters (#4684)", () => {
       cancellationNumber: "MB-2027-0009",
       reason: "",
       mailOutcome: "delivered",
+      inInbox: true,
     });
     expect(letters.documents[1]).toMatchObject({
       invoiceId: "41",
@@ -122,6 +126,7 @@ describe("traeger-care-billing-api letters (#4684)", () => {
       totalCents: -9600,
       reason: "Falscher Empfänger",
       cancellationNumber: "",
+      inInbox: false,
     });
     expect(letters.summary).toEqual({
       letters: 2,
@@ -130,6 +135,7 @@ describe("traeger-care-billing-api letters (#4684)", () => {
       failed: 0,
       notSent: 1,
       withoutEmail: 0,
+      withoutInbox: 1,
     });
   });
 

@@ -562,6 +562,11 @@ export interface CareLetterMailing {
   readonly cancelled: boolean;
   readonly cancellationNumber: string;
   readonly hasLetter: boolean;
+  /**
+   * The sent letter also lands in the parents inbox. False when the child has
+   * no record yet: the family gets it by mail or on paper only.
+   */
+  readonly inInbox: boolean;
   /** A paper copy was downloaded through the print action. */
   readonly printed?: boolean;
   /** A later released invoice replaces this cancelled invoice. */
@@ -586,6 +591,8 @@ export interface CareLetterSummary {
   readonly failed: number;
   readonly notSent: number;
   readonly withoutEmail: number;
+  /** Letters that reach the family by mail or paper only (no child record). */
+  readonly withoutInbox: number;
 }
 
 export interface CareLetters {
@@ -620,6 +627,7 @@ interface BackendCareLetterMailing {
   cancelled: boolean;
   cancellation_number?: string;
   has_letter: boolean;
+  in_inbox?: boolean;
   printed?: boolean;
   replaced?: boolean;
   status: LetterMailStatus;
@@ -645,6 +653,7 @@ interface BackendCareLetters {
     failed: number;
     not_sent: number;
     without_email: number;
+    without_inbox?: number;
   } | null;
 }
 
@@ -668,6 +677,7 @@ function careMailingFromBackend(
     cancelled: mailing.cancelled,
     cancellationNumber: mailing.cancellation_number ?? "",
     hasLetter: mailing.has_letter,
+    inInbox: mailing.in_inbox ?? false,
     printed: mailing.printed ?? false,
     replaced: mailing.replaced ?? false,
     status: mailing.status,
@@ -698,6 +708,7 @@ function careLettersFromBackend(body: BackendCareLetters): CareLetters {
       failed: summary?.failed ?? 0,
       notSent: summary?.not_sent ?? 0,
       withoutEmail: summary?.without_email ?? 0,
+      withoutInbox: summary?.without_inbox ?? 0,
     },
   };
 }

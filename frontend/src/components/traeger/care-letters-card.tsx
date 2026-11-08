@@ -8,6 +8,7 @@
 // „Dokumente“ der Eltern-App bekommen dieselbe Datei.
 
 import { useState } from "react";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -35,6 +36,15 @@ const TITLE = "Schreiben an die Familien";
 /** The letters „An alle senden“ sends: open ones of families with an address. */
 export function lettersToSend(summary: CareLetterSummary): number {
   return Math.max(0, summary.notSent - summary.withoutEmail);
+}
+
+/**
+ * Why some letters stay out of the parents inbox, and how the family gets
+ * them instead.
+ */
+export function withoutInboxNote(count: number): string {
+  const letters = count === 1 ? "1 Schreiben ist" : `${count} Schreiben sind`;
+  return `Nicht in der Eltern-App: ${letters} nicht unter „Dokumente“. Das Kind hat noch keinen Schülerdatensatz. Die Familie bekommt das Schreiben per E-Mail oder gedruckt.`;
 }
 
 /** „1 Familie“ / „3 Familien“. */
@@ -165,7 +175,7 @@ export function CareLettersCard({
   return (
     <SectionCard
       title={TITLE}
-      description="Jede Familie bekommt ihr Schreiben per E-Mail. Hat sie mit dieser Adresse ein Konto in der Eltern-App, liegt es auch dort unter „Dokumente“. Familien ohne E-Mail geben Sie das gedruckte Schreiben."
+      description="Jede Familie bekommt ihr Schreiben per E-Mail. Hat sie mit dieser Adresse ein Konto in der Eltern-App, liegt es auch dort unter „Dokumente“, wenn das Kind einen Schülerdatensatz hat. Familien ohne E-Mail geben Sie das gedruckte Schreiben."
       actions={
         <div className="flex flex-wrap gap-2">
           <OverflowMenu
@@ -191,6 +201,9 @@ export function CareLettersCard({
     >
       <div className="space-y-5">
         <SendState summary={summary} />
+        {summary.withoutInbox > 0 ? (
+          <Alert type="info" message={withoutInboxNote(summary.withoutInbox)} />
+        ) : null}
         {toSend === 0 && summary.letters > 0 ? (
           <p className="text-sm text-gray-600">
             Alle Schreiben mit E-Mail-Adresse sind gesendet. Einzelne Schreiben

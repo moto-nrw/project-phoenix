@@ -59,6 +59,7 @@ function letters(overrides: Partial<CareLetters> = {}): CareLetters {
       failed: 0,
       notSent: 0,
       withoutEmail: 0,
+      withoutInbox: 0,
     },
     ...overrides,
   };
@@ -122,6 +123,7 @@ describe("monthly run page letters card", () => {
           failed: 1,
           notSent: 1,
           withoutEmail: 1,
+          withoutInbox: 0,
         },
       }),
     );

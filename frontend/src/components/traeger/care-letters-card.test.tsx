@@ -11,7 +11,11 @@ vi.mock("~/lib/traeger-care-billing-api", () => ({
   previewCareLetter: vi.fn(),
 }));
 
-import { CareLettersCard, lettersToSend } from "./care-letters-card";
+import {
+  CareLettersCard,
+  lettersToSend,
+  withoutInboxNote,
+} from "./care-letters-card";
 
 const CREATED: CareLetters = {
   letters: {
@@ -27,6 +31,7 @@ const CREATED: CareLetters = {
     failed: 1,
     notSent: 4,
     withoutEmail: 2,
+    withoutInbox: 0,
   },
 };
 
@@ -105,6 +110,7 @@ describe("CareLettersCard (#4684)", () => {
         failed: 0,
         notSent: 0,
         withoutEmail: 0,
+        withoutInbox: 0,
       },
     });
     expect(
@@ -113,5 +119,26 @@ describe("CareLettersCard (#4684)", () => {
     expect(
       screen.getByText(/Alle Schreiben mit E-Mail-Adresse sind gesendet/),
     ).toBeInTheDocument();
+  });
+});
+
+describe("letters outside the parents app (#4684)", () => {
+  it("tells the office which letters stay out of the parents app and why", () => {
+    renderCard({
+      ...CREATED,
+      summary: { ...CREATED.summary, withoutInbox: 2 },
+    });
+    expect(
+      screen.getByText(
+        "Nicht in der Eltern-App: 2 Schreiben sind nicht unter „Dokumente“. Das Kind hat noch keinen Schülerdatensatz. Die Familie bekommt das Schreiben per E-Mail oder gedruckt.",
+      ),
+    ).toBeInTheDocument();
+    expect(withoutInboxNote(1)).toContain("1 Schreiben ist nicht");
+  });
+
+  it("promises nothing extra when every letter reaches the parents app", () => {
+    renderCard(CREATED);
+    expect(screen.getByText("4 von 10 Schreiben gesendet")).toBeInTheDocument();
+    expect(screen.queryByText(/Nicht in der Eltern-App/)).toBeNull();
   });
 });

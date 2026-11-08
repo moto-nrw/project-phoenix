@@ -66,6 +66,7 @@ const CANCELLATION: CareLetterMailing = {
   cancelled: true,
   cancellationNumber: "MB-0002",
   hasLetter: false,
+  inInbox: true,
   status: "not_sent",
   sends: 0,
   attempts: 0,
@@ -82,6 +83,7 @@ const letters = (documents: CareLetterMailing[]): CareLetters => ({
     failed: 0,
     notSent: 0,
     withoutEmail: 0,
+    withoutInbox: 0,
   },
 });
 

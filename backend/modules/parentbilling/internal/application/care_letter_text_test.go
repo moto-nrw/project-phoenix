@@ -138,7 +138,7 @@ func TestCareLetterSummaryCountsWhatTheRunMayStillSend(t *testing.T) {
 		{Kind: parentbilling.CareLetterInvoice, HasLetter: true, Cancelled: true, Status: parentbilling.LetterMailNotSent},
 		{Kind: parentbilling.CareLetterCancellation, Cancelled: true},
 	})
-	assert.Equal(t, parentbilling.CareLetterSummary{Letters: 5, Sent: 1, Queued: 1, Failed: 1, NotSent: 2, WithoutEmail: 1}, summary)
+	assert.Equal(t, parentbilling.CareLetterSummary{Letters: 5, Sent: 1, Queued: 1, Failed: 1, NotSent: 2, WithoutEmail: 1, WithoutInbox: 5}, summary)
 }
 
 // A provider report outranks SMTP acceptance in the totals as in each row.
@@ -179,4 +179,25 @@ func TestCareLettersPrintTheReductionsOfTheInvoice(t *testing.T) {
 	storno := careLetterText(careCancellationLetter(content))
 	assert.Contains(t, storno, "Geschwister (2. Kind von 3, 50 % weniger; zuerst zählt das Kind mit dem höchsten Beitrag) = 27,01 €")
 	assert.Contains(t, storno, "Storno gesamt = -27,00 €")
+}
+
+// A letter lands in the parents inbox only when its invoice names the
+// child's record; the office learns which letters go by mail or paper only.
+func TestCareLetterTellsWhetherItReachesTheInbox(t *testing.T) {
+	t.Parallel()
+	student := int64(len("Mia"))
+	withRecord := parentbilling.CareInvoice{ID: 1, Number: "MB-1", StudentID: &student}
+	withoutRecord := parentbilling.CareInvoice{ID: 2, Number: "MB-2"}
+	run := careLetterRun{cancellations: map[int64]parentbilling.CareCancellation{},
+		records: map[careLetterKey]parentbilling.CareLetterRecord{
+			{invoiceID: 1, kind: parentbilling.CareLetterInvoice}: {ID: 11},
+			{invoiceID: 2, kind: parentbilling.CareLetterInvoice}: {ID: 12},
+		}, sends: map[int64][]parentbilling.CareLetterSend{}}
+	in := careMailing(run, careSendable{invoice: withRecord, kind: parentbilling.CareLetterInvoice}, nil)
+	out := careMailing(run, careSendable{invoice: withoutRecord, kind: parentbilling.CareLetterInvoice}, nil)
+	assert.True(t, in.InInbox)
+	assert.False(t, out.InInbox, "without a child record the letter stays out of the inbox")
+	summary := careSummary([]parentbilling.CareLetterMailing{in, out})
+	assert.Equal(t, 2, summary.Letters)
+	assert.Equal(t, 1, summary.WithoutInbox)
 }

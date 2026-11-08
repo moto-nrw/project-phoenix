@@ -70,6 +70,11 @@ function SendCell({
           Bitte drucken Sie das Schreiben.
         </p>
       ) : null}
+      {!letter.inInbox ? (
+        <p className="text-xs text-gray-600">
+          Nicht in der Eltern-App: Das Kind hat noch keinen Schülerdatensatz.
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -92,7 +97,9 @@ function rowMenuItems(
         label: letter.sends === 0 ? "Senden" : "Erneut senden",
         description:
           letter.sends === 0
-            ? "Per E-Mail und in die Eltern-App"
+            ? letter.inInbox
+              ? "Per E-Mail und in die Eltern-App"
+              : "Nur per E-Mail, nicht in die Eltern-App"
             : "Noch einmal an dieselbe Adresse",
         onClick: () => actions.onSend(letter),
       });

@@ -317,6 +317,7 @@ func careMailing(current careLetterRun, letter careSendable, states map[int64]pa
 		ChildFirstName: invoice.ChildFirstName, ChildLastName: invoice.ChildLastName, SchoolName: invoice.SchoolName,
 		RecipientFirstName: invoice.Recipient.FirstName, RecipientLastName: invoice.Recipient.LastName,
 		RecipientEmail: invoice.Recipient.Email, TotalCents: invoice.TotalCents, Status: parentbilling.LetterMailNotSent,
+		InInbox: invoice.StudentID != nil,
 	}
 	if invoice.IssuedOn != nil {
 		entry.IssuedOn = *invoice.IssuedOn
@@ -359,6 +360,9 @@ func careSummary(documents []parentbilling.CareLetterMailing) parentbilling.Care
 			continue
 		}
 		summary.Letters++
+		if !document.InInbox {
+			summary.WithoutInbox++
+		}
 		switch {
 		case careMailFailed(document.MailOutcome):
 			summary.Failed++

@@ -132,14 +132,18 @@ type CareLetterMailing struct {
 	CancellationNumber string        `json:"cancellation_number,omitempty"`
 	HasLetter          bool          `json:"has_letter"`
 	Printed            bool          `json:"printed"`
-	Replaced           bool          `json:"replaced"`
-	Status             string        `json:"status"`
-	Sends              int           `json:"sends"`
-	Attempts           int           `json:"attempts"`
-	RequestedAt        *time.Time    `json:"requested_at"`
-	SentAt             *time.Time    `json:"sent_at"`
-	MailOutcome        string        `json:"mail_outcome,omitempty"`
-	ProviderBlock      string        `json:"provider_block,omitempty"`
+	// InInbox tells whether a sent letter lands in the parents inbox too: only
+	// when the invoice names the child's record (ADR 0165). Without one the
+	// family gets the letter by mail or on paper only.
+	InInbox       bool       `json:"in_inbox"`
+	Replaced      bool       `json:"replaced"`
+	Status        string     `json:"status"`
+	Sends         int        `json:"sends"`
+	Attempts      int        `json:"attempts"`
+	RequestedAt   *time.Time `json:"requested_at"`
+	SentAt        *time.Time `json:"sent_at"`
+	MailOutcome   string     `json:"mail_outcome,omitempty"`
+	ProviderBlock string     `json:"provider_block,omitempty"`
 }
 
 // CareLetterSummary counts the letters of a run by the state of their last
@@ -152,6 +156,9 @@ type CareLetterSummary struct {
 	Failed       int `json:"failed"`
 	NotSent      int `json:"not_sent"`
 	WithoutEmail int `json:"without_email"`
+	// WithoutInbox counts the letters that reach the family by mail or on
+	// paper only, because their child has no record yet.
+	WithoutInbox int `json:"without_inbox"`
 }
 
 // CareLetterRecord is a stored letter of an invoice or its Storno; File is
