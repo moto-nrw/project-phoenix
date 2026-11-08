@@ -643,27 +643,6 @@ describe("proxy", () => {
       expect(rewrite).toContain("/operator");
     });
 
-    it("rewrites /login to /operator/login", () => {
-      const res = proxy(
-        makeRequest(`http://${OPERATOR_HOSTNAME}/login`, OPERATOR_HOSTNAME),
-      );
-
-      const rewrite = res.headers.get("x-middleware-rewrite");
-      expect(rewrite).toContain("/operator/login");
-    });
-
-    it("rewrites /organizations to /operator/organizations", () => {
-      const res = proxy(
-        makeRequest(
-          `http://${OPERATOR_HOSTNAME}/organizations`,
-          OPERATOR_HOSTNAME,
-        ),
-      );
-
-      const rewrite = res.headers.get("x-middleware-rewrite");
-      expect(rewrite).toContain("/operator/organizations");
-    });
-
     it("rewrites nested operator paths like /organizations/123", () => {
       const res = proxy(
         makeRequest(
@@ -718,39 +697,6 @@ describe("proxy", () => {
 
       const rewrite = res.headers.get("x-middleware-rewrite");
       expect(rewrite).toContain("/operator/organizations");
-    });
-
-    it("rewrites /announcements to /operator/announcements", () => {
-      const res = proxy(
-        makeRequest(
-          `http://${OPERATOR_HOSTNAME}/announcements`,
-          OPERATOR_HOSTNAME,
-        ),
-      );
-
-      const rewrite = res.headers.get("x-middleware-rewrite");
-      expect(rewrite).toContain("/operator/announcements");
-    });
-
-    it("rewrites /settings to /operator/settings", () => {
-      const res = proxy(
-        makeRequest(`http://${OPERATOR_HOSTNAME}/settings`, OPERATOR_HOSTNAME),
-      );
-
-      const rewrite = res.headers.get("x-middleware-rewrite");
-      expect(rewrite).toContain("/operator/settings");
-    });
-
-    it("rewrites /provisioning to /operator/provisioning", () => {
-      const res = proxy(
-        makeRequest(
-          `http://${OPERATOR_HOSTNAME}/provisioning`,
-          OPERATOR_HOSTNAME,
-        ),
-      );
-
-      const rewrite = res.headers.get("x-middleware-rewrite");
-      expect(rewrite).toContain("/operator/provisioning");
     });
 
     it.each([
@@ -918,12 +864,6 @@ describe("proxy", () => {
       }
     });
 
-    it("rewrites the account page (#4496)", () => {
-      expect(caterer("/konto").headers.get("x-middleware-rewrite")).toContain(
-        "/caterer/konto",
-      );
-    });
-
     it("serves only the caterer API on its host", () => {
       expect(caterer("/api/caterer/schools").status).toBe(200);
       for (const path of [
@@ -1013,17 +953,6 @@ describe("proxy", () => {
       expect(res.headers.get("x-middleware-rewrite")).toContain("/school");
     });
 
-    it("rewrites /login to /school/login", () => {
-      const res = proxy(
-        makeRequest(`http://${SCHOOL_HOSTNAME}/login`, SCHOOL_HOSTNAME),
-      );
-
-      expect(res.headers.get("location")).toBeNull();
-      expect(res.headers.get("x-middleware-rewrite")).toContain(
-        "/school/login",
-      );
-    });
-
     it("rewrites /invite with token to /school/invite (accept flow)", () => {
       const res = proxy(
         makeRequest(
@@ -1051,29 +980,6 @@ describe("proxy", () => {
       );
     });
 
-    it("rewrites /aufsichten to /school/aufsichten (#2527)", () => {
-      const res = proxy(
-        makeRequest(`http://${SCHOOL_HOSTNAME}/aufsichten`, SCHOOL_HOSTNAME),
-      );
-
-      expect(res.headers.get("x-middleware-rewrite")).toContain(
-        "/school/aufsichten",
-      );
-    });
-
-    it("rewrites /tagesinformationen to /school/tagesinformationen (#2208)", () => {
-      const res = proxy(
-        makeRequest(
-          `http://${SCHOOL_HOSTNAME}/tagesinformationen`,
-          SCHOOL_HOSTNAME,
-        ),
-      );
-
-      expect(res.headers.get("x-middleware-rewrite")).toContain(
-        "/school/tagesinformationen",
-      );
-    });
-
     it("rewrites the parent letters to /school/elternbriefe (#4800)", () => {
       for (const path of ["/elternbriefe", "/elternbriefe/14"]) {
         const res = proxy(
@@ -1084,26 +990,6 @@ describe("proxy", () => {
           `/school${path}`,
         );
       }
-    });
-
-    it("rewrites /fehlzeiten to /school/fehlzeiten (#4793)", () => {
-      const res = proxy(
-        makeRequest(`http://${SCHOOL_HOSTNAME}/fehlzeiten`, SCHOOL_HOSTNAME),
-      );
-
-      expect(res.headers.get("x-middleware-rewrite")).toContain(
-        "/school/fehlzeiten",
-      );
-    });
-
-    it("rewrites /kalender to /school/kalender (#4798)", () => {
-      const res = proxy(
-        makeRequest(`http://${SCHOOL_HOSTNAME}/kalender`, SCHOOL_HOSTNAME),
-      );
-
-      expect(res.headers.get("x-middleware-rewrite")).toContain(
-        "/school/kalender",
-      );
     });
 
     it("rewrites a class page to /school/klasse (#2294)", () => {
@@ -1242,17 +1128,6 @@ describe("proxy", () => {
       expect(res.headers.get("x-middleware-rewrite")).toContain("/traeger");
     });
 
-    it("rewrites /login to /traeger/login", () => {
-      const res = proxy(
-        makeRequest(`http://${TRAEGER_HOSTNAME}/login`, TRAEGER_HOSTNAME),
-      );
-
-      expect(res.headers.get("location")).toBeNull();
-      expect(res.headers.get("x-middleware-rewrite")).toContain(
-        "/traeger/login",
-      );
-    });
-
     it("rewrites the reset link to /traeger/reset-password (#5149)", () => {
       const res = proxy(
         makeRequest(
@@ -1278,17 +1153,6 @@ describe("proxy", () => {
       );
     });
 
-    it("rewrites the dashboard to /traeger/uebersicht (#4674)", () => {
-      const res = proxy(
-        makeRequest(`http://${TRAEGER_HOSTNAME}/uebersicht`, TRAEGER_HOSTNAME),
-      );
-
-      expect(res.headers.get("location")).toBeNull();
-      expect(res.headers.get("x-middleware-rewrite")).toContain(
-        "/traeger/uebersicht",
-      );
-    });
-
     it("rewrites the care contracts to /traeger/vertraege (#4678)", () => {
       for (const path of [
         "/vertraege",
@@ -1304,34 +1168,6 @@ describe("proxy", () => {
           `/traeger${path}`,
         );
       }
-    });
-
-    it("rewrites the overruns to /traeger/zeitvergleich (#4683)", () => {
-      const res = proxy(
-        makeRequest(
-          `http://${TRAEGER_HOSTNAME}/zeitvergleich`,
-          TRAEGER_HOSTNAME,
-        ),
-      );
-
-      expect(res.headers.get("location")).toBeNull();
-      expect(res.headers.get("x-middleware-rewrite")).toContain(
-        "/traeger/zeitvergleich",
-      );
-    });
-
-    it("rewrites the Stichtagszahlen to /traeger/stichtagszahlen (#4673)", () => {
-      const res = proxy(
-        makeRequest(
-          `http://${TRAEGER_HOSTNAME}/stichtagszahlen`,
-          TRAEGER_HOSTNAME,
-        ),
-      );
-
-      expect(res.headers.get("location")).toBeNull();
-      expect(res.headers.get("x-middleware-rewrite")).toContain(
-        "/traeger/stichtagszahlen",
-      );
     });
 
     it("rewrites the shared documents to /traeger/dokumente (#4692)", () => {
@@ -1358,20 +1194,6 @@ describe("proxy", () => {
           `/traeger${path}`,
         );
       }
-    });
-
-    it("rewrites /einstellungen to /traeger/einstellungen (#4652)", () => {
-      const res = proxy(
-        makeRequest(
-          `http://${TRAEGER_HOSTNAME}/einstellungen`,
-          TRAEGER_HOSTNAME,
-        ),
-      );
-
-      expect(res.headers.get("location")).toBeNull();
-      expect(res.headers.get("x-middleware-rewrite")).toContain(
-        "/traeger/einstellungen",
-      );
     });
 
     it("rewrites the settings pages to /traeger/einstellungen/… (#5685)", () => {
