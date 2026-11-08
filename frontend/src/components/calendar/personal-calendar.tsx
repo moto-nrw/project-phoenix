@@ -50,6 +50,7 @@ import {
   type StatusBadgeTone,
 } from "~/components/ui/status-badge";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
+import { ListGroupHeader } from "~/components/ui/list-group-header";
 
 export type CalendarViewMode = "day" | "week" | "month";
 
@@ -650,29 +651,29 @@ export function PersonalCalendar({
           </div>
         ) : null}
         {viewMode === "day" ? (
-          <div className="moto-content-surface hidden overflow-hidden rounded-2xl border lg:block">
+          <SectionCard padding="none" className="hidden lg:block">
             <CalendarTimeGrid
               days={[referenceDate]}
               events={events}
               actions={actions}
             />
             {legendBand}
-          </div>
+          </SectionCard>
         ) : null}
 
         {viewMode === "week" ? (
-          <div className="moto-content-surface hidden overflow-hidden rounded-2xl border lg:block">
+          <SectionCard padding="none" className="hidden lg:block">
             <CalendarTimeGrid
               days={visibleWeekDays}
               events={events}
               actions={actions}
             />
             {legendBand}
-          </div>
+          </SectionCard>
         ) : null}
 
         {viewMode === "month" ? (
-          <div className="moto-content-surface hidden overflow-hidden rounded-2xl border lg:block">
+          <SectionCard padding="none" className="hidden lg:block">
             <div
               className={`grid ${showWeekend ? "grid-cols-7" : "grid-cols-5"}`}
             >
@@ -692,7 +693,7 @@ export function PersonalCalendar({
               })}
             </div>
             {legendBand}
-          </div>
+          </SectionCard>
         ) : null}
 
         <div className="lg:hidden">
@@ -775,17 +776,14 @@ function MobileAgenda({
   }
 
   return (
-    <div className="moto-content-surface divide-y divide-gray-100 overflow-hidden rounded-2xl border">
+    <SectionCard padding="none" bodyClassName="divide-y divide-gray-100">
       {groups.map(({ day, allDay, timed, count }) => (
         <section key={toISODate(day)} className="divide-y divide-gray-100">
-          <div className="flex items-baseline justify-between gap-2 bg-gray-50 px-4 py-2">
-            <h2 className="text-sm font-semibold text-gray-900">
-              {formatDayHeader(day)}
-            </h2>
-            <span className="shrink-0 text-xs text-gray-500">
-              {count === 1 ? "1 Eintrag" : `${count} Einträge`}
-            </span>
-          </div>
+          <ListGroupHeader
+            as="h2"
+            title={formatDayHeader(day)}
+            meta={count === 1 ? "1 Eintrag" : `${count} Einträge`}
+          />
           {[...allDay, ...timed].map((event) => (
             <AgendaRow
               key={`${event.id}-${toISODate(day)}`}
@@ -796,7 +794,7 @@ function MobileAgenda({
         </section>
       ))}
       {legend}
-    </div>
+    </SectionCard>
   );
 }
 

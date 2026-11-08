@@ -285,7 +285,7 @@ func TestSupervisionDashboard_QueryBudget(t *testing.T) {
 	// arrival bulk loads, settings snapshot, tenant tx overhead. Raise only
 	// with a written justification.
 	// Measured at 29 flat; the cap leaves headroom for benign changes only.
-	querybudgets.AssertQueryBudget(t, "api.active.supervision_dashboard", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.active.supervision_dashboard", counter.Measurement(counter.Queries()))
 }
 
 // TestSupervisionDashboard_PayloadBudget bounds the wire size for a

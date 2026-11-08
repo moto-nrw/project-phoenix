@@ -2,5 +2,6 @@
   "scenario": "workforce.staff_growth.shifts",
   "max": 4,
   "exact": true,
-  "description": "Full protected staff-shift resource request with tenant transaction at N=3/N=8, real shifts, fixture SQL excluded."
+  "description": "Full protected staff-shift resource request with tenant transaction at N=3/N=8, real shifts, fixture SQL excluded.",
+  "route": "GET /api/staff-shifts/"
 }

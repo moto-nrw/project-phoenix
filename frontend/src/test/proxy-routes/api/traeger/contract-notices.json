@@ -5,5 +5,8 @@
   ],
   "api/traeger/contract-notices/[id]/ends-on": [
     "PUT traeger /traeger/contract-notices/id%2F1/ends-on"
+  ],
+  "api/traeger/contract-notices/[id]/reason-rejection": [
+    "POST traeger /traeger/contract-notices/id%2F1/reason-rejection"
   ]
 }

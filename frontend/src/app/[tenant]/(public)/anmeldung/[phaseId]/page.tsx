@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Check, Mail } from "lucide-react";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
 import {
   EnrollmentForm,
   type EnrollmentFormPrefetchedData,
@@ -19,6 +19,7 @@ import {
   PublicInfoCard,
 } from "~/components/enrollment/public-enrollment-shell";
 import { BackLink } from "~/components/ui/back-link";
+import { SectionCard } from "~/components/ui/section-card";
 import { useTenant } from "~/lib/tenant-context";
 import { formatDate } from "~/lib/date-helpers";
 import { isSupportedGradeLevelMax } from "~/lib/grade-level";
@@ -33,6 +34,7 @@ import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { calendarConcept } from "~/lib/concepts/calendar";
 import { permissionsConcept } from "~/lib/concepts/permissions";
 import { FormSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 interface PageProps {
   readonly params: Promise<{ tenant: string; phaseId: string }>;
@@ -56,7 +58,8 @@ export default function EnrollPhaseFormPage({ params }: PageProps) {
 }
 
 function EnrollPhaseFormPageContent({ params }: PageProps) {
-  const t = useTranslations("enrollmentPublic");
+  const t = useCareTermTranslations("enrollmentPublic");
+  const loadErrorObject = t("errorObjectForm");
   const locale = useLocale();
   const { phaseId } = use(params);
   const router = useRouter();
@@ -90,7 +93,7 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
       .catch((err: unknown) => {
         if (!cancelled) {
           void showLoadError(err, {
-            object: t("errorObjectForm"),
+            object: loadErrorObject,
             retry: () => setLoadAttempt((n) => n + 1),
           });
         }
@@ -105,7 +108,7 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
     lateInviteToken,
     phaseId,
     tenantSlug,
-    t,
+    loadErrorObject,
     loadAttempt,
     clearLoadError,
     showLoadError,
@@ -165,21 +168,18 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
         <section className="space-y-5">
-          <div className="moto-content-surface rounded-2xl border p-5 sm:p-8">
+          <SectionCard>
             <BackLink
               href={tenantPath("/anmeldung")}
               label={t("backToPicker")}
             />
-            <p className="text-moto-blue mt-6 text-sm font-semibold tracking-wide uppercase">
-              {t("formEyebrow")}
-            </p>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight text-wrap text-gray-900 sm:text-4xl">
+            <h1 className="mt-6 text-3xl font-bold tracking-tight text-wrap text-gray-900 sm:text-4xl">
               {phase?.name ?? t("formTitleFallback")}
             </h1>
             <p className="mt-4 max-w-3xl text-base leading-7 text-gray-600">
               {t("formDescription")}
             </p>
-          </div>
+          </SectionCard>
 
           {loading ? (
             <SkeletonRegion label={t("detailsLoading")}>
@@ -200,11 +200,8 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
         </section>
 
         <aside className="hidden space-y-4 lg:sticky lg:top-8 lg:block lg:self-start">
-          <section className="moto-content-surface rounded-2xl border p-5">
-            <p className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
-              {t("sideTitleFallback")}
-            </p>
-            <h2 className="mt-2 text-xl font-semibold text-gray-900">
+          <SectionCard>
+            <h2 className="text-xl font-semibold text-gray-900">
               {phase?.name ?? t("sideTitleFallback")}
             </h2>
             {phase ? (
@@ -228,7 +225,7 @@ function EnrollPhaseFormPageContent({ params }: PageProps) {
                 {loadError ? t("detailsLoadFailed") : t("detailsLoading")}
               </p>
             )}
-          </section>
+          </SectionCard>
 
           <PublicInfoCard
             icon={<MotoConceptIcon concept={calendarConcept} size={22} />}

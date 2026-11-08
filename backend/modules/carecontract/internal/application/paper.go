@@ -74,7 +74,7 @@ func (s *Signatures) RecordPaperSignature(ctx context.Context, reviewer carecont
 	if err != nil {
 		return err
 	}
-	return s.event(ctx, reviewer.OrganizationID, record, reviewer.AccountID, ports.ActionSign, map[string]any{
+	return trailContract(ctx, s.store, reviewer.OrganizationID, reviewer.AccountID, record, ports.ActionSign, map[string]any{
 		"via": carecontract.ChannelOffice, "method": carecontract.SignaturePaper, "document_sha256": document.SHA256,
 		"version_sha256": checksum, "signed_on": input.SignedOn.String(), "status": status,
 	})
@@ -101,7 +101,7 @@ func (s *Signatures) PaperDocument(ctx context.Context, reviewer carecontract.Re
 		if err != nil {
 			return err
 		}
-		return s.event(txCtx, reviewer.OrganizationID, record, reviewer.AccountID, ports.ActionRead, map[string]any{"view": "paper"})
+		return trailContract(txCtx, s.store, reviewer.OrganizationID, reviewer.AccountID, record, ports.ActionRead, map[string]any{"view": "paper"})
 	})
 	if err != nil {
 		return carecontract.File{}, err

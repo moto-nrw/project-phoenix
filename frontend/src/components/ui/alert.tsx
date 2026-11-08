@@ -212,7 +212,7 @@ export function Alert({
           lange Aktion (Vorgangskennung) in der Fläche, statt sie über den
           Rand laufen zu lassen. */}
       {action ? (
-        <span
+        <div
           className={
             actionLayout === "inline"
               ? "ml-auto shrink-0 pl-2"
@@ -223,7 +223,7 @@ export function Alert({
           }
         >
           {action}
-        </span>
+        </div>
       ) : null}
       {/* Wie im Toast: das X sitzt oben rechts in der Fläche und nimmt die
           Textfarbe des Hinweises an (#5591). */}

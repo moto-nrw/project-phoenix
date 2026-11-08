@@ -42,6 +42,7 @@ export function careTimeComparisonTopic(): HelpTopic {
     result:
       "Überschreitungen tragen den Text `Außerhalb der Buchung` oder `Da ohne Buchung`. Ihre `Abweichung` steht in Rot.",
     notes: [
+      "Ändern Sie die Zeiten eines Zeitmodells? Die neuen Zeiten gelten ab dem Änderungstag. Vergangene gebuchte Tage behalten ihre bisherigen Zeiten. Auch nach Umbuchung oder Archivierung bleiben diese Zeiten erhalten.",
       "`Gebucht` ist die Betreuungszeit, die in moto hinterlegt ist: Ankunft bis Abholung laut Wochenplan, mit Ausnahmen für einzelne Tage.",
       "Hat das Kind einen Vertrag vom Träger, gilt der Vertrag. Dann steht unter `Gebucht` der Hinweis `laut Vertrag`. Das Ende ist die Endzeit des letzten Moduls an diesem Wochentag. Die Ankunft kommt weiter aus dem Wochenplan.",
       "An einem Tag mit bestätigter Ferienbuchung gilt die Ferienbuchung, auch vor dem Vertrag. Dann steht unter `Gebucht` der Hinweis `laut Ferienbuchung`. Ankunft und Ende sind die Zeiten des gebuchten `Zeitmodell`.",

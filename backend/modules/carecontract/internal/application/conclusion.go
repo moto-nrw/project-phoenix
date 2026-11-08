@@ -230,22 +230,16 @@ func (c *Conclusions) concludeRecord(ctx context.Context, organizationID, contra
 	return concludeContract(ctx, c.intake.store, organizationID, 0, record, conclusion)
 }
 
-// sendHoldBack names a send failure that the Träger-Büro or the parents can
-// fix; any other error stays an error of the run.
+// sendHoldBack holds back the one contract whose send the Träger-Büro or
+// the parents can fix; any other error stays an error of the run. A pending
+// mail or a contract no longer sendable means a send of the office got there
+// first, which no one fixes: the run loses that race with an error.
 func sendHoldBack(err error) error {
-	switch {
-	case missingContractPartner(err):
-		return errHoldBack{reason: carecontract.SkipPartnerMissing}
-	case errors.Is(err, carecontract.ErrRecipientMissing):
-		return errHoldBack{reason: carecontract.SkipRecipientMissing}
-	case errors.Is(err, carecontract.ErrMailDelayed):
-		return errHoldBack{reason: carecontract.SkipMailDelayed}
-	case errors.Is(err, carecontract.ErrMailBlocked):
-		return errHoldBack{reason: carecontract.SkipMailBlocked}
-	case errors.Is(err, carecontract.ErrMailBlockUnreadable):
-		return errHoldBack{reason: carecontract.SkipMailBlockUnreadable}
+	reason, ok := sendSkipReason(err)
+	if !ok || reason == carecontract.SkipMailPending || reason == carecontract.SkipNotSendable {
+		return err
 	}
-	return err
+	return errHoldBack{reason: reason}
 }
 
 // acceptanceIssue names why the application gives no proof that the parents
@@ -300,11 +294,9 @@ func (c *Conclusions) recordAcceptance(ctx context.Context, organizationID, cont
 	if !ok {
 		return errHoldBack{reason: carecontract.SkipAcceptanceMissing}
 	}
-	id, schoolID := contractID, draft.Key.SchoolID
-	return c.intake.store.InsertEvents(ctx, organizationID, []Event{{
-		ContractID: &id, SchoolID: &schoolID, Action: ActionCreate,
-		Details: map[string]any{"request_child_id": draft.Key.RequestChildID, "care_offering_ids": draftOfferings(draft),
-			"conclusion": carecontract.MethodWithApplication, "acceptance_key": proof.Key, "acceptance_sha256": proof.SHA256,
-			"submitted_at": proof.SubmittedAt, "accepted_at": *draft.AcceptedAt, "processed_at": c.clock.now()},
-	}})
+	return trail(ctx, c.intake.store, organizationID, 0, contractID, draft.Key.SchoolID, ActionCreate, map[string]any{
+		"request_child_id": draft.Key.RequestChildID, "care_offering_ids": draftOfferings(draft),
+		"conclusion": carecontract.MethodWithApplication, "acceptance_key": proof.Key, "acceptance_sha256": proof.SHA256,
+		"submitted_at": proof.SubmittedAt, "accepted_at": *draft.AcceptedAt, "processed_at": c.clock.now(),
+	})
 }

@@ -37,13 +37,16 @@ func (d *Decisions) attachApprovalToExistingStudent(
 	reviewedBy int64,
 	syncTargetedFields bool,
 ) (*enrollmentNative.PendingGuardianInvite, error) {
-	if err := d.lockExistingStudentGates(ctx); err != nil {
+	// Decide took the gates already; an existing-student approval rewrites
+	// school_class and resyncs the class-filtered rosters under them.
+	if err := d.LockApprovalGates(ctx); err != nil {
 		return nil, err
 	}
-	existing, previousSchoolClass, activationPlan, err := d.renewExistingStudent(ctx, child, phase, studentID, reviewedBy)
+	renewal, err := d.renewExistingStudent(ctx, child, phase, studentID, reviewedBy)
 	if err != nil {
 		return nil, err
 	}
+	existing, previousSchoolClass := renewal.student, renewal.previousSchoolClass
 	// Reconcile the submitted primary guardian BEFORE the targeted-field
 	// dispatch, so the resolved profile is the one the dispatch enriches with
 	// the submitted phone number.
@@ -65,7 +68,8 @@ func (d *Decisions) attachApprovalToExistingStudent(
 		}
 	}
 	if syncTargetedFields {
-		if err := d.syncRenewalTargetedFields(ctx, request, child, existing, guardian, reviewedBy); err != nil {
+		weeklyPlanOn := d.renewalWeeklyPlanDay(phase, renewal.careRunning)
+		if err := d.syncRenewalTargetedFields(ctx, request, child, existing, guardian, reviewedBy, weeklyPlanOn); err != nil {
 			return nil, err
 		}
 	}
@@ -79,7 +83,7 @@ func (d *Decisions) attachApprovalToExistingStudent(
 	if err := d.materializeApprovedOfferings(ctx, child.ID, studentID, phase); err != nil {
 		return nil, err
 	}
-	if err := d.stampActivationPlan(ctx, child.ID, activationPlan); err != nil {
+	if err := d.stampActivationPlan(ctx, child.ID, renewal.activationPlan); err != nil {
 		return nil, err
 	}
 	// Invite the submitted guardian when they have no portal account yet — the
@@ -89,21 +93,6 @@ func (d *Decisions) attachApprovalToExistingStudent(
 	// stays nil there) and whenever the account attach above already linked
 	// them.
 	return d.pendingGuardianInvite(guardian, reviewedBy, false), nil
-}
-
-// lockExistingStudentGates takes the tenant-wide gates BEFORE the first
-// student row lock, in the project-wide class-change order (shared
-// class-writes gate first, recurrence gate second, row locks last) — the same
-// order the direct school_class PUT and the approved-child sync take (#2147
-// review rounds 12/15). The existing-student tail rewrites school_class, and
-// the class-change resync needs the recurrence gate; acquiring both up front
-// keeps the approval deadlock-free against a concurrent direct PUT or grade
-// transition on the same student.
-func (d *Decisions) lockExistingStudentGates(ctx context.Context) error {
-	if err := d.deps.StudentEnrollment.LockEnrollmentClassWrites(ctx); err != nil {
-		return fmt.Errorf("decision: lock class writes for existing-student approval: %w", err)
-	}
-	return d.lockTemplateRecurrence(ctx)
 }
 
 // renewExistingStudent updates school_class and the enrollment window.
@@ -120,13 +109,13 @@ func (d *Decisions) lockExistingStudentGates(ctx context.Context) error {
 // Writing next year's values at once put the child in next year's class for
 // the rest of the running year, and a future enrolled_from made every reader
 // of the window treat it as not yet enrolled.
-func (d *Decisions) renewExistingStudent(ctx context.Context, child *RequestChild, phase *enrollmentNative.Phase, studentID, reviewedBy int64) (*Student, string, approvalActivationPlan, error) {
+func (d *Decisions) renewExistingStudent(ctx context.Context, child *RequestChild, phase *enrollmentNative.Phase, studentID, reviewedBy int64) (*existingStudentRenewal, error) {
 	existing, err := d.readEnrollmentStudent(ctx, studentID, "")
 	if err != nil {
-		return nil, "", approvalActivationPlan{}, fmt.Errorf("decision: load existing student %d: %w", studentID, err)
+		return nil, fmt.Errorf("decision: load existing student %d: %w", studentID, err)
 	}
 	if existing == nil {
-		return nil, "", approvalActivationPlan{}, fmt.Errorf("decision: existing student %d not found", studentID)
+		return nil, fmt.Errorf("decision: existing student %d not found", studentID)
 	}
 	beforeStatus := existing.Status
 	plan := d.approvalActivationPlan(ctx, phase)
@@ -145,19 +134,31 @@ func (d *Decisions) renewExistingStudent(ctx context.Context, child *RequestChil
 		existing.Status = plan.StudentStatus
 	}
 	if err := d.deps.StudentEnrollment.RenewEnrollmentStudent(ctx, existing.ID, enrollmentStudentInput(existing)); err != nil {
-		return nil, "", plan, fmt.Errorf("decision: update existing student: %w", err)
+		return nil, fmt.Errorf("decision: update existing student: %w", err)
 	}
 	var planned *enrollmentNative.ClassSwitch
 	if deferred {
 		planned = &enrollmentNative.ClassSwitch{RequestChildID: child.ID, From: previousSchoolClass, To: targetSchoolClass, On: enrollmentNative.Date(switchOn.String())}
 	}
 	if err := d.planClassSwitch(ctx, child.ID, planned); err != nil {
-		return nil, "", plan, err
+		return nil, err
 	}
 	if err := d.auditRenewedStatus(ctx, existing, beforeStatus, reviewedBy); err != nil {
-		return nil, "", plan, err
+		return nil, err
 	}
-	return existing, previousSchoolClass, plan, nil
+	return &existingStudentRenewal{
+		student: existing, previousSchoolClass: previousSchoolClass, activationPlan: plan,
+		careRunning: beforeStatus == studentStatusActive,
+	}, nil
+}
+
+// existingStudentRenewal is the outcome of renewExistingStudent.
+type existingStudentRenewal struct {
+	student             *Student
+	previousSchoolClass string
+	activationPlan      approvalActivationPlan
+	// careRunning: the school cared for the child before the approval.
+	careRunning bool
 }
 
 // auditRenewedStatus records a status change of the renewal: attributed to
@@ -212,6 +213,11 @@ func (d *Decisions) reconcileRenewalGuardian(ctx context.Context, request *Reque
 // schedules, contact lists, consent-flag propagation) and materializes the
 // co-guardians of the full form (#1663).
 //
+// weeklyPlanOn: a renewal approved before the care it renews starts keeps
+// the running weekly plan — pickup times, care days, Heimweg — until that
+// day; the approval only plans it, and the rollover tick applies the
+// submission then (ApplyDueWeeklyPlans, #6043). nil applies it at once.
+//
 // ReplaceSchedules: the matched student most likely already has arrival /
 // pickup schedule rows from its original enrollment; they are replaced, not
 // appended to. ReplaceConsent: this form re-asks every configured consent,
@@ -225,17 +231,22 @@ func (d *Decisions) reconcileRenewalGuardian(ctx context.Context, request *Reque
 // Returning the error rolls the whole approval back through the surrounding
 // tenant tx. Losing a pickup-authorized emergency contact is a data-integrity
 // failure as well, so the co-guardian link is fatal too.
-func (d *Decisions) syncRenewalTargetedFields(ctx context.Context, request *Request, child *RequestChild, existing *Student, guardian *GuardianProfile, reviewedBy int64) error {
+func (d *Decisions) syncRenewalTargetedFields(ctx context.Context, request *Request, child *RequestChild, existing *Student, guardian *GuardianProfile, reviewedBy int64, weeklyPlanOn *enrollmentNative.Date) error {
+	scope := allTargets
+	if weeklyPlanOn != nil {
+		scope = withoutWeeklyPlan
+	}
 	if _, err := d.applyTargetedFields(ctx, request, child, existing, guardian, reviewedBy, targetedFieldSyncOptions{
 		ReplaceSchedules: true,
 		ReplaceConsent:   true,
+		Scope:            scope,
 	}); err != nil {
 		return fmt.Errorf("decision: targeted-field dispatch on existing student: %w", err)
 	}
 	if err := d.linkAdditionalGuardians(ctx, request, existing.ID); err != nil {
 		return fmt.Errorf("decision: link additional guardians on existing student: %w", err)
 	}
-	return nil
+	return d.planWeeklyPlan(ctx, child.ID, weeklyPlanOn, reviewedBy)
 }
 
 // reconcileExistingStudentCareRenewal closes a stale complete-withdrawal task

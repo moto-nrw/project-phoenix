@@ -108,10 +108,10 @@ func TestIdentityCatererSecurityPositiveGrowthQueryBudget(t *testing.T) {
 			t.Logf("CATERER %s N%d count=%d body=%s", path, n, counter.Total(), rr.Body.String())
 			if path == "/caterer/auth/passkeys" {
 				require.Equal(t, keys, got)
-				querybudgets.AssertQueryBudget(t, "api.caterer.auth.passkeys.positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "api.caterer.auth.passkeys.positive_growth", counter.Measurement(counter.Queries()))
 			} else {
 				require.ElementsMatch(t, devices, got)
-				querybudgets.AssertQueryBudget(t, "api.caterer.auth.mfa.trusted_devices.positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "api.caterer.auth.mfa.trusted_devices.positive_growth", counter.Measurement(counter.Queries()))
 			}
 			require.Equal(t, 401, testutil.ExecuteRequest(router, testutil.NewRequest(http.MethodGet, path, nil)).Code)
 			wrong := claims

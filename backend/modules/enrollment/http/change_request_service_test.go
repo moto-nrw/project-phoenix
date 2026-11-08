@@ -1011,7 +1011,7 @@ func TestChangeRequestService_CorrectApprovedChildData_RejectsOpenParentChangeRe
 			}
 
 			reason := "Nachname anhand der Geburtsurkunde berichtigt"
-			expectedNote := "Diese Änderungsanfrage wurde durch eine direkte Korrektur der OGS ersetzt. Grund: " + reason
+			expectedNote := "Die Schule hat die Daten direkt korrigiert. Diese Änderungsanfrage ist damit erledigt. Grund: " + reason
 			var audit *enrollmentAPI.ChangeRequestAggregate
 			err = testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 				var correctionErr error

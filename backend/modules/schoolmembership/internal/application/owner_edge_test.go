@@ -65,7 +65,7 @@ func (e *recordingStore) GraduateStudents(_ context.Context, ids []int64) (int64
 	return 0, domain.OperationStats{}, nil
 }
 
-func (e *recordingStore) ReactivateStudents(_ context.Context, ids []int64, status string) ([]int64, domain.OperationStats, error) {
+func (e *recordingStore) ReactivateStudents(_ context.Context, ids []int64, status, _ string) ([]int64, domain.OperationStats, error) {
 	e.calls++
 	e.studentIDs, e.studentStatus = ids, status
 	return nil, domain.OperationStats{}, nil

@@ -44,9 +44,6 @@ import { Button } from "~/components/ui/button";
 const logger = createLogger({ component: "TraegerInvitePage" });
 
 const SHELL_COPY = {
-  eyebrow: "Träger-Portal",
-  // Akzentfarbe wie die Eyebrow des Schul-Logins (#5145).
-  eyebrowClassName: "text-moto-blue",
   title: "Einladung ins Träger-Büro",
   subtitle: "Nehmen Sie die Einladung an. Danach melden Sie sich an.",
 } as const;

@@ -219,6 +219,8 @@ describe("RolePermissionsTab", () => {
       />,
     );
     await screen.findByText("1 von 3 Berechtigungen ausgewählt.");
+    const studentsGroup = screen.getByRole("button", { name: "students" });
+    expect(studentsGroup).toHaveAccessibleDescription("1/2");
 
     // students:read war schon gewählt, students:update kommt dazu; rooms
     // bleibt unberührt.
@@ -228,6 +230,7 @@ describe("RolePermissionsTab", () => {
     expect(
       screen.getByText("2 von 3 Berechtigungen ausgewählt."),
     ).toBeInTheDocument();
+    expect(studentsGroup).toHaveAccessibleDescription("2/2");
     expect(screen.getByLabelText("students:update")).toBeChecked();
     expect(screen.getByLabelText("rooms:read")).not.toBeChecked();
 

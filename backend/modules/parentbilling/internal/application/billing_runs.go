@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -78,6 +79,9 @@ type RunStore interface {
 	// RegistrationConfirmations names when each registration of the period
 	// with a frozen contribution was confirmed (#5627).
 	RegistrationConfirmations(ctx context.Context, organizationID, periodID int64) (map[int64]time.Time, error)
+	// The terms, the family deviations and the due dates of the run decide
+	// the recipient and the payment of every invoice (#4689).
+	paymentTermsReader
 }
 
 // BillingRuns serves parentbilling.BillingRuns. The period and its confirmed
@@ -305,12 +309,14 @@ func (b *BillingRuns) ListNumberRanges(ctx context.Context, organizationID int64
 	if err != nil {
 		return nil, fmt.Errorf("parent billing: list number ranges: %w", err)
 	}
-	for _, numberRange := range ranges {
-		if numberRange.Service == parentbilling.ServiceHoliday {
-			return b.withExamples(ranges), nil
+	// Every service shows its range, an empty one until it is set; the
+	// monthly care has its own (#4684).
+	for _, service := range []string{parentbilling.ServiceHoliday, parentbilling.ServiceCare} {
+		if !slices.ContainsFunc(ranges, func(numberRange parentbilling.NumberRange) bool { return numberRange.Service == service }) {
+			ranges = append(ranges, parentbilling.NumberRange{Service: service})
 		}
 	}
-	return b.withExamples(append(ranges, parentbilling.NumberRange{Service: parentbilling.ServiceHoliday})), nil
+	return b.withExamples(ranges), nil
 }
 
 // SetNumberRange sets the pattern of a service. Issued invoices keep their
@@ -319,14 +325,15 @@ func (b *BillingRuns) SetNumberRange(ctx context.Context, organizationID int64, 
 	if organizationID <= 0 {
 		return parentbilling.NumberRange{}, errTraegerRequired
 	}
-	if strings.TrimSpace(service) != parentbilling.ServiceHoliday {
+	service = strings.TrimSpace(service)
+	if service != parentbilling.ServiceHoliday && service != parentbilling.ServiceCare {
 		return parentbilling.NumberRange{}, validation.Errors{"service": errors.New("unknown service")}
 	}
 	pattern, err := normalizeNumberPattern(pattern)
 	if err != nil {
 		return parentbilling.NumberRange{}, err
 	}
-	numberRange, err := b.store.SetNumberRange(ctx, organizationID, parentbilling.ServiceHoliday, pattern)
+	numberRange, err := b.store.SetNumberRange(ctx, organizationID, service, pattern)
 	if err != nil {
 		return parentbilling.NumberRange{}, fmt.Errorf("parent billing: set number range: %w", err)
 	}
@@ -408,10 +415,23 @@ func (b *BillingRuns) preview(ctx context.Context, reviewer parentbilling.Holida
 	if err != nil {
 		return preview{}, err
 	}
-	return buildPreview(previewInput{
+	result := buildPreview(previewInput{
 		run: run, registrations: registrations, contributions: contributions, issued: issued, corrections: corrections,
 		replaces: replaces, replaced: replaced,
-	}), nil
+	})
+	payments, err := readInvoicePayments(ctx, b.store, reviewer.OrganizationID, 0, run.ID)
+	if err != nil {
+		return preview{}, err
+	}
+	issuedOn := b.today()
+	for i := range result.documents {
+		payments.holidayDocument(&result.documents[i], issuedOn)
+	}
+	result.dueDates = payments.run
+	if err := recordDeviationReads(ctx, b.store, reviewer, payments.deviationsRead()); err != nil {
+		return preview{}, err
+	}
+	return result, nil
 }
 
 // detail is the run with the preview or its issued invoices and the
@@ -423,12 +443,17 @@ func (b *BillingRuns) detail(ctx context.Context, reviewer parentbilling.Holiday
 		if detail.Documents, detail.Letters, err = b.issued(ctx, reviewer.OrganizationID, run.ID); err != nil {
 			return parentbilling.BillingRunDetail{}, err
 		}
+		payments, err := readInvoicePayments(ctx, b.store, reviewer.OrganizationID, 0, run.ID)
+		if err != nil {
+			return parentbilling.BillingRunDetail{}, err
+		}
+		detail.DueDates = payments.run.InPaymentOrder()
 	} else {
 		current, err := b.preview(ctx, reviewer, run)
 		if err != nil {
 			return parentbilling.BillingRunDetail{}, err
 		}
-		detail.Documents, detail.Unbilled = current.documents, current.unbilled
+		detail.Documents, detail.Unbilled, detail.DueDates = current.documents, current.unbilled, current.dueDates.InPaymentOrder()
 		if detail.MissingDebtorNumbers, detail.PaymentTextMissingDebtorNumbers, err = b.missingDebtorNumbers(ctx, reviewer.OrganizationID, current.documents); err != nil {
 			return parentbilling.BillingRunDetail{}, err
 		}

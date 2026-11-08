@@ -112,15 +112,15 @@ func TestHolidayGuestBadgesQueryBudgetIsFlat(t *testing.T) {
 	f := newHolidayGuestFixture(t, "Träger Feriengäste Hinweis Budget")
 	lead := f.staffOf(t, f.nord, permissions.ConfigRead, permissions.UsersCreate, permissions.UsersRead)
 	team := f.staffOf(t, f.nord, permissions.StudentsRead)
-	read := func() []string {
+	read := func() testpkg.QueryMeasurement {
 		t.Helper()
 		counter := testpkg.CaptureQueriesForContext(t, f.db)
 		req := httptest.NewRequest(http.MethodGet, "/api/holiday-guests", nil)
 		req.Header.Set("Authorization", "Bearer "+team)
 		rec := httptest.NewRecorder()
-		f.router.ServeHTTP(rec, req.WithContext(counter.Context(req.Context())))
+		testpkg.MeasuredHTTPRequest(counter, f.router, rec, req.WithContext(counter.Context(req.Context())))
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		return counter.Selects("")
+		return counter.Measurement(counter.Selects(""))
 	}
 	f.today.Store(calendar.NewDate(2099, 7, 6))
 	none := read()
@@ -131,6 +131,6 @@ func TestHolidayGuestBadgesQueryBudgetIsFlat(t *testing.T) {
 	f.confirm(t, tomRegistration, "confirm")
 	require.Equal(t, http.StatusOK, f.assign(t, lead, f.offer.Weeks[0].ID, f.group).Code)
 	require.Len(t, f.badges(t, team), 2)
-	assert.Len(t, read(), len(none), "the hints read the same statements for any number of guests")
+	assert.Len(t, read().Statements, len(none.Statements), "the hints read the same statements for any number of guests")
 	querybudgets.AssertQueryBudget(t, "api.holiday_guests.list", none)
 }

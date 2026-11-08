@@ -38,6 +38,7 @@ func TestStaffMessagePositiveGrowthQueryBudget(t *testing.T) {
 				router = resource.SchoolRouter(api.ProtectedSchoolRoutes)
 				prefix = "school"
 			}
+			router = testpkg.MountedQueryBudgetRouter("/"+prefix+"/staff-messages", router)
 			claims := sessiontoken.AppClaims{ID: int(viewer.ID), Sub: viewer.Email, Roles: []string{"user"}, TenantID: testpkg.Tenant(t), Scope: scope}
 			token := testutil.MintTestJWT(t, claims)
 			counter := testpkg.CaptureQueriesForContext(t, db)
@@ -85,7 +86,7 @@ func TestStaffMessagePositiveGrowthQueryBudget(t *testing.T) {
 						require.Equal(t, "staff", row.RoleKind)
 					}
 					t.Logf("MEASURE %s recipients N%d=%d", prefix, n, counter.Total())
-					querybudgets.AssertQueryBudget(t, "api.staff_messages.recipients.positive_growth", counter.Queries())
+					querybudgets.AssertQueryBudget(t, "api.staff_messages.recipients.positive_growth", counter.Measurement(counter.Queries()))
 				}
 				inbox := decodeData[[]staffmessaging.InboxThreadResponse](t, request("GET", "/", "", true).Body.Bytes())
 				require.Len(t, inbox, n)
@@ -103,9 +104,9 @@ func TestStaffMessagePositiveGrowthQueryBudget(t *testing.T) {
 				}
 				t.Logf("MEASURE %s inbox N%d=%d", prefix, n, counter.Total())
 				if scope == tenant.ScopeTenant {
-					querybudgets.AssertQueryBudget(t, "api.staff_messages.inbox.positive_growth", counter.Queries())
+					querybudgets.AssertQueryBudget(t, "api.staff_messages.inbox.positive_growth", counter.Measurement(counter.Queries()))
 				} else {
-					querybudgets.AssertQueryBudget(t, "school.staff_messages.inbox.positive_growth", counter.Queries())
+					querybudgets.AssertQueryBudget(t, "school.staff_messages.inbox.positive_growth", counter.Measurement(counter.Queries()))
 				}
 				detail := decodeData[staffmessaging.ThreadDetailResponse](t, request("GET", "/threads/"+threadIDs[0], "", true).Body.Bytes())
 				require.Len(t, detail.Messages, n+1)
@@ -120,9 +121,9 @@ func TestStaffMessagePositiveGrowthQueryBudget(t *testing.T) {
 				}
 				t.Logf("MEASURE %s detail N%d=%d", prefix, n, counter.Total())
 				if scope == tenant.ScopeTenant {
-					querybudgets.AssertQueryBudget(t, "api.staff_messages.thread.positive_growth", counter.Queries())
+					querybudgets.AssertQueryBudget(t, "api.staff_messages.thread.positive_growth", counter.Measurement(counter.Queries()))
 				} else {
-					querybudgets.AssertQueryBudget(t, "school.staff_messages.thread.positive_growth", counter.Queries())
+					querybudgets.AssertQueryBudget(t, "school.staff_messages.thread.positive_growth", counter.Measurement(counter.Queries()))
 				}
 			}
 		})

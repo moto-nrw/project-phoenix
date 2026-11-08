@@ -12,6 +12,7 @@ import {
   type EnrollmentChangeRequestDiffCopy,
   type EnrollmentChangeRequestDiffGroup,
 } from "~/lib/enrollment-change-request-diff";
+import { SectionLabel } from "~/components/ui/section-label";
 import { cn } from "~/lib/utils";
 
 interface EnrollmentChangeRequestDiffProps {
@@ -86,9 +87,9 @@ function DiffGroup({
       <div className="space-y-2">
         {group.rows.map((row) => (
           <div key={row.id} className="rounded-lg bg-white px-3 py-2">
-            <p className="text-xs font-medium break-words text-gray-500 uppercase">
+            <SectionLabel as="p" className="break-words">
               {row.label}
-            </p>
+            </SectionLabel>
             <div className="mt-2">
               <DataGrid>
                 <DataField label={beforeLabel}>

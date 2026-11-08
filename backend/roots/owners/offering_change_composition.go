@@ -69,6 +69,11 @@ func ComposeOfferingChanges(deps carePlanCompose.OfferingChangeDependencies) (ca
 // the permissions of the request claims.
 func offeringChangeReviewScope(policy OfferingChangeReviewPolicy, permissions func(context.Context) []string) carePlanCompose.ReviewScopeResolver {
 	return func(ctx context.Context) (carePlanCompose.ReviewScope, error) {
+		// The Träger-Büro decides for the contract's child (#5979): the
+		// care-contract binding checked its right and the school's Träger.
+		if traegerChangeReview(ctx) {
+			return carePlanCompose.ReviewScope{SchoolWide: true}, nil
+		}
 		schoolWide, groupIDs, err := policy.Scope(ctx, permissions(ctx))
 		if err != nil {
 			return carePlanCompose.ReviewScope{}, err

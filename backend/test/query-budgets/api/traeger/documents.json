@@ -2,5 +2,6 @@
   "scenario": "api.traeger.documents",
   "max": 3,
   "exact": true,
-  "description": "modules/organizationtenancy — GET /traeger/documents/ (#4692): the Träger\nbinding of the Träger transaction, the documents with their read counts in\none statement and the active releases of all of them in a second. Flat in\nthe number of documents and releases."
+  "description": "modules/organizationtenancy — GET /traeger/documents/ (#4692): the Träger\nbinding of the Träger transaction, the documents with their read counts in\none statement and the active releases of all of them in a second. Flat in\nthe number of documents and releases.",
+  "route": "GET /traeger/documents/"
 }

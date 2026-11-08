@@ -73,13 +73,13 @@ func TestFilteredActiveGroupListsQueryBudget(t *testing.T) {
 	activityRoute := routeCase{"activity", fmt.Sprintf("/active/groups/group/%d", activity.ID), "Group active sessions retrieved successfully"}
 	counter := testpkg.CaptureQueriesForContext(t, db)
 	counter.Stop()
-	run := func(route routeCase, want []*testpkg.ActiveGroupRow) []string {
+	run := func(route routeCase, want []*testpkg.ActiveGroupRow) testpkg.QueryMeasurement {
 		t.Helper()
 		counter.Reset()
 		counter.Start()
 		req := testutil.NewRequest("GET", route.path, nil)
 		req = req.WithContext(counter.Context(req.Context()))
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, claims, []string{permissions.GroupsRead})
+		rr := testutil.ExecuteWithAuthPermissions(t, testpkg.MountedQueryBudgetRouter("/api", router), req, claims, []string{permissions.GroupsRead})
 		counter.Stop()
 		queries := counter.Queries()
 		rawSQL, err := json.Marshal(queries)
@@ -127,15 +127,15 @@ func TestFilteredActiveGroupListsQueryBudget(t *testing.T) {
 				require.NotContains(t, objects[index], key, "filtered routes do not hydrate relations or counts")
 			}
 		}
-		return queries
+		return counter.Measurement(queries)
 	}
 
 	roomRows := make([]*testpkg.ActiveGroupRow, 0, 8)
 	activityRows := make([]*testpkg.ActiveGroupRow, 0, 8)
 	roomCounts := make(map[int]int)
 	activityCounts := make(map[int]int)
-	roomSamples := make(map[int][]string)
-	activitySamples := make(map[int][]string)
+	roomSamples := make(map[int]testpkg.QueryMeasurement)
+	activitySamples := make(map[int]testpkg.QueryMeasurement)
 	for _, size := range []int{0, 3, 8} {
 		for len(roomRows) < size {
 			roomRows = append(roomRows, testpkg.CreateTestActiveGroup(t, db, roomActivity.ID, room.ID))
@@ -143,8 +143,8 @@ func TestFilteredActiveGroupListsQueryBudget(t *testing.T) {
 		}
 		roomSamples[size] = run(roomRoute, roomRows)
 		activitySamples[size] = run(activityRoute, activityRows)
-		roomCounts[size] = len(roomSamples[size])
-		activityCounts[size] = len(activitySamples[size])
+		roomCounts[size] = len(roomSamples[size].Statements)
+		activityCounts[size] = len(activitySamples[size].Statements)
 	}
 	// No magic statement count: this checks scaling, not an invented ceiling.
 	require.Equal(t, roomCounts[3], roomCounts[8], "room list must not add one query per returned session")

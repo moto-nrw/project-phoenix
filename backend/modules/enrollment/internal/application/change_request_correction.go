@@ -22,6 +22,9 @@ func (s *ChangeRequests) correctApprovedChildData(ctx context.Context, input enr
 	if err != nil {
 		return nil, err
 	}
+	if err := s.lockApprovalGates(ctx); err != nil {
+		return nil, err
+	}
 	req, err := decodedRequestByID(ctx, s.deps.Requests, input.RequestID, true)
 	if err != nil && !s.deps.Runtime.NotFound(err) {
 		return nil, err
@@ -65,6 +68,23 @@ func (s *ChangeRequests) correctApprovedChildData(ctx context.Context, input enr
 	return s.recordAdminCorrection(ctx, req, children, child, baseSnapshot, reason, input.ActorAccountID)
 }
 
+// lockApprovalGates takes the class-writes and recurrence gates a
+// change-request approval and a direct correction write under, before the
+// request, change-request and child row locks (ADR 0162). The student sync
+// and the booking changes need them; a phase edit holds the recurrence gate
+// while it rewrites pending weekly plans, and Decide(approved) holds both
+// while it waits for the request row (#6043 review). Without the decision
+// flow nothing gated is written.
+func (s *ChangeRequests) lockApprovalGates(ctx context.Context) error {
+	if s.deps.Decisions == nil || s.deps.BookingGates == nil {
+		return nil
+	}
+	if err := s.deps.BookingGates.LockOfferingDerivedWrites(ctx); err != nil {
+		return fmt.Errorf("change request: lock offering-derived writes: %w", err)
+	}
+	return nil
+}
+
 // recordAdminCorrection stores the approved staff change request that
 // documents a direct correction.
 func (s *ChangeRequests) recordAdminCorrection(ctx context.Context, req *Request, children []*RequestChild, child *RequestChild, baseSnapshot map[string]any, reason string, actorAccountID int64) (*changeRequestCase, error) {
@@ -95,7 +115,7 @@ func (s *ChangeRequests) rejectOpenChangeRequestsForAdminCorrection(ctx context.
 	if len(rows) == 0 {
 		return nil
 	}
-	note := "Diese Änderungsanfrage wurde durch eine direkte Korrektur der OGS ersetzt. Grund: " + reason
+	note := "Die Schule hat die Daten direkt korrigiert. Diese Änderungsanfrage ist damit erledigt. Grund: " + reason
 	now := time.Now()
 	for _, row := range rows {
 		if err := s.deps.Requests.MarkChangeRequestReviewed(ctx, row.ID, enrollmentNative.ChangeRequestStatusRejected, &note, actorAccountID, now); err != nil {

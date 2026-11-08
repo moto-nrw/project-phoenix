@@ -148,14 +148,16 @@ type TraegerDocuments interface {
 }
 
 // TraegerDocumentPorts are what the Träger-Büro's documents need outside
-// the owner: the schools of the Träger, the groups of a school and the
-// transactions.
+// the owner: the schools of the Träger, the groups of a school, the
+// transactions, the audit logs and the push of a release.
 type TraegerDocumentPorts struct {
 	Schools   TraegerDocumentSchools
 	Groups    TraegerDocumentGroups
 	Runtime   TraegerDocumentRuntime
 	Access    TraegerDocumentAccessLog
 	Downloads TraegerDocumentDownloadLog
+	// Notices puts the push of a release for parents on the outbox (#5941).
+	Notices TraegerDocumentNotices
 }
 
 // TraegerDocumentDownload is a download of the Träger-Büro: who, which

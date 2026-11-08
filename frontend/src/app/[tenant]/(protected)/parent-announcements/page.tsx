@@ -1,5 +1,6 @@
 "use client";
 
+import { SectionLabel } from "~/components/ui/section-label";
 import { groups as groupsKeys } from "~/lib/swr/groups";
 import {
   Suspense,
@@ -1514,7 +1515,7 @@ function AnnouncementFormModal({
             <WizardStepper steps={WIZARD_STEPS} current={step} />
 
             {step === 0 ? (
-              // Sections with quiet uppercase headers, every control on the full
+              // Sections with quiet section labels, every control on the full
               // width — the same form language as the Vertretungsplan slide-over.
               // No nested cards and no per-option input rows: at this size they
               // read as clutter, not as structure.
@@ -1559,9 +1560,7 @@ function AnnouncementFormModal({
 
                 {isPollForm && (
                   <section className="space-y-3">
-                    <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                      Antwortmöglichkeiten
-                    </h3>
+                    <SectionLabel>Antwortmöglichkeiten</SectionLabel>
                     <div>
                       <ul className="space-y-2">
                         {optionRows.map((option, index) => (
@@ -1640,9 +1639,7 @@ function AnnouncementFormModal({
                 {isDeclarationForm && (
                   <section className="space-y-4">
                     <div>
-                      <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                        Einverständnis
-                      </h3>
+                      <SectionLabel>Einverständnis</SectionLabel>
                       <p className="mt-1 text-sm text-gray-600">
                         Eltern stimmen im Eltern-Portal für jedes Kind einzeln
                         zu oder lehnen ab. Das ist eine einfache Erklärung per
@@ -1747,9 +1744,7 @@ function AnnouncementFormModal({
                 )}
 
                 <section className="space-y-3">
-                  <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                    Zeitraum
-                  </h3>
+                  <SectionLabel>Zeitraum</SectionLabel>
                   <div className="grid gap-4 sm:grid-cols-2">
                     {hasDeadline && (
                       <div>
@@ -1764,14 +1759,14 @@ function AnnouncementFormModal({
                           onChange={setDeadline}
                           placeholder="Keine Frist"
                           dropdownPlacement="down"
+                          hint={
+                            isDeclarationForm
+                              ? declarationRevocable
+                                ? "Danach können Eltern nicht mehr antworten. Eine Zustimmung widerrufen geht weiter."
+                                : "Danach können Eltern nicht mehr antworten."
+                              : "Danach ist die Umfrage geschlossen, bleibt aber lesbar."
+                          }
                         />
-                        <p className="mt-1.5 text-xs text-gray-500">
-                          {isDeclarationForm
-                            ? declarationRevocable
-                              ? "Danach können Eltern nicht mehr antworten. Eine Zustimmung widerrufen geht weiter."
-                              : "Danach können Eltern nicht mehr antworten."
-                            : "Danach ist die Umfrage geschlossen, bleibt aber lesbar."}
-                        </p>
                       </div>
                     )}
                     <div>
@@ -1784,27 +1779,23 @@ function AnnouncementFormModal({
                         onChange={setExpiresAt}
                         placeholder="Kein Ablaufdatum"
                         dropdownPlacement="down"
+                        hint={`Danach wird ${
+                          isPollForm
+                            ? "die Umfrage"
+                            : isLetterForm
+                              ? "der Elternbrief"
+                              : isDeclarationForm
+                                ? "das Einverständnis"
+                                : "die Mitteilung"
+                        } für Eltern ausgeblendet.`}
                       />
-                      <p className="mt-1.5 text-xs text-gray-500">
-                        Danach wird{" "}
-                        {isPollForm
-                          ? "die Umfrage"
-                          : isLetterForm
-                            ? "der Elternbrief"
-                            : isDeclarationForm
-                              ? "das Einverständnis"
-                              : "die Mitteilung"}{" "}
-                        für Eltern ausgeblendet.
-                      </p>
                     </div>
                   </div>
                 </section>
 
                 {!isPollForm && (
                   <section className="space-y-3">
-                    <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                      Erinnerung
-                    </h3>
+                    <SectionLabel>Erinnerung</SectionLabel>
                     <p className="text-sm text-gray-600">
                       Optional: moto schickt{" "}
                       {isLetterForm
@@ -1863,9 +1854,7 @@ function AnnouncementFormModal({
                 )}
 
                 <section className="space-y-3">
-                  <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                    Veröffentlichung
-                  </h3>
+                  <SectionLabel>Veröffentlichung</SectionLabel>
 
                   <div>
                     <FieldLabel>Priorität</FieldLabel>

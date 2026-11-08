@@ -127,7 +127,7 @@ func TestTimeframeListQueryBudgetStaysFlat(t *testing.T) {
 		counter := testpkg.CaptureQueries(t, db)
 		_, err := module.ListTimeframes(ctx, timetable.TimeframeFilter{})
 		require.NoError(t, err)
-		querybudgets.AssertQueryBudget(t, "modules.timetable.timeframes.list", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "modules.timetable.timeframes.list", counter.Measurement(counter.Queries()))
 
 		return nil
 	}))

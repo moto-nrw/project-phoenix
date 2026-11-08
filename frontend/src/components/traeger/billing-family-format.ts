@@ -10,10 +10,17 @@ import type {
 import { traegerPath } from "~/lib/traeger-url";
 
 /**
- * The two registers of the page „Abrechnung“: the runs and the families.
- * Each register is a page of its own, so the tab is a link.
+ * The registers of the page „Abrechnung“: the holiday runs, the monthly
+ * contribution with its price list (#4684) and the families. Each register
+ * is a page of its own, so the tab is a link.
  */
-export type BillingTab = "laeufe" | "familien";
+export type BillingTab =
+  | "laeufe"
+  | "monatsbeitraege"
+  | "preise"
+  | "ermaessigungen"
+  | "nachweise"
+  | "familien";
 
 export function billingTabs(
   active: BillingTab,
@@ -26,8 +33,28 @@ export function billingTabs(
     items: [
       {
         value: "laeufe",
-        label: "Abrechnungsläufe",
+        label: "Ferien",
         href: traegerPath("/traeger/abrechnung"),
+      },
+      {
+        value: "monatsbeitraege",
+        label: "Monatsbeiträge",
+        href: traegerPath("/traeger/abrechnung/monatsbeitraege"),
+      },
+      {
+        value: "preise",
+        label: "Preisliste",
+        href: traegerPath("/traeger/abrechnung/preise"),
+      },
+      {
+        value: "ermaessigungen",
+        label: "Ermäßigungen",
+        href: traegerPath("/traeger/abrechnung/ermaessigungen"),
+      },
+      {
+        value: "nachweise",
+        label: "Nachweise",
+        href: traegerPath("/traeger/abrechnung/nachweise"),
       },
       {
         value: "familien",

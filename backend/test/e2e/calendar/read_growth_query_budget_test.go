@@ -46,10 +46,14 @@ func TestCalendarReadPositiveGrowthQueryBudget(t *testing.T) {
 			}
 			base := "/calendar/appointments/" + strconv.FormatInt(appointmentID, 10)
 			counter := testpkg.CaptureQueries(t, db)
-			read := func(path, token string) []byte {
+			read := func(path, token string, prefix ...string) []byte {
 				t.Helper()
 				counter.Reset()
-				rec := doJSON(t, router, http.MethodGet, path, token, nil)
+				var target http.Handler = router
+				if len(prefix) > 0 && prefix[0] != "" {
+					target = testpkg.MountedQueryBudgetRouter(prefix[0], router)
+				}
+				rec := doJSON(t, target, http.MethodGet, path, token, nil)
 				require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 				return rec.Body.Bytes()
 			}
@@ -63,13 +67,13 @@ func TestCalendarReadPositiveGrowthQueryBudget(t *testing.T) {
 					} `json:"recipients"`
 				} `json:"data"`
 			}
-			require.NoError(t, json.Unmarshal(read(base, staffToken), &detail))
+			require.NoError(t, json.Unmarshal(read(base, staffToken, "/api"), &detail))
 			require.Equal(t, appointmentID, detail.Data.Appointment.ID)
 			require.Len(t, detail.Data.Recipients, n)
-			assertCalendarReadBudget(t, "appointment_detail", n, counter.Queries())
-			for _, surface := range []struct{ name, path, token string }{
-				{"staff_overview", base + "/overview", staffToken},
-				{"parent_overview", "/parent/me/calendar/appointments/" + strconv.FormatInt(appointmentID, 10) + "/overview", parentToken},
+			assertCalendarReadBudget(t, "appointment_detail", n, counter.Measurement(counter.Queries()))
+			for _, surface := range []struct{ name, path, token, mount string }{
+				{"staff_overview", base + "/overview", staffToken, "/api"},
+				{"parent_overview", "/parent/me/calendar/appointments/" + strconv.FormatInt(appointmentID, 10) + "/overview", parentToken, ""},
 			} {
 				var overview struct {
 					Data struct {
@@ -81,7 +85,7 @@ func TestCalendarReadPositiveGrowthQueryBudget(t *testing.T) {
 						} `json:"attendees"`
 					} `json:"data"`
 				}
-				require.NoError(t, json.Unmarshal(read(surface.path, surface.token), &overview))
+				require.NoError(t, json.Unmarshal(read(surface.path, surface.token, surface.mount), &overview))
 				require.Equal(t, strconv.FormatInt(appointmentID, 10), overview.Data.AppointmentID)
 				require.Len(t, overview.Data.Attendees, n)
 				for _, attendee := range overview.Data.Attendees {
@@ -89,7 +93,7 @@ func TestCalendarReadPositiveGrowthQueryBudget(t *testing.T) {
 					require.Equal(t, "pending", attendee.Status)
 					require.NotEmpty(t, attendee.RecipientID)
 				}
-				assertCalendarReadBudget(t, surface.name, n, counter.Queries())
+				assertCalendarReadBudget(t, surface.name, n, counter.Measurement(counter.Queries()))
 			}
 			var listed calendarListE2EResponse
 			require.NoError(t, json.Unmarshal(read("/parent/me/calendar?from=2026-05-04&to=2026-05-04", parentToken), &listed))
@@ -99,14 +103,14 @@ func TestCalendarReadPositiveGrowthQueryBudget(t *testing.T) {
 				require.True(t, event.CanRespond)
 				require.Equal(t, "pending", event.ResponseStatus)
 			}
-			assertCalendarReadBudget(t, "parent_list", n, counter.Queries())
+			assertCalendarReadBudget(t, "parent_list", n, counter.Measurement(counter.Queries()))
 		})
 	}
 }
 
-func assertCalendarReadBudget(t *testing.T, route string, n int, queries []string) {
+func assertCalendarReadBudget(t *testing.T, route string, n int, queries querybudgets.Measurement) {
 	t.Helper()
-	t.Logf("full calendar %s N%d statements=%d", route, n, len(queries))
+	t.Logf("full calendar %s N%d statements=%d", route, n, len(queries.Statements))
 	switch route {
 	case "appointment_detail":
 		querybudgets.AssertQueryBudget(t, "api.calendar.appointment_detail", queries)

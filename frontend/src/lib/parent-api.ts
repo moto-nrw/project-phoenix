@@ -1,4 +1,5 @@
 import type { ParentConferenceOffer } from "~/lib/parent-conferences";
+import type { CareContractStatus } from "./traeger-care-contracts-api";
 import {
   ApiError,
   transportFetch as fetchTransport,
@@ -2460,12 +2461,15 @@ export interface ParentDocument {
   readonly traeger_name: string;
   /**
    * The confirmation letter, the letter of its Storno or Gutschrift (#4690),
-   * or a care contract (#4678).
+   * a care contract (#4678), or the letter of a monthly invoice and of its
+   * Storno (#4684), named „Monatsbeitrag Januar 2027“ in `period_name`.
    */
   readonly kind:
     | "confirmation_letter"
     | "cancellation_letter"
     | "credit_letter"
+    | "care_invoice_letter"
+    | "care_cancellation_letter"
     | "care_contract";
   readonly number: string;
   readonly period_name: string;
@@ -2476,7 +2480,7 @@ export interface ParentDocument {
   readonly child_names: readonly string[];
   readonly sent_at: string;
   /** The state of a care contract (#4679); absent for a letter. */
-  readonly contract_status?: string;
+  readonly contract_status?: CareContractStatus;
   readonly can_sign?: boolean;
   readonly signed_at?: string | null;
   /**

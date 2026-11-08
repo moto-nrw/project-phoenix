@@ -1,6 +1,7 @@
+import { Alert } from "~/components/ui/alert";
 import { useState, useCallback, useEffect, useRef } from "react";
-import { CheckCircle2 } from "lucide-react";
 import { Checkbox } from "~/components/ui/checkbox";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
 import { Modal } from "~/components/ui/modal";
@@ -252,15 +253,7 @@ export function CreateAccountModal({
     >
       {result ? (
         <div className="space-y-3">
-          <div className="bg-moto-green/10 flex items-center gap-2 rounded-lg px-4 py-3">
-            <CheckCircle2
-              className="text-moto-green h-5 w-5"
-              aria-hidden="true"
-            />
-            <span className="text-moto-green-strong text-sm font-medium">
-              Konto erstellt
-            </span>
-          </div>
+          <Alert type="success" message="Konto erstellt" />
           <div className="space-y-2 text-sm text-gray-600">
             <p>
               <span className="font-medium">E-Mail:</span> {result.email}
@@ -344,7 +337,11 @@ export function CreateAccountModal({
             </SelectWithChevron>
           </FormField>
           {showCaregiverToggle && (
-            <div className="rounded-lg border border-gray-200 px-4 py-3">
+            <ChoiceTile
+              as="div"
+              selected={caregiverEnabled}
+              className="flex-col items-stretch gap-0 px-4 py-3"
+            >
               <label
                 htmlFor="create-account-caregiver-enabled"
                 className="flex cursor-pointer items-start gap-3 text-sm font-medium text-gray-900"
@@ -360,12 +357,12 @@ export function CreateAccountModal({
               </label>
               <p
                 id="create-account-caregiver-hint"
-                className="mt-1 pl-8 text-sm text-gray-600"
+                className="mt-1 pl-8 text-sm font-normal text-gray-600"
               >
                 Vergibt zusätzlich die Rolle Betreuung und legt das nötige
                 Staff-/Teacher-Profil an.
               </p>
-            </div>
+            </ChoiceTile>
           )}
           <div>
             <Input

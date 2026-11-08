@@ -190,7 +190,7 @@ func TestParentAnnouncementReminderDueScanBatchLoadsTargets(t *testing.T) {
 	large := readDue(counter, 3)
 
 	assert.Equal(t, len(small), len(large), "due scan reads must not grow with the number of reminders")
-	querybudgets.AssertQueryBudget(t, "repositories.parent_announcements.due_reminders", large)
+	querybudgets.AssertQueryBudget(t, "repositories.parent_announcements.due_reminders", counter.Measurement(large))
 }
 
 // TestParentAnnouncementReminderFeedOrderAndTenantIsolation pins what the

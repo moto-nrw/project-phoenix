@@ -474,12 +474,12 @@ export function StudentsInRoomSection({
     // (Rauminformationen / Belegungshistorie). Section element +
     // aria-label keep the named landmark the tests and a11y tooling expect.
     <section aria-label="Kinder im Raum">
-      <SectionCard overflow="visible">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
-            Kinder im Raum
-          </h2>
-          {totalCount > 0 && (
+      <SectionCard
+        overflow="visible"
+        title="Kinder im Raum"
+        inlineActions
+        action={
+          totalCount > 0 ? (
             <Button
               type="button"
               variant="outline"
@@ -492,8 +492,9 @@ export function StudentsInRoomSection({
               Alle Kinder
               <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
             </Button>
-          )}
-        </div>
+          ) : undefined
+        }
+      >
         <p className="text-sm text-gray-600">
           <span className="font-medium text-gray-900">{totalCount}</span>{" "}
           {totalCount === 1 ? "Kind" : "Kinder"} aktuell anwesend

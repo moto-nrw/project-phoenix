@@ -73,7 +73,6 @@ func normalizeTemplate(input carecontract.TemplateInput) carecontract.TemplateIn
 	return input
 }
 
-// validateTemplate names every refused field of a normalized template.
 func validateTemplate(input carecontract.TemplateInput) map[string]string {
 	fields := map[string]string{}
 	if !slices.Contains([]string{carecontract.TermOpenEnded, carecontract.TermSchoolYear, carecontract.TermFixedMonths}, input.TermKind) {

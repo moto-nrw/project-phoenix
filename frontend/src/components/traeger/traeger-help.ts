@@ -46,6 +46,18 @@ export function getTraegerHelpTopicForPath(pathname: string): HelpTopicId {
     return HELP_TOPICS.traegerHolidayContribution;
   }
   if (onPage(page, "/einstellungen")) return HELP_TOPICS.traegerSettings;
+  if (
+    onPage(page, "/abrechnung/monatsbeitraege") ||
+    onPage(page, "/abrechnung/preise")
+  ) {
+    return HELP_TOPICS.traegerCareMonths;
+  }
+  if (
+    onPage(page, "/abrechnung/ermaessigungen") ||
+    onPage(page, "/abrechnung/nachweise")
+  ) {
+    return HELP_TOPICS.traegerCareReductions;
+  }
   if (onPage(page, "/abrechnung")) return HELP_TOPICS.traegerBillingRun;
   if (onPage(page, "/vertraege")) return HELP_TOPICS.traegerCareContracts;
   if (onPage(page, "/zeitvergleich"))

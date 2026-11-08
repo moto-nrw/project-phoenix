@@ -11,10 +11,25 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
+// scheduleAuthor is the author of the weekly rows a dispatch writes: a staff
+// member resolved earlier, or else the staff membership of the reviewing
+// account.
+type scheduleAuthor struct {
+	staffID           int64
+	reviewerAccountID int64
+}
+
+func (d *Decisions) resolveScheduleAuthor(ctx context.Context, author scheduleAuthor) (int64, error) {
+	if author.staffID > 0 {
+		return author.staffID, nil
+	}
+	return d.resolveReviewerStaffID(ctx, author.reviewerAccountID)
+}
+
 // dispatchWeekdaySchedule inserts one pickup or arrival schedule row per
 // non-empty weekday entry. isPickup=true targets the pickup schedules,
 // false the arrival schedules; an unbound schedule port is a no-op.
-func (d *Decisions) dispatchWeekdaySchedule(ctx context.Context, raw any, studentID int64, reviewedBy int64, isPickup bool) error {
+func (d *Decisions) dispatchWeekdaySchedule(ctx context.Context, raw any, studentID int64, author scheduleAuthor, isPickup bool) error {
 	if (isPickup && d.deps.PickupSchedules == nil) || (!isPickup && d.deps.ArrivalSchedules == nil) {
 		return nil
 	}
@@ -25,7 +40,7 @@ func (d *Decisions) dispatchWeekdaySchedule(ctx context.Context, raw any, studen
 	if err := sched.Validate(); err != nil {
 		return fmt.Errorf("%w: %w", enrollment.ErrDecisionInvalidData, err)
 	}
-	createdBy, err := d.resolveReviewerStaffID(ctx, reviewedBy)
+	createdBy, err := d.resolveScheduleAuthor(ctx, author)
 	if err != nil {
 		return err
 	}

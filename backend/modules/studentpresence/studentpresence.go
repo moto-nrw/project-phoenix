@@ -4,6 +4,8 @@ package studentpresence
 import (
 	"context"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type Query interface {
@@ -46,11 +48,21 @@ type CombinedGroupQuery interface {
 	ListGroupMappings(context.Context, GroupMappingFilter) ([]GroupMapping, error)
 }
 
+// PresenceDay is one day a child was recorded as present.
+type PresenceDay struct {
+	StudentID int64
+	Date      calendar.Date
+}
+
 // PresenceRecordQuery reads a student's recorded presence for care exits
 // and the deletion preview.
 type PresenceRecordQuery interface {
 	ListOpenPresence(context.Context, []int64) ([]int64, error)
 	LatestPresenceDate(context.Context, int64) (*string, error)
+	// PresenceDaysBetween lists the days from from to to on which a child
+	// has a recorded attendance or a room visit (Europe/Berlin day), one
+	// entry per child and day.
+	PresenceDaysBetween(ctx context.Context, studentIDs []int64, from, to calendar.Date) ([]PresenceDay, error)
 	CountAttendanceRecords(context.Context, int64) (int, error)
 	CountStudentVisitsForDeletion(context.Context, int64) (int, error)
 }

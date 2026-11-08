@@ -2,5 +2,6 @@
   "scenario": "api.calendar.parent_overview",
   "max": 14,
   "exact": true,
-  "description": "Real ParentCalendarRouter and ParentSessionChain, N3/N8 permitted children and attendees in one school; administrative child resolution and separate tenant transaction included, excluding the outer live-session verifier."
+  "description": "Real ParentCalendarRouter and ParentSessionChain, N3/N8 permitted children and attendees in one school; administrative child resolution and separate tenant transaction included, excluding the outer live-session verifier.",
+  "route": "GET /parent/me/calendar/appointments/{appointmentId}/overview"
 }

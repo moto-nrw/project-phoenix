@@ -1,0 +1,2 @@
+GET /traeger/contract-changes/{id}
+POST /traeger/contract-changes/{id}/requests/{requestId}/decide

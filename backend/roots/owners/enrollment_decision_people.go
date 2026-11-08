@@ -220,6 +220,12 @@ func (a enrollmentStudentAudit) RecordChangesForActor(ctx context.Context, befor
 	return a.auditor.RecordChangesForActor(ctx, decisionStudentRow(before), decisionStudentRow(after), editedBy)
 }
 
+// RecordSystemChanges names the tick explicitly without changing the existing
+// authenticated-actor audit binding.
+func (a enrollmentStudentAudit) RecordSystemChanges(ctx context.Context, before, after *enrollmentCompose.Student) error {
+	return a.auditor.RecordChanges(ctx, decisionStudentRow(before), decisionStudentRow(after), peopledirectory.StudentAuditSystemActorID, peopledirectory.StudentAuditSystemActorName)
+}
+
 func (a enrollmentStudentAudit) RecordSystemStatusChange(ctx context.Context, studentID int64, before, after string) error {
 	return a.auditor.RecordSystemStatusChange(ctx, studentID, string(before), string(after))
 }

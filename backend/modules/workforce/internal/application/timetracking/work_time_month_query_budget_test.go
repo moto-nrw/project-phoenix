@@ -62,7 +62,7 @@ func TestFutureCompTimeCommitmentQueryBudget(t *testing.T) {
 		add(3, 8)
 		large := run()
 		assert.Equal(t, len(small), len(large))
-		querybudgets.AssertQueryBudget(t, "services.active.future_comp_time_commitment.reads", large)
+		querybudgets.AssertQueryBudget(t, "services.active.future_comp_time_commitment.reads", counter.Measurement(large))
 		return nil
 	}))
 }

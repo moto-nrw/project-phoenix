@@ -1208,7 +1208,6 @@ export function ClassDayClass({
                 <Section
                   title="Abgemeldet"
                   count={absent.length}
-                  accent="text-[var(--class-day-danger)]"
                   rows={absent}
                   enrollmentKnown={false}
                   now={at}
@@ -1227,7 +1226,6 @@ export function ClassDayClass({
                 <Section
                   title="Bleiben in der Betreuung"
                   count={staying.length}
-                  accent="text-[var(--class-day-blue)]"
                   rows={staying}
                   now={at}
                   morning={morning}
@@ -1254,7 +1252,6 @@ export function ClassDayClass({
                 <Section
                   title="Abgemeldet"
                   count={absent.length}
-                  accent="text-[var(--class-day-danger)]"
                   rows={absent}
                   now={at}
                   morning={morning}

@@ -38,7 +38,7 @@ func setupGuardianEmailRoute(t *testing.T) guardianEmailRoute {
 func (c guardianEmailRoute) do(t *testing.T, accountID int64, method, path string, perms ...string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := testutil.NewAuthenticatedRequest(t, method, "/guardians"+path, nil, bearer(t, guardianStaffClaims(accountID, perms...)))
-	return testutil.ExecuteRequest(c.router, req)
+	return testutil.ExecuteRequest(testpkg.MountedQueryBudgetRouter("/api", c.router), req)
 }
 
 func (c guardianEmailRoute) mark(t *testing.T, address, reason string) {
@@ -190,7 +190,7 @@ func TestSavingAGuardianKeepsTheStop(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, http.MethodPut, fmt.Sprintf("/guardians/%d", guardian.ID),
 		map[string]any{"first_name": "Neu", "email": "neu-" + *guardian.Email}, bearer(t, guardianStaffClaims(account.ID, permissions.UsersUpdate)))
-	rr := testutil.ExecuteRequest(c.router, req)
+	rr := testutil.ExecuteRequest(testpkg.MountedQueryBudgetRouter("/api", c.router), req)
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 
 	var stopped bool
@@ -273,14 +273,14 @@ func TestGuardianEmailStatusQueryBudget(t *testing.T) {
 		counter.Reset()
 		req := testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/guardians/students/%d/email-status", student.ID), nil, bearer(t, guardianStaffClaims(account.ID, permissions.UsersRead)))
 		req = req.WithContext(counter.Context(req.Context()))
-		rr := testutil.ExecuteRequest(router, req)
+		rr := testutil.ExecuteRequest(testpkg.MountedQueryBudgetRouter("/api", router), req)
 		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 		return len(counter.Queries())
 	}
 	add("budget-1")
 	add("budget-2")
 	first := read()
-	querybudgets.AssertQueryBudget(t, "api.guardians.email_status", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.guardians.email_status", counter.Measurement(counter.Queries()))
 	add("budget-3")
 	add("budget-4")
 	assert.Equal(t, first, read(), "a further guardian adds no statement")
@@ -302,7 +302,7 @@ func TestInvitingAnExistingAccountSaysThatNoMailGoesOut(t *testing.T) {
 
 	req := testutil.NewAuthenticatedRequest(t, http.MethodPost, fmt.Sprintf("/guardians/students/%d/invite", student.ID),
 		map[string]any{"email": parent.Email}, bearer(t, guardianStaffClaims(staff.ID, permissions.UsersCreate)))
-	rec := testutil.ExecuteRequest(c.router, req)
+	rec := testutil.ExecuteRequest(testpkg.MountedQueryBudgetRouter("/api", c.router), req)
 
 	require.Less(t, rec.Code, 300, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), `"mail_held":true`)

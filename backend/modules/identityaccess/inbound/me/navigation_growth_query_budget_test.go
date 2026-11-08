@@ -113,7 +113,7 @@ func TestIdentityNavigationPositiveGrowthQueryBudget(t *testing.T) {
 			require.ElementsMatch(t, section.ids, ids)
 		}
 		t.Logf("NAVIGATION N%d count=%d body=%s", n, counter.Total(), rr.Body.String())
-		querybudgets.AssertQueryBudget(t, "api.me.navigation.positive_growth", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "api.me.navigation.positive_growth", counter.Measurement(counter.Queries()))
 		require.Equal(t, 401, testutil.ExecuteRequest(router, testutil.NewRequest(http.MethodGet, path, nil)).Code)
 		wrong := claims
 		wrong.Scope = "school"

@@ -33,19 +33,19 @@ func TestTeacherStudentsQueryBudget(t *testing.T) {
 	}
 	add(3)
 	counter := testpkg.CaptureQueriesForContext(t, tc.db)
-	run := func() []string {
+	run := func() testpkg.QueryMeasurement {
 		counter.Reset()
 		req := testutil.NewAuthenticatedRequest(t, "GET", "/students?teacher_ids="+strings.Join(teacherIDs, ","), nil,
 			testutil.WithDeviceContext(device),
 		)
 		req = req.WithContext(counter.Context(req.Context()))
-		rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+		rr := testutil.ExecuteRequest(testpkg.MountedQueryBudgetRouter("/api/iot", tc.resource.Router()), req)
 		testutil.AssertSuccessResponse(t, rr, 200)
-		return counter.Operation("SELECT")
+		return counter.Measurement(counter.Operation("SELECT"))
 	}
 	small := run()
 	add(5)
 	large := run()
-	assert.Equal(t, len(small), len(large))
+	assert.Equal(t, len(small.Statements), len(large.Statements))
 	querybudgets.AssertQueryBudget(t, "api.iot.teacher_students.reads", large)
 }

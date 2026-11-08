@@ -227,11 +227,15 @@ func (s *materializationService) materializeForTenantLocked(
 	if err != nil {
 		return result, err
 	}
+	people, err := s.loadTemplatesPeople(ctx, scheduledTemplateIDs(templates, schedules), "materialize template")
+	if err != nil {
+		return result, err
+	}
 
-	// Schedules are shared run inputs. Keep each template's roster reads and
-	// per-date decisions inside the same locked unit as before.
+	// Schedules and rosters are shared run inputs; the per-date decisions
+	// stay inside the same locked unit as before.
 	for _, tmpl := range templates {
-		if err := s.materializeTemplate(ctx, tmpl, schedules[tmpl.ID], world, result); err != nil {
+		if err := s.materializeTemplate(ctx, tmpl, schedules[tmpl.ID], people[tmpl.ID], world, result); err != nil {
 			return result, err
 		}
 	}
@@ -246,6 +250,18 @@ func (s *materializationService) materializeForTenantLocked(
 
 	s.finishLog(tenantID, source, result, start)
 	return result, nil
+}
+
+// scheduledTemplateIDs lists the templates with schedules in run order; a
+// template without schedules materializes nothing and reads no roster.
+func scheduledTemplateIDs(templates []*activityContract.Group, schedules map[int64][]*activityContract.Schedule) []int64 {
+	ids := make([]int64, 0, len(templates))
+	for _, tmpl := range templates {
+		if len(schedules[tmpl.ID]) > 0 {
+			ids = append(ids, tmpl.ID)
+		}
+	}
+	return ids
 }
 
 // materializationSchedules partitions one tenant-scoped read without changing
@@ -525,15 +541,12 @@ func (s *materializationService) materializeTemplate(
 	ctx context.Context,
 	tmpl *activityContract.Group,
 	schedules []*activityContract.Schedule,
+	roster templateRoster,
 	world *materializationWorld,
 	result *timetable.MaterializationResult,
 ) error {
 	if len(schedules) == 0 {
 		return nil // nothing to materialize for this template
-	}
-	roster, err := s.loadTemplatePeople(ctx, tmpl.ID, "materialize template")
-	if err != nil {
-		return err
 	}
 	roster.schedules = schedules
 

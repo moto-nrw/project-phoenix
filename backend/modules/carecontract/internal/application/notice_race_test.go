@@ -30,6 +30,13 @@ func (noticeTemplates) NoticeTemplate(_ context.Context, _ int64, kind string) (
 	if kind == carecontract.NoticeWithdrawal {
 		return "Widerruf für {Kind} am {Eingang}. {Träger}", nil
 	}
+	if kind == carecontract.NoticeTemplateEndSet {
+		return "Ende für {Kind}: letzter Tag {Vertragsende}. {Träger}", nil
+	}
+	if kind == carecontract.NoticeTemplateReasonRejected {
+		// Without {Vertragsende}: moto appends the last day.
+		return "Grund nicht anerkannt für {Kind}, eingegangen am {Eingang}. {Träger}", nil
+	}
 	if kind == carecontract.TerminationExtraordinary {
 		return "Außerordentliche Kündigung für {Kind}, eingegangen am {Eingang}, Grund: {Grund} {Träger}", nil
 	}
@@ -54,8 +61,28 @@ func (p *noticePost) EnqueueNoticeMail(_ context.Context, mail carecontract.Noti
 
 type noticeFixture struct {
 	raceFixture
-	notices *Notices
-	post    *noticePost
+	notices    *Notices
+	post       *noticePost
+	addressees *noticeAddressees
+}
+
+// noticeAddressees answers the addresses the test grants the enrollment
+// submission, safe for two transactions.
+type noticeAddressees struct {
+	mu        sync.Mutex
+	addresses []string
+}
+
+func (a *noticeAddressees) PermittedAddresses(context.Context, int64, []int64) ([]string, error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return append([]string(nil), a.addresses...), nil
+}
+
+func (a *noticeAddressees) set(addresses ...string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.addresses = addresses
 }
 
 // noticeToday is the day the parents act: four days after the conclusion
@@ -79,11 +106,17 @@ func newNoticeFixture(t *testing.T, name string, now time.Time) noticeFixture {
 	}))
 	store, post := postgres.NewStore(), &noticePost{next: testpkg.UniqueTestTenantID(t)}
 	require.NoError(t, testpkg.WithinTraeger(race.ctx, race.org, func(ctx context.Context) error {
+		if _, err := race.db.NewUpdate().Table("care_contract.contracts").Set("student_id = ?", testpkg.UniqueTestTenantID(t)).
+			Where("id = ?", race.contract).Exec(ctx); err != nil {
+			return err
+		}
 		return store.MarkWithdrawalInformed(ctx, race.org, race.contract, race.conclusion.At)
 	}))
-	notices := NewNotices(store, store, NoticePorts{Templates: noticeTemplates{}, Post: post}, Clock{Now: func() time.Time { return now }},
-		race.contracts)
-	return noticeFixture{raceFixture: race, notices: notices, post: post}
+	// The contract party still holds the enrollment submission for the child.
+	addressees := &noticeAddressees{addresses: []string{"Erika@Example.org"}}
+	notices := NewNotices(store, store, NoticePorts{Templates: noticeTemplates{}, Post: post, Addressees: addressees},
+		Clock{Now: func() time.Time { return now }}, race.contracts)
+	return noticeFixture{raceFixture: race, notices: notices, post: post, addressees: addressees}
 }
 
 func (f noticeFixture) declare(input carecontract.NoticeInput) func(context.Context) error {

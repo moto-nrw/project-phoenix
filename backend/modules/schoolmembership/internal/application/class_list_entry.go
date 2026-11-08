@@ -201,6 +201,42 @@ func (s *Service) MatchingStudentIDs(ctx context.Context, fields schoolmembershi
 	return result, nil
 }
 
+// MatchingStudentIDsForEntries is MatchingStudentIDs for a whole listing. The
+// hints come from one name read and one student read shared by all entries
+// (decision E2 of #5891: an early shared read may replace later per-entry
+// READ COMMITTED reads; the listing takes no lock).
+func (s *Service) MatchingStudentIDsForEntries(ctx context.Context, entries []schoolmembership.ClassListEntryFields) (result [][]int64, err error) {
+	keys := make([]schoolmembership.ClassListEntryFields, len(entries))
+	for i, fields := range entries {
+		keys[i] = schoolmembership.ClassListEntryFields{
+			FirstName: textnorm.Name(fields.FirstName), LastName: textnorm.Name(fields.LastName),
+			SchoolClass: strings.TrimSpace(fields.SchoolClass),
+		}
+	}
+	collaborators, err := s.classListAdministration()
+	if err != nil {
+		return nil, err
+	}
+	if len(keys) > 0 {
+		err = s.runRead(ctx, "match_class_list_entries_students", func(txCtx context.Context, _ *domain.OperationStats) error {
+			result, err = collaborators.Students.ListStudentIDsByNamesAndClasses(txCtx, keys)
+			return err
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+	matches := make([][]int64, len(keys))
+	for i := range matches {
+		if i < len(result) && result[i] != nil {
+			matches[i] = result[i]
+		} else {
+			matches[i] = []int64{}
+		}
+	}
+	return matches, nil
+}
+
 // AddClassListEntry creates one entry with the two duplicate guards and the
 // audit row of the administration screen. The entry check is advisory — the
 // unique index below is the race-safe backstop — while the student check has

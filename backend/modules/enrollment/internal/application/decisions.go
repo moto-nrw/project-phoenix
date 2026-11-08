@@ -92,7 +92,10 @@ func (d *Decisions) listDecisionRequests(ctx context.Context, filters enrollment
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", errPrefix, err)
 	}
-	return d.assembleAll(ctx, requests, filters.CreatedStudentID)
+	if len(requests) == 0 {
+		return []*enrollmentNative.DecisionSummary{}, nil
+	}
+	return d.assembleRequests(ctx, requests, filters.CreatedStudentID)
 }
 
 // assembleAll assembles every request; a positive studentID keeps only the

@@ -6,90 +6,185 @@
 // Schreiben ändern sich nie.
 
 import dynamic from "next/dynamic";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import NavigationLink from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
 import { formatBerlinDate, formatDate } from "~/lib/date-helpers";
 import type { BillingLetters } from "~/lib/traeger-billing-api";
+import type { InvoicePayment } from "~/lib/traeger-billing-terms-api";
+import { invoiceDueDatesText } from "./billing-payment-format";
+import type { LetterSource } from "./billing-letters-modal";
 import { traegerPath } from "~/lib/traeger-url";
 
 // Loaded when someone opens it: a run creates its letters once.
 const BillingLettersModal = dynamic(
   () =>
     import("./billing-letters-modal").then(
-      (module) => module.BillingLettersModal,
+      (module) => module.BillingLettersModal<unknown>,
     ),
   { ssr: false },
 );
 
+/**
+ * The step before the letters of a run exist (#4669, #4684): what the letters
+ * are for, where letterhead and bank account come from (children) and the
+ * button that opens the creation with its preview. A source other than the
+ * holiday run's creates the letters of that run (#4684).
+ */
+export function LettersCreateCard<T = BillingLetters>({
+  title,
+  description,
+  runId,
+  payments,
+  source,
+  onCreated,
+  children,
+}: Readonly<{
+  title: string;
+  description: string;
+  runId: string;
+  payments: readonly (InvoicePayment | null | undefined)[];
+  source?: LetterSource<T>;
+  onCreated: (letters: T) => void;
+  children: ReactNode;
+}>) {
+  const [creating, setCreating] = useState(false);
+  return (
+    <SectionCard
+      title={title}
+      description={description}
+      actions={
+        <Button
+          type="button"
+          variant="primary"
+          size="md"
+          onClick={() => setCreating(true)}
+        >
+          Schreiben erstellen
+        </Button>
+      }
+    >
+      <p className="text-sm text-gray-700">{children}</p>
+      {creating ? (
+        <BillingLettersModal
+          runId={runId}
+          payments={payments}
+          isOpen
+          source={source as LetterSource<unknown> | undefined}
+          onClose={() => setCreating(false)}
+          onCreated={(created) => {
+            setCreating(false);
+            onCreated(created as T);
+          }}
+        />
+      ) : null}
+    </SectionCard>
+  );
+}
+
+/** The links to letterhead and bank account the letters read. */
+export function LetterheadLink() {
+  return (
+    <NavigationLink
+      href={traegerPath("/traeger/einstellungen/briefkopf")}
+      className="font-medium underline"
+    >
+      Briefkopf und Vorlagen
+    </NavigationLink>
+  );
+}
+
+export function BillingSettingsLink() {
+  return (
+    <NavigationLink
+      href={traegerPath("/traeger/einstellungen/abrechnung")}
+      className="font-medium underline"
+    >
+      Abrechnungsvorgaben
+    </NavigationLink>
+  );
+}
+
+/** What every letter of a run says: payment date, creation and the note. */
+export function LettersFacts({
+  paymentDueOn,
+  payments,
+  createdAt,
+  notes,
+  notesLabel,
+  emptyNotes,
+  children,
+}: Readonly<{
+  paymentDueOn: string;
+  payments: readonly (InvoicePayment | null | undefined)[];
+  createdAt: string;
+  notes: string;
+  notesLabel: string;
+  emptyNotes: string;
+  children?: ReactNode;
+}>) {
+  const deadlines = invoiceDueDatesText(payments);
+  const hasLegacy = payments.some((payment) => !payment?.dueOn);
+  return (
+    <DataGrid columns={2}>
+      {deadlines ? (
+        <DataField label="Fälligkeiten">{deadlines}</DataField>
+      ) : null}
+      {hasLegacy ? (
+        <DataField
+          label={deadlines ? "Zahlen bis (ältere Rechnungen)" : "Zahlen bis"}
+        >
+          {formatDate(paymentDueOn)}
+        </DataField>
+      ) : null}
+      <DataField label="Erstellt am">{formatBerlinDate(createdAt)}</DataField>
+      <DataField label={notesLabel}>
+        {notes ? (
+          <span className="whitespace-pre-line">{notes}</span>
+        ) : (
+          emptyNotes
+        )}
+      </DataField>
+      {children}
+    </DataGrid>
+  );
+}
+
 export function BillingLettersCard({
   runId,
+  payments,
   letters,
   onCreated,
 }: Readonly<{
   runId: string;
+  payments: readonly (InvoicePayment | null | undefined)[];
   letters: BillingLetters | null;
   onCreated: (letters: BillingLetters) => void;
 }>) {
-  const [creating, setCreating] = useState(false);
-
   if (!letters) {
     return (
-      <SectionCard
+      <LettersCreateCard
         title="Bestätigungsschreiben"
         description="Jede Familie bekommt ein Schreiben, das ihre Anmeldung bestätigt und zugleich ihre Rechnung ist."
-        actions={
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={() => setCreating(true)}
-          >
-            Schreiben erstellen
-          </Button>
-        }
+        runId={runId}
+        payments={payments}
+        onCreated={onCreated}
       >
-        <p className="text-sm text-gray-700">
-          Logo, Absender und Fußzeile kommen aus{" "}
-          <NavigationLink
-            href={traegerPath("/traeger/einstellungen/briefkopf")}
-            className="font-medium underline"
-          >
-            Briefkopf und Vorlagen
-          </NavigationLink>
-          . Die Bankverbindung kommt aus den{" "}
-          <NavigationLink
-            href={traegerPath("/traeger/einstellungen/abrechnung")}
-            className="font-medium underline"
-          >
-            Abrechnungsvorgaben
-          </NavigationLink>
-          , der Text aus der{" "}
-          <NavigationLink
-            href={traegerPath(
-              "/traeger/einstellungen/briefkopf/vorlagen/bestaetigung",
-            )}
-            className="font-medium underline"
-          >
-            Vorlage
-          </NavigationLink>
-          . Ohne Bankverbindung lassen sich keine Schreiben erstellen; sie legt
-          die Verwaltung fest.
-        </p>
-        {creating ? (
-          <BillingLettersModal
-            runId={runId}
-            isOpen
-            onClose={() => setCreating(false)}
-            onCreated={(created: BillingLetters) => {
-              setCreating(false);
-              onCreated(created);
-            }}
-          />
-        ) : null}
-      </SectionCard>
+        Logo, Absender und Fußzeile kommen aus <LetterheadLink />. Die
+        Bankverbindung kommt aus den <BillingSettingsLink />, der Text aus der{" "}
+        <NavigationLink
+          href={traegerPath(
+            "/traeger/einstellungen/briefkopf/vorlagen/bestaetigung",
+          )}
+          className="font-medium underline"
+        >
+          Vorlage
+        </NavigationLink>
+        . Ohne Bankverbindung lassen sich keine Schreiben erstellen; sie legt
+        die Verwaltung fest.
+      </LettersCreateCard>
     );
   }
 
@@ -98,20 +193,14 @@ export function BillingLettersCard({
       title="Bestätigungsschreiben"
       description="Die Schreiben sind erstellt und lassen sich nicht mehr ändern. Das Schreiben einer Familie laden Sie über das Menü ihrer Rechnung herunter."
     >
-      <DataGrid columns={2}>
-        <DataField label="Zahlen bis">
-          {formatDate(letters.paymentDueOn)}
-        </DataField>
-        <DataField label="Erstellt am">
-          {formatBerlinDate(letters.createdAt)}
-        </DataField>
-        <DataField label="Hinweise für die Eltern">
-          {letters.notes ? (
-            <span className="whitespace-pre-line">{letters.notes}</span>
-          ) : (
-            "Keine"
-          )}
-        </DataField>
+      <LettersFacts
+        paymentDueOn={letters.paymentDueOn}
+        payments={payments}
+        createdAt={letters.createdAt}
+        notes={letters.notes}
+        notesLabel="Hinweise für die Eltern"
+        emptyNotes="Keine"
+      >
         <DataField label="Notfallnummern">
           {letters.emergencyContacts.length > 0 ? (
             <ul className="space-y-1">
@@ -130,7 +219,7 @@ export function BillingLettersCard({
             ? `Version ${letters.templateVersion}`
             : "Standardvorlage"}
         </DataField>
-      </DataGrid>
+      </LettersFacts>
     </SectionCard>
   );
 }

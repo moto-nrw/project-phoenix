@@ -162,6 +162,22 @@ describe("EnrollmentStatusView", () => {
     expect(mockFetchStatus).toHaveBeenCalledTimes(2);
   });
 
+  it("names the school's care with the term its status carries (#6042)", async () => {
+    // The parents host has no school context: the term travels with the
+    // status, so a GTS school's parents never read OGS on the page.
+    mockPathname.value = "/parents/anmeldung/status/tok";
+    mockFetchStatus.mockResolvedValueOnce(
+      status({ care_facility_term: "GTS" }),
+    );
+
+    render(<EnrollmentStatusView token="tok" />);
+
+    expect((await screen.findAllByText(/\bGTS\b/)).length).toBeGreaterThan(0);
+    expect(screen.queryAllByText(/\bOGS\b/)).toHaveLength(0);
+    expect(mockFetchStatus).toHaveBeenCalledTimes(1);
+    expect(mockListEnrollmentChangeRequests).toHaveBeenCalledTimes(1);
+  });
+
   it("uses the renamed parent route for direct edits", async () => {
     mockPathname.value = "/parents/anmeldung/status/tok";
     mockFetchStatus.mockResolvedValueOnce(status());

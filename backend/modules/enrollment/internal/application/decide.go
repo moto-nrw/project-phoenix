@@ -48,6 +48,9 @@ func (d *Decisions) Decide(ctx context.Context, input enrollmentNative.DecideInp
 	if err := validateDecideInput(input); err != nil {
 		return nil, err
 	}
+	if err := d.lockDecisionGates(ctx, input.Status); err != nil {
+		return nil, err
+	}
 	target, err := d.lockDecisionTarget(ctx, input)
 	if err != nil {
 		return nil, err
@@ -102,6 +105,46 @@ func validateDecideInput(input enrollmentNative.DecideInput) error {
 	}
 	if !validDecisionStatuses[input.Status] {
 		return fmt.Errorf("%w: %s", enrollmentNative.ErrDecisionInvalidStatus, input.Status)
+	}
+	return nil
+}
+
+// lockDecisionGates takes the approval gates before the request and child row
+// locks and the phase read. Other decisions write no gated state and stay
+// ungated.
+func (d *Decisions) lockDecisionGates(ctx context.Context, status enrollmentNative.DecisionStatus) error {
+	if status != enrollmentNative.DecisionApproved {
+		return nil
+	}
+	return d.LockApprovalGates(ctx)
+}
+
+// LockApprovalGates takes the tenant-wide gates of an approval in the
+// project-wide order: the shared class-writes gate first, the recurrence gate
+// second, row locks last (ADR 0162). Every enrollment path that writes gated
+// state takes them here before its first request, child or student row lock
+// and before it reads the phase: the approval (Decide), the rollover tick and
+// its due class switches and weekly plans. The change-request approval and
+// the direct correction take the same pair through Care Plan's
+// LockOfferingDerivedWrites. Both locks are transaction-scoped and safe to
+// take again downstream.
+//
+// A phase edit holds the recurrence gate while it moves the service start and
+// reschedules pending weekly plans; a grade transition holds the class-writes
+// gate exclusively. A path that locked an enrollment row first and waited for
+// a gate later closed a cycle with them or with another approval (#2147,
+// #6043 review).
+func (d *Decisions) LockApprovalGates(ctx context.Context) error {
+	if d.deps.StudentEnrollment != nil {
+		if err := d.deps.StudentEnrollment.LockEnrollmentClassWrites(ctx); err != nil {
+			return fmt.Errorf("decision: lock class writes: %w", err)
+		}
+	}
+	if d.deps.LockTemplateRecurrence == nil {
+		return nil
+	}
+	if err := d.deps.LockTemplateRecurrence(ctx); err != nil {
+		return fmt.Errorf("decision: lock template recurrence: %w", err)
 	}
 	return nil
 }
