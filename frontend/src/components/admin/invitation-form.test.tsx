@@ -159,26 +159,27 @@ describe("InvitationForm", () => {
   });
 
   it("renders position suggestions when existing positions are provided", async () => {
-    const { container } = render(
+    render(
       <InvitationForm
         existingPositions={["Pädagogische Fachkraft", "OGS-Büro"]}
       />,
     );
 
-    await waitFor(() => {
-      const input = screen.getByLabelText("Position (optional)");
-      expect(input).toHaveAttribute("list", "invitation-position-suggestions");
-      expect(
-        container.querySelector(
-          'datalist#invitation-position-suggestions option[value="Pädagogische Fachkraft"]',
-        ),
-      ).toBeTruthy();
-      expect(
-        container.querySelector(
-          'datalist#invitation-position-suggestions option[value="OGS-Büro"]',
-        ),
-      ).toBeTruthy();
+    const input = await screen.findByRole("combobox", {
+      name: "Position (optional)",
     });
+    fireEvent.focus(input);
+
+    const list = screen.getByRole("listbox", {
+      name: "Vorschläge für die Position",
+    });
+    expect(input).toHaveAttribute("aria-controls", list.id);
+    expect(
+      screen.getByRole("option", { name: "Pädagogische Fachkraft" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("option", { name: "OGS-Büro" }));
+    expect(input).toHaveValue("OGS-Büro");
   });
 
   it("renders submit button", async () => {

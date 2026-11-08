@@ -26,6 +26,7 @@ import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
+import { SuggestInput } from "~/components/ui/suggest-input";
 import { Radio } from "~/components/ui/radio";
 import {
   OverflowMenu,
@@ -639,27 +640,20 @@ export default function ClassListEntriesPage() {
                 />
               </div>
               <div>
-                <Input
+                <SuggestInput
                   id="entry-school-class"
                   name="school_class"
                   label="Klasse"
                   hint="Genau wie bei den regulären Kindern geschrieben, damit der Eintrag in derselben Klassenliste landet."
                   error={formErrors.fieldError("school_class")}
                   value={form.schoolClass}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      schoolClass: e.target.value,
-                    }))
+                  onValueChange={(schoolClass) =>
+                    setForm((prev) => ({ ...prev, schoolClass }))
                   }
+                  suggestions={classSuggestions ?? []}
+                  listLabel="Vorschläge für die Klasse"
                   placeholder="z.B. 1a"
-                  list="class-list-class-suggestions"
                 />
-                <datalist id="class-list-class-suggestions">
-                  {(classSuggestions ?? []).map((klass) => (
-                    <option key={klass} value={klass} />
-                  ))}
-                </datalist>
               </div>
               <div className="flex justify-end gap-2 border-t border-gray-100 pt-4">
                 <Button

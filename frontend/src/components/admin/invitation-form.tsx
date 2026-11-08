@@ -11,6 +11,7 @@ import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Button } from "~/components/ui/button";
 import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
+import { SuggestInput } from "~/components/ui/suggest-input";
 import { authService } from "~/lib/auth-service";
 import { toAssignableRoleOptions, type RoleOption } from "~/lib/auth-helpers";
 import { formatDate } from "~/lib/date-helpers";
@@ -422,26 +423,19 @@ export function InvitationForm({
         </div>
 
         <div>
-          <Input
-            type="text"
+          <SuggestInput
             id="invitation-position"
             name="position"
             label="Position (optional)"
-            list="invitation-position-suggestions"
             value={form.position ?? ""}
-            onChange={(event) =>
-              handleChange("position")(event.target.value || undefined)
+            onValueChange={(position) =>
+              handleChange("position")(position || undefined)
             }
+            suggestions={existingPositions}
+            listLabel="Vorschläge für die Position"
             placeholder="z.B. Pädagogische Fachkraft, OGS-Büro"
             disabled={isSubmitting}
           />
-          {existingPositions.length > 0 && (
-            <datalist id="invitation-position-suggestions">
-              {existingPositions.map((pos) => (
-                <option key={pos} value={pos} />
-              ))}
-            </datalist>
-          )}
         </div>
 
         <Button
