@@ -1993,6 +1993,35 @@ describe("authConfig", () => {
     });
   });
 
+  // The parent cookie is host-only; the portal's only callback (sign-out to
+  // its login) stays on its own origin.
+  describe("parent redirect callback", () => {
+    async function callParentRedirect(url: string): Promise<string> {
+      const redirectFn = parentAuthConfig.callbacks?.redirect;
+      if (!redirectFn) throw new Error("parent redirect callback not found");
+      return redirectFn({ url, baseUrl: "https://eltern.moto-app.de" });
+    }
+
+    it("allows the sign-out target on the parents origin", async () => {
+      await expect(
+        callParentRedirect("https://eltern.moto-app.de/login"),
+      ).resolves.toBe("https://eltern.moto-app.de/login");
+      await expect(callParentRedirect("/login")).resolves.toBe(
+        "https://eltern.moto-app.de/login",
+      );
+    });
+
+    it.each([
+      "https://school-a.eltern.moto-app.de/",
+      "https://moto-app.de/",
+      "//evil.example/phish",
+    ])("blocks callback target %s outside the parents origin", async (url) => {
+      await expect(callParentRedirect(url)).resolves.toBe(
+        "https://eltern.moto-app.de",
+      );
+    });
+  });
+
   // #3873: caterer sessions are host-only like school sessions, so a
   // callback target must not leave the caterer origin either.
   describe("caterer redirect callback", () => {

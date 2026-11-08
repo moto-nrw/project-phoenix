@@ -198,7 +198,7 @@ export const PORTALS = {
     // Strict: the portal handles guardian PII and has no cross-site flow
     // that needs the cookie; login is POST-only.
     cookieNames: hostOnlyCookies(PORTAL_SESSION_COOKIE_NAMES.parent, "strict"),
-    redirect: subdomainRedirect,
+    redirect: exactOriginRedirect,
     backend: {
       authPrefix: "/parent/auth",
       refresh: ACCOUNT_REFRESH,
