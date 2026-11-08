@@ -31,6 +31,7 @@ type Intake struct {
 	runtime      carecontract.Runtime
 	modes        carecontract.ConclusionModes
 	mail         carecontract.MailBlocks
+	letterheads  carecontract.Letterheads
 	today        func() calendar.Date
 }
 
@@ -43,17 +44,20 @@ type IntakePorts struct {
 	Runtime      carecontract.Runtime
 	Modes        carecontract.ConclusionModes
 	Mail         carecontract.MailBlocks
+	// Letterheads gives the Träger's address and contact the withdrawal
+	// notice of the enrollment form names (#6105).
+	Letterheads carecontract.Letterheads
 }
 
 var _ carecontract.Intake = (*Intake)(nil)
 
 func NewIntake(store Store, ports IntakePorts, today func() calendar.Date) *Intake {
 	if store == nil || ports.Schools == nil || ports.Applications == nil || ports.Bookings == nil || ports.Access == nil ||
-		ports.Runtime == nil || ports.Modes == nil || ports.Mail == nil || today == nil {
-		panic("care contract: the store, the schools, the applications, the bookings, the access log, the runtime, the conclusion modes, the mail blocks and the clock are required")
+		ports.Runtime == nil || ports.Modes == nil || ports.Mail == nil || ports.Letterheads == nil || today == nil {
+		panic("care contract: the store, the schools, the applications, the bookings, the access log, the runtime, the conclusion modes, the mail blocks, the letterheads and the clock are required")
 	}
 	return &Intake{store: store, schools: ports.Schools, applications: ports.Applications, bookings: ports.Bookings,
-		access: ports.Access, runtime: ports.Runtime, modes: ports.Modes, mail: ports.Mail, today: today}
+		access: ports.Access, runtime: ports.Runtime, modes: ports.Modes, mail: ports.Mail, letterheads: ports.Letterheads, today: today}
 }
 
 // schoolRead is what the intake read in one school's tenant transaction.
@@ -350,8 +354,12 @@ func (in *Intake) Templates(ctx context.Context, reviewer carecontract.Reviewer)
 		return nil, err
 	}
 	var rows []TemplateRow
+	var head carecontract.Letterhead
 	err = in.runtime.WithinTraeger(ctx, reviewer.OrganizationID, func(txCtx context.Context) error {
 		var err error
+		if head, err = in.letterheads.Letterhead(txCtx, reviewer); err != nil {
+			return fmt.Errorf("letterhead: %w", err)
+		}
 		rows, err = in.store.Templates(txCtx, reviewer.OrganizationID)
 		return err
 	})
@@ -369,7 +377,7 @@ func (in *Intake) Templates(ctx context.Context, reviewer carecontract.Reviewer)
 			if template, ok := byOffering[[2]int64{school.ID, offering.ID}]; ok {
 				found = &template
 			}
-			result = append(result, offeringTemplate(school, offering, found))
+			result = append(result, offeringTemplate(school, offering, found, head))
 		}
 	}
 	sortTemplates(result)
@@ -439,8 +447,12 @@ func (in *Intake) SaveTemplate(ctx context.Context, reviewer carecontract.Review
 		return carecontract.OfferingTemplate{}, err
 	}
 	var saved carecontract.Template
+	var head carecontract.Letterhead
 	err = in.runtime.WithinTraeger(ctx, reviewer.OrganizationID, func(txCtx context.Context) error {
 		var err error
+		if head, err = in.letterheads.Letterhead(txCtx, reviewer); err != nil {
+			return fmt.Errorf("care contract: letterhead: %w", err)
+		}
 		if saved, err = in.store.UpsertTemplate(txCtx, reviewer.OrganizationID, reviewer.AccountID, schoolID, offeringID, input); err != nil {
 			return err
 		}
@@ -450,7 +462,7 @@ func (in *Intake) SaveTemplate(ctx context.Context, reviewer carecontract.Review
 	if err != nil {
 		return carecontract.OfferingTemplate{}, err
 	}
-	return offeringTemplate(schools[0], offering, &saved), nil
+	return offeringTemplate(schools[0], offering, &saved, head), nil
 }
 
 // schoolsOf is every school of the Träger, or only schoolID, which must be
@@ -578,11 +590,11 @@ func (in *Intake) templateIndex(ctx context.Context, organizationID int64) (temp
 	return index, nil
 }
 
-func offeringTemplate(school carecontract.School, offering carecontract.Offering, template *carecontract.Template) carecontract.OfferingTemplate {
+func offeringTemplate(school carecontract.School, offering carecontract.Offering, template *carecontract.Template, head carecontract.Letterhead) carecontract.OfferingTemplate {
 	text, withdrawal, earlyStart, term, notice := "", "", "", "", ""
 	if template != nil {
 		text = acceptanceText(template.TemplateInput)
-		withdrawal, earlyStart = withdrawalTexts(template.TemplateInput)
+		withdrawal, earlyStart = withdrawalTexts(template.TemplateInput, head, offering.Name)
 		term, notice = TermText(template.TemplateInput, nil), NoticeText(template.TemplateInput)
 	}
 	return carecontract.OfferingTemplate{
