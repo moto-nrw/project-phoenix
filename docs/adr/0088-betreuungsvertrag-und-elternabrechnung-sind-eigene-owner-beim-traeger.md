@@ -129,6 +129,8 @@ Version gibt.
   moto schlägt sie aus der Anmeldung vor (Geschwister im selben Formular,
   gleiche Mail-Adresse), die Abrechnung bestätigt sie. Geschwister sind Kinder
   derselben Familie mit wirksamem Vertrag.
+  Die Familie hält außerdem die Zahl ihrer Kinder, auch ohne Vertrag
+  (Nachtrag 2026-11-08).
 - **Mandat:** gehört zu einem Zahler und gilt für genau einen
   Rechnungssteller. Es hat Mandatsreferenz, Datum und Widerruf.
 - **Nummernkreis** (Muster und Zähler) je Rechnungssteller und Leistung.
@@ -308,3 +310,48 @@ Projektion:      traeger-view       + care-contract, student-presence
 - Offen bleiben: Vorlagen mit Layout und Platzhaltern (T6), das Modell des
   Feriengasts (ADR 0084), die Fristen (#4720) und die Rechtsfragen der Spec
   (Form der Unterschrift, wer die Gläubiger-ID hält).
+
+## Nachtrag 2026-11-08: Kinder in der Familie (E2 Option A, #5918)
+
+Entscheidung des Product Owners vom 06.11.2026 (SJR-Abgleich Zeile 6, E2,
+Kommentar in [#4685](https://github.com/moto-nrw/project-phoenix/issues/4685)).
+Sie ändert die Geschwisterdefinition aus §4 und ergänzt
+[ADR 0164](0164-ermaessigungen-des-monatsbeitrags-sind-beitragsregeln-des-traegers-mit-nachweis-je-vertrag.md)
+Punkt 4.
+
+- **Familienangabe.** Die Familie hält die Angabe „Kinder in der Familie“:
+  eine ganze Zahl von 1 bis 20. Sie zählt alle Kinder der Familie, auch
+  Geschwister ohne Betreuungsvertrag (etwa in Birkenfeld). „Nicht
+  angegeben“ ist keine Zahl, sondern das Fehlen der Angabe.
+- **Datenminimierung.** Gespeichert wird nur die Zahl mit Gültigkeit und
+  Prüfdaten, kein Name, kein Geburtsdatum, kein Personendatensatz der
+  Geschwister ohne Vertrag. moto legt für sie weder Verträge noch
+  Anmeldungen an.
+- **Angabe und Prüfung.** Eltern geben die Zahl im Vertrag an (Postfach des
+  Elternportals). Angeben darf nur ein Konto, an dessen Adresse der Vertrag
+  ging und dessen Beziehung zum Kind `parent_portal.enrollment.submit` hält;
+  lesen genügt `parent_portal.enrollments.view`. Die Abrechnung des Trägers
+  (Recht „Abrechnung“) bestätigt oder ändert die Zahl mit „gilt ab“ und
+  optional „gilt bis“. Angabe der Eltern und bestätigte Zahl sind getrennt
+  gespeichert; jede Änderung hält Wert, Gültigkeit, Zeitpunkt, Konto und
+  Rolle (Eltern oder Abrechnung) fest, jedes Lesen das Konto.
+- **Nur Bestätigtes zählt.** Eine unbestätigte Angabe der Eltern zählt nicht:
+  Sie ist eine Erklärung, die Ermäßigung setzt die Prüfung durch den Träger
+  voraus, wie bei den Nachweisen (ADR 0164 Punkt 6). Eine neuere Angabe lässt
+  die bestätigte Zahl in Kraft und erscheint als „zu prüfen“.
+- **Gültigkeit je Abrechnungsmonat.** Der Monatslauf liest die Zahl, die in
+  seinem Monat gilt (wie ein Nachweis, der im Monat beginnt), nicht die von
+  heute. Läuft sie ab, sieht die Abrechnung 30 Tage vorher und danach einen
+  Hinweis; der Monatslauf nennt die Familien ohne nutzbare Zahl.
+- **Zählung.** Ob eine Geschwisterregel die Angabe nutzt, ist je Regel
+  einstellbar (`counts_family_children`, Standard aus). Mit Nutzung zählt sie
+  `max(bestätigte gültige Zahl, Kinder mit Vertrag im Geltungsbereich)`. Die
+  Geschwister ohne Vertrag stehen in der Reihenfolge vorn, weil sie nichts
+  zahlen: Bei 3 Kindern und einem Kind mit Vertrag ist es das 3. Kind. Ohne
+  nutzbare Zahl zählt die Regel nur die Kinder mit Vertrag. Regeln ohne
+  Nutzung, die Zählschulen und der Höchstbetrag bleiben unverändert.
+- **Schlüssel der Familie.** Bis #4689 ist die Familie die Mail-Adresse des
+  Rechnungsempfängers ohne Groß- und Kleinschreibung (ADR 0164 Punkt 4).
+  Die Zahl hängt am Vertrag, an dem sie zuletzt angegeben oder bestätigt
+  wurde, und geht mit ihm.
+- Ausgestellte Rechnungen behalten Rang und Kinderzahl als Kopie.

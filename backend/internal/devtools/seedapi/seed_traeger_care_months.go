@@ -67,6 +67,10 @@ func (seedTraegerCareMonthsStep) Run(_ context.Context, rt *Runtime) error {
 	if err != nil {
 		return err
 	}
+	families, err := seedFamilyChildren(rt.Client, auth, from)
+	if err != nil {
+		return err
+	}
 	released := 0
 	if !first.IsZero() {
 		if released, err = seedCareRun(rt.Client, auth, first, true); err != nil {
@@ -78,8 +82,8 @@ func (seedTraegerCareMonthsStep) Run(_ context.Context, rt *Runtime) error {
 			return err
 		}
 	}
-	fmt.Printf("  Träger monthly contributions: %d prices, %d rules, %d evidences, %d invoices issued\n",
-		prices, rules, evidences, released)
+	fmt.Printf("  Träger monthly contributions: %d prices, %d rules, %d evidences, %d family numbers, %d invoices issued\n",
+		prices, rules, evidences, families, released)
 	return nil
 }
 

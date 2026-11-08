@@ -49,8 +49,10 @@ auf. Sie führt keinen Owner ein (ADR 0057 Punkt 5, ADR 0070).
    Gleichstand das ältere Kind, dann eine feste Reihenfolge. Die Rechnung
    nennt den Rang („2. Kind von 3“) und die Regel; Namen anderer Kinder
    stehen nicht darauf. Ein Kind, das ein früherer Lauf des Monats
-   abgerechnet hat, zählt im Rang mit. #5918 ergänzt die Kinderzahl der
-   Familie an genau dieser Stelle (`rankFamilies`).
+   abgerechnet hat, zählt im Rang mit. Die Kinderzahl der Familie (#5918,
+   ADR 0088 §4 Nachtrag 2026-11-08) ergänzt die Zählung je Regel: Eine
+   Regel, die sie nutzt, zählt `max(bestätigte Zahl, Kinder mit Vertrag)`;
+   die Geschwister ohne Vertrag stehen in der Reihenfolge vorn.
 
    **Grenzen der Familie über die Mail-Adresse, bis #4689 und #5918
    hingenommen:** Nutzen zwei Familien dieselbe Rechnungsadresse, legt moto
