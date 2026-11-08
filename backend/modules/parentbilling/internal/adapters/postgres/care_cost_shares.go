@@ -28,6 +28,11 @@ const (
 	careCostShareOverlap = "excl_care_cost_shares_overlap"
 )
 
+// careCostShareColumns are the columns a read of the shares answers.
+const careCostShareColumns = `share.id, share.organization_id, share.care_contract_id, share.kind, share.cost_bearer_id,
+	share.share_basis_points, share.share_cents, share.valid_from, share.valid_until, share.reference, share.checked_on,
+	share.recorded_by_account_id, share.updated_at`
+
 type careCostShareRow struct {
 	bun.BaseModel `bun:"table:parent_billing.care_cost_shares,alias:share"`
 
@@ -67,7 +72,7 @@ func (s *Store) CareCostShares(ctx context.Context, organizationID int64, contra
 		return []parentbilling.CareCostShare{}, nil
 	}
 	var rows []careCostShareRow
-	query := db.NewSelect().Model(&rows).ColumnExpr("share.*").ColumnExpr("bearer.name AS cost_bearer_name").
+	query := db.NewSelect().Model(&rows).ColumnExpr(careCostShareColumns).ColumnExpr("bearer.name AS cost_bearer_name").
 		Join("JOIN parent_billing.cost_bearers AS bearer ON bearer.organization_id = share.organization_id AND bearer.id = share.cost_bearer_id").
 		Where("share.organization_id = ?", organizationID)
 	if contractIDs != nil {
@@ -95,7 +100,7 @@ func (s *Store) InsertCareCostShare(ctx context.Context, organizationID, account
 		return 0, err
 	}
 	row := newCareCostShareRow(organizationID, accountID, input)
-	if _, err := db.NewInsert().Model(row).ExcludeColumn("cost_bearer_name").Returning("id").Exec(ctx); err != nil {
+	if _, err := db.NewInsert().Model(row).Returning("id").Exec(ctx); err != nil {
 		return 0, costShareWriteError(err)
 	}
 	return row.ID, nil

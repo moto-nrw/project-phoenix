@@ -93,7 +93,13 @@ func seedCareReductions(client *Client, auth AuthRef, month calendar.Date) (int,
 		}
 	}
 	evidences, err := seedCareEvidences(client, auth, month)
-	return max(len(set.Rules), 5), evidences, err
+	if err != nil {
+		return 0, 0, err
+	}
+	if err := seedCareCostShares(client, auth, month); err != nil {
+		return 0, 0, err
+	}
+	return max(len(set.Rules), 5), evidences, nil
 }
 
 // seedCareEvidences gives the first contract without an evidence the first

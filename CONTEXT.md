@@ -834,6 +834,14 @@ Ein **Kostenträger** ist eine Stelle, die einen Anteil am Beitrag eines Kindes
 bekommt seinen Anteil in einem eigenen Beitragsdokument.
 _Vermeiden_: Zuschussgeber.
 
+Ein **Kostenträger-Anteil** sagt, welchen Teil des Monatsbeitrags eines
+Vertrags ein Kostenträger übernimmt: als Prozent oder fester Betrag im Monat,
+mit Art (Bildung und Teilhabe, Jugendamt, sonstiger Zuschuss), Gültigkeit und
+Aktenzeichen des Bescheids. Er ist keine Ermäßigung: Der Beitrag bleibt, nur
+wer ihn zahlt, teilt sich. Übernimmt der Kostenträger alles, ist der Beitrag
+für die Familie **beitragsfrei**.
+_Vermeiden_: Zuschuss als Oberbegriff, Befreiung (erlässt den Beitrag).
+
 ## Nachberechnung
 
 Eine **Nachberechnung** ist eine Beitragsposition, die einen schon

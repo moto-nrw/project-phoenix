@@ -216,14 +216,7 @@ func normalizeCareCostShare(input parentbilling.CareCostShareInput, today calend
 	if input.CostBearerID <= 0 {
 		errs["cost_bearer_id"] = errors.New("is required")
 	}
-	switch {
-	case (input.ShareBasisPoints == nil) == (input.ShareCents == nil):
-		errs["share_basis_points"] = errors.New("a share has exactly one of a share or an amount")
-	case input.ShareBasisPoints != nil && (*input.ShareBasisPoints < 1 || *input.ShareBasisPoints > parentbilling.BasisPointsWhole):
-		errs["share_basis_points"] = errors.New("must be between 1 and 10000 basis points")
-	case input.ShareCents != nil && (*input.ShareCents < 1 || *input.ShareCents > parentbilling.MaxDiscountCents):
-		errs["share_cents"] = errors.New("must be an amount in cent")
-	}
+	checkCostShareAmount(input, errs)
 	if input.ValidFrom == "" {
 		errs["valid_from"] = errors.New("is required")
 	}
@@ -243,4 +236,17 @@ func normalizeCareCostShare(input parentbilling.CareCostShareInput, today calend
 		return input, errs
 	}
 	return input, nil
+}
+
+// checkCostShareAmount wants exactly one of a share in basis points up to
+// the whole contribution or a monthly amount in cent.
+func checkCostShareAmount(input parentbilling.CareCostShareInput, errs validation.Errors) {
+	switch {
+	case (input.ShareBasisPoints == nil) == (input.ShareCents == nil):
+		errs["share_basis_points"] = errors.New("a share has exactly one of a share or an amount")
+	case input.ShareBasisPoints != nil && (*input.ShareBasisPoints < 1 || *input.ShareBasisPoints > parentbilling.BasisPointsWhole):
+		errs["share_basis_points"] = errors.New("must be between 1 and 10000 basis points")
+	case input.ShareCents != nil && (*input.ShareCents < 1 || *input.ShareCents > parentbilling.MaxDiscountCents):
+		errs["share_cents"] = errors.New("must be an amount in cent")
+	}
 }

@@ -152,6 +152,11 @@ export interface CareInvoice {
   readonly positions: readonly CarePosition[];
   /** The rules of the chain in their order (#4685); negative amounts. */
   readonly reductions: readonly CareReduction[];
+  /**
+   * What cost bearers pay of the contribution after the reductions (#4687);
+   * `totalCents` is the rest the family pays.
+   */
+  readonly costShares: readonly CareInvoiceCostShare[];
   readonly totalCents: number;
   /** Set on a preview invoice the release leaves out (#5916). */
   readonly exclusion?: CareExclusion | null;
@@ -177,6 +182,35 @@ export interface CareReduction {
   readonly priceCents: number | null;
   readonly capCents: number | null;
   readonly amountCents: number;
+}
+
+export type CareCostShareKind =
+  "education_participation" | "youth_office" | "other_subsidy";
+
+/** The part one cost bearer pays of an invoice, a positive amount (#4687). */
+export interface CareInvoiceCostShare {
+  readonly kind: CareCostShareKind;
+  readonly costBearerId: string;
+  readonly costBearerName: string;
+  readonly shareBasisPoints: number | null;
+  readonly shareCents: number | null;
+  readonly amountCents: number;
+}
+
+/** What one cost bearer pays of the invoices of a run (#4687). */
+export interface CareCostBearerTotal {
+  readonly costBearerId: string;
+  readonly costBearerName: string;
+  readonly invoiceCount: number;
+  readonly amountCents: number;
+}
+
+/** The contribution before the cost bearer shares. */
+export function careContributionCents(invoice: CareInvoice): number {
+  return invoice.costShares.reduce(
+    (sum, share) => sum + share.amountCents,
+    invoice.totalCents,
+  );
 }
 
 export interface CareUnpriced {
@@ -227,6 +261,8 @@ export interface CareRunDetail extends CareRun {
   readonly excludedCents: number;
   /** The reviewed state; the release sends it back. */
   readonly fingerprint: string;
+  /** What each cost bearer pays of the invoices (#4687). */
+  readonly costBearers: readonly CareCostBearerTotal[];
 }
 
 interface BackendModule {
@@ -320,6 +356,16 @@ interface BackendInvoice {
         amount_cents: number;
       }[]
     | null;
+  cost_shares?:
+    | {
+        kind: CareCostShareKind;
+        cost_bearer_id: number;
+        cost_bearer_name: string;
+        share_basis_points: number | null;
+        share_cents: number | null;
+        amount_cents: number;
+      }[]
+    | null;
   total_cents: number;
   exclusion?: { reason: string; excluded_at: string } | null;
 }
@@ -360,6 +406,14 @@ export interface BackendRunDetail extends BackendRun {
   excluded_count?: number;
   excluded_cents?: number;
   fingerprint?: string;
+  cost_bearers?:
+    | {
+        cost_bearer_id: number;
+        cost_bearer_name: string;
+        invoice_count: number;
+        amount_cents: number;
+      }[]
+    | null;
 }
 
 const TARIFFS_PATH = "/api/traeger/care-tariffs";
@@ -464,6 +518,14 @@ function invoiceFromBackend(invoice: BackendInvoice): CareInvoice {
       capCents: reduction.cap_cents,
       amountCents: reduction.amount_cents,
     })),
+    costShares: (invoice.cost_shares ?? []).map((share) => ({
+      kind: share.kind,
+      costBearerId: id(share.cost_bearer_id),
+      costBearerName: share.cost_bearer_name,
+      shareBasisPoints: share.share_basis_points,
+      shareCents: share.share_cents,
+      amountCents: share.amount_cents,
+    })),
     totalCents: invoice.total_cents,
     exclusion: invoice.exclusion
       ? {
@@ -513,6 +575,12 @@ export function detailFromBackend(detail: BackendRunDetail): CareRunDetail {
     excludedCount: detail.excluded_count ?? 0,
     excludedCents: detail.excluded_cents ?? 0,
     fingerprint: detail.fingerprint ?? "",
+    costBearers: (detail.cost_bearers ?? []).map((total) => ({
+      costBearerId: id(total.cost_bearer_id),
+      costBearerName: total.cost_bearer_name,
+      invoiceCount: total.invoice_count,
+      amountCents: total.amount_cents,
+    })),
   };
 }
 

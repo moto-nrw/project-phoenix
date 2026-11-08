@@ -49,6 +49,7 @@ function invoice(child: string, contractId: string): CareInvoice {
     recipient: { firstName: "Eva", lastName: "Beispiel", email: "" },
     positions: [],
     reductions: [],
+    costShares: [],
     totalCents: 7750,
     exclusion: null,
   };
@@ -92,6 +93,7 @@ const RUN: CareRunDetail = {
   excludedCount: 1,
   excludedCents: 7750,
   fingerprint: "f1",
+  costBearers: [],
 };
 
 function renderPage() {
