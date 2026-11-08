@@ -242,7 +242,7 @@ func TestReleasedInvoiceKeepsTheDebtorNumberForLetterAndOverview(t *testing.T) {
 	rec = traegerJSON(t, f.traeger, billing, http.MethodGet, billingRunPath(run.ID, "/export?format=csv"), nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	lines := strings.Split(strings.TrimSpace(strings.TrimPrefix(rec.Body.String(), "\xEF\xBB\xBF")), "\n")
-	assert.Equal(t, "Rechnungsnummer;Empfänger;Debitorennummer;Kind;Position;Betrag in Euro", strings.TrimSpace(lines[0]))
+	assert.Equal(t, "Rechnungsnummer;Empfänger;Debitorennummer;Kind;Position;Betrag in Euro;Zahlungsweg;Fällig am", strings.TrimSpace(lines[0]))
 	assert.Contains(t, rec.Body.String(), ";Muster, Eva;10 4711;Lia Muster;")
 	assert.Contains(t, rec.Body.String(), ";Muster, Eva;10 4711;;Summe der Rechnung;", "the sum of the invoice names the number")
 	assert.Contains(t, rec.Body.String(), "FE-0002;Muster, Eva;;LIA muster;", "an invoice without a number keeps the cell empty")

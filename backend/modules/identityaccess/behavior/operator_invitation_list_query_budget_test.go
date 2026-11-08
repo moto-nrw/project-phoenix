@@ -43,5 +43,5 @@ func TestOperatorInvitationsListQueryBudget(t *testing.T) {
 	add(3, 8)
 	large := run()
 	assert.Equal(t, len(small), len(large), "the listing must not grow a statement per link")
-	querybudgets.AssertQueryBudget(t, "services.platform.pending_operator_invitations.reads", large)
+	querybudgets.AssertQueryBudget(t, "services.platform.pending_operator_invitations.reads", counter.Measurement(large))
 }

@@ -2,5 +2,6 @@
   "scenario": "api.traeger.care_contract_candidates",
   "max": 11,
   "exact": true,
-  "description": "modules/carecontract — GET /traeger/contracts/candidates (#4678, ADR 0153):\nthe schools of the Träger, then per school its tenant binding, the accepted\napplications, their bookings, the offerings and their phases, then the\nTräger binding, the contract keys and the templates. Flat in the number of\nchildren; one fixed set per school."
+  "description": "modules/carecontract — GET /traeger/contracts/candidates (#4678, ADR 0153):\nthe schools of the Träger, then per school its tenant binding, the accepted\napplications, their bookings, the offerings and their phases, then the\nTräger binding, the contract keys and the templates. Flat in the number of\nchildren; one fixed set per school.",
+  "route": "GET /traeger/contracts/candidates"
 }

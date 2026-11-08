@@ -42,9 +42,9 @@ func TestEmptyStudentNotesQueryBudgetAvoidsAuthorLookup(t *testing.T) {
 		counter.Total(), len(counter.Selects("users.student_notes")), len(counter.Selects("users.persons")), queries)
 	require.Len(t, counter.Selects("users.student_notes"), 1, "the authoritative note read must still execute")
 	require.Empty(t, counter.Selects("users.persons"), "an empty timeline has no author accounts to resolve")
-	querybudgets.AssertQueryBudget(t, "modules.peopledirectory.student_notes.empty", counter.Matching(func(query string) bool {
+	querybudgets.AssertQueryBudget(t, "modules.peopledirectory.student_notes.empty", counter.Measurement(counter.Matching(func(query string) bool {
 		return strings.Contains(query, "users.student_notes") || strings.Contains(query, "users.persons")
-	}))
+	})))
 }
 
 func TestEmptyStudentNotesHonorsCancelledContext(t *testing.T) {

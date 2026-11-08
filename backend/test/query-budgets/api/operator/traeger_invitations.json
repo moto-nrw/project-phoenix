@@ -2,5 +2,6 @@
   "scenario": "api.operator.traeger_invitations",
   "max": 3,
   "exact": true,
-  "description": "organizationtenancy Provisioning.ListTraegerInvitations (#5749): the Träger\nrow for the unknown-Träger refusal, the live check of Identity & Access that\nmarks links of a Träger that is not live as expired, and one read of the open\ninvitations. Flat in the number of invitations."
+  "description": "organizationtenancy Provisioning.ListTraegerInvitations (#5749): the Träger\nrow for the unknown-Träger refusal, the live check of Identity & Access that\nmarks links of a Träger that is not live as expired, and one read of the open\ninvitations. Flat in the number of invitations.",
+  "route": "GET /operator/organizations/{id}/traeger-members/invitations"
 }

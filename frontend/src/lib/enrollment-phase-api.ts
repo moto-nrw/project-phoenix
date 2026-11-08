@@ -6,8 +6,6 @@ import {
   sendEnrollmentRequest,
 } from "~/lib/enrollment-http";
 
-import type { CareOfferingSelectionMode } from "~/lib/enrollment-submission-api";
-
 const logger = createLogger({ component: "EnrollmentPhaseAPI" });
 
 export type PhaseKind = "school_year" | "holiday" | "custom";
@@ -18,6 +16,8 @@ export type PhaseKind = "school_year" | "holiday" | "custom";
 // apply via the parents portal.
 export type PhaseAudience =
   "open" | "new_students" | "existing_students" | "linked_parents";
+export type CareOfferingSelectionMode =
+  "optional" | "at_least_one" | "exactly_one";
 export type PhaseCareOverflowMode = "waitlist" | "reject" | "allow";
 
 export interface Phase {

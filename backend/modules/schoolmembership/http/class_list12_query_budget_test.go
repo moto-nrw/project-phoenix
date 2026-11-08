@@ -43,7 +43,7 @@ func TestClassList12FullHTTPQueryBudget(t *testing.T) {
 		counter.Reset()
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		req = req.WithContext(counter.Context(req.Context()))
-		rec := testutil.ExecuteWithAuthPermissions(t, router, req, claims, []string{"users:read"})
+		rec := testutil.ExecuteWithAuthPermissions(t, testpkg.MountedQueryBudgetRouter("/api/class-list-entries", router), req, claims, []string{"users:read"})
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 		var payload classList12Response
 		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
@@ -53,9 +53,9 @@ func TestClassList12FullHTTPQueryBudget(t *testing.T) {
 			require.Equal(t, expected[entry.ID], entry.Matching, "each entry retains its own match")
 		}
 		if i == 7 {
-			querybudgets.AssertQueryBudget(t, "api.class_list_entries.list.full.n8", counter.Queries())
+			querybudgets.AssertQueryBudget(t, "api.class_list_entries.list.full.n8", counter.Measurement(counter.Queries()))
 		} else {
-			querybudgets.AssertQueryBudget(t, "api.class_list_entries.list.full.n3", counter.Queries())
+			querybudgets.AssertQueryBudget(t, "api.class_list_entries.list.full.n3", counter.Measurement(counter.Queries()))
 		}
 	}
 }

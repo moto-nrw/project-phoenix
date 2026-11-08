@@ -73,14 +73,14 @@ describe("CoverageIndicator", () => {
     );
   });
 
-  it('renders a smaller 6px dot and text-[11px] numbers for size="sm"', () => {
+  it('renders a smaller 6px dot and text-xs numbers for size="sm"', () => {
     render(
       <CoverageIndicator state="covered" current={2} total={3} size="sm" />,
     );
 
     const dot = document.querySelector('[aria-hidden="true"]');
     expect(dot).toHaveStyle({ width: "6px", height: "6px" });
-    expect(screen.getByText("2").parentElement).toHaveClass("text-[11px]");
+    expect(screen.getByText("2").parentElement).toHaveClass("text-xs");
   });
 
   it("colors a free-form label red for tone=under (Unterdeckung, text only)", () => {

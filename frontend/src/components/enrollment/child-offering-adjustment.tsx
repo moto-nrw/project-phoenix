@@ -18,12 +18,13 @@ import {
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { SectionLabel } from "~/components/ui/section-label";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { Textarea } from "~/components/ui/textarea";
 import { ToggleChip } from "~/components/ui/toggle-chip";
 import {
-  BLOCKED_OFFERING_ROW_TONE,
   OfferingOccupancyLine,
   OfferingRowShell,
 } from "~/components/enrollment/offering-row-shell";
@@ -99,7 +100,7 @@ function BlockedOfferingRow({
   const inputId = `blocked-offering-${offering.id}`;
   const heldAutomatically = automaticDays.length > 0;
   return (
-    <OfferingRowShell tone={BLOCKED_OFFERING_ROW_TONE}>
+    <OfferingRowShell state="blocked">
       {/* A real <label> is load-bearing, not decoration: the kit Checkbox
           renders an sr-only input behind a pointer-events-none visual, so
           without the label wrapping it a mouse click on the box does nothing
@@ -491,7 +492,7 @@ export function ChildOfferingAdjustment({
     return null;
 
   return (
-    <div className="rounded-lg border border-gray-100 bg-white p-3">
+    <InsetPanel framed>
       {withdrawalCreated ? (
         <Alert
           type="warning"
@@ -501,9 +502,7 @@ export function ChildOfferingAdjustment({
       {careOfferingsEnabled ? (
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-              Nachbearbeitung
-            </h4>
+            <SectionLabel as="h4">Nachbearbeitung</SectionLabel>
             <p className="mt-1 text-sm text-gray-600">
               {child.offerings_unavailable
                 ? "Die gebuchten Angebote konnten nicht geladen werden. Bitte die Seite neu laden, eine Korrektur würde sonst auf einem unbekannten Stand aufsetzen."
@@ -549,11 +548,7 @@ export function ChildOfferingAdjustment({
                 return (
                   <OfferingRowShell
                     key={offering.id}
-                    tone={
-                      checked
-                        ? "border-moto-green/40 bg-moto-green/10"
-                        : "border-gray-200 bg-white"
-                    }
+                    state={checked ? "selected" : "available"}
                   >
                     {/* Wie in BlockedOfferingRow: das Kit-Checkbox-Feld ist
                         sr-only, erst das <label> mit htmlFor macht den Klick
@@ -623,9 +618,9 @@ export function ChildOfferingAdjustment({
               })}
               {blockedCatalog.length > 0 ? (
                 <div className="space-y-2 pt-1">
-                  <p className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+                  <SectionLabel as="p">
                     Für dieses Kind nicht wählbar
-                  </p>
+                  </SectionLabel>
                   {blockedCatalog.map((offering) => (
                     <BlockedOfferingRow
                       key={offering.id}
@@ -698,10 +693,10 @@ export function ChildOfferingAdjustment({
             careOfferingsEnabled ? "mt-3 border-t border-gray-100 pt-3" : ""
           }
         >
-          <div className="flex items-center gap-2 text-xs font-medium tracking-wide text-gray-500 uppercase">
+          <SectionLabel as="p" className="flex items-center gap-2">
             <MotoConceptIcon concept={changeHistoryConcept} size={14} />
             Änderungshistorie
-          </div>
+          </SectionLabel>
           <ul className="mt-2 space-y-2">
             {history.slice(0, 5).map((entry) => (
               <li key={entry.id} className="text-xs leading-5 text-gray-600">
@@ -754,7 +749,7 @@ export function ChildOfferingAdjustment({
           Abmeldung muss anschließend abgeschlossen werden.
         </p>
       </ConfirmationModal>
-    </div>
+    </InsetPanel>
   );
 }
 

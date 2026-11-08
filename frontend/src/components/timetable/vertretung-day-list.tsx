@@ -23,6 +23,7 @@
 
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
+import { SectionCard } from "~/components/ui/section-card";
 import { Button } from "~/components/ui/button";
 import {
   CoverageIndicator,
@@ -44,7 +45,6 @@ import {
   VertretungListFilter,
   type VertretungDayListMode as FilterMode,
 } from "./vertretung-list-filter";
-import { cn } from "~/lib/utils";
 
 // Der Typ lebt beim Filter (siehe dort), wird hier aber unter dem gewohnten
 // Namen weitergereicht, damit die bestehenden Aufrufer nichts ändern müssen.
@@ -238,10 +238,6 @@ export function VertretungDayList({
   onEdit,
   className,
 }: VertretungDayListProps) {
-  const containerClassName = cn(
-    "moto-content-surface rounded-2xl border",
-    className,
-  );
   const filter = onModeChange ? (
     <VertretungListFilter
       mode={mode}
@@ -252,12 +248,12 @@ export function VertretungDayList({
 
   if (instances.length === 0) {
     return (
-      <div className={containerClassName}>
+      <SectionCard padding="none" overflow="visible" className={className}>
         {filter}
         <div className="px-4 py-2">
           <EmptyState variant="compact" title="Keine Termine an diesem Tag" />
         </div>
-      </div>
+      </SectionCard>
     );
   }
 
@@ -275,7 +271,7 @@ export function VertretungDayList({
   const visibleRows = showAll ? classified : disturbed;
 
   return (
-    <div className={containerClassName}>
+    <SectionCard padding="none" overflow="visible" className={className}>
       {filter}
       {!gapsAvailable && (
         <div className="border-b border-gray-200 p-3">
@@ -296,7 +292,7 @@ export function VertretungDayList({
         canManage={canManage}
         onEdit={onEdit}
       />
-    </div>
+    </SectionCard>
   );
 }
 
@@ -349,7 +345,7 @@ function VertretungDayListRow({
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="flex flex-col gap-0.5">
-          <span className={`text-[11px] font-medium tabular-nums ${timeClass}`}>
+          <span className={`text-xs font-medium tabular-nums ${timeClass}`}>
             {instance.startTime}–{instance.endTime}
           </span>
           <span className={`text-xs font-semibold ${titleClass}`}>
@@ -389,14 +385,14 @@ function VertretungDayListRow({
             coverageState === "acknowledged" ? "bewusst unbesetzt" : undefined
           }
         />
-        <span className="text-[11px] text-gray-500 tabular-nums">
+        <span className="text-xs text-gray-500 tabular-nums">
           Soll {triple.planned} · Ist {triple.present} · Abwesend{" "}
           {triple.absent}
         </span>
       </div>
 
       {hasAbsence && (
-        <div className="flex flex-col gap-1 text-[11px] text-gray-600">
+        <div className="flex flex-col gap-1 text-xs text-gray-600">
           <ul className="flex flex-col gap-1">
             {absentPlannedRows.map((staffRow) => {
               const name = staffLabel(staffNames, staffRow.staffId);
@@ -417,13 +413,13 @@ function VertretungDayListRow({
       )}
 
       {ackMatch?.understaffedNote && (
-        <p className="text-[11px] text-gray-500">
+        <p className="text-xs text-gray-500">
           Grund: {ackMatch.understaffedNote}
         </p>
       )}
 
       {isCancelled && (
-        <p className="text-[11px] text-gray-600">
+        <p className="text-xs text-gray-600">
           abgesagt{instance.cancelReason ? `: ${instance.cancelReason}` : ""}
         </p>
       )}

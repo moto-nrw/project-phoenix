@@ -1,8 +1,9 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { useModal } from "~/components/ui/modal-context";
+import { SectionCard } from "~/components/ui/section-card";
 import { cn } from "~/lib/utils";
 import {
   Drawer,
@@ -61,9 +62,13 @@ export function MasterDetailLayout({
     // Touchscreen mühsam (#3330).
     return (
       <div className={cn("flex w-full flex-col", className)}>
-        <div className="moto-content-surface min-h-0 flex-1 overflow-hidden rounded-2xl border">
-          <div className="h-full overflow-auto">{list}</div>
-        </div>
+        <SectionCard
+          padding="none"
+          className="min-h-0 flex-1"
+          bodyClassName="h-full overflow-auto"
+        >
+          {list}
+        </SectionCard>
         <Drawer
           open={selectedId !== null}
           onOpenChange={(open) => {
@@ -104,24 +109,36 @@ export function MasterDetailLayout({
     // den Ausstieg machte die Wachstumsregel aus globals.css diese Zeile zur
     // Spalte und gäbe der Objektansicht `flex: 1 0 auto`. Sie schrumpfte
     // dann nicht mehr und lief über den rechten Rand hinaus (#3330).
+    // Die Listenbreite reist als CSS-Variable, weil die Kit-Karte kein
+    // `style` annimmt.
     <div
       ref={containerRef}
-      style={{ height }}
+      style={
+        {
+          height,
+          "--master-detail-list-width": `${listWidth}px`,
+        } as CSSProperties
+      }
       className={cn("flex w-full gap-4", className)}
     >
-      <div
+      <SectionCard
+        padding="none"
         className={cn(
-          "moto-content-surface moto-scroll-surface overflow-hidden rounded-2xl border",
-          showDetail ? "shrink-0" : "flex-1",
+          "moto-scroll-surface",
+          showDetail ? "w-(--master-detail-list-width) shrink-0" : "flex-1",
         )}
-        style={showDetail ? { width: listWidth } : undefined}
+        bodyClassName="flex h-full flex-col"
       >
-        <div className="flex h-full flex-col">{list}</div>
-      </div>
+        {list}
+      </SectionCard>
       {showDetail ? (
-        <div className="moto-content-surface moto-scroll-surface min-w-0 flex-1 overflow-hidden rounded-2xl border">
-          <div className="flex h-full flex-col">{detail}</div>
-        </div>
+        <SectionCard
+          padding="none"
+          className="moto-scroll-surface min-w-0 flex-1"
+          bodyClassName="flex h-full flex-col"
+        >
+          {detail}
+        </SectionCard>
       ) : null}
     </div>
   );

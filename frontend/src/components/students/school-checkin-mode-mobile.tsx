@@ -5,7 +5,6 @@ import { CheckSquare, LogIn, LogOut, X } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { SelectionBar } from "~/components/ui/selection-bar";
 import { SegmentedControl } from "~/components/ui/segmented-control";
-import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
 import {
   leftOutLabel,
@@ -108,28 +107,18 @@ export function SchoolCheckinModeMobile({
   if (!attendanceWebEnabled) return null;
   if (!isActive) {
     return (
-      <button
+      <Button
         type="button"
         onClick={onToggle}
         aria-pressed={false}
         aria-label="Kinder an- und abmelden"
-        className="flex w-full items-center justify-center gap-2.5 rounded-full px-5 py-3 text-base font-semibold transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
-        style={{
-          backgroundColor: "var(--color-white)",
-          color: GROUP_ROOM_SHADES.text,
-          boxShadow: `inset 0 0 0 1.5px ${GROUP_ROOM_SHADES.base}, 0 1px 2px rgb(0 0 0 / 0.04)`,
-          // @ts-expect-error CSS custom property for focus ring colour
-          "--tw-ring-color": `${GROUP_ROOM_SHADES.base}80`,
-        }}
+        variant="surface"
+        size="base"
+        className="w-full gap-2"
       >
-        <span
-          className="flex size-5 flex-shrink-0 items-center justify-center rounded-full"
-          style={{ backgroundColor: `${GROUP_ROOM_SHADES.base}1a` }}
-        >
-          <CheckSquare className="size-3.5" strokeWidth={2.5} aria-hidden />
-        </span>
+        <CheckSquare className="size-4" strokeWidth={2.5} aria-hidden />
         <span>Kinder an- und abmelden</span>
-      </button>
+      </Button>
     );
   }
 

@@ -16,6 +16,7 @@ import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { ExportMenu, type ExportMenuOption } from "~/components/ui/export-menu";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import type { SegmentedControlItem } from "~/components/ui/segmented-control";
@@ -482,7 +483,7 @@ function VersionSection({
         )}
       </div>
       {current ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-4">
+        <InsetPanel tone="white" padding="md">
           <DataGrid>
             <DataField label="Aktuelle Fassung">
               Fassung {current.version_no}
@@ -507,7 +508,7 @@ function VersionSection({
               </DataField>
             )}
           </DataGrid>
-        </div>
+        </InsetPanel>
       ) : (
         <p className="text-sm text-gray-500">
           Noch keine Fassung. Sie entsteht beim Veröffentlichen.

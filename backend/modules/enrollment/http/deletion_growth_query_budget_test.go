@@ -26,7 +26,7 @@ func TestEnrollmentDeletionRouteGrowthQueryBudget(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "deletion-growth-reader")
 	token := testutil.MintTestJWT(t, sessiontoken.AppClaims{ID: int(account.ID), Sub: account.Email, Username: account.Email, TenantID: f.scope.TenantID, Roles: []string{"admin"}, Permissions: []string{"config:manage"}})
 	counter := testpkg.CaptureQueries(t, db)
-	run := func(n int) [][]string {
+	run := func(n int) []testpkg.QueryMeasurement {
 		request := f.request(fmt.Sprintf("growth%d", n), nil)
 		var firstChild int64
 		for i := range n {
@@ -35,7 +35,7 @@ func TestEnrollmentDeletionRouteGrowthQueryBudget(t *testing.T) {
 				firstChild = child.ID
 			}
 		}
-		queries := make([][]string, 2)
+		queries := make([]testpkg.QueryMeasurement, 2)
 		for i, path := range []string{fmt.Sprintf("/admin/requests/%d/delete-impact", request.ID), fmt.Sprintf("/admin/requests/%d/children/%d/delete-impact", request.ID, firstChild)} {
 			raw, q := growthGET(t, router, counter, token, path)
 			queries[i] = q
@@ -56,8 +56,8 @@ func TestEnrollmentDeletionRouteGrowthQueryBudget(t *testing.T) {
 	}
 	small, large := run(3), run(8)
 	for i := range small {
-		t.Logf("deletion route %d N3=%d N8=%d", i, len(small[i]), len(large[i]))
-		require.Equal(t, len(small[i]), len(large[i]))
+		t.Logf("deletion route %d N3=%d N8=%d", i, len(small[i].Statements), len(large[i].Statements))
+		require.Equal(t, len(small[i].Statements), len(large[i].Statements))
 	}
 	querybudgets.AssertQueryBudget(t, "api.enrollment.growth.request_delete_impact", large[0])
 	querybudgets.AssertQueryBudget(t, "api.enrollment.growth.child_delete_impact", large[1])

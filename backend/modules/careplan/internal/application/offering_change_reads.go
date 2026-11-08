@@ -96,7 +96,7 @@ func (s *OfferingChanges) decisionView(ctx context.Context, row careplan.Offerin
 		return nil, fmt.Errorf("offering change: list requests: %w", err)
 	}
 	decision := &careplan.OfferingChangeDecision{
-		ID: row.ID, SubmittedBy: row.SubmittedBy, Status: row.Status,
+		ID: row.ID, RequestChildID: row.RequestChildID, SubmittedBy: row.SubmittedBy, Status: row.Status,
 		CompleteWithdrawal: row.ApprovedCompleteWithdrawal, DecidedAt: *row.ReviewedAt,
 		EffectiveFrom: offeringChangeEffectiveFrom(row),
 	}

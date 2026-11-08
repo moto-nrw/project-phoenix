@@ -28,7 +28,10 @@ func (s *ChangeRequests) enqueueAdminNotification(ctx context.Context, tenantID 
 			return nil
 		}
 		for _, admin := range resolveAdminEmails(s.adminNotificationEmails(txCtx)) {
-			payload := s.emailPayload(txCtx, req, changeRequestID, admin)
+			payload, err := s.emailPayload(txCtx, req, changeRequestID, admin)
+			if err != nil {
+				return err
+			}
 			payload[enrollment.EnrollmentPayloadAdminURL] = s.adminURL(changeRequestID)
 			s.enqueueChangeRequestMail(txCtx, tenantID, req, changeRequestID, kind, payload)
 		}
@@ -48,7 +51,10 @@ func (s *ChangeRequests) enqueueParentNotification(ctx context.Context, tenantID
 		if !s.emailNotificationsEnabled(txCtx) {
 			return nil
 		}
-		payload := s.emailPayload(txCtx, req, changeRequestID, req.GuardianEmail)
+		payload, err := s.emailPayload(txCtx, req, changeRequestID, req.GuardianEmail)
+		if err != nil {
+			return err
+		}
 		s.enqueueChangeRequestMail(txCtx, tenantID, req, changeRequestID, kind, payload)
 		return nil
 	})
@@ -88,19 +94,23 @@ func (s *ChangeRequests) logChangeRequestNotificationFailure(err error, tenantID
 	)
 }
 
-func (s *ChangeRequests) emailPayload(ctx context.Context, req *Request, changeRequestID int64, recipient string) map[string]any {
-	schoolName, logoURL, footerLogoURL := schoolBrand(ctx, s.deps.Notifications, req.TenantID, s.deps.ParentsURL)
+func (s *ChangeRequests) emailPayload(ctx context.Context, req *Request, changeRequestID int64, recipient string) (map[string]any, error) {
+	brand, err := schoolBrand(ctx, s.deps.Notifications, req.TenantID, s.deps.ParentsURL)
+	if err != nil {
+		return nil, err
+	}
 	return map[string]any{
 		enrollment.EnrollmentPayloadGuardianFirstName: req.GuardianFirstName,
 		enrollment.EnrollmentPayloadGuardianLastName:  req.GuardianLastName,
 		enrollment.EnrollmentPayloadGuardianEmail:     req.GuardianEmail,
-		enrollment.EnrollmentPayloadSchoolName:        schoolName,
+		enrollment.EnrollmentPayloadSchoolName:        brand.SchoolName,
 		enrollment.EnrollmentPayloadStatusURL:         enrollment.StatusURL(s.deps.ParentsURL, req.StatusToken),
-		enrollment.EnrollmentPayloadLogoURL:           logoURL,
-		enrollment.EnrollmentPayloadMotoLogoURL:       footerLogoURL,
+		enrollment.EnrollmentPayloadLogoURL:           brand.LogoURL,
+		enrollment.EnrollmentPayloadMotoLogoURL:       brand.MotoLogoURL,
+		enrollment.EnrollmentPayloadCareFacilityTerm:  brand.CareFacilityTerm,
 		enrollment.EnrollmentPayloadRecipientEmail:    recipient,
 		"change_request_id":                           strconv.FormatInt(changeRequestID, 10),
-	}
+	}, nil
 }
 
 func (s *ChangeRequests) adminURL(changeRequestID int64) string {

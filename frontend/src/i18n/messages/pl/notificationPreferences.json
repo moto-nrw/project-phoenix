@@ -39,7 +39,7 @@
     },
     "parent_billing_document": {
       "label": "Nowy dokument od organizatora",
-      "description": "Gdy organizator wyśle Państwu dokument, na przykład potwierdzenie."
+      "description": "Gdy organizator wyśle lub udostępni Państwu dokument, na przykład umowę."
     }
   },
   "errorObjectList": "lista powiadomień",

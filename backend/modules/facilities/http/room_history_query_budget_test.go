@@ -125,7 +125,7 @@ func TestRoomHistoryQueryBudget(t *testing.T) {
 	testpkg.CreateTestVisitForTenant(t, db, foreignTenant, foreignStudent.ID, foreignSession.ID, anchor.Add(time.Minute), &foreignEnd)
 
 	counter := testpkg.CaptureQueriesForContext(t, db)
-	measure := func(n int) []string {
+	measure := func(n int) testpkg.QueryMeasurement {
 		t.Helper()
 		require.Len(t, expected, n)
 		require.Len(t, createdSessionIDs, n)
@@ -136,7 +136,7 @@ func TestRoomHistoryQueryBudget(t *testing.T) {
 		request.URL.RawQuery = query.Encode()
 		counter.Reset()
 		request = request.WithContext(counter.Context(request.Context()))
-		response := testutil.ExecuteWithAuth(t, router, request, claims)
+		response := testutil.ExecuteWithAuth(t, testpkg.MountedQueryBudgetRouter("/api/rooms", router), request, claims)
 		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 		var body struct {
 			Status  string                         `json:"status"`
@@ -181,7 +181,7 @@ func TestRoomHistoryQueryBudget(t *testing.T) {
 		require.Len(t, counter.Selects("users.persons"), 1, "one person set read")
 		queries := counter.Queries()
 		t.Logf("room history N=%d sessions in one room: statements=%d\n%s", n, len(queries), strings.Join(queries, "\n"))
-		return queries
+		return counter.Measurement(queries)
 	}
 
 	add(0, 3)
@@ -194,12 +194,12 @@ func TestRoomHistoryQueryBudget(t *testing.T) {
 		faultQuery.Set("end", windowEnd.Format(time.RFC3339))
 		faultRequest.URL.RawQuery = faultQuery.Encode()
 		faultRequest = faultRequest.WithContext(counter.Context(faultRequest.Context()))
-		faultResponse := testutil.ExecuteWithAuth(t, router, faultRequest, claims)
+		faultResponse := testutil.ExecuteWithAuth(t, testpkg.MountedQueryBudgetRouter("/api/rooms", router), faultRequest, claims)
 		assertRoomEmploymentReadIndependent(t, counter, faultResponse)
 	})
 	add(3, 8)
 	large := measure(8)
-	require.Len(t, large, len(small), "history statements must not grow with sessions or distinct supervisors")
+	require.Len(t, large.Statements, len(small.Statements), "history statements must not grow with sessions or distinct supervisors")
 
 	// Unlike merely placing rows in another room, this request exercises the
 	// real room visibility gate with a foreign ID and the local caller. The
@@ -211,7 +211,7 @@ func TestRoomHistoryQueryBudget(t *testing.T) {
 	foreignRequest.URL.RawQuery = foreignQuery.Encode()
 	counter.Reset()
 	foreignRequest = foreignRequest.WithContext(counter.Context(foreignRequest.Context()))
-	foreignResponse := testutil.ExecuteWithAuth(t, router, foreignRequest, claims)
+	foreignResponse := testutil.ExecuteWithAuth(t, testpkg.MountedQueryBudgetRouter("/api/rooms", router), foreignRequest, claims)
 	require.Equal(t, http.StatusInternalServerError, foreignResponse.Code, foreignResponse.Body.String())
 	require.NotContains(t, foreignResponse.Body.String(), foreignActivity.Name)
 	require.NotContains(t, foreignResponse.Body.String(), "Foreign HistorySupervisor")

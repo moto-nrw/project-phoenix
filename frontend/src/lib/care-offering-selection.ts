@@ -77,7 +77,10 @@ export function materializeCareSelection(
   const offeringDays: Record<string, Set<string>> = {};
   const automaticDays: Record<string, Set<string>> = {};
   for (const [id, days] of Object.entries(selection.offeringDays)) {
-    offeringDays[id] = new Set(days);
+    // Days kept for an offering that is no longer selected must not feed
+    // chained automatic bookings (Go builds the manual picks from the
+    // selected offerings only).
+    if (offeringIds.has(id)) offeringDays[id] = new Set(days);
   }
   const daysOf = (offering: SelectableOffering): Iterable<string> =>
     offering.days_of_week_mode === "parent_choice"

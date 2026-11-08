@@ -39,18 +39,18 @@ func TestCombinationGroupsQueryBudget(t *testing.T) {
 	}
 
 	counter := testpkg.CaptureQueries(t, tc.db)
-	run := func(want int) []string {
+	run := func(want int) testpkg.QueryMeasurement {
 		counter.Reset()
 		req := testutil.NewRequest("GET", fmt.Sprintf("/active/combined/%d/groups", combined.ID), nil)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := testutil.ExecuteWithAuthPermissions(t, testpkg.MountedQueryBudgetRouter("/api", router), req, testutil.AdminTestClaims(1), []string{"admin:*"})
 		require.Equal(t, testutil.StatusOK, rr.Code, "body: %s", rr.Body.String())
 		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 		data, _ := response["data"].([]any)
 		require.Len(t, data, want)
 		// The tenant transaction's set_config statement is route plumbing, not a read.
-		return counter.Matching(func(sqlLower string) bool {
+		return counter.Measurement(counter.Matching(func(sqlLower string) bool {
 			return strings.HasPrefix(sqlLower, "select") && !strings.Contains(sqlLower, "set_config")
-		})
+		}))
 	}
 
 	run(0)
@@ -58,6 +58,6 @@ func TestCombinationGroupsQueryBudget(t *testing.T) {
 	small := run(3)
 	add(5)
 	large := run(8)
-	assert.Equal(t, len(small), len(large), "query count must be independent of the mapped session count")
+	assert.Equal(t, len(small.Statements), len(large.Statements), "query count must be independent of the mapped session count")
 	querybudgets.AssertQueryBudget(t, "api.active.combination_groups.reads", large)
 }

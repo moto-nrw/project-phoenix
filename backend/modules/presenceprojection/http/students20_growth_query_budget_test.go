@@ -157,7 +157,7 @@ func TestStudents20PresenceGrowthQueryBudget(t *testing.T) {
 					expectedAudits = 2
 				}
 				require.Equal(t, expectedAudits, auditCount)
-				assertStudents20PresenceBudget(t, route, n, counter.Queries())
+				assertStudents20PresenceBudget(t, route, n, counter.Measurement(counter.Queries()))
 				t.Logf("students20 %s N%d SQL=%d", route, n, len(queries))
 			}
 		})
@@ -203,7 +203,7 @@ func TestStudents20AttendanceHistoryGrowthQueryBudget(t *testing.T) {
 		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
 		require.Equal(t, map[string]any{"student_id": strconv.FormatInt(child.ID, 10), "days": expected, "range": map[string]any{"start": studentsTestToday.AddDays(-7).BerlinMidnight().UTC().Format(time.RFC3339Nano), "end": studentsTestToday.EndOfDay().UTC().Format(time.RFC3339Nano)}, "clamped": false, "caps": map[string]any{"attendance_days": float64(30), "room_detail_days": float64(7)}}, body.Data)
 		require.EqualValues(t, 1, counter.WriteRows())
-		assertStudents20PresenceBudget(t, "attendance_history", n, counter.Queries())
+		assertStudents20PresenceBudget(t, "attendance_history", n, counter.Measurement(counter.Queries()))
 		t.Logf("students20 attendance_history N%d SQL=%d", n, counter.Total())
 	}
 }
@@ -246,12 +246,12 @@ func TestStudents20AttendanceExportGrowthQueryBudget(t *testing.T) {
 		}
 		require.Equal(t, expected, data)
 		require.EqualValues(t, 1, counter.WriteRows())
-		assertStudents20PresenceBudget(t, "attendance_export", n, counter.Queries())
+		assertStudents20PresenceBudget(t, "attendance_export", n, counter.Measurement(counter.Queries()))
 		t.Logf("students20 attendance_export N%d SQL=%d", n, counter.Total())
 	}
 }
 
-func assertStudents20PresenceBudget(t *testing.T, route string, n int, queries []string) {
+func assertStudents20PresenceBudget(t *testing.T, route string, n int, queries querybudgets.Measurement) {
 	t.Helper()
 	switch fmt.Sprintf("%s.n%d", route, n) {
 	case "day-log.n3":

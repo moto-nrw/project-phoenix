@@ -69,5 +69,5 @@ func TestListNewParentRequestsQueryBudgetGrowth(t *testing.T) {
 	large := run(8)
 	require.Equal(t, len(small), len(large))
 	t.Logf("five queues: N3=%d N8=%d statements; rows=15/40", len(small), len(large))
-	querybudgets.AssertQueryBudget(t, "modules.careplan.request_feed.list", large)
+	querybudgets.AssertQueryBudget(t, "modules.careplan.request_feed.list", counter.Measurement(large))
 }

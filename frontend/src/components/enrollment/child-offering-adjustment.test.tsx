@@ -198,6 +198,83 @@ describe("ChildOfferingAdjustment", () => {
     });
   });
 
+  it("excludes deselected manual days from chained automatic bookings", async () => {
+    mocks.listCareOfferings.mockResolvedValue([
+      catalogOffering({ id: "a", name: "Ganztag" }),
+      catalogOffering({
+        id: "b",
+        name: "Randstunde",
+        days_of_week_mode: "parent_choice",
+        available_days: ["mon", "tue"],
+        auto_add_trigger_offering_ids: ["a"],
+      }),
+      catalogOffering({
+        id: "c",
+        name: "Folgeangebot",
+        days_of_week_mode: "parent_choice",
+        available_days: ["mon", "tue"],
+        auto_add_trigger_offering_ids: ["b"],
+      }),
+    ]);
+    mocks.updateAdminChildOfferings.mockResolvedValue({});
+    renderAdjustment(
+      adjustmentChild({
+        offerings: [
+          {
+            offering_id: "a",
+            offering_name: "Ganztag",
+            days_of_week_mode: "fixed",
+            available_days: ["mon"],
+          },
+          {
+            offering_id: "b",
+            offering_name: "Randstunde",
+            days_of_week_mode: "parent_choice",
+            available_days: ["mon", "tue"],
+            selected_days: ["tue"],
+            manual_selected_days: ["tue"],
+          },
+        ],
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    const intermediate = await screen.findByRole("checkbox", {
+      name: /Randstunde/,
+    });
+    const downstream = screen.getByRole("checkbox", { name: /Folgeangebot/ });
+    expect(intermediate).toBeChecked();
+    expect(downstream).toHaveAccessibleName(
+      "Folgeangebot automatisch mitgebucht: Mo, Di",
+    );
+
+    fireEvent.click(intermediate);
+    expect(downstream).toHaveAccessibleName(
+      "Folgeangebot automatisch mitgebucht: Mo",
+    );
+
+    fireEvent.click(intermediate);
+    expect(downstream).toHaveAccessibleName(
+      "Folgeangebot automatisch mitgebucht: Mo, Di",
+    );
+    fireEvent.click(intermediate);
+    expect(downstream).toHaveAccessibleName(
+      "Folgeangebot automatisch mitgebucht: Mo",
+    );
+    fireEvent.change(screen.getByLabelText("Begründung"), {
+      target: { value: "Randstunde abgewählt" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(mocks.updateAdminChildOfferings).toHaveBeenCalledWith(
+        "request-1",
+        "child-1",
+        expect.objectContaining({ offerings: [{ offering_id: "a" }] }),
+      );
+    });
+  });
+
   // #5102: nach dem Speichern steht da, was im Betreuungsplan passiert ist,
   // auch welcher von Hand gepflegte Regeltermin das Kind weiter einplant.
   it("shows the effect on the Betreuungsplan after saving", async () => {

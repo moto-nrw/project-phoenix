@@ -57,7 +57,7 @@ func TestRealTargetStudentBindingQueryBudgetStaysFlat(t *testing.T) {
 		require.Zero(t, writeRows)
 		require.Len(t, queries, expectedStatements, "business SQL includes both real owners, not transaction setup")
 		if label == "groups3_students3" || label == "groups8_students8" {
-			querybudgets.AssertQueryBudget(t, "modules.timetable.target_students.real_binding", queries)
+			querybudgets.AssertQueryBudget(t, "modules.timetable.target_students.real_binding", counter.Measurement(queries))
 		}
 	}
 

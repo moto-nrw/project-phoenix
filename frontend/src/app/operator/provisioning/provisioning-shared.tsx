@@ -1,5 +1,7 @@
 import { Children, cloneElement, isValidElement } from "react";
+import { SectionLabel } from "~/components/ui/section-label";
 import { Inbox, Plus } from "lucide-react";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { EmptyState as UIEmptyState } from "~/components/ui/empty-state";
@@ -64,9 +66,13 @@ export function FormField({
 
 export function FieldWarning({ message }: { readonly message: string }) {
   return (
-    <p className="bg-moto-amber-soft text-moto-amber-strong mt-1 rounded px-2 py-1 text-xs">
-      {message}
-    </p>
+    <Alert
+      type="warning"
+      size="compact"
+      announce="polite"
+      message={message}
+      className="mt-1"
+    />
   );
 }
 
@@ -202,9 +208,7 @@ export function VisibilityToggle({
 }) {
   return (
     <div className="border-t border-gray-100 pt-4">
-      <p className="mb-3 text-xs font-medium text-gray-500 uppercase">
-        Sichtbarkeit
-      </p>
+      <SectionLabel className="mb-3">Sichtbarkeit</SectionLabel>
       <SwitchRow
         label={hidden ? "Verborgen" : "Sichtbar"}
         description={

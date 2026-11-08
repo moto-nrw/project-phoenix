@@ -45,6 +45,7 @@ import {
 } from "~/lib/survey-editor";
 import type { SurveyAudience } from "~/lib/surveys-api";
 import { SURVEY_MIN_RESPONSES } from "./survey-questionnaire";
+import { SectionLabel } from "~/components/ui/section-label";
 
 const AUDIENCE_ITEMS: readonly SegmentedControlItem<SurveyAudience>[] = [
   { value: "parents", label: "Eltern" },
@@ -54,9 +55,6 @@ const AUDIENCE_ITEMS: readonly SegmentedControlItem<SurveyAudience>[] = [
 const KIND_ITEMS: readonly SegmentedControlItem<SurveyQuestionKind>[] = (
   ["single", "multiple", "scale", "text"] as const
 ).map((kind) => ({ value: kind, label: SURVEY_QUESTION_KIND_LABEL[kind] }));
-
-const SECTION_TITLE =
-  "text-xs font-semibold tracking-wide text-gray-500 uppercase";
 
 export interface SurveyEditorFieldsProps {
   readonly draft: SurveyEditorDraft;
@@ -114,7 +112,7 @@ export function SurveyEditorFields({
       </section>
 
       <section className="space-y-4">
-        <h3 className={SECTION_TITLE}>Wer soll antworten?</h3>
+        <SectionLabel>Wer soll antworten?</SectionLabel>
         <SegmentedControl
           items={AUDIENCE_ITEMS}
           value={draft.audience}
@@ -179,7 +177,7 @@ export function SurveyEditorFields({
       </section>
 
       <section className="space-y-4">
-        <h3 className={SECTION_TITLE}>Anonym und Frist</h3>
+        <SectionLabel>Anonym und Frist</SectionLabel>
         <ChoiceTile
           selected={draft.anonymous}
           className="items-start gap-3 px-4 py-3"
@@ -233,7 +231,7 @@ export function SurveyEditorFields({
 
       <section className="space-y-4">
         <div>
-          <h3 className={SECTION_TITLE}>Fragen</h3>
+          <SectionLabel>Fragen</SectionLabel>
           <p className="mt-1 text-sm text-gray-600">
             {`Bis zu ${SURVEY_MAX_QUESTIONS} Fragen. Die Skala geht von 1 (trifft gar nicht zu) bis 5 (trifft voll zu).`}
           </p>
@@ -393,9 +391,9 @@ function QuestionEditor({
 
       {choice && (
         <div>
-          <span className="mb-1.5 block text-sm font-medium text-gray-700">
+          <SectionLabel as="p" className="mb-1.5">
             Antworten
-          </span>
+          </SectionLabel>
           <ul className="space-y-2">
             {question.options.map((option, optionIndex) => (
               // Antworten haben vor dem Speichern keine ID; die Liste ist kurz

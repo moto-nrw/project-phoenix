@@ -1,7 +1,7 @@
 "use client";
 
-import { ChevronDown, ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
+import { ListGroupHeader } from "~/components/ui/list-group-header";
 import {
   StatusBadge,
   type StatusBadgeTone,
@@ -20,16 +20,12 @@ interface GroupHeaderProps {
   bulkAction?: ReactNode;
 }
 
+// Die Tönung bleibt: in der Kinderliste zeigt sie eine Klasse mit fehlenden
+// Ankunftszeiten an, auch wenn die Gruppe zugeklappt ist.
 const HEADER_BG: Record<GroupHeaderVariant, string> = {
   neutral: "bg-gray-50",
   warning: "bg-moto-orange-soft",
   success: "bg-moto-green-soft/40",
-};
-
-const CHEVRON_COLOR: Record<GroupHeaderVariant, string> = {
-  neutral: "text-gray-500",
-  warning: "text-moto-orange",
-  success: "text-moto-green",
 };
 
 const BADGE_TONES: Record<GroupHeaderVariant, StatusBadgeTone> = {
@@ -38,6 +34,11 @@ const BADGE_TONES: Record<GroupHeaderVariant, StatusBadgeTone> = {
   success: "green",
 };
 
+/**
+ * Kopf einer Gruppe in den Listen der Datenverwaltung (`GroupedList`), gebaut
+ * aus `ListGroupHeader` (#6098): der Name mit Zähler klappt die Gruppe auf
+ * und zu, die Sammelaktion steht am rechten Rand.
+ */
 export function GroupHeader({
   title,
   count,
@@ -47,30 +48,21 @@ export function GroupHeader({
   onToggle,
   bulkAction,
 }: GroupHeaderProps) {
-  const Chevron = isOpen ? ChevronDown : ChevronRight;
-
   return (
-    <div
-      className={cn(
-        "flex w-full items-center gap-2 border-b border-gray-200 px-4 py-3",
-        HEADER_BG[variant],
-      )}
-    >
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={isOpen}
-        className="flex flex-1 items-center gap-2 text-left"
-      >
-        <Chevron className={cn("h-4 w-4", CHEVRON_COLOR[variant])} />
-        <span className="text-sm font-bold text-gray-900">{title}</span>
+    <ListGroupHeader
+      // Der Zähler steht im Knopf, damit er zum Namen der Gruppe gehört
+      // („Klasse 1a 13“), nicht nur zu ihrer Beschreibung.
+      title={title}
+      titleAddon={
         <StatusBadge
           label={countSuffix ? `${count} ${countSuffix}` : String(count)}
           tone={BADGE_TONES[variant]}
           compact
         />
-      </button>
-      {bulkAction ? <div className="shrink-0">{bulkAction}</div> : null}
-    </div>
+      }
+      className={cn("border-b border-gray-200", HEADER_BG[variant])}
+      collapsible={{ expanded: isOpen, onToggle }}
+      meta={bulkAction ?? undefined}
+    />
   );
 }

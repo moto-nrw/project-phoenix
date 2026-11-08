@@ -25,6 +25,7 @@ import {
 import { calendarConcept } from "~/lib/concepts/calendar";
 import { schoolsConcept } from "~/lib/concepts/schools";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { SectionCard } from "~/components/ui/section-card";
 
 const logger = createLogger({ component: "ParentEnrollPicker" });
 
@@ -174,21 +175,22 @@ function SchoolCard({
   locale,
 }: Readonly<{ group: SchoolGroup; locale: string }>) {
   return (
-    <div className="moto-content-surface overflow-hidden rounded-2xl border">
-      <div className="flex items-center gap-3 border-b border-gray-100 p-4 sm:px-6">
-        <ConceptIconTile concept={schoolsConcept} size="page" />
-        <h3 className="min-w-0 text-base font-semibold break-words text-gray-900">
-          {group.schoolName}
-        </h3>
-      </div>
-      <ul className="divide-y divide-gray-100">
+    <SectionCard
+      title={group.schoolName}
+      headingLevel={3}
+      titleClassName="break-words"
+      leading={<ConceptIconTile concept={schoolsConcept} size="page" />}
+      flush
+      bodyClassName=""
+    >
+      <ul className="divide-y divide-gray-100 border-t border-gray-100">
         {group.phases.map((phase) => (
           <li key={phase.phase_id}>
             <PhaseRow phase={phase} locale={locale} />
           </li>
         ))}
       </ul>
-    </div>
+    </SectionCard>
   );
 }
 
@@ -228,7 +230,7 @@ function PhaseRow({
         phase.school_subdomain,
       )}/${encodeURIComponent(phase.phase_id)}`}
       aria-label={`${t("openPhase")}: ${phaseDisplayName(phase, locale)}`}
-      className="group flex items-center gap-4 p-4 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:px-6"
+      className="group flex items-center gap-4 p-4 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:px-5"
     >
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">

@@ -313,17 +313,13 @@ export function PendingInvitationsList({
   }
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-3 md:p-4">
-      <div className="mb-2 flex items-center gap-2">
-        <div className="rounded-lg bg-gray-100 p-1.5">
-          <Mail className="h-4 w-4 text-gray-500" aria-hidden="true" />
-        </div>
-        <h2 className="text-sm font-semibold text-gray-900">
-          Offene Einladungen
-        </h2>
+    <SectionCard
+      title="Offene Einladungen"
+      icon={Mail}
+      titleBadge={
         <StatusBadge label={String(invitations.length)} tone="gray" compact />
-      </div>
-
+      }
+    >
       <LoadErrorAlert error={loadError.error} className="mb-4" />
 
       {failedWithoutData ? null : sortedInvitations.length === 0 ? (
@@ -366,6 +362,6 @@ export function PendingInvitationsList({
         </p>
         <FormErrorAlert message={revokeErrors.error} className="mt-3" />
       </ConfirmationModal>
-    </div>
+    </SectionCard>
   );
 }

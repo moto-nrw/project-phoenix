@@ -192,95 +192,94 @@ export function RolloverReviewQueue({ phaseID }: Props) {
             const busy = busyChild === item.child_id;
             const overrideValue = classOverrides[item.child_id] ?? "";
             return (
-              <li
-                key={item.child_id}
-                className="moto-content-surface rounded-2xl border p-4 sm:p-6"
-              >
-                {/* Titel links, Entscheidungen rechts: die drei Aktionen
+              <li key={item.child_id}>
+                <SectionCard>
+                  {/* Titel links, Entscheidungen rechts: die drei Aktionen
                     hatten vorher eine eigene Zeile am Fuß des Eintrags. */}
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0">
-                    <h3 className="text-base font-semibold text-gray-900">
-                      {item.first_name} {item.last_name}
-                    </h3>
-                    <p className="text-xs text-gray-600">
-                      {item.guardian_first_name} {item.guardian_last_name} ·{" "}
-                      {item.guardian_email}
-                    </p>
-                    <p className="mt-1 text-xs text-gray-500">
-                      Vorgemerkt: Klasse {item.target_grade_level ?? "–"}
-                      {item.source_grade_level && (
-                        <> (vorher: Klasse {item.source_grade_level})</>
-                      )}
-                    </p>
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <h3 className="text-base font-semibold text-gray-900">
+                        {item.first_name} {item.last_name}
+                      </h3>
+                      <p className="text-xs text-gray-600">
+                        {item.guardian_first_name} {item.guardian_last_name} ·{" "}
+                        {item.guardian_email}
+                      </p>
+                      <p className="mt-1 text-xs text-gray-500">
+                        Vorgemerkt: Klasse {item.target_grade_level ?? "–"}
+                        {item.source_grade_level && (
+                          <> (vorher: Klasse {item.source_grade_level})</>
+                        )}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        size="md"
+                        variant="success"
+                        onClick={() => void decide(item, "keep")}
+                        disabled={busy}
+                      >
+                        Behalten
+                      </Button>
+                      <Button
+                        type="button"
+                        size="md"
+                        variant="outline_danger"
+                        onClick={() => void decide(item, "drop")}
+                        disabled={busy}
+                      >
+                        Abschließen
+                      </Button>
+                      <Button
+                        type="button"
+                        size="md"
+                        variant="outline"
+                        onClick={() => void decide(item, "defer")}
+                        disabled={busy}
+                      >
+                        Zurückstellen
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex shrink-0 flex-wrap items-center gap-2">
-                    <Button
-                      type="button"
-                      size="md"
-                      variant="success"
-                      onClick={() => void decide(item, "keep")}
-                      disabled={busy}
-                    >
-                      Behalten
-                    </Button>
-                    <Button
-                      type="button"
-                      size="md"
-                      variant="outline_danger"
-                      onClick={() => void decide(item, "drop")}
-                      disabled={busy}
-                    >
-                      Abschließen
-                    </Button>
-                    <Button
-                      type="button"
-                      size="md"
-                      variant="outline"
-                      onClick={() => void decide(item, "defer")}
-                      disabled={busy}
-                    >
-                      Zurückstellen
-                    </Button>
-                  </div>
-                </div>
 
-                {reasonLabel && (
-                  <div className="mt-3">
-                    <StatusColorBadge
-                      color={LOCATION_COLORS.WARNING}
-                      wrap
-                      label={reasonLabel}
+                  {reasonLabel && (
+                    <div className="mt-3">
+                      <StatusColorBadge
+                        color={LOCATION_COLORS.WARNING}
+                        wrap
+                        label={reasonLabel}
+                      />
+                    </div>
+                  )}
+
+                  <div className="mt-4 max-w-xs">
+                    <Input
+                      id={`grade-${item.child_id}`}
+                      label="Klassenstufe für nächste Phase (optional)"
+                      name={gradeFieldName(item.child_id)}
+                      error={decision.fieldError(gradeFieldName(item.child_id))}
+                      type="number"
+                      controlSize="compact"
+                      min={1}
+                      max={MAX_SUPPORTED_GRADE_LEVEL}
+                      value={overrideValue}
+                      onChange={(e) =>
+                        setClassOverrides((prev) => ({
+                          ...prev,
+                          [item.child_id]: e.target.value,
+                        }))
+                      }
+                      placeholder={
+                        item.target_grade_level
+                          ? String(item.target_grade_level)
+                          : ""
+                      }
+                      className="max-w-24"
+                      disabled={busy}
                     />
                   </div>
-                )}
-
-                <div className="mt-4 max-w-xs">
-                  <Input
-                    id={`grade-${item.child_id}`}
-                    label="Klassenstufe für nächste Phase (optional)"
-                    name={gradeFieldName(item.child_id)}
-                    error={decision.fieldError(gradeFieldName(item.child_id))}
-                    type="number"
-                    controlSize="compact"
-                    min={1}
-                    max={MAX_SUPPORTED_GRADE_LEVEL}
-                    value={overrideValue}
-                    onChange={(e) =>
-                      setClassOverrides((prev) => ({
-                        ...prev,
-                        [item.child_id]: e.target.value,
-                      }))
-                    }
-                    placeholder={
-                      item.target_grade_level
-                        ? String(item.target_grade_level)
-                        : ""
-                    }
-                    className="max-w-24"
-                    disabled={busy}
-                  />
-                </div>
+                </SectionCard>
               </li>
             );
           })}

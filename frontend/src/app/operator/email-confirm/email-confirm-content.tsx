@@ -7,6 +7,7 @@ import { useSession } from "next-auth/react";
 import { Mail, Check, X } from "lucide-react";
 import { Button, buttonClassName } from "~/components/ui/button";
 import { Loading } from "~/components/ui/loading";
+import { SectionCard } from "~/components/ui/section-card";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
@@ -30,9 +31,9 @@ function extractToken(): string | null {
 function ResultCard({ children }: { readonly children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
-      <div className="moto-content-surface w-full max-w-md rounded-2xl border p-8 text-center">
+      <SectionCard overflow="visible" className="w-full max-w-md text-center">
         {children}
-      </div>
+      </SectionCard>
     </div>
   );
 }

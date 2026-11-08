@@ -59,7 +59,7 @@ func TestDeviceWriteQueryBudgets(t *testing.T) {
 					success(w, r, status, data, message)
 				}
 				router := testutil.NewTenantRouter(db)
-				router.Mount("/devices", NewResource(devicefleet.NewAdministration(fleet), runtime).Router())
+				router.Mount("/", NewResource(devicefleet.NewAdministration(fleet), runtime).Router())
 				var lastID int64
 				for i := 0; i < n; i++ {
 					id := fmt.Sprintf("write-budget-%s-%d-%d", scenario, n, i)
@@ -71,7 +71,7 @@ func TestDeviceWriteQueryBudgets(t *testing.T) {
 						roomID, roomName = &room.ID, &room.Name
 					}
 					var before devicefleet.Device
-					method, path, permission, status := http.MethodPost, "/devices/", "iot:manage", http.StatusCreated
+					method, path, permission, status := http.MethodPost, "/", "iot:manage", http.StatusCreated
 					if scenario != "create-no-room" {
 						seen := time.Now().Truncate(time.Microsecond)
 						require.NoError(t, testpkg.WithinTenantContext(t, testpkg.Ctx(t), db, testpkg.Tenant(t), func(ctx context.Context) error {
@@ -79,7 +79,7 @@ func TestDeviceWriteQueryBudgets(t *testing.T) {
 							before, err = fleet.CreateDevice(ctx, devicefleet.CreateDevice{DeviceID: id, DeviceType: "sensor", Name: new("Before"), Status: devicefleet.DeviceStatusOffline, LastSeen: &seen, RoomID: roomID})
 							return err
 						}))
-						method, path, permission, status = http.MethodPut, fmt.Sprintf("/devices/%d", before.ID), "iot:update", http.StatusOK
+						method, path, permission, status = http.MethodPut, fmt.Sprintf("/%d", before.ID), "iot:update", http.StatusOK
 					}
 					name := "After"
 					body := map[string]any{"device_id": id, "device_type": "terminal", "name": name, "status": "active", "registered_by_id": person.ID}
@@ -90,7 +90,7 @@ func TestDeviceWriteQueryBudgets(t *testing.T) {
 					hostStart := time.Now().Truncate(time.Microsecond)
 					counter := testpkg.CaptureQueriesForContext(t, db)
 					counter.Reset()
-					response := testutil.ExecuteRequest(router, request.WithContext(counter.Context(ctx)))
+					response := testutil.ExecuteRequest(testpkg.MountedQueryBudgetRouter("/api/iot", router), request.WithContext(counter.Context(ctx)))
 					counter.Stop()
 					cancel()
 					hostEnd := time.Now().Add(time.Microsecond)
@@ -142,14 +142,14 @@ func TestDeviceWriteQueryBudgets(t *testing.T) {
 					require.EqualValues(t, 1, counter.WriteRows())
 					// Redact only the exact stored credential from diagnostics. All
 					// production statements, including BEGIN/role+GUC/COMMIT, remain.
-					queries := redactDeviceWriteBudgetSQL(counter.Queries(), *row.APIKeyHash, row.MaskedAPIKey)
-					require.Equal(t, 1, countDeviceWriteBudgetSelects(queries, "config.setting_values"), "fresh LastSeen must exercise the online-window read")
-					require.Zero(t, countDeviceWriteBudgetSelects(queries, "users.persons"), "valid registrar uses PostgreSQL FK checks, not an extra client read")
+					queries := counter.Measurement(redactDeviceWriteBudgetSQL(counter.Queries(), *row.APIKeyHash, row.MaskedAPIKey))
+					require.Equal(t, 1, countDeviceWriteBudgetSelects(queries.Statements, "config.setting_values"), "fresh LastSeen must exercise the online-window read")
+					require.Zero(t, countDeviceWriteBudgetSelects(queries.Statements, "users.persons"), "valid registrar uses PostgreSQL FK checks, not an extra client read")
 					rooms := 0
 					if roomID != nil {
 						rooms = 4
 					}
-					require.Equal(t, rooms, countDeviceWriteBudgetSelects(queries, "facilities.rooms"))
+					require.Equal(t, rooms, countDeviceWriteBudgetSelects(queries.Statements, "facilities.rooms"))
 					switch scenario {
 					case "create-no-room":
 						querybudgets.AssertQueryBudget(t, "api.iot.devices.create.no_room", queries)

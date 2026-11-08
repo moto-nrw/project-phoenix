@@ -387,18 +387,18 @@ func TestContributionRuleListQueryBudgetIsFlat(t *testing.T) {
 	t.Parallel()
 	f := newReviewFixture(t, "Träger Budget Regeln")
 	billing := traegerColleague(t, f, identityaccess.TraegerRoleBilling)
-	list := func() []string {
+	list := func() testpkg.QueryMeasurement {
 		counter := testpkg.CaptureQueriesForContext(t, f.db)
 		req := httptest.NewRequest(http.MethodGet, contributionRulesPath, nil)
 		req.Header.Set("Authorization", "Bearer "+billing)
 		rec := httptest.NewRecorder()
-		f.traeger.ServeHTTP(rec, req.WithContext(counter.Context(req.Context())))
+		testpkg.MeasuredHTTPRequest(counter, f.traeger, rec, req.WithContext(counter.Context(req.Context())))
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		return counter.Selects("")
+		return counter.Measurement(counter.Selects(""))
 	}
 	createContributionRule(t, f, billing, siblingHalf())
 	one := list()
 	createContributionRule(t, f, billing, benefitsExemption())
-	assert.Len(t, list(), len(one), "the list reads the same statements for any number of rules")
+	assert.Len(t, list().Statements, len(one.Statements), "the list reads the same statements for any number of rules")
 	querybudgets.AssertQueryBudget(t, "api.traeger.contribution_rules", one)
 }

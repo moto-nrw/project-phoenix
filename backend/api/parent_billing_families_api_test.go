@@ -215,18 +215,18 @@ func TestBillingFamilyListQueryBudgetIsFlat(t *testing.T) {
 	t.Parallel()
 	f := newReviewFixture(t, "Träger Budget Familien")
 	billing := traegerColleague(t, f, identityaccess.TraegerRoleBilling)
-	list := func() []string {
+	list := func() testpkg.QueryMeasurement {
 		counter := testpkg.CaptureQueriesForContext(t, f.db)
 		req := httptest.NewRequest(http.MethodGet, billingFamiliesPath, nil)
 		req.Header.Set("Authorization", "Bearer "+billing)
 		rec := httptest.NewRecorder()
-		f.traeger.ServeHTTP(rec, req.WithContext(counter.Context(req.Context())))
+		testpkg.MeasuredHTTPRequest(counter, f.traeger, rec, req.WithContext(counter.Context(req.Context())))
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		return counter.Queries()
+		return counter.Measurement(counter.Queries())
 	}
 	releasedBillingRun(t, f, billing)
 	families := list()
 	releaseSecondPeriodFor(t, f, billing, "neu.familie@example.org")
-	assert.Len(t, list(), len(families), "the list reads and records the same statements for any number of families and runs")
+	assert.Len(t, list().Statements, len(families.Statements), "the list reads and records the same statements for any number of families and runs")
 	querybudgets.AssertQueryBudget(t, "api.traeger.billing_families", families)
 }

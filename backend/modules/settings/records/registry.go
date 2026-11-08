@@ -4,16 +4,19 @@ import (
 	"fmt"
 	"regexp"
 	"sync"
+	"unicode/utf8"
 )
 
 // FieldType defines the type of input control for a setting.
 type FieldType string
 
 const (
-	FieldBoolean  FieldType = "boolean"
-	FieldNumber   FieldType = "number"
-	FieldTime     FieldType = "time"
-	FieldDate     FieldType = "date"
+	FieldBoolean FieldType = "boolean"
+	FieldNumber  FieldType = "number"
+	FieldTime    FieldType = "time"
+	FieldDate    FieldType = "date"
+	// FieldText is a single-line text. Options.Static may name presets to
+	// pick like a colour field's; they do not restrict the value (#6042).
 	FieldText     FieldType = "text"
 	FieldTextarea FieldType = "textarea"
 	// FieldColor stores a colour code as text; the frontend shows a colour
@@ -176,7 +179,7 @@ func Range(minVal, maxVal float64) *ValidationRules {
 }
 
 // SelectOptions provides static choices for a FieldSelect or FieldMultiSelect
-// setting, or the preset colours of a FieldColor setting.
+// setting, or the presets of a FieldColor or FieldText setting.
 type SelectOptions struct {
 	Static []SelectOption `json:"static,omitempty"`
 }
@@ -208,7 +211,7 @@ func (d *Definition) Validate() error {
 	if err := d.compilePattern(); err != nil {
 		return err
 	}
-	if err := d.validateColorPresets(); err != nil {
+	if err := d.validatePresets(); err != nil {
 		return err
 	}
 	if err := d.validateMaxLength(); err != nil {
@@ -260,8 +263,8 @@ func (d *Definition) validateShape() error {
 		return fmt.Errorf("category is required for setting %s", d.Key)
 	}
 	selectType := d.Type == FieldSelect || d.Type == FieldMultiSelect
-	if d.Options != nil && !selectType && d.Type != FieldColor {
-		return fmt.Errorf("options can only be set for select or color fields, setting %s has type %s", d.Key, d.Type)
+	if d.Options != nil && !selectType && !d.Type.takesPresets() {
+		return fmt.Errorf("options can only be set for select, color or text fields, setting %s has type %s", d.Key, d.Type)
 	}
 	if selectType && d.Options == nil {
 		return fmt.Errorf("select field %s must have options", d.Key)
@@ -310,23 +313,32 @@ func (d *Definition) compilePattern() error {
 	return nil
 }
 
-// validateColorPresets checks that every preset of a colour field is a
-// labelled colour code its own pattern accepts, so picking a preset never
-// fails on save.
-func (d *Definition) validateColorPresets() error {
-	if d.Type != FieldColor || d.Options == nil {
+// takesPresets reports whether a field type offers labelled presets that do
+// not restrict its value: colours (#5239) and single-line texts (#6042).
+func (t FieldType) takesPresets() bool {
+	return t == FieldColor || t == FieldText
+}
+
+// validatePresets checks that every preset of a colour or text field is a
+// labelled string its own pattern and length limit accept, so picking a
+// preset never fails on save.
+func (d *Definition) validatePresets() error {
+	if !d.Type.takesPresets() || d.Options == nil {
 		return nil
 	}
 	if len(d.Options.Static) == 0 {
-		return fmt.Errorf("color field %s has empty options", d.Key)
+		return fmt.Errorf("%s field %s has empty options", d.Type, d.Key)
 	}
 	for _, option := range d.Options.Static {
 		value, ok := option.Value.(string)
 		if !ok || option.Label == "" {
-			return fmt.Errorf("color preset %v of %s needs a label and a string value", option.Value, d.Key)
+			return fmt.Errorf("%s preset %v of %s needs a label and a string value", d.Type, option.Value, d.Key)
 		}
 		if d.Validation != nil && d.Validation.CompiledPattern != nil && !d.Validation.CompiledPattern.MatchString(value) {
-			return fmt.Errorf("color preset %s of %s does not match the validation pattern", value, d.Key)
+			return fmt.Errorf("%s preset %s of %s does not match the validation pattern", d.Type, value, d.Key)
+		}
+		if d.Validation != nil && d.Validation.MaxLength != nil && utf8.RuneCountInString(value) > *d.Validation.MaxLength {
+			return fmt.Errorf("%s preset %s of %s is longer than the length limit", d.Type, value, d.Key)
 		}
 	}
 	return nil

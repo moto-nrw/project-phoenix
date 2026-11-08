@@ -65,6 +65,7 @@ func EnrollmentDecisionPeopleDirectory(
 	}
 	if students != nil {
 		directory.Students = enrollmentStudentRecords{repo: students}
+		directory.CompanionStrandings = students
 	}
 	if guardianProfiles != nil {
 		directory.GuardianProfiles = enrollmentGuardianProfiles{repo: guardianProfiles, accounts: people}
@@ -271,6 +272,7 @@ type EnrollmentDecisionSettings interface {
 // EnrollmentStudentAuditor records tracked profile changes made while
 // approving or synchronizing enrollment data for an existing student.
 type EnrollmentStudentAuditor interface {
+	RecordChanges(ctx context.Context, before, after *peopleValues.StudentState, editedBy int64, editedByName string) error
 	RecordChangesForActor(ctx context.Context, before, after *peopleValues.StudentState, editedBy int64) error
 	RecordSystemStatusChange(ctx context.Context, studentID int64, before, after string) error
 }

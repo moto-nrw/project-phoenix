@@ -3,6 +3,8 @@
 import { Alert } from "~/components/ui/alert";
 import { InsetPanel } from "~/components/ui/inset-panel";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { SectionCard } from "~/components/ui/section-card";
+import { SectionLabel } from "~/components/ui/section-label";
 import { StatusBadge } from "~/components/ui/status-badge";
 import {
   DataField,
@@ -68,16 +70,10 @@ export function RequestExtraSection({
   if (!hasCustom && !hasConsents) return null;
 
   return (
-    <section className="moto-content-surface space-y-3 rounded-2xl border p-4 sm:p-6">
-      <h2 className="text-base font-semibold text-gray-900">
-        Zusätzliche Angaben
-      </h2>
-
+    <SectionCard title="Zusätzliche Angaben" bodyClassName="mt-3 space-y-3">
       {hasConsents && (
         <div>
-          <h3 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-            Zustimmungen
-          </h3>
+          <SectionLabel>Zustimmungen</SectionLabel>
           <ul className="mt-1.5 space-y-1 text-sm">
             {Object.entries(request.consent_flags ?? {}).map(([key, val]) => (
               <li key={key} className="flex items-center gap-2">
@@ -127,7 +123,7 @@ export function RequestExtraSection({
           </DataGrid>
         </InfoSection>
       )}
-    </section>
+    </SectionCard>
   );
 }
 
@@ -168,9 +164,7 @@ export function ChildOfferings({
   if (rows.length === 0) return null;
   return (
     <InsetPanel framed className="mt-3">
-      <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-        Betreuungsangebote
-      </h4>
+      <SectionLabel as="h4">Betreuungsangebote</SectionLabel>
       <ul className="mt-1.5 space-y-2 text-sm">
         {rows.map((o) => {
           const parentChoice = o.days_of_week_mode === "parent_choice";

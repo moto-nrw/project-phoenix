@@ -60,5 +60,5 @@ func TestYardScanQueryBudgetDistinctActivities(t *testing.T) {
 	large := scan(second)
 	t.Logf("distinct activities N=1: %d statements; N=8: %d statements", len(small), len(large))
 	assert.Equal(t, len(small), len(large), "yard scans must not grow with distinct activities")
-	querybudgets.AssertQueryBudget(t, "modules.devicescan.yard_scan.distinct_activities", large)
+	querybudgets.AssertQueryBudget(t, "modules.devicescan.yard_scan.distinct_activities", counter.Measurement(large))
 }

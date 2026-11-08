@@ -3488,15 +3488,15 @@ func TestRequestServiceEditModePreservesSubmissionEditErrors(t *testing.T) {
 			failure := errors.New("submission edit policy unavailable")
 			env.settings.boolErrors[settingKeyAllowSubmissionEdit] = failure
 
-			mode, err := env.svc.EditModeForStatus(ctx, submitted.Request, submitted.Children)
+			page, err := env.svc.StatusPage(ctx, submitted.Request, submitted.Children)
 			require.ErrorIs(t, err, failure)
-			assert.Equal(t, enrollmentNative.EditModeNone, mode)
+			assert.Equal(t, enrollmentNative.EditModeNone, page.EditMode)
 
 			delete(env.settings.boolErrors, settingKeyAllowSubmissionEdit)
 			env.settings.boolValues[settingKeyAllowSubmissionEdit] = false
-			mode, err = env.svc.EditModeForStatus(ctx, submitted.Request, submitted.Children)
+			page, err = env.svc.StatusPage(ctx, submitted.Request, submitted.Children)
 			require.NoError(t, err)
-			assert.Equal(t, enrollmentNative.EditModeNone, mode)
+			assert.Equal(t, enrollmentNative.EditModeNone, page.EditMode)
 		})
 	}
 }

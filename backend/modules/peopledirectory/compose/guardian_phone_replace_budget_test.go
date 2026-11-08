@@ -22,9 +22,9 @@ func TestGuardianPhoneReplacementQueryBudget(t *testing.T) {
 		queries := counter.Matching(func(q string) bool { return strings.Contains(q, "users.guardian_phone_numbers") })
 		t.Logf("N%d: business SQL=%d total SQL=%d", n, len(queries), len(counter.Queries()))
 		if n == 3 {
-			querybudgets.AssertQueryBudget(t, "modules.peopledirectory.guardian_phones.replace_3", queries)
+			querybudgets.AssertQueryBudget(t, "modules.peopledirectory.guardian_phones.replace_3", counter.Measurement(queries))
 		} else {
-			querybudgets.AssertQueryBudget(t, "modules.peopledirectory.guardian_phones.replace_8", queries)
+			querybudgets.AssertQueryBudget(t, "modules.peopledirectory.guardian_phones.replace_8", counter.Measurement(queries))
 		}
 		require.Len(t, replacementPhones(t, db, guardian.ID), n)
 	}

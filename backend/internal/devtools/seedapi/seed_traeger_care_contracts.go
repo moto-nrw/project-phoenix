@@ -71,7 +71,11 @@ func (seedTraegerCareContractsStep) Run(_ context.Context, rt *Runtime) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("  Träger care contracts: %d templates, %d drafts created, %d sent, %d terminated\n", templates, created, sent, terminated)
+	changed, err := seedCareContractChange(rt, auth)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("  Träger care contracts: %d templates, %d drafts created, %d sent, %d terminated, change asked: %t\n", templates, created, sent, terminated, changed)
 	return nil
 }
 

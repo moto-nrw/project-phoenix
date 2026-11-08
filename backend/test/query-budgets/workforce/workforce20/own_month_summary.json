@@ -2,5 +2,6 @@
   "scenario": "workforce.workforce20.own_month_summary",
   "max": 16,
   "exact": true,
-  "description": "Full protected own Resource HTTP request with positive N=3/N=8 domain rows, exact observed count; fixtures outside capture. Not a SQL minimum."
+  "description": "Full protected own Resource HTTP request with positive N=3/N=8 domain rows, exact observed count; fixtures outside capture. Not a SQL minimum.",
+  "route": "GET /api/time-tracking/month-summary"
 }

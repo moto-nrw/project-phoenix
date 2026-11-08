@@ -46,6 +46,8 @@ import { TenantPage } from "~/components/ui/tenant-page";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { Textarea } from "~/components/ui/textarea";
 import { AdminEnrollmentSignature } from "~/components/enrollment/admin-enrollment-signature";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
+import { berlinTodayISO } from "~/lib/date-helpers";
 import { enrolledClassLabel } from "~/lib/school-class-label";
 import { AdminChildDataCorrection } from "~/components/enrollment/admin-child-data-correction";
 import { AdminEnrollmentDeletionModal } from "~/components/enrollment/admin-enrollment-deletion-modal";
@@ -122,6 +124,10 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
   const tenantPath = useTenantAwarePath();
   const router = useTenantRouter();
   const [data, setData] = useState<AdminRequestDetail | null>(null);
+  const today = useBerlinToday();
+  const [weeklyPlanCheckedOn, setWeeklyPlanCheckedOn] = useState<string | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const toast = useToast();
   const loadError = useApiLoadError();
@@ -156,8 +162,10 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
       if (!options?.quiet) setLoading(true);
       clearLoadError();
       try {
+        const checkedOn = berlinTodayISO();
         const fresh = await getAdminRequest(requestId);
         setData(fresh);
+        setWeeklyPlanCheckedOn(checkedOn);
         // Das Öffnen hat die Anmeldung für diese Person gelesen (#3778).
         announceAdminRequestOpened();
       } catch (err) {
@@ -199,6 +207,25 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const hasPendingWeeklyPlan = data?.children.some(
+    (child) => child.status === "approved" && child.weekly_plan_on,
+  );
+  useEffect(() => {
+    if (hasPendingWeeklyPlan && weeklyPlanCheckedOn !== today) {
+      void load({ quiet: true });
+    }
+  }, [today, weeklyPlanCheckedOn, hasPendingWeeklyPlan, load]);
+
+  useEffect(() => {
+    if (!hasPendingWeeklyPlan) return;
+    const refreshOnVisible = () => {
+      if (document.visibilityState === "visible") void load({ quiet: true });
+    };
+    document.addEventListener("visibilitychange", refreshOnVisible);
+    return () =>
+      document.removeEventListener("visibilitychange", refreshOnVisible);
+  }, [hasPendingWeeklyPlan, load]);
 
   const availableActions = waitlistEnabled
     ? ACTIONS
@@ -413,9 +440,9 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
         </>
       }
     >
-      <section className="moto-content-surface overflow-hidden rounded-2xl border">
+      <SectionCard padding="none">
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_430px]">
-          <div className="space-y-6 p-4 sm:p-6">
+          <div className="space-y-6 p-5 max-sm:p-4">
             {/* Ein gescheitertes Neuladen nach einer Änderung: die Seite zeigt
                 weiter den letzten Stand und sagt, dass er veraltet sein kann. */}
             <LoadErrorAlert error={loadError.error} />
@@ -451,6 +478,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
                   phaseId={data.phase_id}
                   phaseName={data.phase_name}
                   child={child}
+                  weeklyPlanToday={weeklyPlanCheckedOn === today ? today : null}
                   busy={busyChildId === child.id}
                   reason={reasons[child.id] ?? ""}
                   schemaFields={data.schema_fields}
@@ -483,7 +511,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
             </SectionCard>
           </div>
 
-          <aside className="border-t border-gray-100 bg-gray-50/70 p-4 sm:p-6 lg:border-t-0 lg:border-l">
+          <aside className="border-t border-gray-100 bg-gray-50/70 p-5 max-sm:p-4 lg:border-t-0 lg:border-l">
             <RequestMailStatus
               mails={requestMails}
               loadError={requestMailsError}
@@ -500,7 +528,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
             />
           </aside>
         </div>
-      </section>
+      </SectionCard>
     </TenantPage>
   );
 }
@@ -582,6 +610,7 @@ function ChildInformationCard({
   reason,
   requestId,
   schemaFields,
+  weeklyPlanToday,
 }: Readonly<{
   actions: ActionDef[];
   busy: boolean;
@@ -598,6 +627,7 @@ function ChildInformationCard({
   onDelete: () => void;
   reason: string;
   schemaFields?: AdminRequestSchemaField[];
+  weeklyPlanToday: string | null;
 }>) {
   const terminal = isTerminalChildStatus(child.status);
   const canDeleteFromEnrollment =
@@ -609,8 +639,8 @@ function ChildInformationCard({
       : "/students",
   );
   return (
-    <article className="moto-content-surface overflow-hidden rounded-2xl border">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 p-4">
+    <SectionCard padding="none">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 p-5 max-sm:p-4">
         <div>
           <h3 className="text-base font-semibold text-gray-900">
             {child.first_name} {child.last_name}
@@ -652,7 +682,7 @@ function ChildInformationCard({
           {isHeldForChildQuota(child) ? <ChildQuotaHeldBadge /> : null}
         </div>
       </div>
-      <div className="space-y-4 p-4">
+      <div className="space-y-4 p-5 max-sm:p-4">
         {isHeldForChildQuota(child) ? (
           <Alert
             type="warning"
@@ -676,6 +706,15 @@ function ChildInformationCard({
           <p className="text-xs text-gray-500">
             Letzte Entscheidung: {formatDateTime(child.reviewed_at)}
           </p>
+        ) : null}
+        {child.status === "approved" &&
+        child.weekly_plan_on &&
+        weeklyPlanToday ? (
+          <Alert
+            type={child.weekly_plan_on < weeklyPlanToday ? "warning" : "info"}
+            announce="off"
+            message={weeklyPlanMessage(child.weekly_plan_on, weeklyPlanToday)}
+          />
         ) : null}
         <ChildOfferings
           offerings={child.offerings}
@@ -727,7 +766,7 @@ function ChildInformationCard({
           />
         )}
       </div>
-    </article>
+    </SectionCard>
   );
 }
 
@@ -814,10 +853,7 @@ function ReviewSidebar({
 
       {data.children.map((child) => {
         return (
-          <section
-            key={child.id}
-            className="moto-content-surface rounded-2xl border p-4"
-          >
+          <SectionCard key={child.id}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <h3 className="truncate text-sm font-semibold text-gray-900">
@@ -843,7 +879,7 @@ function ReviewSidebar({
                 ? "Entscheidung abgeschlossen"
                 : "Entscheidung ausstehend"}
             </InsetPanel>
-          </section>
+          </SectionCard>
         );
       })}
     </div>
@@ -972,4 +1008,15 @@ function summarizeChildren(children: AdminRequestChild[]) {
     if (child.status === "approved") approved += 1;
   }
   return { open, approved };
+}
+
+// Only classify a pending plan against the day its enrollment was fetched.
+// A mounted page must recheck the plan before reporting an overdue failure.
+function weeklyPlanMessage(on: string, today: string): string {
+  if (on < today) {
+    return `Abholzeiten, Betreuungstage und Heimweg aus dieser Anmeldung sollten ab ${formatPlainDate(on)} gelten. moto konnte sie noch nicht übernehmen. Darum gelten noch die bisherigen. moto versucht es jede Stunde neu. Bleibt dieser Hinweis, melden Sie sich bitte beim moto-Team.`;
+  }
+  return on === today
+    ? "Abholzeiten, Betreuungstage und Heimweg aus dieser Anmeldung gelten ab heute. moto übernimmt sie im Lauf des Tages."
+    : `Abholzeiten, Betreuungstage und Heimweg aus dieser Anmeldung gelten ab ${formatPlainDate(on)}. Bis dahin bleiben die bisherigen.`;
 }
