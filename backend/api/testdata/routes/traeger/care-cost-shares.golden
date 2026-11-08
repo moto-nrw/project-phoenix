@@ -1,0 +1,4 @@
+DELETE /traeger/care-cost-shares/{id}
+GET /traeger/care-cost-shares/
+POST /traeger/care-cost-shares/
+PUT /traeger/care-cost-shares/{id}

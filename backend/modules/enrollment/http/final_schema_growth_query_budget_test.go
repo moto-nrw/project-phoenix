@@ -38,9 +38,11 @@ func TestEnrollmentSchemaPositiveGrowthQueryBudget(t *testing.T) {
 		require.Equal(t, 1, preview.AssignedPhaseCount)
 		require.Equal(t, 1, preview.ActiveAssignedPhaseCount)
 		require.Equal(t, fields, preview.Schema.Fields)
-		raw, publicQ := growthGET(t, router, counter, "", fmt.Sprintf("/schema/public/%s/%d", f.slug, phase.ID))
-		var public enrollmenthttp.PublicFormSchemaResponse
-		require.NoError(t, json.Unmarshal(raw, &public))
+		raw, publicQ := growthGET(t, router, counter, "", fmt.Sprintf("/form-bootstrap/public/%s/%d", f.slug, phase.ID))
+		var bootstrap enrollmenthttp.PublicEnrollmentFormBootstrapResponse
+		require.NoError(t, json.Unmarshal(raw, &bootstrap))
+		public := bootstrap.Schema
+		require.NotNil(t, public)
 		require.Equal(t, fmt.Sprint(schema.ID), public.ID)
 		require.Equal(t, fields, public.Fields)
 		require.Equal(t, schema.Version, public.Version)
@@ -53,7 +55,6 @@ func TestEnrollmentSchemaPositiveGrowthQueryBudget(t *testing.T) {
 		t.Logf("schema route %d fields N3=%d N8=%d", i, len(small[i].Statements), len(large[i].Statements))
 	}
 	querybudgets.AssertQueryBudget(t, "api.enrollment.growth.schema_preview", large[0])
-	querybudgets.AssertQueryBudget(t, "api.enrollment.growth.public_schema", large[1])
 }
 
 func TestEnrollmentPhasePreviewEffectiveConfiguration(t *testing.T) {

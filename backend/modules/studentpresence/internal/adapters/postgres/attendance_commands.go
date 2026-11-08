@@ -69,8 +69,38 @@ func (s *Store) DeleteAttendanceBefore(ctx context.Context, cutoff ports.Date) (
 	if err != nil {
 		return stats, fmt.Errorf("delete expired attendance: %w", err)
 	}
-	stats.Rows, err = result.RowsAffected()
-	return stats, err
+	if stats.Rows, err = result.RowsAffected(); err != nil {
+		return stats, err
+	}
+	// The mark only grows: a longer retention later does not bring the
+	// deleted days back (#4686).
+	if _, err := db.NewRaw(`INSERT INTO active.attendance_retention_marks (school_id, deleted_before) VALUES (?, ?)
+		ON CONFLICT (school_id) DO UPDATE SET deleted_before = GREATEST(attendance_retention_marks.deleted_before, EXCLUDED.deleted_before),
+			updated_at = CURRENT_TIMESTAMP`, tenantID, cutoff).Exec(ctx); err != nil {
+		return stats, fmt.Errorf("mark the deleted attendance: %w", err)
+	}
+	stats.Queries++
+	stats.StatementDuration = time.Since(started)
+	return stats, nil
+}
+
+// AttendanceDeletedBefore reads the tenant's retention mark.
+func (s *Store) AttendanceDeletedBefore(ctx context.Context) (ports.Date, bool, ports.Stats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return "", false, ports.Stats{}, err
+	}
+	started := time.Now()
+	var marks []ports.Date
+	err = db.NewRaw(`SELECT deleted_before FROM active.attendance_retention_marks WHERE school_id = ?`, tenantID).Scan(ctx, &marks)
+	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
+	if err != nil {
+		return "", false, stats, fmt.Errorf("read the deleted attendance: %w", err)
+	}
+	if len(marks) == 0 {
+		return "", false, stats, nil
+	}
+	return marks[0], true, stats, nil
 }
 
 func (s *Store) EnsureAttendanceBatch(ctx context.Context, rows []*ports.Attendance) ([]int64, ports.Stats, error) {

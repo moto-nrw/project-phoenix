@@ -113,7 +113,7 @@ func (s *Intake) replaceInTenant(ctx context.Context, token string, tenantID int
 	if err := s.markParentChanged(ctx, plan.req.ID); err != nil {
 		return err
 	}
-	if len(plan.overrides) == 0 || editReq.SuppressSubmissionEmails {
+	if len(plan.overrides) == 0 {
 		return nil
 	}
 	if err := notifyDecisions(ctx, s.deps.Notifications, decisionGeneration{

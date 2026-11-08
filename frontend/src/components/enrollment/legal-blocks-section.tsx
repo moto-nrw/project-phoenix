@@ -66,24 +66,6 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "LegalBlocksSection" });
 
-/**
- * Props traeger/holiday-form-editor.tsx still passes. The draft-document
- * context carries the same lifecycle, so the section ignores them; they go
- * once that caller stops passing them.
- */
-interface LegacyDraftDocumentProps {
-  /** @deprecated Ignored; the draft-document context tracks drafts. */
-  readonly draftDocumentURLs?: ReadonlySet<string>;
-  /** @deprecated Ignored; see DraftDocumentLifecycle.remember. */
-  readonly onDraftDocumentUploaded?: (documentURL: string) => void;
-  /** @deprecated Ignored; see DraftDocumentLifecycle.discard. */
-  readonly onDraftDocumentDeleted?: (documentURL: string) => void;
-  /** @deprecated Ignored; see DraftDocumentLifecycle.begin. */
-  readonly onUploadStart?: () => void;
-  /** @deprecated Ignored; see DraftDocumentLifecycle.end. */
-  readonly onUploadEnd?: () => void;
-}
-
 export function LegalBlocksSection({
   blocks,
   standardBlocks,
@@ -91,16 +73,14 @@ export function LegalBlocksSection({
   uploadAdapter,
   onChange,
   disabled,
-}: Readonly<
-  {
-    blocks: FormLegalBlock[];
-    standardBlocks: FormLegalBlock[];
-    customOnly?: boolean;
-    uploadAdapter?: AttachmentUploadAdapter;
-    onChange: Dispatch<SetStateAction<FormLegalBlock[]>>;
-    disabled: boolean;
-  } & LegacyDraftDocumentProps
->) {
+}: Readonly<{
+  blocks: FormLegalBlock[];
+  standardBlocks: FormLegalBlock[];
+  customOnly?: boolean;
+  uploadAdapter?: AttachmentUploadAdapter;
+  onChange: Dispatch<SetStateAction<FormLegalBlock[]>>;
+  disabled: boolean;
+}>) {
   const lifecycle = useDraftDocumentLifecycle();
   const toast = useToast();
   const { show: showActionError, showMessage } = useApiErrorDisplay();

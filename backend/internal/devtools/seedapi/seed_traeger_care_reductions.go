@@ -97,6 +97,9 @@ func seedCareReductions(client *Client, auth AuthRef, month calendar.Date) (int,
 	if err != nil {
 		return 0, evidences, err
 	}
+	if err := seedCareCostShares(client, auth, month); err != nil {
+		return 0, evidences, err
+	}
 	families, err := seedFamilyChildren(client, auth, month)
 	fmt.Printf("  Träger family numbers: %d confirmed\n", families)
 	return max(len(set.Rules), 5), evidences, err

@@ -51,9 +51,10 @@ Vertragspartei.
    Zahlungsweg, sonst Rechnungsdatum + Zahlungsziel) und
    `parentbilling.ResolveRecipient`. Vorschau, Freigabe, Schreiben und Export
    rufen nur diese Funktionen. Die Prüfphase (#5916) setzt die Daten des Laufs
-   über `BillingTerms.SetCareRunDueDates`. Die Mensa (#4686) liest später
-   `BundleWith` ihrer Bedingungen (`TermsSet.Of(ServiceMeal)`); bis dahin
-   greift die Bündelung für die Mensa noch nicht.
+   über `BillingTerms.SetCareRunDueDates`. Die Mensa (#4686, ADR 0168) fragt
+   `TermsSet.InvoiceService(ServiceMeal)`: auf der Rechnung der Betreuung oder
+   auf einer eigenen Mensa-Rechnung mit eigenem Zahlungsweg und eigener
+   Fälligkeit.
 5. **Snapshot:** Die Freigabe kopiert Familie, Empfängerart, zweiten Elternteil,
    Zahler-Anschrift, Zahlungsweg, Fälligkeit und Herkunft der Fälligkeit auf
    die Rechnung. Rechnungen vor dieser Änderung behalten NULL und ihr
@@ -69,9 +70,9 @@ Vertragspartei.
   ersetzt den Schlüssel später an einer Stelle (`parentbilling.FamilyKey`).
 - Eine Familie nur mit Ferienanmeldung (ohne Vertrag) bekommt ihre
   Abweichung erst mit einem Vertrag.
-- Die Bündelungsregel der Mensa ist gespeichert, wirkt aber erst, wenn #4686
-  (bzw. der zweite der beiden PRs) die Mensa-Positionen nach `BundleWith`
-  verteilt; eine eigene Mensa-Rechnung baut #4686.
+- Die Bündelungsregel der Mensa wirkt mit #4686: Der Monatslauf verteilt die
+  Mensa-Positionen nach `TermsSet.InvoiceService(ServiceMeal)` und baut bei
+  Bedarf eine eigene Mensa-Rechnung (ADR 0168 Punkt 10).
 
 ## Register
 

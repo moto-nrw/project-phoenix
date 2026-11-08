@@ -101,6 +101,48 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "meals.supply_active"
+    },
+    {
+      "code": "meals.billing_month_running",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "meals.billing_month_running"
+    },
+    {
+      "code": "meals.billing_month_released",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "meals.billing_month_released"
+    },
+    {
+      "code": "meals.billing_month_changed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "meals.billing_month_changed"
+    },
+    {
+      "code": "meals.billing_month_no_traeger",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "meals.billing_month_no_traeger"
+    },
+    {
+      "code": "meals.billing_month_attendance_expired",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "meals.billing_month_attendance_expired"
+    },
+    {
+      "code": "meals.billing_month_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "meals.billing_month_invalid"
+    },
+    {
+      "code": "meals.billing_month_reason_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "meals.billing_month_reason_required"
     }
   ]
 }

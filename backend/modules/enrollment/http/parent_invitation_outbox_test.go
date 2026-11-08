@@ -55,11 +55,12 @@ func TestParentInvitationOutboxIsAtomicWithApproval(t *testing.T) {
 			bookings := newBookingMaterialization(t, db, api.WithBookingCatalog(newCareOfferingCatalog(t, db).Catalog), api.WithBookingSettings(offeringGuardSettings(false))).Bookings
 			decisions := newParentInvitationDecisions(repos, careRows, timetableRows, guardianAccess, students, bookings)
 			decision := enrollmentAPI.NewDecisionService(enrollmentCompose.PublicDecisions(decisions))
+			intakeMails := &recordingOutbox{}
 			requests := newFixtureRequestRoot(owners.NewEnrollmentIntake(owners.EnrollmentIntakeSources{
 				Requests: repos.Enrollment(), Children: repos.Enrollment(), Guardians: repos.Enrollment(),
 				CareOfferingRepo: enrollmentCompose.NewCareOfferingRecords(careRows.CarePlan), Catalog: repos.Enrollment(),
 				SchoolRepo: capabilitySchools{schools: schoolRows.School}, RateLimitRepo: repos.Enrollment(),
-				LateInviteRepo: repos.Enrollment(), OutboxEnqueuer: discardingOutbox{}, Settings: stubTakeoverSettings{},
+				LateInviteRepo: repos.Enrollment(), OutboxEnqueuer: intakeMails, Settings: stubTakeoverSettings{},
 				ManualDecider: decisions, FrontendURL: "http://localhost:3000", ParentsURL: "http://parents.localhost:3000", Logger: slog.Default(),
 			}))
 			delivery, err := api.NewDeliveryTestModule(database, testpkg.TenantRuntime(t, db))
@@ -112,6 +113,10 @@ func TestParentInvitationOutboxIsAtomicWithApproval(t *testing.T) {
 					count(ctx, db, 0)
 				}
 			}
+			// The staff enrollment sends the parent no confirmation and the
+			// managers no "Neue Anmeldung" mail (#6113).
+			require.Empty(t, intakeMails.ByKind(capability.MailKindSubmitted))
+			require.Empty(t, intakeMails.ByKind(capability.MailKindAdminNotification))
 		})
 	}
 }

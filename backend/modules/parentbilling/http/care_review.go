@@ -23,6 +23,7 @@ func (rs *CareBillingResource) mountReview(billing chi.Router) {
 	billing.Post("/{id}/exclusions", rs.exclude)
 	billing.Delete("/{id}/exclusions/{contractID}", rs.include)
 	billing.Get("/{id}/review-export", rs.reviewExport)
+	billing.Get("/{id}/cost-shares/{costBearerID}/export", rs.costShareExport)
 }
 
 // CareReleaseRequest is the body of POST …/release: what the reviewer saw,
@@ -142,6 +143,34 @@ func (rs *CareBillingResource) reviewExport(w http.ResponseWriter, r *http.Reque
 		renderCareError(w, r, err)
 		return
 	}
+	writeCareExportFile(w, file)
+}
+
+// costShareExport answers GET
+// …/{id}/cost-shares/{costBearerID}/export?format=pdf|xlsx|csv with the list
+// for one cost bearer of the run (#4687).
+func (rs *CareBillingResource) costShareExport(w http.ResponseWriter, r *http.Request) {
+	reviewer, runID, ok := runKey(w, r)
+	if !ok {
+		return
+	}
+	costBearerID, err := common.ParseIDParam(r, "costBearerID")
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	format := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("format")))
+	file, err := rs.billing.ExportCareCostShares(r.Context(), reviewer, runID, costBearerID, format)
+	if err != nil {
+		tenant.MarkRollback(r.Context())
+		renderCareError(w, r, err)
+		return
+	}
+	writeCareExportFile(w, file)
+}
+
+// writeCareExportFile sends a rendered list as a download nobody caches.
+func writeCareExportFile(w http.ResponseWriter, file capability.ExportFile) {
 	w.Header().Set("Content-Type", file.ContentType)
 	w.Header().Set("Content-Disposition", textnorm.ContentDisposition("attachment", file.Filename))
 	w.Header().Set("Cache-Control", "no-store")
