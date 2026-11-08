@@ -31,8 +31,9 @@ type ChildOfferingsUpdate struct {
 	RosterImpact RosterImpact
 }
 
-// DecideOutcome is the refreshed child plus the post-commit guardian
-// invitation an approval owes.
+// DecideOutcome is the refreshed child plus the guardian invitation an
+// approval owes, which the caller must create in the same transaction. The
+// decide route uses DecisionCommand instead, which creates it (#6093).
 type DecideOutcome struct {
 	Child         *RequestChild
 	PendingInvite *PendingGuardianInvite

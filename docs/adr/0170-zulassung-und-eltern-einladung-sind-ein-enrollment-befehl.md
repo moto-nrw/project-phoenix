@@ -46,8 +46,11 @@ Job) hätte Einheit, Einladung und Wiederholung erneut nachbauen müssen.
    Den Fehlerklassifikator bindet die Wurzel
    (`transactionruntime.IsTransientDatabaseError`).
 3. **Identity & Access über einen Consumer-Port.**
-   `DecisionGuardianInvitations` (Enrollment-Vokabular, ADR 0080) bindet die
-   Wurzel an `identityaccess.Owner`. Die Einladung und ihre Mail treten der
+   `DecisionGuardianInvitations` ist ein Port der Enrollment-Anwendung; die
+   Wurzel bindet ihn an `identityaccess.Owner`. Wie der bestehende
+   `DecisionGuardianAccess` nimmt er die Werte des öffentlichen
+   Identity-&-Access-Vertrags (`GuardianInvitationRequest`) statt eigener
+   Kopien. Die Einladung und ihre Mail treten der
    Einheit bei; scheitert eine, rollt die Zulassung zurück. Die manuelle
    Zulassung ruft denselben Befehl innerhalb ihrer Einreichungs-Transaktion
    und besitzt damit keine Wiederholung.
@@ -82,8 +85,11 @@ Job) hätte Einheit, Einladung und Wiederholung erneut nachbauen müssen.
   die Einstufung der bestehenden `Decide`-Einträge beziehungsweise E1 und
   nennen diese ADR als `approval_adr`.
 - `Decide` bleibt für die Wiederanmeldung (`RolloverDecider`) und die Tests
-  unverändert; sein `PendingInvite` muss der Aufrufer in derselben
-  Transaktion anlegen. `DecideAndInvite` liefert kein offenes `PendingInvite`.
+  unverändert. Wer es direkt ruft und die Einladung will, legt sein
+  `PendingInvite` in derselben Transaktion an. Die automatische Zulassung
+  der Wiederanmeldung (`rollover_review.go`) legt wie bisher keine an; diese
+  ADR ändert das nicht. `DecideAndInvite` liefert kein offenes
+  `PendingInvite`.
 - Die Wiederholungsregel ist mit Unit-Tests am Befehl belegt
   (`decide_and_invite_internal_test.go`), die Atomarität beider Einstiege mit
   `TestParentInvitationOutboxIsAtomicWithApproval`.
