@@ -90,6 +90,7 @@ const guards = [
   "src/app/api/proxy-routes.test.ts",
   "src/app/api/route-cache-policy.test.ts",
   "src/app/api/route-session-coverage.test.ts",
+  "src/app/api/credential-route-coverage.test.ts",
   "src/app/api/auth/session-cookie-inventory.test.ts",
   "src/lib/app-route-invariants.test.ts",
   "src/lib/analytics-routes.test.ts",
