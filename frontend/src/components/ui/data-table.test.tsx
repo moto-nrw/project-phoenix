@@ -364,6 +364,35 @@ describe("DataTable stacked phone layout", () => {
     expect(items[1]).not.toHaveTextContent("IBAN");
   });
 
+  it("gives a field without its label the full width and keeps the name for screen readers", () => {
+    render(
+      <DataTable
+        columns={[
+          {
+            key: "name",
+            header: "Name",
+            stacked: "title",
+            render: (row) => row.name,
+          },
+          {
+            key: "iban",
+            header: "IBAN",
+            stackedLabel: false,
+            render: (row) => row.iban,
+          },
+        ]}
+        rows={people}
+        getRowKey={(row) => row.id}
+        stackedOnMobile
+      />,
+    );
+
+    const stacked = screen.getByTestId("data-table-stacked");
+    const label = within(stacked).getAllByText("IBAN")[0];
+    expect(label).toHaveClass("sr-only");
+    expect(stacked).toHaveTextContent("•••• 3000");
+  });
+
   it("shares paging with the table instead of counting its own rows", () => {
     render(
       <DataTable

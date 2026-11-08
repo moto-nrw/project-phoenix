@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { CareRunMealsCard, MealPositionLine } from "./care-run-meals";
 
@@ -77,7 +77,33 @@ describe("CareRunMealsCard", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Ben Fremd")).toBeInTheDocument();
     expect(
-      screen.getByText(/Kein Vertrag an der Schule in diesem Monat/),
+      screen.getByText(
+        "1 Kind mit 4 Essen nicht abgerechnet. Kein Vertrag an der Schule in diesem Monat.",
+      ),
     ).toBeInTheDocument();
+  });
+
+  it("sums the children of a school month and folds a long list", () => {
+    const unbilled = Array.from({ length: 7 }, (_, index) => ({
+      schoolId: "3",
+      schoolName: "OGS Nord",
+      studentId: String(index + 1),
+      childFirstName: "Kind",
+      childLastName: `Nummer ${index + 1}`,
+      month: "2026-03-01",
+      mealDays: 2,
+      reason: "no_contract" as const,
+    }));
+    render(<CareRunMealsCard gaps={[]} unbilled={unbilled} />);
+    expect(screen.getByText("OGS Nord · März 2026")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "7 Kinder mit 14 Essen nicht abgerechnet. Kein Vertrag an der Schule in diesem Monat.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Kind Nummer 5")).toBeInTheDocument();
+    expect(screen.queryByText("Kind Nummer 7")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "2 weitere anzeigen" }));
+    expect(screen.getByText("Kind Nummer 7")).toBeInTheDocument();
   });
 });

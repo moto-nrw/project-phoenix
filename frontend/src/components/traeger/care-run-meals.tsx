@@ -4,6 +4,9 @@
 // auf der Rechnung des Kindes, die Monate ohne Freigabe der OGS-Leitung und
 // die Kinder, deren Mensa dieser Lauf nicht abrechnet.
 
+import { useId, useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
+import { Button } from "~/components/ui/button";
 import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import type {
@@ -48,6 +51,83 @@ const UNBILLED_REASONS: Record<CareMealUnbilled["reason"], string> = {
     "Die Rechnung dieses Monats ist schon ausgestellt. Der Lauf des nächsten Monats rechnet die Mensa ab.",
 };
 
+/** Children shown before „N weitere anzeigen“, as in the other hint lists. */
+const INITIAL_CHILD_COUNT = 5;
+
+/**
+ * The children of one school and month that this run leaves out for the
+ * same reason: one line with the count and the reason, the names below.
+ */
+function UnbilledGroup({
+  entries,
+}: Readonly<{ entries: readonly CareMealUnbilled[] }>) {
+  const [expanded, setExpanded] = useState(false);
+  const listId = useId();
+  const first = entries[0];
+  if (!first) return null;
+  const meals = entries.reduce((sum, entry) => sum + entry.mealDays, 0);
+  const sorted = [...entries].sort((a, b) =>
+    `${a.childLastName} ${a.childFirstName}`.localeCompare(
+      `${b.childLastName} ${b.childFirstName}`,
+      "de",
+    ),
+  );
+  const shown = expanded ? sorted : sorted.slice(0, INITIAL_CHILD_COUNT);
+  const hiddenCount = sorted.length - shown.length;
+  return (
+    <li className="flex flex-col gap-1 py-3 first:pt-0 last:pb-0 sm:col-span-2">
+      <p className="text-sm font-semibold text-gray-900">
+        {first.schoolName} · {formatMonth(first.month)}
+      </p>
+      <p className="text-sm text-gray-600">
+        {entries.length} {entries.length === 1 ? "Kind" : "Kinder"} mit {meals}{" "}
+        Essen nicht abgerechnet. {UNBILLED_REASONS[first.reason]}
+      </p>
+      <ul
+        id={listId}
+        className="mt-1 grid grid-cols-1 gap-x-8 gap-y-1 sm:grid-cols-2 lg:grid-cols-4"
+      >
+        {shown.map((entry) => (
+          <li
+            key={entry.studentId}
+            className="flex min-w-0 items-baseline gap-2 text-sm"
+          >
+            <span className="min-w-0 truncate text-gray-900">
+              {entry.childFirstName} {entry.childLastName}
+            </span>
+            <span className="shrink-0 text-gray-600 tabular-nums">
+              {entry.mealDays} Essen
+            </span>
+          </li>
+        ))}
+      </ul>
+      {sorted.length > INITIAL_CHILD_COUNT ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="md"
+          className="mt-1 self-start"
+          aria-expanded={expanded}
+          aria-controls={listId}
+          onClick={() => setExpanded((current) => !current)}
+        >
+          {expanded ? (
+            <>
+              Weniger anzeigen
+              <ChevronUp className="size-4" aria-hidden="true" />
+            </>
+          ) : (
+            <>
+              {hiddenCount} weitere anzeigen
+              <ChevronDown className="size-4" aria-hidden="true" />
+            </>
+          )}
+        </Button>
+      ) : null}
+    </li>
+  );
+}
+
 /**
  * The Mensa of a run in preview: the ended months a school has not released
  * and the children whose released months this run does not bill.
@@ -66,6 +146,11 @@ export function CareRunMealsCard({
       ...(bySchool.get(gap.schoolName) ?? []),
       gap,
     ]);
+  }
+  const groups = new Map<string, CareMealUnbilled[]>();
+  for (const entry of unbilled) {
+    const key = `${entry.schoolId}-${entry.month}-${entry.reason}`;
+    groups.set(key, [...(groups.get(key) ?? []), entry]);
   }
   return (
     <SectionCard
@@ -97,19 +182,8 @@ export function CareRunMealsCard({
             </p>
           </li>
         ))}
-        {unbilled.map((entry) => (
-          <li
-            key={`unbilled-${entry.schoolId}-${entry.studentId}-${entry.month}`}
-            className="flex flex-col gap-1 py-3 first:pt-0 last:pb-0 sm:col-span-2"
-          >
-            <p className="text-sm font-semibold text-gray-900">
-              {entry.childFirstName} {entry.childLastName}
-            </p>
-            <p className="text-sm text-gray-600">
-              {entry.schoolName} · {formatMonth(entry.month)} · {entry.mealDays}{" "}
-              Essen. {UNBILLED_REASONS[entry.reason]}
-            </p>
-          </li>
+        {[...groups.entries()].map(([key, entries]) => (
+          <UnbilledGroup key={key} entries={entries} />
         ))}
       </ResponsiveActionList>
     </SectionCard>
