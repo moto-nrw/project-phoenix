@@ -298,9 +298,9 @@ func applyCareSiblingRule(entries []*careChainEntry, rule *parentbilling.Contrib
 			counted = append(counted, entry)
 		}
 	}
-	elsewhere := childrenOnlyElsewhere(entries, in.unbilled, counting)
+	others := otherContractChildren(entries, in.unbilled, counted, counting)
 	for _, children := range rankFamilies(counted, rule) {
-		total, ahead := familySize(children, rule, in, elsewhere[familyOf(children[0].entries[0])])
+		total, ahead := familySize(children, rule, in, others[familyOf(children[0].entries[0])])
 		for index, child := range children {
 			rank := ahead + index + 1
 			if rank < *rule.SiblingFromChild {
@@ -321,11 +321,18 @@ func applyCareSiblingRule(entries []*careChainEntry, rule *parentbilling.Contrib
 // The family states all its children. A child whose contract this month is
 // only at a school the rule does not count is no sibling here: the counting
 // schools of the rule decide, as for the children with a contract (SJR
-// 08.11.2026, each location apart). elsewhere is the number of such children
-// and comes off the stated number. Siblings without a contract belong to no
-// school and count at every one. A rule that counts both schools counts them
-// all; the choice is the rule's setting „Geschwister zählen an“.
-func familySize(children []*rankedCareChild, rule *parentbilling.ContributionRule, in careChainInput, elsewhere int) (total, ahead int) {
+// 08.11.2026, each location apart). Such children come off the stated
+// number. Siblings without a contract belong to no school and count at every
+// one. A rule that counts both schools counts them all; the choice is the
+// rule's setting „Geschwister zählen an“.
+//
+// A child with a contract at a counting school is a child with a contract
+// even when the rule's part of it costs nothing (a price of 0 €, a full
+// reduction before) or it bills nothing yet: it takes no place of a sibling
+// without a contract. With the lowest base price it ranks behind the ranked
+// children (ADR 0115 point 3); only the stated children beyond all children
+// with a contract are siblings without one.
+func familySize(children []*rankedCareChild, rule *parentbilling.ContributionRule, in careChainInput, others contractChildren) (total, ahead int) {
 	withContract := len(children)
 	if !rule.CountsFamilyChildren {
 		return withContract, 0
@@ -338,19 +345,30 @@ func familySize(children []*rankedCareChild, rule *parentbilling.ContributionRul
 		}
 		return withContract, 0
 	}
-	total = max(stated-elsewhere, withContract)
-	return total, total - withContract
+	total = max(stated-others.elsewhere, withContract+others.unranked)
+	return total, total - withContract - others.unranked
 }
 
-// childrenOnlyElsewhere counts per family the children whose contracts of
-// the month, with a draft or not yet billable, are all at schools outside
-// counting: siblings with a contract at another location.
-func childrenOnlyElsewhere(entries []*careChainEntry, unbilled []careContractPlace, counting []int64) map[string]int {
+// contractChildren are the children of a family with a contract in the
+// month that a sibling rule does not rank: elsewhere only at schools it does
+// not count, unranked at a counting school without a base price of the rule.
+type contractChildren struct {
+	elsewhere, unranked int
+}
+
+// otherContractChildren counts per family the children with a contract of
+// the month, with a draft or not yet billable, that are not among the ranked
+// entries.
+func otherContractChildren(entries []*careChainEntry, unbilled []careContractPlace, ranked []*careChainEntry, counting []int64) map[string]contractChildren {
+	type familyChild struct{ family, child string }
+	isRanked := map[familyChild]bool{}
+	for _, entry := range ranked {
+		isRanked[familyChild{familyOf(entry), entry.child}] = true
+	}
 	places := slices.Clone(unbilled)
 	for _, entry := range entries {
 		places = append(places, careContractPlace{family: familyOf(entry), child: entry.child, school: entry.invoice.SchoolID})
 	}
-	type familyChild struct{ family, child string }
 	inside := map[familyChild]bool{}
 	outside := map[familyChild]bool{}
 	for _, place := range places {
@@ -361,13 +379,22 @@ func childrenOnlyElsewhere(entries []*careChainEntry, unbilled []careContractPla
 			outside[key] = true
 		}
 	}
-	elsewhere := map[string]int{}
-	for key := range outside {
-		if !inside[key] {
-			elsewhere[key.family]++
+	others := map[string]contractChildren{}
+	for key := range inside {
+		if !isRanked[key] {
+			tally := others[key.family]
+			tally.unranked++
+			others[key.family] = tally
 		}
 	}
-	return elsewhere
+	for key := range outside {
+		if !inside[key] {
+			tally := others[key.family]
+			tally.elsewhere++
+			others[key.family] = tally
+		}
+	}
+	return others
 }
 
 // noteUncounted records the schools of the family's invoices the rule

@@ -40,6 +40,7 @@ func chainTariffs(t *testing.T) []parentbilling.CareTariff {
 		price(t, schoolIspringen, moduleUntil1630, "Betreuung bis 16:30 Uhr", "mon", "2026-09-01", 6000),
 		price(t, schoolIspringen, moduleUntil1630, "Betreuung bis 16:30 Uhr", "tue", "2026-09-01", 4000),
 		price(t, schoolIspringen, moduleEarly, "Frühbetreuung", "mon", "2026-09-01", 3333),
+		price(t, schoolIspringen, moduleEarly, "Frühbetreuung", "tue", "2026-09-01", 0),
 		price(t, schoolBirkenfeld, moduleUntil1400, "Betreuung bis 14:00 Uhr", "mon", "2026-09-01", 4500),
 	}
 }
@@ -60,6 +61,7 @@ var (
 	mon1630  = booked("mon", moduleUntil1630, "Betreuung bis 16:30 Uhr", "16:30")
 	tue1630  = booked("tue", moduleUntil1630, "Betreuung bis 16:30 Uhr", "16:30")
 	monEarly = booked("mon", moduleEarly, "Frühbetreuung", "08:00")
+	tueEarly = booked("tue", moduleEarly, "Frühbetreuung", "08:00")
 )
 
 func ptr[T any](value T) *T { return &value }
@@ -540,6 +542,33 @@ func TestCareMonthRuleChainTable(t *testing.T) {
 			rules:    familySiblingRule(true),
 			families: confirmedFamily(familyEva, 2, "2026-09-01", nil),
 			totals:   map[int64]int64{contractMia: 4000, contractNoah: 4500},
+		},
+		{
+			// Two stated, both with a contract at Ispringen. Noah's Tuesday
+			// Frühbetreuung costs 0 €: he is still a child with a contract,
+			// not a sibling without one, and ranks last with the lowest base
+			// price. Mia (40,00 €) is the 1st and pays in full.
+			name: "a child whose contract costs nothing is still a child with a contract",
+			children: []careChainChild{
+				{contractMia, schoolIspringen, familyEva, "2017-03-01", []parentbilling.CareContractService{mon1400}},
+				{contractNoah, schoolIspringen, familyEva, "2015-03-01", []parentbilling.CareContractService{tueEarly}},
+			},
+			rules:    familySiblingRule(true),
+			families: confirmedFamily(familyEva, 2, "2026-09-01", nil),
+			totals:   map[int64]int64{contractMia: 4000, contractNoah: 0},
+		},
+		{
+			// Three stated: Mia, Noah at 0 € and one sibling without a
+			// contract. The sibling comes first, Mia is the 2nd: 20,00 €.
+			name: "a child at no cost does not hide a sibling without a contract",
+			children: []careChainChild{
+				{contractMia, schoolIspringen, familyEva, "2017-03-01", []parentbilling.CareContractService{mon1400}},
+				{contractNoah, schoolIspringen, familyEva, "2015-03-01", []parentbilling.CareContractService{tueEarly}},
+			},
+			rules:    familySiblingRule(true),
+			families: confirmedFamily(familyEva, 3, "2026-09-01", nil),
+			totals:   map[int64]int64{contractMia: 2000, contractNoah: 0},
+			lines:    map[int64][]reductionOf{contractMia: {{parentbilling.RuleSibling, -2000, 2}}},
 		},
 		{
 			// Noah books Tuesday at Birkenfeld, which has no price there: his

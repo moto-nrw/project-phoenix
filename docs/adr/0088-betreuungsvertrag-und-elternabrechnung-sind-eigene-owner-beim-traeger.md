@@ -359,6 +359,12 @@ Punkt 4.
   und zählen an jedem mit. Ob ein anderer Standort mitzählt, entscheidet die
   Einstellung `Geschwister zählen an` der Regel; das ist ohne Codeänderung
   umstellbar.
+- **Kind mit Vertrag zu 0 €.** Ein Kind mit wirksamem Vertrag an einer
+  Zählschule ist ein Kind mit Vertrag, auch wenn sein Beitrag 0 € beträgt
+  (Tarif 0 €, volle Ermäßigung, Kostenträger) oder der Vertrag im Monat noch
+  nicht abrechenbar ist. Es steht mit dem niedrigsten Grundbeitrag hinten in
+  der Reihenfolge (ADR 0115 Punkt 3). Ohne Vertrag sind nur die Kinder der
+  Angabe, die über alle Kinder mit Vertrag hinausgehen.
 - **Schlüssel der Familie.** Bis #4689 ist die Familie die Mail-Adresse des
   Rechnungsempfängers ohne Groß- und Kleinschreibung (ADR 0164 Punkt 4).
   Die Zahl hängt am Vertrag, an dem sie zuletzt angegeben oder bestätigt
