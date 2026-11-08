@@ -465,3 +465,13 @@ nach `…/feed.go:*service.parentCalendarFeed:s.cfg.Runtime.WithinTenant#1`, dam
 derselbe Rahmen mit bytegleichem Rumpf und wörtlich gleichem Grund; die Zahl der
 Tenant-Startstellen bleibt gleich, und der neue Schlüssel steht in
 `transactionFrameBundleSites`.
+
+## Nachtrag 08.11.2026: Admin-Schlüssel der Anhang-Zielgruppe (#5894)
+
+Schritt 3 verlagert die Admin-Startstelle
+`workflows/parentportal/internal/messaging/parent_announcement_attachments.go:*Service.GuardianAnnouncementTenant:s.Runtime.WithinAdmin#1`
+nach `…/parent_announcement_attachments.go:*Service.guardianAnnouncementAudience:s.Runtime.WithinAdmin#1`,
+weil der erste Durchgang und die erneute Prüfung dieselbe Zielgruppenprüfung
+aufrufen. Der Rumpf des Admin-Callbacks ist bytegleich, der Grund wörtlich
+gleich, und die Zahl der Admin-Stellen bleibt gleich. Der neue Schlüssel steht
+in `transactionFrameBundleSites`.

@@ -626,6 +626,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0161",
+      "id": "workflows/parentportal/internal/messaging/AnnouncementAttachments[A, C].OpenGuardianAttachment",
+      "reason": "ADR 0161 step 3: the announcement download hands the row read into the school unit of the gate's switch, then the shared hand-out asks the audience again and opens the bytes; exact evidence, no ADR 0075 floor claimed."
+    },
+    {
       "decision": "0090",
       "id": "workflows/parentportal/internal/messaging/AnnouncementAttachments[A, C].OpenGuardianDeclarationProofAttachment",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."

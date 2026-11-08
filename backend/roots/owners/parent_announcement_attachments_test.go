@@ -20,6 +20,13 @@ func (a attachmentAudienceStub) GuardianAnnouncementTenant(context.Context, int6
 	return a.tenantID, nil
 }
 
+func (a attachmentAudienceStub) WithinGuardianAnnouncementTenant(ctx context.Context, _, _ int64, read func(context.Context, int64) error) (int64, error) {
+	if a.tenantID <= 0 {
+		return 0, nil
+	}
+	return a.tenantID, read(ctx, a.tenantID)
+}
+
 func (a attachmentAudienceStub) GuardianDeclarationProofAttachmentTenant(context.Context, int64, int64, int64, int64) (int64, error) {
 	return a.tenantID, nil
 }

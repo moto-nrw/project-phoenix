@@ -338,8 +338,8 @@ func validPollSelection(responseType string, options []*ParentAnnouncementOption
 // flag. A system-authored row (cancellation notice, #2601) is always visible:
 // the person cancelling decided to send it (#3731), and a school that keeps
 // news off still lets families confirm the notice. Runs OUTSIDE the admin tx
-// because ResolveBoolForTenant opens its own tenant tx. Fails CLOSED on an
-// unwired settings service or a resolve error.
+// because ResolveBoolForTenant opens its own tenant tx or joins one of the
+// same school. Fails CLOSED on an unwired settings service or a resolve error.
 func (s *Service) announcementVisibleForTenant(ctx context.Context, tenantID, announcementID int64, systemKind *string) bool {
 	if systemKind != nil && *systemKind != "" {
 		return true
@@ -347,18 +347,22 @@ func (s *Service) announcementVisibleForTenant(ctx context.Context, tenantID, an
 	if s.Settings == nil {
 		return false
 	}
-	key := care.KeyParentNewsEnabled
-	on, err := s.Settings.ResolveBoolForTenant(ctx, tenantID, key)
+	on, err := s.Settings.ResolveBoolForTenant(ctx, tenantID, care.KeyParentNewsEnabled)
 	if err != nil {
-		s.Logger.Warn("parent: resolve announcement feature flag failed, hiding announcement",
-			slog.Int64("tenant_id", tenantID),
-			slog.Int64("announcement_id", announcementID),
-			slog.String("setting_key", key),
-			slog.String("error", err.Error()),
-		)
+		s.logHiddenAnnouncement(tenantID, announcementID, err)
 		return false
 	}
 	return on
+}
+
+// logHiddenAnnouncement records why an unreadable switch hid an announcement.
+func (s *Service) logHiddenAnnouncement(tenantID, announcementID int64, err error) {
+	s.Logger.Warn("parent: resolve announcement feature flag failed, hiding announcement",
+		slog.Int64("tenant_id", tenantID),
+		slog.Int64("announcement_id", announcementID),
+		slog.String("setting_key", care.KeyParentNewsEnabled),
+		slog.String("error", err.Error()),
+	)
 }
 
 // announcementFeedScope splits the guardian's schools into those whose whole
