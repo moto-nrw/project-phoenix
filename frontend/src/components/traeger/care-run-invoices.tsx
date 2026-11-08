@@ -3,18 +3,14 @@
 // Die Rechnungen eines Monatslaufs (#4684), je Schule eine Karte. Jede
 // Rechnung zeigt das Kind, den Empfänger und je gebuchtem Modul eine
 // Position mit den Wochentagen und ihrem Monatspreis. Es gibt keine Zeile je
-// Kalendertag. Nach der Freigabe trennt die Zeile „ausgestellt“ (Nummer und
-// Datum) von „an die Familie“ (Stand der Mail). Ein Storno steht als eigene
-// Zeile mit Minusbetrag direkt unter seiner Rechnung; Schreiben, Senden und
-// Stornieren stehen im Menü der Zeile.
+// Kalendertag. Mit den Schreiben des Laufs steht ein Storno als eigene Zeile
+// mit Minusbetrag direkt unter seiner Rechnung. Die Spalten für Versand und
+// Menü kommen nur auf der Seite „Schreiben“ dazu
+// (care-run-letter-invoices.tsx), damit der Lauf ihren Code nicht lädt.
 
 import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
 import { ButtonLink } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
-import {
-  type OverflowMenuItem,
-  OverflowMenu,
-} from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { formatDate } from "~/lib/date-helpers";
@@ -26,11 +22,6 @@ import type {
   CareReduction,
   CareUnpriced,
 } from "~/lib/traeger-care-billing-api";
-import {
-  canSendMail,
-  mailBadge,
-  mailStatusDetail,
-} from "./billing-mail-status";
 import { traegerPath } from "~/lib/traeger-url";
 import {
   WEEKDAY_SHORT,
@@ -134,25 +125,12 @@ function ReductionLine({ reduction }: Readonly<{ reduction: CareReduction }>) {
 }
 
 /** An invoice of the table, or the Storno of the invoice above it. */
-interface InvoiceRow {
+export interface CareInvoiceRow {
   readonly key: string;
   readonly invoice: CareInvoice;
   /** The letter of this row once the run has its letters. */
   readonly letter: CareLetterMailing | null;
   readonly storno: boolean;
-}
-
-/** What the run does with the letters of its invoices, from the page. */
-export interface CareInvoiceLetterActions {
-  /** Per invoice and kind, as `GET …/letters` lists them. */
-  readonly letters: readonly CareLetterMailing[];
-  /** The letters exist; before that a row has nothing to show or send. */
-  readonly created: boolean;
-  /** The row whose mail is being sent, as `kind-invoiceId`. */
-  readonly sendingKey: string | null;
-  readonly onShowLetter: (letter: CareLetterMailing) => void;
-  readonly onSend: (letter: CareLetterMailing) => void;
-  readonly onCancel: (invoice: CareLetterMailing) => void;
 }
 
 export function careLetterKey(letter: CareLetterMailing): string {
@@ -163,14 +141,14 @@ export function careLetterKey(letter: CareLetterMailing): string {
 function invoiceRows(
   invoices: readonly CareInvoice[],
   letters: readonly CareLetterMailing[] | undefined,
-): InvoiceRow[] {
+): CareInvoiceRow[] {
   const byKey = new Map(
     (letters ?? []).map((letter) => [careLetterKey(letter), letter]),
   );
   return invoices.flatMap((invoice) => {
     const letter = byKey.get(`invoice-${invoice.id}`) ?? null;
     const storno = byKey.get(`cancellation-${invoice.id}`) ?? null;
-    const rows: InvoiceRow[] = [
+    const rows: CareInvoiceRow[] = [
       { key: invoice.contractId, invoice, letter, storno: false },
     ];
     if (storno) {
@@ -185,84 +163,8 @@ function invoiceRows(
   });
 }
 
-/** „An die Familie“: what reached the family, apart from what is issued. */
-function SendCell({
-  row,
-  created,
-}: Readonly<{ row: InvoiceRow; created: boolean }>) {
-  const { letter } = row;
-  if (row.storno && letter && !letter.hasLetter) {
-    return (
-      <p className="text-sm text-gray-600">
-        Kein Schreiben. Die Familie hatte die Rechnung noch nicht.
-      </p>
-    );
-  }
-  if (!created || !letter?.hasLetter) {
-    return <p className="text-sm text-gray-600">Noch kein Schreiben</p>;
-  }
-  if (!row.storno && letter.cancelled && letter.sends === 0) {
-    return (
-      <p className="text-sm text-gray-600">
-        {letter.printed
-          ? "Zum Drucken heruntergeladen. Geben Sie der Familie das Storno-Schreiben."
-          : "Nicht gesendet. Die Familie bekommt nichts."}
-      </p>
-    );
-  }
-  const detail = mailStatusDetail(letter);
-  return (
-    <div className="flex min-w-0 flex-col items-start gap-1">
-      <StatusBadge {...mailBadge(letter)} />
-      {detail ? <p className="text-xs text-gray-600">{detail}</p> : null}
-      {!letter.recipientEmail.trim() ? (
-        <p className="text-xs text-gray-600">
-          Bitte drucken Sie das Schreiben.
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-function rowMenuItems(
-  row: InvoiceRow,
-  actions: CareInvoiceLetterActions,
-): OverflowMenuItem[] {
-  const { letter } = row;
-  if (!letter) return [];
-  const items: OverflowMenuItem[] = [];
-  const live = row.storno || !letter.cancelled;
-  if (actions.created && letter.hasLetter) {
-    items.push({
-      label: "Schreiben ansehen",
-      onClick: () => actions.onShowLetter(letter),
-    });
-    if (live && canSendMail(letter) && actions.sendingKey === null) {
-      items.push({
-        label: letter.sends === 0 ? "Senden" : "Erneut senden",
-        description:
-          letter.sends === 0
-            ? "Per E-Mail und in die Eltern-App"
-            : "Noch einmal an dieselbe Adresse",
-        onClick: () => actions.onSend(letter),
-      });
-    }
-  }
-  if (!row.storno && !letter.cancelled) {
-    items.push({
-      label: "Stornieren",
-      destructive: true,
-      onClick: () => actions.onCancel(letter),
-    });
-  }
-  return items;
-}
-
-function invoiceColumns(
-  month: string,
-  actions: CareInvoiceLetterActions | undefined,
-): DataTableColumn<InvoiceRow>[] {
-  const columns: DataTableColumn<InvoiceRow>[] = [
+function invoiceColumns(month: string): DataTableColumn<CareInvoiceRow>[] {
+  return [
     {
       key: "child",
       header: "Kind",
@@ -358,32 +260,6 @@ function invoiceColumns(
       ),
     },
   ];
-  if (!actions) return columns;
-  return [
-    ...columns,
-    {
-      key: "send",
-      header: "An die Familie",
-      stacked: "field",
-      className: "w-48 align-top",
-      render: (row) => <SendCell row={row} created={actions.created} />,
-    },
-    {
-      key: "actions",
-      header: "",
-      align: "right",
-      stacked: "meta",
-      stackedLabel: false,
-      className: "align-top",
-      render: (row) => (
-        <OverflowMenu
-          ariaLabel={`Aktionen für ${row.storno ? "den Storno" : "die Rechnung"} von ${row.invoice.childFirstName} ${row.invoice.childLastName}`}
-          triggerSize="sm"
-          items={rowMenuItems(row, actions)}
-        />
-      ),
-    },
-  ];
 }
 
 /** One card per school with its invoices and its sum. */
@@ -391,13 +267,16 @@ export function CareRunInvoices({
   invoices,
   month,
   released,
-  letterActions,
+  letters,
+  letterColumns,
 }: Readonly<{
   invoices: readonly CareInvoice[];
   month: string;
   released: boolean;
-  /** Set once the run is released: the letter, mail and Storno of a row. */
-  letterActions?: CareInvoiceLetterActions;
+  /** The letters of a released run, as `GET …/letters` lists them: they add the Storno rows. */
+  letters?: readonly CareLetterMailing[];
+  /** „An die Familie“ and the row menu, only on the page „Schreiben“. */
+  letterColumns?: readonly DataTableColumn<CareInvoiceRow>[];
 }>) {
   if (invoices.length === 0) {
     return (
@@ -413,11 +292,13 @@ export function CareRunInvoices({
         <SectionCard
           key={group.schoolId}
           title={group.schoolName}
-          overflow={letterActions ? "visible" : undefined}
+          overflow={letterColumns ? "visible" : undefined}
           description={
-            released
-              ? "Ausgestellte Rechnungen. Sie ändern sich nicht mehr. „An die Familie“ zeigt, ob das Schreiben schon gesendet ist."
-              : "Vorschau. Jede Rechnung bekommt ihre Nummer erst bei der Freigabe."
+            !released
+              ? "Vorschau. Jede Rechnung bekommt ihre Nummer erst bei der Freigabe."
+              : letterColumns
+                ? "Ausgestellte Rechnungen. Sie ändern sich nicht mehr. „An die Familie“ zeigt, ob das Schreiben schon gesendet ist."
+                : "Ausgestellte Rechnungen. Sie ändern sich nicht mehr."
           }
           titleBadge={
             <span className="text-sm font-normal text-gray-600 tabular-nums">
@@ -428,10 +309,10 @@ export function CareRunInvoices({
           collapsible={invoices.length > 8}
         >
           <DataTable
-            columns={invoiceColumns(month, letterActions)}
-            rows={invoiceRows(group.invoices, letterActions?.letters)}
+            columns={[...invoiceColumns(month), ...(letterColumns ?? [])]}
+            rows={invoiceRows(group.invoices, letters)}
             getRowKey={(row) => row.key}
-            rowHasInteractiveControls={letterActions !== undefined}
+            rowHasInteractiveControls={letterColumns !== undefined}
             stackedOnMobile
           />
         </SectionCard>

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import type {
@@ -7,14 +7,11 @@ import type {
   CareRunDetail,
 } from "~/lib/traeger-care-billing-api";
 
-const { api, push } = vi.hoisted(() => ({
+const { api } = vi.hoisted(() => ({
   api: {
     fetchCareRun: vi.fn(),
     fetchCareLetters: vi.fn(),
-    fetchCareRuns: vi.fn(),
-    startCareRun: vi.fn(),
   },
-  push: vi.fn(),
 }));
 vi.mock("~/lib/traeger-care-billing-api", async (original) => ({
   ...(await original<typeof import("~/lib/traeger-care-billing-api")>()),
@@ -22,7 +19,7 @@ vi.mock("~/lib/traeger-care-billing-api", async (original) => ({
 }));
 vi.mock("next/navigation", () => ({
   useParams: () => ({ id: "7" }),
-  useRouter: () => ({ push }),
+  useRouter: () => ({ push: vi.fn() }),
   usePathname: () => "/abrechnung/monatsbeitraege/7",
 }));
 vi.mock("~/lib/traeger-url", () => ({ traegerPath: (path: string) => path }));
@@ -49,41 +46,23 @@ const RUN: CareRunDetail = {
   numberPattern: "MB-{NNNN}",
   numberRangeSet: true,
 };
-const CANCELLATION: CareLetterMailing = {
-  invoiceId: "41",
-  kind: "cancellation",
-  number: "MB-0002",
-  invoiceNumber: "MB-0001",
-  issuedOn: "2027-01-04",
-  childFirstName: "Mia",
-  childLastName: "Beispiel",
-  schoolName: "OGS",
-  recipientFirstName: "Eva",
-  recipientLastName: "Beispiel",
-  recipientEmail: "eva@example.org",
-  totalCents: -9600,
-  reason: "Falscher Vertrag",
-  cancelled: true,
-  cancellationNumber: "MB-0002",
-  hasLetter: false,
-  status: "not_sent",
-  sends: 0,
-  attempts: 0,
-  requestedAt: null,
-  sentAt: null,
-};
-const letters = (documents: CareLetterMailing[]): CareLetters => ({
-  letters: null,
-  documents,
-  summary: {
-    letters: 0,
-    sent: 0,
-    queued: 0,
-    failed: 0,
-    notSent: 0,
-    withoutEmail: 0,
-  },
-});
+const CANCELLATION = { kind: "cancellation" } as CareLetterMailing;
+
+function letters(overrides: Partial<CareLetters> = {}): CareLetters {
+  return {
+    letters: null,
+    documents: [],
+    summary: {
+      letters: 0,
+      sent: 0,
+      queued: 0,
+      failed: 0,
+      notSent: 0,
+      withoutEmail: 0,
+    },
+    ...overrides,
+  };
+}
 
 function renderPage() {
   render(
@@ -93,63 +72,92 @@ function renderPage() {
   );
 }
 
-describe("monthly invoice reissue", () => {
+function lettersCard() {
+  const heading = screen.getByRole("heading", {
+    name: "Schreiben an die Familien",
+  });
+  const card = heading.closest("section");
+  if (!card) throw new Error("letters card without its section");
+  return within(card);
+}
+
+describe("monthly run page letters card", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     api.fetchCareRun.mockResolvedValue(RUN);
-    api.fetchCareRuns.mockResolvedValue({ runs: [] });
   });
 
-  it("hides reissue when every cancellation has a released replacement", async () => {
-    api.fetchCareLetters.mockResolvedValue(
-      letters([{ ...CANCELLATION, replaced: true }]),
-    );
-    renderPage();
-    await screen.findByRole("button", { name: "Schreiben erstellen" });
-    expect(
-      screen.queryByRole("button", { name: "Neu ausstellen" }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("counts only cancellations that still need a replacement", async () => {
-    api.fetchCareLetters.mockResolvedValue(
-      letters([
-        CANCELLATION,
-        { ...CANCELLATION, invoiceId: "42", replaced: true },
-      ]),
-    );
+  it("leads to the letters page to create them", async () => {
+    api.fetchCareLetters.mockResolvedValue(letters());
     renderPage();
     expect(
-      await screen.findByText("1 Rechnung ist storniert"),
+      await screen.findByText("Noch keine Schreiben erstellt."),
     ).toBeInTheDocument();
-    api.startCareRun.mockResolvedValue({ id: "8" });
-    fireEvent.click(screen.getByRole("button", { name: "Neu ausstellen" }));
-    await waitFor(() =>
-      expect(push).toHaveBeenCalledWith(
-        "/traeger/abrechnung/monatsbeitraege/8",
+    const link = screen.getByRole("link", { name: "Schreiben erstellen" });
+    expect(link).toHaveAttribute(
+      "href",
+      "/traeger/abrechnung/monatsbeitraege/7/schreiben",
+    );
+    expect(
+      lettersCard().getByText("Noch keine Schreiben erstellt."),
+    ).toBeInTheDocument();
+    // Sending, printing and Storno live on the letters page only.
+    expect(screen.queryByRole("button", { name: "An alle senden" })).toBeNull();
+    expect(screen.queryByText("An die Familie")).toBeNull();
+  });
+
+  it("shows the send state in one line once the letters exist", async () => {
+    api.fetchCareLetters.mockResolvedValue(
+      letters({
+        letters: {
+          paymentDueOn: "2027-01-20",
+          notes: "",
+          createdAt: "2027-01-04T09:00:00Z",
+        },
+        documents: [CANCELLATION],
+        summary: {
+          letters: 5,
+          sent: 3,
+          queued: 0,
+          failed: 1,
+          notSent: 1,
+          withoutEmail: 1,
+        },
+      }),
+    );
+    renderPage();
+    expect(
+      await screen.findByText(
+        "3 von 5 gesendet · 1 nicht angekommen · 1 ohne E-Mail · 1 storniert",
       ),
-    );
-    expect(api.startCareRun).toHaveBeenCalledWith("2027-01-01");
-  });
-
-  it("does not create an empty run when another tab already issued the replacement", async () => {
-    api.fetchCareLetters
-      .mockResolvedValueOnce(letters([CANCELLATION]))
-      .mockResolvedValue(letters([{ ...CANCELLATION, replaced: true }]));
-    renderPage();
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Neu ausstellen" }),
-    );
-    await waitFor(() => expect(api.fetchCareLetters).toHaveBeenCalledTimes(2));
-    await waitFor(() =>
-      expect(
-        screen.queryByRole("button", { name: "Neu ausstellen" }),
-      ).not.toBeInTheDocument(),
+    ).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: "Schreiben öffnen" });
+    expect(link).toHaveAttribute(
+      "href",
+      "/traeger/abrechnung/monatsbeitraege/7/schreiben",
     );
     expect(
-      screen.getByRole("button", { name: "Schreiben erstellen" }),
+      lettersCard().getByText(
+        "3 von 5 gesendet · 1 nicht angekommen · 1 ohne E-Mail · 1 storniert",
+      ),
     ).toBeInTheDocument();
-    expect(api.startCareRun).not.toHaveBeenCalled();
-    expect(api.fetchCareRuns).not.toHaveBeenCalled();
+  });
+
+  it("shows no letters card before the release", async () => {
+    api.fetchCareLetters.mockResolvedValue(letters());
+    api.fetchCareRun.mockResolvedValue({
+      ...RUN,
+      status: "calculated",
+      releasedAt: null,
+      issuedOn: null,
+    });
+    renderPage();
+    expect(
+      await screen.findByRole("button", { name: "Lauf freigeben" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Schreiben an die Familien" }),
+    ).toBeNull();
+    expect(api.fetchCareLetters).not.toHaveBeenCalled();
   });
 });

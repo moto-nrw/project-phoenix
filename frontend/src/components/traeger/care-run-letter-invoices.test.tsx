@@ -11,8 +11,8 @@ vi.mock("~/lib/traeger-url", () => ({
 
 import {
   type CareInvoiceLetterActions,
-  CareRunInvoices,
-} from "./care-run-invoices";
+  CareRunLetterInvoices,
+} from "./care-run-letter-invoices";
 
 const invoice = (overrides: Partial<CareInvoice> = {}): CareInvoice => ({
   id: "41",
@@ -25,6 +25,7 @@ const invoice = (overrides: Partial<CareInvoice> = {}): CareInvoice => ({
   childLastName: "Beispiel",
   recipient: { firstName: "Eva", lastName: "Beispiel", email: "eva@x.org" },
   positions: [],
+  reductions: [],
   totalCents: 9600,
   ...overrides,
 });
@@ -77,13 +78,12 @@ function openMenu(name: RegExp) {
   return screen.getByRole("menu");
 }
 
-describe("CareRunInvoices with letters (#4684)", () => {
+describe("CareRunLetterInvoices (#4684)", () => {
   it("keeps issued apart from what reached the family", () => {
     render(
-      <CareRunInvoices
+      <CareRunLetterInvoices
         invoices={[invoice()]}
         month="2027-01-01"
-        released
         letterActions={actions([letter()])}
       />,
     );
@@ -99,10 +99,9 @@ describe("CareRunInvoices with letters (#4684)", () => {
     const onCancel = vi.fn();
     const mailing = letter();
     render(
-      <CareRunInvoices
+      <CareRunLetterInvoices
         invoices={[invoice()]}
         month="2027-01-01"
-        released
         letterActions={actions([mailing], { onSend, onCancel })}
       />,
     );
@@ -116,10 +115,9 @@ describe("CareRunInvoices with letters (#4684)", () => {
 
   it("offers a retry after a failed mail", () => {
     render(
-      <CareRunInvoices
+      <CareRunLetterInvoices
         invoices={[invoice()]}
         month="2027-01-01"
-        released
         letterActions={actions([letter({ status: "failed", sends: 1 })])}
       />,
     );
@@ -132,10 +130,9 @@ describe("CareRunInvoices with letters (#4684)", () => {
 
   it("shows the Storno as its own row below its invoice", () => {
     render(
-      <CareRunInvoices
+      <CareRunLetterInvoices
         invoices={[invoice()]}
         month="2027-01-01"
-        released
         letterActions={actions([
           letter({
             cancelled: true,
@@ -175,10 +172,9 @@ describe("CareRunInvoices with letters (#4684)", () => {
 
   it("says that the family gets nothing for a Storno of an invoice never sent", () => {
     render(
-      <CareRunInvoices
+      <CareRunLetterInvoices
         invoices={[invoice()]}
         month="2027-01-01"
-        released
         letterActions={actions([
           letter({ cancelled: true, cancellationNumber: "MB-2027-0009" }),
           letter({
@@ -202,10 +198,9 @@ describe("CareRunInvoices with letters (#4684)", () => {
 
   it("keeps the paper cancellation notice visible after printing", () => {
     render(
-      <CareRunInvoices
+      <CareRunLetterInvoices
         invoices={[invoice()]}
         month="2027-01-01"
-        released
         letterActions={actions([
           letter({
             cancelled: true,
@@ -233,10 +228,9 @@ describe("CareRunInvoices with letters (#4684)", () => {
 
   it("asks to print for a family without an address", () => {
     render(
-      <CareRunInvoices
+      <CareRunLetterInvoices
         invoices={[invoice()]}
         month="2027-01-01"
-        released
         letterActions={actions([letter({ recipientEmail: "" })])}
       />,
     );

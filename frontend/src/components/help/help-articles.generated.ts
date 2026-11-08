@@ -10484,7 +10484,8 @@ export const traegerCareMonthsTopic =
           description:
             "Jede Familie bekommt ein Schreiben im Briefkopf des Trägers. Es ist ihre Rechnung. Erstellen sendet noch nichts.",
           steps: [
-            "Wählen Sie im freigegebenen Lauf bei `Schreiben an die Familien` den Knopf `Schreiben erstellen`.",
+            "Wählen Sie im freigegebenen Lauf bei `Schreiben an die Familien` den Knopf `Schreiben erstellen`. Die Seite mit den Schreiben des Laufs öffnet sich.",
+            "Wählen Sie dort bei `Schreiben an die Familien` noch einmal `Schreiben erstellen`.",
             "Wählen Sie bei `Zahlen bis` das Datum, bis zu dem die Familien zahlen.",
             "Schreiben Sie bei `Hinweis für die Familien` etwas, wenn alle Familien es lesen sollen. Das ist freiwillig.",
             "Wählen Sie `Vorschau ansehen`. Sie sehen das Schreiben der ersten Familie.",
@@ -10496,6 +10497,7 @@ export const traegerCareMonthsTopic =
           description:
             "Jede Familie bekommt ihr Schreiben per E-Mail. Hat sie mit dieser Adresse ein Konto in der Eltern-App, liegt es auch dort unter `Dokumente`.",
           steps: [
+            "Wählen Sie im freigegebenen Lauf bei `Schreiben an die Familien` den Knopf `Schreiben öffnen`. Dort steht schon, wie viele Schreiben gesendet sind.",
             "Wählen Sie bei `Schreiben an die Familien` den Knopf `An alle senden`. Prüfen Sie die Zahl und bestätigen Sie, zum Beispiel mit `3 Schreiben senden`.",
             "Die Karte zeigt, wie viele Schreiben gesendet sind, gerade gesendet werden, nicht angekommen sind, noch nicht gesendet sind und keine E-Mail-Adresse haben.",
             "In jeder Rechnung steht unter `An die Familie`, ob ihr Schreiben gesendet ist. `Ausgestellt am` sagt nur, dass die Rechnung ihre Nummer hat.",
@@ -10509,10 +10511,11 @@ export const traegerCareMonthsTopic =
           description:
             "Eine ausgestellte Rechnung ändert sich nie. Stimmt sie nicht, stornieren Sie sie. Der Storno bekommt eine eigene Nummer.",
           steps: [
+            "Wählen Sie im freigegebenen Lauf `Schreiben öffnen`. Gibt es noch keine Schreiben, heißt der Knopf `Schreiben erstellen`.",
             "Wählen Sie bei der Rechnung das Menü mit den drei Punkten und dann `Stornieren`.",
             "Schreiben Sie bei `Begründung`, warum Sie stornieren. Wählen Sie `Stornieren`.",
             "Hatte die Familie die Rechnung schon bekommen, bekommt sie ein Storno-Schreiben. Es steht als eigene Zeile unter der Rechnung. Senden Sie es über das Menü dieser Zeile mit `Senden`.",
-            "Haben Sie die Rechnung zum Drucken heruntergeladen, bekommt der Storno auch ein Schreiben. Laden Sie es über `Alle drucken` herunter. Geben Sie es der Familie auf Papier.",
+            "Haben Sie die Rechnung zum Drucken heruntergeladen, bekommt der Storno auch ein Schreiben. Laden Sie es über `Drucken` und `Alle Schreiben drucken` herunter. Geben Sie es der Familie auf Papier.",
             "Wurde die Rechnung weder gesendet noch zum Drucken heruntergeladen, bekommt die Familie kein Storno. Sie sieht nichts davon.",
             "Wählen Sie in der Meldung über den Rechnungen `Neu ausstellen`. Ein neuer Monatslauf für denselben Monat öffnet sich. Er zeigt die neue Rechnung als Vorschau. Geben Sie ihn frei und senden Sie das neue Schreiben. Danach verschwindet die Meldung zur Neuausstellung im alten Lauf.",
           ],
