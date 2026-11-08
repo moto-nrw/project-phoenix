@@ -82,4 +82,6 @@ type ParentDocuments interface {
 	// ParentDocumentLetter reads the stored PDF of one sent document
 	// addressed to the reader and records the read.
 	ParentDocumentLetter(ctx context.Context, organizationID, documentID int64, reader ParentDocumentReader) (BillingLetterFile, error)
+	// The parents read and state the children of their family (#5918).
+	ParentFamilyChildrenStatement
 }

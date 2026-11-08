@@ -103,7 +103,7 @@ func BuildParentPortal(
 
 		CarePlanPolicy: NewParentCarePlanPolicy(),
 
-		BillingDocuments: NewParentBillingDocuments(), ContractDocuments: NewParentContractDocuments(contractSigning), ContractNotices: contractNotices, FamilyChildren: NewParentFamilyChildren(), SharedDocuments: NewParentSharedDocuments(), TraegerRuntime: ParentPortalRuntime{},
+		BillingDocuments: NewParentBillingDocuments(), ContractDocuments: NewParentContractDocuments(contractSigning), ContractNotices: contractNotices, SharedDocuments: NewParentSharedDocuments(), TraegerRuntime: ParentPortalRuntime{},
 		SchoolTraeger: NewParentSchoolTraeger(organizations), ParentAccounts: NewParentAccounts(identity),
 	}), nil
 }

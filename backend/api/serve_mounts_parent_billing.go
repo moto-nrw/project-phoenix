@@ -57,33 +57,28 @@ func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganization
 	families := parentBillingHTTP.NewBillingFamilyResource(parentBillingCompose.NewBillingFamilies(),
 		common.RequiresPermission(identityaccess.TraegerRightBillingManage))
 	root.Mount("/traeger/billing-families", families.Router(ProtectedTraegerRoutes))
-	care, reductions := NewCareBillingHTTP(organizations, settings)
+	care, reductions, familyChildren := NewCareBillingHTTP(organizations, settings)
 	root.Mount("/traeger/care-tariffs", care.TariffRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/care-billing-runs", care.RunRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/care-rules", reductions.RuleRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/care-evidences", reductions.EvidenceRouter(ProtectedTraegerRoutes))
-	root.Mount("/traeger/family-children", NewFamilyChildrenHTTP().Router(ProtectedTraegerRoutes))
-}
-
-// NewFamilyChildrenHTTP binds the children of the families (#5918) to the
-// right "Abrechnung" and to the versions and parties of the
-// Betreuungsvertrag in the caller's Träger transaction.
-func NewFamilyChildrenHTTP() *parentBillingHTTP.FamilyChildrenResource {
-	contracts := parentBillingCareContracts{contracts: careContractCompose.NewContractVersions()}
-	return parentBillingHTTP.NewFamilyChildrenResource(parentBillingCompose.NewFamilyChildrenOffice(contracts),
-		common.RequiresPermission(identityaccess.TraegerRightBillingManage))
+	root.Mount("/traeger/family-children", familyChildren.Router(ProtectedTraegerRoutes))
 }
 
 // NewCareBillingHTTP binds the monthly contribution of the care contract
-// (#4684) and its rule chain (#4685) to the right "Abrechnung", to the
+// (#4684), its rule chain (#4685) and the children of the families (#5918)
+// to the right "Abrechnung", to the
 // versions in force and the parties of the Betreuungsvertrag in the caller's
 // Träger transaction, to the schools of the Träger and to its month rule.
-func NewCareBillingHTTP(organizations HolidayOrganizations, settings TraegerBrandingSettings) (*parentBillingHTTP.CareBillingResource, *parentBillingHTTP.CareReductionResource) {
+func NewCareBillingHTTP(organizations HolidayOrganizations, settings TraegerBrandingSettings) (*parentBillingHTTP.CareBillingResource,
+	*parentBillingHTTP.CareReductionResource, *parentBillingHTTP.FamilyChildrenResource,
+) {
 	contracts := parentBillingCareContracts{contracts: careContractCompose.NewContractVersions()}
 	billing, reductions := parentBillingCompose.NewCareBilling(contracts,
 		parentBillingCareSchools{organizations: organizations}, parentBillingSettings{settings: settings})
 	requireBilling := common.RequiresPermission(identityaccess.TraegerRightBillingManage)
-	return parentBillingHTTP.NewCareBillingResource(billing, requireBilling), parentBillingHTTP.NewCareReductionResource(reductions, requireBilling)
+	return parentBillingHTTP.NewCareBillingResource(billing, requireBilling), parentBillingHTTP.NewCareReductionResource(reductions, requireBilling),
+		parentBillingHTTP.NewFamilyChildrenResource(reductions, requireBilling)
 }
 
 // parentBillingCareSchools lists the schools of the Träger at Organisation

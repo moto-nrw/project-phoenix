@@ -48,6 +48,11 @@ func (rs *Resource) mountAccountRoutes(r chi.Router) {
 	// dashboard.
 	r.Get("/me/enrollments", rs.listMyEnrollments)
 
+	rs.mountDocumentRoutes(r)
+}
+
+// mountDocumentRoutes mounts the document inbox of the account.
+func (rs *Resource) mountDocumentRoutes(r chi.Router) {
 	// Document inbox (#4671): the documents the Träger of the account's
 	// schools sent to its address, and the PDF of one of them. Account
 	// from the claims; the Träger only from the account's relationships.
@@ -59,6 +64,7 @@ func (rs *Resource) mountAccountRoutes(r chi.Router) {
 	// Withdrawal and termination of that contract (#4682, § 312k BGB).
 	r.Get("/me/documents/{organizationId}/contracts/{contractId}/notice", rs.contractNoticeOptions)
 	r.Post("/me/documents/{organizationId}/contracts/{contractId}/notice", rs.declareContractNotice)
+	// The children of the family on that contract (#5918).
 	r.Get("/me/documents/{organizationId}/contracts/{contractId}/family-children", rs.familyChildren)
 	r.Put("/me/documents/{organizationId}/contracts/{contractId}/family-children", rs.stateFamilyChildren)
 	// Reading and signing a care contract (#4679).

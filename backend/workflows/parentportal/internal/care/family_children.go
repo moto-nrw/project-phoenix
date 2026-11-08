@@ -25,7 +25,7 @@ import (
 //   - The contract is sent or active: an ended contract shows the number
 //     but takes no new one.
 //
-// The Elternabrechnung stores the number, records every read and statement
+// The Elternabrechnung stores the number, through the port of its inbox,, records every read and statement
 // and counts it once its Abrechnung confirmed it.
 
 // ErrFamilyChildrenInvalid reports a number that is no whole number from 1
@@ -51,19 +51,12 @@ type FamilyChildren struct {
 	CanState          bool           `json:"can_state"`
 }
 
-// FamilyChildrenStatements is the port to the Elternabrechnung's numbers in
-// the Träger transaction the flow opens.
-type FamilyChildrenStatements interface {
-	FamilyChildren(ctx context.Context, organizationID int64, reader FamilyChildrenReader) (FamilyChildren, error)
-	StateFamilyChildren(ctx context.Context, organizationID int64, reader FamilyChildrenReader, children int) (FamilyChildren, error)
-}
-
 // FamilyChildren reads the number of the account's family on a contract of
 // its inbox.
 func (s *Service) FamilyChildren(ctx context.Context, accountID, organizationID, contractID int64) (FamilyChildren, error) {
 	return s.familyChildren(ctx, accountID, organizationID, contractID, GuardianPermissionEnrollmentsView,
 		func(txCtx context.Context, reader FamilyChildrenReader) (FamilyChildren, error) {
-			return s.FamilyChildrenStatements.FamilyChildren(txCtx, organizationID, reader)
+			return s.BillingDocuments.FamilyChildren(txCtx, organizationID, reader)
 		})
 }
 
@@ -72,7 +65,7 @@ func (s *Service) FamilyChildren(ctx context.Context, accountID, organizationID,
 func (s *Service) StateFamilyChildren(ctx context.Context, accountID, organizationID, contractID int64, children int) (FamilyChildren, error) {
 	return s.familyChildren(ctx, accountID, organizationID, contractID, GuardianPermissionEnrollmentSubmit,
 		func(txCtx context.Context, reader FamilyChildrenReader) (FamilyChildren, error) {
-			return s.FamilyChildrenStatements.StateFamilyChildren(txCtx, organizationID, reader, children)
+			return s.BillingDocuments.StateFamilyChildren(txCtx, organizationID, reader, children)
 		})
 }
 
@@ -84,9 +77,36 @@ type familyChildrenStep func(txCtx context.Context, reader FamilyChildrenReader)
 // such a child at any Träger gets ErrGuardianPermissionDenied; a contract
 // outside its inbox, ErrBillingDocumentNotFound.
 func (s *Service) familyChildren(ctx context.Context, accountID, organizationID, contractID int64, permission string, step familyChildrenStep) (FamilyChildren, error) {
-	if s.FamilyChildrenStatements == nil || s.ContractDocuments == nil || s.TraegerRuntime == nil || s.SchoolTraeger == nil || s.ParentAccounts == nil {
+	if s.BillingDocuments == nil || s.ContractDocuments == nil || s.TraegerRuntime == nil || s.SchoolTraeger == nil || s.ParentAccounts == nil {
 		return FamilyChildren{}, errors.New("parent: family children are not configured")
 	}
+	inbox, err := s.familyChildrenReader(ctx, accountID, organizationID, contractID, permission)
+	if err != nil {
+		return FamilyChildren{}, err
+	}
+	var result FamilyChildren
+	err = s.TraegerRuntime.WithinTraeger(ctx, organizationID, func(txCtx context.Context) error {
+		canState, err := s.familyContract(txCtx, organizationID, contractID, inbox)
+		if err != nil {
+			return err
+		}
+		if permission == GuardianPermissionEnrollmentSubmit && !canState {
+			return ErrGuardianPermissionDenied
+		}
+		result, err = step(txCtx, FamilyChildrenReader{AccountID: accountID, Email: inbox.Email, ContractID: contractID})
+		result.CanState = canState
+		return err
+	})
+	if err != nil {
+		return FamilyChildren{}, err
+	}
+	return result, nil
+}
+
+// familyChildrenReader resolves, in one administrative transaction, the
+// children whose relationship grants permission, their Träger and the
+// account's address, as the inbox reader of the Träger.
+func (s *Service) familyChildrenReader(ctx context.Context, accountID, organizationID, contractID int64, permission string) (BillingDocumentReader, error) {
 	var access documentAccess
 	var email string
 	err := s.accountDocumentAccess(ctx, accountID, func(adminCtx context.Context, children []*ChildSummary) error {
@@ -98,38 +118,30 @@ func (s *Service) familyChildren(ctx context.Context, accountID, organizationID,
 		return err
 	})
 	if err != nil {
-		return FamilyChildren{}, fmt.Errorf("parent: resolve family children: %w", err)
+		return BillingDocumentReader{}, fmt.Errorf("parent: resolve family children: %w", err)
 	}
 	if len(access.traeger) == 0 {
-		return FamilyChildren{}, ErrGuardianPermissionDenied
+		return BillingDocumentReader{}, ErrGuardianPermissionDenied
 	}
 	if !slices.ContainsFunc(access.traeger, func(t Traeger) bool { return t.ID == organizationID }) || contractID <= 0 {
-		return FamilyChildren{}, ErrBillingDocumentNotFound
+		return BillingDocumentReader{}, ErrBillingDocumentNotFound
 	}
-	inbox := BillingDocumentReader{AccountID: accountID, Email: email, Children: access.permittedChildren(),
-		SigningChildren: access.signingChildren()}
-	var result FamilyChildren
-	err = s.TraegerRuntime.WithinTraeger(ctx, organizationID, func(txCtx context.Context) error {
-		contracts, err := s.ContractDocuments.ListContractDocuments(txCtx, organizationID, inbox)
-		if err != nil {
-			return err
-		}
-		index := slices.IndexFunc(contracts, func(c BillingDocument) bool { return c.ID == contractID })
-		if index < 0 {
-			return ErrBillingDocumentNotFound
-		}
-		// A sent contract the account may sign or an active one it may end:
-		// both need parent_portal.enrollment.submit on the contract's child.
-		canState := contracts[index].CanSign || contracts[index].CanEndContract
-		if permission == GuardianPermissionEnrollmentSubmit && !canState {
-			return ErrGuardianPermissionDenied
-		}
-		result, err = step(txCtx, FamilyChildrenReader{AccountID: accountID, Email: email, ContractID: contractID})
-		result.CanState = canState
-		return err
-	})
+	return BillingDocumentReader{AccountID: accountID, Email: email, Children: access.permittedChildren(),
+		SigningChildren: access.signingChildren()}, nil
+}
+
+// familyContract finds the contract in the account's inbox of the Träger
+// and tells whether the account may state the number on it: a sent contract
+// it may sign or an active one it may end, both by
+// parent_portal.enrollment.submit on the contract's child.
+func (s *Service) familyContract(txCtx context.Context, organizationID, contractID int64, inbox BillingDocumentReader) (bool, error) {
+	contracts, err := s.ContractDocuments.ListContractDocuments(txCtx, organizationID, inbox)
 	if err != nil {
-		return FamilyChildren{}, err
+		return false, err
 	}
-	return result, nil
+	index := slices.IndexFunc(contracts, func(c BillingDocument) bool { return c.ID == contractID })
+	if index < 0 {
+		return false, ErrBillingDocumentNotFound
+	}
+	return contracts[index].CanSign || contracts[index].CanEndContract, nil
 }

@@ -2,5 +2,8 @@
   "api/traeger/family-children": [
     "GET traeger /traeger/family-children",
     "PUT traeger /traeger/family-children"
+  ],
+  "api/traeger/family-children/[id]": [
+    "DELETE traeger /traeger/family-children/id%2F1"
   ]
 }

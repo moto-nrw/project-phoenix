@@ -56,7 +56,6 @@ type (
 	BillingDocumentsPort            = care.BillingDocuments
 	ContractDocumentsPort           = care.ContractDocuments
 	ContractNoticesPort             = care.ContractNotices
-	FamilyChildrenStatementsPort    = care.FamilyChildrenStatements
 	FamilyChildrenReader            = care.FamilyChildrenReader
 	FamilyChildren                  = care.FamilyChildren
 	ContractNotice                  = care.ContractNotice

@@ -31,34 +31,34 @@ type FamilyChildrenStore interface {
 	LockCareBilling(ctx context.Context, organizationID int64) error
 }
 
-// FamilyChildren serves the Abrechnung's check of the numbers and the
+// FamilyNumbers serves the Abrechnung's check of the numbers and the
 // parents' statement.
-type FamilyChildren struct {
+type FamilyNumbers struct {
 	store     FamilyChildrenStore
 	contracts parentbilling.CareContracts
 	today     func() calendar.Date
 }
 
 var (
-	_ parentbilling.FamilyChildrenOffice          = (*FamilyChildren)(nil)
-	_ parentbilling.ParentFamilyChildrenStatement = (*FamilyChildren)(nil)
+	_ parentbilling.FamilyChildrenOffice          = (*FamilyNumbers)(nil)
+	_ parentbilling.ParentFamilyChildrenStatement = (*FamilyNumbers)(nil)
 )
 
 // NewFamilyChildren builds the numbers of the families.
-func NewFamilyChildren(store FamilyChildrenStore, contracts parentbilling.CareContracts, today func() calendar.Date) *FamilyChildren {
+func NewFamilyChildren(store FamilyChildrenStore, contracts parentbilling.CareContracts, today func() calendar.Date) *FamilyNumbers {
 	if store == nil || contracts == nil || today == nil {
 		panic("parent billing: the store, the care contracts and the clock are required")
 	}
-	return &FamilyChildren{store: store, contracts: contracts, today: today}
+	return &FamilyNumbers{store: store, contracts: contracts, today: today}
 }
 
 // NewParentFamilyChildren builds the parents' statement alone; it reads no
 // contract, because the parents portal checked the reader's contract.
-func NewParentFamilyChildren(store FamilyChildrenStore) *FamilyChildren {
+func NewParentFamilyChildren(store FamilyChildrenStore) *FamilyNumbers {
 	if store == nil {
 		panic("parent billing: the store is required")
 	}
-	return &FamilyChildren{store: store, today: calendar.TodayDate}
+	return &FamilyNumbers{store: store, today: calendar.TodayDate}
 }
 
 // errOfficeNotConfigured reports the parents' build asked for the office.
@@ -70,7 +70,7 @@ func familyKey(email string) string { return strings.ToLower(strings.TrimSpace(e
 // FamilyChildren lists every family with a contract in force in the window
 // of the evidence page, its children with a contract and its number, and
 // records the read of every number it shows.
-func (f *FamilyChildren) FamilyChildren(ctx context.Context, reviewer parentbilling.HolidayReviewer) (parentbilling.FamilyChildrenSet, error) {
+func (f *FamilyNumbers) FamilyChildren(ctx context.Context, reviewer parentbilling.HolidayReviewer) (parentbilling.FamilyChildrenSet, error) {
 	if err := validReviewer(reviewer); err != nil {
 		return parentbilling.FamilyChildrenSet{}, err
 	}
@@ -177,7 +177,7 @@ func familyChildrenStatus(count *parentbilling.FamilyChildCount, today calendar.
 
 // recordFamilyReads records the read of every number shown, on the contract
 // it hangs on.
-func (f *FamilyChildren) recordFamilyReads(ctx context.Context, reviewer parentbilling.HolidayReviewer, families []parentbilling.FamilyChildren) error {
+func (f *FamilyNumbers) recordFamilyReads(ctx context.Context, reviewer parentbilling.HolidayReviewer, families []parentbilling.FamilyChildren) error {
 	var targets []parentbilling.FamilyChildTarget
 	for _, family := range families {
 		if family.Count != nil {
@@ -194,7 +194,7 @@ func (f *FamilyChildren) recordFamilyReads(ctx context.Context, reviewer parentb
 
 // ConfirmFamilyChildren confirms or changes the number of the family of the
 // input's contract under the lock of the monthly billing.
-func (f *FamilyChildren) ConfirmFamilyChildren(ctx context.Context, reviewer parentbilling.HolidayReviewer, input parentbilling.FamilyChildrenInput) (parentbilling.FamilyChildrenSet, error) {
+func (f *FamilyNumbers) ConfirmFamilyChildren(ctx context.Context, reviewer parentbilling.HolidayReviewer, input parentbilling.FamilyChildrenInput) (parentbilling.FamilyChildrenSet, error) {
 	if err := validReviewer(reviewer); err != nil {
 		return parentbilling.FamilyChildrenSet{}, err
 	}
@@ -226,7 +226,7 @@ func (f *FamilyChildren) ConfirmFamilyChildren(ctx context.Context, reviewer par
 
 // RemoveFamilyChildren removes the number of the family of a contract; the
 // sibling rule counts its children with a contract again.
-func (f *FamilyChildren) RemoveFamilyChildren(ctx context.Context, reviewer parentbilling.HolidayReviewer, contractID int64) (parentbilling.FamilyChildrenSet, error) {
+func (f *FamilyNumbers) RemoveFamilyChildren(ctx context.Context, reviewer parentbilling.HolidayReviewer, contractID int64) (parentbilling.FamilyChildrenSet, error) {
 	if err := validReviewer(reviewer); err != nil {
 		return parentbilling.FamilyChildrenSet{}, err
 	}
@@ -255,7 +255,7 @@ func (f *FamilyChildren) RemoveFamilyChildren(ctx context.Context, reviewer pare
 
 // familyOfContract is the family of a contract of the Träger: the address
 // of its invoice's recipient.
-func (f *FamilyChildren) familyOfContract(ctx context.Context, organizationID, contractID int64) (string, error) {
+func (f *FamilyNumbers) familyOfContract(ctx context.Context, organizationID, contractID int64) (string, error) {
 	if contractID <= 0 {
 		return "", parentbilling.ErrFamilyChildrenNotFound
 	}
@@ -300,7 +300,7 @@ func validChildren(children int) error {
 
 // ParentFamilyChildren reads the number of the reader's family and records
 // the read on the reader's contract.
-func (f *FamilyChildren) ParentFamilyChildren(ctx context.Context, organizationID int64, reader parentbilling.ParentFamilyReader) (parentbilling.ParentFamilyChildren, error) {
+func (f *FamilyNumbers) ParentFamilyChildren(ctx context.Context, organizationID int64, reader parentbilling.ParentFamilyReader) (parentbilling.ParentFamilyChildren, error) {
 	family, err := parentFamily(organizationID, reader)
 	if err != nil {
 		return parentbilling.ParentFamilyChildren{}, err
@@ -326,7 +326,7 @@ func (f *FamilyChildren) ParentFamilyChildren(ctx context.Context, organizationI
 
 // StateFamilyChildren stores the number the parents state for their family
 // on their contract. It counts once the Abrechnung confirmed it.
-func (f *FamilyChildren) StateFamilyChildren(ctx context.Context, organizationID int64, reader parentbilling.ParentFamilyReader, children int) (parentbilling.ParentFamilyChildren, error) {
+func (f *FamilyNumbers) StateFamilyChildren(ctx context.Context, organizationID int64, reader parentbilling.ParentFamilyReader, children int) (parentbilling.ParentFamilyChildren, error) {
 	family, err := parentFamily(organizationID, reader)
 	if err != nil {
 		return parentbilling.ParentFamilyChildren{}, err

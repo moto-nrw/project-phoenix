@@ -23,9 +23,7 @@ import (
 func TestParentsStateTheFamilyChildrenOnlyForTheirOwnFamily(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	deps := documentInboxDependencies(t, db, &owners.CareContractTestMails{})
-	deps.FamilyChildren = owners.NewParentFamilyChildren()
-	portal := parentportalcompose.New(deps)
+	portal := parentportalcompose.New(documentInboxDependencies(t, db, &owners.CareContractTestMails{}))
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	var organization int64

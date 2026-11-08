@@ -85,6 +85,9 @@ type BillingDocumentFile struct {
 type BillingDocuments interface {
 	ListBillingDocuments(ctx context.Context, organizationID int64, reader BillingDocumentReader) ([]BillingDocument, error)
 	BillingDocumentLetter(ctx context.Context, organizationID, documentID int64, reader BillingDocumentReader) (BillingDocumentFile, error)
+	// The children of the family on a contract of the inbox (#5918).
+	FamilyChildren(ctx context.Context, organizationID int64, reader FamilyChildrenReader) (FamilyChildren, error)
+	StateFamilyChildren(ctx context.Context, organizationID int64, reader FamilyChildrenReader, children int) (FamilyChildren, error)
 }
 
 // DocumentKindContract is the kind of a care contract in the inbox.
