@@ -58,8 +58,8 @@ func (s *AccountAuthentication) issueParentTokens(ctx context.Context, account d
 	// cross-tenant on read.
 	minted, err := s.mintAccountSession(ctx, mintRequest{
 		portal: domain.PortalParent, account: account, email: email, tenantID: bookedTenantIDs[0],
-		eligible: s.parentEligibility("parent login", bookedTenantIDs),
-		audit:    &mintAudit{event: domain.AuthEventLogin, ipAddress: ipAddress, userAgent: userAgent},
+		op: "parent login", booked: bookedTenantIDs,
+		audit: &mintAudit{event: domain.AuthEventLogin, ipAddress: ipAddress, userAgent: userAgent},
 	})
 	return minted.accessToken, minted.refreshToken, err
 }
@@ -168,15 +168,9 @@ func (s *AccountAuthentication) switchTenant(ctx context.Context, accountID int6
 	if err != nil {
 		return "", "", err
 	}
-	tenant := s.tenantEligibility("switch tenant", metadata.TenantID)
 	minted, err := s.mintAccountSession(ctx, mintRequest{
 		portal: domain.PortalTenant, account: account, tenantID: metadata.TenantID,
-		eligible: func(ctx context.Context, account domain.LoginAccount) (*domain.AccountClaimsPayload, error) {
-			if err := s.demoTenantLock(ctx, account); err != nil {
-				return nil, err
-			}
-			return tenant(ctx, account)
-		},
+		op: "switch tenant", precondition: s.demoTenantLock,
 		sourceFamilyID: presentedFamilyID, retireFamilyID: presentedFamilyID,
 		audit: &mintAudit{event: domain.AuthEventTenantSwitch, ipAddress: ipAddress, userAgent: userAgent, schoolID: metadata.TenantID},
 	})

@@ -181,9 +181,10 @@ type LegalSettings struct {
 }
 
 // ManualEnrollmentDecider approves the freshly submitted request of a manual
-// enrollment in the same transaction.
+// enrollment and creates the guardian invitation it owes, both in the same
+// transaction as the submission.
 type ManualEnrollmentDecider interface {
-	Decide(ctx context.Context, input enrollmentNative.DecideInput) (*enrollmentNative.DecideOutcome, error)
+	DecideAndInvite(ctx context.Context, input enrollmentNative.DecideInput) (*enrollmentNative.DecideOutcome, error)
 }
 
 // IntakeDependencies bind the intake to its owners. Guardians, LateInvites,

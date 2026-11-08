@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
@@ -196,8 +197,9 @@ func (rs *Resource) mountPublicRoutes(r chi.Router, authRateLimiter func(http.Ha
 			r.Use(authRateLimiter)
 		}
 		r.Post("/login", rs.login)
-		r.Post("/password-reset", rs.initiatePasswordReset)
-		r.Post("/password-reset/confirm", rs.resetPassword)
+		resets := portalauth.PasswordResetRoutes(rs.Sessions, identityaccess.PasswordResetScopeStaff)
+		r.Post("/password-reset", resets.ServeInitiate)
+		r.Post("/password-reset/confirm", resets.ServeConfirm)
 
 		// MFA challenge → token-pair exchange (issue #1308). These endpoints
 		// take the short-lived challenge JWT in the request body, NOT in the

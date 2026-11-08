@@ -142,7 +142,7 @@ func ProfileErrorRenderer(err error) render.Renderer {
 	case errors.Is(err, identityaccess.ErrOperatorPasswordMismatch):
 		return common.OperatorInvalidField(common.CodeIdentityCurrentPasswordWrong, "current_password", "das aktuelle Passwort ist falsch")
 	case errors.Is(err, identityaccess.ErrOperatorNotFound):
-		return common.OperatorRejection(http.StatusNotFound, common.CodeIdentityAccountNotFound, "identityaccess.Operator not found")
+		return common.OperatorRejection(http.StatusNotFound, common.CodeIdentityAccountNotFound, "Operator not found")
 	case errors.Is(err, identityaccess.ErrOperatorInactive):
 		return operatorInactive("Dieser Account ist deaktiviert")
 	case errors.Is(err, identityaccess.ErrOperatorEmailInUse):

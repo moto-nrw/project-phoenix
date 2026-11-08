@@ -1,5 +1,7 @@
 package domain
 
+import "slices"
+
 // The domain may import no other package of its owner, so the portal names,
 // claims and token shapes repeat the tokenprimitives portals; a test pins
 // the two tables to each other.
@@ -76,7 +78,10 @@ type Portal struct {
 	// enrollment token, redeemable only there.
 	Challenge  bool
 	Enrollment bool
-	MFA        MFARule
+	// TrustedDevice: a redeemed challenge may remember the browser. The
+	// Träger-Portal remembers none (#4651).
+	TrustedDevice bool
+	MFA           MFARule
 	// Push is empty for a portal without push messages.
 	Push string
 }
@@ -84,17 +89,17 @@ type Portal struct {
 // The portals, closed.
 var (
 	PortalTenant = Portal{Name: "tenant", Claim: "", LegacyClaim: "tenant", Tenant: ShapeRequired, Org: ShapeOptional,
-		Persisted: true, Challenge: true, Enrollment: true, MFA: MFASchoolPolicy, Push: PushPortalStaff}
+		Persisted: true, Challenge: true, Enrollment: true, TrustedDevice: true, MFA: MFASchoolPolicy, Push: PushPortalStaff}
 	PortalSchool = Portal{Name: "school", Claim: "school", Tenant: ShapeRequired, Org: ShapeOptional,
-		Persisted: true, Challenge: true, Enrollment: true, MFA: MFASchoolPolicy, Push: PushPortalSchool}
+		Persisted: true, Challenge: true, Enrollment: true, TrustedDevice: true, MFA: MFASchoolPolicy, Push: PushPortalSchool}
 	PortalParent = Portal{Name: "parent", Claim: "parent",
 		Persisted: true, MFA: MFANone, Push: PushPortalParent}
 	PortalCaterer = Portal{Name: "caterer", Claim: "caterer",
-		Persisted: true, Challenge: true, MFA: MFAAccountChoice}
+		Persisted: true, Challenge: true, TrustedDevice: true, MFA: MFAAccountChoice}
 	PortalOrg = Portal{Name: "org", Claim: "org", Tenant: ShapeForbidden, Org: ShapeRequired,
 		Persisted: true, Challenge: true, Enrollment: true, MFA: MFAAlways, Push: PushPortalStaff}
 	PortalPlatform = Portal{Name: "platform", Claim: "platform", Tenant: ShapeOptional, Org: ShapeOptional,
-		Challenge: true, Enrollment: true, MFA: MFAOperator}
+		Challenge: true, Enrollment: true, TrustedDevice: true, MFA: MFAOperator}
 
 	portals = []Portal{PortalTenant, PortalSchool, PortalParent, PortalCaterer, PortalOrg, PortalPlatform}
 )
@@ -103,6 +108,37 @@ var (
 // Träger-Portal token names its Träger and no school (ADR 0084).
 func (p Portal) Holds(tenantID, orgID int64) bool {
 	return p.Tenant.holds(tenantID) && p.Org.holds(orgID)
+}
+
+// Schoolless reports a portal whose sign-in names no school: its challenge,
+// its remembered device and its authentication-ledger entries carry none
+// (Träger-Portal, ADR 0084; caterer, ADR 0077 addendum).
+func (p Portal) Schoolless() bool { return p.Tenant != ShapeRequired }
+
+// KeptAtSchool reports whether the portal's refresh sessions are stored at a
+// school. Only a portal whose token must not name one keeps them without:
+// the Träger-Portal. Parent and caterer sessions are pinned to a school their
+// token does not carry.
+func (p Portal) KeptAtSchool() bool { return p.Tenant != ShapeForbidden }
+
+// SessionKind names the rules a session follows: its portal's, or those of
+// the Träger school, the tenant portal's sub-portal for an OGS session the
+// Träger-Büro opened through the Absprung (ADR 0084 section 5).
+type SessionKind string
+
+// SessionKindTraegerSchool is the Träger school sub-portal.
+const SessionKindTraegerSchool SessionKind = "traeger_school"
+
+// SessionKindOf is the one recognition rule of the Träger school: a session
+// of the tenant portal that names the Träger it came through. Each token
+// representation says so in its own way: the refresh claims and the stored
+// row by their Träger, the access token by via_traeger, because every staff
+// access token names its school's Träger.
+func SessionKindOf(portal Portal, namesTraeger bool) SessionKind {
+	if portal.Name == PortalTenant.Name && namesTraeger {
+		return SessionKindTraegerSchool
+	}
+	return SessionKind(portal.Name)
 }
 
 // PortalOfClaim resolves a JWT scope, the legacy tenant claim included.
@@ -173,7 +209,7 @@ func PushPortalsOf(portalScope string) []string {
 	portal, ok := PortalOfPersisted(portalScope)
 	if !ok {
 		if portalScope == "" || portalScope == PortalScopeUnknown {
-			return []string{PushPortalStaff, PushPortalParent, PushPortalSchool}
+			return AllPushPortals()
 		}
 		return []string{PushPortalStaff}
 	}
@@ -181,4 +217,15 @@ func PushPortalsOf(portalScope string) []string {
 		return nil
 	}
 	return []string{portal.Push}
+}
+
+// AllPushPortals names every push portal of the table once, in table order.
+func AllPushPortals() []string {
+	var pushes []string
+	for _, portal := range portals {
+		if portal.Push != "" && !slices.Contains(pushes, portal.Push) {
+			pushes = append(pushes, portal.Push)
+		}
+	}
+	return pushes
 }

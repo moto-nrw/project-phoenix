@@ -43,7 +43,7 @@ func RequiresActiveOperator(lookup identityaccess.OperatorSessionLiveness) func(
 					slog.String("path", r.URL.Path),
 					slog.Int("operator_id", claims.ID),
 				)
-				common.RenderError(w, r, common.OperatorServiceUnavailable("identityaccess.Operator status temporarily unavailable, please retry"))
+				common.RenderError(w, r, common.OperatorServiceUnavailable("Operator status temporarily unavailable, please retry"))
 				return
 			}
 
@@ -68,5 +68,5 @@ func renderOperatorLookupError(w http.ResponseWriter, r *http.Request, operatorI
 		slog.Int("operator_id", operatorID),
 		slog.String("error", err.Error()),
 	)
-	common.RenderError(w, r, common.OperatorServiceUnavailable("identityaccess.Operator status temporarily unavailable, please retry"))
+	common.RenderError(w, r, common.OperatorServiceUnavailable("Operator status temporarily unavailable, please retry"))
 }

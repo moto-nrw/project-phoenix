@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -69,7 +71,7 @@ func TestAuthenticateRefreshJWT_RejectsEnrollmentToken(t *testing.T) {
 
 	enrollmentToken, err := tokentest.CreateMFAEnrollmentJWT(auth, sessiontoken.MFAEnrollmentClaims{
 		AccountID: 42,
-		Scope:     sessiontoken.MFAEnrollmentScopeTenant,
+		Scope:     tokenprimitives.PortalTenant,
 		TenantID:  100,
 	}, 15*time.Minute)
 

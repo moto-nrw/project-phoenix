@@ -137,11 +137,6 @@
     },
     {
       "decision": "0090",
-      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.FindActiveChallengeInScope",
-      "reason": "Reviewed #3841-c: reset-generation persistence and proof-carrying MFA verification; owner-edge/adapter evidence, no new forwarding debt."
-    },
-    {
-      "decision": "0090",
       "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.FindActiveTrustedDevice",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
@@ -453,6 +448,11 @@
     {
       "decision": "0090",
       "id": "modules/identityaccess/internal/application/CapabilityGate.ResolvePolicyInTx",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/CapabilityGate.StartChallenge",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
@@ -853,26 +853,6 @@
     {
       "decision": "0090",
       "id": "modules/identityaccess/internal/application/OperatorMFAFlows.ResendChallenge",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
-      "id": "modules/identityaccess/internal/application/OperatorMFAGate.HasEnrollment",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
-      "id": "modules/identityaccess/internal/application/OperatorMFAGate.StartChallenge",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
-      "id": "modules/identityaccess/internal/application/OperatorMFAGate.TrustedDeviceDays",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
-      "id": "modules/identityaccess/internal/application/OperatorMFAGate.VerifyTrustedDevice",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {

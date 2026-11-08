@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -589,7 +588,9 @@ func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 	}
 
 	claims := sessiontoken.ClaimsFromCtx(r.Context())
-	outcome, err := rs.decideChildWithRetry(r, DecideInput{
+	// The command opens the tenant unit and owns its retry and the guardian
+	// invitation an approval owes (#6093).
+	outcome, err := rs.DecisionService.DecideAndInvite(r.Context(), DecideInput{
 		RequestID:         requestID,
 		ChildID:           childID,
 		Status:            DecisionStatus(body.Status),
@@ -602,8 +603,13 @@ func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 		rs.renderDecideError(w, r, err)
 		return
 	}
+	child, err := childValue(outcome.Child)
+	if err != nil {
+		rs.renderDecideError(w, r, err)
+		return
+	}
 
-	common.Respond(w, r, http.StatusOK, newAdminRequestChild(outcome.Child), "Decision applied")
+	common.Respond(w, r, http.StatusOK, newAdminRequestChild(child), "Decision applied")
 }
 
 // restoreAdminRequest undoes a parent-initiated withdraw (#2157): the
@@ -669,43 +675,6 @@ func (rs *Resource) renderRestoreError(w http.ResponseWriter, r *http.Request, e
 	default:
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 	}
-}
-
-// decideChildWithRetry runs the decision inside a tenant transaction,
-// retrying once on a transient database error when the decision body has
-// not yet committed. A cancelled/expired request context stops the retry
-// loop and surfaces the context error.
-func (rs *Resource) decideChildWithRetry(r *http.Request, input DecideInput) (*DecideOutcome, error) {
-	var err error
-	var outcome *DecideOutcome
-	for attempt := 0; attempt < 2; attempt++ {
-		outcome = nil
-		decisionBodySucceeded := false
-		err = rs.runInTenantTx(r, func(ctx context.Context) error {
-			out, e := rs.DecisionService.Decide(ctx, input)
-			if e != nil {
-				return e
-			}
-			outcome = out
-			decisionBodySucceeded = true
-			return rs.enqueueDecisionInvite(ctx, out.PendingInvite)
-		})
-		if err == nil {
-			break
-		}
-		if reqErr := r.Context().Err(); reqErr != nil {
-			return outcome, reqErr
-		}
-		if decisionBodySucceeded || !rs.Failures.Transient(err) || attempt == 1 {
-			break
-		}
-		slog.WarnContext(r.Context(), "transient enrollment decision failure, retrying",
-			slog.Int64("request_id", input.RequestID),
-			slog.Int64("child_id", input.ChildID),
-			slog.String("error", err.Error()),
-		)
-	}
-	return outcome, err
 }
 
 func (rs *Resource) decideErrorRules() []common.ErrorRule {
@@ -786,13 +755,4 @@ func actorRoleFromClaims(roles []string) string {
 		}
 	}
 	return "admin"
-}
-
-// enqueueDecisionInvite joins the decision transaction so approval and its
-// durable invitation either both commit or both roll back.
-func (rs *Resource) enqueueDecisionInvite(ctx context.Context, invite *PendingGuardianInvite) error {
-	if invite == nil || !rs.GuardianInvitations.configured() {
-		return nil
-	}
-	return rs.GuardianInvitations.Create(ctx, invite.GuardianProfileID, invite.CreatedBy)
 }

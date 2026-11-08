@@ -272,6 +272,6 @@ func (rs *MFAResource) completeMFAExchange(w http.ResponseWriter, r *http.Reques
 // exchangeRules classify a refused mint after a correct second factor: a
 // refused credential like the tenant exchange, not an expired session.
 var exchangeRules = []common.ErrorRule{
-	{Target: identityaccess.ErrOperatorInactive, Render: func(error) render.Renderer { return operatorInactive("identityaccess.Operator account is inactive") }},
+	{Target: identityaccess.ErrOperatorInactive, Render: func(error) render.Renderer { return operatorInactive("Operator account is inactive") }},
 	{Target: identityaccess.ErrOperatorNotFound, Render: operatorRejection(http.StatusUnauthorized, common.CodeIdentityInvalidCredentials, "Unauthorized")},
 }

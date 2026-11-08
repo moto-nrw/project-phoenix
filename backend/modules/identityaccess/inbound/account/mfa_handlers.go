@@ -89,7 +89,8 @@ func (rs *Resource) mfaResend(w http.ResponseWriter, r *http.Request) {
 // ----- /mfa/enroll/start -----
 
 // mfaEnrollStart mails the code the account echoes back at
-// /mfa/enroll/confirm. The route admits only a tenant enrollment token.
+// /mfa/enroll/confirm and answers the challenge token naming it. The route
+// admits only a tenant enrollment token.
 func (rs *Resource) mfaEnrollStart(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
 		return
@@ -99,22 +100,19 @@ func (rs *Resource) mfaEnrollStart(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return
 	}
-	_, err := rs.MFAService.StartMFAChallenge(r.Context(), claims.AccountID, claims.TenantID, identityaccess.MFAChallengeScopeTenant, common.ParseClientIP(r))
+	challengeToken, err := rs.MFAService.StartMFAChallenge(r.Context(), claims.AccountID, claims.TenantID, identityaccess.MFAChallengeScopeTenant, common.ParseClientIP(r))
 	if err != nil {
 		mapMFAError(w, r, err)
 		return
 	}
-	w.WriteHeader(http.StatusNoContent)
+	render.JSON(w, r, portalauth.EnrollStartResponse{ChallengeToken: challengeToken})
 }
 
 // ----- /mfa/enroll/confirm -----
 
-// MFAEnrollConfirmRequest is the body for POST /auth/mfa/enroll/confirm.
-// Shared with the operator portal via api/common.
-type MFAEnrollConfirmRequest = common.MFAEnrollConfirmRequest
-
-// mfaEnrollConfirm verifies the mailed code, records the factor and mints
-// the tenant session.
+// mfaEnrollConfirm redeems the challenge the start step minted, pinned to
+// the enrollment token's account and school before the code is compared,
+// records the factor and mints the tenant session.
 func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
 		return
@@ -124,7 +122,7 @@ func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return
 	}
-	req := &MFAEnrollConfirmRequest{}
+	req := &common.MFAVerifyRequest{}
 	if err := render.Bind(r, req); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
@@ -132,9 +130,7 @@ func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 	// The enrollment route runs outside the tenant transaction; the claims'
 	// school carries the MFA audit events into audit.auth_events.
 	ctx := rs.withTenantID(r.Context(), claims.TenantID)
-	// The confirm names no challenge, so the newest code of this portal and
-	// school answers: a school-portal code never mints a tenant session.
-	verified, err := rs.MFAService.VerifyMFACodeForAccount(ctx, claims.AccountID, claims.TenantID, req.Code, identityaccess.MFAChallengeScopeTenant)
+	verified, err := rs.MFAService.VerifyMFAChallengeForOwner(ctx, req.ChallengeToken, req.Code, identityaccess.MFAChallengeScopeTenant, claims.AccountID, claims.TenantID)
 	if err != nil {
 		mapMFAError(w, r, err)
 		return

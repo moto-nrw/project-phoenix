@@ -199,7 +199,7 @@ func setupTakeoverLockTest(t *testing.T, redeemableInvitation ...bool) *takeover
 
 	resource := enrollmentAPI.NewResource(
 		nil, nil, requestSvc, nil, nil, nil, nil, nil, changeRequestSvc,
-		nil, enrollmentAPI.GuardianInvitationRuntime{}, nil, nil,
+		nil, nil, nil,
 		nativeUploads.UploadFiles{}, enrollmentAPI.DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation})
 
 	submitted, err := requestSvc.Submit(ctx, enrollmentAPI.SubmitRequest{

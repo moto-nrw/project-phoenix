@@ -116,8 +116,7 @@ func (c *CatererAccess) signInGate(ctx context.Context, account domain.LoginAcco
 func (c *CatererAccess) mintSession(ctx context.Context, account domain.LoginAccount, schoolID int64, proof mintProof, ipAddress, userAgent string) (identityaccess.CatererLoginResult, error) {
 	minted, err := c.auth.mintAccountSession(c.runtime.WithTenantID(ctx, schoolID), mintRequest{
 		portal: domain.PortalCaterer, account: account, tenantID: schoolID, proof: proof,
-		eligible: c.auth.catererEligibility(),
-		audit:    &mintAudit{event: domain.AuthEventLogin, ipAddress: ipAddress, userAgent: userAgent, schoolID: schoolID},
+		audit: &mintAudit{event: domain.AuthEventLogin, ipAddress: ipAddress, userAgent: userAgent, schoolID: schoolID},
 	})
 	if err != nil {
 		return identityaccess.CatererLoginResult{}, err

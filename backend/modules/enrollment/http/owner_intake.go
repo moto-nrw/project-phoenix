@@ -130,13 +130,12 @@ type ManualApprovedEnrollmentInput struct {
 	ActorID          int64
 }
 
-// ManualApprovedEnrollmentResult is the created request, the approved child,
-// its status link and the guardian invitation the approval owes, decoded.
+// ManualApprovedEnrollmentResult is the created request, the approved child
+// and its status link, decoded.
 type ManualApprovedEnrollmentResult struct {
-	Request       *Request
-	Child         *RequestChild
-	StatusURL     string
-	PendingInvite *PendingGuardianInvite
+	Request   *Request
+	Child     *RequestChild
+	StatusURL string
 }
 
 // PublicFormBootstrapData is a form load with its offerings in enrollment
@@ -435,7 +434,7 @@ func (s intakeService) CreateManualApprovedEnrollment(ctx context.Context, input
 	if err != nil {
 		return nil, err
 	}
-	return &ManualApprovedEnrollmentResult{Request: decodedRequest, Child: child, StatusURL: result.StatusURL, PendingInvite: result.PendingInvite}, nil
+	return &ManualApprovedEnrollmentResult{Request: decodedRequest, Child: child, StatusURL: result.StatusURL}, nil
 }
 
 func (s intakeService) SignatureProof(ctx context.Context, requestID int64, token string) (*SignatureProof, error) {

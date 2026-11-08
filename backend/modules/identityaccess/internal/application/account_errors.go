@@ -33,6 +33,7 @@ var authenticationSentinels = []struct {
 	{identityaccess.ErrInvalidCredentials, identityaccess.ErrInvalidCredentials},
 	{identityaccess.ErrAccountInactive, identityaccess.ErrAccountInactive},
 	{domain.ErrAccountNotFound, identityaccess.ErrAccountNotFound},
+	{domain.ErrAccountNotCaterer, identityaccess.ErrAccountNotCaterer},
 	{identityaccess.ErrTenantNotFound, identityaccess.ErrTenantNotFound},
 	{identityaccess.ErrTenantAccessDenied, identityaccess.ErrTenantAccessDenied},
 	{identityaccess.ErrParentMustUseParentPortal, identityaccess.ErrParentMustUseParentPortal},

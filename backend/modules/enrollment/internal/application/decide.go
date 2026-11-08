@@ -34,10 +34,11 @@ type decisionTarget struct {
 // Decide updates a single child's status. When status==approved the
 // decision also creates the downstream records (Person + Student +
 // GuardianProfile + StudentGuardian + StudentEnrollment[s]) inside the
-// same tenant tx the handler provides - failure of any one rolls the
+// same tenant tx the caller provides - failure of any one rolls the
 // whole approval back. Parent decision emails are enqueued via the
-// outbox in the same tx; guardian invitation creation is returned as a
-// PendingGuardianInvite for the handler to enqueue before that tx commits.
+// outbox in the same tx; the guardian invitation an approval owes is
+// returned as a PendingGuardianInvite. DecideAndInvite creates it in the
+// same tx (#6093); a direct caller that wants it must do the same.
 //
 // Idempotency: applying the same status twice is a no-op. Re-applying
 // any new status to an already-terminal child (approved/rejected/

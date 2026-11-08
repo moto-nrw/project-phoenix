@@ -440,7 +440,7 @@ func sessionTenantIDsForPortal(sessions []domain.AccountSession, portal string) 
 }
 
 func (s *AccountAuthentication) deletePushUnboundForSessions(ctx context.Context, accountID int64, sessions []domain.AccountSession) error {
-	for _, portal := range []string{domain.PushPortalStaff, domain.PushPortalSchool, domain.PushPortalParent} {
+	for _, portal := range domain.AllPushPortals() {
 		if err := s.deletePushUnboundAtTenants(ctx, accountID, sessionTenantIDsForPortal(sessions, portal), portal); err != nil {
 			return err
 		}
@@ -579,7 +579,7 @@ func (s *AccountAuthentication) runScheduledAccountWipe(txCtx context.Context, a
 func schoolSessions(sessions []domain.AccountSession) []domain.AccountSession {
 	kept := make([]domain.AccountSession, 0, len(sessions))
 	for _, session := range sessions {
-		if session.PortalScope != domain.PortalOrg.Name {
+		if session.KeptAtSchool() {
 			kept = append(kept, session)
 		}
 	}

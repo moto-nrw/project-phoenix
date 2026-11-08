@@ -106,6 +106,14 @@ type DecisionGuardianAccess interface {
 	GrantGuardianTenantAccess(ctx context.Context, accountID int64) (identityaccess.GuardianTenantAccess, error)
 }
 
+// DecisionGuardianInvitations is the Identity & Access seam through which
+// an approval invites a guardian who has no portal account yet (#6093). The
+// invitation and its mail join the decision's transaction, so a failure
+// rolls the approval back with them.
+type DecisionGuardianInvitations interface {
+	CreateGuardianInvitation(ctx context.Context, request identityaccess.GuardianInvitationRequest) (identityaccess.GuardianInvitation, error)
+}
+
 // DecisionStudentEnrollment is the bounded People Directory student seam used
 // by approval, renewal and accepted form changes. It cannot update
 // attendance.
@@ -203,30 +211,33 @@ type WeeklyPickupHooks struct {
 type DecisionDependencies struct {
 	Requests DecisionRequests
 	// Reads is the per-account read state of the admin queue (#3778).
-	Reads             enrollmentNative.RequestReads
-	Children          DecisionChildren
-	Guardians         DecisionGuardians
-	LateInvites       DecisionLateInvites
-	Phases            DecisionPhases
-	Schemas           DecisionSchemas
-	Offerings         CareOfferingCatalog
-	Notifications     enrollmentNative.Notifications
-	Bookings          DecisionBookings
-	GuardianAccess    DecisionGuardianAccess
-	StudentEnrollment DecisionStudentEnrollment
-	People            PeopleDirectory
-	Companions        DepartureCompanions
-	PickupSchedules   WeeklyPickupSchedules
-	ArrivalSchedules  WeeklyArrivalSchedules
-	AccessLog         ExportAccessLog
-	Adjustments       OfferingAdjustmentTrail
-	Restorations      RestorationAudit
-	Payers            PayerAudit
-	StudentAudit      StudentAudit
-	StudentConsents   StudentConsents
-	CareWithdrawal    CareWithdrawalReconciler
-	Broadcasts        StudentPlanBroadcasts
-	Settings          DecisionSettings
+	Reads          enrollmentNative.RequestReads
+	Children       DecisionChildren
+	Guardians      DecisionGuardians
+	LateInvites    DecisionLateInvites
+	Phases         DecisionPhases
+	Schemas        DecisionSchemas
+	Offerings      CareOfferingCatalog
+	Notifications  enrollmentNative.Notifications
+	Bookings       DecisionBookings
+	GuardianAccess DecisionGuardianAccess
+	// GuardianInvitations creates the invitation an approval owes. Nil
+	// leaves it uncreated (focused tests).
+	GuardianInvitations DecisionGuardianInvitations
+	StudentEnrollment   DecisionStudentEnrollment
+	People              PeopleDirectory
+	Companions          DepartureCompanions
+	PickupSchedules     WeeklyPickupSchedules
+	ArrivalSchedules    WeeklyArrivalSchedules
+	AccessLog           ExportAccessLog
+	Adjustments         OfferingAdjustmentTrail
+	Restorations        RestorationAudit
+	Payers              PayerAudit
+	StudentAudit        StudentAudit
+	StudentConsents     StudentConsents
+	CareWithdrawal      CareWithdrawalReconciler
+	Broadcasts          StudentPlanBroadcasts
+	Settings            DecisionSettings
 	// LockTemplateRecurrence takes the tenant recurrence gate before an
 	// approval rewrites an existing student's class, the same gate Care
 	// Plan's booking materialization serializes its roster writes with.
@@ -237,7 +248,10 @@ type DecisionDependencies struct {
 	GuardianAuthorizer GuardianStudentAuthorizer
 	Pickups            WeeklyPickupHooks
 	Runtime            Runtime
-	ParentsURL         string
-	Logger             *slog.Logger
-	Today              func() calendar.Date
+	// IsTransient reports a database failure worth one more attempt of a
+	// decision that opened its own unit. Nil never retries.
+	IsTransient func(error) bool
+	ParentsURL  string
+	Logger      *slog.Logger
+	Today       func() calendar.Date
 }

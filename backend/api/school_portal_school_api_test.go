@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -249,7 +251,7 @@ func TestSchoolMFAEndpoints_RejectForeignScopes(t *testing.T) {
 	require.NoError(t, err)
 	tenantEnrollment, err := tokentest.CreateMFAEnrollmentJWT(tokenAuth, sessiontoken.MFAEnrollmentClaims{
 		AccountID: accountID,
-		Scope:     sessiontoken.MFAEnrollmentScopeTenant,
+		Scope:     tokenprimitives.PortalTenant,
 		TenantID:  tenantID,
 	}, 5*time.Minute)
 
@@ -408,7 +410,7 @@ func TestSchoolMFAStatusUnavailable_Returns503(t *testing.T) {
 
 	enrollmentToken, err := tokentest.CreateMFAEnrollmentJWT(testutil.TestTokenAuth(t), sessiontoken.MFAEnrollmentClaims{
 		AccountID: accountID,
-		Scope:     sessiontoken.MFAEnrollmentScopeSchool,
+		Scope:     tokenprimitives.PortalSchool,
 		TenantID:  tenantID,
 	}, 5*time.Minute)
 
@@ -452,7 +454,7 @@ func TestSchoolMFAEnroll_BoundToItsOwnChallenge(t *testing.T) {
 
 	enrollmentToken, err := tokentest.CreateMFAEnrollmentJWT(testutil.TestTokenAuth(t), sessiontoken.MFAEnrollmentClaims{
 		AccountID: accountID,
-		Scope:     sessiontoken.MFAEnrollmentScopeSchool,
+		Scope:     tokenprimitives.PortalSchool,
 		TenantID:  tenantID,
 	}, 5*time.Minute)
 

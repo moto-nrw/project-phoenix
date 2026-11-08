@@ -141,3 +141,31 @@ func TestOperatorMFAAndPasskeyErrorsAnswerWithCodes(t *testing.T) {
 		})
 	}
 }
+
+// The operator UI shows these details; a package rename once rewrote them to
+// "identityaccess.Operator …".
+func TestOperatorErrorDetailsNameTheOperator(t *testing.T) {
+	t.Parallel()
+
+	rs := NewResource(nil, func(error) render.Renderer { return nil })
+	for _, tc := range []struct {
+		name   string
+		render render.Renderer
+		detail string
+	}{
+		{"invitation email exists", invitationErrorRenderer(identityaccess.ErrOperatorEmailExists), "Ein Operator mit dieser E-Mail existiert bereits"},
+		{"status operator missing", operatorStatusErrorRenderer(identityaccess.ErrOperatorNotFound), "Operator not found"},
+		{"profile operator missing", rs.profileError(identityaccess.ErrOperatorNotFound), "Operator not found"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			w := httptest.NewRecorder()
+			require.NoError(t, render.Render(w, httptest.NewRequest(http.MethodPost, "/", nil), tc.render))
+			var body struct {
+				Detail string `json:"detail"`
+			}
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+			assert.Equal(t, tc.detail, body.Detail)
+		})
+	}
+}
