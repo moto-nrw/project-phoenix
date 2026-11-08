@@ -20,7 +20,7 @@ This kit is the MOTO design system.
 | Semantic brand colors | `frontend/src/lib/location-helper.ts` → `LOCATION_COLORS` (the ONLY source) |
 | Radius / spacing / shadow tokens | `@moto-nrw/design-system` via the `@theme` block `globals.css` pulls in |
 
-Imports are always by direct file path: `import { Button } from "~/components/ui/button"`. There is no `ui/index.ts` barrel.
+Use direct file imports: `import { Button } from "~/components/ui/button"`. No `ui/index.ts` barrel.
 
 ## Page scaffolding — one shell, no per-page layout
 
