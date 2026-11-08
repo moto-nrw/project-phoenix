@@ -22,9 +22,20 @@ type DocumentPushRelationship struct {
 	Permissions                    []string
 }
 
-type DocumentPushRecipients interface {
+type DocumentPushStudent struct {
+	TenantID int64
+	GroupID  *int64
+	Status   string
+}
+
+type DocumentPushAccounts interface {
 	DocumentPushAccounts(context.Context, []int64) (map[int64]DocumentPushAccount, error)
+}
+type DocumentPushRelationships interface {
 	DocumentPushRelationships(context.Context, []int64) ([]DocumentPushRelationship, error)
+}
+type DocumentPushStudents interface {
+	DocumentPushStudents(context.Context, []int64) (map[int64]DocumentPushStudent, error)
 }
 
 type DocumentPushCheck struct {
@@ -32,17 +43,20 @@ type DocumentPushCheck struct {
 	Email         string
 	TenantID      int64
 	StudentIDs    []int64
+	GroupIDs      []int64
 }
 type DocumentPushObjects interface {
-	ValidDocumentPushes(context.Context, int64, string, []DocumentPushCheck) (map[int64]bool, error)
+	ValidDocumentPushes(context.Context, int64, []DocumentPushCheck) (map[int64]bool, error)
 }
 
 type DocumentPushAuthorization struct {
-	Runtime        Runtime
-	TraegerRuntime TraegerRuntime
-	Schools        SchoolTraeger
-	Recipients     DocumentPushRecipients
-	Objects        DocumentPushObjects
+	Runtime                      Runtime
+	TraegerRuntime               TraegerRuntime
+	Schools                      SchoolTraeger
+	Accounts                     DocumentPushAccounts
+	Relationships                DocumentPushRelationships
+	Students                     DocumentPushStudents
+	Billing, Contracts, Releases DocumentPushObjects
 }
 
 // AuthorizeDocumentPushes re-resolves relationships and current account
@@ -54,8 +68,10 @@ func (a *DocumentPushAuthorization) AuthorizeDocumentPushes(ctx context.Context,
 	}
 	var accounts []int64
 	var schools []int64
+	var studentIDs []int64
 	for _, push := range pushes {
 		accounts = append(accounts, push.AccountID)
+		studentIDs = append(studentIDs, push.StudentIDs...)
 		schools = append(schools, push.TenantID)
 	}
 	accounts = slices.Compact(slices.Sorted(slices.Values(accounts)))
@@ -63,13 +79,18 @@ func (a *DocumentPushAuthorization) AuthorizeDocumentPushes(ctx context.Context,
 	var addresses map[int64]DocumentPushAccount
 	var relationships []DocumentPushRelationship
 	var organizations map[int64]Traeger
+	var students map[int64]DocumentPushStudent
 	err := a.Runtime.WithinAdmin(ctx, func(txCtx context.Context) error {
 		var err error
-		addresses, err = a.Recipients.DocumentPushAccounts(txCtx, accounts)
+		addresses, err = a.Accounts.DocumentPushAccounts(txCtx, accounts)
 		if err != nil {
 			return err
 		}
-		relationships, err = a.Recipients.DocumentPushRelationships(txCtx, accounts)
+		relationships, err = a.Relationships.DocumentPushRelationships(txCtx, accounts)
+		if err != nil {
+			return err
+		}
+		students, err = a.Students.DocumentPushStudents(txCtx, slices.Compact(slices.Sorted(slices.Values(studentIDs))))
 		if err != nil {
 			return err
 		}
@@ -84,22 +105,45 @@ func (a *DocumentPushAuthorization) AuthorizeDocumentPushes(ctx context.Context,
 		kind           string
 	}
 	batches := make(map[group][]DocumentPushCheck)
+	type relationshipKey struct{ tenantID, accountID, studentID int64 }
+	permissions := make(map[relationshipKey][]string, len(relationships))
+	for _, link := range relationships {
+		permissions[relationshipKey{link.TenantID, link.AccountID, link.StudentID}] = link.Permissions
+	}
 	for _, push := range pushes {
 		account, exists := addresses[push.AccountID]
 		organization, found := organizations[push.TenantID]
 		if !exists || !found || account.Email == "" || push.ObjectID <= 0 {
 			continue
 		}
-		children := permittedPushChildren(push, relationships)
+		var children, groups []int64
+		for _, id := range push.StudentIDs {
+			student, ok := students[id]
+			rights := permissions[relationshipKey{push.TenantID, push.AccountID, id}]
+			if !ok || student.TenantID != push.TenantID || student.Status == "alumnus" || !slices.Contains(rights, GuardianPermissionPortalAccess) {
+				continue
+			}
+			if push.Kind != DocumentPushRelease && !slices.Contains(rights, GuardianPermissionEnrollmentsView) {
+				continue
+			}
+			children = append(children, id)
+			if student.GroupID != nil {
+				groups = append(groups, *student.GroupID)
+			}
+		}
 		if len(children) == 0 {
 			continue
 		}
 		key := group{organization.ID, push.Kind}
-		batches[key] = append(batches[key], DocumentPushCheck{Key: push.Key, ObjectID: push.ObjectID, Email: account.Email, TenantID: push.TenantID, StudentIDs: children})
+		batches[key] = append(batches[key], DocumentPushCheck{Key: push.Key, ObjectID: push.ObjectID, Email: account.Email, TenantID: push.TenantID, StudentIDs: children, GroupIDs: groups})
 	}
 	for key, candidates := range batches {
 		err := a.TraegerRuntime.WithinTraeger(ctx, key.organizationID, func(txCtx context.Context) error {
-			allowed, err := a.Objects.ValidDocumentPushes(txCtx, key.organizationID, key.kind, candidates)
+			objects := a.objectsForKind(key.kind)
+			if objects == nil {
+				return nil
+			}
+			allowed, err := objects.ValidDocumentPushes(txCtx, key.organizationID, candidates)
 			if err != nil {
 				return err
 			}
@@ -115,16 +159,15 @@ func (a *DocumentPushAuthorization) AuthorizeDocumentPushes(ctx context.Context,
 	return result, nil
 }
 
-func permittedPushChildren(push DocumentPush, relationships []DocumentPushRelationship) []int64 {
-	var children []int64
-	for _, link := range relationships {
-		if link.TenantID != push.TenantID || link.AccountID != push.AccountID || !slices.Contains(push.StudentIDs, link.StudentID) {
-			continue
-		}
-		if !slices.Contains(link.Permissions, GuardianPermissionPortalAccess) || !slices.Contains(link.Permissions, GuardianPermissionEnrollmentsView) {
-			continue
-		}
-		children = append(children, link.StudentID)
+func (a *DocumentPushAuthorization) objectsForKind(kind string) DocumentPushObjects {
+	switch kind {
+	case DocumentPushBilling:
+		return a.Billing
+	case DocumentPushContract:
+		return a.Contracts
+	case DocumentPushRelease:
+		return a.Releases
+	default:
+		return nil
 	}
-	return children
 }

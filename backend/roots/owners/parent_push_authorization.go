@@ -3,8 +3,12 @@ package owners
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/modules/carecontract"
+	contractcompose "github.com/moto-nrw/project-phoenix/modules/carecontract/compose"
 	delivery "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	organizationcompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	billingcompose "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -13,12 +17,15 @@ import (
 	portalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
 )
 
-type parentPushRecipients struct {
+type parentPushAccounts struct {
 	identity identityaccess.AccountBatchQuery
-	people   peopledirectory.GuardianRelationshipQuery
 }
+type parentPushRelationships struct {
+	people peopledirectory.GuardianRelationshipQuery
+}
+type parentPushStudents struct{ students peopledirectory.StudentQuery }
 
-func (r parentPushRecipients) DocumentPushAccounts(ctx context.Context, ids []int64) (map[int64]parentportal.DocumentPushAccount, error) {
+func (r parentPushAccounts) DocumentPushAccounts(ctx context.Context, ids []int64) (map[int64]parentportal.DocumentPushAccount, error) {
 	rows, err := r.identity.FindActiveAccounts(ctx, ids)
 	if err != nil {
 		return nil, err
@@ -30,7 +37,7 @@ func (r parentPushRecipients) DocumentPushAccounts(ctx context.Context, ids []in
 	return result, nil
 }
 
-func (r parentPushRecipients) DocumentPushRelationships(ctx context.Context, ids []int64) ([]parentportal.DocumentPushRelationship, error) {
+func (r parentPushRelationships) DocumentPushRelationships(ctx context.Context, ids []int64) ([]parentportal.DocumentPushRelationship, error) {
 	profiles, err := r.people.ListGuardiansByAccount(ctx, ids)
 	if err != nil {
 		return nil, err
@@ -53,19 +60,48 @@ func (r parentPushRecipients) DocumentPushRelationships(ctx context.Context, ids
 	return result, nil
 }
 
-type parentPushObjects struct {
-	billing parentbilling.DocumentPushValidity
+func (r parentPushStudents) DocumentPushStudents(ctx context.Context, ids []int64) (map[int64]parentportal.DocumentPushStudent, error) {
+	rows, err := r.students.ListStudentsByID(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int64]parentportal.DocumentPushStudent, len(rows))
+	for _, row := range rows {
+		result[row.ID] = parentportal.DocumentPushStudent{TenantID: row.TenantID, GroupID: row.GroupID, Status: row.Status}
+	}
+	return result, nil
 }
 
-func (o parentPushObjects) ValidDocumentPushes(ctx context.Context, organizationID int64, kind string, checks []parentportal.DocumentPushCheck) (map[int64]bool, error) {
-	if kind != parentbilling.PushRelatedBillingDocument {
-		return map[int64]bool{}, nil
-	}
+type parentBillingPushObjects struct {
+	billing parentbilling.DocumentPushValidity
+}
+type parentContractPushObjects struct {
+	contracts carecontract.DocumentPushValidity
+}
+type parentReleasePushObjects struct {
+	releases organizationtenancy.ReleasePushValidity
+}
+
+func (o parentBillingPushObjects) ValidDocumentPushes(ctx context.Context, organizationID int64, checks []parentportal.DocumentPushCheck) (map[int64]bool, error) {
 	candidates := make([]parentbilling.DocumentPushCandidate, len(checks))
-	for i, check := range checks {
-		candidates[i] = parentbilling.DocumentPushCandidate{Key: check.Key, DocumentID: check.ObjectID, Email: check.Email}
+	for i, c := range checks {
+		candidates[i] = parentbilling.DocumentPushCandidate{Key: c.Key, DocumentID: c.ObjectID, Email: c.Email}
 	}
 	return o.billing.ValidDocumentPushes(ctx, organizationID, candidates)
+}
+func (o parentContractPushObjects) ValidDocumentPushes(ctx context.Context, organizationID int64, checks []parentportal.DocumentPushCheck) (map[int64]bool, error) {
+	candidates := make([]carecontract.DocumentPushCandidate, len(checks))
+	for i, c := range checks {
+		candidates[i] = carecontract.DocumentPushCandidate{Key: c.Key, ContractID: c.ObjectID, Email: c.Email, SchoolID: c.TenantID, StudentIDs: c.StudentIDs}
+	}
+	return o.contracts.ValidContractPushes(ctx, organizationID, candidates)
+}
+func (o parentReleasePushObjects) ValidDocumentPushes(ctx context.Context, organizationID int64, checks []parentportal.DocumentPushCheck) (map[int64]bool, error) {
+	candidates := make([]organizationtenancy.ReleasePushCandidate, len(checks))
+	for i, c := range checks {
+		candidates[i] = organizationtenancy.ReleasePushCandidate{Key: c.Key, ReleaseID: c.ObjectID, SchoolID: c.TenantID, GroupIDs: c.GroupIDs}
+	}
+	return o.releases.ValidReleasePushes(ctx, organizationID, candidates)
 }
 
 // NewParentPushObjectAuthorization binds Delivery's batch port to the parent
@@ -81,8 +117,9 @@ func NewParentPushObjectAuthorization(db transactionruntime.Database) (func(cont
 	}
 	gate := portalcompose.NewDocumentPushAuthorization(portalcompose.DocumentPushAuthorizationDependencies{
 		Runtime: ParentPortalRuntime{}, TraegerRuntime: ParentPortalRuntime{}, Schools: NewParentSchoolTraeger(organizations),
-		Recipients: parentPushRecipients{identity: NewPeopleIdentityAccess(db, nil), people: people},
-		Objects:    parentPushObjects{billing: billingcompose.NewDocumentPushValidity()},
+
+		Accounts: parentPushAccounts{identity: NewPeopleIdentityAccess(db, nil)}, Relationships: parentPushRelationships{people: people}, Students: parentPushStudents{students: people},
+		Billing: parentBillingPushObjects{billing: billingcompose.NewDocumentPushValidity()}, Contracts: parentContractPushObjects{contracts: contractcompose.NewDocumentPushValidity()}, Releases: parentReleasePushObjects{releases: organizationcompose.NewReleasePushValidity()},
 	})
 	return BindParentPushObjectAuthorization(gate), nil
 }
@@ -97,10 +134,21 @@ func BindParentPushObjectAuthorization(gate parentportal.DocumentPushAuthorizati
 				result[intent.ID] = true
 				continue
 			}
-			if intent.RelatedEntityType == nil || intent.RelatedEntityID == nil || *intent.RelatedEntityType != parentbilling.PushRelatedBillingDocument {
+			if intent.RelatedEntityType == nil || intent.RelatedEntityID == nil {
 				continue
 			}
-			pushes = append(pushes, parentportal.DocumentPush{Key: intent.ID, TenantID: intent.TenantID, AccountID: intent.PushRecipient.AccountID, ObjectID: *intent.RelatedEntityID, Kind: *intent.RelatedEntityType, StudentIDs: intent.PushRecipient.StudentIDs})
+			var kind string
+			switch *intent.RelatedEntityType {
+			case parentbilling.PushRelatedBillingDocument:
+				kind = parentportal.DocumentPushBilling
+			case carecontract.PushRelatedContractDocument:
+				kind = parentportal.DocumentPushContract
+			case organizationtenancy.PushRelatedTraegerDocumentRelease:
+				kind = parentportal.DocumentPushRelease
+			default:
+				continue
+			}
+			pushes = append(pushes, parentportal.DocumentPush{Key: intent.ID, TenantID: intent.TenantID, AccountID: intent.PushRecipient.AccountID, ObjectID: *intent.RelatedEntityID, Kind: kind, StudentIDs: intent.PushRecipient.StudentIDs})
 		}
 		allowed, err := gate.AuthorizeDocumentPushes(ctx, pushes)
 		if err != nil {

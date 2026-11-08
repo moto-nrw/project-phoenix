@@ -7,9 +7,13 @@ import (
 )
 
 type DocumentPush = care.DocumentPush
+type DocumentPushStudent = care.DocumentPushStudent
+
 type DocumentPushAccount = care.DocumentPushAccount
 type DocumentPushRelationship = care.DocumentPushRelationship
-type DocumentPushRecipients = care.DocumentPushRecipients
+type DocumentPushAccounts = care.DocumentPushAccounts
+type DocumentPushRelationships = care.DocumentPushRelationships
+type DocumentPushStudents = care.DocumentPushStudents
 type DocumentPushCheck = care.DocumentPushCheck
 type DocumentPushObjects = care.DocumentPushObjects
 

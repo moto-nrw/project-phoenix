@@ -8,10 +8,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/carecontract"
 	deliverycompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	delivery "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	mail "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
 	deliveryruntime "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	billingcompose "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -38,6 +40,7 @@ func (documentPushDisplays) ResolveGuardianDisplays(context.Context, []int64) ([
 }
 
 type billingPushFixture struct {
+	related                     string
 	db                          *bun.DB
 	ctx                         context.Context
 	chain                       testpkg.ParentChain
@@ -51,14 +54,16 @@ type billingPushFixture struct {
 func newBillingPushFixture(t *testing.T) *billingPushFixture {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	f := &billingPushFixture{db: db, ctx: testpkg.WithPackageTenantRuntime(testpkg.OwnCtx(t)), chain: testpkg.CreateTestParentGuardianChain(t, db), transport: &documentPushTransport{}}
+	f := &billingPushFixture{related: parentbilling.PushRelatedBillingDocument, db: db, ctx: testpkg.WithPackageTenantRuntime(testpkg.OwnCtx(t)), chain: testpkg.CreateTestParentGuardianChain(t, db), transport: &documentPushTransport{}}
 	require.NoError(t, db.NewRaw(`SELECT organization_id FROM platform.schools WHERE id = ?`, f.chain.TenantID).Scan(f.ctx, &f.organization))
 	testpkg.OwnTraegerContributionRules(t, db, f.organization)
 	require.NoError(t, db.NewRaw(`INSERT INTO parent_billing.runs (organization_id,service,holiday_period_id,period_name,service_from,service_until,status,released_at,issued_on,document_count,total_cents)
  VALUES (?,'holiday',8,'Test','2026-10-12','2026-10-23','released',NOW(),'2026-10-01',1,4500) RETURNING id`, f.organization).Scan(f.ctx, &f.run))
 	require.NoError(t, db.NewRaw(`INSERT INTO parent_billing.documents (organization_id,run_id,service,number,number_year,number_sequence,issued_on,holiday_period_id,holiday_registration_id,recipient_first_name,recipient_last_name,recipient_email,service_from,service_until,total_cents)
  VALUES (?,?,'holiday','TEST-1',0,1,'2026-10-01',8,100,'Test','Family',?,'2026-10-12','2026-10-16',4500) RETURNING id`, f.organization, f.run, f.chain.Email).Scan(f.ctx, &f.document))
-	_, err := db.ExecContext(f.ctx, `INSERT INTO parent_billing.document_letters (organization_id,document_id,run_id,filename,pdf) VALUES (?,?,?,'test.pdf',?)`, f.organization, f.document, f.run, []byte("%PDF-test"))
+	_, err := db.ExecContext(f.ctx, `INSERT INTO parent_billing.run_letters (organization_id,run_id,payment_due_on) VALUES (?,?,'2026-10-15')`, f.organization, f.run)
+	require.NoError(t, err)
+	_, err = db.ExecContext(f.ctx, `INSERT INTO parent_billing.document_letters (organization_id,document_id,run_id,filename,pdf) VALUES (?,?,?,'test.pdf',?)`, f.organization, f.document, f.run, []byte("%PDF-test"))
 	require.NoError(t, err)
 	_, err = db.ExecContext(f.ctx, `INSERT INTO parent_billing.document_mailings (organization_id,run_id,document_id,delivery_id,recipient_email) VALUES (?,?,?,?,?)`, f.organization, f.run, f.document, f.document+900000, f.chain.Email)
 	require.NoError(t, err)
@@ -91,7 +96,7 @@ func (f *billingPushFixture) fanout(t *testing.T, n int) []int64 {
 	})
 	require.True(t, ok)
 	require.NoError(t, (ParentPortalRuntime{}).WithinTenant(f.ctx, f.chain.TenantID, func(ctx context.Context) error {
-		count, err := durable.DeliverDurably(ctx, deliverycompose.NotificationEvent{Type: parentbilling.PushKindBillingDocument, IdempotencyKey: fmt.Sprintf("document:%d", f.document), RelatedType: parentbilling.PushRelatedBillingDocument, RelatedID: f.document,
+		count, err := durable.DeliverDurably(ctx, deliverycompose.NotificationEvent{Type: parentbilling.PushKindBillingDocument, IdempotencyKey: fmt.Sprintf("%s:%d", f.related, f.document), RelatedType: f.related, RelatedID: f.document,
 			Audience: deliverycompose.NotificationAudience{TenantID: f.chain.TenantID, Scope: "guardian", GuardianAccountIDs: []int64{f.chain.AccountID}, StudentIDs: []int64{f.chain.StudentID}}, Title: "Document", Body: "New document", DeepLink: "/documents"})
 		require.Equal(t, n, count)
 		return err
@@ -211,4 +216,151 @@ func TestBillingPushObjectScopeWithoutRLS(t *testing.T) {
 		assert.Equal(t, map[int64]bool{1: true}, allowed)
 		return nil
 	}))
+}
+
+// contract fixes the event to the first mailed version, as contract sending
+// does. The test does not replace any policy or owner with an authorization mock.
+func (f *billingPushFixture) contract(t *testing.T) (contractID, versionID int64) {
+	t.Helper()
+	testpkg.OwnTraegerCareContracts(t, f.db, f.organization)
+	require.NoError(t, f.db.NewRaw(`INSERT INTO care_contract.contracts (organization_id,school_id,request_child_id,student_id,status,sent_at)
+ VALUES (?,?,?,?,'versendet',NOW()) RETURNING id`, f.organization, f.chain.TenantID, testpkg.UniqueTestTenantID(t), f.chain.StudentID).Scan(f.ctx, &contractID))
+	require.NoError(t, f.db.NewRaw(`INSERT INTO care_contract.contract_versions (organization_id,contract_id,version_number,effective_from,child_first_name,child_last_name,school_name,term_kind,notice_months,notice_to)
+ VALUES (?,?,1,'2027-08-01','Test','Child','School','open_ended',1,'month_end') RETURNING id`, f.organization, contractID).Scan(f.ctx, &versionID))
+	var documentID int64
+	require.NoError(t, f.db.NewRaw(`INSERT INTO care_contract.contract_documents (organization_id,contract_id,contract_version_id,template_version,filename,pdf)
+ VALUES (?,?,?,0,'contract.pdf',?) RETURNING id`, f.organization, contractID, versionID, []byte("%PDF-contract")).Scan(f.ctx, &documentID))
+	_, err := f.db.ExecContext(f.ctx, `INSERT INTO care_contract.contract_mailings (organization_id,contract_id,contract_document_id,outbox_id,recipient_email)
+ VALUES (?,?,?,?,?)`, f.organization, contractID, documentID, testpkg.UniqueTestTenantID(t), f.chain.Email)
+	require.NoError(t, err)
+	return contractID, versionID
+}
+
+func (f *billingPushFixture) release(t *testing.T) (documentID, releaseID, groupID int64) {
+	t.Helper()
+	testpkg.OwnTraegerDocuments(t, f.db, f.organization)
+	require.NoError(t, f.db.NewRaw(`INSERT INTO education.groups (tenant_id,name) VALUES (?,'Push group') RETURNING id`, f.chain.TenantID).Scan(f.ctx, &groupID))
+	_, err := f.db.ExecContext(f.ctx, `UPDATE users.student_school_memberships SET group_id=? WHERE tenant_id=? AND student_profile_id=?`, groupID, f.chain.TenantID, f.chain.StudentID)
+	require.NoError(t, err)
+	require.NoError(t, f.db.NewRaw(`INSERT INTO platform.traeger_documents (organization_id,title,file_name,content_type,size_bytes,content)
+ VALUES (?,'Document','brief.pdf','application/pdf',8,'%PDF-1.4'::bytea) RETURNING id`, f.organization).Scan(f.ctx, &documentID))
+	require.NoError(t, f.db.NewRaw(`INSERT INTO platform.traeger_document_releases (organization_id,document_id,audience,school_id,group_id,group_name)
+ VALUES (?,?,'parents',?,?,'Push group') RETURNING id`, f.organization, documentID, f.chain.TenantID, groupID).Scan(f.ctx, &releaseID))
+	return documentID, releaseID, groupID
+}
+
+func TestContractDevicePushRechecksVersionAndExactChild(t *testing.T) {
+	t.Parallel()
+	for _, scenario := range []string{"valid", "withdrawn", "right revoked", "replaced version", "newer version", "retry withdrawn"} {
+		t.Run(scenario, func(t *testing.T) {
+			t.Parallel()
+			f := newBillingPushFixture(t)
+			contractID, versionID := f.contract(t)
+			f.document = contractID
+			f.related = carecontract.PushRelatedContractDocument
+			f.fanout(t, 2)
+			if scenario == "retry withdrawn" {
+				f.transport.err = errors.New("temporary push failure")
+				f.runWorker(t)
+				require.Equal(t, 2, f.transport.calls)
+				f.transport.err = nil
+				_, err := f.db.ExecContext(f.ctx, `UPDATE platform.push_outbox SET next_attempt_at=NOW() WHERE tenant_id=?`, f.chain.TenantID)
+				require.NoError(t, err)
+			}
+			switch scenario {
+			case "withdrawn", "retry withdrawn":
+				_, err := f.db.ExecContext(f.ctx, `UPDATE care_contract.contracts SET status='widerrufen',concluded_at=NOW(),conclusion_method='papier' WHERE id=?`, contractID)
+				require.NoError(t, err)
+			case "right revoked":
+				_, err := f.db.ExecContext(f.ctx, `UPDATE auth.guardian_student_access SET permissions=permissions-'parent_portal.enrollments.view' WHERE tenant_id=? AND relationship_id IN (SELECT id FROM users.student_guardian_relationships WHERE student_id=?)`, f.chain.TenantID, f.chain.StudentID)
+				require.NoError(t, err)
+				sibling := testpkg.CreateTestStudent(t, f.db, "Sibling", "Child", "1a")
+				testpkg.CreateTestStudentGuardianLink(t, f.db, sibling.ID, f.chain.GuardianProfileID, "primary_guardian")
+			case "replaced version":
+				_, err := f.db.ExecContext(f.ctx, `UPDATE care_contract.contract_versions SET status='ersetzt' WHERE id=?`, versionID)
+				require.NoError(t, err)
+			case "newer version":
+				_, err := f.db.ExecContext(f.ctx, `INSERT INTO care_contract.contract_versions (organization_id,contract_id,version_number,effective_from,status,child_first_name,child_last_name,school_name,term_kind,notice_months,notice_to)
+     VALUES (?,?,2,'2027-09-01','wirksam','Test','Child','School','open_ended',1,'month_end')`, f.organization, contractID)
+				require.NoError(t, err)
+			}
+			counter := testpkg.CaptureQueriesForContext(t, f.db)
+			f.ctx = counter.Context(f.ctx)
+			f.runWorker(t)
+			if scenario == "valid" {
+				assert.Equal(t, []string{"sent", "sent"}, f.states(t))
+				assert.Equal(t, 2, f.transport.calls)
+				assert.Len(t, counter.Selects("care_contract.contracts"), 1)
+				return
+			}
+			assert.Equal(t, []string{"cancelled", "cancelled"}, f.states(t))
+			expected := 0
+			if scenario == "retry withdrawn" {
+				expected = 2
+			}
+			assert.Equal(t, expected, f.transport.calls)
+			f.runWorker(t)
+			assert.Equal(t, expected, f.transport.calls, "terminal cancellation")
+		})
+	}
+}
+
+func TestReleasedDocumentDevicePushRechecksReleaseAndCurrentAudience(t *testing.T) {
+	t.Parallel()
+	for _, scenario := range []string{"valid access only", "revoked", "revoked and released again", "deleted", "group changed", "access revoked", "retry revoked"} {
+		t.Run(scenario, func(t *testing.T) {
+			t.Parallel()
+			f := newBillingPushFixture(t)
+			documentID, releaseID, _ := f.release(t)
+			// Released documents require access, not the enrollment viewing right.
+			_, err := f.db.ExecContext(f.ctx, `UPDATE auth.guardian_student_access SET permissions='{"parent_portal.access":true}'::jsonb WHERE tenant_id=?`, f.chain.TenantID)
+			require.NoError(t, err)
+			f.document = releaseID
+			f.related = organizationtenancy.PushRelatedTraegerDocumentRelease
+			f.fanout(t, 2)
+			if scenario == "retry revoked" {
+				f.transport.err = errors.New("temporary push failure")
+				f.runWorker(t)
+				require.Equal(t, 2, f.transport.calls)
+				f.transport.err = nil
+				_, err = f.db.ExecContext(f.ctx, `UPDATE platform.push_outbox SET next_attempt_at=NOW() WHERE tenant_id=?`, f.chain.TenantID)
+				require.NoError(t, err)
+			}
+			switch scenario {
+			case "revoked", "revoked and released again", "retry revoked":
+				_, err = f.db.ExecContext(f.ctx, `UPDATE platform.traeger_document_releases SET revoked_at=NOW() WHERE id=?`, releaseID)
+				require.NoError(t, err)
+				if scenario == "revoked and released again" {
+					_, err = f.db.ExecContext(f.ctx, `INSERT INTO platform.traeger_document_releases (organization_id,document_id,audience,school_id) VALUES (?,?,'parents',?)`, f.organization, documentID, f.chain.TenantID)
+					require.NoError(t, err)
+				}
+			case "deleted":
+				_, err = f.db.ExecContext(f.ctx, `UPDATE platform.traeger_documents SET deleted_at=NOW(),content=NULL WHERE id=?`, documentID)
+				require.NoError(t, err)
+			case "group changed":
+				_, err = f.db.ExecContext(f.ctx, `UPDATE users.student_school_memberships SET group_id=NULL WHERE tenant_id=? AND student_profile_id=?`, f.chain.TenantID, f.chain.StudentID)
+				require.NoError(t, err)
+			case "access revoked":
+				_, err = f.db.ExecContext(f.ctx, `UPDATE auth.guardian_student_access SET permissions='{}'::jsonb WHERE tenant_id=?`, f.chain.TenantID)
+				require.NoError(t, err)
+			}
+			counter := testpkg.CaptureQueriesForContext(t, f.db)
+			f.ctx = counter.Context(f.ctx)
+			f.runWorker(t)
+			if scenario == "valid access only" {
+				assert.Equal(t, []string{"sent", "sent"}, f.states(t))
+				assert.Equal(t, 2, f.transport.calls)
+				assert.Len(t, counter.Selects("platform.traeger_document_releases"), 1)
+				return
+			}
+			assert.Equal(t, []string{"cancelled", "cancelled"}, f.states(t))
+			expected := 0
+			if scenario == "retry revoked" {
+				expected = 2
+			}
+			assert.Equal(t, expected, f.transport.calls)
+			f.runWorker(t)
+			assert.Equal(t, expected, f.transport.calls, "revoking the original release is terminal even after releasing again")
+		})
+	}
 }
