@@ -602,7 +602,7 @@ export default function GuardianFormModal({
                 )}
 
                 {/* Personal Information */}
-                <div className="bg-moto-blue-soft/30 rounded-xl border border-gray-100 p-3 md:p-4">
+                <InsetPanel framed>
                   <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
                     <svg
                       className="text-moto-blue-strong h-3.5 w-3.5 md:h-4 md:w-4"
@@ -702,10 +702,10 @@ export default function GuardianFormModal({
                       disabled={isLoading}
                     />
                   </div>
-                </div>
+                </InsetPanel>
 
                 {/* Contact Information */}
-                <div className="bg-moto-blue-soft/30 rounded-xl border border-gray-100 p-3 md:p-4">
+                <InsetPanel framed>
                   <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
                     <svg
                       className="text-moto-blue-strong h-3.5 w-3.5 md:h-4 md:w-4"
@@ -885,10 +885,10 @@ export default function GuardianFormModal({
                       Weitere Nummer hinzufügen
                     </Button>
                   </div>
-                </div>
+                </InsetPanel>
 
                 {/* Address (optional) */}
-                <div className="bg-moto-blue-soft/30 rounded-xl border border-gray-100 p-3 md:p-4">
+                <InsetPanel framed>
                   <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
                     <svg
                       className="text-moto-blue-strong h-3.5 w-3.5 md:h-4 md:w-4"
@@ -961,10 +961,10 @@ export default function GuardianFormModal({
                       maxLength={255}
                     />
                   </div>
-                </div>
+                </InsetPanel>
 
                 {/* Additional Info */}
-                <div className="bg-moto-blue-soft/30 rounded-xl border border-gray-100 p-3 md:p-4">
+                <InsetPanel framed>
                   <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
                     <svg
                       className="text-moto-blue-strong h-3.5 w-3.5 md:h-4 md:w-4"
@@ -1007,7 +1007,7 @@ export default function GuardianFormModal({
                       />
                     </div>
                   </div>
-                </div>
+                </InsetPanel>
 
                 {/* Relationship Flags + Emergency Contact (shared with picker) */}
                 <RelationshipPermissionsFields
