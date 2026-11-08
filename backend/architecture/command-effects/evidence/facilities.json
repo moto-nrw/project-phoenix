@@ -65,6 +65,22 @@
       "target_owner": "timetable-activities"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/facilities/internal/application.Service.CreateRoom",
+      "binding_digest": "96bfedb4a51a9ee096783ce633113f94",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.CreateRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/facilities/internal/application.Service.CreateRoom",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.CreateRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/facilities/internal/application.Service.DeleteRoom",
       "binding_digest": "0fc7ad0850a42f0f00a60202e46953e3",
       "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.DeleteRoom",
@@ -73,12 +89,380 @@
       "target_owner": "timetable-activities"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/facilities/internal/application.Service.DeleteRoom",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.DeleteRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/facilities/internal/application.Service.FindRoom",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/facilities/internal/application.Service.FindRoomByName",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindRoomByName",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/facilities/internal/application.Service.FindToiletRoom",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindToiletRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/facilities/internal/application.Service.ListRooms",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRooms",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/facilities/internal/application.Service.ListRoomsByID",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRoomsByID",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/facilities/internal/application.Service.ListRoomsPage",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRoomsPage",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/facilities/internal/application.Service.UpdateRoom",
+      "binding_digest": "96bfedb4a51a9ee096783ce633113f94",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.UpdateRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/facilities/internal/application.Service.UpdateRoom",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.UpdateRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/facilities/internal/application.Service.CreateRoom",
+      "binding_digest": "96bfedb4a51a9ee096783ce633113f94",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.CreateRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/facilities/internal/application.Service.CreateRoom",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.CreateRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.CreateRoom",
+      "binding_digest": "96bfedb4a51a9ee096783ce633113f94",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.CreateRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.CreateRoom",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.CreateRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/facilities/internal/application.Service.FindRoom",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindRoom",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/facilities/internal/application.Service.FindRoomByName",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindRoomByName",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindRoomByName",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindRoomByName",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/facilities/internal/application.Service.FindToiletRoom",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindToiletRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindToiletRoom",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindToiletRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/facilities/internal/application.Service.ListRooms",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRooms",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRooms",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRooms",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/facilities/internal/application.Service.ListRoomsByID",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRoomsByID",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRoomsByID",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRoomsByID",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/facilities/internal/application.Service.ListRoomsPage",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRoomsPage",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRoomsPage",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRoomsPage",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/facilities/internal/application.Service.UpdateRoom",
+      "binding_digest": "96bfedb4a51a9ee096783ce633113f94",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.UpdateRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/facilities/internal/application.Service.UpdateRoom",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.UpdateRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.UpdateRoom",
+      "binding_digest": "96bfedb4a51a9ee096783ce633113f94",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.UpdateRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.UpdateRoom",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.UpdateRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.CreateRoom",
+      "binding_digest": "96bfedb4a51a9ee096783ce633113f94",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Command.CreateRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.CreateRoom",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Command.CreateRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.DeleteRoom",
       "binding_digest": "0fc7ad0850a42f0f00a60202e46953e3",
       "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Command.DeleteRoom",
       "source_owner": "facilities",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.DeleteRoom",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Command.DeleteRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.UpdateRoom",
+      "binding_digest": "96bfedb4a51a9ee096783ce633113f94",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Command.UpdateRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.UpdateRoom",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Command.UpdateRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindRoom",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindRoom",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindRoomByName",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomByName",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindRoomByName",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindRoomByName",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.FindToiletRoom",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindToiletRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.FindToiletRoom",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.FindToiletRoom",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRooms",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRooms",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRooms",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRooms",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRoomsByID",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsByID",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRoomsByID",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsByID",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Capability.ListRoomsPage",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsPage",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities.Catalog.ListRoomsPage",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities.Query.ListRoomsPage",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.RoomHistoryPresence.ListRoomSessionHistory",
@@ -185,6 +569,46 @@
       "target_owner": "student-presence"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/roomservice.schulhofService.GetSchulhofStatus",
+      "binding_digest": "7e8c2a471dc0465d064cc607416aae13",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/roomservice.SchulhofService.GetSchulhofStatus",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.GroupSupervision.EndedOn",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/roomservice.schulhofService.GetSchulhofStatus",
+      "binding_digest": "74e3671776fdf318a921bca58681012f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/roomservice.SchulhofService.GetSchulhofStatus",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.LiveGroup.StartedOn",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/roomservice.schulhofService.GetSchulhofStatus",
+      "binding_digest": "10895cc298bdb102f1733c1c280bd842",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/roomservice.SchulhofService.GetSchulhofStatus",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListVisits",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/roomservice.schulhofService.GetSchulhofStatus",
+      "binding_digest": "314f17c0c5245110b243ac7cf883e163",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/roomservice.SchulhofService.GetSchulhofStatus",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.QueryGroupSupervisions",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/roomservice.schulhofService.GetSchulhofStatus",
+      "binding_digest": "0120cf84c8b3948f8116d8373f78fc80",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities/internal/application/roomservice.SchulhofService.GetSchulhofStatus",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.QueryLiveGroups",
+      "target_owner": "student-presence"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/roots/owners.RoomUsage.HasActiveSessions",
       "binding_digest": "2562b7999027e0b45e82a9bda2616740",
       "port": "github.com/moto-nrw/project-phoenix/modules/facilities/internal/ports.RoomUsage.HasActiveSessions",
@@ -215,6 +639,22 @@
       "source_owner": "facilities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingGuards.ValidateRoomDeletion",
       "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities/compose.transaction.AcquireLock",
+      "binding_digest": "96bfedb4a51a9ee096783ce633113f94",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities/internal/ports.Transaction.AcquireLock",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.AcquireLock",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/facilities/compose.transaction.RunWrite",
+      "binding_digest": "ae2c42337f572b0e4f4b09f586953368",
+      "port": "github.com/moto-nrw/project-phoenix/modules/facilities/internal/ports.Transaction.RunWrite",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.CheckActivityConflict",

@@ -31,6 +31,126 @@
       "target_owner": "care-plan"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.Service.Dashboard",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Capability.Dashboard",
+      "reason": "Read-only target already reviewed as query: device-fleet reaches modules/timetable.Group.ParticipantLimit (timetable-activities) through *modules/devicefleet/internal/application.Service.Dashboard. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.Group.ParticipantLimit",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.Service.Dashboard",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Capability.Dashboard",
+      "reason": "Read-only target already reviewed as query: device-fleet reaches modules/timetable.IsPlannedInstanceStatus (timetable-activities) through *modules/devicefleet/internal/application.Service.Dashboard. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.IsPlannedInstanceStatus",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.Service.Dashboard",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Capability.Dashboard",
+      "reason": "Read-only target already reviewed as query: device-fleet reaches modules/timetable.SessionRecords.ListSessionInstances (timetable-activities) through *modules/devicefleet/internal/application.Service.Dashboard. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.SessionRecords.ListSessionInstances",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.Service.Dashboard",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Capability.Dashboard",
+      "reason": "Read-only target already reviewed as query: device-fleet reaches modules/timetable.TemplateCatalog.ListTemplateGroups (timetable-activities) through *modules/devicefleet/internal/application.Service.Dashboard. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateCatalog.ListTemplateGroups",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.Service.Dashboard",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Capability.Dashboard",
+      "reason": "Read-only target already reviewed as query: device-fleet reaches modules/timetable/internal/application.SessionRecords.ListSessionInstances (timetable-activities) through *modules/devicefleet/internal/application.Service.Dashboard. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.SessionRecords.ListSessionInstances",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application.Service.Dashboard",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Capability.Dashboard",
+      "reason": "Read-only target already reviewed as query: device-fleet reaches modules/timetable/internal/application.SessionRecords.ListTemplateGroups (timetable-activities) through *modules/devicefleet/internal/application.Service.Dashboard. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.SessionRecords.ListTemplateGroups",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Capability.Dashboard",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Query.Dashboard",
+      "reason": "Read-only target already reviewed as query: device-fleet reaches modules/timetable.Group.ParticipantLimit (timetable-activities) through modules/devicefleet.Capability.Dashboard. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.Group.ParticipantLimit",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Capability.Dashboard",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Query.Dashboard",
+      "reason": "Read-only target already reviewed as query: device-fleet reaches modules/timetable.IsPlannedInstanceStatus (timetable-activities) through modules/devicefleet.Capability.Dashboard. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.IsPlannedInstanceStatus",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Capability.Dashboard",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Query.Dashboard",
+      "reason": "Read-only target already reviewed as query: device-fleet reaches modules/timetable.SessionRecords.ListSessionInstances (timetable-activities) through modules/devicefleet.Capability.Dashboard. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.SessionRecords.ListSessionInstances",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Capability.Dashboard",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Query.Dashboard",
+      "reason": "Read-only target already reviewed as query: device-fleet reaches modules/timetable.TemplateCatalog.ListTemplateGroups (timetable-activities) through modules/devicefleet.Capability.Dashboard. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateCatalog.ListTemplateGroups",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Capability.Dashboard",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Query.Dashboard",
+      "reason": "Read-only target already reviewed as query: device-fleet reaches modules/timetable/internal/application.SessionRecords.ListSessionInstances (timetable-activities) through modules/devicefleet.Capability.Dashboard. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.SessionRecords.ListSessionInstances",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Capability.Dashboard",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/devicefleet.Query.Dashboard",
+      "reason": "Read-only target already reviewed as query: device-fleet reaches modules/timetable/internal/application.SessionRecords.ListTemplateGroups (timetable-activities) through modules/devicefleet.Capability.Dashboard. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "device-fleet",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.SessionRecords.ListTemplateGroups",
+      "target_owner": "timetable-activities"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.deviceSchoolDirectory.FindSchool",
       "classification": "query",
       "effect": "query",
