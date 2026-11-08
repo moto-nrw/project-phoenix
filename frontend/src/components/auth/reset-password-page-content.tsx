@@ -59,11 +59,13 @@ export interface ResetPasswordPageCopy {
   readonly passwordMissingNumber: string;
   readonly passwordMissingSpecial: string;
   readonly passwordMismatch: string;
-  readonly successEyebrow: string;
+  /** Kopfzeile über dem Titel, nur im Elternportal (#5607). */
+  readonly successEyebrow?: string;
   readonly successTitle: string;
   readonly successSubtitle: string;
   readonly successBody: string;
-  readonly formEyebrow: string;
+  /** Kopfzeile über dem Titel, nur im Elternportal (#5607). */
+  readonly formEyebrow?: string;
   readonly formTitle: string;
   readonly formSubtitle: string;
   readonly passwordLabel: string;
@@ -90,11 +92,9 @@ const DEFAULT_RESET_PASSWORD_PAGE_COPY: ResetPasswordPageCopy = {
   passwordMissingSpecial:
     "Das Passwort muss mindestens ein Sonderzeichen enthalten.",
   passwordMismatch: "Die Passwörter stimmen nicht überein.",
-  successEyebrow: "Passwort geändert",
   successTitle: "Passwort erfolgreich geändert",
   successSubtitle: "Sie werden automatisch zur Anmeldeseite weitergeleitet.",
   successBody: "Die Anmeldung ist gleich wieder möglich.",
-  formEyebrow: "Passwort zurücksetzen",
   formTitle: "Neues Passwort festlegen",
   formSubtitle: "Wählen Sie ein starkes Passwort für Ihr Konto.",
   passwordLabel: "Neues Passwort",
