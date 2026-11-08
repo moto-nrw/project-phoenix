@@ -10,8 +10,8 @@ import (
 )
 
 // NewHolidayPeriods builds a Träger's holiday periods (#4659) in the Träger-Portal's Träger transaction (ADR 0105).
-func NewHolidayPeriods() enrollment.HolidayPeriods {
-	return applicationNative.NewHolidayPeriods(postgres.NewHolidayPeriodStore(), postgres.NewHolidayPeriodStore())
+func NewHolidayPeriods(today func() calendar.Date) enrollment.HolidayPeriods {
+	return applicationNative.NewHolidayPeriods(postgres.NewHolidayPeriodStore(), postgres.NewHolidayPeriodStore(), today)
 }
 
 // NewHolidayRegistrations builds the public holiday registration (ADR 0110, #4722).

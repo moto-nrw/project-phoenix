@@ -17,10 +17,8 @@ import type {
   PublicFormSchema,
   PublicLegalBlock,
 } from "~/lib/enrollment-form-schema-api";
-import type {
-  CareOfferingSelectionMode,
-  PublicCareOffering,
-} from "~/lib/enrollment-submission-api";
+import type { PublicCareOffering } from "~/lib/enrollment-submission-api";
+import type { CareOfferingSelectionMode } from "~/lib/enrollment-phase-api";
 import { selectionGroupLabel } from "~/lib/enrollment-translations";
 import type { SignatureValue } from "~/components/ui/signature-pad";
 import { fileValueMissing } from "./enrollment-file-upload";

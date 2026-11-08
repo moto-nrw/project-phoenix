@@ -75,8 +75,9 @@ Gerenderte Reihenfolge, fest, nicht verhandelbar:
    Symbolknöpfe dort und jeder Textknopf bekommt eine volle Zeile darunter
    (Abschnitt „Unter sm").
    Der Bearbeitungszustand der Startseite trägt „Abbrechen“ und „Fertig“: Das
-   Paar ist eine Entscheidung. `tenant-page-scaffold.test.ts` prüft Regel 3 und
-   4 und führt diese Ausnahme (#5605).
+   Paar ist eine Entscheidung. Der Product Owner hat diese Ausnahme am
+   08.11.2026 freigegeben. `tenant-page-scaffold.test.ts` prüft Regel 3 und 4
+   und führt sie als einzige (#5605).
 5. **Suche und Filter gehören in `search`/`filters`.** Handgebaute Zeilen aus
    `Input` + `CustomSelect` werden zu `FilterConfig[]` (`type: "dropdown"`).
    Nur wenn ein Filter wirklich nicht abbildbar ist: `type: "custom"` mit
@@ -193,8 +194,8 @@ lg:flex-col`), sonst wächst nur die Hülle und die Fläche bleibt kurz.
     Werte, Sätze und Bedienelemente sind `text-sm` oder größer; die
     wichtigste Aussage einer Fläche ist ihre größte (`text-2xl` für die
     eine Antwort, `text-sm leading-6` für den Satz darunter — das
-    Eltern-Portal-Muster). `text-[9px]`…`text-[11px]` sind per Ratchet
-    gesperrt (`ui-kit/no-tiny-text`, Baseline shrink-only).
+    Eltern-Portal-Muster). `text-[9px]`…`text-[11px]` sind gesperrt
+    (`ui-kit/no-tiny-text`, hard-zero).
 17. **Eine Bedienhöhe: 40 px, unter sm 44 px.** `CONTROL_HEIGHT` im Gerüst
     zieht Knöpfe, Links in Button-Optik (`ButtonLink`), Felder und
     Auswahllisten der Kopfkarte auf 40 px (Telefon: 44 px, die

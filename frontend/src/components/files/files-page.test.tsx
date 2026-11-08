@@ -55,9 +55,12 @@ const folder: FileFolder = {
   createdAt: "2026-08-29T10:00:00Z",
 };
 
-function renderPage(staffUploadEnabled: boolean) {
+function renderPage(
+  staffUploadEnabled: boolean,
+  folders: FileFolder[] = [folder],
+) {
   const overview: FolderOverview = {
-    folders: [folder],
+    folders,
     canManage: true,
     canUpload: true,
     staffUploadEnabled,
@@ -137,6 +140,34 @@ describe("FilesPage upload permission summary", () => {
     expect(
       screen.getByRole("link", { name: "Berechtigung ändern" }),
     ).toBeInTheDocument();
+  });
+
+  it("keeps a long desktop folder list inside its scrollable area", () => {
+    renderPage(
+      false,
+      Array.from({ length: 50 }, (_, index) => ({
+        ...folder,
+        id: String(index + 1),
+        name: `Ordner ${index + 1}`,
+      })),
+    );
+
+    const aside = screen
+      .getAllByText("Ordner")
+      .map((label) => label.closest("aside"))
+      .find((element) => element !== null);
+    if (!aside) throw new Error("Ordner-Seitenleiste fehlt");
+    const body = aside.parentElement;
+    if (!body) throw new Error("Ordner-Kartenrumpf fehlt");
+    const card = body.parentElement;
+    if (!card) throw new Error("Ordner-Karte fehlt");
+    const folderList = aside.querySelector(".overflow-y-auto");
+    if (!folderList) throw new Error("Ordnerliste fehlt");
+
+    expect(card).toHaveClass("h-full", "min-h-0", "flex-col", "lg:flex");
+    expect(body).toHaveClass("flex", "min-h-0", "flex-1", "flex-col");
+    expect(aside).toHaveClass("flex", "min-h-0", "flex-1", "flex-col");
+    expect(folderList).toHaveClass("min-h-0", "flex-1", "overflow-y-auto");
   });
 });
 

@@ -257,6 +257,30 @@ describe("listSchemas", () => {
 // --- fetchEnrollmentPreviewBootstrap ---------------------------------
 
 describe("fetchEnrollmentPreviewBootstrap", () => {
+  it("includes the phase target for effective configuration", async () => {
+    let seenURL = "";
+    const phaseOfferings = {
+      offerings: [],
+      collect_grade_level: false,
+      care_offerings_enabled: false,
+    };
+    mockFetch(async (input) => {
+      seenURL = input.toString();
+      return jsonResponse({
+        data: { schema: null, phase_offerings: phaseOfferings },
+      });
+    });
+
+    const out = await fetchEnrollmentPreviewBootstrap({
+      base: true,
+      phaseId: "13",
+    });
+
+    expect(seenURL).toContain("phaseId=13");
+    expect(seenURL).toContain("base=1");
+    expect(out.phase_offerings).toEqual(phaseOfferings);
+  });
+
   it("loads schema preview bootstrap and URL-encodes schema id", async () => {
     let seenURL = "";
     mockFetch(async (input) => {

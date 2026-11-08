@@ -9,6 +9,7 @@ import (
 
 type Store interface {
 	Create(context.Context, domain.Entry) (domain.Entry, domain.OperationStats, error)
+	CreateBatch(context.Context, []domain.Entry) ([]domain.Entry, domain.OperationStats, error)
 	Get(context.Context, int64) (domain.Entry, domain.OperationStats, error)
 	Delete(context.Context, int64) (domain.OperationStats, error)
 	List(context.Context, domain.Filter) ([]domain.Entry, domain.OperationStats, error)

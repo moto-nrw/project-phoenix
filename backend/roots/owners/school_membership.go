@@ -3,6 +3,7 @@ package owners
 import (
 	"context"
 	"errors"
+	"time"
 
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -10,12 +11,14 @@ import (
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // NewSchoolMembership composes the School Membership owner for test graphs
 // and CLI roots that record no observations. The serving root composes the
-// observed owner (composeSchoolMembership) so runtime evidence is kept.
-func NewSchoolMembership(db transactionruntime.Database) (schoolmembership.Capability, error) {
+// observed owner (composeSchoolMembership) so runtime evidence is kept. An
+// optional clock pins the day its writes decide on.
+func NewSchoolMembership(db transactionruntime.Database, clocks ...func() time.Time) (schoolmembership.Capability, error) {
 	employment, err := workforceCompose.NewStaffEmployment(db.Pool(), nil)
 	if err != nil {
 		return nil, err
@@ -25,6 +28,7 @@ func NewSchoolMembership(db transactionruntime.Database) (schoolmembership.Capab
 		Observe:    func(schoolMembershipCompose.Observation) {},
 		Employment: MembershipStaffEmployment(employment),
 		ChildQuota: organizationCompose.NewChildQuotaLimits(),
+		Today:      calendar.CalendarDateClock(clocks...),
 	})
 }
 

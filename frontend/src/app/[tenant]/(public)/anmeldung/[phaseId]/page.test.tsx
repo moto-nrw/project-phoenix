@@ -23,6 +23,7 @@ vi.mock("~/lib/tenant-context", () => ({
   useTenant: () => mocks.tenant,
   useTenantSlugSafe: () => mocks.tenant.tenantSlug,
   useTenantRoutingModeSafe: () => "path",
+  useTenantSafe: () => mocks.tenant,
 }));
 
 vi.mock("~/lib/enrollment-submission-api", () => ({

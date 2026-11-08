@@ -2,5 +2,6 @@
   "scenario": "api.students.presence25.arrival_status.n3",
   "max": 4,
   "exact": true,
-  "description": "Full protected POST arrival_status, positive N3; complete response entries asserted."
+  "description": "Full protected POST arrival_status, positive N3; complete response entries asserted.",
+  "route": "POST /api/students/arrival-schedules/status"
 }

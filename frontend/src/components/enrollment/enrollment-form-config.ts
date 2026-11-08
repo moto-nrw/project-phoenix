@@ -10,7 +10,6 @@ import type {
 } from "~/lib/enrollment-form-schema-api";
 import {
   EMPTY_SCHOOL_CLASS_CONFIG,
-  type CareOfferingSelectionMode,
   type EnrollmentEditDraft,
   type MeProfileResponse,
   type PublicCareOffering,
@@ -18,6 +17,7 @@ import {
   type PublicPhase,
   type PublicSchoolClassConfig,
 } from "~/lib/enrollment-submission-api";
+import type { CareOfferingSelectionMode } from "~/lib/enrollment-phase-api";
 import {
   classMatchesGrade,
   withRequiredOfferings,
@@ -136,12 +136,39 @@ export function formConfig(
   };
 }
 
-/** A template preview: no phase, so no offerings and no restrictions. */
+/** The offerings of one phase for a staff preview without a public link (#6044). */
+export interface PreviewCareOfferings {
+  schoolClass?: PublicSchoolClassConfig;
+  collectGradeLevel?: boolean;
+  careOfferingsEnabled?: boolean;
+  offerings: PublicCareOffering[];
+  careOfferingSelectionMode: CareOfferingSelectionMode;
+  eligibleGradeLevels: number[];
+}
+
+/** A preview: no phase, so offerings only when the staff page passes them. */
 export function previewFormConfig(
   schema: PublicFormSchema | null,
   legalTexts: PublicLegalTexts,
+  offerings?: PreviewCareOfferings,
 ): EnrollmentFormConfig {
-  return { ...formConfig(undefined), schema, legalTexts };
+  return {
+    ...formConfig(
+      offerings && {
+        schema,
+        legalTexts,
+        captchaConfig: null,
+        offerings: offerings.offerings,
+        careOfferingSelectionMode: offerings.careOfferingSelectionMode,
+        collectGradeLevel: offerings.collectGradeLevel,
+        careOfferingsEnabled: offerings.careOfferingsEnabled,
+        schoolClass: offerings.schoolClass,
+        eligibleGradeLevels: offerings.eligibleGradeLevels,
+      },
+    ),
+    schema,
+    legalTexts,
+  };
 }
 
 export interface GuardianDraft {

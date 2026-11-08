@@ -2,5 +2,6 @@
   "scenario": "api.caterer.auth.mfa.trusted_devices.positive_growth",
   "max": 13,
   "exact": true,
-  "description": "GET /caterer/auth/mfa/trusted-devices: composed caterer second factor, real caterer account/link, signed caterer JWT and CatererSessionChain, production request memos; exact N3/N8 tenantless device DTOs excluding school/foreign/expired rows. No meal workflow or host-family liveness claimed."
+  "description": "GET /caterer/auth/mfa/trusted-devices: composed caterer second factor, real caterer account/link, signed caterer JWT and CatererSessionChain, production request memos; exact N3/N8 tenantless device DTOs excluding school/foreign/expired rows. No meal workflow or host-family liveness claimed.",
+  "route": "GET /caterer/auth/mfa/trusted-devices"
 }

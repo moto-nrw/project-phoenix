@@ -210,16 +210,16 @@ func TestTraegerKeyDateCountsQueryBudgetIsFlat(t *testing.T) {
 	testpkg.CreateTestTraegerMember(t, db, organization, account.ID, identityaccess.TraegerRoleReadOnly)
 	code, answer := traegerSignIn(t, router, account.Email, password, 0)
 	require.Equal(t, http.StatusOK, code)
-	read := func() []string {
+	read := func() testpkg.QueryMeasurement {
 		counter := testpkg.CaptureQueriesForContext(t, db)
 		rec := getTraegerKeyDateCounts(t, router, answer.AccessToken, counter)
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		return counter.Selects("")
+		return counter.Measurement(counter.Selects(""))
 	}
 	three := read()
 	for _, name := range []string{"OGS Vier", "OGS Fünf"} {
 		testpkg.CreateTestSchoolInOrganization(t, db, organization, name)
 	}
-	assert.Len(t, read(), len(three), "the Stichtagszahlen read the same statements for any number of schools")
+	assert.Len(t, read().Statements, len(three.Statements), "the Stichtagszahlen read the same statements for any number of schools")
 	querybudgets.AssertQueryBudget(t, "api.traeger.key_date_counts", three)
 }

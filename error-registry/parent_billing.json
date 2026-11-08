@@ -271,6 +271,126 @@
       "class": "unavailable",
       "parameters": [],
       "legacy": "parent_billing.letter_mail_block_unreadable"
+    },
+    {
+      "code": "parent_billing.care_run_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.care_run_not_found"
+    },
+    {
+      "code": "parent_billing.care_run_open",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.care_run_open"
+    },
+    {
+      "code": "parent_billing.care_run_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.care_run_invalid"
+    },
+    {
+      "code": "parent_billing.care_versions_overlap",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.care_versions_overlap"
+    },
+    {
+      "code": "parent_billing.care_tariff_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.care_tariff_invalid"
+    },
+    {
+      "code": "parent_billing.care_tariff_month_billed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.care_tariff_month_billed"
+    },
+    {
+      "code": "parent_billing.care_tariff_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.care_tariff_not_found"
+    },
+    {
+      "code": "parent_billing.care_exclusion_conflict",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.care_exclusion_conflict"
+    },
+    {
+      "code": "parent_billing.care_invoice_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.care_invoice_not_found"
+    },
+    {
+      "code": "parent_billing.care_invoice_cancelled",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.care_invoice_cancelled"
+    },
+    {
+      "code": "parent_billing.care_recipient_changed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.care_recipient_changed"
+    },
+    {
+      "code": "parent_billing.care_rule_in_use",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.care_rule_in_use"
+    },
+    {
+      "code": "parent_billing.care_evidence_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.care_evidence_invalid"
+    },
+    {
+      "code": "parent_billing.care_evidence_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.care_evidence_not_found"
+    },
+    {
+      "code": "parent_billing.care_evidence_overlap",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.care_evidence_overlap"
+    },
+    {
+      "code": "parent_billing.billing_terms_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.billing_terms_invalid"
+    },
+    {
+      "code": "parent_billing.family_billing_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.family_billing_invalid"
+    },
+    {
+      "code": "parent_billing.family_billing_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.family_billing_not_found"
+    },
+    {
+      "code": "parent_billing.family_unknown",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.family_unknown"
+    },
+    {
+      "code": "parent_billing.due_dates_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.due_dates_invalid"
     }
   ]
 }

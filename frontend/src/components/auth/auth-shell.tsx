@@ -1,5 +1,6 @@
 "use client";
 
+import { SectionLabel } from "~/components/ui/section-label";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Image from "next/image";
 import { Hammer, Quote, ShieldCheck, UsersRound } from "lucide-react";
@@ -125,13 +126,16 @@ const parentTestimonialPanelCopy: AuthTestimonialPanelCopy = {
 };
 
 interface AuthShellProps {
-  readonly eyebrow: string;
+  /**
+   * Kopfzeile über dem Titel. Nur das Elternportal setzt sie (ADR 0149);
+   * alle anderen Portale tragen keinen Kicker (#5607).
+   */
+  readonly eyebrow?: string;
   readonly title: string;
   readonly subtitle: string;
   readonly children: ReactNode;
   readonly variant: AuthShellVariant;
   readonly brand?: ReactNode;
-  readonly eyebrowClassName?: string;
   readonly titleClassName?: string;
   readonly footer?: ReactNode;
   readonly formMaxWidth?: string;
@@ -233,7 +237,6 @@ export function AuthShell({
   children,
   variant,
   brand = null,
-  eyebrowClassName,
   titleClassName,
   footer,
   formMaxWidth = "max-w-[29rem]",
@@ -244,17 +247,14 @@ export function AuthShell({
     <main className="moto-auth-shell-background grid min-h-screen lg:grid-cols-[minmax(0,0.9fr)_minmax(34rem,1.1fr)]">
       <section className="relative z-10 flex min-h-screen items-center justify-center px-4 py-8 sm:px-6 lg:px-10">
         <div className={cn("w-full", formMaxWidth)}>
-          <div className="moto-content-surface rounded-2xl border px-6 py-10 sm:p-8">
+          <SectionCard overflow="visible">
             {brand && <div className="mb-8 flex justify-center">{brand}</div>}
             <div className="mb-9 text-center">
-              <p
-                className={cn(
-                  "text-moto-blue mb-3 text-xs font-semibold tracking-[0.16em] uppercase",
-                  eyebrowClassName,
-                )}
-              >
-                {eyebrow}
-              </p>
+              {eyebrow ? (
+                <SectionLabel as="p" className="mb-3">
+                  {eyebrow}
+                </SectionLabel>
+              ) : null}
               <h1
                 className={cn(
                   "text-3xl font-semibold tracking-normal text-gray-950 sm:text-4xl",
@@ -266,7 +266,7 @@ export function AuthShell({
               <p className="mt-3 text-sm leading-6 text-gray-600">{subtitle}</p>
             </div>
             {children}
-          </div>
+          </SectionCard>
           {showMotoAttribution ? <MotoAttribution /> : null}
           {footer && <div className="mt-5 text-center">{footer}</div>}
         </div>
@@ -405,6 +405,7 @@ function TestimonialCard({
   }[state];
 
   return (
+    // oxlint-disable-next-line ui-kit/no-hand-rolled-surface -- dekorative 3D-Karte des Zitat-Wechslers: eigene Transparenz, Schatten und Drehung, keine Inhaltsfläche
     <article
       aria-hidden={state !== "active"}
       className={cn(

@@ -80,7 +80,7 @@ func TestSurveyPositiveGrowthQueryBudget(t *testing.T) {
 			req.Header.Set("Authorization", "Bearer "+token)
 			counter.Reset()
 			counter.Start()
-			rec := testutil.ExecuteRequestForTest(t, router, req)
+			rec := testutil.ExecuteRequestForTest(t, testpkg.MountedQueryBudgetRouter("/api/surveys", router), req)
 			counter.Stop()
 			require.Equal(t, 200, rec.Code, rec.Body.String())
 			name := map[string]string{"": "get", "/form": "form", "/respondents": "respondents", "/results/export": "export"}[suffix]
@@ -137,13 +137,13 @@ func TestSurveyPositiveGrowthQueryBudget(t *testing.T) {
 			// The measured budget must hold at both positive cardinalities.
 			switch name {
 			case "get":
-				querybudgets.AssertQueryBudget(t, "api.surveys.get.positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "api.surveys.get.positive_growth", counter.Measurement(counter.Queries()))
 			case "form":
-				querybudgets.AssertQueryBudget(t, "api.surveys.form.positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "api.surveys.form.positive_growth", counter.Measurement(counter.Queries()))
 			case "respondents":
-				querybudgets.AssertQueryBudget(t, "api.surveys.respondents.positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "api.surveys.respondents.positive_growth", counter.Measurement(counter.Queries()))
 			case "export":
-				querybudgets.AssertQueryBudget(t, "api.surveys.export.positive_growth", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "api.surveys.export.positive_growth", counter.Measurement(counter.Queries()))
 			}
 		}
 		lastSurvey = survey
@@ -156,7 +156,7 @@ func TestSurveyPositiveGrowthQueryBudget(t *testing.T) {
 	for _, suffix := range []string{"", "/form", "/respondents", "/results/export"} {
 		req := httptest.NewRequest("GET", fmt.Sprintf("/%d%s", lastSurvey.ID, suffix), nil)
 		req.Header.Set("Authorization", "Bearer "+foreignToken)
-		rec := testutil.ExecuteRequestForTest(t, router, req)
+		rec := testutil.ExecuteRequestForTest(t, testpkg.MountedQueryBudgetRouter("/api/surveys", router), req)
 		require.Equal(t, 404, rec.Code, rec.Body.String())
 	}
 }

@@ -168,6 +168,22 @@ func (r *Store) UpdatePhase(ctx context.Context, phase *enrollment.Phase) error 
 	if rows == 0 {
 		return fmt.Errorf("phase %d not found: %w", phase.ID, sql.ErrNoRows)
 	}
+	return reschedulePhaseWeeklyPlans(ctx, db, tenantID, phase)
+}
+
+func reschedulePhaseWeeklyPlans(ctx context.Context, db bun.IDB, tenantID int64, phase *enrollment.Phase) error {
+	// Pending renewal plans follow the phase start in the same transaction.
+	// Applied plans stay cleared; the author and replacement mode stay intact.
+	_, err := db.NewUpdate().TableExpr("enrollment.request_children").
+		Set("weekly_plan_on = ?", phase.ServiceStartDate).
+		Set("updated_at = NOW()").
+		Where("tenant_id = ?", tenantID).
+		Where("weekly_plan_on IS NOT NULL AND weekly_plan_on <> ?", phase.ServiceStartDate).
+		Where("request_id IN (?)", db.NewSelect().TableExpr("enrollment.requests").Column("id").
+			Where("tenant_id = ? AND phase_id = ?", tenantID, phase.ID)).Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to reschedule phase weekly plans: %w", err)
+	}
 	return nil
 }
 

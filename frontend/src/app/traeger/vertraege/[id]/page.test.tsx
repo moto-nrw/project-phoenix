@@ -46,6 +46,7 @@ const DRAFT: CareContractDetail = {
   childFirstName: "Lina",
   childLastName: "Muster",
   moduleNames: ["Frühbetreuung", "Offene Ganztagsschule"],
+  modulesText: "Frühbetreuung und Offene Ganztagsschule",
   partyName: "Erika Muster",
   partyEmail: "erika@example.org",
   effectiveFrom: "2027-08-01",
@@ -108,6 +109,9 @@ const DRAFT: CareContractDetail = {
   ],
   mailings: [],
   documentFrozen: false,
+  termText: "bis zum Ende des Schuljahres",
+  noticeText: "mit 1 Monat Frist zum Monatsende",
+  feeText: "95,00 €",
   signature: null,
   reminders: [],
   versions: [],
@@ -272,26 +276,14 @@ describe("TraegerVertragPage", () => {
     // Wednesday to Friday carry no care.
     expect(screen.getAllByText("Keine Betreuung")).toHaveLength(3);
     expect(
-      screen.getByText("Bis zum Ende des Schuljahres"),
+      screen.getByText("bis zum Ende des Schuljahres"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("1 Monat Frist zum Monatsende"),
+      screen.getByText("mit 1 Monat Frist zum Monatsende"),
     ).toBeInTheDocument();
     expect(screen.getByText("95,00 €")).toBeInTheDocument();
     expect(
       screen.getByText(/Die Eltern sehen den Vertrag erst/),
-    ).toBeInTheDocument();
-  });
-
-  it("names no summed fee for a contract over several modules", async () => {
-    api.fetchCareContract.mockResolvedValue({
-      ...DRAFT,
-      version: { ...DRAFT.version, priceCents: null },
-    });
-    renderPage();
-
-    expect(
-      await screen.findByText("Laut Beitragsordnung für die gebuchten Module"),
     ).toBeInTheDocument();
   });
 
@@ -317,38 +309,6 @@ describe("TraegerVertragPage", () => {
       await screen.findByText(
         "Kurzbetreuung bis 14:00 Uhr, gebucht bis 31.07.2027",
       ),
-    ).toBeInTheDocument();
-  });
-
-  it("counts two same-named offerings as two modules", async () => {
-    api.fetchCareContract.mockResolvedValue({
-      ...DRAFT,
-      moduleNames: ["Nachmittagsbetreuung"],
-      version: {
-        ...DRAFT.version,
-        priceCents: null,
-        services: [
-          {
-            weekday: "mon",
-            careOfferingId: "7",
-            moduleName: "Nachmittagsbetreuung",
-            endsAt: "16:00",
-            lastDay: null,
-          },
-          {
-            weekday: "tue",
-            careOfferingId: "8",
-            moduleName: "Nachmittagsbetreuung",
-            endsAt: "16:00",
-            lastDay: null,
-          },
-        ],
-      },
-    });
-    renderPage();
-
-    expect(
-      await screen.findByText("Laut Beitragsordnung für die gebuchten Module"),
     ).toBeInTheDocument();
   });
 
@@ -665,7 +625,7 @@ describe("TraegerVertragPage", () => {
 
     expect(
       await screen.findByText(
-        "Ab 01.03.2027 gilt Version 2. Die Schule hat eine Änderung der Betreuung freigegeben. Was sich ändert, steht unten unter „Versionen“.",
+        "Ab 01.03.2027 gilt Version 2. Eine Änderung der Betreuung ist freigegeben. Was sich ändert, steht unten unter „Versionen“.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("Gilt jetzt")).toBeInTheDocument();
@@ -679,11 +639,6 @@ describe("TraegerVertragPage", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getAllByText("Geändert")).toHaveLength(2);
-    // The first version ends the day before the switch; the contract runs on.
-    expect(
-      screen.getByText("Bis zum Ende des Schuljahres"),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/endet am 28\.02\.2027/)).not.toBeInTheDocument();
 
     fireEvent.click(
       screen.getByRole("button", { name: "PDF von Version 2 herunterladen" }),
@@ -770,7 +725,7 @@ describe("TraegerVertragPage", () => {
     ]);
     expect(
       screen.getByText(
-        "Ab 01.02.2027 gilt Version 3. Die Schule hat eine Änderung der Betreuung freigegeben. Was sich ändert, steht unten unter „Versionen“.",
+        "Ab 01.02.2027 gilt Version 3. Eine Änderung der Betreuung ist freigegeben. Was sich ändert, steht unten unter „Versionen“.",
       ),
     ).toBeInTheDocument();
     expect(
@@ -778,11 +733,5 @@ describe("TraegerVertragPage", () => {
         "01.02.2027 bis 28.02.2027 · Änderung der Betreuung · 1 Tag geändert",
       ),
     ).toBeInTheDocument();
-    // The contract ends as the planned version from March says (open),
-    // not as version 3, which has the highest number.
-    expect(
-      screen.getByText("Bis zum Ende des Schuljahres"),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/endet am 31\.07\.2027/)).not.toBeInTheDocument();
   });
 });

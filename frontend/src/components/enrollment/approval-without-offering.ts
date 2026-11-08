@@ -1,5 +1,5 @@
 import type { DecisionStatus } from "~/lib/enrollment-admin-api";
-import type { CareOfferingSelectionMode } from "~/lib/enrollment-submission-api";
+import type { CareOfferingSelectionMode } from "~/lib/enrollment-phase-api";
 
 /**
  * In the optional selection mode a child may be approved without a booked

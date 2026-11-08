@@ -125,6 +125,14 @@ type documentRow struct {
 	// ReferenceNumber is the number of the referenced document, read with
 	// the row (#4690).
 	ReferenceNumber string `bun:"reference_number,scanonly"`
+	// The recipient and the payment the release copied (#4689); NULL on
+	// invoices issued before.
+	FamilyEmail         *string        `bun:"family_email"`
+	RecipientKind       *string        `bun:"recipient_kind"`
+	RecipientSecondName *string        `bun:"recipient_second_name"`
+	PaymentMethod       *string        `bun:"payment_method"`
+	DueOn               *calendar.Date `bun:"due_on,type:date"`
+	DueSource           *string        `bun:"due_source"`
 }
 
 type documentPositionRow struct {
@@ -445,9 +453,9 @@ func (s *Store) insertDocuments(ctx context.Context, organizationID int64, run p
 	if len(documents) == 0 {
 		return nil, nil
 	}
-	rows := make([]documentRow, len(documents))
-	for i, document := range documents {
-		rows[i] = issuedDocumentRow(organizationID, run, year, first+int64(i), document)
+	rows, err := claimedDocumentRows(ctx, db, organizationID, run, year, first, documents)
+	if err != nil {
+		return nil, err
 	}
 	if _, err := db.NewInsert().Model(&rows).Returning("id").Exec(ctx); err != nil {
 		switch constraintOf(err) {
@@ -487,6 +495,24 @@ func (s *Store) insertDocuments(ctx context.Context, organizationID int64, run p
 		return nil, err
 	}
 	return ids, nil
+}
+
+// claimedDocumentRows builds the rows of the numbered documents and claims
+// their numbers: a monthly invoice of the same pattern must not carry one
+// of them (#4684).
+func claimedDocumentRows(ctx context.Context, db bun.IDB, organizationID int64, run parentbilling.BillingRun, year int, first int64,
+	documents []parentbilling.BillingDocument,
+) ([]documentRow, error) {
+	rows := make([]documentRow, len(documents))
+	numbers := make([]string, len(documents))
+	for i, document := range documents {
+		rows[i] = issuedDocumentRow(organizationID, run, year, first+int64(i), document)
+		numbers[i] = rows[i].Number
+	}
+	if err := claimInvoiceNumbers(ctx, db, organizationID, numbers, careNumbersTable); err != nil {
+		return nil, err
+	}
+	return rows, nil
 }
 
 // MarkRunReleased closes a calculated run with its issue date and sums.
@@ -567,6 +593,9 @@ func (s *Store) selectDocuments(ctx context.Context, organizationID int64, where
 		if row.DebtorNumber != nil {
 			documents[i].DebtorNumber = *row.DebtorNumber
 		}
+		documents[i].FamilyEmail = textOf(row.FamilyEmail)
+		documents[i].RecipientKind, documents[i].RecipientSecondName = textOf(row.RecipientKind), textOf(row.RecipientSecondName)
+		documents[i].Payment = paymentOf(row.PaymentMethod, row.DueOn, row.DueSource)
 	}
 	return documents, nil
 }
@@ -592,6 +621,9 @@ func issuedDocumentRow(organizationID int64, run parentbilling.BillingRun, year 
 	if document.DebtorNumber != "" {
 		row.DebtorNumber = &document.DebtorNumber
 	}
+	row.FamilyEmail, row.RecipientKind = textRef(document.FamilyEmail), textRef(document.RecipientKind)
+	row.RecipientSecondName = textRef(document.RecipientSecondName)
+	row.PaymentMethod, row.DueOn, row.DueSource = paymentColumns(document.Payment)
 	return row
 }
 

@@ -212,7 +212,6 @@ func versionAt(timeline []carecontract.Version, day calendar.Date) (carecontract
 	return current, found
 }
 
-// versionAfter is the first effective version that starts after day.
 func versionAfter(timeline []carecontract.Version, day calendar.Date) (carecontract.Version, bool) {
 	for _, version := range timeline {
 		if version.EffectiveFrom.After(day) {

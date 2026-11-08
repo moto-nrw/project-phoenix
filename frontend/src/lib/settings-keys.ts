@@ -62,6 +62,10 @@ export const TENANT_RESOLVE_AFFECTING_KEYS: ReadonlySet<string> = new Set([
   // saved setting cannot leave new forms enforcing the old cap for five
   // minutes.
   "enrollment.grade_level_max",
+  // The care-facility term (#6042) names the school's care in the fixed
+  // texts of the public enrollment form. Purge the layout cache so a saved
+  // term reaches the form at once instead of after five minutes.
+  "enrollment.care_facility_term",
   // The navigation and the planning pages read timetable.enabled from
   // /auth/tenant/resolve since #4996 instead of the settings schema. Without
   // revalidation a switch would reach reloads and new tabs only after the

@@ -1,0 +1,8 @@
+{
+  "api/traeger/billing-run-due-dates/care/[id]": [
+    "PUT traeger /traeger/billing-run-due-dates/care/id%2F1"
+  ],
+  "api/traeger/billing-run-due-dates/holiday/[id]": [
+    "PUT traeger /traeger/billing-run-due-dates/holiday/id%2F1"
+  ]
+}

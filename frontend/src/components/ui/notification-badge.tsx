@@ -15,7 +15,7 @@ const TONE_CLASSES: Record<NotificationBadgeTone, string> = {
 };
 
 const SIZE_CLASSES: Record<NotificationBadgeSize, string> = {
-  sm: "h-4 min-w-4 px-1 text-[10px]",
+  sm: "h-4 min-w-4 px-1 text-xs",
   md: "h-5 min-w-5 px-1.5 text-xs",
 };
 

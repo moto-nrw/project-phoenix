@@ -14,7 +14,7 @@ import {
   useState,
   type FormEvent,
 } from "react";
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
 import { Check, Lock, Plus } from "lucide-react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { DateOfBirthPicker } from "~/components/enrollment/date-of-birth-picker";
@@ -23,6 +23,7 @@ import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FieldLabel, RequiredMark } from "~/components/ui/field-label";
 import { DataField, DataGrid } from "~/components/ui/data-field";
 import { SectionCard } from "~/components/ui/section-card";
+import { SectionLabel } from "~/components/ui/section-label";
 import { Input } from "~/components/ui/input";
 import { useTenant } from "~/lib/tenant-context";
 import germanEnrollmentFormMessages from "~/i18n/messages/de/enrollmentForm.json";
@@ -87,6 +88,10 @@ import {
   type SignatureValue,
 } from "~/components/ui/signature-pad";
 import {
+  useCareFacilityTerm,
+  useCareTermTranslations,
+} from "~/lib/care-facility-term";
+import {
   AT_MOST_ONE_PER_DAY,
   careOfferingDayConflicts,
 } from "~/lib/care-offering-day-conflicts";
@@ -101,9 +106,9 @@ import {
 } from "~/lib/care-offering-availability";
 import { type CareOfferingBookingStats } from "~/lib/care-offering-booking-stats";
 import {
-  BLOCKED_OFFERING_ROW_TONE,
   OfferingOccupancyLine,
   OfferingRowShell,
+  type OfferingRowState,
 } from "~/components/enrollment/offering-row-shell";
 import {
   classMatchesGrade,
@@ -126,6 +131,7 @@ import {
   type EnrollmentFormConfig,
   type EnrollmentFormPrefetchedData,
   type GuardianDraft,
+  type PreviewCareOfferings,
 } from "~/components/enrollment/enrollment-form-config";
 import {
   fieldNameForServerPath,
@@ -161,6 +167,13 @@ interface Props {
   readonly uploadEndpoint?: string;
   readonly previewMode?: boolean;
   readonly previewSchema?: PublicFormSchema | null;
+  /**
+   * STAFF PREVIEW ONLY (#6044). The offerings of one phase, loaded by the
+   * staff page, for a preview without a public phase link: an inactive or
+   * closed phase answers the public form with an error, so the school could
+   * not see its offerings before parents could.
+   */
+  readonly previewOfferings?: PreviewCareOfferings;
   /**
    * Replaces the public submit, e.g. with the parent-scope endpoint. Returns
    * `null` when it stopped before sending and shows the reason itself.
@@ -226,6 +239,7 @@ export function EnrollmentForm({
   uploadEndpoint,
   previewMode = false,
   previewSchema,
+  previewOfferings,
   submitter,
   skipCaptcha,
   localizedCopy = false,
@@ -238,15 +252,24 @@ export function EnrollmentForm({
   offeringBookingStats,
   withoutSignature = false,
 }: Props) {
-  const intl = useTranslations("enrollmentForm");
+  const intl = useCareTermTranslations("enrollmentForm");
+  const careTerm = useCareFacilityTerm();
   const activeLocale = useLocale();
   // School-written texts follow the same opt-in as the form chrome: staff
   // previews stay German even when a parent locale cookie exists (#3377).
   const contentLocale = localizedCopy ? activeLocale : DEFAULT_LOCALE;
   const tr = useMemo(
-    () => makeEnrollmentFormTranslator(intl, localizedCopy),
-    [intl, localizedCopy],
+    () => makeEnrollmentFormTranslator(intl, localizedCopy, careTerm),
+    [intl, localizedCopy, careTerm],
   );
+  const loadErrorObject = tr("errorObject");
+  // A template preview without phase offerings shows every weekday; with the
+  // staff page's offerings (#6044) the care days follow them as for parents.
+  const templatePreview =
+    previewMode &&
+    !phaseID &&
+    prefetchedData === undefined &&
+    previewOfferings === undefined;
   const { tenantSlug } = useTenant();
   const signatureLabels = useMemo(
     (): SignaturePadLabels => ({
@@ -430,8 +453,9 @@ export function EnrollmentForm({
     setCustomData(draft.customData);
   }, [initialDraft, config]);
 
-  // Template preview: no phase, so only the legal texts load. A real load
-  // failure stops the form instead of collecting consent without them.
+  // Preview: no phase, so only the legal texts load; the offerings come from
+  // the staff page (#6044) or stay empty. A real load failure stops the form
+  // instead of collecting consent without the texts.
   useEffect(() => {
     if (prefetchedData !== undefined) return;
     let cancelled = false;
@@ -441,7 +465,9 @@ export function EnrollmentForm({
     resolvePreviewLegalTexts(tenantSlug, schemaToPreview)
       .then((legalTexts) => {
         if (!cancelled) {
-          applyConfig(previewFormConfig(schemaToPreview, legalTexts));
+          applyConfig(
+            previewFormConfig(schemaToPreview, legalTexts, previewOfferings),
+          );
         }
       })
       .catch((err: unknown) => {
@@ -451,7 +477,7 @@ export function EnrollmentForm({
           code: (err as Partial<ApiError> | undefined)?.code,
         });
         void showLoadError(err, {
-          object: tr("errorObject"),
+          object: loadErrorObject,
           retry: () => setLoadAttempt((n) => n + 1),
         });
       })
@@ -465,7 +491,8 @@ export function EnrollmentForm({
     tenantSlug,
     prefetchedData,
     previewSchema,
-    tr,
+    previewOfferings,
+    loadErrorObject,
     loadAttempt,
     applyConfig,
     clearLoadError,
@@ -515,7 +542,7 @@ export function EnrollmentForm({
     collectGradeLevel,
     careOfferingsEnabled,
     schoolClass: schoolClassConfig,
-    previewMode,
+    previewMode: templatePreview,
     guardianAnswers: customData,
     fieldsByKey,
   };
@@ -1010,9 +1037,9 @@ export function EnrollmentForm({
                 className="moto-content-surface space-y-5 rounded-xl border p-3 sm:p-4"
               >
                 <div className="flex items-center justify-between gap-3">
-                  <h3 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
+                  <SectionLabel>
                     {tr("sections.additionalGuardianLabel", { index: i + 1 })}
-                  </h3>
+                  </SectionLabel>
                   <Button
                     type="button"
                     variant="ghost_danger"
@@ -1305,11 +1332,11 @@ export function EnrollmentForm({
                 className="moto-content-surface space-y-5 rounded-xl border p-3 sm:p-4"
               >
                 <div className="flex items-center justify-between gap-3">
-                  <h3 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
+                  <SectionLabel>
                     {restrictToOfferings && child.first_name
                       ? `${child.first_name} ${child.last_name}`.trim()
                       : `${tr("structured.child")} ${i + 1}`}
-                  </h3>
+                  </SectionLabel>
                   {children.length > 1 && !lockChildStructure && (
                     <Button
                       type="button"
@@ -1471,6 +1498,7 @@ export function EnrollmentForm({
                               : tr("care.optionalHint")}{" "}
                           {tr("care.reviewHint")}
                         </p>
+                        {/* oxlint-disable-next-line ui-kit/no-hand-rolled-notice -- roter Fehlerrahmen um die Angebotsauswahl, solange sie ungültig ist; kein Hinweis */}
                         <div
                           aria-invalid={
                             childOfferingErrors[i] ? true : undefined
@@ -1795,8 +1823,9 @@ const GERMAN_ENROLLMENT_FORM_MESSAGES = germanEnrollmentFormMessages as Record<
 >;
 
 function makeEnrollmentFormTranslator(
-  intl: ReturnType<typeof useTranslations<"enrollmentForm">>,
+  intl: ReturnType<typeof useCareTermTranslations>,
   localizedCopy: boolean,
+  careTerm: string,
 ): EnrollmentFormTranslator {
   if (localizedCopy) {
     return Object.assign(
@@ -1808,7 +1837,9 @@ function makeEnrollmentFormTranslator(
     (key: string, values?: TranslationValues) => {
       const value = readGermanMessage(key);
       if (typeof value !== "string") return key;
-      return interpolateMessage(value, values);
+      // The German staff preview names the school's care like the parents'
+      // form does (#6042).
+      return interpolateMessage(value, { careTerm, ...values });
     },
     { raw: (key: string) => readGermanMessage(key) },
   );
@@ -1899,7 +1930,7 @@ function BlockedOfferingCard({
     gradeLevelMax,
   );
   return (
-    <OfferingRowShell tone={BLOCKED_OFFERING_ROW_TONE}>
+    <OfferingRowShell state="blocked">
       <div className="flex items-start gap-3">
         <span
           aria-hidden
@@ -1958,18 +1989,18 @@ function OfferingCard({
     !required &&
     toggleLocked &&
     offering.available_days.some((day) => automaticDays?.has(day) ?? false);
-  let stateClass = "border-gray-200 bg-white hover:border-gray-300";
+  let rowState: OfferingRowState = "available";
   if (dayError) {
-    stateClass = "border-moto-red bg-moto-red/5";
+    rowState = "invalid";
   } else if (autoIncluded || checked) {
-    stateClass = "border-moto-green/40 bg-moto-green/10";
+    rowState = "selected";
   } else if (required || toggleLocked) {
-    stateClass = "border-gray-200 bg-gray-50";
+    rowState = "locked";
   }
   const inputId = `children-${childIndex}-offering-${offering.id}`;
 
   return (
-    <OfferingRowShell tone={stateClass} invalid={dayError}>
+    <OfferingRowShell state={rowState}>
       <label
         htmlFor={inputId}
         className={`flex items-start gap-3 ${

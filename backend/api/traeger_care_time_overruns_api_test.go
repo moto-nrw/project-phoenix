@@ -238,15 +238,15 @@ func TestCareTimeOverrunsQueryBudget(t *testing.T) {
 	t.Parallel()
 	f := newOverrunFixtureOn(t, testpkg.SetupIsolatedTestDB(t))
 	counter := testpkg.CaptureQueries(t, f.db)
-	run := func(token, path string) []string {
+	run := func(token, path string) testpkg.QueryMeasurement {
 		t.Helper()
 		counter.Reset()
 		req := httptest.NewRequest(http.MethodGet, path, nil)
 		req.Header.Set("Authorization", "Bearer "+token)
 		rec := httptest.NewRecorder()
-		f.router.ServeHTTP(rec, req.WithContext(counter.Context(req.Context())))
+		testpkg.MeasuredHTTPRequest(counter, f.router, rec, req.WithContext(counter.Context(req.Context())))
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		return counter.Queries()
+		return counter.Measurement(counter.Queries())
 	}
 	const childrenPath = "/traeger/care-time-overruns/children?from=2026-06-08&to=2026-06-16"
 	// The first reads record the report access; the budget measures the
@@ -263,8 +263,8 @@ func TestCareTimeOverrunsQueryBudget(t *testing.T) {
 	summaryMany := run(f.billing, overrunWindow)
 	childrenMany := run(f.admin, childrenPath)
 
-	assert.Len(t, summaryMany, len(summaryOne), "the summary must batch its children")
-	assert.Len(t, childrenMany, len(childrenOne), "the named list must batch its children")
+	assert.Len(t, summaryMany.Statements, len(summaryOne.Statements), "the summary must batch its children")
+	assert.Len(t, childrenMany.Statements, len(childrenOne.Statements), "the named list must batch its children")
 	querybudgets.AssertQueryBudget(t, "api.traeger.care_time_overruns", summaryMany)
 	querybudgets.AssertQueryBudget(t, "api.traeger.care_time_overrun_children", childrenMany)
 }

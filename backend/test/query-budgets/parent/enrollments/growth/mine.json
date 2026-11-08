@@ -2,5 +2,6 @@
   "scenario": "parent.enrollments.growth.mine",
   "max": 7,
   "exact": true,
-  "description": "Positive parent-scope HTTP list, N3/N8 persisted enrollment requests with a child each; unrelated account excluded, phase and tenant IDs and hidden status reasons asserted. Includes administrative transaction."
+  "description": "Positive parent-scope HTTP list, N3/N8 persisted enrollment requests with a child each; unrelated account excluded, phase and tenant IDs and hidden status reasons asserted. Includes administrative transaction.",
+  "route": "GET /parent/me/enrollments"
 }

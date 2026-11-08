@@ -13,8 +13,6 @@ import {
 } from "./care-contract-notices";
 import { traegerRequest } from "./traeger-api";
 
-// ── Träger-Büro ────────────────────────────────────────────────────────────
-
 const officePath = (id: string) =>
   `/api/traeger/contract-notices/${encodeURIComponent(id)}`;
 
@@ -44,6 +42,23 @@ export async function setContractNoticeEnd(
       method: "PUT",
       body: { ends_on: endsOn },
     }),
+  );
+}
+
+/**
+ * Records that the office does not accept the reason of an extraordinary
+ * termination: it holds as an ordinary termination to expectedEndsOn, the
+ * end the office was shown.
+ */
+export async function rejectContractNoticeReason(
+  id: string,
+  expectedEndsOn: string,
+): Promise<ContractNoticeOptions> {
+  return noticeOptionsFromBackend(
+    await traegerRequest<BackendNoticeOptions>(
+      `${officePath(id)}/reason-rejection`,
+      { method: "POST", body: { expected_ends_on: expectedEndsOn } },
+    ),
   );
 }
 

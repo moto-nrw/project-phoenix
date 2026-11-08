@@ -104,6 +104,7 @@ import {
   type AbsenceTypeAllowanceSummary,
 } from "~/lib/absence-type-api";
 import { InsetPanel } from "~/components/ui/inset-panel";
+import { SectionLabel } from "~/components/ui/section-label";
 
 const logger = createLogger({ component: "AbwesenheitenTab" });
 
@@ -955,17 +956,15 @@ function PendingAbsences({
   }
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 sm:p-5">
-      <div className="mb-3 flex items-center gap-2">
-        <h3 className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
-          Eingehende Anfragen
-        </h3>
-        {/* Neutral, nicht rot: StatusBadge tone="red" loest auf dasselbe
-            Tripel auf wie StatusColorBadge(LOCATION_COLORS.SICK), und direkt
-            darunter stehen die "Krank"-Typpillen der Zeilen. Ein Zaehler
-            offener Anfragen ist ausserdem keine Fehlermeldung. */}
-        <StatusBadge tone="gray" label={String(rows.length)} />
-      </div>
+    <SectionCard
+      title="Eingehende Anfragen"
+      headingLevel={3}
+      // Neutral, nicht rot: StatusBadge tone="red" loest auf dasselbe Tripel
+      // auf wie StatusColorBadge(LOCATION_COLORS.SICK), und direkt darunter
+      // stehen die "Krank"-Typpillen der Zeilen. Ein Zaehler offener Anfragen
+      // ist ausserdem keine Fehlermeldung.
+      titleBadge={<StatusBadge tone="gray" label={String(rows.length)} />}
+    >
       <ul className="divide-y divide-gray-100">
         {rows.map((row) => (
           <AbsenceRequestRow
@@ -981,7 +980,7 @@ function PendingAbsences({
           />
         ))}
       </ul>
-    </div>
+    </SectionCard>
   );
 }
 
@@ -1085,9 +1084,7 @@ function VacationOpeningSummary({
       padding="compact"
       className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-600"
     >
-      <span className="font-semibold tracking-wider text-gray-500 uppercase">
-        Übernahme
-      </span>
+      <SectionLabel as="p">Übernahme</SectionLabel>
       <span className="tabular-nums">
         {formatDayCount(opening.taken_before_days)} vor Einführung genommen
       </span>
@@ -1279,22 +1276,18 @@ function VacationOpeningModal({
           moto errechnet daraus die vor der Einführung bereits genommenen Tage.
           Der Jahresanspruch bleibt unverändert.
         </p>
-        <div>
-          <ISODatePicker
-            label="Stichtag"
-            id="vacation-opening-date"
-            min={`${year}-01-01`}
-            max={maxEffectiveDateKey}
-            value={effectiveDate}
-            onChange={setEffectiveDate}
-            calendarLayout="popover"
-            hideClearButton
-            error={formErrors.fieldError("effective_date")}
-          />
-          <p className="mt-1 text-xs text-gray-400">
-            Der Stichtag muss im Jahr {year} und vor dem heutigen Tag liegen.
-          </p>
-        </div>
+        <ISODatePicker
+          label="Stichtag"
+          id="vacation-opening-date"
+          min={`${year}-01-01`}
+          max={maxEffectiveDateKey}
+          value={effectiveDate}
+          onChange={setEffectiveDate}
+          calendarLayout="popover"
+          hideClearButton
+          hint={`Der Stichtag muss im Jahr ${year} und vor dem heutigen Tag liegen.`}
+          error={formErrors.fieldError("effective_date")}
+        />
         <Input
           label="Resturlaub zum Stichtag (Tage)"
           id="vacation-opening-remaining"

@@ -21,7 +21,7 @@ describe("Button", () => {
   it("shows loading text when isLoading is true", () => {
     render(<Button isLoading>Submit</Button>);
 
-    expect(screen.getByRole("button")).toHaveTextContent("Loading...");
+    expect(screen.getByRole("button")).toHaveTextContent("Wird geladen …");
     expect(screen.queryByText("Submit")).not.toBeInTheDocument();
   });
 
@@ -39,6 +39,20 @@ describe("Button", () => {
     render(<Button isLoading>Submit</Button>);
 
     expect(screen.getByRole("button")).toBeDisabled();
+  });
+
+  it("stays locked while loading even when the caller passes disabled={false}", () => {
+    const handleClick = vi.fn();
+    render(
+      <Button isLoading disabled={false} onClick={handleClick}>
+        Submit
+      </Button>,
+    );
+
+    const button = screen.getByRole("button");
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+    expect(handleClick).not.toHaveBeenCalled();
   });
 
   it("calls onClick handler when clicked", () => {
@@ -209,6 +223,158 @@ describe("Button", () => {
     );
   });
 
+  // #6182: Varianten für Stellen, die ihr Aussehen bisher per className am
+  // Kit-Knopf oder als eigenen Knopf bauten.
+  it("renders link_tone as an underlined text button in the notice colour that may wrap", () => {
+    render(
+      <Button variant="link_tone" size="compact">
+        Wiederholen
+      </Button>,
+    );
+
+    const classes = screen.getByRole("button").className.split(" ");
+    expect(classes).toEqual(
+      expect.arrayContaining([
+        "text-current",
+        "underline",
+        "h-auto",
+        "min-h-8",
+        "hover:bg-black/5",
+      ]),
+    );
+    expect(classes).not.toContain("h-8");
+  });
+
+  it("renders filter as the round 40 px filter toggle, blue while expanded", () => {
+    render(
+      <Button variant="filter" size="icon" aria-label="Filter" aria-expanded>
+        F
+      </Button>,
+    );
+
+    const button = screen.getByRole("button", {
+      name: "Filter",
+      expanded: true,
+    });
+    const classes = button.className.split(" ");
+    expect(classes).toEqual(
+      expect.arrayContaining([
+        "h-10",
+        "rounded-2xl",
+        "bg-white",
+        "aria-expanded:bg-moto-blue",
+        "data-filters-active:ring-moto-blue",
+      ]),
+    );
+    expect(classes).not.toContain("h-8");
+    expect(classes).not.toContain("rounded-md");
+  });
+
+  it("renders segment without its own radius, filling its group", () => {
+    render(
+      <Button variant="segment" size="compact">
+        Heute
+      </Button>,
+    );
+
+    const classes = screen.getByRole("button").className.split(" ");
+    expect(classes).toEqual(
+      expect.arrayContaining(["h-full", "rounded-none", "px-3", "text-xs"]),
+    );
+    expect(classes).not.toContain("h-8");
+    expect(classes).not.toContain("rounded-md");
+  });
+
+  it("keeps an icon segment square: no side padding beside the divider", () => {
+    render(
+      <Button variant="segment" size="icon" aria-label="Zurück">
+        ‹
+      </Button>,
+    );
+
+    const button = screen.getByRole("button", { name: "Zurück" });
+    expect(button).toHaveAttribute("data-icon-only");
+    expect(button.className.split(" ")).toContain("data-icon-only:px-0");
+  });
+
+  it("gives a text button only the 44 px height as touch target, not a square", () => {
+    render(
+      <Button variant="link_tone" size="md" touchTarget>
+        Wiederholen
+      </Button>,
+    );
+
+    const classes = screen.getByRole("button").className.split(" ");
+    expect(classes).toContain("h-11");
+    expect(classes).not.toContain("w-11");
+    expect(classes).not.toContain("h-auto");
+  });
+
+  it("renders disclosure as ghost that also tints on hover of its card head", () => {
+    render(
+      <Button variant="disclosure" size="icon" aria-label="Einklappen">
+        v
+      </Button>,
+    );
+
+    const classes = screen.getByRole("button").className.split(" ");
+    expect(classes).toEqual(
+      expect.arrayContaining([
+        "hover:bg-gray-100",
+        "group-hover/collapse-head:bg-gray-100",
+        "group-hover/collapse-head:text-gray-900",
+      ]),
+    );
+  });
+
+  it("renders day_chip as a 36 px day with a dark pressed state, whatever the size", () => {
+    render(
+      <Button variant="day_chip" size="md" aria-pressed>
+        Mo 14.07.
+      </Button>,
+    );
+
+    const button = screen.getByRole("button", { pressed: true });
+    const classes = button.className.split(" ");
+    expect(classes).toEqual(
+      expect.arrayContaining([
+        "h-9",
+        "rounded-md",
+        "px-2.5",
+        "text-sm",
+        "font-normal",
+        "aria-pressed:bg-gray-900",
+        "aria-pressed:text-white",
+      ]),
+    );
+    expect(classes).not.toContain("px-4");
+    expect(classes).not.toContain("py-2");
+    expect(classes).not.toContain("font-medium");
+  });
+
+  it("renders day_chip_stacked as a two-line day for the phone strip", () => {
+    render(
+      <Button variant="day_chip_stacked" size="md" aria-pressed={false}>
+        Mo
+      </Button>,
+    );
+
+    const classes = screen
+      .getByRole("button", { pressed: false })
+      .className.split(" ");
+    expect(classes).toEqual(
+      expect.arrayContaining([
+        "flex-col",
+        "justify-start",
+        "rounded-lg",
+        "px-1",
+        "py-1.5",
+        "aria-pressed:bg-gray-900",
+      ]),
+    );
+    expect(classes).not.toContain("justify-center");
+  });
+
   // #5574: Knöpfe sind weiß, schwarz oder farbig. Ein hellgrau gefüllter
   // Ruhezustand passt in keine Rangstufe; Zustände (hover:, active:) dürfen
   // grau tönen.
@@ -229,6 +395,12 @@ describe("Button", () => {
       link: true,
       fab: true,
       dashed: true,
+      link_tone: true,
+      filter: true,
+      segment: true,
+      disclosure: true,
+      day_chip: true,
+      day_chip_stacked: true,
     };
     for (const variant of Object.keys(allVariants) as ButtonVariant[]) {
       const greyRest = buttonClassName({ variant, size: "md", className: "" })
@@ -253,6 +425,12 @@ describe("Button", () => {
       "link",
       "fab",
       "dashed",
+      "link_tone",
+      "filter",
+      "segment",
+      "disclosure",
+      "day_chip",
+      "day_chip_stacked",
     ] as const;
     for (const variant of variants) {
       expect(

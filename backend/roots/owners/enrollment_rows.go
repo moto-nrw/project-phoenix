@@ -19,6 +19,7 @@ type enrollmentStaffRows interface {
 }
 
 type enrollmentStudentRows interface {
+	VerifyCompanionStrandingBatch(context.Context) error
 	FindByID(ctx context.Context, id any) (*peopleValues.StudentState, error)
 }
 

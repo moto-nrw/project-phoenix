@@ -36,9 +36,10 @@ type classTrips struct {
 }
 
 // studentArrivals is the part of Care Plan's arrival exceptions a day
-// outing with a return time writes.
+// outing with a return time writes: one class command for all children, in
+// the order given.
 type studentArrivals interface {
-	CreateOrReclaimExceptionForClass(ctx context.Context, schoolClass string, studentID int64, date calendar.Date, arrivalTime *time.Time, reason *string, staffID int64, resolveStaffID func() (int64, error)) (*careplan.ArrivalException, error)
+	CreateOrReclaimExceptionsForClass(ctx context.Context, schoolClass string, studentIDs []int64, date calendar.Date, arrivalTime *time.Time, reason *string, staffID int64, resolveStaffID func() (int64, error)) error
 }
 
 // MayReportClassTrips applies operations.school_portal_write_scope.
@@ -97,11 +98,9 @@ func (t classTrips) ReportClassTrip(ctx context.Context, in classday.ClassTripWr
 		arrivalReason += ": " + reason
 	}
 	staffID := func() (int64, error) { return in.CreatedBy, nil }
-	for _, studentID := range studentIDs {
-		_, err := t.arrivals.CreateOrReclaimExceptionForClass(ctx, in.SchoolClass, studentID, dates[0], &arrival, &arrivalReason, in.CreatedBy, staffID)
-		if err != nil {
-			return nil, mapClassTripArrivalError(err)
-		}
+	err = t.arrivals.CreateOrReclaimExceptionsForClass(ctx, in.SchoolClass, studentIDs, dates[0], &arrival, &arrivalReason, in.CreatedBy, staffID)
+	if err != nil {
+		return nil, mapClassTripArrivalError(err)
 	}
 	if t.announcer != nil {
 		t.announcer.AnnounceArrivalScheduleChange(ctx)

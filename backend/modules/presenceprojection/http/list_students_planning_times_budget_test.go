@@ -53,8 +53,8 @@ func TestListStudentsPlanningTimesQueryBudget(t *testing.T) {
 		require.Len(t, decodeStudentLocationsByID(t, rr.Body.Bytes()), n, "measure the expanded child roster")
 		t.Logf("planning times N=%d total=%d", n, counter.Total())
 		for _, table := range planningTimesTables {
-			queries := counter.Selects(table)
-			t.Logf("N=%d table %q: %d queries", n, table, len(queries))
+			queries := counter.Measurement(counter.Selects(table))
+			t.Logf("N=%d table %q: %d queries", n, table, len(queries.Statements))
 			querybudgets.AssertQueryBudget(t, "api.students.list.planning_times.per_table", queries)
 		}
 		require.Zero(t, counter.WriteRows())

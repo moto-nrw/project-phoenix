@@ -1575,3 +1575,321 @@ describe("SettingsField text limit", () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 });
+
+// The care-facility term (#6042): OGS and GTS to pick, an own name behind
+// „Eigener Name“, checked at the field before the server refuses it.
+describe("SettingsField care-facility term", () => {
+  const term = makeSetting({
+    key: "enrollment.care_facility_term",
+    label: "Name der Betreuung in Texten für Eltern",
+    type: "text",
+    default: "OGS",
+    value: "OGS",
+    is_default: true,
+    validation: {
+      pattern: "^[\\p{L}\\p{N}(](?:[\\p{L}\\p{N} ./()-]*[\\p{L}\\p{N}.)])?$",
+      max_length: 40,
+    },
+    options: {
+      static: [
+        { label: "OGS", value: "OGS" },
+        { label: "GTS", value: "GTS" },
+      ],
+    },
+  });
+  const ownField = (
+    getByRole: (role: string, options: object) => HTMLElement,
+  ) =>
+    getByRole("textbox", {
+      name: "Name der Betreuung in Texten für Eltern: Eigener Name",
+    });
+
+  it("offers the presets as one value choice and saves GTS at once", async () => {
+    const onSave = vi.fn().mockResolvedValue(null);
+    const { getByRole, queryByRole } = renderWithProviders(
+      <SettingsField setting={term} onSave={onSave} onReset={vi.fn()} />,
+    );
+
+    expect(getByRole("button", { name: "OGS" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(queryByRole("textbox")).not.toBeInTheDocument();
+    fireEvent.click(getByRole("button", { name: "GTS" }));
+
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith(
+        "enrollment.care_facility_term",
+        "GTS",
+      ),
+    );
+  });
+
+  it("refuses markup in an own name at the field", async () => {
+    const onSave = vi.fn().mockResolvedValue(null);
+    const { getByRole, findByText } = renderWithProviders(
+      <SettingsField setting={term} onSave={onSave} onReset={vi.fn()} />,
+    );
+
+    fireEvent.click(getByRole("button", { name: "Eigener Name" }));
+    const field = ownField(getByRole);
+    fireEvent.change(field, { target: { value: "<b>GTS</b>" } });
+    fireEvent.blur(field);
+
+    const hint = await findByText(/Erlaubt sind Buchstaben, Ziffern/);
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(field).toHaveAttribute("aria-describedby", hint.id);
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("saves a valid own name", async () => {
+    const onSave = vi.fn().mockResolvedValue(null);
+    const { getByRole } = renderWithProviders(
+      <SettingsField setting={term} onSave={onSave} onReset={vi.fn()} />,
+    );
+
+    fireEvent.click(getByRole("button", { name: "Eigener Name" }));
+    const field = ownField(getByRole);
+    fireEvent.change(field, { target: { value: "Ganztag Nord" } });
+    fireEvent.blur(field);
+
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith(
+        "enrollment.care_facility_term",
+        "Ganztag Nord",
+      ),
+    );
+  });
+
+  it("replaces a refused draft with the picked preset", async () => {
+    const onSave = vi.fn().mockResolvedValue(null);
+    const { getByRole, findByText, queryByRole } = renderWithProviders(
+      <SettingsField setting={term} onSave={onSave} onReset={vi.fn()} />,
+    );
+
+    fireEvent.click(getByRole("button", { name: "Eigener Name" }));
+    const field = ownField(getByRole);
+    fireEvent.change(field, { target: { value: "<b>" } });
+    fireEvent.blur(field);
+    await findByText(/Erlaubt sind Buchstaben, Ziffern/);
+
+    fireEvent.click(getByRole("button", { name: "OGS" }));
+
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith(
+        "enrollment.care_facility_term",
+        "OGS",
+      ),
+    );
+    expect(getByRole("button", { name: "OGS" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("saves a preset only after the own name saved on blur", async () => {
+    let finishDraft: () => void = () => undefined;
+    const onSave = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<null>((resolve) => {
+            finishDraft = () => resolve(null);
+          }),
+      )
+      .mockResolvedValue(null);
+    const { getByRole } = renderWithProviders(
+      <SettingsField setting={term} onSave={onSave} onReset={vi.fn()} />,
+    );
+
+    fireEvent.click(getByRole("button", { name: "Eigener Name" }));
+    const field = ownField(getByRole);
+    fireEvent.change(field, { target: { value: "Ganztag Nord" } });
+    fireEvent.blur(field);
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(getByRole("button", { name: "GTS" }));
+    await Promise.resolve();
+    expect(onSave).toHaveBeenCalledTimes(1);
+
+    finishDraft();
+    await waitFor(() =>
+      expect(onSave).toHaveBeenLastCalledWith(
+        "enrollment.care_facility_term",
+        "GTS",
+      ),
+    );
+    expect(onSave).toHaveBeenCalledTimes(2);
+  });
+
+  it("saves the latest unmounted draft after pending and queued saves", async () => {
+    let finishFirst: () => void = () => undefined;
+    let finishSecond: () => void = () => undefined;
+    let storedValue = "Ganztag Süd";
+    const writes: unknown[] = [];
+    const onSave = vi.fn().mockImplementation(async (_key, value) => {
+      if (value === "Ganztag Nord") {
+        await new Promise<void>((resolve) => {
+          finishFirst = resolve;
+        });
+      } else if (value === "Ganztag West") {
+        await new Promise<void>((resolve) => {
+          finishSecond = resolve;
+        });
+      }
+      storedValue = value;
+      writes.push(value);
+    });
+    const { getByRole, unmount } = renderWithProviders(
+      <SettingsField
+        setting={{ ...term, value: storedValue, is_default: false }}
+        onSave={onSave}
+        onReset={vi.fn()}
+      />,
+    );
+
+    const field = ownField(getByRole);
+    fireEvent.change(field, { target: { value: "Ganztag Nord" } });
+    fireEvent.blur(field);
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(field, { target: { value: "Ganztag West" } });
+    fireEvent.blur(field);
+    fireEvent.change(field, { target: { value: "Ganztag Ost" } });
+    unmount();
+
+    finishFirst();
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith(term.key, "Ganztag West"),
+    );
+    finishSecond();
+    await waitFor(() => expect(writes).toHaveLength(3));
+
+    expect(writes).toEqual(["Ganztag Nord", "Ganztag West", "Ganztag Ost"]);
+    expect(storedValue).toBe("Ganztag Ost");
+  });
+
+  it("resets only after the draft and queued preset finish saving", async () => {
+    let finishDraft: () => void = () => undefined;
+    let finishPreset: () => void = () => undefined;
+    let storedValue = "Ganztag Süd";
+    const writes: string[] = [];
+    const onSave = vi
+      .fn()
+      .mockImplementationOnce(async () => {
+        await new Promise<void>((resolve) => {
+          finishDraft = resolve;
+        });
+        storedValue = "Ganztag Nord";
+        writes.push("draft");
+      })
+      .mockImplementationOnce(async () => {
+        await new Promise<void>((resolve) => {
+          finishPreset = resolve;
+        });
+        storedValue = "GTS";
+        writes.push("preset");
+      });
+    const onReset = vi.fn().mockImplementation(async () => {
+      storedValue = "OGS";
+      writes.push("reset");
+    });
+    const { getByRole } = renderWithProviders(
+      <SettingsField
+        setting={{ ...term, value: storedValue, is_default: false }}
+        onSave={onSave}
+        onReset={onReset}
+      />,
+    );
+
+    const field = ownField(getByRole);
+    fireEvent.change(field, { target: { value: "Ganztag Nord" } });
+    fireEvent.blur(field);
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(getByRole("button", { name: "GTS" }));
+    fireEvent.click(getByRole("button", { name: "Zurücksetzen" }));
+    finishDraft();
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
+    finishPreset();
+    await waitFor(() => expect(writes).toHaveLength(3));
+
+    expect(writes).toEqual(["draft", "preset", "reset"]);
+    expect(storedValue).toBe(term.default);
+    expect(onReset).toHaveBeenCalledExactlyOnceWith(term.key);
+  });
+
+  it.each([false, true])(
+    "saves a later preset after a pending reset (reset fails: %s)",
+    async (resetFails) => {
+      let finishReset: () => void = () => undefined;
+      let storedValue = "Ganztag Nord";
+      const writes: string[] = [];
+      const onReset = vi.fn().mockImplementation(async () => {
+        await new Promise<void>((resolve) => {
+          finishReset = resolve;
+        });
+        writes.push("reset");
+        if (resetFails) throw new ApiError("boom", 500);
+        storedValue = "OGS";
+      });
+      const onSave = vi.fn().mockImplementation(async () => {
+        storedValue = "GTS";
+        writes.push("preset");
+      });
+      const { getByRole } = renderWithProviders(
+        <SettingsField
+          setting={{ ...term, value: storedValue, is_default: false }}
+          onSave={onSave}
+          onReset={onReset}
+        />,
+      );
+
+      fireEvent.click(getByRole("button", { name: "Zurücksetzen" }));
+      await waitFor(() => expect(onReset).toHaveBeenCalledTimes(1));
+      fireEvent.click(getByRole("button", { name: "GTS" }));
+      finishReset();
+      await waitFor(() => expect(writes).toHaveLength(2));
+
+      expect(writes).toEqual(["reset", "preset"]);
+      expect(storedValue).toBe("GTS");
+      expect(onSave).toHaveBeenCalledExactlyOnceWith(term.key, "GTS");
+    },
+  );
+
+  it("keeps a second reset after a preset while the first reset is pending", async () => {
+    let finishReset: () => void = () => undefined;
+    const writes: string[] = [];
+    const onReset = vi
+      .fn()
+      .mockImplementationOnce(async () => {
+        await new Promise<void>((resolve) => {
+          finishReset = resolve;
+        });
+        writes.push("reset");
+      })
+      .mockImplementation(async () => {
+        writes.push("reset");
+      });
+    const onSave = vi.fn().mockImplementation(async () => {
+      writes.push("preset");
+    });
+    const { getByRole } = renderWithProviders(
+      <SettingsField
+        setting={{ ...term, value: "Ganztag Nord", is_default: false }}
+        onSave={onSave}
+        onReset={onReset}
+      />,
+    );
+
+    fireEvent.click(getByRole("button", { name: "Zurücksetzen" }));
+    await waitFor(() => expect(onReset).toHaveBeenCalledTimes(1));
+    fireEvent.click(getByRole("button", { name: "GTS" }));
+    fireEvent.click(getByRole("button", { name: "Zurücksetzen" }));
+    finishReset();
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+
+    expect(writes).toEqual(["reset", "preset", "reset"]);
+  });
+});

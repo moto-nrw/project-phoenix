@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { SectionLabel } from "~/components/ui/section-label";
 import { useSearchParams } from "next/navigation";
 import type { FormEvent } from "react";
 import { Plus } from "lucide-react";
@@ -1238,7 +1239,7 @@ function StaffCalendarPageInner() {
                     </div>
 
                     {!editingId ? (
-                      <div className="rounded-lg border border-gray-200 bg-white p-3">
+                      <InsetPanel tone="white">
                         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                           <h3 className="text-sm font-semibold text-gray-900">
                             Empfänger auswählen
@@ -1263,9 +1264,7 @@ function StaffCalendarPageInner() {
                         <div className="grid gap-3 lg:grid-cols-2">
                           {targetGroups.map((group) => (
                             <InsetPanel as="section" key={group.type} framed>
-                              <h4 className="text-xs font-semibold tracking-wide text-gray-700 uppercase">
-                                {group.label}
-                              </h4>
+                              <SectionLabel as="h4">{group.label}</SectionLabel>
                               <div className="mt-2 max-h-48 space-y-1 overflow-y-auto pr-1">
                                 {group.choices.length === 0 ? (
                                   <p className="py-2 text-xs text-gray-500">
@@ -1316,7 +1315,7 @@ function StaffCalendarPageInner() {
                             </InsetPanel>
                           ))}
                         </div>
-                      </div>
+                      </InsetPanel>
                     ) : null}
 
                     {targets.length > 0 ? (

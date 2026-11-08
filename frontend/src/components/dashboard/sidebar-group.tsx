@@ -1,5 +1,6 @@
 "use client";
 
+import { SECTION_LABEL_CLASS } from "~/components/ui/section-label";
 import type { ReactNode } from "react";
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 
@@ -86,7 +87,7 @@ export function SidebarGroup({
         {labelsMounted && (
           <>
             <span
-              className={`${sidebarLabelClasses(labelsVisible)} text-xs font-semibold tracking-wider uppercase`}
+              className={`${sidebarLabelClasses(labelsVisible)} ${SECTION_LABEL_CLASS}`}
             >
               {label}
             </span>

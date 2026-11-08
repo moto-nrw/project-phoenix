@@ -3,7 +3,7 @@
 import { use, useCallback, useEffect, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- public/parents token flow is outside tenant-router
 import { usePathname, useRouter } from "next/navigation";
-import { useTranslations } from "next-intl";
+
 import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
 import { prefetchedDataFromBootstrap } from "~/components/enrollment/enrollment-form-config";
 import { PublicEnrollmentContentSkeleton } from "~/components/enrollment/public-enrollment-shell";
@@ -23,6 +23,11 @@ import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Textarea } from "~/components/ui/textarea";
 import { ParentPageHeader } from "~/components/parent/parent-page";
 import { announceChangeRequestsChanged } from "~/lib/change-requests-refresh";
+import {
+  CareFacilityTermScope,
+  useCareTermTranslations,
+  useProvideCareFacilityTerm,
+} from "~/lib/care-facility-term";
 
 const logger = createLogger({ component: "EnrollmentEditPage" });
 
@@ -35,9 +40,23 @@ interface Props {
   readonly adjustOnly?: boolean;
 }
 
-export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
+/**
+ * The edit form of one enrollment; its school, and with it the
+ * care-facility term of the fixed texts (#6042), comes from the bootstrap.
+ */
+export function EnrollmentEditPage(props: Props) {
+  return (
+    <CareFacilityTermScope>
+      <EnrollmentEditPageContent {...props} />
+    </CareFacilityTermScope>
+  );
+}
+
+function EnrollmentEditPageContent({ params, adjustOnly = false }: Props) {
   const { token } = use(params);
-  const t = useTranslations("enrollmentStatus");
+  const t = useCareTermTranslations("enrollmentStatus");
+  const loadErrorObject = t("errorObject");
+  const loadErrorFallback = t("editLoadError");
   const router = useRouter();
   const pathname = usePathname();
   const statusHref = pathname?.replace(/\/(edit|adjust)\/?$/, "") || ".";
@@ -46,6 +65,7 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
     bootstrap: EnrollmentEditBootstrap;
   } | null>(null);
   const bootstrap = loaded?.token === token ? loaded.bootstrap : null;
+  useProvideCareFacilityTerm(bootstrap?.care_facility_term);
   const [changeReason, setChangeReason] = useState("");
   const [loading, setLoading] = useState(true);
   const toast = useToast();
@@ -76,7 +96,7 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
       try {
         const result = await fetchEnrollmentEditBootstrap(
           token,
-          t("editLoadError"),
+          loadErrorFallback,
         );
         if (!cancelled) setLoaded({ token, bootstrap: result });
       } catch (err) {
@@ -85,7 +105,7 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
         });
         if (!cancelled) {
           void showLoadError(err, {
-            object: t("errorObject"),
+            object: loadErrorObject,
             retry: () => setLoadAttempt((n) => n + 1),
           });
         }
@@ -97,7 +117,14 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [token, t, loadAttempt, clearLoadError, showLoadError]);
+  }, [
+    token,
+    loadErrorObject,
+    loadErrorFallback,
+    loadAttempt,
+    clearLoadError,
+    showLoadError,
+  ]);
 
   const submitter = useCallback(
     async (payload: SubmitEnrollmentPayload) => {
@@ -202,19 +229,14 @@ export function EnrollmentEditPage({ params, adjustOnly = false }: Props) {
 
       {isChangeRequestMode ? (
         <section className="moto-content-surface rounded-xl border p-5 sm:p-6">
-          <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-            {t("changeRequestEyebrow")}
-          </p>
-          <div className="mt-3">
-            <Textarea
-              label={t("changeRequestReasonLabel")}
-              value={changeReason}
-              onChange={(event) => setChangeReason(event.target.value)}
-              rows={3}
-              placeholder={t("changeRequestReasonPlaceholder")}
-              className="resize-y"
-            />
-          </div>
+          <Textarea
+            label={t("changeRequestReasonLabel")}
+            value={changeReason}
+            onChange={(event) => setChangeReason(event.target.value)}
+            rows={3}
+            placeholder={t("changeRequestReasonPlaceholder")}
+            className="resize-y"
+          />
         </section>
       ) : null}
 

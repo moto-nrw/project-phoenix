@@ -17,18 +17,15 @@ import {
   SEND_SKIP_LABELS,
   childName,
   formatConclusion,
-  formatModules,
-  formatNotice,
   formatService,
-  formatTerm,
   serviceDays,
 } from "~/components/traeger/care-contract-format";
+import { CareContractChangeCard } from "~/components/traeger/care-contract-change-card";
 import { CareContractNoticeCard } from "~/components/traeger/care-contract-notice-card";
 import {
   CareContractVersions,
   plannedVersion,
 } from "~/components/traeger/care-contract-versions";
-import { formatEuro } from "~/components/traeger/contribution-format";
 import { CareContractSignatureCard } from "~/components/traeger/care-contract-signature-card";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -62,7 +59,6 @@ import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { createLogger } from "~/lib/logger";
 import {
   type CareContractDetail,
-  type ContractVersion,
   discardCareContract,
   downloadCareContract,
   fetchCareContract,
@@ -259,7 +255,7 @@ export default function TraegerVertragPage() {
               tone={CONTRACT_STATUS_TONES[contract.status]}
             />
             <span>
-              {formatModules(contract.moduleNames)} · {contract.schoolName} · ab{" "}
+              {contract.modulesText || "–"} · {contract.schoolName} · ab{" "}
               {formatDate(contract.effectiveFrom)}
               {contract.endsOn ? ` bis ${formatDate(contract.endsOn)}` : ""}
             </span>
@@ -356,7 +352,7 @@ export default function TraegerVertragPage() {
           {planned ? (
             <Alert
               type="info"
-              message={`Ab ${formatDate(planned.effectiveFrom)} gilt Version ${planned.number}. Die Schule hat eine Änderung der Betreuung freigegeben. Was sich ändert, steht unten unter „Versionen“.`}
+              message={`Ab ${formatDate(planned.effectiveFrom)} gilt Version ${planned.number}. Eine Änderung der Betreuung ist freigegeben. Was sich ändert, steht unten unter „Versionen“.`}
             />
           ) : null}
           <CareContractSignatureCard contract={contract} onChanged={load} />
@@ -396,19 +392,9 @@ export default function TraegerVertragPage() {
                   <DataField label="Beginn">
                     {formatDate(contract.version.effectiveFrom)}
                   </DataField>
-                  <DataField label="Laufzeit">
-                    {formatTerm(contract.version.terms, contractEnd(contract))}
-                  </DataField>
+                  <DataField label="Laufzeit">{contract.termText}</DataField>
                   <DataField label="Beitrag im Monat">
-                    {contract.version.priceCents !== null
-                      ? formatEuro(contract.version.priceCents)
-                      : new Set(
-                            contract.version.services.map(
-                              (service) => service.careOfferingId,
-                            ),
-                          ).size > 1
-                        ? "Laut Beitragsordnung für die gebuchten Module"
-                        : "Laut Beitragsordnung (das Angebot hat keinen Preis)"}
+                    {contract.feeText}
                   </DataField>
                 </DataGrid>
               </SectionCard>
@@ -440,9 +426,7 @@ export default function TraegerVertragPage() {
               </SectionCard>
               <SectionCard title="Kündigung und Satzung">
                 <DataGrid>
-                  <DataField label="Kündigung">
-                    {formatNotice(contract.version.terms)}
-                  </DataField>
+                  <DataField label="Kündigung">{contract.noticeText}</DataField>
                   <DataField label="Vertragspartner">
                     {contract.version.terms.contractPartner ||
                       "Der Träger selbst"}
@@ -562,6 +546,12 @@ export default function TraegerVertragPage() {
                   </form>
                 ) : null}
               </SectionCard>
+              {contract.status === "aktiv" ? (
+                <CareContractChangeCard
+                  contractId={contract.id}
+                  onDecided={() => void load()}
+                />
+              ) : null}
               {contract.concluded ? (
                 <CareContractNoticeCard
                   contractId={contract.id}
@@ -600,29 +590,6 @@ export default function TraegerVertragPage() {
       ) : null}
     </TenantPage>
   );
-}
-
-/**
- * The last day of the contract: the end of its newest effective version.
- * A version ends the day before a module switch, which is no end of the
- * contract (#4681).
- */
-function contractEnd(contract: CareContractDetail): string | null {
-  // The latest effective date, not the highest number: a change may go in
-  // front of a planned version.
-  const newest = contract.versions
-    .filter(
-      (version) =>
-        version.status === "wirksam" || version.status === "abgeloest",
-    )
-    .reduce<ContractVersion | null>(
-      (latest, version) =>
-        latest === null || version.effectiveFrom > latest.effectiveFrom
-          ? version
-          : latest,
-      null,
-    );
-  return newest ? newest.endsOn : contract.version.endsOn;
 }
 
 type ContractMailing = CareContractDetail["mailings"][number];
