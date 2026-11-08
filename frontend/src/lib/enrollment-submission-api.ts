@@ -8,6 +8,7 @@ import type {
 } from "~/lib/enrollment-form-schema-api";
 import type { CareOfferingAvailabilityRule } from "~/lib/care-offering-api";
 import type { Translations } from "~/lib/enrollment-translations";
+import type { EnrollmentFormLabels } from "~/lib/enrollment-change-request-diff";
 import {
   enrollmentErrorReader,
   readEnrollmentJSON,
@@ -617,6 +618,26 @@ export async function listEnrollmentChangeRequests(
   }
   const list = await readEnrollmentJSON<EnrollmentChangeRequest[]>(response);
   return Array.isArray(list) ? list : [];
+}
+
+/**
+ * Questions and consent titles of the form version behind a status link
+ * (#6142), which name the rows of a change request.
+ */
+export async function getEnrollmentFormLabels(
+  token: string,
+): Promise<EnrollmentFormLabels> {
+  const response = await sendEnrollmentRequest(
+    `/api/enrollment/requests/${encodeURIComponent(token)}/form-labels`,
+    { cache: "no-store" },
+  );
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Fragen des Anmeldeformulars konnten nicht geladen werden",
+    );
+  }
+  return readEnrollmentJSON<EnrollmentFormLabels>(response);
 }
 
 export async function replyEnrollmentChangeRequest(

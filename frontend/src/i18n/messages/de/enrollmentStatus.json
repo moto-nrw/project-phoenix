@@ -135,6 +135,12 @@
       "guardian_phone": "Telefon",
       "phase_id": "Anmeldephase"
     },
+    "consent": {
+      "agb": "Allgemeine Geschäftsbedingungen (AGB)",
+      "data_processing": "Datenschutz zur Kenntnis genommen",
+      "email_contact": "Kontakt per E-Mail erlaubt",
+      "photo": "Foto-Einwilligung"
+    },
     "child": {
       "custom_data": "Zusatzangaben",
       "date_of_birth": "Geburtsdatum",

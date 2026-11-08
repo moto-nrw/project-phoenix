@@ -12,6 +12,7 @@ import {
   formatEnrollmentChangeRequestValue,
   type EnrollmentChangeRequestDiffCopy,
   type EnrollmentChangeRequestDiffGroup,
+  type EnrollmentFormLabels,
 } from "~/lib/enrollment-change-request-diff";
 import { SectionLabel } from "~/components/ui/section-label";
 import { cn } from "~/lib/utils";
@@ -24,6 +25,8 @@ interface EnrollmentChangeRequestDiffProps {
   readonly afterLabel?: string;
   readonly emptyMessage?: string;
   readonly copy?: EnrollmentChangeRequestDiffCopy;
+  /** Questions of the request's form version; without them rows show keys. */
+  readonly formLabels?: EnrollmentFormLabels | null;
   readonly className?: string;
 }
 
@@ -35,6 +38,7 @@ export function EnrollmentChangeRequestDiff({
   afterLabel = "Neu",
   emptyMessage = "Die Anfrage enthält keine erkennbaren Feldänderungen.",
   copy,
+  formLabels,
   className,
 }: EnrollmentChangeRequestDiffProps) {
   const groups = useMemo(
@@ -44,8 +48,9 @@ export function EnrollmentChangeRequestDiff({
         proposedSnapshot,
         diff,
         copy,
+        formLabels,
       }),
-    [baseSnapshot, proposedSnapshot, diff, copy],
+    [baseSnapshot, proposedSnapshot, diff, copy, formLabels],
   );
 
   if (groups.length === 0) {
