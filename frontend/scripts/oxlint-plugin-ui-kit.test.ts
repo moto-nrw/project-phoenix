@@ -3816,6 +3816,10 @@ describe.concurrent("Listen-Bausteine (#5593)", () => {
       "no-hand-rolled-nav-row",
       `<a href="/x" className="flex gap-1">Heute öffnen<ChevronRight /></a>`,
     ],
+    [
+      "no-hand-rolled-nav-row",
+      `<button type="button" className="flex w-full"><span><ChevronRight /></span></button>`,
+    ],
   ])("%s accepts %s", async (rule, element) => {
     const result = await lintSource(
       `export const Probe = () => ${element};`,

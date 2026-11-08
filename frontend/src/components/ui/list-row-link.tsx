@@ -125,13 +125,19 @@ export function ListRowLink({
         </span>
         {meta != null ? (
           <span
-            aria-label={metaLabel}
             className={cn(
               "shrink-0 text-xs tabular-nums",
               unread ? "text-moto-blue font-semibold" : "text-gray-500",
             )}
           >
-            {meta}
+            {metaLabel ? (
+              <>
+                <span aria-hidden="true">{meta}</span>
+                <span className="sr-only">{metaLabel}</span>
+              </>
+            ) : (
+              meta
+            )}
           </span>
         ) : null}
       </span>

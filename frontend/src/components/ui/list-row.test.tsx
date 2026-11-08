@@ -190,9 +190,11 @@ describe("ListRowLink states (#5593)", () => {
     });
     expect(link).toHaveTextContent("Bis morgen");
     expect(screen.getByText("OGS-Team").className).toContain("font-bold");
-    expect(screen.getByLabelText("8. November, 02:35").className).toContain(
-      "text-moto-blue",
+    expect(screen.getByText("08.11.2026, 02:35")).toHaveAttribute(
+      "aria-hidden",
+      "true",
     );
+    expect(screen.getByText("8. November, 02:35")).toHaveClass("sr-only");
     expect(screen.getByText("Bis morgen").className).toContain("text-gray-700");
     expect(link).toHaveTextContent("2");
   });
