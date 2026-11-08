@@ -44,6 +44,8 @@ type reviewedMonth struct {
 	careMonth
 	excluded    []parentbilling.CareInvoice
 	fingerprint string
+	// free counts the run's contracts a free month bills nothing for.
+	free int
 }
 
 // reviewed computes the preview of a calculated run with the rule of the
@@ -71,11 +73,8 @@ func narrowMonth(month careMonth, schoolIDs []int64, exclusions map[int64]parent
 		mealUnbilled: []parentbilling.CareMealUnbilled{}, mealChanged: []parentbilling.CareMealChanged{}, dueDates: month.dueDates, deviations: month.deviations},
 		excluded: []parentbilling.CareInvoice{}}
 	review.uncounted = uncountedInRun(month.uncountedSchools, inRun)
-	for schoolID, count := range month.billedBySchool {
-		if inRun(schoolID) {
-			review.billed += count
-		}
-	}
+	review.billed = countInRun(month.billedBySchool, inRun)
+	review.free = countInRun(month.freeBySchool, inRun)
 	for _, invoice := range month.invoices {
 		if !inRun(invoice.SchoolID) {
 			continue
@@ -101,6 +100,17 @@ func narrowMonth(month careMonth, schoolIDs []int64, exclusions map[int64]parent
 		}
 	}
 	return review
+}
+
+// countInRun adds the counts of the schools the run bills.
+func countInRun(bySchool map[int64]int, inRun func(int64) bool) int {
+	total := 0
+	for schoolID, count := range bySchool {
+		if inRun(schoolID) {
+			total += count
+		}
+	}
+	return total
 }
 
 // narrowMeals keeps the Mensa months of the run's schools (#4686): the
@@ -162,7 +172,8 @@ func fingerprintInvoices(invoices []parentbilling.CareInvoice) []fingerprintInvo
 // every invoice the release issues and every excluded one, each with its
 // recipient, positions and reductions (so a new evidence or rule changes
 // it); the bookings without a price; the children held back for a
-// duplicate contract; the count of contracts already billed; the due
+// duplicate contract; the count of contracts already billed and of those a
+// free month leaves out (#6196); the due
 // dates of the run per payment method, which every invoice's payment also
 // carries (#4689); and the Mensa (#4686): its positions on the invoices,
 // the months without a release, the months no longer billable and the
@@ -179,13 +190,14 @@ func previewFingerprint(run parentbilling.CareRun, rule string, review reviewedM
 		Unpriced    []parentbilling.CareUnpriced     `json:"unpriced"`
 		Duplicates  []parentbilling.CareDuplicate    `json:"duplicates"`
 		Billed      int                              `json:"billed"`
+		Free        int                              `json:"free"`
 		DueDates    []parentbilling.RunDueDate       `json:"due_dates"`
 		Uncounted   int                              `json:"uncounted_families"`
 		MealGaps    []parentbilling.CareMealGap      `json:"meal_gaps"`
 		MealUnbill  []parentbilling.CareMealUnbilled `json:"meal_unbilled"`
 		MealChanged []parentbilling.CareMealChanged  `json:"meal_changed"`
 	}{run.ID, run.SchoolIDs, run.InvoiceDate, rule, fingerprintInvoices(review.invoices),
-		fingerprintInvoices(review.excluded), review.unpriced, review.duplicates, review.billed,
+		fingerprintInvoices(review.excluded), review.unpriced, review.duplicates, review.billed, review.free,
 		review.dueDates.InPaymentOrder(), review.uncounted, review.mealGaps, review.mealUnbilled, review.mealChanged})
 	if err != nil {
 		// Every value above marshals; a failure leaves no fingerprint a
@@ -389,6 +401,7 @@ func (c *CareBilling) reviewDetail(ctx context.Context, reviewer parentbilling.H
 	}
 	detail.DueDates = review.dueDates.InPaymentOrder()
 	detail.MonthRule, detail.Unpriced, detail.Billed = rule, review.unpriced, review.billed
+	detail.FreeOfCharge = review.free
 	detail.Duplicates, detail.MealGaps, detail.MealUnbilled = review.duplicates, review.mealGaps, review.mealUnbilled
 	detail.MealChanged = review.mealChanged
 	detail.UncountedFamilies = review.uncounted
@@ -431,7 +444,10 @@ func (c *CareBilling) issueReviewed(ctx context.Context, organizationID int64, r
 	if err != nil {
 		return "", reviewedMonth{}, "", err
 	}
-	if len(month.invoices) == 0 && len(month.excluded) == 0 {
+	// A run of a free month bills nothing and still closes, so its schools
+	// are free for the next run and the release keeps the free contracts
+	// (#6196).
+	if len(month.invoices) == 0 && len(month.excluded) == 0 && month.free == 0 {
 		return "", reviewedMonth{}, "", parentbilling.ErrBillingRunEmpty
 	}
 	if len(month.invoices) != release.DocumentCount || month.total() != release.TotalCents ||

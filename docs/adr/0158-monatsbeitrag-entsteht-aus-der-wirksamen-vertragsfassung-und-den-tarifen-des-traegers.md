@@ -186,3 +186,38 @@ Punkt 5 („höchstens ein Lauf in der Vorschau je Monat“) gilt seitdem je Sch
 Ein Lauf nennt seine Schulen, und eine Schule ist je Monat in höchstens einem
 offenen Lauf. Die Freigabe stellt das Rechnungsdatum des Laufs aus. Details im
 [Nachtrag zu ADR 0119](0119-abrechnungslauf-stellt-unveraenderliche-rechnungen-aus-einem-nummernkreis-aus.md#nachtrag-2026-11-08-prüfphase-im-monatslauf-5916).
+
+## Nachtrag 2026-11-08: Preisformen der Preisliste (#6196)
+
+**Status: Vorgeschlagen.**
+
+1. **Zwei Preisformen, eine Preisliste.** Ein Modul einer Schule hat ab einem
+   Monatsersten entweder einen Preis **je Wochentag** (Summe der gebuchten
+   Wochentage, Ispringen) oder eine **Staffel nach Tagen je Woche** (Preis
+   für 1 bis 7 gebuchte Tage, Birkenfeld; nicht Tagespreis mal Tage). Die
+   Form gilt je Modul und folgt dem jüngsten Preis des Moduls, der bis zum
+   Monat begonnen hat; Preise der anderen Form zählen dann nicht. Ein
+   Preiswechsel, auch der Wechsel der Form, wirkt ab seinem Gültigkeitsdatum.
+2. **Staffelposition.** Eine Position nach Staffel kostet die Stufe ihrer
+   Zahl gebuchter Wochentage. Anteilig (pro rata) gilt Betragsregel 2 mit der
+   Stufe als Monatspreis; die Stufe wird auf die Wochentage zu gleichen
+   Teilen verteilt (größter Rest), damit Teile auf den Cent aufgehen. Die
+   ausgestellte Position hält Stufe und Stufenpreis fest
+   (`days_per_week`, `tier_monthly_cents`). Fehlt die Stufe, bleibt der
+   Vertrag unter „Ohne Preis“ mit der fehlenden Stufe, nie mit 0 €.
+3. **Abgerechnete Preise** (ADR 0119 Punkt 7): Eine abgerechnete Stufe oder
+   ein abgerechneter Wochentag behält im Monat Preis, Geschwisterpreis und
+   Form; ein abgerechneter Monat wird nie beitragsfrei.
+4. **Beitragsfreie Monate** sind eine Einstellung der Preisliste je Schule
+   (`care_price_lists.free_months`, z. B. August in Ispringen). Der Lauf
+   stellt dafür keine Rechnung aus und zeigt die Zahl der Verträge.
+5. **Essen.** Ein Modul kann „Essen extra“ tragen (`meal_extra`); der Preis
+   enthält das Essen dann nicht. Das Essen rechnet die Mensa ab (#6169),
+   nie als stillschweigende 0 €. Der Essenspreis Birkenfeld wartet auf Ute.
+6. Prüfphase (#6177): Stufe, Form und die Zahl beitragsfreier Verträge
+   gehören zum Fingerabdruck; eine Änderung danach lässt die Freigabe
+   ablehnen.
+
+Register: Migration `1.15.819`; `policy/parent-billing.json` mit
+`parent_billing.care_price_lists`; Datenlebenszyklus und Aufbewahrung je ein
+Eintrag (keine Personendaten).

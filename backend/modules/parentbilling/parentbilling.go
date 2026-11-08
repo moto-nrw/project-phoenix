@@ -76,6 +76,10 @@ type ContributionRule struct {
 	CountSchoolIDs  []int64 `json:"count_school_ids"`
 	PriceCents      *int64  `json:"price_cents"`
 	CapCents        *int64  `json:"cap_cents"`
+	// TariffSiblingPrice makes a care sibling rule charge every counted
+	// child from its rank on the sibling price of the price list, per
+	// module and weekday or scale step (#6196).
+	TariffSiblingPrice bool `json:"tariff_sibling_price"`
 	// CountsFamilyChildren tells that a sibling rule of the care counts
 	// the children the family stated and the Abrechnung confirmed (#5918).
 	CountsFamilyChildren bool      `json:"counts_family_children"`
