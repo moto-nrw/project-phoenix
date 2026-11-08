@@ -78,10 +78,13 @@ type BillingFamily struct {
 	RecipientEmail     string           `json:"recipient_email"`
 	DebtorNumbers      []string         `json:"debtor_numbers"`
 	Payments           []BillingPayment `json:"payments"`
-	InvoiceCount       int              `json:"invoice_count"`
-	OpenInvoiceCount   int              `json:"open_invoice_count"`
-	DocumentCount      int              `json:"document_count"`
-	LastIssuedOn       calendar.Date    `json:"last_issued_on"`
+	// PaymentMethods are the payment methods of its invoices (#4689), in
+	// the order of PaymentMethods.
+	PaymentMethods   []string      `json:"payment_methods"`
+	InvoiceCount     int           `json:"invoice_count"`
+	OpenInvoiceCount int           `json:"open_invoice_count"`
+	DocumentCount    int           `json:"document_count"`
+	LastIssuedOn     calendar.Date `json:"last_issued_on"`
 	BillingAmounts
 }
 
@@ -94,6 +97,12 @@ type BillingFamily struct {
 // The recipient, the family key and the facts behind the payment come from
 // the store; the family shows the recipient once and never sends the rest.
 type BillingFamilyDocument struct {
+	// Service is the holiday care ("holiday") or the monthly care ("care",
+	// #4689); the run of a document is a run of its service.
+	Service string `json:"service"`
+	// RecipientKind and RecipientSecondName say who got the invoice (#4689).
+	RecipientKind       string          `json:"recipient_kind"`
+	RecipientSecondName string          `json:"recipient_second_name"`
 	ID                  int64           `json:"id"`
 	RunID               int64           `json:"run_id"`
 	Kind                string          `json:"kind"`
@@ -111,6 +120,10 @@ type BillingFamilyDocument struct {
 	Payment             *BillingPayment `json:"payment"`
 	Status              string          `json:"status"`
 	OpenCents           int64           `json:"open_cents"`
+	// PaymentMethod and DueOn are how and by when the invoice is paid
+	// (#4689); empty and nil on documents issued before.
+	PaymentMethod string         `json:"payment_method"`
+	DueOn         *calendar.Date `json:"due_on"`
 
 	RecipientFirstName string   `json:"-"`
 	RecipientLastName  string   `json:"-"`

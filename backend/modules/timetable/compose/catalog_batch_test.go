@@ -39,7 +39,7 @@ func TestCatalogBatchQueryBudgetPreservesTenantScopeAndArchivedActivities(t *tes
 		counter.Reset()
 		groups, findErr := catalog.FindCatalogGroups(txCtx, []int64{archived.ID, foreign.ID, active.ID, archived.ID})
 		require.NoError(t, findErr)
-		querybudgets.AssertQueryBudget(t, "modules.timetable.catalog_groups.by_ids", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "modules.timetable.catalog_groups.by_ids", counter.Measurement(counter.Queries()))
 		require.Len(t, groups, 2)
 		for _, group := range groups {
 			single := singles[group.ID]

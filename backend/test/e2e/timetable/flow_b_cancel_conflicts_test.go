@@ -115,7 +115,7 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 
 	path := fmt.Sprintf("/exception-conflicts?date=%s&date_to=%s", fromS, fromS)
 	rr = s.do("GET", path, nil, s.primaryAdminClaims())
-	cancelledQueries := qc.Queries()
+	cancelledQueries := qc.Measurement(qc.Queries())
 
 	require.Equal(t, http.StatusOK, rr.Code, "exception-conflicts body=%s", rr.Body.String())
 
@@ -179,7 +179,7 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 
 	qc.Reset()
 	rr = s.do("GET", path, nil, s.primaryAdminClaims())
-	modifiedQueries := qc.Queries()
+	modifiedQueries := qc.Measurement(qc.Queries())
 	require.Equal(t, http.StatusOK, rr.Code, "exception-conflicts(modified) body=%s", rr.Body.String())
 
 	var modResp struct {

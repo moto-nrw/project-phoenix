@@ -262,7 +262,7 @@ func NewJSONRouter() chi.Router {
 // ExecuteRequest executes an HTTP request against a Chi router and returns the response recorder.
 func ExecuteRequest(router chi.Router, req *http.Request) *httptest.ResponseRecorder {
 	rr := httptest.NewRecorder()
-	ctx := testpkg.WithPackageTenantRuntime(req.Context())
+	ctx := queryBudgetRouteContext(testpkg.WithPackageTenantRuntime(req.Context()))
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
 		// Request options inject identity before this helper installs the runtime.
 		// Reapply the tenant so the adapter-owned repository scope matches the
@@ -376,4 +376,13 @@ func servedBy(ctx context.Context, router http.Handler) http.Handler {
 		return router
 	}
 	return WithSessionVerifier(router)
+}
+
+// Tests inspect the completed pattern after ServeHTTP. Do not retain chi's
+// pooled context, which another parallel request may immediately reuse.
+func queryBudgetRouteContext(ctx context.Context) context.Context {
+	if chi.RouteContext(ctx) != nil {
+		return ctx
+	}
+	return context.WithValue(ctx, chi.RouteCtxKey, chi.NewRouteContext())
 }

@@ -40,6 +40,7 @@ import { activitiesConcept } from "~/lib/concepts/activities";
 import { groupAccessConcept } from "~/lib/concepts/groupAccess";
 import { groupsConcept } from "~/lib/concepts/groups";
 import { supervisionConcept } from "~/lib/concepts/supervision";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "CaregiverBlockerResolution" });
 
@@ -463,9 +464,11 @@ export function CaregiverBlockerResolutionPanel({
             {supervisions.map((item) => {
               const key = `sup-${item.id}`;
               return (
-                <div
+                <InsetPanel
                   key={item.id}
-                  className="flex items-center justify-between rounded-lg border border-gray-100 bg-white px-3 py-2"
+                  tone="white"
+                  padding="compact"
+                  className="flex items-center justify-between"
                 >
                   <div>
                     <span className="text-sm font-medium text-gray-900">
@@ -487,7 +490,7 @@ export function CaregiverBlockerResolutionPanel({
                   >
                     Beenden
                   </Button>
-                </div>
+                </InsetPanel>
               );
             })}
           </div>
@@ -511,9 +514,11 @@ export function CaregiverBlockerResolutionPanel({
             {substitutions.map((item) => {
               const key = `sub-${item.id}`;
               return (
-                <div
+                <InsetPanel
                   key={item.id}
-                  className="flex items-center justify-between rounded-lg border border-gray-100 bg-white px-3 py-2"
+                  tone="white"
+                  padding="compact"
+                  className="flex items-center justify-between"
                 >
                   <div>
                     <span className="text-sm font-medium text-gray-900">
@@ -535,7 +540,7 @@ export function CaregiverBlockerResolutionPanel({
                   >
                     Beenden
                   </Button>
-                </div>
+                </InsetPanel>
               );
             })}
           </div>
@@ -559,9 +564,11 @@ export function CaregiverBlockerResolutionPanel({
             {activities.map((item) => {
               const key = `act-${item.id}`;
               return (
-                <div
+                <InsetPanel
                   key={item.id}
-                  className="flex flex-col gap-2 rounded-lg border border-gray-100 bg-white px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+                  tone="white"
+                  padding="compact"
+                  className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="min-w-0">
                     <span className="text-sm font-medium text-gray-900">
@@ -605,7 +612,7 @@ export function CaregiverBlockerResolutionPanel({
                       )}
                     />
                   </div>
-                </div>
+                </InsetPanel>
               );
             })}
           </div>
@@ -629,9 +636,11 @@ export function CaregiverBlockerResolutionPanel({
             {groups.map((item) => {
               const key = `grp-${item.id}`;
               return (
-                <div
+                <InsetPanel
                   key={item.id}
-                  className="flex flex-col gap-2 rounded-lg border border-gray-100 bg-white px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+                  tone="white"
+                  padding="compact"
+                  className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <span className="text-sm font-medium text-gray-900">
                     {item.groupName}
@@ -664,7 +673,7 @@ export function CaregiverBlockerResolutionPanel({
                       )}
                     />
                   </div>
-                </div>
+                </InsetPanel>
               );
             })}
           </div>

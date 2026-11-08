@@ -201,9 +201,9 @@ func TestForceStartSupervisorValidationGrowthQueryBudget(t *testing.T) {
 			require.ElementsMatch(t, supervisorIDs, gotStaff)
 			t.Logf("complete force-start service N%d: %d statements", count, len(queries))
 			if count == 3 {
-				querybudgets.AssertQueryBudget(t, "modules.studentpresence.force_start.sources_3", queries)
+				querybudgets.AssertQueryBudget(t, "modules.studentpresence.force_start.sources_3", counter.Measurement(queries))
 			} else {
-				querybudgets.AssertQueryBudget(t, "modules.studentpresence.force_start.sources_8", queries)
+				querybudgets.AssertQueryBudget(t, "modules.studentpresence.force_start.sources_8", counter.Measurement(queries))
 			}
 		})
 	}

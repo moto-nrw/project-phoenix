@@ -63,13 +63,13 @@ func TestPopulatedTimetableRequestGrowthQueryBudgets(t *testing.T) {
 				decodeResponse(t, response, &body)
 				require.Len(t, body.Conflicts, n, kind)
 				require.Zero(t, counter.WriteRows(), "read request must not write")
-				queries := counter.Queries()
+				queries := counter.Measurement(counter.Queries())
 				if n == 3 {
-					counts[scenario] = len(queries)
+					counts[scenario] = len(queries.Statements)
 				} else {
-					require.Equal(t, counts[scenario], len(queries), scenario)
+					require.Equal(t, counts[scenario], len(queries.Statements), scenario)
 				}
-				t.Logf("%s N%d statements=%d", scenario, n, len(queries))
+				t.Logf("%s N%d statements=%d", scenario, n, len(queries.Statements))
 				querybudgets.AssertQueryBudget(t, scenario, queries)
 			}
 			for i := 1; i < n; i++ {
@@ -90,14 +90,14 @@ func TestPopulatedTimetableRequestGrowthQueryBudgets(t *testing.T) {
 			}
 			require.Equal(t, n, total)
 			require.Zero(t, counter.WriteRows(), "read request must not write")
-			queries := counter.Queries()
+			queries := counter.Measurement(counter.Queries())
 			scenario := "e2e.timetable.student_week.14d"
 			if n == 3 {
-				counts[scenario] = len(queries)
+				counts[scenario] = len(queries.Statements)
 			} else {
-				require.Equal(t, counts[scenario], len(queries), scenario)
+				require.Equal(t, counts[scenario], len(queries.Statements), scenario)
 			}
-			t.Logf("%s N%d statements=%d", scenario, n, len(queries))
+			t.Logf("%s N%d statements=%d", scenario, n, len(queries.Statements))
 			querybudgets.AssertQueryBudget(t, scenario, queries)
 		})
 	}
@@ -133,13 +133,13 @@ func TestEditedOccurrenceRouteGrowthQueryBudget(t *testing.T) {
 			require.Equal(t, n, body.Count)
 			require.Len(t, body.Occurrences, n)
 			require.Zero(t, counter.WriteRows(), "read request must not write")
-			queries := counter.Queries()
+			queries := counter.Measurement(counter.Queries())
 			if n == 3 {
-				counts = len(queries)
+				counts = len(queries.Statements)
 			} else {
-				require.Equal(t, counts, len(queries))
+				require.Equal(t, counts, len(queries.Statements))
 			}
-			t.Logf("edited occurrences N%d statements=%d", n, len(queries))
+			t.Logf("edited occurrences N%d statements=%d", n, len(queries.Statements))
 			querybudgets.AssertQueryBudget(t, "api.timetable.edited_in_window.list", queries)
 		})
 	}

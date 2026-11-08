@@ -5,7 +5,9 @@ import "context"
 // OpenEnrollmentChildStatuses are the statuses of a child of the online
 // enrollment that still waits for a decision of the school: the ones the
 // school's own list counts as „Offen“.
-var OpenEnrollmentChildStatuses = []string{ChildStatusSubmitted, ChildStatusUnderReview, ChildStatusPendingAdminReview}
+func OpenEnrollmentChildStatuses() []string {
+	return []string{ChildStatusSubmitted, ChildStatusUnderReview, ChildStatusPendingAdminReview}
+}
 
 // OpenEnrollments answers the Träger dashboard (#4675): how many children of
 // the online enrollment wait for a decision at each school, counted as the

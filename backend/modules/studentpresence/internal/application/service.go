@@ -5,7 +5,9 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type Service struct {
@@ -117,6 +119,25 @@ func (s *Service) LatestPresenceDate(ctx context.Context, studentID int64) (resu
 		}
 		var stats ports.Stats
 		result, stats, err = s.store.LatestPresenceDate(ctx, studentID)
+		return stats, err
+	})
+	return result, err
+}
+
+// PresenceDaysBetween lists the days a child was recorded as present: its
+// attendance days and the Europe/Berlin days of its room visits. Care Plan
+// reads them as dated evidence of care (#6041).
+func (s *Service) PresenceDaysBetween(ctx context.Context, studentIDs []int64, from, to calendar.Date) (result []studentpresence.PresenceDay, err error) {
+	err = s.runWrite(ctx, "presence_days_between", func(ctx context.Context) (ports.Stats, error) {
+		if !validIDs(studentIDs) || from.IsZero() || to.IsZero() || to.Before(from) {
+			return ports.Stats{}, errors.New("student presence: invalid presence day query")
+		}
+		if len(studentIDs) == 0 {
+			result = []studentpresence.PresenceDay{}
+			return ports.Stats{}, nil
+		}
+		var stats ports.Stats
+		result, stats, err = s.store.PresenceDaysBetween(ctx, studentIDs, from, to)
 		return stats, err
 	})
 	return result, err

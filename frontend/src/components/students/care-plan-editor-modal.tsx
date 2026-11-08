@@ -36,6 +36,7 @@ import {
 import { parentsConcept } from "~/lib/concepts/parents";
 import { pickupConcept } from "~/lib/concepts/pickup";
 import { IconTile } from "~/components/ui/icon-tile";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 /**
  * The care plan is edited through exactly two doors, and each one owns one kind
@@ -614,7 +615,7 @@ function LegSection({
   const timeId = `exception-${label.toLowerCase()}-time`;
   const reasonId = `exception-${label.toLowerCase()}-reason`;
   return (
-    <section className="moto-content-surface rounded-xl border p-3 sm:rounded-2xl sm:p-4">
+    <InsetPanel as="section" tone="white" padding="md">
       <div className="mb-3 flex items-start gap-3">
         <IconTile size="sm" icon={icon} />
         <div>
@@ -668,7 +669,7 @@ function LegSection({
           />
         </div>
       ) : null}
-    </section>
+    </InsetPanel>
   );
 }
 
@@ -710,7 +711,7 @@ function DayNotesEditor({
   readonly onRequestDelete: (target: NoteDeletionTarget) => void;
 }) {
   return (
-    <div className="space-y-3 rounded-xl border border-gray-200 p-4">
+    <InsetPanel tone="white" padding="md" className="space-y-3">
       <p className="text-sm font-semibold text-gray-900">
         Hinweise nur für diesen Tag
       </p>
@@ -748,7 +749,7 @@ function DayNotesEditor({
         onNoteDraftChange={onNoteDraftChange}
         onRequestDelete={onRequestDelete}
       />
-    </div>
+    </InsetPanel>
   );
 }
 

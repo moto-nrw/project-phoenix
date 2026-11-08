@@ -109,7 +109,7 @@ func doGet(t *testing.T, router chi.Router, path string) *httptest.ResponseRecor
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, path, nil)
 	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
+	testpkg.MountedQueryBudgetRouter("/api/timetable", router).ServeHTTP(w, req)
 	return w
 }
 
@@ -539,8 +539,8 @@ func TestGetStudentWeek_QueryBudget_BatchedNotNPlusOne(t *testing.T) {
 	// as it does in production, and its BEGIN/SET/COMMIT are runtime overhead
 	// rather than work this endpoint does — counting them would move the
 	// budget without the endpoint changing.
-	statements := counter.Operation("SELECT")
+	statements := counter.Measurement(counter.Operation("SELECT"))
 	t.Logf("14-day /week fired %d statements (%d including transaction control)",
-		len(statements), counter.Total())
+		len(statements.Statements), counter.Total())
 	querybudgets.AssertQueryBudget(t, "api.timetable.student_week.14d", statements)
 }

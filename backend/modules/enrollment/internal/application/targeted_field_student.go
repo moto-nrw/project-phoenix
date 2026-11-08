@@ -62,7 +62,7 @@ var consentStamps = []consentStamp{
 // photo block erase a photo consent the original enrollment recorded (#1663).
 func (r *targetedFieldSync) applyConsentFlags() {
 	flags := r.request.ConsentFlags
-	if flags == nil {
+	if flags == nil || r.options.Scope == weeklyPlanOnly {
 		return
 	}
 	now := time.Now()

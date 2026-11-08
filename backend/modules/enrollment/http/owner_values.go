@@ -108,6 +108,9 @@ type RequestChild struct {
 	SortOrder             int            `json:"sort_order"`
 	RolloverSourceChildID *int64         `json:"rollover_source_child_id,omitempty"`
 	ReviewReason          *string        `json:"review_reason,omitempty"`
+	// WeeklyPlanOn is the day an approved future renewal's weekly plan
+	// applies (#6043); nil when it applied at approval.
+	WeeklyPlanOn *calendar.Date `json:"weekly_plan_on,omitempty"`
 }
 
 // RequestChildOffering is one child's offering selection with its validity.
@@ -158,6 +161,13 @@ func childValue(r *capability.RequestChild) (*RequestChild, error) {
 			return nil, err
 		}
 		result.ActivateOn = &date
+	}
+	if r.WeeklyPlanOn != nil {
+		date, err := calendar.ParseDate(string(*r.WeeklyPlanOn))
+		if err != nil {
+			return nil, err
+		}
+		result.WeeklyPlanOn = &date
 	}
 	if err := decodeJSONObject(r.CustomData, &result.CustomData); err != nil {
 		return nil, err

@@ -2,6 +2,7 @@
   "title": "Subscribe to the calendar",
   "description": "Subscribe to the appointments once in your phone calendar. New, changed and cancelled appointments then appear automatically, without adding each one by hand.",
   "showLink": "Show subscription link",
+  "loading": "Loading …",
   "subscribe": "Subscribe in the calendar",
   "linkLabel": "Subscription link (to copy)",
   "copy": "Copy",

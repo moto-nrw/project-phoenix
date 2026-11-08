@@ -2,5 +2,6 @@
   "scenario": "communication18.poll_children.n8",
   "max": 6,
   "exact": true,
-  "description": "Literal protected staff parent-announcement poll_children route. N3/N8 children and real recorded answers, one vote for each ordered option. Complete transaction plus actual settings, audience and delivery owners; foreign-tenant and missing-auth checks. Measured fixture contract, not a global minimum."
+  "description": "Literal protected staff parent-announcement poll_children route. N3/N8 children and real recorded answers, one vote for each ordered option. Complete transaction plus actual settings, audience and delivery owners; foreign-tenant and missing-auth checks. Measured fixture contract, not a global minimum.",
+  "route": "GET /api/parent-announcements/{announcementId}/poll-children"
 }

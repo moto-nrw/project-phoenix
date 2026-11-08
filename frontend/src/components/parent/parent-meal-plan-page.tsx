@@ -1454,7 +1454,7 @@ export function ParentMealPlanPage() {
           onEditingChange={setParticipationEditing}
         />
       ) : (
-        <section className="moto-content-surface overflow-hidden rounded-2xl border">
+        <SectionCard padding="none">
           <WeekNavigation
             weekOffset={weekOffset}
             lastWeek={LAST_MEAL_PLAN_WEEK}
@@ -1618,7 +1618,7 @@ export function ParentMealPlanPage() {
               />
             </>
           )}
-        </section>
+        </SectionCard>
       )}
     </ParentPage>
   );

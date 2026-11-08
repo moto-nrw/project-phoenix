@@ -33,12 +33,19 @@ type tripArrivals struct {
 	err   error
 }
 
-func (f *tripArrivals) CreateOrReclaimExceptionForClass(_ context.Context, schoolClass string, studentID int64, _ calendar.Date, _ *time.Time, _ *string, _ int64, _ func() (int64, error)) (*careplan.ArrivalException, error) {
+// CreateOrReclaimExceptionsForClass records the children in the order Care
+// Plan locks them and stops at the first refusal, as Care Plan does.
+func (f *tripArrivals) CreateOrReclaimExceptionsForClass(_ context.Context, schoolClass string, studentIDs []int64, _ calendar.Date, _ *time.Time, _ *string, _ int64, _ func() (int64, error)) error {
 	if schoolClass != "3b" {
 		panic("unexpected school class")
 	}
-	f.calls = append(f.calls, studentID)
-	return &careplan.ArrivalException{}, f.err
+	for _, studentID := range studentIDs {
+		f.calls = append(f.calls, studentID)
+		if f.err != nil {
+			return f.err
+		}
+	}
+	return nil
 }
 
 type tripAnnouncer struct{ calls int }

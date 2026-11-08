@@ -118,9 +118,9 @@ func TestStudentActivityEnrollmentCountQueryBudget(t *testing.T) {
 					require.Equal(t, want, row.EnrollmentCount)
 				}
 				if available {
-					querybudgets.AssertQueryBudget(t, "api.activities.student_available.complete", counter.Queries())
+					querybudgets.AssertQueryBudget(t, "api.activities.student_available.complete", counter.Measurement(counter.Queries()))
 				} else {
-					querybudgets.AssertQueryBudget(t, "api.activities.student_enrollments.complete", counter.Queries())
+					querybudgets.AssertQueryBudget(t, "api.activities.student_enrollments.complete", counter.Measurement(counter.Queries()))
 				}
 				t.Logf("STATE unchanged=true state=%s", before)
 				t.Logf("HTTP %d headers=%v body=%s", rr.Code, rr.Header(), rr.Body.String())

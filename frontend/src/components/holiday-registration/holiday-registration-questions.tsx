@@ -6,11 +6,12 @@
 // aus HolidayQuestionFields; hier kommen Übersetzung und Kalender dazu.
 
 import dynamic from "next/dynamic";
-import { useTranslations } from "next-intl";
+
 import type { ConditionContext } from "~/lib/enrollment-field-visibility";
 import type { HolidayFormField } from "~/lib/holiday-form-field";
 import { HolidayQuestionFields } from "./holiday-question-fields";
 import type { FieldError } from "./holiday-registration-model";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 // The calendar is large; only a form with a date question loads it.
 const CustomDateFieldInput = dynamic(
@@ -41,7 +42,7 @@ export function HolidayQuestions({
   fieldError: FieldError;
   onChange: (key: string, value: unknown) => void;
 }>) {
-  const tr = useTranslations("enrollmentForm");
+  const tr = useCareTermTranslations("enrollmentForm");
   return (
     <HolidayQuestionFields
       fields={fields}

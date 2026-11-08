@@ -55,11 +55,11 @@ func TestRBACRolePermissionsListQueryBudget(t *testing.T) {
 		rbacBudgetProblem(t, rr, http.StatusNotFound, "general.input", "role not found", "anleitung-eingabe-pruefen")
 		require.Equal(t, roleRead.Body.String(), rr.Body.String())
 		require.NotContains(t, rr.Body.String(), foreignPermission.Name)
-		t.Logf("invisible role %d statements=%d", id, len(queries))
+		t.Logf("invisible role %d statements=%d", id, len(queries.Statements))
 	}
 
 	want := []map[string]any{}
-	var measurements [][]string
+	var measurements []testpkg.QueryMeasurement
 	for _, n := range []int{0, 3, 8} {
 		for len(want) < n {
 			action := fmt.Sprintf("read-%d", len(want))
@@ -72,7 +72,7 @@ func TestRBACRolePermissionsListQueryBudget(t *testing.T) {
 		rr, queries := f.get(t, path(own.ID), f.token)
 		rbacBudgetCollection(t, rr, "Role permissions retrieved successfully", want)
 		f.successFrame(t, "auth.roles")
-		t.Logf("own custom role N%d statements=%d", n, len(queries))
+		t.Logf("own custom role N%d statements=%d", n, len(queries.Statements))
 		measurements = append(measurements, queries)
 	}
 	// The form without trailing slash is the same route with the same

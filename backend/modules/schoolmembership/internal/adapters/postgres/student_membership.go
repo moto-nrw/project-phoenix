@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/domain"
+	"github.com/uptrace/bun"
 )
 
 func (s *Store) EnrollStudent(ctx context.Context, input schoolmembership.StudentEnrollment) (int64, domain.OperationStats, error) {
@@ -33,11 +34,12 @@ func (s *Store) EnrollStudent(ctx context.Context, input schoolmembership.Studen
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
+	firstCare := bun.SafeQuery(firstCareFromOnInsert, input.Status, from, scope.TenantID, input.StudentID)
 	err = db.NewRaw(`WITH class_write_gate AS MATERIALIZED (?)
  INSERT INTO users.student_school_memberships
-  (tenant_id, student_profile_id, school_class, status, enrolled_from, enrolled_until, group_id)
-  SELECT ?, ?, ?, ?, ?, ?, ? FROM class_write_gate RETURNING id`,
-		gate, scope.TenantID, input.StudentID, input.SchoolClass, input.Status, from, until, input.GroupID).Scan(ctx, &id)
+  (tenant_id, student_profile_id, school_class, status, enrolled_from, enrolled_until, group_id, first_care_from)
+  SELECT ?, ?, ?, ?, ?, ?, ?, ? FROM class_write_gate RETURNING id`,
+		gate, scope.TenantID, input.StudentID, input.SchoolClass, input.Status, from, until, input.GroupID, firstCare).Scan(ctx, &id)
 	stats.StatementDuration = time.Since(started)
 	if err == nil {
 		stats.Rows = 1
@@ -45,7 +47,7 @@ func (s *Store) EnrollStudent(ctx context.Context, input schoolmembership.Studen
 	return id, stats, err
 }
 
-func (s *Store) RenewStudentEnrollment(ctx context.Context, input schoolmembership.StudentEnrollment) (int64, domain.OperationStats, error) {
+func (s *Store) RenewStudentEnrollment(ctx context.Context, input schoolmembership.StudentEnrollment, today string) (int64, domain.OperationStats, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
@@ -61,12 +63,17 @@ func (s *Store) RenewStudentEnrollment(ctx context.Context, input schoolmembersh
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
+	day, err := currentDay(today)
+	if err != nil {
+		return 0, domain.OperationStats{}, err
+	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	var id int64
 	err = db.NewUpdate().TableExpr("users.student_school_memberships AS student").
 		Set("school_class = ?", input.SchoolClass).Set("status = ?", input.Status).
 		Set("enrolled_from = ?", from).Set("enrolled_until = ?", until).Set("updated_at = NOW()").
+		Set(firstCareFromNext, day, input.Status, from).
 		Set("group_id = ?", input.GroupID).
 		Where("student.tenant_id = ?", scope.TenantID).Where("student.student_profile_id = ?", input.StudentID).
 		Where("student.deleted_at IS NULL").

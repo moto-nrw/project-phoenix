@@ -194,9 +194,10 @@ func rolloverAttributesForSource(input rolloverRequestInput, source *RequestChil
 // the target phase's clone, the effective weekday selection (parent-
 // selected, manual, and automatically derived days) plus notes seed the new
 // submission. Effective bookings use the new phase's service window, never
-// the historical source intervals (#2249).
+// the historical source intervals (#2249). The source booking comes from
+// one read of all source children (rolloverSourceOfferings).
 func (s *Rollovers) copyRolloverOfferings(ctx context.Context, input rolloverRequestInput, sourceChildID, newChildID int64) error {
-	offerings, err := s.deps.Children.RequestChildOfferingsAtDate(ctx, sourceChildID, input.sourcePhase.ServiceEndDate)
+	offerings, err := input.sourceOfferings.of(ctx, s.deps.Children, input.sourcePhase.ServiceEndDate, sourceChildID)
 	if err != nil {
 		return fmt.Errorf("rollover: list source offerings: %w", err)
 	}
@@ -261,9 +262,18 @@ func (s *Rollovers) enqueueRenewalEmail(ctx context.Context, newPhase *enrollmen
 	if *newPhase.RolloverMode == enrollmentNative.PhaseRolloverModeOptIn {
 		kind = enrollmentNative.MailKindRolloverOptIn
 	}
+	payload, err := s.renewalMailPayload(ctx, newPhase, req, childNames)
+	if err != nil {
+		s.deps.Logger.Warn("rollover: renewal email branding failed",
+			slog.Int64("request_id", req.ID),
+			slog.String("kind", kind),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
 	if err := s.deps.Outbox.EnqueueMail(ctx, Mail{
 		Kind:              kind,
-		Payload:           s.renewalMailPayload(ctx, newPhase, req, childNames),
+		Payload:           payload,
 		RelatedEntityType: enrollmentNative.MailRelatedRequest,
 		RelatedEntityID:   req.ID,
 	}); err != nil {
@@ -277,8 +287,11 @@ func (s *Rollovers) enqueueRenewalEmail(ctx context.Context, newPhase *enrollmen
 	result.EnqueuedEmails++
 }
 
-func (s *Rollovers) renewalMailPayload(ctx context.Context, newPhase *enrollmentNative.Phase, req *Request, childNames []string) map[string]any {
-	schoolName, logoURL, footerLogoURL := schoolBrand(ctx, s.deps.Notifications, req.TenantID, s.deps.ParentsURL)
+func (s *Rollovers) renewalMailPayload(ctx context.Context, newPhase *enrollmentNative.Phase, req *Request, childNames []string) (map[string]any, error) {
+	brand, err := schoolBrand(ctx, s.deps.Notifications, req.TenantID, s.deps.ParentsURL)
+	if err != nil {
+		return nil, err
+	}
 	deadlineStr := ""
 	if newPhase.RolloverDeadline != nil {
 		deadlineStr = newPhase.RolloverDeadline.Format("02.01.2006")
@@ -287,13 +300,50 @@ func (s *Rollovers) renewalMailPayload(ctx context.Context, newPhase *enrollment
 		enrollmentNative.EnrollmentPayloadGuardianFirstName: req.GuardianFirstName,
 		enrollmentNative.EnrollmentPayloadGuardianLastName:  req.GuardianLastName,
 		enrollmentNative.EnrollmentPayloadGuardianEmail:     req.GuardianEmail,
-		enrollmentNative.EnrollmentPayloadSchoolName:        schoolName,
+		enrollmentNative.EnrollmentPayloadSchoolName:        brand.SchoolName,
 		enrollmentNative.EnrollmentPayloadPhaseName:         newPhase.Name,
 		enrollmentNative.EnrollmentPayloadStatusURL:         enrollmentNative.StatusURL(s.deps.ParentsURL, req.StatusToken),
-		enrollmentNative.EnrollmentPayloadLogoURL:           logoURL,
-		enrollmentNative.EnrollmentPayloadMotoLogoURL:       footerLogoURL,
+		enrollmentNative.EnrollmentPayloadLogoURL:           brand.LogoURL,
+		enrollmentNative.EnrollmentPayloadMotoLogoURL:       brand.MotoLogoURL,
+		enrollmentNative.EnrollmentPayloadCareFacilityTerm:  brand.CareFacilityTerm,
 		enrollmentNative.EnrollmentPayloadChildNames:        childNames,
 		enrollmentNative.EnrollmentPayloadRecipientEmail:    req.GuardianEmail,
 		enrollmentNative.EnrollmentPayloadRolloverDeadline:  deadlineStr,
+	}, nil
+}
+
+// rolloverSourceOfferings reads the booking every source child has at the
+// end of the source phase in one statement set, at the place where the
+// first child copy used to read its own booking (#5836). That read comes
+// after the catalog clone's recurrence gate and after the first child
+// insert, so every row a copy uses was read under the gate, and an insert
+// refusal of the first child still precedes any booking read. Writers that
+// hold the gate cannot change the rows until the rollover commits.
+type rolloverSourceOfferings struct {
+	childIDs []int64
+	byChild  map[int64][]*enrollmentNative.RequestChildOffering
+}
+
+func newRolloverSourceOfferings(children []*RequestChild) *rolloverSourceOfferings {
+	ids := make([]int64, 0, len(children))
+	for _, child := range children {
+		ids = append(ids, child.ID)
 	}
+	return &rolloverSourceOfferings{childIDs: ids}
+}
+
+// of returns the source child's rows in read order, reading every source
+// child once on the first call.
+func (o *rolloverSourceOfferings) of(ctx context.Context, children RolloverChildren, onDate enrollmentNative.Date, childID int64) ([]*enrollmentNative.RequestChildOffering, error) {
+	if o.byChild == nil {
+		rows, err := children.RequestChildOfferingsForChildrenAtDate(ctx, o.childIDs, onDate)
+		if err != nil {
+			return nil, err
+		}
+		o.byChild = make(map[int64][]*enrollmentNative.RequestChildOffering, len(o.childIDs))
+		for _, row := range rows {
+			o.byChild[row.RequestChildID] = append(o.byChild[row.RequestChildID], row)
+		}
+	}
+	return o.byChild[childID], nil
 }

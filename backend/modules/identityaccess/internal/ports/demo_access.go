@@ -14,6 +14,9 @@ type DemoAccessStore interface {
 	// FindActiveDemoAccessByEmail returns the newest access of the address
 	// that has not expired at now. It serialises requests of one address.
 	FindActiveDemoAccessByEmail(ctx context.Context, email string, now time.Time) (domain.DemoAccess, bool, error)
+	// RereadActiveDemoAccessByEmail requires the address lock already held by
+	// this administrative transaction and always takes a fresh read snapshot.
+	RereadActiveDemoAccessByEmail(ctx context.Context, email string, now time.Time) (domain.DemoAccess, bool, error)
 	FindDemoAccessByTokenHash(ctx context.Context, tokenHash string) (domain.DemoAccess, bool, error)
 	// LockDemoSchool serializes entry, expiry and replacement of one public
 	// demo school for the caller's administrative transaction.

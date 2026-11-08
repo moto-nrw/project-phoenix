@@ -2,5 +2,6 @@
   "scenario": "traeger.settings.schema",
   "max": 4,
   "exact": true,
-  "description": "Protected Tr\u00e4ger settings schema; 0/3/8 persisted overrides, real registry/store, JWT and Tr\u00e4ger frame, no DML. Serve-host liveness excluded."
+  "description": "Protected Träger settings schema; 0/3/8 persisted overrides, real registry/store, JWT and Träger frame, no DML. Serve-host liveness excluded.",
+  "route": "GET /traeger/settings/schema"
 }

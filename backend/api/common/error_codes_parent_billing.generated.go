@@ -17,6 +17,22 @@ const CodeParentBillingBillingRunNotFound = "parent_billing.billing_run_not_foun
 const CodeParentBillingBillingRunNotReleased = "parent_billing.billing_run_not_released"
 const CodeParentBillingBillingRunOpen = "parent_billing.billing_run_open"
 const CodeParentBillingBillingRunReleased = "parent_billing.billing_run_released"
+const CodeParentBillingBillingTermsInvalid = "parent_billing.billing_terms_invalid"
+const CodeParentBillingCareEvidenceInvalid = "parent_billing.care_evidence_invalid"
+const CodeParentBillingCareEvidenceNotFound = "parent_billing.care_evidence_not_found"
+const CodeParentBillingCareEvidenceOverlap = "parent_billing.care_evidence_overlap"
+const CodeParentBillingCareExclusionConflict = "parent_billing.care_exclusion_conflict"
+const CodeParentBillingCareInvoiceCancelled = "parent_billing.care_invoice_cancelled"
+const CodeParentBillingCareInvoiceNotFound = "parent_billing.care_invoice_not_found"
+const CodeParentBillingCareRecipientChanged = "parent_billing.care_recipient_changed"
+const CodeParentBillingCareRuleInUse = "parent_billing.care_rule_in_use"
+const CodeParentBillingCareRunInvalid = "parent_billing.care_run_invalid"
+const CodeParentBillingCareRunNotFound = "parent_billing.care_run_not_found"
+const CodeParentBillingCareRunOpen = "parent_billing.care_run_open"
+const CodeParentBillingCareTariffInvalid = "parent_billing.care_tariff_invalid"
+const CodeParentBillingCareTariffMonthBilled = "parent_billing.care_tariff_month_billed"
+const CodeParentBillingCareTariffNotFound = "parent_billing.care_tariff_not_found"
+const CodeParentBillingCareVersionsOverlap = "parent_billing.care_versions_overlap"
 const CodeParentBillingCarriedCorrectionNotFound = "parent_billing.carried_correction_not_found"
 const CodeParentBillingContributionRuleInvalid = "parent_billing.contribution_rule_invalid"
 const CodeParentBillingContributionRuleNotFound = "parent_billing.contribution_rule_not_found"
@@ -28,7 +44,11 @@ const CodeParentBillingCostBearerNotFound = "parent_billing.cost_bearer_not_foun
 const CodeParentBillingCostTakeoverWithExemption = "parent_billing.cost_takeover_with_exemption"
 const CodeParentBillingDebtorNumberInvalid = "parent_billing.debtor_number_invalid"
 const CodeParentBillingDebtorNumberLocked = "parent_billing.debtor_number_locked"
+const CodeParentBillingDueDatesInvalid = "parent_billing.due_dates_invalid"
+const CodeParentBillingFamilyBillingInvalid = "parent_billing.family_billing_invalid"
+const CodeParentBillingFamilyBillingNotFound = "parent_billing.family_billing_not_found"
 const CodeParentBillingFamilyNotFound = "parent_billing.family_not_found"
+const CodeParentBillingFamilyUnknown = "parent_billing.family_unknown"
 const CodeParentBillingHolidayQuoteInvalid = "parent_billing.holiday_quote_invalid"
 const CodeParentBillingInvoiceCancelled = "parent_billing.invoice_cancelled"
 const CodeParentBillingInvoiceCredited = "parent_billing.invoice_credited"
@@ -64,6 +84,22 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingBillingRunNotReleased, "business_rejection"},
 	{CodeParentBillingBillingRunOpen, "business_rejection"},
 	{CodeParentBillingBillingRunReleased, "business_rejection"},
+	{CodeParentBillingBillingTermsInvalid, "input"},
+	{CodeParentBillingCareEvidenceInvalid, "input"},
+	{CodeParentBillingCareEvidenceNotFound, "business_rejection"},
+	{CodeParentBillingCareEvidenceOverlap, "business_rejection"},
+	{CodeParentBillingCareExclusionConflict, "business_rejection"},
+	{CodeParentBillingCareInvoiceCancelled, "business_rejection"},
+	{CodeParentBillingCareInvoiceNotFound, "business_rejection"},
+	{CodeParentBillingCareRecipientChanged, "business_rejection"},
+	{CodeParentBillingCareRuleInUse, "business_rejection"},
+	{CodeParentBillingCareRunInvalid, "input"},
+	{CodeParentBillingCareRunNotFound, "business_rejection"},
+	{CodeParentBillingCareRunOpen, "business_rejection"},
+	{CodeParentBillingCareTariffInvalid, "input"},
+	{CodeParentBillingCareTariffMonthBilled, "business_rejection"},
+	{CodeParentBillingCareTariffNotFound, "business_rejection"},
+	{CodeParentBillingCareVersionsOverlap, "business_rejection"},
 	{CodeParentBillingCarriedCorrectionNotFound, "business_rejection"},
 	{CodeParentBillingContributionRuleInvalid, "input"},
 	{CodeParentBillingContributionRuleNotFound, "business_rejection"},
@@ -75,7 +111,11 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingCostTakeoverWithExemption, "business_rejection"},
 	{CodeParentBillingDebtorNumberInvalid, "input"},
 	{CodeParentBillingDebtorNumberLocked, "business_rejection"},
+	{CodeParentBillingDueDatesInvalid, "input"},
+	{CodeParentBillingFamilyBillingInvalid, "input"},
+	{CodeParentBillingFamilyBillingNotFound, "business_rejection"},
 	{CodeParentBillingFamilyNotFound, "business_rejection"},
+	{CodeParentBillingFamilyUnknown, "business_rejection"},
 	{CodeParentBillingHolidayQuoteInvalid, "input"},
 	{CodeParentBillingInvoiceCancelled, "business_rejection"},
 	{CodeParentBillingInvoiceCredited, "business_rejection"},

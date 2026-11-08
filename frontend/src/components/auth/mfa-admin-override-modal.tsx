@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { Alert } from "~/components/ui/alert";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import {
   FormErrorAlert,
   LoadErrorAlert,
@@ -581,116 +582,115 @@ export function MFAAdminOverrideModal({
           )}
 
           {scope === "operator" && (
-            <section
-              ref={globalRef}
-              className="border-moto-orange/30 bg-moto-orange-soft mt-6 rounded-lg border-2 p-4"
-            >
-              <h3 className="mb-1 text-sm font-semibold text-gray-900">
-                Notfall: 2FA Account-weit verwalten
-              </h3>
-              <p className="mb-3 text-xs text-gray-700">
-                Diese Aktion wirkt für{" "}
-                <strong>alle Schulen, in denen der Account aktiv ist</strong>.
-                Nur einsetzen, wenn der Mitarbeiter komplett keinen Zugriff auf
-                sein E-Mail-Postfach hat — also nicht über die Schul-spezifische
-                Einstellung oben gelöst werden kann.
-              </p>
+            <section ref={globalRef} className="mt-6">
+              <InsetPanel tone="warning" padding="md">
+                <h3 className="mb-1 text-sm font-semibold text-gray-900">
+                  Notfall: 2FA Account-weit verwalten
+                </h3>
+                <p className="mb-3 text-xs text-gray-700">
+                  Diese Aktion wirkt für{" "}
+                  <strong>alle Schulen, in denen der Account aktiv ist</strong>.
+                  Nur einsetzen, wenn der Mitarbeiter komplett keinen Zugriff
+                  auf sein E-Mail-Postfach hat — also nicht über die
+                  Schul-spezifische Einstellung oben gelöst werden kann.
+                </p>
 
-              <FormErrorAlert message={globalErrors.error} className="mb-3" />
-              <LoadErrorAlert error={stateLoad.error} className="mb-3" />
+                <FormErrorAlert message={globalErrors.error} className="mb-3" />
+                <LoadErrorAlert error={stateLoad.error} className="mb-3" />
 
-              <fieldset
-                className="space-y-2"
-                disabled={globalWorking || !globalStateLoaded}
-              >
-                <legend className="sr-only">
-                  Account-weite 2FA-Einstellung
-                </legend>
-                {(
-                  [
-                    {
-                      value: "none",
-                      title: "Standard (keine Account-weite Vorgabe)",
-                      desc: "Die Schulregeln gelten oberhalb der verpflichtenden Untergrenze für privilegierte Rechte.",
-                    },
-                    {
-                      value: "force_off",
-                      title: "Account-weit deaktivieren",
-                      desc: "Nur möglich, wenn an keiner aktiven Schule privilegierte Rechte bestehen. Alle gemerkten Geräte werden entfernt.",
-                    },
-                    {
-                      value: "force_on",
-                      title: "Account-weit erzwingen",
-                      desc: "2FA ist überall verpflichtend, unabhängig von der jeweiligen Schul-Einstellung.",
-                    },
-                  ] as const
-                ).map((opt) => (
-                  <ChoiceTile
-                    key={opt.value}
-                    htmlFor={`admin-mfa-global-${opt.value}`}
-                    aria-label={opt.title}
-                    tone="gray"
-                    selected={selectedGlobalOverride === opt.value}
-                    className="items-start p-3 font-normal"
-                  >
-                    <Radio
-                      id={`admin-mfa-global-${opt.value}`}
-                      name="admin-mfa-global"
-                      value={opt.value}
-                      checked={selectedGlobalOverride === opt.value}
-                      onChange={() => setSelectedGlobalOverride(opt.value)}
-                      className="mt-0.5"
-                    />
-                    <span className="flex-1">
-                      <span className="block text-sm font-medium text-gray-900">
-                        {opt.title}
-                        {globalOverride === opt.value && (
-                          <span className="ml-2 text-xs font-normal text-gray-500">
-                            (aktuell)
-                          </span>
-                        )}
-                      </span>
-                      <span className="block text-xs text-gray-600">
-                        {opt.desc}
-                      </span>
-                    </span>
-                  </ChoiceTile>
-                ))}
-              </fieldset>
-
-              {selectedGlobalOverride !== globalOverride && (
-                <div className="mt-3 space-y-2">
-                  <Textarea
-                    id="admin-mfa-global-reason"
-                    name="reason"
-                    label="Begründung"
-                    rows={2}
-                    aria-required
-                    value={globalReason}
-                    onChange={(e) => setGlobalReason(e.target.value)}
-                    maxLength={500}
-                    placeholder="z. B. „Mitarbeiter hat dauerhaft keinen E-Mail-Zugriff mehr — Account-weite Notfall-Freischaltung"
-                    disabled={globalWorking}
-                    aria-invalid={Boolean(globalErrors.fieldError("reason"))}
-                  />
-                </div>
-              )}
-
-              <div className="mt-4 flex justify-end">
-                <Button
-                  type="button"
-                  variant="danger"
-                  size="md"
-                  disabled={
-                    globalWorking || selectedGlobalOverride === globalOverride
-                  }
-                  onClick={() => void handleGlobalOverrideSubmit()}
+                <fieldset
+                  className="space-y-2"
+                  disabled={globalWorking || !globalStateLoaded}
                 >
-                  {globalWorking
-                    ? "Wird gespeichert…"
-                    : "Account-weit speichern"}
-                </Button>
-              </div>
+                  <legend className="sr-only">
+                    Account-weite 2FA-Einstellung
+                  </legend>
+                  {(
+                    [
+                      {
+                        value: "none",
+                        title: "Standard (keine Account-weite Vorgabe)",
+                        desc: "Die Schulregeln gelten oberhalb der verpflichtenden Untergrenze für privilegierte Rechte.",
+                      },
+                      {
+                        value: "force_off",
+                        title: "Account-weit deaktivieren",
+                        desc: "Nur möglich, wenn an keiner aktiven Schule privilegierte Rechte bestehen. Alle gemerkten Geräte werden entfernt.",
+                      },
+                      {
+                        value: "force_on",
+                        title: "Account-weit erzwingen",
+                        desc: "2FA ist überall verpflichtend, unabhängig von der jeweiligen Schul-Einstellung.",
+                      },
+                    ] as const
+                  ).map((opt) => (
+                    <ChoiceTile
+                      key={opt.value}
+                      htmlFor={`admin-mfa-global-${opt.value}`}
+                      aria-label={opt.title}
+                      tone="gray"
+                      selected={selectedGlobalOverride === opt.value}
+                      className="items-start p-3 font-normal"
+                    >
+                      <Radio
+                        id={`admin-mfa-global-${opt.value}`}
+                        name="admin-mfa-global"
+                        value={opt.value}
+                        checked={selectedGlobalOverride === opt.value}
+                        onChange={() => setSelectedGlobalOverride(opt.value)}
+                        className="mt-0.5"
+                      />
+                      <span className="flex-1">
+                        <span className="block text-sm font-medium text-gray-900">
+                          {opt.title}
+                          {globalOverride === opt.value && (
+                            <span className="ml-2 text-xs font-normal text-gray-500">
+                              (aktuell)
+                            </span>
+                          )}
+                        </span>
+                        <span className="block text-xs text-gray-600">
+                          {opt.desc}
+                        </span>
+                      </span>
+                    </ChoiceTile>
+                  ))}
+                </fieldset>
+
+                {selectedGlobalOverride !== globalOverride && (
+                  <div className="mt-3 space-y-2">
+                    <Textarea
+                      id="admin-mfa-global-reason"
+                      name="reason"
+                      label="Begründung"
+                      rows={2}
+                      aria-required
+                      value={globalReason}
+                      onChange={(e) => setGlobalReason(e.target.value)}
+                      maxLength={500}
+                      placeholder="z. B. „Mitarbeiter hat dauerhaft keinen E-Mail-Zugriff mehr — Account-weite Notfall-Freischaltung"
+                      disabled={globalWorking}
+                      aria-invalid={Boolean(globalErrors.fieldError("reason"))}
+                    />
+                  </div>
+                )}
+
+                <div className="mt-4 flex justify-end">
+                  <Button
+                    type="button"
+                    variant="danger"
+                    size="md"
+                    disabled={
+                      globalWorking || selectedGlobalOverride === globalOverride
+                    }
+                    onClick={() => void handleGlobalOverrideSubmit()}
+                  >
+                    {globalWorking
+                      ? "Wird gespeichert…"
+                      : "Account-weit speichern"}
+                  </Button>
+                </div>
+              </InsetPanel>
             </section>
           )}
         </>

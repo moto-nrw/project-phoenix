@@ -2,10 +2,11 @@
 
 import { useLayoutEffect, useRef, useState } from "react";
 import { Download } from "lucide-react";
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 import {
   downloadEnrollmentSignatureProof,
   type EnrollmentSignature,
@@ -26,7 +27,7 @@ export function EnrollmentSignatureStatus({
   /** The parents may still change the enrollment and then sign again. */
   editable: boolean;
 }>) {
-  const t = useTranslations("enrollmentStatus");
+  const t = useCareTermTranslations("enrollmentStatus");
   const locale = useLocale();
   const { show } = useApiErrorDisplay();
   const [downloading, setDownloading] = useState(false);
@@ -60,14 +61,9 @@ export function EnrollmentSignatureStatus({
 
   return (
     <section className="moto-content-surface space-y-4 rounded-xl border p-5 sm:p-6">
-      <div>
-        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          {t("signatureEyebrow")}
-        </p>
-        <h2 className="mt-1 text-xl font-semibold text-gray-900">
-          {t("signatureTitle")}
-        </h2>
-      </div>
+      <h2 className="text-xl font-semibold text-gray-900">
+        {t("signatureTitle")}
+      </h2>
       <p className="text-sm leading-6 text-gray-700">
         {t("signatureSigned", { name: signature.signer_name, date: signedAt })}{" "}
         {signature.method === "typed"

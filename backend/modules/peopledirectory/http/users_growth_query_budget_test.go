@@ -89,6 +89,6 @@ func TestUsersProductionBoundPositiveGrowthQueryBudget(t *testing.T) {
 		require.Equal(t, n, envelope.Pagination.TotalRecords)
 		require.Zero(t, counter.WriteRows())
 		t.Logf("users positive N%d statements=%d", n, counter.Total())
-		querybudgets.AssertQueryBudget(t, "api.users.list.positive_growth", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "api.users.list.positive_growth", counter.Measurement(counter.Queries()))
 	}
 }

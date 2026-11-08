@@ -72,7 +72,7 @@ func TestStudents20ExtraFieldsGrowthQueryBudget(t *testing.T) {
 		}
 		require.Equal(t, expected, body.Data)
 		require.Zero(t, counter.WriteRows())
-		assertStudents20EnrollmentBudget(t, "enrollment_extra_fields", n, counter.Queries())
+		assertStudents20EnrollmentBudget(t, "enrollment_extra_fields", n, counter.Measurement(counter.Queries()))
 		t.Logf("students20 enrollment_extra_fields N%d SQL=%d", n, counter.Total())
 	}
 	foreignTenant, _ := testpkg.CreateTestTenant(t, tc.db)
@@ -82,7 +82,7 @@ func TestStudents20ExtraFieldsGrowthQueryBudget(t *testing.T) {
 
 }
 
-func assertStudents20EnrollmentBudget(t *testing.T, route string, n int, queries []string) {
+func assertStudents20EnrollmentBudget(t *testing.T, route string, n int, queries querybudgets.Measurement) {
 	t.Helper()
 	switch fmt.Sprintf("%s.n%d", route, n) {
 	case "enrollment_extra_fields.n3":

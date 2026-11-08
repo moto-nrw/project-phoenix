@@ -2,5 +2,6 @@
   "scenario": "api.active.groups.by_room",
   "max": 4,
   "exact": true,
-  "description": "Protected tenant GET /api/active/groups/room/{roomId}: BEGIN, combined tenant/role scope, one tenant-filtered open-session SELECT and COMMIT. Measured at N0/3/8 with complete basic DTOs, ordered IDs, ended/nonmatching controls and foreign IDs returning empty lists; no DML or relation hydration. Existing route-sized real-owner binding, not full serve-host liveness/module-booking cost."
+  "description": "Protected tenant GET /api/active/groups/room/{roomId}: BEGIN, combined tenant/role scope, one tenant-filtered open-session SELECT and COMMIT. Measured at N0/3/8 with complete basic DTOs, ordered IDs, ended/nonmatching controls and foreign IDs returning empty lists; no DML or relation hydration. Existing route-sized real-owner binding, not full serve-host liveness/module-booking cost.",
+  "route": "GET /api/active/groups/room/{roomId}"
 }

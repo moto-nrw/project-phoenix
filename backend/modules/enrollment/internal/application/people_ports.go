@@ -291,6 +291,11 @@ type GuardianPhones interface {
 	CreateGuardianPhone(context.Context, *GuardianPhone) error
 }
 
+// CompanionStrandings checks deferred removals against the final departure plans.
+type CompanionStrandings interface {
+	VerifyCompanionStrandingBatch(context.Context) error
+}
+
 // PeopleDirectory bundles the People Directory ports. A nil port skips the
 // work that needs it, the way the decision flow always treated an unwired
 // repository.
@@ -310,7 +315,8 @@ type PeopleDirectory struct {
 	ErrCompanionWouldLoseDeparture error
 	ErrCompanionLockBusy           error
 	// IsLockNotAvailable reports a NOWAIT row lock that lost the race.
-	IsLockNotAvailable func(error) bool
+	IsLockNotAvailable  func(error) bool
+	CompanionStrandings CompanionStrandings
 }
 
 // DepartureCompanions reads the "läuft mit" edges Care Plan keeps and

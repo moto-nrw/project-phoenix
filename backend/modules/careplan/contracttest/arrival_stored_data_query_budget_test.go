@@ -77,11 +77,11 @@ func TestStoredArrivalDataQueryBudget(t *testing.T) {
 			require.Equal(t, expected, actual, "fallback keeps the entire stored week, exceptions and notes, including dates outside the requested range")
 			switch reader.name {
 			case "date":
-				querybudgets.AssertQueryBudget(t, "modules.careplan.arrival.stored_data.date", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "modules.careplan.arrival.stored_data.date", counter.Measurement(counter.Queries()))
 			case "range":
-				querybudgets.AssertQueryBudget(t, "modules.careplan.arrival.stored_data.range", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "modules.careplan.arrival.stored_data.range", counter.Measurement(counter.Queries()))
 			case "default":
-				querybudgets.AssertQueryBudget(t, "modules.careplan.arrival.stored_data.default", counter.Queries())
+				querybudgets.AssertQueryBudget(t, "modules.careplan.arrival.stored_data.default", counter.Measurement(counter.Queries()))
 			}
 			for _, id := range []int64{empty.ID, foreignStudent.ID} {
 				actual, readErr = testpkg.TenantQuery1(t, ctx, db, reader.read, id)

@@ -50,7 +50,7 @@ func TestSlotListSettingsQueryBudget(t *testing.T) {
 			require.NoError(t, err)
 			require.Zero(t, counter.WriteRows())
 			require.Len(t, counter.Selects("config.setting_values"), 1)
-			querybudgets.AssertQueryBudget(t, "modules.settings.slot_lists.pickup_cutoffs", counter.Queries())
+			querybudgets.AssertQueryBudget(t, "modules.settings.slot_lists.pickup_cutoffs", counter.Measurement(counter.Queries()))
 		})
 	}
 }

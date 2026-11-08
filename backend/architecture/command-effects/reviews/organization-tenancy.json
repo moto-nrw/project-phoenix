@@ -178,6 +178,17 @@
       "target_owner": "school-structure"
     },
     {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.TraegerDocumentReleaseNotices.EnqueueReleaseNotice",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentNotices.EnqueueReleaseNotice",
+      "reason": "Platform protocol participation (durable): organization-tenancy reaches modules/delivery/runtime.Capability.EnqueueDeferredPush (delivery-platform) through roots/owners.TraegerDocumentReleaseNotices.EnqueueReleaseNotice. The push of a release of a Träger document for parents is enqueued in the release's Träger transaction right after the release row, keyed by the release; a release for schools or a refused repeat enqueues nothing, and the worker reads the release, its coverage and the parents' relationships again when it sends (ADR 0126, #5941); transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueDeferredPush",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.traegerDocumentRuntime.WithinSchool",
       "classification": "query",
       "effect": "query",

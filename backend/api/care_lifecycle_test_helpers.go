@@ -4,6 +4,7 @@ package api
 
 import (
 	"context"
+	"time"
 
 	securitycontract "github.com/moto-nrw/project-phoenix/modules/securityruntime/ports"
 
@@ -15,9 +16,11 @@ import (
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -27,7 +30,9 @@ type CareLifecycleTestModule struct {
 	CareLifecycle careplan.CareLifecycle
 }
 
-func NewCareLifecycleTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) (CareLifecycleTestModule, peoplePorts.StudentAuditService, error) {
+// An optional clock pins the lifecycle's today to the suite's pinned day,
+// as the care participation decides past days against it (#6041).
+func NewCareLifecycleTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) (CareLifecycleTestModule, peoplePorts.StudentAuditService, error) {
 	settings, err := owners.NewSettingsTestModule(db, unit)
 	if err != nil {
 		return CareLifecycleTestModule{}, nil, err
@@ -51,6 +56,7 @@ func NewCareLifecycleTestModule(db transactionruntime.Database, unit tenant.Unit
 		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
 			return settings.Settings.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
 		},
+		Today: calendar.CalendarDateClock(clocks...),
 	})
 	if err != nil {
 		return CareLifecycleTestModule{}, nil, err
@@ -95,4 +101,12 @@ func NewStudentAccidentReportsTestModule(
 		return nil, err
 	}
 	return reports, nil
+}
+
+// NewSchoolMembershipTestModule composes School Membership for router tests
+// that drive a child's lifecycle the way the real writes do. An optional
+// clock pins its today, which keeps the first-care bound of a membership
+// (#6041).
+func NewSchoolMembershipTestModule(db transactionruntime.Database, clocks ...func() time.Time) (schoolmembership.Capability, error) {
+	return owners.NewSchoolMembership(db, clocks...)
 }

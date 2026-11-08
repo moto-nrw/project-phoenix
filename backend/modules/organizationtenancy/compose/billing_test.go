@@ -293,13 +293,13 @@ func TestBillingQueryBudget(t *testing.T) {
 	written, err := billing.RecordDueBillingKeyDates(ctx, berlinTime(2099, time.September, 20, 9, 0))
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, written, 4)
-	querybudgets.AssertQueryBudget(t, "modules.organizationtenancy.billing.capture", withoutTransactionControl(counter.Queries()))
+	querybudgets.AssertQueryBudget(t, "modules.organizationtenancy.billing.capture", counter.Measurement(withoutTransactionControl(counter.Queries())))
 
 	counter.Reset()
 	rows, err := billing.ListBillingKeyDateCounts(ctx)
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, len(rows), 4)
-	querybudgets.AssertQueryBudget(t, "modules.organizationtenancy.billing.key_date_counts", withoutTransactionControl(counter.Queries()))
+	querybudgets.AssertQueryBudget(t, "modules.organizationtenancy.billing.key_date_counts", counter.Measurement(withoutTransactionControl(counter.Queries())))
 }
 
 // withoutTransactionControl drops BEGIN, COMMIT, ROLLBACK and the role and

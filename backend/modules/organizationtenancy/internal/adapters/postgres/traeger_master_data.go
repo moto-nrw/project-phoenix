@@ -78,6 +78,19 @@ const (
 		octet_length(logo) AS logo_size, logo_updated_at`
 	findTraegerProfileQuery = `SELECT ` + traegerProfileColumns + ` FROM platform.traeger_profiles
 		WHERE organization_id = ?`
+	// findTraegerMasterDataQuery joins the Träger's own profile and bank
+	// accounts onto one base row, in the bank account order of
+	// listTraegerBankAccountsQuery.
+	findTraegerMasterDataQuery = `SELECT profile.organization_id IS NOT NULL AS has_profile,
+		profile.contact_name, profile.contact_phone, profile.contact_email, profile.logo_content_type,
+		profile.logo_width, profile.logo_height, octet_length(profile.logo) AS logo_size, profile.logo_updated_at,
+		account.id AS bank_account_id, account.id AS bank_id, account.label AS bank_label, account.account_holder AS bank_account_holder,
+		account.iban AS bank_iban, account.bic AS bank_bic, account.bank_name AS bank_bank_name,
+		account.is_default AS bank_is_default, account.updated_at AS bank_updated_at
+		FROM (SELECT ?::bigint AS organization_id) AS traeger
+		LEFT JOIN platform.traeger_profiles AS profile ON profile.organization_id = traeger.organization_id
+		LEFT JOIN platform.traeger_bank_accounts AS account ON account.organization_id = traeger.organization_id
+		ORDER BY account.is_default DESC, account.id`
 	ensureTraegerProfileQuery = `INSERT INTO platform.traeger_profiles (organization_id) VALUES (?)
 		ON CONFLICT (organization_id) DO NOTHING`
 	lockTraegerProfileQuery = findTraegerProfileQuery + ` FOR UPDATE`
@@ -117,17 +130,41 @@ const (
 		VALUES (?, ?, ?, ?, ?, ?, ?)`
 )
 
-// FindProfile reads the contact person and the logo description.
-func (s *TraegerMasterDataStore) FindProfile(ctx context.Context, organizationID int64) (organizationtenancy.TraegerContact, *organizationtenancy.TraegerLogo, error) {
+// traegerMasterDataRow is one bank account of the Träger next to its
+// profile; a Träger without accounts yields one row without them, and one
+// without a profile row has no profile columns.
+type traegerMasterDataRow struct {
+	HasProfile bool `bun:"has_profile"`
+	traegerProfileRow
+	BankAccountID *int64                `bun:"bank_account_id"`
+	BankAccount   traegerBankAccountRow `bun:"embed:bank_"`
+}
+
+// FindMasterData reads the profile and the bank accounts in one statement,
+// so both come from one READ COMMITTED snapshot (#5571, decision E2: one
+// early shared read may replace the former two reads; the read takes no
+// lock).
+func (s *TraegerMasterDataStore) FindMasterData(ctx context.Context, organizationID int64) (organizationtenancy.TraegerContact, *organizationtenancy.TraegerLogo, []organizationtenancy.TraegerBankAccount, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
-		return organizationtenancy.TraegerContact{}, nil, err
+		return organizationtenancy.TraegerContact{}, nil, nil, err
 	}
-	var rows []traegerProfileRow
-	if err := db.NewRaw(findTraegerProfileQuery, organizationID).Scan(ctx, &rows); err != nil {
-		return organizationtenancy.TraegerContact{}, nil, fmt.Errorf("organization tenancy postgres: find Träger profile: %w", err)
+	var rows []traegerMasterDataRow
+	if err := db.NewRaw(findTraegerMasterDataQuery, organizationID).Scan(ctx, &rows); err != nil {
+		return organizationtenancy.TraegerContact{}, nil, nil, fmt.Errorf("organization tenancy postgres: find Träger master data: %w", err)
 	}
-	return firstProfile(rows)
+	accounts := make([]organizationtenancy.TraegerBankAccount, 0, len(rows))
+	profiles := make([]traegerProfileRow, 0, 1)
+	for i, row := range rows {
+		if i == 0 && row.HasProfile {
+			profiles = append(profiles, row.traegerProfileRow)
+		}
+		if row.BankAccountID != nil {
+			accounts = append(accounts, row.BankAccount.toDomain())
+		}
+	}
+	contact, logo, err := firstProfile(profiles)
+	return contact, logo, accounts, err
 }
 
 // LockProfile locks the row; create makes it first where it is missing.

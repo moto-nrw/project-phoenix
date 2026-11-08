@@ -78,12 +78,20 @@ func releasedBillingRun(t *testing.T, f reviewFixture, billing string) billingRu
 func brandTraeger(t *testing.T, f reviewFixture) {
 	t.Helper()
 	testpkg.OwnTraegerMasterData(t, f.db, f.office.organization)
-	token := f.office.token
-	require.Equal(t, http.StatusOK, uploadLogo(t, f.traeger, token, "logo", "logo.png", pngLogo(t, 120, 40)).Code)
-	rec := traegerJSON(t, f.traeger, token, http.MethodPut, "/traeger/master-data/contact",
+	brandTraegerOffice(t, f.traeger, f.office)
+}
+
+// brandTraegerOffice gives the Träger of the office a letterhead, a contact
+// and a bank account, as the letters print them; the caller owns the master
+// data rows (testpkg.OwnTraegerMasterData).
+func brandTraegerOffice(t *testing.T, portal *traegerPortalHandler, office traegerOffice) {
+	t.Helper()
+	token := office.token
+	require.Equal(t, http.StatusOK, uploadLogo(t, portal, token, "logo", "logo.png", pngLogo(t, 120, 40)).Code)
+	rec := traegerJSON(t, portal, token, http.MethodPut, "/traeger/master-data/contact",
 		masterDataContact{Name: "Paula Kern", Phone: "05402 1234-0", Email: "ferien@ganztag.example"})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	rec = traegerJSON(t, f.traeger, token, http.MethodPost, "/traeger/master-data/bank-accounts", masterDataBankAccount{
+	rec = traegerJSON(t, portal, token, http.MethodPost, "/traeger/master-data/bank-accounts", masterDataBankAccount{
 		Label: "Elternbeiträge", AccountHolder: "Ganztag im Quartier e.V.", IBAN: traegerTestIBAN, BankName: "Beispielbank",
 	})
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
@@ -92,7 +100,7 @@ func brandTraeger(t *testing.T, f reviewFixture) {
 		configModels.KeyBrandingLetterheadText: "Ganztag im Quartier e.V.\nAm Markt 4\n49143 Bissendorf",
 		configModels.KeyBrandingFooterText:     "Vorstand: Anna Brandt",
 	} {
-		rec := traegerJSON(t, f.traeger, token, http.MethodPut, "/traeger/settings/values/"+key, map[string]any{"value": value})
+		rec := traegerJSON(t, portal, token, http.MethodPut, "/traeger/settings/values/"+key, map[string]any{"value": value})
 		require.Equal(t, http.StatusOK, rec.Code, "%s: %s", key, rec.Body.String())
 	}
 }

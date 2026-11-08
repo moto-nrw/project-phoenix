@@ -278,21 +278,21 @@ func TestDeletedRegistrationLeavesItsSiblingGroup(t *testing.T) {
 func TestSiblingGroupListQueryBudgetIsFlat(t *testing.T) {
 	t.Parallel()
 	f := newReviewFixture(t, "Geschwister Budget")
-	list := func() []string {
+	list := func() testpkg.QueryMeasurement {
 		counter := testpkg.CaptureQueriesForContext(t, f.db)
 		req := httptest.NewRequest(http.MethodGet, siblingGroupsPath(f.period.ID), nil)
 		req.Header.Set("Authorization", "Bearer "+f.office.token)
 		rec := httptest.NewRecorder()
-		f.traeger.ServeHTTP(rec, req.WithContext(counter.Context(req.Context())))
+		testpkg.MeasuredHTTPRequest(counter, f.traeger, rec, req.WithContext(counter.Context(req.Context())))
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		return counter.Selects("")
+		return counter.Measurement(counter.Selects(""))
 	}
 	require.Equal(t, http.StatusOK, f.merge(t, f.office.token, f.siblings, f.again).Code)
 	one := list()
 	first := f.submitChild(t, f.period, f.offer, "mama.budget@example.org", "Mia", 0)
 	second := f.submitChild(t, f.period, f.offer, "papa.budget@example.org", "Tom", 0)
 	require.Equal(t, http.StatusOK, f.merge(t, f.office.token, first, second).Code)
-	assert.Len(t, list(), len(one), "the list reads the same statements for any number of groups")
+	assert.Len(t, list().Statements, len(one.Statements), "the list reads the same statements for any number of groups")
 	querybudgets.AssertQueryBudget(t, "api.traeger.holiday_sibling_groups", one)
 }
 

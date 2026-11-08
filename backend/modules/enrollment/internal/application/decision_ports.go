@@ -45,6 +45,10 @@ type (
 		SetChildClassSwitch(context.Context, int64, *enrollmentNative.ClassSwitch) error
 		ChildClassSwitch(context.Context, int64) (*enrollmentNative.ClassSwitch, error)
 		DueClassSwitches(context.Context, enrollmentNative.Date) ([]enrollmentNative.DueClassSwitch, error)
+		// The planned weekly plan of an approved future re-enrollment (#6043).
+		SetChildWeeklyPlan(context.Context, int64, *enrollmentNative.WeeklyPlan) error
+		ChildWeeklyPlan(context.Context, int64) (*enrollmentNative.WeeklyPlan, error)
+		DueWeeklyPlans(context.Context, enrollmentNative.Date) ([]enrollmentNative.WeeklyPlan, error)
 	}
 	// DecisionGuardians reads the co-guardians of a request and stamps the
 	// guardian profile an approval resolved for one of them.
@@ -133,6 +137,7 @@ type (
 	// StudentAudit records tracked profile changes made while approving or
 	// synchronizing enrollment data for an existing student.
 	StudentAudit interface {
+		RecordSystemChanges(ctx context.Context, before, after *Student) error
 		RecordChangesForActor(ctx context.Context, before, after *Student, editedBy int64) error
 		RecordSystemStatusChange(ctx context.Context, studentID int64, before, after string) error
 	}

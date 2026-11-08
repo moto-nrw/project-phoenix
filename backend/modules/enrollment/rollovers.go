@@ -56,6 +56,9 @@ type DeadlineWorkerSummary struct {
 	// ClassSwitchesApplied counts the children moved into the class their
 	// renewal planned for the new school year (#3917).
 	ClassSwitchesApplied int
+	// WeeklyPlansApplied counts the children whose renewal's weekly plan
+	// replaced the running one on its start day (#6043).
+	WeeklyPlansApplied int
 }
 
 // CreatePhaseFromSourceRequest is the admin-facing input for the

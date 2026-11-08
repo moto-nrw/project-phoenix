@@ -544,22 +544,18 @@ function ResetModal({
             )}
           </InsetPanel>
         )}
-        <div>
-          <ISODatePicker
-            label="Stichtag"
-            id="reset-date"
-            error={formErrors.fieldError("effective_date")}
-            min={accountStartKey}
-            max={lastClosedDateKey}
-            value={effectiveDate}
-            onChange={setEffectiveDate}
-            calendarLayout="popover"
-            hideClearButton
-          />
-          <p className="mt-1 text-xs text-gray-400">
-            Der Stichtag muss vor dem heutigen Tag liegen.
-          </p>
-        </div>
+        <ISODatePicker
+          label="Stichtag"
+          id="reset-date"
+          error={formErrors.fieldError("effective_date")}
+          hint="Der Stichtag muss vor dem heutigen Tag liegen."
+          min={accountStartKey}
+          max={lastClosedDateKey}
+          value={effectiveDate}
+          onChange={setEffectiveDate}
+          calendarLayout="popover"
+          hideClearButton
+        />
         <Input
           label="Verbleibender Übertrag (Stunden)"
           id="reset-carryover"
@@ -697,22 +693,18 @@ function OpeningModal({
             )}
           </InsetPanel>
         )}
-        <div>
-          <ISODatePicker
-            label="Stichtag"
-            id="opening-date"
-            error={formErrors.fieldError("effective_date")}
-            min={accountStartKey}
-            max={lastClosedDateKey}
-            value={effectiveDate}
-            onChange={setEffectiveDate}
-            calendarLayout="popover"
-            hideClearButton
-          />
-          <p className="mt-1 text-xs text-gray-400">
-            Der Stichtag muss vor dem heutigen Tag liegen.
-          </p>
-        </div>
+        <ISODatePicker
+          label="Stichtag"
+          id="opening-date"
+          error={formErrors.fieldError("effective_date")}
+          hint="Der Stichtag muss vor dem heutigen Tag liegen."
+          min={accountStartKey}
+          max={lastClosedDateKey}
+          value={effectiveDate}
+          onChange={setEffectiveDate}
+          calendarLayout="popover"
+          hideClearButton
+        />
         <Input
           label="Übernommener Saldo (Stunden)"
           id="opening-balance"

@@ -33,6 +33,18 @@ func (s *recordingStudents) ListStudentIDsByNameAndClass(_ context.Context, firs
 	return s.byName[firstName+"|"+lastName+"|"+schoolClass], nil
 }
 
+func (s *recordingStudents) ListStudentIDsByNamesAndClasses(ctx context.Context, entries []schoolmembership.ClassListEntryFields) ([][]int64, error) {
+	result := make([][]int64, 0, len(entries))
+	for _, entry := range entries {
+		matches, err := s.ListStudentIDsByNameAndClass(ctx, entry.FirstName, entry.LastName, entry.SchoolClass)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, matches)
+	}
+	return result, nil
+}
+
 func (s *recordingStudents) IsEnrolledStudent(_ context.Context, studentID int64) (bool, error) {
 	if s.err != nil {
 		return false, s.err
