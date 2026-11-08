@@ -17,7 +17,7 @@ const validContractPushesSQL = `SELECT candidate.key
   ORDER BY m.sent_at,m.id LIMIT 1) AS first_send ON TRUE
  JOIN care_contract.contract_documents AS d ON d.organization_id=c.organization_id AND d.id=first_send.contract_document_id AND d.contract_id=c.id
  JOIN care_contract.contract_versions AS v ON v.organization_id=c.organization_id AND v.id=d.contract_version_id AND v.contract_id=c.id
- WHERE c.status IN ('` + carecontract.StatusSent + `','` + carecontract.StatusSigned + `','` + carecontract.StatusActive + `')
+ WHERE c.status IN ('` + carecontract.StatusSent + `','` + carecontract.StatusActive + `')
  AND c.student_id IN (SELECT value::bigint FROM jsonb_array_elements_text(candidate.student_ids))
  AND v.status NOT IN ('` + carecontract.VersionReplaced + `','` + carecontract.VersionSuperseded + `','` + carecontract.VersionRejected + `')
  AND NOT EXISTS (SELECT 1 FROM care_contract.contract_versions AS newer
