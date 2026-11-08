@@ -22,7 +22,7 @@ func init() {
 }
 
 // studentMembershipFirstCareFromUpSQL adds School Membership's first-care
-// bound (#6041, ADR 0164): the earliest day a child can have been cared for at
+// bound (#6041, ADR 0165): the earliest day a child can have been cared for at
 // this school, NULL when unknown. School Membership's writes keep it on the
 // application's day; nothing else writes it.
 //
@@ -35,7 +35,7 @@ func init() {
 const studentMembershipFirstCareFromUpSQL = `
 ALTER TABLE users.student_school_memberships ADD COLUMN IF NOT EXISTS first_care_from DATE;
 COMMENT ON COLUMN users.student_school_memberships.first_care_from IS
-	'Earliest day the child can have been cared for at this school; NULL when unknown (#6041, ADR 0164). Written only by School Membership.';
+	'Earliest day the child can have been cared for at this school; NULL when unknown (#6041, ADR 0165). Written only by School Membership.';
 
 ALTER TABLE users.student_school_memberships DISABLE TRIGGER update_student_school_memberships_updated_at;
 UPDATE users.student_school_memberships AS m SET first_care_from = m.enrolled_from

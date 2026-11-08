@@ -492,7 +492,7 @@ func TestWeekProtocolListQueryBudgetStaysFlat(t *testing.T) {
 			require.Len(t, listed, groups)
 			counter.Stop()
 			statements = len(counter.Queries())
-			querybudgets.AssertQueryBudget(t, "modules.timetable.week_protocols.list", counter.Queries())
+			querybudgets.AssertQueryBudget(t, "modules.timetable.week_protocols.list", counter.Measurement(counter.Queries()))
 			return nil
 		}))
 		return statements

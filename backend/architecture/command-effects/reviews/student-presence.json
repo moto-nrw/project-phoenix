@@ -7279,12 +7279,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0164",
+      "approval_adr": "0165",
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PresenceDaysBetween",
       "classification": "unresolved",
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.PresenceDaysBetween",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application.Service.observe. Same observe closure as the other Student Presence reads; added for the dated presence evidence of #6041 (ADR 0164); a changed value or closure needs a fresh approval ADR.",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application.Service.observe. Same observe closure as the other Student Presence reads; added for the dated presence evidence of #6041 (ADR 0165); a changed value or closure needs a fresh approval ADR.",
       "source_owner": "student-presence",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
       "target_owner": ""
@@ -8923,12 +8923,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0164",
+      "approval_adr": "0165",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.PresenceDaysBetween",
       "classification": "unresolved",
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PresenceDaysBetween",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application.Service.observe. Same observe closure as the other Student Presence reads; added for the dated presence evidence of #6041 (ADR 0164); a changed value or closure needs a fresh approval ADR.",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application.Service.observe. Same observe closure as the other Student Presence reads; added for the dated presence evidence of #6041 (ADR 0165); a changed value or closure needs a fresh approval ADR.",
       "source_owner": "student-presence",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
       "target_owner": ""

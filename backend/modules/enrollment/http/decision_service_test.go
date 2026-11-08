@@ -4654,7 +4654,7 @@ func (defaultDecisionSettings) ResolveString(_ context.Context, key string) (str
 }
 
 // membershipFirstCareFrom reads School Membership's first-care bound of the
-// child's membership (#6041, ADR 0164); empty when unknown.
+// child's membership (#6041, ADR 0165); empty when unknown.
 func membershipFirstCareFrom(t *testing.T, studentID int64) calendar.Date {
 	t.Helper()
 	var bound *calendar.Date

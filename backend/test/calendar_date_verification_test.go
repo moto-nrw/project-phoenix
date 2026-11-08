@@ -60,10 +60,10 @@ var unmappedDateColumns = map[string]string{
 	// adapters/postgres/store_test.go checks the persistence field types.
 	"users.student_school_memberships.enrolled_from":  "People Directory explicit projection uses *calendar.Date",
 	"users.student_school_memberships.enrolled_until": "People Directory explicit projection uses *calendar.Date",
-	// ADR 0164: School Membership writes the first-care bound in raw SQL
+	// ADR 0165: School Membership writes the first-care bound in raw SQL
 	// from calendar.Date values; People Directory's projection row reads it
 	// as *calendar.Date. No table-bound model maps the column.
-	"users.student_school_memberships.first_care_from": "ADR 0164: written from calendar.Date, read by the People Directory projection as *calendar.Date",
+	"users.student_school_memberships.first_care_from": "ADR 0165: written from calendar.Date, read by the People Directory projection as *calendar.Date",
 	// The child note card (#3632) has no table-bound model either: the day an
 	// entry describes is carried by the adapter-local studentNoteRow as a
 	// *calendar.Date and travels through the capability as the same type.

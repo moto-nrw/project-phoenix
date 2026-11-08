@@ -224,7 +224,7 @@ func TestSettingsSchemaGETQueryBudgets(t *testing.T) {
 		records.KeyEnrollmentLegalAGBText, records.KeyEnrollmentLegalDSGVOText}
 	stored := map[string]any{}
 	counts := map[string]int{}
-	statements := map[string][]string{}
+	statements := map[string]testpkg.QueryMeasurement{}
 	for _, n := range []int{0, 3, 8} {
 		for len(stored) < n {
 			key := keys[len(stored)]
@@ -266,7 +266,7 @@ func TestSettingsSchemaGETQueryBudgets(t *testing.T) {
 				require.Equal(t, counts[route.portal], f.counter.Total())
 			}
 			counts[route.portal] = f.counter.Total()
-			statements[route.portal] = f.counter.Queries()
+			statements[route.portal] = f.counter.Measurement(f.counter.Queries())
 		}
 	}
 	querybudgets.AssertQueryBudget(t, "api.settings.schema", statements["tenant"])

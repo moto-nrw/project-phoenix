@@ -12,7 +12,7 @@ import (
 )
 
 // firstCareFromNext is the first-care bound after a write that moves a child's
-// status or start (#6041, ADR 0164): the earliest day the child can have been
+// status or start (#6041, ADR 0165): the earliest day the child can have been
 // cared for at this school, NULL when unknown. ?0 is the application's today,
 // ?1 the next status, ?2 the next start (SET reads the row before the write).
 //

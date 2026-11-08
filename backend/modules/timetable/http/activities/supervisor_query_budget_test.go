@@ -28,17 +28,17 @@ func TestAvailableSupervisorsBySpecializationQueryBudget(t *testing.T) {
 	}
 	add(3)
 	counter := testpkg.CaptureQueriesForContext(t, ctx.db)
-	run := func() []string {
+	run := func() testpkg.QueryMeasurement {
 		counter.Reset()
 		req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/supervisors/available?specialization="+specialization, nil)
 		req = req.WithContext(counter.Context(req.Context()))
-		rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
+		rr := testutil.ExecuteWithAuth(t, testpkg.MountedQueryBudgetRouter("/api", ctx.router), req, testutil.DefaultTestClaims())
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-		return counter.Operation("SELECT")
+		return counter.Measurement(counter.Operation("SELECT"))
 	}
 	small := run()
 	add(5)
 	large := run()
-	assert.Equal(t, len(small), len(large))
+	assert.Equal(t, len(small.Statements), len(large.Statements))
 	querybudgets.AssertQueryBudget(t, "api.activities.available_supervisors.specialization.reads", large)
 }

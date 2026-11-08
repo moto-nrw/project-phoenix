@@ -164,7 +164,7 @@ func TestAbsenceListQueryBudget(t *testing.T) {
 	// row.
 	read := func(from string, children int) int {
 		counter.Reset()
-		rec := testutil.ExecuteWithAuthPermissions(t, router,
+		rec := testutil.ExecuteWithAuthPermissions(t, testpkg.MountedQueryBudgetRouter("/school/class-day", router),
 			httptest.NewRequest(http.MethodGet, "/absence-list?class="+className+"&from="+from+"&to="+morningMonday, nil),
 			claims, []string{classDayReadPermission, classDayAllClassesPermission})
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -177,7 +177,7 @@ func TestAbsenceListQueryBudget(t *testing.T) {
 	addChild(5)
 	large := read("2099-02-24", 5)
 	assert.Equal(t, small, large, "the list must not grow with the number of children")
-	querybudgets.AssertQueryBudget(t, "modules.classday.absence_list", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "modules.classday.absence_list", counter.Measurement(counter.Queries()))
 }
 
 func TestAbsenceListRetentionWindows(t *testing.T) {

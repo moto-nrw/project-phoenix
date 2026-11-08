@@ -54,7 +54,7 @@ func TestPresenceGroups20SchoolQueryBudget(t *testing.T) {
 	type sample struct {
 		scenario string
 		n        int
-		queries  []string
+		queries  testpkg.QueryMeasurement
 	}
 	var samples []sample
 	for _, n := range []int{3, 8} {
@@ -139,7 +139,7 @@ func TestPresenceGroups20SchoolQueryBudget(t *testing.T) {
 				scenario = "api.groups.presence20.supervisors"
 			}
 			t.Logf("PRESENCE20 scenario=%s n=%d statements=%d sql=%q body=%s", scenario, n, counter.Total(), counter.Queries(), rr.Body.String())
-			samples = append(samples, sample{scenario, n, counter.Queries()})
+			samples = append(samples, sample{scenario, n, counter.Measurement(counter.Queries())})
 		}
 	}
 	for _, suffix := range []string{"/", fmt.Sprintf("/%d", group.ID), fmt.Sprintf("/%d/students", group.ID), fmt.Sprintf("/%d/supervisors", group.ID)} {
@@ -159,7 +159,7 @@ func TestPresenceGroups20SchoolQueryBudget(t *testing.T) {
 	}
 }
 
-func assertPresence20SchoolBudget(t *testing.T, scenario string, n int, queries []string) {
+func assertPresence20SchoolBudget(t *testing.T, scenario string, n int, queries querybudgets.Measurement) {
 	t.Helper()
 	// Literal references keep the budget completeness gate authoritative.
 	switch fmt.Sprintf("%s.n%d", scenario, n) {

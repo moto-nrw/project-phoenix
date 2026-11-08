@@ -50,14 +50,14 @@ func TestOperatorDeviceRowsQueryBudget(t *testing.T) {
 	}
 
 	before := listDevices()
-	querybudgets.AssertQueryBudget(t, "repositories.operator.device_rows", before)
+	querybudgets.AssertQueryBudget(t, "repositories.operator.device_rows", counter.Measurement(before))
 
 	for index := range 5 {
 		testpkg.CreateTestDeviceForTenant(t, db, tenantID, fmt.Sprintf("BUDGET-B-%d", index))
 	}
 
 	after := listDevices()
-	querybudgets.AssertQueryBudget(t, "repositories.operator.device_rows", after)
+	querybudgets.AssertQueryBudget(t, "repositories.operator.device_rows", counter.Measurement(after))
 
 	require.Len(t, after, len(before),
 		"operator device listing must stay flat in the number of devices")

@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// School Membership keeps the first-care bound of a child (#6041, ADR 0164):
+// School Membership keeps the first-care bound of a child (#6041, ADR 0165):
 // the earliest day it can have been cared for at this school. A child
 // inserted pending with a start and no earlier membership gets that start;
 // every write keeps the bound on the application's day. Care Plan holds the

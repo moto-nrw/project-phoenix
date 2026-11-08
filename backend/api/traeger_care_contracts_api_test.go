@@ -393,14 +393,14 @@ func TestCareContractListsQueryBudget(t *testing.T) {
 	f := newCareContractFixture(t, "Träger Vertrag Budget")
 	token := f.office.token
 	require.Equal(t, http.StatusOK, traegerJSON(t, f.traeger, token, http.MethodPut, templatePath(f.school, f.offering), careContractTemplate).Code)
-	read := func(path string) []string {
+	read := func(path string) testpkg.QueryMeasurement {
 		counter := testpkg.CaptureQueriesForContext(t, f.db)
 		req := httptest.NewRequest(http.MethodGet, path, nil)
 		req.Header.Set("Authorization", "Bearer "+token)
 		rec := httptest.NewRecorder()
-		f.traeger.ServeHTTP(rec, req.WithContext(counter.Context(req.Context())))
+		testpkg.MeasuredHTTPRequest(counter, f.traeger, rec, req.WithContext(counter.Context(req.Context())))
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		return counter.Selects("")
+		return counter.Measurement(counter.Selects(""))
 	}
 	createAll := func() {
 		rec := traegerJSON(t, f.traeger, token, http.MethodGet, "/traeger/contracts/candidates", nil)
@@ -416,9 +416,9 @@ func TestCareContractListsQueryBudget(t *testing.T) {
 	for _, first := range []string{"Ben", "Mia", "Ole"} {
 		careContractApplication(t, f.db, f.school, f.phase, f.offering, first, "familie-"+first+"@example.org")
 	}
-	assert.Len(t, read("/traeger/contracts/candidates"), len(candidates), "the candidates read the same statements for any number of children")
+	assert.Len(t, read("/traeger/contracts/candidates").Statements, len(candidates.Statements), "the candidates read the same statements for any number of children")
 	createAll()
-	assert.Len(t, read("/traeger/contracts"), len(list), "the list reads the same statements for any number of contracts")
+	assert.Len(t, read("/traeger/contracts").Statements, len(list.Statements), "the list reads the same statements for any number of contracts")
 	querybudgets.AssertQueryBudget(t, "api.traeger.care_contract_candidates", candidates)
 	querybudgets.AssertQueryBudget(t, "api.traeger.care_contracts", list)
 }

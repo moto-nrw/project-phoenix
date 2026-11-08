@@ -68,7 +68,7 @@ func getHolidaysWithContext(t *testing.T, setup holidayRouteSetup, ctx context.C
 	t.Helper()
 	account := testpkg.CreateTestAccount(t, setup.db, fmt.Sprintf("holidays-%d", time.Now().UnixNano()))
 	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/timetable/holidays"+query, nil)
-	return apiTest.ExecuteWithAuth(t, setup.router, req, apiTest.TenantUserTestClaims(int(account.ID), tenantID, granted...))
+	return apiTest.ExecuteWithAuth(t, testpkg.MountedQueryBudgetRouter("/api", setup.router), req, apiTest.TenantUserTestClaims(int(account.ID), tenantID, granted...))
 }
 
 func decodeHolidayList(t *testing.T, response *httptest.ResponseRecorder) holidayListBody {
@@ -160,7 +160,7 @@ func TestHolidayRouteQueryBudget(t *testing.T) {
 	)
 	decodeHolidayList(t, response)
 	t.Logf("query budget: holiday list → %d queries", counter.Total())
-	querybudgets.AssertQueryBudget(t, "api.timetable.holidays.list", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.timetable.holidays.list", counter.Measurement(counter.Queries()))
 
 	for _, window := range []struct {
 		to    string
@@ -180,6 +180,6 @@ func TestHolidayRouteQueryBudget(t *testing.T) {
 		}
 		require.Equal(t, window.dates, dates, "positive N3/N8 holiday payload stays ordered")
 		t.Logf("N%d holidays: %d statements", len(dates), counter.Total())
-		querybudgets.AssertQueryBudget(t, "api.timetable.holidays.list", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "api.timetable.holidays.list", counter.Measurement(counter.Queries()))
 	}
 }

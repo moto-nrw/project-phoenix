@@ -394,7 +394,7 @@ func TestGroupThreadListsQueryBudgetStaysFlat(t *testing.T) {
 	rows, err := testpkg.MeasuredTenantQuery0(t, counter.Context(adminCtx(t, f.staff)), db, counter, f.svc.ListParentGroupThreads)
 	require.NoError(t, err)
 	require.Len(t, rows, 3)
-	querybudgets.AssertQueryBudget(t, "modules.communication.parent_group_threads.list", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "modules.communication.parent_group_threads.list", counter.Measurement(counter.Queries()))
 
 	guardianCounter := testpkg.CaptureQueriesForContext(t, db)
 	guardianRows, err := testpkg.MeasuredTenantQuery0(t, guardianCounter.Context(testpkg.Ctx(t)), db, guardianCounter,
@@ -403,7 +403,7 @@ func TestGroupThreadListsQueryBudgetStaysFlat(t *testing.T) {
 		})
 	require.NoError(t, err)
 	require.Len(t, guardianRows, 3)
-	querybudgets.AssertQueryBudget(t, "modules.communication.parent_group_threads.list_for_guardian", guardianCounter.Queries())
+	querybudgets.AssertQueryBudget(t, "modules.communication.parent_group_threads.list_for_guardian", guardianCounter.Measurement(guardianCounter.Queries()))
 }
 
 type groupRetentionDays int

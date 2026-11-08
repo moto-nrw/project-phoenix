@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func growthGET(t *testing.T, router http.Handler, counter *testpkg.QueryCounter, token, path string) (json.RawMessage, []string) {
+func growthGET(t *testing.T, router http.Handler, counter *testpkg.QueryCounter, token, path string) (json.RawMessage, testpkg.QueryMeasurement) {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, path, nil)
 	if token != "" {
@@ -25,7 +25,7 @@ func growthGET(t *testing.T, router http.Handler, counter *testpkg.QueryCounter,
 	}
 	rec := httptest.NewRecorder()
 	counter.Reset()
-	router.ServeHTTP(rec, req)
+	testpkg.MeasuredHTTPRequest(counter, testpkg.MountedQueryBudgetRouter("/api/enrollment", router), rec, req)
 	queries := counter.Queries()
 	require.Equal(t, http.StatusOK, rec.Code, "%s: %s", path, rec.Body.String())
 	var body struct {
@@ -33,7 +33,7 @@ func growthGET(t *testing.T, router http.Handler, counter *testpkg.QueryCounter,
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
 	require.NotEmpty(t, body.Data)
-	return body.Data, queries
+	return body.Data, counter.Measurement(queries)
 }
 
 func TestEnrollmentPhaseLegalRouteGrowthQueryBudget(t *testing.T) {
@@ -65,8 +65,8 @@ func TestEnrollmentPhaseLegalRouteGrowthQueryBudget(t *testing.T) {
 		}
 	}
 	add(2)
-	runPhases := func(n int) [][]string {
-		result := make([][]string, 2)
+	runPhases := func(n int) []testpkg.QueryMeasurement {
+		result := make([]testpkg.QueryMeasurement, 2)
 		for i, path := range []string{"/phases/", "/phases/public/" + f.slug} {
 			raw, q := growthGET(t, router, counter, f.token, path)
 			result[i] = q
@@ -91,8 +91,8 @@ func TestEnrollmentPhaseLegalRouteGrowthQueryBudget(t *testing.T) {
 	add(5)
 	large := runPhases(8)
 	for i := range small {
-		require.Equal(t, len(small[i]), len(large[i]))
-		t.Logf("phase route %d N3=%d N8=%d", i, len(small[i]), len(large[i]))
+		require.Equal(t, len(small[i].Statements), len(large[i].Statements))
+		t.Logf("phase route %d N3=%d N8=%d", i, len(small[i].Statements), len(large[i].Statements))
 	}
 	querybudgets.AssertQueryBudget(t, "api.enrollment.growth.phases", large[0])
 	querybudgets.AssertQueryBudget(t, "api.enrollment.growth.public_phases", large[1])
@@ -103,7 +103,7 @@ func TestEnrollmentPhaseLegalRouteGrowthQueryBudget(t *testing.T) {
 	for _, key := range []string{settingKeyLegalAGBText, settingKeyLegalDSGVOText, settingKeyLegalEmailContactText, settingKeyLegalPhotoText} {
 		require.NoError(t, testpkg.TenantCommand4(t, ctx, env.db, f.settings.Settings.SetValue, key, any("Tenant legal notice"), &env.creatorID, []string{"config:update", "config:manage"}))
 	}
-	runLegal := func(n int) [][]string {
+	runLegal := func(n int) []testpkg.QueryMeasurement {
 		blocks := make([]enrollment.FormLegalBlock, n)
 		for i := range blocks {
 			blocks[i] = enrollment.FormLegalBlock{Key: fmt.Sprintf("notice%d", i), Kind: "notice", Title: fmt.Sprintf("Notice %d", i), Text: "Contract notice", Enabled: true, SortOrder: i}
@@ -131,12 +131,12 @@ func TestEnrollmentPhaseLegalRouteGrowthQueryBudget(t *testing.T) {
 		for _, block := range tenantLegal.Blocks {
 			require.Equal(t, "Tenant legal notice", block.Text)
 		}
-		return [][]string{q, tenantQ}
+		return []testpkg.QueryMeasurement{q, tenantQ}
 	}
 	legalSmall, legalLarge := runLegal(3), runLegal(8)
 	for i := range legalSmall {
-		require.Equal(t, len(legalSmall[i]), len(legalLarge[i]))
-		t.Logf("legal route %d N3=%d N8=%d", i, len(legalSmall[i]), len(legalLarge[i]))
+		require.Equal(t, len(legalSmall[i].Statements), len(legalLarge[i].Statements))
+		t.Logf("legal route %d N3=%d N8=%d", i, len(legalSmall[i].Statements), len(legalLarge[i].Statements))
 	}
 	querybudgets.AssertQueryBudget(t, "api.enrollment.growth.phase_legal", legalLarge[0])
 	querybudgets.AssertQueryBudget(t, "api.enrollment.growth.tenant_legal", legalLarge[1])

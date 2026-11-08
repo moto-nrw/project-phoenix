@@ -51,9 +51,9 @@ func TestFeedbackBatchPositiveGrowthQueryBudget(t *testing.T) {
 		}
 		t.Logf("N=%d statements=%d scope=public-service-own-tenant-transaction", n, counter.Total())
 		if n == 3 {
-			querybudgets.AssertQueryBudget(t, "services.feedback.submit_batch.entries_3", counter.Queries())
+			querybudgets.AssertQueryBudget(t, "services.feedback.submit_batch.entries_3", counter.Measurement(counter.Queries()))
 		} else {
-			querybudgets.AssertQueryBudget(t, "services.feedback.submit_batch.entries_8", counter.Queries())
+			querybudgets.AssertQueryBudget(t, "services.feedback.submit_batch.entries_8", counter.Measurement(counter.Queries()))
 		}
 	}
 }

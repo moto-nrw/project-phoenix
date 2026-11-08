@@ -13,7 +13,7 @@ import (
 // tenant in context when one is present.
 //
 // The writes that move a child's status or start keep its first-care bound
-// (#6041, ADR 0164) on the given Berlin day (YYYY-MM-DD) of the application.
+// (#6041, ADR 0165) on the given Berlin day (YYYY-MM-DD) of the application.
 type Store interface {
 	TransitionStudentStatus(ctx context.Context, id int64, expected, next, today string) (bool, domain.OperationStats, error)
 	EnrollStudent(context.Context, schoolmembership.StudentEnrollment) (int64, domain.OperationStats, error)

@@ -67,7 +67,7 @@ func TestListMyStaffEventsQueryBudget(t *testing.T) {
 
 		assert.Equal(t, smallCount, largeCount,
 			"query count must be independent of the appointment count (no per-appointment N+1)")
-		querybudgets.AssertQueryBudget(t, "services.calendar.list_my_staff_events", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "services.calendar.list_my_staff_events", counter.Measurement(counter.Queries()))
 		return nil
 	}))
 }

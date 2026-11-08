@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -45,7 +46,7 @@ func TestStaffListFormerEmploymentsAgainstTheDatabase(t *testing.T) {
 		counter.Reset()
 		req := testutil.NewAuthenticatedRequest(t, http.MethodGet, "/staff?employment=former", nil, testutil.WithJWTBearer(token))
 		req = req.WithContext(counter.Context(req.Context()))
-		rr := testutil.ExecuteRequest(ctx.router, req)
+		rr := testutil.ExecuteRequest(testpkg.MountedQueryBudgetRouter("/api", ctx.router), req)
 		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 		var body struct {
 			Data []row `json:"data"`
@@ -77,7 +78,7 @@ func TestStaffListFormerEmploymentsAgainstTheDatabase(t *testing.T) {
 		assert.NotEmpty(t, r.StartedOn)
 	}
 	assert.Len(t, largeQueries, len(smallQueries), "flat in the number of former employments")
-	querybudgets.AssertQueryBudget(t, "modules.schoolmembership.staff.list_former", largeQueries)
+	querybudgets.AssertQueryBudget(t, "modules.schoolmembership.staff.list_former", counter.Measurement(largeQueries))
 }
 
 // TestStaffListFormerEmploymentsWithRoleFilterHasFixedQueryCount ensures the
@@ -99,7 +100,7 @@ func TestStaffListFormerEmploymentsWithRoleFilterHasFixedQueryCount(t *testing.T
 		counter.Reset()
 		req := testutil.NewAuthenticatedRequest(t, http.MethodGet, "/staff?employment=former&role=lehrkraft", nil, testutil.WithJWTBearer(token))
 		req = req.WithContext(counter.Context(req.Context()))
-		rr := testutil.ExecuteRequest(ctx.router, req)
+		rr := testutil.ExecuteRequest(testpkg.MountedQueryBudgetRouter("/api", ctx.router), req)
 		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 		var body struct {
 			Data []struct {
@@ -123,5 +124,5 @@ func TestStaffListFormerEmploymentsWithRoleFilterHasFixedQueryCount(t *testing.T
 	require.Len(t, small, 1)
 	require.Len(t, large, 3)
 	assert.Len(t, largeQueries, len(smallQueries), "role filtering stays flat in the number of former employments")
-	querybudgets.AssertQueryBudget(t, "modules.schoolmembership.staff.list_former.role", largeQueries)
+	querybudgets.AssertQueryBudget(t, "modules.schoolmembership.staff.list_former.role", counter.Measurement(largeQueries))
 }

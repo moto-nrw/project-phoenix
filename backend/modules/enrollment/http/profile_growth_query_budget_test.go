@@ -32,7 +32,7 @@ func TestEnrollmentProfileRouteGrowthQueryBudget(t *testing.T) {
 			ids = append(ids, fmt.Sprint(student.ID))
 		}
 	}
-	run := func(n int) []string {
+	run := func(n int) testpkg.QueryMeasurement {
 		raw, q := growthGET(t, router, counter, token, "/me/profile")
 		var body struct {
 			Guardian struct {
@@ -61,7 +61,7 @@ func TestEnrollmentProfileRouteGrowthQueryBudget(t *testing.T) {
 	small := run(3)
 	add(5)
 	large := run(8)
-	require.Equal(t, len(small), len(large))
-	t.Logf("profile N3=%d N8=%d", len(small), len(large))
+	require.Equal(t, len(small.Statements), len(large.Statements))
+	t.Logf("profile N3=%d N8=%d", len(small.Statements), len(large.Statements))
 	querybudgets.AssertQueryBudget(t, "api.enrollment.growth.profile", large)
 }

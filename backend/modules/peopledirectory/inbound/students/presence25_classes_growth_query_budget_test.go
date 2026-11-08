@@ -38,9 +38,9 @@ func TestPresence25ClassesGrowthQueryBudget(t *testing.T) {
 		require.Equal(t, expected, result.Data)
 		t.Logf("presence25 school-classes N%d: %d full-route statements", n, counter.Total())
 		if n == 3 {
-			querybudgets.AssertQueryBudget(t, "api.students.presence25.school_classes.n3", counter.Queries())
+			querybudgets.AssertQueryBudget(t, "api.students.presence25.school_classes.n3", counter.Measurement(counter.Queries()))
 		} else {
-			querybudgets.AssertQueryBudget(t, "api.students.presence25.school_classes.n8", counter.Queries())
+			querybudgets.AssertQueryBudget(t, "api.students.presence25.school_classes.n8", counter.Measurement(counter.Queries()))
 		}
 	}
 }
