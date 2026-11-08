@@ -59,6 +59,8 @@ func (rs *Resource) mountAccountRoutes(r chi.Router) {
 	// Withdrawal and termination of that contract (#4682, § 312k BGB).
 	r.Get("/me/documents/{organizationId}/contracts/{contractId}/notice", rs.contractNoticeOptions)
 	r.Post("/me/documents/{organizationId}/contracts/{contractId}/notice", rs.declareContractNotice)
+	r.Get("/me/documents/{organizationId}/contracts/{contractId}/family-children", rs.familyChildren)
+	r.Put("/me/documents/{organizationId}/contracts/{contractId}/family-children", rs.stateFamilyChildren)
 	// Reading and signing a care contract (#4679).
 	r.Get("/me/documents/{organizationId}/contracts/{contractId}/signing", rs.contractSigning)
 	r.Post("/me/documents/{organizationId}/contracts/{contractId}/sign", rs.signContract)

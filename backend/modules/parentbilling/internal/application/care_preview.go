@@ -26,6 +26,9 @@ type careMonthInput struct {
 	// invoice is its base price.
 	rules     []parentbilling.ContributionRule
 	evidences []parentbilling.CareEvidence
+	// familyCounts are the numbers of the families (#5918); a sibling rule
+	// that counts the family reads the one confirmed for the month.
+	familyCounts []parentbilling.FamilyChildCount
 }
 
 // careMonth is the preview of one month: the draft invoices, the bookings
@@ -36,6 +39,9 @@ type careMonth struct {
 	unpriced   []parentbilling.CareUnpriced
 	duplicates []parentbilling.CareDuplicate
 	billed     int
+	// uncounted is the number of families a rule that counts the family
+	// ranked without a confirmed number for the month (#5918).
+	uncounted int
 }
 
 func (m careMonth) total() int64 {
@@ -97,12 +103,26 @@ func buildCareMonth(in careMonthInput) (careMonth, error) {
 	}
 	chained = append(chained, issuedCareEntries(in.invoiced, childOf, byContract)...)
 	result.billed = len(in.invoiced)
-	applyCareChain(chained, careChainInput{month: in.month, rules: in.rules, evidences: in.evidences})
+	uncounted := map[string]bool{}
+	applyCareChain(chained, careChainInput{month: in.month, rules: in.rules, evidences: in.evidences,
+		familyChildren: familyChildrenIn(in.familyCounts, in.month), uncounted: uncounted})
+	result.uncounted = len(uncounted)
 	slices.SortStableFunc(result.invoices, func(a, b parentbilling.CareInvoice) int {
 		return firstNonZero(compareOrdered(a.SchoolName, b.SchoolName), compareOrdered(a.ChildLastName, b.ChildLastName),
 			compareOrdered(a.ChildFirstName, b.ChildFirstName), compareOrdered(a.ContractID, b.ContractID))
 	})
 	return result, nil
+}
+
+// familyChildrenIn keys the confirmed numbers valid in the month by family.
+func familyChildrenIn(counts []parentbilling.FamilyChildCount, month calendar.Date) map[string]int {
+	children := map[string]int{}
+	for _, count := range counts {
+		if number, ok := count.ConfirmedIn(month); ok {
+			children[count.FamilyEmail] = number
+		}
+	}
+	return children
 }
 
 // issuedCareEntries keeps earlier invoices independent of current pricing.

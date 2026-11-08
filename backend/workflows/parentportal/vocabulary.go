@@ -56,6 +56,9 @@ type (
 	BillingDocumentsPort            = care.BillingDocuments
 	ContractDocumentsPort           = care.ContractDocuments
 	ContractNoticesPort             = care.ContractNotices
+	FamilyChildrenStatementsPort    = care.FamilyChildrenStatements
+	FamilyChildrenReader            = care.FamilyChildrenReader
+	FamilyChildren                  = care.FamilyChildren
 	ContractNotice                  = care.ContractNotice
 	ContractNoticeInput             = care.ContractNoticeInput
 	ContractNoticeOptions           = care.ContractNoticeOptions
@@ -149,6 +152,7 @@ var (
 	ErrContractSpecialTerminationClosed = care.ErrContractSpecialTerminationClosed
 	ErrContractNoticeTemplateMissing    = care.ErrContractNoticeTemplateMissing
 	ErrContractNoticeInvalid            = care.ErrContractNoticeInvalid
+	ErrFamilyChildrenInvalid            = care.ErrFamilyChildrenInvalid
 	ErrSharedDocumentNotFound           = care.ErrSharedDocumentNotFound
 	ErrChildNotLinked                   = care.ErrChildNotLinked
 	ErrEmailRequired                    = care.ErrEmailRequired

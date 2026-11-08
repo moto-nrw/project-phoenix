@@ -80,6 +80,9 @@ type Config struct {
 	ContractDocuments ContractDocuments
 	// ContractNotices withdraw and terminate those contracts (#4682).
 	ContractNotices ContractNotices
+	// FamilyChildrenStatements are the children of the family on those
+	// contracts (#5918).
+	FamilyChildrenStatements FamilyChildrenStatements
 	// SharedDocuments are the documents a Träger released for parents in
 	// the same inbox (#4692).
 	SharedDocuments  TraegerSharedDocuments

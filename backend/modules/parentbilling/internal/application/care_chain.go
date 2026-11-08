@@ -33,6 +33,13 @@ type careChainInput struct {
 	month     calendar.Date
 	rules     []parentbilling.ContributionRule
 	evidences []parentbilling.CareEvidence
+	// familyChildren is the confirmed number of children valid in the
+	// month per family (#5918); a sibling rule reads it only when it counts
+	// the family.
+	familyChildren map[string]int
+	// uncounted collects the families a rule that counts the family ranked
+	// without a confirmed number valid in the month; nil collects nothing.
+	uncounted map[string]bool
 }
 
 // applyCareChain runs the chain over the invoices of one month and writes
@@ -46,7 +53,7 @@ func applyCareChain(entries []*careChainEntry, in careChainInput) {
 		entry.applyIncome(in, rules)
 	}
 	for _, rule := range rulesOfKind(rules, parentbilling.RuleSibling) {
-		applyCareSiblingRule(entries, rule)
+		applyCareSiblingRule(entries, rule, in)
 	}
 	for _, entry := range entries {
 		entry.applySingleParent(in, rules)
@@ -190,7 +197,7 @@ func (e *careChainEntry) reduce(rule *parentbilling.ContributionRule, discount i
 // familyOf is the family of an invoice: its recipient's mail address,
 // compared without case, like the families of ADR 0126 and #4691. An
 // invoice without an address is a family of its own. #4689 replaces the key
-// with the payer, #5918 adds the children the family states.
+// with the payer; the children the family states (#5918) use the same key.
 func familyOf(entry *careChainEntry) string {
 	if email := strings.ToLower(strings.TrimSpace(entry.invoice.Recipient.Email)); email != "" {
 		return email
@@ -208,7 +215,8 @@ type rankedCareChild struct {
 
 // rankFamilies groups the entries by family and, in each family, by child,
 // in the order of the sibling rule: the highest base price first, then the
-// oldest, then the child key, so the order is the same on every run.
+// oldest, then the child key, so the order is the same on every run. The
+// families come by their key.
 func rankFamilies(entries []*careChainEntry, rule *parentbilling.ContributionRule) [][]*rankedCareChild {
 	families := map[string]map[string]*rankedCareChild{}
 	order := []string{}
@@ -266,7 +274,7 @@ func countingSchools(rule *parentbilling.ContributionRule) []int64 {
 // applyCareSiblingRule ranks the children of every family that have a
 // position of the rule at a counting school and reduces the invoices at the
 // rule's schools of every child from the rule's rank on.
-func applyCareSiblingRule(entries []*careChainEntry, rule *parentbilling.ContributionRule) {
+func applyCareSiblingRule(entries []*careChainEntry, rule *parentbilling.ContributionRule, in careChainInput) {
 	counting := countingSchools(rule)
 	counted := []*careChainEntry{}
 	for _, entry := range entries {
@@ -275,15 +283,38 @@ func applyCareSiblingRule(entries []*careChainEntry, rule *parentbilling.Contrib
 		}
 	}
 	for _, children := range rankFamilies(counted, rule) {
-		total := len(children)
+		total, ahead := familySize(children, rule, in)
 		for index, child := range children {
-			rank := index + 1
+			rank := ahead + index + 1
 			if rank < *rule.SiblingFromChild {
 				continue
 			}
 			reduceCareSiblingChild(child, rule, rank, total)
 		}
 	}
+}
+
+// familySize is how many children a sibling rule counts in a family and how
+// many of them, the siblings without a contract, come before its children
+// with one (#5918). A rule that counts the family takes the confirmed number
+// valid in the month, but never fewer than the children with a contract it
+// counts; without a confirmed number it counts those children alone and
+// notes the family as uncounted.
+func familySize(children []*rankedCareChild, rule *parentbilling.ContributionRule, in careChainInput) (total, ahead int) {
+	withContract := len(children)
+	if !rule.CountsFamilyChildren {
+		return withContract, 0
+	}
+	family := familyOf(children[0].entries[0])
+	stated, ok := in.familyChildren[family]
+	if !ok {
+		if in.uncounted != nil && !strings.HasPrefix(family, "contract:") {
+			in.uncounted[family] = true
+		}
+		return withContract, 0
+	}
+	total = max(stated, withContract)
+	return total, total - withContract
 }
 
 // applyCareCap lowers what a family pays at the rule's schools to the cap:

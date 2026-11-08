@@ -39,7 +39,10 @@ const CodeParentBillingCostBearerNotFound = "parent_billing.cost_bearer_not_foun
 const CodeParentBillingCostTakeoverWithExemption = "parent_billing.cost_takeover_with_exemption"
 const CodeParentBillingDebtorNumberInvalid = "parent_billing.debtor_number_invalid"
 const CodeParentBillingDebtorNumberLocked = "parent_billing.debtor_number_locked"
+const CodeParentBillingFamilyChildrenInvalid = "parent_billing.family_children_invalid"
+const CodeParentBillingFamilyChildrenNotFound = "parent_billing.family_children_not_found"
 const CodeParentBillingFamilyNotFound = "parent_billing.family_not_found"
+const CodeParentBillingFamilyWithoutAddress = "parent_billing.family_without_address"
 const CodeParentBillingHolidayQuoteInvalid = "parent_billing.holiday_quote_invalid"
 const CodeParentBillingInvoiceCancelled = "parent_billing.invoice_cancelled"
 const CodeParentBillingInvoiceCredited = "parent_billing.invoice_credited"
@@ -97,7 +100,10 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingCostTakeoverWithExemption, "business_rejection"},
 	{CodeParentBillingDebtorNumberInvalid, "input"},
 	{CodeParentBillingDebtorNumberLocked, "business_rejection"},
+	{CodeParentBillingFamilyChildrenInvalid, "input"},
+	{CodeParentBillingFamilyChildrenNotFound, "business_rejection"},
 	{CodeParentBillingFamilyNotFound, "business_rejection"},
+	{CodeParentBillingFamilyWithoutAddress, "business_rejection"},
 	{CodeParentBillingHolidayQuoteInvalid, "input"},
 	{CodeParentBillingInvoiceCancelled, "business_rejection"},
 	{CodeParentBillingInvoiceCredited, "business_rejection"},
