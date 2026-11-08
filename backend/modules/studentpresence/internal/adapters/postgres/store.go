@@ -175,9 +175,9 @@ func (s *Store) PresenceDaysBetween(ctx context.Context, ids []int64, from, to c
 		UNION
 		SELECT student_id, (entry_time AT TIME ZONE 'Europe/Berlin')::date AS date FROM active.visits
 		WHERE tenant_id = ? AND student_id IN (?)
-			AND entry_time >= ? AND entry_time <= ?
+			AND entry_time >= ? AND entry_time < ?
 		ORDER BY student_id, date
-	`, tenantID, bun.List(ids), from, to, tenantID, bun.List(ids), from.BerlinMidnight(), to.EndOfDay()).Scan(ctx, &result)
+	`, tenantID, bun.List(ids), from, to, tenantID, bun.List(ids), from.BerlinMidnight(), to.AddDays(1).BerlinMidnight()).Scan(ctx, &result)
 	stats := ports.Stats{Queries: 1, Rows: int64(len(result)), StatementDuration: time.Since(started)}
 	if err != nil {
 		return nil, stats, fmt.Errorf("list presence days: %w", err)
