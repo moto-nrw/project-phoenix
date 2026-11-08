@@ -68,6 +68,9 @@ function lineColumns(change: boolean): DataTableColumn<CareNoticeLine>[] {
       align: "right",
       className: "tabular-nums",
       render: (line) => formatEuro(line.monthlyCents),
+      stackedRender: (line) =>
+        `${formatEuro(line.monthlyCents)} im Monat · ${noticePeriod(line.periodFrom, line.periodUntil)}`,
+      stackedLabel: false,
     },
     {
       key: "quantity",
@@ -132,6 +135,7 @@ function installmentColumns(
           <span className="tabular-nums">am {formatDate(rate.dueOn)}</span>
         ),
       stacked: "field",
+      stackedLabel: false,
     },
   ];
   if (change) {
@@ -305,6 +309,7 @@ export function CareNoticeDocument({
         <DataTable
           columns={lineColumns(change)}
           rows={[...notice.lines]}
+          stackedDetailKey="monthly"
           getRowKey={(line) =>
             `${line.kind}-${line.label}-${line.detail}-${line.periodFrom}`
           }
@@ -348,6 +353,7 @@ export function CareNoticeDocument({
         <DataTable
           columns={installmentColumns(change)}
           rows={[...notice.installments]}
+          stackedDetailKey="due"
           getRowKey={(rate) => rate.month}
           stackedOnMobile
           stackedLayout="row"

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
+	"strings"
 
 	validation "github.com/go-ozzo/ozzo-validation"
 
@@ -284,9 +285,43 @@ func (n *CareFeeNotices) CareNoticeLetter(ctx context.Context, reviewer parentbi
 		map[string]any{"contract_ids": []int64{contractID}}); err != nil {
 		return parentbilling.CareNoticeLetter{}, fmt.Errorf("parent billing: record notice letter: %w", err)
 	}
-	return parentbilling.CareNoticeLetter{Notice: detail.Notices[index], SenderText: letterhead.SenderText,
+	notice := detail.Notices[index]
+	notice.LegalRemedy = filledLegalRemedy(notice, letterhead)
+	return parentbilling.CareNoticeLetter{Notice: notice, SenderText: letterhead.SenderText,
 		FooterText: letterhead.FooterText, ContactName: letterhead.ContactName, ContactPhone: letterhead.ContactPhone,
 		ContactEmail: letterhead.ContactEmail, AccentColor: letterhead.AccentColor, LogoDataURL: logoDataURL(letterhead.Logo)}, nil
+}
+
+// filledLegalRemedy fills the placeholders of the legal remedy the notice
+// copied (ADR 0170) with the values its letter carries, as the letters of the
+// monthly care do; a draft without a number keeps "{{bescheidnummer}}" empty.
+func filledLegalRemedy(notice parentbilling.CareNotice, letterhead parentbilling.Letterhead) string {
+	if strings.TrimSpace(notice.LegalRemedy) == "" {
+		return ""
+	}
+	text := func(value string) templates.Value { return templates.Value{Text: strings.TrimSpace(value)} }
+	issued := ""
+	if notice.IssuedOn != nil {
+		issued = germanDate(*notice.IssuedOn)
+	}
+	values := map[string]templates.Value{
+		"familienname":   text(notice.Recipient.LastName),
+		"kinder":         text(fullName(notice.ChildFirstName, notice.ChildLastName)),
+		"traeger":        text(firstLine(textLines(letterhead.SenderText))),
+		"ansprechperson": text(letterhead.ContactName),
+		"zeitraum":       text(germanDate(notice.PeriodFrom) + " bis " + germanDate(notice.PeriodUntil)),
+		"bescheidnummer": text(notice.Number),
+		"datum":          text(issued),
+		"summe":          text(formatEuro(notice.TotalCents)),
+	}
+	filled := templates.Fill(templates.Template{LegalRemedy: notice.LegalRemedy}, values)
+	paragraphs := make([]string, 0, len(filled.LegalRemedy))
+	for _, block := range filled.LegalRemedy {
+		if line := strings.TrimSpace(strings.Join([]string{block.Heading, block.Text}, "\n")); line != "" {
+			paragraphs = append(paragraphs, line)
+		}
+	}
+	return strings.Join(paragraphs, "\n\n")
 }
 
 // logoDataURL inlines a logo image; anything that is no image stays out.

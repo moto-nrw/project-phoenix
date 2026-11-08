@@ -299,3 +299,15 @@ func TestCareNoticeLinesCarryReductionsAndShares(t *testing.T) {
 	assert.Equal(t, notices[0].TotalCents, sum, "the lines add up to the total")
 	assert.False(t, notices[0].Installments[0].ImmediatelyDue, "a notice dated on the first is due that day")
 }
+
+// TestCareNoticeLetterFillsThePlaceholdersOfTheLegalRemedy: the legal remedy
+// the Träger writes may name the Träger and the notice; page 1 prints them
+// filled, never as "{{traeger}}".
+func TestCareNoticeLetterFillsThePlaceholdersOfTheLegalRemedy(t *testing.T) {
+	t.Parallel()
+	notice := mk007Previous(t)
+	notice.LegalRemedy = "Widerspruch bei {{traeger}} gegen den Bescheid {{bescheidnummer}} vom {{datum}}."
+	filled := filledLegalRemedy(notice, parentbilling.Letterhead{SenderText: "Gemeinde Hardt\nMariazeller Str. 1"})
+	assert.Equal(t, "Widerspruch bei Gemeinde Hardt gegen den Bescheid 1.2025.000041.1 vom 24.09.2025.", filled)
+	assert.Empty(t, filledLegalRemedy(parentbilling.CareNotice{}, parentbilling.Letterhead{}))
+}
