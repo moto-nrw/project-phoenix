@@ -137,6 +137,8 @@ func (rs *SEPADebitResource) submit(w http.ResponseWriter, r *http.Request) {
 // renderDebitError answers a refused file; no answer names bank data.
 func renderDebitError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
+	case errors.Is(err, capability.ErrSEPAAccountHolderUnsupported):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingSepaAccountHolderUnsupported))
 	case errors.Is(err, capability.ErrSEPADebitRunNotFound):
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeParentBillingSepaDebitRunNotFound))
 	case errors.Is(err, capability.ErrSEPADebitsEmpty):

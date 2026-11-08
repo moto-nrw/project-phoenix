@@ -89,11 +89,13 @@ const columns: DataTableColumn<SepaDebit>[] = [
   },
   {
     key: "due",
-    header: "Fällig",
+    header: "Abbuchung am",
     render: (debit) => (
-      <span className="tabular-nums">{formatDate(debit.dueOn)}</span>
+      <span className="tabular-nums">
+        {formatDate(debit.collectOn ?? debit.dueOn)}
+      </span>
     ),
-    sortValue: (debit) => debit.dueOn,
+    sortValue: (debit) => debit.collectOn ?? debit.dueOn,
   },
   {
     key: "sequence",
@@ -124,7 +126,12 @@ export function SepaDebitCard({
   runId,
 }: Readonly<{ kind: SepaDebitRunKind; runId: string }>) {
   const [run, setRun] = useState<SepaDebitRun | null>(null);
-  const [downloaded, setDownloaded] = useState(false);
+  const [downloaded, setDownloaded] = useState<{
+    key: string;
+    messageId: string;
+  } | null>(null);
+  const runKey = `${kind}/${runId}`;
+  const downloadedId = downloaded?.key === runKey ? downloaded.messageId : null;
   const [downloading, setDownloading] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -157,7 +164,10 @@ export function SepaDebitCard({
     try {
       const file = await downloadSepaDebitFile(kind, runId);
       downloadBlob(file.blob, file.filename);
-      setDownloaded(true);
+      setDownloaded({
+        key: runKey,
+        messageId: file.filename.replace(/\.xml$/i, ""),
+      });
     } catch (err) {
       logger.error("traeger_sepa_debit_file_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -170,10 +180,10 @@ export function SepaDebitCard({
   };
 
   const submit = async () => {
-    if (!run) return;
+    if (!run || !downloadedId) return;
     setSubmitting(true);
     try {
-      setRun(await submitSepaDebits(kind, runId, run.messageId));
+      setRun(await submitSepaDebits(kind, runId, downloadedId));
       setConfirming(false);
       success("Die Lastschriften sind als eingereicht vermerkt.");
     } catch (err) {
@@ -182,7 +192,7 @@ export function SepaDebitCard({
       });
       setConfirming(false);
       if (wireErrorCode(err) === "parent_billing.sepa_debits_changed") {
-        setDownloaded(false);
+        setDownloaded(null);
       }
       void errors.show(err, { object: "die Lastschriftdatei" });
       void reload();
@@ -230,7 +240,7 @@ export function SepaDebitCard({
                 type="button"
                 variant="outline"
                 size="md"
-                disabled={fileBlocked}
+                disabled={fileBlocked || !downloadedId || downloading}
                 onClick={() => setConfirming(true)}
               >
                 Bei der Bank eingereicht
@@ -275,8 +285,14 @@ export function SepaDebitCard({
               message={`${debitCountLabel(run.pastDue)} ${run.pastDue === 1 ? "war" : "waren"} schon fällig. Die Bank bucht nicht rückwirkend ab. Die Datei bucht ${run.pastDue === 1 ? "sie" : "diese"} am ${formatDate(run.groups[0]?.collectOn ?? "")} ab.`}
             />
           ) : null}
+          {pending && !downloadedId ? (
+            <p className="text-sm text-gray-600">
+              Laden Sie zuerst die Datei herunter. Danach können Sie das
+              Einreichen bestätigen.
+            </p>
+          ) : null}
           {pending ? (
-            <WizardStepper steps={STEPS} current={downloaded ? 1 : 0} />
+            <WizardStepper steps={STEPS} current={downloadedId ? 1 : 0} />
           ) : null}
           {pending ? (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -342,7 +358,7 @@ export function SepaDebitCard({
           dann eine Folgelastschrift.
         </p>
         <p className="mt-3 text-sm text-gray-600">
-          Datei <span className="font-mono break-all">{run.messageId}</span>
+          Datei <span className="font-mono break-all">{downloadedId}</span>
         </p>
       </ConfirmationModal>
     </>

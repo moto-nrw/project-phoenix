@@ -11979,6 +11979,7 @@ export const traegerSepaDebitFileTopic =
             "Öffnen Sie unter `Abrechnung` den freigegebenen Lauf.",
             "Prüfen Sie in der Karte `Lastschrift` Zahl, Summe und Tag der Abbuchung.",
             "Wählen Sie `Datei herunterladen`. Sie bekommen eine XML-Datei.",
+            "Lassen Sie diese Seite offen, bis Sie das Einreichen bestätigt haben.",
           ],
         },
         {
@@ -12006,8 +12007,9 @@ export const traegerSepaDebitFileTopic =
       result:
         "Die Karte zeigt `Bei der Bank eingereicht`. Bei einem neuen Mandat ist die nächste Abbuchung eine Folgelastschrift. Auf der Seite des Mandats steht jede Abbuchung unter `Abbuchungen`.",
       notes: [
-        "Sie können die Datei mehrmals herunterladen. Sie bleibt gleich. Reichen Sie dieselbe Datei aber nur einmal ein.",
+        "Sie können die Datei mehrmals herunterladen. Ohne Änderungen am selben Tag bleibt sie gleich. Reichen Sie dieselbe Datei aber nur einmal ein.",
         "Eine Lastschrift, die schon fällig war, bucht die Datei am nächsten Tag ab.",
+        "Ein Einmalmandat darf nur eine Rechnung einziehen. Bei mehreren Rechnungen klären Sie mit der Familie, wie sie zahlt.",
         "Ein Mandat gilt 36 Monate nach der letzten Abbuchung. Danach braucht die Familie ein neues Mandat.",
       ],
       differences: [

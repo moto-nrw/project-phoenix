@@ -10,6 +10,7 @@ import (
 
 	"golang.org/x/text/unicode/norm"
 
+	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -161,6 +162,9 @@ func euros(cents int64) string {
 
 // renderPain008 writes the file.
 func renderPain008(head debitFileHead, batches []debitFileBatch) ([]byte, error) {
+	if err := validateSEPANames(head, batches); err != nil {
+		return nil, err
+	}
 	document := painDocument{XMLNS: pain008Namespace, XSI: "http://www.w3.org/2001/XMLSchema-instance"}
 	body := &document.Body
 	var count int
@@ -260,4 +264,20 @@ func sepaText(value string, max int) string {
 		text = strings.TrimSpace(string(runes[:max]))
 	}
 	return text
+}
+
+// Never emit an empty mandatory Nm after converting to the DK character
+// set. Report only the object ID, never the decrypted name or bank data.
+func validateSEPANames(head debitFileHead, batches []debitFileBatch) error {
+	if sepaText(head.CreditorName, maxSEPAName) == "" {
+		return parentbilling.ErrSEPAAccountHolderUnsupported
+	}
+	for _, batch := range batches {
+		for _, entry := range batch.Entries {
+			if sepaText(entry.DebtorName, maxSEPAName) == "" {
+				return parentbilling.ErrSEPAAccountHolderUnsupported
+			}
+		}
+	}
+	return nil
 }

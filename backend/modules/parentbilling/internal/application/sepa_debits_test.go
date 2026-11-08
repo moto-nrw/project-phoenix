@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -70,9 +71,13 @@ func (s *debitStoreFake) SEPADebitsOfRun(context.Context, int64, string, int64, 
 	return out, nil
 }
 
-func (s *debitStoreFake) SubmitSEPADebits(_ context.Context, _, _ int64, messageID string, ids []int64,
+func (s *debitStoreFake) SubmitSEPADebits(_ context.Context, _, _ int64, messageID string, debits []parentbilling.SEPADebit,
 	collected map[int64]calendar.Date,
 ) error {
+	ids := make([]int64, len(debits))
+	for i, debit := range debits {
+		ids[i] = debit.ID
+	}
 	s.submitted = append(s.submitted, ids)
 	s.collected = append(s.collected, collected)
 	for i := range s.debits {
@@ -80,6 +85,12 @@ func (s *debitStoreFake) SubmitSEPADebits(_ context.Context, _, _ int64, message
 			s.debits[i].Debit.Status, s.debits[i].Debit.MessageID = parentbilling.DebitSubmitted, messageID
 			at := time.Date(2026, 11, 20, 9, 0, 0, 0, time.UTC)
 			s.debits[i].Debit.SubmittedAt = &at
+			for _, debit := range debits {
+				if debit.ID == s.debits[i].Debit.ID {
+					s.debits[i].Debit.AmountCents = debit.AmountCents
+					s.debits[i].Debit.CollectOn = debit.CollectOn
+				}
+			}
 		}
 	}
 	return nil
@@ -295,4 +306,85 @@ func TestSEPATextKeepsTheCharacterSetOfTheDeutscheKreditwirtschaft(t *testing.T)
 	assert.Equal(t, "RE-2027-0001-", sepaIdentifier("RE-2027-0001_"))
 	assert.Equal(t, "A/B", sepaIdentifier("/A//B"))
 	assert.Len(t, sepaIdentifier(strings.Repeat("X", 40)), 35)
+}
+
+func TestSEPADebitOneOffCannotBeUsedTwice(t *testing.T) {
+	t.Parallel()
+	for _, consumed := range []bool{false, true} {
+		t.Run(fmt.Sprint(consumed), func(t *testing.T) {
+			store := sjrDebits()
+			store.debits = store.debits[:2]
+			for i := range store.debits {
+				store.debits[i].MandateKind = parentbilling.MandateOneOff
+				store.debits[i].Debit.MandateID = 11
+				store.debits[i].Debit.SequenceType = parentbilling.SequenceTypeOneOff
+				if consumed {
+					on := calendar.NewDate(2026, 11, 1)
+					store.debits[i].MandateLastCollectedOn = &on
+				}
+			}
+			run, err := newSJRDebits(store).SEPADebitRun(context.Background(), sjrReviewer, parentbilling.DebitRunCare, 3)
+			require.NoError(t, err)
+			assert.Zero(t, run.Count, "an already used or ambiguous one-off mandate authorizes no debit")
+			assert.Len(t, run.Left, 2)
+		})
+	}
+}
+
+func TestSEPADebitFingerprintIncludesCreditorAccount(t *testing.T) {
+	t.Parallel()
+	debits := newSJRDebits(sjrDebits())
+	before, err := debits.SEPADebitRun(context.Background(), sjrReviewer, parentbilling.DebitRunCare, 3)
+	require.NoError(t, err)
+	debits.letterheads = fakeLetterheads{account: &parentbilling.LetterheadBankAccount{
+		AccountHolder: "Anderer Träger", IBAN: "AT611904300234573201", BIC: "BKAUATWW"}}
+	after, err := debits.SEPADebitRun(context.Background(), sjrReviewer, parentbilling.DebitRunCare, 3)
+	require.NoError(t, err)
+	assert.NotEqual(t, before.MessageID, after.MessageID)
+	_, err = debits.SubmitSEPADebits(context.Background(), sjrReviewer, parentbilling.DebitRunCare, 3, before.MessageID)
+	require.ErrorIs(t, err, parentbilling.ErrSEPADebitsChanged)
+}
+
+func TestSEPADebitConfirmationKeepsDownloadedDates(t *testing.T) {
+	t.Parallel()
+	store := sjrDebits()
+	store.debits[0].Debit.DueOn = calendar.NewDate(2026, 11, 1)
+	debits := newSJRDebits(store)
+	run, err := debits.SEPADebitRun(context.Background(), sjrReviewer, parentbilling.DebitRunCare, 3)
+	require.NoError(t, err)
+	debits.today = func() calendar.Date { return calendar.NewDate(2026, 11, 22) }
+	_, err = debits.SubmitSEPADebits(context.Background(), sjrReviewer, parentbilling.DebitRunCare, 3, run.MessageID)
+	require.NoError(t, err, "confirmation after midnight must still identify the file accepted by the bank")
+	require.Len(t, store.collected, 1)
+	assert.Equal(t, calendar.NewDate(2026, 11, 21), store.collected[0][11])
+}
+
+func TestSEPADebitFileRejectsEmptyConvertedNames(t *testing.T) {
+	t.Parallel()
+	for _, creditor := range []bool{false, true} {
+		t.Run(fmt.Sprint(creditor), func(t *testing.T) {
+			store := sjrDebits()
+			debits := newSJRDebits(store)
+			if creditor {
+				debits.letterheads = fakeLetterheads{account: &parentbilling.LetterheadBankAccount{
+					AccountHolder: "李明", IBAN: "DE89370400440532013000"}}
+			} else {
+				store.debits[0] = sealedDebit(1, 11, "RE-2027-0001", 7800, parentbilling.SequenceTypeFirst, "李明", "DE89370400440532013000")
+			}
+			_, err := debits.SEPADebitFile(context.Background(), sjrReviewer, parentbilling.DebitRunCare, 3)
+			require.Error(t, err, "a name empty after conversion makes the XML invalid")
+		})
+	}
+}
+
+func TestSEPADebitFutureDatesKeepTheirIdentityAcrossMidnight(t *testing.T) {
+	t.Parallel()
+	debits := newSJRDebits(sjrDebits())
+	before, err := debits.SEPADebitRun(context.Background(), sjrReviewer, parentbilling.DebitRunCare, 3)
+	require.NoError(t, err)
+	debits.today = func() calendar.Date { return calendar.NewDate(2026, 11, 21) }
+	after, err := debits.SEPADebitRun(context.Background(), sjrReviewer, parentbilling.DebitRunCare, 3)
+	require.NoError(t, err)
+	assert.Equal(t, before.MessageID, after.MessageID, "an unchanged collection date must retain the bank's duplicate detection ID")
+	assert.LessOrEqual(t, len(after.MessageID), maxSEPAIdentifier)
 }

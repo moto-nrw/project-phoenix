@@ -16,7 +16,12 @@ export type SepaSequenceType = "FRST" | "RCUR" | "OOFF";
 type SepaDebitStatus = "pending" | "submitted";
 /** Why a pending debit stays out of the file. */
 export type SepaDebitLeft =
-  "cancelled" | "revoked" | "expired" | "creditor_changed";
+  | "cancelled"
+  | "revoked"
+  | "expired"
+  | "creditor_changed"
+  | "one_off_used"
+  | "one_off_multiple";
 
 export interface SepaDebit {
   readonly id: string;
@@ -27,6 +32,8 @@ export interface SepaDebit {
   readonly amountCents: number;
   /** Calendar date the invoice is due, "YYYY-MM-DD". */
   readonly dueOn: string;
+  /** Collection day of the exported/submitted debit. */
+  readonly collectOn: string | null;
   readonly sequenceType: SepaSequenceType;
   readonly mandateReference: string;
   readonly ibanMasked: string;
@@ -71,6 +78,7 @@ interface BackendDebit {
   recipient_name: string;
   amount_cents: number;
   due_on: string;
+  collect_on?: string;
   sequence_type: SepaSequenceType;
   mandate_reference: string;
   iban_masked: string;
@@ -111,6 +119,7 @@ function debitFromBackend(debit: BackendDebit): SepaDebit {
     recipientName: debit.recipient_name,
     amountCents: debit.amount_cents,
     dueOn: debit.due_on,
+    collectOn: debit.collect_on ?? null,
     sequenceType: debit.sequence_type,
     mandateReference: debit.mandate_reference,
     ibanMasked: debit.iban_masked,

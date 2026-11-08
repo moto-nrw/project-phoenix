@@ -21,6 +21,10 @@ export const SEPA_SEQUENCE_BADGES: Record<
 };
 
 export const SEPA_DEBIT_LEFT_LABELS: Record<SepaDebitLeft, string> = {
+  one_off_used:
+    "Dieses Einmalmandat wurde bereits genutzt. Die Familie braucht ein neues Mandat.",
+  one_off_multiple:
+    "Mehrere Rechnungen nutzen dieses Einmalmandat. Klären Sie mit der Familie, wie sie zahlt.",
   cancelled: "Die Rechnung ist storniert oder gutgeschrieben.",
   revoked: "Das Mandat ist widerrufen.",
   expired:

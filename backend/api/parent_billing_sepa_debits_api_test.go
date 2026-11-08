@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -322,4 +323,65 @@ func TestSEPADebitsQueryBudgetsAreFlat(t *testing.T) {
 	assert.Len(t, measure(collections).Statements, len(firstHistory.Statements), "the history is flat in the debits")
 	querybudgets.AssertQueryBudget(t, "api.traeger.sepa_debits", firstRun)
 	querybudgets.AssertQueryBudget(t, "api.traeger.sepa_mandate_collections", firstHistory)
+}
+
+// Hold the shared mandate until both confirmations are waiting. With
+// debit-first locking both requests already own their run's debit, causing
+// the FRST propagation to deadlock; mandate-first locking serializes them.
+func TestSEPADebitConfirmationsShareMandatesSafely(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	for _, kind := range []string{"recurring", "one_off"} {
+		t.Run(kind, func(t *testing.T) {
+			f := sepaDebitFixture(t, "Träger gleichzeitige Bestätigung "+kind)
+			contract := careContract(t, f.db, f.office.organization, f.office.schools[0], "Lia", sepaDebitMonth, sjrServices()...)
+			input := mandateBody(contract, "SJR-CONCURRENT")
+			input["kind"], input["sequence"] = kind, "first"
+			mandate := createMandate(t, f, input)
+			runs := []int64{releaseDebitRun(t, f, sepaDebitMonth), releaseDebitRun(t, f, sepaDebitNextMonth)}
+			tokens := []string{debitRun(t, f, runs[0]).MessageID, debitRun(t, f, runs[1]).MessageID}
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			gate, err := f.db.BeginTx(ctx, nil)
+			require.NoError(t, err)
+			defer func() { _ = gate.Rollback() }()
+			_, err = gate.ExecContext(ctx, `SELECT id FROM parent_billing.sepa_mandates WHERE organization_id = ? AND id = ? FOR UPDATE`,
+				f.office.organization, mandate.ID)
+			require.NoError(t, err)
+			results := make(chan *httptest.ResponseRecorder, 2)
+			for i, run := range runs {
+				go func(run int64, token string) {
+					req := httptest.NewRequest(http.MethodPost, sepaDebitRunPath(run, "/submission"), strings.NewReader(fmt.Sprintf(`{"message_id":%q}`, token)))
+					req = req.WithContext(ctx)
+					req.Header.Set("Authorization", "Bearer "+f.office.token)
+					req.Header.Set("Content-Type", "application/json")
+					rec := httptest.NewRecorder()
+					f.traeger.ServeHTTP(rec, req)
+					results <- rec
+				}(run, tokens[i])
+			}
+			assert.Eventually(t, func() bool {
+				var waiting int
+				err := f.db.NewRaw(`SELECT COUNT(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'`).Scan(ctx, &waiting)
+				return err == nil && waiting == 2
+			}, 5*time.Second, 10*time.Millisecond, "both confirmations must reach the shared mandate")
+			require.NoError(t, gate.Commit())
+			codes := []int{}
+			for range runs {
+				select {
+				case rec := <-results:
+					codes = append(codes, rec.Code)
+					if rec.Code != http.StatusOK {
+						assert.Contains(t, rec.Body.String(), "parent_billing.sepa_debits_", rec.Body.String())
+					}
+				case <-ctx.Done():
+					t.Fatal("confirmations did not finish")
+				}
+			}
+			assert.ElementsMatch(t, []int{http.StatusOK, http.StatusConflict}, codes)
+			var submitted int
+			require.NoError(t, f.db.NewRaw(`SELECT COUNT(*) FROM parent_billing.sepa_debits WHERE organization_id = ? AND mandate_id = ? AND status = 'submitted'`, f.office.organization, mandate.ID).Scan(ctx, &submitted))
+			assert.Equal(t, 1, submitted, "only one FRST or one-off file may be confirmed")
+		})
+	}
 }

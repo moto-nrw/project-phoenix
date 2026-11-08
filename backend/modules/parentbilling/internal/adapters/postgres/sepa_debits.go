@@ -83,6 +83,8 @@ type sepaDebitRow struct {
 	RunID                  int64          `bun:"run_id"`
 	InvoiceNumber          string         `bun:"invoice_number"`
 	AmountCents            int64          `bun:"amount_cents"`
+	SubmittedAmountCents   *int64         `bun:"submitted_amount_cents"`
+	CollectOn              *calendar.Date `bun:"collect_on,type:date"`
 	DueOn                  calendar.Date  `bun:"due_on,type:date"`
 	SequenceType           string         `bun:"sequence_type"`
 	CreditorID             string         `bun:"creditor_id"`
@@ -116,9 +118,17 @@ func (r sepaDebitRow) sealed() parentbilling.SealedSEPADebit {
 		}
 		name += r.RecipientLastName
 	}
+	amount := r.AmountCents
+	var collectOn calendar.Date
+	if r.SubmittedAmountCents != nil {
+		amount = *r.SubmittedAmountCents
+	}
+	if r.CollectOn != nil {
+		collectOn = *r.CollectOn
+	}
 	return parentbilling.SealedSEPADebit{
 		Debit: parentbilling.SEPADebit{ID: r.ID, MandateID: r.MandateID, ContractID: r.CareContractID, RunKind: r.RunKind,
-			RunID: r.RunID, InvoiceNumber: r.InvoiceNumber, RecipientName: name, AmountCents: r.AmountCents, DueOn: r.DueOn,
+			RunID: r.RunID, InvoiceNumber: r.InvoiceNumber, RecipientName: name, AmountCents: amount, DueOn: r.DueOn, CollectOn: collectOn,
 			SequenceType: r.SequenceType, MandateReference: r.MandateReference, IBANMasked: r.IBANMasked, Status: r.Status,
 			SubmittedAt: r.SubmittedAt, MessageID: textOf(r.MessageID)},
 		CreditorID: r.CreditorID, MandateSignedOn: r.MandateSignedOn, BIC: r.BIC, MandateRevoked: r.MandateRevoked,
@@ -135,7 +145,7 @@ func (r sepaDebitRow) sealed() parentbilling.SealedSEPADebit {
 const (
 	sepaDebitColumns = `SELECT debit.id, debit.mandate_id, debit.care_contract_id, debit.run_kind, debit.run_id, debit.invoice_number,
 	debit.amount_cents, debit.due_on, debit.sequence_type, debit.creditor_id, debit.mandate_reference, debit.mandate_signed_on,
-	debit.bic, debit.status, debit.message_id, debit.submitted_at, `
+	debit.bic, debit.status, debit.message_id, debit.submitted_at, debit.submitted_amount_cents, debit.collect_on, `
 	sepaDebitAccountColumns = `debit.account_holder_sealed, debit.iban_sealed, `
 	sepaDebitState          = `mandate.revoked_on IS NOT NULL AS mandate_revoked, mandate.kind AS mandate_kind,
 	mandate.signed_on AS mandate_signed, mandate.sequence AS mandate_sequence, mandate.last_collected_on AS mandate_last_collected_on,
@@ -184,8 +194,8 @@ func scanSEPADebits(ctx context.Context, query *bun.RawQuery) ([]parentbilling.S
 
 // The released run of a debit file, in the Träger's own filter.
 const (
-	releasedCareRunSQL    = `SELECT EXISTS (SELECT 1 FROM parent_billing.care_runs WHERE organization_id = ? AND id = ? AND status = 'released')`
-	releasedHolidayRunSQL = `SELECT EXISTS (SELECT 1 FROM parent_billing.runs WHERE organization_id = ? AND id = ? AND status = 'released')`
+	releasedCareRunSQL    = `SELECT EXISTS (SELECT 1 FROM parent_billing.care_runs WHERE organization_id = ?0 AND id = ?1 AND status = 'released')`
+	releasedHolidayRunSQL = `SELECT EXISTS (SELECT 1 FROM parent_billing.runs WHERE organization_id = ?0 AND id = ?1 AND status = 'released')`
 )
 
 // SEPADebitsOfRun reads the debits of a released run with the sealed
@@ -198,10 +208,16 @@ func (s *Store) SEPADebitsOfRun(ctx context.Context, organizationID int64, runKi
 	if err != nil {
 		return nil, err
 	}
+
 	var released bool
-	if runKind == parentbilling.DebitRunHoliday {
+	switch {
+	case runKind == parentbilling.DebitRunHoliday && lock:
+		err = db.NewRaw(releasedHolidayRunLockedSQL, organizationID, runID, runKind, lock).Scan(ctx, &released)
+	case runKind == parentbilling.DebitRunHoliday:
 		err = db.NewRaw(releasedHolidayRunSQL, organizationID, runID).Scan(ctx, &released)
-	} else {
+	case lock:
+		err = db.NewRaw(releasedCareRunLockedSQL, organizationID, runID, runKind, lock).Scan(ctx, &released)
+	default:
 		err = db.NewRaw(releasedCareRunSQL, organizationID, runID).Scan(ctx, &released)
 	}
 	if err != nil {
@@ -230,9 +246,11 @@ func (s *Store) SEPADebitsOfMandate(ctx context.Context, organizationID, mandate
 }
 
 // submitSEPADebitsSQL marks pending debits of the Träger submitted.
-const submitSEPADebitsSQL = `UPDATE parent_billing.sepa_debits SET status = 'submitted', message_id = ?1,
-	submitted_at = CURRENT_TIMESTAMP, submitted_by_account_id = ?2
-WHERE organization_id = ?0 AND id = ANY(?3) AND status = 'pending'`
+const submitSEPADebitsSQL = `UPDATE parent_billing.sepa_debits AS debit SET status = 'submitted', message_id = ?1,
+	submitted_at = CURRENT_TIMESTAMP, submitted_by_account_id = ?2,
+	submitted_amount_cents = submitted.amount_cents, collect_on = submitted.collect_on
+FROM unnest(?3::bigint[], ?4::bigint[], ?5::date[]) AS submitted(id, amount_cents, collect_on)
+WHERE debit.organization_id = ?0 AND debit.id = submitted.id AND debit.status = 'pending'`
 
 // collectSEPAMandatesSQL sets the last collection of each mandate of the
 // debits (?2: mandate IDs, ?3: their collection days) and turns a recurring
@@ -253,14 +271,16 @@ WHERE organization_id = ?0 AND status = 'pending' AND sequence_type = 'FRST' AND
 // file, collects their mandates on the given days and turns the other
 // pending FRST debits of those mandates to RCUR, in the caller's
 // transaction. A debit no longer pending is ErrSEPADebitsChanged.
-func (s *Store) SubmitSEPADebits(ctx context.Context, organizationID, accountID int64, messageID string, debitIDs []int64,
+func (s *Store) SubmitSEPADebits(ctx context.Context, organizationID, accountID int64, messageID string, debits []parentbilling.SEPADebit,
 	collected map[int64]calendar.Date,
 ) error {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return err
 	}
-	result, err := db.NewRaw(submitSEPADebitsSQL, organizationID, messageID, accountRef(accountID), pgdialect.Array(debitIDs)).Exec(ctx)
+	debitIDs, amounts, dates := submittedDebitTerms(debits)
+	result, err := db.NewRaw(submitSEPADebitsSQL, organizationID, messageID, accountRef(accountID), pgdialect.Array(debitIDs),
+		pgdialect.Array(amounts), pgdialect.Array(dates)).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("submit SEPA debits: %w", err)
 	}
@@ -282,3 +302,29 @@ func (s *Store) SubmitSEPADebits(ctx context.Context, organizationID, accountID 
 	}
 	return nil
 }
+
+// Lock shared mandates in ID order before any debit row. A confirmation
+// also updates pending debits in other runs, so debit-first locking can
+// deadlock with a confirmation of such a run. The following read gets a
+// fresh statement snapshot after a competing confirmation commits.
+const lockRunMandatesSQL = `WITH locked_mandates AS MATERIALIZED (
+	SELECT mandate.id FROM parent_billing.sepa_mandates AS mandate
+	WHERE mandate.organization_id = ?0 AND ?3 AND EXISTS (
+		SELECT 1 FROM parent_billing.sepa_debits AS debit
+		WHERE debit.organization_id = ?0 AND debit.mandate_id = mandate.id
+			AND debit.run_id = ?1 AND debit.run_kind = ?2)
+	ORDER BY mandate.id FOR UPDATE OF mandate
+) `
+
+func submittedDebitTerms(debits []parentbilling.SEPADebit) ([]int64, []int64, []string) {
+	ids, amounts, dates := make([]int64, len(debits)), make([]int64, len(debits)), make([]string, len(debits))
+	for i, debit := range debits {
+		ids[i], amounts[i], dates[i] = debit.ID, debit.AmountCents, debit.CollectOn.String()
+	}
+	return ids, amounts, dates
+}
+
+const (
+	releasedCareRunLockedSQL    = lockRunMandatesSQL + releasedCareRunSQL + ` AND (SELECT count(*) FROM locked_mandates) >= 0`
+	releasedHolidayRunLockedSQL = lockRunMandatesSQL + releasedHolidayRunSQL + ` AND (SELECT count(*) FROM locked_mandates) >= 0`
+)

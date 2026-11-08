@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"fmt"
-	"hash/fnv"
 	"slices"
 	"strings"
 	"time"
@@ -28,7 +27,7 @@ type DebitStore interface {
 	// account when sealed is set, locked when lock is set.
 	SEPADebitsOfRun(ctx context.Context, organizationID int64, runKind string, runID int64, sealed, lock bool) ([]parentbilling.SealedSEPADebit, error)
 	// SubmitSEPADebits marks debits submitted and collects their mandates.
-	SubmitSEPADebits(ctx context.Context, organizationID, accountID int64, messageID string, debitIDs []int64,
+	SubmitSEPADebits(ctx context.Context, organizationID, accountID int64, messageID string, debits []parentbilling.SEPADebit,
 		collected map[int64]calendar.Date) error
 	// InsertSEPAMandateEvents records one action for each mandate.
 	InsertSEPAMandateEvents(ctx context.Context, organizationID, accountID int64, action, source string, fields []string,
@@ -60,6 +59,7 @@ func NewSEPADebits(store DebitStore, letterheads parentbilling.BillingLetterhead
 
 // debitPlan is the file of a run as it is now.
 type debitPlan struct {
+	account  *parentbilling.LetterheadBankAccount
 	run      parentbilling.SEPADebitRun
 	included []parentbilling.SealedSEPADebit
 	// collectOn is the collection day of each included debit.
@@ -76,12 +76,13 @@ func validRunKind(kind string) error {
 // plan sorts the debits of a run into the file, the submitted ones and
 // those left out, and names the file. A pending debit is collected on its
 // due date, at the earliest tomorrow: a bank refuses a day that passed.
-func (d *SEPADebits) plan(runKind string, runID int64, debits []parentbilling.SealedSEPADebit) debitPlan {
+func (d *SEPADebits) plan(runKind string, runID int64, debits []parentbilling.SealedSEPADebit, day calendar.Date) debitPlan {
 	plan := debitPlan{collectOn: map[int64]calendar.Date{}, run: parentbilling.SEPADebitRun{RunKind: runKind, RunID: runID,
 		Groups: []parentbilling.SEPADebitGroup{}, Debits: []parentbilling.SEPADebit{}, Submitted: []parentbilling.SEPADebit{},
 		Left: []parentbilling.SEPADebit{}}}
-	earliest := d.today().AddDays(1)
+	earliest := day.AddDays(1)
 	groups := map[[2]string]*parentbilling.SEPADebitGroup{}
+	duplicates := duplicateOneOffMandates(debits, earliest)
 	for _, entry := range debits {
 		debit := entry.Debit
 		if debit.Status == parentbilling.DebitSubmitted {
@@ -93,13 +94,15 @@ func (d *SEPADebits) plan(runKind string, runID int64, debits []parentbilling.Se
 		}
 		debit.AmountCents += entry.CreditedCents
 		collectOn := max(debit.DueOn, earliest)
-		if debit.Left = leftReason(entry, debit.AmountCents, collectOn); debit.Left != "" {
+		debit.Left = pendingDebitLeft(entry, debit.AmountCents, collectOn, duplicates)
+		if debit.Left != "" {
 			plan.run.Left = append(plan.run.Left, debit)
 			continue
 		}
 		if debit.DueOn.Before(earliest) {
 			plan.run.PastDue++
 		}
+		debit.CollectOn = collectOn
 		entry.Debit = debit
 		plan.included = append(plan.included, entry)
 		plan.collectOn[debit.ID] = collectOn
@@ -119,7 +122,6 @@ func (d *SEPADebits) plan(runKind string, runID int64, debits []parentbilling.Se
 	slices.SortFunc(plan.run.Groups, func(a, b parentbilling.SEPADebitGroup) int {
 		return batchOrder(a.CollectOn, b.CollectOn, a.SequenceType, b.SequenceType)
 	})
-	plan.run.MessageID = messageIDOf(runKind, runID, plan)
 	return plan
 }
 
@@ -138,6 +140,8 @@ func leftReason(entry parentbilling.SealedSEPADebit, amountCents int64, collectO
 	switch {
 	case entry.Cancelled || amountCents <= 0:
 		return parentbilling.DebitLeftCancelled
+	case (entry.MandateKind == parentbilling.MandateOneOff || entry.Debit.SequenceType == parentbilling.SequenceTypeOneOff) && entry.MandateLastCollectedOn != nil:
+		return parentbilling.DebitLeftOneOffUsed
 	case entry.MandateRevoked:
 		return parentbilling.DebitLeftRevoked
 	case entry.CreditorID != entry.CreditorNow:
@@ -149,27 +153,8 @@ func leftReason(entry parentbilling.SealedSEPADebit, amountCents int64, collectO
 	return ""
 }
 
-// messageIDOf names a file by what it collects: the same debits with the
-// same amounts, sequences and days give the same ID, so a bank refuses the
-// second submission of one file, and a changed file gets a new ID.
-func messageIDOf(runKind string, runID int64, plan debitPlan) string {
-	if len(plan.included) == 0 {
-		return ""
-	}
-	hash := fnv.New64a()
-	for _, entry := range plan.included {
-		_, _ = fmt.Fprintf(hash, "%d|%d|%s|%s;", entry.Debit.ID, entry.Debit.AmountCents, entry.Debit.SequenceType,
-			plan.collectOn[entry.Debit.ID])
-	}
-	kind := "M"
-	if runKind == parentbilling.DebitRunHoliday {
-		kind = "F"
-	}
-	return fmt.Sprintf("MOTO-%s%d-%016x", kind, runID, hash.Sum64())
-}
-
 // load reads the debits of a run and the creditor and plans the file.
-func (d *SEPADebits) load(ctx context.Context, reviewer parentbilling.HolidayReviewer, runKind string, runID int64, sealed, lock bool,
+func (d *SEPADebits) load(ctx context.Context, reviewer parentbilling.HolidayReviewer, runKind string, runID int64, sealed, lock bool, day calendar.Date,
 ) (debitPlan, error) {
 	if err := validReviewer(reviewer); err != nil {
 		return debitPlan{}, err
@@ -181,7 +166,7 @@ func (d *SEPADebits) load(ctx context.Context, reviewer parentbilling.HolidayRev
 	if err != nil {
 		return debitPlan{}, err
 	}
-	plan := d.plan(runKind, runID, debits)
+	plan := d.plan(runKind, runID, debits, day)
 	creditor, err := d.store.SEPACreditor(ctx, reviewer.OrganizationID)
 	if err != nil {
 		return debitPlan{}, err
@@ -189,20 +174,22 @@ func (d *SEPADebits) load(ctx context.Context, reviewer parentbilling.HolidayRev
 	if creditor != nil {
 		plan.run.CreditorID = creditor.CreditorID
 	}
+	plan.account, err = d.creditorAccount(ctx, reviewer)
+	if err != nil {
+		return debitPlan{}, err
+	}
+	plan.run.MessageID = messageIDOf(runKind, runID, plan)
 	return plan, nil
 }
 
 // SEPADebitRun answers the file of a run without bank data of a family.
 func (d *SEPADebits) SEPADebitRun(ctx context.Context, reviewer parentbilling.HolidayReviewer, runKind string, runID int64,
 ) (parentbilling.SEPADebitRun, error) {
-	plan, err := d.load(ctx, reviewer, runKind, runID, false, false)
+	plan, err := d.load(ctx, reviewer, runKind, runID, false, false, d.today())
 	if err != nil {
 		return parentbilling.SEPADebitRun{}, err
 	}
-	account, err := d.creditorAccount(ctx, reviewer)
-	if err != nil {
-		return parentbilling.SEPADebitRun{}, err
-	}
+	account := plan.account
 	if account == nil {
 		plan.run.AccountMissing = true
 	} else {
@@ -215,17 +202,14 @@ func (d *SEPADebits) SEPADebitRun(ctx context.Context, reviewer parentbilling.Ho
 // Every mandate whose account it opens gets a reveal in its trail.
 func (d *SEPADebits) SEPADebitFile(ctx context.Context, reviewer parentbilling.HolidayReviewer, runKind string, runID int64,
 ) (parentbilling.SEPADebitFile, error) {
-	plan, err := d.load(ctx, reviewer, runKind, runID, true, false)
+	plan, err := d.load(ctx, reviewer, runKind, runID, true, false, d.today())
 	if err != nil {
 		return parentbilling.SEPADebitFile{}, err
 	}
 	if len(plan.included) == 0 {
 		return parentbilling.SEPADebitFile{}, parentbilling.ErrSEPADebitsEmpty
 	}
-	account, err := d.creditorAccount(ctx, reviewer)
-	if err != nil {
-		return parentbilling.SEPADebitFile{}, err
-	}
+	account := plan.account
 	if account == nil {
 		return parentbilling.SEPADebitFile{}, parentbilling.ErrSEPACreditorAccountMissing
 	}
@@ -316,7 +300,11 @@ func (d *SEPADebits) openBatches(organizationID int64, plan debitPlan) ([]debitF
 func (d *SEPADebits) SubmitSEPADebits(ctx context.Context, reviewer parentbilling.HolidayReviewer, runKind string, runID int64,
 	messageID string,
 ) (parentbilling.SEPADebitRun, error) {
-	plan, err := d.load(ctx, reviewer, runKind, runID, false, true)
+	day, err := debitFileDay(messageID)
+	if err != nil {
+		return parentbilling.SEPADebitRun{}, err
+	}
+	plan, err := d.load(ctx, reviewer, runKind, runID, false, true, day)
 	if err != nil {
 		return parentbilling.SEPADebitRun{}, err
 	}
@@ -326,11 +314,12 @@ func (d *SEPADebits) SubmitSEPADebits(ctx context.Context, reviewer parentbillin
 	if strings.TrimSpace(messageID) != plan.run.MessageID {
 		return parentbilling.SEPADebitRun{}, parentbilling.ErrSEPADebitsChanged
 	}
-	ids := make([]int64, len(plan.included))
+	submitted := make([]parentbilling.SEPADebit, len(plan.included))
 	collected := map[int64]calendar.Date{}
 	var mandates []parentbilling.SEPAMandate
 	for i, entry := range plan.included {
-		ids[i] = entry.Debit.ID
+		submitted[i] = entry.Debit
+		submitted[i].CollectOn = plan.collectOn[entry.Debit.ID]
 		on := plan.collectOn[entry.Debit.ID]
 		if last, ok := collected[entry.Debit.MandateID]; !ok || on.After(last) {
 			if !ok {
@@ -339,7 +328,7 @@ func (d *SEPADebits) SubmitSEPADebits(ctx context.Context, reviewer parentbillin
 			collected[entry.Debit.MandateID] = on
 		}
 	}
-	if err := d.store.SubmitSEPADebits(ctx, reviewer.OrganizationID, reviewer.AccountID, plan.run.MessageID, ids, collected); err != nil {
+	if err := d.store.SubmitSEPADebits(ctx, reviewer.OrganizationID, reviewer.AccountID, plan.run.MessageID, submitted, collected); err != nil {
 		return parentbilling.SEPADebitRun{}, err
 	}
 	if err := d.store.InsertSEPAMandateEvents(ctx, reviewer.OrganizationID, reviewer.AccountID, mandateCollect,

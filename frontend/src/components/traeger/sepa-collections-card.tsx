@@ -74,9 +74,11 @@ const columns: DataTableColumn<SepaDebit>[] = [
   },
   {
     key: "due",
-    header: "Fällig",
+    header: "Abbuchung am",
     render: (debit) => (
-      <span className="tabular-nums">{formatDate(debit.dueOn)}</span>
+      <span className="tabular-nums">
+        {formatDate(debit.collectOn ?? debit.dueOn)}
+      </span>
     ),
   },
   {
@@ -101,6 +103,7 @@ export function SepaCollectionsCard({
   const load = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = load;
   const ids = mandates.map((mandate) => mandate.id).join(",");
+  const mandateState = JSON.stringify(mandates);
 
   const reload = useCallback(async () => {
     try {
@@ -125,7 +128,7 @@ export function SepaCollectionsCard({
 
   useEffect(() => {
     void reload();
-  }, [reload]);
+  }, [reload, mandateState]);
 
   if (mandates.length === 0) return null;
   return (

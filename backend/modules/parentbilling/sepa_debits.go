@@ -38,6 +38,8 @@ const (
 
 // Why a pending debit stays out of the file.
 const (
+	DebitLeftOneOffUsed      = "one_off_used"
+	DebitLeftOneOffMultiple  = "one_off_multiple"
 	DebitLeftCancelled       = "cancelled"
 	DebitLeftRevoked         = "revoked"
 	DebitLeftExpired         = "expired"
@@ -53,6 +55,8 @@ const MandateExpiryMonths = 36
 const DebitGapExpired = "mandate_expired"
 
 var (
+	// ErrSEPAAccountHolderUnsupported reports an empty name after DK conversion.
+	ErrSEPAAccountHolderUnsupported = errors.New("the account holder name needs Latin letters for the SEPA file")
 	// ErrSEPADebitRunNotFound reports a run of another Träger, none, or one
 	// that is not released.
 	ErrSEPADebitRunNotFound = errors.New("no released run with SEPA debits")
@@ -111,6 +115,7 @@ type SEPADebit struct {
 	RecipientName    string        `json:"recipient_name"`
 	AmountCents      int64         `json:"amount_cents"`
 	DueOn            calendar.Date `json:"due_on"`
+	CollectOn        calendar.Date `json:"collect_on,omitempty"`
 	SequenceType     string        `json:"sequence_type"`
 	MandateReference string        `json:"mandate_reference"`
 	IBANMasked       string        `json:"iban_masked"`

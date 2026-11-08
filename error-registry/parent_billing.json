@@ -553,6 +553,12 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "parent_billing.sepa_creditor_account_missing"
+    },
+    {
+      "code": "parent_billing.sepa_account_holder_unsupported",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.sepa_account_holder_unsupported"
     }
   ]
 }

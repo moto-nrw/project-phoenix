@@ -62,6 +62,8 @@ CREATE TABLE parent_billing.sepa_debits (
 	status VARCHAR(16) NOT NULL DEFAULT 'pending',
 	message_id VARCHAR(35),
 	submitted_at TIMESTAMPTZ,
+	submitted_amount_cents BIGINT,
+	collect_on DATE,
 	submitted_by_account_id BIGINT REFERENCES auth.accounts(id) ON DELETE SET NULL,
 	created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT uq_sepa_debits_organization UNIQUE (organization_id, id),
@@ -79,8 +81,10 @@ CREATE TABLE parent_billing.sepa_debits (
 	CONSTRAINT chk_sepa_debits_amount CHECK (amount_cents > 0),
 	CONSTRAINT chk_sepa_debits_sequence CHECK (sequence_type IN ('FRST', 'RCUR', 'OOFF')),
 	CONSTRAINT chk_sepa_debits_status CHECK (
-		(status = 'pending' AND message_id IS NULL AND submitted_at IS NULL)
-		OR (status = 'submitted' AND message_id IS NOT NULL AND submitted_at IS NOT NULL))
+		(status = 'pending' AND message_id IS NULL AND submitted_at IS NULL AND submitted_amount_cents IS NULL AND collect_on IS NULL)
+		OR (status = 'submitted' AND message_id IS NOT NULL AND submitted_at IS NOT NULL
+			AND submitted_amount_cents IS NOT NULL AND submitted_amount_cents > 0 AND submitted_amount_cents <= amount_cents
+			AND collect_on IS NOT NULL AND collect_on >= due_on))
 );
 CREATE UNIQUE INDEX uq_sepa_debits_care_invoice ON parent_billing.sepa_debits (organization_id, care_invoice_id)
 	WHERE care_invoice_id IS NOT NULL;
@@ -102,12 +106,14 @@ COMMENT ON COLUMN parent_billing.sepa_debits.account_holder_sealed IS
 CREATE FUNCTION parent_billing.refuse_sepa_debit_rewrite() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN
-	IF (to_jsonb(NEW) - ARRAY['status', 'message_id', 'submitted_at', 'submitted_by_account_id', 'sequence_type'])
+	IF (to_jsonb(NEW) - ARRAY['status', 'message_id', 'submitted_at', 'submitted_by_account_id', 'sequence_type', 'submitted_amount_cents', 'collect_on'])
 		IS DISTINCT FROM
-		(to_jsonb(OLD) - ARRAY['status', 'message_id', 'submitted_at', 'submitted_by_account_id', 'sequence_type']) THEN
+		(to_jsonb(OLD) - ARRAY['status', 'message_id', 'submitted_at', 'submitted_by_account_id', 'sequence_type', 'submitted_amount_cents', 'collect_on']) THEN
 		RAISE EXCEPTION 'a SEPA debit keeps its invoice, amount and account' USING ERRCODE = '55000';
 	END IF;
 	IF OLD.status = 'submitted' AND (NEW.status IS DISTINCT FROM OLD.status OR NEW.message_id IS DISTINCT FROM OLD.message_id
+		OR NEW.submitted_amount_cents IS DISTINCT FROM OLD.submitted_amount_cents
+		OR NEW.collect_on IS DISTINCT FROM OLD.collect_on
 		OR NEW.submitted_at IS DISTINCT FROM OLD.submitted_at OR NEW.sequence_type IS DISTINCT FROM OLD.sequence_type
 		OR (NEW.submitted_by_account_id IS NOT NULL AND NEW.submitted_by_account_id IS DISTINCT FROM OLD.submitted_by_account_id)) THEN
 		RAISE EXCEPTION 'a submitted SEPA debit never changes' USING ERRCODE = '55000';

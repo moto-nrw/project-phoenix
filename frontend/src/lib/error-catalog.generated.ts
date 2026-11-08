@@ -966,6 +966,8 @@ export const ERROR_CATALOG = {
         "Rechnungen ohne Debitorennummer: {count}. Ihr Zahlungstext nennt aber die Debitorennummer. Löschen Sie den eigenen Zahlungstext in den Einstellungen unter „Allgemein“ im Bereich „Ferienbetreuung“ oder nehmen Sie dort den Platzhalter für die Debitorennummer heraus.",
       "parent_billing.recipient_email_missing":
         "Für diese Familie gibt es keine E-Mail-Adresse. Bitte drucken Sie das Schreiben und geben Sie es der Familie.",
+      "parent_billing.sepa_account_holder_unsupported":
+        "Die Lastschriftdatei braucht Kontonamen in lateinischer Schrift. Prüfen Sie die Kontonamen der Mandate und des Trägers.",
       "parent_billing.sepa_creditor_account_missing":
         "Es fehlt das Konto, auf das die Lastschriften gehen. Legen Sie unter Einstellungen → Abrechnung eine Bankverbindung als Standard fest. Das darf, wer das Recht „Einstellungen“ hat.",
       "parent_billing.sepa_creditor_invalid":
@@ -2277,6 +2279,8 @@ export const ERROR_CATALOG = {
         "We cannot check right now whether this address is blocked. Please try again later.",
       "parent_billing.parent_document_not_found":
         "This document is no longer available. Please reload the page.",
+      "parent_billing.sepa_account_holder_unsupported":
+        "The direct debit file needs account holder names in Latin letters. Check the mandate and creditor account names.",
       "parent_billing.sepa_creditor_account_missing":
         'The account the direct debits are paid into is missing. Set a default bank account under Settings → Billing. This needs the right "Settings".',
       "parent_billing.sepa_debit_run_not_found":
@@ -2834,6 +2838,8 @@ export const ERROR_CATALOG = {
         "Сейчас нельзя проверить, заблокирован ли этот адрес. Попробуйте позже.",
       "parent_billing.parent_document_not_found":
         "Этот документ больше недоступен. Пожалуйста, обновите страницу.",
+      "parent_billing.sepa_account_holder_unsupported":
+        "The direct debit file needs account holder names in Latin letters. Check the mandate and creditor account names.",
       "parent_billing.sepa_creditor_account_missing":
         'The account the direct debits are paid into is missing. Set a default bank account under Settings → Billing. This needs the right "Settings".',
       "parent_billing.sepa_debit_run_not_found":
@@ -3347,6 +3353,8 @@ export const ERROR_CATALOG = {
         "Tani nuk mund të kontrollohet nëse kjo adresë është e bllokuar. Ju lutemi provoni përsëri më vonë.",
       "parent_billing.parent_document_not_found":
         "Ky dokument nuk është më i disponueshëm. Ju lutemi rifreskoni faqen.",
+      "parent_billing.sepa_account_holder_unsupported":
+        "The direct debit file needs account holder names in Latin letters. Check the mandate and creditor account names.",
       "parent_billing.sepa_creditor_account_missing":
         'The account the direct debits are paid into is missing. Set a default bank account under Settings → Billing. This needs the right "Settings".',
       "parent_billing.sepa_debit_run_not_found":
@@ -3849,6 +3857,8 @@ export const ERROR_CATALOG = {
         "Nie można teraz sprawdzić, czy ten adres jest zablokowany. Spróbuj ponownie później.",
       "parent_billing.parent_document_not_found":
         "Ten dokument nie jest już dostępny. Proszę odświeżyć stronę.",
+      "parent_billing.sepa_account_holder_unsupported":
+        "The direct debit file needs account holder names in Latin letters. Check the mandate and creditor account names.",
       "parent_billing.sepa_creditor_account_missing":
         'The account the direct debits are paid into is missing. Set a default bank account under Settings → Billing. This needs the right "Settings".',
       "parent_billing.sepa_debit_run_not_found":
@@ -4355,6 +4365,8 @@ export const ERROR_CATALOG = {
         "Bu adresin engelli olup olmadığı şu anda kontrol edilemiyor. Lütfen daha sonra tekrar deneyin.",
       "parent_billing.parent_document_not_found":
         "Bu belge artık mevcut değil. Lütfen sayfayı yenileyin.",
+      "parent_billing.sepa_account_holder_unsupported":
+        "The direct debit file needs account holder names in Latin letters. Check the mandate and creditor account names.",
       "parent_billing.sepa_creditor_account_missing":
         'The account the direct debits are paid into is missing. Set a default bank account under Settings → Billing. This needs the right "Settings".',
       "parent_billing.sepa_debit_run_not_found":
@@ -4854,6 +4866,8 @@ export const ERROR_CATALOG = {
         "Зараз неможливо перевірити, чи заблоковано цю адресу. Спробуйте пізніше.",
       "parent_billing.parent_document_not_found":
         "Цей документ більше недоступний. Будь ласка, оновіть сторінку.",
+      "parent_billing.sepa_account_holder_unsupported":
+        "The direct debit file needs account holder names in Latin letters. Check the mandate and creditor account names.",
       "parent_billing.sepa_creditor_account_missing":
         'The account the direct debits are paid into is missing. Set a default bank account under Settings → Billing. This needs the right "Settings".',
       "parent_billing.sepa_debit_run_not_found":
