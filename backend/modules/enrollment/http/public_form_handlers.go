@@ -17,8 +17,7 @@ import (
 
 // listPublicCareOfferings is the parent-facing endpoint. No JWT — the
 // {tenantSlug} resolves to a tenant; {phaseId} narrows the offering set
-// to one phase. The phase model owns the enrollment window, so the
-// per-offering window check shipped in PR 6 is gone — the handler trusts
+// to one phase. The phase owns the enrollment window; the handler trusts
 // the phase-level gate run by the caller (or by Submit on its own).
 func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Request) {
 	if rs.CareOfferingService == nil {

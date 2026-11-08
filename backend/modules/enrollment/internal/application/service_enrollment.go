@@ -11,7 +11,7 @@ import (
 // DeleteExpiredSubmissionRateLimits removes the school's buckets older than
 // the longest submission window.
 func (m *Service) DeleteExpiredSubmissionRateLimits(ctx context.Context) (int, int, error) {
-	deleted, err := m.store.CleanupExpired(ctx)
+	deleted, err := m.store.CleanupExpired(ctx, rateLimitRetention)
 	if err != nil {
 		return 0, 0, err
 	}

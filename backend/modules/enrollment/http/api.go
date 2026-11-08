@@ -1,6 +1,4 @@
-// Package enrollmenthttp holds the parent-enrollment HTTP layer. PR 5 ships
-// the admin form-schema CRUD; PR 7 will add public submission +
-// status/edit endpoints; PR 8 admin decision endpoints.
+// Package enrollmenthttp holds the parent-enrollment HTTP layer.
 package enrollmenthttp
 
 import (
@@ -61,12 +59,7 @@ type Resource struct {
 	runInTenantTxForTest func(r *http.Request, fn func(ctx context.Context) error) error
 }
 
-// NewResource constructs the enrollment API resource. PR 7 added the
-// RequestService + CaptchaService for the public submission flow.
-// PR A of the phase model wires PhaseService so the public + admin
-// endpoints can resolve phase rows. PR 8 wires DecisionService for the
-// admin review/accept/reject UI; slice 2 also wires the
-// GuardianInvitations runtime so post-approval invites can fire.
+// NewResource constructs the enrollment API resource.
 func NewResource(
 	formSchemaSvc capability.FormSchemaAdministration,
 	careOfferingSvc CareOfferingCatalog,
@@ -115,9 +108,7 @@ func NewResource(
 	return rs
 }
 
-// Router returns a chi router scoped to /enrollment. PR 5 added the
-// admin form-schema endpoints; PR 6 adds care-offering admin CRUD +
-// the public open-window endpoint.
+// Router returns a chi router scoped to /enrollment.
 func (rs *Resource) Router(configureSession func(chi.Router)) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
@@ -257,7 +248,7 @@ func (rs *Resource) mountAdminRequestRoutes(r chi.Router) {
 	// the frontend can still cleanly render the form.
 	r.Get("/me/profile", rs.getMyProfile)
 
-	// PR 8 admin review surface. config:read for queue browse;
+	// Admin review surface. config:read for queue browse;
 	// config:manage for detail, export and decisions because those
 	// expose or mutate full enrollment PII. Decision writes audit
 	// reviewed_by/reviewed_at on each child row.
