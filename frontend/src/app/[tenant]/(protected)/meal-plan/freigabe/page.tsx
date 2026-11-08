@@ -16,7 +16,7 @@ import { ConfirmationModal } from "~/components/ui/modal";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatCard } from "~/components/ui/stat-card";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
+import { TenantPage } from "~/components/ui/tenant-page";
 import {
   useApiErrorDisplay,
   useApiLoadError,
@@ -161,11 +161,9 @@ export default function MealBillingReleasePage() {
     try {
       const list = await fetchMealBillingMonths();
       setMonths(list);
-      // Start with the oldest month that waits for its release, else the
-      // month that ended last.
-      const open = list.filter((entry) => entry.status === "open");
+      // Start with the month that ended last; that is the one the
+      // OGS-Leitung releases at the end of a month.
       const start =
-        open.at(-1)?.month ??
         list.find((entry) => entry.status !== "running")?.month ??
         list[0]?.month ??
         "";
@@ -248,20 +246,10 @@ export default function MealBillingReleasePage() {
   return (
     <TenantPage
       title="Mensa-Freigabe"
+      back
       backHref="/meal-plan"
       backLabel="Zurück zum Speiseplan"
       info="Prüfen Sie am Monatsende, wer gegessen hat. Ein Essen zählt, wenn das Kind angemeldet und da war. Abgemeldete Tage, Ferien und Feiertage zählen nicht. Mit der Freigabe rechnet der Träger die Mensa ab."
-      stats={
-        month ? (
-          <TenantPageStats
-            items={[
-              { value: month.childCount, label: "Kinder" },
-              { value: month.mealCount, label: "Essen" },
-            ]}
-          />
-        ) : null
-      }
-      statsLoading={!month && !pageLoad.error}
       searchSlot={
         months ? (
           <div className="w-full sm:max-w-xs">
