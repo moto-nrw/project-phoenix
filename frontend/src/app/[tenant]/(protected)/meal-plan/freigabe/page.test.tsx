@@ -1,7 +1,15 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import type {
   MealBillingMonth,
   MealBillingSummary,
@@ -86,6 +94,12 @@ function renderPage() {
   );
 }
 
+function monthLoadError() {
+  return new ApiError("month unavailable", 503, {
+    code: "general.unavailable",
+  });
+}
+
 describe("MealBillingReleasePage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -95,7 +109,9 @@ describe("MealBillingReleasePage", () => {
 
   it("opens the month that waits for its release with each child's absences", async () => {
     renderPage();
-    expect((await screen.findAllByText("Albers, Mia")).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText("Albers, Mia")).length).toBeGreaterThan(
+      0,
+    );
     expect(fetchMealBillingMonth).toHaveBeenCalledWith("2026-03-01");
     expect(screen.getAllByText("Brandt, Ben").length).toBeGreaterThan(0);
     expect(screen.getAllByText(/04\.03\./).length).toBeGreaterThan(0);
@@ -144,5 +160,67 @@ describe("MealBillingReleasePage", () => {
     expect(
       screen.queryByRole("button", { name: "Monat freigeben" }),
     ).not.toBeInTheDocument();
+  });
+
+  it.each(["data", "error"])(
+    "ignores stale month %s after selecting another month",
+    async (response) => {
+      let resolve!: (value: MealBillingMonth) => void;
+      let reject!: (reason: Error) => void;
+      const promise = new Promise<MealBillingMonth>((done, fail) => {
+        resolve = done;
+        reject = fail;
+      });
+      const april = {
+        ...MARCH,
+        month: "2026-04-01",
+        children: [{ ...MARCH.children[0]!, lastName: "April" }],
+      };
+      fetchMealBillingMonth.mockImplementation((value: string) =>
+        value === MARCH.month ? promise : Promise.resolve(april),
+      );
+      releaseMealBillingMonth.mockResolvedValue({
+        ...april,
+        status: "released",
+      });
+      renderPage();
+      await waitFor(() =>
+        expect(fetchMealBillingMonth).toHaveBeenCalledWith(MARCH.month),
+      );
+      fireEvent.click(screen.getByRole("combobox", { name: "Monat" }));
+      fireEvent.click(
+        await screen.findByRole("option", { name: "April 2026 · Läuft noch" }),
+      );
+      expect((await screen.findAllByText("April, Mia")).length).toBeGreaterThan(
+        0,
+      );
+      await act(async () => {
+        if (response === "data") resolve(MARCH);
+        else reject(monthLoadError());
+        await promise.catch(() => undefined);
+      });
+      // Anker: Die Daten des aktuell gewählten Monats bleiben sichtbar.
+      expect(screen.getAllByText("April, Mia").length).toBeGreaterThan(0);
+      expect(
+        screen.queryByText(
+          catalogText("general.unavailable", "den Mensa-Monat"),
+        ),
+      ).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Monat freigeben" }));
+      fireEvent.click(await screen.findByRole("button", { name: "Freigeben" }));
+      await waitFor(() =>
+        expect(releaseMealBillingMonth).toHaveBeenCalledWith(april),
+      );
+    },
+  );
+
+  it("shows errors for the active month", async () => {
+    fetchMealBillingMonth.mockRejectedValue(monthLoadError());
+    renderPage();
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "den Mensa-Monat"),
+      ),
+    ).toBeInTheDocument();
   });
 });

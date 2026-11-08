@@ -24,23 +24,24 @@ type WeekReader func(ctx context.Context, monday mealplan.Date) (mealplan.Weekly
 // BillingMonths serves mealplan.BillingMonths. Every operation runs in the
 // caller's school transaction, which the route opens.
 type BillingMonths struct {
-	store    ports.BillingMonthStore
-	weeks    WeekReader
-	calendar mealplan.CalendarFinder
-	presence mealplan.PresenceFinder
-	today    func() calendar.Date
+	store         ports.BillingMonthStore
+	weeks         WeekReader
+	calendar      mealplan.CalendarFinder
+	presence      mealplan.PresenceFinder
+	availableFrom mealplan.AttendanceAvailableFrom
+	today         func() calendar.Date
 }
 
 var _ mealplan.BillingMonths = (*BillingMonths)(nil)
 
 // NewBillingMonths builds the Mensa-Monatsfreigabe.
 func NewBillingMonths(store ports.BillingMonthStore, weeks WeekReader, calendarFinder mealplan.CalendarFinder,
-	presence mealplan.PresenceFinder, today func() calendar.Date,
+	presence mealplan.PresenceFinder, availableFrom mealplan.AttendanceAvailableFrom, today func() calendar.Date,
 ) *BillingMonths {
-	if store == nil || weeks == nil || calendarFinder == nil || presence == nil || today == nil {
+	if store == nil || weeks == nil || calendarFinder == nil || presence == nil || availableFrom == nil || today == nil {
 		panic("meal plan billing months: all dependencies are required")
 	}
-	return &BillingMonths{store: store, weeks: weeks, calendar: calendarFinder, presence: presence, today: today}
+	return &BillingMonths{store: store, weeks: weeks, calendar: calendarFinder, presence: presence, availableFrom: availableFrom, today: today}
 }
 
 func monthStart(day calendar.Date) calendar.Date {
@@ -201,6 +202,15 @@ func releasedView(stored domain.StoredBillingMonth) mealplan.BillingMonth {
 // compute reads the kitchen lists, the school holidays and the attendance
 // of the month and counts them.
 func (b *BillingMonths) compute(ctx context.Context, month calendar.Date) (mealplan.BillingMonth, error) {
+	availableFrom, err := b.availableFrom(ctx)
+	if err != nil {
+		return mealplan.BillingMonth{}, fmt.Errorf("meal plan billing months: read the attendance window: %w", err)
+	}
+	// Expired evidence and absence look the same. Refuse a possible
+	// undercount even when cleanup has not yet run.
+	if availableFrom == "" || month.Before(availableFrom) {
+		return mealplan.BillingMonth{}, mealplan.ErrBillingMonthAttendanceExpired
+	}
 	last := monthLast(month)
 	days := []mealplan.DailyList{}
 	for monday := month.StartOfISOWeek(); !monday.After(last); monday = monday.AddDays(7) {

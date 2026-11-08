@@ -110,8 +110,9 @@ func (s *Store) DeleteCareMealTariff(ctx context.Context, organizationID, school
 	return deleted, err
 }
 
-// BilledMealMonths names the Mensa months of [from, to] an issued invoice
-// of the Träger bills.
+// BilledMealMonths names the Mensa months of [from, to] unavailable to the
+// run of to. Cancellation permits reissue only in the original invoice's
+// billing month, where replacement lookup preserves its invoice chain.
 func (s *Store) BilledMealMonths(ctx context.Context, organizationID int64, from, to calendar.Date) ([]parentbilling.CareBilledMeal, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
@@ -123,7 +124,10 @@ func (s *Store) BilledMealMonths(ctx context.Context, organizationID int64, from
 		MealMonth calendar.Date `bun:"meal_month,type:date"`
 	}
 	if err := db.NewRaw(`SELECT school_id, student_id, meal_month FROM parent_billing.care_meal_positions
-		WHERE organization_id = ? AND meal_month BETWEEN ? AND ? AND `+notCancelled, organizationID, from, to).Scan(ctx, &rows); err != nil {
+		WHERE organization_id = ? AND meal_month BETWEEN ? AND ? AND (`+notCancelled+`
+		OR EXISTS (SELECT 1 FROM parent_billing.care_invoices AS invoice
+			WHERE invoice.organization_id = care_meal_positions.organization_id
+				AND invoice.id = care_meal_positions.invoice_id AND invoice.billing_month <> ?))`, organizationID, from, to, to).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("read billed Mensa months: %w", err)
 	}
 	billed := make([]parentbilling.CareBilledMeal, len(rows))

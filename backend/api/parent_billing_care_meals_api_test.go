@@ -48,7 +48,7 @@ type careMealRunBody struct {
 // releaseMealMonth stores a released Mensa month of the school with one
 // child, as the OGS-Leitung's release leaves it; a second child of the
 // month joins the same release.
-func releaseMealMonth(t *testing.T, db *bun.DB, organizationID, schoolID int64, month, first string, meals int) {
+func releaseMealMonth(t *testing.T, db *bun.DB, organizationID, schoolID, studentID int64, month, first string, meals int) {
 	t.Helper()
 	ctx := context.Background()
 	var monthID int64
@@ -59,7 +59,7 @@ func releaseMealMonth(t *testing.T, db *bun.DB, organizationID, schoolID int64, 
 		schoolID, month).Scan(ctx, &monthID))
 	_, err = db.ExecContext(ctx, `INSERT INTO schedule.meal_billing_month_children (organization_id, month_id, student_id, first_name,
 		last_name, registered_days, meal_days) VALUES (?, ?, ?, ?, 'Beispiel', ?, ?)`,
-		organizationID, monthID, testpkg.UniqueTestTenantID(t), first, max(meals, 1), meals)
+		organizationID, monthID, studentID, first, max(meals, 1), meals)
 	require.NoError(t, err)
 }
 
@@ -82,9 +82,11 @@ func TestCareMealMonthsAreBilledOnceOnTheChildsInvoice(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careMealTariffsPath, mealPrice(school, "2029-11-01", "per_meal", 480))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	releaseMealMonth(t, db, f.office.organization, school, "2029-11-01", "Mia", 3)
-	releaseMealMonth(t, db, f.office.organization, school, "2029-12-01", "Mia", 2)
-	releaseMealMonth(t, db, f.office.organization, school, "2029-12-01", "Ben", 4)
+	// Mia keeps her student identity across both monthly releases.
+	miaID := testpkg.UniqueTestTenantID(t)
+	releaseMealMonth(t, db, f.office.organization, school, miaID, "2029-11-01", "Mia", 3)
+	releaseMealMonth(t, db, f.office.organization, school, miaID, "2029-12-01", "Mia", 2)
+	releaseMealMonth(t, db, f.office.organization, school, testpkg.UniqueTestTenantID(t), "2029-12-01", "Ben", 4)
 
 	run := f.startRun(t, careMonth)
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodGet, careRunPath(run.ID, ""), nil)
@@ -204,7 +206,7 @@ func TestCareMealMonthsReturnOnTheReissueAfterAStorno(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careMealTariffsPath, mealPrice(school, "2029-12-01", "flat", 5500))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	releaseMealMonth(t, db, f.office.organization, school, "2029-12-01", "Mia", 1)
+	releaseMealMonth(t, db, f.office.organization, school, testpkg.UniqueTestTenantID(t), "2029-12-01", "Mia", 1)
 
 	run := f.startRun(t, careMonth)
 	preview := f.run(t, run.ID)
@@ -216,6 +218,18 @@ func TestCareMealMonthsReturnOnTheReissueAfterAStorno(t *testing.T) {
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost,
 		careRunPath(run.ID, fmt.Sprintf("/invoices/%d/cancellation", issued.ID)), map[string]any{"reason": "Falscher Betrag"})
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+
+	// A later month cannot replace January's invoice chain. It must still
+	// release its own module invoices without picking up the cancelled meals.
+	later := f.startRun(t, "2030-02-01")
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodGet, careRunPath(later.ID, ""), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	laterPreview := decodeSchoolPortalData[careMealRunBody](t, rec.Body.Bytes())
+	require.Len(t, laterPreview.Invoices, 1)
+	assert.Empty(t, laterPreview.Invoices[0].MealPositions, "cancelled meals belong to the original month's reissue")
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(later.ID, "/release"),
+		map[string]any{"document_count": laterPreview.PreviewCount, "total_cents": laterPreview.PreviewCents})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 	again := f.startRun(t, careMonth)
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodGet, careRunPath(again.ID, ""), nil)

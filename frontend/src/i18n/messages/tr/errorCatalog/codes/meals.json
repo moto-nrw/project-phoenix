@@ -20,5 +20,6 @@
   "billing_month_released": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "billing_month_changed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "billing_month_no_traeger": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-  "billing_month_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin."
+  "billing_month_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "billing_month_attendance_expired": "Bu aya ait devam kayıtları silinmiş olabilir. Ay artık güvenilir biçimde onaylanamaz. Lütfen hizmet sağlayıcınızla iletişime geçin."
 }

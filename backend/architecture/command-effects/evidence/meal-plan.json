@@ -26,6 +26,14 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.BillingMonth",
+      "binding_digest": "d91fcbd650dac9fb5fbc3298f7476b45",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.BillingMonth",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.AttendanceRetention.Days",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.BillingMonth",
       "binding_digest": "31adb0f989905986e17e6d9ac5d3d024",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.BillingMonth",
       "source_owner": "meal-plan",
@@ -55,6 +63,14 @@
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidaysOverlapping",
       "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.ReleaseBillingMonth",
+      "binding_digest": "d91fcbd650dac9fb5fbc3298f7476b45",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.ReleaseBillingMonth",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.AttendanceRetention.Days",
+      "target_owner": "settings-platform"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.ReleaseBillingMonth",

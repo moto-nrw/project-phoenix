@@ -149,7 +149,9 @@ function columns(released: boolean): DataTableColumn<MealBillingChild>[] {
 export default function MealBillingReleasePage() {
   const [months, setMonths] = useState<MealBillingSummary[] | null>(null);
   const [selected, setSelected] = useState("");
-  const [month, setMonth] = useState<MealBillingMonth | null>(null);
+  const [loadedMonth, setMonth] = useState<MealBillingMonth | null>(null);
+  const [reload, setReload] = useState(0);
+  const month = loadedMonth?.month === selected ? loadedMonth : null;
   const [confirming, setConfirming] = useState(false);
   const [releasing, setReleasing] = useState(false);
   const pageLoad = useApiLoadError();
@@ -180,32 +182,39 @@ export default function MealBillingReleasePage() {
     }
   }, [clearLoadError, showLoadError]);
 
-  const loadMonth = useCallback(
-    async (value: string) => {
-      setMonth(null);
-      try {
-        setMonth(await fetchMealBillingMonth(value));
-        clearLoadError();
-      } catch (err) {
-        logger.error("meal_billing_month_load_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        await showLoadError(err, {
-          object: "den Mensa-Monat",
-          retry: () => void loadMonth(value),
-        });
-      }
-    },
-    [clearLoadError, showLoadError],
-  );
-
   useEffect(() => {
     void loadMonths();
   }, [loadMonths]);
 
   useEffect(() => {
-    if (selected) void loadMonth(selected);
-  }, [selected, loadMonth]);
+    if (!selected) return;
+    let active = true;
+    setMonth(null);
+    clearLoadError();
+    const load = async () => {
+      try {
+        const result = await fetchMealBillingMonth(selected);
+        if (!active) return;
+        setMonth(result);
+        clearLoadError();
+      } catch (err) {
+        // A superseded request must not replace the current month's error.
+        if (!active) return;
+        logger.error("meal_billing_month_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        await showLoadError(err, {
+          object: "den Mensa-Monat",
+          retry: () => setReload((current) => current + 1),
+        });
+      }
+    };
+    void load();
+    return () => {
+      active = false;
+      clearLoadError();
+    };
+  }, [selected, reload, clearLoadError, showLoadError]);
 
   const release = async () => {
     if (!month) return;
@@ -235,7 +244,7 @@ export default function MealBillingReleasePage() {
       });
       setConfirming(false);
       void errors.show(err, { object: "die Freigabe" });
-      void loadMonth(month.month);
+      setReload((current) => current + 1);
     } finally {
       setReleasing(false);
     }
@@ -261,7 +270,11 @@ export default function MealBillingReleasePage() {
                 value: entry.month,
                 label: `${monthLabel(entry.month)} · ${STATUS_LABELS[entry.status]}`,
               }))}
-              onChange={setSelected}
+              disabled={releasing}
+              onChange={(value) => {
+                setConfirming(false);
+                setSelected(value);
+              }}
             />
           </div>
         ) : undefined

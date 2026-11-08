@@ -33,9 +33,10 @@ export function mealBillingReleaseTopic(): HelpTopic {
     notes: [
       "Ein Essen zählt, wenn das Kind angemeldet und da war. Tage, an denen die Eltern abgemeldet haben, zählen nicht.",
       "Ferien, Feiertage und Schließtage zählen nie.",
-      "Sie können einen Monat auch später freigeben. Der Träger rechnet ihn dann nachträglich ab.",
+      "Sie können einen Monat später freigeben, solange alle Anwesenheiten aufbewahrt werden. Der Träger rechnet ihn dann nachträglich ab.",
     ],
     troubleshootingDetails: [
+      "Liegt der Monat vor der Aufbewahrungsfrist, ist keine Freigabe möglich. Die Anwesenheiten können bereits gelöscht sein. Wenden Sie sich an Ihren Träger.",
       "`Seit dem Laden hat sich der Monat geändert`: Jemand hat eine Anwesenheit oder Anmeldung geändert. Prüfen Sie die Liste noch einmal und geben Sie dann frei.",
       "Eine Freigabe lässt sich nicht zurücknehmen. Stimmt danach etwas nicht, wenden Sie sich an Ihren Träger.",
     ],

@@ -33,6 +33,59 @@ func mia(meals int) parentbilling.CareMealChild {
 	return parentbilling.CareMealChild{StudentID: mealStudent, FirstName: "Mia", LastName: "Beispiel", MealDays: meals}
 }
 
+func TestCareMealsMatchOnlyAnUnambiguousChild(t *testing.T) {
+	t.Parallel()
+	for _, scenario := range []string{"exact link before name", "two children with the same name", "two unlinked contracts", "one unlinked contract"} {
+		t.Run(scenario, func(t *testing.T) {
+			t.Parallel()
+			month, versions := mealMonth(t)
+			versions[0].StudentID = nil
+			releases := []parentbilling.CareMealRelease{mealRelease(t, "2026-03-01", mia(2))}
+			wantContract := int64(0)
+			switch scenario {
+			case "exact link before name":
+				exact := versions[0]
+				exact.ContractID++
+				student := int64(mealStudent)
+				exact.StudentID = &student
+				versions = append(versions, exact)
+				wantContract = exact.ContractID
+			case "two children with the same name":
+				other := mia(3)
+				other.StudentID++
+				releases = append(releases, mealRelease(t, "2026-02-01", other))
+			case "two unlinked contracts":
+				other := versions[0]
+				other.ContractID++
+				versions = append(versions, other)
+			case "one unlinked contract":
+				wantContract = versions[0].ContractID
+			}
+			billMeals(&month, careMealInput{month: day(t, mealRunMonth), today: day(t, mealToday),
+				tariffs:  []parentbilling.CareMealTariff{mealTariff(t, parentbilling.MealModePerMeal, "2026-01-01", 480)},
+				releases: releases, versions: versions})
+			if wantContract == 0 {
+				assert.Empty(t, month.invoices, "ambiguous names must not charge any family")
+				assert.Len(t, month.mealUnbilled, len(releases))
+				return
+			}
+			require.Len(t, month.invoices, 1)
+			assert.Equal(t, wantContract, month.invoices[0].ContractID)
+		})
+	}
+}
+
+func TestCareMealOnlyInvoiceKeepsTheContractsStudentLink(t *testing.T) {
+	t.Parallel()
+	month, versions := mealMonth(t)
+	require.NotNil(t, versions[0].StudentID)
+	billMeals(&month, careMealInput{month: day(t, mealRunMonth), today: day(t, mealToday),
+		tariffs:  []parentbilling.CareMealTariff{mealTariff(t, parentbilling.MealModePerMeal, "2026-03-01", 480)},
+		releases: []parentbilling.CareMealRelease{mealRelease(t, "2026-03-01", mia(2))}, versions: versions})
+	require.Len(t, month.invoices, 1)
+	assert.Equal(t, versions[0].StudentID, month.invoices[0].StudentID)
+}
+
 // mealMonth is the preview of the run before the Mensa: the contract of Mia
 // in April, booking no module (a Mensa-only contract) unless services name
 // some.

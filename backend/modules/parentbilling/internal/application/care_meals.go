@@ -25,8 +25,8 @@ type CareMealStore interface {
 	// replacing one that starts on the same day.
 	ReplaceCareMealTariff(ctx context.Context, organizationID, accountID int64, price parentbilling.CareMealPrice) error
 	DeleteCareMealTariff(ctx context.Context, organizationID, schoolID int64, validFrom calendar.Date) (int64, error)
-	// BilledMealMonths names the Mensa months of [from, to] an issued
-	// invoice bills.
+	// BilledMealMonths names the Mensa months of [from, to] already billed
+	// or reserved for a cancelled invoice's reissue outside the run month to.
 	BilledMealMonths(ctx context.Context, organizationID int64, from, to calendar.Date) ([]parentbilling.CareBilledMeal, error)
 	// MealBilledUntil names per school the last Mensa month an issued
 	// invoice bills.
@@ -137,15 +137,48 @@ func mealTariffValidity(tariffs []parentbilling.CareMealTariff) []parentbilling.
 
 // careMealInput is everything the Mensa of a run is computed from.
 type careMealInput struct {
-	month      calendar.Date
-	today      calendar.Date
-	schools    map[int64]string
-	tariffs    []parentbilling.CareMealTariff
-	releases   []parentbilling.CareMealRelease
-	billed     map[CareMealKey]bool
-	versions   []parentbilling.CareContractVersion
-	invoiced   map[int64]parentbilling.CareInvoice
-	recipients map[int64]parentbilling.CareRecipient
+	month         calendar.Date
+	today         calendar.Date
+	schools       map[int64]string
+	tariffs       []parentbilling.CareMealTariff
+	releases      []parentbilling.CareMealRelease
+	billed        map[CareMealKey]bool
+	versions      []parentbilling.CareContractVersion
+	invoiced      map[int64]parentbilling.CareInvoice
+	recipients    map[int64]parentbilling.CareRecipient
+	childNames    map[mealNameKey]int64
+	contracts     map[int64][]parentbilling.CareContractVersion
+	contractOrder []int64
+}
+
+type mealNameKey struct {
+	schoolID int64
+	name     string
+}
+
+// mealChildNames keeps a name only when it identifies one child across
+// releases and linked contracts. Zero means several children share it.
+func mealChildNames(in careMealInput) map[mealNameKey]int64 {
+	names := map[mealNameKey]int64{}
+	remember := func(schoolID, studentID int64, first, last string) {
+		key := mealNameKey{schoolID: schoolID, name: mealChildName(first, last)}
+		if previous, seen := names[key]; seen && previous != studentID {
+			names[key] = 0
+			return
+		}
+		names[key] = studentID
+	}
+	for _, release := range in.releases {
+		for _, child := range release.Children {
+			remember(release.SchoolID, child.StudentID, child.FirstName, child.LastName)
+		}
+	}
+	for _, version := range in.versions {
+		if version.StudentID != nil {
+			remember(version.SchoolID, *version.StudentID, version.ChildFirstName, version.ChildLastName)
+		}
+	}
+	return names
 }
 
 // addMeals reads the Mensa of the run and adds it to the preview.
@@ -203,6 +236,8 @@ func mealTariffOn(tariffs []parentbilling.CareMealTariff, schoolID int64, month 
 // next month; a held or unpriced contract stays out with its reason
 // shown elsewhere. An ended month without a release is a gap.
 func billMeals(month *careMonth, in careMealInput) {
+	in.childNames = mealChildNames(in)
+	in.contracts, in.contractOrder = versionsByContract(in.versions)
 	month.mealGaps, month.mealUnbilled = []parentbilling.CareMealGap{}, []parentbilling.CareMealUnbilled{}
 	from := calendar.NewDate(in.month.Year(), in.month.Month()-(careMealHorizon-1), 1)
 	released := map[CareMealKey]parentbilling.CareMealRelease{}
@@ -295,7 +330,7 @@ func mealPosition(tariff parentbilling.CareMealTariff, key CareMealKey, child pa
 
 // placeMeal puts a position on the invoice of the child's contract.
 func placeMeal(month *careMonth, in careMealInput, position parentbilling.CareMealPosition, child parentbilling.CareMealChild, schoolName string) {
-	contracts := mealChildContracts(in.versions, position.SchoolID, child)
+	contracts := mealChildContracts(in, position.SchoolID, child)
 	unbilled := parentbilling.CareMealUnbilled{SchoolID: position.SchoolID, SchoolName: schoolName, StudentID: child.StudentID,
 		ChildFirstName: child.FirstName, ChildLastName: child.LastName, Month: position.MealMonth, MealDays: child.MealDays,
 		Reason: parentbilling.MealUnbilledNoContract}
@@ -325,43 +360,46 @@ func placeMeal(month *careMonth, in careMealInput, position parentbilling.CareMe
 			return
 		}
 	}
-	head := firstVersion(in.versions, contracts[0])
+	versions := in.contracts[contracts[0]]
+	head := versions[0]
 	month.invoices = append(month.invoices, parentbilling.CareInvoice{
 		ContractID: head.ContractID, SchoolID: head.SchoolID, SchoolName: head.SchoolName,
-		ChildFirstName: head.ChildFirstName, ChildLastName: head.ChildLastName, Recipient: in.recipients[head.ContractID],
+		ChildFirstName: head.ChildFirstName, ChildLastName: head.ChildLastName, StudentID: studentOf(versions), Recipient: in.recipients[head.ContractID],
 		Positions: []parentbilling.CarePosition{}, MealPositions: []parentbilling.CareMealPosition{position}, TotalCents: position.AmountCents,
 	})
 }
 
 // mealChildContracts names the contracts at the school in the month of the run
-// whose child is the child of the release: by its record, or by its name
-// for a contract without one.
-func mealChildContracts(versions []parentbilling.CareContractVersion, schoolID int64, child parentbilling.CareMealChild) []int64 {
+// whose child is the child of the release. Exact links take precedence;
+// a name-only fallback must identify one child and one unlinked contract.
+func mealChildContracts(in careMealInput, schoolID int64, child parentbilling.CareMealChild) []int64 {
 	name := mealChildName(child.FirstName, child.LastName)
-	ids := []int64{}
-	for _, version := range versions {
-		if version.SchoolID != schoolID || slices.Contains(ids, version.ContractID) {
+	exact, fallback := []int64{}, []int64{}
+	for _, id := range in.contractOrder {
+		contract := in.contracts[id]
+		head := contract[len(contract)-1]
+		if head.SchoolID != schoolID {
 			continue
 		}
-		if (version.StudentID != nil && *version.StudentID == child.StudentID) ||
-			(version.StudentID == nil && mealChildName(version.ChildFirstName, version.ChildLastName) == name) {
-			ids = append(ids, version.ContractID)
+		if student := studentOf(contract); student != nil {
+			if *student == child.StudentID {
+				exact = append(exact, id)
+			}
+		} else if mealChildName(head.ChildFirstName, head.ChildLastName) == name {
+			fallback = append(fallback, id)
 		}
 	}
-	return ids
+	if len(exact) > 0 {
+		return exact
+	}
+	if len(fallback) == 1 && in.childNames[mealNameKey{schoolID: schoolID, name: name}] == child.StudentID {
+		return fallback
+	}
+	return nil
 }
 
 func mealChildName(first, last string) string {
 	return normalizedName(first + " " + last)
-}
-
-func firstVersion(versions []parentbilling.CareContractVersion, contractID int64) parentbilling.CareContractVersion {
-	for _, version := range versions {
-		if version.ContractID == contractID {
-			return version
-		}
-	}
-	return parentbilling.CareContractVersion{ContractID: contractID}
 }
 
 // heldOrUnpriced names the contracts the preview holds back or leaves out

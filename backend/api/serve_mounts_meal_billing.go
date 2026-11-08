@@ -12,6 +12,7 @@ import (
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	mealplanAPI "github.com/moto-nrw/project-phoenix/modules/mealplan/http"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/roots/owners"
 )
@@ -22,14 +23,15 @@ var mealBillingErrorRules = append([]apiCommon.ErrorRule{
 	{Target: mealplanModule.ErrBillingMonthRunning, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorConflictWithCode, errors.New(mealplanModule.ErrBillingMonthRunning.Detail), apiCommon.CodeMealsBillingMonthRunning)},
 	{Target: mealplanModule.ErrBillingMonthReleased, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorConflictWithCode, errors.New(mealplanModule.ErrBillingMonthReleased.Detail), apiCommon.CodeMealsBillingMonthReleased)},
 	{Target: mealplanModule.ErrBillingMonthChanged, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorConflictWithCode, errors.New(mealplanModule.ErrBillingMonthChanged.Detail), apiCommon.CodeMealsBillingMonthChanged)},
+	{Target: mealplanModule.ErrBillingMonthAttendanceExpired, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorConflictWithCode, errors.New(mealplanModule.ErrBillingMonthAttendanceExpired.Detail), apiCommon.CodeMealsBillingMonthAttendanceExpired)},
 	{Target: mealplanModule.ErrBillingMonthNoTraeger, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorConflictWithCode, errors.New(mealplanModule.ErrBillingMonthNoTraeger.Detail), apiCommon.CodeMealsBillingMonthNoTraeger)},
 	{Target: mealplanModule.ErrInvalidBillingMonth, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorInvalidRequestWithCode, errors.New(mealplanModule.ErrInvalidBillingMonth.Detail), apiCommon.CodeMealsBillingMonthInvalid)},
 }, mealPlanErrorRules...)
 
 // mountMealBillingMonths builds the Mensa-Monatsfreigabe over the Meal
 // Plan, the school calendar and the attendance and mounts it.
-func mountMealBillingMonths(tenant chi.Router, mealPlan mealplanModule.Capability, days schoolcalendar.Days, attendance studentpresence.Owner) error {
-	months, err := owners.BuildMealBillingMonths(mealPlan, days, attendance)
+func mountMealBillingMonths(tenant chi.Router, mealPlan mealplanModule.Capability, days schoolcalendar.Days, attendance studentpresence.Owner, settings settingsModule.StatisticsRetentionSource) error {
+	months, err := owners.BuildMealBillingMonths(mealPlan, days, attendance, settings)
 	if err != nil {
 		return err
 	}

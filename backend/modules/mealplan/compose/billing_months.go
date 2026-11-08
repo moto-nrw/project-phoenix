@@ -13,11 +13,11 @@ import (
 // NewBillingMonths builds the Mensa-Monatsfreigabe (#4686) over the kitchen
 // lists of the Meal Plan, the school calendar and the attendance the root
 // binds.
-func NewBillingMonths(meals mealplan.Registration, days mealplan.CalendarFinder, presence mealplan.PresenceFinder) (mealplan.BillingMonths, error) {
-	if meals == nil || days == nil || presence == nil {
+func NewBillingMonths(meals mealplan.Registration, days mealplan.CalendarFinder, presence mealplan.PresenceFinder, availableFrom mealplan.AttendanceAvailableFrom) (mealplan.BillingMonths, error) {
+	if meals == nil || days == nil || presence == nil || availableFrom == nil {
 		return nil, errors.New("meal plan billing months compose: all dependencies are required")
 	}
-	return application.NewBillingMonths(billingMonthStore(), meals.WeeklyList, days, presence, calendar.TodayDate), nil
+	return application.NewBillingMonths(billingMonthStore(), meals.WeeklyList, days, presence, availableFrom, calendar.TodayDate), nil
 }
 
 // NewTraegerMealMonths builds the Träger's read of the released Mensa months.

@@ -127,6 +127,12 @@
       "legacy": "meals.billing_month_no_traeger"
     },
     {
+      "code": "meals.billing_month_attendance_expired",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "meals.billing_month_attendance_expired"
+    },
+    {
       "code": "meals.billing_month_invalid",
       "class": "input",
       "parameters": [],

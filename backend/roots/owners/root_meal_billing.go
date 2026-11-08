@@ -7,6 +7,7 @@ import (
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	mealplanCompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -19,11 +20,25 @@ type mealBillingAttendance interface {
 
 // BuildMealBillingMonths composes the Mensa-Monatsfreigabe over the kitchen
 // lists of the Meal Plan, the school calendar and the attendance.
-func BuildMealBillingMonths(mealPlan mealplanModule.Capability, calendarRecords schoolcalendar.Days, attendance mealBillingAttendance) (mealplanModule.BillingMonths, error) {
-	if mealPlan == nil || calendarRecords == nil || attendance == nil {
-		return nil, errors.New("meal billing months: the meal plan, the school calendar and the attendance are required")
+func BuildMealBillingMonths(mealPlan mealplanModule.Capability, calendarRecords schoolcalendar.Days, attendance mealBillingAttendance, settings settingsModule.StatisticsRetentionSource) (mealplanModule.BillingMonths, error) {
+	if mealPlan == nil || calendarRecords == nil || attendance == nil || settings == nil {
+		return nil, errors.New("meal billing months: the meal plan, the school calendar, the attendance and its retention are required")
 	}
-	return mealplanCompose.NewBillingMonths(mealPlan, mealPlanCalendar(calendarRecords), mealBillingPresence(attendance))
+	return mealplanCompose.NewBillingMonths(mealPlan, mealPlanCalendar(calendarRecords), mealBillingPresence(attendance),
+		mealBillingAvailableFrom(settingsModule.NewAttendanceRetention(settings).Days, calendar.TodayDate))
+}
+
+func mealBillingAvailableFrom(retentionDays func(context.Context) (int, error), today func() calendar.Date) mealplanModule.AttendanceAvailableFrom {
+	return func(ctx context.Context) (calendar.Date, error) {
+		days, err := retentionDays(ctx)
+		if err != nil {
+			return "", err
+		}
+		if days <= 0 {
+			return "", studentpresence.ErrAttendanceRetentionWindow
+		}
+		return today().AddDays(-days), nil
+	}
 }
 
 // mealBillingPresence names per day the children with an attendance row,

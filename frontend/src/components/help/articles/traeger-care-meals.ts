@@ -47,6 +47,7 @@ export function traegerCareMealsTopic(): HelpTopic {
     result:
       "Jeder freigegebene Mensa-Monat steht genau einmal auf einer Rechnung. Gibt eine Schule einen Monat später frei, rechnet ihn der nächste Lauf nachträglich ab.",
     notes: [
+      "Nach einem Storno stellen Sie die Mensa im ursprünglichen Rechnungsmonat neu aus. Starten Sie dafür einen weiteren Lauf dieses Monats.",
       "Ermäßigungen wie Geschwister oder Einkommensstufen gelten nur für die Module. Die Mensa zahlen Eltern voll.",
       "Ein Preis, mit dem schon abgerechnet ist, bleibt für diese Monate. Ändern Sie ihn ab einem späteren Monat.",
     ],

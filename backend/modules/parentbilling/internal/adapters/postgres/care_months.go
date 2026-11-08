@@ -518,7 +518,8 @@ func (s *Store) CareRunInvoices(ctx context.Context, organizationID, runID int64
 	}
 	// The Mensa months (#4686) come with their invoice in one statement.
 	var rows []careInvoiceMealRow
-	if err := db.NewSelect().Model(&rows).ColumnExpr("?TableColumns").ColumnExpr(careInvoiceMealsColumn).
+	if err := db.NewSelect().Model(&rows).ModelTableExpr(`parent_billing.care_invoices AS "care_invoice_row"`).
+		ColumnExpr("?TableColumns").ColumnExpr(careInvoiceMealsColumn).
 		Where("care_invoice_row.organization_id = ?", organizationID).Where("care_invoice_row.run_id = ?", runID).
 		OrderExpr("care_invoice_row.number_sequence").Scan(ctx); err != nil {
 		return nil, fmt.Errorf("read care invoices: %w", err)

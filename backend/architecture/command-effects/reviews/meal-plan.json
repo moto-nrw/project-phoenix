@@ -31,6 +31,16 @@
       "target_owner": "school-calendar"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.BillingMonth",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.BillingMonth",
+      "reason": "Read-only: resolve the school attendance retention window in the caller school transaction before computing or releasing a Mensa month; no write, lock or scope change.",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.AttendanceRetention.Days",
+      "target_owner": "settings-platform"
+    },
+    {
       "adr": "0067",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.BillingMonth",
       "classification": "leaf",
@@ -70,6 +80,16 @@
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidaysOverlapping",
       "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.ReleaseBillingMonth",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.ReleaseBillingMonth",
+      "reason": "Read-only: resolve the school attendance retention window in the caller school transaction before computing or releasing a Mensa month; no write, lock or scope change.",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.AttendanceRetention.Days",
+      "target_owner": "settings-platform"
     },
     {
       "adr": "0067",

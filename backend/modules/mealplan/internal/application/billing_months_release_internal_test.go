@@ -66,7 +66,9 @@ func releaseMonths(store *releaseStore) *BillingMonths {
 	present := func(context.Context, calendar.Date, calendar.Date) (map[calendar.Date]map[int64]bool, error) {
 		return map[calendar.Date]map[int64]bool{"2026-03-02": {1: true}}, nil
 	}
-	return NewBillingMonths(store, weeks, noHolidays, present, func() calendar.Date { return calendar.NewDate(2026, 4, 2) })
+	return NewBillingMonths(store, weeks, noHolidays, present,
+		func(context.Context) (calendar.Date, error) { return "2025-04-02", nil },
+		func() calendar.Date { return calendar.NewDate(2026, 4, 2) })
 }
 
 func TestReleaseBillingMonthGuards(t *testing.T) {
@@ -108,4 +110,26 @@ func TestReleaseBillingMonthStoresWhatTheLeitungSaw(t *testing.T) {
 	assert.Equal(t, mealplan.BillingMonthReleased, month.Status)
 	assert.Equal(t, 1, month.MealCount)
 	assert.Empty(t, month.Children[0].AbsentDates, "a released month shows no absence dates")
+}
+
+func TestBillingMonthWithExpiredAttendanceCannotBeReleased(t *testing.T) {
+	t.Parallel()
+	store := &releaseStore{organization: 7}
+	months := releaseMonths(store)
+	months.availableFrom = func(context.Context) (calendar.Date, error) {
+		return "2026-03-03", nil
+	}
+	months.presence = func(context.Context, calendar.Date, calendar.Date) (map[calendar.Date]map[int64]bool, error) {
+		return map[calendar.Date]map[int64]bool{}, nil
+	}
+	_, err := months.ReleaseBillingMonth(context.Background(),
+		mealplan.BillingMonthRelease{Month: "2026-03-01", AccountID: 42, ChildCount: 1, MealCount: 0})
+	require.ErrorIs(t, err, mealplan.ErrBillingMonthAttendanceExpired)
+	assert.Empty(t, store.inserted, "expired attendance must never become immutable billing counts")
+
+	store.released = map[calendar.Date]domain.StoredBillingMonth{"2026-03-01": {Month: "2026-03-01", MealCount: 1}}
+	stored, err := months.BillingMonth(context.Background(), "2026-03-01")
+	require.NoError(t, err, "retention does not hide a release that already stored the counts")
+	assert.Equal(t, mealplan.BillingMonthReleased, stored.Status)
+	assert.Equal(t, 1, stored.MealCount)
 }

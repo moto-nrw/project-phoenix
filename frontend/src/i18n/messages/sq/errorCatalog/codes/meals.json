@@ -20,5 +20,6 @@
   "billing_month_released": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "billing_month_changed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "billing_month_no_traeger": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-  "billing_month_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
+  "billing_month_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "billing_month_attendance_expired": "Të dhënat e pranisë për këtë muaj mund të jenë fshirë. Muaji nuk mund të miratohet më me siguri. Ju lutemi kontaktoni ofruesin tuaj."
 }

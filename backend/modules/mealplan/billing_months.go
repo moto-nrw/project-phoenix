@@ -105,6 +105,9 @@ var (
 	// ErrBillingMonthChanged refuses a release whose counts differ from the
 	// month now; the OGS-Leitung checks it again.
 	ErrBillingMonthChanged = &Fault{Code: "meal_billing_month_changed", Detail: "the month changed since it was read"}
+	// ErrBillingMonthAttendanceExpired refuses counts whose attendance may
+	// already have been removed by retention.
+	ErrBillingMonthAttendanceExpired = &Fault{Code: "meal_billing_month_attendance_expired", Detail: "the month is outside the attendance retention window"}
 	// ErrBillingMonthNoTraeger refuses a release of a school without a Träger:
 	// nobody bills its Mensa.
 	ErrBillingMonthNoTraeger = &Fault{Code: "meal_billing_month_no_traeger", Detail: "the school belongs to no Träger"}
@@ -116,6 +119,10 @@ var (
 // PresenceFinder names per day of [from, to] the children with an
 // attendance on file in the caller's school transaction.
 type PresenceFinder func(ctx context.Context, from, to calendar.Date) (map[calendar.Date]map[int64]bool, error)
+
+// AttendanceAvailableFrom names the earliest day whose attendance is
+// still complete under the school's retention policy.
+type AttendanceAvailableFrom func(ctx context.Context) (calendar.Date, error)
 
 // BillingMonths is the Mensa-Monatsfreigabe of a school. Every operation
 // runs in the caller's school transaction.
