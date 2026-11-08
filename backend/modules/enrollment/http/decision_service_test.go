@@ -1177,6 +1177,9 @@ func TestDecisionService_SyncApprovedChildData_RelinksPrimaryGuardian(t *testing
 		ChildID:             childID,
 		ActorAccountID:      env.creatorID,
 		ReplaceTargetedData: true,
+		// The change request's base snapshot carries the address before the
+		// edit; the family it names still holds the relationship (#6173).
+		PreviousSnapshot: map[string]any{"guardian_email": "old-primary@example.com"},
 	})
 	require.NoError(t, err)
 
@@ -3099,7 +3102,11 @@ func TestDecisionService_Decide_LateInviteRenewalLinksInviteRecipient(t *testing
 	unrelatedParent := testpkg.CreateTestParentGuardianChain(t, env.db)
 	existing := testpkg.CreateTestStudent(t, env.db, "Milo", "Nachzuegler", "3b")
 
-	invitedEmail := "invited-renewal@example.test"
+	// Submission pins only for an invitee whose relationship authorizes the
+	// renewal; the approval asks again (#6173).
+	invited := testpkg.CreateTestGuardianProfileNamed(t, env.db, "Mara", "Nachzuegler", "invited-renewal")
+	testpkg.CreateTestStudentGuardianLink(t, env.db, existing.ID, invited.ID, securityruntime.GuardianRolePrimaryGuardian)
+	invitedEmail := *invited.Email
 	invite, err := env.requestSvc.CreateLateInvite(ctx, enrollmentAPI.CreateLateInviteInput{
 		PhaseID: env.sourcePhase.ID, GuardianEmail: invitedEmail, CreatedBy: env.creatorID,
 	})
