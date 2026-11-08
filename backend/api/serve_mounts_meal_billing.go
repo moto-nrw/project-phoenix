@@ -25,6 +25,7 @@ var mealBillingErrorRules = append([]apiCommon.ErrorRule{
 	{Target: mealplanModule.ErrBillingMonthChanged, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorConflictWithCode, errors.New(mealplanModule.ErrBillingMonthChanged.Detail), apiCommon.CodeMealsBillingMonthChanged)},
 	{Target: mealplanModule.ErrBillingMonthAttendanceExpired, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorConflictWithCode, errors.New(mealplanModule.ErrBillingMonthAttendanceExpired.Detail), apiCommon.CodeMealsBillingMonthAttendanceExpired)},
 	{Target: mealplanModule.ErrBillingMonthNoTraeger, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorConflictWithCode, errors.New(mealplanModule.ErrBillingMonthNoTraeger.Detail), apiCommon.CodeMealsBillingMonthNoTraeger)},
+	{Target: mealplanModule.ErrBillingMonthReasonRequired, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorInvalidRequestWithCode, errors.New(mealplanModule.ErrBillingMonthReasonRequired.Detail), apiCommon.CodeMealsBillingMonthReasonRequired)},
 	{Target: mealplanModule.ErrInvalidBillingMonth, Render: apiCommon.FixedCodedRenderer(apiCommon.ErrorInvalidRequestWithCode, errors.New(mealplanModule.ErrInvalidBillingMonth.Detail), apiCommon.CodeMealsBillingMonthInvalid)},
 }, mealPlanErrorRules...)
 

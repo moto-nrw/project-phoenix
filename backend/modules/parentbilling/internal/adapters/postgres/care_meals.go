@@ -58,6 +58,7 @@ type careMealPositionRow struct {
 	UnitCents      int64         `bun:"unit_cents"`
 	AmountCents    int64         `bun:"amount_cents"`
 	NetCents       int64         `bun:"net_cents"`
+	ReleaseVersion int           `bun:"release_version"`
 }
 
 // CareMealTariffs reads the Mensa prices of the Träger.
@@ -114,26 +115,42 @@ func (s *Store) DeleteCareMealTariff(ctx context.Context, organizationID, school
 // BilledMealMonths names the Mensa months of [from, to] unavailable to the
 // run of to. Cancellation permits reissue only in the original invoice's
 // billing month, where replacement lookup preserves its invoice chain.
-func (s *Store) BilledMealMonths(ctx context.Context, organizationID int64, from, to calendar.Date) ([]parentbilling.CareBilledMeal, error) {
+func (s *Store) BilledMealMonths(ctx context.Context, organizationID int64, from, to calendar.Date) ([]parentbilling.CareBilledMealPosition, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return nil, err
 	}
 	var rows []struct {
-		SchoolID  int64         `bun:"school_id"`
-		StudentID int64         `bun:"student_id"`
-		MealMonth calendar.Date `bun:"meal_month,type:date"`
+		SchoolID       int64         `bun:"school_id"`
+		StudentID      int64         `bun:"student_id"`
+		MealMonth      calendar.Date `bun:"meal_month,type:date"`
+		ReleaseVersion int           `bun:"release_version"`
+		Quantity       int           `bun:"quantity"`
+		AmountCents    int64         `bun:"amount_cents"`
+		InvoiceNumber  string        `bun:"invoice_number"`
+		ChildFirstName string        `bun:"child_first_name"`
+		ChildLastName  string        `bun:"child_last_name"`
+		Cancelled      bool          `bun:"cancelled"`
 	}
-	if err := db.NewRaw(`SELECT school_id, student_id, meal_month FROM parent_billing.care_meal_positions
-		WHERE organization_id = ? AND meal_month BETWEEN ? AND ? AND (`+notCancelled+`
-		OR EXISTS (SELECT 1 FROM parent_billing.care_invoices AS invoice
-			WHERE invoice.organization_id = care_meal_positions.organization_id
-				AND invoice.id = care_meal_positions.invoice_id AND invoice.billing_month <> ?))`, organizationID, from, to, to).Scan(ctx, &rows); err != nil {
+	// A cancelled position is reserved for the reissue of its own month; in
+	// that month's run it is free to bill again.
+	if err := db.NewRaw(`SELECT care_meal_positions.school_id, care_meal_positions.student_id, care_meal_positions.meal_month,
+			care_meal_positions.release_version, care_meal_positions.quantity, care_meal_positions.amount_cents,
+			invoice.number AS invoice_number, invoice.child_first_name, invoice.child_last_name, NOT (`+notCancelled+`) AS cancelled
+		FROM parent_billing.care_meal_positions
+		JOIN parent_billing.care_invoices AS invoice
+			ON invoice.organization_id = care_meal_positions.organization_id AND invoice.id = care_meal_positions.invoice_id
+		WHERE care_meal_positions.organization_id = ? AND care_meal_positions.meal_month BETWEEN ? AND ?
+			AND (`+notCancelled+` OR invoice.billing_month <> ?)`, organizationID, from, to, to).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("read billed Mensa months: %w", err)
 	}
-	billed := make([]parentbilling.CareBilledMeal, len(rows))
+	billed := make([]parentbilling.CareBilledMealPosition, len(rows))
 	for i, row := range rows {
-		billed[i] = parentbilling.CareBilledMeal{SchoolID: row.SchoolID, StudentID: row.StudentID, Month: row.MealMonth}
+		billed[i] = parentbilling.CareBilledMealPosition{
+			CareBilledMeal: parentbilling.CareBilledMeal{SchoolID: row.SchoolID, StudentID: row.StudentID, Month: row.MealMonth},
+			ReleaseVersion: row.ReleaseVersion, Quantity: row.Quantity, AmountCents: row.AmountCents, InvoiceNumber: row.InvoiceNumber,
+			ChildFirstName: row.ChildFirstName, ChildLastName: row.ChildLastName, Cancelled: row.Cancelled,
+		}
 	}
 	return billed, nil
 }
@@ -180,7 +197,7 @@ func insertCareMealPositions(ctx context.Context, db bun.IDB, organizationID int
 				replaces = &head
 			}
 			positions = append(positions, careMealPositionRow{OrganizationID: organizationID, InvoiceID: rows[i].ID,
-				Replaces: replaces, Position: j + 1,
+				Replaces: replaces, Position: j + 1, ReleaseVersion: max(meal.ReleaseVersion, 1),
 				SchoolID: meal.SchoolID, StudentID: meal.StudentID, MealMonth: meal.MealMonth, Mode: meal.Mode, Quantity: meal.Quantity,
 				UnitCents: meal.UnitCents, AmountCents: meal.AmountCents, NetCents: meal.AmountCents})
 		}
@@ -208,7 +225,8 @@ type careInvoiceMealRow struct {
 // reads; the positions name their invoice, whose Träger the row filters on.
 const careInvoiceMealsColumn = `COALESCE((SELECT jsonb_agg(jsonb_build_object(
 		'school_id', m.school_id, 'student_id', m.student_id, 'meal_month', m.meal_month, 'mode', m.mode,
-		'quantity', m.quantity, 'unit_cents', m.unit_cents, 'amount_cents', m.amount_cents) ORDER BY m.position)
+		'quantity', m.quantity, 'unit_cents', m.unit_cents, 'amount_cents', m.amount_cents,
+		'release_version', m.release_version) ORDER BY m.position)
 	FROM parent_billing.care_meal_positions AS m
 	WHERE m.organization_id = care_invoice_row.organization_id AND m.invoice_id = care_invoice_row.id), '[]'::jsonb) AS meal_positions`
 

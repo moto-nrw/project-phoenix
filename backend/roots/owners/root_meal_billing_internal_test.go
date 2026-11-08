@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 
 	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
@@ -12,22 +13,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// The Mensa-Monatsfreigabe asks Student Presence for the first complete
+// day under the school's own window and keeps its errors (#4686).
 func TestMealBillingAttendanceCutoffMatchesCleanup(t *testing.T) {
 	t.Parallel()
-	for _, scenario := range []struct {
-		days   int
-		cutoff calendar.Date
-	}{{30, "2026-10-09"}, {365, "2025-11-08"}} {
-		find := mealBillingAvailableFrom(func(context.Context) (int, error) { return scenario.days, nil },
-			func() calendar.Date { return "2026-11-08" })
-		cutoff, err := find(context.Background())
-		require.NoError(t, err)
-		assert.Equal(t, scenario.cutoff, cutoff)
-	}
+	var asked int
+	find := mealBillingAvailableFrom(func(context.Context) (int, error) { return 30, nil },
+		func(_ context.Context, days int) (calendar.Date, error) {
+			asked = days
+			return "2026-10-09", nil
+		})
+	from, err := find(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 30, asked)
+	assert.Equal(t, calendar.Date("2026-10-09"), from)
+
 	unavailable := errors.New("setting unavailable")
-	find := mealBillingAvailableFrom(func(context.Context) (int, error) { return 0, unavailable },
-		func() calendar.Date { return "2026-11-08" })
-	_, err := find(context.Background())
+	find = mealBillingAvailableFrom(func(context.Context) (int, error) { return 0, unavailable },
+		func(context.Context, int) (calendar.Date, error) { panic("no window, no question") })
+	_, err = find(context.Background())
 	require.ErrorIs(t, err, unavailable)
 }
 
@@ -54,15 +58,20 @@ func (s settingsByTenant) ResolveManyForTenants(_ context.Context, tenantIDs []i
 	return result, nil
 }
 
-// The Träger side of the Mensa billing applies the cutoff of the school
-// side to each school's own retention (#4686).
+// The Träger side asks each school for its first complete day under that
+// school's own retention (#4686).
 func TestMealAttendanceFromNamesTheCutoffOfEachSchool(t *testing.T) {
 	t.Parallel()
-	today := func() calendar.Date { return "2026-11-08" }
-	find := MealAttendanceFrom(settingsByTenant{days: map[int64]string{1: "30", 2: "365"}}, today)
+	completeFrom := func(_ context.Context, schoolID int64, days int) (calendar.Date, error) {
+		if schoolID == 2 && days == 365 {
+			return "2026-10-01", nil
+		}
+		return calendar.Date(fmt.Sprintf("days-%d", days)), nil
+	}
+	find := MealAttendanceFrom(settingsByTenant{days: map[int64]string{1: "30", 2: "365"}}, completeFrom)
 	cutoffs, err := find(context.Background(), []int64{1, 2})
 	require.NoError(t, err)
-	assert.Equal(t, map[int64]calendar.Date{1: "2026-10-09", 2: "2025-11-08"}, cutoffs)
+	assert.Equal(t, map[int64]calendar.Date{1: "days-30", 2: "2026-10-01"}, cutoffs)
 
 	_, err = find(context.Background(), []int64{3})
 	require.Error(t, err, "a school without settings is no silent default")

@@ -93,6 +93,40 @@ type CareMealPosition struct {
 	Quantity    int           `json:"quantity"`
 	UnitCents   int64         `json:"unit_cents"`
 	AmountCents int64         `json:"amount_cents"`
+	// ReleaseVersion is the version of the school's release the position
+	// bills (#4686); a later version shows the office it changed.
+	ReleaseVersion int `json:"release_version"`
+}
+
+// CareBilledMealPosition is a child's Mensa month an issued invoice bills:
+// the release version, quantity and amount it billed, the invoice and its
+// child. Cancelled positions wait for the reissue of their month.
+type CareBilledMealPosition struct {
+	CareBilledMeal
+	ReleaseVersion int
+	Quantity       int
+	AmountCents    int64
+	InvoiceNumber  string
+	ChildFirstName string
+	ChildLastName  string
+	Cancelled      bool
+}
+
+// CareMealChanged is a child's Mensa month an issued invoice bills with an
+// amount a later release of the school no longer gives (#4686): the office
+// cancels the invoice and issues it again; issued invoices never change.
+type CareMealChanged struct {
+	SchoolID       int64         `json:"school_id"`
+	SchoolName     string        `json:"school_name"`
+	StudentID      int64         `json:"student_id"`
+	ChildFirstName string        `json:"child_first_name"`
+	ChildLastName  string        `json:"child_last_name"`
+	Month          calendar.Date `json:"month"`
+	InvoiceNumber  string        `json:"invoice_number"`
+	BilledQuantity int           `json:"billed_quantity"`
+	BilledCents    int64         `json:"billed_cents"`
+	NewQuantity    int           `json:"new_quantity"`
+	NewCents       int64         `json:"new_cents"`
 }
 
 // CareMealGap is an ended month a school bills its Mensa for that its
@@ -138,6 +172,8 @@ type CareMealChild struct {
 type CareMealRelease struct {
 	SchoolID int64
 	Month    calendar.Date
+	// Version is the latest release of the month; a correction raises it.
+	Version  int
 	Children []CareMealChild
 }
 

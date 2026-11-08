@@ -68,7 +68,7 @@ func narrowMonth(month careMonth, schoolIDs []int64, exclusions map[int64]parent
 	inRun := func(schoolID int64) bool { return slices.Contains(schoolIDs, schoolID) }
 	review := reviewedMonth{careMonth: careMonth{invoices: []parentbilling.CareInvoice{}, unpriced: []parentbilling.CareUnpriced{},
 		duplicates: []parentbilling.CareDuplicate{}, mealGaps: []parentbilling.CareMealGap{},
-		mealUnbilled: []parentbilling.CareMealUnbilled{}, dueDates: month.dueDates, deviations: month.deviations},
+		mealUnbilled: []parentbilling.CareMealUnbilled{}, mealChanged: []parentbilling.CareMealChanged{}, dueDates: month.dueDates, deviations: month.deviations},
 		excluded: []parentbilling.CareInvoice{}}
 	for schoolID, count := range month.billedBySchool {
 		if inRun(schoolID) {
@@ -114,6 +114,11 @@ func narrowMeals(review *reviewedMonth, month careMonth, inRun func(int64) bool)
 	for _, unbilled := range month.mealUnbilled {
 		if inRun(unbilled.SchoolID) {
 			review.mealUnbilled = append(review.mealUnbilled, unbilled)
+		}
+	}
+	for _, changed := range month.mealChanged {
+		if inRun(changed.SchoolID) {
+			review.mealChanged = append(review.mealChanged, changed)
 		}
 	}
 }
@@ -164,9 +169,10 @@ func previewFingerprint(run parentbilling.CareRun, rule string, review reviewedM
 		DueDates    []parentbilling.RunDueDate       `json:"due_dates"`
 		MealGaps    []parentbilling.CareMealGap      `json:"meal_gaps"`
 		MealUnbill  []parentbilling.CareMealUnbilled `json:"meal_unbilled"`
+		MealChanged []parentbilling.CareMealChanged  `json:"meal_changed"`
 	}{run.ID, run.SchoolIDs, run.InvoiceDate, rule, fingerprintInvoices(review.invoices),
 		fingerprintInvoices(review.excluded), review.unpriced, review.duplicates, review.billed,
-		review.dueDates.InPaymentOrder(), review.mealGaps, review.mealUnbilled})
+		review.dueDates.InPaymentOrder(), review.mealGaps, review.mealUnbilled, review.mealChanged})
 	if err != nil {
 		// Every value above marshals; a failure leaves no fingerprint a
 		// release could match.
@@ -370,6 +376,7 @@ func (c *CareBilling) reviewDetail(ctx context.Context, reviewer parentbilling.H
 	detail.DueDates = review.dueDates.InPaymentOrder()
 	detail.MonthRule, detail.Unpriced, detail.Billed = rule, review.unpriced, review.billed
 	detail.Duplicates, detail.MealGaps, detail.MealUnbilled = review.duplicates, review.mealGaps, review.mealUnbilled
+	detail.MealChanged = review.mealChanged
 	detail.Invoices = append(review.invoices, review.excluded...)
 	detail.Fingerprint = review.fingerprint
 	for _, invoice := range review.excluded {

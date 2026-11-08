@@ -38,6 +38,21 @@ export interface MealBillingMonth {
   readonly children: readonly MealBillingChild[];
   /** The computed state the release sends back; empty once released. */
   readonly fingerprint: string;
+  /** The release shown, 0 before the first. */
+  readonly version: number;
+  /** Every release of the month, newest first. */
+  readonly releases: readonly MealBillingRelease[];
+  /** The month as counted now when it differs from its release (#4686). */
+  readonly current: MealBillingMonth | null;
+}
+
+/** One release of a month: when, why (empty for the first) and its counts. */
+export interface MealBillingRelease {
+  readonly version: number;
+  readonly releasedAt: string;
+  readonly reason: string;
+  readonly childCount: number;
+  readonly mealCount: number;
 }
 
 interface BackendSummary {
@@ -57,6 +72,17 @@ interface BackendMonth {
   meal_count: number;
   absence_count: number;
   fingerprint?: string;
+  version?: number;
+  releases?:
+    | {
+        version: number;
+        released_at: string;
+        reason: string;
+        child_count: number;
+        meal_count: number;
+      }[]
+    | null;
+  current?: BackendMonth | null;
   children:
     | {
         student_id: number;
@@ -94,6 +120,15 @@ function monthFromBackend(body: BackendMonth): MealBillingMonth {
     mealCount: body.meal_count,
     absenceCount: body.absence_count,
     fingerprint: body.fingerprint ?? "",
+    version: body.version ?? 0,
+    releases: (body.releases ?? []).map((release) => ({
+      version: release.version,
+      releasedAt: release.released_at,
+      reason: release.reason,
+      childCount: release.child_count,
+      mealCount: release.meal_count,
+    })),
+    current: body.current ? monthFromBackend(body.current) : null,
     children: (body.children ?? []).map((child) => ({
       studentId: String(child.student_id),
       firstName: child.first_name,
@@ -126,12 +161,16 @@ export async function fetchMealBillingMonth(
   );
 }
 
-/** Releases the month the OGS-Leitung checked: its children and meals. */
+/**
+ * Releases the month the OGS-Leitung checked: its children and meals. A
+ * released month is released again with a reason after a correction.
+ */
 export async function releaseMealBillingMonth(
   month: Pick<
     MealBillingMonth,
     "month" | "childCount" | "mealCount" | "fingerprint"
   >,
+  reason = "",
 ): Promise<MealBillingMonth> {
   return monthFromBackend(
     await request<BackendMonth>(
@@ -143,6 +182,7 @@ export async function releaseMealBillingMonth(
           child_count: month.childCount,
           meal_count: month.mealCount,
           fingerprint: month.fingerprint,
+          reason,
         }),
       },
     ),

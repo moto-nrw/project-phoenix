@@ -764,6 +764,8 @@ export const ERROR_CATALOG = {
         "Diesen Monat gibt es hier nicht. Wählen Sie einen der letzten 12 Monate.",
       "meals.billing_month_no_traeger":
         "Ihre Schule gehört zu keinem Träger. Deshalb rechnet niemand die Mensa ab.",
+      "meals.billing_month_reason_required":
+        "Bitte nennen Sie den Grund für die neue Freigabe. Höchstens 500 Zeichen.",
       "meals.billing_month_released":
         "Dieser Monat ist schon freigegeben. Eine Freigabe lässt sich nicht ändern.",
       "meals.billing_month_running":

@@ -21,7 +21,7 @@ import (
 // school again. The Träger reads only through
 // schedule.traeger_meal_billing_children in its Träger transaction.
 
-// billingMonthUnique keeps a month of a school to one release.
+// billingMonthUnique keeps a version of a month of a school to one release.
 const billingMonthUnique = "uq_meal_billing_months_month"
 
 // TraegerDatabase resolves the Träger transaction of organizationID; any
@@ -51,6 +51,17 @@ type billingMonthRow struct {
 	ReleasedByAccountID *int64        `bun:"released_by_account_id"`
 	ChildCount          int           `bun:"child_count"`
 	MealCount           int           `bun:"meal_count"`
+	Version             int           `bun:"version"`
+	Reason              *string       `bun:"reason"`
+}
+
+func (row billingMonthRow) version() domain.ReleaseVersion {
+	reason := ""
+	if row.Reason != nil {
+		reason = *row.Reason
+	}
+	return domain.ReleaseVersion{Version: row.Version, ReleasedAt: row.ReleasedAt, Reason: reason, ChildCount: row.ChildCount,
+		MealCount: row.MealCount}
 }
 
 type billingMonthChildRow struct {
@@ -74,13 +85,14 @@ func (s *BillingMonthStore) ReleasedMonths(ctx context.Context, from, to calenda
 		return nil, err
 	}
 	var rows []billingMonthRow
-	if err := db.NewSelect().Model(&rows).Where("school_id = ?", schoolID).
-		Where("billing_month BETWEEN ? AND ?", from, to).OrderExpr("billing_month DESC").Scan(ctx); err != nil {
+	if err := db.NewSelect().Model(&rows).DistinctOn("billing_month").Where("school_id = ?", schoolID).
+		Where("billing_month BETWEEN ? AND ?", from, to).OrderExpr("billing_month DESC, version DESC").Scan(ctx); err != nil {
 		return nil, fmt.Errorf("read released meal months: %w", err)
 	}
 	result := make([]domain.StoredBillingMonth, len(rows))
 	for i, row := range rows {
-		result[i] = domain.StoredBillingMonth{Month: row.BillingMonth, ReleasedAt: row.ReleasedAt, ChildCount: row.ChildCount, MealCount: row.MealCount}
+		result[i] = domain.StoredBillingMonth{Month: row.BillingMonth, ReleasedAt: row.ReleasedAt, ChildCount: row.ChildCount,
+			MealCount: row.MealCount, Version: row.Version}
 	}
 	return result, nil
 }
@@ -91,20 +103,27 @@ func (s *BillingMonthStore) ReleasedMonth(ctx context.Context, month calendar.Da
 	if err != nil {
 		return domain.StoredBillingMonth{}, false, err
 	}
-	row := billingMonthRow{}
-	if err := db.NewSelect().Model(&row).Where("school_id = ?", schoolID).Where("billing_month = ?", month).Scan(ctx); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return domain.StoredBillingMonth{}, false, nil
-		}
+	var versions []billingMonthRow
+	if err := db.NewSelect().Model(&versions).Where("school_id = ?", schoolID).Where("billing_month = ?", month).
+		OrderExpr("version DESC").Scan(ctx); err != nil {
 		return domain.StoredBillingMonth{}, false, fmt.Errorf("read released meal month: %w", err)
 	}
+	if len(versions) == 0 {
+		return domain.StoredBillingMonth{}, false, nil
+	}
+	row := versions[0]
 	var children []billingMonthChildRow
 	if err := db.NewSelect().Model(&children).Where("organization_id = ?", row.OrganizationID).Where("month_id = ?", row.ID).
 		OrderExpr("lower(last_name), lower(first_name), student_id").Scan(ctx); err != nil {
 		return domain.StoredBillingMonth{}, false, fmt.Errorf("read released meal month children: %w", err)
 	}
+	latest := row.version()
 	stored := domain.StoredBillingMonth{Month: row.BillingMonth, ReleasedAt: row.ReleasedAt, ChildCount: row.ChildCount,
-		MealCount: row.MealCount, Children: make([]domain.BillingChild, len(children))}
+		MealCount: row.MealCount, Version: latest.Version, Reason: latest.Reason, Children: make([]domain.BillingChild, len(children)),
+		Versions: make([]domain.ReleaseVersion, len(versions))}
+	for i, version := range versions {
+		stored.Versions[i] = version.version()
+	}
 	for i, child := range children {
 		stored.Children[i] = domain.BillingChild{StudentID: child.StudentID, FirstName: child.FirstName, LastName: child.LastName,
 			SchoolClass: child.SchoolClass, RegisteredDays: child.RegisteredDays, MealDays: child.MealDays}
@@ -131,12 +150,21 @@ func (s *BillingMonthStore) InsertRelease(ctx context.Context, organizationID, a
 	if err != nil {
 		return time.Time{}, err
 	}
+	version := max(month.Version, 1)
 	row := &billingMonthRow{OrganizationID: organizationID, SchoolID: schoolID, BillingMonth: month.Month,
-		ReleasedByAccountID: &accountID, ChildCount: month.ChildCount, MealCount: month.MealCount}
+		ReleasedByAccountID: &accountID, ChildCount: month.ChildCount, MealCount: month.MealCount, Version: version}
+	if version > 1 {
+		row.Reason = &month.Reason
+	}
 	if _, err := db.NewInsert().Model(row).Returning("id, released_at").Exec(ctx); err != nil {
 		var pgErr pgdriver.Error
 		if errors.As(err, &pgErr) && pgErr.Field('n') == billingMonthUnique {
-			return time.Time{}, mealplan.ErrBillingMonthReleased
+			// Another release of the month came first: the first release
+			// is taken, a correction no longer follows the version seen.
+			if version == 1 {
+				return time.Time{}, mealplan.ErrBillingMonthReleased
+			}
+			return time.Time{}, mealplan.ErrBillingMonthChanged
 		}
 		return time.Time{}, fmt.Errorf("insert meal month release: %w", err)
 	}
@@ -159,6 +187,7 @@ type traegerMealRow struct {
 	SchoolID     int64          `bun:"school_id"`
 	BillingMonth calendar.Date  `bun:"billing_month,type:date"`
 	ReleasedAt   time.Time      `bun:"released_at"`
+	Version      int            `bun:"version"`
 	StudentID    sql.NullInt64  `bun:"student_id"`
 	FirstName    sql.NullString `bun:"first_name"`
 	LastName     sql.NullString `bun:"last_name"`
@@ -173,13 +202,13 @@ func (s *BillingMonthStore) TraegerMonths(ctx context.Context, organizationID in
 		return nil, err
 	}
 	var rows []traegerMealRow
-	if err := db.NewRaw(`SELECT school_id, billing_month, released_at, student_id, first_name, last_name, meal_days
+	if err := db.NewRaw(`SELECT school_id, billing_month, released_at, version, student_id, first_name, last_name, meal_days
 		FROM schedule.traeger_meal_billing_children(?)`, until).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("read the released meal months of the Träger: %w", err)
 	}
 	result := make([]domain.ReleasedMealRow, len(rows))
 	for i, row := range rows {
-		result[i] = domain.ReleasedMealRow{SchoolID: row.SchoolID, Month: row.BillingMonth, ReleasedAt: row.ReleasedAt}
+		result[i] = domain.ReleasedMealRow{SchoolID: row.SchoolID, Month: row.BillingMonth, ReleasedAt: row.ReleasedAt, Version: row.Version}
 		if row.StudentID.Valid {
 			result[i].Child = &domain.ReleasedMealChild{StudentID: row.StudentID.Int64, FirstName: row.FirstName.String,
 				LastName: row.LastName.String, MealDays: int(row.MealDays.Int64)}

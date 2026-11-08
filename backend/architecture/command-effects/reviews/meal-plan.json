@@ -41,6 +41,16 @@
       "target_owner": "settings-platform"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.BillingMonth",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.BillingMonth",
+      "reason": "Read-only: Student Presence's first complete attendance day of the school under its retention window, counting what the retention already deleted (active.attendance_retention_marks, #4686, ADR 0168); read in the caller's school transaction so a Mensa month whose attendance may be gone is not counted; no write, lock or scope change.",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.AttendanceCompleteFrom",
+      "target_owner": "student-presence"
+    },
+    {
       "adr": "0067",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.BillingMonth",
       "classification": "leaf",
@@ -60,6 +70,16 @@
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings.AttendanceRetention.Days",
       "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.BillingMonthOverview",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.BillingMonthOverview",
+      "reason": "Read-only: Student Presence's first complete attendance day of the school under its retention window, counting what the retention already deleted (active.attendance_retention_marks, #4686, ADR 0168); read in the caller's school transaction so a Mensa month whose attendance may be gone is not counted; no write, lock or scope change.",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.AttendanceCompleteFrom",
+      "target_owner": "student-presence"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.ReleaseBillingMonth",
@@ -100,6 +120,16 @@
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings.AttendanceRetention.Days",
       "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.ReleaseBillingMonth",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.ReleaseBillingMonth",
+      "reason": "Read-only: Student Presence's first complete attendance day of the school under its retention window, counting what the retention already deleted (active.attendance_retention_marks, #4686, ADR 0168); read in the caller's school transaction so a Mensa month whose attendance may be gone is not counted; no write, lock or scope change.",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.AttendanceCompleteFrom",
+      "target_owner": "student-presence"
     },
     {
       "adr": "0067",

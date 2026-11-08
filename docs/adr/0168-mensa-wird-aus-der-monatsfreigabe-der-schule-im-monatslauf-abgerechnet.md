@@ -37,8 +37,15 @@ ein. Sie führt keinen Owner und keinen zweiten Lauf ein.
    Kinder, ihre angemeldeten Tage, Essen und Fehlzeiten und gibt den Monat
    frei. Die Freigabe rechnet neu und speichert nur, wenn Zahl der Kinder und
    Essen dem gezeigten Stand entsprechen (409 `meals.billing_month_changed`).
-   Sie ist ein Objekt von Meal Plan, je Schule und Monat einmal, und ändert
-   sich nie (`schedule.meal_billing_months`, `…_children`).
+   Sie ist ein Objekt von Meal Plan (`schedule.meal_billing_months`,
+   `…_children`); eine Freigabe ändert sich nie. Ändert eine nachgetragene
+   Anwesenheit den Monat danach, zeigt die Seite den neuen Stand neben dem
+   freigegebenen, und die OGS-Leitung gibt ihn **erneut frei**: mit Grund,
+   als neue Version neben den früheren (wer und wann stehen in der Zeile,
+   die alte Zahl in der Vorversion). Ein unveränderter Monat lässt sich nicht
+   erneut freigeben (409 `meals.billing_month_released`), ohne Grund nicht
+   (400 `meals.billing_month_reason_required`). Der Träger liest nur die
+   neueste Version.
 4. **Ablage beim Träger, Grenze nach ADR 0105.** Die Freigabe trägt Schule
    und Träger statt `tenant_id`: Sie ist Abrechnungsbeleg des Trägers und
    bleibt wie die Rechnungen über die Schule hinaus (ADR 0088 § 9). Nur die
@@ -69,15 +76,25 @@ ein. Sie führt keinen Owner und keinen zweiten Lauf ein.
    (BuT), ist das eine eigene Regelart.
 7. **Unveränderlich.** Eine ausgestellte Mensa-Position hält Monat, Art,
    Menge, Preis und Betrag und ändert sich nie (Trigger wie ADR 0119 Punkt 7).
-   Eine Korrektur einer freigegebenen Fehlzeit geht über Storno und
-   Neuausstellung (ADR 0119), nicht über eine Änderung.
+   Jede Position merkt sich die Version der Freigabe, die sie abrechnet
+   (`release_version`). Gibt die Schule einen schon abgerechneten Monat
+   erneut mit anderem Betrag frei, nennt jeder Lauf ihn unter „Nach der
+   Ausstellung geändert“ mit Rechnung, altem und neuem Betrag; das Büro
+   storniert die Rechnung, und die Neuausstellung des Monats rechnet die
+   neueste Freigabe ab (ADR 0119). Eine Position folgt dabei der Storno-Kette
+   ihres Kindes und Monats, auch wenn die Mensa inzwischen auf einer eigenen
+   Rechnung steht.
    In der Prüfphase des Laufs (#5916) gehören die Mensa-Positionen, die Monate
    ohne Freigabe, die nicht mehr abrechenbaren Monate und die nicht
-   abgerechneten Kinder zum Fingerabdruck des geprüften Stands. Eine
+   abgerechneten Kinder und die nach der Ausstellung geänderten Monate zum
+   Fingerabdruck des geprüften Stands. Eine
    ausgeschlossene Rechnung stellt auch ihre Mensa nicht aus; ein späterer
    Lauf rechnet sie ab.
 8. **Protokoll.** Jedes Lesen eines Laufs nennt in `care_run_events` die
    Verträge und die Schülerdatensätze der Mensa ohne Vertrag.
+9. **Demo-Löschung.** `platform.erase_closed_demo_visitors` (1.15.811) löscht
+   die Freigaben stillgelegter Demo-Schulen mit ihren Kindern und ihren
+   Löschstand der Anwesenheit; die Mensa-Positionen gehen mit den Rechnungen.
 10. **Bündelung und Zahlung (#4689, ADR 0167).** `TermsSet.InvoiceService(ServiceMeal)`
    entscheidet, wo die Mensa steht: ohne eigene Bedingungen auf der Rechnung
    der Betreuung, sonst auf einer eigenen Mensa-Rechnung desselben Vertrags
@@ -86,9 +103,17 @@ ein. Sie führt keinen Owner und keinen zweiten Lauf ein.
    `ResolvePayment` mit den Bedingungen der Mensa auf, den Empfänger
    `ResolveRecipient`; die Freigabe kopiert beides auf die Rechnung.
    Abgerechnet-Erkennung und Neuausstellung nach Storno gelten je Leistung.
-9. **Demo-Löschung.** `platform.erase_closed_demo_visitors` (1.15.811) löscht
-   die Freigaben stillgelegter Demo-Schulen mit ihren Kindern; die
-   Mensa-Positionen gehen mit den Rechnungen.
+11. **Nicht mehr abrechenbar nach dem Löschstand.** Gelöschte Anwesenheit
+   sähe aus wie Fehlzeit. Ein Monat gilt deshalb als nicht mehr abrechenbar,
+   wenn er vor dem ersten vollständigen Tag beginnt: dem späteren von „heute
+   minus Aufbewahrungsfrist“ und dem Tag, bis zu dem die nächtliche Löschung
+   schon gelöscht hat. Student Presence schreibt diesen Löschstand
+   (`active.attendance_retention_marks`, wächst nur, je Schule ohne
+   `tenant_id` und ohne Fremdschlüssel wie die Freigaben) und beantwortet
+   `AttendanceCompleteFrom`. Eine später verlängerte Frist macht gelöschte
+   Tage nicht wieder abrechenbar. Schule und Träger zeigen solche Monate als
+   „Nicht mehr abrechenbar“ ohne Knopf; der Träger liest den Löschstand je
+   Schule in einer eigenen Schul-Transaktion (ADR 0105).
 
 ## Verworfene Optionen
 
@@ -105,12 +130,23 @@ ein. Sie führt keinen Owner und keinen zweiten Lauf ein.
 
 ## Register
 
-- `policy.json`: vier `data_objects` (zwei Meal Plan, zwei Elternabrechnung).
+- `policy.json`: fünf `data_objects` (zwei Meal Plan, zwei Elternabrechnung,
+  ein Student Presence: `active.attendance_retention_marks`).
 - `command-effects`: Kalender, Anwesenheit und Wochenlisten der Freigabe,
   die Träger-Lesung der Freigaben.
 - Query-Budget `api.traeger.care_meal_tariffs` (4, exact).
-- Budgets: `modules/mealplan/compose` 74 → 105 Zeilen (Freigabe und
-  Träger-Lesung), `modules/parentbilling/compose` 55 → 62 Zeilen (Mensa im
-  Monatslauf), `moduleComposeBudgetTotal` 13081 → 13119.
-- Aufbewahrung und Datenlebenszyklus: je vier Einträge.
+- Budgets (gemessen auf dem Stand dieses PRs): `modules/mealplan/compose`
+  74 → 105 Zeilen (Freigabe und Träger-Lesung, +31),
+  `modules/parentbilling/compose` 67 → 74 Zeilen (Mensa im Monatslauf, +7,
+  auf den 67 aus ADR 0167), `moduleComposeBudgetTotal` 13093 → 13131 (+38).
+  Pass-through `modules/studentpresence` 122 → 123 und
+  `modulePassthroughOwnerBudgetTotal` 1407 → 1408: `AttendanceCompleteFrom`
+  prüft die Frist und nimmt das spätere von Stichtag und Löschstand; die
+  Prüfung zählt es als einen Feldaufruf.
+- Command-Effects: die Leseaufrufe von `AttendanceCompleteFrom` aus Meal Plan
+  und der Elternabrechnung (`query`), die eigene Schul-Transaktion je Schule
+  beim Träger (`platform`/`scope`) und der Beobachtungs-Hook von Student
+  Presence (`unresolved`, Freigabe 0168).
+- Aufbewahrung und Datenlebenszyklus: je fünf Einträge (der Löschstand ohne
+  Personendaten, `tenantReference` über `school_id`).
 - Migration `1.15.811`.

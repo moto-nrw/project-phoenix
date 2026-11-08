@@ -18,6 +18,14 @@ import (
 // Mensa-Monatsfreigabe counts (#4686).
 type mealBillingAttendance interface {
 	ListAttendance(context.Context, studentpresence.AttendanceFilter) ([]studentpresence.Attendance, error)
+	MealAttendanceMarks
+}
+
+// MealAttendanceMarks is Student Presence's first complete attendance day
+// of a school under a retention window, in the caller's school transaction
+// (#4686): it counts what the retention already deleted.
+type MealAttendanceMarks interface {
+	AttendanceCompleteFrom(context.Context, int) (calendar.Date, error)
 }
 
 // BuildMealBillingMonths composes the Mensa-Monatsfreigabe over the kitchen
@@ -27,64 +35,21 @@ func BuildMealBillingMonths(mealPlan mealplanModule.Capability, calendarRecords 
 		return nil, errors.New("meal billing months: the meal plan, the school calendar, the attendance and its retention are required")
 	}
 	return mealplanCompose.NewBillingMonths(mealPlan, mealPlanCalendar(calendarRecords), mealBillingPresence(attendance),
-		mealBillingAvailableFrom(settingsModule.NewAttendanceRetention(settings).Days, calendar.TodayDate))
+		mealBillingAvailableFrom(settingsModule.NewAttendanceRetention(settings).Days, attendance.AttendanceCompleteFrom))
 }
 
-func mealBillingAvailableFrom(retentionDays func(context.Context) (int, error), today func() calendar.Date) mealplanModule.AttendanceAvailableFrom {
+// mealBillingAvailableFrom is the first day whose attendance is complete
+// under the school's retention window: Student Presence answers it with
+// what its retention already deleted (#4686).
+func mealBillingAvailableFrom(retentionDays func(context.Context) (int, error),
+	completeFrom func(context.Context, int) (calendar.Date, error),
+) mealplanModule.AttendanceAvailableFrom {
 	return func(ctx context.Context) (calendar.Date, error) {
 		days, err := retentionDays(ctx)
 		if err != nil {
 			return "", err
 		}
-		return mealAttendanceCutoff(days, today)
-	}
-}
-
-// mealAttendanceCutoff is the earliest day a retention of days still keeps;
-// the school side and the Träger side of the Mensa billing share it.
-func mealAttendanceCutoff(days int, today func() calendar.Date) (calendar.Date, error) {
-	if days <= 0 {
-		return "", studentpresence.ErrAttendanceRetentionWindow
-	}
-	return today().AddDays(-days), nil
-}
-
-// MealAttendanceSchoolSettings reads settings of several schools at once.
-type MealAttendanceSchoolSettings interface {
-	ResolveManyForTenants(ctx context.Context, tenantIDs []int64, keys []string) (map[int64]*configModel.SettingsSnapshot, error)
-}
-
-// MealAttendanceFrom names per school the earliest day whose attendance the
-// school still keeps, by the rule of the Mensa-Monatsfreigabe (#4686): the
-// monthly run shows a month before it as no longer billable. The caller
-// runs in its Träger transaction, whose row security hides the settings of
-// the schools, so the read runs in an administrative transaction of its
-// own; it shares nothing with the run (ADR 0105).
-func MealAttendanceFrom(settings MealAttendanceSchoolSettings, today func() calendar.Date) func(context.Context, []int64) (map[int64]calendar.Date, error) {
-	return func(ctx context.Context, schoolIDs []int64) (map[int64]calendar.Date, error) {
-		result := make(map[int64]calendar.Date, len(schoolIDs))
-		if len(schoolIDs) == 0 {
-			return result, nil
-		}
-		snapshots, err := settings.ResolveManyForTenants(tenant.ContextWithoutTransaction(ctx), schoolIDs,
-			[]string{configModel.KeyGDPRAttendanceRetentionDays})
-		if err != nil {
-			return nil, err
-		}
-		for _, schoolID := range schoolIDs {
-			snapshot, ok := snapshots[schoolID]
-			if !ok {
-				return nil, errors.New("meal billing: no settings for a school of the Träger")
-			}
-			days, err := snapshot.Int(configModel.KeyGDPRAttendanceRetentionDays)
-			if err != nil {
-				return nil, err
-			}
-			if result[schoolID], err = mealAttendanceCutoff(days, today); err != nil {
-				return nil, err
-			}
-		}
-		return result, nil
+		return completeFrom(ctx, days)
 	}
 }
 
@@ -108,5 +73,74 @@ func mealBillingPresence(attendance mealBillingAttendance) mealplanModule.Presen
 			present[day][row.StudentID] = true
 		}
 		return present, nil
+	}
+}
+
+// MealAttendanceSchoolSettings reads settings of several schools at once.
+type MealAttendanceSchoolSettings interface {
+	ResolveManyForTenants(ctx context.Context, tenantIDs []int64, keys []string) (map[int64]*configModel.SettingsSnapshot, error)
+}
+
+// MealAttendanceFrom names per school the earliest day whose attendance the
+// school still keeps, by the rule of the Mensa-Monatsfreigabe (#4686): the
+// monthly run shows a month before it as no longer billable. The caller
+// runs in its Träger transaction, whose row security hides the settings of
+// the schools, so the settings are read in an administrative transaction of
+// its own and each school's attendance in a school transaction of its own;
+// neither shares anything with the run (ADR 0105).
+func MealAttendanceFrom(settings MealAttendanceSchoolSettings, completeFrom func(context.Context, int64, int) (calendar.Date, error),
+) func(context.Context, []int64) (map[int64]calendar.Date, error) {
+	return func(ctx context.Context, schoolIDs []int64) (map[int64]calendar.Date, error) {
+		result := make(map[int64]calendar.Date, len(schoolIDs))
+		if len(schoolIDs) == 0 {
+			return result, nil
+		}
+		days, err := schoolRetentionDays(ctx, settings, schoolIDs)
+		if err != nil {
+			return nil, err
+		}
+		for _, schoolID := range schoolIDs {
+			if result[schoolID], err = completeFrom(ctx, schoolID, days[schoolID]); err != nil {
+				return nil, err
+			}
+		}
+		return result, nil
+	}
+}
+
+// schoolRetentionDays reads the attendance retention of each school.
+func schoolRetentionDays(ctx context.Context, settings MealAttendanceSchoolSettings, schoolIDs []int64) (map[int64]int, error) {
+	snapshots, err := settings.ResolveManyForTenants(tenant.ContextWithoutTransaction(ctx), schoolIDs,
+		[]string{configModel.KeyGDPRAttendanceRetentionDays})
+	if err != nil {
+		return nil, err
+	}
+	days := make(map[int64]int, len(schoolIDs))
+	for _, schoolID := range schoolIDs {
+		snapshot, ok := snapshots[schoolID]
+		if !ok {
+			return nil, errors.New("meal billing: no settings for a school of the Träger")
+		}
+		if days[schoolID], err = snapshot.Int(configModel.KeyGDPRAttendanceRetentionDays); err != nil {
+			return nil, err
+		}
+	}
+	return days, nil
+}
+
+// SchoolAttendanceMarks asks Student Presence for a school's first complete
+// attendance day in a school transaction of its own.
+func SchoolAttendanceMarks(marks MealAttendanceMarks) func(context.Context, int64, int) (calendar.Date, error) {
+	return func(ctx context.Context, schoolID int64, days int) (calendar.Date, error) {
+		id, err := tenant.NewTenantID(schoolID)
+		if err != nil {
+			return "", err
+		}
+		var complete calendar.Date
+		err = tenant.WithinTenant(tenant.ContextWithoutTransaction(ctx), id, func(schoolCtx context.Context) error {
+			complete, err = marks.AttendanceCompleteFrom(schoolCtx, days)
+			return err
+		})
+		return complete, err
 	}
 }

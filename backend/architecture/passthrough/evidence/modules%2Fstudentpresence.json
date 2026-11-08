@@ -219,6 +219,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (s *Service) AttendanceCompleteFrom(ctx context.Context, retentionDays int) (calendar.Date, error) {\n\tif retentionDays \u003c= 0 {\n\t\treturn \"\", fmt.Errorf(\"%w, got %d\", studentpresence.ErrAttendanceRetentionWindow, retentionDays)\n\t}\n\tcomplete := calendar.TodayDate().AddDays(-retentionDays)\n\terr := s.runQuery(ctx, false, \"attendance_complete_from\", func(ctx context.Context) (ports.Stats, error) {\n\t\tdeleted, ok, stats, err := s.store.AttendanceDeletedBefore(ctx)\n\t\tif ok \u0026\u0026 deleted.After(complete) {\n\t\t\tcomplete = deleted\n\t\t}\n\t\treturn stats, err\n\t})\n\treturn complete, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.AttendanceCompleteFrom",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
       "evidence": "func (s *Service) CheckInParticipants(ctx context.Context, participantIDs []int64, at time.Time) (int64, error) {\n\treturn s.participantWrite(ctx, \"check_in_participants\", participantIDs, at, func(txCtx context.Context) (ports.Stats, error) {\n\t\treturn s.store.CheckInParticipants(txCtx, participantIDs, at, false)\n\t})\n}",
       "form": "unclassified-evidence",
       "id": "modules/studentpresence/internal/application/Service.CheckInParticipants",

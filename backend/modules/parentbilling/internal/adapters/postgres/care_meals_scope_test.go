@@ -62,7 +62,10 @@ func TestCareMealFiltersKeepTheTraegerBelowRLS(t *testing.T) {
 
 		billed, err := store.BilledMealMonths(ctx, own.organization, august, august)
 		require.NoError(t, err)
-		assert.Equal(t, []parentbilling.CareBilledMeal{{SchoolID: own.school, StudentID: 9501, Month: august}}, billed, "BilledMealMonths")
+		require.Len(t, billed, 1, "BilledMealMonths")
+		assert.Equal(t, parentbilling.CareBilledMeal{SchoolID: own.school, StudentID: 9501, Month: august}, billed[0].CareBilledMeal, "BilledMealMonths")
+		assert.Equal(t, int64(960), billed[0].AmountCents)
+		assert.Equal(t, 1, billed[0].ReleaseVersion)
 
 		until, err := store.MealBilledUntil(ctx, own.organization)
 		require.NoError(t, err)
@@ -72,7 +75,7 @@ func TestCareMealFiltersKeepTheTraegerBelowRLS(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, invoices, 1)
 		assert.Equal(t, []parentbilling.CareMealPosition{{SchoolID: own.school, StudentID: 9501, MealMonth: august,
-			Mode: parentbilling.MealModePerMeal, Quantity: 2, UnitCents: 480, AmountCents: 960}}, invoices[0].MealPositions,
+			Mode: parentbilling.MealModePerMeal, Quantity: 2, UnitCents: 480, AmountCents: 960, ReleaseVersion: 1}}, invoices[0].MealPositions,
 			"CareRunInvoices reads the invoice's own Mensa months")
 
 		// A Mensa-only invoice bills its contract: a later run of the month

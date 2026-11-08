@@ -17,10 +17,14 @@ const mealBillingErasureStatement = `					-- A Mensa month a school released kee
 					-- their meals (#4686); it goes with the school.
 					DELETE FROM schedule.meal_billing_months
 					WHERE school_id = ANY (hidden_schools);
+					-- How far the retention deleted its attendance (#4686).
+					DELETE FROM active.attendance_retention_marks
+					WHERE school_id = ANY (hidden_schools);
 `
 
 // TestMealBillingErasureExtendsTheErasureOf809 keeps the erasure of 1.15.811
-// the erasure of 1.15.809 with the one statement for the Mensa months.
+// the erasure of 1.15.809 with the statements for the Mensa months and the
+// attendance retention marks.
 func TestMealBillingErasureExtendsTheErasureOf809(t *testing.T) {
 	t.Parallel()
 	require.Equal(t, 1, strings.Count(demoVisitorErasureCareLettersUpSQL, mealBillingErasureAnchor))

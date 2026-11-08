@@ -68,6 +68,23 @@ func (s *Service) DeleteExpiredAttendance(ctx context.Context, retentionDays int
 	return deleted, err
 }
 
+// AttendanceCompleteFrom is the first day whose attendance is complete:
+// the later of the window's cutoff from today and the retention mark.
+func (s *Service) AttendanceCompleteFrom(ctx context.Context, retentionDays int) (calendar.Date, error) {
+	if retentionDays <= 0 {
+		return "", fmt.Errorf("%w, got %d", studentpresence.ErrAttendanceRetentionWindow, retentionDays)
+	}
+	complete := calendar.TodayDate().AddDays(-retentionDays)
+	err := s.runQuery(ctx, false, "attendance_complete_from", func(ctx context.Context) (ports.Stats, error) {
+		deleted, ok, stats, err := s.store.AttendanceDeletedBefore(ctx)
+		if ok && deleted.After(complete) {
+			complete = deleted
+		}
+		return stats, err
+	})
+	return complete, err
+}
+
 func (s *Service) EnsureAttendanceBatch(ctx context.Context, values []studentpresence.Attendance) (result []int64, err error) {
 	rows := make([]*ports.Attendance, 0, len(values))
 	for _, value := range values {

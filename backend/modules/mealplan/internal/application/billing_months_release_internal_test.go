@@ -43,7 +43,19 @@ func (s *releaseStore) InsertRelease(_ context.Context, organizationID, _ int64,
 		panic("the release names another Träger")
 	}
 	s.inserted = append(s.inserted, month)
-	return time.Date(2026, 4, 2, 9, 0, 0, 0, time.UTC), nil
+	month.ReleasedAt = time.Date(2026, 4, 2, 9, 0, 0, 0, time.UTC)
+	entry := domain.ReleaseVersion{Version: month.Version, ReleasedAt: month.ReleasedAt, Reason: month.Reason,
+		ChildCount: month.ChildCount, MealCount: month.MealCount}
+	if earlier, ok := s.released[month.Month]; ok {
+		month.Versions = append([]domain.ReleaseVersion{entry}, earlier.Versions...)
+	} else {
+		month.Versions = []domain.ReleaseVersion{entry}
+	}
+	if s.released == nil {
+		s.released = map[calendar.Date]domain.StoredBillingMonth{}
+	}
+	s.released[month.Month] = month
+	return month.ReleasedAt, nil
 }
 
 func (s *releaseStore) TraegerMonths(context.Context, int64, calendar.Date) ([]domain.ReleasedMealRow, error) {
@@ -84,8 +96,8 @@ func TestReleaseBillingMonthGuards(t *testing.T) {
 	}{
 		{"the month has not ended", &releaseStore{organization: 7}, release("2026-04-01", 0, 0), mealplan.ErrBillingMonthRunning},
 		{"the counts the OGS-Leitung saw changed", &releaseStore{organization: 7}, release("2026-03-01", 1, 2), mealplan.ErrBillingMonthChanged},
-		{"a month is released once", &releaseStore{organization: 7, released: map[calendar.Date]domain.StoredBillingMonth{
-			"2026-03-01": {Month: "2026-03-01"}}}, release("2026-03-01", 1, 1), mealplan.ErrBillingMonthReleased},
+		{"a released month is released again only with a reason", &releaseStore{organization: 7, released: map[calendar.Date]domain.StoredBillingMonth{
+			"2026-03-01": {Month: "2026-03-01"}}}, release("2026-03-01", 1, 1), mealplan.ErrBillingMonthReasonRequired},
 		{"a school without a Träger bills no Mensa", &releaseStore{}, release("2026-03-01", 1, 1), mealplan.ErrBillingMonthNoTraeger},
 		{"a month outside the window", &releaseStore{organization: 7}, release("2025-03-01", 0, 0), mealplan.ErrInvalidBillingMonth},
 	}
@@ -194,4 +206,67 @@ func TestReleaseBillingMonthRefusesAMealMovedBetweenChildren(t *testing.T) {
 		ChildCount: seen.ChildCount, MealCount: seen.MealCount, Fingerprint: seen.Fingerprint})
 	require.ErrorIs(t, err, mealplan.ErrBillingMonthChanged)
 	assert.Empty(t, store.inserted, "a refused release stores nothing")
+}
+
+// releaseAgainMonths is March 2026 with Mia registered on 2 and 3 March;
+// present marks the days with her attendance on file.
+func releaseAgainMonths(store *releaseStore, present map[calendar.Date]map[int64]bool) *BillingMonths {
+	months := releaseMonths(store)
+	mia := mealplan.DailyParticipant{StudentID: 1, FirstName: "Mia", LastName: "Albers"}
+	months.weeks = func(_ context.Context, monday mealplan.Date) (mealplan.WeeklyList, error) {
+		if monday == "2026-03-02" {
+			return mealplan.WeeklyList{WeekStart: monday, Days: []mealplan.DailyList{
+				{Date: "2026-03-02", Participants: []mealplan.DailyParticipant{mia}},
+				{Date: "2026-03-03", Participants: []mealplan.DailyParticipant{mia}}}}, nil
+		}
+		return mealplan.WeeklyList{WeekStart: monday}, nil
+	}
+	months.presence = func(context.Context, calendar.Date, calendar.Date) (map[calendar.Date]map[int64]bool, error) {
+		return present, nil
+	}
+	return months
+}
+
+// A corrected attendance after the release (#4686): the month shows what
+// it counts now, and the OGS-Leitung releases it again with a reason as a
+// new version; the first version stays.
+func TestReleaseBillingMonthAgainAddsAVersionWithItsReason(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	store := &releaseStore{organization: 7}
+	present := map[calendar.Date]map[int64]bool{"2026-03-02": {1: true}}
+	months := releaseAgainMonths(store, present)
+	first, err := months.BillingMonth(ctx, "2026-03-01")
+	require.NoError(t, err)
+	_, err = months.ReleaseBillingMonth(ctx, mealplan.BillingMonthRelease{Month: "2026-03-01", AccountID: 42,
+		ChildCount: first.ChildCount, MealCount: first.MealCount, Fingerprint: first.Fingerprint})
+	require.NoError(t, err)
+
+	released, err := months.BillingMonth(ctx, "2026-03-01")
+	require.NoError(t, err)
+	assert.Nil(t, released.Current, "nothing changed since the release")
+
+	present["2026-03-03"] = map[int64]bool{1: true}
+	changed, err := months.BillingMonth(ctx, "2026-03-01")
+	require.NoError(t, err)
+	require.NotNil(t, changed.Current, "the corrected attendance counts one meal more")
+	assert.Equal(t, 1, changed.MealCount, "the release keeps its count")
+	assert.Equal(t, 2, changed.Current.MealCount)
+
+	again := mealplan.BillingMonthRelease{Month: "2026-03-01", AccountID: 42, ChildCount: changed.Current.ChildCount,
+		MealCount: changed.Current.MealCount, Fingerprint: changed.Current.Fingerprint}
+	_, err = months.ReleaseBillingMonth(ctx, again)
+	require.ErrorIs(t, err, mealplan.ErrBillingMonthReasonRequired)
+	again.Reason = "Anwesenheit am 3. März nachgetragen"
+	result, err := months.ReleaseBillingMonth(ctx, again)
+	require.NoError(t, err)
+	assert.Equal(t, 2, result.Version)
+	assert.Equal(t, 2, result.MealCount)
+	require.Len(t, result.Releases, 2)
+	assert.Equal(t, "Anwesenheit am 3. März nachgetragen", result.Releases[0].Reason)
+	assert.Equal(t, 1, result.Releases[1].MealCount, "the first version stays with its count")
+	require.Len(t, store.inserted, 2)
+
+	_, err = months.ReleaseBillingMonth(ctx, again)
+	assert.ErrorIs(t, err, mealplan.ErrBillingMonthReleased, "nothing new to release")
 }

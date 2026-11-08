@@ -449,7 +449,11 @@ export default function TraegerCareRunPage() {
           <CareDuplicatesCard duplicates={run.duplicates} released={!preview} />
           {preview ? <CareUnpricedCard unpriced={run.unpriced} /> : null}
           {preview ? (
-            <CareRunMealsCard gaps={run.mealGaps} unbilled={run.mealUnbilled} />
+            <CareRunMealsCard
+              gaps={run.mealGaps}
+              unbilled={run.mealUnbilled}
+              changed={run.mealChanged}
+            />
           ) : null}
           {preview ? (
             <CareExcludedCard

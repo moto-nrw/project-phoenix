@@ -68,8 +68,14 @@ CREATE TABLE schedule.meal_billing_months (
 	released_by_account_id BIGINT REFERENCES auth.accounts(id) ON DELETE SET NULL,
 	child_count INT NOT NULL,
 	meal_count INT NOT NULL,
+	-- A month released again after a correction (#4686) is a new version
+	-- with its reason; the earlier versions stay as they were.
+	version INT NOT NULL DEFAULT 1,
+	reason TEXT,
 	CONSTRAINT uq_meal_billing_months_organization UNIQUE (organization_id, id),
-	CONSTRAINT uq_meal_billing_months_month UNIQUE (school_id, billing_month),
+	CONSTRAINT uq_meal_billing_months_month UNIQUE (school_id, billing_month, version),
+	CONSTRAINT chk_meal_billing_months_version CHECK (
+		(version = 1 AND reason IS NULL) OR (version > 1 AND length(btrim(reason)) BETWEEN 1 AND 500)),
 	CONSTRAINT chk_meal_billing_months_month CHECK (EXTRACT(DAY FROM billing_month) = 1),
 	CONSTRAINT chk_meal_billing_months_counts CHECK (child_count >= 0 AND meal_count >= 0)
 );
@@ -140,7 +146,7 @@ GRANT USAGE ON SEQUENCE schedule.meal_billing_months_id_seq, schedule.meal_billi
 
 CREATE FUNCTION schedule.traeger_meal_billing_children(p_until DATE)
 	RETURNS TABLE (
-		school_id BIGINT, billing_month DATE, released_at TIMESTAMPTZ,
+		school_id BIGINT, billing_month DATE, released_at TIMESTAMPTZ, version INT,
 		student_id BIGINT, first_name TEXT, last_name TEXT, meal_days SMALLINT
 	)
 	LANGUAGE sql
@@ -148,7 +154,7 @@ CREATE FUNCTION schedule.traeger_meal_billing_children(p_until DATE)
 	SECURITY DEFINER
 	SET search_path = pg_catalog, pg_temp
 	AS $$
-	SELECT month.school_id, month.billing_month, month.released_at,
+	SELECT month.school_id, month.billing_month, month.released_at, month.version,
 		child.student_id, child.first_name, child.last_name, child.meal_days
 	FROM schedule.meal_billing_months AS month
 	LEFT JOIN schedule.meal_billing_month_children AS child
@@ -156,10 +162,14 @@ CREATE FUNCTION schedule.traeger_meal_billing_children(p_until DATE)
 	WHERE month.organization_id = NULLIF(current_setting('app.current_org_id', true), '')::bigint
 		AND NULLIF(current_setting('app.current_tenant_id', true), '') IS NULL
 		AND month.billing_month <= p_until
+		-- The latest release of a month: a correction replaces the earlier one.
+		AND NOT EXISTS (SELECT 1 FROM schedule.meal_billing_months AS later
+			WHERE later.school_id = month.school_id AND later.billing_month = month.billing_month
+				AND later.version > month.version)
 	ORDER BY month.school_id, month.billing_month, child.student_id
 	$$;
 COMMENT ON FUNCTION schedule.traeger_meal_billing_children(DATE) IS
-	'Released Mensa months up to a day for the Träger of app.current_org_id, in a Träger transaction only, with the fields a bill needs (#4686).';
+	'Latest release of each Mensa month up to a day for the Träger of app.current_org_id, in a Träger transaction only, with the fields a bill needs (#4686).';
 REVOKE ALL ON FUNCTION schedule.traeger_meal_billing_children(DATE) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION schedule.traeger_meal_billing_children(DATE) TO phoenix_tenant;
 
@@ -195,6 +205,9 @@ CREATE TABLE parent_billing.care_meal_positions (
 	amount_cents BIGINT NOT NULL,
 	net_cents BIGINT NOT NULL,
 	tax_cents BIGINT NOT NULL DEFAULT 0,
+	-- The version of the school's release the position bills; a later
+	-- version shows the office that the release changed after the issue.
+	release_version INT NOT NULL DEFAULT 1 CHECK (release_version >= 1),
 	CONSTRAINT fk_care_meal_positions_invoice FOREIGN KEY (organization_id, invoice_id)
 		REFERENCES parent_billing.care_invoices (organization_id, id) ON DELETE CASCADE,
 	CONSTRAINT uq_care_meal_positions_position UNIQUE (invoice_id, position),
@@ -236,6 +249,33 @@ GRANT ALL ON ALL SEQUENCES IN SCHEMA parent_billing TO phoenix_admin;
 GRANT ALL ON schedule.meal_billing_months, schedule.meal_billing_month_children TO phoenix_admin;
 GRANT ALL ON SEQUENCE schedule.meal_billing_months_id_seq, schedule.meal_billing_month_children_id_seq TO phoenix_admin;
 
+-- How far the nightly cleanup deleted a school's attendance (#4686): every
+-- day before deleted_before may be gone, whatever the retention says now.
+-- A Mensa month starting before it can no longer be counted. It only grows;
+-- the backfill takes the oldest attendance a school still has.
+-- Keyed by school_id without a foreign key, like the Mensa months: a date
+-- without personal data, so the school erasure plan (which covers every
+-- tenant_id table and every key into its tables) stays as it is; the demo
+-- erasure removes it with the school.
+CREATE TABLE active.attendance_retention_marks (
+	school_id BIGINT PRIMARY KEY,
+	deleted_before DATE NOT NULL,
+	updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+COMMENT ON TABLE active.attendance_retention_marks IS
+	'Day before which the nightly retention may have deleted a school''s attendance (#4686).';
+INSERT INTO active.attendance_retention_marks (school_id, deleted_before)
+SELECT attendance.tenant_id, MIN(attendance.date) FROM active.attendance AS attendance
+GROUP BY attendance.tenant_id;
+ALTER TABLE active.attendance_retention_marks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE active.attendance_retention_marks FORCE ROW LEVEL SECURITY;
+CREATE POLICY school_isolation_attendance_retention_marks ON active.attendance_retention_marks FOR ALL
+	USING (school_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint)
+	WITH CHECK (school_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint);
+REVOKE ALL ON active.attendance_retention_marks FROM PUBLIC;
+GRANT SELECT, INSERT, UPDATE ON active.attendance_retention_marks TO phoenix_tenant;
+GRANT ALL ON active.attendance_retention_marks TO phoenix_admin;
+
 -- The service an invoice bills (#4686, ADR 0167): the care with every service
 -- bundled with it, or the Mensa on an invoice of its own when the Träger
 -- bills it apart. A contract has one first invoice per month and service.
@@ -247,6 +287,7 @@ CREATE UNIQUE INDEX uq_care_invoices_contract_month
 `
 
 const mealBillingMonthsDownSQL = `
+DROP TABLE IF EXISTS active.attendance_retention_marks;
 DROP INDEX IF EXISTS parent_billing.uq_care_invoices_contract_month;
 DELETE FROM parent_billing.care_invoices WHERE service = 'meal';
 CREATE UNIQUE INDEX uq_care_invoices_contract_month

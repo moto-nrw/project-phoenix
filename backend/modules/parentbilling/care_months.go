@@ -315,6 +315,9 @@ type CareRunDetail struct {
 	// of children the run does not bill.
 	MealGaps     []CareMealGap      `json:"meal_gaps"`
 	MealUnbilled []CareMealUnbilled `json:"meal_unbilled"`
+	// MealChanged are Mensa months issued invoices bill with an amount a
+	// later release of the school changed (#4686).
+	MealChanged []CareMealChanged `json:"meal_changed"`
 	// DueDates are the due dates of the run per payment method (#4689).
 	DueDates []RunDueDate `json:"due_dates"`
 	// CareRunReviewState is the review of a calculated run (#5916).

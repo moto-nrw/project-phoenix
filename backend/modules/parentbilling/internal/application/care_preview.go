@@ -44,6 +44,7 @@ type careMonth struct {
 	// mealGaps and mealUnbilled are the Mensa of the run (#4686, care_meals.go).
 	mealGaps     []parentbilling.CareMealGap
 	mealUnbilled []parentbilling.CareMealUnbilled
+	mealChanged  []parentbilling.CareMealChanged
 }
 
 func (m careMonth) total() int64 {

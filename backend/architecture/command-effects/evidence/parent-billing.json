@@ -178,7 +178,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareMeals.MealAttendanceFrom",
-      "binding_digest": "53a05344dbe2774928185f5c8600b22a",
+      "binding_digest": "7c55966c9f39aa75f87d2fe954b136fd",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareMeals.MealAttendanceFrom",
       "source_owner": "parent-billing",
       "target": "*github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsSnapshot.Int",
@@ -186,15 +186,39 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareMeals.MealAttendanceFrom",
-      "binding_digest": "3020c27e0674f6636662978b000b6e68",
+      "binding_digest": "b4eca72bbd66a921eebea9ffd34c5417",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareMeals.MealAttendanceFrom",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveManyForTenants",
       "target_owner": "settings-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareMeals.MealAttendanceFrom",
+      "binding_digest": "8c1e98bc04adf79b7f10938c4a2c667d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareMeals.MealAttendanceFrom",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.AttendanceCompleteFrom",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareMeals.MealAttendanceFrom",
+      "binding_digest": "11a7a83aa8c4ba454f9838c88cbe4ed4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareMeals.MealAttendanceFrom",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.NewTenantID",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareMeals.MealAttendanceFrom",
+      "binding_digest": "11a7a83aa8c4ba454f9838c88cbe4ed4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareMeals.MealAttendanceFrom",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareMeals.ReleasedMealMonths",
-      "binding_digest": "169a39251f4883c62f10d5ff45836119",
+      "binding_digest": "9e605a32c6b997d7004019ae14044b8a",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareMeals.ReleasedMealMonths",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/mealplan.TraegerMealMonths.ReleasedMealMonths",

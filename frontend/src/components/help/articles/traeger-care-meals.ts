@@ -41,6 +41,7 @@ export function traegerCareMealsTopic(): HelpTopic {
           "Starten oder öffnen Sie den Lauf eines Monats.",
           "Die Karte `Mensa` nennt Monate, die eine Schule noch nicht freigegeben hat, und Kinder ohne Vertrag.",
           "`Nicht mehr abrechenbar` heißt: Die Anwesenheiten des Monats sind nach der Aufbewahrungsfrist der Schule gelöscht. Diesen Monat rechnet kein Lauf mehr ab.",
+          "`Nach der Ausstellung geändert` heißt: Die Schule hat einen Monat erneut freigegeben, der schon auf einer Rechnung steht. Stornieren Sie diese Rechnung. Der nächste Lauf dieses Monats stellt sie mit den neuen Zahlen neu aus.",
           "Prüfen Sie die Rechnungen und geben Sie den Lauf frei.",
         ],
       },

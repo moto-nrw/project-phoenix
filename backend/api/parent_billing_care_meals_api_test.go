@@ -12,6 +12,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -56,7 +57,7 @@ func releaseMealMonth(t *testing.T, db *bun.DB, organizationID, schoolID, studen
 	ctx := context.Background()
 	var monthID int64
 	_, err := db.ExecContext(ctx, `INSERT INTO schedule.meal_billing_months (organization_id, school_id, billing_month, child_count, meal_count)
-		VALUES (?, ?, ?::date, 1, ?) ON CONFLICT (school_id, billing_month) DO NOTHING`, organizationID, schoolID, month, meals)
+		VALUES (?, ?, ?::date, 1, ?) ON CONFLICT (school_id, billing_month, version) DO NOTHING`, organizationID, schoolID, month, meals)
 	require.NoError(t, err)
 	require.NoError(t, db.NewRaw(`SELECT id FROM schedule.meal_billing_months WHERE school_id = ? AND billing_month = ?::date`,
 		schoolID, month).Scan(ctx, &monthID))
@@ -254,28 +255,39 @@ func TestCareMealMonthsReturnOnTheReissueAfterAStorno(t *testing.T) {
 // The monthly run asks for the attendance window of its schools from inside
 // its Träger transaction, whose row security hides the settings of the
 // schools. The binding reads each school's own retention in a read of its
-// own instead of falling back to the default (#4686): 40 days before
-// 8 November 2026 is 29 September, not the 365-day default.
+// own instead of falling back to the default, and each school's deletion
+// mark in a school transaction of its own (#4686): a school with 40 days
+// keeps a later day than one with the 365-day default, and a mark the
+// cleanup left holds whatever the retention says.
 func TestCareMealAttendanceWindowReadsTheSchoolsRetentionInTheTraegerTransaction(t *testing.T) {
 	t.Parallel()
 	f := newCareBillingFixture(t, "Träger Mensa Aufbewahrung")
-	school := f.office.schools[0]
+	short, long := f.office.schools[0], f.office.schools[1]
 	ctx := context.Background()
 	_, err := f.db.ExecContext(ctx, `INSERT INTO config.setting_values (tenant_id, setting_key, value)
-		VALUES (?, 'gdpr.attendance_retention_days', '40'::jsonb)`, school)
+		VALUES (?, 'gdpr.attendance_retention_days', '40'::jsonb)`, short)
 	require.NoError(t, err)
 	unit := testpkg.TenantRuntime(t, f.db)
 	settings, err := owners.NewSettingsTestModule(testpkg.NewDatabase(t, f.db), unit)
 	require.NoError(t, err)
-	find := owners.MealAttendanceFrom(settings.Settings, func() calendar.Date { return calendar.NewDate(2026, 11, 8) })
+	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: f.db, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(t, err)
+	find := owners.MealAttendanceFrom(settings.Settings, owners.SchoolAttendanceMarks(presence))
+	window := func() map[int64]calendar.Date {
+		var cutoffs map[int64]calendar.Date
+		require.NoError(t, testpkg.WithinTraeger(testpkg.ContextWithTenantRuntime(ctx, unit), f.office.organization,
+			func(ctx context.Context) error {
+				cutoffs, err = find(ctx, []int64{short, long})
+				return err
+			}))
+		return cutoffs
+	}
+	before := window()
+	assert.True(t, before[short].After(before[long]), "40 days keep a later first day than the 365-day default")
 
-	var cutoffs map[int64]calendar.Date
-	require.NoError(t, testpkg.WithinTraeger(testpkg.ContextWithTenantRuntime(ctx, unit), f.office.organization,
-		func(ctx context.Context) error {
-			cutoffs, err = find(ctx, []int64{school})
-			return err
-		}))
-	assert.Equal(t, map[int64]calendar.Date{school: calendar.NewDate(2026, 9, 29)}, cutoffs)
+	_, err = f.db.ExecContext(ctx, `INSERT INTO active.attendance_retention_marks (school_id, deleted_before) VALUES (?, DATE '2099-01-01')`, long)
+	require.NoError(t, err)
+	assert.Equal(t, calendar.NewDate(2099, 1, 1), window()[long], "the deletion mark holds whatever the retention says")
 }
 
 // A school releases a Mensa month between the review and the release
@@ -527,4 +539,85 @@ func TestCareMealReissueKeepsItsChainWhenTheMensaMovesOntoItsOwnInvoice(t *testi
 	require.NoError(t, db.NewRaw(`SELECT p.replaces_invoice_id FROM parent_billing.care_meal_positions AS p
 		JOIN parent_billing.care_invoices AS i ON i.id = p.invoice_id WHERE i.run_id = ?`, again.ID).Scan(context.Background(), &replaces))
 	assert.Equal(t, []int64{issued.ID}, replaces, "the Mensa position replaces the cancelled invoice")
+}
+
+// releaseMealMonthAgain stores a later version of a released Mensa month
+// with one child, as the OGS-Leitung's release after a correction leaves it.
+func releaseMealMonthAgain(t *testing.T, db *bun.DB, organizationID, schoolID, studentID int64, month, first string, meals, version int) {
+	t.Helper()
+	ctx := context.Background()
+	var monthID int64
+	require.NoError(t, db.NewRaw(`INSERT INTO schedule.meal_billing_months (organization_id, school_id, billing_month, child_count,
+		meal_count, version, reason) VALUES (?, ?, ?::date, 1, ?, ?, 'Anwesenheit nachgetragen') RETURNING id`,
+		organizationID, schoolID, month, meals, version).Scan(ctx, &monthID))
+	_, err := db.ExecContext(ctx, `INSERT INTO schedule.meal_billing_month_children (organization_id, month_id, student_id, first_name,
+		last_name, registered_days, meal_days) VALUES (?, ?, ?, ?, 'Beispiel', ?, ?)`, organizationID, monthID, studentID, first, meals, meals)
+	require.NoError(t, err)
+}
+
+// A correction after the issue (#4686): December billed with 2 meals
+// (9,60 €), then the school releases it again with 3. The issued invoice
+// stays; the next run names the change, and after the Storno the reissue
+// of January bills the latest release: 3 meals, 14,40 €.
+func TestCareMealReleaseAgainReachesTheReissueAfterAStorno(t *testing.T) {
+	t.Parallel()
+	f := newCareBillingFixture(t, "Träger Mensa Korrektur")
+	db := testpkg.SetupTestDB(t)
+	brandCareTraeger(t, f)
+	school := f.office.schools[0]
+	careContract(t, f.db, f.office.organization, school, "Mia", careMonth, sjrServices()...)
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careTariffsPath, carePriceList(school, "2029-09-01", 3200))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careMealTariffsPath, mealPrice(school, "2029-12-01", "per_meal", 480))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	mia := testpkg.UniqueTestTenantID(t)
+	releaseMealMonth(t, db, f.office.organization, school, mia, "2029-12-01", "Mia", 2)
+
+	run := f.startRun(t, careMonth)
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/release"), careRelease(f.run(t, run.ID)))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	issued := decodeSchoolPortalData[careRunBody](t, rec.Body.Bytes()).Invoices[0]
+
+	releaseMealMonthAgain(t, db, f.office.organization, school, mia, "2029-12-01", "Mia", 3, 2)
+	later := f.startRun(t, "2030-02-01")
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodGet, careRunPath(later.ID, ""), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	changed := decodeSchoolPortalData[struct {
+		MealChanged []struct {
+			InvoiceNumber  string `json:"invoice_number"`
+			BilledQuantity int    `json:"billed_quantity"`
+			BilledCents    int64  `json:"billed_cents"`
+			NewQuantity    int    `json:"new_quantity"`
+			NewCents       int64  `json:"new_cents"`
+		} `json:"meal_changed"`
+	}](t, rec.Body.Bytes())
+	require.Len(t, changed.MealChanged, 1, "the office sees the release changed after the issue")
+	assert.Equal(t, issued.Number, changed.MealChanged[0].InvoiceNumber)
+	assert.Equal(t, int64(960), changed.MealChanged[0].BilledCents)
+	assert.Equal(t, int64(1440), changed.MealChanged[0].NewCents)
+	var stillIssued int64
+	require.NoError(t, db.NewRaw(`SELECT amount_cents FROM parent_billing.care_meal_positions WHERE invoice_id = ?`, issued.ID).
+		Scan(context.Background(), &stillIssued))
+	assert.Equal(t, int64(960), stillIssued, "the issued invoice never changes")
+
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/letters"), careLettersInput())
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost,
+		careRunPath(run.ID, fmt.Sprintf("/invoices/%d/cancellation", issued.ID)), map[string]any{"reason": "Mensa korrigiert"})
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	again := f.startRun(t, careMonth)
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodGet, careRunPath(again.ID, ""), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	reissue := decodeSchoolPortalData[careMealRunBody](t, rec.Body.Bytes())
+	require.Len(t, reissue.Invoices, 1)
+	require.Len(t, reissue.Invoices[0].MealPositions, 1)
+	assert.Equal(t, 3, reissue.Invoices[0].MealPositions[0].Quantity)
+	assert.Equal(t, int64(1440), reissue.Invoices[0].MealPositions[0].AmountCents, "the reissue bills the latest release")
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(again.ID, "/release"),
+		map[string]any{"document_count": reissue.PreviewCount, "total_cents": reissue.PreviewCents, "fingerprint": reissue.Fingerprint})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var version int
+	require.NoError(t, db.NewRaw(`SELECT p.release_version FROM parent_billing.care_meal_positions AS p
+		JOIN parent_billing.care_invoices AS i ON i.id = p.invoice_id WHERE i.run_id = ?`, again.ID).Scan(context.Background(), &version))
+	assert.Equal(t, 2, version)
 }

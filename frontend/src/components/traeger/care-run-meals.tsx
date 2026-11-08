@@ -10,6 +10,7 @@ import { Button } from "~/components/ui/button";
 import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import type {
+  CareMealChanged,
   CareMealGap,
   CareMealPosition,
   CareMealUnbilled,
@@ -136,6 +137,9 @@ function UnbilledGroup({
   );
 }
 
+/** No Mensa month changed after its invoice: a stable default. */
+const NO_CHANGED_MEALS: readonly CareMealChanged[] = [];
+
 /**
  * The Mensa of a run in preview: the ended months a school has not released
  * and the children whose released months this run does not bill.
@@ -143,11 +147,16 @@ function UnbilledGroup({
 export function CareRunMealsCard({
   gaps,
   unbilled,
+  changed = NO_CHANGED_MEALS,
 }: Readonly<{
   gaps: readonly CareMealGap[];
   unbilled: readonly CareMealUnbilled[];
+  /** Mensa months a release changed after their invoice was issued. */
+  changed?: readonly CareMealChanged[];
 }>) {
-  if (gaps.length === 0 && unbilled.length === 0) return null;
+  if (gaps.length === 0 && unbilled.length === 0 && changed.length === 0) {
+    return null;
+  }
   const open = gaps.filter((gap) => !gap.expired);
   const expired = gaps.filter((gap) => gap.expired);
   const bySchool = groupBySchool(open);
@@ -170,6 +179,9 @@ export function CareRunMealsCard({
               ? `${expired.length} nicht mehr abrechenbar`
               : null,
             unbilled.length > 0 ? `${unbilled.length} nicht abgerechnet` : null,
+            changed.length > 0
+              ? `${changed.length} nach der Ausstellung geändert`
+              : null,
           ]
             .filter(Boolean)
             .join(" · ")}
@@ -178,6 +190,24 @@ export function CareRunMealsCard({
       description="Die Mensa eines Monats kommt erst auf die Rechnung, wenn die OGS-Leitung den Monat freigegeben hat. Ein späterer Lauf rechnet ihn dann nachträglich ab."
     >
       <ResponsiveActionList>
+        {changed.map((entry) => (
+          <li
+            key={`changed-${entry.schoolId}-${entry.studentId}-${entry.month}`}
+            className="flex flex-col gap-1 py-3 first:pt-0 last:pb-0 sm:col-span-2"
+          >
+            <p className="text-sm font-semibold text-gray-900">
+              {entry.childFirstName} {entry.childLastName} ·{" "}
+              {formatMonth(entry.month)}
+            </p>
+            <p className="text-sm text-gray-600">
+              Die Schule hat den Monat erneut freigegeben. Rechnung{" "}
+              <span className="font-mono">{entry.invoiceNumber}</span>:
+              abgerechnet {formatEuro(entry.billedCents)}, jetzt{" "}
+              {formatEuro(entry.newCents)}. Stornieren Sie die Rechnung. Der
+              nächste Lauf dieses Monats stellt sie neu aus.
+            </p>
+          </li>
+        ))}
         {[...bySchool.entries()].map(([school, months]) => (
           <li
             key={`gap-${school}`}

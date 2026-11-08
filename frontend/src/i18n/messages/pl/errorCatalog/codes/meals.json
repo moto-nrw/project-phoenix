@@ -21,5 +21,6 @@
   "billing_month_changed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "billing_month_no_traeger": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "billing_month_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
-  "billing_month_attendance_expired": "Dane o obecności z tego miesiąca mogły już zostać usunięte. Nie można bezpiecznie zatwierdzić miesiąca. Prosimy skontaktować się z organem prowadzącym."
+  "billing_month_attendance_expired": "Dane o obecności z tego miesiąca mogły już zostać usunięte. Nie można bezpiecznie zatwierdzić miesiąca. Prosimy skontaktować się z organem prowadzącym.",
+  "billing_month_reason_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
 }

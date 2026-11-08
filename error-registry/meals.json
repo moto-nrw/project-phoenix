@@ -137,6 +137,12 @@
       "class": "input",
       "parameters": [],
       "legacy": "meals.billing_month_invalid"
+    },
+    {
+      "code": "meals.billing_month_reason_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "meals.billing_month_reason_required"
     }
   ]
 }

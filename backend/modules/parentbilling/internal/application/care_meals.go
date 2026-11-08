@@ -27,7 +27,7 @@ type CareMealStore interface {
 	DeleteCareMealTariff(ctx context.Context, organizationID, schoolID int64, validFrom calendar.Date) (int64, error)
 	// BilledMealMonths names the Mensa months of [from, to] already billed
 	// or reserved for a cancelled invoice's reissue outside the run month to.
-	BilledMealMonths(ctx context.Context, organizationID int64, from, to calendar.Date) ([]parentbilling.CareBilledMeal, error)
+	BilledMealMonths(ctx context.Context, organizationID int64, from, to calendar.Date) ([]parentbilling.CareBilledMealPosition, error)
 	// MealBilledUntil names per school the last Mensa month an issued
 	// invoice bills.
 	MealBilledUntil(ctx context.Context, organizationID int64) (map[int64]calendar.Date, error)
@@ -150,6 +150,9 @@ type careMealInput struct {
 	invoiced   map[int64]parentbilling.CareInvoice
 	recipients map[int64]parentbilling.CareRecipient
 	attendance map[int64]calendar.Date
+	// issued are the Mensa months issued invoices bill and no Storno took
+	// back, with the release version and amount they billed.
+	issued map[CareMealKey]parentbilling.CareBilledMealPosition
 	// ownInvoice: the Mensa travels on an invoice of its own (ADR 0167);
 	// mealInvoiced names the contracts such an invoice bills this month.
 	ownInvoice    bool
@@ -208,8 +211,12 @@ func (c *CareBilling) addMeals(ctx context.Context, organizationID int64, run pa
 		return err
 	}
 	billed := make(map[CareMealKey]bool, len(billedMeals))
+	issued := make(map[CareMealKey]parentbilling.CareBilledMealPosition, len(billedMeals))
 	for _, meal := range billedMeals {
-		billed[meal] = true
+		billed[meal.CareBilledMeal] = true
+		if !meal.Cancelled {
+			issued[meal.CareBilledMeal] = meal
+		}
 	}
 	attendance, err := c.meals.MealAttendanceFrom(ctx, mealSchools(tariffs))
 	if err != nil {
@@ -224,7 +231,7 @@ func (c *CareBilling) addMeals(ctx context.Context, organizationID int64, run pa
 		names[school.ID] = school.Name
 	}
 	in := careMealInput{month: run.BillingMonth, today: c.today(), schools: names, tariffs: tariffs, releases: releases,
-		billed: billed, versions: versions, invoiced: invoiced, recipients: recipients, attendance: attendance,
+		billed: billed, issued: issued, versions: versions, invoiced: invoiced, recipients: recipients, attendance: attendance,
 		ownInvoice: invoiceService == parentbilling.ServiceMeal}
 	if in.ownInvoice {
 		if in.mealInvoiced, err = c.mealStore.MealInvoicedContracts(ctx, organizationID, run.BillingMonth); err != nil {
@@ -290,6 +297,7 @@ func billMeals(month *careMonth, in careMealInput) {
 	in.childNames = mealChildNames(in)
 	in.contracts, in.contractOrder = versionsByContract(in.versions)
 	month.mealGaps, month.mealUnbilled = []parentbilling.CareMealGap{}, []parentbilling.CareMealUnbilled{}
+	month.mealChanged = []parentbilling.CareMealChanged{}
 	from := calendar.NewDate(in.month.Year(), in.month.Month()-(careMealHorizon-1), 1)
 	released := map[CareMealKey]parentbilling.CareMealRelease{}
 	for _, release := range in.releases {
@@ -328,13 +336,42 @@ func addMealGap(month *careMonth, in careMealInput, school int64, m calendar.Dat
 
 // billRelease bills each child of a release not billed for its month yet.
 func billRelease(month *careMonth, in careMealInput, tariff parentbilling.CareMealTariff, release parentbilling.CareMealRelease) {
+	released := make(map[int64]parentbilling.CareMealChild, len(release.Children))
 	for _, child := range release.Children {
+		released[child.StudentID] = child
 		key := CareMealKey{SchoolID: release.SchoolID, StudentID: child.StudentID, Month: release.Month}
 		if in.billed[key] {
 			continue
 		}
 		if position, ok := mealPosition(tariff, key, child); ok {
+			position.ReleaseVersion = max(release.Version, 1)
 			placeMeal(month, in, position, child, in.schools[release.SchoolID])
+		}
+	}
+	noteChangedMeals(month, in, tariff, release, released)
+}
+
+// noteChangedMeals names the Mensa months of the release that issued
+// invoices bill from an earlier version with another amount (#4686): a
+// child counted differently, or no longer counted. The invoice stays; the
+// office cancels it and the reissue bills the latest release.
+func noteChangedMeals(month *careMonth, in careMealInput, tariff parentbilling.CareMealTariff, release parentbilling.CareMealRelease,
+	released map[int64]parentbilling.CareMealChild,
+) {
+	for key, billed := range in.issued {
+		if key.SchoolID != release.SchoolID || key.Month != release.Month || billed.ReleaseVersion >= release.Version {
+			continue
+		}
+		changed := parentbilling.CareMealChanged{SchoolID: key.SchoolID, SchoolName: in.schools[key.SchoolID], StudentID: key.StudentID,
+			ChildFirstName: billed.ChildFirstName, ChildLastName: billed.ChildLastName, Month: key.Month, InvoiceNumber: billed.InvoiceNumber,
+			BilledQuantity: billed.Quantity, BilledCents: billed.AmountCents}
+		if child, ok := released[key.StudentID]; ok {
+			if position, priced := mealPosition(tariff, key, child); priced {
+				changed.NewQuantity, changed.NewCents = position.Quantity, position.AmountCents
+			}
+		}
+		if changed.NewCents != changed.BilledCents {
+			month.mealChanged = append(month.mealChanged, changed)
 		}
 	}
 }
@@ -348,6 +385,10 @@ func sortMealInvoices(month *careMonth) {
 	slices.SortStableFunc(month.invoices, func(a, b parentbilling.CareInvoice) int {
 		return firstNonZero(compareOrdered(a.SchoolName, b.SchoolName), compareOrdered(a.ChildLastName, b.ChildLastName),
 			compareOrdered(a.ChildFirstName, b.ChildFirstName), compareOrdered(a.ContractID, b.ContractID))
+	})
+	// The map order of noteChangedMeals is no order the review can compare.
+	slices.SortFunc(month.mealChanged, func(a, b parentbilling.CareMealChanged) int {
+		return firstNonZero(compareOrdered(a.SchoolID, b.SchoolID), a.Month.Compare(b.Month), compareOrdered(a.StudentID, b.StudentID))
 	})
 }
 

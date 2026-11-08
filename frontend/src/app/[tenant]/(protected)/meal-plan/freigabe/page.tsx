@@ -16,6 +16,7 @@ import { ConfirmationModal } from "~/components/ui/modal";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatCard } from "~/components/ui/stat-card";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { Textarea } from "~/components/ui/textarea";
 import { TenantPage } from "~/components/ui/tenant-page";
 import {
   useApiErrorDisplay,
@@ -160,6 +161,7 @@ export default function MealBillingReleasePage() {
   const month = loadedMonth?.month === selected ? loadedMonth : null;
   const [confirming, setConfirming] = useState(false);
   const [releasing, setReleasing] = useState(false);
+  const [reason, setReason] = useState("");
   const pageLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = pageLoad;
   const errors = useApiErrorDisplay();
@@ -225,8 +227,13 @@ export default function MealBillingReleasePage() {
   const release = async () => {
     if (!month) return;
     setReleasing(true);
+    // A released month that counts differently now is released again,
+    // with what it counts now and the reason (#4686).
+    const again = month.current;
     try {
-      const released = await releaseMealBillingMonth(month);
+      const released = again
+        ? await releaseMealBillingMonth(again, reason.trim())
+        : await releaseMealBillingMonth(month);
       setMonth(released);
       setMonths(
         (current) =>
@@ -242,8 +249,13 @@ export default function MealBillingReleasePage() {
               : entry,
           ) ?? null,
       );
-      success(`${monthLabel(released.month)} ist freigegeben.`);
+      success(
+        again
+          ? `${monthLabel(released.month)} ist erneut freigegeben.`
+          : `${monthLabel(released.month)} ist freigegeben.`,
+      );
       setConfirming(false);
+      setReason("");
     } catch (err) {
       logger.error("meal_billing_month_release_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -257,6 +269,10 @@ export default function MealBillingReleasePage() {
   };
 
   const released = month?.status === "released";
+  // What the page counts: the month as counted now when it differs from
+  // its release, else the month itself.
+  const shown = month?.current ?? month;
+  const showsRelease = released && !month?.current;
 
   return (
     <TenantPage
@@ -286,14 +302,14 @@ export default function MealBillingReleasePage() {
         ) : undefined
       }
       actions={
-        month?.status === "open" ? (
+        month?.status === "open" || month?.current ? (
           <Button
             type="button"
             variant="success"
             size="md"
             onClick={() => setConfirming(true)}
           >
-            Monat freigeben
+            {month.current ? "Erneut freigeben" : "Monat freigeben"}
           </Button>
         ) : undefined
       }
@@ -304,17 +320,39 @@ export default function MealBillingReleasePage() {
           isOpen={confirming}
           onClose={() => setConfirming(false)}
           onConfirm={() => void release()}
-          title={month ? `${monthLabel(month.month)} freigeben?` : "Freigeben?"}
+          title={
+            month
+              ? `${monthLabel(month.month)} ${month.current ? "erneut freigeben" : "freigeben"}?`
+              : "Freigeben?"
+          }
           confirmText="Freigeben"
           cancelText="Abbrechen"
           confirmVariant="success"
           isConfirmLoading={releasing}
+          isConfirmDisabled={Boolean(month?.current) && reason.trim() === ""}
         >
-          {month ? (
+          {month?.current ? (
+            <div className="space-y-4">
+              <p className="text-sm text-gray-600">
+                Bisher {month.mealCount} Essen, jetzt {month.current.mealCount}{" "}
+                Essen. Schon gestellte Rechnungen bleiben. Der Träger sieht die
+                Änderung und kann sie korrigieren.
+              </p>
+              <Textarea
+                label="Grund"
+                required
+                maxLength={500}
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+                placeholder="Zum Beispiel: Anwesenheit am 3. März nachgetragen"
+              />
+            </div>
+          ) : month ? (
             <p className="text-sm text-gray-600">
               {month.childCount} {month.childCount === 1 ? "Kind" : "Kinder"}{" "}
               mit {month.mealCount} Essen. Danach rechnet der Träger den Monat
-              ab. Die Freigabe lässt sich nicht mehr ändern.
+              ab. Ändert sich später eine Anwesenheit, geben Sie den Monat
+              erneut frei.
             </p>
           ) : null}
         </ConfirmationModal>
@@ -322,7 +360,7 @@ export default function MealBillingReleasePage() {
     >
       {month?.status === "expired" ? (
         <Alert type="info" message={EXPIRED_MONTH_TEXT} />
-      ) : month ? (
+      ) : month && shown ? (
         <>
           {month.status === "running" ? (
             <Alert
@@ -336,37 +374,43 @@ export default function MealBillingReleasePage() {
               message="Bitte prüfen Sie die Tage, an denen Kinder nicht da waren. Fehlt eine Anwesenheit, tragen Sie sie zuerst nach. Danach geben Sie den Monat frei."
             />
           ) : null}
-          {released && month.releasedAt ? (
+          {month.current ? (
+            <Alert
+              type="warning"
+              message={`Seit der Freigabe hat sich die Anwesenheit geändert: jetzt ${month.current.mealCount} Essen statt ${month.mealCount}. Prüfen Sie die Liste und geben Sie den Monat erneut frei.`}
+            />
+          ) : null}
+          {showsRelease && month.releasedAt ? (
             <Alert
               type="success"
-              message={`Freigegeben am ${formatDate(month.releasedAt)}. Der Träger rechnet diesen Monat ab. Die Zahlen bleiben so.`}
+              message={`Freigegeben am ${formatDate(month.releasedAt)}. Der Träger rechnet diesen Monat ab. Ändert sich eine Anwesenheit, geben Sie den Monat erneut frei.`}
             />
           ) : null}
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <StatCard
               label="Schultage"
-              value={released ? "–" : month.schoolDays}
+              value={showsRelease ? "–" : shown.schoolDays}
               hint={
-                released
+                showsRelease
                   ? "Steht nur vor der Freigabe."
                   : "Ohne Ferien, Feiertage und Schließtage."
               }
             />
             <StatCard
               label="Kinder"
-              value={month.childCount}
+              value={shown.childCount}
               hint="Mindestens einen Tag angemeldet."
             />
             <StatCard
               label="Essen"
               tone="green"
-              value={month.mealCount}
+              value={shown.mealCount}
               hint="Angemeldet und da."
             />
             <StatCard
               label="Nicht da"
-              tone={month.absenceCount > 0 ? "orange" : "neutral"}
-              value={month.absenceCount}
+              tone={shown.absenceCount > 0 ? "orange" : "neutral"}
+              value={shown.absenceCount}
               hint="Angemeldet, aber nicht da. Zählt nicht."
             />
           </div>
@@ -380,7 +424,7 @@ export default function MealBillingReleasePage() {
             }
             description={`Angemeldete Tage und Essen im ${monthLabel(month.month)}.`}
           >
-            {month.children.length === 0 ? (
+            {shown.children.length === 0 ? (
               <EmptyState
                 variant="compact"
                 title="Kein Kind angemeldet."
@@ -388,13 +432,39 @@ export default function MealBillingReleasePage() {
               />
             ) : (
               <DataTable
-                columns={columns(released)}
-                rows={[...month.children]}
+                columns={columns(showsRelease)}
+                rows={[...shown.children]}
                 getRowKey={(child) => child.studentId}
                 stackedOnMobile
               />
             )}
           </SectionCard>
+          {month.releases.length > 1 ? (
+            <SectionCard
+              title="Freigaben"
+              description="Jede Freigabe bleibt mit ihren Zahlen. Der Träger rechnet die neueste ab."
+            >
+              <ul className="divide-y divide-gray-100">
+                {month.releases.map((entry) => (
+                  <li
+                    key={entry.version}
+                    className="py-2.5 first:pt-0 last:pb-0"
+                  >
+                    <p className="text-sm text-gray-900">
+                      {formatDate(entry.releasedAt)} · {entry.mealCount} Essen,{" "}
+                      {entry.childCount}{" "}
+                      {entry.childCount === 1 ? "Kind" : "Kinder"}
+                    </p>
+                    {entry.reason ? (
+                      <p className="mt-0.5 text-sm text-gray-600">
+                        Grund: {entry.reason}
+                      </p>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </SectionCard>
+          ) : null}
         </>
       ) : null}
     </TenantPage>

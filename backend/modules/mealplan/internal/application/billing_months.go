@@ -9,6 +9,7 @@ import (
 	"hash/fnv"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/modules/mealplan"
 	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
@@ -129,7 +130,11 @@ func (b *BillingMonths) monthView(ctx context.Context, month calendar.Date) (mea
 		return mealplan.BillingMonth{}, err
 	}
 	if released {
-		return releasedView(stored), nil
+		view := releasedView(stored)
+		if view.Current, err = b.currentIfChanged(ctx, month, stored); err != nil {
+			return mealplan.BillingMonth{}, err
+		}
+		return view, nil
 	}
 	availableFrom, err := b.attendanceFrom(ctx)
 	if err != nil {
@@ -156,10 +161,47 @@ func (b *BillingMonths) attendanceFrom(ctx context.Context) (calendar.Date, erro
 	return availableFrom, nil
 }
 
+// currentIfChanged is the month as computed now when it differs from its
+// release, for a release again; nil while it matches or when its
+// attendance is past the window and cannot be counted again.
+func (b *BillingMonths) currentIfChanged(ctx context.Context, month calendar.Date, stored domain.StoredBillingMonth) (*mealplan.BillingMonth, error) {
+	availableFrom, err := b.attendanceFrom(ctx)
+	if err != nil || month.Before(availableFrom) {
+		return nil, err
+	}
+	computed, err := b.compute(ctx, month)
+	if err != nil || !releaseDiffers(stored, computed) {
+		return nil, err
+	}
+	return &computed, nil
+}
+
+// releaseDiffers tells whether the month counts differently now than its
+// release: another child, or other registered days or meals of one.
+func releaseDiffers(stored domain.StoredBillingMonth, computed mealplan.BillingMonth) bool {
+	if stored.ChildCount != computed.ChildCount || stored.MealCount != computed.MealCount || len(stored.Children) != len(computed.Children) {
+		return true
+	}
+	released := make(map[int64]domain.BillingChild, len(stored.Children))
+	for _, child := range stored.Children {
+		released[child.StudentID] = child
+	}
+	for _, child := range computed.Children {
+		before, ok := released[child.StudentID]
+		if !ok || before.MealDays != child.MealDays || before.RegisteredDays != child.RegisteredDays {
+			return true
+		}
+	}
+	return false
+}
+
 // ReleaseBillingMonth computes the month again and stores it when it still
-// shows the children and meals the OGS-Leitung saw.
+// shows the children and meals the OGS-Leitung saw. A released month is
+// released again only with a reason and when it counts differently now: a
+// new version after the earlier ones, which stay (#4686). Issued invoices
+// keep the version they billed; the Träger sees the new one.
 func (b *BillingMonths) ReleaseBillingMonth(ctx context.Context, release mealplan.BillingMonthRelease) (mealplan.BillingMonth, error) {
-	month, organizationID, err := b.releasable(ctx, release)
+	month, organizationID, previous, err := b.releasable(ctx, release)
 	if err != nil {
 		return mealplan.BillingMonth{}, err
 	}
@@ -172,41 +214,57 @@ func (b *BillingMonths) ReleaseBillingMonth(ctx context.Context, release mealpla
 		return mealplan.BillingMonth{}, mealplan.ErrBillingMonthChanged
 	}
 	stored := storedMonth(month, computed)
-	if stored.ReleasedAt, err = b.store.InsertRelease(ctx, organizationID, release.AccountID, stored); err != nil {
+	stored.Version = 1
+	if previous != nil {
+		if !releaseDiffers(*previous, computed) {
+			return mealplan.BillingMonth{}, mealplan.ErrBillingMonthReleased
+		}
+		stored.Version, stored.Reason = previous.Version+1, strings.TrimSpace(release.Reason)
+	}
+	if _, err = b.store.InsertRelease(ctx, organizationID, release.AccountID, stored); err != nil {
 		return mealplan.BillingMonth{}, err
 	}
-	result := releasedView(stored)
+	saved, _, err := b.store.ReleasedMonth(ctx, month)
+	if err != nil {
+		return mealplan.BillingMonth{}, err
+	}
+	result := releasedView(saved)
 	result.SchoolDays = computed.SchoolDays
 	return result, nil
 }
 
 // releasable checks a release before it counts: a month of the window that
-// has ended, is not released yet, of a school with a Träger.
-func (b *BillingMonths) releasable(ctx context.Context, release mealplan.BillingMonthRelease) (calendar.Date, int64, error) {
+// has ended, of a school with a Träger. A released month comes back as
+// previous and needs a reason to be released again.
+func (b *BillingMonths) releasable(ctx context.Context, release mealplan.BillingMonthRelease) (calendar.Date, int64, *domain.StoredBillingMonth, error) {
 	month, err := b.parseBillingMonth(release.Month)
 	switch {
 	case err != nil:
-		return "", 0, err
+		return "", 0, nil, err
 	case release.AccountID <= 0:
-		return "", 0, errors.New("meal plan billing months: the releasing account is required")
+		return "", 0, nil, errors.New("meal plan billing months: the releasing account is required")
 	case b.statusOf(month) != mealplan.BillingMonthOpen:
-		return "", 0, mealplan.ErrBillingMonthRunning
+		return "", 0, nil, mealplan.ErrBillingMonthRunning
 	}
-	_, released, err := b.store.ReleasedMonth(ctx, month)
+	stored, released, err := b.store.ReleasedMonth(ctx, month)
 	if err != nil {
-		return "", 0, err
+		return "", 0, nil, err
 	}
+	var previous *domain.StoredBillingMonth
 	if released {
-		return "", 0, mealplan.ErrBillingMonthReleased
+		if reason := strings.TrimSpace(release.Reason); reason == "" || utf8.RuneCountInString(reason) > mealplan.MaxBillingMonthReasonLength {
+			return "", 0, nil, mealplan.ErrBillingMonthReasonRequired
+		}
+		previous = &stored
 	}
 	organizationID, ok, err := b.store.SchoolOrganization(ctx)
 	if err != nil {
-		return "", 0, err
+		return "", 0, nil, err
 	}
 	if !ok {
-		return "", 0, mealplan.ErrBillingMonthNoTraeger
+		return "", 0, nil, mealplan.ErrBillingMonthNoTraeger
 	}
-	return month, organizationID, nil
+	return month, organizationID, previous, nil
 }
 
 func storedMonth(month calendar.Date, computed mealplan.BillingMonth) domain.StoredBillingMonth {
@@ -223,7 +281,11 @@ func releasedView(stored domain.StoredBillingMonth) mealplan.BillingMonth {
 	releasedAt := stored.ReleasedAt
 	children := make([]mealplan.BillingMonthChild, len(stored.Children))
 	view := mealplan.BillingMonth{Month: mealplan.Date(stored.Month.String()), Status: mealplan.BillingMonthReleased,
-		ReleasedAt: &releasedAt, ChildCount: stored.ChildCount, MealCount: stored.MealCount, Children: children}
+		ReleasedAt: &releasedAt, ChildCount: stored.ChildCount, MealCount: stored.MealCount, Children: children,
+		Version: max(stored.Version, 1), Releases: make([]mealplan.BillingMonthReleaseEntry, len(stored.Versions))}
+	for i, version := range stored.Versions {
+		view.Releases[i] = mealplan.BillingMonthReleaseEntry(version)
+	}
 	for i, child := range stored.Children {
 		children[i] = mealplan.BillingMonthChild{StudentID: child.StudentID, FirstName: child.FirstName, LastName: child.LastName,
 			SchoolClass: child.SchoolClass, RegisteredDays: child.RegisteredDays, MealDays: child.MealDays, AbsentDates: []mealplan.Date{}}
@@ -390,7 +452,7 @@ func (m TraegerMealMonths) ReleasedMealMonths(ctx context.Context, organizationI
 		last := len(result) - 1
 		if last < 0 || result[last].SchoolID != row.SchoolID || result[last].Month != row.Month {
 			result = append(result, mealplan.ReleasedMealMonth{SchoolID: row.SchoolID, Month: row.Month,
-				ReleasedAt: row.ReleasedAt, Children: []mealplan.ReleasedMealChild{}})
+				ReleasedAt: row.ReleasedAt, Version: row.Version, Children: []mealplan.ReleasedMealChild{}})
 			last++
 		}
 		if row.Child != nil {

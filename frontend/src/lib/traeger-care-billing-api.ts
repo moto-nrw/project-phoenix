@@ -7,12 +7,15 @@
  */
 
 import {
+  type BackendMealChanged,
   type BackendMealGap,
   type BackendMealPosition,
   type BackendMealUnbilled,
+  type CareMealChanged,
   type CareMealGap,
   type CareMealPosition,
   type CareMealUnbilled,
+  mealChangedFromBackend,
   mealGapsFromBackend,
   mealPositionsFromBackend,
   mealUnbilledFromBackend,
@@ -238,6 +241,8 @@ export interface CareRunDetail extends CareRun {
   readonly mealGaps: readonly CareMealGap[];
   /** Released Mensa months of children the run does not bill (#4686). */
   readonly mealUnbilled: readonly CareMealUnbilled[];
+  /** Mensa months issued invoices bill with an amount a later release changed (#4686). */
+  readonly mealChanged: readonly CareMealChanged[];
   /** The due dates of the run per payment method (#4689). */
   readonly dueDates?: readonly RunDueDate[];
   /** The review of a calculated run (#5916). */
@@ -378,6 +383,7 @@ export interface BackendRunDetail extends BackendRun {
   number_range_set: boolean;
   meal_gaps?: BackendMealGap[] | null;
   meal_unbilled?: BackendMealUnbilled[] | null;
+  meal_changed?: BackendMealChanged[] | null;
   due_dates?: BackendRunDueDate[] | null;
   schools?: { id: number; name: string }[] | null;
   excluded_count?: number;
@@ -532,6 +538,7 @@ export function detailFromBackend(detail: BackendRunDetail): CareRunDetail {
     numberRangeSet: detail.number_range_set,
     mealGaps: mealGapsFromBackend(detail.meal_gaps),
     mealUnbilled: mealUnbilledFromBackend(detail.meal_unbilled),
+    mealChanged: mealChangedFromBackend(detail.meal_changed),
     dueDates: runDueDatesFromBackend(detail.due_dates),
     schools: (detail.schools ?? []).map((school) => ({
       id: id(school.id),

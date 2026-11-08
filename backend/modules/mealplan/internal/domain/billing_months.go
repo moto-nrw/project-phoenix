@@ -16,13 +16,28 @@ type BillingChild struct {
 	MealDays       int
 }
 
-// StoredBillingMonth is a released Mensa month as the store keeps it.
+// StoredBillingMonth is a released Mensa month as the store keeps it: its
+// latest version, with every version of the month in Versions (newest
+// first) when the store reads one month.
 type StoredBillingMonth struct {
 	Month      calendar.Date
 	ReleasedAt time.Time
 	ChildCount int
 	MealCount  int
+	Version    int
+	Reason     string
 	Children   []BillingChild
+	Versions   []ReleaseVersion
+}
+
+// ReleaseVersion is one release of a month: the first, or a release again
+// after a correction with its reason (#4686).
+type ReleaseVersion struct {
+	Version    int
+	ReleasedAt time.Time
+	Reason     string
+	ChildCount int
+	MealCount  int
 }
 
 // ReleasedMealChild is a child of a release as the Träger reads it.
@@ -39,5 +54,6 @@ type ReleasedMealRow struct {
 	SchoolID   int64
 	Month      calendar.Date
 	ReleasedAt time.Time
+	Version    int
 	Child      *ReleasedMealChild
 }

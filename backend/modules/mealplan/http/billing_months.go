@@ -49,6 +49,8 @@ type BillingMonthReleaseRequest struct {
 	ChildCount  *int   `json:"child_count"`
 	MealCount   *int   `json:"meal_count"`
 	Fingerprint string `json:"fingerprint"`
+	// Reason names why a released month is released again (#4686).
+	Reason string `json:"reason"`
 }
 
 // Bind requires both counts and the fingerprint.
@@ -85,7 +87,7 @@ func (rs *BillingMonthResource) release(w http.ResponseWriter, r *http.Request) 
 	}
 	month, err := rs.months.ReleaseBillingMonth(r.Context(), mealplanModule.BillingMonthRelease{
 		Month: mealplanModule.Date(chi.URLParam(r, "month")), AccountID: rs.runtime.CurrentAccountID(r.Context()),
-		ChildCount: *req.ChildCount, MealCount: *req.MealCount, Fingerprint: req.Fingerprint,
+		ChildCount: *req.ChildCount, MealCount: *req.MealCount, Fingerprint: req.Fingerprint, Reason: req.Reason,
 	})
 	if err != nil {
 		rs.runtime.ModuleFailure(w, r, err, "failed to release the Mensa month")

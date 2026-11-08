@@ -96,6 +96,7 @@ const RUN: CareRunDetail = {
   fingerprint: "f1",
   mealGaps: [],
   mealUnbilled: [],
+  mealChanged: [],
 };
 
 function renderPage() {

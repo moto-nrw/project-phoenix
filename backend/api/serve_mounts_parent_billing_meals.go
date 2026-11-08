@@ -17,9 +17,9 @@ type parentBillingCareMeals struct {
 	attendance func(context.Context, []int64) (map[int64]calendar.Date, error)
 }
 
-func newParentBillingCareMeals(schoolSettings owners.MealAttendanceSchoolSettings) parentBillingCareMeals {
+func newParentBillingCareMeals(schoolSettings owners.MealAttendanceSchoolSettings, marks owners.MealAttendanceMarks) parentBillingCareMeals {
 	return parentBillingCareMeals{months: mealplanCompose.NewTraegerMealMonths(),
-		attendance: owners.MealAttendanceFrom(schoolSettings, calendar.TodayDate)}
+		attendance: owners.MealAttendanceFrom(schoolSettings, owners.SchoolAttendanceMarks(marks))}
 }
 
 // MealAttendanceFrom is the attendance window of each school, by the rule of
@@ -39,7 +39,7 @@ func (m parentBillingCareMeals) ReleasedMealMonths(ctx context.Context, organiza
 		for j, child := range month.Children {
 			children[j] = parentbilling.CareMealChild(child)
 		}
-		releases[i] = parentbilling.CareMealRelease{SchoolID: month.SchoolID, Month: month.Month, Children: children}
+		releases[i] = parentbilling.CareMealRelease{SchoolID: month.SchoolID, Month: month.Month, Version: month.Version, Children: children}
 	}
 	return releases, nil
 }

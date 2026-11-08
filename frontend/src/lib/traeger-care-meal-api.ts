@@ -45,6 +45,56 @@ export interface CareMealGap {
   readonly expired: boolean;
 }
 
+/**
+ * A Mensa month an issued invoice bills with an amount a later release of
+ * the school changed (#4686): the office cancels and issues it again.
+ */
+export interface CareMealChanged {
+  readonly schoolId: string;
+  readonly schoolName: string;
+  readonly studentId: string;
+  readonly childFirstName: string;
+  readonly childLastName: string;
+  readonly month: string;
+  readonly invoiceNumber: string;
+  readonly billedQuantity: number;
+  readonly billedCents: number;
+  readonly newQuantity: number;
+  readonly newCents: number;
+}
+
+export interface BackendMealChanged {
+  school_id: number;
+  school_name: string;
+  student_id: number;
+  child_first_name: string;
+  child_last_name: string;
+  month: string;
+  invoice_number: string;
+  billed_quantity: number;
+  billed_cents: number;
+  new_quantity: number;
+  new_cents: number;
+}
+
+export function mealChangedFromBackend(
+  entries: readonly BackendMealChanged[] | null | undefined,
+): CareMealChanged[] {
+  return (entries ?? []).map((entry) => ({
+    schoolId: id(entry.school_id),
+    schoolName: entry.school_name,
+    studentId: id(entry.student_id),
+    childFirstName: entry.child_first_name,
+    childLastName: entry.child_last_name,
+    month: entry.month,
+    invoiceNumber: entry.invoice_number,
+    billedQuantity: entry.billed_quantity,
+    billedCents: entry.billed_cents,
+    newQuantity: entry.new_quantity,
+    newCents: entry.new_cents,
+  }));
+}
+
 /** A released Mensa month of a child the run does not bill. */
 export interface CareMealUnbilled {
   readonly schoolId: string;

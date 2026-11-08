@@ -70,6 +70,7 @@ const RUN: CareRunDetail = {
   numberRangeSet: true,
   mealGaps: [],
   mealUnbilled: [],
+  mealChanged: [],
   schoolIds: ["3"],
   invoiceDate: null,
   schools: [],

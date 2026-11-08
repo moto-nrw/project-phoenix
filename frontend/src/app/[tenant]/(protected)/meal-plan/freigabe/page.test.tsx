@@ -48,6 +48,9 @@ const MARCH: MealBillingMonth = {
   mealCount: 5,
   absenceCount: 1,
   fingerprint: "m3",
+  version: 0,
+  releases: [],
+  current: null,
   children: [
     {
       studentId: "1",
@@ -247,5 +250,57 @@ describe("MealBillingReleasePage", () => {
     expect(
       screen.queryByRole("button", { name: "Monat freigeben" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("releases a corrected month again with the reason and the new counts", async () => {
+    const corrected: MealBillingMonth = {
+      ...MARCH,
+      mealCount: 6,
+      absenceCount: 0,
+      fingerprint: "m3b",
+    };
+    const released: MealBillingMonth = {
+      ...MARCH,
+      status: "released",
+      releasedAt: "2026-04-02T09:00:00Z",
+      fingerprint: "",
+      version: 1,
+      releases: [
+        {
+          version: 1,
+          releasedAt: "2026-04-02T09:00:00Z",
+          reason: "",
+          childCount: 2,
+          mealCount: 5,
+        },
+      ],
+      current: corrected,
+    };
+    fetchMealBillingMonth.mockResolvedValue(released);
+    releaseMealBillingMonth.mockResolvedValue({
+      ...released,
+      current: null,
+      version: 2,
+      mealCount: 6,
+    });
+    renderPage();
+    expect(
+      await screen.findByText(
+        "Seit der Freigabe hat sich die Anwesenheit geändert: jetzt 6 Essen statt 5. Prüfen Sie die Liste und geben Sie den Monat erneut frei.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Erneut freigeben" }));
+    const confirm = await screen.findByRole("button", { name: "Freigeben" });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(screen.getByLabelText(/Grund/), {
+      target: { value: "Anwesenheit nachgetragen" },
+    });
+    fireEvent.click(confirm);
+    await waitFor(() =>
+      expect(releaseMealBillingMonth).toHaveBeenCalledWith(
+        corrected,
+        "Anwesenheit nachgetragen",
+      ),
+    );
   });
 });

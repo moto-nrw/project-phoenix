@@ -38,7 +38,7 @@ export function mealBillingReleaseTopic(): HelpTopic {
     troubleshootingDetails: [
       "`Nicht mehr abrechenbar`: Die Anwesenheiten dieses Monats sind nach der Aufbewahrungsfrist gelöscht. Eine Freigabe ist nicht mehr möglich. Geben Sie Monate deshalb bald nach dem Monatsende frei.",
       "`Seit dem Laden hat sich der Monat geändert`: Jemand hat eine Anwesenheit oder Anmeldung geändert. Prüfen Sie die Liste noch einmal und geben Sie dann frei.",
-      "Eine Freigabe lässt sich nicht zurücknehmen. Stimmt danach etwas nicht, wenden Sie sich an Ihren Träger.",
+      "Haben Sie nach der Freigabe eine Anwesenheit nachgetragen, steht oben `Seit der Freigabe hat sich die Anwesenheit geändert`. Prüfen Sie die Liste, wählen Sie `Erneut freigeben` und nennen Sie den Grund. Schon gestellte Rechnungen ändert das nicht. Der Träger sieht die Änderung und korrigiert die Rechnung.",
     ],
     related: [HELP_TOPICS.leadMealPlan],
   };

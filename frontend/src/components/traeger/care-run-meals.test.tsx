@@ -181,4 +181,37 @@ describe("CareRunMealsCard", () => {
       2,
     );
   });
+
+  it("names a Mensa month the school released again after its invoice", () => {
+    render(
+      <CareRunMealsCard
+        gaps={[]}
+        unbilled={[]}
+        changed={[
+          {
+            schoolId: "3",
+            schoolName: "OGS Nord",
+            studentId: "7",
+            childFirstName: "Mia",
+            childLastName: "Beispiel",
+            month: "2029-12-01",
+            invoiceNumber: "MB-2030-0001",
+            billedQuantity: 2,
+            billedCents: 960,
+            newQuantity: 3,
+            newCents: 1440,
+          },
+        ]}
+      />,
+    );
+    expect(
+      screen.getByText("1 nach der Ausstellung geändert"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Mia Beispiel · Dezember 2029"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/abgerechnet 9,60 €, jetzt 14,40 €/),
+    ).toBeInTheDocument();
+  });
 });

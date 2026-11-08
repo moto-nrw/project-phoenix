@@ -69,6 +69,23 @@ type BillingMonth struct {
 	// release sends it back, so a count moved between children since the
 	// OGS-Leitung looked refuses the release. Empty once released.
 	Fingerprint string `json:"fingerprint"`
+	// Version is the release shown, 0 before the first. Releases are the
+	// versions of the month, newest first.
+	Version  int                        `json:"version"`
+	Releases []BillingMonthReleaseEntry `json:"releases"`
+	// Current is the month as computed now when it differs from a release:
+	// a corrected attendance the OGS-Leitung releases again (#4686).
+	Current *BillingMonth `json:"current,omitempty"`
+}
+
+// BillingMonthReleaseEntry is one release of a month: when, why (empty for
+// the first) and the counts it released.
+type BillingMonthReleaseEntry struct {
+	Version    int       `json:"version"`
+	ReleasedAt time.Time `json:"released_at"`
+	Reason     string    `json:"reason"`
+	ChildCount int       `json:"child_count"`
+	MealCount  int       `json:"meal_count"`
 }
 
 // BillingMonthSummary is a month of the overview without children.
@@ -87,7 +104,13 @@ type BillingMonthRelease struct {
 	ChildCount  int
 	MealCount   int
 	Fingerprint string
+	// Reason names why a released month is released again; the first
+	// release has none.
+	Reason string
 }
+
+// MaxBillingMonthReasonLength is the longest reason of a release again.
+const MaxBillingMonthReasonLength = 500
 
 // ReleasedMealChild is a child of a release as the Träger reads it: the
 // meals counted, no registered day and no absence.
@@ -103,6 +126,7 @@ type ReleasedMealMonth struct {
 	SchoolID   int64
 	Month      calendar.Date
 	ReleasedAt time.Time
+	Version    int
 	Children   []ReleasedMealChild
 }
 
@@ -117,6 +141,10 @@ var (
 	// ErrBillingMonthAttendanceExpired refuses counts whose attendance may
 	// already have been removed by retention.
 	ErrBillingMonthAttendanceExpired = &Fault{Code: "meal_billing_month_attendance_expired", Detail: "the month is outside the attendance retention window"}
+	// ErrBillingMonthReasonRequired refuses a release again of a released
+	// month without a reason, or with one longer than
+	// MaxBillingMonthReasonLength.
+	ErrBillingMonthReasonRequired = &Fault{Code: "meal_billing_month_reason_required", Detail: "a released month is released again only with a reason"}
 	// ErrBillingMonthNoTraeger refuses a release of a school without a Träger:
 	// nobody bills its Mensa.
 	ErrBillingMonthNoTraeger = &Fault{Code: "meal_billing_month_no_traeger", Detail: "the school belongs to no Träger"}

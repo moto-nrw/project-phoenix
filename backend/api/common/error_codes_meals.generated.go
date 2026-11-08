@@ -5,6 +5,7 @@ const CodeMealsBillingMonthAttendanceExpired = "meals.billing_month_attendance_e
 const CodeMealsBillingMonthChanged = "meals.billing_month_changed"
 const CodeMealsBillingMonthInvalid = "meals.billing_month_invalid"
 const CodeMealsBillingMonthNoTraeger = "meals.billing_month_no_traeger"
+const CodeMealsBillingMonthReasonRequired = "meals.billing_month_reason_required"
 const CodeMealsBillingMonthReleased = "meals.billing_month_released"
 const CodeMealsBillingMonthRunning = "meals.billing_month_running"
 const CodeMealsChildNotEnrolled = "meals.child_not_enrolled"
@@ -30,6 +31,7 @@ var errorCodeClassesMeals = []errorCodeClass{
 	{CodeMealsBillingMonthChanged, "business_rejection"},
 	{CodeMealsBillingMonthInvalid, "input"},
 	{CodeMealsBillingMonthNoTraeger, "business_rejection"},
+	{CodeMealsBillingMonthReasonRequired, "input"},
 	{CodeMealsBillingMonthReleased, "business_rejection"},
 	{CodeMealsBillingMonthRunning, "business_rejection"},
 	{CodeMealsChildNotEnrolled, "business_rejection"},

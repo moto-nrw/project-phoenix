@@ -270,6 +270,9 @@ const demoVisitorErasureMealBillingSQL = `
 					-- their meals (#4686); it goes with the school.
 					DELETE FROM schedule.meal_billing_months
 					WHERE school_id = ANY (hidden_schools);
+					-- How far the retention deleted its attendance (#4686).
+					DELETE FROM active.attendance_retention_marks
+					WHERE school_id = ANY (hidden_schools);
 					DELETE FROM parent_billing.care_run_events AS event
 					USING care_contract.contracts AS contract
 					WHERE contract.school_id = ANY (hidden_schools)

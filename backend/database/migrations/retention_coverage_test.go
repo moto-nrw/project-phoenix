@@ -287,6 +287,7 @@ var tableRetentions = map[string]tableRetention{
 	"parent_billing.care_letters":                           parent("parent_billing.care_invoices"),
 	"parent_billing.care_meal_positions":                    parent("parent_billing.care_invoices"),
 	"parent_billing.care_meal_tariffs":                      notPersonal("how the Träger bills the Mensa of a school from a month on (#4686), no person"),
+	"active.attendance_retention_marks":                     notPersonal("a school's day before which the attendance retention may have deleted (#4686, ADR 0168); a date only, removed with a demo school"),
 	"schedule.meal_billing_months":                          own("the Mensa-Monatsfreigabe of a school is the record of what the Träger bills (#4686, ADR 0168); it never changes, goes with platform.organizations when the Träger is erased (#4657) and with a retired demo school (1.15.811); the period follows with #4720"),
 	"schedule.meal_billing_month_children":                  parent("schedule.meal_billing_months"),
 	"parent_billing.care_invoices":                          own("an issued monthly invoice never changes and stays when its contract goes (§ 147 AO, ADR 0088 section 9, ADR 0119); it goes with platform.organizations when the Träger is erased after its export (#4657); the period of a single invoice follows with #4720"),
