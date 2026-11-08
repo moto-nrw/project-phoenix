@@ -1,4 +1,3 @@
-import path from "node:path";
 import {
   afterAll,
   beforeAll,
@@ -53,17 +52,32 @@ vi.mock("~/lib/tenant-resolve.server", async (original) => ({
 }));
 
 const backend = vi.fn<typeof fetch>();
-const apiDir = path.dirname(new URL(import.meta.url).pathname);
+type RoutePost = (request: NextRequest, context: unknown) => Promise<Response>;
+
+const ROUTES: Record<string, () => Promise<{ POST: unknown }>> = {
+  "auth/password": () => import("./auth/password/route"),
+  "parent/me/news/[announcementId]/declaration": () =>
+    import("./parent/me/news/[announcementId]/declaration/route"),
+  "operator/profile/password": () =>
+    import("./operator/profile/password/route"),
+  "operator/profile/email-change": () =>
+    import("./operator/profile/email-change/route"),
+  "caterer/account/password": () => import("./caterer/account/password/route"),
+  "caterer/account/mfa/disable": () =>
+    import("./caterer/account/mfa/disable/route"),
+  "caterer/account/mfa/confirm": () =>
+    import("./caterer/account/mfa/confirm/route"),
+  "parent/me/children/[studentId]/pickup-signature-statement": () =>
+    import("./parent/me/children/[studentId]/pickup-signature-statement/route"),
+};
 
 async function post(route: string, host: string, body: unknown) {
-  const routeModule = (await import(
-    path.join(apiDir, route, "route.ts")
-  )) as Record<string, (r: NextRequest, c: unknown) => Promise<Response>>;
+  const { POST } = await ROUTES[route]!();
   const url = `http://${host}/api/${route.replace(/\[[^\]]+\]/g, "1")}`;
   const params = Object.fromEntries(
     [...route.matchAll(/\[([^\]]+)\]/g)].map(([, name]) => [name, "1"]),
   );
-  return routeModule.POST!(
+  return (POST as RoutePost)(
     new NextRequest(url, {
       method: "POST",
       headers: {
