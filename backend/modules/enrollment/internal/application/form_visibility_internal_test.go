@@ -1109,7 +1109,7 @@ func TestValidateConstrainedSchedules_OffListTimeOnNonCareDayIgnored(t *testing.
 func TestMatchExistingChildrenBySubmittedIdentityNeverFallsBackToPosition(t *testing.T) {
 	t.Parallel()
 
-	existing := []*RequestChild{
+	existing := []*enrollmentNative.RequestChild{
 		{FirstName: "Anna", LastName: "Beispiel", DateOfBirth: "2018-04-15"},
 		{FirstName: "Ben", LastName: "Beispiel", DateOfBirth: "2019-08-01"},
 	}
@@ -1128,7 +1128,7 @@ func TestMatchExistingChildrenBySubmittedIdentityNeverFallsBackToPosition(t *tes
 func TestMatchExistingChildrenBySubmittedIdentityAllowsUniqueIDLessReorder(t *testing.T) {
 	t.Parallel()
 
-	existing := []*RequestChild{
+	existing := []*enrollmentNative.RequestChild{
 		{FirstName: "Anna", LastName: "Beispiel", DateOfBirth: "2018-04-15"},
 		{FirstName: "Ben", LastName: "Beispiel", DateOfBirth: "2019-08-01"},
 	}
@@ -1240,12 +1240,12 @@ func TestValidateConstrainedSchedules_SingleModePreservesUnchangedLegacyAnswer(t
 		TargetGradeLevel: &grade,
 		CustomData:       legacy,
 	}}}
-	existingChild := &RequestChild{
+	existingChild := &enrollmentNative.RequestChild{
 		TargetGradeLevel: &grade,
-		CustomData:       legacy,
+		CustomData:       formValues(legacy),
 	}
 	existingChild.ID = 42
-	existing := []*RequestChild{existingChild}
+	existing := []*enrollmentNative.RequestChild{existingChild}
 
 	assert.NoError(t, validateConstrainedSchedules(schema, req, nil, existing))
 }
@@ -1261,12 +1261,12 @@ func TestValidateConstrainedSchedules_SingleModeRejectsLegacyAnswerAfterGradeCha
 		TargetGradeLevel: &restrictedGrade,
 		CustomData:       legacy,
 	}}}
-	existingChild := &RequestChild{
+	existingChild := &enrollmentNative.RequestChild{
 		TargetGradeLevel: &oldGrade,
-		CustomData:       legacy,
+		CustomData:       formValues(legacy),
 	}
 	existingChild.ID = 42
-	existing := []*RequestChild{existingChild}
+	existing := []*enrollmentNative.RequestChild{existingChild}
 
 	err := validateConstrainedSchedules(schema, req, nil, existing)
 	require.Error(t, err)

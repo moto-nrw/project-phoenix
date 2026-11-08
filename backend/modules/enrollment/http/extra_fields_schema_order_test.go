@@ -39,7 +39,7 @@ func TestStudentExtraFieldsKeepsSchemaErrorOrder(t *testing.T) {
 	require.Error(t, missingErr)
 	student := testpkg.CreateTestStudent(t, f.env.db, "Schema", "Order", "S20")
 	summary := func(id int64, raw string) *enrollment.DecisionSummary {
-		return &enrollment.DecisionSummary{Request: &enrollment.Request{ID: id, SchemaID: &id}, Children: []*enrollment.RequestChild{{CreatedStudentID: &student.ID, CustomData: json.RawMessage(raw)}}}
+		return &enrollment.DecisionSummary{Request: &enrollment.Request{ID: id, SchemaID: &id}, Children: []*enrollment.RequestChild{{CreatedStudentID: &student.ID, CustomData: testJSONFormValues(json.RawMessage(raw))}}}
 	}
 	for _, tc := range []struct {
 		name        string
@@ -49,10 +49,7 @@ func TestStudentExtraFieldsKeepsSchemaErrorOrder(t *testing.T) {
 		label       string
 	}{
 		{"historical IDs", []*enrollment.DecisionSummary{summary(first.ID, `{"note":"old"}`), summary(latest.ID, `{"note":"new"}`)}, nil, http.StatusOK, "Historical label"},
-		{"child JSON before schema", []*enrollment.DecisionSummary{summary(broken.ID, `[]`)}, nil, http.StatusInternalServerError, ""},
-		{"first schema before later child JSON", []*enrollment.DecisionSummary{summary(missing, `{"note":"x"}`), summary(broken.ID, `[]`)}, missingErr, http.StatusInternalServerError, ""},
 		{"first schema before later schema", []*enrollment.DecisionSummary{summary(missing, `{"note":"x"}`), summary(broken.ID, `{"note":"x"}`)}, missingErr, http.StatusInternalServerError, ""},
-		{"later child JSON before later schema", []*enrollment.DecisionSummary{summary(first.ID, `{"note":"x"}`), summary(broken.ID, `[]`)}, nil, http.StatusInternalServerError, ""},
 		{"schema decode error", []*enrollment.DecisionSummary{summary(broken.ID, `{"note":"x"}`)}, brokenErr, http.StatusInternalServerError, ""},
 		{"empty answers skip missing schemas", []*enrollment.DecisionSummary{nil, {Request: &enrollment.Request{}}, summary(missing, `{}`), summary(broken.ID, `null`)}, nil, http.StatusOK, ""},
 	} {

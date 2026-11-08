@@ -58,18 +58,18 @@ func newDeletionTestFixture(t *testing.T, db *bun.DB, label string) *deletionTes
 	return f
 }
 
-func (f *deletionTestFixture) request(label string, guardianAccountID *int64) *enrollmentAPI.Request {
+func (f *deletionTestFixture) request(label string, guardianAccountID *int64) *enrollmentNative.Request {
 	f.t.Helper()
-	request := &enrollmentAPI.Request{
+	request := &enrollmentNative.Request{
 		PhaseID:           f.phase,
 		GuardianFirstName: "Test",
 		GuardianLastName:  "Guardian",
 		GuardianEmail:     fmt.Sprintf("%s-%d@example.invalid", label, f.scope.TenantID),
 		GuardianAccountID: guardianAccountID,
-		ConsentFlags:      map[string]any{},
-		CustomData:        map[string]any{},
+		ConsentFlags:      testFormValues(map[string]any{}),
+		CustomData:        testFormValues(map[string]any{}),
 		SubmissionSource:  enrollmentNative.RequestSourcePublic,
-		SourceMetadata:    map[string]any{},
+		SourceMetadata:    testFormValues(map[string]any{}),
 		StatusToken:       fmt.Sprintf("%s-token-%d", label, f.scope.TenantID),
 		SubmittedAt:       time.Now(),
 	}
@@ -78,15 +78,15 @@ func (f *deletionTestFixture) request(label string, guardianAccountID *int64) *e
 	return request
 }
 
-func (f *deletionTestFixture) child(requestID int64, label, status string, createdStudentID *int64) *enrollmentAPI.RequestChild {
+func (f *deletionTestFixture) child(requestID int64, label, status string, createdStudentID *int64) *enrollmentNative.RequestChild {
 	f.t.Helper()
 	now := time.Now()
-	child := &enrollmentAPI.RequestChild{
+	child := &enrollmentNative.RequestChild{
 		RequestID:        requestID,
 		FirstName:        label,
 		LastName:         "Child",
 		DateOfBirth:      "2018-04-15",
-		CustomData:       map[string]any{},
+		CustomData:       testFormValues(map[string]any{}),
 		Status:           status,
 		ActivationMode:   enrollmentNative.ChildActivationScheduled,
 		ReviewedAt:       &now,

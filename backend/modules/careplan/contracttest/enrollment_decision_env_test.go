@@ -2,7 +2,6 @@ package contracttest_test
 
 import (
 	"context"
-	"encoding/json"
 	"log/slog"
 	"sync"
 	"testing"
@@ -549,16 +548,14 @@ func setSourcePhaseServiceStartDate(t *testing.T, env *decisionTestEnv, serviceS
 
 // consentFlags are the four standard consent flags the env's legal texts
 // declare.
-func consentFlags(t *testing.T) json.RawMessage {
+func consentFlags(t *testing.T) enrollmentTest.FormValues {
 	t.Helper()
-	raw, err := json.Marshal(map[string]any{
+	return enrollmentTest.FormValuesOf(map[string]any{
 		"agb":             true,
 		"data_processing": true,
 		"email_contact":   true,
 		"photo":           true,
 	})
-	require.NoError(t, err)
-	return raw
 }
 
 // submitOneChild submits a single-child enrollment in the source phase and

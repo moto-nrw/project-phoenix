@@ -431,19 +431,19 @@ func submitOneChildWithCustomData(
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Test",
 		GuardianEmail:     guardianEmail,
-		ConsentFlags: map[string]any{
+		ConsentFlags: testFormValues(map[string]any{
 			"agb":             true,
 			"data_processing": true,
 			"email_contact":   true,
 			"photo":           true,
-		},
+		}),
 		Children: []enrollmentAPI.SubmitChild{
 			{
 				FirstName:        childFirst,
 				LastName:         childLast,
 				DateOfBirth:      calendar.NewDate(2018, 4, 15),
 				TargetGradeLevel: &grade,
-				CustomData:       customData,
+				CustomData:       testFormValues(customData),
 			},
 		},
 	})
@@ -461,12 +461,12 @@ func submitDecisionSiblings(t *testing.T, env *decisionTestEnv, guardianEmail st
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Digest",
 		GuardianEmail:     guardianEmail,
-		ConsentFlags: map[string]any{
+		ConsentFlags: testFormValues(map[string]any{
 			"agb":             true,
 			"data_processing": true,
 			"email_contact":   true,
 			"photo":           true,
-		},
+		}),
 		Children: []enrollmentAPI.SubmitChild{
 			{
 				FirstName:        "Lina",
@@ -654,7 +654,7 @@ func TestDecisionService_Get_LoadsLateInviteUsedForRequest(t *testing.T) {
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Test",
 		GuardianEmail:     "submitted@example.com",
-		ConsentFlags:      map[string]any{"agb": true, "data_processing": true, "email_contact": true, "photo": true},
+		ConsentFlags:      testFormValues(map[string]any{"agb": true, "data_processing": true, "email_contact": true, "photo": true}),
 		Children: []enrollmentAPI.SubmitChild{{
 			FirstName: "Lina", LastName: "GetInvite",
 			DateOfBirth: calendar.NewDate(2018, 4, 15), TargetGradeLevel: &grade,
@@ -1575,7 +1575,7 @@ func TestDecisionService_SyncApprovedChildData_ReplacesRemovedContactList(t *tes
 
 	child, err := enrollmentAPI.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
 	require.NoError(t, err)
-	child.CustomData = map[string]any{}
+	child.CustomData = testFormValues(map[string]any{})
 	require.NoError(t, enrollmentAPI.UpdateOwnerChildForTest(ctx, env.repos.Enrollment(), child))
 
 	applier := changeRequestApplierForTest(t, env)
@@ -1642,7 +1642,7 @@ func TestDecisionService_SyncApprovedChildData_ReplacesRemovedPhoneOnlyContactLi
 
 	child, err := enrollmentAPI.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
 	require.NoError(t, err)
-	child.CustomData = map[string]any{}
+	child.CustomData = testFormValues(map[string]any{})
 	require.NoError(t, enrollmentAPI.UpdateOwnerChildForTest(ctx, env.repos.Enrollment(), child))
 
 	applier := changeRequestApplierForTest(t, env)
@@ -1685,7 +1685,7 @@ func TestDecisionService_SyncApprovedChildData_ReusesUnchangedPhoneOnlyContactLi
 
 	child, err := enrollmentAPI.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
 	require.NoError(t, err)
-	child.CustomData = map[string]any{"contacts": []any{contact}}
+	child.CustomData = testFormValues(map[string]any{"contacts": []any{contact}})
 	require.NoError(t, enrollmentAPI.UpdateOwnerChildForTest(ctx, env.repos.Enrollment(), child))
 
 	applier := changeRequestApplierForTest(t, env)
@@ -1749,7 +1749,7 @@ func TestDecisionService_SyncApprovedChildData_UpdatesExistingContactListPermiss
 	}
 	child, err := enrollmentAPI.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
 	require.NoError(t, err)
-	child.CustomData = map[string]any{"contacts": []any{newContact}}
+	child.CustomData = testFormValues(map[string]any{"contacts": []any{newContact}})
 	require.NoError(t, enrollmentAPI.UpdateOwnerChildForTest(ctx, env.repos.Enrollment(), child))
 
 	applier := changeRequestApplierForTest(t, env)
@@ -1807,18 +1807,18 @@ func TestDecisionService_Decide_ContactListSelfGuardianDoesNotAbortApproval(t *t
 		GuardianLastName:  "Bahnemann",
 		GuardianEmail:     guardianEmail,
 		GuardianPhone:     &guardianPhone,
-		ConsentFlags: map[string]any{
+		ConsentFlags: testFormValues(map[string]any{
 			"agb":             true,
 			"data_processing": true,
 			"email_contact":   true,
 			"photo":           true,
-		},
+		}),
 		Children: []enrollmentAPI.SubmitChild{{
 			FirstName:        "Self",
 			LastName:         "Contact",
 			DateOfBirth:      calendar.NewDate(2018, 4, 15),
 			TargetGradeLevel: &grade,
-			CustomData: map[string]any{
+			CustomData: testFormValues(map[string]any{
 				"contacts": []any{map[string]any{
 					"first_name":           "Franziska",
 					"last_name":            "Bahnemann",
@@ -1827,7 +1827,7 @@ func TestDecisionService_Decide_ContactListSelfGuardianDoesNotAbortApproval(t *t
 					"is_emergency_contact": true,
 					"can_pickup":           true,
 				}},
-			},
+			}),
 		}},
 	})
 	require.NoError(t, err)
@@ -1884,17 +1884,17 @@ func TestDecisionService_Decide_AppliesDepartureField(t *testing.T) {
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Test",
 		GuardianEmail:     "dep-approve@example.com",
-		ConsentFlags: map[string]any{
+		ConsentFlags: testFormValues(map[string]any{
 			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
-		},
+		}),
 		Children: []enrollmentAPI.SubmitChild{{
 			FirstName:        "Dep",
 			LastName:         "Child",
 			DateOfBirth:      calendar.NewDate(2018, 4, 15),
 			TargetGradeLevel: &grade,
-			CustomData: map[string]any{
+			CustomData: testFormValues(map[string]any{
 				"departure": map[string]any{"mon": "bus", "wed": "pickup"},
-			},
+			}),
 		}},
 	})
 	require.NoError(t, err)
@@ -1947,19 +1947,19 @@ func TestDecisionService_Decide_AppliesCoupledCompanionNote(t *testing.T) {
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Test",
 		GuardianEmail:     "companion-note@example.com",
-		ConsentFlags: map[string]any{
+		ConsentFlags: testFormValues(map[string]any{
 			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
-		},
+		}),
 		Children: []enrollmentAPI.SubmitChild{{
 			FirstName:        "Comp",
 			LastName:         "Child",
 			DateOfBirth:      calendar.NewDate(2018, 4, 15),
 			TargetGradeLevel: &grade,
-			CustomData: map[string]any{
+			CustomData: testFormValues(map[string]any{
 				"allowed_modes": map[string]any{"mon": []any{"accompanied"}},
 				// Reserved coupled key carrying the free-text companion note.
 				enrollmentNative.TargetStudentDepartureCompanionNote: "Geschwisterkind Mia (1b)",
-			},
+			}),
 		}},
 	})
 	require.NoError(t, err)
@@ -2014,19 +2014,19 @@ func TestDecisionService_Decide_SkipsCompanionNoteWithoutAccompanied(t *testing.
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Test",
 		GuardianEmail:     "no-accompanied@example.com",
-		ConsentFlags: map[string]any{
+		ConsentFlags: testFormValues(map[string]any{
 			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
-		},
+		}),
 		Children: []enrollmentAPI.SubmitChild{{
 			FirstName:        "Solo",
 			LastName:         "Child",
 			DateOfBirth:      calendar.NewDate(2018, 4, 15),
 			TargetGradeLevel: &grade,
-			CustomData: map[string]any{
+			CustomData: testFormValues(map[string]any{
 				// No accompanied day, yet a companion note rides along.
 				"allowed_modes": map[string]any{"mon": []any{"bus"}},
 				enrollmentNative.TargetStudentDepartureCompanionNote: "Geschwisterkind Mia (1b)",
-			},
+			}),
 		}},
 	})
 	require.NoError(t, err)
@@ -2093,21 +2093,21 @@ func TestDecisionService_Decide_MergesDuplicateAllowedDepartureFields(t *testing
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Test",
 		GuardianEmail:     "dup-departure@example.com",
-		ConsentFlags: map[string]any{
+		ConsentFlags: testFormValues(map[string]any{
 			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
-		},
+		}),
 		Children: []enrollmentAPI.SubmitChild{{
 			FirstName:        "Merge",
 			LastName:         "Child",
 			DateOfBirth:      calendar.NewDate(2018, 4, 15),
 			TargetGradeLevel: &grade,
-			CustomData: map[string]any{
+			CustomData: testFormValues(map[string]any{
 				// Earlier field allows accompanied; later field only bus. The later
 				// field must NOT erase the accompanied mode from the earlier one.
 				"modes_a": map[string]any{"mon": []any{"accompanied"}},
 				"modes_b": map[string]any{"mon": []any{"bus"}},
 				enrollmentNative.TargetStudentDepartureCompanionNote: "Geschwisterkind Mia (1b)",
-			},
+			}),
 		}},
 	})
 	require.NoError(t, err)
@@ -2407,7 +2407,7 @@ func TestDecisionService_SyncApprovedChildData_ReplacesRemovedPickupSchedule(t *
 
 	child, err := enrollmentAPI.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
 	require.NoError(t, err)
-	child.CustomData = map[string]any{}
+	child.CustomData = testFormValues(map[string]any{})
 	require.NoError(t, enrollmentAPI.UpdateOwnerChildForTest(ctx, env.repos.Enrollment(), child))
 
 	applier := changeRequestApplierForTest(t, env)
@@ -2444,7 +2444,7 @@ func TestDecisionService_SyncApprovedChildData_RecordsLaterPickupExtension(t *te
 
 	child, err := enrollmentAPI.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
 	require.NoError(t, err)
-	child.CustomData = map[string]any{"pickup_times": map[string]any{"mon": "16:00"}}
+	child.CustomData = testFormValues(map[string]any{"pickup_times": map[string]any{"mon": "16:00"}})
 	require.NoError(t, enrollmentAPI.UpdateOwnerChildForTest(ctx, env.repos.Enrollment(), child))
 
 	applier := changeRequestApplierForTest(t, env)
@@ -2678,7 +2678,7 @@ func TestDecisionService_SyncApprovedChildData_AuditsTrackedStudentChanges(t *te
 
 	child, err := enrollmentAPI.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
 	require.NoError(t, err)
-	child.CustomData = map[string]any{"health_info": "synthetic-value-b"}
+	child.CustomData = testFormValues(map[string]any{"health_info": "synthetic-value-b"})
 	require.NoError(t, enrollmentAPI.UpdateOwnerChildForTest(ctx, env.repos.Enrollment(), child))
 
 	applier := changeRequestApplierForTest(t, env)
@@ -2743,10 +2743,10 @@ func TestDecisionService_SyncApprovedChildData_AuditsPersistedChangeDespiteTarge
 
 	child, err := enrollmentAPI.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
 	require.NoError(t, err)
-	child.CustomData = map[string]any{
+	child.CustomData = testFormValues(map[string]any{
 		"health_info":  "synthetic-value-b",
 		"pickup_times": map[string]any{"mon": "14:45"},
-	}
+	})
 	require.NoError(t, enrollmentAPI.UpdateOwnerChildForTest(ctx, env.repos.Enrollment(), child))
 
 	actor := testpkg.CreateTestAccount(t, env.db, "partial-health-audit-reviewer")
@@ -2968,7 +2968,7 @@ func submitReEnrollment(
 		GuardianLastName:  guardianLast,
 		GuardianEmail:     guardianEmail,
 		GuardianPhone:     guardianPhone,
-		ConsentFlags:      consentFlags,
+		ConsentFlags:      testFormValues(consentFlags),
 		Children: []enrollmentAPI.SubmitChild{{
 			FirstName:        childFirst,
 			LastName:         childLast,
@@ -3108,7 +3108,7 @@ func TestDecisionService_Decide_LateInviteRenewalLinksInviteRecipient(t *testing
 	submitted, err := env.requestSvc.Submit(ctx, enrollmentAPI.SubmitRequest{
 		TenantID: testpkg.Tenant(t), PhaseID: env.sourcePhase.ID, LateInviteToken: invite.Token,
 		GuardianFirstName: "Mara", GuardianLastName: "Nachzuegler", GuardianEmail: unrelatedParent.Email,
-		ConsentFlags: map[string]any{"agb": true, "data_processing": true, "email_contact": true, "photo": true},
+		ConsentFlags: testFormValues(map[string]any{"agb": true, "data_processing": true, "email_contact": true, "photo": true}),
 		Children: []enrollmentAPI.SubmitChild{{
 			FirstName: "Milo", LastName: "Nachzuegler",
 			DateOfBirth: calendar.NewDate(2018, 4, 15), TargetGradeLevel: &grade,
@@ -3280,12 +3280,12 @@ func TestDecisionService_Decide_ApprovedUsesFixedOfferingDaysForActivityEnrollme
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Fixed",
 		GuardianEmail:     "fixed-days@example.com",
-		ConsentFlags: map[string]any{
+		ConsentFlags: testFormValues(map[string]any{
 			"agb":             true,
 			"data_processing": true,
 			"email_contact":   true,
 			"photo":           true,
-		},
+		}),
 		Children: []enrollmentAPI.SubmitChild{
 			{
 				FirstName:        "Fina",
@@ -3381,9 +3381,9 @@ func TestDecisionService_UpdateChildOfferings_RebuildsEverySplitSeriesSegment(t 
 		TenantID: testpkg.Tenant(t), PhaseID: env.sourcePhase.ID,
 		GuardianFirstName: "Eltern", GuardianLastName: "SplitSeries",
 		GuardianEmail: "split-series-roster@example.com",
-		ConsentFlags: map[string]any{
+		ConsentFlags: testFormValues(map[string]any{
 			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
-		},
+		}),
 		Children: []enrollmentAPI.SubmitChild{{
 			FirstName: "Sina", LastName: "SplitSeries",
 			DateOfBirth:      calendar.NewDate(2018, 4, 15),
@@ -3479,12 +3479,12 @@ func TestDecisionService_Decide_ApprovedPreservesLegacyNonTemplateLinkedOffering
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Legacy",
 		GuardianEmail:     "legacy-linked@example.com",
-		ConsentFlags: map[string]any{
+		ConsentFlags: testFormValues(map[string]any{
 			"agb":             true,
 			"data_processing": true,
 			"email_contact":   true,
 			"photo":           true,
-		},
+		}),
 		Children: []enrollmentAPI.SubmitChild{
 			{
 				FirstName:        "Lina",
@@ -3559,12 +3559,12 @@ func TestDecisionService_Decide_RolloverApprovalMaterializesClonedOffering(t *te
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "Rollover",
 		GuardianEmail:     "rollover-linked@example.com",
-		ConsentFlags: map[string]any{
+		ConsentFlags: testFormValues(map[string]any{
 			"agb":             true,
 			"data_processing": true,
 			"email_contact":   true,
 			"photo":           true,
-		},
+		}),
 		Children: []enrollmentAPI.SubmitChild{
 			{
 				FirstName:        "Rina",
@@ -3705,12 +3705,12 @@ func TestDecisionService_Decide_ApprovedRejectsEmptyDaysForTemplateOffering(t *t
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "EmptyDays",
 		GuardianEmail:     "empty-days@example.com",
-		ConsentFlags: map[string]any{
+		ConsentFlags: testFormValues(map[string]any{
 			"agb":             true,
 			"data_processing": true,
 			"email_contact":   true,
 			"photo":           true,
-		},
+		}),
 		Children: []enrollmentAPI.SubmitChild{
 			{
 				FirstName:        "Emil",
@@ -4226,12 +4226,12 @@ func TestDecisionService_UpdateChildOfferings_RemovesSourcedEnrollmentAfterOffer
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "GroupChange",
 		GuardianEmail:     "adjust-group-change@example.com",
-		ConsentFlags: map[string]any{
+		ConsentFlags: testFormValues(map[string]any{
 			"agb":             true,
 			"data_processing": true,
 			"email_contact":   true,
 			"photo":           true,
-		},
+		}),
 		Children: []enrollmentAPI.SubmitChild{
 			{
 				FirstName:        "Lina",
@@ -4324,12 +4324,12 @@ func TestDecisionService_UpdateChildOfferings_RemovesLegacyUnsourcedEnrollmentAf
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "LegacyGroupChange",
 		GuardianEmail:     "adjust-legacy-group-change@example.com",
-		ConsentFlags: map[string]any{
+		ConsentFlags: testFormValues(map[string]any{
 			"agb":             true,
 			"data_processing": true,
 			"email_contact":   true,
 			"photo":           true,
-		},
+		}),
 		Children: []enrollmentAPI.SubmitChild{
 			{
 				FirstName:        "Lina",
@@ -4430,12 +4430,12 @@ func TestDecisionService_UpdateChildOfferings_RemovesSourcedEnrollmentAfterPhase
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "WindowChange",
 		GuardianEmail:     "adjust-window-change@example.com",
-		ConsentFlags: map[string]any{
+		ConsentFlags: testFormValues(map[string]any{
 			"agb":             true,
 			"data_processing": true,
 			"email_contact":   true,
 			"photo":           true,
-		},
+		}),
 		Children: []enrollmentAPI.SubmitChild{
 			{
 				FirstName:        "Lina",
@@ -4520,12 +4520,12 @@ func TestDecisionService_ApprovalUsesExclusiveEndForOneDayPhase(t *testing.T) {
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  "OneDay",
 		GuardianEmail:     "decision-one-day-exclusive-end@example.com",
-		ConsentFlags: map[string]any{
+		ConsentFlags: testFormValues(map[string]any{
 			"agb":             true,
 			"data_processing": true,
 			"email_contact":   true,
 			"photo":           true,
-		},
+		}),
 		Children: []enrollmentAPI.SubmitChild{{
 			FirstName:        "Lina",
 			LastName:         "OneDay",

@@ -60,7 +60,7 @@ func setupCorrectionFixture(t *testing.T, tc *testContext, studentID, tenantID i
 		RequestID:        request.ID,
 		FirstName:        "Zkorrektur",
 		LastName:         lastName,
-		DateOfBirth:      capability.Date(studentsTestToday.AddDays(-2500)),
+		DateOfBirth:      studentsTestToday.AddDays(-2500),
 		Status:           capability.ChildStatusApproved,
 		CreatedStudentID: &studentID,
 	}

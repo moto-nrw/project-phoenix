@@ -142,7 +142,7 @@ func isTrustedEnrollmentSource(source string) bool {
 
 // hasRolloverGeneratedChild reports whether a child was carried forward by
 // the rollover; such requests skip the self-service gates on renewal.
-func hasRolloverGeneratedChild(children []*RequestChild) bool {
+func hasRolloverGeneratedChild(children []*enrollmentNative.RequestChild) bool {
 	for _, child := range children {
 		if child.RolloverSourceChildID != nil {
 			return true
@@ -210,7 +210,7 @@ func reEnrollmentSubmitterFor(submissionSource string, guardianAccountID *int64,
 // reEnrollmentSubmitterForPersistedRequest restores the identity of a stored
 // request. An accountless late-invite request reloads the address the school
 // issued the invite to.
-func reEnrollmentSubmitterForPersistedRequest(ctx context.Context, lateInvites DecisionLateInvites, req *Request) (reEnrollmentSubmitter, error) {
+func reEnrollmentSubmitterForPersistedRequest(ctx context.Context, lateInvites DecisionLateInvites, req *enrollmentNative.Request) (reEnrollmentSubmitter, error) {
 	if req == nil {
 		return reEnrollmentSubmitter{}, errors.New("request is required")
 	}

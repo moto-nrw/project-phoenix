@@ -2073,6 +2073,22 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.intakeService.CreateManualApprovedEnrollment",
+      "binding_digest": "4b96727a1aa402889e0419a628090ce2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.RequestService.CreateManualApprovedEnrollment",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.FillRandom",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.intakeService.CreateManualApprovedEnrollment",
+      "binding_digest": "178f8af1431840844cffd9e68183060f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.RequestService.CreateManualApprovedEnrollment",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithSavepoint",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.enrollmentSchoolDirectory.GetSchoolBySlug",
       "binding_digest": "690537a392d3237d11c4f156462f396f",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.SchoolDirectory.GetSchoolBySlug",
@@ -2206,6 +2222,22 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.UploadService.PrepareUpload",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.IntakeOwner.CreateManualApprovedEnrollment",
+      "binding_digest": "4b96727a1aa402889e0419a628090ce2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.manualApprovedEnrollments.CreateManualApprovedEnrollment",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.FillRandom",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.IntakeOwner.CreateManualApprovedEnrollment",
+      "binding_digest": "178f8af1431840844cffd9e68183060f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.manualApprovedEnrollments.CreateManualApprovedEnrollment",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithSavepoint",
       "target_owner": "tenant-runtime"
     },
     {

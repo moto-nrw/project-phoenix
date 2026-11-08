@@ -50,7 +50,7 @@ type matchedStudentFixture struct {
 	children *stubMatchedStudentChildRepo
 	requests *stubMatchLockRequestRepo
 	auth     *stubReEnrollAuthorizer
-	req      *Request
+	req      *enrollmentNative.Request
 	phase    *enrollmentNative.Phase
 	row      *ChangeRequest
 }
@@ -68,7 +68,7 @@ func newMatchedStudentFixture(audience string, resolved *int64, collision bool) 
 	})
 
 	accountID := int64(4242)
-	req := &Request{GuardianAccountID: &accountID}
+	req := &enrollmentNative.Request{GuardianAccountID: &accountID}
 	req.TenantID = 77
 
 	return &matchedStudentFixture{
@@ -85,7 +85,7 @@ func newMatchedStudentFixture(audience string, resolved *int64, collision bool) 
 // reconcile runs the approval's pin reconciliation for the fixture's request,
 // phase and change request: no capacity overrides, eligibility enforced,
 // child index 0.
-func (f *matchedStudentFixture) reconcile(child *RequestChild, next SubmitChild) error {
+func (f *matchedStudentFixture) reconcile(child *enrollmentNative.RequestChild, next SubmitChild) error {
 	run := &approval{
 		row: f.row, req: f.req, prepared: &proposal{phase: f.phase},
 		overrides: map[int]string{}, eligibilityEnforced: true,
@@ -93,8 +93,8 @@ func (f *matchedStudentFixture) reconcile(child *RequestChild, next SubmitChild)
 	return f.svc.reconcileMatchedStudent(context.Background(), run, child, next, 0)
 }
 
-func matchedStudentChild(id int64, pin *int64) *RequestChild {
-	child := &RequestChild{
+func matchedStudentChild(id int64, pin *int64) *enrollmentNative.RequestChild {
+	child := &enrollmentNative.RequestChild{
 		FirstName:        "Anna",
 		LastName:         "Müller",
 		DateOfBirth:      "2019-04-12",

@@ -1,7 +1,6 @@
 package enrollmenthttp_test
 
 import (
-	"maps"
 	"testing"
 
 	enrollment "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -44,10 +43,10 @@ func TestChangeRequestService_RevokedParentCannotChangeRequestWeeklyPlan(t *test
 				require.NoError(t, err)
 				req, err := enrollmentAPI.ReadOwnerRequestForTest(ctx, r.env.repos.Enrollment(), r.requestID)
 				require.NoError(t, err)
-				req.CustomData = maps.Clone(child.CustomData)
-				delete(req.CustomData, "health")
-				req.CustomData["note"] = "Bisheriger Hinweis"
-				child.CustomData = map[string]any{}
+				req.CustomData = child.CustomData.Clone()
+				req.CustomData.Unset("health")
+				req.CustomData.Set("note", "Bisheriger Hinweis")
+				child.CustomData = enrollment.FormValues{}
 				grade := int16(3)
 				child.TargetGradeLevel = &grade
 				require.NoError(t, enrollmentAPI.UpdateOwnerChildForTest(ctx, r.env.repos.Enrollment(), child))
@@ -57,22 +56,22 @@ func TestChangeRequestService_RevokedParentCannotChangeRequestWeeklyPlan(t *test
 				proposed := enrollmentAPI.SubmitRequest{
 					PhaseID: req.PhaseID, GuardianFirstName: req.GuardianFirstName, GuardianLastName: req.GuardianLastName,
 					GuardianEmail: req.GuardianEmail, GuardianPhone: req.GuardianPhone, ConsentFlags: req.ConsentFlags,
-					CustomData: maps.Clone(req.CustomData), Children: []enrollmentAPI.SubmitChild{{
+					CustomData: req.CustomData.Clone(), Children: []enrollmentAPI.SubmitChild{{
 						ID: child.ID, FirstName: child.FirstName, LastName: child.LastName, DateOfBirth: child.DateOfBirth,
 						TargetGradeLevel: child.TargetGradeLevel, CustomData: child.CustomData,
 					}},
 				}
 				switch key {
 				case "pickup_times":
-					proposed.CustomData[key] = map[string]any{"mon": "16:00"}
+					proposed.CustomData.Set(key, map[string]any{"mon": "16:00"})
 				case "arrival_times":
-					proposed.CustomData[key] = map[string]any{"tue": "07:45"}
+					proposed.CustomData.Set(key, map[string]any{"tue": "07:45"})
 				case "allowed_modes":
-					proposed.CustomData[key] = map[string]any{"mon": []any{"alone"}}
+					proposed.CustomData.Set(key, map[string]any{"mon": []any{"alone"}})
 				case "remove_pickup":
-					proposed.CustomData["pickup_times"] = map[string]any{}
+					proposed.CustomData.Set("pickup_times", map[string]any{})
 				case "note":
-					proposed.CustomData[key] = "Neuer Hinweis"
+					proposed.CustomData.Set(key, "Neuer Hinweis")
 				}
 				svc := newChangeRequestServiceWithDecisionForTest(t, r.env)
 				restoreTakeover := liftTakeoverStamp(t, r.env, r.requestID)

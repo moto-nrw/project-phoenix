@@ -40,11 +40,11 @@ func (unavailableAdminSignatureDecisionService) ListChildOfferings(context.Conte
 	return nil, nil
 }
 
-func (s *unavailableStatusSignatureService) GetByStatusToken(context.Context, string) (*Request, []*RequestChild, error) {
-	return &Request{}, nil, nil
+func (s *unavailableStatusSignatureService) GetByStatusToken(context.Context, string) (*capability.Request, []*capability.RequestChild, error) {
+	return &capability.Request{}, nil, nil
 }
 
-func (s *unavailableStatusSignatureService) StatusPage(context.Context, *Request, []*RequestChild) (capability.StatusPage, error) {
+func (s *unavailableStatusSignatureService) StatusPage(context.Context, *capability.Request, []*capability.RequestChild) (capability.StatusPage, error) {
 	return capability.StatusPage{CareFacilityTerm: "OGS"}, nil
 }
 
@@ -142,7 +142,7 @@ func TestAdminSignatureFailureDoesNotHideJSONDetail(t *testing.T) {
 	rs := &Resource{
 		RequestService: service,
 		DecisionService: unavailableAdminSignatureDecisionService{summary: &RequestSummary{
-			Request: &Request{ID: 42, GuardianFirstName: "Anna", GuardianLastName: "Beispiel"},
+			Request: &capability.Request{ID: 42, GuardianFirstName: "Anna", GuardianLastName: "Beispiel"},
 		}},
 	}
 	adminTransactions := 0
@@ -171,7 +171,7 @@ func TestAdminSignatureProofFailureStillRejectsPDF(t *testing.T) {
 	rs := &Resource{
 		RequestService: service,
 		DecisionService: unavailableAdminSignatureDecisionService{summary: &RequestSummary{
-			Request: &Request{ID: 42, GuardianFirstName: "Anna", GuardianLastName: "Beispiel"},
+			Request: &capability.Request{ID: 42, GuardianFirstName: "Anna", GuardianLastName: "Beispiel"},
 		}},
 	}
 	adminTransactions := 0

@@ -86,9 +86,6 @@ func (d *Decisions) StudentDecisionRequests(ctx context.Context, studentID int64
 // assembles them; a CreatedStudentID keeps only that student's children.
 func (d *Decisions) listDecisionRequests(ctx context.Context, filters enrollmentNative.RequestListFilters, errPrefix string) ([]*enrollmentNative.DecisionSummary, error) {
 	requests, err := d.deps.Requests.AdminRequests(ctx, filters)
-	if err == nil {
-		_, err = requestValues(requests)
-	}
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", errPrefix, err)
 	}
@@ -137,10 +134,6 @@ func filterSummaryChildren(summary *enrollmentNative.DecisionSummary, studentID 
 func (d *Decisions) DecisionRequest(ctx context.Context, requestID int64) (publicResult *enrollmentNative.DecisionSummary, publicErr error) {
 	defer func() { publicErr = PublicError(publicErr) }()
 	req, err := d.deps.Requests.RequestByID(ctx, requestID, false)
-	var decoded *Request
-	if err == nil {
-		decoded, err = requestValue(req)
-	}
 	if err != nil {
 		return nil, careplan.ErrBookingRequestNotFound
 	}
@@ -150,7 +143,7 @@ func (d *Decisions) DecisionRequest(ctx context.Context, requestID int64) (publi
 	}
 	// Best effort: the detail still renders without the candidates, and the
 	// approval itself re-checks them and fails closed (#6053).
-	if err := d.attachExistingChildCandidates(ctx, decoded, summary); err != nil {
+	if err := d.attachExistingChildCandidates(ctx, req, summary); err != nil {
 		d.logger().Warn("decision: enrolled-child candidates unavailable",
 			slog.Int64("request_id", requestID),
 			slog.String("error", err.Error()),
@@ -182,9 +175,6 @@ func (d *Decisions) assemble(ctx context.Context, req *enrollmentNative.Request)
 		phase = nil
 	}
 	children, err := d.deps.Children.ChildrenForRequest(ctx, req.ID, false)
-	if err == nil {
-		_, err = childValues(children)
-	}
 	if err != nil {
 		return nil, fmt.Errorf("decision: list children for request %d: %w", req.ID, err)
 	}

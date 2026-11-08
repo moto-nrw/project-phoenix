@@ -23,9 +23,6 @@ func (d *Decisions) ListOfferingAdjustments(ctx context.Context, requestID, requ
 	// The child must belong to the request in the path: a mismatched pair
 	// answers not found instead of another request's trail.
 	raw, err := d.deps.Children.ChildByID(ctx, requestChildID)
-	if err == nil && raw != nil {
-		_, err = childValue(raw)
-	}
 	if err != nil || raw == nil || raw.RequestID != requestID {
 		return nil, careplan.ErrBookingChildNotFound
 	}
@@ -36,8 +33,8 @@ func (d *Decisions) ListOfferingAdjustments(ctx context.Context, requestID, requ
 type approvedChildSync struct {
 	input    enrollmentNative.ApprovedChildSync
 	snapshot map[string]any
-	request  *Request
-	child    *RequestChild
+	request  *enrollmentNative.Request
+	child    *enrollmentNative.RequestChild
 	student  *Student
 }
 
@@ -64,9 +61,6 @@ func (d *Decisions) SyncApprovedChildData(ctx context.Context, input enrollmentN
 		return nil, err
 	}
 	child, err := d.deps.Children.ChildByID(ctx, run.child.ID)
-	if err == nil {
-		_, err = childValue(child)
-	}
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +122,7 @@ func (d *Decisions) approvedChildDataChanged(ctx context.Context, run *approvedC
 		return false, nil
 	}
 	previous := mapFromAny(run.snapshot["custom_data"])
-	if jsonEqual(previous, run.request.CustomData) {
+	if jsonEqual(previous, formMap(run.request.CustomData)) {
 		return false, nil
 	}
 	schema, err := d.deps.Schemas.Schema(ctx, *run.request.SchemaID)
@@ -139,7 +133,7 @@ func (d *Decisions) approvedChildDataChanged(ctx context.Context, run *approvedC
 		return false, fmt.Errorf("%w: %d", enrollmentNative.ErrFormSchemaNotFound, *run.request.SchemaID)
 	}
 	for _, field := range schema.Fields {
-		if !field.AppliesToCh && isWeeklyPlanTarget(field.Target) && !jsonEqual(previous[field.Key], run.request.CustomData[field.Key]) {
+		if !field.AppliesToCh && isWeeklyPlanTarget(field.Target) && !jsonEqual(previous[field.Key], formValue(run.request.CustomData, field.Key)) {
 			return true, nil
 		}
 	}
@@ -152,7 +146,7 @@ var allChildFields = enrollmentNative.ApprovedChildCorrection{FirstName: true, L
 // childEnrollmentOnly leaves master data, guardians and form data alone
 // for an office match or an account-bound pin or rollover whose authority
 // has lapsed.
-func (d *Decisions) childEnrollmentOnly(ctx context.Context, request *Request, child *RequestChild) (bool, error) {
+func (d *Decisions) childEnrollmentOnly(ctx context.Context, request *enrollmentNative.Request, child *enrollmentNative.RequestChild) (bool, error) {
 	if child.MatchedByOffice {
 		return true, nil
 	}
@@ -175,13 +169,13 @@ const maxRolloverDepth = 50
 
 // rolloverFromParentPin reports whether a rollover descendant goes back to a
 // child the family pinned through its own relationship (#6053).
-func (d *Decisions) rolloverFromParentPin(ctx context.Context, child *RequestChild) (bool, error) {
+func (d *Decisions) rolloverFromParentPin(ctx context.Context, child *enrollmentNative.RequestChild) (bool, error) {
 	source := child
 	for depth := 0; source.RolloverSourceChildID != nil; depth++ {
 		if depth >= maxRolloverDepth {
 			return false, fmt.Errorf("decision: rollover chain of child %d exceeds %d phases", child.ID, maxRolloverDepth)
 		}
-		next, err := decodedChildByID(ctx, d.deps.Children, *source.RolloverSourceChildID)
+		next, err := d.deps.Children.ChildByID(ctx, *source.RolloverSourceChildID)
 		if err != nil && d.deps.Runtime.NotFound(err) {
 			return false, nil
 		}
@@ -197,11 +191,11 @@ func (d *Decisions) rolloverFromParentPin(ctx context.Context, child *RequestChi
 }
 
 func (d *Decisions) loadApprovedChildForSync(ctx context.Context, run *approvedChildSync) error {
-	req, err := decodedRequestByID(ctx, d.deps.Requests, run.input.RequestID, false)
+	req, err := d.deps.Requests.RequestByID(ctx, run.input.RequestID, false)
 	if err != nil {
 		return careplan.ErrBookingRequestNotFound
 	}
-	child, err := decodedChildByID(ctx, d.deps.Children, run.input.ChildID)
+	child, err := d.deps.Children.ChildByID(ctx, run.input.ChildID)
 	if err != nil || child == nil || child.RequestID != req.ID {
 		return careplan.ErrBookingChildNotFound
 	}
@@ -244,7 +238,7 @@ func (d *Decisions) syncApprovedChildStudent(ctx context.Context, run *approvedC
 
 // syncApprovedChildPerson writes the selected name and birthday fields of
 // the request child onto the child's person.
-func (d *Decisions) syncApprovedChildPerson(ctx context.Context, personID int64, child *RequestChild, fields enrollmentNative.ApprovedChildCorrection) error {
+func (d *Decisions) syncApprovedChildPerson(ctx context.Context, personID int64, child *enrollmentNative.RequestChild, fields enrollmentNative.ApprovedChildCorrection) error {
 	if !fields.FirstName && !fields.LastName && !fields.Birthday {
 		return nil
 	}
@@ -335,7 +329,7 @@ func (d *Decisions) syncApprovedChildGuardians(ctx context.Context, run *approve
 // the primary guardian link and, on a replacing edit, reconciles that link.
 // Without guardian profiles the request itself is the identity and no link
 // is touched.
-func (d *Decisions) approvedChildPrimaryGuardian(ctx context.Context, run *approvedChildSync) (*Request, *GuardianProfile, error) {
+func (d *Decisions) approvedChildPrimaryGuardian(ctx context.Context, run *approvedChildSync) (*enrollmentNative.Request, *GuardianProfile, error) {
 	if d.deps.People.GuardianProfiles == nil {
 		return run.request, nil, nil
 	}
@@ -356,7 +350,7 @@ func (d *Decisions) approvedChildPrimaryGuardian(ctx context.Context, run *appro
 // syncApprovedChildGuardianFields dispatches the targeted form fields for
 // the primary guardian, resolving the guardian when the edit did not
 // reconcile the link. A guardian that cannot be resolved skips the dispatch.
-func (d *Decisions) syncApprovedChildGuardianFields(ctx context.Context, run *approvedChildSync, guardianRequest *Request, guardian *GuardianProfile, keep map[int64]bool) error {
+func (d *Decisions) syncApprovedChildGuardianFields(ctx context.Context, run *approvedChildSync, guardianRequest *enrollmentNative.Request, guardian *GuardianProfile, keep map[int64]bool) error {
 	if d.deps.People.GuardianProfiles == nil {
 		return nil
 	}

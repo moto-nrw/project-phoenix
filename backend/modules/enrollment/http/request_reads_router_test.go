@@ -118,7 +118,7 @@ func (env *unreadEnv) submit(t *testing.T, children int) *enrollmentAPI.SubmitRe
 		GuardianFirstName: "Ulla",
 		GuardianLastName:  "Umbach",
 		GuardianEmail:     "unread-" + strconv.Itoa(children) + "@example.com",
-		ConsentFlags:      map[string]any{"agb": true, "data_processing": true, "email_contact": true, "photo": false},
+		ConsentFlags:      testFormValues(map[string]any{"agb": true, "data_processing": true, "email_contact": true, "photo": false}),
 	}
 	for i := range children {
 		req.Children = append(req.Children, enrollmentAPI.SubmitChild{

@@ -31,7 +31,7 @@ func TestAfterDecisionReconcilesFutureApprovedBooking(t *testing.T) {
 	})
 	studentID := int64(42)
 
-	err := decisions.afterDecision(context.Background(), &decisionTarget{child: &RequestChild{CreatedStudentID: &studentID}},
+	err := decisions.afterDecision(context.Background(), &decisionTarget{child: &enrollmentNative.RequestChild{CreatedStudentID: &studentID}},
 		&enrollmentNative.Phase{ServiceStartDate: enrollmentNative.Date("2027-08-01")}, enrollmentNative.DecideInput{
 			Status: enrollmentNative.DecisionApproved, SuppressParentEmail: true,
 		})

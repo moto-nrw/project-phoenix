@@ -105,7 +105,7 @@ func dedupePositiveInt64(ids []int64) []int64 {
 	return out
 }
 
-func careUsageRow(req *Request, child *reportChild, links []*enrollmentNative.RequestChildOfferingRecord, offeringByID map[int64]*offeringContract.CareOfferingRecord, includedOfferingIDs map[int64]bool, pickupByDay map[string]string) enrollmentNative.CareUsageRow {
+func careUsageRow(req *enrollmentNative.Request, child *enrollmentNative.RequestChild, links []*enrollmentNative.RequestChildOfferingRecord, offeringByID map[int64]*offeringContract.CareOfferingRecord, includedOfferingIDs map[int64]bool, pickupByDay map[string]string) enrollmentNative.CareUsageRow {
 	daySet := map[string]bool{}
 	rowOfferings := make([]enrollmentNative.CareUsageRowOffering, 0, len(links))
 	for _, link := range links {

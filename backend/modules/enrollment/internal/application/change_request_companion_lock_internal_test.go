@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -35,7 +36,7 @@ func companionLockChangeRequests(graph CompanionGraphCoordinator) *ChangeRequest
 func TestLockApprovedStudentsKeepsTheRetriableLockConflict(t *testing.T) {
 	t.Parallel()
 	studentID := int64(7)
-	children := []*RequestChild{{CreatedStudentID: &studentID}}
+	children := []*enrollment.RequestChild{{CreatedStudentID: &studentID}}
 
 	s := companionLockChangeRequests(busyCompanionGraph{err: careplan.ErrCompanionLockBusy})
 	err := s.lockApprovedStudents(context.Background(), children)

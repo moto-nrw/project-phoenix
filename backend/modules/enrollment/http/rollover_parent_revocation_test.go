@@ -33,7 +33,7 @@ func TestChangeRequestService_RolloverDescendantRechecksParentAuthority(t *testi
 			require.NoError(t, env.decide(t, enrollmentAPI.DecideInput{RequestID: submitted.Request.ID, ChildID: submitted.Children[0].ID}))
 
 			roll := validRolloverRequest(env.rolloverTestEnv, enrollment.PhaseRolloverModeOptOut, true)
-			var child *enrollmentAPI.RequestChild
+			var child *enrollment.RequestChild
 			for year := range 2 {
 				roll.Name += "-next"
 				roll.ServiceStartDate = calendar.NewDate(2027+year, 9, 1)
@@ -66,7 +66,7 @@ func TestChangeRequestService_RolloverDescendantRechecksParentAuthority(t *testi
 				}},
 			}
 			if scenario == "revoked_request_note" {
-				proposed.CustomData = map[string]any{"note": "Neuer Hinweis"}
+				proposed.CustomData = testFormValues(map[string]any{"note": "Neuer Hinweis"})
 			} else {
 				proposed.Children[0].LastName = "Geändert"
 			}

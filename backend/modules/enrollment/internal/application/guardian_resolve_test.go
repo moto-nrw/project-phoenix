@@ -88,7 +88,7 @@ func TestResolveGuardianProfile_PreservesEmailReadFailure(t *testing.T) {
 	failure := errors.New("guardian storage unavailable")
 	repo := &stubGuardianProfiles{byEmailErr: failure}
 	svc := guardianDecisions(withGuardianProfiles(repo))
-	profile, created, err := svc.resolveGuardianProfile(context.Background(), &Request{
+	profile, created, err := svc.resolveGuardianProfile(context.Background(), &enrollmentNative.Request{
 		GuardianEmail: "guardian@example.test", GuardianFirstName: "Anna", GuardianLastName: "Test",
 	})
 	require.ErrorIs(t, err, failure)
@@ -151,7 +151,7 @@ func TestGuardianIdentityRequest_UsesLateInviteRecipient(t *testing.T) {
 
 	repo := &stubLateInvites{invite: &enrollmentNative.LateInvite{GuardianEmail: "invited@example.test"}}
 	svc := guardianDecisions(DecisionDependencies{LateInvites: repo})
-	request := &Request{
+	request := &enrollmentNative.Request{
 		SubmissionSource: enrollmentNative.RequestSourceLateInvite,
 		GuardianEmail:    "corrected@example.test",
 	}
@@ -170,7 +170,7 @@ func TestGuardianIdentityRequest_AuthenticatedSubmitKeepsAccountIdentity(t *test
 
 	repo := &stubLateInvites{invite: &enrollmentNative.LateInvite{GuardianEmail: "invited@example.test"}}
 	svc := guardianDecisions(DecisionDependencies{LateInvites: repo})
-	request := &Request{
+	request := &enrollmentNative.Request{
 		SubmissionSource:  enrollmentNative.RequestSourceLateInvite,
 		GuardianAccountID: int64Ptr(23),
 		GuardianEmail:     "corrected@example.test",
@@ -187,7 +187,7 @@ func TestGuardianIdentityRequest_MissingLateInviteFailsClosed(t *testing.T) {
 	t.Parallel()
 
 	svc := guardianDecisions(DecisionDependencies{})
-	request := &Request{
+	request := &enrollmentNative.Request{
 		SubmissionSource: enrollmentNative.RequestSourceLateInvite,
 		GuardianEmail:    "corrected@example.test",
 	}
@@ -214,7 +214,7 @@ func TestResolveGuardianProfile_RejectsCrossAccountEmail(t *testing.T) {
 	}
 	svc := guardianDecisions(withGuardianProfiles(repo))
 
-	req := &Request{
+	req := &enrollmentNative.Request{
 		GuardianAccountID: int64Ptr(callerAccount),
 		GuardianEmail:     "victim@example.test",
 		GuardianFirstName: "Anna",
@@ -245,7 +245,7 @@ func TestResolveGuardianProfile_PrefersAuthenticatedAccountProfile(t *testing.T)
 	}
 	svc := guardianDecisions(withGuardianProfiles(repo))
 
-	req := &Request{
+	req := &enrollmentNative.Request{
 		GuardianAccountID: int64Ptr(callerAccount),
 		GuardianEmail:     "victim@example.test",
 	}
@@ -309,7 +309,7 @@ func TestResolveGuardianProfile_RejectsForeignUnclaimedEmailProfile(t *testing.T
 	deps.GuardianAccess = accounts
 	svc := guardianDecisions(deps)
 
-	req := &Request{
+	req := &enrollmentNative.Request{
 		GuardianAccountID: int64Ptr(callerAccount),
 		GuardianEmail:     "victim@example.test",
 		GuardianFirstName: "Anna",
@@ -341,7 +341,7 @@ func TestResolveGuardianProfile_AllowsOwnUnclaimedEmailProfile(t *testing.T) {
 	deps.GuardianAccess = accounts
 	svc := guardianDecisions(deps)
 
-	req := &Request{
+	req := &enrollmentNative.Request{
 		GuardianAccountID: int64Ptr(callerAccount),
 		GuardianEmail:     "anna@example.test",
 		GuardianFirstName: "Anna",
@@ -370,7 +370,7 @@ func TestResolveGuardianProfile_PropagatesAccountLookupFailure(t *testing.T) {
 	}
 	svc := guardianDecisions(withGuardianProfiles(repo))
 
-	req := &Request{
+	req := &enrollmentNative.Request{
 		GuardianAccountID: int64Ptr(callerAccount),
 		GuardianEmail:     "anna@example.test",
 		GuardianFirstName: "Anna",
@@ -403,7 +403,7 @@ func TestResolveGuardianProfile_RequiresGuardianAccessForUnclaimedEmailProfile(t
 	}
 	svc := guardianDecisions(withGuardianProfiles(repo))
 
-	req := &Request{
+	req := &enrollmentNative.Request{
 		GuardianAccountID: int64Ptr(callerAccount),
 		GuardianEmail:     "anna@example.test",
 		GuardianFirstName: "Anna",
@@ -433,7 +433,7 @@ func TestResolveGuardianProfile_AllowsUnclaimedEmailProfileWhenSubmitterAccountI
 	deps.GuardianAccess = &stubGuardianAccess{byID: map[int64]identityaccess.Account{}}
 	svc := guardianDecisions(deps)
 
-	req := &Request{
+	req := &enrollmentNative.Request{
 		GuardianAccountID: int64Ptr(callerAccount),
 		GuardianEmail:     "anna@example.test",
 		GuardianFirstName: "Anna",
@@ -472,7 +472,7 @@ func TestAttachGuardianAccountIfPresent_ReactivatesLinkedAccountTenant(t *testin
 	svc := guardianDecisions(DecisionDependencies{GuardianAccess: access})
 
 	ctx := withTestTenant(context.Background(), tenantID)
-	require.NoError(t, svc.attachGuardianAccountIfPresent(ctx, &Request{}, guardian, false))
+	require.NoError(t, svc.attachGuardianAccountIfPresent(ctx, &enrollmentNative.Request{}, guardian, false))
 
 	require.Len(t, access.grants, 1,
 		"an already-linked guardian must still be (re)granted ACTIVE access to this school")
@@ -488,6 +488,6 @@ func TestAttachGuardianAccountIfPresent_RequiresGuardianAccess(t *testing.T) {
 	guardian := &GuardianProfile{ID: 5, AccountID: int64Ptr(4242), HasAccount: true}
 	svc := guardianDecisions(DecisionDependencies{})
 	ctx := withTestTenant(context.Background(), 77)
-	err := svc.attachGuardianAccountIfPresent(ctx, &Request{}, guardian, false)
+	err := svc.attachGuardianAccountIfPresent(ctx, &enrollmentNative.Request{}, guardian, false)
 	require.ErrorIs(t, err, errDecisionGuardianAccessRequired)
 }

@@ -306,7 +306,7 @@ func buildStudentEnrollmentExportRecords(data *StudentEnrollmentExport, title st
 // studentEnrollmentRecord is one enrollment of the child. The export is about
 // one child, so the block names the enrollment instead of repeating the
 // guardian's contact.
-func studentEnrollmentRecord(req *Request, phase *capability.Phase, ch ExportChildRow, guardianCustoms, childCustoms []capability.FormField) lists.Record {
+func studentEnrollmentRecord(req *capability.Request, phase *capability.Phase, ch ExportChildRow, guardianCustoms, childCustoms []capability.FormField) lists.Record {
 	return enrollmentChildBlock{
 		Name:  childFullName(ch.Child),
 		Child: childFields(ch, childCustoms),
@@ -343,7 +343,7 @@ func studentEnrollmentExportHead(data *StudentEnrollmentExport, title string) en
 	return enrollmentExportHead{Title: title, Subtitle: studentEnrollmentExportSubtitle(data)}
 }
 
-func studentEnrollmentRowValues(req *Request, phase *capability.Phase, ch ExportChildRow, guardianCustoms, childCustoms []capability.FormField) map[lists.ColumnID]string {
+func studentEnrollmentRowValues(req *capability.Request, phase *capability.Phase, ch ExportChildRow, guardianCustoms, childCustoms []capability.FormField) map[lists.ColumnID]string {
 	values := submissionRowValues(req, guardianCustoms)
 	values["phase"] = phaseNameForExport(phase)
 	return childRowValues(values, ch, childCustoms)
@@ -438,7 +438,7 @@ func phaseExportRows(data *PhaseExport, guardianCustoms, childCustoms []capabili
 	return rows
 }
 
-func guardianRowValues(req *Request, guardians []*capability.RequestGuardian, guardianCustoms []capability.FormField) map[lists.ColumnID]string {
+func guardianRowValues(req *capability.Request, guardians []*capability.RequestGuardian, guardianCustoms []capability.FormField) map[lists.ColumnID]string {
 	values := submissionRowValues(req, guardianCustoms)
 	values["guardian_last_name"] = req.GuardianLastName
 	values["guardian_first_name"] = req.GuardianFirstName
@@ -460,7 +460,7 @@ func childRowValues(guardianValues map[lists.ColumnID]string, ch ExportChildRow,
 	values["child_activation"] = activationSummary(c)
 	values["child_offerings"] = formatOfferings(ch.Offerings)
 	for _, cf := range childCustoms {
-		if v, ok := c.CustomData[cf.Key]; ok {
+		if v, ok := c.CustomData.Lookup(cf.Key); ok {
 			values[lists.ColumnID("custom_c_"+cf.Key)] = formatCustomValue(cf, v)
 		}
 	}
@@ -511,7 +511,7 @@ func collectCustomFields(schemas map[int64]*capability.FormSchema) (guardian, ch
 	return guardian, child
 }
 
-func guardianFullName(req *Request) string {
+func guardianFullName(req *capability.Request) string {
 	name := strings.TrimSpace(req.GuardianFirstName + " " + req.GuardianLastName)
 	if name == "" {
 		return "Anmeldung"

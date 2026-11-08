@@ -148,9 +148,9 @@ func (f *carryFixture) child(schoolClass string, bookings map[*offeringContract.
 		TenantID: testpkg.Tenant(f.t), PhaseID: f.env.sourcePhase.ID,
 		GuardianFirstName: "Eltern", GuardianLastName: "Muster",
 		GuardianEmail: fmt.Sprintf("carry-5342-%d@example.com", f.seq),
-		ConsentFlags: map[string]any{
+		ConsentFlags: testFormValues(map[string]any{
 			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
-		},
+		}),
 		Children: []enrollmentAPI.SubmitChild{{
 			// A distinct child per call: the same name and birthday twice
 			// would be the already enrolled child (#6053).

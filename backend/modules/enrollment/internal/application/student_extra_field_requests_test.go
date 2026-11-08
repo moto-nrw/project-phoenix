@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
@@ -17,7 +16,7 @@ import (
 // of the shared batch.
 func TestStudentExtraFieldRequestsPreservesScalarResults(t *testing.T) {
 	t.Parallel()
-	for _, scenario := range []string{"historical phases", "missing phase", "phase batch failure", "children batch failure", "guardians batch failure", "invalid sibling", "invalid later child", "invalid request", "optional guardians", "empty", "invalid student"} {
+	for _, scenario := range []string{"historical phases", "missing phase", "phase batch failure", "children batch failure", "guardians batch failure", "optional guardians", "empty", "invalid student"} {
 		t.Run(scenario, func(t *testing.T) {
 			t.Parallel()
 			records := extraFieldRequestRecords(t)
@@ -28,12 +27,6 @@ func TestStudentExtraFieldRequestsPreservesScalarResults(t *testing.T) {
 				records.phases = records.phases[:1]
 			case "phase batch failure", "children batch failure", "guardians batch failure":
 				records.batchFailure = scenario
-			case "invalid sibling":
-				records.children[0].CustomData = json.RawMessage(`[]`)
-			case "invalid later child":
-				records.children[1].CustomData = json.RawMessage(`[]`)
-			case "invalid request":
-				records.requests[1].CustomData = json.RawMessage(`[]`)
 			case "optional guardians":
 				guardians = nil
 			case "empty":
@@ -65,9 +58,6 @@ func scalarStudentDecisionRequests(ctx context.Context, d *Decisions, studentID 
 		return nil, errors.New("decision: student_id required")
 	}
 	requests, err := d.deps.Requests.AdminRequests(ctx, enrollment.RequestListFilters{CreatedStudentID: studentID})
-	if err == nil {
-		_, err = requestValues(requests)
-	}
 	if err != nil {
 		return nil, fmt.Errorf("decision: list requests by student: %w", err)
 	}
@@ -170,7 +160,7 @@ func TestStudentExtraFieldRequestsExcludeOfficeMatchesButKeepHistory(t *testing.
 			records.batchFailure = failure
 			for _, child := range records.children[2:] {
 				child.MatchedByOffice = true
-				child.CustomData = json.RawMessage(`{"health_info":"unrelated answer"}`)
+				child.CustomData = formValues(map[string]any{"health_info": "unrelated answer"})
 			}
 			decisions := NewDecisions(DecisionDependencies{Requests: records, Children: records, Phases: records, Guardians: records, Settings: unusedDecisionSettings{}})
 			extra, err := decisions.StudentExtraFieldRequests(t.Context(), 41)

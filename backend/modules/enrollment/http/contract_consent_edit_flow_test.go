@@ -91,7 +91,7 @@ func TestContractConsentSurvivesTheParentsEdit(t *testing.T) {
 			submitted, err := env.requests.Submit(ctx, enrollmentAPI.SubmitRequest{
 				TenantID: env.tenantID, PhaseID: env.phaseID, DisplayedFormSchemaID: schemaID,
 				GuardianFirstName: "Erika", GuardianLastName: "Muster", GuardianEmail: "erika.muster@example.com",
-				ConsentFlags: map[string]any{"agb": true, "data_processing": true, "email_contact": true, "care_contract": true},
+				ConsentFlags: testFormValues(map[string]any{"agb": true, "data_processing": true, "email_contact": true, "care_contract": true}),
 				Children: []enrollmentAPI.SubmitChild{{
 					FirstName: "Lina", LastName: "Muster", DateOfBirth: calendar.NewDate(2018, 4, 15), TargetGradeLevel: testpkg.Int16Ptr(1),
 				}},
@@ -152,7 +152,7 @@ func TestAcceptedContractApplicationsExcludeOfficeMatches(t *testing.T) {
 	submitted, err := env.requests.Submit(ctx, enrollmentAPI.SubmitRequest{
 		TenantID: testpkg.Tenant(t), PhaseID: env.phaseID, DisplayedFormSchemaID: schemaID,
 		GuardianFirstName: "Erika", GuardianLastName: "Muster", GuardianEmail: "erika.muster@example.com",
-		ConsentFlags: map[string]any{"agb": true, "data_processing": true, "email_contact": true, "care_contract": true},
+		ConsentFlags: testFormValues(map[string]any{"agb": true, "data_processing": true, "email_contact": true, "care_contract": true}),
 		Children: []enrollmentAPI.SubmitChild{
 			{FirstName: "Lina", LastName: "Muster", DateOfBirth: existingChildBirthday, TargetGradeLevel: testpkg.Int16Ptr(1)},
 			{FirstName: "Paul", LastName: "Offen", DateOfBirth: existingChildBirthday, TargetGradeLevel: testpkg.Int16Ptr(1)},

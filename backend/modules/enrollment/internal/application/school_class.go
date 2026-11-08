@@ -3,6 +3,8 @@ package application
 import (
 	"strconv"
 	"strings"
+
+	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 // gradeToClass renders the optional grade level into the student's
@@ -40,7 +42,7 @@ func isBareGradePlaceholderClass(class string) bool {
 // concreteSchoolClass returns the trimmed concrete class the parent
 // chose at enrollment (e.g. "2a"), or "" when none was collected
 // ("Klasse offen"). Issue #1833.
-func concreteSchoolClass(child *RequestChild) string {
+func concreteSchoolClass(child *enrollment.RequestChild) string {
 	if child.TargetSchoolClass == nil {
 		return ""
 	}
@@ -53,7 +55,7 @@ func concreteSchoolClass(child *RequestChild) string {
 // only for brand-new student rows — never to overwrite an existing
 // student, where clobbering a concrete "2a" with a bare grade number
 // would lose information (see the rollover/adjustment paths). Issue #1833.
-func resolveSchoolClass(child *RequestChild) string {
+func resolveSchoolClass(child *enrollment.RequestChild) string {
 	if concrete := concreteSchoolClass(child); concrete != "" {
 		return concrete
 	}
@@ -88,7 +90,7 @@ func resolveSchoolClass(child *RequestChild) string {
 //     carry no derivable grade and are left untouched.
 //
 // Mirrors the bare-placeholder check of the approved-child sync (#1833).
-func resolveRolloverSchoolClass(child *RequestChild, existingClass string) string {
+func resolveRolloverSchoolClass(child *enrollment.RequestChild, existingClass string) string {
 	if concrete := concreteSchoolClass(child); concrete != "" {
 		return concrete
 	}

@@ -21,8 +21,8 @@ import (
 type approval struct {
 	row               *ChangeRequest
 	input             enrollmentNative.ReviewChangeRequestInput
-	req               *Request
-	children          []*RequestChild
+	req               *enrollmentNative.Request
+	children          []*enrollmentNative.RequestChild
 	prepared          *proposal
 	capabilities      enrollmentNative.FormCapabilities
 	previousGuardians []*enrollmentNative.RequestGuardian
@@ -110,12 +110,12 @@ func (s *ChangeRequests) loadApproval(ctx context.Context, row *ChangeRequest, i
 
 // lockApprovalRequest locks the request and its children and refuses a
 // withdrawn child or a base snapshot that no longer matches.
-func (s *ChangeRequests) lockApprovalRequest(ctx context.Context, row *ChangeRequest) (*Request, []*RequestChild, error) {
+func (s *ChangeRequests) lockApprovalRequest(ctx context.Context, row *ChangeRequest) (*enrollmentNative.Request, []*enrollmentNative.RequestChild, error) {
 	req, err := s.requestByID(ctx, row.RequestID, true)
 	if err != nil {
 		return nil, nil, err
 	}
-	children, err := decodedChildrenOfRequest(ctx, s.deps.Children, req.ID, true)
+	children, err := s.deps.Children.ChildrenForRequest(ctx, req.ID, true)
 	if err != nil {
 		return nil, nil, fmt.Errorf("change request approve: lock children: %w", err)
 	}
@@ -128,7 +128,7 @@ func (s *ChangeRequests) lockApprovalRequest(ctx context.Context, row *ChangeReq
 	if err != nil {
 		return nil, nil, err
 	}
-	if !jsonEqual(current, row.BaseSnapshot) {
+	if !jsonEqual(current, withEmptyFormValues(row.BaseSnapshot)) {
 		return nil, nil, enrollmentNative.ErrChangeRequestConflict
 	}
 	return req, children, nil
@@ -160,9 +160,9 @@ func (s *ChangeRequests) writeApprovedRequest(ctx context.Context, run *approval
 	req.GuardianLastName = textnorm.Name(prepared.GuardianLastName)
 	req.GuardianEmail = guardianEmailKey(prepared.GuardianEmail)
 	req.GuardianPhone = prepared.GuardianPhone
-	req.ConsentFlags = prepared.ConsentFlags
-	req.CustomData = prepared.CustomData
-	if err := updateDecodedRequest(ctx, s.deps.Requests, req, true); err != nil {
+	req.ConsentFlags = formValues(prepared.ConsentFlags)
+	req.CustomData = formValues(prepared.CustomData)
+	if err := s.deps.Requests.UpdateRequestGuardian(ctx, req, true); err != nil {
 		return err
 	}
 	if s.deps.Guardians == nil {
@@ -179,7 +179,7 @@ func (s *ChangeRequests) writeApprovedRequest(ctx context.Context, run *approval
 // applyApprovedChild writes one child's proposed data. A child the decision
 // flow already approved goes through it; any other child gets its bookings
 // replaced and its status adjusted.
-func (s *ChangeRequests) applyApprovedChild(ctx context.Context, run *approval, i int, existing *RequestChild) error {
+func (s *ChangeRequests) applyApprovedChild(ctx context.Context, run *approval, i int, existing *enrollmentNative.RequestChild) error {
 	next := run.prepared.request.Children[i]
 	// Re-point the existing_students pin before the proposed identity
 	// overwrites the row, and re-run the uniqueness guard for a child that
@@ -192,9 +192,9 @@ func (s *ChangeRequests) applyApprovedChild(ctx context.Context, run *approval, 
 	existing.DateOfBirth = next.DateOfBirth
 	existing.TargetGradeLevel = next.TargetGradeLevel
 	existing.TargetSchoolClass = next.TargetSchoolClass
-	existing.CustomData = next.CustomData
+	existing.CustomData = formValues(next.CustomData)
 	existing.SortOrder = i
-	if err := updateDecodedChild(ctx, s.deps.Children, existing); err != nil {
+	if err := s.deps.Children.UpdateChildData(ctx, existing); err != nil {
 		return err
 	}
 	if s.approvedChildUsesDecisionSync(existing) {
@@ -206,7 +206,7 @@ func (s *ChangeRequests) applyApprovedChild(ctx context.Context, run *approval, 
 // syncApprovedChild applies the proposal to a child whose student exists.
 // The offering capability is the one frozen at creation: a later setting
 // change must not discard a reviewed offering change.
-func (s *ChangeRequests) syncApprovedChild(ctx context.Context, run *approval, existing *RequestChild, selections []selection.Selection) error {
+func (s *ChangeRequests) syncApprovedChild(ctx context.Context, run *approval, existing *enrollmentNative.RequestChild, selections []selection.Selection) error {
 	if run.row.CareOfferingsEnabledAtCreation {
 		offeringInput := enrollmentNative.UpdateChildOfferingsInput{
 			RequestID: run.req.ID, ChildID: existing.ID, Reason: run.input.Note,
@@ -241,7 +241,7 @@ func (s *ChangeRequests) syncApprovedChild(ctx context.Context, run *approval, e
 // applyUndecidedChild replaces the bookings of a child without a student and
 // applies its capacity override, or reopens a rejected child whose own data
 // changed.
-func (s *ChangeRequests) applyUndecidedChild(ctx context.Context, run *approval, i int, existing *RequestChild) error {
+func (s *ChangeRequests) applyUndecidedChild(ctx context.Context, run *approval, i int, existing *enrollmentNative.RequestChild) error {
 	replacement := make([]*enrollmentNative.RequestChildOfferingRecord, 0, len(run.prepared.selections[i]))
 	for _, pick := range run.prepared.selections[i] {
 		replacement = append(replacement, &enrollmentNative.RequestChildOfferingRecord{
@@ -306,7 +306,7 @@ func changeCareBookings(ctx context.Context, commands CareBookingChanges, childI
 // write, and of their "läuft mit" companions, up front in the global
 // ascending-id order; the per-child writes would otherwise lock in
 // enrollment order and deadlock against a companion edit.
-func (s *ChangeRequests) lockApprovedStudents(ctx context.Context, children []*RequestChild) error {
+func (s *ChangeRequests) lockApprovedStudents(ctx context.Context, children []*enrollmentNative.RequestChild) error {
 	if s.deps.Companions == nil {
 		return nil
 	}
@@ -353,7 +353,7 @@ func (s *ChangeRequests) verifyCompanionStrandingBatch(ctx context.Context) erro
 
 // reconcileApprovedPickups refreshes the students' booking-derived pickup
 // times the replaced bookings may have changed.
-func (s *ChangeRequests) reconcileApprovedPickups(ctx context.Context, children []*RequestChild) error {
+func (s *ChangeRequests) reconcileApprovedPickups(ctx context.Context, children []*enrollmentNative.RequestChild) error {
 	if s.deps.Decisions == nil || s.deps.BookingGates == nil {
 		return nil
 	}
@@ -376,7 +376,7 @@ func (s *ChangeRequests) notifyApprovedCapacityDecisions(ctx context.Context, ru
 	if len(run.newlyWaitlisted) == 0 {
 		return nil
 	}
-	refreshed, err := decodedChildrenOfRequest(ctx, s.deps.Children, run.req.ID, false)
+	refreshed, err := s.deps.Children.ChildrenForRequest(ctx, run.req.ID, false)
 	if err != nil {
 		return fmt.Errorf("change request approve: refresh capacity decisions: %w", err)
 	}
@@ -439,7 +439,7 @@ func (s *ChangeRequests) capacityCandidates(run *approval) ([]SubmitChild, []int
 	return candidates, candidateIndexes, preservedChildIDs
 }
 
-func (s *ChangeRequests) approvedChildUsesDecisionSync(child *RequestChild) bool {
+func (s *ChangeRequests) approvedChildUsesDecisionSync(child *enrollmentNative.RequestChild) bool {
 	return child != nil &&
 		child.Status == enrollmentNative.ChildStatusApproved &&
 		child.CreatedStudentID != nil &&
@@ -449,7 +449,7 @@ func (s *ChangeRequests) approvedChildUsesDecisionSync(child *RequestChild) bool
 // postApprovalChildStatus predicts the status a child ends the approval with:
 // a capacity override wins, otherwise a rejected child whose data changed is
 // reopened, otherwise the status stays.
-func postApprovalChildStatus(row *ChangeRequest, existing *RequestChild, overrides map[int]string, index int) string {
+func postApprovalChildStatus(row *ChangeRequest, existing *enrollmentNative.RequestChild, overrides map[int]string, index int) string {
 	if status, ok := overrides[index]; ok {
 		return status
 	}
@@ -466,7 +466,7 @@ func postApprovalChildStatus(row *ChangeRequest, existing *RequestChild, overrid
 // reopened rejection competes again. Children with a student or a rollover
 // source are skipped. Call it before the proposed identity overwrites the
 // row.
-func (s *ChangeRequests) reconcileMatchedStudent(ctx context.Context, run *approval, existing *RequestChild, next SubmitChild, index int) error {
+func (s *ChangeRequests) reconcileMatchedStudent(ctx context.Context, run *approval, existing *enrollmentNative.RequestChild, next SubmitChild, index int) error {
 	phase := run.prepared.phase
 	if existing.CreatedStudentID != nil || existing.RolloverSourceChildID != nil {
 		return nil
@@ -500,7 +500,7 @@ func (s *ChangeRequests) reconcileMatchedStudent(ctx context.Context, run *appro
 
 // reconciledPin resolves the pin the child carries after the approval and
 // authorizes it against the stored request's identity.
-func (s *ChangeRequests) reconciledPin(ctx context.Context, run *approval, existing *RequestChild, next SubmitChild, index int) (*int64, error) {
+func (s *ChangeRequests) reconciledPin(ctx context.Context, run *approval, existing *enrollmentNative.RequestChild, next SubmitChild, index int) (*int64, error) {
 	phase, req := run.prepared.phase, run.req
 	pin := existing.MatchedStudentID
 	if pin != nil && !sameSubmittedIdentity(existing, next) {
@@ -545,7 +545,7 @@ func childStatusCountsForCapacity(status string) bool {
 
 // ensureNoActiveDuplicateForApproval applies the duplicate policy to the
 // approved identities under the submission's dedup lock.
-func (s *ChangeRequests) ensureNoActiveDuplicateForApproval(ctx context.Context, req *Request, prepared SubmitRequest) error {
+func (s *ChangeRequests) ensureNoActiveDuplicateForApproval(ctx context.Context, req *enrollmentNative.Request, prepared SubmitRequest) error {
 	emailLC := guardianEmailKey(req.GuardianEmail)
 	if err := s.deps.Requests.AcquireSubmissionDedupLock(ctx, req.PhaseID, enrollmentNative.SubmissionDedupLockKey(emailLC)); err != nil {
 		return fmt.Errorf("change request approve: acquire duplicate lock: %w", err)

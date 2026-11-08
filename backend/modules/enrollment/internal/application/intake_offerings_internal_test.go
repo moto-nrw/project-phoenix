@@ -80,7 +80,7 @@ func TestChangeRequestCareOfferingsUseEachChildsGradeIndependently(t *testing.T)
 			{TargetGradeLevel: &grade2, OfferingIDs: []int64{10}},
 			{TargetGradeLevel: &grade3, OfferingIDs: []int64{20}},
 		},
-		[]*RequestChild{{}, {}},
+		[]*enrollmentNative.RequestChild{{}, {}},
 		[]map[int64]*offeringContract.CareOfferingRecord{catalog, catalog},
 		enrollmentNative.PhaseCareOfferingSelectionOptional,
 		false,
@@ -110,7 +110,7 @@ func TestChangeRequestCareOfferingsRejectSameDayVariants(t *testing.T) {
 
 	_, err := materializeChangeRequestChildren(
 		children,
-		[]*RequestChild{{}},
+		[]*enrollmentNative.RequestChild{{}},
 		[]map[int64]*offeringContract.CareOfferingRecord{{first.ID: first, second.ID: second}},
 		enrollmentNative.PhaseCareOfferingSelectionOptional,
 		false,

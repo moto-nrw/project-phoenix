@@ -154,10 +154,10 @@ func createBudgetRequest(
 	sourceChildID *int64,
 ) int64 {
 	t.Helper()
-	request := &enrollmentAPI.Request{
+	request := &enrollmentNative.Request{
 		PhaseID: phaseID, GuardianFirstName: "Budget", GuardianLastName: "Test",
-		GuardianEmail: prefix + "@example.test", ConsentFlags: map[string]any{}, CustomData: map[string]any{},
-		SubmissionSource: enrollmentNative.RequestSourcePublic, SourceMetadata: map[string]any{}, StatusToken: prefix,
+		GuardianEmail: prefix + "@example.test", ConsentFlags: testFormValues(map[string]any{}), CustomData: testFormValues(map[string]any{}),
+		SubmissionSource: enrollmentNative.RequestSourcePublic, SourceMetadata: testFormValues(map[string]any{}), StatusToken: prefix,
 	}
 	require.NoError(t, enrollmentAPI.InsertOwnerRequestForTest(testpkg.Ctx(t), env.repos.Enrollment(), request))
 	for i := range childCount {
@@ -176,9 +176,9 @@ func createBudgetRequestChild(
 	sourceChildID *int64,
 ) {
 	t.Helper()
-	child := &enrollmentAPI.RequestChild{
+	child := &enrollmentNative.RequestChild{
 		RequestID: requestID, FirstName: fmt.Sprintf("Child%d", sortOrder), LastName: prefix,
-		DateOfBirth: "2018-04-15", CustomData: map[string]any{}, Status: status,
+		DateOfBirth: "2018-04-15", CustomData: testFormValues(map[string]any{}), Status: status,
 		ActivationMode: enrollmentNative.ChildActivationScheduled, SortOrder: sortOrder, RolloverSourceChildID: sourceChildID,
 	}
 	require.NoError(t, enrollmentAPI.InsertOwnerChildForTest(testpkg.Ctx(t), env.repos.Enrollment(), child))

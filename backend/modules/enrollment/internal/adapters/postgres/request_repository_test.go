@@ -42,7 +42,7 @@ func uniqueToken(prefix string) string {
 func makeOwnerRequest(phaseID int64, token, email string) *capability.Request {
 	return &capability.Request{
 		PhaseID: phaseID, GuardianFirstName: "Anna", GuardianLastName: "Beispiel", GuardianEmail: email,
-		ConsentFlags: []byte("{}"), CustomData: []byte("{}"), StatusToken: token, SubmittedAt: time.Now().UTC(),
+		StatusToken: token, SubmittedAt: time.Now().UTC(),
 	}
 }
 

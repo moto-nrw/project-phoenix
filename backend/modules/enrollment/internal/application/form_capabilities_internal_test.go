@@ -73,7 +73,7 @@ func TestNormalizeSubmissionForCapabilities_RejectsForgedOfferings(t *testing.T)
 func TestAllChildrenParentResolved(t *testing.T) {
 	t.Parallel()
 
-	resolved := []*RequestChild{
+	resolved := []*enrollmentNative.RequestChild{
 		{Status: enrollmentNative.ChildStatusApproved},
 		{Status: enrollmentNative.ChildStatusRejected},
 		{Status: enrollmentNative.ChildStatusWaitlisted},

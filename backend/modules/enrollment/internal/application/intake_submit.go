@@ -20,15 +20,12 @@ import (
 // Either everything lands or nothing does. The phase carries the window, the
 // form schema and the overflow mode.
 func (s *Intake) Submit(ctx context.Context, req enrollmentNative.SubmitRequest) (*enrollmentNative.SubmitResult, error) {
-	decoded, err := decodeSubmitRequest(req)
-	if err != nil {
-		return nil, err
-	}
+	decoded := decodeSubmitRequest(req)
 	outcome, err := s.submit(ctx, decoded)
 	if err != nil {
 		return nil, publicError(err)
 	}
-	return outcome.public()
+	return outcome.public(), nil
 }
 
 // submissionPlan is everything a submission resolves before its write
@@ -186,7 +183,7 @@ func (s *Intake) planSubmissionContract(ctx context.Context, req *SubmitRequest,
 
 // validateSubmittedFields runs the required-field, companion-note and
 // schedule checks of the form.
-func validateSubmittedFields(schema *enrollmentNative.FormSchema, req SubmitRequest, openByID map[int64]*offeringContract.CareOfferingRecord, existingChildren []*RequestChild) error {
+func validateSubmittedFields(schema *enrollmentNative.FormSchema, req SubmitRequest, openByID map[int64]*offeringContract.CareOfferingRecord, existingChildren []*enrollmentNative.RequestChild) error {
 	if err := validateRequiredCustomFields(schema, req, openByID); err != nil {
 		return err
 	}
@@ -312,7 +309,7 @@ func (s *Intake) checkSubmissionDuplicates(ctx context.Context, phaseID int64, g
 	}
 }
 
-func (s *Intake) createSubmittedRequest(ctx context.Context, req *SubmitRequest, plan *submissionPlan, lateInvite *enrollmentNative.LateInvite) (*Request, error) {
+func (s *Intake) createSubmittedRequest(ctx context.Context, req *SubmitRequest, plan *submissionPlan, lateInvite *enrollmentNative.LateInvite) (*enrollmentNative.Request, error) {
 	var schemaID *int64
 	if plan.schema != nil {
 		id := plan.schema.ID
@@ -327,16 +324,16 @@ func (s *Intake) createSubmittedRequest(ctx context.Context, req *SubmitRequest,
 		return nil, err
 	}
 	statusExpiresAt := plan.statusExpiresAt
-	request := &Request{
+	request := &enrollmentNative.Request{
 		SchemaID: schemaID, PhaseID: plan.phase.ID, GuardianAccountID: req.GuardianAccountID,
 		GuardianFirstName: textnorm.Name(req.GuardianFirstName), GuardianLastName: textnorm.Name(req.GuardianLastName),
 		GuardianEmail: guardianEmailKey(req.GuardianEmail), GuardianPhone: req.GuardianPhone,
-		ConsentFlags: req.ConsentFlags, CustomData: req.CustomData,
-		SubmissionSource: plan.submissionSource, SourceMetadata: plan.sourceMetadata,
+		ConsentFlags: formValues(req.ConsentFlags), CustomData: formValues(req.CustomData),
+		SubmissionSource: plan.submissionSource, SourceMetadata: formValues(plan.sourceMetadata),
 		StatusToken: plan.statusToken, StatusTokenExpires: &statusExpiresAt, SubmittedAt: time.Now(),
-		LegalBlocksSnapshot: []LegalBlocksSnapshotEntry{snapshotEntry},
+		LegalBlocksSnapshot: []enrollmentNative.LegalBlocksSnapshotEntry{snapshotEntry},
 	}
-	if err := createDecodedRequest(ctx, s.deps.Requests, request); err != nil {
+	if err := s.deps.Requests.InsertRequest(ctx, request); err != nil {
 		return nil, fmt.Errorf("submit: create request: %w", err)
 	}
 	if err := s.claimFileUploads(ctx, claims, request.ID); err != nil {
@@ -371,8 +368,8 @@ func createRequestGuardians(ctx context.Context, owner IntakeGuardians, requestI
 	return nil
 }
 
-func (s *Intake) createSubmittedChildren(ctx context.Context, req *SubmitRequest, plan *submissionPlan, request *Request, overrides map[int]string, submitter reEnrollmentSubmitter) ([]*RequestChild, error) {
-	created := make([]*RequestChild, 0, len(req.Children))
+func (s *Intake) createSubmittedChildren(ctx context.Context, req *SubmitRequest, plan *submissionPlan, request *enrollmentNative.Request, overrides map[int]string, submitter reEnrollmentSubmitter) ([]*enrollmentNative.RequestChild, error) {
+	created := make([]*enrollmentNative.RequestChild, 0, len(req.Children))
 	for i, child := range req.Children {
 		row := newSubmittedChild(request.ID, i, child, overrides)
 		matchedStudentID, err := s.submittedChildPin(ctx, req.TenantID, plan.phase, i, child, submitter)
@@ -391,7 +388,7 @@ func (s *Intake) createSubmittedChildren(ctx context.Context, req *SubmitRequest
 			return nil, err
 		}
 		row.MatchedStudentID = matchedStudentID
-		if err := createDecodedChild(ctx, s.deps.Children, row); err != nil {
+		if err := s.deps.Children.InsertChild(ctx, row); err != nil {
 			return nil, fmt.Errorf("submit: create request child %d: %w", i, err)
 		}
 		if err := s.recordOfferingSubmission(ctx, row.ID, plan.selections[i], plan.phase.ServiceStartDate, plan.phase.ServiceEndDate); err != nil {
@@ -404,15 +401,15 @@ func (s *Intake) createSubmittedChildren(ctx context.Context, req *SubmitRequest
 
 // newSubmittedChild is the stored row of a submitted child; a capacity
 // override replaces the submitted status.
-func newSubmittedChild(requestID int64, index int, child SubmitChild, overrides map[int]string) *RequestChild {
+func newSubmittedChild(requestID int64, index int, child SubmitChild, overrides map[int]string) *enrollmentNative.RequestChild {
 	status := enrollmentNative.ChildStatusSubmitted
 	if override, ok := overrides[index]; ok {
 		status = override
 	}
-	return &RequestChild{
+	return &enrollmentNative.RequestChild{
 		RequestID: requestID, FirstName: textnorm.Name(child.FirstName), LastName: textnorm.Name(child.LastName),
 		DateOfBirth: child.DateOfBirth, TargetGradeLevel: child.TargetGradeLevel, TargetSchoolClass: child.TargetSchoolClass,
-		CustomData: child.CustomData, Status: status, ActivationMode: enrollmentNative.ChildActivationScheduled, SortOrder: index,
+		CustomData: formValues(child.CustomData), Status: status, ActivationMode: enrollmentNative.ChildActivationScheduled, SortOrder: index,
 	}
 }
 

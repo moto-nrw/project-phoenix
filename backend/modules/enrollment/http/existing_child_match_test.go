@@ -117,7 +117,7 @@ func (env *existingChildEnv) submit(t *testing.T, in existingChildSubmission) *e
 		GuardianEmail:          email,
 		GuardianAccountID:      in.accountID,
 		GuardianSubmitEligible: in.accountID != nil,
-		ConsentFlags:           rolloverConsentFlags(),
+		ConsentFlags:           testFormValues(rolloverConsentFlags()),
 		Children:               in.children,
 	})
 	require.NoError(t, err)
@@ -163,7 +163,7 @@ func (env *existingChildEnv) guardianLinks(t *testing.T, studentID int64) []int6
 	return ids
 }
 
-func (env *existingChildEnv) child(t *testing.T, childID int64) *enrollmentAPI.RequestChild {
+func (env *existingChildEnv) child(t *testing.T, childID int64) *enrollmentNative.RequestChild {
 	t.Helper()
 	child, err := enrollmentAPI.ReadOwnerChildForTest(testpkg.Ctx(t), env.repos.Enrollment(), childID)
 	require.NoError(t, err)
@@ -506,7 +506,7 @@ func TestExistingChild_OfficeProtectionSurvivesRolloverDescendants(t *testing.T)
 	}})
 	existing := enrolledChild(t, env.db, "Paul", "Offen", existingChildBirthday)
 	input := submitChild("Paul", "Offen", existingChildBirthday)
-	input.CustomData = map[string]any{"health_info": "synthetic-unrelated-value"}
+	input.CustomData = testFormValues(map[string]any{"health_info": "synthetic-unrelated-value"})
 	submitted := env.submit(t, existingChildSubmission{children: []enrollmentAPI.SubmitChild{input}})
 	require.NoError(t, env.decide(t, enrollmentAPI.DecideInput{RequestID: submitted.Request.ID, ChildID: submitted.Children[0].ID, ExistingStudentID: &existing.ID}))
 
@@ -564,7 +564,7 @@ func TestExistingChild_ReplacementEditPreservesOfficeProtection(t *testing.T) {
 	replaced, err := env.matching.ReplaceEditable(ctx, req.StatusToken, enrollmentAPI.SubmitRequest{
 		TenantID: testpkg.Tenant(t), PhaseID: roll.Phase.ID,
 		GuardianFirstName: "Eva", GuardianLastName: "Bestand", GuardianEmail: req.GuardianEmail,
-		ConsentFlags: rolloverConsentFlags(), Children: []enrollmentAPI.SubmitChild{editChild},
+		ConsentFlags: testFormValues(rolloverConsentFlags()), Children: []enrollmentAPI.SubmitChild{editChild},
 	})
 	require.NoError(t, err)
 	require.Len(t, replaced.Children, 1)
