@@ -225,12 +225,18 @@ func TestMFAResend_ServiceErrorPropagates(t *testing.T) {
 	assert.Equal(t, http.StatusTooManyRequests, rr.Code)
 }
 
-func TestMFAEnrollStart_Success_Returns204(t *testing.T) {
+// The start step answers the challenge token the confirm must present, so
+// the confirm redeems exactly the code it mailed (H11).
+func TestMFAEnrollStart_ReturnsTheChallengeToken(t *testing.T) {
 	t.Parallel()
 
 	svc := newStubMFAService()
-	svc.EnrollMFAFn = func(context.Context, int64) error { return nil }
-	svc.StartMFAChallengeFn = func(context.Context, int64, int64, string, net.IP) (string, error) { return "ch", nil }
+	svc.StartMFAChallengeFn = func(_ context.Context, accountID, tenantID int64, scope string, _ net.IP) (string, error) {
+		assert.Equal(t, int64(42), accountID)
+		assert.Equal(t, int64(70010001), tenantID)
+		assert.Equal(t, identityaccess.MFAChallengeScopeTenant, scope)
+		return "enroll-challenge", nil
+	}
 	rs := &Resource{
 		ConstraintViolation: transactionFailures.IsConstraintViolation, MFAService: svc}
 
@@ -238,7 +244,49 @@ func TestMFAEnrollStart_Success_Returns204(t *testing.T) {
 	rr := httptest.NewRecorder()
 	rs.mfaEnrollStart(rr, r)
 
-	assert.Equal(t, http.StatusNoContent, rr.Code)
+	require.Equal(t, http.StatusOK, rr.Code)
+	var body portalauth.EnrollStartResponse
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	assert.Equal(t, "enroll-challenge", body.ChallengeToken)
+}
+
+// The confirm redeems the presented challenge pinned to the enrollment
+// token's account and school; a confirm without a challenge token is
+// refused before any code is compared.
+func TestMFAEnrollConfirm_RedeemsThePresentedChallengeOfTheEnrollingAccount(t *testing.T) {
+	t.Parallel()
+
+	svc := newStubMFAService()
+	var redeemed []string
+	svc.VerifyMFAChallengeForOwnerFn = func(_ context.Context, challengeToken, code, scope string, accountID, tenantID int64) (identityaccess.VerifiedMFAChallenge, error) {
+		redeemed = append(redeemed, challengeToken)
+		assert.Equal(t, "123456", code)
+		assert.Equal(t, identityaccess.MFAChallengeScopeTenant, scope)
+		assert.Equal(t, int64(42), accountID)
+		assert.Equal(t, int64(70010001), tenantID)
+		return identityaccess.VerifiedMFAChallenge{AccountID: accountID, TenantID: tenantID, Scope: scope}, nil
+	}
+	svc.VerifyMFACodeForAccountFn = func(context.Context, int64, int64, string, string) error {
+		t.Fatal("the confirm must not redeem the newest active code")
+		return nil
+	}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation,
+		MFAService:          svc,
+		Sessions:            &completeMFAExchangeStub{access: "access-tok", refresh: "refresh-tok"},
+	}
+
+	rr := httptest.NewRecorder()
+	rs.mfaEnrollConfirm(rr, withEnrollmentClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/confirm",
+		MFAVerifyRequest{ChallengeToken: "enroll-challenge", Code: "123456"}), 42, 70010001))
+	require.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, []string{"enroll-challenge"}, redeemed)
+
+	rr = httptest.NewRecorder()
+	rs.mfaEnrollConfirm(rr, withEnrollmentClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/confirm",
+		map[string]string{"code": "123456"}), 42, 70010001))
+	assert.Equal(t, http.StatusBadRequest, rr.Code, "a confirm without challenge_token is refused")
+	assert.Equal(t, []string{"enroll-challenge"}, redeemed, "nothing is redeemed without a challenge token")
 }
 
 func TestMFAEnrollStart_StartChallengeErrorMapped(t *testing.T) {
@@ -271,7 +319,9 @@ func TestMFAEnrollConfirm_AlreadyEnrolledMintsSession(t *testing.T) {
 	// (where the credential row was already written) advances to the
 	// token-pair branch instead of bubbling up.
 	svc := newStubMFAService()
-	svc.VerifyMFACodeForAccountFn = func(context.Context, int64, int64, string, string) error { return nil }
+	svc.VerifyMFAChallengeForOwnerFn = func(context.Context, string, string, string, int64, int64) (identityaccess.VerifiedMFAChallenge, error) {
+		return identityaccess.VerifiedMFAChallenge{AccountID: 42, TenantID: 70010001, Scope: identityaccess.MFAChallengeScopeTenant}, nil
+	}
 	svc.EnrollMFAFn = func(context.Context, int64) error { return identityaccess.ErrMFAAlreadyEnrolled }
 	rs := &Resource{
 		ConstraintViolation: transactionFailures.IsConstraintViolation,
@@ -280,7 +330,7 @@ func TestMFAEnrollConfirm_AlreadyEnrolledMintsSession(t *testing.T) {
 	}
 
 	r := withEnrollmentClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/confirm",
-		MFAEnrollConfirmRequest{Code: "123456"}), 42, 70010001)
+		MFAVerifyRequest{ChallengeToken: "enroll-challenge", Code: "123456"}), 42, 70010001)
 	rr := httptest.NewRecorder()
 	rs.mfaEnrollConfirm(rr, r)
 
@@ -295,13 +345,15 @@ func TestMFAEnrollConfirm_EnrollErrorPropagates(t *testing.T) {
 	t.Parallel()
 
 	svc := newStubMFAService()
-	svc.VerifyMFACodeForAccountFn = func(context.Context, int64, int64, string, string) error { return nil }
+	svc.VerifyMFAChallengeForOwnerFn = func(context.Context, string, string, string, int64, int64) (identityaccess.VerifiedMFAChallenge, error) {
+		return identityaccess.VerifiedMFAChallenge{AccountID: 42, TenantID: 70010001, Scope: identityaccess.MFAChallengeScopeTenant}, nil
+	}
 	svc.EnrollMFAFn = func(context.Context, int64) error { return errors.New("db down") }
 	rs := &Resource{
 		ConstraintViolation: transactionFailures.IsConstraintViolation, MFAService: svc}
 
 	r := withEnrollmentClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/confirm",
-		MFAEnrollConfirmRequest{Code: "123456"}), 42, 70010001)
+		MFAVerifyRequest{ChallengeToken: "enroll-challenge", Code: "123456"}), 42, 70010001)
 	rr := httptest.NewRecorder()
 	rs.mfaEnrollConfirm(rr, r)
 
@@ -321,9 +373,9 @@ func TestMFAEnrollConfirm_InjectsTenantFromClaims(t *testing.T) {
 	const tenantID int64 = 70010001
 	var verifyTenant, enrollTenant int64
 	svc := newStubMFAService()
-	svc.VerifyMFACodeForAccountFn = func(ctx context.Context, _, _ int64, _, _ string) error {
+	svc.VerifyMFAChallengeForOwnerFn = func(ctx context.Context, _, _, _ string, _, _ int64) (identityaccess.VerifiedMFAChallenge, error) {
 		verifyTenant = tenant.FromContext(ctx)
-		return nil
+		return identityaccess.VerifiedMFAChallenge{AccountID: 42, TenantID: tenantID, Scope: identityaccess.MFAChallengeScopeTenant}, nil
 	}
 	svc.EnrollMFAFn = func(ctx context.Context, _ int64) error {
 		enrollTenant = tenant.FromContext(ctx)
@@ -339,7 +391,7 @@ func TestMFAEnrollConfirm_InjectsTenantFromClaims(t *testing.T) {
 	}
 
 	r := withEnrollmentClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/confirm",
-		MFAEnrollConfirmRequest{Code: "123456"}), 42, tenantID)
+		MFAVerifyRequest{ChallengeToken: "enroll-challenge", Code: "123456"}), 42, tenantID)
 	rr := httptest.NewRecorder()
 	rs.mfaEnrollConfirm(rr, r)
 
@@ -357,7 +409,7 @@ func TestMFAEnrollConfirm_BindRejectsShortCode(t *testing.T) {
 		ConstraintViolation: transactionFailures.IsConstraintViolation, MFAService: newStubMFAService()}
 
 	r := withEnrollmentClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/confirm",
-		MFAEnrollConfirmRequest{Code: "12"}), 42, 70010001)
+		MFAVerifyRequest{ChallengeToken: "enroll-challenge", Code: "12"}), 42, 70010001)
 	rr := httptest.NewRecorder()
 	rs.mfaEnrollConfirm(rr, r)
 
@@ -368,12 +420,14 @@ func TestMFAEnrollConfirm_WrongCodeReturns401(t *testing.T) {
 	t.Parallel()
 
 	svc := newStubMFAService()
-	svc.VerifyMFACodeForAccountFn = func(context.Context, int64, int64, string, string) error { return identityaccess.ErrMFACodeInvalid }
+	svc.VerifyMFAChallengeForOwnerFn = func(context.Context, string, string, string, int64, int64) (identityaccess.VerifiedMFAChallenge, error) {
+		return identityaccess.VerifiedMFAChallenge{}, identityaccess.ErrMFACodeInvalid
+	}
 	rs := &Resource{
 		ConstraintViolation: transactionFailures.IsConstraintViolation, MFAService: svc}
 
 	r := withEnrollmentClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/confirm",
-		MFAEnrollConfirmRequest{Code: "654321"}), 42, 70010001)
+		MFAVerifyRequest{ChallengeToken: "enroll-challenge", Code: "654321"}), 42, 70010001)
 	rr := httptest.NewRecorder()
 	rs.mfaEnrollConfirm(rr, r)
 
@@ -456,7 +510,7 @@ func TestMFAEnrollConfirm_RequiresEnrollmentClaim(t *testing.T) {
 		ConstraintViolation: transactionFailures.IsConstraintViolation, MFAService: newStubMFAService()}
 
 	r := jsonReq(t, http.MethodPost, "/mfa/enroll/confirm",
-		MFAEnrollConfirmRequest{Code: "123456"})
+		MFAVerifyRequest{ChallengeToken: "enroll-challenge", Code: "123456"})
 	rr := httptest.NewRecorder()
 	rs.mfaEnrollConfirm(rr, r)
 

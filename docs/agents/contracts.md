@@ -863,7 +863,15 @@ school-scoped live-family proof.
 Parent-scope sessions remain separate and carry no staff permissions.
 
 Enrollment uses the existing email-code flow in tenant and school portals;
-mail delivery/verification failures issue no completed session. Passkeys for
+mail delivery/verification failures issue no completed session. Every
+account portal's `…/auth/mfa/enroll/start` (tenant, school, Träger) answers
+200 `{challenge_token}`, and its `…/auth/mfa/enroll/confirm` takes
+`{challenge_token, code, remember_device?}` and redeems exactly that
+challenge, pinned to the enrollment token's account and school
+(`VerifyMFAChallengeForOwner`); a confirm without `challenge_token` answers
+400, a challenge of another account, school or portal 401. A failed read
+during verification answers 503 `identity.mfa_status_unavailable`, never a
+wrong code. The operator keeps its own enrollment bodies. Passkeys for
 school personnel already require verified email registration and WebAuthn user
 verification at login. Local seed tools complete the same email flow through
 local Mailpit, with no production bypass. Human rollout/recovery and count-only

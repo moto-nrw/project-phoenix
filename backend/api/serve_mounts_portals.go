@@ -182,7 +182,7 @@ func newParentResource(
 ) *parentAPI.Resource {
 	return parentAPI.NewResource(parentAPI.ResourceConfig{
 		Auth:        parentPortalLogin(identity),
-		Resets:      parentAPI.PasswordResetRuntime(portalauth.PasswordResetRoutes(identity, identityaccess.PasswordResetScopeParent)),
+		Resets:      portalauth.PasswordResetRoutes(identity, identityaccess.PasswordResetScopeParent),
 		Parent:      parent,
 		Calendar:    calendarApp,
 		Conferences: calendarApp,

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	rootAPI "github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-nrw/project-phoenix/api/common"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -50,8 +51,8 @@ type errStubRateLimited struct{ retryAfter int }
 
 func (e *errStubRateLimited) Error() string { return "stub: too many password reset requests" }
 
-func (s *stubParentAuthService) resetRuntime() parent.PasswordResetRuntime {
-	return parent.PasswordResetRuntime{
+func (s *stubParentAuthService) resetRuntime() common.PasswordResetRoutes {
+	return common.PasswordResetRoutes{
 		Initiate: func(ctx context.Context, email string) error { return s.resetParent(ctx, email) },
 		Reset: func(ctx context.Context, token, newPassword string) error {
 			return s.confirm(ctx, token, newPassword)
@@ -311,25 +312,6 @@ func TestParentPasswordResetConfirm_PasswordMismatch_Returns400(t *testing.T) {
 		"token":            "reset-token",
 		"new_password":     "Str0ngP@ssword!",
 		"confirm_password": "Different1!",
-	})
-
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
-}
-
-func TestParentPasswordResetConfirm_TooShortPassword_Returns400(t *testing.T) {
-	t.Parallel()
-
-	// Length(8, 0) validation rejects short passwords at the bind layer.
-	svc := &stubParentAuthService{
-		confirm: func(_ context.Context, _, _ string) error {
-			t.Fatal("service must not be called for a too-short password")
-			return nil
-		},
-	}
-	rr := postPasswordResetConfirm(t, newTestResource(svc), map[string]string{
-		"token":            "reset-token",
-		"new_password":     "short",
-		"confirm_password": "short",
 	})
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code)

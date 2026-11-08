@@ -556,41 +556,6 @@ func (req *EnableCaregiverCapabilityRequest) Bind(_ *http.Request) error {
 	return nil
 }
 
-// PasswordResetRequest represents the password reset request payload
-type PasswordResetRequest struct {
-	Email string `json:"email"`
-}
-
-// Bind validates the password reset request
-func (req *PasswordResetRequest) Bind(_ *http.Request) error {
-	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
-
-	return validation.ValidateStruct(req,
-		validation.Field(&req.Email, validation.Required, is.Email),
-	)
-}
-
-// PasswordResetConfirmRequest represents the password reset confirm request payload
-type PasswordResetConfirmRequest struct {
-	Token           string `json:"token"`
-	NewPassword     string `json:"new_password"`
-	ConfirmPassword string `json:"confirm_password"`
-}
-
-// Bind validates the password reset confirm request
-func (req *PasswordResetConfirmRequest) Bind(_ *http.Request) error {
-	return validation.ValidateStruct(req,
-		validation.Field(&req.Token, validation.Required),
-		validation.Field(&req.NewPassword, validation.Required, validation.Length(8, 0)),
-		validation.Field(&req.ConfirmPassword, validation.Required, validation.By(func(value interface{}) error {
-			if req.NewPassword != req.ConfirmPassword {
-				return errors.New(errPasswordsNotMatch)
-			}
-			return nil
-		})),
-	)
-}
-
 // Role Management Endpoints
 
 // trimPtrToNil trims the value p points to and returns nil when nothing is
