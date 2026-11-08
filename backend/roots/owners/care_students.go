@@ -71,6 +71,7 @@ func (s CareStudents) FindCareStudents(ctx context.Context, studentIDs []int64, 
 		result[id] = carePlanCompose.CareStudent{
 			ID: row.ID, PersonID: row.PersonID, SchoolClass: row.SchoolClass, Status: string(row.Status),
 			EnrolledFrom: row.EnrolledFrom, EnrolledUntil: row.EnrolledUntil, FirstCareFrom: row.FirstCareFrom,
+			CarePausedAfter: row.CarePausedAfter, CareResumedFrom: row.CareResumedFrom,
 			UpdatedAt: row.UpdatedAt,
 		}
 	}

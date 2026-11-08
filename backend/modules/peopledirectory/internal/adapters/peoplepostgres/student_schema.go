@@ -16,6 +16,7 @@ var requiredStudentColumns = []string{
 	"student_school_memberships.school_class", "student_school_memberships.status",
 	"student_school_memberships.enrolled_from", "student_school_memberships.enrolled_until",
 	"student_school_memberships.first_care_from",
+	"student_school_memberships.care_paused_after", "student_school_memberships.care_resumed_from",
 	"student_care_profiles.membership_id", "student_care_profiles.tenant_id",
 	"student_care_profiles.pickup_status", "student_care_profiles.bus_days",
 	"student_care_profiles.pickup_days", "student_care_profiles.departure_days",

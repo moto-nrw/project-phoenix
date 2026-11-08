@@ -59,6 +59,11 @@ type StudentState struct {
 	// at this school, nil when unknown (School Membership, #6041). Not on
 	// the wire.
 	FirstCareFrom *calendar.Date `json:"-"`
+	// CarePausedAfter and CareResumedFrom bound the care gap of a returning
+	// child: days strictly between them are no care days, nil when no gap is
+	// known (School Membership, #6073). Not on the wire.
+	CarePausedAfter *calendar.Date `json:"-"`
+	CareResumedFrom *calendar.Date `json:"-"`
 
 	PhotoPath           *string    `json:"-"`
 	PhotoConsentGivenAt *time.Time `json:"photo_consent_given_at,omitempty"`
@@ -160,7 +165,9 @@ func StudentStateFromRecord(record StudentRecord) *StudentState {
 		EnrolledFrom:  OptionalCalendarDate(record.EnrolledFrom),
 		EnrolledUntil: OptionalCalendarDate(record.EnrolledUntil),
 
-		FirstCareFrom: OptionalCalendarDate(record.FirstCareFrom),
+		FirstCareFrom:   OptionalCalendarDate(record.FirstCareFrom),
+		CarePausedAfter: OptionalCalendarDate(record.CarePausedAfter),
+		CareResumedFrom: OptionalCalendarDate(record.CareResumedFrom),
 
 		PhotoPath:           record.PhotoPath,
 		PhotoConsentGivenAt: record.PhotoConsentGivenAt,
@@ -283,6 +290,8 @@ func (s *StudentState) ApplyDirectoryRecord(record StudentRecord) {
 	s.EnrolledFrom = OptionalCalendarDate(record.EnrolledFrom)
 	s.EnrolledUntil = OptionalCalendarDate(record.EnrolledUntil)
 	s.FirstCareFrom = OptionalCalendarDate(record.FirstCareFrom)
+	s.CarePausedAfter = OptionalCalendarDate(record.CarePausedAfter)
+	s.CareResumedFrom = OptionalCalendarDate(record.CareResumedFrom)
 
 	s.AllowedDepartureModes = record.AllowedDepartureModes
 	s.DepartureDays = record.DepartureDays
