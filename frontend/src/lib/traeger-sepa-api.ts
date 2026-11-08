@@ -13,8 +13,6 @@ export type MandateKind = "recurring" | "one_off";
 export type MandateSequence = "first" | "recurring";
 export type MandateSource = "office" | "import" | "parent";
 export type MandateAction = "create" | "update" | "revoke" | "read" | "reveal";
-/** Why an invoice of a family that pays by direct debit is not collected. */
-export type DebitGap = "mandate_missing" | "creditor_missing";
 
 export const MIN_PRENOTIFICATION_DAYS = 1;
 export const MAX_PRENOTIFICATION_DAYS = 30;
@@ -69,17 +67,6 @@ export interface SepaMandateEvent {
   readonly occurredAt: string;
 }
 
-/** The mandate an invoice by direct debit is collected with. */
-export interface InvoiceMandate {
-  readonly reference: string;
-  readonly signedOn: string;
-  readonly creditorId: string;
-  readonly ibanMasked: string;
-  readonly sequenceType: "FRST" | "RCUR" | "OOFF";
-  /** The debit comes sooner than the pre-notification days of the Träger. */
-  readonly noticeShort: boolean;
-}
-
 interface BackendCreditor {
   creditor_id: string;
   prenotification_days: number;
@@ -111,29 +98,6 @@ interface BackendEvent {
   source: MandateSource | "run";
   fields: string[] | null;
   occurred_at: string;
-}
-
-export interface BackendInvoiceMandate {
-  reference: string;
-  signed_on: string;
-  creditor_id: string;
-  iban_masked: string;
-  sequence_type: "FRST" | "RCUR" | "OOFF";
-  notice_short?: boolean;
-}
-
-export function invoiceMandateFromBackend(
-  mandate: BackendInvoiceMandate | null | undefined,
-): InvoiceMandate | null {
-  if (!mandate) return null;
-  return {
-    reference: mandate.reference,
-    signedOn: mandate.signed_on,
-    creditorId: mandate.creditor_id,
-    ibanMasked: mandate.iban_masked,
-    sequenceType: mandate.sequence_type,
-    noticeShort: mandate.notice_short ?? false,
-  };
 }
 
 function creditorFromBackend(creditor: BackendCreditor): SepaCreditor {

@@ -7,12 +7,6 @@
  */
 
 import { traegerRequest } from "./traeger-api";
-import {
-  type BackendInvoiceMandate,
-  type DebitGap,
-  type InvoiceMandate,
-  invoiceMandateFromBackend,
-} from "./traeger-sepa-api";
 
 export type PaymentMethod = "transfer" | "direct_debit";
 export type BillingService = "care" | "meal" | "holiday";
@@ -105,6 +99,20 @@ export interface RunDueDate {
   readonly dueOn: string;
 }
 
+/** Why an invoice of a family that pays by direct debit is not collected (#4695). */
+export type DebitGap = "mandate_missing" | "creditor_missing";
+
+/** The SEPA mandate an invoice by direct debit is collected with (#4695). */
+export interface InvoiceMandate {
+  readonly reference: string;
+  readonly signedOn: string;
+  readonly creditorId: string;
+  readonly ibanMasked: string;
+  readonly sequenceType: "FRST" | "RCUR" | "OOFF";
+  /** The debit comes sooner than the pre-notification days of the Träger. */
+  readonly noticeShort: boolean;
+}
+
 /** How and by when an invoice is paid, with where the date came from. */
 export interface InvoicePayment {
   readonly method: PaymentMethod;
@@ -155,6 +163,29 @@ interface BackendFamilyBilling {
 export interface BackendRunDueDate {
   payment_method: PaymentMethod;
   due_on: string;
+}
+
+interface BackendInvoiceMandate {
+  reference: string;
+  signed_on: string;
+  creditor_id: string;
+  iban_masked: string;
+  sequence_type: "FRST" | "RCUR" | "OOFF";
+  notice_short?: boolean;
+}
+
+function invoiceMandateFromBackend(
+  mandate: BackendInvoiceMandate | null | undefined,
+): InvoiceMandate | null {
+  if (!mandate) return null;
+  return {
+    reference: mandate.reference,
+    signedOn: mandate.signed_on,
+    creditorId: mandate.creditor_id,
+    ibanMasked: mandate.iban_masked,
+    sequenceType: mandate.sequence_type,
+    noticeShort: mandate.notice_short ?? false,
+  };
 }
 
 export interface BackendInvoicePayment {

@@ -6,6 +6,7 @@
 // behält sein PDF und lässt sich erneut senden. Ein abgeschlossener Vertrag
 // (#4680) zeigt, wann und wie er zustande kam; erneut senden lässt er sich mit demselben PDF.
 
+import dynamic from "next/dynamic";
 import { Download, RotateCw, Send, Trash2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -27,7 +28,6 @@ import {
   plannedVersion,
 } from "~/components/traeger/care-contract-versions";
 import { CareContractSignatureCard } from "~/components/traeger/care-contract-signature-card";
-import { SepaMandatesCard } from "~/components/traeger/sepa-mandates-card";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -67,6 +67,16 @@ import {
   resendCareContract,
 } from "~/lib/traeger-care-contracts-api";
 import { traegerPath } from "~/lib/traeger-url";
+
+// The SEPA mandate of the family (#4695) loads on its own, so the page does
+// not carry its dialogs.
+const SepaMandatesCard = dynamic(
+  () =>
+    import("~/components/traeger/sepa-mandates-card").then(
+      (module) => module.SepaMandatesCard,
+    ),
+  { ssr: false },
+);
 
 const logger = createLogger({ component: "TraegerVertragPage" });
 

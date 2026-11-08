@@ -5,12 +5,12 @@
 // Vertrags; eine eigene Seite, damit die Seite des Laufs das Formular nicht
 // lädt. Die gespeicherte Abweichung wird bei jedem Öffnen frisch gelesen.
 
+import dynamic from "next/dynamic";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { findFamilyBilling } from "~/components/traeger/billing-payment-format";
 import { formatMonth } from "~/components/traeger/care-billing-format";
 import { FamilyBillingForm } from "~/components/traeger/family-billing-form";
-import { SepaMandatesCard } from "~/components/traeger/sepa-mandates-card";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useApiLoadError } from "~/contexts/ToastContext";
@@ -26,6 +26,16 @@ import {
   fetchCareRun,
 } from "~/lib/traeger-care-billing-api";
 import { traegerPath } from "~/lib/traeger-url";
+
+// The SEPA mandate of the family (#4695) loads on its own, so the page does
+// not carry its dialogs.
+const SepaMandatesCard = dynamic(
+  () =>
+    import("~/components/traeger/sepa-mandates-card").then(
+      (module) => module.SepaMandatesCard,
+    ),
+  { ssr: false },
+);
 
 const logger = createLogger({ component: "TraegerFamilyBillingPage" });
 

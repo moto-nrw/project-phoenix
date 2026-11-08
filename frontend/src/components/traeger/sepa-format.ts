@@ -4,8 +4,8 @@
 // backend checks the same again; these only point at the field early.
 
 import type { StatusBadgeTone } from "~/components/ui/status-badge";
+import type { DebitGap } from "~/lib/traeger-billing-terms-api";
 import type {
-  DebitGap,
   MandateAction,
   MandateKind,
   MandateSequence,
