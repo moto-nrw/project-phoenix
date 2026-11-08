@@ -505,6 +505,7 @@ export function OgsConversation({
                 </h1>
               </div>
               {showChild && thread?.student_name ? (
+                // oxlint-disable-next-line ui-kit/no-hand-rolled-notice -- Namensschild des Kindes im Gesprächskopf, kein Hinweis
                 <div
                   className="bg-moto-green-soft inline-flex w-fit shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-gray-900"
                   title={tm("aboutChild", { name: thread.student_name })}

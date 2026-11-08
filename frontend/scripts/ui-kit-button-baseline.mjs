@@ -47,7 +47,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/date-picker.tsx",
-    lines: [444],
+    lines: [457],
     reason: "Auslöser des Datumsfelds (Eingabefeld, sieht aus wie ein Select)",
   },
   {
@@ -125,13 +125,6 @@ export const buttonRatchetAllowlist = [
     reason: "Termin-Block im Kalenderraster: Kalenderzelle",
   },
   {
-    rule: "no-button-override",
-    file: "src/components/class-day/class-day-overview.tsx",
-    lines: [181],
-    reason:
-      "Klassenkarte: Kachel. Bleibt ButtonLink, weil TileCard den Seitenwechsel nicht an die Portalhülle meldet",
-  },
-  {
     rule: "no-hand-rolled-button",
     file: "src/components/students/care-schedule-manager.tsx",
     lines: [1544],
@@ -140,7 +133,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/companion-picker.tsx",
-    lines: [395],
+    lines: [403],
     reason: "Suchtreffer zum Auswählen: Auswahlzeile",
   },
   {
