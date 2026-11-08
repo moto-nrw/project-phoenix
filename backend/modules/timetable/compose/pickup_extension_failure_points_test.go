@@ -174,6 +174,24 @@ func (f *pickupChainFixture) resolveInTransaction(t *testing.T, setup []string, 
 	return resolveErr
 }
 
+// privateClonePool opens a second pool on the test's isolated clone with the
+// given connection parameters (driver settings such as read_timeout, or
+// session settings such as deadlock_timeout) and closes it before the clone
+// is dropped.
+func privateClonePool(t *testing.T, params map[string]string) *bun.DB {
+	t.Helper()
+	dsn, err := url.Parse(testpkg.IsolatedTestDSN(t))
+	require.NoError(t, err)
+	query := dsn.Query()
+	for key, value := range params {
+		query.Set(key, value)
+	}
+	dsn.RawQuery = query.Encode()
+	pool := testpkg.AdoptPrivatePool(t, testpkg.NewBunDB(testpkg.OpenPostgresSQL(dsn.String())))
+	t.Cleanup(func() { _ = pool.Close() })
+	return pool
+}
+
 func sqlState(err error) string {
 	var state interface{ Field(byte) string }
 	if errors.As(err, &state) {
@@ -326,17 +344,24 @@ func TestPickupChainCancelledWaitWritesNothing(t *testing.T) {
 	f.assertNothingWritten(t)
 }
 
-// A deadlock while waiting for the second block: the resolve, waiting
-// first, is the victim. In its own transaction it is replayed and assigns
-// every block once; inside an outer transaction it ends with 40P01.
+// A deadlock while waiting for the second block: the resolve is the victim.
+// In its own transaction it is replayed and assigns every block once; inside
+// an outer transaction it ends with 40P01. The resolve's sessions check for
+// a deadlock after 3 s, the holder's only after 30 s: the cycle exists long
+// before the resolve checks, and only the resolve finds it.
 func TestPickupChainDeadlockReplaysOnlyItsOwnTransaction(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	testpkg.SetupIsolatedTestDB(t)
+	pool := privateClonePool(t, map[string]string{"deadlock_timeout": "3s"})
+	newFixture := func(t *testing.T) *pickupChainFixture {
+		f := newPickupChainFixture(t, pool, pickupChainOptions{})
+		f.ctx = testpkg.WithTenantRuntime(t, f.ctx, pool)
+		return f
+	}
 	deadlock := func(t *testing.T, f *pickupChainFixture, start func() <-chan pickupResolveOutcome) (bun.Tx, pickupResolveOutcome, <-chan pickupResolveOutcome) {
 		t.Helper()
 		holder := f.holdInstance(t, f.instances[1], "")
-		// The holder never runs the deadlock check within the test, so the
-		// resolve, whose check runs after the default second, is the victim.
+		// The holder never runs the deadlock check within the test.
 		_, err := holder.ExecContext(context.Background(), `SET LOCAL deadlock_timeout = '30s'`)
 		require.NoError(t, err)
 		done := start()
@@ -356,7 +381,7 @@ func TestPickupChainDeadlockReplaysOnlyItsOwnTransaction(t *testing.T) {
 	}
 
 	t.Run("own transaction", func(t *testing.T) {
-		f := newPickupChainFixture(t, db, pickupChainOptions{})
+		f := newFixture(t)
 		holder, _, done := deadlock(t, f, func() <-chan pickupResolveOutcome { return f.resolveBlocksAsync(f.templateID) })
 		require.NoError(t, holder.Rollback())
 		outcome := f.awaitOutcome(t, done)
@@ -367,7 +392,7 @@ func TestPickupChainDeadlockReplaysOnlyItsOwnTransaction(t *testing.T) {
 		assert.Len(t, roster, len(f.instances), "one participant per block")
 	})
 	t.Run("outer transaction", func(t *testing.T) {
-		f := newPickupChainFixture(t, db, pickupChainOptions{})
+		f := newFixture(t)
 		holder, _, done := deadlock(t, f, func() <-chan pickupResolveOutcome {
 			result := make(chan pickupResolveOutcome, 1)
 			go func() { result <- pickupResolveOutcome{err: f.resolveInTransaction(t, nil, nil)} }()
@@ -629,15 +654,10 @@ func TestPickupResolveWaitsForEachBlockWithinOneRead(t *testing.T) {
 	t.Parallel()
 	const readTimeout, hold = 2 * time.Second, 1200 * time.Millisecond
 	testpkg.SetupIsolatedTestDB(t)
-	dsn, err := url.Parse(testpkg.IsolatedTestDSN(t))
-	require.NoError(t, err)
-	query := dsn.Query()
-	query.Set("read_timeout", readTimeout.String())
-	dsn.RawQuery = query.Encode()
-	db := testpkg.AdoptPrivatePool(t, testpkg.NewBunDB(testpkg.OpenPostgresSQL(dsn.String())))
-	f := newPickupChainFixture(t, db, pickupChainOptions{})
-	f.ctx = testpkg.WithTenantRuntime(t, f.ctx, db)
-	_, err = f.db.ExecContext(context.Background(), `UPDATE schedule.activity_instances SET start_time = '16:00', end_time = '16:30' WHERE id = ?`, f.instances[2])
+	pool := privateClonePool(t, map[string]string{"read_timeout": readTimeout.String()})
+	f := newPickupChainFixture(t, pool, pickupChainOptions{})
+	f.ctx = testpkg.WithTenantRuntime(t, f.ctx, pool)
+	_, err := f.db.ExecContext(context.Background(), `UPDATE schedule.activity_instances SET start_time = '16:00', end_time = '16:30' WHERE id = ?`, f.instances[2])
 	require.NoError(t, err)
 
 	first := f.holdInstance(t, f.instances[0], "")
