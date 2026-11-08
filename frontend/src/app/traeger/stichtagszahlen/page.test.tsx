@@ -1,7 +1,7 @@
 import { SWRConfig, useSWRConfig } from "~/lib/swr/testing";
 vi.unmock("swr");
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi, afterEach } from "vitest";
 import { resetSWRScope } from "~/lib/swr/scope";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
@@ -32,6 +32,14 @@ vi.mock("~/env.client", () => ({
 }));
 
 import TraegerKeyDateCountsPage from "./page";
+import {
+  DESKTOP_WIDTH,
+  PHONE_WIDTH,
+  setViewportWidth,
+} from "~/test/helpers/viewport";
+
+// DataTable renders only the layout for the window width (#6220).
+afterEach(() => setViewportWidth(DESKTOP_WIDTH));
 
 function count(
   month: string,
@@ -289,6 +297,7 @@ describe("TraegerKeyDateCountsPage", () => {
   });
 
   it("labels all key dates below the month in the phone layout", async () => {
+    setViewportWidth(PHONE_WIDTH);
     mockFetchCounts.mockResolvedValue({
       schools: [15, 20, 25].map((day) => ({
         id: String(day),
