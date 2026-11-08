@@ -27,6 +27,7 @@ import { createLogger } from "~/lib/logger";
 import { useDebounce } from "~/lib/use-debounce";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { InsetPanel } from "~/components/ui/inset-panel";
+import { SectionCard } from "~/components/ui/section-card";
 
 const logger = createLogger({ component: "InvitationForm" });
 
@@ -322,24 +323,11 @@ export function InvitationForm({
   const roleError = errors.fieldError("role_id");
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 md:p-6">
-      <div className="mb-4 flex items-center gap-2 md:gap-3">
-        <div className="rounded-xl bg-gray-100 p-2">
-          <Mail
-            className="h-4 w-4 text-gray-600 md:h-5 md:w-5"
-            aria-hidden="true"
-          />
-        </div>
-        <div>
-          <h2 className="text-base font-semibold text-gray-900 md:text-lg">
-            Neue Einladung
-          </h2>
-          <p className="text-xs text-gray-600 md:text-sm">
-            Per E-Mail einladen
-          </p>
-        </div>
-      </div>
-
+    <SectionCard
+      title="Neue Einladung"
+      description="Per E-Mail einladen"
+      icon={Mail}
+    >
       <form
         ref={formRef}
         onSubmit={handleSubmit}
@@ -471,6 +459,6 @@ export function InvitationForm({
               : "Einladung senden"}
         </Button>
       </form>
-    </div>
+    </SectionCard>
   );
 }
