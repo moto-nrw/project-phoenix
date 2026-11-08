@@ -65,7 +65,7 @@ func (seedTraegerCareMonthsStep) Run(_ context.Context, rt *Runtime) error {
 	if !first.IsZero() && first.Before(current) {
 		from = first
 	}
-	prices, err := seedCarePriceLists(rt.Client, auth, from)
+	prices, err := seedCarePriceLists(rt.Client, auth, from, seedFreeMonth(first, current))
 	if err != nil {
 		return err
 	}
@@ -132,6 +132,22 @@ func seedCareModulePrice(module seedCareModule) int64 {
 	}
 }
 
+// seedFreeMonth is the free month of the first school: August like
+// Ispringen, unless the seed bills August (its first or current month);
+// then the month before. The runs of the seed must issue invoices, so the
+// invoices, their reductions and cost bearer shares are on every dev
+// machine.
+func seedFreeMonth(first, current calendar.Date) int {
+	billed := func(month int) bool {
+		return (!first.IsZero() && int(first.Month()) == month) || int(current.Month()) == month
+	}
+	month := 8
+	for billed(month) {
+		month = (month+10)%12 + 1
+	}
+	return month
+}
+
 // seedCareScale prices a module by days per week: the step grows by less
 // than a weekday's price per day; the meal of a lunch module comes on top.
 func seedCareScale(module seedCareModule) []map[string]any {
@@ -151,7 +167,7 @@ func seedCareScale(module seedCareModule) []map[string]any {
 // seedCarePriceLists sets the prices of every school from month on, for the
 // weekdays Monday to Friday of each care offering of the Träger. A school
 // that already has prices keeps them.
-func seedCarePriceLists(client *Client, auth AuthRef, month calendar.Date) (int, error) {
+func seedCarePriceLists(client *Client, auth AuthRef, month calendar.Date, freeMonth int) (int, error) {
 	modules, err := seedCareOfferings(client, auth)
 	if err != nil {
 		return 0, err
@@ -177,10 +193,11 @@ func seedCarePriceLists(client *Client, auth AuthRef, month calendar.Date) (int,
 	schools, bySchool := seedCarePrices(modules, priced)
 	count := 0
 	for _, schoolID := range schools {
-		// The first school bills nothing in August, like Ispringen.
+		// The first school bills nothing in one month, like Ispringen in
+		// August (#6196).
 		free := []int{}
 		if schoolID == schools[0] {
-			free = []int{8}
+			free = []int{freeMonth}
 		}
 		if _, err := client.PutWithAuth(auth, "/traeger/care-tariffs/", map[string]any{
 			"school_id": schoolID, "valid_from": month.String(), "free_months": free, "prices": bySchool[schoolID],
