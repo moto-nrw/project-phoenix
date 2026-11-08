@@ -45,8 +45,6 @@ const logger = createLogger({ component: "CatererLoginPage" });
 // Wie die anderen Anmeldungen: der Portalname klein darüber, die Begrüßung
 // als Titel.
 const SHELL_COPY = {
-  eyebrow: "Caterer-Portal",
-  eyebrowClassName: "text-moto-blue",
   title: "Willkommen im Caterer-Portal",
   subtitle: "Melden Sie sich mit Ihrem Caterer-Konto an.",
 } as const;

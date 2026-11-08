@@ -24,8 +24,12 @@ import { cn } from "~/lib/utils";
 export const TILE_CARD_SURFACE =
   "group moto-content-surface moto-hover-elevated relative block w-full overflow-hidden rounded-2xl border text-left focus-visible:outline-2 focus-visible:outline-gray-300 focus-visible:outline-offset-2";
 
+const NEW_TAB_HINT = "(öffnet in neuem Tab)";
+
 export function TileCard({
   href,
+  nativeAnchor = false,
+  newTab = false,
   onClick,
   disabled = false,
   padding = "md",
@@ -41,6 +45,19 @@ export function TileCard({
 }: Readonly<{
   /** Ziel, wenn die Kachel navigiert. Ohne `href` wird sie zur Schaltfläche. */
   href?: string;
+  /**
+   * Navigiert per Dokumentwechsel (`<a>`) statt per Client-Navigation. Nur,
+   * wenn die Zielseite eigene Kopfzeilen braucht, die eine Client-Navigation
+   * nicht lädt: das Anmeldeformular setzt die Turnstile-CSP, die strengere
+   * Richtlinie der Auswahlseite bliebe sonst stehen (#5594).
+   */
+  nativeAnchor?: boolean;
+  /**
+   * Öffnet das Ziel in einem neuen Tab (`<a target="_blank">`), etwa eine
+   * Vorschau neben dem Editor. Der Screenreader hört „öffnet in neuem Tab“
+   * mit, auch wenn die Kachel ein `ariaLabel` trägt.
+   */
+  newTab?: boolean;
   onClick?: () => void;
   disabled?: boolean;
   /** `none`, wenn der Inhalt seine Ränder selbst setzt (Kopfleiste, Bild). */
@@ -72,16 +89,33 @@ export function TileCard({
     className,
   );
 
-  if (href && !disabled) {
+  if (href && !disabled && newTab) {
     return (
-      <Link
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={ariaLabel ? `${ariaLabel} ${NEW_TAB_HINT}` : undefined}
+        className={shared}
+        data-testid={testId}
+      >
+        {children}
+        <span className="sr-only"> {NEW_TAB_HINT}</span>
+      </a>
+    );
+  }
+
+  if (href && !disabled) {
+    const Anchor = nativeAnchor ? "a" : Link;
+    return (
+      <Anchor
         href={href}
         aria-label={ariaLabel}
         className={shared}
         data-testid={testId}
       >
         {children}
-      </Link>
+      </Anchor>
     );
   }
 

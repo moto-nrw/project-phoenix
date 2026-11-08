@@ -2,6 +2,7 @@
   "title": "Kalender abonnieren",
   "description": "Abonnieren Sie die Termine einmalig in Ihrem Handy-Kalender. Neue, geänderte und abgesagte Termine erscheinen danach automatisch, ohne jeden Termin einzeln hinzuzufügen.",
   "showLink": "Abo-Link anzeigen",
+  "loading": "Wird geladen …",
   "subscribe": "Im Kalender abonnieren",
   "linkLabel": "Abo-Link (zum Kopieren)",
   "copy": "Kopieren",

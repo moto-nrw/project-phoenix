@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -30,6 +31,9 @@ type Dependencies struct {
 	// trail. Optional together; without them the audited flows refuse.
 	ClassListStudents schoolmembership.ClassListEntryStudents
 	ClassListTrail    schoolmembership.ClassListEntryTrail
+	// Today is the school day the writes decide on: the Kinderkontingent
+	// and the first-care bound of a child (#6041). Nil is the Berlin day.
+	Today func() calendar.Date
 }
 
 // ChildQuota is the consumer-owned port over Organisation & Tenancy's
@@ -69,10 +73,6 @@ func newApplication(dependencies Dependencies) (*application.Service, error) {
 		return nil, errors.New("school membership compose: the class list entries need a student directory and an audit trail")
 	}
 	store := postgres.New(postgres.NewContextDatabase(tenant.TenantFromContext, tenant.TransactionFromContext, tenant.IsAdminTx))
-	var quota ports.ChildQuota
-	if dependencies.ChildQuota != nil {
-		quota = dependencies.ChildQuota
-	}
-	service := application.New(store, application.NewStaffEmployment(dependencies.Employment), quota, postgres.BerlinToday, application.TenantTransaction{}, dependencies.Observe, classList)
+	service := application.New(store, application.NewStaffEmployment(dependencies.Employment), dependencies.ChildQuota, postgres.SchoolDay(dependencies.Today), application.TenantTransaction{}, dependencies.Observe, classList)
 	return service, nil
 }

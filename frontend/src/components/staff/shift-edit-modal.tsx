@@ -53,6 +53,7 @@ import {
   WeekdayPicker,
 } from "./shift-recurrence-fields";
 import { InsetPanel } from "~/components/ui/inset-panel";
+import { SectionLabel } from "~/components/ui/section-label";
 
 const logger = createLogger({ component: "ShiftEditModal" });
 const STAFF_SHIFT_MAX_BREAK_MINUTES = 300;
@@ -1195,7 +1196,7 @@ export function ShiftEditModal({
                   />
                 )}
                 {seriesEditOpen && seriesRule && (
-                  <div className="space-y-3 rounded-md border border-gray-200 p-3">
+                  <InsetPanel tone="white" className="space-y-3">
                     <p className="text-xs text-gray-600">
                       {`Die Änderungen gelten ab ${formatShortDate(seriesAppliesFrom)} für alle weiteren Termine der Serie. Termine davor bleiben unverändert, ebenso Termine bis heute.`}
                     </p>
@@ -1264,13 +1265,13 @@ export function ShiftEditModal({
                         message={seriesNoOccurrenceMessage}
                       />
                     )}
-                  </div>
+                  </InsetPanel>
                 )}
                 {mode === "edit" &&
                   shift &&
                   !isReplacementRow &&
                   !seriesEditOpen && (
-                    <div className="space-y-3 rounded-md border border-gray-200 p-3">
+                    <InsetPanel tone="white" className="space-y-3">
                       <label
                         htmlFor="shift-cancel-toggle"
                         className="flex items-center gap-2"
@@ -1305,9 +1306,9 @@ export function ShiftEditModal({
                               className="space-y-2"
                             >
                               <div className="flex items-center justify-between gap-2">
-                                <span className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                                <SectionLabel as="p">
                                   Vertretung {index + 1}
-                                </span>
+                                </SectionLabel>
                                 <span className="inline-flex rounded-full">
                                   <Button
                                     type="button"
@@ -1378,10 +1379,10 @@ export function ShiftEditModal({
                           )}
                         </div>
                       )}
-                    </div>
+                    </InsetPanel>
                   )}
                 {mode === "create" && (
-                  <div className="space-y-3 rounded-md border border-gray-200 p-3">
+                  <InsetPanel tone="white" className="space-y-3">
                     <label
                       htmlFor="shift-series-toggle"
                       className="flex items-center gap-2"
@@ -1490,7 +1491,7 @@ export function ShiftEditModal({
                         </p>
                       </div>
                     )}
-                  </div>
+                  </InsetPanel>
                 )}
               </div>
             )}

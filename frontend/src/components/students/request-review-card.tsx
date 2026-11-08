@@ -13,7 +13,6 @@ import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { formatDate, relativeDaysLabel } from "~/lib/date-helpers";
 import { HISTORY_STATUS_META } from "~/components/students/requests/request-copy";
-import { InsetPanel } from "~/components/ui/inset-panel";
 
 /** Die Anfragearten, die eine Zeile tragen kann. */
 type RequestRowType =
@@ -513,24 +512,9 @@ function statusMeta(history: RequestReviewCardHistory): {
   );
 }
 
-/**
- * The calm "current → requested" panel shown inside an expanded review card,
- * matching the parent-side RequestDiffPanel surface (gray-50, muted uppercase
- * heading). Rows are passed as children so each queue keeps its own layout.
- */
-export function ReviewDiffPanel({
-  title,
-  children,
-}: Readonly<{ title: string; children: ReactNode }>) {
-  return (
-    <InsetPanel className="mt-3 space-y-2">
-      <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-        {title}
-      </p>
-      {children}
-    </InsetPanel>
-  );
-}
+// ReviewDiffPanel lives in its own module, so a page that shows only the
+// comparison does not load the review card (#5979).
+export { ReviewDiffPanel } from "~/components/students/review-diff-panel";
 
 /**
  * Die Spaltenüberschriften über einer Zeilenliste. Nutzt dieselben Raster wie

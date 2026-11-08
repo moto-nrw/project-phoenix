@@ -815,6 +815,7 @@ describe("TagesplanView", () => {
       const group = screen.getByRole("list", { name: /^Gleichzeitig/ });
       // Laufender Block: ganze Zelle öffnet die Kinderliste, mit Chevron.
       const running = within(group).getByRole("button", { name: /Freispiel/ });
+      expect(running).toHaveClass("border-l-4");
       expect(running.querySelector("svg.lucide-chevron-right")).not.toBeNull();
       fireEvent.click(running);
       expect(push).toHaveBeenCalledWith("/active-supervisions?session=91");

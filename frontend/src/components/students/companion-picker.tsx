@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Plus, Search, X } from "lucide-react";
 
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
@@ -24,6 +25,7 @@ import {
 import { getGermanWeekdayAdverb } from "~/lib/timetable-helpers";
 import { createLogger } from "~/lib/logger";
 import { SpinnerIcon } from "~/components/ui/icons";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "CompanionPicker" });
 
@@ -286,10 +288,7 @@ export function CompanionPicker({
       ) : null}
 
       {value.map((companion) => (
-        <div
-          key={companion.companion_student_id}
-          className="rounded-lg border border-gray-200 bg-white p-2.5"
-        >
+        <InsetPanel key={companion.companion_student_id} tone="white">
           <div className="mb-2 flex items-center justify-between gap-2">
             <span className="truncate text-sm font-medium text-gray-900">
               {companionDisplayName(companion)}
@@ -321,46 +320,53 @@ export function CompanionPicker({
             }
             disabled={disabled}
           />
-        </div>
+        </InsetPanel>
       ))}
 
       {pending ? (
-        <div className="border-moto-orange bg-moto-orange/5 rounded-lg border p-2.5">
-          <p className="text-xs text-gray-900">
-            {pending.result.name} darf {formatDayList(pending.missingDays)} noch
-            nicht mit anderen Kindern nach Hause gehen. Soll{" "}
-            <span className="font-semibold">Anderes Kind</span> im Heimweg
-            dieses Kindes ergänzt werden?
-          </p>
-          <div className="mt-2 flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="md"
-              onClick={() => setPending(null)}
-            >
-              Abbrechen
-            </Button>
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              onClick={() => {
-                onExtensionConfirmed?.({
-                  companion_student_id: pending.result.id,
-                  weekdays: pending.missingDays,
-                });
-                commitCompanion(pending.result);
-              }}
-            >
-              Ergänzen und verknüpfen
-            </Button>
-          </div>
-        </div>
+        <Alert
+          type="warning"
+          size="compact"
+          actionLayout="stacked"
+          message={
+            <>
+              {pending.result.name} darf {formatDayList(pending.missingDays)}{" "}
+              noch nicht mit anderen Kindern nach Hause gehen. Soll{" "}
+              <span className="font-semibold">Anderes Kind</span> im Heimweg
+              dieses Kindes ergänzt werden?
+            </>
+          }
+          action={
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="compact"
+                onClick={() => setPending(null)}
+              >
+                Abbrechen
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="compact"
+                onClick={() => {
+                  onExtensionConfirmed?.({
+                    companion_student_id: pending.result.id,
+                    weekdays: pending.missingDays,
+                  });
+                  commitCompanion(pending.result);
+                }}
+              >
+                Ergänzen und verknüpfen
+              </Button>
+            </div>
+          }
+        />
       ) : null}
 
       {!disabled && pickerOpen && !pending ? (
-        <div className="rounded-lg border border-gray-200 bg-white p-2.5">
+        <InsetPanel tone="white">
           <div className="relative mb-2">
             <Search
               className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400"
@@ -420,7 +426,7 @@ export function CompanionPicker({
               Abbrechen
             </Button>
           </div>
-        </div>
+        </InsetPanel>
       ) : null}
 
       {!disabled && !pickerOpen && !pending ? (

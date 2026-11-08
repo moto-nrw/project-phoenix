@@ -45,12 +45,12 @@ func TestParentMyEnrollmentsPositiveGrowthQueryBudget(t *testing.T) {
 	insertChild(unrelated.ID, "Unrelated")
 	token := testutil.MintTestJWT(t, sessiontoken.AppClaims{ID: int(chain.AccountID), Sub: chain.Email, Roles: []string{"parent"}, Scope: "parent"})
 	counter := testpkg.CaptureQueries(t, db)
-	run := func(n int) []string {
+	run := func(n int) testpkg.QueryMeasurement {
 		req := httptest.NewRequest(http.MethodGet, "/me/enrollments", nil)
 		req.Header.Set("Authorization", "Bearer "+token)
 		rec := httptest.NewRecorder()
 		counter.Reset()
-		router.ServeHTTP(rec, req)
+		testpkg.MeasuredHTTPRequest(counter, testpkg.MountedQueryBudgetRouter("/parent", router), rec, req)
 		queries := counter.Queries()
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 		var body struct {
@@ -70,12 +70,12 @@ func TestParentMyEnrollmentsPositiveGrowthQueryBudget(t *testing.T) {
 			require.Nil(t, row.Children[0].StatusReason)
 		}
 		require.ElementsMatch(t, ids, actual)
-		return queries
+		return counter.Measurement(queries)
 	}
 	add(3)
 	small := run(3)
 	add(5)
 	large := run(8)
-	t.Logf("parent enrollments N3=%d N8=%d", len(small), len(large))
+	t.Logf("parent enrollments N3=%d N8=%d", len(small.Statements), len(large.Statements))
 	querybudgets.AssertQueryBudget(t, "parent.enrollments.growth.mine", large)
 }

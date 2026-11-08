@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Download, ExternalLink } from "lucide-react";
 import { FileTypeIcon } from "~/components/ui/file-type-icon";
-import { useTranslations } from "next-intl";
+
 import { Button } from "~/components/ui/button";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import {
@@ -13,6 +13,7 @@ import {
 } from "~/lib/api-error";
 import { downloadBlob } from "~/lib/file-download";
 import type { FormAttachment } from "~/lib/enrollment-form-schema-api";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 /** Keep the request on the existing anonymous PDF route, including in saved
  * admin previews whose schema still carries canonical upload URLs. */
@@ -64,7 +65,7 @@ export function DocumentAttachmentList({
 }
 
 function LocalizedAttachmentActions(props: Readonly<AttachmentActionsProps>) {
-  const t = useTranslations("enrollmentForm.attachments");
+  const t = useCareTermTranslations("enrollmentForm.attachments");
   return (
     <AttachmentActions
       {...props}

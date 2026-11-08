@@ -7,6 +7,7 @@
 // dieselbe Zeile; die Zeile ist der einzige Ort, an dem eine Abweichung vom
 // üblichen Plan sichtbar wird.
 
+import { SectionLabel } from "~/components/ui/section-label";
 import NavigationLink from "~/components/ui/navigation-link";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import type { SegmentedControlItem } from "~/components/ui/segmented-control";
@@ -239,7 +240,6 @@ export function StudentRow({
 export function Section({
   title,
   count,
-  accent = "text-gray-500",
   rows,
   enrollmentKnown = true,
   now,
@@ -248,7 +248,6 @@ export function Section({
 }: Readonly<{
   title: string;
   count: number;
-  accent?: string;
   rows: ClassDayRow[];
   enrollmentKnown?: boolean;
   now: Date;
@@ -258,11 +257,9 @@ export function Section({
   if (rows.length === 0) return null;
   return (
     <div>
-      <h3
-        className={`mb-2 text-xs font-semibold tracking-wide uppercase ${accent}`}
-      >
+      <SectionLabel className="mb-2">
         {title} ({count})
-      </h3>
+      </SectionLabel>
       {/* Zweispaltig ab lg, damit eine volle Klasse nicht zu einer langen
           schmalen Liste wird. */}
       <ul className="grid gap-1.5 lg:grid-cols-2">

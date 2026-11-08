@@ -323,7 +323,11 @@ describe("ParentMessagesPage", () => {
     expect(
       screen.getByText("Bitte an die Trinkflasche denken."),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("17.08.2026, 08:00").className).toContain(
+    const fullTimestamp = screen
+      .getAllByText("17.08.2026, 08:00")
+      .find((element) => element.getAttribute("aria-hidden") === "true")!;
+    expect(fullTimestamp).toHaveAttribute("aria-hidden", "true");
+    expect(fullTimestamp.parentElement?.parentElement).toHaveClass(
       "text-moto-blue",
     );
 

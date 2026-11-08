@@ -49,7 +49,7 @@ func TestPresenceGroups20ActiveQueryBudget(t *testing.T) {
 			counter.Stop()
 			type sample struct {
 				n   int
-				sql []string
+				sql testpkg.QueryMeasurement
 			}
 			var samples []sample
 			for _, n := range []int{3, 8} {
@@ -153,7 +153,7 @@ func TestPresenceGroups20ActiveQueryBudget(t *testing.T) {
 					}
 				}
 				t.Logf("PRESENCE20_ACTIVE key=%s n=%d statements=%d sql=%q body=%s", key, n, counter.Total(), counter.Queries(), rr.Body.String())
-				samples = append(samples, sample{n, counter.Queries()})
+				samples = append(samples, sample{n, counter.Measurement(counter.Queries())})
 				denied := testutil.ExecuteRequest(router, testutil.NewRequest("GET", path, nil))
 				require.Equal(t, 401, denied.Code)
 				wrong := claims
@@ -170,7 +170,7 @@ func TestPresenceGroups20ActiveQueryBudget(t *testing.T) {
 	}
 }
 
-func assertPresence20ActiveBudget(t *testing.T, key string, n int, queries []string) {
+func assertPresence20ActiveBudget(t *testing.T, key string, n int, queries querybudgets.Measurement) {
 	t.Helper()
 	switch fmt.Sprintf("%s.n%d", key, n) {
 	case "unclaimed.n3":

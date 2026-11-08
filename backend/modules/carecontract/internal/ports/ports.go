@@ -64,7 +64,6 @@ type NewContract struct {
 	EarlyStart bool
 }
 
-// NewParty is the party of a new draft.
 type NewParty struct {
 	FirstName string
 	LastName  string
@@ -98,7 +97,6 @@ type SentDocument struct {
 	VersionID int64
 }
 
-// StoredMailing is a send of the contract as stored.
 type StoredMailing struct {
 	WithdrawalNotice bool
 	OutboxID         int64
@@ -166,4 +164,5 @@ type Store interface {
 	VersionDocument(ctx context.Context, organizationID, versionID int64) (carecontract.File, bool, error)
 	InboxContracts(ctx context.Context, organizationID int64, reader carecontract.InboxReader) ([]carecontract.InboxContract, error)
 	InboxDocument(ctx context.Context, organizationID, contractID int64, reader carecontract.InboxReader) (carecontract.File, error)
+	ContractNoticeTarget(ctx context.Context, organizationID, contractID int64, email string) (carecontract.ContractNoticeTarget, bool, error)
 }

@@ -53,6 +53,7 @@ import {
 } from "./guardian-notice-fields";
 import { OriginChip } from "~/components/ui/planning/origin-chip";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { SectionLabel } from "~/components/ui/section-label";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { useTenantAwarePath } from "~/lib/tenant-path";
@@ -1355,13 +1356,17 @@ function StudentGroup({
   const isPlanned = instanceStatus === "planned";
   return (
     <div className="space-y-1.5">
-      <div className="flex items-center justify-between text-[11px] font-bold tracking-wide text-gray-400 uppercase">
-        <span>
+      <div className="flex items-center justify-between gap-2">
+        <SectionLabel as="p">
           {careDayGroup
             ? "Heute nicht eingeplant"
             : attendanceLabel(status, isPlanned)}
-        </span>
-        {showTimetableCounts ? <span>{students.length}</span> : null}
+        </SectionLabel>
+        {showTimetableCounts ? (
+          <span className="text-xs text-gray-500 tabular-nums">
+            {students.length}
+          </span>
+        ) : null}
       </div>
       {students.map((student) => {
         const studentName =
@@ -1380,7 +1385,7 @@ function StudentGroup({
               <div className="truncate text-sm font-semibold text-gray-900">
                 {studentName}
               </div>
-              <div className="text-[11px] text-gray-500">
+              <div className="text-xs text-gray-500">
                 {careDayGroup
                   ? careDayLabel(student.careDayStatus)
                   : attendanceLabel(student.status, isPlanned)}
@@ -1533,7 +1538,7 @@ function PersonLine({
       <div className="text-sm font-semibold text-gray-900">{name}</div>
       {labels.length > 0 && (
         <div
-          className={`mt-0.5 text-[11px] ${
+          className={`mt-0.5 text-xs ${
             danger ? "text-moto-red-strong" : "text-gray-500"
           }`}
         >
@@ -1642,9 +1647,7 @@ interface SectionProps {
 function Section({ title, children }: SectionProps) {
   return (
     <div className="space-y-2">
-      <h4 className="text-[10px] font-bold tracking-wider text-gray-400 uppercase">
-        {title}
-      </h4>
+      <SectionLabel as="h4">{title}</SectionLabel>
       <div className="space-y-1.5">{children}</div>
     </div>
   );
@@ -1663,7 +1666,7 @@ function Row({ icon, label, children }: RowProps) {
         {icon}
       </span>
       <div className="flex min-w-0 flex-1 flex-col">
-        <span className="text-[11px] font-medium text-gray-500">{label}</span>
+        <span className="text-xs font-medium text-gray-500">{label}</span>
         <span className="text-sm text-gray-900">{children}</span>
       </div>
     </InsetPanel>

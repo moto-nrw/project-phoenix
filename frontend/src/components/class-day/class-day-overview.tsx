@@ -11,6 +11,7 @@
 // Design follows the Anmeldungen/Planung surface language: one calm content
 // surface inside `TenantPage`, gray-50 stat blocks, no colored dashboards.
 
+import { SectionLabel } from "~/components/ui/section-label";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -35,6 +36,7 @@ import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
+import { TileCard } from "~/components/ui/tile-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { StatCard } from "~/components/ui/stat-card";
 import { getUserDisplayName } from "~/lib/auth-utils";
@@ -177,11 +179,9 @@ function ClassLink({
       ? classSummary(report, weekend)
       : "Wird geladen …";
   return (
-    <ButtonLink
+    <TileCard
       href={schoolPath(schoolDayClassPath(klass, dateISO, openList))}
-      variant="surface"
-      size="card"
-      className="min-h-24 justify-between gap-3 text-left"
+      className="flex min-h-24 items-center justify-between gap-3"
     >
       {/* flex-1 + min-w-0: ohne beides schrumpft das Textfeld nicht und die
           Karte läuft auf schmalen Bildschirmen über den Rand hinaus. Die
@@ -206,7 +206,7 @@ function ClassLink({
         className="h-5 w-5 shrink-0 text-gray-400"
         aria-hidden="true"
       />
-    </ButtonLink>
+    </TileCard>
   );
 }
 
@@ -683,9 +683,9 @@ function ClassDayOverviewContent({
                   <>
                     {schoolMode && schoolDay && (
                       <>
-                        <h3 className="mt-5 text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                        <SectionLabel className="mt-5">
                           Ganze Schule
-                        </h3>
+                        </SectionLabel>
                         <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                           {schoolLists.map((list) => (
                             <StatCard
@@ -829,9 +829,9 @@ function ClassDayOverviewContent({
                     )}
                     {classes !== undefined && (
                       <>
-                        <h3 className="mt-5 text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                        <SectionLabel className="mt-5">
                           {schoolMode ? "Alle Klassen" : "Ihre Klassen"}
-                        </h3>
+                        </SectionLabel>
                         {schoolMode ? (
                           <div className="mt-2 grid gap-3 lg:grid-cols-2">
                             {classes.map((klass) => (

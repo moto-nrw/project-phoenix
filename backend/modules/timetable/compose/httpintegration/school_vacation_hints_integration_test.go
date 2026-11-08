@@ -244,5 +244,5 @@ func TestSchoolVacationHintsQueryBudgetStaysFlat(t *testing.T) {
 
 	require.Len(t, large, len(small), "statement count must not grow with the vacation hints")
 	t.Logf("query budget: 3 school vacation hints → %d queries, 8 school vacation hints → %d queries", len(small), len(large))
-	querybudgets.AssertQueryBudget(t, "modules.timetable.school_vacation_hints.list", large)
+	querybudgets.AssertQueryBudget(t, "modules.timetable.school_vacation_hints.list", counter.Measurement(large))
 }

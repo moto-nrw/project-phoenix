@@ -218,7 +218,7 @@ func TestStaffNoticeListRouteQueryBudgets(t *testing.T) {
 					}
 					assertNoticeBudgetResponse(t, rec, expected)
 					assertNoticeBudgetReadOnly(t, counter)
-					assertNoticeRouteBudget(t, route, size, queries)
+					assertNoticeRouteBudget(t, route, size, counter.Measurement(queries))
 				}
 				require.Equal(t, counts[3], counts[8], "no statement growth with notices/acknowledgements")
 			})
@@ -228,7 +228,7 @@ func TestStaffNoticeListRouteQueryBudgets(t *testing.T) {
 
 // Literal scenario references also let the source-level budget ratchet verify
 // that each authored contract is reached by a real assertion.
-func assertNoticeRouteBudget(t *testing.T, route noticeBudgetRoute, size int, queries []string) {
+func assertNoticeRouteBudget(t *testing.T, route noticeBudgetRoute, size int, queries querybudgets.Measurement) {
 	t.Helper()
 	switch {
 	case route.management && size == 0:

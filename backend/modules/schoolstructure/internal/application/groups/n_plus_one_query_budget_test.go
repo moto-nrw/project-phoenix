@@ -33,5 +33,5 @@ func TestSuggestMappingsQueryBudget(t *testing.T) {
 	add(3, 8)
 	large := run()
 	assert.Equal(t, len(small), len(large))
-	querybudgets.AssertQueryBudget(t, "services.education.suggest_mappings.reads", large)
+	querybudgets.AssertQueryBudget(t, "services.education.suggest_mappings.reads", counter.Measurement(large))
 }

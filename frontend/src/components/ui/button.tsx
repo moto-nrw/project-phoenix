@@ -6,7 +6,7 @@ import {
   type ButtonSize,
   type ButtonVariant,
 } from "./button-styles";
-import Link from "next/link";
+import Link from "next/link.js";
 import { useLinkIntentPrefetch } from "./use-link-intent-prefetch";
 import { cn } from "~/lib/utils";
 
@@ -62,17 +62,20 @@ export function Button({
   size = "base",
   className = "",
   touchTarget = false,
+  disabled,
   ...props
 }: Readonly<ButtonProps>) {
   return (
     <button
       type="submit"
-      disabled={isLoading}
       data-icon-only={size === "icon" ? "" : undefined}
       className={buttonClassName({ variant, size, className, touchTarget })}
       {...props}
+      // Nach den Props: `disabled={false}` vom Aufrufer hebt die Ladesperre
+      // nicht auf, sonst wäre ein zweites Absenden möglich (#5608).
+      disabled={Boolean(isLoading) || disabled}
     >
-      {isLoading ? (loadingText ?? "Loading...") : children}
+      {isLoading ? (loadingText ?? "Wird geladen …") : children}
     </button>
   );
 }

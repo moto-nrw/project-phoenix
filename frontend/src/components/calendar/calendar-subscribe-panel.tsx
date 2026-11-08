@@ -33,6 +33,7 @@ interface CalendarSubscribeCopy {
   readonly title: string;
   readonly description: string;
   readonly showLink: string;
+  readonly loading: string;
   readonly createNew: string;
   readonly subscribe: string;
   readonly regenerate: string;
@@ -142,6 +143,7 @@ export function CalendarSubscribePanel({
     title: t("title"),
     description: isStaff ? staffT("description") : t("description"),
     showLink: t("showLink"),
+    loading: t("loading"),
     createNew: isStaff ? staffT("createNew") : t("createNew"),
     subscribe: t("subscribe"),
     regenerate: isStaff ? staffT("regenerate") : t("regenerate"),
@@ -228,13 +230,25 @@ export function CalendarSubscribePanel({
       actions={
         !open ? (
           <div className="flex w-full justify-end sm:w-auto">
-            <Button type="button" size="md" isLoading={loading} onClick={load}>
+            <Button
+              type="button"
+              size="md"
+              isLoading={loading}
+              loadingText={copy.loading}
+              onClick={load}
+            >
               <Link className="mr-2 size-4" aria-hidden />
               {copy.showLink}
             </Button>
           </div>
         ) : feed && !feed.url ? (
-          <Button type="button" size="md" isLoading={loading} onClick={rotate}>
+          <Button
+            type="button"
+            size="md"
+            isLoading={loading}
+            loadingText={copy.loading}
+            onClick={rotate}
+          >
             <RefreshCw className="mr-2 size-4" aria-hidden />
             {copy.createNew}
           </Button>
@@ -249,6 +263,7 @@ export function CalendarSubscribePanel({
               size="md"
               variant="outline"
               isLoading={loading}
+              loadingText={copy.loading}
               onClick={rotate}
             >
               <RefreshCw className="mr-2 size-4" aria-hidden />

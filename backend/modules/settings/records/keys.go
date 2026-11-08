@@ -511,6 +511,7 @@ const (
 	KeyEnrollmentOutboxWorkerIntervalSeconds            = "enrollment.outbox_worker_interval_seconds"
 	KeyEnrollmentStatusTokenTTLDays                     = "enrollment.status_token_ttl_days"
 	KeyEnrollmentGradeLevelMax                          = "enrollment.grade_level_max"
+	KeyEnrollmentCareFacilityTerm                       = "enrollment.care_facility_term"
 	// Per-tenant info texts (Markdown) shown behind each consent
 	// checkbox on the public enrollment form. A block is shown only when
 	// its matching enable setting is true and its text is non-empty.
@@ -775,25 +776,3 @@ const (
 	KeyBrandingLetterheadText = "branding.letterhead_text"
 	KeyBrandingFooterText     = "branding.footer_text"
 )
-
-// KeyParentBillingDebtorNumberOnConfirm is the switch of a Träger (#5621):
-// its office enters the debtor number of the family when it confirms a
-// holiday registration, and the letter names it as the reference to pay
-// with. Only the Träger sets it (LevelTraeger).
-const KeyParentBillingDebtorNumberOnConfirm = "parent_billing.debtor_number_on_confirm"
-
-// KeyParentBillingPaymentText is the payment sentence of the confirmation
-// letter of a Träger (#5622): its own text with the placeholders {Betrag},
-// {Zahlungsfrist}, {Rechnungsnummer} and {Debitorennummer}. Empty keeps the
-// built-in sentence. Only the Träger sets it (LevelTraeger).
-const KeyParentBillingPaymentText = "parent_billing.payment_text"
-
-// KeyParentBillingSiblingRank says which child of a holiday registration
-// counts as the first child (#5664): the one with the highest contribution
-// or the oldest. Only the Träger sets it (LevelTraeger).
-const KeyParentBillingSiblingRank = "parent_billing.sibling_rank"
-
-// KeyParentBillingCostTakeoverOrder says whether a cost bearer pays what is
-// left after the sibling discount or the full price (#5664). Only the Träger
-// sets it (LevelTraeger).
-const KeyParentBillingCostTakeoverOrder = "parent_billing.cost_takeover_order"

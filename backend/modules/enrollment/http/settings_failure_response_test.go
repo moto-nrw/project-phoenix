@@ -22,8 +22,8 @@ type failedSettingsIntake struct{ RequestService }
 func (failedSettingsIntake) GetByStatusToken(context.Context, string) (*Request, []*RequestChild, error) {
 	return &Request{ID: 1}, nil, nil
 }
-func (failedSettingsIntake) EditModeForStatus(context.Context, *Request, []*RequestChild) (string, error) {
-	return "", errors.New(privateSettingsFailure)
+func (failedSettingsIntake) StatusPage(context.Context, *Request, []*RequestChild) (capability.StatusPage, error) {
+	return capability.StatusPage{}, errors.New(privateSettingsFailure)
 }
 func (failedSettingsIntake) Edit(context.Context, string, EditPatch) error {
 	return errors.New(privateSettingsFailure)

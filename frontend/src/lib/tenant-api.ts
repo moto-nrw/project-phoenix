@@ -4,6 +4,7 @@
  * tenant listing/switching (post-login).
  */
 
+import { normalizeCareFacilityTerm } from "~/lib/care-facility-term-value";
 import { apiErrorFromResponse } from "./api-error";
 import { clearSessionCache, sessionFetch } from "./session-cache";
 import { clearPersonalStorage } from "./personal-storage";
@@ -179,6 +180,12 @@ export interface TenantInfo {
    * metadata is off, which keeps the separate entries.
    */
   childSearchOnlyNavigation?: boolean;
+  /**
+   * The school's term for its care in the fixed texts of the enrollment flow
+   * (enrollment.care_facility_term, #6042), „OGS“ by default. Read it through
+   * `useCareFacilityTerm`, which also covers missing metadata.
+   */
+  careFacilityTerm?: string;
 }
 
 /** Identity-only tenant row returned by list/switch endpoints. Feature and
@@ -231,6 +238,7 @@ interface TenantResolveResponse {
   early_checkout_note_tolerance_minutes?: number;
   weekend_follows_friday?: boolean;
   child_search_only_navigation?: boolean;
+  care_facility_term?: string;
 }
 
 /**
@@ -390,6 +398,7 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
       ),
       weekendFollowsFriday: data.weekend_follows_friday === true,
       childSearchOnlyNavigation: data.child_search_only_navigation === true,
+      careFacilityTerm: normalizeCareFacilityTerm(data.care_facility_term),
     };
   } catch {
     return null;

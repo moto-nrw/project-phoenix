@@ -1,0 +1,2 @@
+GET /traeger/contract-changes/{id} -> basis
+POST /traeger/contract-changes/{id}/requests/{requestId}/decide -> basis

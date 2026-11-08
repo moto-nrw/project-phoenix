@@ -48,11 +48,7 @@ export function CatalogColorField(props: {
 
   return (
     <div>
-      <FieldLabel
-        htmlFor={inputId}
-        required={required}
-        className="mb-1.5 text-xs"
-      >
+      <FieldLabel htmlFor={inputId} required={required}>
         {label}
       </FieldLabel>
       <div className="flex items-center gap-3">
@@ -69,9 +65,8 @@ export function CatalogColorField(props: {
           <Button
             type="button"
             onClick={() => onChange(null)}
-            variant="ghost"
-            size="compact"
-            className="h-auto px-0 py-0 text-gray-500 underline hover:text-gray-700"
+            variant="link"
+            size="md"
           >
             Zurücksetzen
           </Button>

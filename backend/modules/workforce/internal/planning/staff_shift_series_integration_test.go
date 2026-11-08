@@ -842,7 +842,7 @@ func TestStaffScheduleOverview_SeriesFieldsRideExistingReads(t *testing.T) {
 	// batched reads — below the 7 of a fully populated active week, because
 	// the assignment-dependent reads early-return. The point pinned here:
 	// series_id/detached ride the existing shift rows and add ZERO reads.
-	querybudgets.AssertQueryBudget(t, "services.schedule.staff_overview.shift_only_week", queryCounter.Queries())
+	querybudgets.AssertQueryBudget(t, "services.schedule.staff_overview.shift_only_week", queryCounter.Measurement(queryCounter.Queries()))
 
 	require.NotEmpty(t, overview.Shifts)
 	for _, shift := range overview.Shifts {

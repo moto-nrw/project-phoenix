@@ -35,7 +35,7 @@ func TestListGuardiansQueryBudget(t *testing.T) {
 	add(3, 8)
 	large := run()
 	assert.Equal(t, len(small), len(large))
-	querybudgets.AssertQueryBudget(t, "services.users.list_guardians.reads", large)
+	querybudgets.AssertQueryBudget(t, "services.users.list_guardians.reads", counter.Measurement(large))
 }
 
 func TestStudentGuardiansQueryBudget(t *testing.T) {
@@ -70,5 +70,5 @@ func TestStudentGuardiansQueryBudget(t *testing.T) {
 	add(3, 8)
 	large := run()
 	assert.Equal(t, len(small), len(large))
-	querybudgets.AssertQueryBudget(t, "services.users.student_guardians.reads", large)
+	querybudgets.AssertQueryBudget(t, "services.users.student_guardians.reads", counter.Measurement(large))
 }

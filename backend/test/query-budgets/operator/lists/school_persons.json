@@ -2,5 +2,6 @@
   "scenario": "operator.lists.school_persons",
   "max": 21,
   "exact": true,
-  "description": "GET /operator/schools/{id}/persons; N persons in the primary school. N=3/8 positive body IDs and cardinality. Complete protected route-sized request: real owners, signed live operator session, mandatory access audit where mounted and owner transactions/RLS. Fixture setup/token issuance and outer Serve-host middleware excluded. Observed scenario count, not a universal floor."
+  "description": "GET /operator/schools/{id}/persons; N persons in the primary school. N=3/8 positive body IDs and cardinality. Complete protected route-sized request: real owners, signed live operator session, mandatory access audit where mounted and owner transactions/RLS. Fixture setup/token issuance and outer Serve-host middleware excluded. Observed scenario count, not a universal floor.",
+  "route": "GET /operator/schools/{id}/persons"
 }

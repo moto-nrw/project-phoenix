@@ -1,3 +1,4 @@
 GET /traeger/contract-notices/{id} -> basis
 POST /traeger/contract-notices/{id} -> basis
+POST /traeger/contract-notices/{id}/reason-rejection -> basis
 PUT /traeger/contract-notices/{id}/ends-on -> basis

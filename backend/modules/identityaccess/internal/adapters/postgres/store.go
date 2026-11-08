@@ -269,3 +269,22 @@ func ResolveDatabase(raw any, present bool, scope TenantScope) (bun.IDB, error) 
 func ScopeFor(schoolID int64, admin bool) TenantScope {
 	return TenantScope{TenantID: schoolID, AdminTransaction: admin, AcrossSchools: admin && schoolID == 0}
 }
+
+func (s *Store) FindActiveAccounts(ctx context.Context, ids []int64) (map[int64]domain.Account, domain.OperationStats, error) {
+	result := make(map[int64]domain.Account)
+	if len(ids) == 0 {
+		return result, domain.OperationStats{}, nil
+	}
+	db, err := s.database(ctx)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	var rows []accountRow
+	started := time.Now()
+	err = db.NewRaw(`SELECT id, email FROM auth.accounts WHERE id IN (?) AND active = TRUE AND personal_data_erased_at IS NULL`, bun.List(ids)).Scan(ctx, &rows)
+	stats := domain.OperationStats{Queries: 1, Rows: int64(len(rows)), StatementDuration: time.Since(started)}
+	for _, row := range rows {
+		result[row.ID] = domain.Account{ID: row.ID, Email: row.Email}
+	}
+	return result, stats, err
+}

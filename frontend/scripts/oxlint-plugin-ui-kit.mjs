@@ -6,12 +6,6 @@ import {
   buttonRatchetAllowlist,
   buttonRatchetBaseline,
 } from "./ui-kit-button-baseline.mjs";
-import {
-  fieldLabelAllowlist,
-  fieldLabelBaseline,
-} from "./ui-kit-field-label-baseline.mjs";
-import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
-import { noticeAllowlist, noticeBaseline } from "./ui-kit-notice-baseline.mjs";
 
 // UI-kit drift ratchet (issue #1629).
 //
@@ -30,7 +24,10 @@ import { noticeAllowlist, noticeBaseline } from "./ui-kit-notice-baseline.mjs";
 //                                     OverflowMenu from the kit
 //   ui-kit/no-hand-rolled-surface   — hand-built card surfaces
 //                                     (`rounded-xl/2xl` + `border` + `bg-white`),
-//                                     in the kit except SURFACE_KIT_CONTROLS; use
+//                                     in the kit except SURFACE_KIT_CONTROLS;
+//                                     outside the kit also rounded-md/lg,
+//                                     bg-white/NN and frames without fill
+//                                     (#5594, hard-zero); use
 //                                     moto-content-surface (cards),
 //                                     AnchoredPopover or OverflowMenu (floating panels),
 //                                     ChoiceTile (selectable rows) or a kit
@@ -43,12 +40,14 @@ import { noticeAllowlist, noticeBaseline } from "./ui-kit-notice-baseline.mjs";
 //
 // Four more rules belong to the tenant page scaffold (#2619):
 //
-//   ui-kit/no-tiny-text             — sub-12px text utilities; shrink-only
-//                                     baseline
-//   ui-kit/no-tenant-kicker         — no blue mini-heading in the tenant portal
+//   ui-kit/no-tiny-text             — sub-12px text utilities; hard-zero
+//                                     since #6183
+//   ui-kit/no-tenant-kicker         — no mini-heading above a title outside parents
 //   ui-kit/no-hand-rolled-page-card — no `moto-content-surface … rounded-2xl`
-//                                     spelled out in a tenant page/loading
-//                                     file; use the kit cards (unlike
+//                                     spelled out outside the kit (all of
+//                                     app/ and components/ since #5594,
+//                                     shrink-only baseline); use the kit
+//                                     cards (unlike
 //                                     no-hand-rolled-surface, which bans the
 //                                     plain-Tailwind card chain everywhere)
 //   ui-kit/no-tabs-as-value-switcher — ui/Tabs is for content panels; values
@@ -76,6 +75,9 @@ import { noticeAllowlist, noticeBaseline } from "./ui-kit-notice-baseline.mjs";
 //                                     Tailwind never generates them
 //   ui-kit/no-white-on-warm-fill    — no white text on orange (SCHOOLYARD) or
 //                                     amber (WARNING) fills
+//
+// ui-kit/no-uppercase-label (#5590, hard-zero): no `uppercase
+// tracking-*` class chain outside the kit; group headings use SectionLabel.
 //
 // ui-kit/no-hand-rolled-empty-state (#5597, hard-zero): a dashed, centered box
 // outside ui/ is a hand-built placeholder; use EmptyState variant="dashed".
@@ -160,13 +162,10 @@ import { noticeAllowlist, noticeBaseline } from "./ui-kit-notice-baseline.mjs";
 //
 //   ui-kit/no-important-override   — no `!` utility on a kit component; the
 //                                     missing prop goes into the kit
-//                                     (shrink-only baseline per file)
+//                                     (hard-zero since #6183)
 //   ui-kit/no-section-card-bleed   — no negative margin in a SectionCard
 //                                     bodyClassName; use flush or footer
 //
-// The tiny-text baseline below is SHRINK-ONLY: matches may be removed when
-// a file is migrated, but never added.
-
 // Test/stories files are exempt from the class-string rules. A deliberate
 // non-card match stays behind `oxlint-disable-next-line` with a reason; there
 // is no baseline to grow.
@@ -207,34 +206,6 @@ function fileKey(context) {
   return idx === -1 ? posix : posix.slice(idx + 1);
 }
 
-/** Parse `token@line` rows into immutable per-file occurrence snapshots. */
-function parseLocationBaseline(source) {
-  return new Map(
-    source
-      .trim()
-      .split("\n")
-      .map((row) => {
-        const [file, encoded] = row.split("|");
-        const occurrences = new Map();
-        for (const location of encoded.split(" ")) {
-          occurrences.set(location, (occurrences.get(location) ?? 0) + 1);
-        }
-        return [file, occurrences];
-      }),
-  );
-}
-
-function isBaselineMatch(baseline, key, match, line, seenOccurrences) {
-  const location = `${match}@${line}`;
-  const seen = seenOccurrences.get(location) ?? 0;
-  seenOccurrences.set(location, seen + 1);
-  return seen < (baseline.get(key)?.get(location) ?? 0);
-}
-
-function restrictMatchBaseline(baselineFiles, baseline) {
-  return new Map([...baseline].filter(([file]) => baselineFiles.has(file)));
-}
-
 function collectStaticStrings(node, chunks, seen = new WeakSet()) {
   if (!node || typeof node !== "object" || seen.has(node)) return;
   seen.add(node);
@@ -264,6 +235,27 @@ function findVariable(sourceCode, identifier) {
     const variable = scope.set.get(identifier.name);
     if (variable) return variable;
     scope = scope.upper;
+  }
+  return undefined;
+}
+
+/**
+ * Resolves the initializer of the exact lexical binding, including a binding
+ * declared later in the module. Falling back to the traversal-built map would
+ * make class checks depend on declaration order and can pick a shadowed name.
+ */
+function constantInitializer(identifier, constants, sourceCode) {
+  if (!sourceCode) return constants.get(identifier.name);
+  const variable = findVariable(sourceCode, identifier);
+  if (!variable) return undefined;
+  for (const definition of variable.defs) {
+    if (
+      definition.type === "Variable" &&
+      definition.node.type === "VariableDeclarator" &&
+      definition.node.init
+    ) {
+      return definition.node.init;
+    }
   }
   return undefined;
 }
@@ -425,9 +417,11 @@ function crossJoin(left, right) {
  */
 function classCombinations(
   node,
-  seen = new WeakSet(),
+  // Conditional alternatives need independent copies of the traversal state.
+  seen = new Set(),
   sourceCode,
   seenVariables = new Set(),
+  { skipReportedSurfaceConstants = false } = {},
 ) {
   if (!node || typeof node !== "object" || seen.has(node)) return [""];
   seen.add(node);
@@ -449,11 +443,20 @@ function classCombinations(
         !definition.node.init
       )
         continue;
+      const value = staticStringValue(definition.node.init);
+      if (
+        skipReportedSurfaceConstants &&
+        typeof value === "string" &&
+        isSurfaceCombo(value)
+      ) {
+        continue;
+      }
       const resolved = classCombinations(
         definition.node.init,
         seen,
         sourceCode,
         seenVariables,
+        { skipReportedSurfaceConstants },
       );
       if (!resolved) return null;
       combinations.push(...resolved);
@@ -464,15 +467,17 @@ function classCombinations(
   if (node.type === "ConditionalExpression") {
     const consequent = classCombinations(
       node.consequent,
-      seen,
+      new Set(seen),
       sourceCode,
-      seenVariables,
+      new Set(seenVariables),
+      { skipReportedSurfaceConstants },
     );
     const alternate = classCombinations(
       node.alternate,
-      seen,
+      new Set(seen),
       sourceCode,
-      seenVariables,
+      new Set(seenVariables),
+      { skipReportedSurfaceConstants },
     );
     if (!consequent || !alternate) return null;
     const merged = [...consequent, ...alternate];
@@ -481,13 +486,20 @@ function classCombinations(
   if (node.type === "LogicalExpression") {
     const right = classCombinations(
       node.right,
-      seen,
+      new Set(seen),
       sourceCode,
-      seenVariables,
+      new Set(seenVariables),
+      { skipReportedSurfaceConstants },
     );
     if (!right) return null;
     if (node.operator === "&&") return ["", ...right];
-    const left = classCombinations(node.left, seen, sourceCode, seenVariables);
+    const left = classCombinations(
+      node.left,
+      new Set(seen),
+      sourceCode,
+      new Set(seenVariables),
+      { skipReportedSurfaceConstants },
+    );
     if (!left) return null;
     const merged = [...left, ...right];
     return merged.length > MAX_CLASS_COMBINATIONS ? null : merged;
@@ -504,6 +516,7 @@ function classCombinations(
         seen,
         sourceCode,
         seenVariables,
+        { skipReportedSurfaceConstants },
       );
       if (!childCombos) return null;
       combos = crossJoin(combos, childCombos);
@@ -514,13 +527,11 @@ function classCombinations(
 }
 
 /**
- * Builds a rule that reports string/template-literal chunks matching `regex`.
- * Hard-zero unless a shrink-only per-file `baseline` is given; then the
- * individual legacy matches recorded there are tolerated.
+ * Builds a hard-zero rule that reports string/template-literal chunks
+ * matching `regex`.
  */
 function makeClassStringRule({
   regex,
-  baseline = new Map(),
   skipUiKit,
   onlyUiKit = false,
   skipFiles = [],
@@ -542,31 +553,10 @@ function makeClassStringRule({
       if (skipUiKit && key.startsWith(UI_KIT_DIR)) return {};
       if (onlyUiKit && !key.startsWith(UI_KIT_DIR)) return {};
       if (skipFiles.includes(key)) return {};
-      const seenBaselineOccurrences = new Map();
       const check = (node, text) => {
         regex.lastIndex = 0;
         for (const match of text.matchAll(regex)) {
-          // Nur die Tiny-Text-Regel hat eine Standort-Baseline. Die übrigen
-          // Hard-zero-Regeln brauchen keine Quellposition und bleiben damit
-          // auch mit den absichtlich schlanken AST-Knoten ihrer Unit-Tests
-          // prüfbar.
-          const baselineMatches = baseline.get(key);
-          const line =
-            baselineMatches && node.loc
-              ? node.loc.start.line +
-                (text.slice(0, match.index).match(/\n/g)?.length ?? 0)
-              : undefined;
-          if (
-            !isBaselineMatch(
-              baseline,
-              key,
-              match[0],
-              line,
-              seenBaselineOccurrences,
-            )
-          ) {
-            context.report({ node, messageId, data: { match: match[0] } });
-          }
+          context.report({ node, messageId, data: { match: match[0] } });
         }
       };
 
@@ -674,12 +664,201 @@ const SURFACE_KIT_CONTROLS = new Map([
   ["src/components/ui/checkbox-card.tsx", "Auswahlzeile mit Häkchen"],
 ]);
 
+// #5594 schärft die Regel außerhalb des Kits: eine Fläche ist auch
+// `rounded-md`/`rounded-lg` mit Rahmen und weißer Füllung, eine halbdurchsichtige
+// weiße Füllung (`bg-white/80`) und ein Rahmen mit Polster ganz ohne Füllung.
+// Geprüft wird das Element mit seinem className (auch über Konstanten); Knöpfe,
+// Links und Felder sind Bedienelemente, keine Fläche (eigene Regeln), ein
+// gestrichelter Rahmen ist EmptyState/InsetPanel, `moto-*-surface` ist die
+// Kit-Fläche selbst. Ein Rahmen ohne Füllung zählt nur mit Polster: ohne
+// Polster ist er die Hülle einer Liste oder Tabelle (FramedList). Das Kit
+// bleibt bei der alten Kette, es definiert die Bedienelemente. Die alte
+// Kette ist weiter hart null; nur die Schärfung trägt eine Baseline.
+const SURFACE_WIDE_ROUNDED_RE = /^rounded-(?:md|lg|xl|2xl)$/;
+const SURFACE_FRAME_RE = /^border(?:-[1-9]\d*)?$/;
+const SURFACE_WHITE_FILL_RE = /^bg-white(?:\/[1-9]\d*)?$/;
+const SURFACE_RESPONSIVE_VARIANT_RE =
+  /^(?:(?:max-)?(?:sm|md|lg|xl|2xl)|compact|min-\[[^\]]+\]|max-\[[^\]]+\])$/;
+const SURFACE_BREAKPOINT_VALUES = new Map([
+  ["sm", 640],
+  ["md", 768],
+  ["lg", 1024],
+  ["xl", 1280],
+  ["2xl", 1536],
+]);
+const SURFACE_ARBITRARY_BREAKPOINT_RE =
+  /^(min|max)-\[(\d+(?:\.\d+)?)(?:px|rem|em)\]$/;
+const SURFACE_INTERACTION_VARIANT_RE = /^(?:hover|focus(?:-visible|-within)?)$/;
+const SURFACE_CONTROL_ELEMENTS = new Set([
+  "a",
+  "button",
+  "input",
+  "label",
+  "select",
+  "textarea",
+  "Link",
+  "NavLink",
+  "NavigationLink",
+  "Button",
+  "ButtonLink",
+  "ListRowLink",
+  "ChoiceTile",
+]);
+
+function surfaceResponsiveRange(variant) {
+  const min = SURFACE_BREAKPOINT_VALUES.get(variant);
+  if (min !== undefined) return { min };
+
+  const max = variant.startsWith("max-")
+    ? SURFACE_BREAKPOINT_VALUES.get(variant.slice(4))
+    : undefined;
+  if (max !== undefined) return { max };
+
+  const arbitrary = SURFACE_ARBITRARY_BREAKPOINT_RE.exec(variant);
+  if (!arbitrary) return null;
+  const [, direction, value, unit] = arbitrary;
+  const pixels = Number(value) * (unit === "px" ? 1 : 16);
+  return direction === "min" ? { min: pixels } : { max: pixels };
+}
+
+function splitTailwindVariants(token) {
+  const parts = [];
+  let start = 0;
+  let bracketDepth = 0;
+  for (let index = 0; index < token.length; index++) {
+    if (token[index] === "[") bracketDepth++;
+    if (token[index] === "]") bracketDepth--;
+    if (token[index] !== ":" || bracketDepth !== 0) continue;
+    parts.push(token.slice(start, index));
+    start = index + 1;
+  }
+  parts.push(token.slice(start));
+  return parts;
+}
+
+function surfaceResponsiveToken(token) {
+  const parts = splitTailwindVariants(token);
+  if (parts.length === 1) return { utility: token };
+
+  const utility = parts.pop();
+  const variants = parts;
+  const ranges = [];
+  let compact = false;
+  let interaction;
+  for (const variant of variants) {
+    const range = surfaceResponsiveRange(variant);
+    if (range) {
+      ranges.push(range);
+      continue;
+    }
+    if (variant === "compact") {
+      compact = true;
+      continue;
+    }
+    if (SURFACE_INTERACTION_VARIANT_RE.test(variant)) {
+      interaction ??= variant;
+      continue;
+    }
+    return null;
+  }
+  if (ranges.length === 0 && !compact) return null;
+  return {
+    utility:
+      interaction && utility.startsWith("bg-")
+        ? `${interaction}:${utility}`
+        : utility,
+    ranges,
+    compact,
+  };
+}
+
+function isWideSurfaceTokens(tokens) {
+  const baseTokens = [];
+  const responsiveTokens = [];
+  const isolatedTokens = new Map();
+  for (const token of tokens) {
+    const parsed = surfaceResponsiveToken(token);
+    if (parsed && parsed.ranges === undefined) {
+      baseTokens.push(parsed.utility);
+      continue;
+    }
+    if (parsed) {
+      responsiveTokens.push(parsed);
+      continue;
+    }
+
+    const [variant, utility, ...rest] = splitTailwindVariants(token);
+    if (
+      rest.length === 0 &&
+      utility &&
+      SURFACE_RESPONSIVE_VARIANT_RE.test(variant)
+    ) {
+      const variantTokens = isolatedTokens.get(variant) ?? [];
+      variantTokens.push(utility);
+      isolatedTokens.set(variant, variantTokens);
+    }
+  }
+  const states = [];
+  const bounds = new Set([0]);
+  for (const { ranges, compact } of responsiveTokens) {
+    for (const range of ranges) bounds.add(range.min ?? range.max);
+    // `compact` starts at `md` and can also match short wide screens.
+    if (compact) bounds.add(SURFACE_BREAKPOINT_VALUES.get("md"));
+  }
+  for (const width of [...bounds].sort((left, right) => left - right)) {
+    const state = [...baseTokens];
+    for (const { utility, ranges, compact } of responsiveTokens) {
+      if (
+        (!compact || width >= SURFACE_BREAKPOINT_VALUES.get("md")) &&
+        ranges.every(
+          (range) =>
+            (range.min === undefined || width >= range.min) &&
+            (range.max === undefined || width < range.max),
+        )
+      ) {
+        state.push(utility);
+      }
+    }
+    states.push(state);
+  }
+  for (const variantTokens of isolatedTokens.values()) {
+    states.push([...baseTokens, ...variantTokens]);
+  }
+  return states.some(isWideSurfaceTokenGroup);
+}
+
+function isWideSurfaceTokenGroup(tokens) {
+  if (!tokens.some((token) => SURFACE_WIDE_ROUNDED_RE.test(token))) {
+    return false;
+  }
+  if (!tokens.some((token) => SURFACE_FRAME_RE.test(token))) return false;
+  if (tokens.includes("border-transparent")) return false;
+  if (tokens.some((token) => /^border-l-\[/.test(token))) return false;
+  if (
+    tokens.some(
+      (token) =>
+        token === "border-dashed" || /^moto-[\w-]*surface$/.test(token),
+    )
+  ) {
+    return false;
+  }
+  if (tokens.some((token) => SURFACE_WHITE_FILL_RE.test(token))) return true;
+  const anyFill = tokens.some(
+    (token) =>
+      /(?:^|:)bg-/.test(token) &&
+      !/(?:^|:)(?:hover|focus(?:-visible|-within)?):bg-/.test(token) &&
+      !/(?:^|:)bg-transparent$/.test(token),
+  );
+  const padded = tokens.some((token) => /^p[xytblrse]?-\d/.test(token));
+  return !anyFill && padded;
+}
+
 const noHandRolledSurface = {
   meta: {
     type: "problem",
     docs: {
       description:
-        "Disallow hand-built card surfaces (`rounded-xl/2xl` + `border` + `bg-white`), in the UI kit too (#5586); use moto-content-surface, moto-popover-surface, ChoiceTile or a kit surface component (SectionCard).",
+        "Disallow hand-built card surfaces (`rounded-xl/2xl` + `border` + `bg-white`), in the UI kit too (#5586); outside the kit also `rounded-md/lg`, translucent white fills and frames without fill (#5594). Use moto-content-surface, moto-popover-surface, ChoiceTile or a kit surface component (SectionCard).",
     },
     messages: {
       handRolledSurface:
@@ -688,10 +867,15 @@ const noHandRolledSurface = {
     schema: [],
   },
   create(context) {
+    const report = (descriptor) => context.report(descriptor);
     const key = fileKey(context);
     if (!key.startsWith("src/")) return {};
     if (EXEMPT_FILE_RE.test(key)) return {};
     if (SURFACE_KIT_CONTROLS.has(key)) return {};
+    // Die Eltern-Ausnahmen aus #2619 gelten nur für die Schärfung; die
+    // alte Kette bleibt auch dort hart null.
+    const widened =
+      !key.startsWith(UI_KIT_DIR) && !INSET_PARENT_EXCEPTIONS.includes(key);
 
     const check = (node, text) => {
       if (!isSurfaceCombo(text)) return;
@@ -700,6 +884,84 @@ const noHandRolledSurface = {
         messageId: "handRolledSurface",
         data: { match: "rounded-xl/2xl … border … bg-white" },
       });
+    };
+    const surfaceComboKey = (text) => text.trim().replace(/\s+/g, " ");
+    // Literal-/Template- und konstante cn()-Treffer melden sich schon an
+    // ihrer Definition. Die Verwendungen einer Konstanten dürfen diese
+    // alte Kette nicht nochmals melden, wohl aber einen anderen, erweiterten
+    // Zweig derselben className-Expression.
+    const separatelyReportedSurfaceCombos = (
+      value,
+      seenVariables = new Set(),
+      seenNodes = new WeakSet(),
+    ) => {
+      const reported = new Set();
+      const collect = (node) => {
+        if (!node || typeof node !== "object" || seenNodes.has(node)) return;
+        seenNodes.add(node);
+        if (
+          node.type === "JSXExpressionContainer" ||
+          node.type === "ChainExpression" ||
+          node.type === "TSAsExpression" ||
+          node.type === "TSTypeAssertion" ||
+          node.type === "TypeCastExpression"
+        ) {
+          collect(node.expression);
+          return;
+        }
+        if (node.type === "Literal" && typeof node.value === "string") {
+          if (isSurfaceCombo(node.value)) {
+            reported.add(surfaceComboKey(node.value));
+          }
+          return;
+        }
+        if (node.type === "TemplateLiteral") {
+          for (const quasi of node.quasis) {
+            if (isSurfaceCombo(quasi.value.raw)) {
+              reported.add(surfaceComboKey(quasi.value.raw));
+            }
+          }
+          return;
+        }
+        if (node.type === "Identifier") {
+          const variable = findVariable(context.sourceCode, node);
+          if (!variable || seenVariables.has(variable)) return;
+          seenVariables.add(variable);
+          for (const definition of variable.defs) {
+            if (
+              definition.type !== "Variable" ||
+              definition.node.type !== "VariableDeclarator" ||
+              definition.parent?.kind !== "const" ||
+              !definition.node.init
+            )
+              continue;
+            const initializer = definition.node.init;
+            if (initializer.type === "CallExpression") {
+              const combinations = classCombinations(
+                initializer,
+                new Set(),
+                context.sourceCode,
+              );
+              for (const combo of combinations ?? []) {
+                if (isSurfaceCombo(combo)) reported.add(surfaceComboKey(combo));
+              }
+            }
+            collect(initializer);
+          }
+          return;
+        }
+        if (node.type === "ConditionalExpression") {
+          collect(node.consequent);
+          collect(node.alternate);
+          return;
+        }
+        if (node.type === "LogicalExpression") {
+          collect(node.left);
+          collect(node.right);
+        }
+      };
+      collect(value);
+      return reported;
     };
 
     return {
@@ -711,21 +973,71 @@ const noHandRolledSurface = {
           check(node, quasi.value.raw);
         }
       },
+      VariableDeclarator(node) {
+        if (
+          node.parent?.kind !== "const" ||
+          node.init?.type !== "CallExpression"
+        )
+          return;
+        const chunks = [];
+        collectStaticStrings(node.init, chunks);
+        if (chunks.some(isSurfaceCombo)) return;
+        const combos = classCombinations(
+          node.init,
+          new Set(),
+          context.sourceCode,
+        );
+        const rendered = combos?.find((combo) => isSurfaceCombo(combo));
+        if (rendered !== undefined) check(node, rendered);
+      },
       JSXAttribute(node) {
         if (
           node.name.type !== "JSXIdentifier" ||
           node.name.name !== "className"
         )
           return;
-
         const chunks = [];
         collectStaticStrings(node.value, chunks);
-        if (chunks.some((chunk) => isSurfaceCombo(chunk))) {
-          return; // already reported by the Literal/TemplateLiteral visitors
+        if (chunks.some(isSurfaceCombo)) return;
+        const reported = separatelyReportedSurfaceCombos(node.value);
+        const combinations = classCombinations(
+          node.value,
+          new Set(),
+          context.sourceCode,
+        ) ?? [chunks.join(" ")];
+        for (const combo of new Set(combinations)) {
+          if (isSurfaceCombo(combo) && !reported.has(surfaceComboKey(combo))) {
+            check(node.parent ?? node, combo);
+          }
         }
-        const combos = classCombinations(node.value) ?? [chunks.join(" ")];
-        const rendered = combos.find((combo) => isSurfaceCombo(combo));
-        if (rendered !== undefined) check(node, rendered);
+      },
+      JSXOpeningElement(node) {
+        if (!widened) return;
+        if (SURFACE_CONTROL_ELEMENTS.has(jsxName(node.name) ?? "")) return;
+        const className = jsxAttribute(node, "className");
+        if (!className?.value) return;
+        const chunks = [];
+        collectStaticStrings(className.value, chunks);
+        const combinations = classCombinations(
+          className.value,
+          new Set(),
+          context.sourceCode,
+        ) ?? [chunks.join(" ")];
+        if (
+          combinations.some(
+            (combo) =>
+              !isSurfaceCombo(combo) && isWideSurfaceTokens(combo.split(/\s+/)),
+          )
+        ) {
+          report({
+            node,
+            messageId: "handRolledSurface",
+            data: {
+              match:
+                "rounded-md…2xl … border … bg-white(/NN) oder Rahmen mit Polster",
+            },
+          });
+        }
       },
     };
   },
@@ -931,11 +1243,9 @@ const noDeadSurfaceUtility = {
         if (chunks.some((chunk) => deadSurfaceTokens(chunk).length > 0)) {
           return; // already reported by the Literal/TemplateLiteral visitors
         }
-        const combos = classCombinations(
-          node.value,
-          new WeakSet(),
-          sourceCode,
-        ) ?? [chunks.join(" ")];
+        const combos = classCombinations(node.value, new Set(), sourceCode) ?? [
+          chunks.join(" "),
+        ];
         const rendered = combos.find(
           (combo) => deadSurfaceTokens(combo).length > 0,
         );
@@ -1117,11 +1427,9 @@ const noWhiteOnWarmFill = {
         const chunks = [];
         collectStaticStrings(node.value, chunks);
         if (chunks.some((chunk) => whiteOnWarmFill(chunk))) return;
-        const combos = classCombinations(
-          node.value,
-          new WeakSet(),
-          sourceCode,
-        ) ?? [chunks.join(" ")];
+        const combos = classCombinations(node.value, new Set(), sourceCode) ?? [
+          chunks.join(" "),
+        ];
         const rendered = combos.find((combo) => whiteOnWarmFill(combo));
         if (rendered !== undefined) check(node, rendered);
       },
@@ -1142,136 +1450,199 @@ const noWhiteOnWarmFill = {
 // ui-kit/no-tiny-text — Schrift unter 12 px (text-[9px], text-[10px],
 // text-[11px]) ist unter dem Typo-Boden des Portals: text-xs (12 px) ist die
 // Untergrenze und selbst die ist Versalien-Labels vorbehalten, nie Werten,
-// Saetzen oder Bedienelementen (TENANT-PAGE-SPEC, "Typo-Boden"). Der Bestand
-// ist als Shrink-only-Baseline eingefroren; neue Winzschrift kommt nicht dazu.
+// Saetzen oder Bedienelementen (TENANT-PAGE-SPEC, "Typo-Boden"). Hard-zero
+// seit #6183: der Bestand steht auf text-xs.
 const TINY_TEXT_RE = /\btext-\[(?:9|10|11)px\]/g;
-
-const TINY_TEXT_BASELINE_FILES = new Set([
-  "src/app/[tenant]/(protected)/calendar/page.tsx",
-  "src/app/[tenant]/(protected)/meal-plan/page.tsx",
-  "src/app/[tenant]/(protected)/time-tracking/week-chart.tsx",
-  "src/app/help/nfc/erste-schritte/page.tsx",
-  "src/app/operator/provisioning/soft-delete-shared.tsx",
-  "src/components/auth/role-permission-management-modal.tsx",
-  "src/components/dashboard/header/reminders-bell.tsx",
-  "src/components/dashboard/sidebar.tsx",
-  "src/components/enrollment/admin-enrollments-list.tsx",
-  "src/components/enrollment/enrollment-form.tsx",
-  "src/components/files/files-page.tsx",
-  "src/components/guardians/guardian-list.tsx",
-  "src/components/parent/calendar/parent-calendar-page.tsx",
-  "src/components/parent/parent-meal-plan-page.tsx",
-  "src/components/staff/absence-request-row.tsx",
-  "src/components/staff/dienstplan-resource-grid.tsx",
-  "src/components/staff/staff-session-table.tsx",
-  "src/components/students/care-schedule-manager.tsx",
-  "src/components/students/planned-status-days-modal.tsx",
-  "src/components/students/school-checkin-fab.tsx",
-  "src/components/time-tracking/vacation-request-modal.tsx",
-  "src/components/timetable/bulk-substitution-modal.tsx",
-  "src/components/timetable/event-form/multi-select-field.tsx",
-  "src/components/timetable/event-form/step-termin.tsx",
-  "src/components/timetable/gap-jump-list.tsx",
-  "src/components/timetable/instance-block.tsx",
-  "src/components/timetable/instance-detail-modal.tsx",
-  "src/components/timetable/month-planner-grid.tsx",
-  "src/components/timetable/period-switcher-dropdown.tsx",
-  "src/components/timetable/staff-pool-slide-over.tsx",
-  "src/components/timetable/substitution-person-card.tsx",
-  "src/components/timetable/substitution-slide-over.tsx",
-  "src/components/timetable/template-card.tsx",
-  "src/components/timetable/vertretung-day-list.tsx",
-  "src/components/timetable/weekly-calendar-grid.tsx",
-  "src/components/ui/avatar.tsx",
-  "src/components/ui/planning/coverage-indicator.tsx",
-  "src/components/ui/location-badge.tsx",
-  "src/components/ui/notification-badge.tsx",
-  "src/components/ui/page-header/OverflowMenu.tsx",
-  "src/components/ui/planning/plan-block.tsx",
-  "src/components/ui/planning/plan-legend.tsx",
-  "src/components/ui/presence-badge.tsx",
-]);
-
-const TINY_TEXT_BASELINE = parseLocationBaseline(`
-src/app/[tenant]/(protected)/time-tracking/week-chart.tsx|text-[10px]@198
-src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@226 text-[11px]@275
-src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@232
-src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
-src/components/dashboard/header/reminders-bell.tsx|text-[11px]@46
-src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@970
-src/components/enrollment/enrollment-form.tsx|text-[11px]@2189
-src/components/files/files-page.tsx|text-[11px]@180 text-[11px]@287
-src/components/guardians/guardian-list.tsx|text-[10px]@466
-src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@716 text-[11px]@781
-src/components/parent/parent-meal-plan-page.tsx|text-[11px]@461 text-[11px]@546
-src/components/staff/absence-request-row.tsx|text-[11px]@107
-src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@488 text-[11px]@584 text-[11px]@593 text-[11px]@600
-src/components/staff/staff-session-table.tsx|text-[11px]@1194
-src/components/students/care-schedule-manager.tsx|text-[10px]@1232 text-[11px]@1393 text-[11px]@1482 text-[11px]@1492 text-[11px]@1520
-src/components/students/planned-status-days-modal.tsx|text-[10px]@935 text-[11px]@935
-src/components/students/school-checkin-fab.tsx|text-[10px]@200
-src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@371
-src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@530
-src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@147 text-[11px]@312
-src/components/timetable/event-form/step-termin.tsx|text-[10px]@170
-src/components/timetable/gap-jump-list.tsx|text-[11px]@132 text-[11px]@147
-src/components/timetable/instance-block.tsx|text-[10px]@298 text-[10px]@332 text-[10px]@339 text-[10px]@349
-src/components/timetable/instance-detail-modal.tsx|text-[11px]@1358 text-[11px]@1383 text-[11px]@1536 text-[10px]@1645 text-[11px]@1666
-src/components/timetable/month-planner-grid.tsx|text-[11px]@64 text-[11px]@140 text-[11px]@149 text-[11px]@170 text-[9px]@201 text-[10px]@235
-src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@178 text-[10px]@245 text-[11px]@254 text-[10px]@296 text-[10px]@320 text-[10px]@363 text-[10px]@377 text-[10px]@389 text-[11px]@397 text-[11px]@404
-src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@410 text-[11px]@473
-src/components/timetable/substitution-person-card.tsx|text-[11px]@58 text-[11px]@337 text-[11px]@344 text-[11px]@351 text-[11px]@359 text-[11px]@371
-src/components/timetable/substitution-slide-over.tsx|text-[11px]@743 text-[11px]@747
-src/components/timetable/template-card.tsx|text-[11px]@128 text-[10px]@198
-src/components/timetable/vertretung-day-list.tsx|text-[11px]@352 text-[11px]@392 text-[11px]@399 text-[11px]@420 text-[11px]@426
-src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@455 text-[11px]@455 text-[11px]@460 text-[10px]@483 text-[10px]@518 text-[11px]@518
-src/components/ui/avatar.tsx|text-[10px]@32
-src/components/ui/planning/coverage-indicator.tsx|text-[11px]@61 text-[11px]@163
-src/components/ui/location-badge.tsx|text-[10px]@282
-src/components/ui/notification-badge.tsx|text-[10px]@18
-src/components/ui/page-header/OverflowMenu.tsx|text-[10px]@463 text-[11px]@535
-src/components/ui/planning/plan-block.tsx|text-[11px]@154 text-[11px]@175
-src/components/ui/planning/plan-legend.tsx|text-[11px]@106
-src/components/ui/presence-badge.tsx|text-[10px]@200
-`);
 
 const noTinyText = makeClassStringRule({
   regex: TINY_TEXT_RE,
-  baseline: restrictMatchBaseline(TINY_TEXT_BASELINE_FILES, TINY_TEXT_BASELINE),
   skipUiKit: false,
   docs: "Disallow sub-12px text utilities; the portal type floor is text-xs, and only for uppercase labels.",
   messageId: "tinyText",
   message:
-    "'{{match}}' liegt unter dem Typo-Boden (12 px). Werte, Saetze und Bedienelemente sind text-sm oder groesser; text-xs nur fuer Versalien-Labels. Die Baseline in scripts/oxlint-plugin-ui-kit.mjs ist shrink-only.",
+    "'{{match}}' liegt unter dem Typo-Boden (12 px). Werte, Saetze und Bedienelemente sind text-sm oder groesser; text-xs nur fuer Versalien-Labels. Keine Ausnahme (hard-zero seit #6183).",
 });
-// ui-kit/no-tenant-kicker — die blaue Mini-Überschrift über einer Überschrift
-// ist im Tenant-Portal abgeschafft (sie trug sechs verschiedene Bedeutungen im
-// selben Slot). Kein Baseline-Eintrag: der Bestand ist auf null gebracht. Das
-// Schul- und das Operator-Portal gehören seit #5604 dazu; nur das Elternportal
-// behält seinen Kicker (ADR 0149).
+// ui-kit/no-tenant-kicker — die Mini-Überschrift über einer Überschrift ist
+// außerhalb des Elternportals abgeschafft (sie trug sechs verschiedene
+// Bedeutungen im selben Slot). Hard-zero, kein Baseline-Eintrag. Das Schul-
+// und das Operator-Portal gehören seit #5604 dazu, Hilfe, öffentliche
+// Anmeldung, Login-Seiten und alle übrigen Portale seit #5607; nur das
+// Elternportal behält seinen Kicker (ADR 0149), dazu `/start` und die
+// NFC-Druckanleitung (Epic #5576).
+// Funde:
+// - die Prop `kicker` oder `eyebrow` (AuthShell), auch als Schlüssel eines
+//   Objekts, das als Props verteilt wird,
+// - ein handgeschriebener Kicker: das Element direkt vor einem `h1`/`h2`
+//   (auch vor einem Fragment oder Ternär, das mit der Überschrift beginnt) ist
+//   ein `SectionLabel`, eine Status-Pille oder ein kleiner Text mit Gewicht
+//   und Farbe (`text-xs`/`text-sm` + `font-medium|semibold|bold` + Textfarbe,
+//   auch `text-[var(--…)]`), oder trägt `uppercase`. Status gehört als Pille
+//   neben den Titel, der Ort in Brotkrumen und Seitenleiste.
 const OTHER_PORTALS_RE = /(^|\/)(components\/parent|app\/parents)\//;
+const KICKER_EXEMPT_DIRS = ["src/app/start/", "src/app/help/nfc/"];
+// Tragen nur die übersetzte Kopfzeile des Elternportals: AuthShell zeigt
+// `eyebrow` nur, wenn eine Seite unter app/parents sie setzt; die Reset-Seite
+// reicht die Übersetzung aus app/parents/reset-password weiter.
+const KICKER_PARENT_CARRIERS = [
+  "src/components/auth/auth-shell.tsx",
+  "src/components/auth/reset-password-page-content.tsx",
+];
+const KICKER_PROPS = new Set(["kicker", "eyebrow"]);
+const KICKER_COMPONENTS = new Set([
+  "SectionLabel",
+  "StatusBadge",
+  "StatusColorBadge",
+]);
+const KICKER_TEXT_TAGS = new Set(["p", "span", "div", "small", "strong"]);
+const TITLE_TAGS = new Set(["h1", "h2"]);
+const KICKER_TEXT_COLOR_RE =
+  /^text-(?:\[(?:var\(--|#)[^\]]*\]|moto-[\w-]+|(?:gray|slate|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d+|black|white)(?:\/\d+)?$/;
+
+function elementName(element) {
+  return jsxName(element?.openingElement?.name);
+}
+
+function isKickerClassText(text) {
+  const utilities = classUtilities(text);
+  if (utilities.includes("uppercase")) return true;
+  return (
+    utilities.some((token) => token === "text-xs" || token === "text-sm") &&
+    utilities.some((token) => /^font-(?:medium|semibold|bold)$/.test(token)) &&
+    utilities.some((token) => KICKER_TEXT_COLOR_RE.test(token))
+  );
+}
+
+function isKickerElement(element, constants) {
+  const name = elementName(element);
+  if (!name) return false;
+  if (KICKER_COMPONENTS.has(name)) return true;
+  if (!KICKER_TEXT_TAGS.has(name)) return false;
+  const classAttribute = element.openingElement.attributes.find(
+    (attribute) =>
+      attribute.type === "JSXAttribute" && attribute.name?.name === "className",
+  );
+  if (!classAttribute?.value) return false;
+  return classTextAlternatives(classAttribute.value, constants).some(
+    isKickerClassText,
+  );
+}
+
+function isMeaningfulJsxChild(child) {
+  if (child.type === "JSXText") return child.value.trim() !== "";
+  if (child.type === "JSXExpressionContainer") {
+    return child.expression?.type !== "JSXEmptyExpression";
+  }
+  return true;
+}
+
+// Ein Kicker steht vor dem Titel, auch wenn der Titel erst in einem
+// Fragment oder einem Ternär-Zweig beginnt.
+function startsWithTitle(node, depth = 0) {
+  if (!node || depth > 4) return false;
+  switch (node.type) {
+    case "JSXElement":
+      return TITLE_TAGS.has(elementName(node));
+    case "JSXFragment": {
+      const first = node.children.find(isMeaningfulJsxChild);
+      return startsWithTitle(first, depth + 1);
+    }
+    case "JSXExpressionContainer":
+    case "ParenthesizedExpression":
+      return startsWithTitle(node.expression, depth + 1);
+    case "ConditionalExpression":
+      return (
+        startsWithTitle(node.consequent, depth + 1) ||
+        startsWithTitle(node.alternate, depth + 1)
+      );
+    case "LogicalExpression":
+      return startsWithTitle(node.right, depth + 1);
+    default:
+      return false;
+  }
+}
+
+// Das Element, das ein Kind-Knoten rendert: direkt, als `cond && <X/>` oder
+// als Ternär-Zweig.
+function renderedElements(node, depth = 0) {
+  if (!node || depth > 4) return [];
+  switch (node.type) {
+    case "JSXElement":
+      return [node];
+    case "JSXExpressionContainer":
+    case "ParenthesizedExpression":
+      return renderedElements(node.expression, depth + 1);
+    case "ConditionalExpression":
+      return [
+        ...renderedElements(node.consequent, depth + 1),
+        ...renderedElements(node.alternate, depth + 1),
+      ];
+    case "LogicalExpression":
+      return renderedElements(node.right, depth + 1);
+    default:
+      return [];
+  }
+}
+
+function checkKickerChildren(children, constants, report) {
+  const meaningful = children.filter(isMeaningfulJsxChild);
+  for (let index = 0; index + 1 < meaningful.length; index += 1) {
+    if (!startsWithTitle(meaningful[index + 1])) continue;
+    for (const element of renderedElements(meaningful[index])) {
+      if (isKickerElement(element, constants)) report(element.openingElement);
+    }
+  }
+}
 
 const noTenantKicker = {
   meta: {
     docs: {
       description:
-        "Disallow the blue mini-heading (kicker) outside the parents portal.",
+        "Disallow the mini-heading (kicker) above a title outside the parents portal.",
     },
     messages: {
       kicker:
-        "Keine Mini-Überschrift über dem Titel. Wo man ist, sagen Brotkrumen und Seitenleiste (siehe .claude/rules/frontend-ui-kit.md, Abschnitt Page scaffolding).",
+        "Keine Mini-Überschrift über dem Titel. Wo man ist, sagen Brotkrumen und Seitenleiste; ein Status steht als StatusBadge neben dem Titel (siehe .claude/rules/frontend-ui-kit.md, Abschnitt Page scaffolding).",
     },
   },
   create(context) {
     const filename = context.filename ?? context.getFilename?.() ?? "";
     if (OTHER_PORTALS_RE.test(filename.replace(/\\/g, "/"))) return {};
     if (/\.(test|stories)\.[jt]sx?$/.test(filename)) return {};
+    const key = fileKey(context);
+    if (!key.startsWith("src/")) return {};
+    if (KICKER_EXEMPT_DIRS.some((dir) => key.startsWith(dir))) return {};
+    if (KICKER_PARENT_CARRIERS.includes(key)) return {};
+    const constants = new Map();
 
     return {
+      VariableDeclarator(node) {
+        if (node.id?.type === "Identifier" && node.init) {
+          constants.set(node.id.name, node.init);
+        }
+      },
       JSXAttribute(node) {
-        if (node.name?.name === "kicker") {
+        if (KICKER_PROPS.has(node.name?.name)) {
           context.report({ node, messageId: "kicker" });
         }
+      },
+      // `<AuthShell {...SHELL_COPY}>`: die Kopfzeile kommt aus einem Objekt.
+      Property(node) {
+        if (node.parent?.type !== "ObjectExpression") return;
+        const name =
+          node.key?.type === "Identifier" ? node.key.name : node.key?.value;
+        if (KICKER_PROPS.has(name)) {
+          context.report({ node, messageId: "kicker" });
+        }
+      },
+      JSXElement(node) {
+        checkKickerChildren(node.children, constants, (target) =>
+          context.report({ node: target, messageId: "kicker" }),
+        );
+      },
+      JSXFragment(node) {
+        checkKickerChildren(node.children, constants, (target) =>
+          context.report({ node: target, messageId: "kicker" }),
+        );
       },
     };
   },
@@ -1280,38 +1651,83 @@ const noTenantKicker = {
 // ui-kit/no-hand-rolled-page-card — eine Seite baut keine Kartenfläche mehr aus
 // einer eigenen Klassenkette. Für jede Form gibt es ein Kit-Bauteil:
 // SectionCard (Fläche mit oder ohne Kopf), TileCard (anklickbare Kachel),
-// StatCard (Kennzahl), TenantPageHeaderSkeleton (Ladezustand). Die Regel
-// greift in Seitendateien des Tenant-, Träger-, Schul- und Operator-Portals
-// (#5146, #5604) —
-// Kit- und Komponentendateien dürfen die Fläche definieren, sie sind die
-// Quelle.
-const TENANT_PAGE_FILE_RE =
-  /app\/(?:\[tenant\]\/\(protected\)|traeger|school|operator)\/(?:.*\/)?(page|loading)\.tsx$/;
+// StatCard (Kennzahl), TenantPageHeaderSkeleton (Ladezustand). Nur das Kit
+// darf die Fläche definieren, es ist die Quelle.
 // Nur die KARTE ist gemeint: `moto-content-surface` zusammen mit dem
 // Kartenradius. Dieselbe Klasse an einer Pille oder einem Auswahlfeld
 // (rounded-full, h-9) ist eine Bedienfläche und bleibt erlaubt.
 const HANDROLLED_SURFACE_RE =
   /moto-content-surface[^"'`]*rounded-2xl|rounded-2xl[^"'`]*moto-content-surface/;
 
+// #5594: die Regel gilt für jede `.tsx` unter `app/` und `components/` außer dem
+// Kit, nicht mehr nur für Seitendateien. Hard-zero seit dem Abbau der Baseline.
+// Eltern-Ausnahmen aus #2619: Kinderkarten, Kinderwahl und Startseite des
+// Elternportals samt ihrer Aufgabenliste behalten ihre Flächen. Nie anfassen,
+// auch nicht für das Kit. Exakte Pfade, kein Präfix.
+const PAGE_CARD_EXEMPT_FILES = [
+  "src/components/parent/child/child-day-card.tsx",
+  "src/components/parent/child/child-switcher.tsx",
+  "src/components/parent/start/parent-start-page.tsx",
+  "src/components/parent/start/todo-list.tsx",
+];
+
+function isPageCardScope(key) {
+  if (!/\.tsx$/.test(key) || EXEMPT_FILE_RE.test(key)) return false;
+  if (key.startsWith(UI_KIT_DIR)) return false;
+  if (PAGE_CARD_EXEMPT_FILES.includes(key)) return false;
+  return key.startsWith("src/app/") || key.startsWith("src/components/");
+}
+
 const noHandRolledPageCard = {
   meta: {
     docs: {
       description:
-        "Disallow hand-rolled card surfaces in tenant page files; use the kit cards.",
+        "Disallow hand-rolled card surfaces outside the UI kit; use the kit cards.",
     },
     messages: {
       surface:
-        "Keine eigene Kartenfläche in einer Seite. SectionCard (Fläche), TileCard (anklickbare Kachel), StatCard (Kennzahl) oder TenantPageHeaderSkeleton nehmen (siehe .claude/rules/frontend-ui-kit.md, Abschnitt Page scaffolding).",
+        "Keine eigene Kartenfläche. SectionCard (Fläche, mit oder ohne Titel), TileCard (anklickbare Kachel), StatCard (Kennzahl) oder TenantPageHeaderSkeleton nehmen; innere Karten `moto-content-surface rounded-xl` (siehe .claude/rules/frontend-ui-kit.md, #5594).",
     },
   },
   create(context) {
-    const filename = (
-      context.filename ??
-      context.getFilename?.() ??
-      ""
-    ).replace(/\\/g, "/");
-    if (!TENANT_PAGE_FILE_RE.test(filename)) return {};
-    if (/\.(test|stories)\.[jt]sx?$/.test(filename)) return {};
+    const report = (descriptor) => context.report(descriptor);
+    if (!isPageCardScope(fileKey(context))) return {};
+    const isReportedPageCardConstant = (value, seenVariables = new Set()) => {
+      if (value?.type === "JSXExpressionContainer") {
+        return isReportedPageCardConstant(value.expression, seenVariables);
+      }
+      if (value?.type !== "Identifier") return false;
+      const variable = findVariable(context.sourceCode, value);
+      if (!variable || seenVariables.has(variable)) return false;
+      seenVariables.add(variable);
+      for (const definition of variable.defs) {
+        if (
+          definition.type !== "Variable" ||
+          definition.node.type !== "VariableDeclarator" ||
+          definition.parent?.kind !== "const" ||
+          !definition.node.init
+        )
+          continue;
+        const initializer = definition.node.init;
+        if (HANDROLLED_SURFACE_RE.test(staticStringValue(initializer) ?? "")) {
+          return true;
+        }
+        if (initializer.type === "CallExpression") {
+          const combinations = classCombinations(
+            initializer,
+            new Set(),
+            context.sourceCode,
+          );
+          if (
+            combinations?.some((combo) => HANDROLLED_SURFACE_RE.test(combo))
+          ) {
+            return true;
+          }
+        }
+        if (isReportedPageCardConstant(initializer, seenVariables)) return true;
+      }
+      return false;
+    };
 
     return {
       Literal(node) {
@@ -1319,13 +1735,33 @@ const noHandRolledPageCard = {
           typeof node.value === "string" &&
           HANDROLLED_SURFACE_RE.test(node.value)
         ) {
-          context.report({ node, messageId: "surface" });
+          report({ node, messageId: "surface" });
         }
       },
       TemplateElement(node) {
         const raw = node.value?.cooked ?? node.value?.raw ?? "";
         if (HANDROLLED_SURFACE_RE.test(raw)) {
-          context.report({ node, messageId: "surface" });
+          report({ node, messageId: "surface" });
+        }
+      },
+      VariableDeclarator(node) {
+        if (
+          node.parent?.kind !== "const" ||
+          node.init?.type !== "CallExpression"
+        )
+          return;
+        const chunks = [];
+        collectStaticStrings(node.init, chunks);
+        if (chunks.some((chunk) => HANDROLLED_SURFACE_RE.test(chunk))) {
+          return;
+        }
+        const combos = classCombinations(
+          node.init,
+          new Set(),
+          context.sourceCode,
+        );
+        if (combos?.some((combo) => HANDROLLED_SURFACE_RE.test(combo))) {
+          report({ node, messageId: "surface" });
         }
       },
       JSXAttribute(node) {
@@ -1340,12 +1776,17 @@ const noHandRolledPageCard = {
         if (chunks.some((chunk) => HANDROLLED_SURFACE_RE.test(chunk))) {
           return; // already reported by the Literal/TemplateElement visitors
         }
-        const combos = classCombinations(node.value) ?? [chunks.join(" ")];
+        if (isReportedPageCardConstant(node.value)) return;
+        const combos = classCombinations(
+          node.value,
+          new Set(),
+          context.sourceCode,
+        ) ?? [chunks.join(" ")];
         const rendered = combos.find((combo) =>
           HANDROLLED_SURFACE_RE.test(combo),
         );
         if (rendered !== undefined) {
-          context.report({ node, messageId: "surface" });
+          report({ node, messageId: "surface" });
         }
       },
     };
@@ -1937,12 +2378,12 @@ const noEmDashEmptyValue = {
 //     Mindesthöhe, Polster, Radius, Schriftgröße/-gewicht, Hintergrund, Text-,
 //     Ring- und Schattenfarbe, scale). Reine Layout-Klassen bleiben erlaubt.
 //
-// Ein Fund je Element. Die Zahl je Datei steht in ui-kit-button-baseline.json
-// (Ist-Stand, shrink-only: mehr Funde schlagen hier fehl; dass die Baseline
-// nach einem Abbau gesenkt wird, prüft oxlint-plugin-ui-kit.test.ts über
-// `ui-kit-button-baseline-update.mjs --check`). Bewusste Ausnahmen stehen mit Begründung in der
-// Allowlist in ui-kit-button-baseline.mjs. Neu erzeugen:
-// `pnpm run ui-kit:button-baseline`.
+// Ein Fund je Element. Hart null seit #6182: Die Baseline in
+// ui-kit-button-baseline.json ist für beide Regeln leer und darf nicht wieder
+// wachsen (`ui-kit-button-baseline-update.mjs` verweigert das, der Test
+// prüft es über `--check`). Fehlt ein Aussehen, kommt eine Kit-Variante dazu.
+// Bewusste Ausnahmen stehen mit Begründung in der Allowlist in
+// ui-kit-button-baseline.mjs.
 
 const BUTTON_KIT_FILE = "src/components/ui/button.tsx";
 const NATIVE_ACTION_ELEMENTS = new Set([
@@ -1993,11 +2434,92 @@ function unprefixedTokens(text) {
   return text.split(/\s+/).filter((token) => token && !token.includes(":"));
 }
 
-function hasButtonOptics(text) {
-  const tokens = unprefixedTokens(text).map((token) => token.replace(/^!/, ""));
-  const colour = tokens.some(
-    (token) => BG_COLOR_RE.test(token) || FRAME_COLOR_RE.test(token),
+// #5608: Die Kartenfläche bringt Weiß, Rahmen und Schatten mit; auf einem
+// Knopf ist sie ein Hintergrund wie `bg-white border-gray-200`.
+const SURFACE_AS_FILL = "moto-content-surface";
+
+// #5608: `<span>` und `<label>` mit `cursor-pointer` sowie ein `<label>` um
+// eine Dateiauswahl sind Knöpfe, wenn sie so aussehen: buttonClassName nehmen.
+const CLICKABLE_TEXT_ELEMENTS = new Set(["label", "span"]);
+
+// #5608: Farbe über `style` statt Klasse. Nur Hintergrund, Rahmen und
+// Schatten (Ring per inset-Schatten) zählen; Textfarbe allein macht keinen
+// Knopf.
+const STYLE_FILL_KEYS = new Set([
+  "background",
+  "border",
+  "backgroundColor",
+  "borderColor",
+  "boxShadow",
+]);
+
+function styleObjectHasFill(node, constants, depth) {
+  if (!node || depth > 4) return false;
+  if (
+    node.type === "TSAsExpression" ||
+    node.type === "TSSatisfiesExpression" ||
+    node.type === "ParenthesizedExpression"
+  ) {
+    return styleObjectHasFill(node.expression, constants, depth);
+  }
+  if (node.type === "LogicalExpression") {
+    return (
+      styleObjectHasFill(node.left, constants, depth) ||
+      styleObjectHasFill(node.right, constants, depth)
+    );
+  }
+  if (node.type === "Identifier") {
+    return styleObjectHasFill(constants.get(node.name), constants, depth + 1);
+  }
+  if (node.type === "ConditionalExpression") {
+    return (
+      styleObjectHasFill(node.consequent, constants, depth) ||
+      styleObjectHasFill(node.alternate, constants, depth)
+    );
+  }
+  if (node.type !== "ObjectExpression") return false;
+  return node.properties.some((property) => {
+    if (property.type === "SpreadElement") {
+      return styleObjectHasFill(property.argument, constants, depth + 1);
+    }
+    if (property.type !== "Property" || property.computed) return false;
+    const key =
+      property.key.type === "Identifier"
+        ? property.key.name
+        : String(property.key.value);
+    return STYLE_FILL_KEYS.has(key);
+  });
+}
+
+/** `<label>` whose direct children include `<input type="file">`. */
+function wrapsFileInput(openingElement) {
+  const children = openingElement.parent?.children ?? [];
+  return children.some(
+    (child) =>
+      child.type === "JSXElement" &&
+      jsxName(child.openingElement.name) === "input" &&
+      staticAttributeValue(jsxAttribute(child.openingElement, "type")) ===
+        "file",
   );
+}
+
+/** Static `style` of an element sets a background, frame or shadow colour. */
+function hasStyleFill(openingElement, constants) {
+  const value = jsxAttribute(openingElement, "style")?.value;
+  if (value?.type !== "JSXExpressionContainer") return false;
+  return styleObjectHasFill(value.expression, constants, 0);
+}
+
+function hasButtonOptics(text, { styleFill = false } = {}) {
+  const tokens = unprefixedTokens(text).map((token) => token.replace(/^!/, ""));
+  const colour =
+    styleFill ||
+    tokens.some(
+      (token) =>
+        token === SURFACE_AS_FILL ||
+        BG_COLOR_RE.test(token) ||
+        FRAME_COLOR_RE.test(token),
+    );
   return (
     colour &&
     tokens.some((token) => RADIUS_RE.test(token)) &&
@@ -2035,11 +2557,17 @@ function staticAttributeValue(attribute) {
 
 /**
  * Static class text of an expression. Same-file constants (`const chip =
- * "…"`) are followed one level, so a class chain moved into a variable still
- * counts. `buttonClassName(…)` is the kit itself and contributes nothing here;
- * its className goes through no-button-override.
+ * "…"`) are followed one level, including bindings declared later in the
+ * module, so a class chain moved into a variable still counts.
+ * `buttonClassName(…)` is the kit itself and contributes nothing here; its
+ * className goes through no-button-override.
  */
-function classText(node, constants) {
+function classText(
+  node,
+  constants,
+  sourceCode,
+  { skipReportedSurfaceConstants = false } = {},
+) {
   const chunks = [];
   const visit = (current, depth) => {
     if (!current || typeof current !== "object") return;
@@ -2051,7 +2579,15 @@ function classText(node, constants) {
       return;
     }
     if (current.type === "Identifier" && depth < 2) {
-      const init = constants.get(current.name);
+      const init = constantInitializer(current, constants, sourceCode);
+      const value = staticStringValue(init);
+      if (
+        skipReportedSurfaceConstants &&
+        typeof value === "string" &&
+        isSurfaceCombo(value)
+      ) {
+        return;
+      }
       if (init) visit(init, depth + 1);
       return;
     }
@@ -2074,6 +2610,94 @@ function classText(node, constants) {
   };
   visit(node, 0);
   return chunks.join(" ");
+}
+
+/**
+ * Statische Klassenalternativen eines Ausdrucks. Anders als `classText()`
+ * bleiben die Seiten eines Ternärausdrucks getrennt: `a ? "uppercase" :
+ * "tracking-wide"` ist keine Versalien-Beschriftung, weil beide Klassen nie
+ * gemeinsam gerendert werden. Aufruf- und Array-Argumente gehören dagegen
+ * zur selben möglichen Klassenkette und werden miteinander kombiniert.
+ */
+function classTextAlternatives(node, constants, depth = 0) {
+  if (!node || typeof node !== "object") return [""];
+  if (
+    node.type === "JSXExpressionContainer" ||
+    node.type === "ChainExpression" ||
+    node.type === "TSAsExpression" ||
+    node.type === "TSTypeAssertion" ||
+    node.type === "TypeCastExpression"
+  ) {
+    return classTextAlternatives(node.expression, constants, depth);
+  }
+  if (node.type === "Literal") {
+    return typeof node.value === "string" ? [node.value] : [""];
+  }
+  if (node.type === "Identifier") {
+    const init = depth < 2 ? constants.get(node.name) : undefined;
+    return init ? classTextAlternatives(init, constants, depth + 1) : [""];
+  }
+  if (node.type === "ConditionalExpression") {
+    return [
+      ...classTextAlternatives(node.consequent, constants, depth),
+      ...classTextAlternatives(node.alternate, constants, depth),
+    ];
+  }
+  if (node.type === "LogicalExpression") {
+    if (node.operator === "&&") {
+      return ["", ...classTextAlternatives(node.right, constants, depth)];
+    }
+    if (node.operator === "||" || node.operator === "??") {
+      return [
+        ...classTextAlternatives(node.left, constants, depth),
+        ...classTextAlternatives(node.right, constants, depth),
+      ];
+    }
+  }
+  if (node.type === "TemplateLiteral") {
+    let alternatives = [node.quasis[0]?.value.raw ?? ""];
+    for (const [index, expression] of node.expressions.entries()) {
+      alternatives = combineClassTextAlternatives(
+        alternatives,
+        classTextAlternatives(expression, constants, depth),
+      ).map(
+        (alternative) =>
+          `${alternative}${node.quasis[index + 1]?.value.raw ?? ""}`,
+      );
+    }
+    return alternatives;
+  }
+  if (node.type === "CallExpression") {
+    if (
+      node.callee?.type === "Identifier" &&
+      node.callee.name === "buttonClassName"
+    ) {
+      return [""];
+    }
+    return node.arguments.reduce(
+      (alternatives, argument) =>
+        combineClassTextAlternatives(
+          alternatives,
+          classTextAlternatives(argument, constants, depth),
+        ),
+      [""],
+    );
+  }
+  if (node.type === "ArrayExpression") {
+    return node.elements.reduce(
+      (alternatives, element) =>
+        combineClassTextAlternatives(
+          alternatives,
+          classTextAlternatives(element, constants, depth),
+        ),
+      [""],
+    );
+  }
+  return [""];
+}
+
+function combineClassTextAlternatives(left, right) {
+  return [...new Set(left.flatMap((a) => right.map((b) => `${a} ${b}`)))];
 }
 
 function classNameProperty(objectExpression) {
@@ -2161,6 +2785,7 @@ function makeRatchetRule({
   countEnv = "UI_KIT_BUTTON_RATCHET",
   kitFile = BUTTON_KIT_FILE,
   exemptDir = null,
+  exemptDirs = [],
   exemptFiles = [],
   followStaticClassSources = false,
   onlySrc = false,
@@ -2181,6 +2806,7 @@ function makeRatchetRule({
         EXEMPT_FILE_RE.test(key) ||
         key.endsWith(kitFile) ||
         (exemptDir !== null && key.startsWith(exemptDir)) ||
+        exemptDirs.some((dir) => key.startsWith(dir)) ||
         exemptFiles.includes(key) ||
         (onlySrc && !key.startsWith("src/")) ||
         key.includes("src/test/")
@@ -2259,17 +2885,22 @@ const noHandRolledButton = makeRatchetRule({
     "Build actions from Button, ButtonLink or buttonClassName instead of a hand-styled native element.",
   message:
     "Kein eigener Knopf: Button, ButtonLink oder buttonClassName aus ~/components/ui/button nehmen (#5531, .claude/rules/frontend-ui-kit.md).",
-  detect: ({ classText: textOf, found, bindings }) => ({
+  detect: ({ classText: textOf, found, bindings, constants }) => ({
     JSXOpeningElement(node) {
-      const name = jsxName(node.name);
-      const isAction =
-        NATIVE_ACTION_ELEMENTS.has(name ?? "") ||
-        bindings.actionComponents.has(name ?? "") ||
-        staticAttributeValue(jsxAttribute(node, "role")) === "button";
-      if (!isAction) return;
+      const name = jsxName(node.name) ?? "";
       const className = jsxAttribute(node, "className");
       if (!className?.value) return;
-      if (hasButtonOptics(textOf(className.value))) found(node);
+      const text = textOf(className.value);
+      const isAction =
+        NATIVE_ACTION_ELEMENTS.has(name) ||
+        bindings.actionComponents.has(name) ||
+        staticAttributeValue(jsxAttribute(node, "role")) === "button" ||
+        (CLICKABLE_TEXT_ELEMENTS.has(name) &&
+          unprefixedTokens(text).includes("cursor-pointer")) ||
+        (name === "label" && wrapsFileInput(node));
+      if (!isAction) return;
+      const styleFill = hasStyleFill(node, constants);
+      if (hasButtonOptics(text, { styleFill })) found(node);
     },
   }),
 });
@@ -2892,7 +3523,7 @@ const noHandRolledIconTile = {
         if (!classAttribute?.value) return;
         const combos = classCombinations(
           classAttribute.value,
-          new WeakSet(),
+          new Set(),
           sourceCode,
         ) ?? [
           (() => {
@@ -3139,8 +3770,9 @@ const noControlHeightOverride = {
 // wieder auf und stimmte auf dem Telefon (16 px Polster) schon nicht mehr.
 // Dafür gibt es `flush` und `footer`. Hart null.
 //
-// no-important-override startet mit einer shrink-only Baseline je Datei
-// (ui-kit-important-override-baseline.mjs).
+// no-important-override ist seit #6183 hard-zero: das Hilfe-Suchfeld nimmt
+// `Input controlSize="touch"`, der kurze Dienstplan-Block `PlanBlock
+// size="flush"`.
 
 const KIT_IMPORT_RE = /^(?:~|@)\/components\/ui\//;
 const IMPORTANT_OWNED_ELSEWHERE = new Set(["Button", "ButtonLink"]);
@@ -3205,7 +3837,6 @@ function makeKitClassRule({
   messageId,
   message,
   detect,
-  baseline = {},
 }) {
   return {
     meta: {
@@ -3225,10 +3856,6 @@ function makeKitClassRule({
           kitNames = kitComponentNames(node);
         },
         "Program:exit"() {
-          // count: jeden Fund melden, damit der Test die Baseline gegen den
-          // Ist-Stand prüfen kann (shrink-only, wie bei der Button-Ratsche).
-          const countMode = process.env.UI_KIT_IMPORTANT_OVERRIDE === "count";
-          if (!countMode && findings.length <= (baseline[key] ?? 0)) return;
           for (const node of findings) context.report({ node, messageId });
         },
         VariableDeclarator(node) {
@@ -3260,7 +3887,6 @@ const noImportantOverride = makeKitClassRule({
   message:
     'Kein `!` an einer Kit-Komponente: die fehlende Prop im Kit ergänzen (SectionCard: padding="none", flush, footer) statt sie von außen zu überstimmen (#5581, .claude/rules/frontend-ui-kit.md).',
   detect: ({ tokens }) => tokens.some(isImportantUtility),
-  baseline: importantOverrideBaseline,
 });
 
 const noSectionCardBleed = makeKitClassRule({
@@ -3347,7 +3973,8 @@ const noHandRolledStickyBar = {
 // font-medium/font-semibold, ein `<span>` dieser Art mit `block` und `mb-*` über
 // dem Feld, oder als erstes Kind oder mit `block` in einem `<label>`. Kein Fund: Zeilen
 // (Checkbox plus Text), `sr-only`, ein `<label>` in Knopfoptik (Datei wählen).
-// Start mit shrink-only Baseline je Datei, Abbau je Bereich in Sub-Issues.
+// Hard-zero seit #5590: die letzten Funde waren Gruppenköpfe und sind jetzt
+// `SectionLabel`.
 const FIELD_LABEL_SIZE = new Set(["text-xs", "text-sm"]);
 const FIELD_LABEL_WEIGHT = new Set(["font-medium", "font-semibold"]);
 const FIELD_LABEL_ROW_RE = /^(?:inline-)?(?:flex|grid)$/;
@@ -3376,9 +4003,8 @@ const noHandRolledFieldLabel = makeRatchetRule({
     "Build field labels from FieldLabel or the label prop instead of styling a label or span by hand.",
   message:
     "Keine eigene Feldbeschriftung: `label`-Prop von Input, Textarea oder CustomSelect, sonst FieldLabel aus ~/components/ui/field-label. Immer normal geschrieben, nie in Versalien (#5589, .claude/rules/frontend-ui-kit.md).",
-  baselines: fieldLabelBaseline,
-  allowlist: fieldLabelAllowlist,
-  countEnv: "UI_KIT_FIELD_LABEL_RATCHET",
+  baselines: {},
+  allowlist: [],
   kitFile: "src/components/ui/field-label.tsx",
   detect: ({ classText: textOf, found }) => ({
     JSXOpeningElement(node) {
@@ -3420,12 +4046,16 @@ const noHandRolledFieldLabel = makeRatchetRule({
   }),
 });
 
-// ui-kit/no-hand-rolled-notice (#5591) — ein getönter Hinweiskasten kommt aus
-// `Alert`. Fund: ein Block (`div`, `p`, Liste, `section`, `aside`, `details`)
-// mit Rundung, Innenabstand, getöntem Rand `border-moto-<Ton>/N` und Fläche
-// desselben Tons (`bg-moto-<Ton>-soft` oder `bg-moto-<Ton>/N`). Kein Fund:
-// Pillen (`rounded-full`), Bedienelemente (Knopf, Link, Label), Inline-Text.
-// Start mit shrink-only Baseline je Datei, Abbau je Bereich in Sub-Issues.
+// ui-kit/no-hand-rolled-notice (#5591, #5609) — ein getönter Hinweiskasten
+// kommt aus `Alert`, eine getönte Innenfläche aus `InsetPanel`. Fund: ein Block
+// (`div`, `p`, Liste, `section`, `aside`, `details`) mit Rundung, Innenabstand
+// und getönter Fläche `bg-moto-<Ton>-soft` oder `bg-moto-<Ton>/N`, mit oder
+// ohne Rand (`border-moto-<Ton>`, `border-moto-<Ton>/N`, grau). Seit #5609
+// zählen auch Kästen ohne Rand und mit vollem Rand: die liefen in Rot, Grün,
+// Blau und Orange an der Regel vorbei. Kein Fund: Pillen (`rounded-full`),
+// Bedienelemente (Knopf, Link, Label), Inline-Text, ein Rand in einem anderen
+// Markenton als die Fläche. Hard-zero; Ausnahmen nur per
+// `oxlint-disable-next-line ui-kit/no-hand-rolled-notice -- <Grund>`.
 const NOTICE_TAGS = new Set([
   "div",
   "p",
@@ -3435,7 +4065,7 @@ const NOTICE_TAGS = new Set([
   "aside",
   "details",
 ]);
-const NOTICE_BORDER_RE = /^border-moto-([a-z]+)\/\d+$/;
+const NOTICE_BORDER_RE = /^border-moto-([a-z]+)(?:-[a-z]+)?(?:\/\d+)?$/;
 const NOTICE_FILL_RE = /^bg-moto-([a-z]+)(?:-soft(?:\/\d+)?|\/\d+)$/;
 const NOTICE_PADDING_RE = /^p[trblxyse]?-\d/;
 const NOTICE_ROUNDED_RE = /^rounded(?:-(?:sm|md|lg|xl|2xl))?$/;
@@ -3448,19 +4078,20 @@ function isHandRolledNotice(utilities) {
   );
   return utilities.some((token) => {
     const hue = token.match(NOTICE_FILL_RE)?.[1];
-    return hue !== undefined && borderHues.has(hue);
+    if (hue === undefined) return false;
+    // Ein Rand in einem anderen Markenton ist keine Hinweisfläche dieses Tons.
+    return borderHues.size === 0 || borderHues.has(hue);
   });
 }
 
 const noHandRolledNotice = makeRatchetRule({
   ruleName: "no-hand-rolled-notice",
   description:
-    "Build tinted notice boxes from Alert instead of styling a bordered, tinted block by hand.",
+    "Build tinted notice boxes from Alert and tinted inner surfaces from InsetPanel instead of styling a tinted block by hand.",
   message:
-    'Kein eigener Hinweiskasten: Alert aus ~/components/ui/alert (`type`, für Hinweise in Feldern `size="compact"`, Standortfarbe über `color`). Warnhinweise sind orange über `type="warning"` (#5591, .claude/rules/frontend-ui-kit.md).',
-  baselines: noticeBaseline,
-  allowlist: noticeAllowlist,
-  countEnv: "UI_KIT_NOTICE_RATCHET",
+    'Kein eigener Hinweiskasten: Alert aus ~/components/ui/alert (`type`, für Hinweise in Feldern `size="compact"`, Standortfarbe über `color`). Warnhinweise sind orange über `type="warning"`. Eine Innenfläche ohne Meldung ist InsetPanel (#5591, #5609, .claude/rules/frontend-ui-kit.md).',
+  baselines: {},
+  allowlist: [],
   kitFile: "src/components/ui/alert.tsx",
   detect: ({ classText: textOf, found }) => ({
     JSXOpeningElement(node) {
@@ -3622,11 +4253,9 @@ const noHandRolledPortalNav = {
       TemplateLiteral(node) {
         const chunks = [];
         collectStaticStrings(node, chunks);
-        const combinations = classCombinations(
-          node,
-          new WeakSet(),
-          sourceCode,
-        ) ?? [chunks.join(" ")];
+        const combinations = classCombinations(node, new Set(), sourceCode) ?? [
+          chunks.join(" "),
+        ];
         const rendered = combinations?.find(hasPortalNavShellSignature);
         if (rendered !== undefined) check(node, rendered);
       },
@@ -3642,7 +4271,7 @@ const noHandRolledPortalNav = {
         if (chunks.some(hasPortalNavShellSignature)) return;
         const combinations = classCombinations(
           node.value,
-          new WeakSet(),
+          new Set(),
           sourceCode,
         ) ?? [chunks.join(" ")];
         const rendered = combinations.find(hasPortalNavShellSignature);
@@ -3771,9 +4400,9 @@ function roleLiterals(node) {
 const noHandRolledMenu = makeRatchetRule({
   ruleName: "no-hand-rolled-menu",
   description:
-    "Menus and listboxes come from OverflowMenu, CustomSelect or ListboxDropdown instead of own ARIA roles.",
+    "Menus and listboxes come from OverflowMenu, CustomSelect, ListboxDropdown or SuggestInput instead of own ARIA roles or a native datalist.",
   message:
-    "Kein eigenes Menü: Aktionen über `OverflowMenu`, eine Auswahl über `CustomSelect` oder `ListboxDropdown` (#5601, .claude/rules/frontend-ui-kit.md).",
+    "Kein eigenes Menü: Aktionen über `OverflowMenu`, eine Auswahl über `CustomSelect` oder `ListboxDropdown`, Freitext mit Vorschlägen über `SuggestInput` (#5601, .claude/rules/frontend-ui-kit.md).",
   baselines: {},
   allowlist: [],
   kitFile: "src/components/ui/page-header/OverflowMenu.tsx",
@@ -3782,6 +4411,16 @@ const noHandRolledMenu = makeRatchetRule({
     JSXAttribute(node) {
       if (node.name?.name !== "role") return;
       if (roleLiterals(node.value).some((role) => MENU_ROLE_RE.test(role))) {
+        found(node);
+      }
+    },
+    // Native Vorschlagsliste: eigene Optik je Browser, ohne Tastaturführung
+    // des Kits und ohne iOS-Behandlung beim Tippen.
+    JSXOpeningElement(node) {
+      if (
+        node.name?.type === "JSXIdentifier" &&
+        node.name.name === "datalist"
+      ) {
         found(node);
       }
     },
@@ -3875,6 +4514,152 @@ const noHandRolledListRow = makeRatchetRule({
   kitFile: "src/components/ui/list-row.tsx",
   exemptDir: UI_KIT_DIR,
   detect: (tools) => classNameVisitor(tools, isHandRolledListRowClass),
+});
+
+// ui-kit/no-uppercase-label (#5590) — Gruppenköpfe und Zwischenüberschriften
+// stehen normal geschrieben über `SectionLabel` (Epic #5576, Entscheidung 2).
+// Fund: eine Klassenkette mit `uppercase` und `tracking-*` außerhalb des Kits,
+// im `className` eines Elements (auch über Ternär-Zweige und `cn(…)`) oder in
+// einer anderen Zeichenkette, etwa einer Konstante. Ausnahmen laut Epic: `/start`
+// und die NFC-Druckanleitung; der Kicker des Elternportals kommt über das Kit
+// (`SectionCard kicker`). Hard-zero seit dem Abbau der Baseline.
+// Eltern-Ausnahmen aus #2619: Kinderkarten, Kinderwahl und Startseite des
+// Elternportals behalten ihre Versalien. Nie anfassen, auch nicht für das Kit.
+const UPPERCASE_LABEL_EXEMPT_FILES = [
+  "src/app/start/page.tsx",
+  "src/components/parent/child/child-day-card.tsx",
+  "src/components/parent/child/child-switcher.tsx",
+  "src/components/parent/start/parent-start-page.tsx",
+];
+
+const UPPERCASE_LABEL_EXEMPT_DIRS = ["src/app/help/nfc/"];
+
+function isUppercaseLabelText(text) {
+  const utilities = classUtilities(text);
+  return (
+    utilities.includes("uppercase") &&
+    utilities.some((token) => token.startsWith("tracking-"))
+  );
+}
+
+// A complete static chain is reported by the Literal/TemplateLiteral visitor.
+// Recognise it through the same shallow constant lookup as classText() so the
+// className visitor can report split cn(...) arguments without double-counting
+// a direct `const label = "uppercase tracking-wide"` reference.
+function containsStaticUppercaseLabelText(
+  node,
+  constants,
+  seen = new WeakSet(),
+  depth = 0,
+) {
+  if (!node || typeof node !== "object" || seen.has(node)) return false;
+  seen.add(node);
+
+  if (node.type === "Literal") {
+    return typeof node.value === "string" && isUppercaseLabelText(node.value);
+  }
+  if (node.type === "TemplateLiteral") {
+    return isUppercaseLabelText(
+      node.quasis.map((quasi) => quasi.value.raw).join(" "),
+    );
+  }
+  if (node.type === "Identifier" && depth < 2) {
+    const init = constants.get(node.name);
+    return init
+      ? containsStaticUppercaseLabelText(init, constants, seen, depth + 1)
+      : false;
+  }
+
+  for (const [key, value] of Object.entries(node)) {
+    if (key === "parent" || key === "loc" || key === "range") continue;
+    if (Array.isArray(value)) {
+      if (
+        value.some((child) =>
+          containsStaticUppercaseLabelText(child, constants, seen, depth),
+        )
+      ) {
+        return true;
+      }
+    } else if (
+      containsStaticUppercaseLabelText(value, constants, seen, depth)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function classNameUsesStaticUppercaseLabelConstant(value, constants) {
+  let expression = value;
+  while (
+    expression?.type === "JSXExpressionContainer" ||
+    expression?.type === "ChainExpression" ||
+    expression?.type === "TSAsExpression" ||
+    expression?.type === "TSTypeAssertion" ||
+    expression?.type === "TypeCastExpression"
+  ) {
+    expression = expression.expression;
+  }
+  return (
+    expression?.type === "Identifier" &&
+    containsStaticUppercaseLabelText(expression, constants)
+  );
+}
+
+function isClassNameAttribute(node) {
+  return (
+    node?.type === "JSXAttribute" &&
+    node.name?.type === "JSXIdentifier" &&
+    /(?:^c|C)lassName$/.test(node.name.name)
+  );
+}
+
+function insideClassNameAttribute(node) {
+  for (let current = node.parent; current; current = current.parent) {
+    if (isClassNameAttribute(current)) return true;
+    if (current.type === "JSXElement" || current.type === "Program") break;
+  }
+  return false;
+}
+
+const noUppercaseLabel = makeRatchetRule({
+  ruleName: "no-uppercase-label",
+  description:
+    "Group headings come from SectionLabel; no `uppercase tracking-*` class chain outside the UI kit.",
+  message:
+    'Keine Versalien-Überschrift: Gruppenkopf oder Zwischenüberschrift über `SectionLabel` (`as`, `required`) aus ~/components/ui/section-label, Gruppenkopf einer Liste über `ListGroupHeader`, Mini-Tag über `StatusBadge size="xs"`, Tabellenkopf über `DataTable` (#5590, .claude/rules/frontend-ui-kit.md).',
+  baselines: {},
+  allowlist: [],
+  kitFile: "src/components/ui/section-label.tsx",
+  exemptDir: UI_KIT_DIR,
+  exemptDirs: UPPERCASE_LABEL_EXEMPT_DIRS,
+  exemptFiles: UPPERCASE_LABEL_EXEMPT_FILES,
+  onlySrc: true,
+  detect: ({ constants, found }) => {
+    const check = (node, text) => {
+      if (insideClassNameAttribute(node)) return;
+      if (isUppercaseLabelText(text)) found(node);
+    };
+    return {
+      JSXAttribute(node) {
+        if (!isClassNameAttribute(node) || !node.value) return;
+        if (
+          classTextAlternatives(node.value, constants).some(
+            isUppercaseLabelText,
+          ) &&
+          !classNameUsesStaticUppercaseLabelConstant(node.value, constants)
+        ) {
+          found(node);
+        }
+      },
+      Literal(node) {
+        if (typeof node.value === "string") check(node, node.value);
+      },
+      TemplateLiteral(node) {
+        check(node, node.quasis.map((quasi) => quasi.value.raw).join(" "));
+      },
+    };
+  },
 });
 
 // ui-kit/no-hand-rolled-inset (#5592) — die graue Innenfläche kommt aus
@@ -3991,46 +4776,73 @@ const NAV_ROW_ARROWS = new Set([
   "ChevronRightIcon",
 ]);
 
-/** Kinder einer Zeile, auch hinter `&&`, `?:` und einer lokalen Konstante. */
-function navRowChildren(element, constants) {
-  const direct = [...flatJsxChildren(element)];
-  for (const child of element.children ?? []) {
-    if (
-      child.type === "JSXExpressionContainer" &&
-      child.expression.type === "Identifier"
-    ) {
-      const init = constants.get(child.expression.name);
-      if (init?.type === "JSXElement") direct.push(init);
-    }
-  }
-  return direct;
-}
-
-function isNavRowArrow(element) {
-  if (NAV_ROW_ARROWS.has(jsxName(element.openingElement.name))) return true;
-  return element.children.some(
-    (inner) => inner.type === "JSXText" && inner.value.trim() === "›",
+function isNavRowArrow(element, classText) {
+  if (!NAV_ROW_ARROWS.has(jsxName(element.openingElement.name))) return false;
+  // Der gedrehte Pfeil zeigt einen aufklappbaren Abschnitt an, keine Navigation.
+  const className = jsxAttribute(element.openingElement, "className");
+  return !(
+    className?.value &&
+    classText(className.value)
+      .split(/\s+/)
+      .some((token) => /^-?rotate-/.test(token))
   );
 }
+
+/** Pfeile auch hinter JSX-Hüllen und in lokalen Konstanten einer Zeile finden. */
+function containsNavRowArrow(node, constants, classText, seen = new Set()) {
+  if (!node) return false;
+  if (node.type === "JSXElement") {
+    if (isNavRowArrow(node, classText)) return true;
+    return node.children.some((child) =>
+      containsNavRowArrow(child, constants, classText, seen),
+    );
+  }
+  if (node.type === "JSXText") return node.value.trim() === "›";
+  if (node.type === "JSXFragment") {
+    return node.children.some((child) =>
+      containsNavRowArrow(child, constants, classText, seen),
+    );
+  }
+  if (node.type === "JSXExpressionContainer") {
+    return containsNavRowArrow(node.expression, constants, classText, seen);
+  }
+  if (node.type === "Identifier") {
+    if (seen.has(node.name)) return false;
+    seen.add(node.name);
+    return containsNavRowArrow(
+      constants.get(node.name),
+      constants,
+      classText,
+      seen,
+    );
+  }
+  if (node.type === "LogicalExpression") {
+    return containsNavRowArrow(node.right, constants, classText, seen);
+  }
+  if (node.type === "ConditionalExpression") {
+    return (
+      containsNavRowArrow(node.consequent, constants, classText, seen) ||
+      containsNavRowArrow(node.alternate, constants, classText, seen)
+    );
+  }
+  return false;
+}
+
+// Startseite des Elternportals (#2619): die Aufgabenliste behält ihre Zeilen
+// mit Ungelesen-Punkt am Icon. Nie anfassen, auch nicht für das Kit.
+const NAV_ROW_PARENT_EXCEPTIONS = ["src/components/parent/start/todo-list.tsx"];
 
 const noHandRolledNavRow = makeRatchetRule({
   ruleName: "no-hand-rolled-nav-row",
   description: "Rows that lead elsewhere with an arrow come from ListRowLink.",
   message:
-    "Keine eigene Navigationszeile: `ListRowLink` (`icon`, `title`, `subtitle`, `badge`, Pfeil), einzeln mit `framed` (#5593, .claude/rules/frontend-ui-kit.md).",
-  // Shrink-only: Auswahlzustand (DatabaseListItem), eigene Kante (Tagesplan) und
-  // Ungelesen-Zeilen des Elternportals passen noch nicht in `ListRowLink`.
-  baselines: {
-    "no-hand-rolled-nav-row": {
-      "src/components/database/database-list-item.tsx": 2,
-      "src/components/parent/messages/group-threads-section.tsx": 1,
-      "src/components/parent/messages/parent-messages-page.tsx": 1,
-      "src/components/timetable/tagesplan-view.tsx": 1,
-    },
-  },
+    "Keine eigene Navigationszeile: `ListRowLink` (`icon`, `title`, `subtitle`, `badge`, Pfeil; `selected`, `accent`, dreizeilig mit `overline`/`meta`/`unread`), einzeln mit `framed` (#5593, .claude/rules/frontend-ui-kit.md).",
+  // Hard-zero: Auswahl, farbige Kante und Ungelesen-Zeilen kann `ListRowLink`.
+  baselines: {},
   allowlist: [],
   kitFile: "src/components/ui/list-row-link.tsx",
   exemptDir: UI_KIT_DIR,
+  exemptFiles: NAV_ROW_PARENT_EXCEPTIONS,
   detect: ({ classText, constants, found }) => ({
     JSXElement(node) {
       if (!NAV_ROW_ELEMENTS.has(jsxName(node.openingElement.name))) return;
@@ -4044,8 +4856,13 @@ const noHandRolledNavRow = makeRatchetRule({
       if (!tokens.includes("w-full") && !tokens.includes("justify-between")) {
         return;
       }
-      const arrow = navRowChildren(node, constants).find(isNavRowArrow);
-      if (arrow) found(node);
+      if (
+        node.children.some((child) =>
+          containsNavRowArrow(child, constants, classText),
+        )
+      ) {
+        found(node);
+      }
     },
   }),
 });
@@ -4814,6 +5631,7 @@ export default {
     "no-hand-rolled-icon-tile": noHandRolledIconTile,
     "no-hand-rolled-inset": noHandRolledInset,
     "no-hand-rolled-field-label": noHandRolledFieldLabel,
+    "no-uppercase-label": noUppercaseLabel,
     "no-hand-rolled-fieldset": noHandRolledFieldset,
     "no-hand-rolled-choice-tile": noHandRolledChoiceTile,
     "no-hand-rolled-toggle-control": noHandRolledToggleControl,

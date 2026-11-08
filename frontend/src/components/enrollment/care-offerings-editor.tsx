@@ -1112,7 +1112,7 @@ function CareOfferingToolbar({
   onCreate: () => void;
 }>) {
   return (
-    <section className="moto-content-surface rounded-2xl border p-4">
+    <SectionCard>
       {/* Kennzahlen, Phasenauswahl und Anlegen stehen in einer Zeile, solange
           alles hineinpasst; sonst rutschen Auswahl und Knopf in eine eigene
           Zeile. Ein langer Phasenname wird im Auswahlfeld gekürzt und
@@ -1180,7 +1180,7 @@ function CareOfferingToolbar({
           ) : null}
         </div>
       </div>
-    </section>
+    </SectionCard>
   );
 }
 
@@ -1546,7 +1546,7 @@ function CareOfferingTemplateField({
   );
 
   return (
-    <section className="rounded-xl border border-gray-200 bg-white/70 p-4">
+    <InsetPanel as="section" tone="white" padding="md">
       <CustomSelect
         id="care-offering-template"
         label="Regeltermin"
@@ -1596,7 +1596,7 @@ function CareOfferingTemplateField({
           }
         />
       ) : null}
-    </section>
+    </InsetPanel>
   );
 }
 
@@ -1792,7 +1792,11 @@ function CareOfferingAutomationFields({
             </p>
           )}
           {selectedTriggers.length > 0 ? (
-            <div className="mt-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700">
+            <InsetPanel
+              tone="white"
+              padding="compact"
+              className="mt-2 text-xs text-gray-700"
+            >
               {selectedTriggers.map((trigger) => (
                 <p key={trigger.id}>
                   Wenn Eltern „{trigger.name}“ wählen, wird{" "}
@@ -1803,7 +1807,7 @@ function CareOfferingAutomationFields({
                 Andersherum gilt das nicht: Wer nur {offeringLabelMidSentence}{" "}
                 wählt, bekommt die anderen Angebote nicht automatisch dazu.
               </p>
-            </div>
+            </InsetPanel>
           ) : null}
           {draft.auto_add_trigger_offering_ids.length > 0 &&
           draft.days_of_week_mode !== "parent_choice" ? (
@@ -1917,12 +1921,12 @@ function CareOfferingAvailabilityFields({
               : null,
           })
         }
-        label={
-          rule
-            ? "Nur unter Bedingungen anbieten"
-            : "Für alle Klassenstufen / ohne Bedingungen"
-        }
-        hint="Ohne Bedingungen ist dieses Angebot für jedes Kind verfügbar."
+        // One label for both states: it names what a tick does. The old
+        // pair called the unticked box „Für alle Klassenstufen“, so schools
+        // ticked it to mean „for everyone“ and restricted the offering
+        // instead (#6044).
+        label="Nur für bestimmte Klassenstufen anbieten"
+        hint="Ohne Haken können alle Kinder das Angebot wählen."
       />
       {rule ? (
         <div className="mt-4 space-y-3">
