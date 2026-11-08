@@ -12,6 +12,13 @@ interface SectionCardSurfaceProps extends Omit<
   readonly className?: string;
   readonly overflow?: "hidden" | "visible";
   readonly bare?: boolean;
+  /**
+   * `article` für eine Karte, die für sich allein steht (eine Serie unter
+   * vielen); sonst bleibt es beim Abschnitt.
+   */
+  readonly as?: "section" | "article";
+  /** Hebt die Fläche beim Hovern an (`moto-hover-elevated`), ohne sie klickbar zu machen. */
+  readonly hoverElevated?: boolean;
   readonly children?: ReactNode;
 }
 
@@ -25,23 +32,26 @@ export function SectionCardSurface({
   className,
   overflow = "hidden",
   bare = false,
+  as: Element = "section",
+  hoverElevated = false,
   children,
   ...rest
 }: Readonly<SectionCardSurfaceProps>) {
   return (
-    <section
+    <Element
       {...rest}
       className={
         bare
           ? cn("space-y-4", className)
           : cn(
               "moto-content-surface rounded-2xl border",
+              hoverElevated && "moto-hover-elevated",
               overflow === "hidden" ? "overflow-hidden" : "overflow-visible",
               className,
             )
       }
     >
       {children}
-    </section>
+    </Element>
   );
 }

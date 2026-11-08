@@ -18,7 +18,6 @@ import {
   buttonRatchetBaseline,
 } from "./ui-kit-button-baseline.mjs";
 import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
-import { surfaceBaseline } from "./ui-kit-surface-baseline.mjs";
 import {
   lintSource as lintProbe,
   removeProbeDirectories,
@@ -3410,21 +3409,14 @@ describe.concurrent("ui-kit/no-hand-rolled-notice (#5591)", () => {
   });
 });
 
-// Erste Datei der Baseline; ist eine Regel abgebaut (no-hand-rolled-surface
-// seit #6133), prüfen die Tests an einer früher erfassten Datei mit Baseline 0.
-const FORMERLY_SURFACE_BASELINED =
-  "src/components/settings/passkey-settings-section.tsx";
+// Früher in der Flächen-Baseline erfasste Dateien; seit dem Abbau gilt
+// dort wie überall hart null (#5594).
+const FORMERLY_SURFACE_BASELINED = [
+  "src/components/enrollment/enrollment-form-editor.tsx",
+  "src/components/timetable/template-card.tsx",
+] as const;
 
-function surfaceProbeFile(rule: string): [string, number] {
-  return (
-    Object.entries(surfaceBaseline[rule] ?? {})[0] ?? [
-      FORMERLY_SURFACE_BASELINED,
-      0,
-    ]
-  );
-}
-
-describe.concurrent("ui-kit surface baseline (#5594)", () => {
+describe.concurrent("ui-kit surface rules are hard-zero (#5594)", () => {
   it.each([
     [
       "no-hand-rolled-page-card",
@@ -3434,155 +3426,72 @@ describe.concurrent("ui-kit surface baseline (#5594)", () => {
       "no-hand-rolled-surface",
       '<div className="rounded-lg border border-gray-200 bg-white p-3">A</div>',
     ],
-  ])("fails one %s finding more than a file's baseline", async (rule, card) => {
-    const [file, allowed] = surfaceProbeFile(rule);
-    const cards = Array.from({ length: allowed + 1 }, () => card).join("");
-    const result = await lintSource(
-      `export const Probe = () => <>${cards}</>;`,
-      file,
-    );
+  ])("fails a single %s finding", async (rule, card) => {
+    for (const file of FORMERLY_SURFACE_BASELINED) {
+      const result = await lintSource(
+        `export const Probe = () => ${card};`,
+        file,
+      );
 
-    expect(result.status).toBe(1);
-    expect(result.output).toContain(`ui-kit(${rule})`);
+      expect(result.status, file).toBe(1);
+      expect(result.output, file).toContain(`ui-kit(${rule})`);
+    }
   });
 
-  it("keeps the classic surface chain hard-zero in a baselined file", async () => {
-    const [file] = surfaceProbeFile("no-hand-rolled-surface");
-    const result = await lintSource(
-      'export const Probe = () => <div className="rounded-2xl border bg-white p-4">A</div>;',
-      file,
-    );
-
-    expect(result.status).toBe(1);
-    expect(result.output).toContain("ui-kit(no-hand-rolled-surface)");
-  });
-
-  it("keeps a composed legacy surface constant hard-zero in a baselined file", async () => {
-    const [file] = surfaceProbeFile("no-hand-rolled-surface");
+  it("keeps a composed legacy surface constant hard-zero", async () => {
     const result = await lintSource(
       `declare function cn(...classes: string[]): string;
       const card = cn("rounded-xl", "border", "bg-white", "p-4");
       export const Probe = () => <div className={card}>A</div>;`,
-      file,
+      FORMERLY_SURFACE_BASELINED[0],
     );
 
     expect(result.status).toBe(1);
     expect(result.output).toContain("ui-kit(no-hand-rolled-surface)");
   });
 
-  it("does not count a finding behind its disable comment", async () => {
-    const [file, allowed] = surfaceProbeFile("no-hand-rolled-surface");
-    const cards = Array.from(
-      { length: allowed },
-      () => '<div className="rounded-lg border bg-white p-3">A</div>',
-    ).join("");
-    const result = await lintSource(
-      `export const Probe = () => (
-        <>
-          {/* oxlint-disable-next-line ui-kit/no-hand-rolled-surface -- Probe */}
-          <div className="rounded-lg border bg-white p-3">B</div>
-          ${cards}
-        </>
-      );`,
+  it.each(["no-hand-rolled-surface", "no-hand-rolled-page-card"])(
+    "accepts a %s finding behind its disable comment",
+    async (rule) => {
+      const result = await lintSource(
+        `export const Probe = () => (
+          <>
+            {/* oxlint-disable-next-line ui-kit/${rule} -- Probe */}
+            <div className="moto-content-surface rounded-2xl border p-5">A</div>
+            {/* oxlint-disable-next-line ui-kit/${rule} -- Probe */}
+            <div className="rounded-lg border bg-white p-3">B</div>
+          </>
+        );`,
+        FORMERLY_SURFACE_BASELINED[1],
+      );
+
+      expect(result.output).not.toContain(`ui-kit(${rule})`);
+    },
+  );
+
+  it.each([
+    "src/components/parent/child/child-day-card.tsx",
+    "src/components/parent/child/child-switcher.tsx",
+    "src/components/parent/start/parent-start-page.tsx",
+    "src/components/parent/start/todo-list.tsx",
+  ])("leaves the #2619 parent exception %s alone", async (file) => {
+    const { output } = await lintSource(
+      'export const Probe = () => <div className="moto-content-surface rounded-2xl border p-5">A</div>;',
       file,
     );
 
-    expect(result.output).not.toContain("no-hand-rolled-surface");
+    expect(output).not.toContain("ui-kit(no-hand-rolled-page-card)");
   });
 
-  it("tolerates exactly the recorded findings", async () => {
-    const [file, allowed] = Object.entries(
-      surfaceBaseline["no-hand-rolled-page-card"]!,
-    )[0]!;
-    const cards = Array.from(
-      { length: allowed },
-      () =>
-        '<div className="moto-content-surface rounded-2xl border p-5">A</div>',
-    ).join("");
+  it("does not exempt a similarly named parent file", async () => {
     const result = await lintSource(
-      `export const Probe = () => <>${cards}</>;`,
-      file,
+      'export const Probe = () => <div className="moto-content-surface rounded-2xl border p-5">A</div>;',
+      "src/components/parent/start/todo-list-v2.tsx",
     );
 
-    expect(result.output).not.toContain("no-hand-rolled-page-card");
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("ui-kit(no-hand-rolled-page-card)");
   });
-
-  it("excludes hard-zero legacy surfaces from the generated baseline", () => {
-    const directory = mkdtempSync(join(tmpdir(), "surface-baseline-"));
-    temporaryDirectories.push(directory);
-    mkdirSync(join(directory, "scripts"));
-    for (const file of [
-      "ui-kit-surface-baseline-update.mjs",
-      "ui-kit-ratchet-baseline.mjs",
-    ]) {
-      copyFileSync(resolve("scripts", file), join(directory, "scripts", file));
-    }
-    symlinkSync(resolve("node_modules"), join(directory, "node_modules"));
-    writeFileSync(
-      join(directory, ".oxlintrc.json"),
-      JSON.stringify({
-        categories: { correctness: "off", suspicious: "off", perf: "off" },
-        jsPlugins: [resolve("scripts/oxlint-plugin-ui-kit.mjs")],
-        rules: {
-          "ui-kit/no-hand-rolled-surface": "error",
-          "ui-kit/no-hand-rolled-page-card": "error",
-        },
-      }),
-    );
-    mkdirSync(join(directory, "src/components"), { recursive: true });
-    writeFileSync(
-      join(directory, "src/components/probe.tsx"),
-      `export const Probe = () => <>
-        <div className="rounded-xl border bg-white p-4">Alt</div>
-        <div className="rounded-lg border bg-white p-3">Neu</div>
-      </>;`,
-    );
-    const baselinePath = join(directory, "ui-kit-surface-baseline.json");
-    writeFileSync(
-      baselinePath,
-      `${JSON.stringify(
-        {
-          "no-hand-rolled-surface": { "src/components/probe.tsx": 1 },
-          "no-hand-rolled-page-card": {},
-        },
-        null,
-        2,
-      )}\n`,
-    );
-
-    const result = spawnSync(
-      process.execPath,
-      [
-        join(directory, "scripts/ui-kit-surface-baseline-update.mjs"),
-        "--check",
-      ],
-      {
-        encoding: "utf8",
-        env: {
-          ...process.env,
-          UI_KIT_SURFACE_BASELINE_PATH: baselinePath,
-        },
-      },
-    );
-
-    expect(result.status, `${result.stdout}${result.stderr}`).toBe(0);
-    expect(`${result.stdout}${result.stderr}`).toContain(
-      "no-hand-rolled-surface: 1 Funde in 1 Dateien",
-    );
-  }, 120_000);
-});
-
-describe("ui-kit surface baseline is current (#5594)", () => {
-  // Die Zahl darf nur sinken: Nach einem Abbau muss die Baseline mitsinken.
-  it("records exactly the findings each file still has", () => {
-    const result = spawnSync(
-      process.execPath,
-      [resolve("scripts/ui-kit-surface-baseline-update.mjs"), "--check"],
-      { encoding: "utf8" },
-    );
-
-    expect(result.status, `${result.stdout}${result.stderr}`).toBe(0);
-  }, 120_000);
 });
 
 describe.concurrent("ui-kit/no-important-override baseline (#5581)", () => {

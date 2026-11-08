@@ -47,3 +47,49 @@ describe("TileCard nativeAnchor (#5594)", () => {
     expect(screen.getByRole("button", { name: "Schuljahr" })).toBeDisabled();
   });
 });
+
+describe("TileCard newTab (#5594)", () => {
+  it("öffnet das Ziel in einem neuen Tab und sagt es dem Screenreader", () => {
+    render(
+      <TileCard href="/anmeldung/preview?schemaId=7" newTab>
+        Vorschau öffnen
+      </TileCard>,
+    );
+
+    const link = screen.getByRole("link", {
+      name: "Vorschau öffnen (öffnet in neuem Tab)",
+    });
+    expect(link).toHaveAttribute("href", "/anmeldung/preview?schemaId=7");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    expect(link).not.toHaveAttribute("data-client-navigation");
+    expect(link).toHaveClass("moto-content-surface", "rounded-2xl");
+  });
+
+  it("hängt den Hinweis auch an ein eigenes ariaLabel", () => {
+    render(
+      <TileCard href="/vorschau" newTab ariaLabel="Vorschau öffnen">
+        <span aria-hidden="true">↗</span>
+      </TileCard>,
+    );
+
+    expect(
+      screen.getByRole("link", {
+        name: "Vorschau öffnen (öffnet in neuem Tab)",
+      }),
+    ).toHaveAttribute("target", "_blank");
+  });
+
+  it("bleibt deaktiviert eine Schaltfläche ohne neuen Tab", () => {
+    render(
+      <TileCard href="/vorschau" newTab disabled>
+        Vorschau öffnen
+      </TileCard>,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Vorschau öffnen" }),
+    ).toBeDisabled();
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+});
