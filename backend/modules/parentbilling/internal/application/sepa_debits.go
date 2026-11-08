@@ -153,7 +153,7 @@ func messageIDOf(runKind string, runID int64, plan debitPlan) string {
 	}
 	hash := sha256.New()
 	for _, entry := range plan.included {
-		fmt.Fprintf(hash, "%d|%d|%s|%s;", entry.Debit.ID, entry.Debit.AmountCents, entry.Debit.SequenceType,
+		_, _ = fmt.Fprintf(hash, "%d|%d|%s|%s;", entry.Debit.ID, entry.Debit.AmountCents, entry.Debit.SequenceType,
 			plan.collectOn[entry.Debit.ID])
 	}
 	kind := "M"
