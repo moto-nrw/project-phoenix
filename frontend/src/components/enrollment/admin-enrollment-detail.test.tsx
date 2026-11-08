@@ -2475,19 +2475,30 @@ describe("AdminEnrollmentDetail future renewal (#6043)", () => {
         children: [{ ...approvedChild, weekly_plan_on: "2027-02-03" }],
       })
       .mockResolvedValue({ ...request, children: [approvedChild] });
-    vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
-    render(<AdminEnrollmentDetail requestId="request-1" />);
-    const notice = await screen.findByText(
-      /aus dieser Anmeldung gelten ab heute/,
-    );
+    const visibility = vi
+      .spyOn(document, "visibilityState", "get")
+      .mockReturnValue("hidden");
+    try {
+      // Flush the loaded render's effects before sending visibility events.
+      await act(async () => {
+        render(<AdminEnrollmentDetail requestId="request-1" />);
+      });
+      // Anker: Die Anmeldung mit ausstehendem Wochenplan ist geladen.
+      const notice = screen.getByText(/aus dieser Anmeldung gelten ab heute/);
+      expect(notice).toBeVisible();
 
-    fireEvent(document, new Event("visibilitychange"));
-    expect(mocks.getAdminRequest).toHaveBeenCalledTimes(1);
-    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
-    fireEvent(document, new Event("visibilitychange"));
+      fireEvent(document, new Event("visibilitychange"));
+      expect(mocks.getAdminRequest).toHaveBeenCalledTimes(1);
+      visibility.mockReturnValue("visible");
+      await act(async () => {
+        fireEvent(document, new Event("visibilitychange"));
+      });
 
-    await waitFor(() => expect(notice).not.toBeInTheDocument());
-    expect(mocks.getAdminRequest).toHaveBeenCalledTimes(2);
+      expect(notice).not.toBeInTheDocument();
+      expect(mocks.getAdminRequest).toHaveBeenCalledTimes(2);
+    } finally {
+      visibility.mockRestore();
+    }
   });
 
   it("checks the pending plan again before showing a warning after midnight", async () => {
