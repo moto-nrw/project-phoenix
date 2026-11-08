@@ -14,6 +14,9 @@ import {
   correctAdminChildData,
   type AdminRequestChild,
 } from "~/lib/enrollment-admin-api";
+import { createLogger } from "~/lib/logger";
+
+const logger = createLogger({ component: "AdminChildDataCorrection" });
 
 export function AdminChildDataCorrection({
   child,
@@ -98,6 +101,11 @@ export function AdminChildDataCorrection({
       setOpen(false);
       onSaved(correctedChild);
     } catch (err) {
+      logger.error("admin_child_data_correction_failed", {
+        error: err instanceof Error ? err.message : "unknown",
+        request_id: requestId,
+        child_id: child.id,
+      });
       await errors.show(err, {
         object: "die Korrektur",
         retry: () => void latestSubmitRef.current(),

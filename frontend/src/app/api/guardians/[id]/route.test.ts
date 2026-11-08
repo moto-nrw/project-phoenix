@@ -11,28 +11,25 @@ import {
 // Mocks (using vi.hoisted for proper hoisting)
 // ============================================================================
 
-const { mockAuth, mockApiGet, mockApiPut, mockApiDelete } = vi.hoisted(() => ({
+const { mockAuth, mockFetch } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
-  mockApiGet: vi.fn(),
-  mockApiPut: vi.fn(),
-  mockApiDelete: vi.fn(),
+  mockFetch: vi.fn<typeof fetch>(),
 }));
 
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockAuth,
+  }),
+);
 
-vi.mock("@/lib/api-helpers.server", async () => {
-  const { mockHandleApiError } =
-    await import("~/test/helpers/handle-api-error");
-  return {
-    apiGet: mockApiGet,
-    apiPost: vi.fn(),
-    apiPut: mockApiPut,
-    apiDelete: mockApiDelete,
-    handleApiError: vi.fn(mockHandleApiError),
-  };
-});
+global.fetch = mockFetch;
+
+function jsonResponse(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
 
 // ============================================================================
 // Test Helpers
@@ -65,12 +62,20 @@ describe("GET /api/guardians/[id]", () => {
       first_name: "John",
       last_name: "Doe",
     };
-    mockApiGet.mockResolvedValueOnce({ data: mockGuardian });
+    mockFetch.mockResolvedValueOnce(jsonResponse({ data: mockGuardian }));
 
     const request = createMockRequest("/api/guardians/123");
     const response = await GET(request, createMockContext({ id: "123" }));
 
-    expect(mockApiGet).toHaveBeenCalledWith("/api/guardians/123", "test-token");
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://server:8080/api/guardians/123",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Authorization: "Bearer test-token",
+        }) as Record<string, string>,
+      }),
+    );
     expect(response.status).toBe(200);
 
     const json =
@@ -93,7 +98,9 @@ describe("PUT /api/guardians/[id]", () => {
       first_name: "Jane",
       last_name: "Doe",
     };
-    mockApiPut.mockResolvedValueOnce({ data: mockUpdatedGuardian });
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({ data: mockUpdatedGuardian }),
+    );
 
     const request = createMockRequest("/api/guardians/123", {
       method: "PUT",
@@ -101,10 +108,16 @@ describe("PUT /api/guardians/[id]", () => {
     });
     const response = await PUT(request, createMockContext({ id: "123" }));
 
-    expect(mockApiPut).toHaveBeenCalledWith(
-      "/api/guardians/123",
-      "test-token",
-      updateBody,
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://server:8080/api/guardians/123",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify(updateBody),
+        headers: expect.objectContaining({
+          Authorization: "Bearer test-token",
+          "Content-Type": "application/json",
+        }) as Record<string, string>,
+      }),
     );
     expect(response.status).toBe(200);
 
@@ -123,16 +136,21 @@ describe("DELETE /api/guardians/[id]", () => {
   });
 
   it("deletes guardian via backend and returns null", async () => {
-    mockApiDelete.mockResolvedValueOnce(undefined);
+    mockFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
 
     const request = createMockRequest("/api/guardians/123", {
       method: "DELETE",
     });
     const response = await DELETE(request, createMockContext({ id: "123" }));
 
-    expect(mockApiDelete).toHaveBeenCalledWith(
-      "/api/guardians/123",
-      "test-token",
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://server:8080/api/guardians/123",
+      expect.objectContaining({
+        method: "DELETE",
+        headers: expect.objectContaining({
+          Authorization: "Bearer test-token",
+        }) as Record<string, string>,
+      }),
     );
     expect(response.status).toBe(204);
   });

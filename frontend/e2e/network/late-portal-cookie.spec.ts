@@ -14,10 +14,10 @@ const port = networkPorts("tenantSwitch").frontend;
 // school, operator and caterer. After the portal's logout revoked its family,
 // a response held back from before (same tab or a second tab) must neither
 // write the old cookie back nor open anything: an answer that only re-read
-// the session carries no session cookie (#5399). The
-// session is opened with the portal's own Auth.js credentials provider and a
-// synthetic credential login, the logout runs through the portal's real BFF logout
-// route, and the cookie is cleared through Auth.js. Synthetic data only.
+// the session carries no session cookie (#5399). The session is opened with
+// a synthetic password login as the portal's login page does it, the logout
+// runs through the portal's real BFF logout route, and the cookie is cleared
+// through Auth.js. Synthetic data only.
 
 const portals = [
   {
@@ -82,13 +82,25 @@ async function isolate(context: BrowserContext) {
 // and no cookie. The school and caterer hosts answer /api/health with an empty
 // 404 by design, which Google Chrome turns into an error page (#5612).
 
-/** Opens a session in the portal's own Auth.js instance. */
+/**
+ * Opens a session of the portal with a synthetic password login: the parents
+ * through their Auth.js credentials provider, the other portals through
+ * their BFF login route, as their login pages do.
+ */
 async function signIn(page: Page, portal: Portal) {
-  // Token handoff is server-only; use the public credentials contract.
   const password = randomBytes(24).toString("hex");
   await page.goto(`${portal.origin}${portal.basePath}/providers`);
   const status = await page.evaluate(
     async ({ basePath, provider, password }) => {
+      const email = "fixture@example.invalid";
+      if (provider !== "parent-credentials") {
+        const response = await fetch(`${basePath}/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        });
+        return response.status;
+      }
       const { csrfToken } = (await (
         await fetch(`${basePath}/csrf`)
       ).json()) as {
@@ -96,7 +108,7 @@ async function signIn(page: Page, portal: Portal) {
       };
       const body = new URLSearchParams({
         csrfToken,
-        email: "fixture@example.invalid",
+        email,
         password,
         json: "true",
       });

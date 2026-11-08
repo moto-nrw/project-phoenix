@@ -18,7 +18,8 @@ func (r *Store) PhaseExpirySnapshots(ctx context.Context, input enrollment.Phase
 		return nil, err
 	}
 	var rows []*enrollment.PhaseExpirySnapshot
-	err = db.NewRaw(phaseExpiryQuery, tenantID, input.AsOf, input.WarningThrough, input.OfferingsJSON, input.BookingsJSON,
+	err = db.NewRaw(phaseExpiryQuery, tenantID, input.AsOf, input.WarningThrough,
+		enrollment.ChildStatusApproved, pgdialect.Array(enrollment.UnplacedChildStatuses()), input.OfferingsJSON, input.BookingsJSON,
 		pgdialect.Array(input.StudentIDs), pgdialect.Array(input.StudentStatuses), pgdialect.Array(input.EnrolledFrom), pgdialect.Array(input.EnrolledUntil)).Scan(ctx, &rows)
 	if err != nil {
 		return nil, fmt.Errorf("list phase expiry snapshots for tenant %d: %w", tenantID, err)
@@ -31,7 +32,12 @@ WITH report_parameters AS (
     SELECT
         ?::bigint AS tenant_id,
         ?::date AS as_of,
-        ?::date AS warning_through
+        ?::date AS warning_through,
+        ?::text AS approved_status
+),
+-- The decided child statuses without a place (rejected, withdrawn).
+unplaced_statuses AS (
+    SELECT unnest(?::text[]) AS status
 ),
 care_offerings AS (
     SELECT * FROM jsonb_to_recordset(?::jsonb) AS offering(
@@ -74,7 +80,7 @@ effective_source_bookings AS (
     JOIN enrollment.request_children AS request_child
       ON request_child.tenant_id = request.tenant_id
      AND request_child.request_id = request.id
-     AND request_child.status = 'approved'
+     AND request_child.status = parameters.approved_status
     JOIN directory_students AS student
       ON student.id = COALESCE(request_child.created_student_id, request_child.matched_student_id)
     JOIN care_bookings AS child_offering
@@ -230,7 +236,7 @@ SELECT
                         )
                     )
                     AND (
-                        target_child.status IN ('rejected', 'withdrawn')
+                        target_child.status IN (SELECT status FROM unplaced_statuses)
                         AND NOT EXISTS (
                             SELECT 1
                             FROM enrollment.requests AS competing_request
@@ -255,10 +261,10 @@ SELECT
                                       )
                                   )
                               )
-                              AND competing_child.status NOT IN ('rejected', 'withdrawn')
+                              AND competing_child.status NOT IN (SELECT status FROM unplaced_statuses)
                         )
                         OR (
-                            target_child.status = 'approved'
+                            target_child.status = (SELECT approved_status FROM report_parameters)
                             AND (
                                 target_child.rollover_source_child_id = ANY(source_student.source_child_ids)
                                 OR COALESCE(target_child.created_student_id, target_child.matched_student_id) = source_student.student_id

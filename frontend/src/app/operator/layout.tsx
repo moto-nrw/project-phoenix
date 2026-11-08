@@ -1,6 +1,6 @@
 import { OperatorProviders } from "./providers";
 import { OperatorAuthGuard } from "./auth-guard";
-import { readOperatorSessionSnapshot } from "~/lib/operator-session-snapshot.server";
+import { readPortalSessionSnapshot } from "~/lib/portal-session-snapshot.server";
 
 /**
  * Server layout for operator routes.
@@ -18,7 +18,8 @@ export default async function OperatorLayout({
 }: {
   readonly children: React.ReactNode;
 }) {
-  const session = await readOperatorSessionSnapshot();
+  const session =
+    (await readPortalSessionSnapshot("operator"))?.session ?? null;
   return (
     <OperatorProviders session={session}>
       <OperatorAuthGuard>{children}</OperatorAuthGuard>

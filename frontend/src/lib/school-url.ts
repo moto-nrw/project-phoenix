@@ -8,6 +8,8 @@
  * Mirrors parent-url.ts; see operator-url.ts for the reference shape.
  */
 
+import { requiredPortalHostname } from "~/lib/portal-paths";
+
 // Cache the result — window.location.host and the env var never change at runtime
 let _isSchool: boolean | undefined;
 
@@ -19,13 +21,7 @@ function isSchoolSubdomain(): boolean {
   if (typeof window === "undefined") return true;
   if (_isSchool !== undefined) return _isSchool;
 
-  const schoolHostname = process.env.NEXT_PUBLIC_SCHOOL_HOSTNAME;
-  if (!schoolHostname) {
-    throw new Error(
-      "NEXT_PUBLIC_SCHOOL_HOSTNAME is not set. " +
-        "Add it to your .env.local or docker-compose environment.",
-    );
-  }
+  const schoolHostname = requiredPortalHostname("school");
 
   _isSchool = window.location.host === schoolHostname;
   return _isSchool;
@@ -74,13 +70,7 @@ export function schoolPortalLoginUrl(search?: string): string {
     throw new Error("schoolPortalLoginUrl() is client-only.");
   }
 
-  const schoolHostname = process.env.NEXT_PUBLIC_SCHOOL_HOSTNAME;
-  if (!schoolHostname) {
-    throw new Error(
-      "NEXT_PUBLIC_SCHOOL_HOSTNAME is not set. " +
-        "Add it to your .env.local or docker-compose environment.",
-    );
-  }
+  const schoolHostname = requiredPortalHostname("school");
 
   return `${window.location.protocol}//${schoolHostname}/login${search ?? ""}`;
 }

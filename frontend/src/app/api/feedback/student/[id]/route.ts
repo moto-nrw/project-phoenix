@@ -1,16 +1,11 @@
 import { NextResponse } from "next/server";
-import { apiGet, problemResponse } from "~/lib/api-helpers.server";
-import { createTenantApiAdapter } from "~/lib/backend-proxy-route.server";
+import { apiGet } from "~/lib/api-helpers.server";
+import { createGetHandler } from "~/lib/route-wrapper.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
-export const GET = createTenantApiAdapter(async (request, token) => {
-  const pathParts = request.nextUrl.pathname.split("/");
-  const studentIndex = pathParts.indexOf("student");
-  const studentId = studentIndex >= 0 ? pathParts[studentIndex + 1] : undefined;
-  if (!studentId) {
-    return problemResponse(400, "Invalid id parameter", request);
-  }
+export const GET = createGetHandler(async (_request, token, params) => {
   const response = await apiGet<{ data: unknown }>(
-    `/api/feedback/student/${studentId}`,
+    `/api/feedback/student/${requirePathSegmentParam(params)}`,
     token,
   );
   return NextResponse.json(

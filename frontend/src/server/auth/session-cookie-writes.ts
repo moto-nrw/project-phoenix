@@ -12,8 +12,8 @@ import {
   isSessionCookieName,
   isWrittenSessionCookieName,
 } from "~/lib/session-cookie-exit.server";
+import { portalOfScope } from "./portals";
 import {
-  portalOfScope,
   sessionFamilyState,
   type SessionFamilyState,
 } from "./token-validation";
@@ -176,7 +176,7 @@ export function familyStateOf(
   const token = typeof session.token === "string" ? session.token : "";
   let state = states.get(token);
   if (!state) {
-    state = sessionFamilyState(token, portalOfScope(session.scope));
+    state = sessionFamilyState(token, portalOfScope(session.scope).validation);
     states.set(token, state);
   }
   return state;

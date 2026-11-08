@@ -20,7 +20,7 @@ export const PUT = createPutHandler(
     params: Record<string, unknown>,
   ) => {
     const response = await apiPut<{ data: unknown }>(
-      `/api/staff-notices/${noticeID(params)}`,
+      `/api/staff-notices/${encodeURIComponent(noticeID(params))}`,
       token,
       body,
     );
@@ -36,7 +36,7 @@ export const DELETE = createDeleteHandler(
     params: Record<string, unknown>,
   ) => {
     const response = await apiDelete<{ data: unknown }>(
-      `/api/staff-notices/${noticeID(params)}`,
+      `/api/staff-notices/${encodeURIComponent(noticeID(params))}`,
       token,
     );
     return response?.data ?? null;

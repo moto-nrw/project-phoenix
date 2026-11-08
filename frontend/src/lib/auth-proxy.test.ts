@@ -1,308 +1,153 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { authStepProxy } from "./auth-proxy.server";
 
 const { captureException } = vi.hoisted(() => ({ captureException: vi.fn() }));
 vi.mock("@sentry/nextjs", () => ({ captureException }));
 
-// Mock dependencies first — auth-proxy imports server-api-url which
-// reaches into env.js at module-eval time, and the t3-env validation
-// blows up under vitest without these.
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://backend.test",
 }));
 
-vi.mock("~/lib/client-headers.server", () => ({
-  getClientForwardHeaders: vi.fn(() => ({
-    "x-forwarded-for": "203.0.113.10",
-    "user-agent": "test-agent",
-  })),
-}));
+const fetchMock = vi.fn<typeof fetch>();
+vi.stubGlobal("fetch", fetchMock);
 
-// ~/lib/logger is mocked globally in frontend/src/test/setup.ts so that
-// logger.error(msg, ctx) routes to console.error(msg, ctx) — and the
-// spy below picks the call up.
-
-import { forwardJsonPost } from "./auth-proxy.server";
-
-const ORIGINAL_FETCH = globalThis.fetch;
-
-function makeRequest(opts: {
-  body?: unknown;
-  headers?: Record<string, string>;
-}): NextRequest {
-  const headers = new Headers();
-  for (const [k, v] of Object.entries(opts.headers ?? {})) {
-    headers.set(k, v);
-  }
-  return new NextRequest("http://app.test/api/auth/login", {
+function step(opts: { body?: string; headers?: Record<string, string> } = {}) {
+  return new NextRequest("http://app.test/api/auth/mfa/resend", {
     method: "POST",
-    headers,
-    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+    headers: {
+      "x-forwarded-for": "203.0.113.10",
+      "user-agent": "test-agent",
+      ...opts.headers,
+    },
+    body: opts.body,
   });
 }
 
-function mockFetchResponse(opts: {
-  status: number;
-  body?: unknown;
-  contentType?: string | null;
-  setCookies?: string[];
-}): typeof fetch {
-  return vi.fn(async (_url, _init) => {
-    const headers = new Headers();
-    if (opts.contentType !== null) {
-      headers.set("content-type", opts.contentType ?? "application/json");
-    }
-    for (const c of opts.setCookies ?? []) {
-      headers.append("set-cookie", c);
-    }
-    const bodyText =
-      opts.status === 204
-        ? null
-        : opts.body === undefined
-          ? ""
-          : typeof opts.body === "string"
-            ? opts.body
-            : JSON.stringify(opts.body);
-    return new Response(bodyText, {
-      status: opts.status,
-      headers,
-    });
-  }) as unknown as typeof fetch;
-}
+const sent = () => {
+  const [url, init] = fetchMock.mock.calls[0]!;
+  return { url, init: init!, headers: new Headers(init!.headers) };
+};
 
-describe("forwardJsonPost", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    globalThis.fetch = ORIGINAL_FETCH;
-  });
-  afterEach(() => {
-    vi.restoreAllMocks();
-    globalThis.fetch = ORIGINAL_FETCH;
-  });
+const resend = authStepProxy("/auth/mfa/resend", "optional-json");
 
-  it("forwards the JSON body and returns the upstream JSON envelope", async () => {
-    const fetchMock = mockFetchResponse({
-      status: 200,
-      body: { token: "abc" },
-    });
-    globalThis.fetch = fetchMock;
+beforeEach(() => {
+  fetchMock.mockReset();
+  fetchMock.mockResolvedValue(Response.json({ ok: true }));
+});
 
-    // NextRequest's vitest polyfill strips the raw `cookie` header (cookies
-    // are intended to be read via request.cookies). The cookie-forwarding
-    // branch is therefore covered by the e2e auth flow tests rather than
-    // asserted here. Authorization passes through normally.
-    const req = makeRequest({
-      body: { email: "a@b" },
-      headers: { authorization: "Bearer top-secret" },
-    });
-    const res = await forwardJsonPost(req, "/api/auth/login");
-
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ token: "abc" });
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = (
-      fetchMock as unknown as { mock: { calls: unknown[][] } }
-    ).mock.calls[0]!;
-    expect(url).toBe("http://backend.test/api/auth/login");
-    const headers = (init as RequestInit).headers as Record<string, string>;
-    expect(headers["Content-Type"]).toBe("application/json");
-    expect(headers["Authorization"]).toBe("Bearer top-secret");
-    expect(headers["x-forwarded-for"]).toBe("203.0.113.10");
-    expect(init).toMatchObject({ method: "POST" });
-    expect((init as RequestInit).body).toBe(JSON.stringify({ email: "a@b" }));
-  });
-
-  // Routes acting for a signed-in account pass their portal session's token;
-  // the browser holds none (#5005), so a caller's header never counts there.
-  it("sends the session token instead of the caller's Authorization header", async () => {
-    const fetchMock = mockFetchResponse({ status: 200, body: [] });
-    globalThis.fetch = fetchMock;
-
-    const req = makeRequest({
-      body: {},
-      headers: { authorization: "Bearer caller-supplied" },
-    });
-    await forwardJsonPost(req, "/auth/passkeys/", {
-      method: "GET",
-      hasBody: false,
-      sessionToken: "session-access",
-    });
-
-    const [, init] = (fetchMock as unknown as { mock: { calls: unknown[][] } })
-      .mock.calls[0]!;
-    const headers = (init as RequestInit).headers as Record<string, string>;
-    expect(headers["Authorization"]).toBe("Bearer session-access");
-  });
-
-  it("sends no Authorization header when the session holds no token", async () => {
-    const fetchMock = mockFetchResponse({ status: 401, body: {} });
-    globalThis.fetch = fetchMock;
-
-    const req = makeRequest({
-      body: {},
-      headers: { authorization: "Bearer caller-supplied" },
-    });
-    await forwardJsonPost(req, "/auth/passkeys/", {
-      method: "GET",
-      hasBody: false,
-      sessionToken: null,
-    });
-
-    const [, init] = (fetchMock as unknown as { mock: { calls: unknown[][] } })
-      .mock.calls[0]!;
-    const headers = (init as RequestInit).headers as Record<string, string>;
-    expect(headers["Content-Type"]).toBe("application/json");
-    expect(headers).not.toHaveProperty("Authorization");
-  });
-
-  it("returns 204 with no JSON body when the backend returns 204", async () => {
-    // The Headers polyfill in vitest/undici doesn't reliably surface
-    // multi-value Set-Cookie via getSetCookie(); the mirror loop still
-    // executes and is line-covered by virtue of running.
-    const fetchMock = mockFetchResponse({
-      status: 204,
-      setCookies: ["sid=abc; Path=/", "csrf=xyz; HttpOnly"],
-    });
-    globalThis.fetch = fetchMock;
-
-    const req = makeRequest({ body: {} });
-    const res = await forwardJsonPost(req, "/api/auth/logout");
-
-    expect(res.status).toBe(204);
-  });
-
-  it("passes backend HTTP status through unchanged", async () => {
-    globalThis.fetch = mockFetchResponse({
-      status: 401,
-      body: {
-        status: 401,
-        detail: "Invalid credentials",
-        code: "identity.invalid_credentials",
-      },
-    });
-
-    const res = await forwardJsonPost(
-      makeRequest({ body: {} }),
-      "/api/auth/login",
+describe("authStepProxy", () => {
+  it("forwards the body, the step's proof and the client identity, but no cookie", async () => {
+    const response = await resend(
+      step({
+        body: JSON.stringify({ challenge_token: "c" }),
+        headers: {
+          authorization: "Bearer challenge-proof",
+          cookie: "authjs.session-token=secret; mfa_trust_device=d",
+        },
+      }),
     );
 
-    expect(res.status).toBe(401);
-    expect(await res.json()).toEqual({
-      status: 401,
-      detail: "Invalid credentials",
-      code: "identity.invalid_credentials",
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true });
+    expect(sent().url).toBe("http://backend.test/auth/mfa/resend");
+    expect(sent().init).toMatchObject({
+      method: "POST",
+      body: JSON.stringify({ challenge_token: "c" }),
+    });
+    expect(sent().headers.get("authorization")).toBe("Bearer challenge-proof");
+    expect(sent().headers.get("x-forwarded-for")).toBe("203.0.113.10");
+    expect(sent().headers.get("x-moto-frontend-origin")).toBe(
+      "http://app.test",
+    );
+    expect(sent().headers.get("cookie")).toBeNull();
+  });
+
+  it("sends {} for an empty body and no Authorization without a proof", async () => {
+    await resend(step());
+
+    expect(sent().init.body).toBe("{}");
+    expect(sent().headers.get("authorization")).toBeNull();
+  });
+
+  it("sends no body for a step without one", async () => {
+    await authStepProxy("/auth/mfa/enroll/start", "none")(step());
+
+    expect(sent().init.body).toBeUndefined();
+  });
+
+  it("passes a backend refusal through with its status and body", async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json(
+        { status: 429, title: "Too Many Requests", code: "general.rate_limit" },
+        { status: 429, headers: { "Retry-After": "60" } },
+      ),
+    );
+
+    const response = await resend(step());
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("retry-after")).toBe("60");
+    await expect(response.json()).resolves.toMatchObject({
+      code: "general.rate_limit",
     });
   });
 
-  it("replaces a non-JSON backend 5xx body with a safe envelope", async () => {
-    globalThis.fetch = mockFetchResponse({
-      status: 502,
-      body: "Bad Gateway",
-      contentType: "text/plain",
-    });
+  it("answers a backend 204 without a body", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
 
-    const res = await forwardJsonPost(
-      makeRequest({ body: {} }),
-      "/api/auth/login",
-    );
+    const response = await resend(step());
 
-    expect(res.status).toBe(502);
-    expect(res.headers.get("Content-Type")).toBe("application/problem+json");
-    expect(await res.json()).toMatchObject({
-      status: 502,
-      detail: "Bad Gateway",
+    expect(response.status).toBe(204);
+    expect(await response.text()).toBe("");
+  });
+
+  it.each([
+    ["a non-JSON body", "upstream exploded at host-12"],
+    ["malformed JSON", '{"detail": "db at 10.0.0.5'],
+  ])("replaces a backend 5xx with %s by a safe envelope", async (_c, body) => {
+    fetchMock.mockResolvedValueOnce(new Response(body, { status: 502 }));
+
+    const response = await resend(step());
+
+    expect(response.status).toBe(502);
+    const text = await response.text();
+    expect(text).not.toContain("10.0.0.5");
+    expect(text).not.toContain("host-12");
+    expect(JSON.parse(text)).toMatchObject({ status: 502 });
+  });
+
+  it("answers an unreachable backend with 503 and reports it once", async () => {
+    fetchMock.mockRejectedValueOnce(new TypeError("fetch failed"));
+
+    const response = await resend(step());
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
       code: "general.unavailable",
     });
+    expect(captureException).toHaveBeenCalledOnce();
   });
 
-  it("replaces malformed backend 5xx JSON with a safe envelope", async () => {
-    globalThis.fetch = mockFetchResponse({
-      status: 500,
-      body: "not-json-at-all",
-      contentType: "application/json",
-    });
-
-    const res = await forwardJsonPost(
-      makeRequest({ body: {} }),
-      "/api/auth/login",
+  it("gives up on a backend that does not answer within the auth-step budget", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockImplementationOnce(
+      (_url, init) =>
+        new Promise((_resolve, reject) =>
+          init?.signal?.addEventListener("abort", () =>
+            reject(init.signal?.reason),
+          ),
+        ),
     );
-
-    expect(res.status).toBe(500);
-    expect(res.headers.get("Content-Type")).toBe("application/problem+json");
-    expect(await res.json()).toMatchObject({
-      status: 500,
-      detail: "Internal Server Error",
-      code: "general.server",
-    });
-    expect(captureException).not.toHaveBeenCalled();
-  });
-
-  it("treats fetch rejections as 500 Internal Server Error", async () => {
-    const consoleError = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => {});
-    const failure = new Error("ECONNREFUSED");
-    globalThis.fetch = vi.fn(async () => {
-      throw failure;
-    }) as unknown as typeof fetch;
-
-    const res = await forwardJsonPost(
-      makeRequest({
-        body: {},
-        headers: { "X-Request-ID": "0b6f3f4e-5c1d-4a52-9d57-2d3c1b5e8f10" },
-      }),
-      "/api/auth/login",
-    );
-
-    expect(res.status).toBe(500);
-    expect(await res.json()).toMatchObject({
-      status: 500,
-      detail: "Internal Server Error",
-      code: "general.server",
-    });
-    expect(consoleError).toHaveBeenCalledWith(
-      "proxy_failed",
-      expect.objectContaining({ path: "/api/auth/login" }),
-    );
-    expect(captureException).toHaveBeenCalledExactlyOnceWith(failure, {
-      tags: { request_id: "0b6f3f4e-5c1d-4a52-9d57-2d3c1b5e8f10" },
-    });
-    consoleError.mockRestore();
-  });
-
-  it("honours method override (GET) and skips the body even when hasBody defaults to true", async () => {
-    const fetchMock = mockFetchResponse({
-      status: 200,
-      body: { ok: true },
-    });
-    globalThis.fetch = fetchMock;
-
-    const req = makeRequest({ headers: {} });
-    await forwardJsonPost(req, "/api/auth/whoami", {
-      method: "GET",
-      hasBody: false,
+    let settled = false;
+    const pending = resend(step()).finally(() => {
+      settled = true;
     });
 
-    const [, init] = (fetchMock as unknown as { mock: { calls: unknown[][] } })
-      .mock.calls[0]!;
-    expect((init as RequestInit).method).toBe("GET");
-    expect((init as RequestInit).body).toBeUndefined();
-  });
+    await vi.advanceTimersByTimeAsync(9_999);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
 
-  it("keeps an empty backend body empty", async () => {
-    globalThis.fetch = mockFetchResponse({
-      status: 200,
-      body: "",
-      contentType: "application/json",
-    });
-
-    const res = await forwardJsonPost(
-      makeRequest({ body: {} }),
-      "/api/auth/login",
-    );
-
-    expect(res.status).toBe(200);
-    expect(await res.text()).toBe("");
+    expect((await pending).status).toBe(503);
   });
 });

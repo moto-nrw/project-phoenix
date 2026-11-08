@@ -6,29 +6,21 @@ import { NextRequest } from "next/server";
 // in src/lib/operator/route-wrapper.test.ts. This file exists to pin the
 // exact backend endpoint string and HTTP method that route.ts wires to, so a
 // typo or method swap is caught by CI.
-const {
-  mockFetch,
-  mockGetServerApiUrl,
-  mockGetClientForwardHeaders,
-  mockAuth,
-} = vi.hoisted(() => ({
+const { mockFetch, mockGetServerApiUrl, mockAuth } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
   mockGetServerApiUrl: vi.fn(() => "http://localhost:8080"),
-  mockGetClientForwardHeaders: vi.fn(() => ({})),
   mockAuth: vi.fn(),
 }));
 
-vi.mock("~/server/auth/operator", () => ({
-  operatorAuth: mockAuth,
-  uncachedOperatorAuth: mockAuth,
-}));
+vi.mock("~/server/auth/operator", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("operator", {
+    auth: mockAuth,
+    uncachedAuth: mockAuth,
+  }),
+);
 
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: mockGetServerApiUrl,
-}));
-
-vi.mock("~/lib/client-headers.server", () => ({
-  getClientForwardHeaders: mockGetClientForwardHeaders,
 }));
 
 global.fetch = mockFetch as unknown as typeof fetch;

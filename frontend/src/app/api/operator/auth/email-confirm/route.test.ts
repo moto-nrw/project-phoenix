@@ -1,23 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 
-const { mockFetch, mockGetServerApiUrl, mockGetClientForwardHeaders } =
-  vi.hoisted(() => ({
-    mockFetch: vi.fn(),
-    mockGetServerApiUrl: vi.fn(() => "http://localhost:8080"),
-    mockGetClientForwardHeaders: vi.fn(() => ({
-      "X-Forwarded-For": "127.0.0.1",
-      "X-Real-IP": "127.0.0.1",
-      "User-Agent": "test-agent",
-    })),
-  }));
+const { mockFetch, mockGetServerApiUrl } = vi.hoisted(() => ({
+  mockFetch: vi.fn(),
+  mockGetServerApiUrl: vi.fn(() => "http://localhost:8080"),
+}));
 
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: mockGetServerApiUrl,
-}));
-
-vi.mock("~/lib/client-headers.server", () => ({
-  getClientForwardHeaders: mockGetClientForwardHeaders,
 }));
 
 global.fetch = mockFetch as unknown as typeof fetch;
@@ -29,7 +19,10 @@ function createMockRequest(body: unknown): NextRequest {
     "http://localhost:3000/api/operator/auth/email-confirm",
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-Forwarded-For": "203.0.113.7",
+      },
       body: JSON.stringify(body),
     },
   );
@@ -89,7 +82,8 @@ describe("POST /api/operator/auth/email-confirm", () => {
         method: "POST",
         headers: expect.objectContaining({
           "Content-Type": "application/json",
-          "X-Forwarded-For": "127.0.0.1",
+          // Contract: the client IP comes from the incoming request (no 127.0.0.1 fallback).
+          "X-Forwarded-For": "203.0.113.7",
         }) as Record<string, unknown>,
         body: JSON.stringify({
           token: "550e8400-e29b-41d4-a716-446655440000",

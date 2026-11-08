@@ -6,7 +6,6 @@ import { withPrivateNoStore } from "~/lib/private-no-store";
 const proxy = createPublicJsonProxy({
   method: "GET",
   path: "/auth/tenants",
-  contentTypeOnGet: false,
 });
 
 // Keep the no-argument entry point used by existing server-side callers.

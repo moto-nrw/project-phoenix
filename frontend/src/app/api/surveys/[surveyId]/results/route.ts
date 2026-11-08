@@ -1,4 +1,4 @@
-import { proxyGet } from "~/lib/route-proxy.server";
+import { proxyGet } from "~/lib/route-wrapper.server";
 
 /**
  * Proxy GET /api/surveys/{surveyId}/results → backend (#4781): sums and

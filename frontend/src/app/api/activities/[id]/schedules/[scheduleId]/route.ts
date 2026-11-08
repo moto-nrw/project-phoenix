@@ -22,7 +22,7 @@ export const GET = createGetHandler(
   ) => {
     const id = params.id as string;
     const scheduleId = params.scheduleId as string;
-    const endpoint = `/api/activities/${id}/schedules/${scheduleId}`;
+    const endpoint = `/api/activities/${encodeURIComponent(id)}/schedules/${encodeURIComponent(scheduleId)}`;
 
     try {
       const response = await apiGet<
@@ -74,7 +74,7 @@ export const PUT = createPutHandler(
   ) => {
     const id = params.id as string;
     const scheduleId = params.scheduleId as string;
-    const endpoint = `/api/activities/${id}/schedules/${scheduleId}`;
+    const endpoint = `/api/activities/${encodeURIComponent(id)}/schedules/${encodeURIComponent(scheduleId)}`;
 
     try {
       // Prepare data for backend
@@ -132,7 +132,7 @@ export const DELETE = createDeleteHandler(
   ) => {
     const id = params.id as string;
     const scheduleId = params.scheduleId as string;
-    const endpoint = `/api/activities/${id}/schedules/${scheduleId}`;
+    const endpoint = `/api/activities/${encodeURIComponent(id)}/schedules/${encodeURIComponent(scheduleId)}`;
 
     try {
       // Call the API

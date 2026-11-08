@@ -8,9 +8,9 @@ import { TenantProviders } from "./providers";
 import { loadShellBootstrap } from "~/lib/shell-bootstrap.server";
 import type { ShellBootstrap } from "~/lib/shell-seed";
 import {
-  readTenantSessionSnapshot,
-  type TenantSessionSnapshot,
-} from "~/lib/tenant-session-snapshot.server";
+  readPortalSessionSnapshot,
+  type PortalSessionSnapshot,
+} from "~/lib/portal-session-snapshot.server";
 import type { TenantInfo } from "~/lib/tenant-api";
 import {
   bookedModuleFields,
@@ -214,7 +214,7 @@ function tenantSubdomainUrl(
  * ends in a sign-out; both fetch nothing here and keep the client path.
  */
 async function loadShell(
-  snapshot: TenantSessionSnapshot | null,
+  snapshot: PortalSessionSnapshot | null,
   tenant: TenantInfo,
 ): Promise<ShellBootstrap | null> {
   // Only a tenant-staff scope ("" or "org") may read these endpoints; every
@@ -307,7 +307,7 @@ export default async function TenantLayout({
   // Component cannot persist the replacement cookie (#1938). The snapshot
   // safely hydrates SessionProvider without any token (#5005); later polls
   // and refreshes use its response-aware route handler.
-  const snapshot = await readTenantSessionSnapshot();
+  const snapshot = await readPortalSessionSnapshot("tenant");
   const session = snapshot?.session ?? null;
   const shell = await loadShell(snapshot, tenant);
 

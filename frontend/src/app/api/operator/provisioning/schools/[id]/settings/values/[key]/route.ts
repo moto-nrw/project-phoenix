@@ -1,16 +1,20 @@
+import {
+  encodePathSegment,
+  requireStringParam,
+} from "~/lib/route-wrapper-utils.server";
 import { revalidatePath, revalidateTag } from "next/cache";
 import type { NextRequest } from "next/server";
 import { createLogger } from "~/lib/logger";
 import {
   createOperatorPutHandler,
   createOperatorDeleteHandler,
-  isStringParam,
+  operator,
   operatorApiGet,
-  operatorApiPut,
   operatorApiDelete,
 } from "~/lib/operator/route-wrapper.server";
 import { TENANT_RESOLVE_AFFECTING_KEYS } from "~/lib/settings-keys";
 import { bffError } from "~/lib/api-response-error.server";
+import { unwrapEnvelope } from "~/lib/backend-client.server";
 
 const logger = createLogger({
   component: "OperatorSchoolSettingsValuesRoute",
@@ -81,19 +85,20 @@ export const PUT = createOperatorPutHandler(
     token: string,
     params: Record<string, unknown>,
   ) => {
-    if (!isStringParam(params.id)) {
-      throw new Error("Invalid id parameter");
-    }
+    const id = requireStringParam(params, "id");
     const key = params.key as string;
     if (!VALID_KEY_PATTERN.test(key)) {
       throw bffError(400, "Invalid settings key format");
     }
-    const result = await operatorApiPut(
-      `/operator/schools/${params.id}/settings/values/${key}`,
-      token,
-      body,
+    const result = unwrapEnvelope(
+      await operator.api(
+        "PUT",
+        `/operator/schools/${encodePathSegment(id)}/settings/values/${encodePathSegment(key)}`,
+        token,
+        body,
+      ),
     );
-    await revalidateTenantIfNeeded(params.id, key, token);
+    await revalidateTenantIfNeeded(id, key, token);
     return result;
   },
 );
@@ -104,18 +109,16 @@ export const DELETE = createOperatorDeleteHandler(
     token: string,
     params: Record<string, unknown>,
   ) => {
-    if (!isStringParam(params.id)) {
-      throw new Error("Invalid id parameter");
-    }
+    const id = requireStringParam(params, "id");
     const key = params.key as string;
     if (!VALID_KEY_PATTERN.test(key)) {
       throw bffError(400, "Invalid settings key format");
     }
     const result = await operatorApiDelete(
-      `/operator/schools/${params.id}/settings/values/${key}`,
+      `/operator/schools/${encodePathSegment(id)}/settings/values/${encodePathSegment(key)}`,
       token,
     );
-    await revalidateTenantIfNeeded(params.id, key, token);
+    await revalidateTenantIfNeeded(id, key, token);
     return result;
   },
 );

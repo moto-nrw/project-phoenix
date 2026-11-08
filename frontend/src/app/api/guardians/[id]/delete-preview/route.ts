@@ -1,4 +1,4 @@
-import { proxyGet } from "@/lib/route-proxy.server";
+import { proxyGet } from "~/lib/route-wrapper.server";
 import { requirePathSegmentParam } from "@/lib/route-wrapper-utils.server";
 
 // GET /api/guardians/[id]/delete-preview - Read-only blast radius of a full

@@ -7,17 +7,15 @@ const { mockTraegerAuth, mockUncachedAuth, mockFetch } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
 }));
 
-vi.mock("~/server/auth/traeger", () => ({
-  traegerAuth: mockTraegerAuth,
-  uncachedTraegerAuth: mockUncachedAuth,
-}));
+vi.mock("~/server/auth/traeger", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("traeger", {
+    auth: mockTraegerAuth,
+    uncachedAuth: mockUncachedAuth,
+  }),
+);
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://localhost:8080",
 }));
-vi.mock("~/lib/analytics-session-header.server", () => ({
-  incomingAnalyticsSessionHeaders: async () => ({}),
-}));
-
 global.fetch = mockFetch as typeof fetch;
 
 import { DELETE, PUT } from "./route";
@@ -136,14 +134,15 @@ describe("DELETE /api/traeger/settings/values/[key]", () => {
     mockTraegerAuth.mockResolvedValue({ user: { token: "org-token" } });
   });
 
-  // The shared Träger proxy answers a backend 204 with its empty envelope,
-  // like the other Träger deletes (#4650).
-  it("removes the Träger value and answers with the empty envelope", async () => {
+  // Contract change: a DELETE without result answers 204 in every portal
+  // (the Träger proxy used to answer 200 with an empty envelope, #4650).
+  it("removes the Träger value and answers 204", async () => {
     mockFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
 
     const response = await DELETE(deleteRequest(KEY), context(KEY));
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(204);
+    expect(await response.text()).toBe("");
     expect(mockFetch).toHaveBeenCalledWith(
       `http://localhost:8080/traeger/settings/values/${KEY}`,
       expect.objectContaining({

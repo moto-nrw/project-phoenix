@@ -16,9 +16,11 @@ const { mockAuth, mockApiPost } = vi.hoisted(() => ({
   mockApiPost: vi.fn(),
 }));
 
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockAuth,
+  }),
+);
 
 vi.mock("~/lib/api-helpers.server", async () => {
   const { mockHandleApiError } =
@@ -103,19 +105,19 @@ describe("POST /api/active/supervisors/[id]/end", () => {
     const request = createMockRequest("/api/active/supervisors/invalid/end");
     const response = await POST(request, createMockContext({ id: undefined }));
 
-    expect(response.status).toBe(500);
+    // An invalid route param is the request's mistake: a coded 400.
+    expect(response.status).toBe(400);
     const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Internal Server Error");
-    expect(JSON.stringify(json)).not.toContain("Invalid id parameter");
+    expect(json.detail).toBe("Invalid id parameter");
   });
 
   it("returns error when id is not a string", async () => {
     const request = createMockRequest("/api/active/supervisors/1/end");
     const response = await POST(request, createMockContext({ id: ["1", "2"] }));
 
-    expect(response.status).toBe(500);
+    // An invalid route param is the request's mistake: a coded 400.
+    expect(response.status).toBe(400);
     const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Internal Server Error");
-    expect(JSON.stringify(json)).not.toContain("Invalid id parameter");
+    expect(json.detail).toBe("Invalid id parameter");
   });
 });

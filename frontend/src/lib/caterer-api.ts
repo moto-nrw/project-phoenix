@@ -6,6 +6,7 @@
 import { authFetch } from "./api-helpers";
 import { apiErrorFromResponse, transportFetch } from "./api-error";
 import { downloadBlob, filenameFromDisposition } from "./file-download";
+import { portalAuthAnswer, portalAuthPath } from "./portal-paths";
 
 interface ProxyResponse<T> {
   success: boolean;
@@ -248,7 +249,7 @@ export async function loginCaterer(
 ): Promise<CatererLoginResult> {
   // The trusted-device cookie of this browser travels along (same origin),
   // so a remembered device skips the code.
-  const response = await transportFetch("/api/caterer/auth/login", {
+  const response = await transportFetch(portalAuthPath("caterer", "login"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -257,7 +258,11 @@ export async function loginCaterer(
   if (!response.ok) {
     throw await apiErrorFromResponse(response, "caterer login failed");
   }
-  const { data } = (await response.json()) as { data: BackendCatererLogin };
+  const data = portalAuthAnswer<BackendCatererLogin>(
+    "caterer",
+    "login",
+    await response.json(),
+  );
   if (data.status === "mfa_required") {
     return {
       status: "mfa_required",

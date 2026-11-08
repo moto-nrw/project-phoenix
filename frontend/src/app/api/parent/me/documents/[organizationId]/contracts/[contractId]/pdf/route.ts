@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { parentDocumentPdfHandler } from "~/lib/parent-document-pdf.server";
 import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
-import { withParentAuth } from "~/server/auth/parent-route";
+import { parentPortal } from "~/server/auth/parent";
 
 // Dokumentenpostfach (#4678): ein Betreuungsvertrag des Trägers als
 // gespeichertes PDF.
@@ -20,4 +20,6 @@ async function GETHandler(
   return handler(request, { organizationId, documentId: contractId });
 }
 
-export const GET = withPrivateDownloadNoStore(withParentAuth(GETHandler));
+export const GET = withPrivateDownloadNoStore(
+  parentPortal.withAuth(GETHandler),
+);

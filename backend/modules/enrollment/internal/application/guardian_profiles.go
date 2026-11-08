@@ -312,7 +312,7 @@ func (d *Decisions) guardianProfilesByEmails(ctx context.Context, emails []strin
 	normalized := make([]string, 0, len(emails))
 	seen := make(map[string]bool, len(emails))
 	for _, email := range emails {
-		email = strings.ToLower(strings.TrimSpace(email))
+		email = guardianEmailKey(email)
 		if email != "" && !seen[email] {
 			seen[email] = true
 			normalized = append(normalized, email)
@@ -328,7 +328,7 @@ func (d *Decisions) guardianProfilesByEmails(ctx context.Context, emails []strin
 	}
 	for _, profile := range profiles {
 		if profile != nil && profile.Email != nil {
-			result[strings.ToLower(strings.TrimSpace(*profile.Email))] = profile
+			result[guardianEmailKey(*profile.Email)] = profile
 		}
 	}
 	return result, nil

@@ -1,4 +1,4 @@
-import { proxyPost, proxyPut } from "@/lib/route-proxy.server";
+import { proxyPost, proxyPut } from "~/lib/route-wrapper.server";
 import { requirePathSegmentParam } from "@/lib/route-wrapper-utils.server";
 
 // POST /api/students/[id]/pickup-notes - Create a pickup note

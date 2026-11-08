@@ -1,4 +1,4 @@
-import { proxyGet, proxyPost } from "~/lib/route-proxy.server";
+import { proxyGet, proxyPost } from "~/lib/route-wrapper.server";
 
 /**
  * GET /api/staff/shifts?from=YYYY-MM-DD&to=YYYY-MM-DD

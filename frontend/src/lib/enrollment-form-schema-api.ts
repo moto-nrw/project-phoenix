@@ -6,6 +6,7 @@ import type { FileFieldOptions } from "~/lib/enrollment-uploads";
 import {
   readEnrollmentJSON,
   sendEnrollmentRequest,
+  withLateInviteQuery,
 } from "~/lib/enrollment-http";
 
 const logger = createLogger({ component: "EnrollmentFormSchemaAPI" });
@@ -406,22 +407,6 @@ export interface PublicCaptchaConfig {
   site_key: string;
 }
 
-export async function fetchPublicCaptchaConfig(
-  tenantSlug: string,
-): Promise<PublicCaptchaConfig | null> {
-  const response = await sendEnrollmentRequest(
-    `/api/enrollment/captcha-config/${encodeURIComponent(tenantSlug)}`,
-    { cache: "no-store" },
-  );
-  if (!response.ok) {
-    logger.warn("public_captcha_config_failed", {
-      status: response.status,
-    });
-    return null;
-  }
-  return readEnrollmentJSON<PublicCaptchaConfig>(response);
-}
-
 export interface PublicLegalBlock {
   attachments?: FormAttachment[];
   key: string;
@@ -467,13 +452,10 @@ export async function fetchPublicLegalTexts(
   options: { lateInviteToken?: string } = {},
 ): Promise<PublicLegalTexts> {
   const path = `/api/enrollment/legal/${encodeURIComponent(tenantSlug)}`;
-  const params = new URLSearchParams();
-  if (phaseId) params.set("phaseId", phaseId);
-  if (options.lateInviteToken?.trim()) {
-    params.set("late_invite", options.lateInviteToken.trim());
-  }
-  const query = params.toString();
-  const url = query ? `${path}?${query}` : path;
+  const url = withLateInviteQuery(
+    phaseId ? `${path}?phaseId=${encodeURIComponent(phaseId)}` : path,
+    options.lateInviteToken,
+  );
   const response = await sendEnrollmentRequest(url, { cache: "no-store" });
   if (!response.ok) {
     throw await readEnrollmentError(
@@ -484,33 +466,6 @@ export async function fetchPublicLegalTexts(
     );
   }
   return readEnrollmentJSON<PublicLegalTexts>(response);
-}
-
-export async function fetchPublicActiveSchema(
-  tenantSlug: string,
-  phaseId: string,
-  options: { lateInviteToken?: string } = {},
-): Promise<PublicFormSchema | null> {
-  const path = `/api/enrollment/schema/public/${encodeURIComponent(
-    tenantSlug,
-  )}/${encodeURIComponent(phaseId)}`;
-  const trimmedToken = options.lateInviteToken?.trim();
-  const url = trimmedToken
-    ? `${path}?late_invite=${encodeURIComponent(trimmedToken)}`
-    : path;
-  const response = await sendEnrollmentRequest(url, { cache: "no-store" });
-  if (response.status === 404) {
-    return null;
-  }
-  if (!response.ok) {
-    throw await readEnrollmentError(
-      response,
-      "Formular konnte nicht geladen werden",
-      logger,
-      "public_schema_fetch_failed",
-    );
-  }
-  return readEnrollmentJSON<PublicFormSchema>(response);
 }
 
 /**

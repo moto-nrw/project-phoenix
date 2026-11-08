@@ -181,37 +181,28 @@ func (h *HolidayRegistrations) CountHolidayRegistrationAttempt(ctx context.Conte
 	if organizationID <= 0 {
 		return errHolidayPeriodRequired
 	}
-	counts := []struct {
-		bucket rateLimitBucket
-		value  string
-	}{
-		{ipRateLimit, strings.TrimSpace(remoteIP)},
-		{emailRateLimit, strings.ToLower(strings.TrimSpace(email))},
-	}
-	for _, count := range counts {
-		if count.value == "" {
-			continue
-		}
-		if err := h.countHolidayAttempt(ctx, organizationID, count.bucket, count.value); err != nil {
+	for _, key := range submissionAttemptKeys(remoteIP, email) {
+		if err := h.countHolidayAttempt(ctx, organizationID, key); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (h *HolidayRegistrations) countHolidayAttempt(ctx context.Context, organizationID int64, bucket rateLimitBucket, value string) error {
-	attempts, err := h.deps.Registrations.CountHolidayRegistrationAttempt(ctx, organizationID, bucket.keyType, value, bucket.window, rateLimitRetention)
+func (h *HolidayRegistrations) countHolidayAttempt(ctx context.Context, organizationID int64, key rateLimitKey) error {
+	bucket := key.bucket
+	attempts, err := h.deps.Registrations.CountHolidayRegistrationAttempt(ctx, organizationID, bucket.keyType, key.value, bucket.window, rateLimitRetention)
 	if err != nil {
-		return fmt.Errorf("enrollment: count holiday %s attempt: %w", bucket.label, err)
+		return fmt.Errorf("enrollment: count holiday %s: %w", bucket.label, err)
 	}
-	if attempts > bucket.maxAttempts {
+	refusal := bucket.refuse(attempts)
+	if refusal != nil {
 		h.deps.Logger.Info("holiday registration rate-limited",
 			slog.String("key_type", bucket.keyType),
 			slog.Int("attempts", attempts),
 			slog.Int64("organization_id", organizationID))
-		return enrollment.ErrRateLimited
 	}
-	return nil
+	return refusal
 }
 
 // SubmitHolidayRegistration checks and stores a registration and enqueues

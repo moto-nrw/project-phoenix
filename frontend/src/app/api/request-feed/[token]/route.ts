@@ -1,6 +1,6 @@
 import { type NextRequest } from "next/server";
-import { getServerApiUrl } from "~/lib/server-api-url";
-import { clientIdentityHeaders } from "~/lib/client-headers.server";
+import { handleApiError } from "~/lib/api-response-error.server";
+import { sendBackend } from "~/lib/backend-client.server";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { withPrivateNoStore } from "~/lib/private-no-store";
 
@@ -13,10 +13,16 @@ async function GETHandler(
   context: { params: Promise<{ token: string }> },
 ) {
   const { token } = await context.params;
-  const upstream = await fetch(
-    `${getServerApiUrl()}/public/request-feed/${encodeURIComponent(token)}`,
-    { headers: clientIdentityHeaders(_request.headers), cache: "no-store" },
-  );
+  let upstream: Response;
+  try {
+    upstream = await sendBackend(
+      `/public/request-feed/${encodeURIComponent(token)}`,
+      null,
+      { request: _request },
+    );
+  } catch (error) {
+    return handleApiError(error, _request);
+  }
   if (!upstream.ok) {
     const response = forwardBackendResponse(upstream, _request);
     response.headers.set("Cache-Control", "private, no-store");

@@ -2,7 +2,8 @@
  * Centralized logging utility with structured JSON output
  *
  * Server-side: Writes JSON to stdout (captured by Promtail/Docker logs)
- * Client-side: Batches logs and ships via POST to /api/logs
+ * Client-side: Batches logs and ships them via POST to the log route of the
+ * page's portal, which authenticates with that portal's session
  *
  * @example
  * ```typescript
@@ -18,6 +19,7 @@ import {
 } from "~/lib/log-redaction";
 import { expectedFailure } from "~/lib/expected-failure";
 import { reportLogToSentry } from "~/lib/logger-sentry";
+import { portalLogPath, portalOfHost } from "~/lib/portal-paths";
 import {
   isClientLogShippingPaused,
   pauseClientLogShipping,
@@ -53,17 +55,11 @@ interface LogEntry {
   [key: string]: unknown; // Additional key-value pairs
 }
 
-/**
- * Logger configuration
- */
 interface LoggerConfig {
   /** Minimum level to log (filters below this) */
   level?: LogLevel;
-  /** Component/module name for all logs */
   component?: string;
-  /** Additional context attached to all logs */
   defaultContext?: Record<string, unknown>;
-  /** Enable/disable logging entirely */
   enabled?: boolean;
 }
 
@@ -94,30 +90,18 @@ export interface Logger {
   /** Ship queued client logs without blocking navigation. */
   flush(): Promise<void>;
 
-  /**
-   * Create child logger with merged context
-   */
   child(context: Record<string, unknown>): Logger;
 }
 
-/**
- * Client-side log batch for API shipping
- */
 interface LogBatch {
   entries: LogEntry[];
   timestamp: string;
 }
 
-/**
- * Detect if code is running in browser or server
- */
 function isBrowserContext(): boolean {
   return typeof window !== "undefined";
 }
 
-/**
- * Get environment from process.env
- */
 function getEnvironment(): "development" | "production" | "test" {
   if (
     typeof process !== "undefined" &&
@@ -131,9 +115,6 @@ function getEnvironment(): "development" | "production" | "test" {
   return "development";
 }
 
-/**
- * Get log level from environment variable
- */
 function getLogLevelFromEnv(): LogLevel {
   if (typeof process !== "undefined" && process.env.NEXT_PUBLIC_LOG_LEVEL) {
     const envLevel = process.env.NEXT_PUBLIC_LOG_LEVEL.toLowerCase();
@@ -164,9 +145,6 @@ function settleLevel(
     : [level, context];
 }
 
-/**
- * Base logger configuration (can be overridden)
- */
 const DEFAULT_CONFIG: Required<LoggerConfig> = {
   level: getLogLevelFromEnv(),
   component: "unknown",
@@ -212,9 +190,6 @@ class ServerLogger implements Logger {
     });
   }
 
-  /**
-   * Core logging method
-   */
   private log(
     level: LogLevel,
     msg: string,
@@ -239,21 +214,6 @@ class ServerLogger implements Logger {
     console.log(JSON.stringify(entry));
     reportLogToSentry(entry);
   }
-}
-
-/**
- * The current portal's log route. The parents portal has its own host-only
- * session cookie, which the tenant route /api/logs cannot verify. The host is
- * compared without throwing: a logger that throws on configuration would drop
- * exactly the logs that explain the misconfiguration.
- */
-function clientLogEndpoint(): string {
-  const host = window.location.host;
-  if (host === process.env.NEXT_PUBLIC_PARENTS_HOSTNAME)
-    return "/api/parent/logs";
-  if (host === process.env.NEXT_PUBLIC_CATERER_HOSTNAME)
-    return "/api/caterer/logs";
-  return "/api/logs";
 }
 
 /**
@@ -296,9 +256,6 @@ class ClientLogger implements Logger {
     });
   }
 
-  /**
-   * Core logging method
-   */
   private log(
     level: LogLevel,
     msg: string,
@@ -319,29 +276,21 @@ class ClientLogger implements Logger {
       ...context,
     }) as LogEntry;
 
-    // Enrich with client-side context
     this.enrichClientContext(entry);
     reportLogToSentry(entry);
 
-    // Add to batch
     this.batch.push(entry);
 
-    // Also write to console in development
     if (getEnvironment() === "development") {
       this.consoleOutput(level, entry.msg, entry);
     }
 
-    // Flush if batch is full
     if (this.batch.length >= this.BATCH_SIZE) {
       void this.flush();
     }
   }
 
-  /**
-   * Enrich log entry with client-side context
-   */
   private enrichClientContext(entry: LogEntry): void {
-    // Add current route
     if (typeof window !== "undefined") {
       entry.route = redactSensitiveLogString(window.location.pathname);
     }
@@ -351,18 +300,12 @@ class ClientLogger implements Logger {
     // If needed, this can be added via logger.child({ user_id: ... })
   }
 
-  /**
-   * Start batch flush timer
-   */
   private startBatchTimer(): void {
     this.flushTimer = setInterval(() => {
       void this.flush();
     }, this.BATCH_INTERVAL_MS);
   }
 
-  /**
-   * Flush batch to API endpoint
-   */
   async flush(): Promise<void> {
     if (this.batch.length === 0) return;
 
@@ -379,19 +322,21 @@ class ClientLogger implements Logger {
     if (isClientLogShippingPaused()) return;
 
     try {
-      const response = await fetch(clientLogEndpoint(), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body,
-        keepalive:
-          new TextEncoder().encode(body).byteLength <=
-          this.MAX_KEEPALIVE_PAYLOAD_BYTES,
-      });
+      const response = await fetch(
+        portalLogPath(portalOfHost(window.location.host)),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body,
+          keepalive:
+            new TextEncoder().encode(body).byteLength <=
+            this.MAX_KEEPALIVE_PAYLOAD_BYTES,
+        },
+      );
 
       if (response.status === 429) {
         pauseClientLogShipping(response.headers.get("Retry-After"));
       } else if (!response.ok) {
-        // Fallback to console if API fails
         console.warn("[Logger] Failed to ship logs:", response.statusText);
       }
     } catch (error) {
@@ -400,9 +345,6 @@ class ClientLogger implements Logger {
     }
   }
 
-  /**
-   * Output to console in development
-   */
   private consoleOutput(level: LogLevel, msg: string, entry: LogEntry): void {
     const prefix = `[${entry.component}]`;
     const contextStr = JSON.stringify(
@@ -435,7 +377,7 @@ class ClientLogger implements Logger {
       clearInterval(this.flushTimer);
       this.flushTimer = null;
     }
-    void this.flush(); // Final flush
+    void this.flush();
   }
 }
 

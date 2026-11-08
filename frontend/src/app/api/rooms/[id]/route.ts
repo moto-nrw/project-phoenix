@@ -1,4 +1,8 @@
 // app/api/rooms/[id]/route.ts
+import {
+  encodePathSegment,
+  requireStringParam,
+} from "~/lib/route-wrapper-utils.server";
 import type { NextRequest } from "next/server";
 import { apiGet, apiPut, apiDelete } from "~/lib/api-helpers.server";
 import {
@@ -77,31 +81,18 @@ interface BackendRoomResponse {
   updated_at?: string;
 }
 
-/**
- * Type guard to check if parameter exists and is a string
- */
-function isStringParam(param: unknown): param is string {
-  return typeof param === "string";
-}
-
-/**
- * Handler for GET /api/rooms/[id]
- * Returns details of a specific room
- */
 export const GET = createGetHandler(
   async (_request: NextRequest, token: string, params) => {
-    if (!isStringParam(params.id)) {
-      throw new Error("Invalid id parameter");
-    }
+    const id = requireStringParam(params, "id");
 
     try {
       // Call the backend API to get the room data
       const response = await apiGet<BackendRoomResponse>(
-        `/api/rooms/${params.id}`,
+        `/api/rooms/${encodePathSegment(id)}`,
         token,
       );
 
-      logger.debug("room API response received", { room_id: params.id });
+      logger.debug("room API response received", { room_id: id });
 
       // Handle different response formats
       if (response && typeof response === "object") {
@@ -153,11 +144,11 @@ export const GET = createGetHandler(
         }
       }
 
-      logger.error("unexpected room response format", { room_id: params.id });
+      logger.error("unexpected room response format", { room_id: id });
       throw new Error("Unexpected room response format");
     } catch (error) {
       logger.error("room fetch failed", {
-        room_id: params.id,
+        room_id: id,
         error: error instanceof Error ? error.message : String(error),
       });
       throw error;
@@ -165,10 +156,6 @@ export const GET = createGetHandler(
   },
 );
 
-/**
- * Handler for PUT /api/rooms/[id]
- * Updates a room
- */
 export const PUT = createPutHandler<BackendRoom, RoomUpdateRequest>(
   async (
     _request: NextRequest,
@@ -176,9 +163,7 @@ export const PUT = createPutHandler<BackendRoom, RoomUpdateRequest>(
     token: string,
     params,
   ) => {
-    if (!isStringParam(params.id)) {
-      throw new Error("Invalid id parameter");
-    }
+    const id = requireStringParam(params, "id");
 
     // Validate update data if provided
     if (body.capacity != null && body.capacity <= 0) {
@@ -208,19 +193,19 @@ export const PUT = createPutHandler<BackendRoom, RoomUpdateRequest>(
 
       // Update the room via the API and get the updated room data
       const updatedRoom = await apiPut<BackendRoom>(
-        `/api/rooms/${params.id}`,
+        `/api/rooms/${encodePathSegment(id)}`,
         token,
         backendBody,
       );
 
-      logger.debug("room updated successfully", { room_id: params.id });
+      logger.debug("room updated successfully", { room_id: id });
 
       // Make sure we return a properly formatted response with all fields
       // Return the result directly as a BackendRoom
       return updatedRoom;
     } catch (error) {
       logger.error("room update failed", {
-        room_id: params.id,
+        room_id: id,
         error: error instanceof Error ? error.message : String(error),
       });
       throw error;
@@ -228,25 +213,19 @@ export const PUT = createPutHandler<BackendRoom, RoomUpdateRequest>(
   },
 );
 
-/**
- * Handler for DELETE /api/rooms/[id]
- * Deletes a room
- */
 export const DELETE = createDeleteHandler(
   async (_request: NextRequest, token: string, params) => {
-    if (!isStringParam(params.id)) {
-      throw new Error("Invalid id parameter");
-    }
+    const id = requireStringParam(params, "id");
 
     try {
       // Delete the room via the API
-      await apiDelete(`/api/rooms/${params.id}`, token);
+      await apiDelete(`/api/rooms/${encodePathSegment(id)}`, token);
 
       // Return 204 No Content response
       return null;
     } catch (error) {
       logger.error("room delete failed", {
-        room_id: params.id,
+        room_id: id,
         error: error instanceof Error ? error.message : String(error),
       });
       throw error;

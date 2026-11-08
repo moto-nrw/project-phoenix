@@ -1,3 +1,4 @@
-import { createPortalLoginRoute } from "~/lib/portal-login-route.server";
+import { createPortalLoginRoute } from "~/lib/login-route.server";
+import { traegerPortal } from "~/server/auth/traeger";
 
-export const POST = createPortalLoginRoute("traeger", "mfa/enroll/confirm");
+export const POST = createPortalLoginRoute(traegerPortal, "mfa/enroll/confirm");

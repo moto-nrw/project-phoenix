@@ -8,6 +8,7 @@ import {
 import { resolveLocale } from "~/i18n/locale-resolution";
 import { LOCALE_COOKIE_NAME } from "~/i18n/locales";
 import { getParentAppMetadata } from "~/i18n/parent-app-metadata";
+import { requiredPortalHostname } from "~/lib/portal-paths";
 
 function requiredEnv(name: string): string {
   const value = process.env[name];
@@ -20,9 +21,9 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
   const host =
     requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host") ?? "";
   const config = {
-    operatorHostname: requiredEnv("NEXT_PUBLIC_OPERATOR_HOSTNAME"),
-    parentsHostname: requiredEnv("NEXT_PUBLIC_PARENTS_HOSTNAME"),
-    schoolHostname: requiredEnv("NEXT_PUBLIC_SCHOOL_HOSTNAME"),
+    operatorHostname: requiredPortalHostname("operator"),
+    parentsHostname: requiredPortalHostname("parent"),
+    schoolHostname: requiredPortalHostname("school"),
     tenantDomain: requiredEnv("TENANT_DOMAIN"),
   };
 

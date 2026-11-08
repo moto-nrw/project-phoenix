@@ -13,7 +13,7 @@ export const POST = createPostHandler(
     const id = params.noticeId as string;
     if (!id) throw new Error("Notice ID is required");
     const response = await apiPost<{ data: unknown }>(
-      `/api/staff-notices/${id}/acknowledge`,
+      `/api/staff-notices/${encodeURIComponent(id)}/acknowledge`,
       token,
       {},
     );

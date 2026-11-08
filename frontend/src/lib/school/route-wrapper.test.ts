@@ -6,20 +6,15 @@ const { mockSchoolAuth, mockFetch } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
 }));
 
-vi.mock("~/server/auth/school", () => ({
-  schoolAuth: mockSchoolAuth,
-  uncachedSchoolAuth: mockSchoolAuth,
-}));
-vi.mock("~/server/auth/school-route", () => ({
-  withSchoolAuth: <T>(handler: T) => handler,
-}));
+vi.mock("~/server/auth/school", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("school", {
+    auth: mockSchoolAuth,
+    uncachedAuth: mockSchoolAuth,
+  }),
+);
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://localhost:8080",
 }));
-vi.mock("~/lib/analytics-session-header.server", () => ({
-  incomingAnalyticsSessionHeaders: async () => ({}),
-}));
-
 global.fetch = mockFetch as typeof fetch;
 
 import { proxyDelete, proxyGet, proxyPost } from "./route-wrapper.server";
@@ -82,7 +77,7 @@ describe("school token refresh", () => {
     vi.clearAllMocks();
   });
 
-  it("answers the retry's empty result instead of 401 after a token refresh", async () => {
+  it("answers the retry's empty result with 204 instead of 401 after a token refresh", async () => {
     mockSchoolAuth
       .mockResolvedValueOnce({ user: { token: "old-token" } })
       .mockResolvedValueOnce({ user: { token: "new-token" } });
@@ -106,6 +101,7 @@ describe("school token refresh", () => {
         }),
       }),
     );
-    expect(response.status).toBe(200);
+    // A DELETE without a result answers 204 in every portal.
+    expect(response.status).toBe(204);
   });
 });

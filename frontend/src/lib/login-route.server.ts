@@ -1,79 +1,67 @@
 import "server-only";
 import type { NextRequest } from "next/server";
-import type { ResponseRouteHandler } from "~/server/auth/route-handler";
 import { sessionMutationOriginError } from "~/server/auth/same-origin";
-import { getServerApiUrl } from "~/lib/server-api-url";
-import { getClientForwardHeaders } from "~/lib/client-headers.server";
+import { sendBackend } from "~/lib/backend-client.server";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
-import { problemResponse } from "~/lib/api-response-error.server";
+import {
+  BackendUnavailableError,
+  handleApiError,
+  problemResponse,
+} from "~/lib/api-response-error.server";
 import { captureBffException } from "~/lib/sentry-bff.server";
 import { withoutSessionCookies } from "~/server/auth/session-cookie-writes";
 import { createLogger } from "~/lib/logger";
+import type { PortalAuth } from "~/server/auth/portal-auth";
+import type { BackendAuthStep } from "~/server/auth/portals";
+import { portalAuthAnswer, portalAuthEnvelope } from "~/lib/portal-paths";
+import {
+  installMintedSession,
+  logoutRollback,
+  mintedPair,
+} from "./session-transition.server";
 
 const logger = createLogger({ component: "LoginRoute" });
 
-interface LoginOptions {
-  withResponse: (handler: ResponseRouteHandler) => ResponseRouteHandler;
-  setSession: (token: string, refreshToken: string) => Promise<void>;
-  rollbackPath?: string;
-  envelope?: boolean;
-  challenges?: boolean;
-  organizations?: boolean;
-}
+/** What a login needs of its portal; every portal entry module exports it. */
+export type LoginPortal = Pick<
+  PortalAuth,
+  "portal" | "setSession" | "withSessionResponse"
+>;
 
-/** A failed handoff never exposes its freshly minted credentials. */
-export async function revokeMintedSession(
-  request: NextRequest,
-  token: string,
-  path = "/auth/logout",
-) {
-  try {
-    const response = await fetch(`${getServerApiUrl()}${path}`, {
-      method: "POST",
-      headers: {
-        ...getClientForwardHeaders(request),
-        Authorization: `Bearer ${token}`,
-      },
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!response.ok)
-      logger.error("login_session_rollback_failed", {
-        status: response.status,
-      });
-  } catch {
-    logger.error("login_session_rollback_failed", {});
-  }
-}
+/** A pre-session step of a portal's login the BFF forwards. */
+export type LoginStep = Exclude<BackendAuthStep, "refresh">;
 
-export async function installLoginSession(
+/** The backend's remember-device cookie, read by its login and MFA steps. */
+const TRUSTED_DEVICE_COOKIE = "mfa_trust_device";
+
+/**
+ * Installs the token pair of a completed login as the portal's session; a
+ * failed install revokes the pair with that portal's logout.
+ */
+export function installLoginSession(
   request: NextRequest,
   data: Record<string, unknown>,
-  setSession: LoginOptions["setSession"],
-  rollbackPath = "/auth/logout",
+  { portal, setSession }: Pick<LoginPortal, "portal" | "setSession">,
 ): Promise<Response | null> {
-  if (
-    typeof data.access_token !== "string" ||
-    !data.access_token ||
-    typeof data.refresh_token !== "string" ||
-    !data.refresh_token
-  )
-    throw new Error("Missing session credentials");
-  try {
-    await setSession(data.access_token, data.refresh_token);
-  } catch {
-    // Operator logout authenticates the access token; /auth/logout uses refresh.
-    const rollbackToken =
-      rollbackPath === "/operator/auth/logout"
-        ? data.access_token
-        : data.refresh_token;
-    await revokeMintedSession(request, rollbackToken, rollbackPath);
-    return problemResponse(500, "Session creation failed", request);
-  }
-  return null;
+  const pair = mintedPair(data);
+  return installMintedSession(
+    request,
+    () => setSession(pair.access_token, pair.refresh_token),
+    logoutRollback(portal.backend.logout, pair),
+  );
 }
 
-export function createLoginRoute(path: string, options: LoginOptions) {
-  return options.withResponse(async (request: NextRequest) => {
+/**
+ * The BFF route of one login step of a portal. Only the password step can
+ * answer with a next step (organization choice, MFA challenge, enrollment);
+ * only the enrollment confirmation carries the limited enrollment proof.
+ */
+export function createPortalLoginRoute(login: LoginPortal, step: LoginStep) {
+  const { backend, key } = login.portal;
+  const path = `${backend.authPrefix}/${step}`;
+  const challenges = step === "login";
+  const organizations = challenges && backend.organizationSelection === true;
+  return login.withSessionResponse(async (request: NextRequest) => {
     const originError = sessionMutationOriginError(request);
     if (originError) return originError;
     let body: unknown;
@@ -83,40 +71,39 @@ export function createLoginRoute(path: string, options: LoginOptions) {
       return problemResponse(400, "Invalid JSON", request);
     }
     try {
-      const headers = {
-        ...getClientForwardHeaders(request),
-        "Content-Type": "application/json",
-        ...(request.headers.get("cookie")
-          ? { Cookie: request.headers.get("cookie")! }
-          : {}),
-        ...(path.endsWith("/mfa/enroll/confirm") &&
-        request.headers.get("authorization")
-          ? { Authorization: request.headers.get("authorization")! }
-          : {}),
-      };
-      const backend = await fetch(`${getServerApiUrl()}${path}`, {
+      const trustedDevice = request.cookies.get(TRUSTED_DEVICE_COOKIE)?.value;
+      const enrollmentProof =
+        step === "mfa/enroll/confirm"
+          ? request.headers.get("authorization")
+          : null;
+      const backend = await sendBackend(path, null, {
         method: "POST",
-        headers,
-        body: JSON.stringify(body),
+        json: body,
+        request,
+        timeout: "login",
+        headers: {
+          ...(trustedDevice && {
+            Cookie: `${TRUSTED_DEVICE_COOKIE}=${trustedDevice}`,
+          }),
+          ...(enrollmentProof && { Authorization: enrollmentProof }),
+        },
       });
       let response: Response;
       if (!backend.ok) {
         response = forwardBackendResponse(backend, request);
       } else {
         // Parse errors must not put bearer material in an exception message.
-        const payload = (await backend.json().catch(() => {
-          throw new Error("Invalid login response");
-        })) as Record<string, unknown>;
-        const data = options.envelope
-          ? (payload.data as Record<string, unknown>)
-          : payload;
+        const data = portalAuthAnswer<Record<string, unknown>>(
+          key,
+          step,
+          await backend.json().catch(() => {
+            throw new Error("Invalid login response");
+          }),
+        );
         const json = (body: Record<string, unknown>) =>
-          Response.json(
-            options.envelope ? { status: "success", data: body } : body,
-          );
+          Response.json(portalAuthEnvelope(key, step, body));
         if (
-          options.organizations &&
-          options.challenges &&
+          organizations &&
           data.status === "organization_selection_required"
         ) {
           if (!Array.isArray(data.organizations))
@@ -130,7 +117,7 @@ export function createLoginRoute(path: string, options: LoginOptions) {
               }),
             ),
           });
-        } else if (options.challenges && data.status === "mfa_required") {
+        } else if (challenges && data.status === "mfa_required") {
           if (
             typeof data.challenge_token !== "string" ||
             !data.challenge_token ||
@@ -142,16 +129,11 @@ export function createLoginRoute(path: string, options: LoginOptions) {
             status: data.status,
             challenge_token: data.challenge_token,
             masked_email: data.masked_email,
-            ...(options.organizations
-              ? { organization_id: data.organization_id }
-              : {}),
+            ...(organizations ? { organization_id: data.organization_id } : {}),
             trusted_device_enabled: data.trusted_device_enabled,
             trusted_device_days: data.trusted_device_days,
           });
-        } else if (
-          options.challenges &&
-          data.status === "mfa_enrollment_required"
-        ) {
+        } else if (challenges && data.status === "mfa_enrollment_required") {
           if (
             typeof data.access_token !== "string" ||
             !data.access_token ||
@@ -163,18 +145,11 @@ export function createLoginRoute(path: string, options: LoginOptions) {
             status: data.status,
             access_token: data.access_token,
             masked_email: data.masked_email,
-            ...(options.organizations
-              ? { organization_id: data.organization_id }
-              : {}),
+            ...(organizations ? { organization_id: data.organization_id } : {}),
             mfa_enrollment_required: true,
           });
         } else {
-          const failure = await installLoginSession(
-            request,
-            data,
-            options.setSession,
-            options.rollbackPath,
-          );
+          const failure = await installLoginSession(request, data, login);
           if (failure) return failure;
           response = json({ status: "authenticated" });
         }
@@ -187,11 +162,14 @@ export function createLoginRoute(path: string, options: LoginOptions) {
         response.headers.append("Set-Cookie", cookie);
       return response;
     } catch (error) {
-      captureBffException(error, request);
       logger.error("login_failed", {
         path,
         error: error instanceof Error ? error.message : String(error),
       });
+      if (error instanceof BackendUnavailableError) {
+        return handleApiError(error, request);
+      }
+      captureBffException(error, request);
       return problemResponse(500, "Login unavailable", request);
     }
   });

@@ -20,14 +20,18 @@ const { POST } = await import("./route");
 
 function createMockRequest(path: string, body?: unknown): NextRequest {
   const url = new URL(path, "http://localhost:3000");
-  const requestInit: { method: string; body?: string; headers?: HeadersInit } =
-    {
-      method: "POST",
-    };
+  const requestInit: {
+    method: string;
+    body?: string;
+    headers: Record<string, string>;
+  } = {
+    method: "POST",
+    headers: { "User-Agent": "test-browser" },
+  };
 
   if (body) {
     requestInit.body = JSON.stringify(body);
-    requestInit.headers = { "Content-Type": "application/json" };
+    requestInit.headers["Content-Type"] = "application/json";
   }
 
   return new NextRequest(url, requestInit);
@@ -86,7 +90,8 @@ describe("POST /api/parent/auth/password-reset/confirm", () => {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "User-Agent": "unknown",
+        // Contract change: the browser's User-Agent travels, no "unknown" default.
+        "User-Agent": "test-browser",
       },
       body: JSON.stringify(requestBody),
     });

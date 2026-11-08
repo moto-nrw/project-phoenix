@@ -31,17 +31,13 @@ import {
   isSessionCookieName,
   isWrittenSessionCookieName,
 } from "~/lib/session-cookie-exit.server";
-import { catererAuthConfig } from "~/server/auth/caterer-config";
-import { operatorAuthConfig } from "~/server/auth/operator-config";
-import { parentAuthConfig } from "~/server/auth/parent-config";
-import { schoolAuthConfig } from "~/server/auth/school-config";
-import { traegerAuthConfig } from "~/server/auth/traeger-config";
 import { setTestClock } from "~/test/clock";
 import { randomUUID } from "node:crypto";
 import { LOCALE_COOKIE_NAME } from "~/i18n/locales";
 import { operatorInvitationCookieName } from "~/lib/operator/operator-invitation-session.server";
 import { DEMO_TOKEN_COOKIE } from "../demo/access/forward";
 import { gateSessionCookieWrites } from "~/server/auth/session-cookie-writes";
+import { PORTALS } from "~/server/auth/portals";
 
 // #5520: invariant I1 of #5399 at run time. Whatever code builds a response,
 // a session cookie leaves the Node server only when gateSessionCookieWrites
@@ -541,11 +537,11 @@ describe("session cookie names at the exit", () => {
   const TENANT_DOMAIN = "moto-app.de";
   /** Every configured session cookie name, the tenant one for TENANT_DOMAIN. */
   const CONFIGURED = [
-    catererAuthConfig.cookies.sessionToken.name,
-    operatorAuthConfig.cookies.sessionToken.name,
-    parentAuthConfig.cookies.sessionToken.name,
-    schoolAuthConfig.cookies.sessionToken.name,
-    traegerAuthConfig.cookies.sessionToken.name,
+    PORTALS.caterer.cookieNames.session,
+    PORTALS.operator.cookieNames.session,
+    PORTALS.parent.cookieNames.session,
+    PORTALS.school.cookieNames.session,
+    PORTALS.traeger.cookieNames.session,
     "moto-app-de.session-token",
     "authjs.session-token",
   ];
@@ -597,10 +593,8 @@ describe("session cookie names at the exit", () => {
       env: { ...env, TENANT_DOMAIN },
     }));
     try {
-      const { tenantAuthConfig } = await import("~/server/auth/tenant-config");
-      const tenant = (
-        tenantAuthConfig.cookies as { sessionToken?: { name: string } }
-      ).sessionToken?.name;
+      const { PORTALS: fresh } = await import("~/server/auth/portals");
+      const tenant = fresh.tenant.cookieNames?.session;
       expect(tenant).toBe("moto-app-de.session-token");
     } finally {
       vi.doUnmock("~/env");
