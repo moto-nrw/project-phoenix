@@ -34,6 +34,8 @@ export interface CareMealPosition {
   readonly quantity: number;
   readonly unitCents: number;
   readonly amountCents: number;
+  /** Names the position for a change of the review (#6197). */
+  readonly key?: string;
 }
 
 /** An ended month a school has not released yet. */
@@ -113,6 +115,7 @@ export interface BackendMealPosition {
   quantity: number;
   unit_cents: number;
   amount_cents: number;
+  key?: string;
 }
 
 export interface BackendMealGap {
@@ -163,6 +166,7 @@ export function mealPositionsFromBackend(
     quantity: position.quantity,
     unitCents: position.unit_cents,
     amountCents: position.amount_cents,
+    key: position.key ?? "",
   }));
 }
 

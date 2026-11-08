@@ -243,7 +243,7 @@ type CareInvoice struct {
 	// preview its history with revoked and conflicting entries, on an issued
 	// invoice the corrections its release stored. TotalCents adds the
 	// correction lines of the applied ones.
-	Amendments []CareAmendment `json:"amendments"`
+	Amendments []CareAmendment `json:"amendments,omitempty"`
 	TotalCents int64           `json:"total_cents"`
 }
 

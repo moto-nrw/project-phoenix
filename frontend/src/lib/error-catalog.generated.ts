@@ -839,6 +839,14 @@ export const ERROR_CATALOG = {
         "Der Lauf ist schon freigegeben. Ausgestellte Rechnungen lassen sich nicht ändern.",
       "parent_billing.billing_terms_invalid":
         "Die Zahlungsbedingungen konnten nicht gespeichert werden. Bitte prüfen Sie Ihre Eingaben.",
+      "parent_billing.care_amendment_conflict":
+        "Diese Änderung passt nicht mehr zur Rechnung. Bitte laden Sie die Seite neu.",
+      "parent_billing.care_amendment_disabled":
+        "Diese Änderung ist bei Ihrem Träger ausgeschaltet. Sie können sie in den Einstellungen der Abrechnung einschalten.",
+      "parent_billing.care_amendment_invalid":
+        "Bitte prüfen Sie die Eingaben für die Änderung.",
+      "parent_billing.care_amendments_unresolved":
+        "Eine Änderung einer Rechnung passt nicht mehr. Nehmen Sie sie zurück, dann können Sie ausstellen.",
       "parent_billing.care_cost_share_invalid":
         "Der Kostenträger-Anteil konnte nicht gespeichert werden. Bitte prüfen Sie die markierten Felder.",
       "parent_billing.care_cost_share_not_found":
@@ -2225,6 +2233,8 @@ export const ERROR_CATALOG = {
         "{object} is not possible right now. A caterer still supplies the school. Please end that supply first.",
       "module.not_booked":
         "Your school has not booked the module {module_label}. To book it, please contact the moto team.",
+      "parent_billing.care_amendment_disabled":
+        "{object} could not be changed. Please check its current status.",
       "parent_billing.family_children_invalid":
         "Please enter a whole number from 1 to 20.",
       "parent_billing.holiday_quote_invalid":
@@ -2772,6 +2782,8 @@ export const ERROR_CATALOG = {
         "{object} сейчас невозможно. Школу ещё снабжает поставщик питания. Сначала завершите эти поставки.",
       "module.not_booked":
         "Ваша школа не подключила модуль {module_label}. Чтобы подключить его, обратитесь в команду moto.",
+      "parent_billing.care_amendment_disabled":
+        "Не удалось изменить: {object}. Проверьте текущее состояние.",
       "parent_billing.family_children_invalid":
         "Пожалуйста, укажите целое число от 1 до 20.",
       "parent_billing.holiday_quote_invalid":
@@ -3275,6 +3287,8 @@ export const ERROR_CATALOG = {
         "{object} nuk është e mundur tani. Një furnizues ushqimi e furnizon ende shkollën. Përfundoni fillimisht atë furnizim.",
       "module.not_booked":
         "Shkolla juaj nuk e ka rezervuar modulin {module_label}. Për ta rezervuar, kontaktoni ekipin e moto.",
+      "parent_billing.care_amendment_disabled":
+        "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
       "parent_billing.family_children_invalid":
         "Ju lutemi shkruani një numër të plotë nga 1 deri në 20.",
       "parent_billing.holiday_quote_invalid":
@@ -3767,6 +3781,8 @@ export const ERROR_CATALOG = {
         "{object} nie jest teraz możliwe. Szkołę nadal zaopatruje firma cateringowa. Najpierw zakończ to zaopatrzenie.",
       "module.not_booked":
         "Twoja szkoła nie zamówiła modułu {module_label}. Aby go zamówić, skontaktuj się z zespołem moto.",
+      "parent_billing.care_amendment_disabled":
+        "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
       "parent_billing.family_children_invalid":
         "Proszę podać liczbę całkowitą od 1 do 20.",
       "parent_billing.holiday_quote_invalid":
@@ -4263,6 +4279,8 @@ export const ERROR_CATALOG = {
         "{object} şu anda mümkün değil. Okula hâlâ bir yemek firması yemek sağlıyor. Önce bu tedariki sonlandırın.",
       "module.not_booked":
         "Okulunuz {module_label} modülünü almamış. Almak için moto ekibiyle iletişime geçin.",
+      "parent_billing.care_amendment_disabled":
+        "{object} değiştirilemedi. Güncel durumu kontrol edin.",
       "parent_billing.family_children_invalid":
         "Lütfen 1 ile 20 arasında bir tam sayı girin.",
       "parent_billing.holiday_quote_invalid":
@@ -4752,6 +4770,8 @@ export const ERROR_CATALOG = {
         "{object} зараз неможливо. Школу ще постачає постачальник харчування. Спочатку завершіть ці постачання.",
       "module.not_booked":
         "Ваша школа не підключила модуль {module_label}. Щоб підключити його, зверніться до команди moto.",
+      "parent_billing.care_amendment_disabled":
+        "Не вдалося змінити: {object}. Перевірте поточний стан.",
       "parent_billing.family_children_invalid":
         "Будь ласка, вкажіть ціле число від 1 до 20.",
       "parent_billing.holiday_quote_invalid":

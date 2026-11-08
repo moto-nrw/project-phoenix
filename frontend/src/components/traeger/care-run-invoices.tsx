@@ -23,6 +23,7 @@ import {
   type CareReduction,
   type CareUnpriced,
   careContributionCents,
+  careCorrectionLines,
 } from "~/lib/traeger-care-billing-api";
 import { traegerPath } from "~/lib/traeger-url";
 import {
@@ -323,7 +324,8 @@ function invoiceColumns(month: string): DataTableColumn<CareInvoiceRow>[] {
                   invoice.positions.length > 1 ||
                   invoice.reductions.length > 0 ||
                   invoice.mealPositions.length > 0 ||
-                  invoice.costShares.length > 0
+                  invoice.costShares.length > 0 ||
+                  (invoice.amendments?.length ?? 0) > 0
                 }
               />
             ))}
@@ -337,6 +339,14 @@ function invoiceColumns(month: string): DataTableColumn<CareInvoiceRow>[] {
               <MealPositionLine key={position.mealMonth} position={position} />
             ))}
             <CostShareLines invoice={invoice} />
+            {careCorrectionLines(invoice).map((line) => (
+              <InvoiceLine
+                key={`correction-${line.id}`}
+                title={line.kind === "amount" ? "Korrektur" : line.label}
+                detail={`Änderung · Grund: ${line.reason}`}
+                amount={formatEuro(line.amountCents)}
+              />
+            ))}
           </ul>
         ),
     },
