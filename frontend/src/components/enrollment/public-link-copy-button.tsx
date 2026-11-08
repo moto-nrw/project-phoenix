@@ -41,10 +41,7 @@ export function PublicLinkCopyButton({
       aria-label={accessibleLabel}
       title={accessibleLabel}
     >
-      <Icon
-        className="h-4 w-4"
-        aria-hidden="true"
-      />
+      <Icon className="h-4 w-4" aria-hidden="true" />
     </Button>
   );
 }
