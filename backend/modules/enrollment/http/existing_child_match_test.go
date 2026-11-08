@@ -466,3 +466,75 @@ func TestExistingChild_OfficeMatchedSyncPreservesStudentMasterData(t *testing.T)
 		assert.Empty(t, env.guardianLinks(t, existing.ID))
 	}
 }
+
+func TestExistingChild_OfficeApprovalPreservesClass(t *testing.T) {
+	t.Parallel()
+	for _, kind := range []string{enrollmentNative.PhaseKindCustom, enrollmentNative.PhaseKindSchoolYear} {
+		t.Run(kind, func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			env := setupExistingChildTest(t, enrollmentNative.PhaseAudienceOpen)
+			ctx := testpkg.Ctx(t)
+			env.sourcePhase.Kind = kind
+			require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, env.repos.Enrollment().UpdatePhase, enrollmentAPI.OwnerPhaseForTest(env.sourcePhase)))
+			existing := enrolledChild(t, env.db, "Paul", "Offen", existingChildBirthday)
+			submitted := env.submit(t, existingChildSubmission{children: []enrollmentAPI.SubmitChild{
+				submitChild("Paul", "Offen", existingChildBirthday),
+			}})
+			child := submitted.Children[0]
+			outcome := env.decideOutcome(t, enrollmentAPI.DecideInput{RequestID: submitted.Request.ID, ChildID: child.ID, ExistingStudentID: &existing.ID})
+			assert.Nil(t, outcome.PendingInvite)
+			student, err := testpkg.TenantQuery1(t, ctx, env.db, env.repos.Student.FindByID, any(existing.ID))
+			require.NoError(t, err)
+			assert.Equal(t, "1a", student.SchoolClass, "an office match must preserve the running class")
+			planned, err := testpkg.TenantQuery1(t, ctx, env.db, env.repos.Enrollment().ChildClassSwitch, child.ID)
+			require.NoError(t, err)
+			assert.Nil(t, planned, "an office match must not plan a class from the unrelated submission")
+			require.NotNil(t, student.EnrolledUntil)
+			assert.Equal(t, calendar.Date(env.sourcePhase.ServiceEndDate), *student.EnrolledUntil, "the enrollment window is still renewed")
+			assert.Empty(t, env.guardianLinks(t, existing.ID))
+		})
+	}
+}
+
+func TestExistingChild_OfficeProtectionSurvivesRolloverDescendants(t *testing.T) {
+	t.Parallel()
+	env := setupExistingChildTest(t, enrollmentNative.PhaseAudienceOpen)
+	ctx := testpkg.Ctx(t)
+	publishLegacyDuplicateTargetSchema(t, env.decisionTestEnv, "office-rollover-health", []enrollmentNative.FormField{{
+		Key: "health_info", Label: "Gesundheit", Type: enrollmentNative.FormFieldTextarea,
+		AppliesToCh: true, Target: enrollmentNative.TargetStudentHealthInfo,
+	}})
+	existing := enrolledChild(t, env.db, "Paul", "Offen", existingChildBirthday)
+	input := submitChild("Paul", "Offen", existingChildBirthday)
+	input.CustomData = map[string]any{"health_info": "synthetic-unrelated-value"}
+	submitted := env.submit(t, existingChildSubmission{children: []enrollmentAPI.SubmitChild{input}})
+	require.NoError(t, env.decide(t, enrollmentAPI.DecideInput{RequestID: submitted.Request.ID, ChildID: submitted.Children[0].ID, ExistingStudentID: &existing.ID}))
+
+	roll := validRolloverRequest(env.rolloverTestEnv, enrollmentNative.PhaseRolloverModeOptOut, true)
+	for year := range 2 {
+		roll.ServiceStartDate = calendar.NewDate(2027+year, 9, 1)
+		roll.ServiceEndDate = calendar.NewDate(2028+year, 7, 31)
+		roll.Name += "-next"
+		result, err := testpkg.TenantQuery1(t, ctx, env.db, env.rolloverSvc.CreatePhaseFromSource, roll)
+		require.NoError(t, err)
+		children, err := testpkg.TenantQuery2(t, ctx, env.db, env.repos.Enrollment().ChildrenByPhaseStatuses, result.Phase.ID, []string{enrollmentNative.ChildStatusAutoRenewed})
+		require.NoError(t, err)
+		require.Len(t, children, 1)
+		child := children[0]
+		assert.True(t, child.MatchedByOffice, "every rollover generation must retain enrollment-only protection")
+		outcome := env.decideOutcome(t, enrollmentAPI.DecideInput{RequestID: child.RequestID, ChildID: child.ID})
+		assert.Nil(t, outcome.PendingInvite)
+		require.NotNil(t, outcome.Child.CreatedStudentID)
+		assert.Equal(t, existing.ID, *outcome.Child.CreatedStudentID)
+		_, err = changeRequestApplierForTest(t, env.decisionTestEnv).SyncApprovedChildData(ctx, enrollmentAPI.SyncApprovedChildDataInput{
+			RequestID: child.RequestID, ChildID: child.ID, ActorAccountID: env.creatorID, ReplaceTargetedData: true,
+		})
+		require.NoError(t, err)
+		assert.Empty(t, env.guardianLinks(t, existing.ID), "a descendant edit must not link the unrelated submitting family")
+		student, err := testpkg.TenantQuery1(t, ctx, env.db, env.repos.Student.FindByID, any(existing.ID))
+		require.NoError(t, err)
+		assert.Nil(t, student.HealthInfo, "a descendant edit must not apply the unrelated form data")
+		assert.Equal(t, "1a", student.SchoolClass)
+		roll.SourcePhaseID = result.Phase.ID
+	}
+}

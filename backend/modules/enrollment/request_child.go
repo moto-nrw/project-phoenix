@@ -26,7 +26,7 @@ type RequestChild struct {
 	ReviewedBy            *int64          `json:"reviewed_by,omitempty"`
 	CreatedStudentID      *int64          `json:"created_student_id,omitempty"`
 	MatchedStudentID      *int64          `json:"matched_student_id,omitempty"`
-	MatchedByOffice       bool            `json:"matched_by_office,omitempty"` // the office chose MatchedStudentID at approval (#6053)
+	MatchedByOffice       bool            `json:"matched_by_office,omitempty"` // office match or its rollover descendant: enrollment-only renewal (#6053)
 	SortOrder             int             `json:"sort_order"`
 	RolloverSourceChildID *int64          `json:"rollover_source_child_id,omitempty"`
 	ReviewReason          *string         `json:"review_reason,omitempty"`

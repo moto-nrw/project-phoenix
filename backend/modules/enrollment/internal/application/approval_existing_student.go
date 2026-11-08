@@ -131,7 +131,12 @@ func (d *Decisions) renewExistingStudent(ctx context.Context, child *RequestChil
 	beforeStatus := existing.Status
 	plan := d.approvalActivationPlan(ctx, phase)
 	previousSchoolClass := existing.SchoolClass
-	targetSchoolClass := resolveRolloverSchoolClass(child, existing.SchoolClass)
+	targetSchoolClass := existing.SchoolClass
+	// Office matches and their rollover descendants renew enrollment only.
+	// Their submitted class must never replace the school's master data.
+	if !child.MatchedByOffice {
+		targetSchoolClass = resolveRolloverSchoolClass(child, existing.SchoolClass)
+	}
 	switchOn := calendar.Date(phase.ServiceStartDate)
 	deferred := phase.Kind == enrollmentNative.PhaseKindSchoolYear &&
 		existing.Status == studentStatusActive && switchOn.After(d.todayDate())

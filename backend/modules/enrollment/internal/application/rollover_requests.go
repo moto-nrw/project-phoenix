@@ -134,6 +134,7 @@ func (s *Rollovers) rollSourceChild(ctx context.Context, input rolloverRequestIn
 		ActivationMode:        source.ActivationMode,
 		SortOrder:             source.SortOrder,
 		RolloverSourceChildID: &sourceID,
+		MatchedByOffice:       source.MatchedByOffice,
 		ReviewReason:          attributes.reviewReason,
 	}
 	child.TenantID = input.tenantID
