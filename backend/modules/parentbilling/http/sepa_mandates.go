@@ -58,6 +58,7 @@ func (rs *SEPAMandateResource) MandateRouter(protectedTraegerRoutes func(chi.Rou
 		billing.Put("/{id}", rs.changeMandate)
 		billing.Post("/{id}/revoke", rs.revokeMandate)
 		billing.Get("/{id}/history", rs.history)
+		billing.Get("/{id}/collections", rs.collections)
 	})
 	return r
 }
@@ -237,6 +238,21 @@ func (rs *SEPAMandateResource) history(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.Respond(w, r, http.StatusOK, events, "SEPA mandate history retrieved successfully")
+}
+
+// collections answers the debits of a mandate (#4697): the collection
+// history per invoice, without bank data.
+func (rs *SEPAMandateResource) collections(w http.ResponseWriter, r *http.Request) {
+	reviewer, id, ok := mandateKey(w, r)
+	if !ok {
+		return
+	}
+	debits, err := rs.mandates.SEPAMandateCollections(r.Context(), reviewer, id)
+	if err != nil {
+		renderMandateError(w, r, err, common.CodeParentBillingSepaMandateInvalid)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, debits, "SEPA mandate collections retrieved successfully")
 }
 
 func mandateKey(w http.ResponseWriter, r *http.Request) (capability.HolidayReviewer, int64, bool) {

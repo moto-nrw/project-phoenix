@@ -447,8 +447,16 @@ func (s *Store) ReserveNumbers(ctx context.Context, organizationID int64, servic
 
 // IssueDocuments stores the invoices of a release with their positions.
 func (s *Store) IssueDocuments(ctx context.Context, organizationID int64, run parentbilling.BillingRun, year int, first int64, documents []parentbilling.BillingDocument) error {
-	_, err := s.insertDocuments(ctx, organizationID, run, year, first, documents)
-	return err
+	ids, err := s.insertDocuments(ctx, organizationID, run, year, first, documents)
+	if err != nil {
+		return err
+	}
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return err
+	}
+	// The debits of the file hold the account of the mandate now (#4697).
+	return insertSEPADebits(ctx, db, organizationID, insertHolidayDebitsSQL, ids)
 }
 
 // insertDocuments stores numbered documents with their positions and

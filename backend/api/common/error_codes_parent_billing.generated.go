@@ -79,8 +79,12 @@ const CodeParentBillingNumberRangeMissing = "parent_billing.number_range_missing
 const CodeParentBillingParentDocumentNotFound = "parent_billing.parent_document_not_found"
 const CodeParentBillingPaymentTextDebtorNumberMissing = "parent_billing.payment_text_debtor_number_missing"
 const CodeParentBillingRecipientEmailMissing = "parent_billing.recipient_email_missing"
+const CodeParentBillingSepaCreditorAccountMissing = "parent_billing.sepa_creditor_account_missing"
 const CodeParentBillingSepaCreditorInvalid = "parent_billing.sepa_creditor_invalid"
 const CodeParentBillingSepaCreditorMissing = "parent_billing.sepa_creditor_missing"
+const CodeParentBillingSepaDebitRunNotFound = "parent_billing.sepa_debit_run_not_found"
+const CodeParentBillingSepaDebitsChanged = "parent_billing.sepa_debits_changed"
+const CodeParentBillingSepaDebitsEmpty = "parent_billing.sepa_debits_empty"
 const CodeParentBillingSepaMandateInForce = "parent_billing.sepa_mandate_in_force"
 const CodeParentBillingSepaMandateInvalid = "parent_billing.sepa_mandate_invalid"
 const CodeParentBillingSepaMandateNotFound = "parent_billing.sepa_mandate_not_found"
@@ -169,8 +173,12 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingParentDocumentNotFound, "business_rejection"},
 	{CodeParentBillingPaymentTextDebtorNumberMissing, "business_rejection"},
 	{CodeParentBillingRecipientEmailMissing, "business_rejection"},
+	{CodeParentBillingSepaCreditorAccountMissing, "business_rejection"},
 	{CodeParentBillingSepaCreditorInvalid, "input"},
 	{CodeParentBillingSepaCreditorMissing, "business_rejection"},
+	{CodeParentBillingSepaDebitRunNotFound, "business_rejection"},
+	{CodeParentBillingSepaDebitsChanged, "business_rejection"},
+	{CodeParentBillingSepaDebitsEmpty, "business_rejection"},
 	{CodeParentBillingSepaMandateInForce, "business_rejection"},
 	{CodeParentBillingSepaMandateInvalid, "input"},
 	{CodeParentBillingSepaMandateNotFound, "business_rejection"},
