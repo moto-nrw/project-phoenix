@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
@@ -47,6 +48,9 @@ type CareNoticeStore interface {
 	// ErrInvoiceNumberTaken.
 	IssueCareNotices(ctx context.Context, organizationID int64, run parentbilling.CareNoticeRun, numberYear int, first int64, notices []parentbilling.CareNotice) error
 	MarkCareNoticeRunReleased(ctx context.Context, organizationID, runID int64, issuedOn calendar.Date, count int, totalCents int64) (parentbilling.CareNoticeRun, error)
+	// EffectiveNoticeDues reads the installment of the month of every
+	// effective notice of the Träger.
+	EffectiveNoticeDues(ctx context.Context, organizationID int64, month calendar.Date) ([]parentbilling.CareNoticeDue, error)
 }
 
 // CareFeeNotices serves parentbilling.CareFeeNotices over the monthly
@@ -80,6 +84,41 @@ func (n *CareFeeNotices) ListCareNoticeRuns(ctx context.Context, organizationID 
 	}
 	today := n.billing.today()
 	return parentbilling.CareNoticeRunList{Runs: runs, SuggestedYear: today.Year(), SuggestedMonth: firstOfMonth(today)}, nil
+}
+
+// EffectiveNoticeDues answers per contract the rate of the month the
+// effective notice sets, for the SEPA collection (#4697, ADR 0180): a
+// change notice replaces the notice it amends, so each contract has at most
+// one entry. The month is the first day of a month.
+func (n *CareFeeNotices) EffectiveNoticeDues(ctx context.Context, organizationID int64, month calendar.Date) ([]parentbilling.CareNoticeDue, error) {
+	if organizationID <= 0 {
+		return nil, errTraegerRequired
+	}
+	if !isMonthStart(month) {
+		return nil, validation.Errors{"month": errors.New("must be the first day of a month")}
+	}
+	read, err := n.store.EffectiveNoticeDues(ctx, organizationID, month)
+	if err != nil {
+		return nil, err
+	}
+	return effectiveDues(read), nil
+}
+
+// effectiveDues keeps one rate per contract: the notice nobody amended is
+// the one with the highest ID of a chain, because a change notice is
+// always issued after the notice it amends.
+func effectiveDues(read []parentbilling.CareNoticeDue) []parentbilling.CareNoticeDue {
+	latest := map[int64]parentbilling.CareNoticeDue{}
+	for _, due := range read {
+		if have, ok := latest[due.ContractID]; !ok || due.NoticeID > have.NoticeID {
+			latest[due.ContractID] = due
+		}
+	}
+	dues := make([]parentbilling.CareNoticeDue, 0, len(latest))
+	for _, contractID := range slices.Sorted(maps.Keys(latest)) {
+		dues = append(dues, latest[contractID])
+	}
+	return dues
 }
 
 // StartCareNoticeRun starts a calculated run of a year from its first month

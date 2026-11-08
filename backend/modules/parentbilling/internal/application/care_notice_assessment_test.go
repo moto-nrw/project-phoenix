@@ -399,3 +399,45 @@ func TestCareNoticeChangeKeepsTheDueDateOfAnUnraisedPastRate(t *testing.T) {
 	assert.Equal(t, calendar.NewDate(2025, 9, 24), september.DueOn)
 	assert.True(t, september.ImmediatelyDue)
 }
+
+// TestCareFixedShareTakenByANoticeLeavesTheMensaToTheFamily, by hand: the
+// Gemeinde pays a fixed 20,00 € a month for care and Mensa. The Jahresbescheid
+// of the month took all 20,00 € of the care; the monthly run bills 3 × 4,80 €
+// = 14,40 € of Mensa. The share is spent, so the family pays 14,40 €, not 0.
+func TestCareFixedShareTakenByANoticeLeavesTheMensaToTheFamily(t *testing.T) {
+	t.Parallel()
+	month := day(t, mealRunMonth)
+	twenty := int64(2000)
+	share := parentbilling.CareCostShare{ContractID: contractMia, Kind: parentbilling.CostShareOtherSubsidy, CostBearerID: 77,
+		CostBearerName: "Gemeinde", ShareCents: &twenty, Scope: parentbilling.CostShareScopeBoth, ValidFrom: month,
+		ValidUntil: monthEnd(month)}
+	mensa := careMonth{invoices: []parentbilling.CareInvoice{{ContractID: contractMia, Service: parentbilling.ServiceCare,
+		MealPositions: []parentbilling.CareMealPosition{{AmountCents: 1440}}, TotalCents: 1440}}}
+	notice := parentbilling.CareInvoice{ContractID: contractMia, Number: "JB-1", DocumentKind: parentbilling.DocumentKindFeeNotice,
+		CostShares: []parentbilling.CareInvoiceCostShare{{Kind: parentbilling.CostShareOtherSubsidy, CostBearerID: 77, AmountCents: 2000}}}
+	applyMealCostShares(&mensa, []parentbilling.CareCostShare{share}, month, map[int64]parentbilling.CareInvoice{contractMia: notice})
+	assert.Equal(t, int64(1440), mensa.invoices[0].TotalCents, "the family pays the Mensa")
+	assert.Empty(t, mensa.invoices[0].CostShares, "the spent share takes nothing more")
+}
+
+// TestCareMonthNamesTheContractsANoticeTookBack: a month an amended notice
+// set to nothing stays assessed (ADR 0180); the monthly run names the child
+// so the office issues a new notice. A notice month that bills something
+// is no hold, nor is a contract without a version in the month.
+func TestCareMonthNamesTheContractsANoticeTookBack(t *testing.T) {
+	t.Parallel()
+	versions := map[int64][]parentbilling.CareContractVersion{
+		contractMia:  {{ContractID: contractMia, SchoolID: schoolIspringen, ChildFirstName: "Mia", ChildLastName: "Beispiel"}},
+		contractNoah: {{ContractID: contractNoah, SchoolID: schoolIspringen, ChildFirstName: "Noah", ChildLastName: "Beispiel"}},
+	}
+	invoiced := map[int64]parentbilling.CareInvoice{
+		contractMia: {ContractID: contractMia, Number: "JB-2", DocumentKind: parentbilling.DocumentKindFeeNotice},
+		contractNoah: {ContractID: contractNoah, Number: "JB-3", DocumentKind: parentbilling.DocumentKindFeeNotice,
+			Positions: []parentbilling.CarePosition{{CareOfferingID: 1, AmountCents: 3200}}},
+		99: {ContractID: 99, Number: "JB-4", DocumentKind: parentbilling.DocumentKindFeeNotice},
+	}
+	holds := feeNoticeHolds(invoiced, versions)
+	require.Len(t, holds, 1)
+	assert.Equal(t, parentbilling.CareFeeNoticeHold{ContractID: contractMia, SchoolID: schoolIspringen, ChildFirstName: "Mia",
+		ChildLastName: "Beispiel", NoticeNumber: "JB-2"}, holds[0])
+}

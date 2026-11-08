@@ -438,3 +438,24 @@ func (s *Store) MarkCareNoticeRunReleased(ctx context.Context, organizationID, r
 	row.OrganizationID = organizationID
 	return row.run(), nil
 }
+
+// EffectiveNoticeDues reads per contract the installment of the month of
+// the notice nobody amended, with its due date, notice and payment method.
+func (s *Store) EffectiveNoticeDues(ctx context.Context, organizationID int64, month calendar.Date) ([]parentbilling.CareNoticeDue, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	dues := []parentbilling.CareNoticeDue{}
+	if err := db.NewRaw(`SELECT m.care_contract_id AS contract_id, n.school_id, n.family_email, n.id AS notice_id,
+		n.number AS notice_number, n.payment_method, m.billing_month AS month, m.due_on, m.immediately_due, m.amount_cents
+		FROM parent_billing.care_notice_months AS m
+		JOIN parent_billing.care_notices AS n ON n.organization_id = m.organization_id AND n.id = m.notice_id
+		WHERE m.organization_id = ? AND m.billing_month = ?
+			AND NOT EXISTS (SELECT 1 FROM parent_billing.care_notices AS amendment
+				WHERE amendment.organization_id = n.organization_id AND amendment.amends_notice_id = n.id)
+		ORDER BY m.care_contract_id`, organizationID, month).Scan(ctx, &dues); err != nil {
+		return nil, fmt.Errorf("read effective notice dues: %w", err)
+	}
+	return dues, nil
+}

@@ -127,6 +127,24 @@ Forderungsstand nach Zahlungseingängen sind nicht belegt.
     sofort fällig). Liegt das Original-PDF vor, wird die Erwartung dagegen
     getauscht.
 
+12. **Kostenträger einmal je Zeitraum.** Was ein Bescheid oder eine
+    Monatsrechnung eines Monats schon von einem Kostenträger nimmt, liest der
+    Monatslauf gemeinsam (`InvoicedContracts`: Anteile der Bescheidraten aus
+    ihrem Stand und Anteile der Monatsrechnungen). Ein fester Zuschuss wirkt
+    so je Zeitraum nur einmal (ADR 0169); die Mensa trägt danach die Familie.
+13. **Aufhebung gibt keine Monate frei.** Senkt ein Änderungsbescheid einen
+    Monat auf 0,00 €, bleibt der Monat für Monatsrechnungen gesperrt, sonst
+    droht doppelte Abrechnung. Die Prüfphase des Monatslaufs nennt solche
+    Kinder (`fee_notice_held`) mit dem Hinweis, einen neuen Bescheid
+    auszustellen, und verweist auf die Jahresbescheide.
+14. **Lesefunktion für den Einzug.** `CareFeeNotices.EffectiveNoticeDues(ctx,
+    organizationID, month)` liefert je Vertrag die wirksame Stufe eines Monats:
+    Rate, Fälligkeit, sofort fällig, Bescheid-ID und -nummer, Zahlungsweg. Der
+    SEPA-Einzug (#4697) löst die Änderungsstufen damit nicht selbst auf. Die
+    Methode prüft den Monat und wählt die jüngste Stufe; sie zählt als
+    Pass-through der Owner-Kante (ADR 0075), das Budget von parentbilling
+    steigt um eins.
+
 ## Verworfene Optionen
 
 - **Monatsrechnungen je Rate:** Ein Bescheid mit zwölf Monatsrechnungen wäre

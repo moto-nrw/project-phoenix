@@ -425,6 +425,18 @@ export interface CareRunDetail extends CareRun {
   readonly legalRemedyMissing?: boolean;
   /** What each cost bearer pays of the invoices (#4687). */
   readonly costBearers: readonly CareCostBearerTotal[];
+  /**
+   * Children whose Jahresbescheid an amendment set to 0,00 € for the month:
+   * the month stays locked, only a new notice bills it (ADR 0180, #6219).
+   */
+  readonly feeNoticeHeld?: readonly CareFeeNoticeHold[];
+}
+
+export interface CareFeeNoticeHold {
+  readonly contractId: string;
+  readonly childFirstName: string;
+  readonly childLastName: string;
+  readonly noticeNumber: string;
 }
 
 interface BackendModule {
@@ -686,6 +698,14 @@ export interface BackendRunDetail extends BackendRun {
         amount_cents: number;
       }[]
     | null;
+  fee_notice_held?:
+    | {
+        contract_id: number;
+        child_first_name: string;
+        child_last_name: string;
+        notice_number: string;
+      }[]
+    | null;
 }
 
 const TARIFFS_PATH = "/api/traeger/care-tariffs";
@@ -886,6 +906,12 @@ export function detailFromBackend(detail: BackendRunDetail): CareRunDetail {
       costBearerName: total.cost_bearer_name,
       invoiceCount: total.invoice_count,
       amountCents: total.amount_cents,
+    })),
+    feeNoticeHeld: (detail.fee_notice_held ?? []).map((hold) => ({
+      contractId: id(hold.contract_id),
+      childFirstName: hold.child_first_name,
+      childLastName: hold.child_last_name,
+      noticeNumber: hold.notice_number,
     })),
   };
 }

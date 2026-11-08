@@ -52,7 +52,9 @@ func seedNoticeScope(t *testing.T, ctx context.Context, tx bun.IDB, scope careSc
 		billing_month, due_on, immediately_due, previous_cents, amount_cents, snapshot)
 		VALUES (?, ?, ?, DATE '2029-09-01', DATE '2029-09-24', true, 0, ?,
 		jsonb_build_object('invoice', jsonb_build_object('positions', jsonb_build_array(jsonb_build_object('care_offering_id', 101,
-			'amount_cents', ?::bigint))), 'payable', jsonb_build_array(?::bigint)))`,
+			'amount_cents', ?::bigint)), 'cost_shares', jsonb_build_array(jsonb_build_object('kind', 'other_subsidy',
+			'cost_bearer_id', 77, 'cost_bearer_name', 'Gemeinde', 'share_cents', 2000, 'scope', 'both', 'amount_cents', 2000))),
+			'payable', jsonb_build_array(?::bigint)))`,
 		scope.organization, s.notice, noticeContract, cents, cents, cents)
 	require.NoError(t, err)
 	return s
@@ -108,10 +110,55 @@ func TestCareNoticeFiltersKeepTheTraegerBelowRLS(t *testing.T) {
 		require.Len(t, invoiced[noticeContract].Positions, 1)
 		assert.Equal(t, int64(3200), invoiced[noticeContract].Positions[0].PayableCents)
 
+		// The parts a cost bearer already took (ADR 0169): the notice month
+		// carries its 20,00 € fixed share, the monthly invoice its 12,00 €.
+		require.Len(t, invoiced[noticeContract].CostShares, 1, "InvoicedContracts reads the parts of a notice month")
+		assert.Equal(t, int64(2000), invoiced[noticeContract].CostShares[0].AmountCents)
+		for _, scope := range []noticeScope{own, other} {
+			_, err := tx.ExecContext(ctx, `INSERT INTO parent_billing.care_invoice_cost_shares (organization_id, invoice_id, position,
+				kind, cost_bearer_id, cost_bearer_name, share_cents, scope, amount_cents)
+				SELECT organization_id, id, 1, 'other_subsidy', 77, 'Gemeinde', 2000, 'both', ? FROM parent_billing.care_invoices
+				WHERE organization_id = ? AND care_contract_id = ?`, map[bool]int64{true: 1200, false: 1900}[scope.organization == own.organization],
+				scope.organization, scope.contract)
+			require.NoError(t, err)
+		}
+		monthly, err := store.InvoicedContracts(ctx, own.organization, calendar.NewDate(2029, 9, 1))
+		require.NoError(t, err)
+		require.Len(t, monthly[own.contract].CostShares, 1, "InvoicedContracts reads the parts of a monthly invoice")
+		assert.Equal(t, int64(1200), monthly[own.contract].CostShares[0].AmountCents, "only the Träger's own invoice")
+
 		assert.NoError(t, claimInvoiceNumbers(ctx, tx, own.organization, []string{other.noticeNumber}, careNumbersTable),
 			"a number of another Träger's notice is free")
 		assert.ErrorIs(t, claimInvoiceNumbers(ctx, tx, own.organization, []string{own.noticeNumber}, careNumbersTable),
 			parentbilling.ErrInvoiceNumberTaken, "a monthly invoice never repeats a notice number")
+
+		// The SEPA collection reads the rate of the effective notice (#4697):
+		// the Träger's own, and after a change the change notice's.
+		september := calendar.NewDate(2029, 9, 1)
+		dues, err := store.EffectiveNoticeDues(ctx, own.organization, september)
+		require.NoError(t, err)
+		require.Len(t, dues, 1, "EffectiveNoticeDues")
+		assert.Equal(t, own.notice, dues[0].NoticeID)
+		assert.Equal(t, int64(3200), dues[0].AmountCents)
+		var change int64
+		require.NoError(t, tx.NewRaw(`INSERT INTO parent_billing.care_notices (organization_id, run_id, number, number_year,
+			number_sequence, issued_on, billing_year, kind, amends_notice_id, care_contract_id, school_id, school_name,
+			child_first_name, child_last_name, recipient_email, family_email, recipient, payment_method, period_from,
+			period_until, lines, previous_cents, total_cents, delta_cents, legal_remedy)
+			SELECT organization_id, run_id, number || '-A', number_year, number_sequence + 1, DATE '2029-10-01', billing_year,
+				'change', id, care_contract_id, school_id, school_name, child_first_name, child_last_name, recipient_email,
+				family_email, recipient, payment_method, period_from, period_until, lines, total_cents, 0, -total_cents, legal_remedy
+			FROM parent_billing.care_notices WHERE id = ? RETURNING id`, own.notice).Scan(ctx, &change))
+		_, err = tx.ExecContext(ctx, `INSERT INTO parent_billing.care_notice_months (organization_id, notice_id, care_contract_id,
+			billing_month, due_on, immediately_due, previous_cents, amount_cents, snapshot)
+			VALUES (?, ?, ?, DATE '2029-09-01', DATE '2029-09-24', false, 3200, 0, '{"invoice": {}}'::jsonb)`,
+			own.organization, change, noticeContract)
+		require.NoError(t, err)
+		dues, err = store.EffectiveNoticeDues(ctx, own.organization, september)
+		require.NoError(t, err)
+		require.Len(t, dues, 1, "one entry per contract: the change replaces the notice it amends")
+		assert.Equal(t, change, dues[0].NoticeID)
+		assert.Zero(t, dues[0].AmountCents)
 
 		_, err = store.MarkCareNoticeRunReleased(ctx, own.organization, other.openRun, calendar.NewDate(2029, 10, 1), 0, 0)
 		assert.ErrorIs(t, err, parentbilling.ErrBillingRunReleased, "MarkCareNoticeRunReleased")

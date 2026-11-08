@@ -387,11 +387,14 @@ type CareRunDetail struct {
 	Billed            int `json:"billed"`
 	// FeeNoticeContracts counts the contracts of Billed a Jahresbescheid
 	// assesses for the month (#6219); no monthly invoice bills them.
-	FeeNoticeContracts int    `json:"fee_notice_contracts"`
-	PreviewCount       int    `json:"preview_count"`
-	PreviewCents       int64  `json:"preview_cents"`
-	NumberPattern      string `json:"number_pattern"`
-	NumberRangeSet     bool   `json:"number_range_set"`
+	FeeNoticeContracts int `json:"fee_notice_contracts"`
+	// FeeNoticeHeld are the contracts of FeeNoticeContracts an amended
+	// Jahresbescheid set to nothing for the month (ADR 0180).
+	FeeNoticeHeld  []CareFeeNoticeHold `json:"fee_notice_held"`
+	PreviewCount   int                 `json:"preview_count"`
+	PreviewCents   int64               `json:"preview_cents"`
+	NumberPattern  string              `json:"number_pattern"`
+	NumberRangeSet bool                `json:"number_range_set"`
 	// MealGaps and MealUnbilled are the Mensa of a calculated run (#4686):
 	// the ended months a school has not released and the released months
 	// of children the run does not bill.

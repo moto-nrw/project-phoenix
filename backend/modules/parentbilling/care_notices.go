@@ -223,4 +223,38 @@ type CareFeeNotices interface {
 	CareNoticeRun(ctx context.Context, reviewer HolidayReviewer, runID int64) (CareNoticeRunDetail, error)
 	ReleaseCareNoticeRun(ctx context.Context, reviewer HolidayReviewer, runID int64, release CareRelease) (CareNoticeRunDetail, error)
 	CareNoticeLetter(ctx context.Context, reviewer HolidayReviewer, runID, noticeID int64) (CareNoticeLetter, error)
+	// EffectiveNoticeDues reads per contract the installment of the month
+	// the effective notice sets: of the latest change notice, never of a
+	// notice a later one amended. One entry per contract; the Träger's own
+	// rows only. It names no person but the family key.
+	EffectiveNoticeDues(ctx context.Context, organizationID int64, month calendar.Date) ([]CareNoticeDue, error)
+}
+
+// CareFeeNoticeHold is a contract the monthly run would bill in a month
+// that an amended Jahresbescheid set to nothing (ADR 0180): the month stays
+// assessed, so no monthly invoice bills it. A new notice of the year bills
+// it again.
+type CareFeeNoticeHold struct {
+	ContractID     int64  `json:"contract_id"`
+	SchoolID       int64  `json:"school_id"`
+	ChildFirstName string `json:"child_first_name"`
+	ChildLastName  string `json:"child_last_name"`
+	NoticeNumber   string `json:"notice_number"`
+}
+
+// CareNoticeDue is the installment of a month that the effective notice of
+// a contract sets (ADR 0180): the rate, its due date and the notice. The
+// SEPA collection (#4697) reads it instead of resolving the change notices
+// itself.
+type CareNoticeDue struct {
+	ContractID     int64         `json:"contract_id"`
+	SchoolID       int64         `json:"school_id"`
+	FamilyEmail    string        `json:"family_email"`
+	NoticeID       int64         `json:"notice_id"`
+	NoticeNumber   string        `json:"notice_number"`
+	PaymentMethod  string        `json:"payment_method"`
+	Month          calendar.Date `json:"month"`
+	DueOn          calendar.Date `json:"due_on"`
+	ImmediatelyDue bool          `json:"immediately_due"`
+	AmountCents    int64         `json:"amount_cents"`
 }

@@ -93,13 +93,7 @@ func narrowMonth(month careMonth, schoolIDs []int64, exclusions map[int64]parent
 	review.uncounted = uncountedInRun(month.uncountedSchools, inRun)
 	review.billed = countInRun(month.billedBySchool, inRun)
 	review.free = countInRun(month.freeBySchool, inRun)
-	review.feeNotices = []string{}
-	for schoolID, numbers := range month.feeNoticesBySchool {
-		if inRun(schoolID) {
-			review.feeNotices = append(review.feeNotices, numbers...)
-		}
-	}
-	slices.Sort(review.feeNotices)
+	narrowFeeNotices(&review, month, inRun)
 	for _, invoice := range month.invoices {
 		if !inRun(invoice.SchoolID) {
 			continue
@@ -125,6 +119,24 @@ func narrowMonth(month careMonth, schoolIDs []int64, exclusions map[int64]parent
 		}
 	}
 	return review
+}
+
+// narrowFeeNotices keeps the Jahresbescheide of the run's schools that
+// assess the month (#6219) and the contracts they took back (ADR 0180).
+func narrowFeeNotices(review *reviewedMonth, month careMonth, inRun func(int64) bool) {
+	review.feeNotices = []string{}
+	for schoolID, numbers := range month.feeNoticesBySchool {
+		if inRun(schoolID) {
+			review.feeNotices = append(review.feeNotices, numbers...)
+		}
+	}
+	slices.Sort(review.feeNotices)
+	review.feeNoticeHeld = []parentbilling.CareFeeNoticeHold{}
+	for _, hold := range month.feeNoticeHeld {
+		if inRun(hold.SchoolID) {
+			review.feeNoticeHeld = append(review.feeNoticeHeld, hold)
+		}
+	}
 }
 
 // countInRun adds the counts of the schools the run bills.
@@ -439,6 +451,7 @@ func (c *CareBilling) reviewDetail(ctx context.Context, reviewer parentbilling.H
 	detail.MealChanged = review.mealChanged
 	detail.UncountedFamilies = review.uncounted
 	detail.FeeNoticeContracts = len(review.feeNotices)
+	detail.FeeNoticeHeld = review.feeNoticeHeld
 	detail.Invoices = append(review.invoices, review.excluded...)
 	detail.Fingerprint = review.fingerprint
 	detail.AmendmentConflicts = review.conflicts

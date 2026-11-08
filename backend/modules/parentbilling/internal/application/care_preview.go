@@ -55,6 +55,9 @@ type careMonth struct {
 	// feeNotices are those of the schools of a run, sorted.
 	feeNoticesBySchool map[int64][]string
 	feeNotices         []string
+	// feeNoticeHeld are the contracts of the month a notice set to nothing
+	// (ADR 0180); the run shows them so the office issues a new notice.
+	feeNoticeHeld []parentbilling.CareFeeNoticeHold
 	// freeBySchool counts per school the contracts whose price list makes
 	// the month free of charge (#6196).
 	freeBySchool map[int64]int
@@ -86,6 +89,25 @@ func monthEnd(first calendar.Date) calendar.Date {
 // firstOfMonth is the first day of the month of day.
 func firstOfMonth(day calendar.Date) calendar.Date {
 	return calendar.NewDate(day.Year(), day.Month(), 1)
+}
+
+// feeNoticeHolds names the contracts in force in the month whose effective
+// notice took the month back to nothing: the month stays assessed, so the
+// monthly run bills it not (ADR 0180).
+func feeNoticeHolds(invoiced map[int64]parentbilling.CareInvoice,
+	byContract map[int64][]parentbilling.CareContractVersion,
+) []parentbilling.CareFeeNoticeHold {
+	holds := []parentbilling.CareFeeNoticeHold{}
+	for _, contractID := range slices.Sorted(maps.Keys(invoiced)) {
+		invoice := invoiced[contractID]
+		versions := byContract[contractID]
+		if invoice.DocumentKind != parentbilling.DocumentKindFeeNotice || len(invoice.Positions) > 0 || len(versions) == 0 {
+			continue
+		}
+		holds = append(holds, parentbilling.CareFeeNoticeHold{ContractID: contractID, SchoolID: versions[0].SchoolID,
+			ChildFirstName: versions[0].ChildFirstName, ChildLastName: versions[0].ChildLastName, NoticeNumber: invoice.Number})
+	}
+	return holds
 }
 
 // buildCareMonth bills every contract of the month by the rule of the
@@ -159,6 +181,7 @@ func chainCareMonth(result *careMonth, in careMonthInput, chained []*careChainEn
 			result.feeNoticesBySchool[invoice.SchoolID] = append(result.feeNoticesBySchool[invoice.SchoolID], invoice.Number)
 		}
 	}
+	result.feeNoticeHeld = feeNoticeHolds(in.invoiced, byContract)
 	uncounted := map[string][]int64{}
 	applyCareChain(chained, careChainInput{month: in.month, rules: in.rules, evidences: in.evidences,
 		costShares:     in.costShares,
