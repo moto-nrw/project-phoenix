@@ -349,3 +349,41 @@ describe("SectionCard titleSize", () => {
     },
   );
 });
+
+describe("SectionCard as und hoverElevated (#5594)", () => {
+  it("rendert als article mit Hover-Anhebung, ohne klickbar zu werden", () => {
+    render(
+      <SectionCard as="article" hoverElevated testId="serie">
+        Serie
+      </SectionCard>,
+    );
+
+    const card = screen.getByRole("article");
+    expect(card).toBe(screen.getByTestId("serie"));
+    expect(card).toHaveClass(
+      "moto-content-surface",
+      "rounded-2xl",
+      "moto-hover-elevated",
+    );
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
+  it("bleibt ohne Angaben ein Abschnitt ohne Hover-Anhebung", () => {
+    render(<SectionCard testId="abschnitt">Inhalt</SectionCard>);
+
+    const card = screen.getByTestId("abschnitt");
+    expect(card.tagName).toBe("SECTION");
+    expect(card).not.toHaveClass("moto-hover-elevated");
+  });
+
+  it("hebt eine bare Karte nicht an", () => {
+    render(
+      <SectionCard bare hoverElevated testId="bare">
+        Inhalt
+      </SectionCard>,
+    );
+
+    expect(screen.getByTestId("bare")).not.toHaveClass("moto-hover-elevated");
+  });
+});
