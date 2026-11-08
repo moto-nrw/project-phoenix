@@ -29,6 +29,7 @@
   "care_offering_unavailable": "A selected option is not available for the child's grade. Please check the grade and your choice.",
   "care_offerings_disabled": "{object} is not available here at the moment. Please ask your contact person.",
   "change_request_child_locked": "This child is already in care. Please make changes in the parent app.",
+  "change_request_parent_not_permitted": "{object} could not be changed. Please check its current status.",
   "change_request_conflict": "{object} has been changed in the meantime. Please check your details again.",
   "change_request_guardian_linked": "Please change these details in the parent app.",
   "change_request_not_allowed": "This enrollment cannot be changed right now. Please contact the school.",

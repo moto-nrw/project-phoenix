@@ -29,6 +29,7 @@
   "care_offering_unavailable": "Ein gewähltes Angebot gibt es nicht für die Klassenstufe des Kindes. Bitte prüfen Sie Klassenstufe und Auswahl.",
   "care_offerings_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
   "change_request_child_locked": "Dieses Kind ist schon in der Betreuung. Änderungen machen Sie bitte in der Eltern-App.",
+  "change_request_parent_not_permitted": "Dieser Elternteil darf das Kind nicht mehr anmelden. Lehnen Sie die Änderungsanfrage bitte ab.",
   "change_request_conflict": "{object} wurde inzwischen geändert. Bitte prüfen Sie Ihre Angaben erneut.",
   "change_request_guardian_linked": "Diese Angaben ändern Sie bitte in der Eltern-App.",
   "change_request_not_allowed": "Diese Anmeldung kann gerade nicht geändert werden. Bitte wenden Sie sich an die Schule.",

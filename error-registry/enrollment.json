@@ -187,6 +187,12 @@
       "legacy": "enrollment.change_request_child_locked"
     },
     {
+      "code": "enrollment.change_request_parent_not_permitted",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.change_request_parent_not_permitted"
+    },
+    {
       "code": "enrollment.change_request_conflict",
       "class": "business_rejection",
       "parameters": [],

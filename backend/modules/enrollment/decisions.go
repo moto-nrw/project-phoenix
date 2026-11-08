@@ -362,6 +362,10 @@ type ApprovedChildSync struct {
 	// change, as the change request stored it.
 	PreviousSnapshot         json.RawMessage
 	PreviousRequestGuardians []*RequestGuardian
+	// ChildDataChanged marks a family's change request that proposes new
+	// data for this child. A family whose relationship to the pinned child
+	// lapsed may no longer change it (#6053).
+	ChildDataChanged bool
 	// Correction names the fields a direct staff correction changed. Where
 	// the request's own data no longer reaches the child (office match,
 	// lapsed parent pin), the trusted correction still writes exactly these

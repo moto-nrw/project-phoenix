@@ -155,6 +155,7 @@ type SyncApprovedChildDataInput struct {
 	ReplaceTargetedData      bool
 	PreviousSnapshot         map[string]any
 	PreviousRequestGuardians []*capability.RequestGuardian
+	ChildDataChanged         bool
 }
 
 // ChangeRequestDecisionApplier is the admin correction's sync of an
@@ -182,7 +183,7 @@ func (a changeRequestApplier) SyncApprovedChildData(ctx context.Context, input S
 		return a.owner.SyncApprovedChildData(txCtx, capability.ApprovedChildSync{
 			RequestID: input.RequestID, ChildID: input.ChildID, ActorAccountID: input.ActorAccountID,
 			ReplaceTargetedData: input.ReplaceTargetedData, PreviousSnapshot: snapshot,
-			PreviousRequestGuardians: input.PreviousRequestGuardians,
+			PreviousRequestGuardians: input.PreviousRequestGuardians, ChildDataChanged: input.ChildDataChanged,
 		})
 	})
 	if err != nil {

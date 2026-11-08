@@ -35,6 +35,7 @@ const CodeEnrollmentChangeRequestGuardianLinked = "enrollment.change_request_gua
 const CodeEnrollmentChangeRequestNotAllowed = "enrollment.change_request_not_allowed"
 const CodeEnrollmentChangeRequestNotFound = "enrollment.change_request_not_found"
 const CodeEnrollmentChangeRequestNoteRequired = "enrollment.change_request_note_required"
+const CodeEnrollmentChangeRequestParentNotPermitted = "enrollment.change_request_parent_not_permitted"
 const CodeEnrollmentChangeRequestStatusChanged = "enrollment.change_request_status_changed"
 const CodeEnrollmentChildAlreadyEnrolled = "enrollment.child_already_enrolled"
 const CodeEnrollmentChildAlreadyRequested = "enrollment.child_already_requested"
@@ -183,6 +184,7 @@ var errorCodeClassesEnrollment = []errorCodeClass{
 	{CodeEnrollmentChangeRequestNotAllowed, "permission"},
 	{CodeEnrollmentChangeRequestNotFound, "business_rejection"},
 	{CodeEnrollmentChangeRequestNoteRequired, "input"},
+	{CodeEnrollmentChangeRequestParentNotPermitted, "business_rejection"},
 	{CodeEnrollmentChangeRequestStatusChanged, "business_rejection"},
 	{CodeEnrollmentChildAlreadyEnrolled, "business_rejection"},
 	{CodeEnrollmentChildAlreadyRequested, "business_rejection"},

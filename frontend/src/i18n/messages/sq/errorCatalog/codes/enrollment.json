@@ -29,6 +29,7 @@
   "care_offering_unavailable": "Një ofertë e zgjedhur nuk ofrohet për klasën e fëmijës. Kontrolloni klasën dhe zgjedhjen.",
   "care_offerings_disabled": "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
   "change_request_child_locked": "Ky fëmijë është tashmë në kujdes. Ju lutemi bëni ndryshimet në aplikacionin për prindër.",
+  "change_request_parent_not_permitted": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "change_request_conflict": "Ndërkohë është ndryshuar: {object}. Kontrolloni përsëri të dhënat tuaja.",
   "change_request_guardian_linked": "Ju lutemi ndryshoni këto të dhëna në aplikacionin për prindër.",
   "change_request_not_allowed": "Ky regjistrim nuk mund të ndryshohet tani. Ju lutemi kontaktoni shkollën.",

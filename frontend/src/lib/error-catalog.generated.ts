@@ -371,6 +371,8 @@ export const ERROR_CATALOG = {
         "Diese Änderungsanfrage gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "enrollment.change_request_note_required":
         "Bitte schreiben Sie eine kurze Begründung für die Familie.",
+      "enrollment.change_request_parent_not_permitted":
+        "Dieser Elternteil darf das Kind nicht mehr anmelden. Lehnen Sie die Änderungsanfrage bitte ab.",
       "enrollment.change_request_status_changed":
         "Der Stand dieser Änderungsanfrage hat sich geändert. Bitte laden Sie die Seite neu.",
       "enrollment.child_already_enrolled":

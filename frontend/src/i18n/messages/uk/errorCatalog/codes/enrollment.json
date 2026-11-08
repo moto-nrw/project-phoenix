@@ -29,6 +29,7 @@
   "care_offering_unavailable": "Обрана програма недоступна для класу дитини. Перевірте клас і вибір.",
   "care_offerings_disabled": "Зараз тут недоступно: {object}. Зверніться до контактної особи.",
   "change_request_child_locked": "Ця дитина вже під доглядом. Вносьте зміни в застосунку для батьків.",
+  "change_request_parent_not_permitted": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "change_request_conflict": "Дані змінилися: {object}. Перевірте свої дані ще раз.",
   "change_request_guardian_linked": "Змініть ці дані в застосунку для батьків.",
   "change_request_not_allowed": "Цей запис зараз не можна змінити. Зверніться до школи.",

@@ -29,6 +29,7 @@
   "care_offering_unavailable": "Seçilen hizmet çocuğun sınıf düzeyi için sunulmuyor. Sınıf düzeyini ve seçimi kontrol edin.",
   "care_offerings_disabled": "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
   "change_request_child_locked": "Bu çocuk zaten bakımda. Değişiklikleri lütfen veli uygulamasında yapın.",
+  "change_request_parent_not_permitted": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "change_request_conflict": "{object} bu arada değiştirildi. Lütfen bilgilerinizi yeniden kontrol edin.",
   "change_request_guardian_linked": "Lütfen bu bilgileri veli uygulamasında değiştirin.",
   "change_request_not_allowed": "Bu kayıt şu anda değiştirilemez. Lütfen okulla iletişime geçin.",

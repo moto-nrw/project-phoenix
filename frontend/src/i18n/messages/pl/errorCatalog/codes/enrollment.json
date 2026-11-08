@@ -29,6 +29,7 @@
   "care_offering_unavailable": "Wybrana oferta nie jest dostępna dla klasy dziecka. Sprawdź klasę i wybór.",
   "care_offerings_disabled": "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
   "change_request_child_locked": "To dziecko jest już pod opieką. Zmiany wprowadzaj w aplikacji dla rodziców.",
+  "change_request_parent_not_permitted": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "change_request_conflict": "W międzyczasie zmieniono: {object}. Sprawdź ponownie swoje dane.",
   "change_request_guardian_linked": "Zmień te dane w aplikacji dla rodziców.",
   "change_request_not_allowed": "Tego zapisu nie można teraz zmienić. Skontaktuj się ze szkołą.",

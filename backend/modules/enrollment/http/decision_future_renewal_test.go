@@ -746,3 +746,22 @@ func TestChangeRequestService_CorrectApprovedChildData_AfterRevocationChangesChi
 	assert.Zero(t, env.portalAccessRows(t, accountID), "the correction restores no portal access")
 	r.assertApprovedPlanAppliesAtStart(t, env, accountID)
 }
+
+// A family's change request for the child, approved after the school
+// removed the family's relationship, is a new parent-authorized write. It is
+// refused instead of reaching the request child the school-approved weekly
+// plan applies at the start (#6053).
+func TestDecisionService_RevokedParentChangeRequestCannotReplaceApprovedPlan(t *testing.T) {
+	t.Parallel()
+	r, env, accountID := revokedFutureRenewal(t)
+	_, err := changeRequestApplierForTest(t, r.env).SyncApprovedChildData(testpkg.Ctx(t), enrollmentAPI.SyncApprovedChildDataInput{
+		RequestID: r.requestID, ChildID: r.childID, ActorAccountID: r.reviewerAccountID,
+		ReplaceTargetedData: true, ChildDataChanged: true,
+	})
+	require.ErrorIs(t, err, enrollmentNative.ErrChangeRequestParentNotPermitted)
+	child, err := enrollmentAPI.ReadOwnerChildForTest(testpkg.Ctx(t), r.env.repos.Enrollment(), r.childID)
+	require.NoError(t, err)
+	require.NotNil(t, child.WeeklyPlanOn, "the refusal keeps the school's approved plan")
+	assert.Empty(t, env.guardianLinks(t, r.studentID))
+	r.assertApprovedPlanAppliesAtStart(t, env, accountID)
+}

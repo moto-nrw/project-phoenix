@@ -87,15 +87,27 @@ func (d *Decisions) syncApprovedChildRecords(ctx context.Context, run *approvedC
 		return err
 	}
 	if enrollmentOnly {
-		if !run.input.Correction.Any() {
-			return nil
-		}
-		return d.syncApprovedChildStudent(ctx, run, *run.input.Correction)
+		return d.syncEnrollmentOnlyChild(ctx, run)
 	}
 	if err := d.syncApprovedChildStudent(ctx, run, allChildFields); err != nil {
 		return err
 	}
 	return d.syncApprovedChildGuardians(ctx, run)
+}
+
+// syncEnrollmentOnlyChild handles an edit of an office match or a lapsed
+// parent pin. A staff correction writes its fields onto the child. A
+// family's new data for a lapsed pin is refused: it would land in the
+// request child the school-approved weekly plan applies at the start.
+// Anything else leaves the child and its planned values alone.
+func (d *Decisions) syncEnrollmentOnlyChild(ctx context.Context, run *approvedChildSync) error {
+	if run.input.Correction.Any() {
+		return d.syncApprovedChildStudent(ctx, run, *run.input.Correction)
+	}
+	if run.input.ChildDataChanged && !run.child.MatchedByOffice {
+		return fmt.Errorf("%w: child %d", enrollmentNative.ErrChangeRequestParentNotPermitted, run.child.ID)
+	}
+	return nil
 }
 
 // allChildFields syncs every master-data field of the child.
