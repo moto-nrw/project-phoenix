@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { problemResponse } from "~/lib/api-response-error.server";
 import { NextResponse } from "next/server";
-import { env } from "~/env";
+import { configuredPortalOfHost } from "~/lib/portal-paths";
 import {
   frontendOrigin,
   getOriginalRequestHost,
@@ -20,10 +20,8 @@ export async function withInvitationOwnerSession(
     return problemResponse(403, "Invalid origin", request);
   }
   const hostname = hostnameFromAuthority(getOriginalRequestHost(request));
-  if (
-    !hostname ||
-    hostname === hostnameFromAuthority(env.NEXT_PUBLIC_OPERATOR_HOSTNAME)
-  ) {
+  const portal = hostname ? configuredPortalOfHost(hostname) : "operator";
+  if (portal !== "tenant" && portal !== "parent" && portal !== "school") {
     return problemResponse(403, "Unsupported portal", request);
   }
   const handler = async (authRequest: {
@@ -38,11 +36,11 @@ export async function withInvitationOwnerSession(
     }
     return accept(token);
   };
-  if (hostname === hostnameFromAuthority(env.NEXT_PUBLIC_PARENTS_HOSTNAME)) {
+  if (portal === "parent") {
     const { parentPortal } = await import("~/server/auth/parent");
     return parentPortal.withAuth(handler)(request);
   }
-  if (hostname === hostnameFromAuthority(env.NEXT_PUBLIC_SCHOOL_HOSTNAME)) {
+  if (portal === "school") {
     const { schoolPortal } = await import("~/server/auth/school");
     return schoolPortal.withAuth(handler)(request);
   }

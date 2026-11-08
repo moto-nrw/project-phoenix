@@ -13,6 +13,7 @@ import { withoutSessionCookies } from "~/server/auth/session-cookie-writes";
 import { createLogger } from "~/lib/logger";
 import type { PortalAuth } from "~/server/auth/portal-auth";
 import type { BackendAuthStep } from "~/server/auth/portals";
+import { portalAuthAnswer, portalAuthEnvelope } from "~/lib/portal-paths";
 import {
   installMintedSession,
   logoutRollback,
@@ -56,11 +57,8 @@ export function installLoginSession(
  * only the enrollment confirmation carries the limited enrollment proof.
  */
 export function createPortalLoginRoute(login: LoginPortal, step: LoginStep) {
-  const { backend } = login.portal;
+  const { backend, key } = login.portal;
   const path = `${backend.authPrefix}/${step}`;
-  const envelope = (backend.enveloped as readonly BackendAuthStep[]).includes(
-    step,
-  );
   const challenges = step === "login";
   const organizations = challenges && backend.organizationSelection === true;
   return login.withSessionResponse(async (request: NextRequest) => {
@@ -95,14 +93,15 @@ export function createPortalLoginRoute(login: LoginPortal, step: LoginStep) {
         response = forwardBackendResponse(backend, request);
       } else {
         // Parse errors must not put bearer material in an exception message.
-        const payload = (await backend.json().catch(() => {
-          throw new Error("Invalid login response");
-        })) as Record<string, unknown>;
-        const data = envelope
-          ? (payload.data as Record<string, unknown>)
-          : payload;
+        const data = portalAuthAnswer<Record<string, unknown>>(
+          key,
+          step,
+          await backend.json().catch(() => {
+            throw new Error("Invalid login response");
+          }),
+        );
         const json = (body: Record<string, unknown>) =>
-          Response.json(envelope ? { status: "success", data: body } : body);
+          Response.json(portalAuthEnvelope(key, step, body));
         if (
           organizations &&
           data.status === "organization_selection_required"

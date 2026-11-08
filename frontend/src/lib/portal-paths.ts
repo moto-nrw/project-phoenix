@@ -7,10 +7,27 @@
  * them imports server code (#5005).
  */
 
+/**
+ * An auth step whose answer a portal may wrap in `{ status, data }`: the
+ * backend's answer, which the BFF route passes on in the same shape.
+ */
+export type EnvelopableAuthStep =
+  | "login"
+  | "mfa/verify"
+  | "mfa/enroll/confirm"
+  | "mfa/resend"
+  | "mfa/trusted-devices"
+  | "passkeys/login/verify"
+  | "refresh";
+
 interface PortalRoutes {
   readonly basePath: `/api/${string}`;
+  /** The client log route; it authenticates with this portal's session. */
+  readonly logPath: `/api/${string}`;
   /** The Auth.js Credentials provider id, for `signIn` in the browser. */
   readonly providerId: string;
+  /** The steps whose answer is enveloped in `{ data }`, for server and browser. */
+  readonly enveloped: readonly EnvelopableAuthStep[];
 }
 
 interface HostedPortalRoutes extends PortalRoutes {
@@ -28,6 +45,15 @@ interface HostedPortalRoutes extends PortalRoutes {
 const HOSTED_PORTAL_ROUTES = {
   operator: {
     basePath: "/api/operator/auth",
+    logPath: "/api/operator/logs",
+    enveloped: [
+      "login",
+      "mfa/verify",
+      "mfa/enroll/confirm",
+      "mfa/resend",
+      "mfa/trusted-devices",
+      "refresh",
+    ],
     providerId: "operator-credentials",
     hostEnv: "NEXT_PUBLIC_OPERATOR_HOSTNAME",
     hostname: () => process.env.NEXT_PUBLIC_OPERATOR_HOSTNAME,
@@ -35,6 +61,8 @@ const HOSTED_PORTAL_ROUTES = {
   },
   parent: {
     basePath: "/api/parent/auth",
+    logPath: "/api/parent/logs",
+    enveloped: ["login"],
     providerId: "parent-credentials",
     hostEnv: "NEXT_PUBLIC_PARENTS_HOSTNAME",
     hostname: () => process.env.NEXT_PUBLIC_PARENTS_HOSTNAME,
@@ -42,6 +70,8 @@ const HOSTED_PORTAL_ROUTES = {
   },
   school: {
     basePath: "/api/school/auth",
+    logPath: "/api/school/logs",
+    enveloped: [],
     providerId: "school-credentials",
     hostEnv: "NEXT_PUBLIC_SCHOOL_HOSTNAME",
     hostname: () => process.env.NEXT_PUBLIC_SCHOOL_HOSTNAME,
@@ -49,6 +79,8 @@ const HOSTED_PORTAL_ROUTES = {
   },
   caterer: {
     basePath: "/api/caterer/auth",
+    logPath: "/api/caterer/logs",
+    enveloped: ["login"],
     providerId: "caterer-credentials",
     hostEnv: "NEXT_PUBLIC_CATERER_HOSTNAME",
     hostname: () => process.env.NEXT_PUBLIC_CATERER_HOSTNAME,
@@ -56,6 +88,8 @@ const HOSTED_PORTAL_ROUTES = {
   },
   traeger: {
     basePath: "/api/traeger/auth",
+    logPath: "/api/traeger/logs",
+    enveloped: [],
     providerId: "traeger-credentials",
     hostEnv: "NEXT_PUBLIC_TRAEGER_HOSTNAME",
     hostname: () => process.env.NEXT_PUBLIC_TRAEGER_HOSTNAME,
@@ -66,7 +100,9 @@ const HOSTED_PORTAL_ROUTES = {
 export const PORTAL_ROUTES = {
   tenant: {
     basePath: "/api/auth",
+    logPath: "/api/logs",
     providerId: "credentials",
+    enveloped: [],
   } satisfies PortalRoutes,
   ...HOSTED_PORTAL_ROUTES,
 };
@@ -87,13 +123,31 @@ export function portalAuthPath(portal: PortalKey, step: string): string {
   return `${PORTAL_ROUTES[portal].basePath}/${step}`;
 }
 
-/**
- * A portal's client log route, beside its auth routes: `/api/logs` for the
- * tenant, `/api/<portal>/logs` for the others. It authenticates with that
- * portal's session, so the tenant cookie is never needed for it.
- */
 export function portalLogPath(portal: PortalKey): string {
-  return PORTAL_ROUTES[portal].basePath.replace(/\/auth$/, "/logs");
+  return PORTAL_ROUTES[portal].logPath;
+}
+
+function envelopes(portal: PortalKey, step: EnvelopableAuthStep): boolean {
+  const steps: readonly EnvelopableAuthStep[] = PORTAL_ROUTES[portal].enveloped;
+  return steps.includes(step);
+}
+
+/** The body of a portal's answer to an auth step, out of its envelope. */
+export function portalAuthAnswer<T>(
+  portal: PortalKey,
+  step: EnvelopableAuthStep,
+  answer: unknown,
+): T {
+  return (envelopes(portal, step) ? (answer as { data: T }).data : answer) as T;
+}
+
+/** The answer in the shape the portal's auth step uses. */
+export function portalAuthEnvelope(
+  portal: PortalKey,
+  step: EnvelopableAuthStep,
+  body: Record<string, unknown>,
+): Record<string, unknown> {
+  return envelopes(portal, step) ? { status: "success", data: body } : body;
 }
 
 /** The page Auth.js sends a signed-out visitor to; the proxy rewrites
@@ -112,6 +166,25 @@ export function portalOfHost(host: string): PortalKey {
     HOSTED_PORTAL_KEYS.find((key) => PORTAL_ROUTES[key].hostname() === host) ??
     "tenant"
   );
+}
+
+/**
+ * The portal of a request host on the server, where a decision depends on it
+ * (which session to read or mint): like `portalOfHost`, but an unset portal
+ * host throws instead of letting that host read as a school's. Compares host
+ * names; ports do not separate cookies either.
+ */
+export function configuredPortalOfHost(authority: string): PortalKey {
+  const hostname = hostnameOf(authority);
+  return (
+    HOSTED_PORTAL_KEYS.find(
+      (key) => hostnameOf(requiredPortalHostname(key)) === hostname,
+    ) ?? "tenant"
+  );
+}
+
+function hostnameOf(authority: string): string {
+  return new URL(`http://${authority}`).hostname;
 }
 
 /** A portal's host name; throws naming the env variable when it is unset. */

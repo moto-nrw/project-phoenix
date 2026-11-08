@@ -41,6 +41,7 @@ import { traegerPortal } from "~/server/auth/traeger";
 import { catererPortal } from "~/server/auth/caterer";
 import { parentPortal } from "~/server/auth/parent";
 import { tenantPortal } from "~/server/auth";
+import { stubPortalHostEnv } from "~/test/route-test-helpers";
 
 const LOGIN = {
   tenant: tenantPortal,
@@ -96,6 +97,7 @@ function browserCookie(response: Response) {
 beforeEach(() => {
   backend.mockReset();
   vi.stubGlobal("fetch", backend);
+  stubPortalHostEnv();
 });
 afterEach(() => vi.unstubAllGlobals());
 

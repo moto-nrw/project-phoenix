@@ -11,12 +11,7 @@ import {
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { problemResponse } from "~/lib/api-helpers.server";
 import { withPrivateNoStore } from "~/lib/private-no-store";
-import { clientEnv } from "~/env.client";
-import {
-  HOSTED_PORTAL_KEYS,
-  PORTAL_ROUTES,
-  type PortalKey,
-} from "~/lib/portal-paths";
+import { configuredPortalOfHost } from "~/lib/portal-paths";
 import { tenantPortal } from "~/server/auth";
 import { parentPortal } from "~/server/auth/parent";
 import { sessionMutationOriginError } from "~/server/auth/same-origin";
@@ -29,27 +24,12 @@ import {
 
 const logger = createLogger({ component: "DemoSessionRoute" });
 
-/**
- * The portal of a request host; every other host is a school's. The host
- * names come validated from clientEnv, so a missing one fails at startup
- * instead of letting a portal host mint a tenant session.
- */
-function portalOfDemoHost(host: string): PortalKey {
-  return (
-    HOSTED_PORTAL_KEYS.find(
-      (key) =>
-        new URL(`http://${clientEnv[PORTAL_ROUTES[key].hostEnv]}`).host ===
-        host,
-    ) ?? "tenant"
-  );
-}
-
 async function POSTHandler(request: NextRequest) {
   const originError = sessionMutationOriginError(request);
   if (originError) return originError;
   // Choose the cookie context from the proxy-owned host, never from a role
   // supplied by the browser or returned for a fixed-role demo link.
-  const portal = portalOfDemoHost(new URL(frontendOrigin(request)).host);
+  const portal = configuredPortalOfHost(new URL(frontendOrigin(request)).host);
   if (portal !== "tenant" && portal !== "parent") {
     return problemResponse(403, "Unsupported demo portal", request);
   }

@@ -1,6 +1,7 @@
 import "server-only";
 import type { CredentialsSignin } from "next-auth";
 import { sendBackend } from "~/lib/backend-client.server";
+import { portalAuthAnswer } from "~/lib/portal-paths";
 import { authLogger } from "./jwt-claims";
 import { LOGIN_RATE_LIMITED, type LoginRefusalCode } from "~/lib/login-refusal";
 import type { PasswordLogin, PortalDescriptor } from "./portals";
@@ -49,10 +50,9 @@ export async function loginAtBackend(
       });
       return { ok: false, status: response.status, code };
     }
-    const payload = (await response.json()) as Record<string, unknown>;
-    const data = (
-      portal.backend.enveloped.includes("login") ? payload.data : payload
-    ) as Partial<TokenPair> & { status?: unknown };
+    const data = portalAuthAnswer<
+      (Partial<TokenPair> & { status?: unknown }) | undefined
+    >(portal.key, "login", await response.json());
     // A login that answers 200 with a further step is no session here.
     if (
       (typeof data?.status === "string" && data.status !== "authenticated") ||

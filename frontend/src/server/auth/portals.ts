@@ -8,6 +8,7 @@ import type { LoginRefusalCode } from "~/lib/login-refusal";
 import {
   PORTAL_ROUTES,
   portalSignInPage,
+  type EnvelopableAuthStep,
   type PortalKey,
 } from "~/lib/portal-paths";
 import {
@@ -34,13 +35,11 @@ export type ValidationPortal =
 /** "operator": email is the username, the session carries role "operator". */
 export type PortalIdentity = "account" | "operator";
 
-/** A backend auth step a BFF route forwards; see `enveloped`. */
-export type BackendAuthStep =
-  | "login"
-  | "mfa/verify"
-  | "mfa/enroll/confirm"
-  | "passkeys/login/verify"
-  | "refresh";
+/** A backend auth step a BFF route forwards; its envelope: `PORTAL_ROUTES`. */
+export type BackendAuthStep = Exclude<
+  EnvelopableAuthStep,
+  "mfa/resend" | "mfa/trusted-devices"
+>;
 
 export interface BackendEndpoint {
   path: string;
@@ -93,8 +92,6 @@ export interface PortalDescriptor {
     authPrefix: string;
     refresh: BackendEndpoint;
     logout: { path: string; token: LogoutTokenKind };
-    /** Steps whose answer is enveloped in `{ data }`. */
-    enveloped: readonly BackendAuthStep[];
     /** The password step may ask which organization to sign in to. */
     organizationSelection?: true;
   };
@@ -166,7 +163,6 @@ export const PORTALS = {
       authPrefix: "/auth",
       refresh: ACCOUNT_REFRESH,
       logout: ACCOUNT_LOGOUT,
-      enveloped: [],
     },
     snapshotClaims: ({ tenantId }) => typeof tenantId === "number",
     tenantFeatures: true,
@@ -185,10 +181,12 @@ export const PORTALS = {
     redirect: subdomainRedirect,
     backend: {
       authPrefix: "/operator/auth",
-      refresh: { path: "/operator/auth/refresh", enveloped: true },
+      refresh: {
+        path: "/operator/auth/refresh",
+        enveloped: PORTAL_ROUTES.operator.enveloped.includes("refresh"),
+      },
       // The operator session chain authenticates the access token.
       logout: { path: "/operator/auth/logout", token: "access" },
-      enveloped: ["login", "mfa/verify", "mfa/enroll/confirm", "refresh"],
     },
   },
   parent: {
@@ -209,7 +207,6 @@ export const PORTALS = {
       authPrefix: "/parent/auth",
       refresh: ACCOUNT_REFRESH,
       logout: ACCOUNT_LOGOUT,
-      enveloped: ["login"],
     },
     passwordLogin: {
       // care.not_a_guardian is reachable only after the password check
@@ -238,7 +235,6 @@ export const PORTALS = {
       authPrefix: "/school/auth",
       refresh: ACCOUNT_REFRESH,
       logout: ACCOUNT_LOGOUT,
-      enveloped: [],
     },
     // School tokens are tenant-bound; the portal keys its data cache on it.
     snapshotClaims: ({ tenantId }) =>
@@ -260,7 +256,6 @@ export const PORTALS = {
       authPrefix: "/caterer/auth",
       refresh: ACCOUNT_REFRESH,
       logout: ACCOUNT_LOGOUT,
-      enveloped: ["login"],
     },
   },
   traeger: {
@@ -279,7 +274,6 @@ export const PORTALS = {
       authPrefix: "/traeger/auth",
       refresh: ACCOUNT_REFRESH,
       logout: ACCOUNT_LOGOUT,
-      enveloped: [],
       organizationSelection: true,
     },
     // A Träger session never names a school (ADR 0084): a school session of

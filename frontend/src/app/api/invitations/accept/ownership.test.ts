@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { stubPortalHostEnv } from "~/test/route-test-helpers";
 
 const sessions = vi.hoisted(() => ({
   tenant: vi.fn(),
@@ -9,9 +10,6 @@ const sessions = vi.hoisted(() => ({
 vi.mock("~/env", () => ({
   env: {
     API_URL: "http://server:8080",
-    NEXT_PUBLIC_OPERATOR_HOSTNAME: "operator.localhost:3000",
-    NEXT_PUBLIC_PARENTS_HOSTNAME: "parents.localhost:3000",
-    NEXT_PUBLIC_SCHOOL_HOSTNAME: "schule.localhost:3000",
   },
 }));
 vi.mock("~/server/auth", async () =>
@@ -63,6 +61,7 @@ function request(host: string, origin = `http://${host}`) {
 describe("invitation owner session boundary", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    stubPortalHostEnv();
     sessions.tenant.mockReturnValue({ user: { token: "tenant-signed-token" } });
     sessions.parent.mockReturnValue({ user: { token: "parent-signed-token" } });
     sessions.school.mockReturnValue({ user: { token: "school-signed-token" } });

@@ -1,5 +1,10 @@
 import { ApiError, apiErrorFromBody, transportFetch } from "./api-error";
-import { portalAuthPath, type PortalKey } from "./portal-paths";
+import {
+  portalAuthAnswer,
+  portalAuthPath,
+  type EnvelopableAuthStep,
+  type PortalKey,
+} from "./portal-paths";
 
 export type LoginScope = Exclude<PortalKey, "parent">;
 
@@ -51,18 +56,6 @@ interface OperatorEnvelope<T> {
   message?: string;
 }
 
-function isOperator(scope: LoginScope): boolean {
-  return scope === "operator";
-}
-
-function loginUrl(scope: LoginScope): string {
-  return portalAuthPath(scope, "login");
-}
-
-/**
- * Every portal's MFA routes answer top-level JSON except the operator's,
- * which wraps it in an envelope (`isOperator`).
- */
 function mfaUrl(scope: LoginScope, suffix: string): string {
   return portalAuthPath(scope, `mfa/${suffix}`);
 }
@@ -123,6 +116,20 @@ async function postJson<T>(
   return data as T;
 }
 
+/** A portal's auth step; its envelope comes from the portal table. */
+async function postStep<T>(
+  scope: LoginScope,
+  step: EnvelopableAuthStep,
+  body: unknown,
+  options: PostJsonOptions = {},
+): Promise<T> {
+  return portalAuthAnswer<T>(
+    scope,
+    step,
+    await postJson<unknown>(portalAuthPath(scope, step), body, options),
+  );
+}
+
 interface LoginParams {
   email: string;
   password: string;
@@ -133,7 +140,6 @@ export async function login(
   scope: LoginScope,
   params: LoginParams,
 ): Promise<LoginResponse> {
-  const url = loginUrl(scope);
   // Tenant login requires a tenant slug. School login accepts one only for
   // a handoff from the OGS portal, where it pins a multi-school Lehrkraft to
   // the school they selected.
@@ -146,14 +152,7 @@ export async function login(
         }
       : { email: params.email, password: params.password };
 
-  if (isOperator(scope)) {
-    const envelope = await postJson<OperatorEnvelope<LoginResponse>>(
-      url,
-      payload,
-    );
-    return envelope.data;
-  }
-  return postJson<LoginResponse>(url, payload);
+  return postStep<LoginResponse>(scope, "login", payload);
 }
 
 interface VerifyParams {
@@ -174,18 +173,13 @@ export async function verifyMFA(
   scope: LoginScope,
   params: VerifyParams,
 ): Promise<MFAResult> {
-  const url = mfaUrl(scope, "verify");
   const payload = {
     challenge_token: params.challengeToken,
     code: params.code,
     remember_device: params.rememberDevice,
     ...organizationField(params.organizationId),
   };
-  if (isOperator(scope)) {
-    const envelope = await postJson<OperatorEnvelope<MFAResult>>(url, payload);
-    return envelope.data;
-  }
-  return postJson<MFAResult>(url, payload);
+  return postStep<MFAResult>(scope, "mfa/verify", payload);
 }
 
 interface ResendParams {
@@ -208,16 +202,8 @@ export async function resendChallenge(
   scope: LoginScope,
   params: ResendParams,
 ): Promise<string> {
-  const url = mfaUrl(scope, "resend");
   const payload = { challenge_token: params.challengeToken };
-  if (isOperator(scope)) {
-    const envelope = await postJson<OperatorEnvelope<ResendResponse>>(
-      url,
-      payload,
-    );
-    return envelope.data.challenge_token;
-  }
-  const response = await postJson<ResendResponse>(url, payload);
+  const response = await postStep<ResendResponse>(scope, "mfa/resend", payload);
   return response.challenge_token;
 }
 
@@ -266,7 +252,6 @@ export async function enrollConfirm(
   challengeToken?: string,
   organizationId?: string,
 ): Promise<MFAResult> {
-  const url = mfaUrl(scope, "enroll/confirm");
   // The school confirm is bound to the exact challenge enroll/start minted
   // (see enrollStart); tenant/operator ignore the extra field.
   const payload = {
@@ -275,13 +260,9 @@ export async function enrollConfirm(
     ...(challengeToken ? { challenge_token: challengeToken } : {}),
     ...organizationField(organizationId),
   };
-  if (isOperator(scope)) {
-    const envelope = await postJson<OperatorEnvelope<MFAResult>>(url, payload, {
-      bearerToken,
-    });
-    return envelope.data;
-  }
-  return postJson<MFAResult>(url, payload, { bearerToken });
+  return postStep<MFAResult>(scope, "mfa/enroll/confirm", payload, {
+    bearerToken,
+  });
 }
 
 // ----- Self-service trusted devices (tenant, operator and caterer) -----
@@ -306,16 +287,7 @@ function trustedDevicesUrl(scope: LoginScope, suffix = ""): string {
 export async function listTrustedDevices(
   scope: LoginScope,
 ): Promise<TrustedDeviceDTO[]> {
-  const url = trustedDevicesUrl(scope);
-  if (isOperator(scope)) {
-    const envelope = await postJson<OperatorEnvelope<TrustedDeviceDTO[]>>(
-      url,
-      undefined,
-      { method: "GET" },
-    );
-    return envelope.data;
-  }
-  return postJson<TrustedDeviceDTO[]>(url, undefined, {
+  return postStep<TrustedDeviceDTO[]>(scope, "mfa/trusted-devices", undefined, {
     method: "GET",
   });
 }

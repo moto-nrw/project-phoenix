@@ -2,17 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 
-// ============================================================================
-// Types
-// ============================================================================
-
 interface ExtendedSession extends Session {
   user: Session["user"] & { token?: string; refreshToken?: string };
 }
-
-// ============================================================================
-// Mocks
-// ============================================================================
 
 const { mockAuth, mockUncachedAuth } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
@@ -35,10 +27,6 @@ vi.mock("~/env", () => ({
 
 const { POST } = await import("./route");
 
-// ============================================================================
-// Test Helpers
-// ============================================================================
-
 function createMockRequest(path: string): NextRequest {
   const url = new URL(path, "http://localhost:3000");
   return new NextRequest(url, { method: "POST" });
@@ -53,10 +41,6 @@ const defaultSession: ExtendedSession = {
   },
   expires: "2099-01-01",
 };
-
-// ============================================================================
-// Tests
-// ============================================================================
 
 describe("POST /api/auth/logout", () => {
   const originalFetch = global.fetch;
@@ -225,6 +209,33 @@ describe("POST /api/auth/logout", () => {
       const response = await POST(createMockRequest("/api/auth/logout"));
 
       expect(response.status).toBe(503);
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it("answers 503 when the renewal throws", async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(refused());
+      mockUncachedAuth.mockRejectedValue(new Error("refresh unreachable"));
+
+      const response = await POST(createMockRequest("/api/auth/logout"));
+
+      expect(response.status).toBe(503);
+      expect(await response.json()).toMatchObject({
+        code: "general.unavailable",
+      });
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it("answers 401 when the renewed session carries an error", async () => {
+      vi.mocked(global.fetch).mockResolvedValueOnce(refused());
+      mockUncachedAuth.mockResolvedValue({
+        ...defaultSession,
+        user: { ...defaultSession.user, refreshToken: "test-refresh-renewed" },
+        error: "RefreshTokenExpired",
+      } as ExtendedSession);
+
+      const response = await POST(createMockRequest("/api/auth/logout"));
+
+      expect(response.status).toBe(401);
       expect(global.fetch).toHaveBeenCalledTimes(1);
     });
 

@@ -268,8 +268,9 @@ export interface SessionCall extends Omit<BackendCall, "request"> {
 }
 
 /**
- * What renewing the session after a backend 401 decided (#5194, #5399):
- * - `renewed`: a new access token; the request is repeated with it.
+ * What renewing the session after a backend 401 decided (#5194, #5399),
+ * for the session's access token or the token `tokenOf` picks:
+ * - `renewed`: a new token; the request is repeated with it.
  * - `refused`: the backend refused the refresh (revoked or foreign family,
  *   consumed or invalid refresh token): the session has ended, 401.
  * - `undecided`: the refresh could not be decided (endpoint unreachable,
@@ -282,8 +283,10 @@ export type Renewal =
   | { outcome: "undecided" };
 
 export async function renewSession(
-  portal: PortalSession,
+  portal: Pick<PortalSession, "uncachedAuth">,
   failed: string,
+  tokenOf: (session: ServerSession) => string | undefined = (session) =>
+    session.user?.token,
 ): Promise<Renewal> {
   let session: ServerSession | null;
   try {
@@ -297,7 +300,7 @@ export async function renewSession(
     captureBffException(error);
     return { outcome: "undecided" };
   }
-  const token = session?.user?.token;
+  const token = session ? tokenOf(session) : undefined;
   if (!session || session.error || !token) return { outcome: "refused" };
   if (token === failed) return { outcome: "undecided" };
   return { outcome: "renewed", token };
