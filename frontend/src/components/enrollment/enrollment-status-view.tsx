@@ -1413,6 +1413,12 @@ function ChangeRequestsPanel({
         guardian_phone: t("diff.snapshot.guardian_phone"),
         phase_id: t("diff.snapshot.phase_id"),
       },
+      consentLabels: {
+        agb: t("diff.consent.agb"),
+        data_processing: t("diff.consent.data_processing"),
+        email_contact: t("diff.consent.email_contact"),
+        photo: t("diff.consent.photo"),
+      },
       childSnapshotLabels: {
         custom_data: t("diff.child.custom_data"),
         date_of_birth: t("diff.child.date_of_birth"),

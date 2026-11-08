@@ -135,6 +135,12 @@
       "guardian_phone": "Telefoni",
       "phase_id": "Faza e regjistrimit"
     },
+    "consent": {
+      "agb": "Kushtet e përgjithshme",
+      "data_processing": "Informacioni për privatësinë u pranua",
+      "email_contact": "Kontakti me email lejohet",
+      "photo": "Pëlqimi për fotografinë"
+    },
     "child": {
       "custom_data": "Të dhëna shtesë",
       "date_of_birth": "Data e lindjes",

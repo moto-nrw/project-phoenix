@@ -232,11 +232,15 @@ describe("EnrollmentStatusView", () => {
     mockFetchStatus.mockResolvedValueOnce(status());
     mockListEnrollmentChangeRequests.mockResolvedValueOnce([
       changeRequest({
-        base_snapshot: { children: [{ custom_data: { allergies: "keine" } }] },
+        base_snapshot: {
+          children: [{ custom_data: { allergies: "keine" } }],
+          consent_flags: { photo: true },
+        },
         proposed_snapshot: {
           children: [{ custom_data: { allergies: "Nüsse" } }],
+          consent_flags: { photo: false },
         },
-        diff: { changed: ["children"] },
+        diff: { changed: ["children", "consent_flags"] },
       }),
     ]);
     mockGetEnrollmentFormLabels.mockResolvedValueOnce({
@@ -255,6 +259,7 @@ describe("EnrollmentStatusView", () => {
 
     expect(await screen.findByText("Kind 1 · Allergien")).toBeInTheDocument();
     expect(screen.getByText("Nüsse")).toBeInTheDocument();
+    expect(screen.getByText("Foto-Einwilligung")).toBeInTheDocument();
     expect(mockGetEnrollmentFormLabels).toHaveBeenCalledWith("tok");
   });
 
