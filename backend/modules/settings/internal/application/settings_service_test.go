@@ -157,7 +157,8 @@ func (testSettingsRuntime) TenantID(ctx context.Context) int64 {
 	tenantID, _ := ctx.Value(testTenantIDKey{}).(int64)
 	return tenantID
 }
-func (testSettingsRuntime) HasTransaction(context.Context) bool { return false }
+func (testSettingsRuntime) IsTraegerTransaction(context.Context) bool { return false }
+func (testSettingsRuntime) HasTransaction(context.Context) bool       { return false }
 func (testSettingsRuntime) WithinTenant(ctx context.Context, tenantID int64, fn func(context.Context) error) error {
 	return fn(withTestTenantID(ctx, tenantID))
 }

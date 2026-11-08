@@ -2,6 +2,9 @@ package records
 
 import "errors"
 
+// ErrSchoolReadInTraegerTransaction requires a separate school/admin read (ADR 0105).
+var ErrSchoolReadInTraegerTransaction = errors.New("school settings cannot be read in a Träger transaction; use a separate school or administrative read")
+
 var ErrRuntimeUnavailable = errors.New("settings runtime is not configured")
 
 // ErrHomeLayoutUnavailable is returned when the service was built without the
