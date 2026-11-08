@@ -512,20 +512,23 @@ func TestRequestService_ReplaceEditableLateInviteRenewalUsesInviteEmailForAuthor
 // another school cannot be submitted against the caller's tenant. The parent
 // portal resolves the phase under an admin transaction (RLS bypassed), so
 // without the tenant-binding guard a foreign phase would load cleanly and get
-// stamped with the caller's tenant_id (#1663). SkipRateLimit avoids writing a
-// rate-limit row for the nonexistent claimed tenant.
+// stamped with the caller's tenant_id (#1663). The service runs without a
+// rate limiter: its tenant transaction for the claimed tenant would refuse
+// the context of the phase's tenant before the guard is reached.
 func TestRequestService_Submit_RejectsCrossTenantPhase(t *testing.T) {
 	t.Parallel()
 
 	env := setupRequestTest(t)
 	ctx := testpkg.Ctx(t)
+	config := env.config
+	config.RateLimitRepo = nil
+	svc := newTestRequestService(config)
 
 	req := validSubmission(t, env.phaseID)
 	req.TenantID = testpkg.UniqueTestTenantID(t)
 	require.NotEqual(t, env.phase.TenantID, req.TenantID)
-	req.SkipRateLimit = true
 
-	_, err := env.svc.Submit(ctx, req)
+	_, err := svc.Submit(ctx, req)
 	require.ErrorIs(t, err, enrollmentNative.ErrInvalidSubmission,
 		"a phase from another tenant must be rejected as not found")
 }
@@ -2342,7 +2345,6 @@ func TestRequestService_Submit_AllowsHistoricalPhaseWithCareOfferings(t *testing
 
 	offering := setupCareOfferingForCapacity(t, env, 1)
 	request := validSubmission(t, env.phaseID)
-	request.AllowClosedPhase = true
 	request.GuardianEmail = "historical-care-offering@example.com"
 	request.Children[0].OfferingIDs = []int64{offering.ID}
 
@@ -3221,7 +3223,6 @@ func restrictClassesForEditDraftTest(t *testing.T, env *requestTestEnv, source s
 	req := validSubmission(t, env.phaseID)
 	req.GuardianEmail = "edit-draft-eligibility@example.com"
 	req.SubmissionSource = source
-	req.AllowClosedPhase = source != ""
 	req.Children[0].TargetGradeLevel = testpkg.Int16Ptr(2)
 	req.Children[0].TargetSchoolClass = testpkg.StrPtr("2a")
 	req.Children[0].DateOfBirth = calendar.NewDate(2018, 4, 15)
