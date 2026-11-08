@@ -52,7 +52,8 @@ type (
 	// year once it starts (#3917).
 	RolloverDecider interface {
 		// LockApprovalGates takes the class-writes and recurrence gates the
-		// tick's approvals, class switches and weekly plans write under.
+		// tick's approvals, class switches and weekly plans write under, and
+		// that a rollover holds before it inserts the follow-up phase.
 		LockApprovalGates(ctx context.Context) error
 		Decide(ctx context.Context, input enrollment.DecideInput) (*enrollment.DecideOutcome, error)
 		ApplyDueClassSwitches(ctx context.Context, asOf calendar.Date) (int, error)
@@ -168,7 +169,17 @@ func (s *Rollovers) CreatePhaseFromSource(ctx context.Context, req enrollment.Cr
 	return result, nil
 }
 
+// runCreate takes the approval gates first (ADR 0162). Inserting the
+// follow-up phase holds KEY SHARE on the source phase; a rollover that waited
+// for the recurrence gate only in the catalog clone afterwards deadlocked
+// with a phase delete that holds the gate and waits to delete the source
+// (#6168). Under the gate the source read also sees a committed delete.
 func (s *Rollovers) runCreate(ctx context.Context, tenantID int64, req enrollment.CreatePhaseFromSourceRequest, maxGrade int, collectGradeLevel bool, result *enrollment.RolloverResult) error {
+	if s.deps.Decisions != nil {
+		if err := s.deps.Decisions.LockApprovalGates(ctx); err != nil {
+			return fmt.Errorf("rollover: lock approval gates: %w", err)
+		}
+	}
 	source, err := s.loadRolloverSourcePhase(ctx, tenantID, req.SourcePhaseID)
 	if err != nil {
 		return err
