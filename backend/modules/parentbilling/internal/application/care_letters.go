@@ -39,6 +39,8 @@ type CareLetterStore interface {
 	// CareRunLetterRecords reads the letters of a run, with their PDF when
 	// withFiles is set.
 	CareRunLetterRecords(ctx context.Context, organizationID, runID int64, withFiles bool) ([]parentbilling.CareLetterRecord, error)
+	// CareLetterRecord reads only the requested PDF, scoped to its Träger and run.
+	CareLetterRecord(ctx context.Context, organizationID, runID, invoiceID int64, kind string) (parentbilling.CareLetterRecord, error)
 	CareRunCancellations(ctx context.Context, organizationID, runID int64) ([]parentbilling.CareCancellation, error)
 	// InsertCareCancellation reports a second Storno of an invoice as
 	// ErrCareInvoiceCancelled and a number another invoice carries as
@@ -204,15 +206,27 @@ func (l *CareLetters) CareLetter(ctx context.Context, reviewer parentbilling.Hol
 	if err := validLetterKind(kind); err != nil {
 		return parentbilling.BillingLetterFile{}, err
 	}
-	current, err := l.letterRun(ctx, reviewer, runID, false, true)
+	if err := validReviewer(reviewer); err != nil {
+		return parentbilling.BillingLetterFile{}, err
+	}
+	if runID <= 0 {
+		return parentbilling.BillingLetterFile{}, parentbilling.ErrCareRunNotFound
+	}
+	run, err := l.store.CareRun(ctx, reviewer.OrganizationID, runID, false)
 	if err != nil {
 		return parentbilling.BillingLetterFile{}, err
 	}
-	record, ok := current.record(invoiceID, kind)
-	if !ok || record.File == nil {
+	if run.Status != parentbilling.RunReleased {
+		return parentbilling.BillingLetterFile{}, parentbilling.ErrBillingRunNotReleased
+	}
+	record, err := l.store.CareLetterRecord(ctx, reviewer.OrganizationID, run.ID, invoiceID, kind)
+	if err != nil {
+		return parentbilling.BillingLetterFile{}, fmt.Errorf("parent billing: read care letter: %w", err)
+	}
+	if record.File == nil {
 		return parentbilling.BillingLetterFile{}, parentbilling.ErrBillingLetterNotFound
 	}
-	if err := l.recordRead(ctx, reviewer, current.run.ID, map[string]any{"letter": "download", "invoice_id": invoiceID,
+	if err := l.recordRead(ctx, reviewer, run.ID, map[string]any{"letter": "download", "invoice_id": invoiceID,
 		"letter_id": record.ID}); err != nil {
 		return parentbilling.BillingLetterFile{}, err
 	}
@@ -223,9 +237,9 @@ func (l *CareLetters) CareLetter(ctx context.Context, reviewer parentbilling.Hol
 // the number range "care" like the invoices. It holds the monthly billing of
 // the Träger and the run, so a release of the next run of the month waits and
 // then bills the contract again. A Storno of an invoice whose letter went out
-// gets its letter at once; one of an invoice never sent gets none, and the
-// family never hears of either. The caller rolls back when this fails, which
-// returns the number.
+// or was downloaded for printing gets its letter at once. One never shared
+// gets none, and the family never hears of either. The caller rolls back when
+// this fails, which returns the number.
 func (l *CareLetters) CancelCareInvoice(ctx context.Context, reviewer parentbilling.HolidayReviewer, runID, invoiceID int64, input parentbilling.CareCancellationInput) (parentbilling.CareLetters, error) {
 	if err := validReviewer(reviewer); err != nil {
 		return parentbilling.CareLetters{}, err
@@ -257,7 +271,9 @@ func (l *CareLetters) CancelCareInvoice(ctx context.Context, reviewer parentbill
 	}
 	current.cancellations[invoice.ID] = cancellation
 	sent := current.wasSent(invoice.ID)
-	if sent && current.letters != nil {
+	record, _ := current.record(invoice.ID, parentbilling.CareLetterInvoice)
+	printed := record.Printed
+	if (sent || printed) && current.letters != nil {
 		head, err := l.letterhead(ctx, reviewer)
 		if err != nil {
 			return parentbilling.CareLetters{}, err
@@ -269,7 +285,7 @@ func (l *CareLetters) CancelCareInvoice(ctx context.Context, reviewer parentbill
 		}
 	}
 	if err := l.store.InsertCareRunEvent(ctx, reviewer.OrganizationID, current.run.ID, reviewer.AccountID, careEventCancel,
-		map[string]any{"invoice_id": invoice.ID, "cancellation_id": cancellation.ID, "invoice_was_sent": sent}); err != nil {
+		map[string]any{"invoice_id": invoice.ID, "cancellation_id": cancellation.ID, "invoice_was_sent": sent, "invoice_was_printed": printed}); err != nil {
 		return parentbilling.CareLetters{}, fmt.Errorf("parent billing: record care cancellation: %w", err)
 	}
 	return l.overview(ctx, reviewer, current)

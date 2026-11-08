@@ -161,7 +161,7 @@ func (l *CareLetters) PrintCareLetters(ctx context.Context, reviewer parentbilli
 	if only != "" && only != parentbilling.CareLetterPrintWithoutEmail {
 		return parentbilling.BillingLetterFile{}, validLetterKind("")
 	}
-	current, err := l.letterRun(ctx, reviewer, runID, false, true)
+	current, err := l.letterRun(ctx, reviewer, runID, true, true)
 	if err != nil {
 		return parentbilling.BillingLetterFile{}, err
 	}
@@ -322,7 +322,7 @@ func careMailing(current careLetterRun, letter careSendable, states map[int64]pa
 		entry.IssuedOn = *invoice.IssuedOn
 	}
 	if cancellation, cancelled := current.cancellations[invoice.ID]; cancelled {
-		entry.Cancelled, entry.CancellationNumber = true, cancellation.Number
+		entry.Cancelled, entry.CancellationNumber, entry.Replaced = true, cancellation.Number, cancellation.Replaced
 		if letter.kind == parentbilling.CareLetterCancellation {
 			entry.Number, entry.IssuedOn, entry.TotalCents, entry.Reason = cancellation.Number, cancellation.IssuedOn, cancellation.TotalCents, cancellation.Reason
 		}
@@ -331,7 +331,7 @@ func careMailing(current careLetterRun, letter careSendable, states map[int64]pa
 	if !ok {
 		return entry
 	}
-	entry.HasLetter = true
+	entry.HasLetter, entry.Printed = true, record.Printed
 	sends := current.sends[record.ID]
 	entry.Sends = len(sends)
 	if len(sends) == 0 {
@@ -359,12 +359,16 @@ func careSummary(documents []parentbilling.CareLetterMailing) parentbilling.Care
 			continue
 		}
 		summary.Letters++
-		switch document.Status {
-		case parentbilling.LetterMailSent:
-			summary.Sent++
-		case parentbilling.LetterMailQueued:
+		switch {
+		case careMailFailed(document.MailOutcome):
+			summary.Failed++
+		case document.MailOutcome == "delayed" || document.MailOutcome == "overdue":
 			summary.Queued++
-		case parentbilling.LetterMailFailed, parentbilling.LetterMailUnknown:
+		case document.Status == parentbilling.LetterMailSent:
+			summary.Sent++
+		case document.Status == parentbilling.LetterMailQueued:
+			summary.Queued++
+		case document.Status == parentbilling.LetterMailFailed || document.Status == parentbilling.LetterMailUnknown:
 			summary.Failed++
 		default:
 			summary.NotSent++
@@ -374,6 +378,16 @@ func careSummary(documents []parentbilling.CareLetterMailing) parentbilling.Care
 		}
 	}
 	return summary
+}
+
+// careMailFailed keeps provider refusals and failures out of the sent total.
+func careMailFailed(outcome string) bool {
+	switch outcome {
+	case "undeliverable", "complained", "blocked", "provider_blocked", "unsubscribed", "send_failed", "held_by_stop", "cancelled", "unknown":
+		return true
+	default:
+		return false
+	}
 }
 
 func (l *CareLetters) states(ctx context.Context, organizationID, runID int64) (map[int64]parentbilling.BillingLetterMailState, error) {

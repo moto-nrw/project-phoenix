@@ -32,6 +32,8 @@ const INVOICE = {
   cancelled: true,
   cancellation_number: "MB-2027-0009",
   has_letter: true,
+  printed: true,
+  replaced: true,
   status: "sent",
   sends: 1,
   attempts: 1,
@@ -91,6 +93,10 @@ describe("traeger-care-billing-api letters (#4684)", () => {
     );
 
     const letters = await fetchCareLetters("7");
+    expect(letters.documents[0]).toMatchObject({
+      printed: true,
+      replaced: true,
+    });
 
     expect(String(fetchMock.mock.calls[0]![0])).toBe(
       "/api/traeger/care-billing-runs/7/letters",

@@ -10,7 +10,7 @@ const { cancelCareInvoice } = vi.hoisted(() => ({
 }));
 vi.mock("~/lib/traeger-care-billing-api", () => ({ cancelCareInvoice }));
 
-import { CareCancellationModal } from "./care-cancellation-modal";
+import { BillingCorrectionModal } from "./billing-correction-modal";
 
 const INVOICE: CareLetterMailing = {
   invoiceId: "41",
@@ -39,18 +39,18 @@ const INVOICE: CareLetterMailing = {
 function renderModal(invoice: CareLetterMailing, onCancelled = vi.fn()) {
   render(
     <ToastProvider>
-      <CareCancellationModal
+      <BillingCorrectionModal
         runId="7"
-        invoice={invoice}
+        target={{ kind: "care-cancellation", invoice }}
         onClose={vi.fn()}
-        onCancelled={onCancelled}
+        onCareCancelled={onCancelled}
       />
     </ToastProvider>,
   );
   return onCancelled;
 }
 
-describe("CareCancellationModal (#4684)", () => {
+describe("BillingCorrectionModal monthly cancellation (#4684)", () => {
   beforeEach(() => {
     cancelCareInvoice.mockReset();
   });
@@ -69,6 +69,15 @@ describe("CareCancellationModal (#4684)", () => {
     expect(
       screen.getByText(
         "Die Familie bekommt ein Storno-Schreiben. Senden Sie es danach.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("offers a paper notice after printing", () => {
+    renderModal({ ...INVOICE, printed: true });
+    expect(
+      screen.getByText(
+        "Die Rechnung wurde zum Drucken heruntergeladen. Geben Sie der Familie das Storno-Schreiben auf Papier.",
       ),
     ).toBeInTheDocument();
   });
@@ -96,6 +105,31 @@ describe("CareCancellationModal (#4684)", () => {
       "41",
       "Falscher Empfänger",
     );
+  });
+
+  it("uses the issued paper notice even when another tab printed the invoice", async () => {
+    cancelCareInvoice.mockResolvedValue({
+      letters: null,
+      documents: [
+        {
+          ...INVOICE,
+          kind: "cancellation",
+          number: "MB-2026-0002",
+          hasLetter: true,
+        },
+      ],
+      summary: {},
+    });
+    renderModal(INVOICE);
+    fireEvent.change(screen.getByLabelText(/Begründung/), {
+      target: { value: "Vertrag endete" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Stornieren" }));
+    expect(
+      await screen.findByText(
+        "Storno MB-2026-0002 ist ausgestellt. Geben Sie der Familie das Storno-Schreiben auf Papier.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("shows the refusal of an invoice already cancelled", async () => {

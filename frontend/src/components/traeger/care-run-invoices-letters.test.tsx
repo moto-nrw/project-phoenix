@@ -200,6 +200,37 @@ describe("CareRunInvoices with letters (#4684)", () => {
     ).toBeGreaterThan(0);
   });
 
+  it("keeps the paper cancellation notice visible after printing", () => {
+    render(
+      <CareRunInvoices
+        invoices={[invoice()]}
+        month="2027-01-01"
+        released
+        letterActions={actions([
+          letter({
+            cancelled: true,
+            printed: true,
+            cancellationNumber: "MB-2027-0009",
+          }),
+          letter({
+            kind: "cancellation",
+            number: "MB-2027-0009",
+            totalCents: -9600,
+            recipientEmail: "",
+          }),
+        ])}
+      />,
+    );
+    expect(
+      screen.getAllByText(
+        "Zum Drucken heruntergeladen. Geben Sie der Familie das Storno-Schreiben.",
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.queryByText("Nicht gesendet. Die Familie bekommt nichts."),
+    ).not.toBeInTheDocument();
+  });
+
   it("asks to print for a family without an address", () => {
     render(
       <CareRunInvoices

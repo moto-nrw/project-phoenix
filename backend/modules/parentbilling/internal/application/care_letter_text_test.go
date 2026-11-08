@@ -140,3 +140,22 @@ func TestCareLetterSummaryCountsWhatTheRunMayStillSend(t *testing.T) {
 	})
 	assert.Equal(t, parentbilling.CareLetterSummary{Letters: 5, Sent: 1, Queued: 1, Failed: 1, NotSent: 2, WithoutEmail: 1}, summary)
 }
+
+// A provider report outranks SMTP acceptance in the totals as in each row.
+func TestCareLetterSummaryUsesProviderOutcomes(t *testing.T) {
+	t.Parallel()
+	for _, outcome := range []string{"undeliverable", "complained", "blocked", "provider_blocked", "unsubscribed", "send_failed", "held_by_stop", "cancelled", "unknown"} {
+		t.Run(outcome, func(t *testing.T) {
+			summary := careSummary([]parentbilling.CareLetterMailing{{Kind: parentbilling.CareLetterInvoice,
+				HasLetter: true, Status: parentbilling.LetterMailSent, Sends: 1, MailOutcome: outcome}})
+			assert.Equal(t, 1, summary.Failed)
+			assert.Zero(t, summary.Sent)
+		})
+	}
+	for _, outcome := range []string{"delayed", "overdue"} {
+		summary := careSummary([]parentbilling.CareLetterMailing{{Kind: parentbilling.CareLetterInvoice,
+			HasLetter: true, Status: parentbilling.LetterMailSent, Sends: 1, MailOutcome: outcome}})
+		assert.Equal(t, 1, summary.Queued)
+		assert.Zero(t, summary.Sent)
+	}
+}

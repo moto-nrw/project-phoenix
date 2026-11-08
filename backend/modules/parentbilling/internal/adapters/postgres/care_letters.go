@@ -53,6 +53,7 @@ type careLetterRow struct {
 	Filename       string    `bun:"filename"`
 	PDF            []byte    `bun:"pdf"`
 	SHA256         string    `bun:"sha256,scanonly"`
+	Printed        bool      `bun:"printed,scanonly"`
 	CreatedAt      time.Time `bun:"created_at,nullzero,default:current_timestamp"`
 }
 
@@ -87,11 +88,12 @@ type careCancellationRow struct {
 	Reason             string        `bun:"reason"`
 	TotalCents         int64         `bun:"total_cents"`
 	CreatedByAccountID *int64        `bun:"created_by_account_id"`
+	Replaced           bool          `bun:"replaced,scanonly"`
 }
 
 func (r careCancellationRow) cancellation() parentbilling.CareCancellation {
 	return parentbilling.CareCancellation{ID: r.ID, InvoiceID: r.InvoiceID, Number: r.Number, IssuedOn: r.IssuedOn,
-		Reason: r.Reason, TotalCents: r.TotalCents}
+		Reason: r.Reason, TotalCents: r.TotalCents, Replaced: r.Replaced}
 }
 
 // CareRunLetters reads what the Abrechnung wrote for the letters of a run;
@@ -153,15 +155,21 @@ func (s *Store) CareRunLetterRecords(ctx context.Context, organizationID, runID 
 	}
 	var rows []careLetterRow
 	query := db.NewSelect().Model(&rows).Where("organization_id = ?", organizationID).Where("run_id = ?", runID).OrderExpr("id")
-	if !withFiles {
+	if withFiles {
+		query = query.Column("care_letter_row.*")
+	} else {
 		query = query.Column("id", "organization_id", "run_id", "invoice_id", "kind", "filename")
 	}
+	query = query.ColumnExpr(`EXISTS (SELECT 1 FROM parent_billing.care_run_events AS event
+		WHERE event.organization_id = care_letter_row.organization_id AND event.run_id = care_letter_row.run_id
+		AND event.action = 'read' AND event.details->>'letter' = 'print'
+		AND event.details->'letter_ids' @> jsonb_build_array(care_letter_row.id)) AS printed`)
 	if err := query.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("read care letters: %w", err)
 	}
 	records := make([]parentbilling.CareLetterRecord, len(rows))
 	for i, row := range rows {
-		records[i] = parentbilling.CareLetterRecord{ID: row.ID, InvoiceID: row.InvoiceID, Kind: row.Kind}
+		records[i] = parentbilling.CareLetterRecord{ID: row.ID, InvoiceID: row.InvoiceID, Kind: row.Kind, Printed: row.Printed}
 		if withFiles {
 			records[i].File = &parentbilling.BillingLetterFile{Filename: row.Filename, ContentType: "application/pdf", Data: row.PDF}
 		}
@@ -176,8 +184,12 @@ func (s *Store) CareRunCancellations(ctx context.Context, organizationID, runID 
 		return nil, err
 	}
 	var rows []careCancellationRow
-	if err := db.NewSelect().Model(&rows).Where("organization_id = ?", organizationID).Where("run_id = ?", runID).
-		OrderExpr("id").Scan(ctx); err != nil {
+	if err := db.NewSelect().Model(&rows).Column("id", "invoice_id", "number", "issued_on", "reason", "total_cents").
+		ColumnExpr(`EXISTS (SELECT 1 FROM parent_billing.care_invoices AS replacement
+			WHERE replacement.organization_id = care_cancellation_row.organization_id
+			AND replacement.replaces_invoice_id = care_cancellation_row.invoice_id) AS replaced`).
+		Where("care_cancellation_row.organization_id = ?", organizationID).Where("care_cancellation_row.run_id = ?", runID).
+		OrderExpr("care_cancellation_row.id").Scan(ctx); err != nil {
 		return nil, fmt.Errorf("read care cancellations: %w", err)
 	}
 	cancellations := make([]parentbilling.CareCancellation, len(rows))
@@ -294,4 +306,22 @@ func cancelledInvoicesToReplace(ctx context.Context, db bun.IDB, organizationID 
 		replaced[row.ContractID] = &id
 	}
 	return replaced, nil
+}
+
+// CareLetterRecord loads one PDF rather than every PDF of the monthly run.
+func (s *Store) CareLetterRecord(ctx context.Context, organizationID, runID, invoiceID int64, kind string) (parentbilling.CareLetterRecord, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return parentbilling.CareLetterRecord{}, err
+	}
+	var row careLetterRow
+	if err := db.NewSelect().Model(&row).Column("id", "invoice_id", "kind", "filename", "pdf").Where("organization_id = ?", organizationID).
+		Where("run_id = ?", runID).Where("invoice_id = ?", invoiceID).Where("kind = ?", kind).Scan(ctx); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return parentbilling.CareLetterRecord{}, parentbilling.ErrBillingLetterNotFound
+		}
+		return parentbilling.CareLetterRecord{}, fmt.Errorf("read care letter: %w", err)
+	}
+	return parentbilling.CareLetterRecord{ID: row.ID, InvoiceID: row.InvoiceID, Kind: row.Kind,
+		File: &parentbilling.BillingLetterFile{Filename: row.Filename, ContentType: "application/pdf", Data: row.PDF}}, nil
 }

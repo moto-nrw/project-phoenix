@@ -24,8 +24,8 @@ import (
 //     is refused, a series sends nothing twice. Only the first send pushes.
 //   - A send goes only to the address the invoice copied, and only while that
 //     address is still the address of a party of the contract.
-//   - A Storno of an invoice that was never sent has no letter and sends
-//     nothing to the family; its invoice is not sent any more either.
+//   - A Storno of an invoice neither mailed nor downloaded for printing has
+//     no letter and sends nothing to the family; its invoice is not sent again.
 //   - A cancelled invoice is billed again by a later run of its month, which
 //     names it (replaces_invoice_id), at most once.
 
@@ -113,7 +113,7 @@ type CareLetterInput struct {
 // state of its last mail. Status is LetterMailNotSent before the first mail.
 // Cancelled marks an invoice with a Storno; HasLetter is false for an invoice
 // whose letters are not created yet and for a Storno of an invoice that was
-// never sent, which has no letter.
+// neither mailed nor downloaded for printing, which has no letter.
 type CareLetterMailing struct {
 	InvoiceID          int64         `json:"invoice_id"`
 	Kind               string        `json:"kind"`
@@ -131,6 +131,8 @@ type CareLetterMailing struct {
 	Cancelled          bool          `json:"cancelled"`
 	CancellationNumber string        `json:"cancellation_number,omitempty"`
 	HasLetter          bool          `json:"has_letter"`
+	Printed            bool          `json:"printed"`
+	Replaced           bool          `json:"replaced"`
 	Status             string        `json:"status"`
 	Sends              int           `json:"sends"`
 	Attempts           int           `json:"attempts"`
@@ -159,6 +161,8 @@ type CareLetterRecord struct {
 	InvoiceID int64
 	Kind      string
 	File      *BillingLetterFile
+	// Printed means this letter was included in a successful print download.
+	Printed bool
 }
 
 // CareLetterSend is one stored send of a letter: the outbox entry, the
@@ -179,6 +183,8 @@ type CareCancellation struct {
 	IssuedOn   calendar.Date
 	Reason     string
 	TotalCents int64
+	// Replaced means a later released invoice names this invoice as its source.
+	Replaced bool
 }
 
 // CareCancellationInput is the reason of a Storno, at most 500 characters.
@@ -223,8 +229,8 @@ type CareLetterService interface {
 	// PrintCareLetters combines the letters of the run into one PDF; only
 	// CareLetterPrintWithoutEmail keeps the families without an address.
 	PrintCareLetters(ctx context.Context, reviewer HolidayReviewer, runID int64, only string) (BillingLetterFile, error)
-	// CancelCareInvoice issues the Storno of an invoice of the run. A sent
-	// invoice gets the letter of its Storno at once; one never sent gets
-	// none, and the family receives nothing.
+	// CancelCareInvoice issues the Storno of an invoice of the run. An invoice
+	// mailed or downloaded for printing gets its Storno letter at once;
+	// one never shared gets none, and the family receives nothing.
 	CancelCareInvoice(ctx context.Context, reviewer HolidayReviewer, runID, invoiceID int64, input CareCancellationInput) (CareLetters, error)
 }

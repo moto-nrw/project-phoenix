@@ -10,7 +10,10 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { CareCancellationModal } from "~/components/traeger/care-cancellation-modal";
+import {
+  BillingCorrectionModal,
+  type BillingCorrectionTarget,
+} from "~/components/traeger/billing-correction-modal";
 import { CareLetterPanel } from "~/components/traeger/care-letter-panel";
 import {
   CareLettersCard,
@@ -124,7 +127,9 @@ export default function TraegerCareRunPage() {
   const [shownLetter, setShownLetter] = useState<CareLetterMailing | null>(
     null,
   );
-  const [cancelling, setCancelling] = useState<CareLetterMailing | null>(null);
+  const [cancelling, setCancelling] = useState<BillingCorrectionTarget | null>(
+    null,
+  );
   const [reissuing, setReissuing] = useState(false);
 
   const load = useCallback(async () => {
@@ -212,6 +217,7 @@ export default function TraegerCareRunPage() {
     try {
       const file = await printCareLetters(runId, withoutEmailOnly);
       downloadBlob(file.blob, file.filename);
+      await loadLetters();
     } catch (err) {
       logger.error("traeger_care_letters_print_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -228,6 +234,15 @@ export default function TraegerCareRunPage() {
     if (!run) return;
     setReissuing(true);
     try {
+      // Another tab may already have released the replacement.
+      const latest = await fetchCareLetters(run.id);
+      setLetters(latest);
+      if (
+        !latest.documents.some(
+          (document) => document.kind === "cancellation" && !document.replaced,
+        )
+      )
+        return;
       const open = (await fetchCareRuns()).runs.find(
         (other) =>
           other.status === "calculated" &&
@@ -280,8 +295,9 @@ export default function TraegerCareRunPage() {
 
   const preview = run?.status === "calculated";
   const cancelledCount =
-    letters?.documents.filter((document) => document.kind === "cancellation")
-      .length ?? 0;
+    letters?.documents.filter(
+      (document) => document.kind === "cancellation" && !document.replaced,
+    ).length ?? 0;
   const canRelease = preview && run.numberRangeSet && run.previewCount > 0;
 
   return (
@@ -330,11 +346,11 @@ export default function TraegerCareRunPage() {
               letter={shownLetter}
               onClose={() => setShownLetter(null)}
             />
-            <CareCancellationModal
+            <BillingCorrectionModal
               runId={run.id}
-              invoice={cancelling}
+              target={cancelling}
               onClose={() => setCancelling(null)}
-              onCancelled={(next) => {
+              onCareCancelled={(next) => {
                 setCancelling(null);
                 setLetters(next);
               }}
@@ -473,7 +489,8 @@ export default function TraegerCareRunPage() {
                     sendingKey,
                     onShowLetter: setShownLetter,
                     onSend: (letter) => void sendOne(letter),
-                    onCancel: setCancelling,
+                    onCancel: (invoice) =>
+                      setCancelling({ kind: "care-cancellation", invoice }),
                   }
                 : undefined
             }

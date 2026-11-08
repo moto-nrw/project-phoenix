@@ -185,7 +185,9 @@ function SendCell({
   if (!row.storno && letter.cancelled && letter.sends === 0) {
     return (
       <p className="text-sm text-gray-600">
-        Nicht gesendet. Die Familie bekommt nichts.
+        {letter.printed
+          ? "Zum Drucken heruntergeladen. Geben Sie der Familie das Storno-Schreiben."
+          : "Nicht gesendet. Die Familie bekommt nichts."}
       </p>
     );
   }

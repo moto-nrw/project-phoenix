@@ -214,6 +214,7 @@
       "target_owner": "delivery-platform"
     },
     {
+      "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterPost.EnqueueCareLetterMail",
       "classification": "platform",
       "effect": "durable",

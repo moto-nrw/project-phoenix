@@ -70,10 +70,15 @@ Storno mit demselben Nummernkreis.
    bleibt eindeutig). Storno und Freigabe halten dieselbe Sperre der
    Monatsabrechnung.
 7. **Storno vor dem Versand erreicht die Familie nicht.** Wurde das Schreiben der
-   Rechnung nie gesendet, bekommt der Storno kein Schreiben, die Rechnung wird
+   Rechnung weder gesendet noch zum Drucken heruntergeladen, bekommt der Storno kein Schreiben, die Rechnung wird
    nicht mehr gesendet, und weder Mail noch Postfach noch Druck nennen sie
-   (Nachtrag 2026-11-08 zu ADR 0119). Wurde sie gesendet, bekommt der Storno
-   sofort sein Schreiben, das die Abrechnung danach sendet.
+   (Nachtrag 2026-11-08 zu ADR 0119). Wurde sie gesendet oder zum Drucken heruntergeladen, bekommt der Storno
+   sofort sein Schreiben, das die Abrechnung danach sendet oder auf Papier
+   aushändigt. Der vorhandene Druck-Eintrag im Laufverlauf belegt den Download
+   je Schreiben. Er behauptet keine erfolgte Aushändigung: Nach einem solchen
+   Download kann die Familie die Rechnung bereits haben. Druck und Storno
+   halten dieselbe Laufsperre. Die Meldung zur Neuausstellung zählt nur
+   Rechnungen ohne bereits freigegebenen Ersatz.
 8. **Sammeldruck.** Alle Schreiben, die der Lauf noch senden darf, gehen als ein
    PDF; mit `only=without_email` nur die der Familien ohne Adresse.
 9. **Demo-Löschung.** Schreiben und Versände gehen mit ihrer Rechnung (Cascade).

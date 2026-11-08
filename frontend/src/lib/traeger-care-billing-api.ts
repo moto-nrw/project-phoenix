@@ -520,6 +520,10 @@ export interface CareLetterMailing {
   readonly cancelled: boolean;
   readonly cancellationNumber: string;
   readonly hasLetter: boolean;
+  /** A paper copy was downloaded through the print action. */
+  readonly printed?: boolean;
+  /** A later released invoice replaces this cancelled invoice. */
+  readonly replaced?: boolean;
   readonly status: LetterMailStatus;
   readonly sends: number;
   readonly attempts: number;
@@ -574,6 +578,8 @@ interface BackendCareLetterMailing {
   cancelled: boolean;
   cancellation_number?: string;
   has_letter: boolean;
+  printed?: boolean;
+  replaced?: boolean;
   status: LetterMailStatus;
   sends: number;
   attempts: number;
@@ -620,6 +626,8 @@ function careMailingFromBackend(
     cancelled: mailing.cancelled,
     cancellationNumber: mailing.cancellation_number ?? "",
     hasLetter: mailing.has_letter,
+    printed: mailing.printed ?? false,
+    replaced: mailing.replaced ?? false,
     status: mailing.status,
     sends: mailing.sends,
     attempts: mailing.attempts,

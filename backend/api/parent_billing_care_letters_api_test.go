@@ -32,6 +32,8 @@ type careLetterDocumentBody struct {
 	Cancelled          bool   `json:"cancelled"`
 	CancellationNumber string `json:"cancellation_number"`
 	HasLetter          bool   `json:"has_letter"`
+	Printed            bool   `json:"printed"`
+	Replaced           bool   `json:"replaced"`
 	Status             string `json:"status"`
 	Sends              int    `json:"sends"`
 }
@@ -249,6 +251,7 @@ func TestCareInvoiceCancelledBeforeTheSendReachesNoFamilyAndIsIssuedAgain(t *tes
 	assert.Regexp(t, `^MB-\d{4}-0003$`, storno.Number, "the Storno takes the next number of the invoices")
 	assert.Equal(t, -mia.TotalCents, storno.TotalCents)
 	assert.False(t, storno.HasLetter, "a Storno of an invoice never sent has no letter")
+	assert.False(t, storno.Replaced, "a cancelled invoice still needs a replacement before release")
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, cancel, map[string]any{"reason": "Noch einmal"})
 	assert.Equal(t, http.StatusConflict, rec.Code, "an invoice is cancelled once: %s", rec.Body.String())
 
@@ -276,6 +279,7 @@ func TestCareInvoiceCancelledBeforeTheSendReachesNoFamilyAndIsIssuedAgain(t *tes
 	require.NoError(t, f.db.NewRaw(`SELECT replaces_invoice_id FROM parent_billing.care_invoices WHERE id = ?`, reissued.ID).
 		Scan(context.Background(), &replaces))
 	assert.Equal(t, mia.ID, replaces)
+	assert.True(t, careLetterOf(careLetters(t, f, run.ID), mia, "cancellation").Replaced, "the old run must stop offering reissue after release")
 	assert.Empty(t, f.run(t, f.startRun(t, careMonth).ID).Invoices, "the new invoice bills the contract again, once")
 }
 
@@ -399,4 +403,38 @@ func TestCareLettersQueryBudgetIsFlat(t *testing.T) {
 	one := read(first.ID)
 	assert.Len(t, read(second.ID), len(one), "the letters read the same statements for any number of invoices")
 	querybudgets.AssertQueryBudget(t, "api.traeger.care_billing_run_letters", one)
+}
+
+// Printing may already have put the invoice in the family's hands. Its Storno
+// must therefore be printable, without publishing either letter to the inbox.
+func TestCareInvoiceCancelledAfterPrintingGetsAPaperNotice(t *testing.T) {
+	t.Parallel()
+	f := newCareBillingFixture(t, "Träger Papierstorno")
+	brandCareTraeger(t, f)
+	run, contracts := releasedCareRun(t, f, "Noah", "Mia")
+	noah, mia := invoiceOfContract(t, run, contracts["Noah"]), invoiceOfContract(t, run, contracts["Mia"])
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/letters"), careLettersInput())
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodGet, careRunPath(run.ID, "/letters/print?only=without_email"), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	printed := careLetters(t, f, run.ID)
+	assert.True(t, careLetterOf(printed, noah, "invoice").Printed)
+	assert.False(t, careLetterOf(printed, mia, "invoice").Printed)
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, fmt.Sprintf("/invoices/%d/cancellation", noah.ID)),
+		map[string]any{"reason": "Vertrag endete im Dezember"})
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	letters := decodeSchoolPortalData[careLettersBody](t, rec.Body.Bytes())
+	assert.True(t, careLetterOf(letters, noah, "cancellation").HasLetter, "the printed invoice needs a printable Storno")
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodGet,
+		careRunPath(run.ID, fmt.Sprintf("/invoices/%d/letter?kind=cancellation", noah.ID)), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodGet, careRunPath(run.ID, "/letters/print?only=without_email"), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Empty(t, careLetterMails(t, f, run.ID))
+	assert.Zero(t, careInboxPushes(t, f))
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, fmt.Sprintf("/invoices/%d/cancellation", mia.ID)),
+		map[string]any{"reason": "Falscher Vertrag"})
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	assert.False(t, careLetterOf(decodeSchoolPortalData[careLettersBody](t, rec.Body.Bytes()), mia, "cancellation").HasLetter,
+		"the print filter must not mark the other invoice as printed")
 }

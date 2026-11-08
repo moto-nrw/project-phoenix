@@ -91,6 +91,24 @@ func TestCareLettersFiltersKeepTheTraegerBelowRLS(t *testing.T) {
 		records, err := store.CareRunLetterRecords(ctx, own.organization, other.released, true)
 		require.NoError(t, err)
 		assert.Empty(t, records, "CareRunLetterRecords of another Träger's run")
+
+		for _, lookup := range []struct {
+			organization, run, invoice int64
+			kind                       string
+		}{
+			{own.organization, other.released, other.invoice, parentbilling.CareLetterInvoice},
+			{own.organization, own.released, other.invoice, parentbilling.CareLetterInvoice},
+			{other.organization, own.released, own.invoice, parentbilling.CareLetterInvoice},
+			{own.organization, own.released, own.invoice, "missing"},
+		} {
+			_, err := store.CareLetterRecord(ctx, lookup.organization, lookup.run, lookup.invoice, lookup.kind)
+			assert.Error(t, err, "single-letter lookups must reject mismatched scope or kind")
+		}
+		record, err := store.CareLetterRecord(ctx, own.organization, own.released, own.invoice, parentbilling.CareLetterCancellation)
+		require.NoError(t, err)
+		require.NotNil(t, record.File)
+		assert.Equal(t, own.stornoLetter, record.ID)
+		assert.Equal(t, "storno.pdf", record.File.Filename)
 		cancellations, err := store.CareRunCancellations(ctx, own.organization, other.released)
 		require.NoError(t, err)
 		assert.Empty(t, cancellations, "CareRunCancellations of another Träger's run")
