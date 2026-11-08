@@ -340,3 +340,20 @@ func TestCareMealGapBeforeTheAttendanceWindowIsExpired(t *testing.T) {
 		{SchoolID: schoolIspringen, SchoolName: "Ispringen", Month: day(t, "2026-03-01")},
 	}, month.mealGaps)
 }
+
+// A school that left the Träger keeps the prices of the months it billed,
+// but its months wait for no release: the run names no gap without a
+// school name in every later month.
+func TestCareMealGapsSkipASchoolOutsideTheTraeger(t *testing.T) {
+	t.Parallel()
+	month, versions := mealMonth(t)
+	departed := parentbilling.CareMealTariff{SchoolID: schoolIspringen + 1, ValidFrom: day(t, "2026-01-01"),
+		Mode: parentbilling.MealModePerMeal, AmountCents: 480}
+	billMeals(&month, careMealInput{month: day(t, mealRunMonth), today: day(t, mealToday),
+		schools:  map[int64]string{schoolIspringen: "Ispringen"},
+		tariffs:  []parentbilling.CareMealTariff{mealTariff(t, parentbilling.MealModePerMeal, "2026-03-01", 480), departed},
+		versions: versions})
+	assert.Equal(t, []parentbilling.CareMealGap{
+		{SchoolID: schoolIspringen, SchoolName: "Ispringen", Month: day(t, "2026-03-01")},
+	}, month.mealGaps)
+}

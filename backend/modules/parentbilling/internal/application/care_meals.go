@@ -267,13 +267,17 @@ func billMeals(month *careMonth, in careMealInput) {
 }
 
 // addMealGap names an ended month a school bills its Mensa for without a
-// release, and whether its attendance is past the school's retention.
+// release, and whether its attendance is past the school's retention. A
+// school that no longer belongs to the Träger keeps its prices for the
+// months it billed, but waits for no release.
 func addMealGap(month *careMonth, in careMealInput, school int64, m calendar.Date) {
-	if monthEnd(m).Before(in.today) {
-		from, known := in.attendance[school]
-		month.mealGaps = append(month.mealGaps, parentbilling.CareMealGap{SchoolID: school, SchoolName: in.schools[school], Month: m,
-			Expired: known && m.Before(from)})
+	name, active := in.schools[school]
+	if !active || !monthEnd(m).Before(in.today) {
+		return
 	}
+	from, known := in.attendance[school]
+	month.mealGaps = append(month.mealGaps, parentbilling.CareMealGap{SchoolID: school, SchoolName: name, Month: m,
+		Expired: known && m.Before(from)})
 }
 
 // billRelease bills each child of a release not billed for its month yet.
