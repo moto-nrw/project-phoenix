@@ -38,6 +38,10 @@ func (s *settingsService) ResolveMany(ctx context.Context, keys []string) (resul
 		s.observeLookups(keys, cacheState, time.Since(started), err)
 	}()
 
+	if err := s.checkSchoolReadContext(ctx); err != nil {
+		return nil, err
+	}
+
 	tenantID := s.tenantID(ctx)
 	if snapshot := config.SnapshotFromContext(ctx, tenantID, keys); snapshot != nil {
 		// Explicit snapshots are returned as-is and deliberately NEVER copied
@@ -81,6 +85,10 @@ func (s *settingsService) observeLookups(keys []string, cacheState map[string]st
 // query when a scheduler already prefetched the values, and a full
 // request-cache hit skips the tenant transaction entirely (issue #2065).
 func (s *settingsService) ResolveManyForTenant(ctx context.Context, tenantID int64, keys []string) (*config.SettingsSnapshot, error) {
+	if err := s.checkSchoolReadContext(ctx); err != nil {
+		return nil, err
+	}
+
 	if snapshot := config.SnapshotFromContext(ctx, tenantID, keys); snapshot != nil {
 		s.observeLookups(keys, lookupState(keys, "snapshot"), 0, nil)
 		return snapshot, nil
@@ -129,6 +137,10 @@ func lookupState(keys []string, state string) map[string]string {
 // owns the minute snapshot) and other admin-tx batch paths that already
 // coalesce their reads.
 func (s *settingsService) ResolveManyForTenants(ctx context.Context, tenantIDs []int64, keys []string) (map[int64]*config.SettingsSnapshot, error) {
+	if err := s.checkSchoolReadContext(ctx); err != nil {
+		return nil, err
+	}
+
 	uniqueTenantIDs, seenTenantIDs := uniqueSettingsTenants(tenantIDs)
 
 	result := make(map[int64]*config.SettingsSnapshot, len(uniqueTenantIDs))
@@ -235,6 +247,10 @@ func (s *settingsService) ResolveBoolForTenantInTx(ctx context.Context, tenantID
 }
 
 func (s *settingsService) resolveForTenantInTx(ctx context.Context, tenantID int64, key string) (*config.SettingsSnapshot, error) {
+	if err := s.checkSchoolReadContext(ctx); err != nil {
+		return nil, err
+	}
+
 	if tenantID <= 0 {
 		return nil, &config.SettingsError{
 			Op:  "resolve_in_tx",
@@ -453,4 +469,13 @@ func settingsRowsByTenant(stored []*config.SettingValue, seenTenantIDs map[int64
 		}
 	}
 	return storedByTenant
+}
+
+// Check before snapshots, request caches and defaults: none authorizes a school
+// read on the Träger transaction, whose RLS hides every school override.
+func (s *settingsService) checkSchoolReadContext(ctx context.Context) error {
+	if s.runtime != nil && s.runtime.IsTraegerTransaction(ctx) {
+		return &config.SettingsError{Op: "resolve_school_settings", Err: config.ErrSchoolReadInTraegerTransaction}
+	}
+	return nil
 }
