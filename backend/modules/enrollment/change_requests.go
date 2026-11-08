@@ -19,6 +19,11 @@ var (
 	// already taken over into care; those changes run through the parent
 	// app (ADR 0003).
 	ErrChangeRequestChildLocked = errors.New("enrollment change request cannot change a child that is already in care")
+	// ErrChangeRequestParentNotPermitted refuses approving a family's
+	// change to a child whose relationship the school removed after the
+	// submission pinned it (#6053): the family may no longer write that
+	// child's data, and the school-approved weekly plan must not replay it.
+	ErrChangeRequestParentNotPermitted = errors.New("enrollment change request: the family may no longer change this child")
 )
 
 // CreateChangeRequestInput is a family's proposed correction of its request.

@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -182,6 +183,27 @@ type enrollmentStudentRecords struct{ repo enrollmentStudentRows }
 func (s enrollmentStudentRecords) FindStudent(ctx context.Context, id int64) error {
 	_, err := s.repo.FindByID(ctx, id)
 	return err
+}
+
+// EnrolledMatchCandidates maps the directory's enrolled-child candidates of
+// an enrollment onto Enrollment's values (#6053).
+func (s enrollmentStudentRecords) EnrolledMatchCandidates(ctx context.Context, firstName, lastName string, birthday timezone.Date) ([]enrollmentOwner.ExistingChildCandidate, error) {
+	rows, err := s.repo.FindEnrolledMatchCandidates(ctx, firstName, lastName, birthday)
+	if err != nil {
+		return nil, err
+	}
+	candidates := make([]enrollmentOwner.ExistingChildCandidate, 0, len(rows))
+	for _, row := range rows {
+		candidate := enrollmentOwner.ExistingChildCandidate{
+			StudentID: row.StudentID, FirstName: row.FirstName, LastName: row.LastName, SchoolClass: row.SchoolClass,
+		}
+		if row.Birthday != nil {
+			dob := enrollmentOwner.Date(row.Birthday.String())
+			candidate.DateOfBirth = &dob
+		}
+		candidates = append(candidates, candidate)
+	}
+	return candidates, nil
 }
 
 // decisionStudentRow is the People Directory row of a decision's student.

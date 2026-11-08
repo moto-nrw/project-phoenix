@@ -372,7 +372,7 @@ func (s *Intake) createSubmittedChildren(ctx context.Context, req *SubmitRequest
 	created := make([]*enrollmentNative.RequestChild, 0, len(req.Children))
 	for i, child := range req.Children {
 		row := newSubmittedChild(request.ID, i, child, overrides)
-		matchedStudentID, err := s.resolveMatchedStudentID(ctx, req.TenantID, plan.phase, i, child)
+		matchedStudentID, err := s.submittedChildPin(ctx, req.TenantID, plan.phase, i, child, submitter)
 		if err != nil {
 			return nil, err
 		}

@@ -102,7 +102,7 @@ func (r *Store) HasActiveRequestForMatchedStudent(ctx context.Context, phaseID, 
 		Join(`JOIN enrollment.requests AS req ON req.id = rc.request_id AND req.tenant_id = rc.tenant_id`).
 		Where(`req.tenant_id = ?`, tenantID).
 		Where(`req.phase_id = ?`, phaseID).
-		Where(`rc.matched_student_id = ?`, studentID).
+		Where(`(rc.matched_student_id = ? OR rc.created_student_id = ?)`, studentID, studentID).
 		Where(`rc.status NOT IN (?, ?)`, enrollment.ChildStatusRejected, enrollment.ChildStatusWithdrawn)
 	if excludeRequestChildID > 0 {
 		q = q.Where(`rc.id <> ?`, excludeRequestChildID)

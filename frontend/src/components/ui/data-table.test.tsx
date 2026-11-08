@@ -8,6 +8,12 @@
 import { render, screen, fireEvent, within } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 
+import {
+  DESKTOP_WIDTH,
+  setViewportWidth,
+  usePhoneViewport,
+} from "~/test/helpers/viewport";
+
 import { DataTable } from "./data-table";
 import type { DataTableColumn } from "./data-table";
 
@@ -141,30 +147,37 @@ describe("DataTable keyboard navigation", () => {
     }
   });
 
-  it("does not turn rows with controls into nested buttons", () => {
-    render(
-      <DataTable
-        columns={[
-          ...columns,
-          {
-            key: "actions",
-            header: "Aktionen",
-            render: () => <button type="button">Anzeigen</button>,
-          },
-        ]}
-        rows={rows}
-        getRowKey={(row) => row.id}
-        onRowClick={vi.fn()}
-        rowHasInteractiveControls
-        stackedOnMobile
-      />,
-    );
+  describe("at phone width", () => {
+    usePhoneViewport();
 
-    const stacked = screen.getByTestId("data-table-stacked");
-    const row = stacked.querySelector("li");
-    expect(row).not.toHaveAttribute("role", "button");
-    expect(row).not.toHaveAttribute("tabindex");
-    expect(screen.getAllByRole("button", { name: "Anzeigen" })).toHaveLength(4);
+    it("does not turn rows with controls into nested buttons", () => {
+      render(
+        <DataTable
+          columns={[
+            ...columns,
+            {
+              key: "actions",
+              header: "Aktionen",
+              render: () => <button type="button">Anzeigen</button>,
+            },
+          ]}
+          rows={rows}
+          getRowKey={(row) => row.id}
+          onRowClick={vi.fn()}
+          rowHasInteractiveControls
+          stackedOnMobile
+        />,
+      );
+
+      const stacked = screen.getByTestId("data-table-stacked");
+      const row = stacked.querySelector("li");
+      expect(row).not.toHaveAttribute("role", "button");
+      expect(row).not.toHaveAttribute("tabindex");
+      // Only the phone list is in the document (#6220): one button per row.
+      expect(screen.getAllByRole("button", { name: "Anzeigen" })).toHaveLength(
+        2,
+      );
+    });
   });
 });
 
@@ -286,6 +299,8 @@ describe("DataTable pagination", () => {
 // declare the role they play so a phone shows the values a narrow viewport
 // would otherwise push off screen.
 describe("DataTable stacked phone layout", () => {
+  usePhoneViewport();
+
   interface PersonRow {
     id: string;
     name: string;
@@ -316,14 +331,15 @@ describe("DataTable stacked phone layout", () => {
   ];
 
   it("renders the field columns as labelled lines beside the table", () => {
-    render(
+    const table = (
       <DataTable
         columns={stackedColumns}
         rows={people}
         getRowKey={(row) => row.id}
         stackedOnMobile
-      />,
+      />
     );
+    const { unmount } = render(table);
 
     const stacked = screen.getByTestId("data-table-stacked");
     expect(stacked).toHaveTextContent("Mia");
@@ -331,7 +347,15 @@ describe("DataTable stacked phone layout", () => {
     // The label comes from the column header, the value from its renderer.
     expect(stacked).toHaveTextContent("IBAN");
     expect(stacked).toHaveTextContent("•••• 3000");
-    expect(screen.getByTestId("data-table-table")).toBeInTheDocument();
+    // The desktop table leaves the document at phone width (#6220) and is
+    // the only layout above the breakpoint (fresh render: see
+    // setViewportWidth).
+    expect(screen.queryByTestId("data-table-table")).not.toBeInTheDocument();
+    unmount();
+    setViewportWidth(DESKTOP_WIDTH);
+    render(table);
+    expect(screen.getByTestId("data-table-table")).toHaveTextContent("Mia");
+    expect(screen.queryByTestId("data-table-stacked")).not.toBeInTheDocument();
   });
 
   it("drops a field line whose cell has no value for that row", () => {
@@ -523,6 +547,8 @@ describe("DataTable selection and hidden columns (#3834)", () => {
 });
 
 describe("DataTable one-line phone list (#3834)", () => {
+  usePhoneViewport();
+
   const phoneColumns: DataTableColumn<Row>[] = [
     {
       key: "name",
@@ -577,7 +603,7 @@ describe("DataTable one-line phone list (#3834)", () => {
   });
 
   it("keeps the phone status when its desktop column is hidden", () => {
-    render(
+    const table = (
       <DataTable
         columns={[
           phoneColumns[0]!,
@@ -593,11 +619,15 @@ describe("DataTable one-line phone list (#3834)", () => {
         hiddenColumns={new Set(["status"])}
         stackedOnMobile
         stackedLayout="row"
-      />,
+      />
     );
+    const { unmount } = render(table);
 
     const stacked = within(screen.getByTestId("data-table-stacked"));
     expect(stacked.getByText("Status 1")).toBeInTheDocument();
+    unmount();
+    setViewportWidth(DESKTOP_WIDTH);
+    render(table);
     expect(screen.getByTestId("data-table-table")).not.toHaveTextContent(
       "Status 1",
     );
@@ -697,6 +727,8 @@ describe("DataTable load-more button (#4975)", () => {
 });
 
 describe("DataTable form phone layout (#4807)", () => {
+  usePhoneViewport();
+
   interface WageRow {
     id: string;
     name: string;

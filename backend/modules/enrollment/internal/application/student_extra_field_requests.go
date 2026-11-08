@@ -3,18 +3,29 @@ package application
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 // StudentExtraFieldRequests keeps the decision-history read independent from
-// the extra-field read graph. All reads join the caller's tenant transaction.
+// the extra-field read graph. Office matches remain in history, but their
+// unrelated answers are not student data. All reads join the tenant transaction.
 func (d *Decisions) StudentExtraFieldRequests(ctx context.Context, studentID int64) (result []*enrollment.DecisionSummary, err error) {
 	defer func() { err = PublicError(err) }()
 	if studentID <= 0 {
 		return nil, fmt.Errorf("decision: student_id required")
 	}
-	return d.listDecisionRequests(ctx, enrollment.RequestListFilters{CreatedStudentID: studentID}, "decision: list requests by student")
+	result, err = d.listDecisionRequests(ctx, enrollment.RequestListFilters{CreatedStudentID: studentID}, "decision: list requests by student")
+	if err != nil {
+		return nil, err
+	}
+	return slices.DeleteFunc(result, func(summary *enrollment.DecisionSummary) bool {
+		summary.Children = slices.DeleteFunc(summary.Children, func(child *enrollment.RequestChild) bool {
+			return child.MatchedByOffice
+		})
+		return len(summary.Children) == 0
+	}), nil
 }
 
 // assembleRequests assembles every request from one phase, one child and one

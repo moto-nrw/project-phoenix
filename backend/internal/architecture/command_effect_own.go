@@ -11,8 +11,9 @@ import (
 // A concrete receiver of the source owner is the owner's own implementation,
 // not a binding. Its body is not inventoried as foreign effects, but callables
 // it invokes can carry root closures supplied through its constructor (#4836
-// M3, ADR 0094). Follow only those callables, reached through the owner's own
-// statically called methods and functions; own interfaces are separate ports.
+// M3, ADR 0094). Follow only those callables and the owner-internal interfaces
+// (see ownInternalSources), reached through the owner's own statically called
+// methods and functions.
 func (s *effectScanner) resolveOwnMethod(port, binding string, receiver types.Type, name string, seen map[string]bool, trail []string) {
 	obj, indexes, _ := types.LookupFieldOrMethod(receiver, true, effectTypePackage(receiver), name)
 	if len(indexes) > 1 {
@@ -20,14 +21,41 @@ func (s *effectScanner) resolveOwnMethod(port, binding string, receiver types.Ty
 		return
 	}
 	if fn, ok := obj.(*types.Func); ok {
-		s.resolveOwnCallables(port, binding, s.ownReachable(fn.Origin()), seen, trail)
+		s.resolveOwnReach(port, binding, s.ownReachable(fn.Origin()), seen, trail)
 	}
 }
 
-func (s *effectScanner) resolveOwnCallables(port, binding string, callables []types.Object, seen map[string]bool, trail []string) {
-	for _, callable := range callables {
+func (s *effectScanner) resolveOwnReach(port, binding string, reach ownReach, seen map[string]bool, trail []string) {
+	for _, callable := range reach.callables {
 		s.resolveOrDiagnose(port, binding, callable, "unresolved:"+effectCallableIdentity(callable), trail)
 	}
+	for _, call := range reach.calls {
+		for _, source := range s.ownInternalSources(call.receiver) {
+			s.resolve(port, binding, source, call.name, seen, trail)
+		}
+	}
+}
+
+// An own interface is a separate port when any binding comes from outside
+// the owner. When every binding is a concrete type of the owner itself (its
+// composition's runtime adapter, a unit of work holding composed callables),
+// no other port inventories what the call enters: the call resolves into
+// those bindings (#6125). An interface without bindings is nil or unset.
+func (s *effectScanner) ownInternalSources(receiver types.Type) []types.Type {
+	var sources []types.Type
+	for destination, candidates := range s.bindings {
+		if !types.Identical(destination, receiver) {
+			continue
+		}
+		for _, source := range distinctEffectSources(receiver, candidates) {
+			if effectInterface(source) != nil || s.receiverOwner(source) != s.sourceOwner {
+				return nil
+			}
+			sources = append(sources, source)
+		}
+	}
+	sort.Slice(sources, func(i, j int) bool { return effectTypeID(sources[i]) < effectTypeID(sources[j]) })
+	return sources
 }
 
 // The owner's own bodies are not binding evidence: editing them changes no
@@ -36,31 +64,64 @@ func (s *effectScanner) resolveOwnCallables(port, binding string, callables []ty
 type ownEffectSummary struct {
 	callables []types.Object
 	callees   []*types.Func
+	calls     []ownInterfaceCall
 }
 
-func (s *effectScanner) ownReachable(start *types.Func) []types.Object {
+// ownInterfaceCall is a method call on one of the owner's own interfaces.
+type ownInterfaceCall struct {
+	receiver types.Type
+	name     string
+}
+
+func (c ownInterfaceCall) identity() string { return effectTypeID(c.receiver) + "." + c.name }
+
+// ownReach is everything an own function reaches through the owner's
+// statically called functions: callables it reads or forwards and calls on
+// own interfaces.
+type ownReach struct {
+	callables []types.Object
+	calls     []ownInterfaceCall
+}
+
+func (s *effectScanner) ownReachable(start *types.Func) ownReach {
 	if cached, ok := s.ownCallables[start]; ok {
 		return cached
 	}
+	result := s.ownReachFrom(s.ownFunctionSummary(start), map[*types.Func]bool{start: true})
+	s.ownCallables[start] = result
+	return result
+}
+
+func (s *effectScanner) ownReachFrom(first ownEffectSummary, visited map[*types.Func]bool) ownReach {
 	found := map[types.Object]bool{}
-	visited := map[*types.Func]bool{start: true}
-	queue := []*types.Func{start}
+	calls := map[string]ownInterfaceCall{}
+	queue := []ownEffectSummary{first}
 	for len(queue) > 0 {
-		summary := s.ownFunctionSummary(queue[0])
+		summary := queue[0]
 		queue = queue[1:]
 		for _, callable := range summary.callables {
 			found[callable] = true
 		}
+		for _, call := range summary.calls {
+			calls[call.identity()] = call
+		}
 		for _, callee := range summary.callees {
 			if !visited[callee] {
 				visited[callee] = true
-				queue = append(queue, callee)
+				queue = append(queue, s.ownFunctionSummary(callee))
 			}
 		}
 	}
-	result := sortedEffectObjects(found)
-	s.ownCallables[start] = result
+	result := ownReach{callables: sortedEffectObjects(found)}
+	for _, call := range calls {
+		result.calls = append(result.calls, call)
+	}
+	sortOwnInterfaceCalls(result.calls)
 	return result
+}
+
+func sortOwnInterfaceCalls(calls []ownInterfaceCall) {
+	sort.Slice(calls, func(i, j int) bool { return calls[i].identity() < calls[j].identity() })
 }
 
 func (s *effectScanner) ownFunctionSummary(fn *types.Func) ownEffectSummary {
@@ -81,11 +142,15 @@ func (s *effectScanner) ownNodeSummary(pkg *packages.Package, body *ast.BlockStm
 	known := knownEffectCallables(pkg, body)
 	callables := map[types.Object]bool{}
 	callees := map[*types.Func]bool{}
+	calls := map[string]ownInterfaceCall{}
 	ast.Inspect(body, func(node ast.Node) bool {
 		var callable types.Object
 		var callee *types.Func
 		switch n := node.(type) {
 		case *ast.SelectorExpr:
+			if call, ok := s.ownInterfaceSelector(pkg, owner, n); ok {
+				calls[call.identity()] = call
+			}
 			callable, callee = s.ownSelectorSummary(pkg, owner, n)
 		case *ast.Ident:
 			callable, callee = s.ownIdentSummary(pkg, owner, n, known)
@@ -99,6 +164,10 @@ func (s *effectScanner) ownNodeSummary(pkg *packages.Package, body *ast.BlockStm
 		return true
 	})
 	summary := ownEffectSummary{callables: sortedEffectObjects(callables)}
+	for _, call := range calls {
+		summary.calls = append(summary.calls, call)
+	}
+	sortOwnInterfaceCalls(summary.calls)
 	for callee := range callees {
 		summary.callees = append(summary.callees, callee)
 	}
@@ -143,6 +212,20 @@ func (s *effectScanner) ownSelectorSummary(pkg *packages.Package, owner string, 
 		return selection.Obj(), nil
 	}
 	return nil, nil
+}
+
+// ownInterfaceSelector reports a method selected on a named interface of the
+// owner, such as s.runtime.WithAdminTx or s.tx.RunPlatform.
+func (s *effectScanner) ownInterfaceSelector(pkg *packages.Package, owner string, selector *ast.SelectorExpr) (ownInterfaceCall, bool) {
+	selection := pkg.TypesInfo.Selections[selector]
+	if selection == nil || selection.Kind() != types.MethodVal {
+		return ownInterfaceCall{}, false
+	}
+	receiver := pkg.TypesInfo.TypeOf(selector.X)
+	if namedEffectType(receiver) == nil || effectInterface(receiver) == nil || s.receiverOwner(receiver) != owner {
+		return ownInterfaceCall{}, false
+	}
+	return ownInterfaceCall{receiver: receiver, name: selector.Sel.Name}, true
 }
 
 func (s *effectScanner) functionOwner(fn *types.Func) string {

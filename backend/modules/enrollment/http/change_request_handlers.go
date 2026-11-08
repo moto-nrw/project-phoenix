@@ -350,6 +350,8 @@ func mapChangeRequestError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, capability.ErrChangeRequestNotAllowed),
 		errors.Is(err, capability.ErrEditNotAllowed):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeEnrollmentChangeRequestNotAllowed))
+	case errors.Is(err, capability.ErrChangeRequestParentNotPermitted):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentChangeRequestParentNotPermitted))
 	case errors.Is(err, capability.ErrChangeRequestConflict):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentChangeRequestConflict))
 	case errors.Is(err, capability.ErrChangeRequestInvalidStatus):

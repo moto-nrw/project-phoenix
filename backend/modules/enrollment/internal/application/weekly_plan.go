@@ -178,7 +178,9 @@ func (d *Decisions) ApplyDueWeeklyPlans(ctx context.Context, asOf calendar.Date)
 }
 
 // applyWeeklyPlan applies one due plan and clears it. A plan whose child is
-// no longer approved or no longer cared for is dropped without applying.
+// no longer approved or no longer cared for is dropped without applying. The
+// plan is the school's approved decision: a parent relationship removed after
+// the approval does not cancel it, and applying it links no guardian (#6053).
 func (d *Decisions) applyWeeklyPlan(ctx context.Context, plan enrollmentNative.WeeklyPlan) (bool, error) {
 	requestChildID := plan.RequestChildID
 	child, err := d.deps.Children.ChildByID(ctx, requestChildID)

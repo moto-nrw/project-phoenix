@@ -517,3 +517,58 @@ func TestCommandEffectsResolveForwardedAndMethodCallables(t *testing.T) {
 		})
 	}
 }
+
+func fixtureEffectEdges(t *testing.T, project string, policy *Policy) map[string]bool {
+	t.Helper()
+	loaded, err := loadTypedPackages(project, policy.Build)
+	if err != nil {
+		t.Fatal(err)
+	}
+	edges := map[string]bool{}
+	for _, site := range discoverCommandEffects(policy, loaded) {
+		edges[strings.TrimPrefix(site.Port, "example.test/effects/")+" -> "+strings.TrimPrefix(site.Target, "example.test/effects/")] = true
+	}
+	return edges
+}
+
+// #6125: a transaction the owner opens through its own runtime interface was
+// invisible when the interface's only bindings were owner-internal: the owner
+// composition's adapter, or a unit of work holding composed callables. A
+// same-owner interface bound to a foreign implementation stays its own port.
+func TestCommandEffectsFollowOwnInterfacesBoundInsideTheOwner(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, domain, compose string }{
+		{"composition adapter",
+			"type runtime interface { Within(context.Context, func(context.Context) error) error }",
+			"type runtime struct{}\nfunc (runtime) Within(ctx context.Context, fn func(context.Context) error) error { return outbox.Within(ctx, fn) }\nfunc New() enrollment.Writer { return enrollment.NewService(runtime{}, foreign.Ledger{}) }"},
+		{"unit of work with composed callables",
+			"type runtime interface { Within(context.Context, func(context.Context) error) error }\ntype units struct { within func(context.Context, func(context.Context) error) error }\nfunc NewUnits(within func(context.Context, func(context.Context) error) error) runtime { return units{within: within} }\nfunc (u units) Within(ctx context.Context, fn func(context.Context) error) error { return u.within(ctx, fn) }",
+			"func New() enrollment.Writer { return enrollment.NewService(enrollment.NewUnits(outbox.Within), foreign.Ledger{}) }"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			project, policy := platformEffectFixture(t)
+			policy.Packages = append(policy.Packages, Package{Path: "enrollment/compose", Owner: "enrollment", Role: "compose", InternalTestRole: "module-internal-test", ExternalTestRole: "module-behavior-test"})
+			writeFile(t, filepath.Join(project, "outbox", "runtime.go"), "package outbox\nimport \"context\"\nfunc Within(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) }\n")
+			writeFile(t, filepath.Join(project, "enrollment", "service.go"), "package enrollment\nimport \"context\"\n"+tc.domain+`
+type Ledger interface { Record() }
+type service struct { runtime runtime; ledger Ledger }
+func NewService(r runtime, ledger Ledger) Writer { return service{runtime: r, ledger: ledger} }
+func (s service) Record() {
+ _ = s.runtime.Within(context.Background(), func(context.Context) error { s.ledger.Record(); return nil })
+}
+`)
+			writeFile(t, filepath.Join(project, "enrollment", "compose", "compose.go"), "package compose\nimport (\"context\"; \"example.test/effects/enrollment\"; \"example.test/effects/foreign\"; \"example.test/effects/outbox\")\nvar _ context.Context\n"+tc.compose+"\n")
+			writeFile(t, filepath.Join(project, "roots", "binding.go"), "package roots\nimport \"example.test/effects/enrollment/compose\"\nimport \"example.test/effects/enrollment\"\nfunc Build() { enrollment.Run(compose.New()) }\n")
+			edges := fixtureEffectEdges(t, project, policy)
+			for _, edge := range []string{"enrollment.Writer.Record -> outbox.Within", "enrollment.Ledger.Record -> foreign.Ledger.Record"} {
+				if !edges[edge] {
+					t.Errorf("missing %s in %v", edge, edges)
+				}
+			}
+			if edges["enrollment.Writer.Record -> foreign.Ledger.Record"] {
+				t.Errorf("a foreign-bound own interface must stay its own port: %v", edges)
+			}
+		})
+	}
+}

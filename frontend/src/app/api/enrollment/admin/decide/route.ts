@@ -14,12 +14,22 @@ interface DecideBody {
   child_id?: string | number;
   status?: string;
   reason?: string;
+  existing_student_id?: string | number;
+  create_new_student?: boolean;
 }
 
 export const POST = tenant.route(async (request) => {
   const body = await parseRequestBody<DecideBody>(request);
   return tenant.forwardToBackend(request, enrollmentChildPath(body, "decide"), {
     method: "POST",
-    json: { status: body.status, reason: body.reason ?? "" },
+    json: {
+      status: body.status,
+      reason: body.reason ?? "",
+      // The office's answer for a child that may already be enrolled (#6053).
+      ...(body.existing_student_id != null
+        ? { existing_student_id: String(body.existing_student_id) }
+        : {}),
+      ...(body.create_new_student === true ? { create_new_student: true } : {}),
+    },
   });
 });

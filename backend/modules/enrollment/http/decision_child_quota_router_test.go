@@ -6,6 +6,7 @@ package enrollmenthttp_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -171,8 +172,19 @@ func TestGetAdminRequest_ShowsARenewalHeldForTheKinderkontingent(t *testing.T) {
 	assert.Equal(t, "child_quota_reached", *body.Data.Children[0].ReviewReason)
 }
 
-func TestCreateManualApprovedEnrollment_RefusedByAFullKinderkontingent(t *testing.T) {
-	t.Parallel()
+// manualEnrollmentRouter is the admin request router with the manual
+// enrollment flow, its decisions bound the way the root binds them, over a
+// school-year phase of the test's school.
+type manualEnrollmentRouter struct {
+	db       *bun.DB
+	ctx      context.Context
+	router   http.Handler
+	phase    *capability.Phase
+	reviewer *testpkg.AccountFixture
+}
+
+func setupManualEnrollmentRouter(t *testing.T) manualEnrollmentRouter {
+	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	repos, err := api.NewEnrollmentTestRepositories(testpkg.NewDatabase(t, db), owners.NewTestAuditStore(testpkg.NewDatabase(t, db)))
@@ -222,31 +234,69 @@ func TestCreateManualApprovedEnrollment_RefusedByAFullKinderkontingent(t *testin
 		nativeUploads.UploadFiles{}, enrollmentAPI.DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation})
 	router := testpkg.TenantRuntimeMiddleware(t, db)(resource.Router(api.TenantSessionChain))
 
-	testpkg.CreateTestStudent(t, db, "Schon", "Da", "1a")
-	testpkg.SetTestChildQuota(t, db, 1, 1)
+	return manualEnrollmentRouter{db: db, ctx: ctx, router: router, phase: phase, reviewer: reviewer}
+}
 
-	grade := int16(1)
+// postManualEnrollment posts one manual enrollment of the child.
+func (m manualEnrollmentRouter) postManualEnrollment(t *testing.T, child enrollmentAPI.SubmitChildRequest) *httptest.ResponseRecorder {
+	t.Helper()
 	payload, err := json.Marshal(enrollmentAPI.AdminManualApprovedEnrollmentRequest{
 		SubmitEnrollmentRequest: enrollmentAPI.SubmitEnrollmentRequest{
 			GuardianFirstName: "Anna", GuardianLastName: "Beispiel",
 			GuardianEmail: fmt.Sprintf("manuell-%d@example.test", testpkg.Tenant(t)),
-			Children: []enrollmentAPI.SubmitChildRequest{{
-				FirstName: "Zu", LastName: "Viel", DateOfBirth: "2019-03-01", TargetGradeLevel: &grade,
-			}},
+			Children:      []enrollmentAPI.SubmitChildRequest{child},
 		},
 		ExternalConsentConfirmed: true,
 		Reason:                   "Anmeldung auf Papier",
 	})
 	require.NoError(t, err)
-	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/phases/%d/manual-approved-enrollments", phase.ID), bytes.NewReader(payload))
-	req.Header.Set("Authorization", "Bearer "+mintOfferingGuardReviewerToken(t, reviewer.ID, reviewer.Email))
+	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/phases/%d/manual-approved-enrollments", m.phase.ID), bytes.NewReader(payload))
+	req.Header.Set("Authorization", "Bearer "+mintOfferingGuardReviewerToken(t, m.reviewer.ID, m.reviewer.Email))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
-	router.ServeHTTP(rec, req)
+	m.router.ServeHTTP(rec, req)
+	return rec
+}
+
+func TestCreateManualApprovedEnrollment_RefusedByAFullKinderkontingent(t *testing.T) {
+	t.Parallel()
+	m := setupManualEnrollmentRouter(t)
+	db, ctx, phase := m.db, m.ctx, m.phase
+
+	testpkg.CreateTestStudent(t, db, "Schon", "Da", "1a")
+	testpkg.SetTestChildQuota(t, db, 1, 1)
+
+	grade := int16(1)
+	rec := m.postManualEnrollment(t, enrollmentAPI.SubmitChildRequest{
+		FirstName: "Zu", LastName: "Viel", DateOfBirth: "2019-03-01", TargetGradeLevel: &grade,
+	})
 
 	requireChildQuotaRefusal(t, rec, 1, 1)
 	leftRequests, err := db.NewSelect().TableExpr("enrollment.requests").
 		Where("tenant_id = ?", testpkg.Tenant(t)).Where("phase_id = ?", phase.ID).Count(ctx)
 	require.NoError(t, err)
 	assert.Zero(t, leftRequests, "the refused manual enrollment left nothing behind")
+}
+
+// A manual enrollment of a child the school already cares for is refused
+// with the actionable conflict, not a server error, and leaves nothing
+// behind: staff entry never renews or duplicates an enrolled child on name
+// and birthday alone (#6053; the choice in the manual flow is #6148).
+func TestCreateManualApprovedEnrollment_PossiblyEnrolledChildIsAConflict(t *testing.T) {
+	t.Parallel()
+	m := setupManualEnrollmentRouter(t)
+	enrolledChild(t, m.db, "Mara", "Papier", calendar.NewDate(2019, 3, 1))
+
+	grade := int16(1)
+	rec := m.postManualEnrollment(t, enrollmentAPI.SubmitChildRequest{
+		FirstName: "Mara", LastName: "Papier", DateOfBirth: "2019-03-01", TargetGradeLevel: &grade,
+	})
+
+	require.Equal(t, http.StatusConflict, rec.Code, "Body: %s", rec.Body.String())
+	assertDecisionErrorCode(t, rec, "enrollment.child_possibly_enrolled")
+	leftRequests, err := m.db.NewSelect().TableExpr("enrollment.requests").
+		Where("tenant_id = ?", testpkg.Tenant(t)).Where("phase_id = ?", m.phase.ID).Count(m.ctx)
+	require.NoError(t, err)
+	assert.Zero(t, leftRequests, "the refused manual enrollment left nothing behind")
+	assert.Equal(t, 1, studentsNamed(t, m.db, "Mara", "Papier"))
 }

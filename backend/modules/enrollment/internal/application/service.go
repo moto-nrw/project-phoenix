@@ -65,6 +65,7 @@ type Store interface {
 	ChildWeeklyPlan(context.Context, int64) (*enrollment.WeeklyPlan, error)
 	DueWeeklyPlans(context.Context, enrollment.Date) ([]enrollment.WeeklyPlan, error)
 	UpdateMatchedStudent(context.Context, int64, *int64) error
+	PinOfficeChosenStudent(context.Context, int64, int64) error
 	RestoreWithdrawnChildren(context.Context, int64, []int64) ([]int64, error)
 	TransitionPhaseChildren(context.Context, int64, string, string) (int, error)
 	UpdateChildStatus(context.Context, int64, string, *string, int64) error

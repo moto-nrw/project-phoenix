@@ -54,6 +54,10 @@ func (s *ChangeRequests) correctApprovedChildData(ctx context.Context, input enr
 	if err := s.rejectOpenChangeRequestsForAdminCorrection(ctx, req, reason, input.ActorAccountID); err != nil {
 		return nil, err
 	}
+	correction := correctedChildFields(child, SubmitChild{
+		FirstName: firstName, LastName: lastName, DateOfBirth: input.DateOfBirth,
+		TargetGradeLevel: targetGradeLevel, TargetSchoolClass: targetSchoolClass,
+	})
 	child.FirstName, child.LastName, child.DateOfBirth = firstName, lastName, input.DateOfBirth
 	child.TargetGradeLevel, child.TargetSchoolClass = targetGradeLevel, targetSchoolClass
 	if err := s.deps.Children.UpdateChildData(ctx, child); err != nil {
@@ -61,11 +65,24 @@ func (s *ChangeRequests) correctApprovedChildData(ctx context.Context, input enr
 	}
 	if _, err := s.deps.Decisions.SyncApprovedChildData(ctx, enrollmentNative.ApprovedChildSync{
 		RequestID: req.ID, ChildID: child.ID, ActorAccountID: input.ActorAccountID,
-		PreviousSnapshot: []byte("null"),
+		PreviousSnapshot: []byte("null"), Correction: correction,
 	}); err != nil {
 		return nil, fmt.Errorf("admin data correction: sync student: %w", err)
 	}
 	return s.recordAdminCorrection(ctx, req, children, child, baseSnapshot, reason, input.ActorAccountID)
+}
+
+// correctedChildFields names the child fields a direct correction changes,
+// so the sync can apply exactly those where the request's own data no longer
+// reaches the child (#6053).
+func correctedChildFields(child *enrollmentNative.RequestChild, corrected SubmitChild) *enrollmentNative.ApprovedChildCorrection {
+	return &enrollmentNative.ApprovedChildCorrection{
+		FirstName: corrected.FirstName != child.FirstName,
+		LastName:  corrected.LastName != child.LastName,
+		Birthday:  corrected.DateOfBirth != child.DateOfBirth,
+		Class: !sameGradeLevel(child.TargetGradeLevel, corrected.TargetGradeLevel) ||
+			!sameOptionalString(child.TargetSchoolClass, corrected.TargetSchoolClass),
+	}
 }
 
 // lockApprovalGates takes the class-writes and recurrence gates a

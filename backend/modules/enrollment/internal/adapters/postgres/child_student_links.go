@@ -46,11 +46,44 @@ func (r *Store) UpdateMatchedStudent(ctx context.Context, requestChildID int64, 
 		TableExpr(`enrollment.request_children AS "request_child"`).
 		Where(`"request_child".tenant_id = ?`, tenantID).
 		Set("matched_student_id = ?", studentID).
+		Set("matched_by_office = FALSE").
 		Set("updated_at = ?", time.Now()).
 		Where(`"request_child".id = ?`, requestChildID).
 		Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to update request child matched student: %w", err)
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return fmt.Errorf("request child %d not found", requestChildID)
+	}
+	return nil
+}
+
+// PinOfficeChosenStudent pins the enrolled student the office chose at
+// approval and marks the pin as the office's (#6053).
+func (r *Store) PinOfficeChosenStudent(ctx context.Context, requestChildID, studentID int64) error {
+	tenantID, err := r.tenantID(ctx)
+	if err != nil {
+		return err
+	}
+	db, err := r.resolve(ctx)
+	if err != nil {
+		return err
+	}
+	res, err := db.NewUpdate().
+		TableExpr(`enrollment.request_children AS "request_child"`).
+		Where(`"request_child".tenant_id = ?`, tenantID).
+		Set("matched_student_id = ?", studentID).
+		Set("matched_by_office = TRUE").
+		Set("updated_at = ?", time.Now()).
+		Where(`"request_child".id = ?`, requestChildID).
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to pin office-chosen student: %w", err)
 	}
 	rows, err := res.RowsAffected()
 	if err != nil {

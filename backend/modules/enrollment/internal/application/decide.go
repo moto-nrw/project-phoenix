@@ -72,10 +72,8 @@ func (d *Decisions) Decide(ctx context.Context, input enrollmentNative.DecideInp
 	if err != nil {
 		return nil, fmt.Errorf("decision: load phase: %w", err)
 	}
-	if input.Status == enrollmentNative.DecisionApproved {
-		if err := d.validateApprovalOfferingSelection(ctx, target.child, phase); err != nil {
-			return nil, err
-		}
+	if err := d.prepareApproval(ctx, target, phase, input); err != nil {
+		return nil, err
 	}
 	outcome := &enrollmentNative.DecideOutcome{}
 	invite, err := d.applyDecision(ctx, target, phase, input)
@@ -95,6 +93,18 @@ func (d *Decisions) Decide(ctx context.Context, input enrollmentNative.DecideInp
 	return outcome, nil
 }
 
+// prepareApproval checks an approval before it writes anything: the child's
+// offering selection and the already-enrolled check with the office's
+// choice, which also re-checks a parent pin's relationship authority (#6053).
+func (d *Decisions) prepareApproval(ctx context.Context, target *decisionTarget, phase *enrollmentNative.Phase, input enrollmentNative.DecideInput) error {
+	if input.Status == enrollmentNative.DecisionApproved {
+		if err := d.validateApprovalOfferingSelection(ctx, target.child, phase); err != nil {
+			return err
+		}
+	}
+	return d.resolveExistingChildChoice(ctx, target, phase, input)
+}
+
 func validateDecideInput(input enrollmentNative.DecideInput) error {
 	if input.RequestID <= 0 {
 		return fmt.Errorf("%w: request_id required", enrollmentNative.ErrDecisionInvalidStatus)
@@ -105,7 +115,7 @@ func validateDecideInput(input enrollmentNative.DecideInput) error {
 	if !validDecisionStatuses[input.Status] {
 		return fmt.Errorf("%w: %s", enrollmentNative.ErrDecisionInvalidStatus, input.Status)
 	}
-	return nil
+	return validateExistingChildChoice(input)
 }
 
 // lockDecisionGates takes the approval gates before the request and child row

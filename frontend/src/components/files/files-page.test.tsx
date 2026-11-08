@@ -6,13 +6,21 @@ import {
   within,
 } from "@testing-library/react";
 import type { ReactElement } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi, afterEach } from "vitest";
 
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import type { FileFolder, FolderFiles, FolderOverview } from "~/lib/files-api";
 import { catalogText } from "~/test/error-catalog-text";
 import { FilesPage } from "./files-page";
+import {
+  DESKTOP_WIDTH,
+  PHONE_WIDTH,
+  setViewportWidth,
+} from "~/test/helpers/viewport";
+
+// DataTable renders only the layout for the window width (#6220).
+afterEach(() => setViewportWidth(DESKTOP_WIDTH));
 
 const mutate = vi.hoisted(() => vi.fn());
 const useSWRAuth = vi.hoisted(() => vi.fn());
@@ -305,6 +313,7 @@ describe("FilesPage file list on narrow screens (#4975)", () => {
   });
 
   it("puts the menu with Herunterladen into the phone line of each file", async () => {
+    setViewportWidth(PHONE_WIDTH);
     renderWithToasts(<FilesPage />);
 
     const phone = screen.getByTestId("data-table-stacked");
