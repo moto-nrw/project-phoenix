@@ -104,10 +104,46 @@ func (d *Decisions) syncEnrollmentOnlyChild(ctx context.Context, run *approvedCh
 	if run.input.Correction.Any() {
 		return d.syncApprovedChildStudent(ctx, run, *run.input.Correction)
 	}
-	if run.input.ChildDataChanged && !run.child.MatchedByOffice {
+	if run.child.MatchedByOffice {
+		return nil
+	}
+	changed, err := d.approvedChildDataChanged(ctx, run)
+	if err != nil {
+		return err
+	}
+	if changed {
 		return fmt.Errorf("%w: child %d", enrollmentNative.ErrChangeRequestParentNotPermitted, run.child.ID)
 	}
 	return nil
+}
+
+// approvedChildDataChanged includes request-level answers consumed by the
+// weekly-plan dispatch. They can replace a deferred approved plan even when
+// the child's own snapshot is unchanged. Unrelated guardian answers do not.
+func (d *Decisions) approvedChildDataChanged(ctx context.Context, run *approvedChildSync) (bool, error) {
+	if run.input.ChildDataChanged {
+		return true, nil
+	}
+	if run.snapshot == nil || run.request.SchemaID == nil || d.deps.Schemas == nil {
+		return false, nil
+	}
+	previous := mapFromAny(run.snapshot["custom_data"])
+	if jsonEqual(previous, run.request.CustomData) {
+		return false, nil
+	}
+	schema, err := d.deps.Schemas.Schema(ctx, *run.request.SchemaID)
+	if err != nil {
+		return false, fmt.Errorf("decision: load pinned schema for weekly plan change: %w", err)
+	}
+	if schema == nil {
+		return false, fmt.Errorf("%w: %d", enrollmentNative.ErrFormSchemaNotFound, *run.request.SchemaID)
+	}
+	for _, field := range schema.Fields {
+		if !field.AppliesToCh && isWeeklyPlanTarget(field.Target) && !jsonEqual(previous[field.Key], run.request.CustomData[field.Key]) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // allChildFields syncs every master-data field of the child.
