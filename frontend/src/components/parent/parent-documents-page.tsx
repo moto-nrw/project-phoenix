@@ -319,9 +319,20 @@ function ContractNoticeRow({
     return (
       <div className="mt-4 border-t border-gray-100 pt-4">
         {document.can_end_contract ? (
-          <ButtonLink href={href} variant="outline" size="md">
-            {t("cancelContract")}
-          </ButtonLink>
+          <div className="flex flex-wrap gap-3">
+            <ButtonLink
+              href={parentPath(
+                `/documents/vertrag/${encodeURIComponent(document.organization_id)}/${encodeURIComponent(document.id)}`,
+              )}
+              variant="outline"
+              size="md"
+            >
+              {t("familyChildren")}
+            </ButtonLink>
+            <ButtonLink href={href} variant="outline" size="md">
+              {t("cancelContract")}
+            </ButtonLink>
+          </div>
         ) : (
           <p className="text-sm text-gray-500">{t("cancelNotPermitted")}</p>
         )}

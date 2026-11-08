@@ -38,5 +38,6 @@
   "terminatedOn": "Cancelled as of {date}",
   "withdrawn": "Withdrawn",
   "showConfirmation": "View confirmation",
-  "terminationInReview": "Cancelled, end date under review"
+  "terminationInReview": "Cancelled, end date under review",
+  "familyChildren": "Enter children in your family"
 }

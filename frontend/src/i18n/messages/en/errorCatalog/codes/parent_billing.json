@@ -54,5 +54,8 @@
   "care_rule_in_use": "{object} could not be changed. Please check its current status.",
   "care_evidence_invalid": "{object} could not be saved. Please check your entries.",
   "care_evidence_not_found": "{object} could not be changed. Please check its current status.",
-  "care_evidence_overlap": "{object} could not be changed. Please check its current status."
+  "care_evidence_overlap": "{object} could not be changed. Please check its current status.",
+  "family_children_invalid": "Please enter a whole number from 1 to 20.",
+  "family_children_not_found": "{object} could not be changed. Please check its current status.",
+  "family_without_address": "{object} could not be changed. Please check its current status."
 }

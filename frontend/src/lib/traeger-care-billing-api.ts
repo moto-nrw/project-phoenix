@@ -173,6 +173,12 @@ export interface CareRunDetail extends CareRun {
   readonly duplicates: readonly CareDuplicate[];
   /** The children of `duplicates`; the release bills none of them. */
   readonly duplicateChildren: number;
+  /**
+   * Families a sibling rule that counts the family ranks without a
+   * confirmed number for the month (#5918); it counts their children with a
+   * contract alone.
+   */
+  readonly uncountedFamilies: number;
   readonly billed: number;
   readonly previewCount: number;
   readonly previewCents: number;
@@ -289,6 +295,7 @@ interface BackendRunDetail extends BackendRun {
       }[]
     | null;
   duplicate_children: number;
+  uncounted_families?: number;
   billed: number;
   preview_count: number;
   preview_cents: number;
@@ -415,6 +422,7 @@ function detailFromBackend(detail: BackendRunDetail): CareRunDetail {
       })),
     })),
     duplicateChildren: detail.duplicate_children ?? 0,
+    uncountedFamilies: detail.uncounted_families ?? 0,
     billed: detail.billed,
     previewCount: detail.preview_count,
     previewCents: detail.preview_cents,

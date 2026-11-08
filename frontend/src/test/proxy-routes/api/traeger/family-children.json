@@ -1,0 +1,6 @@
+{
+  "api/traeger/family-children": [
+    "GET traeger /traeger/family-children",
+    "PUT traeger /traeger/family-children"
+  ]
+}

@@ -38,5 +38,6 @@
   "terminatedOn": "Розірвано з {date}",
   "withdrawn": "Відмова",
   "showConfirmation": "Переглянути підтвердження",
-  "terminationInReview": "Розірвано, дата завершення перевіряється"
+  "terminationInReview": "Розірвано, дата завершення перевіряється",
+  "familyChildren": "Вказати дітей у родині"
 }

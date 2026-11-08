@@ -54,5 +54,8 @@
   "care_rule_in_use": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "care_evidence_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "care_evidence_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
-  "care_evidence_overlap": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+  "care_evidence_overlap": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "family_children_invalid": "Proszę podać liczbę całkowitą od 1 do 20.",
+  "family_children_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "family_without_address": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
 }

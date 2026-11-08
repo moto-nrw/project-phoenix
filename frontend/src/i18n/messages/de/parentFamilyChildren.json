@@ -1,0 +1,18 @@
+{
+  "title": "Kinder in Ihrer Familie",
+  "description": "Für die Geschwisterermäßigung zählt der Träger alle Kinder Ihrer Familie. Auch Kinder ohne Betreuungsvertrag zählen mit.",
+  "fieldLabel": "Wie viele Kinder hat Ihre Familie?",
+  "less": "Ein Kind weniger",
+  "more": "Ein Kind mehr",
+  "send": "Angabe senden",
+  "sending": "Wird gesendet …",
+  "saved": "Ihre Angabe ist beim Träger. Er prüft sie.",
+  "errorObject": "die Kinderzahl",
+  "confirmedBadge": "Bestätigt",
+  "confirmedFrom": "{count, plural, one {1 Kind} other {# Kinder}}, gilt ab {from}.",
+  "confirmedUntil": "{count, plural, one {1 Kind} other {# Kinder}}, gilt von {from} bis {until}.",
+  "pendingBadge": "Wird geprüft",
+  "pending": "Ihre Angabe vom {date}: {count, plural, one {1 Kind} other {# Kinder}}. Der Träger prüft sie.",
+  "noRight": "Die Zahl geben Eltern an, die für dieses Kind Anmeldungen abschicken dürfen.",
+  "onlyNumber": "Wir speichern nur die Zahl. Namen der anderen Kinder brauchen wir nicht."
+}

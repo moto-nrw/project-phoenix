@@ -105,6 +105,10 @@
   "api/parent/me/documents": [
     "GET parent /parent/me/documents"
   ],
+  "api/parent/me/documents/[organizationId]/contracts/[contractId]/family-children": [
+    "GET parent /parent/me/documents/organizationId%2F1/contracts/contractId%2F1/family-children",
+    "PUT parent /parent/me/documents/organizationId%2F1/contracts/contractId%2F1/family-children"
+  ],
   "api/parent/me/documents/[organizationId]/contracts/[contractId]/sign": [
     "POST parent /parent/me/documents/organizationId%2F1/contracts/contractId%2F1/sign"
   ],

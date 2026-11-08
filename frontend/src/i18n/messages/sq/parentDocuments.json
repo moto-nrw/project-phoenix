@@ -38,5 +38,6 @@
   "terminatedOn": "E ndërprerë më {date}",
   "withdrawn": "E tërhequr",
   "showConfirmation": "Shiko konfirmimin",
-  "terminationInReview": "Anuluar, data e mbarimit në kontroll"
+  "terminationInReview": "Anuluar, data e mbarimit në kontroll",
+  "familyChildren": "Shkruani fëmijët në familje"
 }
