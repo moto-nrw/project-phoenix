@@ -13,7 +13,7 @@ import { type BillingFile, billingFile } from "./traeger-billing-api";
 /** The kind of run a file belongs to, as the path names it. */
 export type SepaDebitRunKind = "care-runs" | "holiday-runs";
 export type SepaSequenceType = "FRST" | "RCUR" | "OOFF";
-export type SepaDebitStatus = "pending" | "submitted";
+type SepaDebitStatus = "pending" | "submitted";
 /** Why a pending debit stays out of the file. */
 export type SepaDebitLeft =
   "cancelled" | "revoked" | "expired" | "creditor_changed";
