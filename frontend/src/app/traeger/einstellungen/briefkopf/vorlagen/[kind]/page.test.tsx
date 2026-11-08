@@ -110,6 +110,7 @@ const PREVIEW: DocumentTemplatePreview = {
 
 const MASTER_DATA: TraegerMasterData = {
   contact: { name: "Petra Lindner", phone: "", email: "" },
+  withdrawal: { phone: "", email: "" },
   logo: null,
   bankAccounts: [],
 };

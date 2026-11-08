@@ -26,7 +26,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.Letterheads.Letterhead",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerTexts: reads the branding texts of the Träger the contract letter prints (#4678, ADR 0153).",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerTexts: reads the branding texts of the Träger the contract letter prints (#4678, ADR 0153). Re-reviewed for #6200: the binding also copies the withdrawal phone and e-mail of the same profile read into the letterhead; no new effect.",
       "source_owner": "care-contract",
       "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
       "target_owner": "settings-platform"
@@ -36,7 +36,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.Letterheads.Letterhead",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.TraegerDocumentTemplates.Current: reads the Träger's current template of the kind Vertrag (#4677, ADR 0152, ADR 0153).",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.TraegerDocumentTemplates.Current: reads the Träger's current template of the kind Vertrag (#4677, ADR 0152, ADR 0153). Re-reviewed for #6200: the binding also copies the withdrawal phone and e-mail of the same profile read into the letterhead; no new effect.",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerDocumentTemplates.Current",
       "target_owner": "organization-tenancy"
@@ -46,7 +46,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.Letterheads.Letterhead",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.TraegerMasterData.LogoImage: reads the stored logo the contract letter prints (ADR 0153).",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.TraegerMasterData.LogoImage: reads the stored logo the contract letter prints (ADR 0153). Re-reviewed for #6200: the binding also copies the withdrawal phone and e-mail of the same profile read into the letterhead; no new effect.",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerMasterData.LogoImage",
       "target_owner": "organization-tenancy"
@@ -57,7 +57,7 @@
       "classification": "leaf",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.Letterheads.Letterhead",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target modules/organizationtenancy.TraegerMasterData.Profile: reads the master data of the Träger in its Träger transaction and records the read of the contact person (ADR 0112, ADR 0153).",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target modules/organizationtenancy.TraegerMasterData.Profile: reads the master data of the Träger in its Träger transaction and records the read of the contact person (ADR 0112, ADR 0153). Re-reviewed for #6200: the binding also copies the withdrawal phone and e-mail of the same profile read into the letterhead; no new effect.",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerMasterData.Profile",
       "target_owner": "organization-tenancy"
@@ -537,6 +537,26 @@
       "source_owner": "care-contract",
       "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
       "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractSigningSender.TraegerLetterhead",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.TraegerSigningSender.TraegerLetterhead",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerTexts: the signature's sender embeds CareContractSender and reads the same letterhead text for the signing page, the withdrawal notice and the mails (#4679, #6200).",
+      "source_owner": "care-contract",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractSigningSender.WithdrawalReach",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.TraegerSigningSender.WithdrawalReach",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation, audit write or locking read at this terminal. Target modules/organizationtenancy.TraegerMasterData.DocumentContact: reads the contact person's and the withdrawal phone and e-mail in the caller's Träger transaction, without an account, for the withdrawal notice of the signing page and the mail (#6200).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerMasterData.DocumentContact",
+      "target_owner": "organization-tenancy"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/documentrendering/internal/application/listrenderer.RendererService.CombineLetters",

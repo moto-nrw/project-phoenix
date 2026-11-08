@@ -61,10 +61,14 @@ func (r signingErrorRuntime) WithinTraeger(ctx context.Context, _ int64, fn func
 	return nil
 }
 
-type signingErrorSender struct{ failure error }
+type signingErrorSender struct{ failure, reachFailure error }
 
 func (s signingErrorSender) TraegerLetterhead(context.Context, int64) (string, error) {
 	return "Träger", s.failure
+}
+
+func (s signingErrorSender) WithdrawalReach(context.Context, int64) (carecontract.WithdrawalReach, error) {
+	return carecontract.WithdrawalReach{}, s.reachFailure
 }
 
 type signingTestTokens struct{ carecontract.SigningTokens }
@@ -74,19 +78,22 @@ func (signingTestTokens) Fingerprint(raw string) string { return raw }
 func TestSigningLinkPreservesOperationalErrors(t *testing.T) {
 	t.Parallel()
 	failure := errors.New("storage unavailable")
-	for _, stage := range []string{"begin", "link", "contract", "document", "sender", "event", "commit"} {
+	for _, stage := range []string{"begin", "link", "contract", "document", "sender", "reach", "event", "commit"} {
 		t.Run(stage, func(t *testing.T) {
 			store := signingErrorStore{stage: stage}
 			if stage != "commit" {
 				store.failure = failure
 			}
-			var senderFailure error
-			if stage == "sender" {
+			var senderFailure, reachFailure error
+			switch stage {
+			case "sender":
 				senderFailure = failure
+			case "reach":
+				reachFailure = failure
 			}
 			s := &Signatures{store: store, ports: SignaturePorts{
 				Runtime: signingErrorRuntime{stage: stage, failure: failure},
-				Links:   carecontract.SigningLinks{Tokens: signingTestTokens{}}, Sender: signingErrorSender{failure: senderFailure},
+				Links:   carecontract.SigningLinks{Tokens: signingTestTokens{}}, Sender: signingErrorSender{failure: senderFailure, reachFailure: reachFailure},
 			}, clock: Clock{Now: func() time.Time { return time.Date(2026, 11, 6, 12, 0, 0, 0, time.UTC) }}}
 			_, err := s.LinkSigning(context.Background(), "1.token")
 			require.ErrorIs(t, err, failure)

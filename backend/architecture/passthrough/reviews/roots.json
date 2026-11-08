@@ -1486,6 +1486,11 @@
       "reason": "ADR 0155 (#4679): Consumer-port adapter that reads the stored signatures of the Audit Platform at the Träger and translates them into the Betreuungsvertrag's proofs, intact only with the care contract purpose."
     },
     {
+      "decision": "0168",
+      "id": "roots/owners/CareContractSigningSender.WithdrawalReach",
+      "reason": "ADR 0168 (#6200): Consumer-port adapter that reads the Träger's document contact in the caller's Träger transaction and translates it into the phone and e-mail the withdrawal notice of the signing page and the mail names."
+    },
+    {
       "decision": "0090",
       "id": "roots/owners/CareOfferingCatalogBookings.MaterializableOfferingCount",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."

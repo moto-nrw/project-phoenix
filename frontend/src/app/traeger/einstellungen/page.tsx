@@ -1,7 +1,8 @@
 "use client";
 
 // Allgemeine Einstellungen des Trägers (#4652, ADR 0086, #5685): Werte, die
-// für alle Schulen des Trägers gelten, und die Kontaktdaten. Eine Schule kann
+// für alle Schulen des Trägers gelten, und die Kontaktdaten mit dem Kontakt
+// für Widerrufe (#6200). Eine Schule kann
 // abweichen, wo die Einstellung das erlaubt; Schul-Abweichungen ändert nur die
 // Schule selbst.
 
@@ -49,6 +50,15 @@ function tabItem(tab: SchemaTab, key: string): ResolvedSetting | undefined {
   return tab.categories
     .flatMap((category) => category.items)
     .find((item) => item.key === key);
+}
+
+/** Der Absender des Briefkopfs, den die Widerrufsbelehrung nennt (#6200). */
+function letterheadText(schema: SettingsSchema): string {
+  const branding = schema.tabs.find((tab) => tab.key === TRAEGER_BRANDING_TAB);
+  const value = branding
+    ? tabItem(branding, "branding.letterhead_text")?.value
+    : undefined;
+  return typeof value === "string" ? value : "";
 }
 
 function hasWritableSetting(schema: SettingsSchema): boolean {
@@ -172,7 +182,8 @@ function TraegerSettingsContent() {
       ) : null}
       {schema && contactActive && contact.loaded ? (
         <TraegerContactSection
-          contact={contact.masterData.contact}
+          masterData={contact.masterData}
+          letterheadText={letterheadText(schema)}
           onSaved={contact.refresh}
         />
       ) : null}

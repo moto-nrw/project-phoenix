@@ -40,6 +40,10 @@ vi.mock("next-auth/react", () => ({
     status: "authenticated",
   }),
 }));
+// The link to the letterhead page needs no portal host here.
+vi.mock("~/lib/traeger-url", () => ({
+  traegerPath: (path: string) => path,
+}));
 vi.mock("~/lib/traeger-api", () => ({
   saveTraegerContact: vi.fn(),
   fetchTraegerSettingsSchema: () => mockFetchSchema(),
@@ -455,6 +459,7 @@ describe("TraegerSettingsPage", () => {
     mockFetchSchema.mockResolvedValue(schema([item({})]));
     mockFetchMasterData.mockResolvedValue({
       contact: { name: "Petra Lindner", phone: "", email: "" },
+      withdrawal: { phone: "", email: "" },
       logo: null,
       bankAccounts: [],
     });
@@ -472,6 +477,7 @@ describe("TraegerSettingsPage", () => {
   it("uses the page loading state while the contact opens (#5685)", async () => {
     const contact = deferred<{
       contact: { name: string; phone: string; email: string };
+      withdrawal: { phone: string; email: string };
       logo: null;
       bankAccounts: [];
     }>();
@@ -489,6 +495,7 @@ describe("TraegerSettingsPage", () => {
 
     contact.resolve({
       contact: { name: "Petra Lindner", phone: "", email: "" },
+      withdrawal: { phone: "", email: "" },
       logo: null,
       bankAccounts: [],
     });
@@ -509,6 +516,7 @@ describe("TraegerSettingsPage", () => {
       )
       .mockResolvedValue({
         contact: { name: "Petra Lindner", phone: "", email: "" },
+        withdrawal: { phone: "", email: "" },
         logo: null,
         bankAccounts: [],
       });

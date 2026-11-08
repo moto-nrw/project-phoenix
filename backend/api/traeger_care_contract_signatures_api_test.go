@@ -110,6 +110,33 @@ func signedDetail(t *testing.T, f careContractFixture, id int64) careContractSig
 	return decodeSchoolPortalData[careContractSignedDetailBody](t, rec.Body.Bytes())
 }
 
+// TestCareContractSigningPageNamesTheTraegersPhoneAndEmail pins #6200: the
+// public signing link has no account of the Träger, yet its withdrawal
+// notice names phone and e-mail like the PDF does (Gestaltungshinweis 2 zu
+// Anlage 1 zu Art. 246a EGBGB), the Träger's own for withdrawals before the
+// contact person's.
+func TestCareContractSigningPageNamesTheTraegersPhoneAndEmail(t *testing.T) {
+	t.Parallel()
+	f := newCareContractFixture(t, "Träger Vertrag Widerrufskontakt")
+	testpkg.OwnTraegerMasterData(t, f.db, f.office.organization)
+	_, err := f.db.ExecContext(context.Background(), `INSERT INTO platform.traeger_profiles
+		(organization_id, contact_name, contact_phone, contact_email, withdrawal_email)
+		VALUES (?, 'Frau Beispiel', '0211 123 45', 'frau.beispiel@traeger.example', 'widerruf@traeger.example')`, f.office.organization)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, traegerJSON(t, f.traeger, f.office.token, http.MethodPut, templatePath(f.school, f.offering), careContractTemplate).Code)
+	_, link := sentCareContract(t, f, f.child)
+
+	rec := publicSigning(t, f.traeger, http.MethodGet, link, nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	view := decodeSchoolPortalData[struct {
+		WithdrawalNotice []string `json:"withdrawal_notice"`
+	}](t, rec.Body.Bytes())
+	require.Greater(t, len(view.WithdrawalNotice), 1)
+	assert.Contains(t, view.WithdrawalNotice[1], "Telefon: 0211 123 45, E-Mail: widerruf@traeger.example)",
+		"the contact person's phone, the Träger's own e-mail for withdrawals")
+	assert.NotContains(t, rec.Body.String(), "frau.beispiel@traeger.example", "the own e-mail replaces the contact person's")
+}
+
 // TestCareContractMailLinkSignsOnceOnlyItsContract pins the invariants of
 // the one-time link (#4679): reading leaves it open, signing needs the
 // withdrawal notice and a visible signature, the link signs exactly once,
