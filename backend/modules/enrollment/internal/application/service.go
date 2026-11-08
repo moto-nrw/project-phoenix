@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type Store interface {
@@ -148,6 +149,9 @@ type DirectStore interface {
 	// AcquireExistingStudentMatchLock serializes matching across all
 	// guardians submitting to a phase, until the caller's transaction ends.
 	AcquireExistingStudentMatchLock(context.Context, int64) error
+	// AcquireChildIdentityLock serializes the approvals of one child identity
+	// of the school, until the caller's transaction ends (#6170).
+	AcquireChildIdentityLock(context.Context, string, string, calendar.Date) error
 	// OpenPhaseCandidates supplies the parent workflow's phase discovery
 	// candidates. Unlike the anonymous list, it includes restricted
 	// audiences for that workflow to authorize against guardian
