@@ -92,10 +92,10 @@ func careLetterFrame(content careLetterContent, title, subject string) Letter {
 		AccentColor: head.AccentColor,
 		Logo:        head.Logo,
 		Sender:      sender,
-		Recipient: nonBlank("Familie "+strings.TrimSpace(invoice.Recipient.LastName),
-			fullName(invoice.Recipient.FirstName, invoice.Recipient.LastName)),
+		Recipient: billingRecipientLines(invoice.Recipient.Kind, invoice.Recipient.FirstName, invoice.Recipient.LastName,
+			invoice.Recipient.SecondName, invoice.Recipient.Address),
 		Subject:    subject,
-		Salutation: "Sehr geehrte Familie " + strings.TrimSpace(invoice.Recipient.LastName) + ",",
+		Salutation: billingSalutation(invoice.Recipient.Kind, invoice.Recipient.FirstName, invoice.Recipient.LastName),
 		Closing:    nonBlank("Mit freundlichen Grüßen", firstLine(sender)),
 		Footer:     nonBlank(append(textLines(head.FooterText), bankLine(head.BankAccount))...),
 	}
@@ -113,7 +113,7 @@ func careLetterFacts(content careLetterContent, numbers []LetterFact) []LetterFa
 		facts = append(facts, LetterFact{Label: "Datum", Value: germanDate(*content.invoice.IssuedOn)})
 	}
 	if content.cancellation == nil && content.invoice.TotalCents > 0 {
-		facts = append(facts, LetterFact{Label: "Zahlen bis", Value: germanDate(content.input.PaymentDueOn)})
+		facts = append(facts, paymentFacts(content.invoice.Payment, content.input.PaymentDueOn)...)
 	}
 	head := content.letterhead
 	for _, fact := range []LetterFact{
@@ -163,15 +163,19 @@ func carePaymentText(content careLetterContent) string {
 	if invoice.TotalCents == 0 {
 		return "Sie müssen für diesen Monat nichts bezahlen."
 	}
+	due := dueOnOf(invoice.Payment, content.input.PaymentDueOn)
+	if isDirectDebit(invoice.Payment) {
+		return directDebitText(invoice.TotalCents, due, "Rechnungsnummer "+invoice.Number)
+	}
 	if text := strings.TrimSpace(content.letterhead.PaymentText); text != "" && !strings.Contains(text, placeholderDebtorNumber) {
 		return strings.NewReplacer(
 			placeholderAmount, formatEuro(invoice.TotalCents),
-			placeholderPaymentDueOn, germanDate(content.input.PaymentDueOn),
+			placeholderPaymentDueOn, germanDate(due),
 			placeholderInvoiceNumber, invoice.Number,
 		).Replace(text)
 	}
 	return fmt.Sprintf("Bitte überweisen Sie %s bis zum %s auf das Konto unten. Geben Sie als Verwendungszweck die Rechnungsnummer %s an.",
-		formatEuro(invoice.TotalCents), germanDate(content.input.PaymentDueOn), invoice.Number)
+		formatEuro(invoice.TotalCents), germanDate(due), invoice.Number)
 }
 
 // careReductionFacts prints one line per reduction of the chain (#4685, ADR

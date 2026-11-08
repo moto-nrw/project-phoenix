@@ -64,8 +64,8 @@ func NewParentFamilyChildren(store FamilyChildrenStore) *FamilyNumbers {
 // errOfficeNotConfigured reports the parents' build asked for the office.
 var errOfficeNotConfigured = errors.New("parent billing: the family children office needs the care contracts")
 
-// familyKey is the key of a family: its address without case and blanks.
-func familyKey(email string) string { return strings.ToLower(strings.TrimSpace(email)) }
+// familyKey is the key of a family, the same as the rule chain uses (#4689).
+func familyKey(email string) string { return parentbilling.FamilyKey(email) }
 
 // FamilyChildren lists every family with a contract in force in the window
 // of the evidence page, its children with a contract and its number, and

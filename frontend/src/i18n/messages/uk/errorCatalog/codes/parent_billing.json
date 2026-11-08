@@ -59,6 +59,11 @@
   "care_evidence_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "care_evidence_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "care_evidence_overlap": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "billing_terms_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "family_billing_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "family_billing_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "family_unknown": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "due_dates_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "family_children_invalid": "Будь ласка, вкажіть ціле число від 1 до 20.",
   "family_children_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "family_without_address": "Не вдалося змінити: {object}. Перевірте поточний стан."

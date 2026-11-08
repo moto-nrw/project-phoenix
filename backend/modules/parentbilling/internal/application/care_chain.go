@@ -194,11 +194,16 @@ func (e *careChainEntry) reduce(rule *parentbilling.ContributionRule, discount i
 	})
 }
 
-// familyOf is the family of an invoice: its recipient's mail address,
-// compared without case, like the families of ADR 0126 and #4691. An
-// invoice without an address is a family of its own. #4689 replaces the key
-// with the payer; the children the family states (#5918) use the same key.
+// familyOf is the family of an invoice: the mail address of the contract
+// party, which the registration named, compared without case, like the
+// families of ADR 0126 and #4691. A payer who gets the invoice does not
+// change it (#4689, ADR 0167); an invoice issued before #4689 has only its
+// recipient's address. An invoice without an address is a family of its
+// own. #5918 adds the children the family states.
 func familyOf(entry *careChainEntry) string {
+	if email := parentbilling.FamilyKey(entry.invoice.FamilyEmail); email != "" {
+		return email
+	}
 	if email := strings.ToLower(strings.TrimSpace(entry.invoice.Recipient.Email)); email != "" {
 		return email
 	}

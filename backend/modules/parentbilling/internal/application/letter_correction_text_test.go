@@ -68,6 +68,26 @@ func TestCancellationLetterNamesItsInvoiceAndAsksForNoPayment(t *testing.T) {
 	assert.Equal(t, []string{"Familie Beispiel", "Erika Beispiel"}, letter.Recipient)
 }
 
+// Corrections keep the address and recipient kind copied by the invoice.
+func TestHolidayCorrectionsKeepTheRecipientOfTheInvoice(t *testing.T) {
+	t.Parallel()
+	for _, recipient := range []struct {
+		kind       string
+		secondName string
+		lines      []string
+	}{
+		{parentbilling.RecipientBoth, "Ben Beispiel", []string{"Familie Beispiel", "Erika Beispiel und Ben Beispiel"}},
+		{parentbilling.RecipientPayer, "", []string{"Erika Beispiel"}},
+	} {
+		invoice := goldenLetterContent(t).document
+		invoice.RecipientKind, invoice.RecipientSecondName = recipient.kind, recipient.secondName
+		for _, kind := range []string{parentbilling.DocumentCancellation, parentbilling.DocumentCredit} {
+			correction := correctionOf(invoice, kind, "Anschrift prüfen")
+			assert.Equal(t, recipient.lines, recipientLines(correction), kind)
+		}
+	}
+}
+
 // TestCreditLetterNamesWhatTheInvoiceStillAsksFor pins the letter of a
 // Gutschrift (#4690): the credited amount with its reason and what the
 // invoice asks for after it.

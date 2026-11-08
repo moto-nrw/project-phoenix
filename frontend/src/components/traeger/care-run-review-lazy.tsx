@@ -24,9 +24,11 @@ const ExclusionMenu = dynamic(
   { ssr: false },
 );
 
-/** The row menu column of a preview: leave the invoice out of the release. */
+/** The row menu column of a preview: leave the invoice out of the release,
+ * or open the recipient and payment of its family (#4689). */
 export function exclusionColumn(
   onExclude: (invoice: CareInvoice) => void,
+  onFamilyBilling?: (invoice: CareInvoice) => void,
 ): DataTableColumn<CareInvoiceRow> {
   return {
     key: "actions",
@@ -36,7 +38,11 @@ export function exclusionColumn(
     stackedLabel: false,
     className: "w-12 align-top",
     render: ({ invoice }) => (
-      <ExclusionMenu invoice={invoice} onExclude={onExclude} />
+      <ExclusionMenu
+        invoice={invoice}
+        onExclude={onExclude}
+        onFamilyBilling={onFamilyBilling}
+      />
     ),
   };
 }

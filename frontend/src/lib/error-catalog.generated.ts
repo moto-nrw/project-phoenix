@@ -819,6 +819,8 @@ export const ERROR_CATALOG = {
         "Für diesen Ferienzeitraum gibt es schon einen Lauf in der Vorschau. Bitte öffnen Sie diesen Lauf.",
       "parent_billing.billing_run_released":
         "Der Lauf ist schon freigegeben. Ausgestellte Rechnungen lassen sich nicht ändern.",
+      "parent_billing.billing_terms_invalid":
+        "Die Zahlungsbedingungen konnten nicht gespeichert werden. Bitte prüfen Sie Ihre Eingaben.",
       "parent_billing.care_evidence_invalid":
         "Der Nachweis konnte nicht gespeichert werden. Bitte prüfen Sie die markierten Felder.",
       "parent_billing.care_evidence_not_found":
@@ -870,12 +872,20 @@ export const ERROR_CATALOG = {
         "Bitte prüfen Sie die Debitorennummer.",
       "parent_billing.debtor_number_locked":
         "Für diese Anmeldung gibt es schon eine Rechnung. Die Debitorennummer lässt sich nicht mehr ändern.",
+      "parent_billing.due_dates_invalid":
+        "Die Fälligkeiten konnten nicht gespeichert werden. Bitte prüfen Sie die Daten.",
+      "parent_billing.family_billing_invalid":
+        "Empfänger und Zahlung konnten nicht gespeichert werden. Bitte prüfen Sie Ihre Eingaben.",
+      "parent_billing.family_billing_not_found":
+        "Diese Abweichung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "parent_billing.family_children_invalid":
         "Bitte geben Sie eine ganze Zahl von 1 bis 20 an.",
       "parent_billing.family_children_not_found":
         "Zu diesem Vertrag gibt es keine Familie mehr. Bitte laden Sie die Seite neu.",
       "parent_billing.family_not_found":
         "Zu dieser Familie gibt es keine Rechnung. Bitte öffnen Sie sie über die Liste „Familien“.",
+      "parent_billing.family_unknown":
+        "Für diesen Vertrag fehlt eine E-Mail-Adresse. Bitte tragen Sie sie im Vertrag ein.",
       "parent_billing.family_without_address":
         "Die Rechnung dieses Vertrags hat keine E-Mail-Adresse. Tragen Sie zuerst im Vertrag eine Adresse ein.",
       "parent_billing.holiday_quote_invalid":

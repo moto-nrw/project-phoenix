@@ -108,6 +108,13 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/traeger/care-evidences/"}:                       notCaptured,
 	{http.MethodPut, "/traeger/care-evidences/{id}"}:                    notCaptured,
 	{http.MethodDelete, "/traeger/care-evidences/{id}"}:                 notCaptured,
+	// Payment terms, family deviations and due dates of a run (#4689)
+	// belong to the Träger, no school to count them for.
+	{http.MethodPut, "/traeger/billing-terms/{service}"}:            notCaptured,
+	{http.MethodPut, "/traeger/family-billing/"}:                    notCaptured,
+	{http.MethodDelete, "/traeger/family-billing/{id}"}:             notCaptured,
+	{http.MethodPut, "/traeger/billing-run-due-dates/care/{id}"}:    notCaptured,
+	{http.MethodPut, "/traeger/billing-run-due-dates/holiday/{id}"}: notCaptured,
 	// The letters, mails and Storno of a monthly run (#4684, ADR 0165).
 	{http.MethodPost, "/traeger/care-billing-runs/{id}/letters"}:                           notCaptured,
 	{http.MethodPost, "/traeger/care-billing-runs/{id}/letters/preview"}:                   notCaptured,

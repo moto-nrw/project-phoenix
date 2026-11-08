@@ -45,9 +45,11 @@ function childName(invoice: CareInvoice): string {
 export function ExclusionMenu({
   invoice,
   onExclude,
+  onFamilyBilling,
 }: Readonly<{
   invoice: CareInvoice;
   onExclude: (invoice: CareInvoice) => void;
+  onFamilyBilling?: (invoice: CareInvoice) => void;
 }>) {
   return (
     <OverflowMenu
@@ -59,6 +61,15 @@ export function ExclusionMenu({
           description: "Bekommt bei der Freigabe keine Nummer",
           onClick: () => onExclude(invoice),
         },
+        ...(onFamilyBilling
+          ? [
+              {
+                label: "Empfänger und Zahlung",
+                description: "Für alle Rechnungen dieser Familie",
+                onClick: () => onFamilyBilling(invoice),
+              },
+            ]
+          : []),
       ]}
     />
   );
