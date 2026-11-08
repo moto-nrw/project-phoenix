@@ -7,7 +7,6 @@ import {
   buttonRatchetBaseline,
 } from "./ui-kit-button-baseline.mjs";
 import { importantOverrideBaseline } from "./ui-kit-important-override-baseline.mjs";
-import { surfaceBaseline } from "./ui-kit-surface-baseline.mjs";
 
 // UI-kit drift ratchet (issue #1629).
 //
@@ -29,7 +28,7 @@ import { surfaceBaseline } from "./ui-kit-surface-baseline.mjs";
 //                                     in the kit except SURFACE_KIT_CONTROLS;
 //                                     outside the kit also rounded-md/lg,
 //                                     bg-white/NN and frames without fill
-//                                     (#5594, shrink-only baseline); use
+//                                     (#5594, hard-zero); use
 //                                     moto-content-surface (cards),
 //                                     AnchoredPopover or OverflowMenu (floating panels),
 //                                     ChoiceTile (selectable rows) or a kit
@@ -909,62 +908,6 @@ function isWideSurfaceTokenGroup(tokens) {
   return !anyFill && padded;
 }
 
-/**
- * Shrink-only Baseline je Datei für Regeln mit eigenem Besucher (#5594): die
- * Funde aus `count` werden gesammelt und erst gemeldet, wenn eine Datei mehr
- * hat, als `baselines[ruleName][file]` erlaubt. Ein Fund hinter
- * `oxlint-disable-next-line <rule>` zählt nicht mit, genau wie im Generator.
- * Mit `countEnv=count` meldet die Regel jeden Fund; daraus schreibt
- * `pnpm run ui-kit:surface-baseline` die Zahlen.
- */
-function withFileBaseline({ ruleName, baselines, countEnv }, create) {
-  return (context) => {
-    const key = fileKey(context);
-    const findings = [];
-    const visitors = create(context, (descriptor) => findings.push(descriptor));
-    if (!visitors || Object.keys(visitors).length === 0) return {};
-    const exit = visitors["Program:exit"];
-    return {
-      ...visitors,
-      "Program:exit"(node) {
-        exit?.(node);
-        const disabledLines = new Set();
-        for (const comment of context.sourceCode?.getAllComments?.() ?? []) {
-          if (
-            comment.value.includes("oxlint-disable-next-line") &&
-            comment.value.includes(`ui-kit/${ruleName}`)
-          ) {
-            disabledLines.add(comment.loc.end.line + 1);
-          }
-        }
-        const counted = findings.filter(
-          (descriptor) => !disabledLines.has(descriptor.node.loc?.start.line),
-        );
-        const baseline = baselines[ruleName]?.[key] ?? 0;
-        const countMode = process.env[countEnv] === "count";
-        if (!countMode && counted.length <= baseline) return;
-        for (const descriptor of counted) {
-          context.report(
-            countMode || baseline === 0
-              ? descriptor
-              : {
-                  ...descriptor,
-                  messageId: "overBaseline",
-                  data: {
-                    found: String(counted.length),
-                    baseline: String(baseline),
-                  },
-                },
-          );
-        }
-      },
-    };
-  };
-}
-
-const SURFACE_OVER_BASELINE =
-  "Diese Datei hat {{found}} handgebaute Flächen, die Baseline erlaubt {{baseline}}. Neue Flächen aus dem Kit bauen: SectionCard, TileCard, InsetPanel oder moto-content-surface (#5594, Abbau: pnpm run ui-kit:surface-baseline).";
-
 const noHandRolledSurface = {
   meta: {
     type: "problem",
@@ -975,200 +918,184 @@ const noHandRolledSurface = {
     messages: {
       handRolledSurface:
         "Hand-rolled card surface ('{{match}}'). Use moto-content-surface (cards), AnchoredPopover or OverflowMenu (floating panels), ChoiceTile (selectable rows and tiles) or a kit surface component (SectionCard) instead. A deliberate non-card match may stay behind `// oxlint-disable-next-line ui-kit/no-hand-rolled-surface` with the reason recorded in the PR description (issue #2933).",
-      overBaseline: SURFACE_OVER_BASELINE,
     },
     schema: [],
   },
-  create: withFileBaseline(
-    {
-      ruleName: "no-hand-rolled-surface",
-      baselines: surfaceBaseline,
-      countEnv: "UI_KIT_SURFACE_RATCHET",
-    },
-    (context, report) => {
-      const key = fileKey(context);
-      const countMode = process.env.UI_KIT_SURFACE_RATCHET === "count";
-      if (!key.startsWith("src/")) return {};
-      if (EXEMPT_FILE_RE.test(key)) return {};
-      if (SURFACE_KIT_CONTROLS.has(key)) return {};
-      // Die Eltern-Ausnahmen aus #2619 gelten nur für die Schärfung; die
-      // alte Kette bleibt auch dort hart null.
-      const widened =
-        !key.startsWith(UI_KIT_DIR) && !INSET_PARENT_EXCEPTIONS.includes(key);
+  create(context) {
+    const report = (descriptor) => context.report(descriptor);
+    const key = fileKey(context);
+    if (!key.startsWith("src/")) return {};
+    if (EXEMPT_FILE_RE.test(key)) return {};
+    if (SURFACE_KIT_CONTROLS.has(key)) return {};
+    // Die Eltern-Ausnahmen aus #2619 gelten nur für die Schärfung; die
+    // alte Kette bleibt auch dort hart null.
+    const widened =
+      !key.startsWith(UI_KIT_DIR) && !INSET_PARENT_EXCEPTIONS.includes(key);
 
-      // Die alte Kette ist hart null und meldet sofort, an der Baseline vorbei.
-      const check = (node, text) => {
-        if (!isSurfaceCombo(text)) return;
-        // Der Generator zählt ausschließlich die shrink-only Schärfung.
-        if (countMode) return;
-        context.report({
-          node,
-          messageId: "handRolledSurface",
-          data: { match: "rounded-xl/2xl … border … bg-white" },
-        });
-      };
-      const surfaceComboKey = (text) => text.trim().replace(/\s+/g, " ");
-      // Literal-/Template- und konstante cn()-Treffer melden sich schon an
-      // ihrer Definition. Die Verwendungen einer Konstanten dürfen diese
-      // alte Kette nicht nochmals melden, wohl aber einen anderen, erweiterten
-      // Zweig derselben className-Expression.
-      const separatelyReportedSurfaceCombos = (
-        value,
-        seenVariables = new Set(),
-        seenNodes = new WeakSet(),
-      ) => {
-        const reported = new Set();
-        const collect = (node) => {
-          if (!node || typeof node !== "object" || seenNodes.has(node)) return;
-          seenNodes.add(node);
-          if (
-            node.type === "JSXExpressionContainer" ||
-            node.type === "ChainExpression" ||
-            node.type === "TSAsExpression" ||
-            node.type === "TSTypeAssertion" ||
-            node.type === "TypeCastExpression"
-          ) {
-            collect(node.expression);
-            return;
+    const check = (node, text) => {
+      if (!isSurfaceCombo(text)) return;
+      context.report({
+        node,
+        messageId: "handRolledSurface",
+        data: { match: "rounded-xl/2xl … border … bg-white" },
+      });
+    };
+    const surfaceComboKey = (text) => text.trim().replace(/\s+/g, " ");
+    // Literal-/Template- und konstante cn()-Treffer melden sich schon an
+    // ihrer Definition. Die Verwendungen einer Konstanten dürfen diese
+    // alte Kette nicht nochmals melden, wohl aber einen anderen, erweiterten
+    // Zweig derselben className-Expression.
+    const separatelyReportedSurfaceCombos = (
+      value,
+      seenVariables = new Set(),
+      seenNodes = new WeakSet(),
+    ) => {
+      const reported = new Set();
+      const collect = (node) => {
+        if (!node || typeof node !== "object" || seenNodes.has(node)) return;
+        seenNodes.add(node);
+        if (
+          node.type === "JSXExpressionContainer" ||
+          node.type === "ChainExpression" ||
+          node.type === "TSAsExpression" ||
+          node.type === "TSTypeAssertion" ||
+          node.type === "TypeCastExpression"
+        ) {
+          collect(node.expression);
+          return;
+        }
+        if (node.type === "Literal" && typeof node.value === "string") {
+          if (isSurfaceCombo(node.value)) {
+            reported.add(surfaceComboKey(node.value));
           }
-          if (node.type === "Literal" && typeof node.value === "string") {
-            if (isSurfaceCombo(node.value)) {
-              reported.add(surfaceComboKey(node.value));
-            }
-            return;
-          }
-          if (node.type === "TemplateLiteral") {
-            for (const quasi of node.quasis) {
-              if (isSurfaceCombo(quasi.value.raw)) {
-                reported.add(surfaceComboKey(quasi.value.raw));
-              }
-            }
-            return;
-          }
-          if (node.type === "Identifier") {
-            const variable = findVariable(context.sourceCode, node);
-            if (!variable || seenVariables.has(variable)) return;
-            seenVariables.add(variable);
-            for (const definition of variable.defs) {
-              if (
-                definition.type !== "Variable" ||
-                definition.node.type !== "VariableDeclarator" ||
-                definition.parent?.kind !== "const" ||
-                !definition.node.init
-              )
-                continue;
-              const initializer = definition.node.init;
-              if (initializer.type === "CallExpression") {
-                const combinations = classCombinations(
-                  initializer,
-                  new Set(),
-                  context.sourceCode,
-                );
-                for (const combo of combinations ?? []) {
-                  if (isSurfaceCombo(combo))
-                    reported.add(surfaceComboKey(combo));
-                }
-              }
-              collect(initializer);
-            }
-            return;
-          }
-          if (node.type === "ConditionalExpression") {
-            collect(node.consequent);
-            collect(node.alternate);
-            return;
-          }
-          if (node.type === "LogicalExpression") {
-            collect(node.left);
-            collect(node.right);
-          }
-        };
-        collect(value);
-        return reported;
-      };
-
-      return {
-        Literal(node) {
-          if (typeof node.value === "string") check(node, node.value);
-        },
-        TemplateLiteral(node) {
+          return;
+        }
+        if (node.type === "TemplateLiteral") {
           for (const quasi of node.quasis) {
-            check(node, quasi.value.raw);
-          }
-        },
-        VariableDeclarator(node) {
-          if (
-            node.parent?.kind !== "const" ||
-            node.init?.type !== "CallExpression"
-          )
-            return;
-          const chunks = [];
-          collectStaticStrings(node.init, chunks);
-          if (chunks.some(isSurfaceCombo)) return;
-          const combos = classCombinations(
-            node.init,
-            new Set(),
-            context.sourceCode,
-          );
-          const rendered = combos?.find((combo) => isSurfaceCombo(combo));
-          if (rendered !== undefined) check(node, rendered);
-        },
-        JSXAttribute(node) {
-          if (
-            node.name.type !== "JSXIdentifier" ||
-            node.name.name !== "className"
-          )
-            return;
-          const chunks = [];
-          collectStaticStrings(node.value, chunks);
-          if (chunks.some(isSurfaceCombo)) return;
-          const reported = separatelyReportedSurfaceCombos(node.value);
-          const combinations = classCombinations(
-            node.value,
-            new Set(),
-            context.sourceCode,
-          ) ?? [chunks.join(" ")];
-          for (const combo of new Set(combinations)) {
-            if (
-              isSurfaceCombo(combo) &&
-              !reported.has(surfaceComboKey(combo))
-            ) {
-              check(node.parent ?? node, combo);
+            if (isSurfaceCombo(quasi.value.raw)) {
+              reported.add(surfaceComboKey(quasi.value.raw));
             }
           }
-        },
-        JSXOpeningElement(node) {
-          if (!widened) return;
-          if (SURFACE_CONTROL_ELEMENTS.has(jsxName(node.name) ?? "")) return;
-          const className = jsxAttribute(node, "className");
-          if (!className?.value) return;
-          const chunks = [];
-          collectStaticStrings(className.value, chunks);
-          const combinations = classCombinations(
-            className.value,
-            new Set(),
-            context.sourceCode,
-          ) ?? [chunks.join(" ")];
-          if (
-            combinations.some(
-              (combo) =>
-                !isSurfaceCombo(combo) &&
-                isWideSurfaceTokens(combo.split(/\s+/)),
+          return;
+        }
+        if (node.type === "Identifier") {
+          const variable = findVariable(context.sourceCode, node);
+          if (!variable || seenVariables.has(variable)) return;
+          seenVariables.add(variable);
+          for (const definition of variable.defs) {
+            if (
+              definition.type !== "Variable" ||
+              definition.node.type !== "VariableDeclarator" ||
+              definition.parent?.kind !== "const" ||
+              !definition.node.init
             )
-          ) {
-            report({
-              node,
-              messageId: "handRolledSurface",
-              data: {
-                match:
-                  "rounded-md…2xl … border … bg-white(/NN) oder Rahmen mit Polster",
-              },
-            });
+              continue;
+            const initializer = definition.node.init;
+            if (initializer.type === "CallExpression") {
+              const combinations = classCombinations(
+                initializer,
+                new Set(),
+                context.sourceCode,
+              );
+              for (const combo of combinations ?? []) {
+                if (isSurfaceCombo(combo)) reported.add(surfaceComboKey(combo));
+              }
+            }
+            collect(initializer);
           }
-        },
+          return;
+        }
+        if (node.type === "ConditionalExpression") {
+          collect(node.consequent);
+          collect(node.alternate);
+          return;
+        }
+        if (node.type === "LogicalExpression") {
+          collect(node.left);
+          collect(node.right);
+        }
       };
-    },
-  ),
+      collect(value);
+      return reported;
+    };
+
+    return {
+      Literal(node) {
+        if (typeof node.value === "string") check(node, node.value);
+      },
+      TemplateLiteral(node) {
+        for (const quasi of node.quasis) {
+          check(node, quasi.value.raw);
+        }
+      },
+      VariableDeclarator(node) {
+        if (
+          node.parent?.kind !== "const" ||
+          node.init?.type !== "CallExpression"
+        )
+          return;
+        const chunks = [];
+        collectStaticStrings(node.init, chunks);
+        if (chunks.some(isSurfaceCombo)) return;
+        const combos = classCombinations(
+          node.init,
+          new Set(),
+          context.sourceCode,
+        );
+        const rendered = combos?.find((combo) => isSurfaceCombo(combo));
+        if (rendered !== undefined) check(node, rendered);
+      },
+      JSXAttribute(node) {
+        if (
+          node.name.type !== "JSXIdentifier" ||
+          node.name.name !== "className"
+        )
+          return;
+        const chunks = [];
+        collectStaticStrings(node.value, chunks);
+        if (chunks.some(isSurfaceCombo)) return;
+        const reported = separatelyReportedSurfaceCombos(node.value);
+        const combinations = classCombinations(
+          node.value,
+          new Set(),
+          context.sourceCode,
+        ) ?? [chunks.join(" ")];
+        for (const combo of new Set(combinations)) {
+          if (isSurfaceCombo(combo) && !reported.has(surfaceComboKey(combo))) {
+            check(node.parent ?? node, combo);
+          }
+        }
+      },
+      JSXOpeningElement(node) {
+        if (!widened) return;
+        if (SURFACE_CONTROL_ELEMENTS.has(jsxName(node.name) ?? "")) return;
+        const className = jsxAttribute(node, "className");
+        if (!className?.value) return;
+        const chunks = [];
+        collectStaticStrings(className.value, chunks);
+        const combinations = classCombinations(
+          className.value,
+          new Set(),
+          context.sourceCode,
+        ) ?? [chunks.join(" ")];
+        if (
+          combinations.some(
+            (combo) =>
+              !isSurfaceCombo(combo) && isWideSurfaceTokens(combo.split(/\s+/)),
+          )
+        ) {
+          report({
+            node,
+            messageId: "handRolledSurface",
+            data: {
+              match:
+                "rounded-md…2xl … border … bg-white(/NN) oder Rahmen mit Polster",
+            },
+          });
+        }
+      },
+    };
+  },
 };
 
 const noRounded3xl = makeClassStringRule({
@@ -1657,7 +1584,7 @@ src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@179 text-[11px
 src/components/timetable/staff-pool-slide-over.tsx|text-[11px]@482
 src/components/timetable/substitution-person-card.tsx|text-[11px]@59 text-[11px]@338 text-[11px]@345 text-[11px]@352 text-[11px]@360
 src/components/timetable/substitution-slide-over.tsx|text-[11px]@744
-src/components/timetable/template-card.tsx|text-[10px]@198
+src/components/timetable/template-card.tsx|text-[10px]@209
 src/components/timetable/vertretung-day-list.tsx|text-[11px]@348 text-[11px]@388 text-[11px]@395 text-[11px]@416 text-[11px]@422
 src/components/timetable/weekly-calendar-grid.tsx|text-[11px]@461 text-[10px]@484 text-[10px]@519 text-[11px]@519
 src/components/ui/avatar.tsx|text-[10px]@32
@@ -1724,13 +1651,21 @@ const HANDROLLED_SURFACE_RE =
   /moto-content-surface[^"'`]*rounded-2xl|rounded-2xl[^"'`]*moto-content-surface/;
 
 // #5594: die Regel gilt für jede `.tsx` unter `app/` und `components/` außer dem
-// Kit, nicht mehr nur für Seitendateien. Der Bestand steht in der shrink-only
-// Baseline (ui-kit-surface-baseline.json); die Eltern-Ausnahmen aus #2619 sind
-// dieselben wie bei no-hand-rolled-inset.
+// Kit, nicht mehr nur für Seitendateien. Hard-zero seit dem Abbau der Baseline.
+// Eltern-Ausnahmen aus #2619: Kinderkarten, Kinderwahl und Startseite des
+// Elternportals samt ihrer Aufgabenliste behalten ihre Flächen. Nie anfassen,
+// auch nicht für das Kit. Exakte Pfade, kein Präfix.
+const PAGE_CARD_EXEMPT_FILES = [
+  "src/components/parent/child/child-day-card.tsx",
+  "src/components/parent/child/child-switcher.tsx",
+  "src/components/parent/start/parent-start-page.tsx",
+  "src/components/parent/start/todo-list.tsx",
+];
+
 function isPageCardScope(key) {
   if (!/\.tsx$/.test(key) || EXEMPT_FILE_RE.test(key)) return false;
   if (key.startsWith(UI_KIT_DIR)) return false;
-  if (INSET_PARENT_EXCEPTIONS.includes(key)) return false;
+  if (PAGE_CARD_EXEMPT_FILES.includes(key)) return false;
   return key.startsWith("src/app/") || key.startsWith("src/components/");
 }
 
@@ -1743,120 +1678,110 @@ const noHandRolledPageCard = {
     messages: {
       surface:
         "Keine eigene Kartenfläche. SectionCard (Fläche, mit oder ohne Titel), TileCard (anklickbare Kachel), StatCard (Kennzahl) oder TenantPageHeaderSkeleton nehmen; innere Karten `moto-content-surface rounded-xl` (siehe .claude/rules/frontend-ui-kit.md, #5594).",
-      overBaseline: SURFACE_OVER_BASELINE,
     },
   },
-  create: withFileBaseline(
-    {
-      ruleName: "no-hand-rolled-page-card",
-      baselines: surfaceBaseline,
-      countEnv: "UI_KIT_SURFACE_RATCHET",
-    },
-    (context, report) => {
-      if (!isPageCardScope(fileKey(context))) return {};
-      const isReportedPageCardConstant = (value, seenVariables = new Set()) => {
-        if (value?.type === "JSXExpressionContainer") {
-          return isReportedPageCardConstant(value.expression, seenVariables);
+  create(context) {
+    const report = (descriptor) => context.report(descriptor);
+    if (!isPageCardScope(fileKey(context))) return {};
+    const isReportedPageCardConstant = (value, seenVariables = new Set()) => {
+      if (value?.type === "JSXExpressionContainer") {
+        return isReportedPageCardConstant(value.expression, seenVariables);
+      }
+      if (value?.type !== "Identifier") return false;
+      const variable = findVariable(context.sourceCode, value);
+      if (!variable || seenVariables.has(variable)) return false;
+      seenVariables.add(variable);
+      for (const definition of variable.defs) {
+        if (
+          definition.type !== "Variable" ||
+          definition.node.type !== "VariableDeclarator" ||
+          definition.parent?.kind !== "const" ||
+          !definition.node.init
+        )
+          continue;
+        const initializer = definition.node.init;
+        if (HANDROLLED_SURFACE_RE.test(staticStringValue(initializer) ?? "")) {
+          return true;
         }
-        if (value?.type !== "Identifier") return false;
-        const variable = findVariable(context.sourceCode, value);
-        if (!variable || seenVariables.has(variable)) return false;
-        seenVariables.add(variable);
-        for (const definition of variable.defs) {
-          if (
-            definition.type !== "Variable" ||
-            definition.node.type !== "VariableDeclarator" ||
-            definition.parent?.kind !== "const" ||
-            !definition.node.init
-          )
-            continue;
-          const initializer = definition.node.init;
-          if (
-            HANDROLLED_SURFACE_RE.test(staticStringValue(initializer) ?? "")
-          ) {
-            return true;
-          }
-          if (initializer.type === "CallExpression") {
-            const combinations = classCombinations(
-              initializer,
-              new Set(),
-              context.sourceCode,
-            );
-            if (
-              combinations?.some((combo) => HANDROLLED_SURFACE_RE.test(combo))
-            ) {
-              return true;
-            }
-          }
-          if (isReportedPageCardConstant(initializer, seenVariables))
-            return true;
-        }
-        return false;
-      };
-
-      return {
-        Literal(node) {
-          if (
-            typeof node.value === "string" &&
-            HANDROLLED_SURFACE_RE.test(node.value)
-          ) {
-            report({ node, messageId: "surface" });
-          }
-        },
-        TemplateElement(node) {
-          const raw = node.value?.cooked ?? node.value?.raw ?? "";
-          if (HANDROLLED_SURFACE_RE.test(raw)) {
-            report({ node, messageId: "surface" });
-          }
-        },
-        VariableDeclarator(node) {
-          if (
-            node.parent?.kind !== "const" ||
-            node.init?.type !== "CallExpression"
-          )
-            return;
-          const chunks = [];
-          collectStaticStrings(node.init, chunks);
-          if (chunks.some((chunk) => HANDROLLED_SURFACE_RE.test(chunk))) {
-            return;
-          }
-          const combos = classCombinations(
-            node.init,
+        if (initializer.type === "CallExpression") {
+          const combinations = classCombinations(
+            initializer,
             new Set(),
             context.sourceCode,
           );
-          if (combos?.some((combo) => HANDROLLED_SURFACE_RE.test(combo))) {
-            report({ node, messageId: "surface" });
-          }
-        },
-        JSXAttribute(node) {
           if (
-            node.name.type !== "JSXIdentifier" ||
-            node.name.name !== "className"
-          )
-            return;
+            combinations?.some((combo) => HANDROLLED_SURFACE_RE.test(combo))
+          ) {
+            return true;
+          }
+        }
+        if (isReportedPageCardConstant(initializer, seenVariables)) return true;
+      }
+      return false;
+    };
 
-          const chunks = [];
-          collectStaticStrings(node.value, chunks);
-          if (chunks.some((chunk) => HANDROLLED_SURFACE_RE.test(chunk))) {
-            return; // already reported by the Literal/TemplateElement visitors
-          }
-          if (isReportedPageCardConstant(node.value)) return;
-          const combos = classCombinations(
-            node.value,
-            new Set(),
-            context.sourceCode,
-          ) ?? [chunks.join(" ")];
-          const rendered = combos.find((combo) =>
-            HANDROLLED_SURFACE_RE.test(combo),
-          );
-          if (rendered !== undefined) {
-            report({ node, messageId: "surface" });
-          }
-        },
-      };
-    },
-  ),
+    return {
+      Literal(node) {
+        if (
+          typeof node.value === "string" &&
+          HANDROLLED_SURFACE_RE.test(node.value)
+        ) {
+          report({ node, messageId: "surface" });
+        }
+      },
+      TemplateElement(node) {
+        const raw = node.value?.cooked ?? node.value?.raw ?? "";
+        if (HANDROLLED_SURFACE_RE.test(raw)) {
+          report({ node, messageId: "surface" });
+        }
+      },
+      VariableDeclarator(node) {
+        if (
+          node.parent?.kind !== "const" ||
+          node.init?.type !== "CallExpression"
+        )
+          return;
+        const chunks = [];
+        collectStaticStrings(node.init, chunks);
+        if (chunks.some((chunk) => HANDROLLED_SURFACE_RE.test(chunk))) {
+          return;
+        }
+        const combos = classCombinations(
+          node.init,
+          new Set(),
+          context.sourceCode,
+        );
+        if (combos?.some((combo) => HANDROLLED_SURFACE_RE.test(combo))) {
+          report({ node, messageId: "surface" });
+        }
+      },
+      JSXAttribute(node) {
+        if (
+          node.name.type !== "JSXIdentifier" ||
+          node.name.name !== "className"
+        )
+          return;
+
+        const chunks = [];
+        collectStaticStrings(node.value, chunks);
+        if (chunks.some((chunk) => HANDROLLED_SURFACE_RE.test(chunk))) {
+          return; // already reported by the Literal/TemplateElement visitors
+        }
+        if (isReportedPageCardConstant(node.value)) return;
+        const combos = classCombinations(
+          node.value,
+          new Set(),
+          context.sourceCode,
+        ) ?? [chunks.join(" ")];
+        const rendered = combos.find((combo) =>
+          HANDROLLED_SURFACE_RE.test(combo),
+        );
+        if (rendered !== undefined) {
+          report({ node, messageId: "surface" });
+        }
+      },
+    };
+  },
 };
 
 // ui-kit/no-tabs-as-value-switcher — `ui/Tabs` ist Radix und schaltet

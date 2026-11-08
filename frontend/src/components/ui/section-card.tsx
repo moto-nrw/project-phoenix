@@ -258,6 +258,8 @@ export function SectionCard({
   padding = "default",
   loading = false,
   loadingRows = 3,
+  as = "section",
+  hoverElevated = false,
   children,
   id,
 }: Readonly<{
@@ -333,6 +335,17 @@ export function SectionCard({
   /** Zeigt Balken in Feldform statt des Inhalts; der Kopf bleibt echt. */
   loading?: boolean;
   loadingRows?: number;
+  /**
+   * `article` für eine Karte, die für sich allein steht und in einer Reihe
+   * gleichartiger Karten liegt (eine Serie im Stundenplan).
+   */
+  as?: "section" | "article";
+  /**
+   * Hebt die Karte beim Hovern an wie eine `TileCard`, ohne sie klickbar zu
+   * machen. Für Karten, deren Bedienelemente im Inhalt liegen; ist die ganze
+   * Karte ein Ziel, ist `TileCard` richtig.
+   */
+  hoverElevated?: boolean;
   children?: ReactNode;
   id?: string;
 }>) {
@@ -378,6 +391,8 @@ export function SectionCard({
       data-testid={testId}
       aria-labelledby={namedRegion && title != null ? headingId : undefined}
       bare={bare}
+      as={as}
+      hoverElevated={hoverElevated}
       overflow={overflow}
       className={cn(!bare && surfacePadding, className)}
     >
