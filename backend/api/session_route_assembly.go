@@ -25,7 +25,9 @@ func SessionChain(portal tokenprimitives.PortalClaims) []common.Middleware {
 	if !ok {
 		panic(fmt.Sprintf("portal %q has no session routes", portal.Name))
 	}
-	return common.SessionChain(sessiontoken.Authenticator, ReadOnlyPreviewMiddleware, gate, SecurityPrincipalMiddleware)
+	return common.SessionLinks{
+		Authenticate: sessiontoken.Authenticator, Preview: ReadOnlyPreviewMiddleware, Scope: gate, Principal: SecurityPrincipalMiddleware,
+	}.Chain()
 }
 
 func sessionChainOf(portal tokenprimitives.PortalClaims) func(chi.Router) {

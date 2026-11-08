@@ -9,12 +9,18 @@ import (
 // Middleware is the standard chi middleware shape.
 type Middleware = func(http.Handler) http.Handler
 
-// SessionChain is the order every session route group runs, whatever its
-// portal: authenticate; block the writes of a staff-view preview token
-// (#2893) before any transaction can open; admit only the group's portals;
-// then derive the security principal from the admitted claims.
-func SessionChain(authenticate, preview, scope, principal Middleware) []Middleware {
-	return []Middleware{authenticate, preview, scope, principal}
+// SessionLinks are the links of a session route group. Callers name each
+// link; Chain alone decides their order.
+type SessionLinks struct {
+	Authenticate, Preview, Scope, Principal Middleware
+}
+
+// Chain is the order every session route group runs, whatever its portal:
+// authenticate; block the writes of a staff-view preview token (#2893)
+// before any transaction can open; admit only the group's portals; then
+// derive the security principal from the admitted claims.
+func (l SessionLinks) Chain() []Middleware {
+	return []Middleware{l.Authenticate, l.Preview, l.Scope, l.Principal}
 }
 
 // ProtectedTenantRoutes registers a session route group of a school-bound
