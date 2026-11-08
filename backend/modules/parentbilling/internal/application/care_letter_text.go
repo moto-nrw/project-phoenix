@@ -204,7 +204,7 @@ func carePaymentText(content careLetterContent) string {
 	}
 	due := dueOnOf(invoice.Payment, content.input.PaymentDueOn)
 	if isDirectDebit(invoice.Payment) {
-		return directDebitText(invoice.TotalCents, due, "Rechnungsnummer "+invoice.Number)
+		return directDebitText(invoice.TotalCents, due, "Rechnungsnummer "+invoice.Number, paymentMandate(invoice.Payment))
 	}
 	if text := strings.TrimSpace(content.letterhead.PaymentText); text != "" && !strings.Contains(text, placeholderDebtorNumber) {
 		return strings.NewReplacer(

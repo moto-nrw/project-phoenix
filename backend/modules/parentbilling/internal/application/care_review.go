@@ -87,7 +87,8 @@ func narrowMonth(month careMonth, schoolIDs []int64, exclusions map[int64]parent
 	inRun := func(schoolID int64) bool { return slices.Contains(schoolIDs, schoolID) }
 	review := reviewedMonth{careMonth: careMonth{invoices: []parentbilling.CareInvoice{}, unpriced: []parentbilling.CareUnpriced{},
 		duplicates: []parentbilling.CareDuplicate{}, mealGaps: []parentbilling.CareMealGap{},
-		mealUnbilled: []parentbilling.CareMealUnbilled{}, mealChanged: []parentbilling.CareMealChanged{}, dueDates: month.dueDates, deviations: month.deviations},
+		mealUnbilled: []parentbilling.CareMealUnbilled{}, mealChanged: []parentbilling.CareMealChanged{}, dueDates: month.dueDates, deviations: month.deviations,
+		mandates: month.mandates},
 		excluded: []parentbilling.CareInvoice{}}
 	review.uncounted = uncountedInRun(month.uncountedSchools, inRun)
 	review.billed = countInRun(month.billedBySchool, inRun)
@@ -418,6 +419,10 @@ func (c *CareBilling) reviewDetail(ctx context.Context, reviewer parentbilling.H
 	if err := recordDeviationReads(ctx, c.store, reviewer, review.deviations); err != nil {
 		return err
 	}
+	// So are the masked accounts of the SEPA mandates (#4695).
+	if err := recordMandateReads(ctx, c.store, reviewer, review.mandates); err != nil {
+		return err
+	}
 	detail.DueDates = review.dueDates.InPaymentOrder()
 	detail.MonthRule, detail.Unpriced, detail.Billed = rule, review.unpriced, review.billed
 	detail.FreeOfCharge = review.free
@@ -480,6 +485,14 @@ func (c *CareBilling) issueReviewed(ctx context.Context, organizationID int64, r
 	if len(month.invoices) != release.DocumentCount || month.total() != release.TotalCents ||
 		month.fingerprint == "" || month.fingerprint != release.Fingerprint {
 		return "", reviewedMonth{}, "", parentbilling.ErrBillingRunChanged
+	}
+	// A Träger that blocks direct debits without a mandate issues none of
+	// them (MissingMandateBlock, ADR 0171); an invoice of 0 € collects
+	// nothing and needs no mandate.
+	if slices.ContainsFunc(month.invoices, func(invoice parentbilling.CareInvoice) bool {
+		return debitBlocked(invoice.TotalCents, invoice.Payment)
+	}) {
+		return "", reviewedMonth{}, "", parentbilling.ErrDirectDebitWithoutMandate
 	}
 	issuedOn := c.today()
 	if run.InvoiceDate != nil {

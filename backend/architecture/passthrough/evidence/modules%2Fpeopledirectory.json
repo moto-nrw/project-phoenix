@@ -632,6 +632,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (s *StudentStore) ListNamesByClass(ctx context.Context, schoolClass string) ([]directory.StudentName, domain.OperationStats, error) {\n\trecords, stats, err := s.reads.ListNamesByClass(ctx, schoolClass)\n\treturn append([]directory.StudentName{}, records...), domain.OperationStats(stats), projectionError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.ListNamesByClass",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
       "evidence": "func (s *StudentStore) ListNamesByIDs(ctx context.Context, ids []int64) ([]directory.StudentName, domain.OperationStats, error) {\n\trecords, stats, err := s.reads.ListNamesByIDs(ctx, ids)\n\tresult := make([]directory.StudentName, 0, len(records))\n\tfor _, row := range records {\n\t\tresult = append(result, directory.StudentName(row))\n\t}\n\treturn result, domain.OperationStats(stats), projectionError(err)\n}",
       "form": "unclassified-evidence",
       "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.ListNamesByIDs",
@@ -1388,9 +1395,9 @@
     },
     {
       "build": "production",
-      "evidence": "func (s *Service) ListStudentDirectoryIDs(ctx context.Context) ([]int64, error) {\n\tids, err := s.students.ListDirectoryIDs(ctx)\n\treturn ids, MapError(err)\n}",
+      "evidence": "func (s *Service) ListStudentNamesByClass(ctx context.Context, schoolClass string) ([]peopledirectory.StudentName, error) {\n\tif strings.TrimSpace(schoolClass) == \"\" {\n\t\treturn []peopledirectory.StudentName{}, nil\n\t}\n\tvalues, err := s.students.ListNamesByClass(ctx, schoolClass)\n\tresult := append([]peopledirectory.StudentName{}, values...)\n\treturn result, MapError(err)\n}",
       "form": "unclassified-evidence",
-      "id": "modules/peopledirectory/internal/application/Service.ListStudentDirectoryIDs",
+      "id": "modules/peopledirectory/internal/application/Service.ListStudentNamesByClass",
       "owner": "modules/peopledirectory"
     },
     {

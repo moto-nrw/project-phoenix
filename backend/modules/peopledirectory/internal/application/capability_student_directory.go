@@ -36,11 +36,6 @@ func (s *Service) CountStudentDirectory(ctx context.Context, filter peopledirect
 	return total, MapError(err)
 }
 
-func (s *Service) ListStudentDirectoryIDs(ctx context.Context) ([]int64, error) {
-	ids, err := s.students.ListDirectoryIDs(ctx)
-	return ids, MapError(err)
-}
-
 func (s *Service) FindStudentRecordForMutation(ctx context.Context, studentID int64) (peopledirectory.StudentRecord, error) {
 	if studentID <= 0 {
 		return peopledirectory.StudentRecord{}, invalidStudent("student ID is required")

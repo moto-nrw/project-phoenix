@@ -59,7 +59,7 @@ export function traegerBillingTermsTopic(): HelpTopic {
       "Jede Rechnung zeigt den Zahlungsweg und das Datum, an dem sie fällig ist. Steht dahinter `Zahltag der Familie`, kommt das Datum von der Familie. Rechnungen an beide Eltern oder an eine andere Person tragen das Zeichen `Beide Eltern` oder `Abweichender Zahler`.",
     notes: [
       "Die Ferienbetreuung hat immer eine eigene Rechnung. Sie steht nie auf der Rechnung der Betreuung.",
-      "Bei `Lastschrift` buchen Sie den Betrag selbst ab. Dafür braucht die Familie ein SEPA-Mandat bei Ihnen. moto bucht kein Geld ab.",
+      "Bei `Lastschrift` buchen Sie den Betrag selbst ab. Dafür braucht die Familie ein SEPA-Mandat bei Ihnen, und Sie brauchen eine Gläubiger-ID. Ohne Mandat geht die Rechnung als Überweisung. moto bucht kein Geld ab.",
       "Unter `Abrechnung` und `Familien` sehen Sie bei jeder Familie den Zahlungsweg ihrer Rechnungen.",
       "Beim Erstellen der Schreiben stehen die Fälligkeiten bereits fest. Das Feld `Zahlen bis` gilt nur für ältere Rechnungen ohne eigenes Datum.",
       "Welches Datum gilt: zuerst der eigene Zahltag der Familie, dann das Datum des Laufs, sonst das Zahlungsziel der Leistung.",
@@ -73,6 +73,10 @@ export function traegerBillingTermsTopic(): HelpTopic {
       "Änderungen erscheinen nicht auf einer Rechnung? Ausgestellte Rechnungen bleiben, wie sie sind. Die Änderung gilt ab dem nächsten Lauf. Eine falsche Rechnung stornieren Sie und stellen sie neu aus.",
       "`Empfänger und Zahlung` lässt sich nicht speichern, weil eine E-Mail-Adresse fehlt? Im Vertrag steht keine E-Mail-Adresse. Tragen Sie sie im Vertrag ein.",
     ],
-    related: [HELP_TOPICS.traegerCareMonths, HELP_TOPICS.traegerBillingRun],
+    related: [
+      HELP_TOPICS.traegerSepaMandates,
+      HELP_TOPICS.traegerCareMonths,
+      HELP_TOPICS.traegerBillingRun,
+    ],
   };
 }

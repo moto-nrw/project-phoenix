@@ -12,7 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -37,6 +37,13 @@ type classDayMorningMarkReader interface {
 	MorningAttendanceBetween(ctx context.Context, from, to timezone.Date, children []studentpresence.MorningAttendanceChild) ([]studentpresence.MorningAttendanceEntry, error)
 }
 
+// classDayAbsenceChildNames reads People Directory's names of every child of
+// a class, including children whose care has ended: the absence list applies
+// dated participation itself.
+type classDayAbsenceChildNames interface {
+	ListStudentNamesByClass(ctx context.Context, schoolClass string) ([]peopledirectory.StudentName, error)
+}
+
 // withClassDayAbsenceList binds the absence list's ports into the morning
 // attendance seam, whose marks it counts.
 func withClassDayAbsenceList(
@@ -44,12 +51,13 @@ func withClassDayAbsenceList(
 	schoolDays schoolcalendar.Days, accessLog owners.AccessLogLedger, renderer lists.Renderer,
 	settings interface {
 		ResolveInt(context.Context, string) (int, error)
-	}, participation careplan.HistoricalCareParticipation, reports enrollment.Reports,
+	}, participation careplan.HistoricalCareParticipation, names classDayAbsenceChildNames,
 ) classdayCompose.MorningAttendanceDependencies {
 	morning.AbsenceList.Participation = participation
-	if reports != nil {
+	if names != nil {
+		// One statement for the class and its names (#6165).
 		morning.AbsenceList.Children = func(ctx context.Context, schoolClass string) ([]classday.AbsenceListChild, error) {
-			rows, err := reports.ClassReportChildren(ctx, schoolClass)
+			rows, err := names.ListStudentNamesByClass(ctx, schoolClass)
 			if err != nil {
 				return nil, err
 			}

@@ -5,12 +5,30 @@ import (
 	"database/sql"
 	"errors"
 	"log/slog"
+	"regexp"
 	"time"
 
 	"github.com/uptrace/bun"
 )
 
 const slowQueryThreshold = 5 * time.Millisecond
+
+var (
+	// byteaLiteral is a bytea value bun inlines into the logged SQL: sealed
+	// columns (the IBAN and account holder of a SEPA mandate, health data)
+	// and hashes. The log never repeats them (#4695).
+	byteaLiteral = regexp.MustCompile(`'\\x[0-9a-fA-F]*'`)
+	// ibanLike is a value shaped like an IBAN that reached the SQL in the
+	// clear; the log names it only (#4695).
+	ibanLike = regexp.MustCompile(`\b[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}\b`)
+)
+
+// redactQuery removes bank data and sealed values from a query before it is
+// logged.
+func redactQuery(query string) string {
+	query = byteaLiteral.ReplaceAllString(query, "'[redacted]'")
+	return ibanLike.ReplaceAllString(query, "[redacted]")
+}
 
 // QueryHook is a bun.QueryHook that logs queries through slog.
 type QueryHook struct {
@@ -64,7 +82,7 @@ type queryLogData struct {
 
 func (h *QueryHook) logQuery(ctx context.Context, event queryLogData) {
 	dur := time.Since(event.started)
-	query := event.query
+	query := redactQuery(event.query)
 	if len(query) > 200 {
 		query = query[:200] + "..."
 	}
