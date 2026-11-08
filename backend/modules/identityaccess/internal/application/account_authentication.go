@@ -31,7 +31,7 @@ type AccountAuthentication struct {
 	passwords      ports.PasswordVerifier
 	codec          ports.TokenCodec
 	mfa            ports.MFAGate
-	mfaLock        ports.MFAPolicyLock
+	mfaLock        identityPorts.MFAPolicyLock
 	audit          ports.AuthAudit
 	push           ports.PushSubscriptionCleanup
 	runtime        ports.Runtime
@@ -68,7 +68,7 @@ type AccountAuthenticationDependencies struct {
 	Passwords      ports.PasswordVerifier
 	Codec          ports.TokenCodec
 	MFA            ports.MFAGate
-	MFALock        ports.MFAPolicyLock
+	MFALock        identityPorts.MFAPolicyLock
 	Audit          ports.AuthAudit
 	Push           ports.PushSubscriptionCleanup
 	Runtime        ports.Runtime

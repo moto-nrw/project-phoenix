@@ -47,12 +47,6 @@ type MFAGate interface {
 	TrustedDeviceDays(ctx context.Context, tenantID int64) int
 }
 
-// MFAPolicyLock pins a school's MFA mode for the rest of the caller's
-// transaction, in shared mode.
-type MFAPolicyLock interface {
-	LockMFAPolicySharedForTenant(ctx context.Context, tenantID int64) error
-}
-
 // SchoolRolePolicy is the consumer-owned port over the retained role
 // assignment rules every school-access path shares (#1772, #2222): which
 // roles may be handed out at a school, which role is the lehrkraft system

@@ -16393,22 +16393,6 @@
       "target_owner": "school-membership"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.MFAPolicyLock.LockMFAPolicySharedForTenant",
-      "binding_digest": "6de0f29c532440752e506c5d0bbff5d4",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.MFAPolicyLock.LockMFAPolicySharedForTenant",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.LockMFAPolicySharedForTenant",
-      "target_owner": "settings-platform"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.MFAPolicyLock.LockMFAPolicySharedForTenant",
-      "binding_digest": "2516d216f1f14f4262689a8d7f611b4c",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.MFAPolicyLock.LockMFAPolicySharedForTenant",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.LockMFAPolicySharedForTenant",
-      "target_owner": "settings-platform"
-    },
-    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports.MFASettings.LockoutDuration",
       "binding_digest": "d2e9efa9cb7892b3bc08e1b00ae5fd43",
       "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.MFASettings.LockoutDuration",
