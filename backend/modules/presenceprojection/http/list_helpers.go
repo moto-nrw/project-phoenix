@@ -396,10 +396,10 @@ func (p *studentListParams) buildDirectoryFilter() peopleModule.StudentDirectory
 		IDs:          p.studentIDs,
 		CareStatus:   p.directoryCareStatus(),
 		CareStatusOn: peopleModule.RenderCalendarDate(&p.careStatusOn),
-		// The running view leaves the care end to the participation
-		// evaluator, which knows no start; a holiday guest joins the list
-		// with the first day of its week (#5630). Administrative views keep
-		// every child.
+		// The running view leaves the care end and a scheduled own child's
+		// start (#6041) to the participation evaluator; a holiday guest
+		// joins the list with the first day of its week (#5630).
+		// Administrative views keep every child.
 		HolidayGuestsArrivedOn: p.holidayGuestsArrivedOn(),
 	}
 }

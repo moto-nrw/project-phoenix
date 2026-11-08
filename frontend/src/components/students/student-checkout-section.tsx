@@ -206,7 +206,7 @@ export function StudentStatusActionsMenu({
     <OverflowMenu
       ariaLabel="Weitere Statusaktionen"
       disabled={isLoading}
-      wrapperClassName="h-full shrink-0"
+      wrapperClassName="shrink-0"
       triggerClassName="moto-hover-elevated h-full min-h-[116px] w-full rounded-2xl disabled:opacity-50 sm:min-h-[140px] sm:w-16"
       triggerContent={
         // Die Fläche sitzt innen: Ihr Schatten überdeckte sonst den Fokusring
@@ -214,7 +214,10 @@ export function StudentStatusActionsMenu({
         <span
           className={cn(
             TILE_CARD_SURFACE,
-            "flex size-full items-center justify-center text-gray-500 hover:text-gray-700",
+            // self-stretch statt h-full: Die Höhe des Auslösers kommt aus der
+            // Zeile (Flex-Streckung), nicht aus einer festen Angabe; eine
+            // Prozenthöhe fiel deshalb am Desktop auf eine Zeile zusammen.
+            "flex w-full items-center justify-center self-stretch text-gray-500 hover:text-gray-700",
           )}
         >
           {isLoading ? (

@@ -318,7 +318,7 @@ const ROW_ACTION_BASELINE = new Map(
     ],
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
       "Antwort entfernen@1587",
-      "Entfernen@2024",
+      "Entfernen@2022",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
       "Bedingung löschen@2011",
@@ -335,7 +335,7 @@ const ROW_ACTION_BASELINE = new Map(
     "src/components/staff/stammdaten-section-forms.tsx": [
       "Qualifikation entfernen@477",
     ],
-    "src/components/students/companion-picker.tsx": ["entfernen@296"],
+    "src/components/students/companion-picker.tsx": ["entfernen@297"],
     "src/components/students/student-create-modal.tsx": [
       "Erziehungsberechtigte/n entfernen@804",
     ],

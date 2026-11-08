@@ -1759,14 +1759,14 @@ function AnnouncementFormModal({
                           onChange={setDeadline}
                           placeholder="Keine Frist"
                           dropdownPlacement="down"
+                          hint={
+                            isDeclarationForm
+                              ? declarationRevocable
+                                ? "Danach können Eltern nicht mehr antworten. Eine Zustimmung widerrufen geht weiter."
+                                : "Danach können Eltern nicht mehr antworten."
+                              : "Danach ist die Umfrage geschlossen, bleibt aber lesbar."
+                          }
                         />
-                        <p className="mt-1.5 text-xs text-gray-500">
-                          {isDeclarationForm
-                            ? declarationRevocable
-                              ? "Danach können Eltern nicht mehr antworten. Eine Zustimmung widerrufen geht weiter."
-                              : "Danach können Eltern nicht mehr antworten."
-                            : "Danach ist die Umfrage geschlossen, bleibt aber lesbar."}
-                        </p>
                       </div>
                     )}
                     <div>
@@ -1779,18 +1779,16 @@ function AnnouncementFormModal({
                         onChange={setExpiresAt}
                         placeholder="Kein Ablaufdatum"
                         dropdownPlacement="down"
+                        hint={`Danach wird ${
+                          isPollForm
+                            ? "die Umfrage"
+                            : isLetterForm
+                              ? "der Elternbrief"
+                              : isDeclarationForm
+                                ? "das Einverständnis"
+                                : "die Mitteilung"
+                        } für Eltern ausgeblendet.`}
                       />
-                      <p className="mt-1.5 text-xs text-gray-500">
-                        Danach wird{" "}
-                        {isPollForm
-                          ? "die Umfrage"
-                          : isLetterForm
-                            ? "der Elternbrief"
-                            : isDeclarationForm
-                              ? "das Einverständnis"
-                              : "die Mitteilung"}{" "}
-                        für Eltern ausgeblendet.
-                      </p>
                     </div>
                   </div>
                 </section>

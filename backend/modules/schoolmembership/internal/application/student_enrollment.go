@@ -27,7 +27,7 @@ func (s *Service) TransitionStatus(ctx context.Context, id int64, expected, next
 			return gateErr
 		}
 		transition := func(writeCtx context.Context) (bool, error) {
-			moved, queryStats, writeErr := s.store.TransitionStudentStatus(writeCtx, id, expected, next)
+			moved, queryStats, writeErr := s.store.TransitionStudentStatus(writeCtx, id, expected, next, s.today())
 			stats.Add(queryStats)
 			changed = moved
 			return moved, writeErr
@@ -61,7 +61,7 @@ func (s *Service) SetStatus(ctx context.Context, id int64, status string) (chang
 			return gateErr
 		}
 		return s.countingWriteAfterClassGate(txCtx, stats, func(writeCtx context.Context) error {
-			moved, queryStats, writeErr := s.store.TransitionStudentStatus(writeCtx, id, "", status)
+			moved, queryStats, writeErr := s.store.TransitionStudentStatus(writeCtx, id, "", status, s.today())
 			stats.Add(queryStats)
 			changed = moved
 			return writeErr
@@ -155,7 +155,7 @@ func (s *Service) Reactivate(ctx context.Context, ids []int64, status string, ch
 			return gateErr
 		}
 		reactivate := func(writeCtx context.Context) error {
-			reactivated, queryStats, writeErr := s.store.ReactivateStudents(writeCtx, ids, status)
+			reactivated, queryStats, writeErr := s.store.ReactivateStudents(writeCtx, ids, status, s.today())
 			stats.Add(queryStats)
 			changed = reactivated
 			return writeErr

@@ -1,5 +1,7 @@
 "use client";
 
+import { useId } from "react";
+
 import { ToggleChip } from "~/components/ui/toggle-chip";
 
 export interface WeekdayToggleOption<T extends string | number> {
@@ -23,6 +25,7 @@ export function WeekdayToggleGroup<T extends string | number>({
   value,
   onToggle,
   disabled = false,
+  hint,
 }: Readonly<{
   /** Name der Gruppe für Screenreader, z. B. „Wochentage“. */
   ariaLabel: string;
@@ -30,11 +33,18 @@ export function WeekdayToggleGroup<T extends string | number>({
   value: readonly T[];
   onToggle: (day: T) => void;
   disabled?: boolean;
+  /**
+   * Eine Zeile unter den Tagen, die stehen bleibt und mit der Gruppe
+   * vorgelesen wird. Aussehen und Platz wie der `hint` am Kit-`Input`.
+   */
+  hint?: string;
 }>) {
-  return (
+  const hintId = `${useId()}-hint`;
+  const group = (
     <div
       role="group"
       aria-label={ariaLabel}
+      aria-describedby={hint ? hintId : undefined}
       className="flex w-full flex-wrap gap-1.5"
     >
       {days.map((day) => (
@@ -49,6 +59,17 @@ export function WeekdayToggleGroup<T extends string | number>({
           {day.label}
         </ToggleChip>
       ))}
+    </div>
+  );
+
+  if (!hint) return group;
+
+  return (
+    <div>
+      {group}
+      <p id={hintId} className="mt-1 text-xs text-gray-600">
+        {hint}
+      </p>
     </div>
   );
 }

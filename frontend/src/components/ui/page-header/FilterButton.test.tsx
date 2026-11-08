@@ -46,8 +46,13 @@ describe("FilterButton", () => {
       />,
     );
 
-    const button = screen.getByRole("button");
-    expect(button).toHaveClass("bg-moto-blue", "text-white");
+    // #6182: Der Offen-Zustand steht in `aria-expanded`; die Kit-Variante
+    // `filter` färbt ihn blau.
+    const button = screen.getByRole("button", { expanded: true });
+    expect(button).toHaveClass(
+      "aria-expanded:bg-moto-blue",
+      "aria-expanded:text-white",
+    );
   });
 
   it("applies closed state styles when isOpen is false", () => {
@@ -59,7 +64,7 @@ describe("FilterButton", () => {
       />,
     );
 
-    const button = screen.getByRole("button");
+    const button = screen.getByRole("button", { expanded: false });
     expect(button).toHaveClass("bg-white", "text-gray-600");
   });
 
@@ -72,8 +77,13 @@ describe("FilterButton", () => {
       />,
     );
 
+    // #6182: Der Ring hängt an `data-filters-active` (Kit-Variante `filter`).
     const button = screen.getByRole("button");
-    expect(button).toHaveClass("ring-2", "ring-moto-blue");
+    expect(button).toHaveAttribute("data-filters-active");
+    expect(button).toHaveClass(
+      "data-filters-active:ring-2",
+      "data-filters-active:ring-moto-blue",
+    );
   });
 
   it("does not show ring when isOpen is true even with active filters", () => {
@@ -85,8 +95,8 @@ describe("FilterButton", () => {
       />,
     );
 
-    const button = screen.getByRole("button");
-    expect(button).not.toHaveClass("ring-2");
+    const button = screen.getByRole("button", { expanded: true });
+    expect(button).not.toHaveAttribute("data-filters-active");
   });
 
   it("applies custom className", () => {

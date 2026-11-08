@@ -48,11 +48,7 @@ export function CatalogColorField(props: {
 
   return (
     <div>
-      <FieldLabel
-        htmlFor={inputId}
-        required={required}
-        className="mb-1.5 text-xs"
-      >
+      <FieldLabel htmlFor={inputId} required={required}>
         {label}
       </FieldLabel>
       <div className="flex items-center gap-3">

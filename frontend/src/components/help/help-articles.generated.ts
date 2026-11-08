@@ -2625,6 +2625,8 @@ export const enrollmentReviewTopic =
         "Sie entscheiden je Kind. Eine Anmeldung kann mehrere Kinder enthalten.",
         // #6053
         "Ist schon ein Kind mit diesem Namen und Geburtsdatum angemeldet, fragt moto beim `Bestätigen` nach. Wählen Sie `Bestehendes Kind verwenden`, verlängert moto nur die Anmeldung dieses Kindes. Die Eltern aus der Anmeldung bekommen dadurch keinen Zugang. Ist es ein anderes Kind, wählen Sie `Als neues Kind anlegen`.",
+        // #6041
+        "Ist der Start eines bestätigten Kindes für später geplant, steht es erst ab dem Start unter `Alle Kinder`. Vorher finden Sie es unter `Datenverwaltung` und danach `Kinderdaten`.",
         // #6043: Wiederanmeldung vor dem Start der Betreuung.
         "Wird ein Kind schon betreut und beginnt die Anmeldung später? Dann gelten Abholzeiten, Betreuungstage und Heimweg daraus erst ab dem Start. Bis dahin bleiben die bisherigen. Das Datum steht beim Kind. Steht der Hinweis nach dem Start noch da, gelten weiter die bisherigen. Melden Sie sich dann beim moto-Team.",
         // #5934
@@ -4553,6 +4555,8 @@ export const missingChildOrGroupTopic = function missingChildOrGroupTopic(
       "Ein Kind kann an einem anderen Tag anders eingeplant sein.",
       "Vorübergehend übernommene Gruppen gelten nur bis zum Ende des Tages.",
       "Gelöschte oder noch nicht übernommene Kinder erscheinen nicht in der normalen Kinderliste.",
+      // #6041: ein Kind mit geplantem späterem Start zählt erst ab dem Start.
+      "Ist der Start eines Kindes für später geplant, steht es erst ab dem Start unter `Alle Kinder`. Vorher finden Sie es unter `Datenverwaltung` und danach `Kinderdaten`.",
     ],
     related: [HELP_TOPICS.studentSearch, HELP_TOPICS.ownGroups],
   };

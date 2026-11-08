@@ -1120,6 +1120,7 @@ export function SettingsField({
     setting.type === "boolean" ? "sm:items-center" : "sm:items-start";
 
   return (
+    // oxlint-disable-next-line ui-kit/no-hand-rolled-notice -- kurze grüne Hervorhebung der angesprungenen Einstellung, kein Hinweis
     <div
       ref={fieldRef}
       id={settingsFieldId(setting.key)}
