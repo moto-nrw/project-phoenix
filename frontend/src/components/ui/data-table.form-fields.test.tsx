@@ -195,6 +195,8 @@ describe("DataTable form cells across a width change (#6220)", () => {
   it("keeps the entered value and swaps to the other layout", () => {
     setViewportWidth(DESKTOP_WIDTH);
     render(tree());
+    // Prime Happy DOM's listener state before a matching -> non-matching resize.
+    act(() => window.dispatchEvent(new Event("resize")));
 
     fireEvent.change(
       screen.getByRole("textbox", { name: "Lohnartnummer Nachtzuschlag" }),
@@ -210,6 +212,49 @@ describe("DataTable form cells across a width change (#6220)", () => {
     ).toHaveValue("4711");
     expect(duplicateIds()).toEqual([]);
   });
+
+  it.each([
+    { width: 767.5, desktop: false, fontSize: 16 },
+    { width: 768, desktop: true, fontSize: 16 },
+    { width: 800, desktop: false, fontSize: 20 },
+    { width: 960, desktop: true, fontSize: 20 },
+  ])(
+    "matches the CSS md breakpoint at $width px ($fontSize px default font)",
+    ({ width, desktop, fontSize = 16 }) => {
+      // Model the browser's initial font size, which CSS rem media queries use.
+      const matchMedia = vi
+        .spyOn(window, "matchMedia")
+        .mockImplementation((query) => ({
+          media: query,
+          matches:
+            query === "(min-width: 48rem)"
+              ? width >= 48 * fontSize
+              : query === "(max-width: 767px)" && width <= 767,
+          onchange: null,
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+          addListener: vi.fn(),
+          removeListener: vi.fn(),
+          dispatchEvent: vi.fn(() => true),
+        }));
+      try {
+        render(tree());
+        expect(
+          screen.getByTestId(
+            desktop ? "data-table-table" : "data-table-stacked",
+          ),
+        ).toBeInTheDocument();
+        expect(
+          screen.queryByTestId(
+            desktop ? "data-table-stacked" : "data-table-table",
+          ),
+        ).not.toBeInTheDocument();
+        expect(matchMedia).toHaveBeenCalledWith("(min-width: 48rem)");
+      } finally {
+        matchMedia.mockRestore();
+      }
+    },
+  );
 
   it("hydrates the server markup without a mismatch, then keeps one layout", async () => {
     // The server cannot know the width: it sends both layouts and CSS picks.

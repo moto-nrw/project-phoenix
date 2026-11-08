@@ -13,7 +13,7 @@ import {
 
 import { ChevronRight } from "lucide-react";
 
-import { BELOW_MD, useResolvedMediaQuery } from "~/lib/hooks/use-media-query";
+import { useResolvedMediaQuery } from "~/lib/hooks/use-media-query";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -147,7 +147,8 @@ interface DataTableProps<T> {
   // a phone viewport cannot show the columns that carry the point of the list
   // (a fourth column pushed off screen is a value nobody reads). Sorting,
   // paging, loading and empty state stay shared between both layouts —
-  // per-column roles come from `DataTableColumn.stacked`.
+  // per-column roles come from `DataTableColumn.stacked`. Cell editors must
+  // keep drafts above the table: switching layouts remounts their controls.
   stackedOnMobile?: boolean;
   // "lines" (default) gives every field its own labelled line; "row" shows
   // one entry per line with title, meta and the stackedDetailKey column
@@ -822,9 +823,11 @@ export function DataTable<T>({
   // duplicate ids break its label, and the API error path focuses the first
   // `name` match, which may be the hidden copy. Until the breakpoint is known
   // (server render, hydration) both stay and CSS picks one, so nothing jumps.
-  const phone = useResolvedMediaQuery(BELOW_MD);
-  const showStacked = stackedOnMobile && phone !== false;
-  const showTable = !stackedOnMobile || phone !== true;
+  // Match Tailwind's md query exactly, including fractional widths and the
+  // browser's default font size. A max-width in px can leave a CSS/JS gap.
+  const desktop = useResolvedMediaQuery("(min-width: 48rem)");
+  const showStacked = stackedOnMobile && desktop !== true;
+  const showTable = !stackedOnMobile || desktop !== false;
 
   const [sort, setSort] = useState<{
     key: string;
