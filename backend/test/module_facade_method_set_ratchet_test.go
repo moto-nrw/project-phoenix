@@ -104,7 +104,7 @@ var moduleFacadeMethodSetAllowlist = map[string]int{
 	"modules/peopledirectory/peopledirectory.go:Command":                                              78,
 	"modules/peopledirectory/peopledirectory.go:Owner":                                                146,
 	"modules/peopledirectory/peopledirectory.go:Query":                                                64,
-	"modules/peopledirectory/student_directory.go:StudentDirectoryQuery":                              16,
+	"modules/peopledirectory/student_directory.go:StudentDirectoryQuery":                              15,
 	"modules/schoolcalendar/period_administration.go:Calendar":                                        32,
 	"modules/schoolcalendar/portal/contract.go:FullService":                                           41,
 	"modules/schoolcalendar/portal/contract.go:Service":                                               22,
