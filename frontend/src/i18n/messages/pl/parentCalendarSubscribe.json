@@ -2,6 +2,7 @@
   "title": "Subskrybuj kalendarz",
   "description": "Wystarczy raz zasubskrybować terminy w kalendarzu w telefonie. Nowe, zmienione i odwołane terminy pojawią się potem same. Nie trzeba dodawać każdego terminu osobno.",
   "showLink": "Pokaż link subskrypcji",
+  "loading": "Ładowanie …",
   "subscribe": "Subskrybuj w kalendarzu",
   "linkLabel": "Link subskrypcji (do skopiowania)",
   "copy": "Kopiuj",

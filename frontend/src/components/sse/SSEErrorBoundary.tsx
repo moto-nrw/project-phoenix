@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { logDisplayedCrash } from "~/lib/error-log";
 import { createLogger } from "~/lib/logger";
 
@@ -40,9 +41,7 @@ export class SSEErrorBoundary extends React.Component<
     if (this.state.hasError) {
       return (
         this.props.fallback ?? (
-          <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border p-3 text-sm">
-            Live-Updates sind derzeit nicht verfügbar.
-          </div>
+          <LoadErrorAlert error="Live-Updates sind derzeit nicht verfügbar." />
         )
       );
     }

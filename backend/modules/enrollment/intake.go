@@ -301,6 +301,14 @@ type RequestStatus struct {
 	Children []*RequestChild
 }
 
+// StatusPage is what the token status page offers beyond the request: the
+// edit path and the school's care-facility term (#6042). The page runs on the
+// parents host without a school context, so the term travels with it.
+type StatusPage struct {
+	EditMode         string
+	CareFacilityTerm string
+}
+
 // EditDraft is the persisted request that reopens the public form.
 type EditDraft struct {
 	Request          *Request
@@ -320,6 +328,9 @@ type EditDraft struct {
 	// GradeLevelMax is the tenant's upper bound of target grades, resolved in
 	// the same transaction as the rest of the draft.
 	GradeLevelMax int
+	// CareFacilityTerm is the school's term for its care in the fixed texts
+	// of the reopened form (#6042).
+	CareFacilityTerm string
 }
 
 // IntakeSubmissions stores submissions and the parent's later changes. Each
@@ -352,8 +363,9 @@ type IntakeStatus interface {
 	// StatusByToken loads the request and its children; the status reason
 	// is redacted unless the phase shows it to parents.
 	StatusByToken(ctx context.Context, token string) (*RequestStatus, error)
-	// EditModeForStatus returns the edit path the status page may offer.
-	EditModeForStatus(ctx context.Context, status *RequestStatus) (string, error)
+	// StatusPage returns the edit path the status page may offer and the
+	// school's term for its care in the page's fixed texts (#6042).
+	StatusPage(ctx context.Context, status *RequestStatus) (StatusPage, error)
 	// GuardiansByStatusToken loads the request's co-guardians.
 	GuardiansByStatusToken(ctx context.Context, token string) ([]*RequestGuardian, error)
 	// EditDraft loads everything that reopens the public form.
@@ -381,6 +393,9 @@ type IntakeForms interface {
 	// LoadPublicCareOfferings is the offering-only projection of the public
 	// form load.
 	LoadPublicCareOfferings(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*PublicFormBootstrapData, error)
+	// LoadPhasePreviewCareOfferings loads the effective form configuration and
+	// active offerings for staff, without public activity, audience or window gates.
+	LoadPhasePreviewCareOfferings(ctx context.Context, phaseID int64) (*PublicFormBootstrapData, error)
 	// LoadManualEnrollmentBootstrap assembles the staff manual-enrollment
 	// form load.
 	LoadManualEnrollmentBootstrap(ctx context.Context, phaseID int64) (*PublicFormBootstrapData, error)

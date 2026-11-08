@@ -2,5 +2,6 @@
   "scenario": "api.traeger.document_template_versions",
   "max": 2,
   "exact": true,
-  "description": "modules/organizationtenancy — GET\n/traeger/master-data/document-templates/{kind} (#4677): the Träger binding\nof the Träger transaction, then every version of the kind in one statement.\nFlat in the number of versions."
+  "description": "modules/organizationtenancy — GET\n/traeger/master-data/document-templates/{kind} (#4677): the Träger binding\nof the Träger transaction, then every version of the kind in one statement.\nFlat in the number of versions.",
+  "route": "GET /traeger/master-data/document-templates/{kind}"
 }

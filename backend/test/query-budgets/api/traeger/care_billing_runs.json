@@ -1,0 +1,7 @@
+{
+  "scenario": "api.traeger.care_billing_runs",
+  "max": 2,
+  "exact": true,
+  "description": "modules/parentbilling — GET /traeger/care-billing-runs (#4684):\nthe Träger binding of the Träger transaction, then the monthly runs of\nthe Träger. Flat in the number of runs.",
+  "route": "GET /traeger/care-billing-runs/"
+}

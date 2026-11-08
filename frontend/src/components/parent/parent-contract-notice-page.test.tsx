@@ -153,7 +153,7 @@ describe("ParentContractNoticePage (#4682, § 312k BGB)", () => {
     );
     expect(
       screen.getByText(
-        "Der Träger prüft Ihren Grund. Danach legt er fest, wann der Vertrag endet. Bis dahin findet die Betreuung wie gebucht statt.",
+        "Der Träger prüft Ihren Grund. Erkennt er ihn an, legt er das Vertragsende fest. Erkennt er ihn nicht an, endet der Vertrag zum nächsten möglichen Termin wie bei einer ordentlichen Kündigung. Sie bekommen die Entscheidung per E-Mail. Bis dahin findet die Betreuung wie gebucht statt.",
       ),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Jetzt kündigen" }));
@@ -175,7 +175,7 @@ describe("ParentContractNoticePage (#4682, § 312k BGB)", () => {
     );
     expect(
       await screen.findByText(
-        "Ihre Kündigung ist eingegangen. Der Träger prüft Ihren Grund und legt dann das Vertragsende fest.",
+        "Ihre Kündigung ist eingegangen. Der Träger prüft Ihren Grund. Seine Entscheidung bekommen Sie per E-Mail und hier in der App.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("Außerordentlich")).toBeInTheDocument();
@@ -217,5 +217,46 @@ describe("ParentContractNoticePage (#4682, § 312k BGB)", () => {
     expect(
       screen.getByRole("button", { name: "Jetzt kündigen" }),
     ).toBeEnabled();
+  });
+
+  it("shows the Träger's notice once the reason is not accepted", async () => {
+    mocks.fetchMyContractNoticeOptions.mockResolvedValue({
+      ...active,
+      status: "gekuendigt",
+      notice: {
+        kind: "kuendigung",
+        terminationKind: "ausserordentlich",
+        reason: "Wir ziehen nach Hamburg.",
+        channel: "eltern_app",
+        declaredAt: "2026-11-07T09:30:00Z",
+        receivedOn: "2026-11-07",
+        endsOn: "2026-12-31",
+        recipient: "priya.kumar@email.de",
+        confirmationText: "wir bestätigen den Eingang Ihrer Kündigung.",
+        endDecision: "umgedeutet",
+        endDecidedAt: "2026-11-09T10:00:00Z",
+        endNoticeText: "Ihren Grund erkennen wir nicht an.",
+      },
+    });
+    render(<ParentContractNoticePage organizationId="2" contractId="27" />);
+
+    expect(
+      await screen.findByText(
+        "Der Träger erkennt Ihren Grund nicht an. Ihre Kündigung gilt als ordentliche Kündigung. Der Vertrag endet am 31.12.2026.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Grund nicht anerkannt. Gilt als ordentliche Kündigung.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("figure", {
+        name: "Mitteilung des Trägers zum Vertragsende",
+      }),
+    ).toHaveTextContent("Ihren Grund erkennen wir nicht an.");
+    expect(
+      screen.getByRole("figure", { name: "Ihre Bestätigung" }),
+    ).toHaveTextContent("wir bestätigen den Eingang Ihrer Kündigung.");
   });
 });

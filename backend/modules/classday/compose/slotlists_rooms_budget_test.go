@@ -14,7 +14,7 @@ import (
 func TestBuildList_RoomQueryBudgetIsFlat(t *testing.T) {
 	t.Parallel()
 	small, large := measureSlotRoomQueries(t, false)
-	assert.Len(t, large, len(small), "distinct rooms must not add statements")
+	assert.Len(t, large.Statements, len(small.Statements), "distinct rooms must not add statements")
 	querybudgets.AssertQueryBudget(t, "modules.classday.slot_list.build_rooms", small)
 	querybudgets.AssertQueryBudget(t, "modules.classday.slot_list.build_rooms", large)
 }
@@ -22,20 +22,20 @@ func TestBuildList_RoomQueryBudgetIsFlat(t *testing.T) {
 func TestListOptions_RoomQueryBudgetIsFlat(t *testing.T) {
 	t.Parallel()
 	small, large := measureSlotRoomQueries(t, true)
-	assert.Len(t, large, len(small), "distinct rooms must not add statements")
+	assert.Len(t, large.Statements, len(small.Statements), "distinct rooms must not add statements")
 	querybudgets.AssertQueryBudget(t, "modules.classday.slot_list.options_rooms", small)
 	querybudgets.AssertQueryBudget(t, "modules.classday.slot_list.options_rooms", large)
 }
 
 // Grow the selectable room set, not just a roster sharing one room. Each
 // measurement owns its database and exercises the tenant transaction binding.
-func measureSlotRoomQueries(t *testing.T, options bool) ([]string, []string) {
+func measureSlotRoomQueries(t *testing.T, options bool) (querybudgets.Measurement, querybudgets.Measurement) {
 	t.Helper()
 	db := testpkg.SetupIsolatedTestDB(t)
 	f := buildMensaFixtureOn(t, db)
 	ctx := testpkg.Ctx(t)
 	counter := testpkg.CaptureQueries(t, db)
-	measure := func(wantSlots int) []string {
+	measure := func(wantSlots int) querybudgets.Measurement {
 		counter.Reset()
 		var slots []classday.Slot
 		if options {
@@ -64,7 +64,7 @@ func measureSlotRoomQueries(t *testing.T, options bool) ([]string, []string) {
 		}
 		t.Logf("options=%t slots=%d total=%d room_selects=%d", options, wantSlots, counter.Total(), len(counter.Selects("facilities.rooms")))
 		require.Len(t, counter.Selects("facilities.rooms"), 1)
-		return counter.Queries()
+		return counter.Measurement(counter.Queries())
 	}
 	small := measure(1)
 	for i := 0; i < 7; i++ {

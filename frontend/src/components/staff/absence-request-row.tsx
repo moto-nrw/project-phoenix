@@ -104,7 +104,7 @@ export function AbsenceRequestRow<
                 </p>
               )}
             {row.requested_at && (
-              <p className="mt-1 text-[11px] text-gray-400">
+              <p className="mt-1 text-xs text-gray-400">
                 Eingegangen {formatAbsenceDate(row.requested_at)}
               </p>
             )}

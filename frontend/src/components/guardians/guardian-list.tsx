@@ -220,9 +220,11 @@ export default function GuardianList({
         const menuItems = buildGuardianMenu(guardian, showInvite);
 
         return (
-          <div
+          <InsetPanel
             key={guardian.id}
-            className="rounded-lg border border-gray-200 bg-white p-3 transition-colors sm:p-4"
+            tone="white"
+            padding="md"
+            className="max-sm:p-3"
           >
             {/* Header with name and actions */}
             <div className="mb-3 flex items-start justify-between gap-2">
@@ -392,7 +394,7 @@ export default function GuardianList({
                 contactName={getGuardianFullName(guardian)}
               />
             </div>
-          </div>
+          </InsetPanel>
         );
       })}
     </div>
@@ -463,7 +465,7 @@ function PhoneItem({ phone }: Readonly<{ phone: PhoneNumber }>) {
         <Phone className="h-4 w-4" />
         <span>{getPhoneLabel(phone)}</span>
         {phone.isPrimary && (
-          <span className="ml-1 rounded bg-gray-100 px-1 py-0.5 text-[10px] font-medium text-gray-700">
+          <span className="ml-1 rounded bg-gray-100 px-1 py-0.5 text-xs font-medium text-gray-700">
             Primär
           </span>
         )}

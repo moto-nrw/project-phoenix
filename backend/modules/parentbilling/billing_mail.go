@@ -94,6 +94,9 @@ type BillingLetterSeries struct {
 	Queued       int `json:"queued"`
 	Already      int `json:"already"`
 	WithoutEmail int `json:"without_email"`
+	// RecipientChanged counts monthly letters whose address is no longer the
+	// party the contract bills (#4684); they wait for a Storno.
+	RecipientChanged int `json:"recipient_changed,omitempty"`
 }
 
 // BillingLetterMail is the mail of one letter as it waits on the outbox:

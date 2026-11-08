@@ -544,7 +544,7 @@ function headViolations(source: string): string[] {
  */
 const MEHR_ALS_EINE_AKTION: Readonly<Record<string, string>> = {
   "app/[tenant]/(protected)/home/page.tsx":
-    "Bearbeitungszustand: „Abbrechen“ und „Fertig“ sind eine Entscheidung, wie EditActions (#5605)",
+    "Bearbeitungszustand: „Abbrechen“ und „Fertig“ sind eine Entscheidung, wie EditActions; vom Product Owner am 08.11.2026 freigegeben (#5605)",
 };
 
 function collectTsxFiles(directory: string): string[] {

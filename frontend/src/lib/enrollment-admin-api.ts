@@ -165,6 +165,12 @@ export interface AdminRequestChild {
    * because the Kinderkontingent was full (#3570).
    */
   review_reason?: string | null;
+  /**
+   * Day the approved weekly plan of a renewal applies, "YYYY-MM-DD" (#6043).
+   * Set while the child's running pickup times, care days and Heimweg stay
+   * until its care starts.
+   */
+  weekly_plan_on?: string;
   custom_data?: Record<string, unknown>;
   /**
    * The Betreuungsangebote selection on file RIGHT NOW — exactly what a

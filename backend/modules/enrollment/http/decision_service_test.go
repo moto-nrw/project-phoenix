@@ -2165,6 +2165,8 @@ func TestDecisionService_Decide_ApprovedScheduledKeepsStudentPending(t *testing.
 		calendar.Date(env.sourcePhase.ServiceStartDate).Format("2006-01-02"),
 		student.EnrolledFrom.Format("2006-01-02"),
 		"enrolled_from must be pinned to the phase service-start date")
+	assert.Equal(t, calendar.Date(env.sourcePhase.ServiceStartDate), membershipFirstCareFrom(t, *outcome.Child.CreatedStudentID),
+		"School Membership bounds a scheduled new child's first care by its start (#6041)")
 
 	child, err := enrollmentAPI.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
 	require.NoError(t, err)
@@ -2207,6 +2209,8 @@ func TestDecisionService_Decide_ApprovedImmediateActivatesStudent(t *testing.T) 
 		calendar.Date(env.sourcePhase.ServiceStartDate).Format("2006-01-02"),
 		student.EnrolledFrom.Format("2006-01-02"),
 		"enrolled_from must stay the phase service-start date even in immediate mode")
+	assert.Empty(t, membershipFirstCareFrom(t, *outcome.Child.CreatedStudentID),
+		"an immediately activated child may take part before its start (#6041)")
 
 	child, err := enrollmentAPI.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
 	require.NoError(t, err)
@@ -2471,6 +2475,9 @@ func TestDecisionService_Decide_ExistingStudentRecordsLaterPickupExtension(t *te
 	env := setupDecisionTest(t)
 	env.decision = newDecisionServiceForTestWithPickupExtensions(t, env.rolloverTestEnv, nil, nil, nil, nil)
 	ctx := testpkg.Ctx(t)
+	// A renewal whose care has started applies the weekly plan at approval;
+	// a future one applies it at the start (#6043).
+	env.sourcePhase.ServiceStartDate = enrollmentNative.Date(decisionTestToday)
 	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentNative.TargetSchedulePickup)
 	_, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
 	existing := testpkg.CreateTestStudent(t, env.db, "Mara", "Bestand", "2a")
@@ -2840,7 +2847,11 @@ func TestDecisionService_Decide_ExistingStudentScheduleReplacementFailureRollsBa
 	ctx := testpkg.Ctx(t)
 
 	// A pickup-schedule form field so approval takes the ReplaceSchedules
-	// delete-then-reinsert path.
+	// delete-then-reinsert path. The renewal's care has started, so the
+	// approval replaces the weekly plan at once; the future renewal applies
+	// it at the start and rolls back there (#6043,
+	// TestDecisionService_ApplyDueWeeklyPlans_FailureRollsBackCompletely).
+	env.sourcePhase.ServiceStartDate = enrollmentNative.Date(decisionTestToday)
 	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentNative.TargetSchedulePickup)
 
 	// The already-enrolled student, carrying a live pickup schedule row.
@@ -4647,4 +4658,17 @@ func (defaultDecisionSettings) ResolveString(_ context.Context, key string) (str
 	default:
 		return "", nil
 	}
+}
+
+// membershipFirstCareFrom reads School Membership's first-care bound of the
+// child's membership (#6041, ADR 0166); empty when unknown.
+func membershipFirstCareFrom(t *testing.T, studentID int64) calendar.Date {
+	t.Helper()
+	var bound *calendar.Date
+	require.NoError(t, testpkg.SetupTestDB(t).NewRaw(`SELECT first_care_from FROM users.student_school_memberships
+		WHERE tenant_id = ? AND student_profile_id = ? AND deleted_at IS NULL`, testpkg.Tenant(t), studentID).Scan(testpkg.Ctx(t), &bound))
+	if bound == nil {
+		return ""
+	}
+	return *bound
 }

@@ -55,9 +55,9 @@ func TestMaterializationScheduleBatchQueryBudget(t *testing.T) {
 		require.NoError(t, err)
 		t.Logf("MEASURE materialize N=%d SQL=%d schedules=%d", n, counter.Total(), len(counter.Selects("activities.schedules")))
 		if n == 3 {
-			querybudgets.AssertQueryBudget(t, "modules.timetable.materialization.schedules.create.n3", counter.Queries())
+			querybudgets.AssertQueryBudget(t, "modules.timetable.materialization.schedules.create.n3", counter.Measurement(counter.Queries()))
 		} else {
-			querybudgets.AssertQueryBudget(t, "modules.timetable.materialization.schedules.create.n8", counter.Queries())
+			querybudgets.AssertQueryBudget(t, "modules.timetable.materialization.schedules.create.n8", counter.Measurement(counter.Queries()))
 		}
 		require.Len(t, counter.Selects("activities.schedules"), 1, "schedules are a run-wide input, not a per-template read")
 		require.Equal(t, n-previous, result.InstancesCreated)
@@ -72,9 +72,9 @@ func TestMaterializationScheduleBatchQueryBudget(t *testing.T) {
 		require.NoError(t, err)
 		t.Logf("MEASURE materialize repeat N=%d SQL=%d schedules=%d", n, counter.Total(), len(counter.Selects("activities.schedules")))
 		if n == 3 {
-			querybudgets.AssertQueryBudget(t, "modules.timetable.materialization.schedules.repeat.n3", counter.Queries())
+			querybudgets.AssertQueryBudget(t, "modules.timetable.materialization.schedules.repeat.n3", counter.Measurement(counter.Queries()))
 		} else {
-			querybudgets.AssertQueryBudget(t, "modules.timetable.materialization.schedules.repeat.n8", counter.Queries())
+			querybudgets.AssertQueryBudget(t, "modules.timetable.materialization.schedules.repeat.n8", counter.Measurement(counter.Queries()))
 		}
 		require.Len(t, counter.Selects("activities.schedules"), 1)
 		require.Zero(t, result.InstancesCreated)

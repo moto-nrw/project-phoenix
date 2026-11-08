@@ -48,13 +48,13 @@ func TestOperatorSchoolSummariesQueryBudget(t *testing.T) {
 
 	addSchoolWithChildren(1)
 	before := listSchools()
-	querybudgets.AssertQueryBudget(t, "services.operator.school_summaries", before)
+	querybudgets.AssertQueryBudget(t, "services.operator.school_summaries", counter.Measurement(before))
 
 	for range 3 {
 		addSchoolWithChildren(3)
 	}
 	after := listSchools()
-	querybudgets.AssertQueryBudget(t, "services.operator.school_summaries", after)
+	querybudgets.AssertQueryBudget(t, "services.operator.school_summaries", counter.Measurement(after))
 
 	require.Len(t, after, len(before),
 		"operator school listing must stay flat in the number of schools and children")

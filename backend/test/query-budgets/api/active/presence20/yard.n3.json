@@ -2,5 +2,6 @@
   "scenario": "api.active.presence20.yard.n3",
   "max": 10,
   "exact": true,
-  "description": "Production courtyard resource with N3 real supervisors and children; full tenant SQL."
+  "description": "Production courtyard resource with N3 real supervisors and children; full tenant SQL.",
+  "route": "GET /api/active/schulhof/status"
 }

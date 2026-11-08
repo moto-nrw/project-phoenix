@@ -23,8 +23,6 @@ type OverrunResource struct {
 	requireNames  common.Middleware
 }
 
-// NewOverrunResource binds the routes to the evaluation and the two right
-// checks.
 func NewOverrunResource(evaluations carecontract.OverrunEvaluations, requireReport, requireNames common.Middleware) *OverrunResource {
 	if evaluations == nil || requireReport == nil || requireNames == nil {
 		panic("care contract http: the evaluation and both right checks are required")

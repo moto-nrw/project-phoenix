@@ -1,5 +1,6 @@
 "use client";
 
+import { Alert } from "~/components/ui/alert";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import type { FormErrorInput } from "~/components/ui/form-error";
 import { SpinnerIcon } from "~/components/ui/icons";
@@ -104,9 +105,7 @@ export function GuardianDeleteModal({
           <div className="space-y-2">
             {fullDeleteWarning ? (
               // Backend message — count-aware (singular vs. multiple children).
-              <p className="bg-moto-red/10 text-moto-red-strong rounded-lg px-3 py-2 text-sm">
-                {fullDeleteWarning}
-              </p>
+              <Alert type="warning" message={fullDeleteWarning} />
             ) : isWarningLoading ? (
               <p className="flex items-center gap-2 rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-500">
                 <SpinnerIcon className="h-4 w-4" />

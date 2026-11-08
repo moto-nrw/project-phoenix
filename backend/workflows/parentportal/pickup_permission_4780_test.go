@@ -528,7 +528,7 @@ func TestPickupPermissionRequestsListQueryBudget(t *testing.T) {
 		assert.Len(t, rows, n)
 		assert.Zero(t, counter.WriteRows())
 		t.Logf("pickup permission requests N=%d total=%d", n, counter.Total())
-		querybudgets.AssertQueryBudget(t, "workflows.parentportal.pickup_permission_requests.list", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "workflows.parentportal.pickup_permission_requests.list", counter.Measurement(counter.Queries()))
 		if n == 1 {
 			smallStatements = counter.Total()
 		} else {

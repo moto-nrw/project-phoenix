@@ -69,10 +69,15 @@ describe("SSEErrorBoundary", () => {
       </SSEErrorBoundary>,
     );
 
-    const fallback = container.querySelector(".border-moto-red\\/20");
-    expect(fallback).toBeInTheDocument();
-    expect(fallback).toHaveClass("bg-moto-red/10");
+    // Default fallback is the kit's load-error Alert (#6071).
+    const fallback = screen.getByRole("alert");
+    expect(fallback).toHaveTextContent(
+      "Live-Updates sind derzeit nicht verfügbar.",
+    );
+    expect(fallback).toHaveClass("border-moto-red/20");
+    expect(fallback).toHaveClass("bg-moto-red-soft");
     expect(fallback).toHaveClass("text-moto-red-strong");
+    expect(container).toContainElement(fallback);
   });
 
   it("logs error to console", () => {

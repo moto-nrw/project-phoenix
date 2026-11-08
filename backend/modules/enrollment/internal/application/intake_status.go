@@ -101,21 +101,34 @@ func (s *Intake) statusReasonVisibleToParent(ctx context.Context, phaseID int64)
 	return phase.ShowStatusReasonToParent
 }
 
-// EditModeForStatus returns the edit path the status page may offer. It
-// mirrors the draft's gates without loading the draft.
-func (s *Intake) EditModeForStatus(ctx context.Context, status *enrollmentNative.RequestStatus) (string, error) {
+// StatusPage returns the edit path the status page may offer, mirroring the
+// draft's gates without loading the draft, and the school's care-facility
+// term (#6042). The token page reads in an administrative transaction, so
+// both resolve in the tenant of the request. A read error fails the page
+// instead of guessing an edit path or a wording.
+func (s *Intake) StatusPage(ctx context.Context, status *enrollmentNative.RequestStatus) (enrollmentNative.StatusPage, error) {
+	none := enrollmentNative.StatusPage{EditMode: enrollmentNative.EditModeNone}
 	if status == nil || status.Request == nil {
-		return enrollmentNative.EditModeNone, nil
+		return none, nil
 	}
 	req, err := requestValue(status.Request)
 	if err != nil {
-		return enrollmentNative.EditModeNone, err
+		return none, err
 	}
 	children, err := childValues(status.Children)
 	if err != nil {
-		return enrollmentNative.EditModeNone, err
+		return none, err
 	}
-	return s.editModeForStatus(s.tenantContext(ctx, req.TenantID), req, children)
+	tenantCtx := s.tenantContext(ctx, req.TenantID)
+	editMode, err := s.editModeForStatus(tenantCtx, req, children)
+	if err != nil {
+		return none, err
+	}
+	term, err := s.deps.Settings.CareFacilityTerm(tenantCtx)
+	if err != nil {
+		return none, fmt.Errorf("status: resolve care facility term: %w", err)
+	}
+	return enrollmentNative.StatusPage{EditMode: editMode, CareFacilityTerm: term}, nil
 }
 
 // tenantContext scopes ctx to the tenant of a request the caller handed in.

@@ -68,10 +68,10 @@ func TestAbsenceTypesListQueryBudgetIsFlat(t *testing.T) {
 			counter.Reset()
 			request := testutil.NewAuthenticatedRequest(t, http.MethodGet, "/api/absence-types/"+suffix, nil, testutil.WithJWTBearer(token))
 			response := testutil.ExecuteRequestForTest(t, router, request)
-			queries := counter.Queries()
-			encoded, encodeErr := json.Marshal(queries)
+			queries := counter.Measurement(counter.Queries())
+			encoded, encodeErr := json.Marshal(queries.Statements)
 			require.NoError(t, encodeErr)
-			t.Logf("absence_types_list n=%d suffix=%q statements=%d queries_json=%s", size, suffix, len(queries), encoded)
+			t.Logf("absence_types_list n=%d suffix=%q statements=%d queries_json=%s", size, suffix, len(queries.Statements), encoded)
 			require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 			require.Equal(t, "application/json", response.Header().Get("Content-Type"))
 			want, encodeErr := json.Marshal(map[string]any{"status": "success", "message": "Abwesenheitsarten geladen", "data": expected})
@@ -84,13 +84,13 @@ func TestAbsenceTypesListQueryBudgetIsFlat(t *testing.T) {
 			require.Empty(t, counter.Matching(func(query string) bool { return strings.Contains(strings.ToUpper(query), "FOR UPDATE") }), "list must take no row locks")
 			require.Len(t, counter.Selects("active.staff_absence_types"), 1, "one tenant-scoped bulk read")
 			if size != 0 {
-				require.Len(t, queries, previousCount, "query count must not grow with the list")
+				require.Len(t, queries.Statements, previousCount, "query count must not grow with the list")
 			}
-			previousCount = len(queries)
+			previousCount = len(queries.Statements)
 			querybudgets.AssertQueryBudget(t, "api.workforce.absence_types.list", queries)
-			require.Equal(t, "BEGIN", queries[0])
-			require.Equal(t, fmt.Sprintf("SELECT set_config('role', 'phoenix_tenant', true), set_config('app.current_tenant_id', '%d', true)", testpkg.Tenant(t)), queries[1])
-			require.Equal(t, "COMMIT", queries[len(queries)-1])
+			require.Equal(t, "BEGIN", queries.Statements[0])
+			require.Equal(t, fmt.Sprintf("SELECT set_config('role', 'phoenix_tenant', true), set_config('app.current_tenant_id', '%d', true)", testpkg.Tenant(t)), queries.Statements[1])
+			require.Equal(t, "COMMIT", queries.Statements[len(queries.Statements)-1])
 		}
 	}
 }

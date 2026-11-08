@@ -27,7 +27,7 @@ func (s *Service) TransitionStatus(ctx context.Context, id int64, expected, next
 			return gateErr
 		}
 		transition := func(writeCtx context.Context) (bool, error) {
-			moved, queryStats, writeErr := s.store.TransitionStudentStatus(writeCtx, id, expected, next)
+			moved, queryStats, writeErr := s.store.TransitionStudentStatus(writeCtx, id, expected, next, s.today())
 			stats.Add(queryStats)
 			changed = moved
 			return moved, writeErr
@@ -60,8 +60,8 @@ func (s *Service) SetStatus(ctx context.Context, id int64, status string) (chang
 		if gateErr != nil {
 			return gateErr
 		}
-		return s.countingWrite(txCtx, stats, func(writeCtx context.Context) error {
-			moved, queryStats, writeErr := s.store.TransitionStudentStatus(writeCtx, id, "", status)
+		return s.countingWriteAfterClassGate(txCtx, stats, func(writeCtx context.Context) error {
+			moved, queryStats, writeErr := s.store.TransitionStudentStatus(writeCtx, id, "", status, s.today())
 			stats.Add(queryStats)
 			changed = moved
 			return writeErr
@@ -97,7 +97,7 @@ func (s *Service) ResumeCare(ctx context.Context, id int64, from, status, on str
 		if gateErr != nil {
 			return gateErr
 		}
-		return s.countingWrite(txCtx, stats, func(writeCtx context.Context) error {
+		return s.countingWriteAfterClassGate(txCtx, stats, func(writeCtx context.Context) error {
 			resumed, queryStats, writeErr := s.store.ResumeStudentCare(writeCtx, id, from, status, on)
 			stats.Add(queryStats)
 			changed = resumed
@@ -155,7 +155,7 @@ func (s *Service) Reactivate(ctx context.Context, ids []int64, status string, ch
 			return gateErr
 		}
 		reactivate := func(writeCtx context.Context) error {
-			reactivated, queryStats, writeErr := s.store.ReactivateStudents(writeCtx, ids, status)
+			reactivated, queryStats, writeErr := s.store.ReactivateStudents(writeCtx, ids, status, s.today())
 			stats.Add(queryStats)
 			changed = reactivated
 			return writeErr
@@ -163,7 +163,7 @@ func (s *Service) Reactivate(ctx context.Context, ids []int64, status string, ch
 		if !enforceChildQuota {
 			return reactivate(txCtx)
 		}
-		return s.countingWrite(txCtx, stats, reactivate)
+		return s.countingWriteAfterClassGate(txCtx, stats, reactivate)
 	})
 	if err != nil {
 		return nil, err

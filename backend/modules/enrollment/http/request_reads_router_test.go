@@ -355,15 +355,15 @@ func TestAdminRequestsList_QueryBudget(t *testing.T) {
 	env := setupUnreadTest(t)
 	anna := env.reader(t, env.tenantID, managePermissions...)
 	counter := testpkg.CaptureQueriesForContext(t, env.db)
-	run := func() []string {
+	run := func() testpkg.QueryMeasurement {
 		counter.Reset()
 		req := httptest.NewRequest(http.MethodGet, "/admin/requests/?phase_id="+strconv.FormatInt(env.phaseID, 10), nil)
 		req = req.WithContext(counter.Context(req.Context()))
 		req.Header.Set("Authorization", "Bearer "+anna)
 		rec := httptest.NewRecorder()
-		env.router.ServeHTTP(rec, req)
+		testpkg.MeasuredHTTPRequest(counter, testpkg.MountedQueryBudgetRouter("/api/enrollment", env.router), rec, req)
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		return counter.Matching(func(query string) bool { return strings.Contains(query, "enrollment.request_reads") })
+		return counter.Measurement(counter.Matching(func(query string) bool { return strings.Contains(query, "enrollment.request_reads") }))
 	}
 
 	env.submit(t, 1)
@@ -373,7 +373,7 @@ func TestAdminRequestsList_QueryBudget(t *testing.T) {
 	}
 	large := run()
 
-	require.Len(t, small, 1, "one read-state statement for one enrollment")
-	require.Len(t, large, 1, "one read-state statement for four enrollments")
+	require.Len(t, small.Statements, 1, "one read-state statement for one enrollment")
+	require.Len(t, large.Statements, 1, "one read-state statement for four enrollments")
 	querybudgets.AssertQueryBudget(t, "api.enrollment.admin_requests.read_state", large)
 }

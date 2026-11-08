@@ -47,6 +47,10 @@ type ArrivalExceptions interface {
 	// CreateOrReclaimExceptionForClass rechecks membership under the student lock
 	// before writing a per-child exception on behalf of a school class.
 	CreateOrReclaimExceptionForClass(ctx context.Context, schoolClass string, studentID int64, date calendar.Date, arrivalTime *time.Time, reason *string, staffID int64, resolveStaffID func() (int64, error)) (*ArrivalException, error)
+	// CreateOrReclaimExceptionsForClass is CreateOrReclaimExceptionForClass for
+	// several children of one class report in the given order: the same
+	// locks, rechecks, writes and first refusal as one call per child.
+	CreateOrReclaimExceptionsForClass(ctx context.Context, schoolClass string, studentIDs []int64, date calendar.Date, arrivalTime *time.Time, reason *string, staffID int64, resolveStaffID func() (int64, error)) error
 	CreateOrReclaimException(ctx context.Context, studentID int64, date calendar.Date, arrivalTime *time.Time, reason *string, staffID int64, resolveStaffID func() (int64, error)) (*ArrivalException, error)
 	UpdateException(ctx context.Context, exceptionID, studentID int64, date calendar.Date, reason *string, arrivalTime *time.Time, clearArrivalTime bool, resolveStaffID func() (int64, error)) (*ArrivalException, error)
 }

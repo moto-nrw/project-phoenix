@@ -45,6 +45,7 @@ import {
 } from "./holiday-registration-model";
 import { GuardianAddressFields } from "./holiday-guardian-address-fields";
 import { HolidayQuestions } from "./holiday-registration-questions";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 export function useWeekLabels() {
   const t = useTranslations("holidayRegistration");
@@ -164,7 +165,7 @@ export function ChildCard({
   onRemove: () => void;
 }>) {
   const t = useTranslations("holidayRegistration");
-  const dateOfBirth = useTranslations("enrollmentForm");
+  const dateOfBirth = useCareTermTranslations("enrollmentForm");
   const prefix = `children.${index}`;
   const guest = child.school === OTHER_SCHOOL;
   const set = (patch: Partial<ChildDraft>) => onChange({ ...child, ...patch });

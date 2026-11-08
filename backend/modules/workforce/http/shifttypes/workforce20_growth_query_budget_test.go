@@ -97,7 +97,7 @@ func TestWorkforce20StaffSessionGrowth(t *testing.T) {
 				case "sessions/edits":
 					querybudgets.AssertQueryBudget(t, "workforce.workforce20.staff_session_edits", queries)
 				}
-				counts = append(counts, len(queries))
+				counts = append(counts, len(queries.Statements))
 			}
 			require.Equal(t, counts[0], counts[1], "session/edit growth must not add statements")
 			// The production permission middleware must reject a valid token lacking

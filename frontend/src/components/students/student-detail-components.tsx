@@ -702,17 +702,11 @@ export function SupervisorsCard({
   if (supervisors.length === 0) return null;
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 sm:p-6">
-      <div className="mb-4 flex items-center justify-between gap-2">
-        <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-          <ConceptIconTile concept={staffConcept} size="section" />
-          <h2 className="truncate text-base font-semibold text-gray-900 sm:text-lg">
-            Ansprechpartner
-          </h2>
-        </div>
-        <ViewOnlyBadge />
-      </div>
-
+    <SectionCard
+      title="Ansprechpartner"
+      concept={staffConcept}
+      action={<ViewOnlyBadge />}
+    >
       <div className="space-y-4">
         {supervisors.map((supervisor, index) => (
           <SupervisorItem
@@ -723,7 +717,7 @@ export function SupervisorsCard({
           />
         ))}
       </div>
-    </div>
+    </SectionCard>
   );
 }
 

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/uptrace/bun"
@@ -33,6 +34,12 @@ type noticeRow struct {
 	Reason           *string        `bun:"reason"`
 	Recipient        string         `bun:"recipient_email"`
 	ConfirmationText string         `bun:"confirmation_text"`
+	ID               int64          `bun:"id"`
+	EndDecision      *string        `bun:"end_decision"`
+	EndDecidedAt     *time.Time     `bun:"end_decided_at"`
+	EndNoticeText    *string        `bun:"end_notice_text"`
+	EndNoticeOutbox  *int64         `bun:"end_notice_outbox_id"`
+	AccountID        *int64         `bun:"account_id"`
 }
 
 // NoticeState reads the first and last day of the contract's effective
@@ -44,15 +51,15 @@ func (Store) NoticeState(ctx context.Context, organizationID, contractID int64) 
 		return ports.NoticeState{}, err
 	}
 	var row struct {
-		FirstFrom   *calendar.Date `bun:"first_from,type:date"`
 		ContractEnd *calendar.Date `bun:"contract_end,type:date"`
 		InformedAt  *time.Time     `bun:"withdrawal_informed_at"`
 		EarlyStart  bool           `bun:"early_start_requested"`
+		StudentID   *int64         `bun:"student_id"`
+		Party       *int64         `bun:"party_account_id"`
 	}
-	err = db.NewRaw(`SELECT c.withdrawal_informed_at, c.early_start_requested,
-			(SELECT MIN(v.effective_from) FROM care_contract.contract_versions AS v
-				WHERE v.organization_id = c.organization_id AND v.contract_id = c.id
-					AND v.status IN `+effectiveStatusSQL+`) AS first_from,
+	err = db.NewRaw(`SELECT c.withdrawal_informed_at, c.early_start_requested, c.student_id,
+			(SELECT p.account_id FROM care_contract.contract_parties AS p
+				WHERE p.organization_id = c.organization_id AND p.contract_id = c.id ORDER BY p.id LIMIT 1) AS party_account_id,
 			(SELECT v.ends_on FROM care_contract.contract_versions AS v
 				WHERE v.organization_id = c.organization_id AND v.contract_id = c.id
 					AND v.status IN `+effectiveStatusSQL+`
@@ -65,27 +72,51 @@ func (Store) NoticeState(ctx context.Context, organizationID, contractID int64) 
 	if err != nil {
 		return ports.NoticeState{}, fmt.Errorf("care contract postgres: read notice state: %w", err)
 	}
-	state := ports.NoticeState{FirstFrom: row.FirstFrom, ContractEnd: row.ContractEnd, InformedAt: row.InformedAt, EarlyStart: row.EarlyStart}
-	var notices []noticeRow
-	if err := db.NewRaw(`SELECT kind, notice_kind, channel, declared_at, received_on, dispatched_on, ends_on, reason, recipient_email, confirmation_text
-		FROM care_contract.contract_notices WHERE organization_id = ? AND contract_id = ? ORDER BY id DESC LIMIT 1`,
-		organizationID, contractID).Scan(ctx, &notices); err != nil {
-		return ports.NoticeState{}, fmt.Errorf("care contract postgres: read notice: %w", err)
+	state := ports.NoticeState{ContractEnd: row.ContractEnd, InformedAt: row.InformedAt, EarlyStart: row.EarlyStart,
+		StudentID: row.StudentID}
+	if row.Party != nil {
+		state.Accounts = append(state.Accounts, *row.Party)
 	}
-	if len(notices) == 1 {
-		notice := notices[0]
-		state.Notice = &carecontract.Notice{
-			Kind: notice.Kind, Channel: notice.Channel, DeclaredAt: notice.DeclaredAt, ReceivedOn: notice.ReceivedOn,
-			DispatchedOn: notice.DispatchedOn, EndsOn: notice.EndsOn, Recipient: notice.Recipient, ConfirmationText: notice.ConfirmationText,
-		}
-		if notice.NoticeKind != nil {
-			state.Notice.TerminationKind = *notice.NoticeKind
-		}
-		if notice.Reason != nil {
-			state.Notice.Reason = *notice.Reason
-		}
+	if err := readNotice(ctx, db, organizationID, contractID, &state); err != nil {
+		return ports.NoticeState{}, err
 	}
 	return state, nil
+}
+
+// text is the value of a nullable text column, "" for NULL.
+func text(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+// readNotice adds the contract's newest declaration to state, with the
+// account that declared among the accounts the contract names.
+func readNotice(ctx context.Context, db bun.IDB, organizationID, contractID int64, state *ports.NoticeState) error {
+	var notices []noticeRow
+	if err := db.NewRaw(`SELECT id, account_id, kind, notice_kind, channel, declared_at, received_on, dispatched_on, ends_on, reason, recipient_email, confirmation_text,
+			end_decision, end_decided_at, end_notice_text, end_notice_outbox_id
+		FROM care_contract.contract_notices WHERE organization_id = ? AND contract_id = ? ORDER BY id DESC LIMIT 1`,
+		organizationID, contractID).Scan(ctx, &notices); err != nil {
+		return fmt.Errorf("care contract postgres: read notice: %w", err)
+	}
+	if len(notices) != 1 {
+		return nil
+	}
+	notice := notices[0]
+	state.Notice = &carecontract.Notice{
+		Kind: notice.Kind, Channel: notice.Channel, DeclaredAt: notice.DeclaredAt, ReceivedOn: notice.ReceivedOn,
+		DispatchedOn: notice.DispatchedOn, EndsOn: notice.EndsOn, Recipient: notice.Recipient, ConfirmationText: notice.ConfirmationText,
+		EndDecidedAt: notice.EndDecidedAt, EndNoticeSent: notice.EndNoticeOutbox != nil,
+		TerminationKind: text(notice.NoticeKind), Reason: text(notice.Reason),
+		EndDecision: text(notice.EndDecision), EndNoticeText: text(notice.EndNoticeText),
+	}
+	state.NoticeID = notice.ID
+	if notice.AccountID != nil && !slices.Contains(state.Accounts, *notice.AccountID) {
+		state.Accounts = append(state.Accounts, *notice.AccountID)
+	}
+	return nil
 }
 
 // InsertNotice stores the declaration and moves the contract to its status.
@@ -125,19 +156,26 @@ func (Store) InsertNotice(ctx context.Context, organizationID int64, notice port
 	return id, nil
 }
 
-// SetNoticeEnd sets the end of an extraordinary termination the Träger
-// checked: on the declaration whose end is open and on the terminated
-// contract, both of organizationID. Both statements run before either
-// count is checked, so each guard (the Träger, the open end) shows on its
-// own row; a count other than one rolls the caller's transaction back.
-func (Store) SetNoticeEnd(ctx context.Context, organizationID, contractID int64, endsOn calendar.Date) error {
+// SetNoticeEnd decides the end of an extraordinary termination the Träger
+// checked: on the declaration whose end is open, with the decision and the
+// notice to the parents, and on the terminated contract, both of
+// organizationID. Both statements run before either count is checked, so
+// each guard (the Träger, the open end) shows on its own row; a count other
+// than one rolls the caller's transaction back.
+func (Store) SetNoticeEnd(ctx context.Context, organizationID, contractID int64, end ports.NoticeEnd) error {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return err
 	}
-	notice, err := db.ExecContext(ctx, `UPDATE care_contract.contract_notices SET ends_on = ?
+	var account *int64
+	if end.AccountID > 0 {
+		account = &end.AccountID
+	}
+	endsOn := end.EndsOn
+	notice, err := db.ExecContext(ctx, `UPDATE care_contract.contract_notices
+		SET ends_on = ?, end_decision = ?, end_decided_by = ?, end_decided_at = ?, end_notice_text = ?
 		WHERE organization_id = ? AND contract_id = ? AND notice_kind = ? AND ends_on IS NULL`,
-		endsOn, organizationID, contractID, carecontract.TerminationExtraordinary)
+		endsOn, end.Decision, account, end.DecidedAt, end.Text, organizationID, contractID, carecontract.TerminationExtraordinary)
 	if err != nil {
 		return fmt.Errorf("care contract postgres: set notice end: %w", err)
 	}
@@ -164,6 +202,19 @@ func (Store) SetNoticeOutbox(ctx context.Context, organizationID, noticeID, outb
 	if _, err := db.ExecContext(ctx, `UPDATE care_contract.contract_notices SET outbox_id = ?
 		WHERE organization_id = ? AND id = ?`, outboxID, organizationID, noticeID); err != nil {
 		return fmt.Errorf("care contract postgres: record notice mail: %w", err)
+	}
+	return nil
+}
+
+// SetEndNoticeOutbox records the mail that told the parents the decided end.
+func (Store) SetEndNoticeOutbox(ctx context.Context, organizationID, noticeID, outboxID int64) error {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return err
+	}
+	if _, err := db.ExecContext(ctx, `UPDATE care_contract.contract_notices SET end_notice_outbox_id = ?
+		WHERE organization_id = ? AND id = ?`, outboxID, organizationID, noticeID); err != nil {
+		return fmt.Errorf("care contract postgres: record end notice mail: %w", err)
 	}
 	return nil
 }

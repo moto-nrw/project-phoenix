@@ -49,7 +49,7 @@ func TestRequestMailOutcomesQueryBudget(t *testing.T) {
 	}
 	enqueueTestEnrollmentEmail(t, db, school.scope.TenantID, request.ID, "budget-1", map[string]any{"recipient": "a@example.com"})
 	first := read()
-	querybudgets.AssertQueryBudget(t, "api.enrollment.request_mails", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.enrollment.request_mails", counter.Measurement(counter.Queries()))
 	enqueueTestEnrollmentEmail(t, db, school.scope.TenantID, request.ID, "budget-2", map[string]any{"recipient": "a@example.com"})
 	enqueueTestEnrollmentEmail(t, db, school.scope.TenantID, request.ID, "budget-3", map[string]any{"recipient": "a@example.com"})
 	assert.Equal(t, first, read(), "a further mail adds no statement")

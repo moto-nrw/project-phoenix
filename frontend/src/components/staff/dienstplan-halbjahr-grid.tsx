@@ -586,13 +586,13 @@ export function DienstplanHalbjahrGrid({
   if (periodsError) {
     // Ohne Zeiträume gibt es keine Spalten; der Fehler steht an ihrer Stelle.
     return (
-      <div className="moto-content-surface rounded-2xl border p-4 sm:p-6">
+      <SectionCard>
         {periodsLoad.error ? (
           <LoadErrorAlert error={periodsLoad.error} />
         ) : (
           <Skeleton className="h-8 w-full" />
         )}
-      </div>
+      </SectionCard>
     );
   }
 

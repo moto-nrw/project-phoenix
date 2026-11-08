@@ -33,7 +33,7 @@ func TestSettingsHomeLayoutGETQueryBudget(t *testing.T) {
 	spans, cols, rows := map[string]int{}, map[string]int{}, map[string]int{}
 	blocks := []map[string]any{}
 	var baseline int
-	var statements []string
+	var statements testpkg.QueryMeasurement
 	for _, n := range []int{0, 3, 8} {
 		for len(keys) < n {
 			i := len(keys)
@@ -61,11 +61,11 @@ func TestSettingsHomeLayoutGETQueryBudget(t *testing.T) {
 		f.noSettingsDML(t, false)
 		require.Len(t, f.counter.Selects("config.home_layouts"), 1)
 		require.Len(t, f.counter.Selects("config.home_block_policies"), 1)
-		statements = f.counter.Queries()
+		statements = f.counter.Measurement(f.counter.Queries())
 		if n > 0 {
-			require.Len(t, statements, baseline)
+			require.Len(t, statements.Statements, baseline)
 		}
-		baseline = len(statements)
+		baseline = len(statements.Statements)
 	}
 	reader := f.admin
 	reader.IsAdmin = false
@@ -107,7 +107,7 @@ func TestSettingsPayrollStatusGETQueryBudget(t *testing.T) {
 		Dispatch: records.PayrollDispatchSettings{Auto: true, Channel: records.PayrollDispatchChannelEmail, Format: records.PayrollDispatchFormatCSV, Email: "payroll@example.invalid"},
 	}
 	created, missing, baseline := 0, 0, 0
-	var statements []string
+	var statements testpkg.QueryMeasurement
 	for _, n := range []int{0, 3, 8} {
 		for created < n {
 			staff := testpkg.CreateTestStaff(t, f.db, "Budget", fmt.Sprintf("Payroll-%d", created))
@@ -136,15 +136,15 @@ func TestSettingsPayrollStatusGETQueryBudget(t *testing.T) {
 		f.noSettingsDML(t, false)
 		require.Len(t, f.counter.Selects("config.setting_values"), 1)
 		require.NotEmpty(t, f.counter.Selects("users.staff_school_memberships"))
-		statements = f.counter.Queries()
+		statements = f.counter.Measurement(f.counter.Queries())
 		if n == 0 {
 			querybudgets.AssertQueryBudget(t, "api.settings.payroll_status.empty", statements)
 		}
 		// N=0 legitimately avoids hydration; compare populated sizes only.
 		if n == 8 {
-			require.Len(t, statements, baseline)
+			require.Len(t, statements.Statements, baseline)
 		}
-		baseline = len(statements)
+		baseline = len(statements.Statements)
 	}
 	querybudgets.AssertQueryBudget(t, "api.settings.payroll_status", statements)
 }

@@ -37,6 +37,7 @@ import { VisibilityBadge } from "~/components/ui/visibility-badge";
 import { PARENT_VISIBLE_HINTS } from "~/lib/parent-visible-fields";
 import { ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "GuardianForm" });
 
@@ -601,7 +602,7 @@ export default function GuardianFormModal({
                 )}
 
                 {/* Personal Information */}
-                <div className="bg-moto-blue-soft/30 rounded-xl border border-gray-100 p-3 md:p-4">
+                <InsetPanel framed padding="md">
                   <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
                     <svg
                       className="text-moto-blue-strong h-3.5 w-3.5 md:h-4 md:w-4"
@@ -701,10 +702,10 @@ export default function GuardianFormModal({
                       disabled={isLoading}
                     />
                   </div>
-                </div>
+                </InsetPanel>
 
                 {/* Contact Information */}
-                <div className="bg-moto-blue-soft/30 rounded-xl border border-gray-100 p-3 md:p-4">
+                <InsetPanel framed padding="md">
                   <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
                     <svg
                       className="text-moto-blue-strong h-3.5 w-3.5 md:h-4 md:w-4"
@@ -750,9 +751,10 @@ export default function GuardianFormModal({
                     <FieldLabel className="mb-0">Telefonnummern</FieldLabel>
 
                     {entry.phoneNumbers.map((phone, phoneIndex) => (
-                      <div
+                      <InsetPanel
                         key={phone.id}
-                        className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white p-3 sm:flex-row sm:items-center"
+                        tone="white"
+                        className="flex flex-col gap-2 sm:flex-row sm:items-center"
                       >
                         {/* Phone Type Select */}
                         <div className="w-full sm:w-32">
@@ -867,7 +869,7 @@ export default function GuardianFormModal({
                             </Button>
                           )}
                         </div>
-                      </div>
+                      </InsetPanel>
                     ))}
 
                     {/* Add Phone Button */}
@@ -883,10 +885,10 @@ export default function GuardianFormModal({
                       Weitere Nummer hinzufügen
                     </Button>
                   </div>
-                </div>
+                </InsetPanel>
 
                 {/* Address (optional) */}
-                <div className="bg-moto-blue-soft/30 rounded-xl border border-gray-100 p-3 md:p-4">
+                <InsetPanel framed padding="md">
                   <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
                     <svg
                       className="text-moto-blue-strong h-3.5 w-3.5 md:h-4 md:w-4"
@@ -959,10 +961,10 @@ export default function GuardianFormModal({
                       maxLength={255}
                     />
                   </div>
-                </div>
+                </InsetPanel>
 
                 {/* Additional Info */}
-                <div className="bg-moto-blue-soft/30 rounded-xl border border-gray-100 p-3 md:p-4">
+                <InsetPanel framed padding="md">
                   <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
                     <svg
                       className="text-moto-blue-strong h-3.5 w-3.5 md:h-4 md:w-4"
@@ -1005,7 +1007,7 @@ export default function GuardianFormModal({
                       />
                     </div>
                   </div>
-                </div>
+                </InsetPanel>
 
                 {/* Relationship Flags + Emergency Contact (shared with picker) */}
                 <RelationshipPermissionsFields

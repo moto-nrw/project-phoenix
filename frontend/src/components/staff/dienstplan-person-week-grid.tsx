@@ -739,7 +739,7 @@ function ShiftBlock({
       onPointerDown={(event) => event.stopPropagation()}
     >
       <PlanBlock
-        size={isShort ? "compact" : "default"}
+        size={isShort ? "flush" : "default"}
         status={shift.cancelled ? "cancelled" : "default"}
         timeRange={timeRange}
         label={label}
@@ -763,7 +763,7 @@ function ShiftBlock({
             </span>
           ) : undefined
         }
-        className={`flex h-full flex-col overflow-hidden ${isShort ? "justify-center py-0!" : "justify-start"}`}
+        className={`flex h-full flex-col overflow-hidden ${isShort ? "justify-center" : "justify-start"}`}
         interactive={onEdit !== undefined}
         onClick={onEdit}
         aria-label={ariaParts.join(", ")}
