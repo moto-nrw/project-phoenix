@@ -129,7 +129,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Selectable row or tile (label around a Checkbox/Radio, mode-picker button, row with a selection state) | `ChoiceTile` — `as` = `label` (default) / `button` / `div`, `selected`, `disabled`, `tone` = `gray` `green` `blue` `red` (serious choice); padding via `className` | `~/components/ui/choice-tile` |
 | Inner surface | `InsetPanel` (`tone`, `framed`, `dashed`, `padding`, `as`). A message with icon stays `Alert` | `~/components/ui/inset-panel` |
 | Label/value fields | `DataField` in a `dl`, `InfoSection`, `DataGrid`, `InfoText` | `~/components/ui/detail-modal-components` |
-| Select | `CustomSelect`, `MultiSelect`; own content: `ListboxDropdown` | `~/components/ui/<kebab-name>` |
+| Select | `CustomSelect`, `MultiSelect`; own content: `ListboxDropdown`; typed + suggested: `SuggestInput` | `~/components/ui/<kebab-name>` |
 | Weekday choice | `WeekdayToggleGroup` | `~/components/ui/weekday-toggle-group` |
 | Chosen entry with a remove X; read-only without `onRemove` | `RemovableChip` | `~/components/ui/removable-chip` |
 | Number with minus and plus (except time tracking's break stepper) | `NumberStepper` | `~/components/ui/number-stepper` |
@@ -330,7 +330,7 @@ On motion, `ui-skills` is stricter than `frontend/.claude/skills/better-ui/anima
 
 `ui-kit/no-kit-domain-import` (#5586, hard-zero): `components/ui/` imports no other component folder and calls no `fetch`/`useSWR*`; context comes through props and slots. Planning pieces live in `ui/planning/`. `no-hand-rolled-surface` applies in `ui/` too.
 
-`ui-kit/no-hand-rolled-menu` (#5601, hard-zero): `role="menu|menuitem*|listbox|option"` only in `ui/`; `ui-kit/no-hand-rolled-popover` (#5601, hard-zero): `moto-popover-surface` only in `ui/`.
+`ui-kit/no-hand-rolled-menu` / `-popover` (#5601, hard-zero): `role="menu|menuitem*|listbox|option"`, `<datalist>` / `moto-popover-surface` only in `ui/`.
 
 `ui-kit/no-own-spinner` (#5588, hard-zero): no `animate-spin` or icon-package spinner outside `ui/`. `bauart/no-own-skeleton` also fails `<Skeleton>` rows in an own surface and radius classes on it. The scaffold test fails visible loading text in `page.tsx`.
 

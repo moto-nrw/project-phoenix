@@ -3690,6 +3690,10 @@ describe.concurrent("ui-kit/no-hand-rolled-menu (#5601)", () => {
     ["a listbox", `<ul role="listbox" />`],
     ["an option", `<li role="option" aria-selected={false} />`],
     ["a conditional role", `<div role={open ? "menu" : undefined} />`],
+    [
+      "a native suggestion list",
+      `<datalist id="known"><option value="1a" /></datalist>`,
+    ],
   ])("fails %s", async (_name, element) => {
     const result = await lintSource(
       `function Probe({ open }: { open: boolean }) {
@@ -3713,7 +3717,12 @@ describe.concurrent("ui-kit/no-hand-rolled-menu (#5601)", () => {
       `export const Probe = () => <div role="menu" />;`,
       "src/components/ui/probe.tsx",
     );
+    const kitDatalist = await lintSource(
+      `export const Probe = () => <datalist id="known" />;`,
+      "src/components/ui/probe.tsx",
+    );
 
+    expect(kitDatalist.output).not.toContain("no-hand-rolled-menu");
     expect(other.output).not.toContain("no-hand-rolled-menu");
     expect(kit.output).not.toContain("no-hand-rolled-menu");
   });
