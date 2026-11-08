@@ -1,9 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-const { mockSetSession } = vi.hoisted(() => ({ mockSetSession: vi.fn() }));
+const { mockSetSession, mockCatererAuth, mockUncachedCatererAuth } = vi.hoisted(
+  () => ({
+    mockSetSession: vi.fn(),
+    mockCatererAuth: vi.fn(),
+    mockUncachedCatererAuth: vi.fn(),
+  }),
+);
 
+// The caterer binding reads the session through catererAuth().
 vi.mock("~/server/auth/caterer", () => ({
+  catererAuth: mockCatererAuth,
+  uncachedCatererAuth: mockUncachedCatererAuth,
   setCatererSession: mockSetSession,
   withCatererAuth: <T>(handler: T) => handler,
 }));
@@ -19,8 +28,10 @@ function confirmRequest(token: string | undefined, origin = ORIGIN) {
     headers: { origin, "Content-Type": "application/json" },
     body: JSON.stringify({ challenge_token: "challenge", code: "123456" }),
   });
+  const session = token ? { user: { token } } : null;
+  mockCatererAuth.mockResolvedValue(session);
   return Object.assign(request, {
-    auth: token ? { user: { token } } : null,
+    auth: session,
   }) as unknown as Parameters<typeof POST>[0];
 }
 
@@ -88,6 +99,9 @@ describe("POST /api/caterer/account/mfa/confirm (#4497)", () => {
 
     expect(response.status).toBe(401);
     expect(await response.json()).toMatchObject(problem);
+    // No retry: a renewed session would send the code a second time.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(mockUncachedCatererAuth).not.toHaveBeenCalled();
     expect(mockSetSession).not.toHaveBeenCalled();
   });
 

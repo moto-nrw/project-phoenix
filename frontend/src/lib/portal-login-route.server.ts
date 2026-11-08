@@ -1,5 +1,6 @@
 import "server-only";
 import { createLoginRoute } from "./login-route.server";
+import { setTenantSession, withTenantSessionResponse } from "~/server/auth";
 import {
   setOperatorSession,
   withOperatorSessionResponse,
@@ -19,6 +20,10 @@ import {
 } from "~/server/auth/caterer";
 
 const bindings = {
+  tenant: {
+    withResponse: withTenantSessionResponse,
+    setSession: setTenantSession,
+  },
   operator: {
     withResponse: withOperatorSessionResponse,
     setSession: setOperatorSession,

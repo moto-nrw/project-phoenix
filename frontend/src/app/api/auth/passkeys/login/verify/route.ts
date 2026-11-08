@@ -1,3 +1,3 @@
-import { createTenantLoginRoute } from "~/lib/tenant-login-route.server";
+import { createPortalLoginRoute } from "~/lib/portal-login-route.server";
 
-export const POST = createTenantLoginRoute("/auth/passkeys/login/verify");
+export const POST = createPortalLoginRoute("tenant", "passkeys/login/verify");

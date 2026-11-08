@@ -1,6 +1,6 @@
 import { captureBffException } from "~/lib/sentry-bff.server";
 import { type NextRequest, NextResponse } from "next/server";
-import { getClientForwardHeaders } from "~/lib/client-headers.server";
+import { backendIdentityHeaders } from "~/lib/client-headers.server";
 import { createLogger } from "~/lib/logger";
 import { DEMO_TOKEN_COOKIE, demoBackendUrl } from "../forward";
 import { withPrivateNoStore } from "~/lib/private-no-store";
@@ -46,7 +46,7 @@ async function readySchoolUrl(
   try {
     const response = await fetch(demoBackendUrl("status"), {
       headers: {
-        ...getClientForwardHeaders(request),
+        ...backendIdentityHeaders(request),
         Authorization: `Bearer ${token}`,
       },
     });

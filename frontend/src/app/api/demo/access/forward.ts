@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getServerApiUrl } from "~/lib/server-api-url";
-import { getClientForwardHeaders } from "~/lib/client-headers.server";
+import { backendIdentityHeaders } from "~/lib/client-headers.server";
 import { createLogger } from "~/lib/logger";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { problemResponse } from "~/lib/api-helpers.server";
@@ -24,7 +24,7 @@ export async function forwardDemoToken(
     return problemResponse(404, "demo access is unknown", request);
   }
   try {
-    const response = await send(token, getClientForwardHeaders(request));
+    const response = await send(token, backendIdentityHeaders(request));
     return forwardBackendResponse(response, request);
   } catch (error) {
     logger.error("demo_access_forward_failed", {

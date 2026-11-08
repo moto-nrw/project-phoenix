@@ -1,62 +1,48 @@
 import type { NextRequest } from "next/server";
-import { auth, setTenantSession, withTenantAuth } from "~/server/auth";
+import { setTenantSession, withTenantAuth } from "~/server/auth";
+import { PORTALS } from "~/server/auth/portals";
 import { sessionMutationOriginError } from "~/server/auth/same-origin";
-import { proxyJsonRequest } from "~/lib/backend-proxy-route.server";
-import { getServerApiUrl } from "~/lib/server-api-url";
-import { getClientForwardHeaders } from "~/lib/client-headers.server";
-import { problemResponse } from "~/lib/api-response-error.server";
-import { createLogger } from "~/lib/logger";
+import { forwardJsonRequest } from "~/lib/json-proxy.server";
+import { tenant } from "~/lib/route-wrapper.server";
 import type { RouteContext } from "~/lib/route-wrapper-utils.server";
-
-const logger = createLogger({ component: "TenantSwitch" });
+import {
+  installMintedSession,
+  logoutRollback,
+  mintedPair,
+} from "~/lib/session-transition.server";
 
 export const POST = withTenantAuth(
   async (request: NextRequest, context: RouteContext) => {
     const originError = sessionMutationOriginError(request);
     if (originError) return originError;
-    const session = await auth();
-    if (!session?.user?.token)
-      return problemResponse(401, "Unauthorized", request);
-    return proxyJsonRequest(
+    return forwardJsonRequest(
       request,
       context,
       {
         method: "POST",
         path: "/auth/switch-tenant",
         onSuccess: async (response) => {
-          const pair = (await response.json().catch(() => {
-            throw new Error("Invalid session transition response");
-          })) as {
-            access_token: string;
-            refresh_token: string;
-          };
-          try {
-            await setTenantSession(pair.access_token, pair.refresh_token);
-          } catch {
-            // The new family must not survive a failed cookie handoff. Do not
-            // return its credential, including if revocation is unavailable.
-            try {
-              const rollback = await fetch(`${getServerApiUrl()}/auth/logout`, {
-                method: "POST",
-                headers: {
-                  ...getClientForwardHeaders(request),
-                  Authorization: `Bearer ${pair.refresh_token}`,
-                },
-                signal: AbortSignal.timeout(5000),
-              });
-              if (!rollback.ok)
-                logger.error("tenant_switch_rollback_failed", {
-                  status: rollback.status,
-                });
-            } catch {
-              logger.error("tenant_switch_rollback_failed", {});
-            }
-            return problemResponse(500, "Session switch failed", request);
-          }
-          return Response.json({ success: true });
+          const pair = mintedPair(
+            (await response.json().catch(() => {
+              throw new Error("Invalid session transition response");
+            })) as Record<string, unknown>,
+          );
+          return (
+            (await installMintedSession(
+              request,
+              () => setTenantSession(pair.access_token, pair.refresh_token),
+              logoutRollback(PORTALS.tenant.backend.logout, pair),
+            )) ?? Response.json({ success: true })
+          );
         },
       },
-      session.user.token,
+      (path, call) =>
+        tenant.backendFetch(request, path, {
+          ...call,
+          retry: {
+            off: "its 401 names why the switch is refused (identity.mfa_session_required)",
+          },
+        }),
     );
   },
 );

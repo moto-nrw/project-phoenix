@@ -100,12 +100,15 @@ describe("POST /api/auth/login", () => {
     );
     expect(requestInit).toMatchObject({
       method: "POST",
+      cache: "no-store",
       headers: {
         "Content-Type": "application/json",
-        "User-Agent": "unknown",
       },
       body: JSON.stringify(loginPayload),
     });
+    // Identity headers travel only when the request carries them (no
+    // "unknown" User-Agent placeholder any more).
+    expect(requestInit.headers).not.toHaveProperty("User-Agent");
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ status: "authenticated" });
@@ -222,7 +225,36 @@ describe("POST /api/auth/login", () => {
     });
   });
 
-  it("returns 500 when fetch throws an error", async () => {
+  // The backend reads only its remember-device cookie at login; the BFF's
+  // own session cookies never travel to it.
+  it("forwards the trusted-device cookie and no other cookie", async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      Response.json({ status: "mfa_required", challenge_token: "c" }),
+    );
+    const request = new NextRequest("http://localhost:3000/api/auth/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://localhost:3000",
+        cookie: "authjs.session-token=secret; mfa_trust_device=device-1",
+      },
+      body: JSON.stringify({ email: "a@b.de", password: "x" }),
+    });
+    // Anker: the request carries both cookies.
+    expect(request.cookies.get("authjs.session-token")?.value).toBe("secret");
+
+    await POST(request);
+
+    const [, init] = vi.mocked(global.fetch).mock.calls[0] as [
+      string,
+      RequestInit,
+    ];
+    expect(new Headers(init.headers).get("cookie")).toBe(
+      "mfa_trust_device=device-1",
+    );
+  });
+
+  it("returns 503 when fetch throws an error", async () => {
     const loginPayload = { email: "test@example.com", password: "Test1234!" };
 
     const failure = new Error("Network error");
@@ -233,9 +265,11 @@ describe("POST /api/auth/login", () => {
     });
     const response = await POST(request);
 
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Internal Server Error");
+    // A network failure answers 503 general.unavailable (was 500).
+    expect(response.status).toBe(503);
+    const json = await parseJsonResponse<{ code: string }>(response);
+    expect(json.code).toBe("general.unavailable");
+    expect(JSON.stringify(json)).not.toContain(failure.message);
     expect(captureException).toHaveBeenCalledExactlyOnceWith(failure, {});
   });
 

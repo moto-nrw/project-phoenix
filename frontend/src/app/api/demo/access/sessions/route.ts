@@ -2,7 +2,7 @@ import { captureBffException } from "~/lib/sentry-bff.server";
 import { type NextRequest, NextResponse } from "next/server";
 import {
   frontendOrigin,
-  getClientForwardHeaders,
+  backendIdentityHeaders,
 } from "~/lib/client-headers.server";
 import { createLogger } from "~/lib/logger";
 import {
@@ -21,10 +21,9 @@ import {
   withParentSessionResponse,
 } from "~/server/auth/parent";
 import { sessionMutationOriginError } from "~/server/auth/same-origin";
-import {
-  installLoginSession,
-  revokeMintedSession,
-} from "~/lib/login-route.server";
+import { installLoginSession } from "~/lib/login-route.server";
+import { revokeMintedSession } from "~/lib/session-transition.server";
+import { PORTALS } from "~/server/auth/portals";
 
 const logger = createLogger({ component: "DemoSessionRoute" });
 
@@ -73,7 +72,7 @@ async function redeem(request: NextRequest, parent: boolean) {
     const backend = await fetch(demoBackendUrl("sessions"), {
       method: "POST",
       headers: {
-        ...getClientForwardHeaders(request),
+        ...backendIdentityHeaders(request),
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ token, role }),
@@ -102,7 +101,10 @@ async function redeem(request: NextRequest, parent: boolean) {
       // this unused session family before returning only redirect metadata.
       if (typeof payload.refresh_token !== "string" || !payload.refresh_token)
         throw new Error("Missing demo session credentials");
-      await revokeMintedSession(request, payload.refresh_token);
+      await revokeMintedSession(request, {
+        path: PORTALS.tenant.backend.logout.path,
+        bearer: payload.refresh_token,
+      });
     }
     const response = NextResponse.json(
       {

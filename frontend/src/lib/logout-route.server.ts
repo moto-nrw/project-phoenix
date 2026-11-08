@@ -1,11 +1,12 @@
 import "server-only";
 import type { NextRequest } from "next/server";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
-import { problemResponse } from "~/lib/api-response-error.server";
-import { getClientForwardHeaders } from "~/lib/client-headers.server";
+import {
+  handleApiError,
+  problemResponse,
+} from "~/lib/api-response-error.server";
+import { sendBackend } from "~/lib/backend-client.server";
 import { createLogger } from "~/lib/logger";
-import { captureBffException } from "~/lib/sentry-bff.server";
-import { getServerApiUrl } from "~/lib/server-api-url";
 import type { PortalDescriptor } from "~/server/auth/portals";
 import type { ServerSession } from "~/server/auth/session-types";
 
@@ -38,14 +39,10 @@ export function createLogoutHandler(
   uncachedAuth: SessionReader,
 ) {
   const revoke = (request: NextRequest, token: string) =>
-    fetch(`${getServerApiUrl()}${portal.backend.logout.path}`, {
+    sendBackend(portal.backend.logout.path, token, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        ...getClientForwardHeaders(request),
-      },
-      signal: AbortSignal.timeout(10_000),
+      request,
+      timeoutMs: 10_000,
     });
 
   return async (request: NextRequest) => {
@@ -68,12 +65,11 @@ export function createLogoutHandler(
       }
       return forwardBackendResponse(await revoke(request, renewed), request);
     } catch (error) {
-      captureBffException(error, request);
       logger.error("logout failed", {
         portal: portal.key,
         error: error instanceof Error ? error.message : String(error),
       });
-      return problemResponse(502, "Backend unavailable", request);
+      return handleApiError(error, request);
     }
   };
 }

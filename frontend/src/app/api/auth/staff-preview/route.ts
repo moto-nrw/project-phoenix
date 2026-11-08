@@ -1,31 +1,24 @@
 import type { NextRequest } from "next/server";
 import { auth, setStaffPreviewSession, withTenantAuth } from "~/server/auth";
 import { sessionMutationOriginError } from "~/server/auth/same-origin";
-import { proxyJsonRequest } from "~/lib/backend-proxy-route.server";
-import { getServerApiUrl } from "~/lib/server-api-url";
-import { getClientForwardHeaders } from "~/lib/client-headers.server";
 import { problemResponse } from "~/lib/api-response-error.server";
-import { createLogger } from "~/lib/logger";
+import { forwardJsonRequest } from "~/lib/json-proxy.server";
+import { tenant } from "~/lib/route-wrapper.server";
 import type { RouteContext } from "~/lib/route-wrapper-utils.server";
-
-const logger = createLogger({ component: "StaffPreviewStart" });
+import { installMintedSession } from "~/lib/session-transition.server";
 
 export const POST = withTenantAuth(
   async (request: NextRequest, context: RouteContext) => {
     const originError = sessionMutationOriginError(request);
     if (originError) return originError;
-    const session = await auth();
-    if (!session?.user?.token)
-      return problemResponse(401, "Unauthorized", request);
-    if (session.user.isPreview)
+    if ((await auth())?.user?.isPreview)
       return problemResponse(409, "A preview is already running", request);
-    return proxyJsonRequest(
+    return forwardJsonRequest(
       request,
       context,
       {
         method: "POST",
         path: "/auth/staff-preview",
-        forwardClientHeaders: true,
         onSuccess: async (response) => {
           const preview = (await response.json().catch(() => {
             throw new Error("Invalid session transition response");
@@ -35,36 +28,21 @@ export const POST = withTenantAuth(
             target_account_id: string;
             target_name: string;
           };
-          try {
-            await setStaffPreviewSession({
-              accessToken: preview.access_token,
-              expiresIn: preview.expires_in,
-              targetAccountId: preview.target_account_id,
-              targetName: preview.target_name,
-            });
-          } catch {
-            try {
-              const rollback = await fetch(
-                `${getServerApiUrl()}/auth/staff-preview/end`,
-                {
-                  method: "POST",
-                  headers: {
-                    ...getClientForwardHeaders(request),
-                    "Content-Type": "application/json",
-                  },
-                  body: JSON.stringify({ preview_token: preview.access_token }),
-                  signal: AbortSignal.timeout(5000),
-                },
-              );
-              if (!rollback.ok)
-                logger.error("staff_preview_rollback_failed", {
-                  status: rollback.status,
-                });
-            } catch {
-              logger.error("staff_preview_rollback_failed", {});
-            }
-            return problemResponse(500, "Preview session failed", request);
-          }
+          const failure = await installMintedSession(
+            request,
+            () =>
+              setStaffPreviewSession({
+                accessToken: preview.access_token,
+                expiresIn: preview.expires_in,
+                targetAccountId: preview.target_account_id,
+                targetName: preview.target_name,
+              }),
+            {
+              path: "/auth/staff-preview/end",
+              json: { preview_token: preview.access_token },
+            },
+          );
+          if (failure) return failure;
           // Explicit allowlist: no backend token or newly added backend field.
           return Response.json({
             expires_in: preview.expires_in,
@@ -73,7 +51,13 @@ export const POST = withTenantAuth(
           });
         },
       },
-      session.user.token,
+      (path, call) =>
+        tenant.backendFetch(request, path, {
+          ...call,
+          retry: {
+            off: "its 401 names why the preview is refused, like the school switch",
+          },
+        }),
     );
   },
 );
