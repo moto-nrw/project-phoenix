@@ -9,6 +9,7 @@ import {
   useEffect,
   useCallback,
   useMemo,
+  useId,
 } from "react";
 import { createPortal } from "react-dom";
 import { FocusScope } from "@radix-ui/react-focus-scope";
@@ -182,6 +183,11 @@ type DatePickerProps =
       readonly name?: string;
       readonly ariaLabel?: string;
       readonly ariaDescribedBy?: string;
+      /**
+       * A line under the field that stays visible, read out with the trigger.
+       * Same look and place as the `hint` of the kit `Input`.
+       */
+      readonly hint?: string;
       readonly invalid?: boolean;
       /** Trigger height. Match the kit Input next to it — see ControlSize. */
       readonly controlSize?: ControlSize;
@@ -222,6 +228,7 @@ export function DatePicker({
   ...props
 }: DatePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const fallbackId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -256,6 +263,12 @@ export function DatePicker({
         format(props.value, "dd.MM.yyyy", { locale })
       : null;
   const iconOnly = !isMultiple && props.iconOnly === true;
+  const hint = isMultiple ? undefined : props.hint;
+  const hintId =
+    !isMultiple && hint ? `${props.id ?? fallbackId}-hint` : undefined;
+  const triggerDescribedBy = isMultiple
+    ? undefined
+    : [props.ariaDescribedBy, hintId].filter(Boolean).join(" ") || undefined;
   const canClear =
     Boolean(displayValue) &&
     !iconOnly &&
@@ -451,7 +464,7 @@ export function DatePicker({
               : (props.ariaLabel ?? (iconOnly ? "Kalender öffnen" : undefined))
           }
           aria-expanded={isOpen}
-          aria-describedby={isMultiple ? undefined : props.ariaDescribedBy}
+          aria-describedby={triggerDescribedBy}
           data-form-invalid={!isMultiple && props.invalid ? true : undefined}
           disabled={isDisabled}
           onClick={toggleOpen}
@@ -533,6 +546,11 @@ export function DatePicker({
           </Button>
         )}
       </div>
+      {hint && (
+        <p id={hintId} className="mt-1 text-xs text-gray-600">
+          {hint}
+        </p>
+      )}
 
       {/* The overlay/inline layouts render in place; the popover layout renders
           the calendar into document.body at a viewport-fixed position. Portals
@@ -723,12 +741,15 @@ export function ISODatePicker({
   disabledDay,
   label,
   error,
+  hint,
   ...rest
 }: {
-  // Renders the same label and error markup as the kit `Input`, so a field that
-  // used <Input label="Startdatum" type="date"> keeps its exact layout.
+  // Renders the same label, hint and error markup as the kit `Input`, so a
+  // field that used <Input label="Startdatum" type="date"> keeps its layout.
   readonly label?: string;
   readonly error?: string;
+  /** See `DatePicker` `hint`: stays visible under the field, above `error`. */
+  readonly hint?: string;
   /** "YYYY-MM-DD", or "" when unset. */
   readonly value: string;
   /** Emits "YYYY-MM-DD", or "" when cleared. */
@@ -764,9 +785,14 @@ export function ISODatePicker({
   readonly locale?: Locale;
   readonly labels?: DatePickerLabels;
 }) {
+  const fallbackId = useId();
   const errorId = error && rest.id ? `${rest.id}-error` : undefined;
+  // Rendered here rather than by DatePicker, so it reads before the error as
+  // in the kit `Input`.
+  const hintId = hint ? `${rest.id ?? fallbackId}-hint` : undefined;
   const describedBy =
-    [rest.ariaDescribedBy, errorId].filter(Boolean).join(" ") || undefined;
+    [rest.ariaDescribedBy, hintId, errorId].filter(Boolean).join(" ") ||
+    undefined;
   const picker = (
     <DatePicker
       {...rest}
@@ -782,7 +808,7 @@ export function ISODatePicker({
     />
   );
 
-  if (!label && !error) {
+  if (!label && !error && !hint) {
     return picker;
   }
 
@@ -798,6 +824,11 @@ export function ISODatePicker({
         </FieldLabel>
       )}
       {picker}
+      {hint && (
+        <p id={hintId} className="mt-1 text-xs text-gray-600">
+          {hint}
+        </p>
+      )}
       {error && (
         <p id={errorId} role="alert" className="text-moto-red mt-1 text-xs">
           {error}
