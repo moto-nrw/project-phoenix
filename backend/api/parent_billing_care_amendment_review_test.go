@@ -66,9 +66,9 @@ func TestCareRemovalOfALongModuleIsStoredExportedAndKept(t *testing.T) {
 	monday := amendedInvoice(t, f.amended(t, run.ID), mia).Positions[0]
 	require.Equal(t, long, monday.ModuleName)
 
-	code, review := f.amend(t, run.ID, mia, map[string]any{"kind": "remove_position", "position_key": monday.Key, "reason": "Montag fällt weg"})
+	code, _ := f.amend(t, run.ID, mia, map[string]any{"kind": "remove_position", "position_key": monday.Key, "reason": "Montag fällt weg"})
 	require.Equal(t, http.StatusOK, code, "the removal of a module with the longest name is stored")
-	code, review = f.amend(t, run.ID, mia, map[string]any{"kind": "add_position", "label": "Ausflug", "amount_cents": 500, "reason": "Elternbrief"})
+	code, review := f.amend(t, run.ID, mia, map[string]any{"kind": "add_position", "label": "Ausflug", "amount_cents": 500, "reason": "Elternbrief"})
 	require.Equal(t, http.StatusOK, code)
 	list := reviewListCSV(t, f, run.ID)
 	assert.Contains(t, list, "Ausflug (Grund: Elternbrief)", "the review list names the reason of an added position")
