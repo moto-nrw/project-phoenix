@@ -153,6 +153,7 @@ function TodoRow({ item }: Readonly<{ item: TodoItem }>) {
       </span>
     ) : undefined,
     unread: item.unread,
+    chevronClassName: "hidden sm:block",
     className: "min-h-16 rounded-xl px-3 py-2.5",
   };
 

@@ -61,6 +61,8 @@ type ListRowLinkProps = ListRowLinkTarget & {
   readonly framed?: boolean;
   /** Führt die Zeile nicht auf eine andere Seite, entfällt der Pfeil. */
   readonly chevron?: boolean;
+  /** Layout-Klassen nur für den Pfeil, etwa `hidden sm:block`. */
+  readonly chevronClassName?: string;
   readonly className?: string;
   readonly "aria-label"?: string;
 };
@@ -101,6 +103,7 @@ export function ListRowLink({
   contentClassName,
   framed = false,
   chevron = true,
+  chevronClassName,
   className,
   "aria-label": ariaLabel,
 }: ListRowLinkProps) {
@@ -195,6 +198,7 @@ export function ListRowLink({
         stacked ? "h-5 w-5" : "h-4 w-4",
         selected ? "text-moto-green" : "text-gray-400",
         framed && "group-hover:text-gray-700",
+        chevronClassName,
       )}
       aria-hidden="true"
     />

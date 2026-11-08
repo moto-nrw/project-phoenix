@@ -64,6 +64,7 @@ describe("TodoList", () => {
     expect(row).toHaveClass("hover:bg-gray-50", "active:bg-gray-100");
     expect(row).toHaveTextContent("Ungelesen: Offener Punkt 1");
     expect(title).toHaveClass("font-semibold");
+    expect(row.querySelector("svg.h-4")).toHaveClass("hidden", "sm:block");
     expect(
       screen.queryByTestId("todo-unread-indicator"),
     ).not.toBeInTheDocument();
