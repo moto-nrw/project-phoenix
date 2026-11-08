@@ -1,6 +1,7 @@
 package compose
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -1132,4 +1133,46 @@ func TestDemoSchoolQueueErasesTheReviewChangesOfTheRetiredSchool(t *testing.T) {
 	assert.Zero(t, remainingRows(t, db, "parent_billing.care_run_amendments", changes), "no change of the retired school stays")
 	assert.Equal(t, len(openChanges), remainingRows(t, db, "parent_billing.care_run_amendments", openChanges),
 		"the open school keeps its changes")
+}
+
+// issuedCorrection stores a correction on the issued monthly invoice of the
+// school as its release left it (#6197). The release stores it while the
+// run is calculated; the fixture's run is released already, so replica mode
+// skips the trigger for this one row.
+func issuedCorrection(t *testing.T, db *bun.DB, schoolID int64) int64 {
+	t.Helper()
+	var id int64
+	require.NoError(t, db.RunInTx(t.Context(), nil, func(ctx context.Context, tx bun.Tx) error {
+		if _, err := tx.ExecContext(ctx, `SET LOCAL session_replication_role = replica`); err != nil {
+			return err
+		}
+		return tx.NewRaw(`INSERT INTO parent_billing.care_invoice_corrections (organization_id, invoice_id, position, kind,
+			label, amount_cents, reason, amended_at, amendment_id)
+			SELECT organization_id, id, 1, 'add_position', 'Ausflug', 500, 'Elternbrief', NOW(), 1
+			FROM parent_billing.care_invoices WHERE school_id = ? RETURNING id`, schoolID).Scan(ctx, &id)
+	}))
+	return id
+}
+
+// The correction of an issued monthly invoice goes with the invoice when
+// the visitor of a retired demo school is erased (#6197): its trigger
+// refuses every other delete, but lets the cascade from the invoice through.
+// The open school of the same Träger keeps its issued correction.
+func TestDemoSchoolQueueErasesTheIssuedCorrectionsOfTheRetiredSchool(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	openID := schoolOfOrganization(t, db, schoolID, false)
+	accounts := leaveVisitorTraces(t, db, schoolID)
+	leaveVisitorTraces(t, db, openID)
+	retired, open := issuedCorrection(t, db, schoolID), issuedCorrection(t, db, openID)
+	_, err := db.ExecContext(t.Context(), `DELETE FROM parent_billing.care_invoice_corrections WHERE id = ?`, retired)
+	require.ErrorContains(t, err, "never changes", "an issued correction refuses a delete of its own")
+
+	retireVisitorOrder(t, db, schoolID, accounts)
+
+	assert.Zero(t, remainingRows(t, db, "parent_billing.care_invoice_corrections", []int64{retired}),
+		"the correction goes with the issued invoice of the retired school")
+	assert.Equal(t, 1, remainingRows(t, db, "parent_billing.care_invoice_corrections", []int64{open}),
+		"the open school keeps its issued correction")
 }
