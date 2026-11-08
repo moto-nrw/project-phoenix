@@ -18,10 +18,7 @@ type SubmitRequest struct {
 	// DisplayedFormSchemaID is the form version the parent's form showed
 	// (#4680). Versions never change, so the snapshot proves the shown legal
 	// texts are the stored ones only when it equals the version in force.
-	DisplayedFormSchemaID int64
-	// uploadAttempt counts an upload of the public form (#4783) in the IP's
-	// upload bucket instead of the submission buckets.
-	uploadAttempt            bool
+	DisplayedFormSchemaID    int64
 	TenantID                 int64
 	PhaseID                  int64
 	RemoteIP                 string
