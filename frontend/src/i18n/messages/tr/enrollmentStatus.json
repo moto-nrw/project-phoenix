@@ -135,6 +135,12 @@
       "guardian_phone": "Telefon",
       "phase_id": "Kayıt dönemi"
     },
+    "consent": {
+      "agb": "Genel şartlar ve koşullar",
+      "data_processing": "Gizlilik bilgilendirmesi okundu",
+      "email_contact": "E-posta ile iletişime izin verildi",
+      "photo": "Fotoğraf izni"
+    },
     "child": {
       "custom_data": "Ek bilgiler",
       "date_of_birth": "Doğum tarihi",

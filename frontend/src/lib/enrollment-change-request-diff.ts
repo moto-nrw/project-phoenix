@@ -1,9 +1,43 @@
+import type { Translations } from "~/lib/enrollment-translations";
 import { WEEKDAY_CODES, weekdayShortLabel } from "~/lib/weekdays";
+
 export interface EnrollmentChangeRequestDiffInput {
   readonly baseSnapshot: Record<string, unknown>;
   readonly proposedSnapshot: Record<string, unknown>;
   readonly diff: Record<string, unknown>;
   readonly copy?: EnrollmentChangeRequestDiffCopy;
+  /** Questions of the request's form version; without them rows show keys. */
+  readonly formLabels?: EnrollmentFormLabels | null;
+}
+
+interface EnrollmentFormLabelOption {
+  readonly label: string;
+  readonly value: string;
+  readonly translations?: Translations;
+}
+
+interface EnrollmentFormLabelField {
+  readonly key: string;
+  readonly label: string;
+  readonly applies_to_child?: boolean;
+  readonly options?: EnrollmentFormLabelOption[];
+  readonly translations?: Translations;
+}
+
+interface EnrollmentFormLabelLegalBlock {
+  readonly key: string;
+  readonly title: string;
+  readonly translations?: Translations;
+}
+
+/**
+ * The questions and consent titles of the form version a request is pinned
+ * to (#6142), as `GET …/form-labels` answers them. Callers localize them
+ * before passing them in.
+ */
+export interface EnrollmentFormLabels {
+  readonly fields: EnrollmentFormLabelField[];
+  readonly legal_blocks: EnrollmentFormLabelLegalBlock[];
 }
 
 interface EnrollmentChangeRequestDiffRow {
@@ -25,6 +59,8 @@ export interface EnrollmentChangeRequestDiffCopy {
   readonly guardianSnapshotLabels: Record<string, string>;
   readonly recordValueLabels: Record<string, string>;
   readonly weekdayLabels: Record<string, string>;
+  /** Titles of the standard consents for requests without form titles. */
+  readonly consentLabels?: Record<string, string>;
   readonly childEntryLabel: string;
   readonly additionalGuardianEntryLabel: string;
   readonly emptyLabel: string;
@@ -77,6 +113,12 @@ export const DEFAULT_ENROLLMENT_CHANGE_REQUEST_DIFF_COPY: EnrollmentChangeReques
     weekdayLabels: Object.fromEntries(
       WEEKDAY_CODES.map((code) => [code, weekdayShortLabel(code)]),
     ),
+    consentLabels: {
+      agb: "AGB der Schule",
+      data_processing: "Datenverarbeitung (DSGVO)",
+      email_contact: "E-Mail-Kontakt",
+      photo: "Fotos bei Schulveranstaltungen",
+    },
     childEntryLabel: "Kind",
     additionalGuardianEntryLabel: "Weitere Person",
     emptyLabel: "Nicht gesetzt",
@@ -85,6 +127,49 @@ export const DEFAULT_ENROLLMENT_CHANGE_REQUEST_DIFF_COPY: EnrollmentChangeReques
   };
 
 const CHILD_METADATA_KEYS = new Set(["id", "status"]);
+const NO_METADATA_KEYS: ReadonlySet<string> = new Set();
+const NO_KEY_LABELS: ObjectKeyLabels = new Map();
+
+/** How one stored key reads: its question and its option labels. */
+interface ObjectKeyLabel {
+  readonly label: string;
+  readonly options?: ReadonlyMap<string, string>;
+}
+
+type ObjectKeyLabels = ReadonlyMap<string, ObjectKeyLabel>;
+
+interface FormKeyLabels {
+  readonly guardian: ObjectKeyLabels;
+  readonly child: ObjectKeyLabels;
+  readonly consent: ObjectKeyLabels;
+}
+
+function formKeyLabels(
+  formLabels: EnrollmentFormLabels | null | undefined,
+  copy: EnrollmentChangeRequestDiffCopy,
+): FormKeyLabels {
+  const guardian = new Map<string, ObjectKeyLabel>();
+  const child = new Map<string, ObjectKeyLabel>();
+  for (const field of formLabels?.fields ?? []) {
+    const options = field.options?.length
+      ? new Map(field.options.map((option) => [option.value, option.label]))
+      : undefined;
+    (field.applies_to_child ? child : guardian).set(field.key, {
+      label: field.label,
+      options,
+    });
+  }
+  const consent = new Map<string, ObjectKeyLabel>(
+    Object.entries(copy.consentLabels ?? {}).map(([key, label]) => [
+      key,
+      { label },
+    ]),
+  );
+  for (const block of formLabels?.legal_blocks ?? []) {
+    if (block.title.trim()) consent.set(block.key, { label: block.title });
+  }
+  return { guardian, child, consent };
+}
 const GUARDIAN_METADATA_KEYS = new Set(["id"]);
 
 export function buildEnrollmentChangeRequestDiffGroups({
@@ -92,12 +177,14 @@ export function buildEnrollmentChangeRequestDiffGroups({
   copy = DEFAULT_ENROLLMENT_CHANGE_REQUEST_DIFF_COPY,
   proposedSnapshot,
   diff,
+  formLabels,
 }: EnrollmentChangeRequestDiffInput): EnrollmentChangeRequestDiffGroup[] {
+  const labels = formKeyLabels(formLabels, copy);
   return changedSnapshotKeys(baseSnapshot, proposedSnapshot, diff).flatMap(
     (key) => {
       const before = baseSnapshot[key];
       const after = proposedSnapshot[key];
-      const rows = snapshotDetailRows(key, before, after, copy);
+      const rows = snapshotDetailRows(key, before, after, copy, labels);
       if (rows.length === 0) {
         if (suppressesMetadataOnlyDiffs(key)) return [];
         if (snapshotValuesEqual(before, after)) return [];
@@ -188,6 +275,7 @@ function snapshotDetailRows(
   before: unknown,
   after: unknown,
   copy: EnrollmentChangeRequestDiffCopy,
+  labels: FormKeyLabels,
 ): EnrollmentChangeRequestDiffRow[] {
   if (key === "additional_guardians") {
     return recordArrayDiffRows(
@@ -196,6 +284,7 @@ function snapshotDetailRows(
       copy.additionalGuardianEntryLabel,
       copy.guardianSnapshotLabels,
       GUARDIAN_METADATA_KEYS,
+      NO_KEY_LABELS,
     );
   }
   if (key === "children") {
@@ -205,13 +294,26 @@ function snapshotDetailRows(
       copy.childEntryLabel,
       copy.childSnapshotLabels,
       CHILD_METADATA_KEYS,
+      labels.child,
     );
   }
   if (key === "custom_data") {
-    return objectSnapshotDiffRows(before, after, "", new Set());
+    return objectSnapshotDiffRows(
+      before,
+      after,
+      "",
+      NO_METADATA_KEYS,
+      labels.guardian,
+    );
   }
   if (key === "consent_flags") {
-    return objectSnapshotDiffRows(before, after, "", new Set());
+    return objectSnapshotDiffRows(
+      before,
+      after,
+      "",
+      NO_METADATA_KEYS,
+      labels.consent,
+    );
   }
   return [];
 }
@@ -226,6 +328,7 @@ function recordArrayDiffRows(
   entryLabel: string,
   labels: Record<string, string>,
   metadataKeys: ReadonlySet<string>,
+  customDataLabels: ObjectKeyLabels,
 ): EnrollmentChangeRequestDiffRow[] {
   const beforeRows = Array.isArray(before) ? before : [];
   const afterRows = Array.isArray(after) ? after : [];
@@ -260,7 +363,9 @@ function recordArrayDiffRows(
             beforeRecord[childKey],
             afterRecord[childKey],
             `${rowLabel} · ${labels[childKey] ?? childKey}`,
-            metadataKeys,
+            NO_METADATA_KEYS,
+            customDataLabels,
+            rowLabel,
           ),
         );
         continue;
@@ -279,27 +384,52 @@ function recordArrayDiffRows(
   return rows;
 }
 
+// A key the form names reads as its question under labelledPrefix; the id
+// keeps the key so rows stay stable when a school renames a question.
 function objectSnapshotDiffRows(
   before: unknown,
   after: unknown,
   labelPrefix: string,
   metadataKeys: ReadonlySet<string>,
+  keyLabels: ObjectKeyLabels,
+  labelledPrefix = labelPrefix,
 ): EnrollmentChangeRequestDiffRow[] {
   const beforeRecord = snapshotRecord(before) ?? {};
   const afterRecord = snapshotRecord(after) ?? {};
   return snapshotKeys(beforeRecord, afterRecord).flatMap((key) => {
     if (metadataKeys.has(key)) return [];
     if (snapshotValuesEqual(beforeRecord[key], afterRecord[key])) return [];
-    const label = labelPrefix ? `${labelPrefix} · ${key}` : key;
+    const id = labelPrefix ? `${labelPrefix} · ${key}` : key;
+    const known = keyLabels.get(key);
+    const label = known
+      ? labelledPrefix
+        ? `${labelledPrefix} · ${known.label}`
+        : known.label
+      : id;
     return [
       {
-        id: label,
+        id,
         label,
-        before: beforeRecord[key],
-        after: afterRecord[key],
+        before: optionLabels(beforeRecord[key], known?.options),
+        after: optionLabels(afterRecord[key], known?.options),
       },
     ];
   });
+}
+
+/** A stored select value reads as its option label; unknown values stay. */
+function optionLabels(
+  value: unknown,
+  options: ReadonlyMap<string, string> | undefined,
+): unknown {
+  if (!options) return value;
+  if (typeof value === "string") return options.get(value) ?? value;
+  if (Array.isArray(value)) {
+    return value.map((item) =>
+      typeof item === "string" ? (options.get(item) ?? item) : item,
+    );
+  }
+  return value;
 }
 
 function snapshotKeys(
