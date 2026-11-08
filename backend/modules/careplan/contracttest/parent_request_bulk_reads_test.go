@@ -194,7 +194,11 @@ func TestBulkApprovalFailedReadFailsTheApproval(t *testing.T) {
 			go func() { done <- f.approve(t, ctx, f.refs()) }()
 			var pid int
 			require.Eventually(t, func() bool {
-				return holder.NewRaw("SELECT COALESCE((SELECT l.pid FROM pg_locks l WHERE NOT l.granted AND l.relation = ?::regclass LIMIT 1), 0)", table).Scan(ctx, &pid) == nil && pid != 0
+				return holder.NewRaw(`SELECT COALESCE((SELECT l.pid FROM pg_locks l
+					WHERE NOT l.granted AND l.relation = ?::regclass
+					AND l.database = (SELECT oid FROM pg_database WHERE datname = current_database())
+					AND pg_backend_pid() = ANY(pg_blocking_pids(l.pid))
+					LIMIT 1), 0)`, table).Scan(ctx, &pid) == nil && pid != 0
 			}, 5*time.Second, 10*time.Millisecond, "the approval must wait on the request table")
 			_, err = holder.ExecContext(ctx, "SELECT pg_cancel_backend(?)", pid)
 			require.NoError(t, err)
@@ -256,7 +260,11 @@ wait:
 			t.Fatal("the approval did not finish")
 		case <-ticker.C:
 			var pid int
-			require.NoError(t, holder.NewRaw("SELECT COALESCE((SELECT l.pid FROM pg_locks l WHERE NOT l.granted AND l.relation = 'users.persons'::regclass LIMIT 1), 0)").Scan(ctx, &pid))
+			require.NoError(t, holder.NewRaw(`SELECT COALESCE((SELECT l.pid FROM pg_locks l
+				WHERE NOT l.granted AND l.relation = 'users.persons'::regclass
+				AND l.database = (SELECT oid FROM pg_database WHERE datname = current_database())
+				AND pg_backend_pid() = ANY(pg_blocking_pids(l.pid))
+				LIMIT 1), 0)`).Scan(ctx, &pid))
 			if pid != 0 {
 				cancelled = true
 				_, err := holder.ExecContext(ctx, "SELECT pg_cancel_backend(?)", pid)
