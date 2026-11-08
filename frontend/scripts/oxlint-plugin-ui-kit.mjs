@@ -4910,46 +4910,73 @@ const NAV_ROW_ARROWS = new Set([
   "ChevronRightIcon",
 ]);
 
-/** Kinder einer Zeile, auch hinter `&&`, `?:` und einer lokalen Konstante. */
-function navRowChildren(element, constants) {
-  const direct = [...flatJsxChildren(element)];
-  for (const child of element.children ?? []) {
-    if (
-      child.type === "JSXExpressionContainer" &&
-      child.expression.type === "Identifier"
-    ) {
-      const init = constants.get(child.expression.name);
-      if (init?.type === "JSXElement") direct.push(init);
-    }
-  }
-  return direct;
-}
-
-function isNavRowArrow(element) {
-  if (NAV_ROW_ARROWS.has(jsxName(element.openingElement.name))) return true;
-  return element.children.some(
-    (inner) => inner.type === "JSXText" && inner.value.trim() === "›",
+function isNavRowArrow(element, classText) {
+  if (!NAV_ROW_ARROWS.has(jsxName(element.openingElement.name))) return false;
+  // Der gedrehte Pfeil zeigt einen aufklappbaren Abschnitt an, keine Navigation.
+  const className = jsxAttribute(element.openingElement, "className");
+  return !(
+    className?.value &&
+    classText(className.value)
+      .split(/\s+/)
+      .some((token) => /^-?rotate-/.test(token))
   );
 }
+
+/** Pfeile auch hinter JSX-Hüllen und in lokalen Konstanten einer Zeile finden. */
+function containsNavRowArrow(node, constants, classText, seen = new Set()) {
+  if (!node) return false;
+  if (node.type === "JSXElement") {
+    if (isNavRowArrow(node, classText)) return true;
+    return node.children.some((child) =>
+      containsNavRowArrow(child, constants, classText, seen),
+    );
+  }
+  if (node.type === "JSXText") return node.value.trim() === "›";
+  if (node.type === "JSXFragment") {
+    return node.children.some((child) =>
+      containsNavRowArrow(child, constants, classText, seen),
+    );
+  }
+  if (node.type === "JSXExpressionContainer") {
+    return containsNavRowArrow(node.expression, constants, classText, seen);
+  }
+  if (node.type === "Identifier") {
+    if (seen.has(node.name)) return false;
+    seen.add(node.name);
+    return containsNavRowArrow(
+      constants.get(node.name),
+      constants,
+      classText,
+      seen,
+    );
+  }
+  if (node.type === "LogicalExpression") {
+    return containsNavRowArrow(node.right, constants, classText, seen);
+  }
+  if (node.type === "ConditionalExpression") {
+    return (
+      containsNavRowArrow(node.consequent, constants, classText, seen) ||
+      containsNavRowArrow(node.alternate, constants, classText, seen)
+    );
+  }
+  return false;
+}
+
+// Startseite des Elternportals (#2619): die Aufgabenliste behält ihre Zeilen
+// mit Ungelesen-Punkt am Icon. Nie anfassen, auch nicht für das Kit.
+const NAV_ROW_PARENT_EXCEPTIONS = ["src/components/parent/start/todo-list.tsx"];
 
 const noHandRolledNavRow = makeRatchetRule({
   ruleName: "no-hand-rolled-nav-row",
   description: "Rows that lead elsewhere with an arrow come from ListRowLink.",
   message:
-    "Keine eigene Navigationszeile: `ListRowLink` (`icon`, `title`, `subtitle`, `badge`, Pfeil), einzeln mit `framed` (#5593, .claude/rules/frontend-ui-kit.md).",
-  // Shrink-only: Auswahlzustand (DatabaseListItem), eigene Kante (Tagesplan) und
-  // Ungelesen-Zeilen des Elternportals passen noch nicht in `ListRowLink`.
-  baselines: {
-    "no-hand-rolled-nav-row": {
-      "src/components/database/database-list-item.tsx": 2,
-      "src/components/parent/messages/group-threads-section.tsx": 1,
-      "src/components/parent/messages/parent-messages-page.tsx": 1,
-      "src/components/timetable/tagesplan-view.tsx": 1,
-    },
-  },
+    "Keine eigene Navigationszeile: `ListRowLink` (`icon`, `title`, `subtitle`, `badge`, Pfeil; `selected`, `accent`, dreizeilig mit `overline`/`meta`/`unread`), einzeln mit `framed` (#5593, .claude/rules/frontend-ui-kit.md).",
+  // Hard-zero: Auswahl, farbige Kante und Ungelesen-Zeilen kann `ListRowLink`.
+  baselines: {},
   allowlist: [],
   kitFile: "src/components/ui/list-row-link.tsx",
   exemptDir: UI_KIT_DIR,
+  exemptFiles: NAV_ROW_PARENT_EXCEPTIONS,
   detect: ({ classText, constants, found }) => ({
     JSXElement(node) {
       if (!NAV_ROW_ELEMENTS.has(jsxName(node.openingElement.name))) return;
@@ -4963,8 +4990,13 @@ const noHandRolledNavRow = makeRatchetRule({
       if (!tokens.includes("w-full") && !tokens.includes("justify-between")) {
         return;
       }
-      const arrow = navRowChildren(node, constants).find(isNavRowArrow);
-      if (arrow) found(node);
+      if (
+        node.children.some((child) =>
+          containsNavRowArrow(child, constants, classText),
+        )
+      ) {
+        found(node);
+      }
     },
   }),
 });

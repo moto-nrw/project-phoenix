@@ -191,7 +191,7 @@ export function CareContractChangeCard({
           approve={deciding.approve}
           reasonRequired={changes?.reasonRequired ?? true}
           onConflict={onConflict}
-          onDecided={(next) => {
+          onDecided={(next: ContractChanges) => {
             setState({
               contractId,
               changes: next,

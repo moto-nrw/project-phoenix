@@ -45,3 +45,13 @@ export function listRowClasses({
       `w-full text-left transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none focus-visible:ring-inset ${TONE_HOVER_CLASSES[tone]}`,
   );
 }
+
+/**
+ * Hinterlegung einer `ListRowLink`-Zeile in einer Liste: die offene Auswahl
+ * grün (wie in der Datenverwaltung), sonst nur beim Überfahren grau.
+ */
+export function listRowLinkStateClasses(selected: boolean): string {
+  return selected
+    ? "bg-moto-green-soft/60 hover:bg-moto-green-soft/70 active:bg-moto-green-soft/70"
+    : "hover:bg-gray-50 active:bg-gray-100";
+}

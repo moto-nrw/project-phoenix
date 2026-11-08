@@ -3906,13 +3906,27 @@ describe.concurrent("Listen-Bausteine (#5593)", () => {
       "no-hand-rolled-nav-row",
       `<button type="button" className="flex justify-between">Anna<span aria-hidden="true">›</span></button>`,
     ],
+    [
+      "no-hand-rolled-nav-row",
+      `<button type="button" className="flex w-full">Anna{trailing}</button>`,
+    ],
+    [
+      "no-hand-rolled-nav-row",
+      `<button type="button" className="flex w-full">Anna{chevron}</button>`,
+    ],
+    [
+      "no-hand-rolled-nav-row",
+      `<button type="button" className="flex w-full"><span><ChevronRight /></span></button>`,
+    ],
   ])("%s fails %s", async (rule, element) => {
     const result = await lintSource(
       `const ChevronRight = () => null;
       const cn = (...parts: string[]) => parts.join(" ");
       const on = true;
+      const chevron = <ChevronRight />;
+      const trailing = on ? <span>{on ? chevron : null}</span> : null;
       export const Probe = () => ${element};
-      void [ChevronRight, cn, on];`,
+      void [ChevronRight, cn, on, chevron, trailing];`,
       "src/components/probe.tsx",
     );
 
@@ -3935,6 +3949,10 @@ describe.concurrent("Listen-Bausteine (#5593)", () => {
       "no-hand-rolled-nav-row",
       `<a href="/x" className="flex gap-1">Heute öffnen<ChevronRight /></a>`,
     ],
+    [
+      "no-hand-rolled-nav-row",
+      `<button type="button" className="flex w-full"><span><ChevronRight className="rotate-90" /></span></button>`,
+    ],
   ])("%s accepts %s", async (rule, element) => {
     const result = await lintSource(
       `export const Probe = () => ${element};`,
@@ -3952,6 +3970,16 @@ describe.concurrent("Listen-Bausteine (#5593)", () => {
 
     expect(result.output).not.toContain("no-arbitrary-shadow");
     expect(result.output).not.toContain("no-hand-rolled-list-row");
+  });
+
+  it("leaves the #2619 parent start page todo list alone", async () => {
+    const result = await lintSource(
+      `const ChevronRight = () => null;
+      export const Probe = () => <button type="button" className="flex w-full">Anna<ChevronRight /></button>;`,
+      "src/components/parent/start/todo-list.tsx",
+    );
+
+    expect(result.output).not.toContain("no-hand-rolled-nav-row");
   });
 });
 
