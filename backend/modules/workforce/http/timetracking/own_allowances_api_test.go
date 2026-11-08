@@ -76,7 +76,7 @@ func (r *ownAllowancesRoute) get(ctx context.Context, path, token string) *httpt
 	req := httptest.NewRequest(http.MethodGet, path, nil).WithContext(ctx)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
-	r.router.ServeHTTP(rec, req)
+	testpkg.MountedQueryBudgetRouter("/api", r.router).ServeHTTP(rec, req)
 	return rec
 }
 

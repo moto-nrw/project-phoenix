@@ -96,6 +96,7 @@ func TestPayrollRulesAPI_StableErrorCodes(t *testing.T) {
 func TestPayrollRulesAPI_QueryBudget(t *testing.T) {
 	t.Parallel()
 	ctx := setupOverviewAPI(t)
+	ctx.tc.router = testpkg.MountedQueryBudgetRouter("/api", ctx.tc.router)
 	addWageType := func(name string) {
 		rec := ctx.post(payrollRulesPath+"/wage-types", fmt.Sprintf(`{"name":%q,"unit":"stunden"}`, name), "config:manage")
 		require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())

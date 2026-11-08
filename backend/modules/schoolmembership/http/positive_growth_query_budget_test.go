@@ -52,7 +52,7 @@ func TestStaffDirectoryPositiveGrowthQueryBudget(t *testing.T) {
 				// fixture creation and token signing are outside capture.
 				counter := testpkg.CaptureQueries(t, db)
 				rec := httptest.NewRecorder()
-				router.ServeHTTP(rec, req)
+				testpkg.MountedQueryBudgetRouter("/api", router).ServeHTTP(rec, req)
 				counter.Stop()
 				require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 				var body struct {
@@ -129,7 +129,7 @@ func TestStaffShiftPositiveGrowthQueryBudget(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer "+testutil.MintTestJWT(t, claims))
 		counter := testpkg.CaptureQueries(t, db)
 		rec := httptest.NewRecorder()
-		router.ServeHTTP(rec, req)
+		testpkg.MountedQueryBudgetRouter("/api", router).ServeHTTP(rec, req)
 		counter.Stop()
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 		var body struct {

@@ -77,7 +77,7 @@ func TestWorkforce20OwnGrowth(t *testing.T) {
 				req.Header.Set("Authorization", "Bearer "+token)
 				counter := testpkg.CaptureQueries(t, db)
 				rec := httptest.NewRecorder()
-				testpkg.MeasuredHTTPRequest(counter, router, rec, req)
+				testpkg.MeasuredHTTPRequest(counter, testpkg.MountedQueryBudgetRouter("/api", router), rec, req)
 				counter.Stop()
 				require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 				require.NotContains(t, rec.Body.String(), "Foreign")
@@ -163,9 +163,7 @@ func TestWorkforce20OwnGrowth(t *testing.T) {
 				denied := httptest.NewRequest(http.MethodGet, path, nil)
 				denied.Header.Set("Authorization", "Bearer "+workforcetest.OwnGrowthToken(t, account.ID, 0))
 				deniedRec := httptest.NewRecorder()
-				testpkg.MeasuredHTTPRequest(counter,
-
-					router, deniedRec, denied)
+				testpkg.MeasuredHTTPRequest(counter, testpkg.MountedQueryBudgetRouter("/api", router), deniedRec, denied)
 				require.Equal(t, http.StatusForbidden, deniedRec.Code, deniedRec.Body.String())
 			}
 			require.Equal(t, counts[0], counts[1])

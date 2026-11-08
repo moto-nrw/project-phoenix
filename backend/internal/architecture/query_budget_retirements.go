@@ -92,10 +92,8 @@ func retirementViolation(record queryBudgetRetirement, base, candidate map[strin
 	return ""
 }
 
-// orphanedQueryBudgets rejects a budget that stays while every route its base
-// description binds left the router golden, as after a route rename. It stays
-// red until its description names a route of the candidate golden or it is
-// retired.
+// orphanedQueryBudgets retains the base-route retirement guard. Candidate
+// bindings are additionally checked member-by-member by queryBudgetRouteViolations.
 func orphanedQueryBudgets(base, candidate map[string]querybudget.Budget, baseRoutes, candidateRoutes map[string]bool) []string {
 	var violations []string
 	for scenario, after := range candidate {
@@ -109,9 +107,7 @@ func orphanedQueryBudgets(base, candidate map[string]querybudget.Budget, baseRou
 	return violations
 }
 
-// budgetRoutes binds a budget to the routes its description names that the
-// router golden lists. Tenant routes carry the /api mount prefix in the golden
-// and often omit it in prose, so both spellings are matched.
+// budgetRoutes selects explicit measured bindings present in this golden.
 func budgetRoutes(budget querybudget.Budget, routes map[string]bool) map[string]bool {
 	own := map[string]bool{}
 	for _, route := range budget.Route {

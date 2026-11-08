@@ -2,5 +2,6 @@
   "scenario": "api.students.students20.companions.n8",
   "max": 7,
   "exact": true,
-  "description": "Resource HTTP seam, real owner SQL, N8 positive collection fixture. Transaction frame included; production live-session authentication excluded. Measured count, not a minimum. "
+  "description": "Resource HTTP seam, real owner SQL, N8 positive collection fixture. Transaction frame included; production live-session authentication excluded. Measured count, not a minimum. ",
+  "route": "GET /api/students/{id}/companions"
 }

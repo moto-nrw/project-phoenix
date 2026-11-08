@@ -145,7 +145,7 @@ func TestQualificationsAPI_ListQueryBudgets(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, path, nil).WithContext(counter.Context(context.Background()))
 		req.Header.Set("Authorization", "Bearer "+authToken(t, "staff:stammdaten"))
 		rec := httptest.NewRecorder()
-		testpkg.MeasuredHTTPRequest(counter, ctx.tc.router, rec, req)
+		testpkg.MeasuredHTTPRequest(counter, testpkg.MountedQueryBudgetRouter("/api", ctx.tc.router), rec, req)
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 		queries := counter.Queries()
 		counter.Stop()

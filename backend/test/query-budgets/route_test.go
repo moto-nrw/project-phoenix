@@ -1,10 +1,6 @@
 package querybudgets
 
-import (
-	"testing"
-
-	"github.com/moto-nrw/project-phoenix/architecture/querybudget"
-)
+import "testing"
 
 func TestMeasuredRouteMustMatchEvenWhenBothRoutesExist(t *testing.T) {
 	t.Parallel()
@@ -24,9 +20,9 @@ func TestMeasuredRouteMustMatchEvenWhenBothRoutesExist(t *testing.T) {
 	}
 }
 
-func routeSet(route string) querybudget.Routes {
+func routeSet(route string) []string {
 	if route == "" {
 		return nil
 	}
-	return querybudget.Routes{route}
+	return []string{route}
 }

@@ -99,7 +99,7 @@ func TestParentPortalMessagesPositiveGrowthQueryBudget(t *testing.T) {
 			req.Header.Set("Authorization", "Bearer "+token)
 			counter.Reset()
 			counter.Start()
-			rec := testutil.ExecuteRequestForTest(t, router, req)
+			rec := testutil.ExecuteRequestForTest(t, testpkg.MountedQueryBudgetRouter("/parent", router), req)
 			counter.Stop()
 			require.Equal(t, 200, rec.Code, rec.Body.String())
 			t.Logf("MEASURE parent_portal %s N%d=%d", entry.name, n, counter.Total())
@@ -151,7 +151,7 @@ func TestParentPortalMessagesPositiveGrowthQueryBudget(t *testing.T) {
 	for _, suffix := range []string{"", "/threads"} {
 		req := httptest.NewRequest("GET", fmt.Sprintf("/me/messages/children/%d%s", chain.StudentID, suffix), nil).WithContext(testpkg.WithPackageTenantRuntime(testpkg.Ctx(t)))
 		req.Header.Set("Authorization", "Bearer "+otherToken)
-		rec := testutil.ExecuteRequestForTest(t, router, req)
+		rec := testutil.ExecuteRequestForTest(t, testpkg.MountedQueryBudgetRouter("/parent", router), req)
 		require.Equal(t, 403, rec.Code, rec.Body.String())
 	}
 
@@ -163,7 +163,7 @@ func TestParentPortalMessagesPositiveGrowthQueryBudget(t *testing.T) {
 		for _, path := range []string{fmt.Sprintf("/me/messages/children/%d", chain.StudentID), fmt.Sprintf("/me/messages/children/%d/threads", chain.StudentID), fmt.Sprintf("/me/messages/group-threads/%d", lastGroupID)} {
 			req := httptest.NewRequest("GET", path, nil).WithContext(testpkg.WithPackageTenantRuntime(testpkg.Ctx(t)))
 			req.Header.Set("Authorization", "Bearer "+foreignToken)
-			rec := testutil.ExecuteRequestForTest(t, router, req)
+			rec := testutil.ExecuteRequestForTest(t, testpkg.MountedQueryBudgetRouter("/parent", router), req)
 			if strings.Contains(path, "group-threads") {
 				require.Equal(t, 404, rec.Code, rec.Body.String())
 			} else {
@@ -178,7 +178,7 @@ func TestParentPortalMessagesPositiveGrowthQueryBudget(t *testing.T) {
 	for _, suffix := range []string{"", "/threads"} {
 		req := httptest.NewRequest("GET", fmt.Sprintf("/me/messages/children/%d%s", chain.StudentID, suffix), nil).WithContext(testpkg.WithPackageTenantRuntime(testpkg.Ctx(t)))
 		req.Header.Set("Authorization", "Bearer "+token)
-		rec := testutil.ExecuteRequestForTest(t, router, req)
+		rec := testutil.ExecuteRequestForTest(t, testpkg.MountedQueryBudgetRouter("/parent", router), req)
 		require.Equal(t, 403, rec.Code, rec.Body.String())
 	}
 }

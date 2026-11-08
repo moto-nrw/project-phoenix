@@ -30,7 +30,7 @@ func TestCalendarRecipientOptionsPositiveGrowthQueryBudget(t *testing.T) {
 			ids = append(ids, strconv.FormatInt(chain.GuardianProfileID, 10))
 		}
 		counter := testpkg.CaptureQueries(t, db)
-		rec := doJSON(t, router, http.MethodGet, "/calendar/recipient-options?q=schneider&limit=50", token, nil)
+		rec := doJSON(t, testpkg.MountedQueryBudgetRouter("/api", router), http.MethodGet, "/calendar/recipient-options?q=schneider&limit=50", token, nil)
 		queries := counter.Measurement(counter.Queries())
 		counter.Stop()
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())

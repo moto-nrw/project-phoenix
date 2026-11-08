@@ -50,7 +50,7 @@ func TestParentMyEnrollmentsPositiveGrowthQueryBudget(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer "+token)
 		rec := httptest.NewRecorder()
 		counter.Reset()
-		testpkg.MeasuredHTTPRequest(counter, router, rec, req)
+		testpkg.MeasuredHTTPRequest(counter, testpkg.MountedQueryBudgetRouter("/parent", router), rec, req)
 		queries := counter.Queries()
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 		var body struct {

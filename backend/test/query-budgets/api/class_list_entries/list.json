@@ -2,5 +2,6 @@
   "scenario": "api.class_list_entries.list",
   "max": 4,
   "exact": false,
-  "description": "api/class-list-entries — GET the class-list-only entries (#2382), 3\nentries each with a namesake student. The \"Zuordnen\" hints of all\nentries come from one shared exact-name read and one student read\n(#5891), so the SELECT count is constant in the entry count: a statement\nper entry, or a constant read added to the listing, fails the test."
+  "description": "api/class-list-entries — GET the class-list-only entries (#2382), 3\nentries each with a namesake student. The \"Zuordnen\" hints of all\nentries come from one shared exact-name read and one student read\n(#5891), so the SELECT count is constant in the entry count: a statement\nper entry, or a constant read added to the listing, fails the test.",
+  "route": "GET /"
 }

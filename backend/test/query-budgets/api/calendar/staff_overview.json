@@ -2,5 +2,6 @@
   "scenario": "api.calendar.staff_overview",
   "max": 8,
   "exact": true,
-  "description": "Real staff calendar Resource and TenantSessionChain, N3/N8 attendees with names and statuses; full transaction statements, excluding the outer live-session verifier."
+  "description": "Real staff calendar Resource and TenantSessionChain, N3/N8 attendees with names and statuses; full transaction statements, excluding the outer live-session verifier.",
+  "route": "GET /api/calendar/appointments/{appointmentId}/overview"
 }

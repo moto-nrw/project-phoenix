@@ -40,6 +40,7 @@ func newWorkforce20RebookFixture(t *testing.T, n int) workforcetest.RebookFixtur
 	t.Helper()
 	testpkg.SetupTestDB(t)
 	f := setupRebookFixture(t, 30)
+	f.tc.router = testpkg.MountedQueryBudgetRouter("/api", f.tc.router)
 	for len(f.absences) < n {
 		day := 24 + len(f.absences) - 3
 		f.absences = append(f.absences, insertAbsenceRow(t, f.tc, map[string]any{"staff_id": f.subjectID, "absence_type": "comp_time", "date_start": fmt.Sprintf("2026-08-%02d", day), "date_end": fmt.Sprintf("2026-08-%02d", day), "status": "reported", "created_by": f.subjectID, "requested_at": time.Now()}))

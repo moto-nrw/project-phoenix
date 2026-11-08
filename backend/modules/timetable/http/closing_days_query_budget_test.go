@@ -44,7 +44,7 @@ func TestClosingDaysRouteGrowthQueryBudget(t *testing.T) {
 		}
 		counter.Reset()
 		request := httptest.NewRequestWithContext(counter.Context(context.Background()), http.MethodGet, "/timetable/closing-days/", nil)
-		response := apiTest.ExecuteWithAuth(t, router, request, apiTest.TenantUserTestClaims(int(account.ID), testpkg.Tenant(t), permissions.SchedulesRead))
+		response := apiTest.ExecuteWithAuth(t, testpkg.MountedQueryBudgetRouter("/api", router), request, apiTest.TenantUserTestClaims(int(account.ID), testpkg.Tenant(t), permissions.SchedulesRead))
 		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 		var envelope struct {
 			Data []timetableAPI.ClosingDayResponse `json:"data"`
@@ -70,7 +70,7 @@ func TestClosingDaysRouteGrowthQueryBudget(t *testing.T) {
 	}
 	foreign := testpkg.NewTenantScope(t, db)
 	request := httptest.NewRequest(http.MethodGet, "/timetable/closing-days/", nil)
-	response := apiTest.ExecuteWithAuth(t, router, request, apiTest.TenantUserTestClaims(int(account.ID), foreign.TenantID, permissions.SchedulesRead))
+	response := apiTest.ExecuteWithAuth(t, testpkg.MountedQueryBudgetRouter("/api", router), request, apiTest.TenantUserTestClaims(int(account.ID), foreign.TenantID, permissions.SchedulesRead))
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 	var empty struct {
 		Data []timetableAPI.ClosingDayResponse `json:"data"`

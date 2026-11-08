@@ -2,5 +2,6 @@
   "scenario": "api.active.combination_groups.reads",
   "max": 3,
   "exact": true,
-  "description": "GET /active/combined/{id}/groups through the production route registrations: three business reads load the combination, its mappings and the mapped sessions at N=3 and N=8. This existing scenario excludes transaction plumbing from its counter; it is not a complete request budget or a claim of global minimality."
+  "description": "GET /active/combined/{id}/groups through the production route registrations: three business reads load the combination, its mappings and the mapped sessions at N=3 and N=8. This existing scenario excludes transaction plumbing from its counter; it is not a complete request budget or a claim of global minimality.",
+  "route": "GET /api/active/combined/{id}/groups"
 }

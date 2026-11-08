@@ -47,7 +47,7 @@ func (ctx *overviewAPIContext) deleteOverride(t *testing.T, path string) *httpte
 	req := httptest.NewRequest(http.MethodDelete, path, nil)
 	req.Header.Set("Authorization", "Bearer "+authToken(t, "time_tracking:manage"))
 	rec := httptest.NewRecorder()
-	ctx.tc.router.ServeHTTP(rec, req)
+	testpkg.MountedQueryBudgetRouter("/api", ctx.tc.router).ServeHTTP(rec, req)
 	return rec
 }
 
@@ -210,7 +210,7 @@ func TestTargetOverridesAPI_TenantIsolation(t *testing.T) {
 			req := httptest.NewRequest(http.MethodGet, path, nil)
 			req.Header.Set("Authorization", "Bearer "+authToken(t, "time_tracking:manage"))
 			out := httptest.NewRecorder()
-			ctx.tc.router.ServeHTTP(out, req)
+			testpkg.MountedQueryBudgetRouter("/api", ctx.tc.router).ServeHTTP(out, req)
 			return out.Code
 		}
 		assert.Equal(t, http.StatusNotFound, get(overridesPath(foreignStaff.ID)))
@@ -219,7 +219,7 @@ func TestTargetOverridesAPI_TenantIsolation(t *testing.T) {
 		req := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("%s/%d", overridesPath(own.ID), foreign.ID), nil)
 		req.Header.Set("Authorization", "Bearer "+authToken(t, "time_tracking:manage"))
 		out := httptest.NewRecorder()
-		ctx.tc.router.ServeHTTP(out, req)
+		testpkg.MountedQueryBudgetRouter("/api", ctx.tc.router).ServeHTTP(out, req)
 		assert.Equal(t, http.StatusNotFound, out.Code, "a foreign row cannot be reached through an own staff member")
 	})
 
@@ -249,7 +249,7 @@ func TestTargetOverridesAPI_ListQueryBudget(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, path, nil).WithContext(counter.Context(context.Background()))
 		req.Header.Set("Authorization", "Bearer "+authToken(t, "time_tracking:manage"))
 		rec := httptest.NewRecorder()
-		testpkg.MeasuredHTTPRequest(counter, ctx.tc.router, rec, req)
+		testpkg.MeasuredHTTPRequest(counter, testpkg.MountedQueryBudgetRouter("/api", ctx.tc.router), rec, req)
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 		queries := counter.Queries()
 		counter.Stop()

@@ -32,7 +32,7 @@ func TestGradeTransitionGrowthQueryBudget(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer "+token)
 		rec := httptest.NewRecorder()
 		counter.Reset()
-		testpkg.MeasuredHTTPRequest(counter, router, rec, req)
+		testpkg.MeasuredHTTPRequest(counter, testpkg.MountedQueryBudgetRouter("/api/admin/grade-transitions", router), rec, req)
 		queries := counter.Queries()
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 		var envelope struct {

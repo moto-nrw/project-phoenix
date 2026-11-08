@@ -468,12 +468,7 @@ func TestTemplateRosterDeviationsQueryBudget(t *testing.T) {
 	measured.Use(render.SetContentType(render.ContentTypeJSON))
 	measured.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			testpkg.MeasuredHTTPRequest(
-
-				// granted empty: a caller without the right to read children, testpkg.MountedQueryBudgetRouter("/api/timetable", who gets
-				// the counts only; "*:*": an administrator), who also gets the names.
-
-				counter, next, w, r.WithContext(testpkg.WithTestTenantRuntime(t, r.Context())))
+			testpkg.MeasuredHTTPRequest(counter, next, w, r.WithContext(testpkg.WithTestTenantRuntime(t, r.Context())))
 		})
 	})
 	measured.Get("/templates/roster-deviations", s.res.listTemplateRosterDeviations)
@@ -487,6 +482,8 @@ func TestTemplateRosterDeviationsQueryBudget(t *testing.T) {
 		}
 	}
 
+	// granted empty: a caller without the right to read children, who gets
+	// the counts only; "*:*": an administrator, who also gets the names.
 	run := func(granted ...string) int {
 		counter.Reset()
 		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/templates/roster-deviations?period_id=%d", period.ID), nil)
@@ -498,7 +495,6 @@ func TestTemplateRosterDeviationsQueryBudget(t *testing.T) {
 		require.Len(t, deviations, created)
 		named := 0
 		if len(granted) > 0 {
-			named = 1
 			named = 1 // class[4] books nothing
 		}
 		for _, deviation := range deviations {

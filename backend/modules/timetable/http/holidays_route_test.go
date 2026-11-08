@@ -68,7 +68,7 @@ func getHolidaysWithContext(t *testing.T, setup holidayRouteSetup, ctx context.C
 	t.Helper()
 	account := testpkg.CreateTestAccount(t, setup.db, fmt.Sprintf("holidays-%d", time.Now().UnixNano()))
 	req := httptest.NewRequestWithContext(ctx, http.MethodGet, "/timetable/holidays"+query, nil)
-	return apiTest.ExecuteWithAuth(t, setup.router, req, apiTest.TenantUserTestClaims(int(account.ID), tenantID, granted...))
+	return apiTest.ExecuteWithAuth(t, testpkg.MountedQueryBudgetRouter("/api", setup.router), req, apiTest.TenantUserTestClaims(int(account.ID), tenantID, granted...))
 }
 
 func decodeHolidayList(t *testing.T, response *httptest.ResponseRecorder) holidayListBody {

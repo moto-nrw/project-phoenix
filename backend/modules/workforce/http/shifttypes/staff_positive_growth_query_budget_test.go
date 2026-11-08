@@ -38,7 +38,7 @@ func newStaffGrowthFixture(t *testing.T) staffGrowthFixture {
 	require.NoError(t, err)
 	router = testpkg.TenantRuntimeMiddleware(t, db)(router)
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Growth", "Reader")
-	return staffGrowthFixture{db, router, staff.ID, account.ID}
+	return staffGrowthFixture{db, testpkg.MountedQueryBudgetRouter("/api", router), staff.ID, account.ID}
 }
 func (f staffGrowthFixture) get(t *testing.T, path string) (*httptest.ResponseRecorder, testpkg.QueryMeasurement) {
 	t.Helper()
@@ -53,7 +53,7 @@ func (f staffGrowthFixture) get(t *testing.T, path string) (*httptest.ResponseRe
 	// and JWT creation are outside capture. Outer server liveness is excluded.
 	counter := testpkg.CaptureQueries(t, f.db)
 	rec := httptest.NewRecorder()
-	testpkg.MeasuredHTTPRequest(counter, testpkg.MountedQueryBudgetRouter("/api", f.router), rec, req)
+	testpkg.MeasuredHTTPRequest(counter, f.router, rec, req)
 	counter.Stop()
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
