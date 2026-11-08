@@ -8,6 +8,7 @@ import (
 
 	"github.com/agnivade/levenshtein"
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
+	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
 )
 
 type Reference = importModels.Reference
@@ -31,6 +32,10 @@ func NewRelationshipResolver(groupRepo ReferenceLookup, roomRepo ReferenceLookup
 		groupCache: make(map[string]Reference),
 		roomCache:  make(map[string]Reference),
 	}
+}
+
+func (r *RelationshipResolver) newRequestScoped() ports.RelationshipResolver {
+	return NewRelationshipResolver(r.groupRepo, r.roomRepo)
 }
 
 // PreloadReferenceData loads all groups into memory cache (called once before import)
