@@ -443,6 +443,7 @@ describe("TenantLayout", () => {
     readPortalSessionSnapshotMock.mockResolvedValue({
       session,
       accessToken: "backend-access",
+      notBooked: false,
     });
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(

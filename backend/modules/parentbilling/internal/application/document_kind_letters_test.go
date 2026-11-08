@@ -526,3 +526,31 @@ func TestMensaInvoiceOfItsOwnStaysAnInvoice(t *testing.T) {
 	assert.Equal(t, parentbilling.DocumentKindInvoice, invoices[1].DocumentKind)
 	assert.Equal(t, parentbilling.DocumentKindFeeNotice, excluded[0].DocumentKind)
 }
+
+// TestCareLettersTakeTheKindOfEachInvoice: a run whose first letter is a
+// Mensa invoice of its own and whose next letter is a fee notice of the same
+// family writes the fee notice with its template and legal remedy, not with
+// the letterhead of the first invoice (#4686, #4688).
+func TestCareLettersTakeTheKindOfEachInvoice(t *testing.T) {
+	t.Parallel()
+	double := &documentKindDouble{remedy: "Widerspruch binnen eines Monats bei {{traeger}}."}
+	base := careLetterSJR()
+	meal := base.invoice
+	meal.Service, meal.DocumentKind, meal.Number = parentbilling.ServiceMeal, parentbilling.DocumentKindInvoice, "MB-2027-0001"
+	notice := base.invoice
+	notice.DocumentKind, notice.Number = parentbilling.DocumentKindFeeNotice, "MB-2027-0002"
+
+	contents, err := careLetterContents(context.Background(), double, 1, base.letterhead, base.run,
+		[]parentbilling.CareInvoice{meal, notice}, base.input)
+	require.NoError(t, err)
+	require.Len(t, contents, 2)
+	assert.Empty(t, contents[0].letterhead.Template.LegalRemedy, "the Mensa invoice keeps the letterhead")
+	text := blockText(careNoticeLetter(contents[1]))
+	assert.Contains(t, text, "# Rechtsbehelfsbelehrung")
+	assert.Contains(t, text, "Widerspruch binnen eines Monats bei SJR Pforzheim.")
+
+	double.remedy = ""
+	_, err = careLetterContents(context.Background(), double, 1, base.letterhead, base.run,
+		[]parentbilling.CareInvoice{meal, notice}, base.input)
+	assert.ErrorIs(t, err, parentbilling.ErrLegalRemedyMissing, "a later fee notice still needs its legal remedy")
+}

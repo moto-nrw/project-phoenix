@@ -270,3 +270,42 @@ func TestCareFeeNoticeNeedsTheLegalRemedyAndItsKindChangesTheReviewedState(t *te
 		Scan(context.Background(), &kinds))
 	assert.Equal(t, []string{"fee_notice"}, kinds)
 }
+
+// TestCareReleaseRefusesALegalRemedyChangedSinceTheReview: the legal remedy
+// belongs to the reviewed state of a monthly run (#4688). A new version of
+// the fee notice between review and release makes the release refuse.
+func TestCareReleaseRefusesALegalRemedyChangedSinceTheReview(t *testing.T) {
+	t.Parallel()
+	f := newCareBillingFixture(t, "Träger Belehrung Prüfung")
+	school := f.office.schools[0]
+	careContract(t, f.db, f.office.organization, school, "Mia", careMonth, sjrServices()...)
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careTariffsPath, carePriceList(school, "2029-09-01", 3200))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	setDocumentKind(t, f.traeger, f.office.token, "care", "fee_notice")
+
+	password := testpkg.NewTestPassword()
+	account := traegerAccount(t, f.db, password)
+	testpkg.CreateTestTraegerMember(t, f.db, f.office.organization, account.ID, identityaccess.TraegerRoleAdministration)
+	code, answer := traegerSignIn(t, f.traeger, account.Email, password, 0)
+	require.Equal(t, http.StatusOK, code)
+	testpkg.OwnTraegerMasterData(t, f.db, f.office.organization)
+	notice := noticeTemplateBody{
+		documentTemplateBody: documentTemplateBody{Subject: "Gebührenbescheid {{bescheidnummer}}",
+			Body: "für {{kinder}} setzen wir für {{zeitraum}} fest:\n{{positionen}}"},
+		LegalRemedy: "Gegen diesen Bescheid ist innerhalb eines Monats Widerspruch möglich.",
+	}
+	rec = traegerJSON(t, f.traeger, answer.AccessToken, http.MethodPost, documentTemplatesPath+"/bescheid/versions", notice)
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+
+	run := f.startRun(t, careMonth)
+	reviewed := f.run(t, run.ID)
+	notice.LegalRemedy = "Gegen diesen Bescheid ist innerhalb von zwei Wochen Widerspruch möglich."
+	rec = traegerJSON(t, f.traeger, answer.AccessToken, http.MethodPost, documentTemplatesPath+"/bescheid/versions", notice)
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/release"), careRelease(reviewed))
+	require.Equal(t, http.StatusConflict, rec.Code, "the legal remedy changed since the review: %s", rec.Body.String())
+	assert.Contains(t, rec.Body.String(), "parent_billing.billing_run_changed")
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/release"), careRelease(f.run(t, run.ID)))
+	require.Equal(t, http.StatusOK, rec.Code, "the release of the state reviewed again: %s", rec.Body.String())
+}

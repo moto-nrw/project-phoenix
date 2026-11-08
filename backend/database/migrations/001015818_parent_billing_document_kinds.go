@@ -14,7 +14,7 @@ func init() {
 		Version:     parentBillingDocumentKindsVersion,
 		Description: "Elternabrechnung: Dokumentart je Leistung, festgehalten bei der Ausstellung, und Rechtsbehelfsbelehrung des Gebührenbescheids (#4688)",
 		DependsOn: []string{
-			parentBillingCareReviewVersion,              // the last migration before this one
+			parentBillingCostShareScopeVersion,          // the newest parent-billing migration before this one
 			traegerDocumentTemplateInvoiceLayoutVersion, // the trigger of the template versions it extends
 		},
 	})

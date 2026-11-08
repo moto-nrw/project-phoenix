@@ -86,7 +86,7 @@ func (s *TraegerMasterDataStore) TemplateVersions(ctx context.Context, organizat
 
 // LockTemplates locks the Träger's profile row, creating it where missing.
 func (s *TraegerMasterDataStore) LockTemplates(ctx context.Context, organizationID int64) error {
-	_, _, err := s.LockProfile(ctx, organizationID, true)
+	_, err := s.LockProfile(ctx, organizationID, true)
 	return err
 }
 

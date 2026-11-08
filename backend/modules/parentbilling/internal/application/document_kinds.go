@@ -110,9 +110,18 @@ func newDocumentKindGate(store DocumentKindStore, templates parentbilling.Billin
 // current is the kind the service issues now and whether a release would
 // refuse it for a missing legal remedy.
 func (g documentKindGate) current(ctx context.Context, organizationID int64, service string) (parentbilling.DocumentKindState, error) {
+	state, _, err := g.reviewed(ctx, organizationID, service)
+	return state, err
+}
+
+// reviewed is current with what the review of a run shows of the legal
+// remedy: the version and the text of the template of the fee notice, empty
+// for any other kind. The fingerprint of the review covers it (#4688), so a
+// legal remedy changed between review and release makes the release refuse.
+func (g documentKindGate) reviewed(ctx context.Context, organizationID int64, service string) (parentbilling.DocumentKindState, string, error) {
 	chosen, err := g.store.DocumentKinds(ctx, organizationID)
 	if err != nil {
-		return parentbilling.DocumentKindState{}, fmt.Errorf("parent billing: read document kinds: %w", err)
+		return parentbilling.DocumentKindState{}, "", fmt.Errorf("parent billing: read document kinds: %w", err)
 	}
 	kind := parentbilling.DefaultDocumentKind(service)
 	if choice, ok := chosen[service]; ok && parentbilling.ValidDocumentKind(service, choice.DocumentKind) {
@@ -120,14 +129,14 @@ func (g documentKindGate) current(ctx context.Context, organizationID int64, ser
 	}
 	state := parentbilling.DocumentKindState{DocumentKind: kind}
 	if kind != parentbilling.DocumentKindFeeNotice {
-		return state, nil
+		return state, "", nil
 	}
 	template, err := g.templates.DocumentTemplate(ctx, organizationID, kind)
 	if err != nil {
-		return parentbilling.DocumentKindState{}, fmt.Errorf("parent billing: read the template of the fee notice: %w", err)
+		return parentbilling.DocumentKindState{}, "", fmt.Errorf("parent billing: read the template of the fee notice: %w", err)
 	}
 	state.LegalRemedyMissing = templates.LacksLegalRemedy(templates.KindFeeNotice, letterTemplate(template, templates.KindFeeNotice))
-	return state, nil
+	return state, fmt.Sprintf("%d:%s", template.Version, template.LegalRemedy), nil
 }
 
 // issuable is the kind a release of the service freezes on its documents;

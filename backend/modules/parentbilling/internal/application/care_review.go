@@ -45,6 +45,7 @@ type reviewedMonth struct {
 	careMonth
 	excluded    []parentbilling.CareInvoice
 	kind        parentbilling.DocumentKindState
+	legalRemedy string
 	fingerprint string
 }
 
@@ -63,7 +64,7 @@ func (c *CareBilling) reviewed(ctx context.Context, organizationID int64, run pa
 	// Every draft carries the kind of document the release would freeze,
 	// so the fingerprint changes when the Abrechnung chooses another kind
 	// after the review (#4688).
-	if review.kind, err = c.kinds.current(ctx, organizationID, parentbilling.ServiceCare); err != nil {
+	if review.kind, review.legalRemedy, err = c.kinds.reviewed(ctx, organizationID, parentbilling.ServiceCare); err != nil {
 		return "", reviewedMonth{}, err
 	}
 	markDocumentKind(review.kind.DocumentKind, review.invoices, review.excluded)
@@ -193,9 +194,11 @@ func previewFingerprint(run parentbilling.CareRun, rule string, review reviewedM
 		MealGaps    []parentbilling.CareMealGap      `json:"meal_gaps"`
 		MealUnbill  []parentbilling.CareMealUnbilled `json:"meal_unbilled"`
 		MealChanged []parentbilling.CareMealChanged  `json:"meal_changed"`
+		LegalRemedy string                           `json:"legal_remedy"`
 	}{run.ID, run.SchoolIDs, run.InvoiceDate, rule, fingerprintInvoices(review.invoices),
 		fingerprintInvoices(review.excluded), review.unpriced, review.duplicates, review.billed,
-		review.dueDates.InPaymentOrder(), review.uncounted, review.mealGaps, review.mealUnbilled, review.mealChanged})
+		review.dueDates.InPaymentOrder(), review.uncounted, review.mealGaps, review.mealUnbilled, review.mealChanged,
+		review.legalRemedy})
 	if err != nil {
 		// Every value above marshals; a failure leaves no fingerprint a
 		// release could match.

@@ -25,7 +25,9 @@ func TestBillingNoticeAndInvoiceLetterTemplates_Render(t *testing.T) {
 			"Die Kontaktdaten stehen im Bescheid."},
 		"billing-notice-correction-letter.html": {"Ihr Gebührenbescheid hat sich geändert", "Sie müssen jetzt weniger bezahlen.",
 			"Dann melden Sie sich bitte beim Träger."},
-		"billing-invoice-letter.html": {"Ihre Rechnung", "Bitte geben Sie bei der Überweisung die Rechnungsnummer an.",
+		// The mail names no reference of its own: the letter says what to
+		// give, the debtor number or the invoice number (#4688, #6175).
+		"billing-invoice-letter.html": {"Ihre Rechnung", "Dort steht, ob und bis wann Sie etwas bezahlen müssen und welchen Verwendungszweck Sie angeben.",
 			"Die Kontaktdaten stehen in der Rechnung."},
 	} {
 		var out bytes.Buffer
@@ -36,5 +38,6 @@ func TestBillingNoticeAndInvoiceLetterTemplates_Render(t *testing.T) {
 		for _, want := range append(wants, "Guten Tag Eva Muster,", "Herbstferien 2026", "GB-2026-0001", "Gemeinde Hardt") {
 			assert.Contains(t, body, template.HTMLEscapeString(want), name)
 		}
+		assert.NotContains(t, body, "Rechnungsnummer an", "%s names no reference the letter may not use", name)
 	}
 }

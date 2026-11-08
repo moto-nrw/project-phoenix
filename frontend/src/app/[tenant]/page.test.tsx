@@ -816,7 +816,9 @@ describe("HomePage (Login)", () => {
           masked_email: "l***@example.test",
         }),
       )
-      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(
+        Response.json({ challenge_token: "challenge-abc" }),
+      )
       .mockResolvedValueOnce(Response.json({ status: "authenticated" }));
     const view = render(<HomePage />);
     await screen.findByTestId("input-email");

@@ -13,6 +13,7 @@ import type {
   HolidayFormField,
   HolidayFormVersion,
 } from "~/lib/holiday-form-field";
+import { looksLikeEmail } from "~/lib/email-format";
 import type { NewUploadValue } from "~/lib/enrollment-uploads";
 import type {
   HolidayContactPayload,
@@ -434,8 +435,6 @@ export function hasSecondGuardian(draft: RegistrationDraft): boolean {
   );
 }
 
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 /** A German postal code; the backend checks the same (#5625). */
 const POSTAL_CODE = /^[0-9]{5}$/;
 
@@ -560,7 +559,7 @@ export function validateRegistration(
   });
   requireText(errors, "guardian.first_name", draft.guardian.firstName);
   requireText(errors, "guardian.last_name", draft.guardian.lastName);
-  if (!EMAIL.test(draft.guardian.email.trim())) {
+  if (!looksLikeEmail(draft.guardian.email)) {
     errors["guardian.email"] =
       draft.guardian.email.trim() === "" ? "required" : "email";
   }

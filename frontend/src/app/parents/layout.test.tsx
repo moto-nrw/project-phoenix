@@ -2,12 +2,15 @@ import type { ReactElement } from "react";
 import type { Session } from "next-auth";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { parentAuthMock, readParentSessionSnapshotMock } = vi.hoisted(() => ({
-  parentAuthMock: vi.fn(async () => null),
-  readParentSessionSnapshotMock: vi.fn<() => Promise<Session | null>>(
-    async () => null,
-  ),
-}));
+const { parentAuthMock, readParentSessionSnapshotMock, notBooked } = vi.hoisted(
+  () => ({
+    notBooked: { current: false },
+    parentAuthMock: vi.fn(async () => null),
+    readParentSessionSnapshotMock: vi.fn<() => Promise<Session | null>>(
+      async () => null,
+    ),
+  }),
+);
 
 vi.mock("~/server/auth/parent", async () =>
   (await import("~/test/portal-binding")).mockPortalModule("parent", {
@@ -19,13 +22,18 @@ vi.mock("~/lib/portal-session-snapshot.server", () => ({
   readPortalSessionSnapshot: async (key: string) => {
     const session =
       key === "parent" ? await readParentSessionSnapshotMock() : null;
-    return session ? { session, accessToken: "server-only" } : null;
+    return session
+      ? { session, accessToken: "server-only", notBooked: notBooked.current }
+      : null;
   },
 }));
 
 const { default: ParentLayout } = await import("./layout");
 
-type ProvidersElement = ReactElement<{ session: unknown }>;
+type ProvidersElement = ReactElement<{
+  session: unknown;
+  children: ReactElement<{ notBooked: boolean }>;
+}>;
 
 async function renderedProviders(): Promise<ProvidersElement> {
   const element = (await ParentLayout({ children: null })) as ReactElement<{
@@ -38,6 +46,7 @@ beforeEach(() => {
   parentAuthMock.mockClear();
   readParentSessionSnapshotMock.mockReset();
   readParentSessionSnapshotMock.mockResolvedValue(null);
+  notBooked.current = false;
 });
 
 describe("ParentLayout", () => {
@@ -59,5 +68,17 @@ describe("ParentLayout", () => {
 
     expect(providers.props.session).toBeNull();
     expect(parentAuthMock).not.toHaveBeenCalled();
+  });
+
+  it("hands the guard a module the session check found not booked", async () => {
+    readParentSessionSnapshotMock.mockResolvedValue({
+      expires: "2026-09-10T12:00:00.000Z",
+      user: { id: "41", scope: "parent" },
+    });
+    notBooked.current = true;
+
+    const providers = await renderedProviders();
+
+    expect(providers.props.children.props.notBooked).toBe(true);
   });
 });

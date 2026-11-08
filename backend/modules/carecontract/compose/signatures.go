@@ -14,7 +14,7 @@ import (
 type SignaturePorts struct {
 	Ledger  carecontract.SignatureLedger
 	Links   carecontract.SigningLinks
-	Sender  carecontract.TraegerSender
+	Sender  carecontract.TraegerSigningSender
 	Post    carecontract.Post
 	Runtime carecontract.Runtime
 }

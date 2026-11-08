@@ -143,6 +143,7 @@ async function maintainSession(
     token.tokenExpiry = accessTokenExpiresAt(accessToken);
     token.error = undefined;
     token.needsRefresh = undefined;
+    token.notBooked = undefined;
     const payload = parseJwtPayload(accessToken);
     if (payload) syncTokenFromPayload(token, payload, portal.identity);
     authLogger.info(
@@ -157,6 +158,11 @@ async function maintainSession(
         : "token_refresh_terminal_failure",
     );
     endSession(token, "RefreshTokenError");
+  } else if (rotation.status === "notBooked") {
+    // Nothing rotated and the refresh token stays valid: the session stays,
+    // its guards explain the unbooked module, a later renewal continues it.
+    token.notBooked = true;
+    authLogger.info("token_refresh_module_not_booked");
   } else {
     authLogger.warn("token_refresh_deferred_after_transient_failure");
   }
@@ -240,6 +246,7 @@ export function serverSessionFromJwt(
       previewTargetName: token.previewTargetName,
       previewTargetAccountId: token.previewTargetAccountId,
     },
+    ...(token.notBooked === true ? { notBooked: true } : {}),
   };
 }
 
