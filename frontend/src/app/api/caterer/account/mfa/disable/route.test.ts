@@ -7,9 +7,8 @@ const { mockAuth } = vi.hoisted(() => ({ mockAuth: vi.fn() }));
 
 vi.mock("~/server/auth/caterer", async () =>
   (await import("~/test/portal-binding")).mockPortalModule("caterer", {
-    catererAuth: mockAuth,
-    uncachedCatererAuth: vi.fn(),
-    withCatererAuth: <T>(handler: T) => handler,
+    auth: mockAuth,
+    uncachedAuth: vi.fn(),
   }),
 );
 

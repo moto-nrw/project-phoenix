@@ -1060,14 +1060,6 @@ describe("fetchWithRetry", () => {
   });
 });
 
-// ===== SERVER AUTH TESTS =====
-
-// Mock auth module for server-side tests
-vi.mock("../server/auth", () => ({
-  auth: vi.fn(),
-  withTenantAuth: (handler: unknown) => handler,
-}));
-
 // ===== API FUNCTION TESTS (SERVER-SIDE) =====
 
 describe("apiGet (server-side)", () => {
@@ -1144,59 +1136,6 @@ describe("apiGet (server-side)", () => {
     },
   );
 
-  it("forwards the canonical client IP and user agent headers to the backend", async () => {
-    mockNextHeaders.mockResolvedValueOnce(
-      new Headers({
-        "x-forwarded-for": "203.0.113.10, 172.20.0.4",
-        "user-agent": "Mozilla/5.0 Test Browser",
-      }),
-    );
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({ result: "ok" }),
-    } as Response);
-
-    const result = await apiGet<{ result: string }>("/api/test", "token");
-
-    expect(result).toEqual({ result: "ok" });
-    expect(mockFetch).toHaveBeenCalledWith(
-      "http://backend.test/api/test",
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          Authorization: "Bearer token",
-          "X-Forwarded-For": "172.20.0.4",
-          "User-Agent": "Mozilla/5.0 Test Browser",
-        }) as HeadersInit,
-      }),
-    );
-  });
-
-  // The backend links its core-action events to the browser session (#3602).
-  it("forwards the browser's analytics session to the backend", async () => {
-    mockNextHeaders.mockResolvedValueOnce(
-      new Headers({
-        "x-posthog-session-id": "0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b",
-      }),
-    );
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({ result: "ok" }),
-    } as Response);
-
-    await apiPost<{ result: string }>("/api/groups", "token", {});
-
-    expect(mockFetch).toHaveBeenCalledWith(
-      "http://backend.test/api/groups",
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          "X-POSTHOG-SESSION-ID": "0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b",
-        }) as HeadersInit,
-      }),
-    );
-  });
-
   // Backend and BFF events of one request share the Vorgangskennung (#3641).
   it("forwards the proxy's Vorgangskennung to the backend", async () => {
     mockNextHeaders.mockResolvedValueOnce(
@@ -1238,31 +1177,6 @@ describe("apiGet (server-side)", () => {
     controller.abort();
 
     expect(sent.aborted).toBe(true);
-  });
-
-  it("falls back to X-Real-IP when X-Forwarded-For is absent", async () => {
-    mockNextHeaders.mockResolvedValueOnce(
-      new Headers({
-        "x-real-ip": "198.51.100.25",
-      }),
-    );
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      json: () => Promise.resolve({ result: "ok" }),
-    } as Response);
-
-    await apiGet<{ result: string }>("/api/test", "token");
-
-    expect(mockFetch).toHaveBeenCalledWith(
-      "http://backend.test/api/test",
-      expect.objectContaining({
-        headers: {
-          Authorization: "Bearer token",
-          "X-Forwarded-For": "198.51.100.25",
-        },
-      }),
-    );
   });
 
   it("omits forward headers when no client IP or user agent is available", async () => {

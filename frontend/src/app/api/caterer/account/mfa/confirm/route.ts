@@ -4,7 +4,7 @@ import { caterer } from "~/lib/caterer/route-wrapper.server";
 import { installLoginSession } from "~/lib/login-route.server";
 import { createLogger } from "~/lib/logger";
 import { captureBffException } from "~/lib/sentry-bff.server";
-import { catererPortal, withCatererAuth } from "~/server/auth/caterer";
+import { catererPortal } from "~/server/auth/caterer";
 import { sessionMutationOriginError } from "~/server/auth/same-origin";
 
 const logger = createLogger({ component: "CatererMFAConfirmRoute" });
@@ -14,7 +14,7 @@ const logger = createLogger({ component: "CatererMFAConfirmRoute" });
 // no token reaches the browser (#5005). When the code was right but the new
 // session cannot be installed, the answer says so: the second factor is on
 // and the caterer must sign in again.
-export const POST = withCatererAuth(async (request) => {
+export const POST = catererPortal.withAuth(async (request) => {
   const originError = sessionMutationOriginError(request);
   if (originError) return originError;
   let body: unknown;

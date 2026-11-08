@@ -3,7 +3,7 @@ import { handleApiError, problemResponse } from "./api-response-error.server";
 import { tenant } from "./route-wrapper.server";
 
 /**
- * Tenant export routes that answer with a file, inside withTenantAuth and
+ * Tenant export routes that answer with a file, inside tenantPortal.withAuth and
  * withPrivateDownloadNoStore. The file is read whole and leaves with its
  * Content-Length: the backend streams exports without one.
  */

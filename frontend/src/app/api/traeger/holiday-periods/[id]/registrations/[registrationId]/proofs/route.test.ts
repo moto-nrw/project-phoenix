@@ -8,9 +8,8 @@ const { mockTraegerAuth, mockFetch } = vi.hoisted(() => ({
 
 vi.mock("~/server/auth/traeger", async () =>
   (await import("~/test/portal-binding")).mockPortalModule("traeger", {
-    traegerAuth: mockTraegerAuth,
-    uncachedTraegerAuth: mockTraegerAuth,
-    withTraegerAuth: (handler: unknown) => handler,
+    auth: mockTraegerAuth,
+    uncachedAuth: mockTraegerAuth,
   }),
 );
 

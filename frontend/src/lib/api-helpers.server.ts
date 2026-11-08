@@ -1,8 +1,4 @@
-import {
-  readBackendJson,
-  sendBackend,
-  type BackendMethod,
-} from "./backend-client.server";
+import { backendJson } from "./backend-client.server";
 
 export {
   ApiResponseError,
@@ -11,32 +7,22 @@ export {
   problemResponse,
 } from "./api-response-error.server";
 
-/**
- * The tenant backend's JSON, envelope included, for a token the route
- * handler holds. A backend error throws ApiResponseError; the tenant route
- * handlers repeat a 401 with the renewed session.
+/*
+ * The tenant handlers' JSON calls: projections of backendJson, the one JSON
+ * path of every portal. They run inside a tenant route handler
+ * (`createGetHandler`, `tenant.post`, …), which repeats a backend 401 with
+ * the renewed session unless the endpoint opts out with `retry: { off }`.
  */
-async function tenantJson<T>(
-  method: BackendMethod,
-  endpoint: string,
-  token: string,
-  init: { body?: unknown; idempotencyKey?: string; signal?: AbortSignal } = {},
-): Promise<T> {
-  const response = await sendBackend(endpoint, token, {
-    method,
-    json: init.body ?? undefined,
-    idempotencyKey: init.idempotencyKey,
-    signal: init.signal,
-  });
-  return readBackendJson<T>(response);
-}
 
 export async function apiGet<T>(
   endpoint: string,
   token: string,
   options?: { signal?: AbortSignal },
 ): Promise<T> {
-  return (await tenantJson<T>("GET", endpoint, token, options)) ?? ({} as T);
+  return (
+    (await backendJson<T>("GET", endpoint, token, undefined, options)) ??
+    ({} as T)
+  );
 }
 
 /** `idempotencyKey` makes a retried create request safe. */
@@ -47,8 +33,9 @@ export async function apiPost<T, B = unknown>(
   idempotencyKey?: string,
 ): Promise<T> {
   return (
-    (await tenantJson<T>("POST", endpoint, token, { body, idempotencyKey })) ??
-    ({} as T)
+    (await backendJson<T>("POST", endpoint, token, body, {
+      idempotencyKey,
+    })) ?? ({} as T)
   );
 }
 
@@ -57,7 +44,7 @@ export async function apiPut<T, B = unknown>(
   token: string,
   body?: B,
 ): Promise<T> {
-  return (await tenantJson<T>("PUT", endpoint, token, { body })) ?? ({} as T);
+  return (await backendJson<T>("PUT", endpoint, token, body)) ?? ({} as T);
 }
 
 export async function apiPatch<T, B = unknown>(
@@ -65,7 +52,7 @@ export async function apiPatch<T, B = unknown>(
   token: string,
   body?: B,
 ): Promise<T> {
-  return (await tenantJson<T>("PATCH", endpoint, token, { body })) ?? ({} as T);
+  return (await backendJson<T>("PATCH", endpoint, token, body)) ?? ({} as T);
 }
 
 /** Resolves undefined for the backend's 204. */
@@ -74,5 +61,5 @@ export async function apiDelete<T, B = unknown>(
   token: string,
   body?: B,
 ): Promise<T | void> {
-  return tenantJson<T>("DELETE", endpoint, token, { body });
+  return backendJson<T>("DELETE", endpoint, token, body);
 }

@@ -12,10 +12,9 @@ const { mockSetSession, mockCatererAuth, mockUncachedCatererAuth } = vi.hoisted(
 // The caterer binding reads the session through catererAuth().
 vi.mock("~/server/auth/caterer", async () =>
   (await import("~/test/portal-binding")).mockPortalModule("caterer", {
-    catererAuth: mockCatererAuth,
-    uncachedCatererAuth: mockUncachedCatererAuth,
-    setCatererSession: mockSetSession,
-    withCatererAuth: <T>(handler: T) => handler,
+    auth: mockCatererAuth,
+    uncachedAuth: mockUncachedCatererAuth,
+    setSession: mockSetSession,
   }),
 );
 

@@ -1881,6 +1881,8 @@ describe("proxy", () => {
         "/api/parent-announcements",
         "/api/invitations",
         "/api/enrollment/school-a/submit",
+        // The tenant session's profile enrichment never runs on this host.
+        "/api/enrollment/form-bootstrap/public/school-a/5",
         "/api/operator/auth/session",
         "/api/school/auth/session",
       ]) {

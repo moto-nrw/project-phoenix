@@ -8,10 +8,11 @@ const { mockHandlers } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("~/server/auth", () => ({
-  handlers: mockHandlers,
-  withTenantAuth: (handler: unknown) => handler,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    handlers: mockHandlers,
+  }),
+);
 
 // Import after mocks are set up
 const { GET, POST } = await import("./route");

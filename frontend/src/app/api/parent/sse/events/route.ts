@@ -1,5 +1,5 @@
 import { type NextRequest } from "next/server";
-import { parentAuth, withParentAuth } from "~/server/auth/parent";
+import { parentPortal } from "~/server/auth/parent";
 import { createLogger } from "~/lib/logger";
 import { proxySSEStream } from "~/lib/sse-proxy.server";
 import { problemResponse } from "~/lib/api-helpers.server";
@@ -17,7 +17,7 @@ export const runtime = "nodejs";
  * parent_message_read triggers for the tenants of the guardian's children.
  */
 async function GETHandler(request: NextRequest) {
-  const session = await parentAuth();
+  const session = await parentPortal.auth();
 
   if (!session?.user?.token) {
     return problemResponse(401, "Unauthorized", request);
@@ -30,4 +30,4 @@ async function GETHandler(request: NextRequest) {
   });
 }
 
-export const GET = withParentAuth(GETHandler);
+export const GET = parentPortal.withAuth(GETHandler);

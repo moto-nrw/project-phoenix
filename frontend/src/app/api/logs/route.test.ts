@@ -11,10 +11,11 @@ const { mockAuth } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ServerSession | null>>(),
 }));
 
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-  withTenantAuth: (handler: unknown) => handler,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockAuth,
+  }),
+);
 
 const { POST } = await import("./route");
 

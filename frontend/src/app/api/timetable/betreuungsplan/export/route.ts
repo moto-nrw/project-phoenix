@@ -1,11 +1,11 @@
 import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
-import { withTenantAuth } from "~/server/auth";
+import { tenantPortal } from "~/server/auth";
 import { createFileExportRoute } from "~/lib/export-proxy.server";
 
 // Printable Betreuungsplan week (#2079) — the care-plan counterpart of the
 // Dienstplan export route.
 export const POST = withPrivateDownloadNoStore(
-  withTenantAuth(
+  tenantPortal.withAuth(
     createFileExportRoute({
       backendPath: "/api/timetable/betreuungsplan/export",
     }),

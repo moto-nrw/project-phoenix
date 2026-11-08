@@ -35,6 +35,7 @@ import { portalNotBookedExplanation } from "~/lib/portal-not-booked";
 import { normalizeLocale } from "~/i18n/locales";
 import { clientEnv } from "~/env.client";
 import { Button } from "~/components/ui/button";
+import { PORTAL_ROUTES } from "~/lib/portal-paths";
 
 const logger = createLogger({ component: "ParentLoginPage" });
 
@@ -218,7 +219,7 @@ function ParentLoginForm() {
     setPortalNotBooked(false);
 
     try {
-      const result = await signIn("parent-credentials", {
+      const result = await signIn(PORTAL_ROUTES.parent.providerId, {
         redirect: false,
         email,
         password,

@@ -2,7 +2,7 @@ import { forwardJsonRequest } from "~/lib/json-proxy.server";
 import { sendBackend } from "~/lib/backend-client.server";
 import type { RouteContext } from "~/lib/route-wrapper-utils.server";
 import type { ServerAuthRequest } from "~/server/auth/route-handler";
-import { withTenantAuth } from "~/server/auth";
+import { tenantPortal } from "~/server/auth";
 
 /**
  * Ends only the preview held in the httpOnly session, never a browser
@@ -28,4 +28,4 @@ async function POSTHandler(request: ServerAuthRequest, context: RouteContext) {
   );
 }
 
-export const POST = withTenantAuth(POSTHandler);
+export const POST = tenantPortal.withAuth(POSTHandler);

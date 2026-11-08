@@ -6,6 +6,8 @@
  * internally. Mirrors school-url.ts.
  */
 
+import { requiredPortalHostname } from "~/lib/portal-paths";
+
 let _isTraeger: boolean | undefined;
 
 function isTraegerSubdomain(): boolean {
@@ -16,13 +18,7 @@ function isTraegerSubdomain(): boolean {
   if (typeof window === "undefined") return true;
   if (_isTraeger !== undefined) return _isTraeger;
 
-  const traegerHostname = process.env.NEXT_PUBLIC_TRAEGER_HOSTNAME;
-  if (!traegerHostname) {
-    throw new Error(
-      "NEXT_PUBLIC_TRAEGER_HOSTNAME is not set. " +
-        "Add it to your .env.local or docker-compose environment.",
-    );
-  }
+  const traegerHostname = requiredPortalHostname("traeger");
 
   _isTraeger = window.location.host === traegerHostname;
   return _isTraeger;

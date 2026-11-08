@@ -73,9 +73,15 @@ be decided (refresh unreachable, timeout, 5xx) answers 503
 `general.unavailable` and leaves the session as it is; a second 401 for the
 renewed token is the backend's own answer and passes through. An unreachable
 backend or a header timeout answers 503 `general.unavailable` everywhere.
-Retry is on by default; an
-endpoint that answers a refused credential with 401 (password change, MFA
-off, confirm code) passes `retry: { off: "<reason>" }`. Only the SSE stream
+Retry is on by default; every
+route that carries the current password or a code (password change, e-mail
+change, MFA off, confirm code, a declaration with the account password)
+passes `retry: { off: "<reason>" }`, whichever helper sends it;
+`src/app/api/credential-retry.test.ts` proves each sends it once after a 401.
+The JSON of a call goes through `backendJson`: the portal handlers' `api`
+and the tenant's `apiGet`/`apiPost`/… in `lib/api-helpers.server.ts` are
+projections of it and run inside a portal route handler, whose retry policy
+applies. Only the SSE stream
 and the cached tenant resolve fetch the backend themselves; they add
 `clientIdentityHeaders(request.headers)` or the headers handed in. A route
 param in a backend path is encoded (`requirePathSegmentParam`,

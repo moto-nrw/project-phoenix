@@ -29,9 +29,8 @@ vi.mock("~/lib/backend-proxy-metrics", () => ({
 
 vi.mock("~/server/auth/operator", async () =>
   (await import("~/test/portal-binding")).mockPortalModule("operator", {
-    operatorAuth: mockAuth,
-    uncachedOperatorAuth: mockAuth,
-    withOperatorAuth: (handler: unknown) => handler,
+    auth: mockAuth,
+    uncachedAuth: mockAuth,
   }),
 );
 
@@ -39,7 +38,7 @@ vi.mock("~/server/auth/operator", async () =>
 // handled (next/headers outside a request scope here).
 vi.mock("~/lib/client-headers.server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/client-headers.server")>()),
-  incomingClientForwardHeaders: mockIncomingClientForwardHeaders,
+  incomingBackendIdentityHeaders: mockIncomingClientForwardHeaders,
 }));
 
 // Test fixtures below describe backend payloads; materialize actual Fetch

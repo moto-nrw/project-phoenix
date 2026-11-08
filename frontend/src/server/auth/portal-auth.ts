@@ -2,7 +2,18 @@ import "server-only";
 import NextAuth from "next-auth";
 import { createPortalAuthConfig } from "./portal-config";
 import type { PortalDescriptor } from "./portals";
-import { createResponseAwareAuth } from "./route-handler";
+import {
+  createResponseAwareAuth,
+  type ServerAuthRequest,
+} from "./route-handler";
+
+/**
+ * A check every route of the portal passes before its handler runs; a
+ * Response refuses the request.
+ */
+export type PortalRouteGuard = (
+  request: ServerAuthRequest,
+) => Promise<Response | null>;
 
 /**
  * One portal's Auth.js instance and its response-aware helpers. Called once
@@ -14,12 +25,29 @@ import { createResponseAwareAuth } from "./route-handler";
  * function except through mutateSession, which hands their cookies to the
  * session cookie exit (#5399).
  */
-export function createPortalAuth<const P extends PortalDescriptor>(portal: P) {
+export function createPortalAuth<const P extends PortalDescriptor>(
+  portal: P,
+  guard?: PortalRouteGuard,
+) {
   const nextAuth = NextAuth(createPortalAuthConfig(portal));
-  const { mutateSession, ...responseAware } = createResponseAwareAuth(
-    nextAuth.auth,
-    portal.key,
-  );
+  const {
+    auth,
+    uncachedAuth,
+    inRequestContext,
+    withAuthResponse,
+    withSessionResponse,
+    mutateSession,
+  } = createResponseAwareAuth(nextAuth.auth, portal.key);
+
+  /** The wrapper every authenticated BFF route of the portal runs in; the
+   * portal's guard runs before the handler. */
+  const withAuth: typeof withAuthResponse = guard
+    ? (handler) =>
+        withAuthResponse(
+          async (request, context) =>
+            (await guard(request)) ?? handler(request, context),
+        )
+    : withAuthResponse;
 
   /** Installs a backend-minted token pair as this portal's session. */
   const setSession = async (
@@ -56,9 +84,11 @@ export function createPortalAuth<const P extends PortalDescriptor>(portal: P) {
 
   return {
     portal,
-    ...responseAware,
-    /** The wrapper every authenticated BFF route of the portal runs in. */
-    withAuth: responseAware.withAuthResponse,
+    auth,
+    uncachedAuth,
+    inRequestContext,
+    withAuth,
+    withSessionResponse,
     handlers: nextAuth.handlers,
     setSession,
     updateSession,

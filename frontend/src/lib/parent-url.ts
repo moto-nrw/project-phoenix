@@ -9,6 +9,8 @@
  * stay deterministic so server rendering and hydration produce the same HTML.
  */
 
+import { requiredPortalHostname } from "~/lib/portal-paths";
+
 // Cache the result for client-only absolute URL helpers.
 let _isParents: boolean | undefined;
 
@@ -16,13 +18,7 @@ function isParentsSubdomain(): boolean {
   if (typeof window === "undefined") return false;
   if (_isParents !== undefined) return _isParents;
 
-  const parentsHostname = process.env.NEXT_PUBLIC_PARENTS_HOSTNAME;
-  if (!parentsHostname) {
-    throw new Error(
-      "NEXT_PUBLIC_PARENTS_HOSTNAME is not set. " +
-        "Add it to your .env.local or docker-compose environment.",
-    );
-  }
+  const parentsHostname = requiredPortalHostname("parent");
 
   _isParents = window.location.host === parentsHostname;
   return _isParents;
@@ -67,13 +63,7 @@ export function parentsPortalUrl(path: string): string {
     throw new Error("parentsPortalUrl() is client-only.");
   }
 
-  const parentsHostname = process.env.NEXT_PUBLIC_PARENTS_HOSTNAME;
-  if (!parentsHostname) {
-    throw new Error(
-      "NEXT_PUBLIC_PARENTS_HOSTNAME is not set. " +
-        "Add it to your .env.local or docker-compose environment.",
-    );
-  }
+  const parentsHostname = requiredPortalHostname("parent");
 
   return `${window.location.protocol}//${parentsHostname}${path}`;
 }

@@ -1,11 +1,11 @@
 /** Client log ingestion from the Träger portal, with its own session. */
 
 import type { NextRequest } from "next/server";
-import { traegerAuth, withTraegerAuth } from "~/server/auth/traeger";
+import { traegerPortal } from "~/server/auth/traeger";
 import { ingestClientLogs } from "~/lib/client-log-ingest.server";
 
 async function POSTHandler(request: NextRequest) {
-  return ingestClientLogs(request, await traegerAuth(), "traeger");
+  return ingestClientLogs(request, await traegerPortal.auth(), "traeger");
 }
 
-export const POST = withTraegerAuth(POSTHandler);
+export const POST = traegerPortal.withAuth(POSTHandler);

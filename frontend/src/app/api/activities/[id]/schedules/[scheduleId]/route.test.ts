@@ -40,7 +40,6 @@ const {
 vi.mock("~/server/auth", async () =>
   (await import("~/test/portal-binding")).mockPortalModule("tenant", {
     auth: mockAuth,
-    withTenantAuth: (handler: unknown) => handler,
   }),
 );
 

@@ -2,7 +2,7 @@
 import type { NextRequest } from "next/server";
 import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
 import { proxyStatisticsDownload } from "~/lib/statistics-download-proxy.server";
-import { withTenantAuth } from "~/server/auth";
+import { tenantPortal } from "~/server/auth";
 
 async function GETHandler(request: NextRequest) {
   return proxyStatisticsDownload(request, "/api/statistics/export", [
@@ -13,4 +13,6 @@ async function GETHandler(request: NextRequest) {
   ]);
 }
 
-export const GET = withPrivateDownloadNoStore(withTenantAuth(GETHandler));
+export const GET = withPrivateDownloadNoStore(
+  tenantPortal.withAuth(GETHandler),
+);

@@ -12,6 +12,11 @@ import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { problemResponse } from "~/lib/api-helpers.server";
 import { withPrivateNoStore } from "~/lib/private-no-store";
 import { clientEnv } from "~/env.client";
+import {
+  HOSTED_PORTAL_KEYS,
+  PORTAL_ROUTES,
+  type PortalKey,
+} from "~/lib/portal-paths";
 import { tenantPortal } from "~/server/auth";
 import { parentPortal } from "~/server/auth/parent";
 import { sessionMutationOriginError } from "~/server/auth/same-origin";
@@ -24,29 +29,31 @@ import {
 
 const logger = createLogger({ component: "DemoSessionRoute" });
 
-// Redeems a demo token in a demo role (#3462, #3467). The entry page sends
-// the token from the link; the route keeps it in an httpOnly cookie, and a
-// later role switch from the banner sends only the role. The token is never
-// logged and never returned.
+/**
+ * The portal of a request host; every other host is a school's. The host
+ * names come validated from clientEnv, so a missing one fails at startup
+ * instead of letting a portal host mint a tenant session.
+ */
+function portalOfDemoHost(host: string): PortalKey {
+  return (
+    HOSTED_PORTAL_KEYS.find(
+      (key) =>
+        new URL(`http://${clientEnv[PORTAL_ROUTES[key].hostEnv]}`).host ===
+        host,
+    ) ?? "tenant"
+  );
+}
+
 async function POSTHandler(request: NextRequest) {
   const originError = sessionMutationOriginError(request);
   if (originError) return originError;
   // Choose the cookie context from the proxy-owned host, never from a role
   // supplied by the browser or returned for a fixed-role demo link.
-  const host = new URL(frontendOrigin(request)).host;
-  const isHost = (authority: string) =>
-    new URL(`http://${authority}`).host === host;
-  if (
-    [
-      clientEnv.NEXT_PUBLIC_OPERATOR_HOSTNAME,
-      clientEnv.NEXT_PUBLIC_SCHOOL_HOSTNAME,
-      clientEnv.NEXT_PUBLIC_TRAEGER_HOSTNAME,
-      clientEnv.NEXT_PUBLIC_CATERER_HOSTNAME,
-    ].some(isHost)
-  ) {
+  const portal = portalOfDemoHost(new URL(frontendOrigin(request)).host);
+  if (portal !== "tenant" && portal !== "parent") {
     return problemResponse(403, "Unsupported demo portal", request);
   }
-  const parent = isHost(clientEnv.NEXT_PUBLIC_PARENTS_HOSTNAME);
+  const parent = portal === "parent";
   const session = parent ? parentPortal : tenantPortal;
   return session.withSessionResponse((req) => redeem(req, parent))(request);
 }

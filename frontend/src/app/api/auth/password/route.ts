@@ -1,55 +1,27 @@
-import { NextResponse, type NextRequest } from "next/server";
-import { auth, withTenantAuth } from "~/server/auth";
-import {
-  apiPost,
-  handleApiError,
-  problemResponse,
-} from "~/lib/api-helpers.server";
-import { createLogger } from "~/lib/logger";
+import { apiPost, problemResponse } from "~/lib/api-helpers.server";
+import { tenant } from "~/lib/route-wrapper.server";
 
-const logger = createLogger({ component: "AuthPasswordRoute" });
+interface PasswordChangeBody {
+  currentPassword?: string;
+  newPassword?: string;
+  confirmPassword?: string;
+}
 
-async function POSTHandler(request: NextRequest) {
-  try {
-    const session = await auth();
-
-    if (!session?.user?.token) {
-      return problemResponse(401, "Unauthenticated", request);
-    }
-
-    let body: {
-      currentPassword?: string;
-      newPassword?: string;
-      confirmPassword?: string;
-    };
-    try {
-      body = (await request.json()) as typeof body;
-    } catch {
-      return problemResponse(400, "Invalid JSON", request);
-    }
+export const POST = tenant.post<unknown, PasswordChangeBody>(
+  async (request, body, token) => {
     const { currentPassword, newPassword, confirmPassword } = body;
-
     if (!currentPassword || !newPassword || !confirmPassword) {
       return problemResponse(400, "all password fields are required", request);
     }
-
     if (newPassword !== confirmPassword) {
       return problemResponse(400, "new passwords do not match", request);
     }
-
-    await apiPost("/auth/password", session.user.token, {
+    await apiPost("/auth/password", token, {
       current_password: currentPassword,
       new_password: newPassword,
       confirm_password: confirmPassword,
     });
-
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    logger.error("password change failed", { error: errorMessage });
-
-    return handleApiError(error, request);
-  }
-}
-
-export const POST = withTenantAuth(POSTHandler);
+    return { success: true };
+  },
+  { retry: { off: "a renewed session would send the current password twice" } },
+);

@@ -349,10 +349,11 @@ that IP. The IP crosses four hops:
 3. Every server-side backend call of the frontend forwards
    `canonicalForwardedFor` (rightmost valid `X-Forwarded-For`, `X-Real-IP`
    fallback) through `frontend/src/lib/client-headers.server.ts`:
-   `clientIdentityHeaders(request.headers)` with a request at hand,
-   `incomingClientForwardHeaders()` without one. `sendBackend`
+   `backendIdentityHeaders(request)` with a request at hand,
+   `incomingBackendIdentityHeaders()` (the same set from the request being
+   handled) without one. `sendBackend`
    (`frontend/src/lib/backend-client.server.ts`), under every portal's route
-   handlers, sends this set plus the frontend origin on every call.
+   handlers, sends this set, frontend origin included, on every call.
 4. The backend takes the rightmost entry
    (`ClientIPFromXFFTrustedProxies(1)` and `syncClientIPToRemoteAddr` in
    `backend/api/serve_middleware.go`). Trusting one hop is safe only while
@@ -389,7 +390,7 @@ domain-scoped to support switching between school subdomains (localhost:
 host-only). The proxy redirects cross-host paths to their canonical subdomain.
 
 A switch on one school's subdomain replaces that shared cookie for every tab;
-tabs on other subdomains hear nothing of it. So `withTenantAuth` refuses a
+tabs on other subdomains hear nothing of it. So `tenantPortal.withAuth` refuses a
 session whose `tenantId` differs from the school of the request's subdomain
 with 409 `identity.session_tenant_mismatch` before the route runs
 (`frontend/src/server/auth/tenant-host-check.ts`, #5130). The host's school
@@ -421,7 +422,7 @@ browser request to the tab's own `/api/` therefore names the account its
 `SessionAccountBinding` (mounted first in every portal's providers), the
 fetch observer and the Axios interceptor of `api-transport.ts`; another
 origin never gets it. Every portal's route wrapper
-(`createResponseAwareAuth`, so `withTenantAuth` too) refuses a header that
+(`createResponseAwareAuth`, so `tenantPortal.withAuth` too) refuses a header that
 names another account than the cookie with 409
 `identity.session_account_mismatch` before the route runs
 (`frontend/src/server/auth/session-account-check.ts`). Account exemptions
@@ -541,10 +542,12 @@ snapshots and logout exemptions derive from it. Its browser- and edge-safe
 part, `PORTAL_ROUTES` in `frontend/src/lib/portal-paths.ts` (key, auth base
 path, host env name, App Router folder), is the only source of those facts
 for the proxy's host table, `portalOfHost`, the session cookie names and the
-sign-in pages. Each entry module exports its portal object
-(`tenantPortal`, `parentPortal`, …); route wrappers, login and logout routes
-take that one object, so a portal's session, wrapper and backend paths
-cannot be mixed up.
+sign-in pages and the browser's Credentials provider ids. Each entry module
+exports only its portal object (`tenantPortal`, `parentPortal`, …), whose one
+route wrapper `withAuth` carries every check of the portal (for the tenant
+the school-host check); route wrappers, login and logout routes take that
+one object, so a portal's session, wrapper and backend paths cannot be
+mixed up.
 
 | Portal | Host | Cookie | basePath | JWT scope | Backend login |
 |---|---|---|---|---|---|

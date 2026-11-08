@@ -82,6 +82,7 @@ export function createPortalLoginRoute(login: LoginPortal, step: LoginStep) {
         method: "POST",
         json: body,
         request,
+        timeout: "login",
         headers: {
           ...(trustedDevice && {
             Cookie: `${TRUSTED_DEVICE_COOKIE}=${trustedDevice}`,

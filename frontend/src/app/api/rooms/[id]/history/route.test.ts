@@ -16,10 +16,11 @@ const { mockAuth, mockApiGet } = vi.hoisted(() => ({
   mockApiGet: vi.fn(),
 }));
 
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-  withTenantAuth: (handler: unknown) => handler,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockAuth,
+  }),
+);
 
 // Re-export the real ApiResponseError so route's `instanceof` check matches
 // the same class the test throws. Keep apiGet etc. mocked so the route

@@ -1,5 +1,5 @@
 import { type NextRequest } from "next/server";
-import { auth, withTenantAuth } from "~/server/auth";
+import { tenantPortal } from "~/server/auth";
 import { createLogger } from "~/lib/logger";
 import { proxySSEStream } from "~/lib/sse-proxy.server";
 import { problemResponse } from "~/lib/api-helpers.server";
@@ -15,10 +15,10 @@ export const runtime = "nodejs";
  * Bypasses route-wrapper.ts because SSE requires streaming responses, not buffered
  * JSON. The browser binds its account with a header; the JWT stays server-side.
  * The streaming/abort/cleanup plumbing is shared with the parent portal via
- * proxySSEStream; only auth, the upstream path, and the logger differ here.
+ * proxySSEStream; only tenantPortal.auth, the upstream path, and the logger differ here.
  */
 async function GETHandler(request: NextRequest) {
-  const session = await auth();
+  const session = await tenantPortal.auth();
 
   if (!session?.user?.token) {
     return problemResponse(401, "Unauthorized", request);
@@ -31,4 +31,4 @@ async function GETHandler(request: NextRequest) {
   });
 }
 
-export const GET = withTenantAuth(GETHandler);
+export const GET = tenantPortal.withAuth(GETHandler);

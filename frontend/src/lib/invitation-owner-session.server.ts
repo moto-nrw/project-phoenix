@@ -39,13 +39,13 @@ export async function withInvitationOwnerSession(
     return accept(token);
   };
   if (hostname === hostnameFromAuthority(env.NEXT_PUBLIC_PARENTS_HOSTNAME)) {
-    const { withParentAuth } = await import("~/server/auth/parent");
-    return withParentAuth(handler)(request);
+    const { parentPortal } = await import("~/server/auth/parent");
+    return parentPortal.withAuth(handler)(request);
   }
   if (hostname === hostnameFromAuthority(env.NEXT_PUBLIC_SCHOOL_HOSTNAME)) {
-    const { withSchoolAuth } = await import("~/server/auth/school");
-    return withSchoolAuth(handler)(request);
+    const { schoolPortal } = await import("~/server/auth/school");
+    return schoolPortal.withAuth(handler)(request);
   }
-  const { withTenantAuth } = await import("~/server/auth");
-  return withTenantAuth(handler)(request);
+  const { tenantPortal } = await import("~/server/auth");
+  return tenantPortal.withAuth(handler)(request);
 }

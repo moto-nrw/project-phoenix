@@ -54,10 +54,11 @@ vi.mock("next/cache", () => ({
   unstable_cache: unstableCacheMock,
 }));
 
-vi.mock("~/server/auth", () => ({
-  auth: authMock,
-  withTenantAuth: (handler: unknown) => handler,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: authMock,
+  }),
+);
 
 vi.mock("~/lib/shell-bootstrap.server", () => ({
   loadShellBootstrap: vi.fn(),

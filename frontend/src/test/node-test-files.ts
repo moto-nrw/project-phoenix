@@ -276,6 +276,7 @@ export const nodeLogicTestFiles = [
   "src/server/auth/browser-session.test.ts",
   "src/server/auth/route-handler.test.ts",
   "src/server/auth/tenant-host-check.test.ts",
+  "src/server/auth/tenant-portal.test.ts",
   "src/server/node-header-limit.test.ts",
   "src/styles/moto-token-drift.test.ts",
   "src/test/helpers/handle-api-error.test.ts",

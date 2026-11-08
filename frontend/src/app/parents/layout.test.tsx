@@ -9,10 +9,11 @@ const { parentAuthMock, readParentSessionSnapshotMock } = vi.hoisted(() => ({
   ),
 }));
 
-vi.mock("~/server/auth/parent", () => ({
-  parentAuth: parentAuthMock,
-  withParentAuth: (handler: unknown) => handler,
-}));
+vi.mock("~/server/auth/parent", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("parent", {
+    auth: parentAuthMock,
+  }),
+);
 
 vi.mock("~/lib/portal-session-snapshot.server", () => ({
   readPortalSessionSnapshot: async (key: string) => {

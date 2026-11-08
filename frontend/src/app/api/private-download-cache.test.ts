@@ -10,42 +10,36 @@ vi.mock("~/server/auth", async () =>
   (await import("~/test/portal-binding")).mockPortalModule("tenant", {
     auth: mockAuth,
     uncachedAuth: mockAuth,
-    withTenantAuth: (handler: unknown) => handler,
   }),
 );
 vi.mock("~/server/auth/parent", async () =>
   (await import("~/test/portal-binding")).mockPortalModule("parent", {
-    parentAuth: mockAuth,
-    uncachedParentAuth: mockAuth,
-    withParentAuth: (handler: unknown) => handler,
+    auth: mockAuth,
+    uncachedAuth: mockAuth,
   }),
 );
 vi.mock("~/server/auth/traeger", async () =>
   (await import("~/test/portal-binding")).mockPortalModule("traeger", {
-    traegerAuth: mockAuth,
-    uncachedTraegerAuth: mockAuth,
-    withTraegerAuth: (handler: unknown) => handler,
+    auth: mockAuth,
+    uncachedAuth: mockAuth,
   }),
 );
 vi.mock("~/server/auth/school", async () =>
   (await import("~/test/portal-binding")).mockPortalModule("school", {
-    schoolAuth: mockAuth,
-    uncachedSchoolAuth: mockAuth,
-    withSchoolAuth: <T>(handler: T) => handler,
+    auth: mockAuth,
+    uncachedAuth: mockAuth,
   }),
 );
 vi.mock("~/server/auth/caterer", async () =>
   (await import("~/test/portal-binding")).mockPortalModule("caterer", {
-    catererAuth: mockAuth,
-    uncachedCatererAuth: mockAuth,
-    withCatererAuth: (handler: unknown) => handler,
+    auth: mockAuth,
+    uncachedAuth: mockAuth,
   }),
 );
 vi.mock("~/server/auth/operator", async () =>
   (await import("~/test/portal-binding")).mockPortalModule("operator", {
-    operatorAuth: mockAuth,
-    uncachedOperatorAuth: mockAuth,
-    withOperatorAuth: <T>(handler: T) => handler,
+    auth: mockAuth,
+    uncachedAuth: mockAuth,
   }),
 );
 vi.mock("~/lib/server-api-url", () => ({

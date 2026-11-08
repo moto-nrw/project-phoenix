@@ -11,14 +11,16 @@ const { mockParentAuth, mockTenantAuth } = vi.hoisted(() => ({
   mockTenantAuth: vi.fn<() => Promise<ServerSession | null>>(),
 }));
 
-vi.mock("~/server/auth/parent", () => ({
-  parentAuth: mockParentAuth,
-  withParentAuth: (handler: unknown) => handler,
-}));
-vi.mock("~/server/auth", () => ({
-  auth: mockTenantAuth,
-  withTenantAuth: (handler: unknown) => handler,
-}));
+vi.mock("~/server/auth/parent", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("parent", {
+    auth: mockParentAuth,
+  }),
+);
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockTenantAuth,
+  }),
+);
 
 const { POST } = await import("./route");
 

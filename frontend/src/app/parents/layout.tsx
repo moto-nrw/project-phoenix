@@ -52,7 +52,7 @@ export async function generateMetadata(): Promise<Metadata> {
  *
  * A valid parent cookie hydrates SessionProvider through a read-only snapshot
  * (#4990), so the guard renders the page without first fetching the session.
- * Never call parentAuth() here: its refresh callback could rotate the token
+ * Never call parentPortal.auth() here: its refresh callback could rotate the token
  * in a Server Component that cannot persist the new cookie (#1938).
  *
  * The whole parents subtree is localized, so it carries the full

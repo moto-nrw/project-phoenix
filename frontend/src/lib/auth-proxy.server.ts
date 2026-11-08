@@ -11,6 +11,7 @@ export function authStepProxy(path: string, body: "optional-json" | "none") {
     method: "POST",
     path,
     body,
+    timeout: "login",
     additionalHeaders: (request: NextRequest): Record<string, string> => {
       const proof = request.headers.get("authorization");
       return proof ? { Authorization: proof } : {};

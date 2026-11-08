@@ -203,7 +203,7 @@ describe("session cookie writers", () => {
       for (const method of ["GET", "POST"])
         expect(code(file), file).toMatch(
           new RegExp(
-            `export const ${method} = withPrivateNoStore\\(\\s*withBrowserSession\\(\\w+\\.${method}\\),?\\s*\\);`,
+            `export const ${method} = withPrivateNoStore\\(\\s*withBrowserSession\\([\\w.]+\\.${method}\\),?\\s*\\);`,
           ),
         );
     }
@@ -257,9 +257,12 @@ describe("session cookie writers", () => {
       matching(/\bcreatePortalAuth\(/).filter((file) => file !== AUTH_FACTORY),
     ).toEqual(Object.keys(AUTH_INSTANCES).sort());
     for (const [file, portal] of Object.entries(AUTH_INSTANCES))
-      expect(code(file).match(/\bcreatePortalAuth\([^)]*\)/g), file).toEqual([
-        `createPortalAuth(PORTALS.${portal})`,
-      ]);
+      expect(
+        [...code(file).matchAll(/\bcreatePortalAuth\(\s*([\w.]+)/g)].map(
+          ([, descriptor]) => descriptor,
+        ),
+        file,
+      ).toEqual([`PORTALS.${portal}`]);
     // Nobody else reaches the raw helpers.
     expect(
       matching(

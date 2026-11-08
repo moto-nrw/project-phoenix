@@ -17,23 +17,26 @@ const { sessions, mockTenantAuth } = vi.hoisted(() => ({
   mockTenantAuth: vi.fn<Auth>(),
 }));
 
-const passThrough = (handler: unknown) => handler;
-vi.mock("~/server/auth/operator", () => ({
-  operatorAuth: sessions.operator,
-  withOperatorAuth: passThrough,
-}));
-vi.mock("~/server/auth/school", () => ({
-  schoolAuth: sessions.school,
-  withSchoolAuth: passThrough,
-}));
-vi.mock("~/server/auth/traeger", () => ({
-  traegerAuth: sessions.traeger,
-  withTraegerAuth: passThrough,
-}));
-vi.mock("~/server/auth", () => ({
-  auth: mockTenantAuth,
-  withTenantAuth: passThrough,
-}));
+vi.mock("~/server/auth/operator", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("operator", {
+    auth: sessions.operator,
+  }),
+);
+vi.mock("~/server/auth/school", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("school", {
+    auth: sessions.school,
+  }),
+);
+vi.mock("~/server/auth/traeger", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("traeger", {
+    auth: sessions.traeger,
+  }),
+);
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockTenantAuth,
+  }),
+);
 
 // Before, these portals' client logs went to the tenant /api/logs: the proxy
 // refused it on the school and Träger hosts, and on the operator host it

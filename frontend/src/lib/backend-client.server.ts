@@ -11,7 +11,7 @@ import { recordBackendProxyMetric } from "./backend-proxy-metrics";
 import {
   backendIdentityHeaders,
   clientIdentityHeaders,
-  incomingClientForwardHeaders,
+  incomingBackendIdentityHeaders,
 } from "./client-headers.server";
 import { sanitizeEndpoint } from "./log-sanitize";
 import { createLogger } from "./logger";
@@ -67,7 +67,7 @@ export interface BackendCall {
 async function identityHeaders(
   request: Request | undefined,
 ): Promise<Record<string, string>> {
-  if (!request) return incomingClientForwardHeaders();
+  if (!request) return incomingBackendIdentityHeaders();
   return "nextUrl" in request
     ? backendIdentityHeaders(request as NextRequest)
     : clientIdentityHeaders(request.headers);
@@ -203,6 +203,27 @@ export async function readBackendJson<T>(response: Response): Promise<T> {
   }
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
+}
+
+/**
+ * The backend's JSON for a token the caller holds, envelope included; an
+ * error answer throws ApiResponseError. The one JSON path of every portal:
+ * the portal handlers' `api` and the tenant's `apiGet`/`apiPost`/… use it,
+ * and a 401 is repeated by the route handler around it, per endpoint.
+ */
+export async function backendJson<T>(
+  method: BackendMethod,
+  endpoint: string,
+  token: string,
+  body?: unknown,
+  options: Pick<BackendCall, "idempotencyKey" | "request" | "signal"> = {},
+): Promise<T> {
+  const response = await sendBackend(endpoint, token, {
+    method,
+    json: body ?? undefined,
+    ...options,
+  });
+  return readBackendJson<T>(response);
 }
 
 /** The `data` of the backend's `{ status, data, message }` envelope. */

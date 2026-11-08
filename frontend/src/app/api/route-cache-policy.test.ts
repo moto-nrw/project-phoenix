@@ -28,7 +28,7 @@ const PORTAL_PROXIES = ["proxyGet", "proxyPost", "proxyPut", "proxyPatch"];
 
 /**
  * Factories that apply the cache policy, keyed by module. Authenticated
- * factories run through `createResponseAwareAuth().withAuthResponse`; the
+ * factories run through a portal object's `withAuth`; the
  * public ones wrap themselves in `withPrivateNoStore`. Tests:
  * `src/server/auth/portal-cache-control.test.ts`.
  */
@@ -39,12 +39,12 @@ const POLICY_FACTORIES: Record<string, readonly string[]> = {
     "withPrivateNoStore",
     "withPrivateDownloadNoStore",
   ],
-  "~/server/auth": ["withTenantAuth"],
-  "~/server/auth/operator": ["withOperatorAuth"],
-  "~/server/auth/parent": ["withParentAuth"],
-  "~/server/auth/school": ["withSchoolAuth"],
-  "~/server/auth/caterer": ["withCatererAuth"],
-  "~/server/auth/traeger": ["withTraegerAuth"],
+  "~/server/auth": ["tenantPortal.withAuth"],
+  "~/server/auth/operator": ["operatorPortal.withAuth"],
+  "~/server/auth/parent": ["parentPortal.withAuth"],
+  "~/server/auth/school": ["schoolPortal.withAuth"],
+  "~/server/auth/caterer": ["catererPortal.withAuth"],
+  "~/server/auth/traeger": ["traegerPortal.withAuth"],
   // `binding.method(…)`: every builder of a portal's handlers runs in the
   // portal's response wrapper (makePortalHandlers).
   "~/lib/route-wrapper.server": [
@@ -58,6 +58,8 @@ const POLICY_FACTORIES: Record<string, readonly string[]> = {
     "createOptionalTenantJsonProxy",
     "proxyFile",
     "tenant.route",
+    "tenant.get",
+    "tenant.post",
     "tenant.proxyFile",
     ...PORTAL_PROXIES,
     "proxyDelete",
@@ -411,11 +413,11 @@ describe("private download cache policy (#5119)", () => {
 
   it("does not mistake a JSON or portal wrapper for a download policy", () => {
     const file = path.join(API_ROOT, "fixture/route.ts");
-    for (const [module, name] of [
-      ["~/lib/private-no-store", "withPrivateNoStore"],
-      ["~/server/auth", "withTenantAuth"],
+    for (const [module, binding, name] of [
+      ["~/lib/private-no-store", "withPrivateNoStore", "withPrivateNoStore"],
+      ["~/server/auth", "tenantPortal", "tenantPortal.withAuth"],
     ]) {
-      const text = `import { ${name} } from "${module}"; export const GET = ${name}(handler);`;
+      const text = `import { ${binding} } from "${module}"; export const GET = ${name}(handler);`;
       expect(
         analyzeRouteSource(file, text, DOWNLOAD_POLICY_FACTORIES).get("GET"),
       ).toBe(false);

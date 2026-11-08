@@ -128,4 +128,26 @@ describe("authStepProxy", () => {
     });
     expect(captureException).toHaveBeenCalledOnce();
   });
+
+  it("gives up on a backend that does not answer within the auth-step budget", async () => {
+    vi.useFakeTimers();
+    fetchMock.mockImplementationOnce(
+      (_url, init) =>
+        new Promise((_resolve, reject) =>
+          init?.signal?.addEventListener("abort", () =>
+            reject(init.signal?.reason),
+          ),
+        ),
+    );
+    let settled = false;
+    const pending = resend(step()).finally(() => {
+      settled = true;
+    });
+
+    await vi.advanceTimersByTimeAsync(9_999);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect((await pending).status).toBe(503);
+  });
 });

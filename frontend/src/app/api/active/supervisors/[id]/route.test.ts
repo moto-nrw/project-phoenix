@@ -20,7 +20,6 @@ vi.mock("~/server/auth", async () =>
   (await import("~/test/portal-binding")).mockPortalModule("tenant", {
     auth: mockAuth,
     uncachedAuth: mockAuth,
-    withTenantAuth: (handler: unknown) => handler,
   }),
 );
 

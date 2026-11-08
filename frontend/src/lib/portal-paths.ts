@@ -9,6 +9,8 @@
 
 interface PortalRoutes {
   readonly basePath: `/api/${string}`;
+  /** The Auth.js Credentials provider id, for `signIn` in the browser. */
+  readonly providerId: string;
 }
 
 interface HostedPortalRoutes extends PortalRoutes {
@@ -26,30 +28,35 @@ interface HostedPortalRoutes extends PortalRoutes {
 const HOSTED_PORTAL_ROUTES = {
   operator: {
     basePath: "/api/operator/auth",
+    providerId: "operator-credentials",
     hostEnv: "NEXT_PUBLIC_OPERATOR_HOSTNAME",
     hostname: () => process.env.NEXT_PUBLIC_OPERATOR_HOSTNAME,
     appPrefix: "/operator",
   },
   parent: {
     basePath: "/api/parent/auth",
+    providerId: "parent-credentials",
     hostEnv: "NEXT_PUBLIC_PARENTS_HOSTNAME",
     hostname: () => process.env.NEXT_PUBLIC_PARENTS_HOSTNAME,
     appPrefix: "/parents",
   },
   school: {
     basePath: "/api/school/auth",
+    providerId: "school-credentials",
     hostEnv: "NEXT_PUBLIC_SCHOOL_HOSTNAME",
     hostname: () => process.env.NEXT_PUBLIC_SCHOOL_HOSTNAME,
     appPrefix: "/school",
   },
   caterer: {
     basePath: "/api/caterer/auth",
+    providerId: "caterer-credentials",
     hostEnv: "NEXT_PUBLIC_CATERER_HOSTNAME",
     hostname: () => process.env.NEXT_PUBLIC_CATERER_HOSTNAME,
     appPrefix: "/caterer",
   },
   traeger: {
     basePath: "/api/traeger/auth",
+    providerId: "traeger-credentials",
     hostEnv: "NEXT_PUBLIC_TRAEGER_HOSTNAME",
     hostname: () => process.env.NEXT_PUBLIC_TRAEGER_HOSTNAME,
     appPrefix: "/traeger",
@@ -57,7 +64,10 @@ const HOSTED_PORTAL_ROUTES = {
 } as const satisfies Record<string, HostedPortalRoutes>;
 
 export const PORTAL_ROUTES = {
-  tenant: { basePath: "/api/auth" } satisfies PortalRoutes,
+  tenant: {
+    basePath: "/api/auth",
+    providerId: "credentials",
+  } satisfies PortalRoutes,
   ...HOSTED_PORTAL_ROUTES,
 };
 
@@ -102,4 +112,11 @@ export function portalOfHost(host: string): PortalKey {
     HOSTED_PORTAL_KEYS.find((key) => PORTAL_ROUTES[key].hostname() === host) ??
     "tenant"
   );
+}
+
+/** A portal's host name; throws naming the env variable when it is unset. */
+export function requiredPortalHostname(portal: HostedPortalKey): string {
+  const hostname = PORTAL_ROUTES[portal].hostname();
+  if (!hostname) throw new Error(`${PORTAL_ROUTES[portal].hostEnv} is not set`);
+  return hostname;
 }

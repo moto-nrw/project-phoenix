@@ -22,17 +22,15 @@ vi.mock("~/lib/server-api-url", () => ({
 
 vi.mock("~/server/auth/parent", async () =>
   (await import("~/test/portal-binding")).mockPortalModule("parent", {
-    parentAuth: mockParentAuth,
-    uncachedParentAuth: mockParentAuth,
-    withParentAuth: (handler: unknown) => handler,
+    auth: mockParentAuth,
+    uncachedAuth: mockParentAuth,
   }),
 );
 
 vi.mock("~/server/auth/operator", async () =>
   (await import("~/test/portal-binding")).mockPortalModule("operator", {
-    operatorAuth: mockOperatorAuth,
-    uncachedOperatorAuth: mockOperatorAuth,
-    withOperatorAuth: (handler: unknown) => handler,
+    auth: mockOperatorAuth,
+    uncachedAuth: mockOperatorAuth,
   }),
 );
 
@@ -40,7 +38,6 @@ vi.mock("~/server/auth", async () =>
   (await import("~/test/portal-binding")).mockPortalModule("tenant", {
     auth: mockTenantAuth,
     uncachedAuth: mockTenantAuth,
-    withTenantAuth: (handler: unknown) => handler,
   }),
 );
 

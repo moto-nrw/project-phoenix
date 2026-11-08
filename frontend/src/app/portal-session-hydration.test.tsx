@@ -39,22 +39,26 @@ vi.mock("~/lib/portal-session-snapshot.server", () => ({
     return session ? { session, accessToken: "server-only" } : null;
   },
 }));
-vi.mock("~/server/auth/school", () => ({
-  schoolAuth: auths.school,
-  withSchoolAuth: (handler: unknown) => handler,
-}));
-vi.mock("~/server/auth/caterer", () => ({
-  catererAuth: auths.caterer,
-  withCatererAuth: (handler: unknown) => handler,
-}));
-vi.mock("~/server/auth/operator", () => ({
-  operatorAuth: auths.operator,
-  withOperatorAuth: (handler: unknown) => handler,
-}));
-vi.mock("~/server/auth/traeger", () => ({
-  traegerAuth: auths.traeger,
-  withTraegerAuth: (handler: unknown) => handler,
-}));
+vi.mock("~/server/auth/school", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("school", {
+    auth: auths.school,
+  }),
+);
+vi.mock("~/server/auth/caterer", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("caterer", {
+    auth: auths.caterer,
+  }),
+);
+vi.mock("~/server/auth/operator", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("operator", {
+    auth: auths.operator,
+  }),
+);
+vi.mock("~/server/auth/traeger", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("traeger", {
+    auth: auths.traeger,
+  }),
+);
 
 vi.mock("~/components/analytics/portal-analytics-session", () => ({
   PortalAnalyticsSession: () => null,

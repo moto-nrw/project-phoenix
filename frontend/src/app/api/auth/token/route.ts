@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { auth, withTenantAuth } from "~/server/auth";
+import { tenantPortal } from "~/server/auth";
 import { createLogger } from "~/lib/logger";
 import { problemResponse } from "~/lib/api-helpers.server";
 import { portalOfScope } from "~/server/auth/portals";
@@ -8,14 +8,14 @@ import { sessionFamilyState } from "~/server/auth/token-validation";
 const logger = createLogger({ component: "AuthTokenRoute" });
 
 /**
- * Renews the tenant session for the browser's 401 retry. auth() runs the JWT
- * callback, which refreshes a token near expiry; withTenantAuth persists the
+ * Renews the tenant session for the browser's 401 retry. tenantPortal.auth() runs the JWT
+ * callback, which refreshes a token near expiry; tenantPortal.withAuth persists the
  * rotated cookie. The answer carries no token (#5005): the browser only
  * learns whether the session still holds one.
  */
 async function POSTHandler(_request: NextRequest) {
   try {
-    const session = await auth();
+    const session = await tenantPortal.auth();
 
     if (!session?.user?.token || !session?.user?.refreshToken) {
       return problemResponse(401, "No refresh token found", _request);
@@ -41,4 +41,4 @@ async function POSTHandler(_request: NextRequest) {
   }
 }
 
-export const POST = withTenantAuth(POSTHandler);
+export const POST = tenantPortal.withAuth(POSTHandler);

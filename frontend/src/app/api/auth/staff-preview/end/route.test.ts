@@ -5,9 +5,9 @@ import type { ServerAuthRequest } from "~/server/auth/route-handler";
 
 // The request's `auth` stands for the session the wrapper reads from the
 // cookie.
-vi.mock("~/server/auth", () => ({
-  withTenantAuth: (handler: unknown) => handler,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {}),
+);
 const { POST } = await import("./route");
 
 const mockFetch = vi.fn();

@@ -16,7 +16,7 @@ vi.mock("~/env", () => ({
 }));
 vi.mock("~/server/auth", async () =>
   (await import("~/test/portal-binding")).mockPortalModule("tenant", {
-    withTenantAuth:
+    withAuth:
       (handler: (req: unknown) => Promise<Response>) =>
       async (request: NextRequest) => {
         request.clone(); // NextAuth reconstructs the request; its body must remain unread.
@@ -26,7 +26,7 @@ vi.mock("~/server/auth", async () =>
 );
 vi.mock("~/server/auth/parent", async () =>
   (await import("~/test/portal-binding")).mockPortalModule("parent", {
-    withParentAuth:
+    withAuth:
       (handler: (req: unknown) => Promise<Response>) =>
       async (request: NextRequest) => {
         request.clone();
@@ -36,7 +36,7 @@ vi.mock("~/server/auth/parent", async () =>
 );
 vi.mock("~/server/auth/school", async () =>
   (await import("~/test/portal-binding")).mockPortalModule("school", {
-    withSchoolAuth:
+    withAuth:
       (handler: (req: unknown) => Promise<Response>) =>
       async (request: NextRequest) => {
         request.clone();

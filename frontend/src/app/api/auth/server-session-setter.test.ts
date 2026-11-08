@@ -39,7 +39,8 @@ vi.mock("~/server/auth/portal-config", async () => {
     }),
   };
 });
-const { withTenantAuth, setTenantSession } = await import("~/server/auth");
+const { tenantPortal } = await import("~/server/auth");
+const { withAuth: withTenantAuth, setSession: setTenantSession } = tenantPortal;
 beforeEach(() => {
   vi.stubEnv("AUTH_URL", "http://localhost:3000/api/auth");
   state.jar = MutableRequestCookiesAdapter.wrap(

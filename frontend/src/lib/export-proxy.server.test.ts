@@ -8,7 +8,7 @@ import {
   createFileDownloadRoute,
   createFileExportRoute,
 } from "./export-proxy.server";
-import { withTenantAuth } from "~/server/auth";
+import { tenantPortal } from "~/server/auth";
 import type { ExtendedSession } from "~/test/route-test-helpers";
 
 // The shared body of the export routes that answer with a file. It bypasses
@@ -26,7 +26,6 @@ vi.mock("~/server/auth", async () =>
   (await import("~/test/portal-binding")).mockPortalModule("tenant", {
     auth: mockAuth,
     uncachedAuth: mockUncachedAuth,
-    withTenantAuth: (handler: unknown) => handler,
   }),
 );
 
@@ -56,7 +55,7 @@ function fileResponse(init: { disposition?: string | null } = {}) {
   return new Response(new Uint8Array([1, 2, 3, 4]), { status: 200, headers });
 }
 
-const route = withTenantAuth(
+const route = tenantPortal.withAuth(
   createFileExportRoute({
     backendPath: "/api/staff-shifts/export",
   }),
@@ -200,7 +199,7 @@ describe("createFileExportRoute", () => {
     const fetchMock = vi.fn().mockResolvedValue(fileResponse());
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    const normalizing = withTenantAuth(
+    const normalizing = tenantPortal.withAuth(
       createFileExportRoute({
         backendPath: "/api/staff-shifts/export",
         normalizeBody: (raw) => ({ ...(raw as object), variant: "aushang" }),
@@ -221,7 +220,7 @@ describe("createFileExportRoute", () => {
     const fetchMock = vi.fn();
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    const normalizing = withTenantAuth(
+    const normalizing = tenantPortal.withAuth(
       createFileExportRoute({
         backendPath: "/api/staff-shifts/export",
         normalizeBody: (raw) => raw,
@@ -264,7 +263,7 @@ describe("createFileExportRoute", () => {
 });
 
 describe("createFileDownloadRoute", () => {
-  const download = withTenantAuth(
+  const download = tenantPortal.withAuth(
     createFileDownloadRoute<{ surveyId: string }>({
       backendPath: ({ surveyId }) =>
         `/api/surveys/${encodeURIComponent(surveyId)}/results/export`,

@@ -35,7 +35,7 @@ const { POST: login } = await import("./login/route");
 const { POST: verify } = await import("./mfa/verify/route");
 const { POST: enroll } = await import("./mfa/enroll/confirm/route");
 const { POST: passkey } = await import("./passkeys/login/verify/route");
-const { handlers } = await import("~/server/auth");
+const { handlers } = (await import("~/server/auth")).tenantPortal;
 const backend = vi.fn();
 const claims = () => ({
   id: 42,

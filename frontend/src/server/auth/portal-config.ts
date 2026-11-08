@@ -169,7 +169,7 @@ export function createPortalAuthConfig(portal: PortalDescriptor) {
       ...(portal.tenantFeatures ? [DiscordProvider] : []),
       credentialsProvider(portal),
     ],
-    ...(portal.key === "tenant" ? {} : { basePath: portal.basePath }),
+    basePath: portal.basePath,
     callbacks: {
       redirect: portal.redirect,
       jwt: createJwtCallback(portal),

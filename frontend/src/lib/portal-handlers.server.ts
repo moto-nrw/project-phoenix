@@ -11,13 +11,11 @@ import {
 } from "./api-response-error.server";
 import {
   assertPortalRequestContext,
+  backendJson,
   createBackendFetch,
-  readBackendJson,
   renewalFailureResponse,
   renewSession,
-  sendBackend,
   unwrapEnvelope,
-  type BackendMethod,
   type PortalSession,
   type SessionCall,
 } from "./backend-client.server";
@@ -203,25 +201,7 @@ export function makePortalHandlers(portal: PortalBinding) {
   const del = noBody(deleted);
   const delWithBody = withBody(deleted);
 
-  /**
-   * The backend's JSON for a token the handler holds. With the browser
-   * request, its client identity travels; without, the identity of the
-   * request being handled.
-   */
-  async function api<T>(
-    method: BackendMethod,
-    endpoint: string,
-    token: string,
-    body?: unknown,
-    options: { idempotencyKey?: string | null; request?: Request } = {},
-  ): Promise<T> {
-    const response = await sendBackend(endpoint, token, {
-      method,
-      json: body ?? undefined,
-      ...options,
-    });
-    return readBackendJson<T>(response);
-  }
+  const api = backendJson;
 
   const resolve = (endpoint: ProxyEndpoint, params: Params) =>
     typeof endpoint === "function" ? endpoint(params) : endpoint;

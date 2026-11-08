@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { auth, setStaffPreviewSession, withTenantAuth } from "~/server/auth";
+import { tenantPortal } from "~/server/auth";
 import { sessionMutationOriginError } from "~/server/auth/same-origin";
 import { problemResponse } from "~/lib/api-response-error.server";
 import { forwardJsonRequest } from "~/lib/json-proxy.server";
@@ -7,11 +7,11 @@ import { tenant } from "~/lib/route-wrapper.server";
 import type { RouteContext } from "~/lib/route-wrapper-utils.server";
 import { installMintedSession } from "~/lib/session-transition.server";
 
-export const POST = withTenantAuth(
+export const POST = tenantPortal.withAuth(
   async (request: NextRequest, context: RouteContext) => {
     const originError = sessionMutationOriginError(request);
     if (originError) return originError;
-    if ((await auth())?.user?.isPreview)
+    if ((await tenantPortal.auth())?.user?.isPreview)
       return problemResponse(409, "A preview is already running", request);
     return forwardJsonRequest(
       request,
@@ -31,7 +31,7 @@ export const POST = withTenantAuth(
           const failure = await installMintedSession(
             request,
             () =>
-              setStaffPreviewSession({
+              tenantPortal.setStaffPreviewSession({
                 accessToken: preview.access_token,
                 expiresIn: preview.expires_in,
                 targetAccountId: preview.target_account_id,

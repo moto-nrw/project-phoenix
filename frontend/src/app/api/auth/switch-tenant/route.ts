@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { setTenantSession, withTenantAuth } from "~/server/auth";
+import { tenantPortal } from "~/server/auth";
 import { PORTALS } from "~/server/auth/portals";
 import { sessionMutationOriginError } from "~/server/auth/same-origin";
 import { forwardJsonRequest } from "~/lib/json-proxy.server";
@@ -11,7 +11,7 @@ import {
   mintedPair,
 } from "~/lib/session-transition.server";
 
-export const POST = withTenantAuth(
+export const POST = tenantPortal.withAuth(
   async (request: NextRequest, context: RouteContext) => {
     const originError = sessionMutationOriginError(request);
     if (originError) return originError;
@@ -30,7 +30,8 @@ export const POST = withTenantAuth(
           return (
             (await installMintedSession(
               request,
-              () => setTenantSession(pair.access_token, pair.refresh_token),
+              () =>
+                tenantPortal.setSession(pair.access_token, pair.refresh_token),
               logoutRollback(PORTALS.tenant.backend.logout, pair),
             )) ?? Response.json({ success: true })
           );

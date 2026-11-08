@@ -18,9 +18,8 @@ const {
 
 vi.mock("~/server/auth/operator", async () =>
   (await import("~/test/portal-binding")).mockPortalModule("operator", {
-    operatorAuth: mockAuth,
-    uncachedOperatorAuth: mockAuth,
-    withOperatorAuth: (handler: unknown) => handler,
+    auth: mockAuth,
+    uncachedAuth: mockAuth,
   }),
 );
 

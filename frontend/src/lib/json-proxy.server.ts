@@ -31,6 +31,8 @@ export interface JsonProxyOptions {
     request: NextRequest,
   ) => Response | Promise<Response>;
   onBackendError?: (response: Response) => void;
+  /** A tighter budget than the default; see BACKEND_TIMEOUTS_MS. */
+  timeout?: BackendCall["timeout"];
 }
 
 /** Sends one backend call: the portal's session client, or a public send. */
@@ -113,6 +115,7 @@ export async function forwardJsonRequest(
         method: options.method,
         ...body,
         headers: options.additionalHeaders?.(request),
+        timeout: options.timeout,
       },
     );
     if (!response.ok) {

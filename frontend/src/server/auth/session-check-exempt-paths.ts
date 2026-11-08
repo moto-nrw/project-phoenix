@@ -1,5 +1,5 @@
 import "server-only";
-import { portalLogPath } from "~/lib/portal-paths";
+import { portalAuthPath, portalLogPath } from "~/lib/portal-paths";
 import { ALL_PORTALS } from "./portals";
 
 /**
@@ -11,11 +11,10 @@ import { ALL_PORTALS } from "./portals";
  * session's; the bare domain's invitation page calls it.
  */
 export const MISMATCH_EXEMPT_PATHS: ReadonlySet<string> = new Set([
-  "/api/auth/switch-tenant",
-  "/api/auth/token",
-  "/api/auth/logout",
-  "/api/auth/staff-preview/end",
-  "/api/logs",
+  ...["switch-tenant", "token", "logout", "staff-preview/end"].map((step) =>
+    portalAuthPath("tenant", step),
+  ),
+  portalLogPath("tenant"),
   "/api/invitations/accept",
 ]);
 
@@ -32,7 +31,7 @@ export const MISMATCH_EXEMPT_PATHS: ReadonlySet<string> = new Set([
  */
 export const ACCOUNT_CHECK_EXEMPT_PATHS: ReadonlySet<string> = new Set([
   ...ALL_PORTALS.map((portal) => portalLogPath(portal.key)),
-  "/api/auth/token",
+  portalAuthPath("tenant", "token"),
   // Each portal's BFF logout route, app/api/…/auth/logout/route.ts.
-  ...ALL_PORTALS.map((portal) => `${portal.basePath}/logout`),
+  ...ALL_PORTALS.map((portal) => portalAuthPath(portal.key, "logout")),
 ]);

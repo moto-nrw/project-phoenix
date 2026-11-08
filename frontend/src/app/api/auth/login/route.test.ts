@@ -20,9 +20,8 @@ const { setTenantSession } = vi.hoisted(() => ({
 }));
 vi.mock("~/server/auth", async () =>
   (await import("~/test/portal-binding")).mockPortalModule("tenant", {
-    setTenantSession,
-    withTenantSessionResponse: (handler: unknown) => handler,
-    withTenantAuth: (handler: unknown) => handler,
+    setSession: setTenantSession,
+    withSessionResponse: (handler: unknown) => handler,
   }),
 );
 

@@ -12,9 +12,8 @@ const { mockAuth, setTenantSession, setStaffPreviewSession } = vi.hoisted(
 vi.mock("~/server/auth", async () =>
   (await import("~/test/portal-binding")).mockPortalModule("tenant", {
     auth: mockAuth,
-    setTenantSession,
+    setSession: setTenantSession,
     setStaffPreviewSession,
-    withTenantAuth: (handler: unknown) => handler,
   }),
 );
 const { POST: switchTenant } = await import("./route");

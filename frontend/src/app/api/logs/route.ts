@@ -4,11 +4,11 @@
  */
 
 import type { NextRequest } from "next/server";
-import { auth, withTenantAuth } from "~/server/auth";
+import { tenantPortal } from "~/server/auth";
 import { ingestClientLogs } from "~/lib/client-log-ingest.server";
 
 async function POSTHandler(request: NextRequest) {
-  return ingestClientLogs(request, await auth(), "tenant");
+  return ingestClientLogs(request, await tenantPortal.auth(), "tenant");
 }
 
-export const POST = withTenantAuth(POSTHandler);
+export const POST = tenantPortal.withAuth(POSTHandler);

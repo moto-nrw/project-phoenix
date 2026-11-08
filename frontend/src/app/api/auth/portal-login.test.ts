@@ -35,12 +35,12 @@ vi.mock("~/server/auth/portal-config", async (original) => {
 
 import { createPortalLoginRoute } from "~/lib/login-route.server";
 import { POST as demo } from "../demo/access/sessions/route";
-import { operatorHandlers, operatorPortal } from "~/server/auth/operator";
-import { schoolHandlers, schoolPortal } from "~/server/auth/school";
-import { traegerHandlers, traegerPortal } from "~/server/auth/traeger";
-import { catererHandlers, catererPortal } from "~/server/auth/caterer";
-import { parentHandlers } from "~/server/auth/parent";
-import { handlers as tenantHandlers, tenantPortal } from "~/server/auth";
+import { operatorPortal } from "~/server/auth/operator";
+import { schoolPortal } from "~/server/auth/school";
+import { traegerPortal } from "~/server/auth/traeger";
+import { catererPortal } from "~/server/auth/caterer";
+import { parentPortal } from "~/server/auth/parent";
+import { tenantPortal } from "~/server/auth";
 
 const LOGIN = {
   tenant: tenantPortal,
@@ -100,10 +100,10 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 const portals = [
-  ["operator", "platform", operatorHandlers, true],
-  ["school", "school", schoolHandlers, false],
-  ["traeger", "org", traegerHandlers, false],
-  ["caterer", "caterer", catererHandlers, true],
+  ["operator", "platform", operatorPortal.handlers, true],
+  ["school", "school", schoolPortal.handlers, false],
+  ["traeger", "org", traegerPortal.handlers, false],
+  ["caterer", "caterer", catererPortal.handlers, true],
 ] as const;
 describe.each(portals)(
   "%s BFF session",
@@ -202,7 +202,10 @@ describe.each(portals)(
         );
         expect((await session.json()).user).toMatchObject({ id: "42", scope });
         // Other portal configs cannot consume this portal's cookie.
-        const other = portal === "operator" ? schoolHandlers : operatorHandlers;
+        const other =
+          portal === "operator"
+            ? schoolPortal.handlers
+            : operatorPortal.handlers;
         const otherPortal = portal === "operator" ? "school" : "operator";
         const foreign = await other.GET(
           new NextRequest(
@@ -291,6 +294,31 @@ describe.each(portals)(
     );
   },
 );
+it("gives up on a password step the backend does not answer within the auth-step budget", async () => {
+  vi.useFakeTimers();
+  backend.mockImplementationOnce(
+    (_url: string, init: RequestInit) =>
+      new Promise((_resolve, reject) =>
+        init.signal?.addEventListener("abort", () =>
+          reject(init.signal?.reason),
+        ),
+      ),
+  );
+  let settled = false;
+  const pending = createPortalLoginRoute(
+    LOGIN.school,
+    "login",
+  )(request("school")).finally(() => {
+    settled = true;
+  });
+
+  await vi.advanceTimersByTimeAsync(9_999);
+  expect(settled).toBe(false);
+  await vi.advanceTimersByTimeAsync(1);
+
+  expect((await pending).status).toBe(503);
+  expect(backend).toHaveBeenCalledOnce();
+});
 it("allowlists Träger organization selection without disclosing credentials", async () => {
   backend.mockResolvedValueOnce(
     Response.json({
@@ -311,8 +339,14 @@ it("allowlists Träger organization selection without disclosing credentials", a
 });
 
 describe.each([
-  ["parents", "parent", "parent", "parent.session-token", parentHandlers],
-  ["messe-demo", "lead", "", "authjs.session-token", tenantHandlers],
+  [
+    "parents",
+    "parent",
+    "parent",
+    "parent.session-token",
+    parentPortal.handlers,
+  ],
+  ["messe-demo", "lead", "", "authjs.session-token", tenantPortal.handlers],
 ] as const)("%s demo session", (host, role, scope, cookieName, handlers) => {
   it("installs the host's real session and returns allowlisted visit metadata only", async () => {
     backend
