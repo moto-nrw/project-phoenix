@@ -262,7 +262,7 @@ func (r careNoticeRow) notice() parentbilling.CareNotice {
 	issuedOn := r.IssuedOn
 	notice := parentbilling.CareNotice{ID: r.ID, Number: r.Number, IssuedOn: &issuedOn, Kind: r.Kind, ContractID: r.CareContractID,
 		SchoolID: r.SchoolID, SchoolName: r.SchoolName, ChildFirstName: r.ChildFirstName, ChildLastName: r.ChildLastName,
-		StudentID: r.StudentID, Recipient: r.Recipient, PaymentMethod: r.PaymentMethod, Year: r.Year, PeriodFrom: r.PeriodFrom,
+		StudentID: r.StudentID, Recipient: r.Recipient, FamilyEmail: r.FamilyEmail, PaymentMethod: r.PaymentMethod, Year: r.Year, PeriodFrom: r.PeriodFrom,
 		PeriodUntil: r.PeriodUntil, Lines: r.Lines, PreviousCents: r.PreviousCents, TotalCents: r.TotalCents,
 		DeltaCents: r.DeltaCents, LegalRemedy: r.LegalRemedy, Installments: []parentbilling.CareNoticeInstallment{},
 		Months: []parentbilling.CareInvoice{}}
@@ -393,12 +393,21 @@ func noticeMonthRows(organizationID, noticeID int64, notice parentbilling.CareNo
 	return months
 }
 
+// noticeFamily is the family of the contract party the sibling rules count
+// by (#4689); the payer of a deviation only receives the notice.
+func noticeFamily(notice parentbilling.CareNotice) string {
+	if notice.FamilyEmail != "" {
+		return notice.FamilyEmail
+	}
+	return parentbilling.FamilyKey(notice.Recipient.Email)
+}
+
 func noticeRow(organizationID, runID int64, numberYear int, sequence int64, notice parentbilling.CareNotice) *careNoticeRow {
 	row := &careNoticeRow{OrganizationID: organizationID, RunID: runID, Number: notice.Number, NumberYear: numberYear,
 		NumberSequence: sequence, IssuedOn: *notice.IssuedOn, Year: notice.Year, Kind: notice.Kind, CareContractID: notice.ContractID,
 		SchoolID: notice.SchoolID, SchoolName: notice.SchoolName, ChildFirstName: notice.ChildFirstName,
 		ChildLastName: notice.ChildLastName, StudentID: notice.StudentID, RecipientEmail: notice.Recipient.Email,
-		FamilyEmail: parentbilling.FamilyKey(notice.Recipient.Email), Recipient: notice.Recipient,
+		FamilyEmail: noticeFamily(notice), Recipient: notice.Recipient,
 		PaymentMethod: notice.PaymentMethod, PeriodFrom: notice.PeriodFrom, PeriodUntil: notice.PeriodUntil, Lines: notice.Lines,
 		PreviousCents: notice.PreviousCents, TotalCents: notice.TotalCents, DeltaCents: notice.DeltaCents, LegalRemedy: notice.LegalRemedy}
 	if notice.Amends != nil {

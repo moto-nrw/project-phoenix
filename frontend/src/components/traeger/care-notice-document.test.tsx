@@ -75,6 +75,12 @@ function letter(notice: CareNotice = MK007): CareNoticeLetter {
     contactEmail: "info@example.org",
     accentColor: "",
     logoDataUrl: "",
+    bankAccount: {
+      accountHolder: "Gemeindekasse Hardt",
+      iban: "DE02120300000000202051",
+      bic: "BYLADEM1001",
+      bankName: "Kreissparkasse Rottweil",
+    },
   };
 }
 
@@ -89,9 +95,12 @@ describe("CareNoticeDocument", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("1.2025.000041.1")).toBeInTheDocument();
     expect(
-      screen.getByText("Bitte bei allen Zahlungen und Rückfragen angeben."),
+      screen.getByText(/Bitte bei allen Zahlungen und Rückfragen angeben/),
     ).toBeInTheDocument();
     expect(screen.getByText("Am Bach 3")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Bankverbindung: Gemeindekasse Hardt · IBAN/),
+    ).toBeInTheDocument();
 
     const calculation = screen
       .getByRole("heading", { name: "I. Berechnung" })

@@ -143,8 +143,11 @@ type CareNotice struct {
 	ChildFirstName string         `json:"child_first_name"`
 	ChildLastName  string         `json:"child_last_name"`
 	// StudentID is the child record the contract names, nil without one.
-	StudentID     *int64                  `json:"-"`
-	Recipient     CareRecipient           `json:"recipient"`
+	StudentID *int64        `json:"-"`
+	Recipient CareRecipient `json:"recipient"`
+	// FamilyEmail is the family of the contract party, whoever pays
+	// (#4689); the sibling rules and caps count by it.
+	FamilyEmail   string                  `json:"-"`
 	PaymentMethod string                  `json:"payment_method"`
 	Year          int                     `json:"year"`
 	PeriodFrom    calendar.Date           `json:"period_from"`
@@ -197,6 +200,17 @@ type CareNoticeLetter struct {
 	AccentColor  string     `json:"accent_color"`
 	// LogoDataURL is the logo of the Träger as a data URL, empty without.
 	LogoDataURL string `json:"logo_data_url"`
+	// BankAccount is the default bank account of the Träger, nil without;
+	// a notice paid by transfer names it.
+	BankAccount *CareNoticeBankAccount `json:"bank_account"`
+}
+
+// CareNoticeBankAccount is the bank account a notice names.
+type CareNoticeBankAccount struct {
+	AccountHolder string `json:"account_holder"`
+	IBAN          string `json:"iban"`
+	BIC           string `json:"bic"`
+	BankName      string `json:"bank_name"`
 }
 
 // CareFeeNotices lets the Abrechnung of a Träger assess the months of a

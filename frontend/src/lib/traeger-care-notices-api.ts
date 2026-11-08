@@ -127,6 +127,12 @@ export interface CareNoticeLetter {
   readonly contactEmail: string;
   readonly accentColor: string;
   readonly logoDataUrl: string;
+  readonly bankAccount: {
+    readonly accountHolder: string;
+    readonly iban: string;
+    readonly bic: string;
+    readonly bankName: string;
+  } | null;
 }
 
 interface BackendRun {
@@ -227,6 +233,12 @@ interface BackendLetter {
   contact_email: string;
   accent_color: string;
   logo_data_url: string;
+  bank_account: {
+    account_holder: string;
+    iban: string;
+    bic: string;
+    bank_name: string;
+  } | null;
 }
 
 function runFromBackend(run: BackendRun): CareNoticeRun {
@@ -421,5 +433,13 @@ export async function fetchCareNoticeLetter(
     contactEmail: letter.contact_email,
     accentColor: letter.accent_color,
     logoDataUrl: letter.logo_data_url,
+    bankAccount: letter.bank_account
+      ? {
+          accountHolder: letter.bank_account.account_holder,
+          iban: letter.bank_account.iban,
+          bic: letter.bank_account.bic,
+          bankName: letter.bank_account.bank_name,
+        }
+      : null,
   };
 }

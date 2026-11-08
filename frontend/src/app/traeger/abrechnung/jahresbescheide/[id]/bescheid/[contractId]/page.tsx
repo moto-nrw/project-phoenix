@@ -62,6 +62,7 @@ export default function TraegerCareNoticePage() {
       back
       backHref={traegerPath(`/traeger/abrechnung/jahresbescheide/${runId}`)}
       backLabel="Zurück zum Jahreslauf"
+      printHideHeader
       stats={
         notice ? (
           <span className="text-sm text-gray-600">

@@ -289,7 +289,16 @@ func (n *CareFeeNotices) CareNoticeLetter(ctx context.Context, reviewer parentbi
 	notice.LegalRemedy = filledLegalRemedy(notice, letterhead)
 	return parentbilling.CareNoticeLetter{Notice: notice, SenderText: letterhead.SenderText,
 		FooterText: letterhead.FooterText, ContactName: letterhead.ContactName, ContactPhone: letterhead.ContactPhone,
-		ContactEmail: letterhead.ContactEmail, AccentColor: letterhead.AccentColor, LogoDataURL: logoDataURL(letterhead.Logo)}, nil
+		ContactEmail: letterhead.ContactEmail, AccentColor: letterhead.AccentColor, LogoDataURL: logoDataURL(letterhead.Logo),
+		BankAccount: noticeBankAccount(letterhead.BankAccount)}, nil
+}
+
+func noticeBankAccount(account *parentbilling.LetterheadBankAccount) *parentbilling.CareNoticeBankAccount {
+	if account == nil {
+		return nil
+	}
+	return &parentbilling.CareNoticeBankAccount{AccountHolder: account.AccountHolder, IBAN: account.IBAN, BIC: account.BIC,
+		BankName: account.BankName}
 }
 
 // filledLegalRemedy fills the placeholders of the legal remedy the notice

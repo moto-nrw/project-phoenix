@@ -1,6 +1,7 @@
 "use client";
 
-// Seite 1 eines Jahresbescheids (#6219), so aufgebaut wie der Bescheid der
+// Seite 1 eines Jahresbescheids (#6219) im Briefbogen des Trägers
+// (TraegerLetterheadPreview), aufgebaut wie der Bescheid der
 // Gemeinde Hardt (MK-007): Kopf mit Absender, Anschrift und Auskunft rechts,
 // Bescheid-Nr. groß, dann „I. Berechnung“ je Grundlage mit bisher, neu und
 // Zu-/Abgang, „II. Abrechnung“ mit den Raten und dem Zahlungsweg, zuletzt
@@ -9,8 +10,6 @@
 
 import { DataField } from "~/components/ui/data-field";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
-import { InsetPanel } from "~/components/ui/inset-panel";
-import { SectionCard } from "~/components/ui/section-card";
 import { SectionLabel } from "~/components/ui/section-label";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { formatDate } from "~/lib/date-helpers";
@@ -28,6 +27,7 @@ import {
   noticePeriod,
 } from "./care-notice-format";
 import { formatEuro } from "./contribution-format";
+import { TraegerLetterheadPreview } from "./traeger-letterhead-preview";
 
 function lineColumns(change: boolean): DataTableColumn<CareNoticeLine>[] {
   const columns: DataTableColumn<CareNoticeLine>[] = [
@@ -61,26 +61,28 @@ function lineColumns(change: boolean): DataTableColumn<CareNoticeLine>[] {
       render: (line) => formatEuro(line.monthlyPreviousCents),
     });
   }
-  columns.push(
-    {
-      key: "monthly",
-      header: change ? "Monat neu" : "Betrag im Monat",
-      align: "right",
-      className: "tabular-nums",
-      render: (line) => formatEuro(line.monthlyCents),
-      stackedRender: (line) =>
-        `${formatEuro(line.monthlyCents)} im Monat · ${noticePeriod(line.periodFrom, line.periodUntil)}`,
-      stackedLabel: change,
-    },
-    {
+  columns.push({
+    key: "monthly",
+    header: change ? "Monat neu" : "Betrag im Monat",
+    align: "right",
+    className: "tabular-nums",
+    render: (line) => formatEuro(line.monthlyCents),
+    stackedRender: (line) =>
+      `${formatEuro(line.monthlyCents)} im Monat · ${noticePeriod(line.periodFrom, line.periodUntil)}`,
+    stackedLabel: change,
+  });
+  // A change notice compares before and now; the quantity stays 1 and
+  // gives way to the amounts in the narrower letter.
+  if (!change) {
+    columns.push({
       key: "quantity",
       header: "Anzahl",
       align: "right",
       className: "tabular-nums",
       render: (line) => line.quantity,
-      stacked: change ? "field" : "hidden",
-    },
-  );
+      stacked: "hidden",
+    });
+  }
   if (change) {
     columns.push({
       key: "annual_before",
@@ -174,98 +176,84 @@ function paymentText(notice: CareNotice): string {
     : `Bitte überweisen Sie jede Rate bis zum Fälligkeitstag. Geben Sie dabei die Bescheid-Nr.${notice.number ? ` ${notice.number}` : ""} an.`;
 }
 
-function RecipientBlock({ letter }: Readonly<{ letter: CareNoticeLetter }>) {
+/** The lines of the address field: recipient, second parent, address. */
+function recipientLines(letter: CareNoticeLetter): string[] {
   const { recipient } = letter.notice;
-  const sender = letter.senderText.split("\n")[0]?.trim() ?? "";
-  return (
-    <address className="not-italic">
-      {sender ? (
-        <p className="mb-2 border-b border-gray-200 pb-1 text-xs text-gray-500">
-          {sender}
-        </p>
-      ) : null}
-      <p className="text-sm text-gray-900">
-        {recipient.firstName} {recipient.lastName}
-      </p>
-      {recipient.secondName ? (
-        <p className="text-sm text-gray-900">{recipient.secondName}</p>
-      ) : null}
-      {recipient.address ? (
-        <>
-          <p className="text-sm text-gray-900">{recipient.address.street}</p>
-          <p className="text-sm text-gray-900">
-            {recipient.address.postalCode} {recipient.address.city}
-          </p>
-        </>
-      ) : (
-        <p className="text-sm text-gray-600">{recipient.email}</p>
-      )}
-    </address>
-  );
+  return [
+    `${recipient.firstName} ${recipient.lastName}`.trim(),
+    recipient.secondName,
+    ...(recipient.address
+      ? [
+          recipient.address.street,
+          `${recipient.address.postalCode} ${recipient.address.city}`.trim(),
+        ]
+      : [recipient.email]),
+  ].filter((line) => line !== "");
 }
 
-/** Page 1 of a Jahresbescheid with the letterhead of the Träger. */
+/**
+ * Page 1 of a Jahresbescheid on the letterhead of the Träger: the letter
+ * shell (logo, sender, address, facts, footer with the bank account) is the
+ * shared preview of the Träger's letters; the notice adds its content.
+ */
 export function CareNoticeDocument({
   letter,
 }: Readonly<{ letter: CareNoticeLetter }>) {
   const { notice } = letter;
   const change = notice.kind === "change";
   const draft = notice.number === "";
+  const account = letter.bankAccount;
   return (
-    <SectionCard
-      as="article"
-      bodyClassName="space-y-8 sm:p-5"
-      className="mx-auto w-full max-w-4xl"
-    >
-      <header className="grid gap-6 sm:grid-cols-[1fr_minmax(0,18rem)]">
-        <RecipientBlock letter={letter} />
-        <div className="space-y-4">
-          {letter.logoDataUrl ? (
-            // A data URL of the Träger's own logo: next/image cannot optimize it.
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={letter.logoDataUrl}
-              alt="Logo des Trägers"
-              className="ml-auto h-14 w-auto object-contain"
-            />
-          ) : null}
-          <dl className="space-y-1">
-            <DataField inline label="Datum">
-              {notice.issuedOn
-                ? formatDate(notice.issuedOn)
-                : "bei Ausstellung"}
-            </DataField>
-            <DataField inline label="Seite">
-              1
-            </DataField>
-            {letter.contactName ? (
-              <DataField inline label="Auskunft">
-                {letter.contactName}
-                {letter.contactPhone ? (
-                  <span className="block text-gray-600">
-                    Tel. {letter.contactPhone}
-                  </span>
-                ) : null}
-                {letter.contactEmail ? (
-                  <span className="block text-gray-600">
-                    {letter.contactEmail}
-                  </span>
-                ) : null}
-              </DataField>
-            ) : null}
-          </dl>
-          <InsetPanel padding="md">
-            <p className="text-xs text-gray-600">Bescheid-Nr.</p>
-            <p className="text-xl font-semibold tracking-tight text-gray-900 tabular-nums">
-              {draft ? "wird vergeben" : notice.number}
-            </p>
-            <p className="mt-1 text-xs text-gray-600">
-              Bitte bei allen Zahlungen und Rückfragen angeben.
-            </p>
-          </InsetPanel>
-        </div>
-      </header>
+    <TraegerLetterheadPreview
+      label={`${NOTICE_KIND_LABELS[notice.kind]} für ${notice.childFirstName} ${notice.childLastName}`}
+      logoSrc={letter.logoDataUrl || null}
+      letterheadText={letter.senderText}
+      footerText={letter.footerText}
+      color={letter.accentColor}
+      contact={{
+        name: letter.contactName,
+        phone: letter.contactPhone,
+        email: letter.contactEmail,
+      }}
+      defaultAccount={
+        account
+          ? {
+              id: "",
+              label: "",
+              isDefault: true,
+              accountHolder: account.accountHolder,
+              iban: account.iban,
+              bic: account.bic,
+              bankName: account.bankName,
+            }
+          : null
+      }
+      recipient={recipientLines(letter)}
+      facts={[
+        {
+          label: "Datum",
+          value: notice.issuedOn
+            ? formatDate(notice.issuedOn)
+            : "bei Ausstellung",
+        },
+        { label: "Seite", value: "1" },
+        {
+          label: "Bescheid-Nr.",
+          value: draft ? "wird vergeben" : notice.number,
+        },
+      ]}
+      body={<NoticeBody notice={notice} change={change} draft={draft} />}
+    />
+  );
+}
 
+function NoticeBody({
+  notice,
+  change,
+  draft,
+}: Readonly<{ notice: CareNotice; change: boolean; draft: boolean }>) {
+  return (
+    <div className="space-y-8">
       <div className="space-y-1">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-xl font-semibold text-gray-900">
@@ -280,6 +268,11 @@ export function CareNoticeDocument({
         <p className="text-sm text-gray-700">
           {notice.childFirstName} {notice.childLastName} · {notice.schoolName} ·
           Zeitraum {noticePeriod(notice.periodFrom, notice.periodUntil)}
+        </p>
+        <p className="text-sm text-gray-700">
+          {draft
+            ? "Die Bescheid-Nr. kommt beim Ausstellen."
+            : `Bescheid-Nr. ${notice.number}: Bitte bei allen Zahlungen und Rückfragen angeben.`}
         </p>
         {notice.amends ? (
           <p className="text-sm text-gray-700">
@@ -364,12 +357,6 @@ export function CareNoticeDocument({
           </p>
         )}
       </section>
-
-      {letter.footerText ? (
-        <footer className="border-t border-gray-200 pt-4 text-xs whitespace-pre-line text-gray-500">
-          {letter.footerText}
-        </footer>
-      ) : null}
-    </SectionCard>
+    </div>
   );
 }

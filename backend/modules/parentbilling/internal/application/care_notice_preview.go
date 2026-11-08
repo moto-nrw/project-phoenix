@@ -98,16 +98,11 @@ func (n *CareFeeNotices) noticeDrafts(ctx context.Context, organizationID int64,
 		if err != nil {
 			return nil, err
 		}
-		for contractID := range in.noticed[month] {
-			delete(invoiced, contractID)
-		}
-		monthIn.invoiced = invoiced
-		computed, err := buildCareMonth(monthIn)
+		review, final, err := computeNoticeMonth(monthIn, invoiced, in.noticed[month], run.SchoolIDs)
 		if err != nil {
 			return nil, err
 		}
-		review := narrowMonth(computed, run.SchoolIDs, nil)
-		drafts[month] = retainFailedAssessments(review.careMonth, in.previous, in.month.recipients, month)
+		drafts[month] = retainFailedAssessments(final, review.careMonth, in.previous, in.month.recipients, month)
 		if !month.Before(run.PeriodFrom) {
 			addBilledByInvoice(billed, invoiced, run.SchoolIDs)
 		}
@@ -118,13 +113,51 @@ func (n *CareFeeNotices) noticeDrafts(ctx context.Context, organizationID int64,
 	return drafts, nil
 }
 
+// computeNoticeMonth computes a month for the notices: every contract of an
+// effective notice of the run's schools is computed again. A noticed
+// contract the month cannot price or holds for a duplicate keeps its
+// assessment; the month is then computed once more with that assessment as
+// issued, so the rule chain (siblings, caps) counts it like any issued month.
+// review is the first computation, which names the bookings without a price
+// and the duplicates; final is the one the drafts come from.
+func computeNoticeMonth(in careMonthInput, invoiced map[int64]parentbilling.CareInvoice, noticed map[int64]bool,
+	schoolIDs []int64,
+) (reviewedMonth, careMonth, error) {
+	issued := make(map[int64]parentbilling.CareInvoice, len(invoiced))
+	for contractID, invoice := range invoiced {
+		if !noticed[contractID] {
+			issued[contractID] = invoice
+		}
+	}
+	in.invoiced = issued
+	computed, err := buildCareMonth(in)
+	if err != nil {
+		return reviewedMonth{}, careMonth{}, err
+	}
+	review := narrowMonth(computed, schoolIDs, nil)
+	kept := false
+	for contractID := range heldOrUnpriced(&computed) {
+		if invoice, ok := invoiced[contractID]; ok && noticed[contractID] {
+			issued[contractID], kept = invoice, true
+		}
+	}
+	if !kept {
+		return review, review.careMonth, nil
+	}
+	again, err := buildCareMonth(in)
+	if err != nil {
+		return reviewedMonth{}, careMonth{}, err
+	}
+	return review, narrowMonth(again, schoolIDs, nil).careMonth, nil
+}
+
 // retainFailedAssessments keeps the effective assessment of months the
 // computation could not price or held for duplicate contracts. An absent
 // draft is a withdrawal only when the computation succeeded.
-func retainFailedAssessments(review careMonth, previous map[int64]parentbilling.CareNotice,
+func retainFailedAssessments(final, review careMonth, previous map[int64]parentbilling.CareNotice,
 	recipients map[int64]parentbilling.CareRecipient, month calendar.Date,
 ) []parentbilling.CareInvoice {
-	drafts := review.invoices
+	drafts := final.invoices
 	for contractID := range heldOrUnpriced(&review) {
 		notice, ok := previous[contractID]
 		if !ok {
@@ -270,8 +303,12 @@ func (n *CareFeeNotices) withPayments(ctx context.Context, organizationID int64,
 		return err
 	}
 	for i := range notices {
+		family := notices[i].FamilyEmail
+		if family == "" {
+			family = parentbilling.FamilyKey(notices[i].Recipient.Email)
+		}
 		invoice := parentbilling.CareInvoice{Recipient: notices[i].Recipient, Service: parentbilling.ServiceCare,
-			FamilyEmail: parentbilling.FamilyKey(notices[i].Recipient.Email)}
+			FamilyEmail: family}
 		payments.careInvoice(&invoice, issuedOn)
 		notices[i].Recipient = invoice.Recipient
 		if invoice.Payment != nil {

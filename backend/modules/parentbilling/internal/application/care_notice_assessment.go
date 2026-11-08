@@ -125,6 +125,7 @@ func assessContract(in noticeAssessment, drafts map[calendar.Date]parentbilling.
 	notice.Lines = noticeLines(months, before, after)
 	for _, month := range months {
 		installment := noticeInstallment(month, previousAmounts[month], drafts[month].TotalCents, amends, in.issuedOn)
+		keepPreviousDue(&installment, previous)
 		notice.Installments = append(notice.Installments, installment)
 		notice.PreviousCents += installment.PreviousCents
 		notice.TotalCents += installment.AmountCents
@@ -216,7 +217,7 @@ func noticeHead(drafts map[calendar.Date]parentbilling.CareInvoice, months []cal
 		notice.Amends = &parentbilling.CareNoticeReference{ID: previous.ID, Number: previous.Number, IssuedOn: previous.IssuedOn}
 		notice.ContractID, notice.SchoolID, notice.SchoolName = previous.ContractID, previous.SchoolID, previous.SchoolName
 		notice.ChildFirstName, notice.ChildLastName, notice.StudentID = previous.ChildFirstName, previous.ChildLastName, previous.StudentID
-		notice.Recipient = previous.Recipient
+		notice.Recipient, notice.FamilyEmail = previous.Recipient, previous.FamilyEmail
 	}
 	for i := len(months) - 1; i >= 0; i-- {
 		draft, ok := drafts[months[i]]
@@ -225,7 +226,7 @@ func noticeHead(drafts map[calendar.Date]parentbilling.CareInvoice, months []cal
 		}
 		notice.ContractID, notice.SchoolID, notice.SchoolName = draft.ContractID, draft.SchoolID, draft.SchoolName
 		notice.ChildFirstName, notice.ChildLastName, notice.StudentID = draft.ChildFirstName, draft.ChildLastName, draft.StudentID
-		notice.Recipient = draft.Recipient
+		notice.Recipient, notice.FamilyEmail = draft.Recipient, draft.FamilyEmail
 		break
 	}
 	return notice
@@ -379,6 +380,19 @@ func itemCentsOf(items []noticeItem, key string) int64 {
 		}
 	}
 	return cents
+}
+
+// keepPreviousDue keeps the due date of a past rate the change does not
+// raise: what the amended notice set for that month stays set.
+func keepPreviousDue(installment *parentbilling.CareNoticeInstallment, previous parentbilling.CareNotice) {
+	if installment.DeltaCents > 0 || installment.ImmediatelyDue {
+		return
+	}
+	for _, before := range previous.Installments {
+		if before.Month == installment.Month && before.DueOn != installment.DueOn {
+			installment.DueOn, installment.ImmediatelyDue = before.DueOn, before.ImmediatelyDue
+		}
+	}
 }
 
 // noticeInstallment is the rate of a month: due on its first day, or at

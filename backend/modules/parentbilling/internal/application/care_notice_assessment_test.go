@@ -181,7 +181,9 @@ func TestCareNoticeChangeShowsBeforeNowAndTheDifference(t *testing.T) {
 		due         calendar.Date
 		atOnce      bool
 	}{
-		{3200, 3200, calendar.NewDate(2025, 9, 1), false},
+		// September of the amended notice was due at once on 24.09.; the
+		// change keeps that date.
+		{3200, 3200, calendar.NewDate(2025, 9, 24), true},
 		{3200, 3200, calendar.NewDate(2025, 10, 1), false},
 		{3200, 4000, calendar.NewDate(2025, 11, 1), false},
 		{3200, 4000, calendar.NewDate(2025, 12, 1), false},
@@ -334,4 +336,66 @@ func TestCareNoticeChangeKeepsPreviouslyAssessedZeroMonths(t *testing.T) {
 	require.Len(t, notices[0].Installments, 4, "the zero month stays assessed after another month changes")
 	assert.Equal(t, mk007Months[2], notices[0].Installments[2].Month)
 	assert.Zero(t, notices[0].Installments[2].AmountCents)
+}
+
+// TestCareNoticeMonthCountsAKeptAssessmentBeforeTheRuleChain: a noticed
+// contract the month cannot price keeps its assessment, and the month is
+// computed again with it as issued, so siblings and caps of the family see
+// it like any issued month; the first computation still names the booking
+// without a price.
+func TestCareNoticeMonthCountsAKeptAssessmentBeforeTheRuleChain(t *testing.T) {
+	t.Parallel()
+	unpriced := sjrVersion(t, contractMia, schoolIspringen, 1, january2027, januaryLastDay2027,
+		booked("mon", moduleUntil1400, "Betreuung bis 14:00 Uhr", "14:00"), booked("sat", moduleUntil1400, "Betreuung bis 14:00 Uhr", "14:00"))
+	priced := sjrVersion(t, contractNoah, schoolIspringen, 1, january2027, januaryLastDay2027,
+		booked("mon", moduleUntil1400, "Betreuung bis 14:00 Uhr", "14:00"))
+	assessed := parentbilling.CareInvoice{ContractID: contractMia, SchoolID: schoolIspringen, TotalCents: 3200, Number: "JB-1",
+		DocumentKind: parentbilling.DocumentKindFeeNotice}
+	in := careMonthInput{month: day(t, january2027), rule: parentbilling.MonthRuleVersionOnFirst,
+		versions: []parentbilling.CareContractVersion{unpriced, priced}, tariffs: sjrTariffs(t)}
+	review, final, err := computeNoticeMonth(in, map[int64]parentbilling.CareInvoice{contractMia: assessed},
+		map[int64]bool{contractMia: true}, []int64{schoolIspringen})
+	require.NoError(t, err)
+	require.Len(t, review.unpriced, 1, "the review names the booking without a price")
+	assert.Zero(t, review.billed, "the first computation computes the noticed contract again")
+	assert.Equal(t, 1, final.billed, "the kept assessment is issued for the rule chain")
+	require.Len(t, final.invoices, 1)
+	assert.Equal(t, int64(contractNoah), final.invoices[0].ContractID)
+}
+
+// TestCareNoticeKeepsTheFamilyOfTheContract: the family the sibling rules
+// count by is the contract party's, not the payer's a deviation names.
+func TestCareNoticeKeepsTheFamilyOfTheContract(t *testing.T) {
+	t.Parallel()
+	notices, _ := assessNotices(noticeAssessment{from: mk007Months[0], months: mk007Months,
+		drafts: mk007Drafts(func(month calendar.Date) []parentbilling.CareInvoice {
+			invoice := mk007Month(month)
+			invoice.FamilyEmail = "eva@example.org"
+			return []parentbilling.CareInvoice{invoice}
+		}),
+		previous: map[int64]parentbilling.CareNotice{}, issuedOn: calendar.NewDate(2025, 9, 24)})
+	require.Len(t, notices, 1)
+	notices[0].Recipient.Email = "jugendamt@example.org"
+	assert.Equal(t, "eva@example.org", notices[0].FamilyEmail)
+}
+
+// TestCareNoticeChangeKeepsTheDueDateOfAnUnraisedPastRate: September of
+// MK-007 was due at once on 24.09.; a change of November keeps that date.
+func TestCareNoticeChangeKeepsTheDueDateOfAnUnraisedPastRate(t *testing.T) {
+	t.Parallel()
+	previous := mk007Previous(t)
+	drafts := mk007Drafts(func(month calendar.Date) []parentbilling.CareInvoice {
+		if month.Before(calendar.NewDate(2025, 11, 1)) {
+			return []parentbilling.CareInvoice{mk007Month(month)}
+		}
+		return []parentbilling.CareInvoice{mk007Month(month,
+			mk007Position(1, "Verlässliche Grundschule", 2000, month, "mon", "wed"),
+			mk007Position(2, "Nachmittagsbetreuung 13 - 16 Uhr", 2000, month, "wed"))}
+	})
+	notices, _ := assessNotices(noticeAssessment{from: calendar.NewDate(2025, 11, 1), months: mk007Months, drafts: drafts,
+		previous: map[int64]parentbilling.CareNotice{7: previous}, issuedOn: calendar.NewDate(2025, 10, 20)})
+	require.Len(t, notices, 1)
+	september := notices[0].Installments[0]
+	assert.Equal(t, calendar.NewDate(2025, 9, 24), september.DueOn)
+	assert.True(t, september.ImmediatelyDue)
 }
