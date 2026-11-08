@@ -1586,12 +1586,7 @@ export function ChildOfferingAdjustment({
   const preview = useMemo(() => {
     const { automaticDays } = materializeCareSelection(
       catalog,
-      {
-        offeringIds: selected,
-        offeringDays: Object.fromEntries(
-          Object.entries(days).filter(([id]) => selected.has(id)),
-        ),
-      },
+      { offeringIds: selected, offeringDays: days },
       child.target_grade_level || undefined,
     );
     return {
