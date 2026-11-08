@@ -485,3 +485,46 @@ func TestCareMealsGoOnAnInvoiceOfTheirOwnWithTheirTerms(t *testing.T) {
 	assert.Equal(t, 1, issued[1].Meals, "the Mensa positions stay with the Mensa invoice")
 	assert.Equal(t, int64(960), issued[1].Total)
 }
+
+// A Storno of an invoice with modules and Mensa, then the Mensa billed apart
+// (ADR 0167), then the reissue of the month: the Mensa month moves onto an
+// invoice of its own and still follows its chain, so the release succeeds
+// and the new position names the cancelled invoice as its predecessor.
+func TestCareMealReissueKeepsItsChainWhenTheMensaMovesOntoItsOwnInvoice(t *testing.T) {
+	t.Parallel()
+	f := newCareBillingFixture(t, "Träger Mensa Wechsel")
+	db := testpkg.SetupTestDB(t)
+	brandCareTraeger(t, f)
+	school := f.office.schools[0]
+	careContract(t, f.db, f.office.organization, school, "Mia", careMonth, sjrServices()...)
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careTariffsPath, carePriceList(school, "2029-09-01", 3200))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careMealTariffsPath, mealPrice(school, "2029-12-01", "flat", 5500))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	releaseMealMonth(t, db, f.office.organization, school, testpkg.UniqueTestTenantID(t), "2029-12-01", "Mia", 1)
+
+	run := f.startRun(t, careMonth)
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/release"), careRelease(f.run(t, run.ID)))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	issued := decodeSchoolPortalData[careRunBody](t, rec.Body.Bytes()).Invoices[0]
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/letters"), careLettersInput())
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost,
+		careRunPath(run.ID, fmt.Sprintf("/invoices/%d/cancellation", issued.ID)), map[string]any{"reason": "Falscher Betrag"})
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+
+	setTerms(t, f.traeger, f.office.token, "meal", map[string]any{"payment_method": "transfer", "due_days": 14, "bundle_with": ""})
+	again := f.startRun(t, careMonth)
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodGet, careRunPath(again.ID, ""), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	reissue := decodeSchoolPortalData[careMealPaymentRun](t, rec.Body.Bytes())
+	require.Len(t, reissue.Invoices, 2, "the care and the Mensa of Mia, each an invoice of its own")
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(again.ID, "/release"),
+		map[string]any{"document_count": reissue.PreviewCount, "total_cents": reissue.PreviewCents, "fingerprint": reissue.Fingerprint})
+	require.Equal(t, http.StatusOK, rec.Code, "the release does not collide with the cancelled Mensa month: %s", rec.Body.String())
+
+	var replaces []int64
+	require.NoError(t, db.NewRaw(`SELECT p.replaces_invoice_id FROM parent_billing.care_meal_positions AS p
+		JOIN parent_billing.care_invoices AS i ON i.id = p.invoice_id WHERE i.run_id = ?`, again.ID).Scan(context.Background(), &replaces))
+	assert.Equal(t, []int64{issued.ID}, replaces, "the Mensa position replaces the cancelled invoice")
+}

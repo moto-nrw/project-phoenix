@@ -33,6 +33,7 @@ import {
 import { formatEuro } from "./contribution-format";
 import { reductionExplanation } from "./care-reduction-format";
 import { MealPositionLine } from "./care-run-meals";
+import { InvoiceLine } from "./invoice-line";
 import { InvoicePaymentLine } from "./invoice-payment-line";
 import { recipientKindLabel, recipientLine } from "./billing-payment-format";
 
@@ -79,10 +80,11 @@ function PositionLine({
 }: Readonly<{ position: CarePosition; month: string; showAmount: boolean }>) {
   const days = positionDays(position, month);
   return (
-    <li className="flex items-baseline justify-between gap-4 py-1.5">
-      <div className="min-w-0">
-        <p className="text-sm text-gray-900">{position.moduleName}</p>
-        <p className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-gray-600">
+    <InvoiceLine
+      title={position.moduleName}
+      amount={showAmount ? formatEuro(position.amountCents) : undefined}
+      detail={
+        <>
           {position.weekdays.map((day) => (
             <span key={day.weekday} title={WEEKDAY_LONG[day.weekday]}>
               <span className="font-medium text-gray-700">
@@ -100,31 +102,21 @@ function PositionLine({
             </span>
           ))}
           {days ? <span className="text-gray-500">{days}</span> : null}
-        </p>
-      </div>
-      {showAmount ? (
-        <span className="shrink-0 text-sm text-gray-700 tabular-nums">
-          {formatEuro(position.amountCents)}
-        </span>
-      ) : null}
-    </li>
+        </>
+      }
+    />
   );
 }
 
 /** A reduction of the chain (#4685): rule, explanation, negative amount. */
 function ReductionLine({ reduction }: Readonly<{ reduction: CareReduction }>) {
   return (
-    <li className="flex items-baseline justify-between gap-4 py-1.5">
-      <div className="min-w-0">
-        <p className="text-sm text-gray-900">{reduction.name}</p>
-        <p className="mt-0.5 text-xs text-gray-600">
-          {reductionExplanation(reduction)}
-        </p>
-      </div>
-      <span className="text-moto-green-strong shrink-0 text-sm tabular-nums">
-        {formatEuro(reduction.amountCents)}
-      </span>
-    </li>
+    <InvoiceLine
+      title={reduction.name}
+      detail={reductionExplanation(reduction)}
+      amount={formatEuro(reduction.amountCents)}
+      amountClassName="text-moto-green-strong"
+    />
   );
 }
 

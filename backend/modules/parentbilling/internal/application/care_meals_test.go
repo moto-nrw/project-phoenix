@@ -382,11 +382,11 @@ func TestSplitMealInvoicesPutsTheMensaOnAnInvoiceOfItsOwn(t *testing.T) {
 	t.Parallel()
 	meal := parentbilling.CareMealPosition{MealMonth: day(t, "2026-03-01"), Mode: parentbilling.MealModePerMeal, Quantity: 2, UnitCents: 480, AmountCents: 960}
 	month := careMonth{invoices: []parentbilling.CareInvoice{
-		{ContractID: 1, Service: parentbilling.ServiceCare, Positions: []parentbilling.CarePosition{{AmountCents: 7750}},
+		{ContractID: contractMia, Service: parentbilling.ServiceCare, Positions: []parentbilling.CarePosition{{AmountCents: 7750}},
 			MealPositions: []parentbilling.CareMealPosition{meal}, TotalCents: 7750 + 960},
-		{ContractID: 2, Service: parentbilling.ServiceCare, Positions: []parentbilling.CarePosition{},
+		{ContractID: contractNoah, Service: parentbilling.ServiceCare, Positions: []parentbilling.CarePosition{},
 			MealPositions: []parentbilling.CareMealPosition{meal}, TotalCents: 960},
-		{ContractID: 3, Service: parentbilling.ServiceCare, Positions: []parentbilling.CarePosition{{AmountCents: 3200}}, TotalCents: 3200},
+		{ContractID: contractMia + contractNoah, Service: parentbilling.ServiceCare, Positions: []parentbilling.CarePosition{{AmountCents: 3200}}, TotalCents: 3200},
 	}}
 	splitMealInvoices(&month)
 	require.Len(t, month.invoices, 4)
@@ -396,7 +396,7 @@ func TestSplitMealInvoicesPutsTheMensaOnAnInvoiceOfItsOwn(t *testing.T) {
 	assert.Empty(t, month.invoices[0].MealPositions)
 	assert.Equal(t, int64(960), month.invoices[1].TotalCents)
 	assert.Empty(t, month.invoices[1].Positions)
-	assert.Equal(t, int64(2), month.invoices[2].ContractID, "the Mensa-only invoice is the Mensa invoice")
+	assert.Equal(t, int64(contractNoah), month.invoices[2].ContractID, "the Mensa-only invoice is the Mensa invoice")
 	assert.Equal(t, int64(3200), month.invoices[3].TotalCents)
 }
 

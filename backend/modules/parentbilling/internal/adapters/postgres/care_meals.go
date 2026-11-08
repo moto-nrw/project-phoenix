@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -163,11 +164,23 @@ func (s *Store) MealBilledUntil(ctx context.Context, organizationID int64) (map[
 // rows[i] is the stored invoices[i]. A Mensa month another invoice bills is
 // ErrBillingRunChanged.
 func insertCareMealPositions(ctx context.Context, db bun.IDB, organizationID int64, rows []careInvoiceRow, invoices []parentbilling.CareInvoice) error {
+	cancelled, err := cancelledMealHeads(ctx, db, organizationID, invoices)
+	if err != nil {
+		return err
+	}
 	var positions []careMealPositionRow
 	for i, invoice := range invoices {
 		for j, meal := range invoice.MealPositions {
+			// A child's Mensa month follows its own chain: the invoice of the
+			// last cancelled position of that month, whichever invoice now
+			// bills it (the Mensa may have moved onto an invoice of its own
+			// since, ADR 0167).
+			replaces := rows[i].ReplacesInvoiceID
+			if head, ok := cancelled[parentbilling.CareBilledMeal{SchoolID: meal.SchoolID, StudentID: meal.StudentID, Month: meal.MealMonth}]; ok {
+				replaces = &head
+			}
 			positions = append(positions, careMealPositionRow{OrganizationID: organizationID, InvoiceID: rows[i].ID,
-				Replaces: rows[i].ReplacesInvoiceID, Position: j + 1,
+				Replaces: replaces, Position: j + 1,
 				SchoolID: meal.SchoolID, StudentID: meal.StudentID, MealMonth: meal.MealMonth, Mode: meal.Mode, Quantity: meal.Quantity,
 				UnitCents: meal.UnitCents, AmountCents: meal.AmountCents, NetCents: meal.AmountCents})
 		}
@@ -233,4 +246,45 @@ func (s *Store) MealInvoicedContracts(ctx context.Context, organizationID int64,
 		invoiced[contract] = true
 	}
 	return invoiced, nil
+}
+
+// cancelledMealHeads names per child's Mensa month the invoice of its last
+// position when that invoice is cancelled: the predecessor a new position of
+// the month replaces (#4686).
+func cancelledMealHeads(ctx context.Context, db bun.IDB, organizationID int64, invoices []parentbilling.CareInvoice) (map[parentbilling.CareBilledMeal]int64, error) {
+	var schools, students []int64
+	var months []string
+	for _, invoice := range invoices {
+		for _, meal := range invoice.MealPositions {
+			schools, students, months = append(schools, meal.SchoolID), append(students, meal.StudentID), append(months, meal.MealMonth.String())
+		}
+	}
+	heads := map[parentbilling.CareBilledMeal]int64{}
+	if len(schools) == 0 {
+		return heads, nil
+	}
+	var rows []struct {
+		SchoolID  int64         `bun:"school_id"`
+		StudentID int64         `bun:"student_id"`
+		MealMonth calendar.Date `bun:"meal_month,type:date"`
+		InvoiceID int64         `bun:"invoice_id"`
+		Cancelled bool          `bun:"cancelled"`
+	}
+	if err := db.NewRaw(`SELECT DISTINCT ON (p.school_id, p.student_id, p.meal_month) p.school_id, p.student_id, p.meal_month,
+			p.invoice_id, EXISTS (SELECT 1 FROM parent_billing.care_invoice_cancellations AS c
+				WHERE c.organization_id = p.organization_id AND c.invoice_id = p.invoice_id) AS cancelled
+		FROM parent_billing.care_meal_positions AS p
+		JOIN unnest(?::bigint[], ?::bigint[], ?::date[]) AS wanted(school_id, student_id, meal_month)
+			ON wanted.school_id = p.school_id AND wanted.student_id = p.student_id AND wanted.meal_month = p.meal_month
+		WHERE p.organization_id = ?
+		ORDER BY p.school_id, p.student_id, p.meal_month, p.id DESC`,
+		pgdialect.Array(schools), pgdialect.Array(students), pgdialect.Array(months), organizationID).Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("read the cancelled Mensa months: %w", err)
+	}
+	for _, row := range rows {
+		if row.Cancelled {
+			heads[parentbilling.CareBilledMeal{SchoolID: row.SchoolID, StudentID: row.StudentID, Month: row.MealMonth}] = row.InvoiceID
+		}
+	}
+	return heads, nil
 }

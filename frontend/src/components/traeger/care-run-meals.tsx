@@ -17,31 +17,26 @@ import type {
 import { formatMonth } from "./care-billing-format";
 import { mealPositionLabel } from "./care-meal-format";
 import { formatEuro } from "./contribution-format";
+import { InvoiceLine } from "./invoice-line";
 
 /** A Mensa month on an invoice: „2 Mittagessen im Januar 2026 à 4,80 €“. */
 export function MealPositionLine({
   position,
 }: Readonly<{ position: CareMealPosition }>) {
   return (
-    <li className="flex items-baseline justify-between gap-4 py-1.5">
-      <div className="min-w-0">
-        <p className="text-sm text-gray-900">
-          {mealPositionLabel(
-            position.mealMonth,
-            position.mode,
-            position.quantity,
-          )}
-        </p>
-        <p className="mt-0.5 text-xs text-gray-600">
-          {position.mode === "per_meal"
-            ? `Mensa · je ${formatEuro(position.unitCents)}`
-            : "Mensa · fester Betrag je Monat"}
-        </p>
-      </div>
-      <span className="shrink-0 text-sm text-gray-700 tabular-nums">
-        {formatEuro(position.amountCents)}
-      </span>
-    </li>
+    <InvoiceLine
+      title={mealPositionLabel(
+        position.mealMonth,
+        position.mode,
+        position.quantity,
+      )}
+      detail={
+        position.mode === "per_meal"
+          ? `Mensa · je ${formatEuro(position.unitCents)}`
+          : "Mensa · fester Betrag je Monat"
+      }
+      amount={formatEuro(position.amountCents)}
+    />
   );
 }
 
