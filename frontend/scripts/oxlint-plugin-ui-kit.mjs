@@ -1641,7 +1641,7 @@ src/components/guardians/guardian-list.tsx|text-[10px]@468
 src/components/parent/calendar/parent-calendar-page.tsx|text-[11px]@717 text-[11px]@783
 src/components/parent/parent-meal-plan-page.tsx|text-[11px]@461 text-[11px]@546
 src/components/staff/absence-request-row.tsx|text-[11px]@107
-src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@488 text-[11px]@584 text-[11px]@593 text-[11px]@600
+src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@489 text-[11px]@585 text-[11px]@594 text-[11px]@601
 src/components/staff/staff-session-table.tsx|text-[11px]@1194
 src/components/students/planned-status-days-modal.tsx|text-[10px]@935 text-[11px]@935
 src/components/students/school-checkin-fab.tsx|text-[10px]@200
@@ -1652,14 +1652,14 @@ src/components/timetable/event-form/step-termin.tsx|text-[10px]@170
 src/components/timetable/gap-jump-list.tsx|text-[11px]@132 text-[11px]@147
 src/components/timetable/instance-block.tsx|text-[10px]@298 text-[10px]@332 text-[10px]@339 text-[10px]@349
 src/components/timetable/instance-detail-modal.tsx|text-[11px]@1388 text-[11px]@1541 text-[11px]@1669
-src/components/timetable/month-planner-grid.tsx|text-[11px]@141 text-[11px]@150 text-[11px]@171 text-[10px]@237
+src/components/timetable/month-planner-grid.tsx|text-[11px]@142 text-[11px]@151 text-[11px]@172 text-[10px]@238
 src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@179 text-[11px]@255 text-[10px]@321 text-[11px]@398 text-[11px]@405
 src/components/timetable/staff-pool-slide-over.tsx|text-[11px]@482
 src/components/timetable/substitution-person-card.tsx|text-[11px]@59 text-[11px]@338 text-[11px]@345 text-[11px]@352 text-[11px]@360
 src/components/timetable/substitution-slide-over.tsx|text-[11px]@744
 src/components/timetable/template-card.tsx|text-[10px]@198
-src/components/timetable/vertretung-day-list.tsx|text-[11px]@352 text-[11px]@392 text-[11px]@399 text-[11px]@420 text-[11px]@426
-src/components/timetable/weekly-calendar-grid.tsx|text-[11px]@460 text-[10px]@483 text-[10px]@518 text-[11px]@518
+src/components/timetable/vertretung-day-list.tsx|text-[11px]@348 text-[11px]@388 text-[11px]@395 text-[11px]@416 text-[11px]@422
+src/components/timetable/weekly-calendar-grid.tsx|text-[11px]@461 text-[10px]@484 text-[10px]@519 text-[11px]@519
 src/components/ui/avatar.tsx|text-[10px]@32
 src/components/ui/planning/coverage-indicator.tsx|text-[11px]@61 text-[11px]@163
 src/components/ui/location-badge.tsx|text-[10px]@282

@@ -31,6 +31,7 @@ import { staffConcept } from "~/lib/concepts/staff";
 import { IconTile } from "~/components/ui/icon-tile";
 import { foldForSearch } from "~/lib/search-fold";
 import { ChoiceTile } from "~/components/ui/choice-tile";
+import { SectionCard } from "~/components/ui/section-card";
 
 const logger = createLogger({ component: "SpontaneousActivityStart" });
 const EMPTY_OCCUPIED_ROOM_IDS: readonly string[] = [];
@@ -377,7 +378,7 @@ export function SpontaneousActivityStart({
 
   return (
     <>
-      <section className="mb-4 rounded-lg border border-gray-200 bg-white p-3 shadow-sm sm:p-4">
+      <SectionCard className="mb-4">
         <button
           type="button"
           disabled={disabled || isStarting}
@@ -399,7 +400,7 @@ export function SpontaneousActivityStart({
             </span>
           </span>
         </button>
-      </section>
+      </SectionCard>
 
       <FormModal
         isOpen={isOpen}
