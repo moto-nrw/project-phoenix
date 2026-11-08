@@ -22,9 +22,12 @@ var (
 
 // GetBulkCandidate reads the named open requests with the facts the bulk
 // approval validates: their version and whether each may be approved
-// together with others (#5804). One request read and one field review
-// serve all of them; each request is still judged on its own. A request the
-// caller could not decide is absent from the result.
+// together with others (#5804). One read fetches the request rows; the
+// facts are then judged request by request in the given order, and the
+// first request the caller could not decide (gone, decided, outside the
+// scope, graduated, care ended) ends the pass. Nothing after it is read, so
+// a later request's facts can never turn that refusal into a failure. The
+// result holds the requests before it.
 func (s *MasterDataDecisions) GetBulkCandidate(ctx context.Context, requestIDs []int64) (map[int64]*careplan.MasterDataReviewItem, error) {
 	candidates := make(map[int64]*careplan.MasterDataReviewItem, len(requestIDs))
 	if len(requestIDs) == 0 {
@@ -36,17 +39,34 @@ func (s *MasterDataDecisions) GetBulkCandidate(ctx context.Context, requestIDs [
 	if err != nil {
 		return nil, fmt.Errorf("review: load bulk candidates: %w", err)
 	}
-	if len(rows) == 0 {
-		return candidates, nil
-	}
-	changes := make([]careplan.MasterDataFieldChange, 0, len(rows))
+	byID := make(map[int64]careplan.StudentDataChangeRequest, len(rows))
 	for _, row := range rows {
-		changes = append(changes, careplan.MasterDataFieldChange{
-			RequestID: row.ID, StudentID: row.StudentID, Target: row.Target, Field: row.FieldKey,
-			OldValue: row.OldValue, NewValue: row.NewValue,
-		})
+		byID[row.ID] = row
 	}
-	facts, err := s.people.ReviewFields(ctx, changes)
+	for _, id := range requestIDs {
+		row, found := byID[id]
+		if !found {
+			break
+		}
+		item, err := s.reviewBulkCandidate(ctx, row)
+		if err != nil {
+			return nil, err
+		}
+		if item == nil {
+			break
+		}
+		candidates[id] = item
+	}
+	return candidates, nil
+}
+
+// reviewBulkCandidate reads one pending request's field facts and applies
+// the open queue's gate; nil means the caller may not decide it.
+func (s *MasterDataDecisions) reviewBulkCandidate(ctx context.Context, row careplan.StudentDataChangeRequest) (*careplan.MasterDataReviewItem, error) {
+	facts, err := s.people.ReviewFields(ctx, []careplan.MasterDataFieldChange{{
+		RequestID: row.ID, StudentID: row.StudentID, Target: row.Target, Field: row.FieldKey,
+		OldValue: row.OldValue, NewValue: row.NewValue,
+	}})
 	if err != nil {
 		return nil, err
 	}
@@ -54,22 +74,17 @@ func (s *MasterDataDecisions) GetBulkCandidate(ctx context.Context, requestIDs [
 	if err != nil {
 		return nil, fmt.Errorf("review: resolve reviewer scope: %w", err)
 	}
-	today := s.today()
-	for i := range rows {
-		row := rows[i]
-		// The same gate as the open queue: a graduate or a child whose care
-		// ended is not offered for a decision (#405 review, #2487).
-		fact := facts[row.ID]
-		if !scope.Allows(fact.Student) || fact.Student.Alumnus || fact.Student.CareEndedOn(today) {
-			continue
-		}
-		candidates[row.ID] = &careplan.MasterDataReviewItem{
-			Request: &row, FirstName: fact.FirstName, LastName: fact.LastName,
-			BulkEligible: fact.BulkEligible, BulkIneligibleReason: fact.BulkIneligibleReason,
-			BulkIneligibleText: fact.BulkIneligibleText, CurrentValueChanged: fact.CurrentValueChanged,
-		}
+	// The same gate as the open queue: a graduate or a child whose care
+	// ended is not offered for a decision (#405 review, #2487).
+	fact := facts[row.ID]
+	if !scope.Allows(fact.Student) || fact.Student.Alumnus || fact.Student.CareEndedOn(s.today()) {
+		return nil, nil
 	}
-	return candidates, nil
+	return &careplan.MasterDataReviewItem{
+		Request: &row, FirstName: fact.FirstName, LastName: fact.LastName,
+		BulkEligible: fact.BulkEligible, BulkIneligibleReason: fact.BulkIneligibleReason,
+		BulkIneligibleText: fact.BulkIneligibleText, CurrentValueChanged: fact.CurrentValueChanged,
+	}, nil
 }
 
 func (s *MasterDataDecisions) bulkCandidate(ctx context.Context, requestID int64) (*careplan.MasterDataReviewItem, error) {

@@ -91,11 +91,13 @@ func TestBulkApprovalReadPhaseStatements(t *testing.T) {
 	db := testpkg.SetupIsolatedTestDB(t)
 	testpkg.SetupTestDB(t)
 	// Statements before the first row lock, and of the whole approval, for 3
-	// and 8 children (6 and 16 requests). The read phase does not grow with
-	// the selection (it was 23 and 58 with one read pass per request); the
-	// lock and decision phases are unchanged (136 and 361). The fixture binds
-	// no guardian-access check, which adds one read per absence in production.
-	want := map[int]struct{ beforeLock, total int }{3: {beforeLock: 9, total: 145}, 8: {beforeLock: 9, total: 370}}
+	// and 8 children (6 and 16 requests); with one read pass per request they
+	// were 23/159 and 58/419. Absences and the Stammdaten rows are read in
+	// one pass each; the Stammdaten facts stay one review per request, since
+	// the pass stops at the first request the caller cannot decide. The lock
+	// and decision phases are unchanged (136 and 361). The fixture binds no
+	// guardian-access check, which adds one read per absence in production.
+	want := map[int]struct{ beforeLock, total int }{3: {beforeLock: 13, total: 149}, 8: {beforeLock: 23, total: 384}}
 	for _, children := range []int{3, 8} {
 		t.Run(fmt.Sprintf("children=%d", children), func(t *testing.T) {
 			f := newBulkReadFixture(t, db, children)
@@ -210,5 +212,67 @@ func TestBulkApprovalFailedReadFailsTheApproval(t *testing.T) {
 				require.Equal(t, 2, pending, "a failed approval decides nothing")
 			}
 		})
+	}
+}
+
+// The lowest Stammdaten request is already decided, the later ones are
+// open. The approval refuses on it (409 students.bulk_approval_ineligible)
+// before it reads any later request's facts: a second connection holds the
+// person table those facts come from, and every read waiting on it is
+// cancelled. Had the approval read them, the cancelled read would turn the
+// refusal into a 500.
+func TestBulkApprovalRefusesAMissingRequestBeforeReadingLaterFacts(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	testpkg.SetupTestDB(t)
+	f := newBulkReadFixture(t, db, 3)
+	ctx := f.ctx(t)
+	refs := make([]parentrequests.Ref, 0, len(f.children))
+	first := f.children[0].masterRow.ID
+	for _, child := range f.children {
+		refs = append(refs, parentrequests.Ref{Kind: parentrequests.KindMasterData, ID: child.masterRow.ID, ExpectedVersion: careplan.ParentRequestVersion(child.masterRow.UpdatedAt)})
+		first = min(first, child.masterRow.ID)
+	}
+	_, err := db.NewUpdate().TableExpr("users.student_data_change_requests").Set("status = 'rejected'").Where("id = ?", first).Exec(ctx)
+	require.NoError(t, err)
+
+	holder, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = holder.Rollback() }()
+	_, err = holder.ExecContext(ctx, "LOCK TABLE users.persons IN ACCESS EXCLUSIVE MODE")
+	require.NoError(t, err)
+	done := make(chan error, 1)
+	go func() { done <- f.approve(t, ctx, refs) }()
+	cancelled := false
+	var approveErr error
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+wait:
+	for {
+		select {
+		case approveErr = <-done:
+			break wait
+		case <-ctx.Done():
+			t.Fatal("the approval did not finish")
+		case <-ticker.C:
+			var pid int
+			require.NoError(t, holder.NewRaw("SELECT COALESCE((SELECT l.pid FROM pg_locks l WHERE NOT l.granted AND l.relation = 'users.persons'::regclass LIMIT 1), 0)").Scan(ctx, &pid))
+			if pid != 0 {
+				cancelled = true
+				_, err := holder.ExecContext(ctx, "SELECT pg_cancel_backend(?)", pid)
+				require.NoError(t, err)
+			}
+		}
+	}
+	require.NoError(t, holder.Rollback())
+	assert.False(t, cancelled, "no read of a later request's facts may run after the refusal")
+	require.ErrorIs(t, approveErr, parentrequests.ErrNotFound)
+	for _, child := range f.children {
+		if child.masterRow.ID == first {
+			continue
+		}
+		var pending int
+		require.NoError(t, db.NewRaw("SELECT count(*) FROM users.student_data_change_requests WHERE id = ? AND status = 'pending'", child.masterRow.ID).Scan(ctx, &pending))
+		require.Equal(t, 1, pending, "a refused approval decides nothing")
 	}
 }

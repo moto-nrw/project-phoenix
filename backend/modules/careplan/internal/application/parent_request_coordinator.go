@@ -280,10 +280,11 @@ func validateBulkParentRequestInput(input parentrequests.BulkApproveInput) error
 	return nil
 }
 
-// loadBulkParentRequests reads every candidate before any lock (#5804): one
-// batch per request kind, absences first as the kinds sort. Refusals keep
-// their order: a Stammdaten request that is gone refuses here, before any
-// version is compared; a missing absence refuses in the version check.
+// loadBulkParentRequests reads every candidate before any lock (#5804),
+// absences first as the kinds sort. Refusals keep their order: absences are
+// all read, a missing one refuses in the version check; the Stammdaten pass
+// stops at the first request the caller cannot decide, which refuses here,
+// before any version is compared and before a later request is read.
 func (c *ParentRequestCoordinator) loadBulkParentRequests(
 	ctx context.Context, refs []parentrequests.Ref,
 ) (map[int64]*careplan.MasterDataReviewItem, map[int64]ports.ExcusedBulkCandidate, error) {
