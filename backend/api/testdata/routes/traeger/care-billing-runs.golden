@@ -1,4 +1,12 @@
 GET /traeger/care-billing-runs/
 GET /traeger/care-billing-runs/{id}
+GET /traeger/care-billing-runs/{id}/invoices/{invoiceID}/letter
+GET /traeger/care-billing-runs/{id}/letters
+GET /traeger/care-billing-runs/{id}/letters/print
 POST /traeger/care-billing-runs/
+POST /traeger/care-billing-runs/{id}/invoices/{invoiceID}/cancellation
+POST /traeger/care-billing-runs/{id}/invoices/{invoiceID}/mail
+POST /traeger/care-billing-runs/{id}/letters
+POST /traeger/care-billing-runs/{id}/letters/mail
+POST /traeger/care-billing-runs/{id}/letters/preview
 POST /traeger/care-billing-runs/{id}/release

@@ -609,7 +609,8 @@ export interface BillingFile {
   readonly filename: string;
 }
 
-async function billingFile(
+/** Reads a file of the Träger API; a refusal keeps its error code. */
+export async function billingFile(
   path: string,
   init: RequestInit,
   fallbackName: string,

@@ -6,6 +6,8 @@
   "confirmationLetter": "Potwierdzenie: {period}",
   "cancellationLetter": "Anulowanie: {period}",
   "creditLetter": "Nota uznaniowa: {period}",
+  "careInvoiceLetter": "Faktura: {period}",
+  "careCancellationLetter": "Anulowanie: {period}",
   "sender": "Od: {traeger}",
   "children": "Dla",
   "amount": "Kwota",

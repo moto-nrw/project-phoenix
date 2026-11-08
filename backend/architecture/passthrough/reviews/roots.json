@@ -3996,6 +3996,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0075",
+      "id": "roots/owners/enrollmentStudentAudit.RecordSystemChanges",
+      "reason": "Consumer-port adapter translates Enrollment students to People Directory snapshots and supplies the explicit System audit identity. It preserves the authenticated-actor binding and adds no unchanged forwarding layer (ADR 0075 consumer-port adapter form)."
+    },
+    {
       "decision": "0090",
       "id": "roots/owners/enrollmentStudentAudit.RecordSystemStatusChange",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
@@ -4493,7 +4498,7 @@
     {
       "decision": "0126",
       "id": "roots/owners/parentBillingDocuments.BillingDocumentLetter",
-      "reason": "ADR 0126 (#4671): Consumer-port adapter of the parents portal's inbox onto the Elternabrechnung; it reads the letter in the caller's Träger transaction and translates the file and the refusal into the portal's vocabulary."
+      "reason": "ADR 0126 (#4671): Consumer-port adapter of the parents portal's inbox onto the Elternabrechnung; it reads the letter in the caller's Träger transaction with the children whose relationship grants the inbox (ADR 0165) and translates the file and the refusal into the portal's vocabulary."
     },
     {
       "decision": "0090",

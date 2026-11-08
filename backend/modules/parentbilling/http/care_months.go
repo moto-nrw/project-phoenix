@@ -21,16 +21,18 @@ import (
 // the session's Träger, which comes from the session, never the request.
 type CareBillingResource struct {
 	billing        capability.CareBilling
+	letters        capability.CareLetterService
 	requireBilling common.Middleware
 }
 
-// NewCareBillingResource builds the resource. requireBilling admits only a
-// session with the Träger right "Abrechnung".
-func NewCareBillingResource(billing capability.CareBilling, requireBilling common.Middleware) *CareBillingResource {
-	if billing == nil || requireBilling == nil {
-		panic("parent billing http: the monthly billing and the right check are required")
+// NewCareBillingResource builds the resource with the letters of the
+// released runs (#4684, ADR 0165). requireBilling admits only a session with
+// the Träger right "Abrechnung".
+func NewCareBillingResource(billing capability.CareBilling, letters capability.CareLetterService, requireBilling common.Middleware) *CareBillingResource {
+	if billing == nil || letters == nil || requireBilling == nil {
+		panic("parent billing http: the monthly billing, its letters and the right check are required")
 	}
-	return &CareBillingResource{billing: billing, requireBilling: requireBilling}
+	return &CareBillingResource{billing: billing, letters: letters, requireBilling: requireBilling}
 }
 
 // TariffRouter returns the routes mounted at /traeger/care-tariffs.
@@ -56,6 +58,7 @@ func (rs *CareBillingResource) RunRouter(protectedTraegerRoutes func(chi.Router,
 		billing.Post("/", rs.start)
 		billing.Get("/{id}", rs.detail)
 		billing.Post("/{id}/release", rs.release)
+		rs.mountLetters(billing)
 	})
 	return r
 }
