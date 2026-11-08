@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft, Download } from "lucide-react";
 import { buttonStyles } from "~/components/ui/button-styles";
+import { SectionCard } from "~/components/ui/section-card";
 
 /**
  * Kopf der gedruckten NFC-Kurzanleitung.
@@ -23,35 +24,37 @@ export function OnepagerHeader({
 }) {
   return (
     <header className="sticky top-3 z-30 print:hidden">
-      <div className="moto-content-surface flex items-center justify-between gap-3 rounded-2xl border p-3 sm:relative sm:p-4">
-        <Link
-          href="/help"
-          className={buttonStyles({
-            variant: "surface",
-            size: "md",
-            className: "min-w-0 gap-2",
-          })}
-        >
-          <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
-          <span className="truncate">Zur Hilfe</span>
-        </Link>
-
-        <div className="flex min-h-10 w-fit shrink-0 items-center">
-          <a
-            href={pdf.href}
-            download={pdf.download}
+      <SectionCard overflow="visible" className="sm:relative">
+        <div className="flex items-center justify-between gap-3">
+          <Link
+            href="/help"
             className={buttonStyles({
               variant: "surface",
               size: "md",
-              className: "gap-2 whitespace-nowrap",
+              className: "min-w-0 gap-2",
             })}
-            aria-label="PDF herunterladen"
           >
-            <Download className="h-4 w-4" aria-hidden="true" />
-            <span className="hidden sm:inline">PDF herunterladen</span>
-          </a>
+            <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <span className="truncate">Zur Hilfe</span>
+          </Link>
+
+          <div className="flex min-h-10 w-fit shrink-0 items-center">
+            <a
+              href={pdf.href}
+              download={pdf.download}
+              className={buttonStyles({
+                variant: "surface",
+                size: "md",
+                className: "gap-2 whitespace-nowrap",
+              })}
+              aria-label="PDF herunterladen"
+            >
+              <Download className="h-4 w-4" aria-hidden="true" />
+              <span className="hidden sm:inline">PDF herunterladen</span>
+            </a>
+          </div>
         </div>
-      </div>
+      </SectionCard>
     </header>
   );
 }
