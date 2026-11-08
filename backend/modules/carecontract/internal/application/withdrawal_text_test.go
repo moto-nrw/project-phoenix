@@ -19,7 +19,7 @@ func TestOneWithdrawalNoticeOnEverySurface(t *testing.T) {
 	t.Parallel()
 	head := carecontract.Letterhead{SenderText: "Träger Muster e. V.\nHauptstraße 1\n12345 Musterstadt"}
 	contact := letterContact(carecontract.TemplateInput{ContractPartner: "Träger Muster e. V."}, head)
-	signing := signingContact("Träger Muster e. V.", head.SenderText)
+	signing := withdrawalAddressee("Träger Muster e. V.", head.SenderText, carecontract.WithdrawalReach{})
 
 	assert.Equal(t, withdrawalNoticeParagraphs(signing), withdrawalNoticeParagraphs(contact),
 		"signing page and mail print what the PDF prints")
@@ -51,6 +51,44 @@ func TestContractPDFCarriesTheModelWithdrawalForm(t *testing.T) {
 	notice := blocks[0].Text
 	assert.Contains(t, notice, "Telefon: 0123 456", "the notice names the phone the model asks for")
 	assert.Contains(t, notice, "Sie können dafür das beigefügte Muster-Widerrufsformular verwenden")
+}
+
+// The signing page and the mail name the phone and e-mail the PDF names
+// (#6200, Gestaltungshinweis 2 zu Anlage 1 zu Art. 246a EGBGB).
+func TestSigningPageNamesPhoneAndEmailLikeThePDF(t *testing.T) {
+	t.Parallel()
+	head := carecontract.Letterhead{SenderText: "Träger Muster e. V.\nHauptstraße 1\n12345 Musterstadt",
+		ContactPhone: "0123 456", ContactEmail: "vertrag@example.org"}
+	pdf := letterContact(carecontract.TemplateInput{ContractPartner: "Träger Muster e. V."}, head)
+	signing := withdrawalAddressee("Träger Muster e. V.", head.SenderText,
+		carecontract.WithdrawalReach{ContactPhone: "0123 456", ContactEmail: "vertrag@example.org"})
+
+	assert.Equal(t, withdrawalNoticeParagraphs(pdf), withdrawalNoticeParagraphs(signing))
+	assert.Contains(t, withdrawalNoticeParagraphs(signing)[1],
+		"(Träger Muster e. V., Hauptstraße 1, 12345 Musterstadt, Telefon: 0123 456, E-Mail: vertrag@example.org)")
+}
+
+// The Träger may name its own phone and e-mail for withdrawals (#6200);
+// each field it leaves empty takes the contact person's.
+func TestWithdrawalContactOverridesTheContactPersonPerField(t *testing.T) {
+	t.Parallel()
+	head := carecontract.Letterhead{SenderText: "Träger Muster e. V.\nHauptstraße 1\n12345 Musterstadt",
+		ContactPhone: "0123 456", ContactEmail: "frau.beispiel@example.org"}
+
+	own := head
+	own.WithdrawalPhone, own.WithdrawalEmail = "0800 111", "widerruf@example.org"
+	assert.Equal(t, "Träger Muster e. V., Hauptstraße 1, 12345 Musterstadt, Telefon: 0800 111, E-Mail: widerruf@example.org",
+		letterContact(carecontract.TemplateInput{}, own).details(true), "the Träger's own reach wins")
+
+	mailOnly := head
+	mailOnly.WithdrawalEmail = "widerruf@example.org"
+	assert.Equal(t, "Träger Muster e. V., Hauptstraße 1, 12345 Musterstadt, Telefon: 0123 456, E-Mail: widerruf@example.org",
+		letterContact(carecontract.TemplateInput{}, mailOnly).details(true), "an empty phone takes the contact person's")
+
+	assert.Equal(t, letterContact(carecontract.TemplateInput{}, own),
+		withdrawalAddressee("Träger Muster e. V.", own.SenderText, own.Reach()), "the signing page names the same addressee as the PDF")
+	assert.Equal(t, "Träger Muster e. V., Hauptstraße 1, 12345 Musterstadt", withdrawalAddressee("Träger Muster e. V.", own.SenderText,
+		carecontract.WithdrawalReach{}).details(true), "without any phone or e-mail the address stays")
 }
 
 func TestEnrollmentFormCopiesTheSameNotice(t *testing.T) {

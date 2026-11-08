@@ -2,7 +2,9 @@
 
 import { redirect, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { Alert } from "~/components/ui/alert";
 import { Loading } from "~/components/ui/loading";
+import { portalNotBookedExplanation } from "~/lib/portal-not-booked";
 import { SchoolShellProvider } from "~/lib/shell-auth-context";
 import { BreadcrumbProvider } from "~/lib/breadcrumb-context";
 import { SchoolShell } from "~/components/school/shell/school-shell";
@@ -44,8 +46,11 @@ const SCHOOL_PUBLIC_PAGES = [
 
 export function SchoolAuthGuard({
   children,
+  notBooked = false,
 }: {
   readonly children: React.ReactNode;
+  /** The page load's session check found the portal's module not booked. */
+  readonly notBooked?: boolean;
 }) {
   const pathname = usePathname();
   const isPublicPage = SCHOOL_PUBLIC_PAGES.some(
@@ -53,7 +58,6 @@ export function SchoolAuthGuard({
   );
   const { data: session, status } = useSession();
 
-  // Login + invite pages: render without auth guards.
   if (isPublicPage) {
     return <>{children}</>;
   }
@@ -77,7 +81,16 @@ export function SchoolAuthGuard({
       <BreadcrumbProvider>
         <ShellIntlProvider>
           <SchoolRealtimeBridge />
-          <SchoolShell>{children}</SchoolShell>
+          <SchoolShell>
+            {notBooked || session?.notBooked ? (
+              <Alert
+                type="info"
+                message={portalNotBookedExplanation("school", "de")}
+              />
+            ) : (
+              children
+            )}
+          </SchoolShell>
           <PwaInstallHint samsungOnly />
           <PortalNotificationSetup portal="school" />
         </ShellIntlProvider>

@@ -1115,6 +1115,15 @@ export interface TraegerContact {
   readonly email: string;
 }
 
+/**
+ * The phone and e-mail the withdrawal notice of a care contract names
+ * (#6200). An empty field takes the contact person's.
+ */
+export interface TraegerWithdrawalContact {
+  readonly phone: string;
+  readonly email: string;
+}
+
 /** A bank account as the Träger-Büro writes it. */
 export interface TraegerBankAccountInput {
   readonly label: string;
@@ -1133,6 +1142,7 @@ export interface TraegerBankAccount extends TraegerBankAccountInput {
 /** The master data of the Träger (#4653). */
 export interface TraegerMasterData {
   readonly contact: TraegerContact;
+  readonly withdrawal: TraegerWithdrawalContact;
   readonly logo: TraegerLogo | null;
   readonly bankAccounts: readonly TraegerBankAccount[];
 }
@@ -1203,6 +1213,7 @@ export function traegerLogoSrc(logo: TraegerLogo): string {
 export async function fetchTraegerMasterData(): Promise<TraegerMasterData> {
   const data = await traegerRequest<{
     contact?: Partial<TraegerContact> | null;
+    withdrawal?: Partial<TraegerWithdrawalContact> | null;
     logo?: BackendTraegerLogo | null;
     bank_accounts?: BackendTraegerBankAccount[] | null;
   } | null>(masterDataPath);
@@ -1211,6 +1222,10 @@ export async function fetchTraegerMasterData(): Promise<TraegerMasterData> {
       name: data?.contact?.name ?? "",
       phone: data?.contact?.phone ?? "",
       email: data?.contact?.email ?? "",
+    },
+    withdrawal: {
+      phone: data?.withdrawal?.phone ?? "",
+      email: data?.withdrawal?.email ?? "",
     },
     logo: data?.logo ? mapTraegerLogo(data.logo) : null,
     bankAccounts: (data?.bank_accounts ?? []).map(mapTraegerBankAccount),
@@ -1230,6 +1245,23 @@ export async function saveTraegerContact(
   );
   return {
     name: saved?.name ?? contact.name,
+    phone: saved?.phone ?? contact.phone,
+    email: saved?.email ?? contact.email,
+  };
+}
+
+/**
+ * Stores the phone and e-mail for withdrawals and returns them as the
+ * backend keeps them. Throws an ApiError on failure.
+ */
+export async function saveTraegerWithdrawalContact(
+  contact: TraegerWithdrawalContact,
+): Promise<TraegerWithdrawalContact> {
+  const saved = await traegerRequest<Partial<TraegerWithdrawalContact> | null>(
+    `${masterDataPath}/withdrawal-contact`,
+    { method: "PUT", body: contact },
+  );
+  return {
     phone: saved?.phone ?? contact.phone,
     email: saved?.email ?? contact.email,
   };

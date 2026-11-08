@@ -78,8 +78,7 @@ export function MFAEnrollmentScreen({
   // Keep the completion result until the explicit Continue action. For
   // every portal it contains status only.
   const resultRef = useRef<MFAResult | null>(null);
-  // The school enroll flow binds the confirm to the exact challenge that
-  // enroll/start minted; tenant/operator return no token here (null).
+  // The challenge enroll/start minted; null for the operator.
   const challengeTokenRef = useRef<string | null>(null);
   const otpRef = useRef<OTPInputGridHandle | null>(null);
 
@@ -132,8 +131,7 @@ export function MFAEnrollmentScreen({
           scope,
           bearerToken,
           submittedCode,
-          false,
-          challengeTokenRef.current ?? undefined,
+          challengeTokenRef.current,
           organizationId,
         );
         resultRef.current = result;

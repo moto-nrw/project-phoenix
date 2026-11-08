@@ -207,16 +207,12 @@ export async function resendChallenge(
   return response.challenge_token;
 }
 
-// ----- Enrollment + self-service (authenticated, requires Bearer token) -----
+// ----- Enrollment (the login's enrollment token as Bearer) -----
 
 /**
- * enrollStart triggers the enrollment email code.
- *
- * Tenant/operator answer 204 — the confirm step verifies "the account's
- * newest active code". The SCHOOL endpoint instead returns the challenge
- * token the code is bound to, and its confirm step requires exactly that
- * challenge back (#2207). Returns the challenge token when the backend
- * provided one, else null.
+ * enrollStart mails the enrollment code. Tenant, school and Träger answer
+ * with the challenge the code is bound to, and their confirm redeems exactly
+ * that challenge; the operator answers 204 and returns null.
  */
 export async function enrollStart(
   scope: LoginScope,
@@ -231,33 +227,28 @@ export async function enrollStart(
       allowEmptyBody: true,
     },
   );
-  return response?.challenge_token ?? null;
+  if (scope === "operator") return null;
+  if (!response?.challenge_token) {
+    throw new ApiError("Enrollment start returned no challenge token", 500);
+  }
+  return response.challenge_token;
 }
 
 /**
- * enrollConfirm submits the emailed code and returns the freshly-minted
- * access/refresh pair. Post-#1430 the backend no longer reuses the
- * enrollment-scoped token for the regular session — successful
- * confirmation mints a full session token pair that the frontend uses to
- * seed NextAuth, identical to the verify-flow contract.
- *
- * `rememberDevice: true` additionally issues a trusted-device cookie so
- * the next login on this browser skips MFA.
+ * enrollConfirm submits the emailed code. The BFF installs the session the
+ * backend mints and answers with its status only.
  */
 export async function enrollConfirm(
   scope: LoginScope,
   bearerToken: string,
   code: string,
-  rememberDevice = false,
-  challengeToken?: string,
+  challengeToken: string | null,
   organizationId?: string,
 ): Promise<MFAResult> {
-  // The school confirm is bound to the exact challenge enroll/start minted
-  // (see enrollStart); tenant/operator ignore the extra field.
   const payload = {
+    ...(challengeToken === null ? {} : { challenge_token: challengeToken }),
     code,
-    remember_device: rememberDevice,
-    ...(challengeToken ? { challenge_token: challengeToken } : {}),
+    remember_device: false,
     ...organizationField(organizationId),
   };
   return postStep<MFAResult>(scope, "mfa/enroll/confirm", payload, {

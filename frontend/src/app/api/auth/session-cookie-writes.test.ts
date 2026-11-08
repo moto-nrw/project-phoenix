@@ -31,6 +31,8 @@ const SESSION = {
 const backend = vi.fn<typeof fetch>();
 /** The answer of Identity & Access on the session's family. */
 let familyStatus = 200;
+let familyBody: Record<string, unknown> = { id: 7 };
+const NOT_BOOKED = { status: 403, code: "module.not_booked" };
 
 function familyChecks() {
   return backend.mock.calls.filter(([url]) =>
@@ -54,11 +56,12 @@ afterAll(() => {
 });
 beforeEach(() => {
   familyStatus = 200;
+  familyBody = { id: 7 };
   backend.mockReset();
   backend.mockImplementation(async (url) => {
     const target = String(url);
     if (target.endsWith("/auth/session/validate"))
-      return Response.json({ id: 7 }, { status: familyStatus });
+      return Response.json(familyBody, { status: familyStatus });
     if (target.endsWith("/auth/refresh")) {
       const now = Math.floor(Date.now() / 1000);
       return Response.json({
@@ -183,6 +186,40 @@ describe("gateSessionCookieWrites", () => {
     );
 
     expect(written(answer)).toEqual([]);
+  });
+
+  // #6187: an unbooked module ends no session; the gate writes as for a
+  // live family.
+  it("keeps a rotated session whose module is not booked", async () => {
+    familyStatus = 403;
+    familyBody = NOT_BOOKED;
+
+    const answer = await gateSessionCookieWrites(
+      request(`${NAME}=${await sealed(SESSION)}`),
+      response(
+        `${NAME}=${await sealed({ ...SESSION, token: "access-2" })}; Path=/`,
+      ),
+    );
+
+    expect(written(answer)).toHaveLength(1);
+    expect(familyChecks()).toHaveLength(1);
+  });
+
+  it.each([
+    [403, NOT_BOOKED, "notBooked"],
+    [403, { status: 403, code: "general.permission" }, "unknown"],
+    [401, { status: 401 }, "ended"],
+    [503, { status: 503 }, "unknown"],
+  ] as const)("reads a validate %s %o as %s", async (status, body, state) => {
+    familyStatus = status;
+    familyBody = body;
+    const { sessionFamilyState } =
+      await import("~/server/auth/token-validation");
+    const now = Math.floor(Date.now() / 1000);
+
+    await expect(
+      sessionFamilyState(jwt({ id: 7, exp: now + 600 }), "parent"),
+    ).resolves.toBe(state);
   });
 
   it("reads an expired access token as unknown without asking", async () => {

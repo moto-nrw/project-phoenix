@@ -149,6 +149,8 @@ const (
 	TraegerAuditSubjectContact     = "contact"
 	TraegerAuditSubjectLogo        = "logo"
 	TraegerAuditSubjectBankAccount = "bank_account"
+	// TraegerAuditSubjectWithdrawal is the withdrawal contact (#6200).
+	TraegerAuditSubjectWithdrawal = "withdrawal"
 	// TraegerAuditSubjectTemplate is a document template (#4677); a save
 	// creates its next version.
 	TraegerAuditSubjectTemplate = "template"

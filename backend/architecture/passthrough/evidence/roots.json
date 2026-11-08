@@ -2081,6 +2081,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (s CareContractSigningSender) WithdrawalReach(ctx context.Context, organizationID int64) (carecontract.WithdrawalReach, error) {\n\tcontact, err := s.MasterData.DocumentContact(ctx, organizationID)\n\tif err != nil {\n\t\treturn carecontract.WithdrawalReach{}, err\n\t}\n\treturn carecontract.WithdrawalReach{ContactPhone: contact.Contact.Phone, ContactEmail: contact.Contact.Email, WithdrawalPhone: contact.Withdrawal.Phone, WithdrawalEmail: contact.Withdrawal.Email}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/CareContractSigningSender.WithdrawalReach",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (b CareOfferingCatalogBookings) MaterializableOfferingCount(ctx context.Context, offeringID int64, today calendar.Date) (int, error) {\n\treturn b.Bookings.MaterializableOfferingCount(ctx, offeringID, enrollmentOwner.Date(today))\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/CareOfferingCatalogBookings.MaterializableOfferingCount",
