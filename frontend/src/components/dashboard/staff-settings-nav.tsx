@@ -1,6 +1,5 @@
 "use client";
 
-import { SectionLabel } from "~/components/ui/section-label";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
   activeSettingsSectionId,
@@ -8,7 +7,6 @@ import {
   useSettingsSections,
 } from "~/components/settings/settings-nav-items";
 import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
-import { NavLink } from "~/components/ui/nav-link";
 import {
   PortalOverflowBottomNav,
   type PortalOverflowNavItem,
@@ -29,9 +27,11 @@ import {
   SIDEBAR_ICON_CLASSES,
   SIDEBAR_NAV_GAP,
   SIDEBAR_NAV_PADDING,
-  sidebarLabelClasses,
-  sidebarRowClasses,
 } from "~/components/ui/sidebar-geometry";
+import {
+  SidebarRowLink,
+  SidebarSectionHeading,
+} from "~/components/ui/sidebar-row";
 
 const RETURN_PATH_KEY = "staff-settings-return-path";
 const SETTINGS_PATH = STAFF_FLAT_PAGES.settings.href;
@@ -125,24 +125,24 @@ export function StaffSettingsSidebarNav({
 }) {
   const { loading, back, items } = useStaffSettingsNav();
   const renderRow = (row: PortalOverflowNavItem) => (
-    <NavLink
+    <SidebarRowLink
       key={row.key}
       href={row.href}
       data-staff-settings-nav-item={row.key}
-      aria-current={row.active ? "page" : undefined}
-      className={sidebarRowClasses({ isActive: row.active })}
-      {...(collapsed ? { title: row.label, "aria-label": row.label } : {})}
-    >
-      <MotoNavIcon
-        scene
-        concept={row.concept}
-        active={row.active}
-        className={SIDEBAR_ICON_CLASSES}
-      />
-      {labelsMounted && (
-        <span className={sidebarLabelClasses(labelsVisible)}>{row.label}</span>
-      )}
-    </NavLink>
+      active={row.active}
+      label={row.label}
+      collapsed={collapsed}
+      labelsMounted={labelsMounted}
+      labelsVisible={labelsVisible}
+      icon={
+        <MotoNavIcon
+          scene
+          concept={row.concept}
+          active={row.active}
+          className={SIDEBAR_ICON_CLASSES}
+        />
+      }
+    />
   );
 
   return (
@@ -151,13 +151,14 @@ export function StaffSettingsSidebarNav({
       className={`${collapsed ? "scrollbar-hidden" : ""} flex-1 overflow-y-auto ${SIDEBAR_NAV_PADDING}`}
     >
       {renderRow(back)}
-      <SectionLabel
-        as="p"
-        className={`mt-5 mb-1.5 truncate px-3 motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-100" : "opacity-0"}`}
-        aria-hidden={collapsed}
-      >
-        {SETTINGS_LABEL}
-      </SectionLabel>
+      <div className="mt-5">
+        <SidebarSectionHeading
+          collapsed={collapsed}
+          labelsVisible={labelsVisible}
+        >
+          {SETTINGS_LABEL}
+        </SidebarSectionHeading>
+      </div>
       <div className={SIDEBAR_NAV_GAP}>
         {loading
           ? ["w-24", "w-28", "w-20", "w-32"].map((widthClass) => (

@@ -115,19 +115,3 @@ vi.mock("~/env.client", () => ({
     NEXT_PUBLIC_TRAEGER_HOSTNAME: "traeger.localhost:3000",
   },
 }));
-
-// Focused tests exercise the auth wrappers directly. Route tests mock each
-// portal auth module, so their wrapper layer stays transparent here.
-const passthroughAuthWrapper = <Handler>(handler: Handler): Handler => handler;
-vi.mock("~/server/auth/tenant-route", () => ({
-  withTenantAuth: passthroughAuthWrapper,
-}));
-vi.mock("~/server/auth/operator-route", () => ({
-  withOperatorAuth: passthroughAuthWrapper,
-}));
-vi.mock("~/server/auth/parent-route", () => ({
-  withParentAuth: passthroughAuthWrapper,
-}));
-vi.mock("~/server/auth/traeger-route", () => ({
-  withTraegerAuth: passthroughAuthWrapper,
-}));

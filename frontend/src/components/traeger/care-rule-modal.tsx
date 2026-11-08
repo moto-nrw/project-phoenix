@@ -14,6 +14,7 @@ import { Input } from "~/components/ui/input";
 import { MultiSelect } from "~/components/ui/multi-select";
 import { NumberStepper } from "~/components/ui/number-stepper";
 import { SegmentedControl } from "~/components/ui/segmented-control";
+import { SwitchRow } from "~/components/ui/switch";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
@@ -61,6 +62,7 @@ interface Draft {
   moduleIds: string[];
   countSchoolIds: string[];
   fromChild: number;
+  countsFamilyChildren: boolean;
   effect: Effect;
   value: string;
 }
@@ -97,6 +99,7 @@ function draftOf(
       moduleIds: [...rule.careOfferingIds],
       countSchoolIds: [...rule.countSchoolIds],
       fromChild: rule.siblingFromChild ?? 2,
+      countsFamilyChildren: rule.countsFamilyChildren,
       effect: effectOf(rule),
       value: valueOf(rule),
     };
@@ -109,6 +112,7 @@ function draftOf(
     moduleIds: [],
     countSchoolIds: [],
     fromChild: 2,
+    countsFamilyChildren: false,
     effect: kind === "single_parent" ? "amount" : "share",
     value: "",
   };
@@ -253,6 +257,7 @@ export function CareRuleModal({
       careOfferingIds: draft.moduleIds,
       countSchoolIds: kind === "sibling" ? draft.countSchoolIds : [],
       siblingFromChild: kind === "sibling" ? draft.fromChild : null,
+      countsFamilyChildren: kind === "sibling" && draft.countsFamilyChildren,
       discountBasisPoints: basisPoints,
       discountCents: kind !== "cap" && draft.effect === "amount" ? cents : null,
       priceCents: kind !== "cap" && draft.effect === "price" ? cents : null,
@@ -440,6 +445,16 @@ export function CareRuleModal({
               </p>
             </div>
           </div>
+        ) : null}
+        {kind === "sibling" ? (
+          <SwitchRow
+            label="Geschwister ohne Vertrag mitzählen"
+            description="moto zählt die Kinderzahl, die Sie unter „Kinderzahl“ bestätigt haben. Es zählen immer mindestens die Kinder mit Vertrag. Kinder mit Vertrag an einer anderen Schule zählen nur, wenn die Regel dort Geschwister zählt."
+            checked={draft.countsFamilyChildren}
+            onCheckedChange={(countsFamilyChildren) =>
+              set({ countsFamilyChildren })
+            }
+          />
         ) : null}
         {effects.length > 0 ? (
           <div className="space-y-3">

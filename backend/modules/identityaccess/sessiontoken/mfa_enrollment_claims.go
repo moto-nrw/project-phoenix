@@ -1,23 +1,25 @@
 package sessiontoken
 
+import "github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
+
 // MFA enrollment scope values mirror the challenge scopes — same conventions,
 // different stage in the flow. An enrollment token is issued when MFA is
 // required for the tenant/operator role but the account has not yet
 // registered a second factor; it must only authorize the /auth/mfa/enroll/*
 // surface, never a fully authenticated route.
 const (
-	MFAEnrollmentScopeTenant   = "tenant"
-	MFAEnrollmentScopePlatform = "platform"
+	MFAEnrollmentScopeTenant   = tokenprimitives.PortalTenant
+	MFAEnrollmentScopePlatform = tokenprimitives.PortalPlatform
 	// MFAEnrollmentScopeSchool tags enrollment tokens minted by the school
 	// portal login (#2207). Only the /school/auth/mfa/enroll/* handlers
 	// accept it, and confirming there mints SCHOOL tokens — a school login
 	// must never be laundered into a tenant session via the enrollment
 	// detour.
-	MFAEnrollmentScopeSchool = "school"
+	MFAEnrollmentScopeSchool = tokenprimitives.PortalSchool
 	// MFAEnrollmentScopeOrg tags enrollment tokens minted by the Träger-Portal
 	// login (#4651). Only the /traeger/auth/mfa/enroll/* handlers accept it,
 	// and confirming there mints a Träger session.
-	MFAEnrollmentScopeOrg = "org"
+	MFAEnrollmentScopeOrg = tokenprimitives.PortalOrg
 )
 
 // MFAEnrollmentClaims represents a short-lived JWT issued to an account that
@@ -31,9 +33,6 @@ const (
 //   - `mfa_enrollment_pending` is the discriminator middleware uses to
 //     reject this token at any other endpoint — the security boundary that
 //     closes the "issue full session before MFA is set up" bypass.
-//
-// The shape mirrors MFAChallengeClaims so the wire format is consistent and
-// the two claim types stay parallel as new fields are added.
 type MFAEnrollmentClaims struct {
 	// AccountID is auth.accounts.id (tenant scope) or platform.operators.id
 	// (platform scope) of the user being enrolled.
@@ -57,31 +56,9 @@ type MFAEnrollmentClaims struct {
 	CommonClaims
 }
 
-// ParseClaims fills MFAEnrollmentClaims from a decoded JWT claim map.
-//
-// Defense-in-depth (mirrors AppClaims.ParseClaims and the symmetric
-// gate in MFAChallengeClaims): an enrollment token MUST NOT also carry
-// mfa_pending=true — that would be a malformed JWT that satisfies both
-// challenge and enrollment middleware. Rejecting the foreign flag up
-// front means a future bug in CreateMFA*JWT can't accidentally produce
-// a JWT both parsers accept. (#1430 review item #8)
-func (c *MFAEnrollmentClaims) ParseClaims(claims map[string]any) error {
-	accountID, tenantID, scope, err := parseMFAPendingClaims(claims, mfaPendingClaimsSpec{
-		foreignFlagKey: "mfa_pending",
-		foreignFlagErr: "token is a pending-MFA challenge, not an enrollment token",
-		scopeTenant:    MFAEnrollmentScopeTenant,
-		scopePlatform:  MFAEnrollmentScopePlatform,
-		scopeSchool:    MFAEnrollmentScopeSchool,
-		scopeOrg:       MFAEnrollmentScopeOrg,
-		pendingFlagKey: "mfa_enrollment_pending",
-		notPendingErr:  "token is not a pending-MFA-enrollment token",
-	}, &c.CommonClaims)
-	if err != nil {
-		return err
+func enrollmentClaimsOf(c tokenprimitives.EnrollmentClaims) MFAEnrollmentClaims {
+	return MFAEnrollmentClaims{
+		AccountID: c.AccountID, Scope: c.Scope, TenantID: c.TenantID, MFAEnrollmentPending: true,
+		CommonClaims: CommonClaims{ExpiresAt: c.ExpiresAt},
 	}
-	c.AccountID = accountID
-	c.TenantID = tenantID
-	c.Scope = scope
-	c.MFAEnrollmentPending = true
-	return nil
 }

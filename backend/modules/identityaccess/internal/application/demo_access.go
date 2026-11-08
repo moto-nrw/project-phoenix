@@ -203,9 +203,9 @@ func (d *DemoAccess) Redeem(ctx context.Context, token string, role domain.DemoR
 	}
 	var accessToken, refreshToken string
 	if role == domain.DemoRoleParent {
-		accessToken, refreshToken, err = d.sessions.IssueParentTokensForAuthenticatedAccount(ctx, entry.ParentAccountID, ipAddress, userAgent)
+		accessToken, refreshToken, err = d.sessions.IssueDemoParentTokens(ctx, entry.ParentAccountID, ipAddress, userAgent)
 	} else {
-		accessToken, refreshToken, err = d.sessions.IssueTokensForAuthenticatedAccount(ctx, entry.AccountID, entry.TenantID, ipAddress, userAgent)
+		accessToken, refreshToken, err = d.sessions.IssueDemoTokens(ctx, entry.AccountID, entry.TenantID, ipAddress, userAgent)
 	}
 	if err != nil {
 		return domain.DemoEntry{}, err
@@ -394,7 +394,7 @@ func (d *DemoAccess) knownSchool(ctx context.Context, email string) (domain.Demo
 	return known, true, true, nil
 }
 
-// demoTenantLock is the mint guard of the tenant switch: an account a demo
+// demoTenantLock is part of the tenant switch's eligibility: an account a demo
 // access signed in stays in its demo school. It reads inside the switch's
 // own administrative transaction, so it holds for every caller and cannot be
 // skipped by a route. Outside the demo environment no demo access exists.

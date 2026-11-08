@@ -50,6 +50,7 @@ export interface CareModule {
   /** End time "HH:MM" or empty. */
   readonly endsAt: string;
   readonly bookedWeekdays: readonly CareWeekday[];
+  readonly bookedDaysPerWeek: readonly number[];
   readonly contractCount: number;
 }
 
@@ -250,6 +251,12 @@ export interface CareRunDetail extends CareRun {
   readonly duplicates: readonly CareDuplicate[];
   /** The children of `duplicates`; the release bills none of them. */
   readonly duplicateChildren: number;
+  /**
+   * Families a sibling rule that counts the family ranks without a
+   * confirmed number for the month (#5918); it counts their children with a
+   * contract alone.
+   */
+  readonly uncountedFamilies?: number;
   readonly billed: number;
   /** Contracts a free month of their price list bills nothing for. */
   readonly freeOfCharge?: number;
@@ -274,6 +281,7 @@ interface BackendModule {
   module_name: string;
   ends_at: string;
   booked_weekdays: CareWeekday[] | null;
+  booked_days_per_week?: number[] | null;
   contract_count: number;
 }
 
@@ -399,6 +407,7 @@ export interface BackendRunDetail extends BackendRun {
       }[]
     | null;
   duplicate_children: number;
+  uncounted_families?: number;
   billed: number;
   free_of_charge?: number;
   preview_count: number;
@@ -432,6 +441,7 @@ function tariffsFromBackend(body: BackendTariffs): CareTariffs {
       moduleName: module.module_name,
       endsAt: module.ends_at,
       bookedWeekdays: module.booked_weekdays ?? [],
+      bookedDaysPerWeek: module.booked_days_per_week ?? [],
       contractCount: module.contract_count,
     })),
     tariffs: (body.tariffs ?? []).map((tariff) => ({
@@ -563,6 +573,7 @@ export function detailFromBackend(detail: BackendRunDetail): CareRunDetail {
       })),
     })),
     duplicateChildren: detail.duplicate_children ?? 0,
+    uncountedFamilies: detail.uncounted_families ?? 0,
     billed: detail.billed,
     freeOfCharge: detail.free_of_charge ?? 0,
     previewCount: detail.preview_count,

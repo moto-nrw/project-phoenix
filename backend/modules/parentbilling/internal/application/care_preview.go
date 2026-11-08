@@ -28,6 +28,9 @@ type careMonthInput struct {
 	evidences []parentbilling.CareEvidence
 	// lists are the heads of the price lists with their free months (#6196).
 	lists []parentbilling.CarePriceListHead
+	// familyCounts are the numbers of the families (#5918); a sibling rule
+	// that counts the family reads the one confirmed for the month.
+	familyCounts []parentbilling.FamilyChildCount
 }
 
 // careMonth is the preview of one month: the draft invoices, the bookings
@@ -46,6 +49,12 @@ type careMonth struct {
 	// freeBySchool counts per school the contracts whose price list makes
 	// the month free of charge (#6196).
 	freeBySchool map[int64]int
+	// uncounted is the number of families a rule that counts the family
+	// ranked without a confirmed number for the month (#5918), for the
+	// schools of a run; uncountedSchools names per such family the schools
+	// of its invoices, so a run of some schools counts only its families.
+	uncounted        int
+	uncountedSchools map[string][]int64
 }
 
 func (m careMonth) total() int64 {
@@ -74,10 +83,8 @@ func firstOfMonth(day calendar.Date) calendar.Date {
 // ErrCareVersionsOverlap: the run would otherwise bill a day twice.
 func buildCareMonth(in careMonthInput) (careMonth, error) {
 	byContract, order := versionsByContract(in.versions)
-	for _, contractID := range order {
-		if err := checkOneVersionPerDay(byContract[contractID]); err != nil {
-			return careMonth{}, err
-		}
+	if err := checkVersions(byContract, order); err != nil {
+		return careMonth{}, err
 	}
 	duplicates, held := childMonthHolds(in.month, in.rule, byContract, order)
 	entries := monthEntries(in.month, byContract, order)
@@ -86,18 +93,25 @@ func buildCareMonth(in careMonthInput) (careMonth, error) {
 	result := careMonth{invoices: []parentbilling.CareInvoice{}, unpriced: []parentbilling.CareUnpriced{}, duplicates: duplicates,
 		freeBySchool: map[int64]int{}}
 	var chained []*careChainEntry
+	var unbilled []careContractPlace
 	childOf := childKeys(byContract, order)
 	for _, contractID := range order {
-		if _, issued := in.invoiced[contractID]; issued || held[contractID] {
+		if _, issued := in.invoiced[contractID]; issued {
 			continue
 		}
-		if free.free(byContract[contractID][0].SchoolID, in.month) {
-			result.freeBySchool[byContract[contractID][0].SchoolID]++
+		school := byContract[contractID][0].SchoolID
+		freeMonth := !held[contractID] && free.free(school, in.month)
+		if freeMonth {
+			result.freeBySchool[school]++
+		}
+		if held[contractID] || freeMonth {
+			unbilled = appendInForce(unbilled, in, byContract[contractID], entries[contractID], childOf[contractID])
 			continue
 		}
 		invoice, unpriced := billContract(in.month, in.rule, byContract[contractID], entries[contractID], prices)
 		if len(unpriced) > 0 {
 			result.unpriced = append(result.unpriced, unpriced...)
+			unbilled = appendInForce(unbilled, in, byContract[contractID], entries[contractID], childOf[contractID])
 			continue
 		}
 		if len(invoice.Positions) == 0 {
@@ -108,7 +122,16 @@ func buildCareMonth(in careMonthInput) (careMonth, error) {
 		result.invoices = append(result.invoices, invoice)
 		chained = append(chained, &careChainEntry{child: childOf[contractID], birthDate: byContract[contractID][0].ChildBirthDate})
 	}
-	// result.invoices no longer grows: the entries point into it.
+	chainCareMonth(&result, in, chained, unbilled, childOf, byContract)
+	return result, nil
+}
+
+// chainCareMonth runs the rule chain over the drafts and the issued
+// invoices of the month and sorts the drafts. result.invoices no longer
+// grows: the entries point into it.
+func chainCareMonth(result *careMonth, in careMonthInput, chained []*careChainEntry, unbilled []careContractPlace,
+	childOf map[int64]string, byContract map[int64][]parentbilling.CareContractVersion,
+) {
 	for i, entry := range chained {
 		entry.invoice = &result.invoices[i]
 	}
@@ -118,12 +141,40 @@ func buildCareMonth(in careMonthInput) (careMonth, error) {
 	for _, invoice := range in.invoiced {
 		result.billedBySchool[invoice.SchoolID]++
 	}
-	applyCareChain(chained, careChainInput{month: in.month, rules: in.rules, evidences: in.evidences})
+	uncounted := map[string][]int64{}
+	applyCareChain(chained, careChainInput{month: in.month, rules: in.rules, evidences: in.evidences,
+		familyChildren: familyChildrenIn(in.familyCounts, in.month), uncounted: uncounted, unbilled: unbilled})
+	result.uncounted = len(uncounted)
+	result.uncountedSchools = uncounted
 	slices.SortStableFunc(result.invoices, func(a, b parentbilling.CareInvoice) int {
 		return firstNonZero(compareOrdered(a.SchoolName, b.SchoolName), compareOrdered(a.ChildLastName, b.ChildLastName),
 			compareOrdered(a.ChildFirstName, b.ChildFirstName), compareOrdered(a.ContractID, b.ContractID))
 	})
-	return result, nil
+}
+
+// appendInForce adds the place of a contract that books care in the month
+// but gets no draft, so a sibling rule still sees its child at its school.
+func appendInForce(places []careContractPlace, in careMonthInput, versions []parentbilling.CareContractVersion, entry bool, child string) []careContractPlace {
+	if len(tracksOf(in.month, in.rule, versions, entry)) == 0 {
+		return places
+	}
+	head := versions[0]
+	family := parentbilling.FamilyKey(in.recipients[head.ContractID].Email)
+	if family == "" {
+		family = "contract:" + strconv.FormatInt(head.ContractID, 10)
+	}
+	return append(places, careContractPlace{family: family, child: child, school: head.SchoolID})
+}
+
+// familyChildrenIn keys the confirmed numbers valid in the month by family.
+func familyChildrenIn(counts []parentbilling.FamilyChildCount, month calendar.Date) map[string]int {
+	children := map[string]int{}
+	for _, count := range counts {
+		if number, ok := count.ConfirmedIn(month); ok {
+			children[count.FamilyEmail] = number
+		}
+	}
+	return children
 }
 
 // issuedCareEntries keeps earlier invoices independent of current pricing.
@@ -163,6 +214,17 @@ func versionsByContract(versions []parentbilling.CareContractVersion) (map[int64
 		slices.SortFunc(byContract[contractID], func(a, b parentbilling.CareContractVersion) int { return a.From.Compare(b.From) })
 	}
 	return byContract, order
+}
+
+// checkVersions refuses a month in which a contract has two versions on
+// one day.
+func checkVersions(byContract map[int64][]parentbilling.CareContractVersion, order []int64) error {
+	for _, contractID := range order {
+		if err := checkOneVersionPerDay(byContract[contractID]); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // checkOneVersionPerDay refuses versions of one contract whose days meet.
@@ -392,7 +454,7 @@ func trackPositions(schoolID int64, track moduleTrack, prices priceBook, month c
 		monthly[i], sibling[i], tiers[i] = runPrices(schoolID, track.offeringID, run, prices, month)
 	}
 	runCents, weekdayCents := shareMonth(track.runs, monthly, daysInMonth)
-	siblingCents, _ := shareMonth(track.runs, sibling, daysInMonth)
+	siblingCents := shareSiblingMonth(track.runs, sibling, daysInMonth, runCents)
 	positions := make([]parentbilling.CarePosition, len(track.runs))
 	for i, run := range track.runs {
 		position := parentbilling.CarePosition{
@@ -461,6 +523,37 @@ func shareMonth(runs []moduleRun, monthly [][]int64, daysInMonth int) ([]int64, 
 		weekdayCents[i] = largestRemainder(shares[i], int64(daysInMonth), runCents[i])
 	}
 	return runCents, weekdayCents
+}
+
+// shareSiblingMonth preserves the rounded sibling total without exceeding
+// a run's base amount. Independent largest-remainder allocations can put a
+// sibling cent on a run whose base amount rounded down. Move only those
+// cents, always to the eligible run furthest below its exact sibling share.
+func shareSiblingMonth(runs []moduleRun, monthly [][]int64, daysInMonth int, limits []int64) []int64 {
+	cents, _ := shareMonth(runs, monthly, daysInMonth)
+	remainders := make([]int64, len(runs))
+	var excess int64
+	for i, run := range runs {
+		excess += max(cents[i]-limits[i], 0)
+		cents[i] = min(cents[i], limits[i])
+		for _, price := range monthly[i] {
+			remainders[i] += price * int64(run.days())
+		}
+		remainders[i] -= cents[i] * int64(daysInMonth)
+	}
+	for ; excess > 0; excess-- {
+		best := -1
+		for i := range cents {
+			if cents[i] < limits[i] && (best < 0 || remainders[i] > remainders[best]) {
+				best = i
+			}
+		}
+		// Every sibling price is at most its base price, so the rounded
+		// base total always has room for the rounded sibling total.
+		cents[best]++
+		remainders[best] -= int64(daysInMonth)
+	}
+	return cents
 }
 
 // roundHalfUp divides numerator by denominator, rounding half up.

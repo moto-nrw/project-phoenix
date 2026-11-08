@@ -71,6 +71,7 @@ func narrowMonth(month careMonth, schoolIDs []int64, exclusions map[int64]parent
 	review := reviewedMonth{careMonth: careMonth{invoices: []parentbilling.CareInvoice{}, unpriced: []parentbilling.CareUnpriced{},
 		duplicates: []parentbilling.CareDuplicate{}, dueDates: month.dueDates, deviations: month.deviations},
 		excluded: []parentbilling.CareInvoice{}}
+	review.uncounted = uncountedInRun(month.uncountedSchools, inRun)
 	review.billed = countInRun(month.billedBySchool, inRun)
 	review.free = countInRun(month.freeBySchool, inRun)
 	for _, invoice := range month.invoices {
@@ -108,6 +109,18 @@ func countInRun(bySchool map[int64]int, inRun func(int64) bool) int {
 		}
 	}
 	return total
+}
+
+// uncountedInRun counts the families without a confirmed number whose
+// invoices go to a school of the run (#5918).
+func uncountedInRun(families map[string][]int64, inRun func(int64) bool) int {
+	count := 0
+	for _, schools := range families {
+		if slices.ContainsFunc(schools, inRun) {
+			count++
+		}
+	}
+	return count
 }
 
 // fingerprintInvoice is what the fingerprint covers of an invoice the
@@ -156,9 +169,10 @@ func previewFingerprint(run parentbilling.CareRun, rule string, review reviewedM
 		Billed      int                           `json:"billed"`
 		Free        int                           `json:"free"`
 		DueDates    []parentbilling.RunDueDate    `json:"due_dates"`
+		Uncounted   int                           `json:"uncounted_families"`
 	}{run.ID, run.SchoolIDs, run.InvoiceDate, rule, fingerprintInvoices(review.invoices),
 		fingerprintInvoices(review.excluded), review.unpriced, review.duplicates, review.billed, review.free,
-		review.dueDates.InPaymentOrder()})
+		review.dueDates.InPaymentOrder(), review.uncounted})
 	if err != nil {
 		// Every value above marshals; a failure leaves no fingerprint a
 		// release could match.
@@ -363,6 +377,7 @@ func (c *CareBilling) reviewDetail(ctx context.Context, reviewer parentbilling.H
 	detail.MonthRule, detail.Unpriced, detail.Billed = rule, review.unpriced, review.billed
 	detail.FreeOfCharge = review.free
 	detail.Duplicates = review.duplicates
+	detail.UncountedFamilies = review.uncounted
 	detail.Invoices = append(review.invoices, review.excluded...)
 	detail.Fingerprint = review.fingerprint
 	for _, invoice := range review.excluded {

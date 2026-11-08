@@ -6,7 +6,7 @@ import (
 )
 
 // ParentRouter returns the SSE router for the parents portal. It mirrors the
-// staff Router() but authenticates with ParentMiddleware (scope=parent only)
+// staff Router() but authenticates with ParentScopeMiddleware (scope=parent only)
 // and subscribes the connection to the tenants of the guardian's children
 // rather than to supervised groups. Mounted at /parent-sse.
 

@@ -1,84 +1,80 @@
 "use client";
 
-import { EmptyState } from "~/components/ui/empty-state";
-import { InsetPanel } from "~/components/ui/inset-panel";
 import {
   useCallback,
-  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
-  type Dispatch,
-  type ReactNode,
-  type SetStateAction,
 } from "react";
+import { Info, Plus } from "lucide-react";
 import {
-  Check,
-  Eye,
-  ExternalLink,
-  FileText,
-  FileUp,
-  Info,
-  Lock,
-  Pencil,
-  Plus,
-  TextCursorInput,
-  Trash2,
-} from "lucide-react";
+  DraftDocumentContext,
+  useDraftDocuments,
+  type DraftDocumentSave,
+} from "~/components/enrollment/draft-documents";
 import {
-  AttachmentEditor,
-  AttachmentUploadContext,
-} from "~/components/enrollment/attachment-editor";
+  EnrollmentFormsOverview,
+  DeleteSchemaDialog,
+  RenameSchemaDialog,
+} from "~/components/enrollment/enrollment-form-overview";
 import {
-  applyFileFieldRules,
   createIncomeDeclarationFields,
-  fileFieldDraftProblem,
   hasIncomeDeclaration,
   IncomeDeclarationButton,
 } from "~/components/enrollment/file-field-editor";
-import { LOCATION_COLORS } from "~/lib/location-helper";
-import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import {
-  StatusBadge,
-  type StatusBadgeTone,
-} from "~/components/ui/status-badge";
-import { StatCard } from "~/components/ui/stat-card";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+  FieldEditorRow,
+  FieldErrorContext,
+} from "~/components/enrollment/form-field-builder";
+import {
+  BuilderTemplateSummary,
+  FormBuilderIntro,
+  SignatureRequirementSection,
+  TargetSuggestions,
+  UnsavedChangesDialog,
+  type PendingNavigation,
+} from "~/components/enrollment/form-template-builder-sections";
+import { CoreFieldsSection } from "~/components/enrollment/form-template-core-fields";
+import { FormTemplateDetail } from "~/components/enrollment/form-template-detail";
+import {
+  coreRequirementsSignature,
+  createTargetField,
+  getSchemaDraftValidationMessage,
+  isRenameOf,
+  prepareFieldsForSave,
+  type ReservedTarget,
+} from "~/components/enrollment/form-template-draft";
+import {
+  FormPreview,
+  openTemplatePreview,
+  useTemplatePreviewHref,
+} from "~/components/enrollment/form-template-preview";
+import {
+  schemaTranslationTargets,
+  schemaTranslationUpdate,
+} from "~/components/enrollment/form-template-translations";
+import { LegalBlocksSection } from "~/components/enrollment/legal-blocks-section";
+import {
+  TranslationsSection,
+  type TranslationTarget,
+} from "~/components/enrollment/translations-section";
+import { BackAction } from "~/components/ui/back-link";
+import { Button } from "~/components/ui/button";
+import { SectionCard } from "~/components/ui/section-card";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
+import { FormSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import {
   useApiErrorDisplay,
   useApiFormError,
   useApiLoadError,
   useToast,
 } from "~/contexts/ToastContext";
-import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
-import { Modal } from "~/components/ui/modal";
-import type { FormErrorInput } from "~/components/ui/form-error";
 import {
-  FormErrorAlert,
-  LoadErrorAlert,
-} from "~/components/ui/form-error-alert";
-import { FormModal } from "~/components/ui/form-modal";
-import { Alert } from "~/components/ui/alert";
-import { SectionCard } from "~/components/ui/section-card";
-import { TileCard } from "~/components/ui/tile-card";
-import { Textarea } from "~/components/ui/textarea";
-import { BackAction } from "~/components/ui/back-link";
-import { Button, ButtonLink, buttonClassName } from "~/components/ui/button";
-import { SegmentedControl } from "~/components/ui/segmented-control";
-import { FormSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
-import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import { Input } from "~/components/ui/input";
-import { ChoiceTile } from "~/components/ui/choice-tile";
-import { Switch } from "~/components/ui/switch";
-import {
-  TranslationsSection,
-  type TranslationTarget,
-} from "~/components/enrollment/translations-section";
-import type { Translations } from "~/lib/enrollment-translations";
-import {
-  MAX_ENROLLMENT_DOCUMENT_BYTES,
   blankField,
   blankInfoField,
   createSchema,
@@ -89,262 +85,36 @@ import {
   listSchemas,
   renameSchema,
   updateSchema,
-  uploadEnrollmentLegalDocument,
-  RESERVED_TARGETS,
-  type FormField,
-  type FormFieldTarget,
-  type FormFieldType,
-  type FormLegalBlock,
-  type FormSchema,
-  type LegalBlockDisplayMode,
   type CoreRequirementKey,
   type CoreRequirements,
-  type PublicLegalTexts,
+  type FormField,
+  type FormLegalBlock,
+  type FormSchema,
 } from "~/lib/enrollment-form-schema-api";
 import {
-  FieldEditorRow,
-  FieldErrorContext,
-  FormPreview as SharedFormPreview,
-  FormPreviewHeading,
-  PreviewAttachmentNames,
-  PreviewFieldsSection,
-  PreviewSection,
-  type PreviewFieldLabel,
-  fieldErrorProps,
-  fieldTypeLabels,
-  normalizeFieldKey,
-} from "~/components/enrollment/form-field-builder";
+  STANDARD_LEGAL_BLOCKS,
+  draftDocumentURLsInLegalBlocks,
+  legalBlocksForTemplate,
+  legalBlocksSignature,
+  mergeStandardLegalBlocks,
+  prepareLegalBlocksForSave,
+} from "~/lib/enrollment-legal-blocks";
 import { listPhases, type Phase } from "~/lib/enrollment-phase-api";
+import type { Translations } from "~/lib/enrollment-translations";
 import { createLogger } from "~/lib/logger";
-import { useTenantSlugSafe } from "~/lib/tenant-context";
-import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
   copyStableObjectKey,
   getStableObjectKey,
 } from "~/lib/stable-object-key";
-import { calendarPeriodsConcept } from "~/lib/concepts/calendarPeriods";
-import { childrenConcept } from "~/lib/concepts/children";
-import { enrollmentsConcept } from "~/lib/concepts/enrollments";
-import { permissionsConcept } from "~/lib/concepts/permissions";
-import { IconTile } from "~/components/ui/icon-tile";
-import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
-import { SpinnerIcon } from "~/components/ui/icons";
-import { Checkbox } from "~/components/ui/checkbox";
+import { useTenantSlugSafe } from "~/lib/tenant-context";
 
 const logger = createLogger({ component: "EnrollmentFormEditor" });
-
-const structuredFieldTypes = new Set<FormFieldType>([
-  "phone_list",
-  "weekday_schedule",
-  "weekday_boolean",
-  "weekday_mode",
-  "weekday_multi_mode",
-  "contact_list",
-]);
-
-// Labels for the answer storage picker. Admins can still rename the
-// displayed question; the target decides whether the answer is copied
-// into student data, schedule data, or contacts at approval time.
-const targetPickerLabels: Record<Exclude<FormFieldTarget, "">, string> = {
-  "student.health_info": "Gesundheitsinformationen beim Kind speichern",
-  "student.extra_info": "Hinweise für die Betreuung beim Kind speichern",
-  "student.allowed_departure_modes": "Erlaubte Heimwege beim Kind speichern",
-  "student.departure": "Geh- und Abholregelung beim Kind speichern",
-  "student.bus_days": "Buskind beim Kind speichern",
-  "student.bus": "Buskind beim Kind speichern",
-  "student.pickup_status": "Abholregelung beim Kind speichern",
-  "schedule.pickup": "Abholzeiten im Betreuungsplan speichern",
-  "schedule.arrival": "Ankunftszeiten im Betreuungsplan speichern",
-  "student.contacts":
-    "Weitere Kontakte, Abholberechtigte und Notfallkontakte speichern",
-};
-
-// Targets sorted alphabetically by label for the picker, keeps the
-// dropdown stable across renders even if the underlying map order
-// changes. student.bus / student.bus_days / student.pickup_status are legacy
-// targets superseded by the unified student.departure (#1610); they are
-// excluded so new fields can only pick the canonical unified target.
-const LEGACY_PICKER_TARGETS = new Set<Exclude<FormFieldTarget, "">>([
-  "student.departure",
-  "student.bus",
-  "student.bus_days",
-  "student.pickup_status",
-]);
-const TARGET_PICKER_ORDER: Array<Exclude<FormFieldTarget, "">> = (
-  Object.keys(targetPickerLabels) as Array<Exclude<FormFieldTarget, "">>
-)
-  .filter((target) => !LEGACY_PICKER_TARGETS.has(target))
-  .sort((a, b) =>
-    targetPickerLabels[a].localeCompare(targetPickerLabels[b], "de"),
-  );
-
-const targetSuggestionDescriptions: Record<
-  Exclude<FormFieldTarget, "">,
-  string
-> = {
-  "student.health_info":
-    "Für Allergien, Medikamente oder andere Gesundheitsangaben.",
-  "student.extra_info":
-    "Für wichtige Hinweise, die im Alltag der Betreuung sichtbar sein sollen.",
-  "student.allowed_departure_modes":
-    "Für Betreuungstage festlegen, welche Heimwege erlaubt sind: zu Fuß, Bus, Abholung oder mit anderem Kind. Mit Betreuungsangeboten sehen Eltern nur die gewählten Betreuungstage; als Pflichtfrage ist pro Betreuungstag mindestens ein Heimweg nötig.",
-  "student.departure":
-    "Für die Wochentage festlegen, wie das Kind nach Hause geht: geht alleine, fährt Bus oder wird abgeholt.",
-  "student.bus_days":
-    "Für die Information, an welchen Wochentagen ein Kind mit dem Bus fährt.",
-  "student.bus": "Für die Information, ob ein Kind mit dem Bus fährt.",
-  "student.pickup_status":
-    "Für die Wochentage, an denen ein Kind abgeholt wird. Nicht gewählte Tage bedeuten, dass es alleine nach Hause geht.",
-  "schedule.pickup": "Für regelmäßige Abholzeiten je Wochentag.",
-  "schedule.arrival": "Für regelmäßige Ankunftszeiten je Wochentag.",
-  "student.contacts":
-    "Für weitere Kontakte, Abholberechtigte oder Notfallkontakte.",
-};
 
 const NEW_SCHEMA_VALUE = "__new__";
 const LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE =
   "Bitte warten Sie, bis die PDF-Datei hochgeladen ist.";
 
 type EditorMode = "overview" | "builder" | "detail";
-type PendingNavigation = "overview" | "new" | "preview";
-
-const STANDARD_LEGAL_BLOCKS: FormLegalBlock[] = [
-  {
-    key: "agb",
-    kind: "terms",
-    title: "AGB / Teilnahmebedingungen",
-    label:
-      "Ich akzeptiere die AGB / Teilnahmebedingungen / den Ganztag Info-Brief.",
-    text: "",
-    required: true,
-    enabled: false,
-    sort_order: 10,
-    source: "standard",
-  },
-  {
-    key: "data_processing",
-    kind: "privacy_notice",
-    title: "Datenschutzinformation",
-    label:
-      "Ich habe die Datenschutzinformation der Schule zur Kenntnis genommen.",
-    text: "",
-    required: true,
-    enabled: false,
-    sort_order: 20,
-    source: "standard",
-  },
-  {
-    key: "photo",
-    kind: "consent",
-    title: "Fotoeinwilligung",
-    label:
-      "Mein Kind darf bei Schulveranstaltungen fotografiert werden. Diese Einwilligung ist freiwillig und jederzeit mit Wirkung für die Zukunft widerrufbar.",
-    text: "",
-    required: false,
-    enabled: false,
-    sort_order: 30,
-    source: "standard",
-  },
-  {
-    key: "email_contact",
-    kind: "notice",
-    title: "E-Mail-Kontakt",
-    label:
-      "Die Schule nutzt Ihre E-Mail-Adresse für Rückfragen und Status-Benachrichtigungen zu dieser Anmeldung.",
-    text: "",
-    required: false,
-    enabled: false,
-    sort_order: 40,
-    source: "standard",
-  },
-];
-
-const LEGAL_BLOCK_DISPLAY_MODE_TEXT = "text" satisfies LegalBlockDisplayMode;
-const LEGAL_BLOCK_DISPLAY_MODE_PDF = "pdf" satisfies LegalBlockDisplayMode;
-
-interface CoreField {
-  readonly key: string;
-  readonly label: string;
-  readonly type: FormFieldType;
-  readonly required: boolean;
-  readonly group: "guardian" | "child";
-  readonly requirementKey?: CoreRequirementKey;
-  readonly requirementLabel?: string;
-  readonly requirementHint?: string;
-}
-
-const CORE_FIELDS: ReadonlyArray<CoreField> = [
-  {
-    key: "guardian_first_name",
-    label: "Vorname (Elternteil)",
-    type: "text",
-    required: true,
-    group: "guardian",
-  },
-  {
-    key: "guardian_last_name",
-    label: "Nachname (Elternteil)",
-    type: "text",
-    required: true,
-    group: "guardian",
-  },
-  {
-    key: "guardian_email",
-    label: "E-Mail (Elternteil)",
-    type: "text",
-    required: true,
-    group: "guardian",
-  },
-  {
-    key: "guardian_phone",
-    label: "Telefonnummer (Elternteil)",
-    type: "text",
-    required: false,
-    group: "guardian",
-    requirementKey: "guardian_phone",
-    requirementLabel: "Telefonnummer verpflichtend",
-    requirementHint: "Eltern müssen eine gültige Telefonnummer angeben.",
-  },
-  {
-    key: "first_name",
-    label: "Vorname (Kind)",
-    type: "text",
-    required: true,
-    group: "child",
-  },
-  {
-    key: "last_name",
-    label: "Nachname (Kind)",
-    type: "text",
-    required: true,
-    group: "child",
-  },
-  {
-    key: "date_of_birth",
-    label: "Geburtsdatum (Kind)",
-    type: "date",
-    required: true,
-    group: "child",
-  },
-  {
-    key: "target_grade_level",
-    label: "Klassenstufe (Kind)",
-    type: "number",
-    required: true,
-    group: "child",
-  },
-];
-
-// True when newName is a non-empty rename of schema's current name. The
-// single source of truth for "is this a rename?" shared by both entry
-// points: the builder's inline name field and the standalone rename dialog.
-function isRenameOf(
-  schema: FormSchema | null | undefined,
-  newName: string,
-): boolean {
-  const trimmed = newName.trim();
-  return Boolean(schema) && trimmed.length > 0 && trimmed !== schema?.name;
-}
 
 export function EnrollmentFormEditor({
   onTemplateCountChange,
@@ -358,7 +128,7 @@ export function EnrollmentFormEditor({
 } = {}) {
   const toast = useToast();
   const tenantSlug = useTenantSlugSafe();
-  const tenantPath = useTenantAwarePath();
+  const templatePreviewHref = useTemplatePreviewHref();
   const [allSchemas, setAllSchemas] = useState<FormSchema[]>([]);
   const [phases, setPhases] = useState<Phase[]>([]);
   const [selectedKey, setSelectedKey] = useState<string>(NEW_SCHEMA_VALUE);
@@ -391,22 +161,24 @@ export function EnrollmentFormEditor({
     clear: clearSaveError,
   } = useApiFormError(builderRef);
   const deleteErrors = useApiFormError();
-  const { show: showActionError, showMessage } = useApiErrorDisplay();
+  const { showMessage } = useApiErrorDisplay();
   const [mode, setMode] = useState<EditorMode>("overview");
   const [pendingNavigation, setPendingNavigation] =
     useState<PendingNavigation | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<FormSchema | null>(null);
   const [deletingSchemaId, setDeletingSchemaId] = useState<string | null>(null);
   const [renameTarget, setRenameTarget] = useState<FormSchema | null>(null);
-  const uploadedDraftDocumentURLsRef = useRef<Set<string>>(new Set());
-  const savingDraftDocumentURLsRef = useRef<Set<string>>(new Set());
+  const draftDocuments = useDraftDocuments(deleteEnrollmentLegalDocument);
   const unmountedRef = useRef(false);
-  const [uploadedDraftDocumentURLs, setUploadedDraftDocumentURLs] = useState<
-    Set<string>
-  >(() => new Set());
-  const [uploadingLegalDocumentCount, setUploadingLegalDocumentCount] =
-    useState(0);
-  const hasPendingLegalDocumentUpload = uploadingLegalDocumentCount > 0;
+  useEffect(() => {
+    unmountedRef.current = false;
+    return () => {
+      unmountedRef.current = true;
+    };
+  }, []);
+  const hasPendingLegalDocumentUpload = draftDocuments.uploading;
+  // Saving and running uploads lock every control of the builder.
+  const locked = saving || hasPendingLegalDocumentUpload;
 
   const latestByName = useMemo(
     () => latestSchemasByName(allSchemas),
@@ -456,147 +228,13 @@ export function EnrollmentFormEditor({
     void loadAll();
   }, [loadAll]);
 
-  const setDraftDocumentURLs = useCallback(
-    (updater: (urls: Set<string>) => Set<string>) => {
-      const next = updater(new Set(uploadedDraftDocumentURLsRef.current));
-      uploadedDraftDocumentURLsRef.current = next;
-      setUploadedDraftDocumentURLs(next);
-    },
-    [],
-  );
-
-  const rememberDraftDocumentURL = useCallback(
-    (documentURL: string) => {
-      const trimmed = documentURL.trim();
-      if (!trimmed) return;
-      setDraftDocumentURLs((urls) => {
-        urls.add(trimmed);
-        return urls;
-      });
-    },
-    [setDraftDocumentURLs],
-  );
-
-  const forgetDraftDocumentURL = useCallback(
-    (documentURL: string) => {
-      setDraftDocumentURLs((urls) => {
-        urls.delete(documentURL);
-        return urls;
-      });
-    },
-    [setDraftDocumentURLs],
-  );
-
-  const forgetDraftDocumentURLs = useCallback(
-    (documentURLs: Iterable<string>) => {
-      setDraftDocumentURLs((urls) => {
-        for (const documentURL of documentURLs) {
-          urls.delete(documentURL);
-        }
-        return urls;
-      });
-    },
-    [setDraftDocumentURLs],
-  );
-
-  const beginLegalDocumentUpload = useCallback(() => {
-    setUploadingLegalDocumentCount((count) => count + 1);
-  }, []);
-
-  const endLegalDocumentUpload = useCallback(() => {
-    setUploadingLegalDocumentCount((count) => Math.max(0, count - 1));
-  }, []);
-
-  const attachmentLifecycle = useMemo(
-    () => ({
-      remember: rememberDraftDocumentURL,
-      begin: beginLegalDocumentUpload,
-      end: endLegalDocumentUpload,
-    }),
-    [
-      rememberDraftDocumentURL,
-      beginLegalDocumentUpload,
-      endLegalDocumentUpload,
-    ],
-  );
-
-  const cleanupDraftDocumentURLs = useCallback(
-    async ({
-      keepalive = false,
-      notify = true,
-      urlsToKeep = new Set<string>(),
-    }: {
-      keepalive?: boolean;
-      notify?: boolean;
-      urlsToKeep?: ReadonlySet<string>;
-    } = {}) => {
-      const urls = Array.from(uploadedDraftDocumentURLsRef.current).filter(
-        (url) => !urlsToKeep.has(url),
-      );
-      if (urls.length === 0) return;
-      const results = await Promise.allSettled(
-        urls.map((url) => deleteEnrollmentLegalDocument(url, { keepalive })),
-      );
-      const deletedURLs = urls.filter(
-        (_, index) => results[index]?.status === "fulfilled",
-      );
-      if (deletedURLs.length > 0) {
-        forgetDraftDocumentURLs(deletedURLs);
-      }
-      const failure = results.find(
-        (result): result is PromiseRejectedResult =>
-          result.status === "rejected",
-      );
-      if (notify && failure) {
-        logger.warn("draft_legal_document_cleanup_failed", {
-          error:
-            failure.reason instanceof Error
-              ? failure.reason.message
-              : String(failure.reason),
-        });
-        // The URLs stay tracked: the next save or discard tries again.
-        void showActionError(failure.reason, {
-          object: "eine ungespeicherte PDF-Datei",
-        });
-      }
-    },
-    [forgetDraftDocumentURLs, showActionError],
-  );
-
-  useEffect(() => {
-    unmountedRef.current = false;
-
-    return () => {
-      unmountedRef.current = true;
-      const urls = Array.from(uploadedDraftDocumentURLsRef.current).filter(
-        (url) => !savingDraftDocumentURLsRef.current.has(url),
-      );
-      uploadedDraftDocumentURLsRef.current = new Set(
-        Array.from(uploadedDraftDocumentURLsRef.current).filter((url) =>
-          savingDraftDocumentURLsRef.current.has(url),
-        ),
-      );
-      for (const url of urls) {
-        void deleteEnrollmentLegalDocument(url, { keepalive: true }).catch(
-          (error: unknown) => {
-            logger.warn("draft_document_cleanup_failed_after_unmount", {
-              error: error instanceof Error ? error.message : String(error),
-            });
-          },
-        );
-      }
-    };
-  }, []);
-
   const selectSchema = (schema: FormSchema, nextMode: EditorMode) => {
     setSelectedKey(schema.id);
     setName(schema.name);
     setFields(schema.fields);
     setCoreRequirements(schema.core_requirements ?? {});
     setLegalBlocks(
-      schema.legal_blocks && schema.legal_blocks.length > 0
-        ? mergeSavedLegalBlocks(schema.legal_blocks, standardLegalBlocks)
-        : standardLegalBlocks,
+      legalBlocksForTemplate(schema.legal_blocks, standardLegalBlocks),
     );
     clearSaveError();
     setMode(nextMode);
@@ -683,36 +321,13 @@ export function EnrollmentFormEditor({
     );
   };
 
-  // Routes an edit from the translations block back to the object that owns
-  // the text; see schemaTranslationTargets for the id shape.
   const applySchemaTranslation = (
     target: TranslationTarget,
     translations: Translations,
   ) => {
-    const [owner, first, second] = target.id.split("|");
-    const index = Number(first);
-    if (owner === "legal") {
-      setLegalBlocks((prev) =>
-        prev.map((block, i) =>
-          i === index
-            ? copyStableObjectKey(block, { ...block, translations })
-            : block,
-        ),
-      );
-      return;
-    }
-    const field = fields[index];
-    if (!field) return;
-    if (owner === "field") {
-      updateField(index, { translations });
-      return;
-    }
-    const optionIndex = Number(second);
-    updateField(index, {
-      options: field.options?.map((option, i) =>
-        i === optionIndex ? { ...option, translations } : option,
-      ),
-    });
+    const update = schemaTranslationUpdate(target.id, translations);
+    if (update.legalBlocks) setLegalBlocks(update.legalBlocks);
+    if (update.fields) setFields(update.fields);
   };
 
   const updateCoreRequirement = (
@@ -742,7 +357,7 @@ export function EnrollmentFormEditor({
     );
   };
 
-  const addTargetField = (target: Exclude<FormFieldTarget, "">) => {
+  const addTargetField = (target: ReservedTarget) => {
     if (!fields.some((field) => field.target === target)) {
       revealAddedFieldRef.current = true;
     }
@@ -821,12 +436,10 @@ export function EnrollmentFormEditor({
     // pre-existing template opens with phantom unsaved changes.
     () =>
       legalBlocksSignature(
-        currentSchema?.legal_blocks && currentSchema.legal_blocks.length > 0
-          ? mergeSavedLegalBlocks(
-              currentSchema.legal_blocks,
-              standardLegalBlocks,
-            )
-          : standardLegalBlocks,
+        legalBlocksForTemplate(
+          currentSchema?.legal_blocks,
+          standardLegalBlocks,
+        ),
       ),
     [currentSchema?.legal_blocks, standardLegalBlocks],
   );
@@ -875,6 +488,7 @@ export function EnrollmentFormEditor({
   ): Promise<FormSchema | null> => {
     setSaving(true);
     clearSaveError();
+    let draftSave: DraftDocumentSave | null = null;
     try {
       const validation = getSchemaDraftValidationMessage({
         fields,
@@ -897,20 +511,18 @@ export function EnrollmentFormEditor({
 
       const fieldsForSave = prepareFieldsForSave(fields);
       const legalBlocksForSave = prepareLegalBlocksForSave(legalBlocks);
+      const drafts = draftDocuments.drafts();
       const referencedDraftDocumentURLs = draftDocumentURLsInLegalBlocks(
         legalBlocksForSave,
-        uploadedDraftDocumentURLsRef.current,
+        drafts,
       );
       for (const field of fieldsForSave) {
         for (const attachment of field.attachments ?? []) {
-          if (uploadedDraftDocumentURLsRef.current.has(attachment.document_url))
+          if (drafts.has(attachment.document_url))
             referencedDraftDocumentURLs.add(attachment.document_url);
         }
       }
-      savingDraftDocumentURLsRef.current = referencedDraftDocumentURLs;
-      await cleanupDraftDocumentURLs({
-        urlsToKeep: referencedDraftDocumentURLs,
-      });
+      draftSave = await draftDocuments.startSave(referencedDraftDocumentURLs);
       let result: FormSchema;
       if (isCreating) {
         result = await createSchema(
@@ -944,15 +556,13 @@ export function EnrollmentFormEditor({
         );
       }
       if (unmountedRef.current) {
-        uploadedDraftDocumentURLsRef.current = new Set();
-        savingDraftDocumentURLsRef.current = new Set();
+        draftSave.commit();
         return result;
       }
       const refreshed = await loadAll();
       const stillThere = refreshed.find((s) => s.id === result.id);
       const savedSchema = stillThere ?? result;
-      forgetDraftDocumentURLs(referencedDraftDocumentURLs);
-      savingDraftDocumentURLsRef.current = new Set();
+      draftSave.commit();
       selectSchema(savedSchema, nextMode);
       toast.success(
         isCreating
@@ -961,21 +571,10 @@ export function EnrollmentFormEditor({
       );
       return savedSchema;
     } catch (err) {
-      if (unmountedRef.current) {
-        // Nobody is left to read an error: the editor is gone. Only the
-        // uploads of this save are cleaned up.
-        const urls = Array.from(savingDraftDocumentURLsRef.current);
-        for (const url of urls) {
-          void deleteEnrollmentLegalDocument(url, { keepalive: true }).catch(
-            (error: unknown) => {
-              logger.warn("draft_document_cleanup_failed_after_unmount", {
-                error: error instanceof Error ? error.message : String(error),
-              });
-            },
-          );
-        }
-        savingDraftDocumentURLsRef.current = new Set();
-      } else {
+      // After an unmount nobody is left to read the error; fail() then
+      // deletes the uploads of this save.
+      draftSave?.fail();
+      if (!unmountedRef.current) {
         logger.error("schema_save_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
@@ -986,10 +585,7 @@ export function EnrollmentFormEditor({
       }
       return null;
     } finally {
-      if (!unmountedRef.current) {
-        savingDraftDocumentURLsRef.current = new Set();
-        setSaving(false);
-      }
+      if (!unmountedRef.current) setSaving(false);
     }
   };
 
@@ -1025,21 +621,13 @@ export function EnrollmentFormEditor({
     startNew();
   };
 
-  const openPreviewWindow = (schemaId: string) => {
-    window.open(
-      tenantPath(`/anmeldung/preview?schemaId=${encodeURIComponent(schemaId)}`),
-      "_blank",
-      "noopener,noreferrer",
-    );
-  };
-
   const requestExternalPreview = () => {
     if (hasPendingLegalDocumentUpload) {
       showMessage(LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE);
       return;
     }
     if (!hasUnsavedChanges && currentSchema) {
-      openPreviewWindow(currentSchema.id);
+      openTemplatePreview(templatePreviewHref(currentSchema.id));
       return;
     }
     setPendingNavigation("preview");
@@ -1048,7 +636,7 @@ export function EnrollmentFormEditor({
   const discardPendingNavigation = async () => {
     const pending = pendingNavigation;
     setPendingNavigation(null);
-    await cleanupDraftDocumentURLs();
+    await draftDocuments.cleanup();
     if (pending === "overview") {
       backToOverview();
       return;
@@ -1086,13 +674,11 @@ export function EnrollmentFormEditor({
       return;
     }
     if (pending === "preview") {
-      const href = tenantPath(
-        `/anmeldung/preview?schemaId=${encodeURIComponent(savedSchema.id)}`,
-      );
+      const href = templatePreviewHref(savedSchema.id);
       if (previewWindow) {
         previewWindow.location.href = href;
       } else {
-        window.open(href, "_blank", "noopener,noreferrer");
+        openTemplatePreview(href);
       }
     }
   };
@@ -1165,14 +751,14 @@ export function EnrollmentFormEditor({
     // Flex-Spalte (wie die beiden anderen Ansichten dieser Seite): als
     // Editor-Wurzel einer Tenant-Seite reicht sie den Platz an die letzte
     // Fläche weiter, die bis zur Unterkante wächst (`.moto-tenant-body`).
-    <AttachmentUploadContext.Provider value={attachmentLifecycle}>
+    <DraftDocumentContext.Provider value={draftDocuments.lifecycle}>
       <FieldErrorContext.Provider value={fieldError}>
         <div ref={builderRef} className="flex flex-col space-y-5">
           <SectionCard padding="none">
             <div className="compact:px-4 border-b border-gray-100 px-5 py-3 max-sm:px-4">
               <BackAction
                 onClick={requestBackToOverview}
-                disabled={saving || hasPendingLegalDocumentUpload}
+                disabled={locked}
                 label="Zurück zur Übersicht"
               />
             </div>
@@ -1199,19 +785,14 @@ export function EnrollmentFormEditor({
                 <CoreFieldsSection
                   coreRequirements={coreRequirements}
                   onRequirementChange={updateCoreRequirement}
-                  disabled={saving || hasPendingLegalDocumentUpload}
+                  disabled={locked}
                 />
 
                 <LegalBlocksSection
                   blocks={legalBlocks}
                   standardBlocks={standardLegalBlocks}
                   onChange={setLegalBlocks}
-                  disabled={saving || hasPendingLegalDocumentUpload}
-                  draftDocumentURLs={uploadedDraftDocumentURLs}
-                  onDraftDocumentUploaded={rememberDraftDocumentURL}
-                  onDraftDocumentDeleted={forgetDraftDocumentURL}
-                  onUploadStart={beginLegalDocumentUpload}
-                  onUploadEnd={endLegalDocumentUpload}
+                  disabled={locked}
                 />
 
                 <SignatureRequirementSection
@@ -1219,7 +800,7 @@ export function EnrollmentFormEditor({
                   onChange={(checked) =>
                     updateCoreRequirement("signature", checked)
                   }
-                  disabled={saving || hasPendingLegalDocumentUpload}
+                  disabled={locked}
                 />
 
                 <section className="space-y-4">
@@ -1238,7 +819,7 @@ export function EnrollmentFormEditor({
                       <Button
                         type="button"
                         onClick={addInfoField}
-                        disabled={saving || hasPendingLegalDocumentUpload}
+                        disabled={locked}
                         variant="outline"
                         size="md"
                         className="inline-flex items-center justify-center gap-2"
@@ -1249,7 +830,7 @@ export function EnrollmentFormEditor({
                       <Button
                         type="button"
                         onClick={addField}
-                        disabled={saving || hasPendingLegalDocumentUpload}
+                        disabled={locked}
                         variant="outline"
                         size="md"
                         className="inline-flex items-center justify-center gap-2"
@@ -1260,7 +841,7 @@ export function EnrollmentFormEditor({
                       <IncomeDeclarationButton
                         fields={fields}
                         onAdd={addIncomeDeclaration}
-                        disabled={saving || hasPendingLegalDocumentUpload}
+                        disabled={locked}
                       />
                     </div>
                   </div>
@@ -1268,7 +849,7 @@ export function EnrollmentFormEditor({
                   <TargetSuggestions
                     fields={fields}
                     onAdd={addTargetField}
-                    disabled={saving || hasPendingLegalDocumentUpload}
+                    disabled={locked}
                   />
 
                   {fields.length > 0 ? (
@@ -1284,7 +865,7 @@ export function EnrollmentFormEditor({
                           onRemove={() => removeField(index)}
                           onMoveUp={() => moveField(index, -1)}
                           onMoveDown={() => moveField(index, 1)}
-                          disabled={saving || hasPendingLegalDocumentUpload}
+                          disabled={locked}
                         />
                       ))}
                     </div>
@@ -1293,14 +874,14 @@ export function EnrollmentFormEditor({
                   <TranslationsSection
                     targets={schemaTranslationTargets(fields, legalBlocks)}
                     onChange={applySchemaTranslation}
-                    disabled={saving || hasPendingLegalDocumentUpload}
+                    disabled={locked}
                   />
 
                   <div className="flex flex-wrap items-center justify-end gap-2 border-t border-gray-100 pt-4">
                     <Button
                       type="button"
                       onClick={requestStartNew}
-                      disabled={saving || hasPendingLegalDocumentUpload}
+                      disabled={locked}
                       variant="outline"
                       size="md"
                       className="inline-flex items-center justify-center"
@@ -1310,7 +891,7 @@ export function EnrollmentFormEditor({
                     <Button
                       type="button"
                       onClick={handleSave}
-                      disabled={saving || hasPendingLegalDocumentUpload}
+                      disabled={locked}
                       variant="primary"
                       size="md"
                       className="inline-flex items-center justify-center"
@@ -1335,9 +916,7 @@ export function EnrollmentFormEditor({
                   isSaved={currentSchema !== null}
                   previewHref={
                     currentSchema && !hasUnsavedChanges
-                      ? tenantPath(
-                          `/anmeldung/preview?schemaId=${encodeURIComponent(currentSchema.id)}`,
-                        )
+                      ? templatePreviewHref(currentSchema.id)
                       : undefined
                   }
                   onPreviewClick={requestExternalPreview}
@@ -1354,7 +933,7 @@ export function EnrollmentFormEditor({
           </SectionCard>
           <UnsavedChangesDialog
             pendingNavigation={pendingNavigation}
-            saving={saving || hasPendingLegalDocumentUpload}
+            saving={locked}
             saveValidationMessage={saveBlockedMessage}
             pendingUploadMessage={pendingUploadMessage}
             onCancel={() => setPendingNavigation(null)}
@@ -1363,2766 +942,6 @@ export function EnrollmentFormEditor({
           />
         </div>
       </FieldErrorContext.Provider>
-    </AttachmentUploadContext.Provider>
+    </DraftDocumentContext.Provider>
   );
-}
-
-function EnrollmentFormsOverview({
-  templates,
-  phases,
-  onCreate,
-  onEdit,
-  onPreview,
-  onRename,
-  onDelete,
-}: Readonly<{
-  templates: FormSchema[];
-  phases: Phase[];
-  onCreate: () => void;
-  onEdit: (schema: FormSchema) => void;
-  onPreview: (schema: FormSchema) => void;
-  onRename: (schema: FormSchema) => void;
-  onDelete: (schema: FormSchema) => void;
-}>) {
-  const assignedTemplateCount = templates.filter((schema) =>
-    phases.some((phase) => phase.form_schema_id === schema.id),
-  ).length;
-
-  return (
-    // Flex-Spalte: als Editor-Wurzel einer Tenant-Seite reicht sie den
-    // Platz an die Fläche weiter, die bis zur Unterkante wächst
-    // (`.moto-tenant-body`).
-    <div className="flex flex-col space-y-5">
-      {/* Karte als Flex-Spalte und das Raster darin `flex-1`: wächst die
-          Karte bis zur Unterkante, läuft die graue Seitenspalte mit bis
-          dorthin, statt über dem Kartenrand zu enden. */}
-      <SectionCard
-        padding="none"
-        className="flex flex-col"
-        bodyClassName="flex min-h-0 flex-1 flex-col"
-      >
-        <div className="grid flex-1 gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
-          <div className="compact:p-4 space-y-6 p-5 max-sm:p-4">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h2 className="text-base font-semibold text-gray-900">
-                  Anmeldeformulare verwalten
-                </h2>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
-                  Das Basisformular ist immer vorhanden. Eigene Vorlagen nutzen
-                  Sie, wenn eine Anmeldephase abweichende Pflichtangaben oder
-                  Zusatzfragen braucht.
-                </p>
-              </div>
-              <Button
-                type="button"
-                onClick={onCreate}
-                variant="primary"
-                size="md"
-                className="inline-flex items-center justify-center gap-2 whitespace-nowrap"
-              >
-                <Plus className="h-4 w-4" aria-hidden="true" />
-                Neue Vorlage
-              </Button>
-            </div>
-
-            <section className="space-y-3">
-              <div className="flex items-end justify-between gap-3">
-                <div>
-                  <h3 className="text-base font-semibold text-gray-900">
-                    Formularvorlagen
-                  </h3>
-                  <p className="mt-1 text-sm text-gray-600">
-                    Jede Anmeldephase nutzt entweder das Basisformular oder eine
-                    eigene Vorlage mit angepassten Pflichtangaben und
-                    Zusatzfragen.
-                  </p>
-                </div>
-              </div>
-
-              <TemplateOverviewList
-                templates={templates}
-                phases={phases}
-                onEdit={onEdit}
-                onPreview={onPreview}
-                onRename={onRename}
-                onDelete={onDelete}
-              />
-            </section>
-          </div>
-
-          <aside className="moto-dotted-background moto-dotted-background--split compact:p-4 border-t border-gray-100 p-5 max-sm:p-4 lg:border-t-0 lg:border-l">
-            <OverviewGuide
-              templateCount={templates.length}
-              assignedTemplateCount={assignedTemplateCount}
-            />
-          </aside>
-        </div>
-      </SectionCard>
-    </div>
-  );
-}
-
-function TemplateOverviewList({
-  templates,
-  phases,
-  onEdit,
-  onPreview,
-  onRename,
-  onDelete,
-}: Readonly<{
-  templates: FormSchema[];
-  phases: Phase[];
-  onEdit: (schema: FormSchema) => void;
-  onPreview: (schema: FormSchema) => void;
-  onRename: (schema: FormSchema) => void;
-  onDelete: (schema: FormSchema) => void;
-}>) {
-  return (
-    <SectionCard padding="none">
-      <div className="divide-y divide-gray-100">
-        <BaseTemplateOverviewRow />
-        {templates.map((schema) => (
-          <TemplateOverviewRow
-            key={schema.id}
-            schema={schema}
-            onEdit={() => onEdit(schema)}
-            onPreview={() => onPreview(schema)}
-            onRename={() => onRename(schema)}
-            onDelete={() => onDelete(schema)}
-            isAssigned={phases.some(
-              (phase) => phase.form_schema_id === schema.id,
-            )}
-          />
-        ))}
-      </div>
-    </SectionCard>
-  );
-}
-
-function BaseTemplateOverviewRow() {
-  const tenantPath = useTenantAwarePath();
-
-  return (
-    <article className="grid gap-4 px-4 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-      <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          <IconTile size="xs" icon={<Lock aria-hidden="true" />} />
-          <h4 className="truncate text-sm font-semibold text-gray-900">
-            Basisformular
-          </h4>
-          <StatusBadge tone="gray" compact label="System" />
-        </div>
-        <p className="mt-1 text-xs leading-5 text-gray-500">
-          Elternteil, Kind, Klassenstufe und gewünschtes Betreuungsangebot.
-        </p>
-        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
-          <UsageLine title="Standard" status="base" />
-          <span>Systemformular</span>
-          <span>Keine Anpassungen</span>
-        </div>
-      </div>
-      <div className="flex justify-start gap-2 md:justify-end">
-        <a
-          href={tenantPath("/anmeldung/preview?base=1")}
-          target="_blank"
-          rel="noreferrer"
-          className={buttonClassName({
-            variant: "outline",
-            size: "md",
-            className: "gap-2",
-          })}
-        >
-          <ExternalLink className="h-4 w-4" aria-hidden="true" />
-          Vorschau
-        </a>
-      </div>
-    </article>
-  );
-}
-
-function TemplateOverviewRow({
-  schema,
-  onEdit,
-  onPreview,
-  onRename,
-  onDelete,
-  isAssigned,
-}: Readonly<{
-  schema: FormSchema;
-  onEdit: () => void;
-  onPreview: () => void;
-  onRename: () => void;
-  onDelete: () => void;
-  isAssigned: boolean;
-}>) {
-  const tenantPath = useTenantAwarePath();
-  const requiredCount = schema.fields.filter((field) =>
-    Boolean(field.required),
-  ).length;
-  const usageStatus = isAssigned ? "assigned" : "ready";
-  const questionLabel =
-    schema.fields.length === 1 ? "1 Frage" : `${schema.fields.length} Fragen`;
-  const usageTitle = isAssigned ? "In Phase verwendet" : "Nicht verwendet";
-
-  return (
-    <article className="grid gap-4 px-4 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-      <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          <ConceptIconTile concept={enrollmentsConcept} size="xs" />
-          <h4 className="truncate text-sm font-semibold text-gray-900">
-            {schema.name}
-          </h4>
-        </div>
-        <p className="mt-1 text-xs leading-5 text-gray-500">
-          Eigene Vorlage für Pflichtangaben und Zusatzfragen.
-        </p>
-        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
-          <UsageLine title={usageTitle} status={usageStatus} />
-          <span>Erstellt {formatSchemaDate(schema.created_at)}</span>
-          <span>{questionLabel}</span>
-          {requiredCount > 0 ? <span>{requiredCount} Pflicht</span> : null}
-        </div>
-      </div>
-      <div className="flex justify-start gap-2 md:justify-end">
-        <OverflowMenu
-          ariaLabel={`Aktionen für ${schema.name}`}
-          items={[
-            {
-              label: "Prüfen",
-              icon: <Eye className="h-4 w-4" aria-hidden />,
-              onClick: onPreview,
-            },
-            {
-              label: "Vorschau",
-              icon: <ExternalLink className="h-4 w-4" aria-hidden />,
-              onClick: () => {
-                window.open(
-                  tenantPath(
-                    `/anmeldung/preview?schemaId=${encodeURIComponent(schema.id)}`,
-                  ),
-                  "_blank",
-                  "noopener,noreferrer",
-                );
-              },
-            },
-            {
-              label: "Bearbeiten",
-              icon: <Pencil className="h-4 w-4" aria-hidden />,
-              onClick: onEdit,
-            },
-            {
-              label: "Umbenennen",
-              icon: <TextCursorInput className="h-4 w-4" aria-hidden />,
-              onClick: onRename,
-            },
-            {
-              label: "Löschen",
-              icon: <Trash2 className="h-4 w-4" aria-hidden />,
-              onClick: onDelete,
-              destructive: true,
-            },
-          ]}
-        />
-      </div>
-    </article>
-  );
-}
-
-type TemplateStatus = "base" | "assigned" | "ready";
-
-function UsageLine({
-  title,
-  status,
-}: Readonly<{
-  title: string;
-  status: TemplateStatus;
-}>) {
-  const statusMap: Record<TemplateStatus, { textClassName: string }> = {
-    base: {
-      textClassName: "text-gray-700",
-    },
-    assigned: {
-      textClassName: "text-moto-green-vivid",
-    },
-    ready: {
-      textClassName: "text-gray-700",
-    },
-  };
-  const config = statusMap[status];
-
-  return (
-    <span
-      className={`inline-flex items-center gap-2 font-medium ${config.textClassName}`}
-    >
-      {title}
-    </span>
-  );
-}
-
-function OverviewGuide({
-  templateCount,
-  assignedTemplateCount,
-}: Readonly<{
-  templateCount: number;
-  assignedTemplateCount: number;
-}>) {
-  return (
-    <div className="sticky top-6 space-y-4">
-      <div>
-        <h2 className="text-base font-semibold text-gray-900">
-          Erst prüfen, dann erweitern
-        </h2>
-        <p className="mt-2 text-sm leading-6 text-gray-600">
-          Legen Sie nur dann eine eigene Vorlage an, wenn das Basisformular
-          nicht reicht. So bleibt die Elternansicht kurz und verständlich.
-        </p>
-      </div>
-
-      {/* Der Erklärtext stand als freier Absatz unter der Karte und ist jetzt
-          ihre description. */}
-      <SectionCard
-        title="Nächste Schritte"
-        description="Für eine neue Halbjahresanmeldung brauchen Sie oft keine eigene Formularvorlage. Anmeldephase und Betreuungsangebote steuern den eigentlichen Ablauf."
-        headingLevel={3}
-      >
-        <div className="space-y-3">
-          <GuideStep
-            icon={<MotoConceptIcon concept={permissionsConcept} size={18} />}
-            title="Basisformular prüfen"
-            done
-          />
-          <GuideStep
-            icon={<MotoConceptIcon concept={enrollmentsConcept} size={18} />}
-            title="Vorlage nur bei Bedarf"
-            done={templateCount > 0}
-          />
-          <GuideStep
-            icon={
-              <MotoConceptIcon concept={calendarPeriodsConcept} size={18} />
-            }
-            title="Vorlage in Anmeldephase wählen"
-            done={assignedTemplateCount > 0}
-          />
-        </div>
-      </SectionCard>
-    </div>
-  );
-}
-
-function FormTemplateDetail({
-  schema,
-  onBack,
-  onEdit,
-  assignedPhases,
-}: Readonly<{
-  schema: FormSchema;
-  onBack: () => void;
-  onEdit: () => void;
-  assignedPhases: Phase[];
-}>) {
-  const tenantPath = useTenantAwarePath();
-  const requiredCount = schema.fields.filter((field) =>
-    Boolean(field.required),
-  ).length;
-  const childFieldCount = schema.fields.filter((field) =>
-    Boolean(field.applies_to_child),
-  ).length;
-
-  return (
-    // Flex-Spalte, siehe die Übersicht derselben Seite.
-    <div className="flex flex-col space-y-5">
-      <SectionCard
-        padding="none"
-        className="flex flex-col"
-        bodyClassName="flex min-h-0 flex-1 flex-col"
-      >
-        <div className="grid flex-1 gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
-          <div>
-            <div className="compact:px-4 border-b border-gray-100 px-5 py-3 max-sm:px-4">
-              <BackAction onClick={onBack} label="Zurück zur Übersicht" />
-            </div>
-            <div className="compact:p-4 space-y-5 p-5 max-sm:p-4">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold text-gray-900">
-                    {schema.name}
-                  </h2>
-                  <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
-                    Prüfen Sie die Formularvorschau und ordnen Sie diese Vorlage
-                    einer Anmeldephase zu, wenn Eltern die angepassten
-                    Pflichtangaben oder Zusatzfragen sehen sollen.
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  onClick={onEdit}
-                  variant="primary"
-                  size="md"
-                  className="inline-flex items-center justify-center gap-2 whitespace-nowrap"
-                >
-                  <Pencil className="h-4 w-4" aria-hidden="true" />
-                  Bearbeiten
-                </Button>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-                <StatCard
-                  variant="inline"
-                  icon={<FileText className="h-4 w-4" aria-hidden="true" />}
-                  value={formatSchemaDate(schema.created_at)}
-                  label="Zuletzt gespeichert"
-                />
-                <StatCard
-                  variant="inline"
-                  icon={
-                    <MotoConceptIcon concept={enrollmentsConcept} size={16} />
-                  }
-                  value={schema.fields.length.toString()}
-                  label="Zusatzfragen"
-                />
-                <StatCard
-                  variant="inline"
-                  icon={<Check className="h-4 w-4" aria-hidden="true" />}
-                  value={requiredCount.toString()}
-                  label="Pflicht-Zusatzfragen"
-                />
-                <StatCard
-                  variant="inline"
-                  icon={<MotoConceptIcon concept={childrenConcept} size={16} />}
-                  value={childFieldCount.toString()}
-                  label="Pro Kind"
-                />
-              </div>
-
-              <FormPreview
-                fields={schema.fields}
-                coreRequirements={schema.core_requirements ?? {}}
-                legalBlocks={schema.legal_blocks ?? []}
-                templateName={schema.name}
-                isActive={schema.is_active}
-                isSaved
-                previewHref={tenantPath(
-                  `/anmeldung/preview?schemaId=${encodeURIComponent(schema.id)}`,
-                )}
-                assignedPhaseCount={assignedPhases.length}
-                sticky={false}
-              />
-            </div>
-          </div>
-
-          <aside className="moto-dotted-background moto-dotted-background--split compact:p-4 border-t border-gray-100 p-5 max-sm:p-4 lg:border-t-0 lg:border-l">
-            <div className="sticky top-6 space-y-4">
-              <div>
-                <h2 className="text-base font-semibold text-gray-900">
-                  {assignedPhases.length > 0
-                    ? "In Anmeldephase verwendet"
-                    : "In Anmeldephase verwenden"}
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-gray-600">
-                  {assignedPhases.length > 0
-                    ? `Diese Vorlage ist in ${anmeldephasen(assignedPhases.length)} ausgewählt.`
-                    : "Eine Vorlage wird erst für Eltern relevant, wenn sie in einer Anmeldephase ausgewählt ist. Ohne Auswahl nutzt die Phase das Basisformular."}
-                </p>
-              </div>
-
-              <ButtonLink
-                href={
-                  assignedPhases.length > 0
-                    ? "/enrollment-phases"
-                    : `/enrollment-phases?assignForm=${encodeURIComponent(schema.id)}`
-                }
-                size="md"
-                className="w-full gap-2"
-              >
-                <MotoConceptIcon
-                  concept={calendarPeriodsConcept}
-                  colorMode="inherit"
-                  size={18}
-                />
-                {assignedPhases.length > 0
-                  ? "Anmeldephasen öffnen"
-                  : "In Anmeldephase auswählen"}
-              </ButtonLink>
-
-              <TileCard
-                href={tenantPath(
-                  `/anmeldung/preview?schemaId=${encodeURIComponent(schema.id)}`,
-                )}
-                newTab
-                className="flex items-start gap-3"
-              >
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
-                  <ExternalLink className="h-4 w-4" aria-hidden="true" />
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-sm font-semibold text-gray-900">
-                    Vorschau öffnen
-                  </span>
-                  <span className="mt-0.5 block text-xs leading-5 text-gray-500">
-                    Öffnet die Formularvorschau in einem neuen Tab.
-                  </span>
-                </span>
-              </TileCard>
-
-              <InsetPanel tone="white" padding="md">
-                <h3 className="text-sm font-semibold text-gray-900">Status</h3>
-                <div className="mt-4 space-y-3">
-                  <GuideStep
-                    icon={<Check className="h-4 w-4" aria-hidden="true" />}
-                    title="Vorlage gespeichert"
-                    done
-                  />
-                  <GuideStep
-                    icon={<Eye className="h-4 w-4" aria-hidden="true" />}
-                    title="Vorschau prüfen"
-                    done
-                  />
-                  <GuideStep
-                    icon={
-                      <MotoConceptIcon
-                        concept={calendarPeriodsConcept}
-                        size={18}
-                      />
-                    }
-                    title="In Anmeldephase auswählen"
-                    done={assignedPhases.length > 0}
-                  />
-                </div>
-              </InsetPanel>
-            </div>
-          </aside>
-        </div>
-      </SectionCard>
-    </div>
-  );
-}
-
-function GuideStep({
-  icon,
-  title,
-  done,
-}: Readonly<{ icon: ReactNode; title: string; done: boolean }>) {
-  return (
-    <div className="flex items-center gap-3">
-      <IconTile size="xs" tone={done ? "green" : "neutral"} icon={icon} />
-      <span className="min-w-0 flex-1 text-sm font-medium text-gray-700">
-        {title}
-      </span>
-      {done && (
-        <>
-          <Check
-            className="text-moto-green-strong h-4 w-4 shrink-0"
-            aria-hidden="true"
-          />
-          <span className="sr-only">Erledigt</span>
-        </>
-      )}
-    </div>
-  );
-}
-
-function DeleteSchemaDialog({
-  schema,
-  deleting,
-  error,
-  onClose,
-  onConfirm,
-}: Readonly<{
-  schema: FormSchema | null;
-  deleting: boolean;
-  error: FormErrorInput;
-  onClose: () => void;
-  onConfirm: () => void;
-}>) {
-  return (
-    <ConfirmDeleteModal
-      isOpen={schema !== null}
-      title="Formularvorlage löschen"
-      description={
-        <div className="space-y-3 leading-6">
-          <p>
-            Die Vorlage{" "}
-            <span className="font-semibold text-gray-900">{schema?.name}</span>{" "}
-            wird dauerhaft gelöscht.
-          </p>
-          <p>
-            Dabei werden alle Versionen dieser Vorlage entfernt. Bereits
-            verwendete Vorlagen können nicht gelöscht werden.
-          </p>
-        </div>
-      }
-      gate={{ mode: "twoStep" }}
-      onConfirm={onConfirm}
-      onClose={onClose}
-      loading={deleting}
-      error={error}
-    />
-  );
-}
-
-function RenameSchemaDialog({
-  schema,
-  onClose,
-  onConfirm,
-}: Readonly<{
-  schema: FormSchema | null;
-  onClose: () => void;
-  onConfirm: (newName: string) => Promise<void>;
-}>) {
-  const [value, setValue] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const formRef = useRef<HTMLFormElement>(null);
-  const {
-    error,
-    show: showError,
-    fieldError,
-    clear: clearError,
-  } = useApiFormError(formRef);
-
-  // Reset the field to the current name each time the dialog opens for a
-  // schema so the admin edits from the existing value.
-  useEffect(() => {
-    if (schema) {
-      setValue(schema.name);
-      clearError();
-      setSubmitting(false);
-    }
-  }, [schema, clearError]);
-
-  const isOpen = schema !== null;
-  const trimmed = value.trim();
-  const canSubmit = isRenameOf(schema, value) && !submitting;
-
-  // "Wiederholen" sends the name as it is then.
-  const submitRef = useRef<() => Promise<void>>(async () => undefined);
-  const submit = async () => {
-    if (!canSubmit) return;
-    setSubmitting(true);
-    clearError();
-    try {
-      await onConfirm(trimmed);
-    } catch (err) {
-      logger.warn("schema_rename_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void showError(err, {
-        object: "die Formularvorlage",
-        retry: () => void submitRef.current(),
-      });
-      setSubmitting(false);
-    }
-  };
-  useLayoutEffect(() => {
-    submitRef.current = submit;
-  });
-
-  return (
-    <FormModal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Formular umbenennen"
-      size="sm"
-      error={error}
-      footer={
-        <div className="flex justify-end gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            onClick={onClose}
-            disabled={submitting}
-          >
-            Abbrechen
-          </Button>
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={() => void submit()}
-            disabled={!canSubmit}
-            isLoading={submitting}
-          >
-            Speichern
-          </Button>
-        </div>
-      }
-    >
-      <form
-        ref={formRef}
-        onSubmit={(event) => {
-          event.preventDefault();
-          void submit();
-        }}
-        className="space-y-3"
-      >
-        <Input
-          name="name"
-          label="Name"
-          type="text"
-          value={value}
-          onChange={(event) => setValue(event.target.value)}
-          error={fieldError("name")}
-          placeholder="z. B. Ferienbetreuung Sommer 2026"
-          autoFocus
-        />
-        <p className="text-xs leading-5 text-gray-500">
-          Der neue Name gilt für alle Versionen dieser Vorlage. Bereits
-          abgeschickte Anmeldungen bleiben unverändert.
-        </p>
-      </form>
-    </FormModal>
-  );
-}
-
-function UnsavedChangesDialog({
-  pendingNavigation,
-  saving,
-  saveValidationMessage,
-  pendingUploadMessage,
-  onCancel,
-  onDiscard,
-  onSave,
-}: Readonly<{
-  pendingNavigation: PendingNavigation | null;
-  saving: boolean;
-  saveValidationMessage: string | null;
-  pendingUploadMessage: string | null;
-  onCancel: () => void;
-  onDiscard: () => void;
-  onSave: () => void;
-}>) {
-  if (!pendingNavigation) return null;
-
-  const isPreview = pendingNavigation === "preview";
-  const saveBlocked = Boolean(saveValidationMessage || pendingUploadMessage);
-  const footer = (
-    <>
-      <Button
-        type="button"
-        onClick={onCancel}
-        disabled={saving}
-        variant="outline"
-        size="md"
-        className="inline-flex items-center justify-center"
-      >
-        Abbrechen
-      </Button>
-      {!isPreview ? (
-        <Button
-          type="button"
-          onClick={onDiscard}
-          disabled={saving}
-          variant="outline"
-          size="md"
-          className="inline-flex items-center justify-center"
-        >
-          Verwerfen
-        </Button>
-      ) : null}
-      <Button
-        type="button"
-        onClick={onSave}
-        disabled={saving || saveBlocked}
-        variant="primary"
-        size="md"
-        className="inline-flex items-center justify-center"
-      >
-        {saving
-          ? "Speichert…"
-          : isPreview
-            ? "Speichern und Vorschau öffnen"
-            : "Speichern und fortfahren"}
-      </Button>
-    </>
-  );
-
-  return (
-    <Modal
-      isOpen
-      onClose={onCancel}
-      title="Änderungen speichern?"
-      widthClass="mx-4 w-[calc(100%-2rem)] max-w-lg"
-      isDismissDisabled={saving}
-      footer={footer}
-    >
-      <p className="text-sm leading-6 text-gray-600">
-        {isPreview
-          ? "Für die externe Vorschau muss die Vorlage zuerst gespeichert werden."
-          : "Sie haben Änderungen an dieser Vorlage. Speichern Sie sie, bevor Sie den Bereich verlassen, oder verwerfen Sie sie bewusst."}
-      </p>
-      {saveValidationMessage || pendingUploadMessage ? (
-        <div className="mt-4 space-y-3">
-          {saveValidationMessage ? (
-            <FormErrorAlert message={saveValidationMessage} />
-          ) : null}
-          {pendingUploadMessage ? (
-            <Alert type="warning" message={pendingUploadMessage} />
-          ) : null}
-        </div>
-      ) : null}
-    </Modal>
-  );
-}
-
-function FormBuilderIntro() {
-  return (
-    <header>
-      <h2 className="text-xl font-semibold text-gray-900">
-        Formularvorlage bearbeiten
-      </h2>
-      <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
-        Legen Sie fest, welche optionalen Basisfelder verpflichtend sind, und
-        ergänzen Sie bei Bedarf Zusatzfragen. Die Vorlage wird später in einer
-        Anmeldephase ausgewählt.
-      </p>
-    </header>
-  );
-}
-
-function BuilderTemplateSummary({
-  name,
-  isCreating,
-  saving,
-  currentSchema,
-  onNameChange,
-  fields,
-}: Readonly<{
-  name: string;
-  isCreating: boolean;
-  saving: boolean;
-  currentSchema: FormSchema | null;
-  onNameChange: (value: string) => void;
-  fields: FormField[];
-}>) {
-  const nameError = fieldErrorProps(useContext(FieldErrorContext), "name");
-  const requiredCount = fields.filter((field) =>
-    Boolean(field.required),
-  ).length;
-  const childFieldCount = fields.filter((field) =>
-    Boolean(field.applies_to_child),
-  ).length;
-
-  return (
-    <SectionCard>
-      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_280px]">
-        <div className="min-w-0">
-          <h2 className="text-base font-semibold text-gray-900">
-            {isCreating ? "Neue Formularvorlage" : name}
-          </h2>
-          <p className="mt-1 max-w-2xl text-sm text-gray-600">
-            {isCreating
-              ? "Geben Sie der Vorlage einen eindeutigen Namen. Danach können Sie Pflichtangaben und Zusatzfragen festlegen."
-              : "Der Name lässt sich hier ändern und gilt für alle Versionen. Bestehende Anmeldungen bleiben nachvollziehbar."}
-          </p>
-        </div>
-
-        <div className="space-y-3">
-          <Input
-            id={nameError.controlId}
-            name={nameError.controlProps.name}
-            type="text"
-            label="Name der Vorlage"
-            controlSize="compact"
-            value={name}
-            onChange={(event) => onNameChange(event.target.value)}
-            placeholder="z. B. Ferienbetreuung Sommer 2026"
-            disabled={saving}
-            error={nameError.message}
-          />
-          {!isCreating ? (
-            <div className="flex flex-wrap content-start gap-2 text-xs text-gray-600">
-              <StatusBadge
-                tone="gray"
-                label={`${fields.length} Zusatzfragen`}
-              />
-              <StatusBadge
-                tone="gray"
-                label={`${requiredCount} Pflicht-Zusatzfragen`}
-              />
-              <StatusBadge tone="gray" label={`${childFieldCount} pro Kind`} />
-            </div>
-          ) : null}
-        </div>
-      </div>
-
-      {currentSchema ? (
-        <div className="mt-4 flex flex-wrap gap-2 text-xs text-gray-600">
-          <StatusBadge
-            tone="gray"
-            label={new Date(currentSchema.created_at).toLocaleString("de-DE", {
-              timeZone: "Europe/Berlin",
-            })}
-          />
-        </div>
-      ) : null}
-    </SectionCard>
-  );
-}
-
-function CoreFieldsSection({
-  coreRequirements,
-  onRequirementChange,
-  disabled,
-}: Readonly<{
-  coreRequirements: CoreRequirements;
-  onRequirementChange: (key: CoreRequirementKey, required: boolean) => void;
-  disabled: boolean;
-}>) {
-  const guardian = CORE_FIELDS.filter((f) => f.group === "guardian");
-  const child = CORE_FIELDS.filter((f) => f.group === "child");
-  const groups = [
-    { title: "Eltern", fields: guardian },
-    { title: "Kind", fields: child },
-  ] satisfies ReadonlyArray<{ title: string; fields: CoreField[] }>;
-
-  return (
-    <SectionCard>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h2 className="text-base font-semibold text-gray-900">
-            Pflichtstatus der Basisfelder
-          </h2>
-          <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-            Fest gesetzte Felder bleiben immer Pflicht. Optionale Basisfelder
-            können Sie hier verpflichtend machen.
-          </p>
-        </div>
-        <span className="w-fit">
-          <StatusBadge tone="gray" icon={Lock} label="Basisfelder" />
-        </span>
-      </div>
-
-      <div className="mt-4 overflow-hidden rounded-xl border border-gray-200">
-        {groups.map((group) => (
-          <CoreFieldGroup
-            key={group.title}
-            title={group.title}
-            fields={group.fields}
-            coreRequirements={coreRequirements}
-            onRequirementChange={onRequirementChange}
-            disabled={disabled}
-          />
-        ))}
-      </div>
-    </SectionCard>
-  );
-}
-
-// SignatureRequirementSection switches the parent's signature on for the
-// whole form (#4786): the form then ends with a signature field after the
-// legal texts, and every later edit by the parents asks for it again.
-function SignatureRequirementSection({
-  required,
-  onChange,
-  disabled,
-}: Readonly<{
-  required: boolean;
-  onChange: (checked: boolean) => void;
-  disabled: boolean;
-}>) {
-  return (
-    <SectionCard>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-base font-semibold text-gray-900">
-            Unterschrift
-          </h2>
-          <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-            {required
-              ? "Eltern unterschreiben am Ende des Formulars mit einer einfachen elektronischen Signatur mit gezeichneter Unterschrift. Ohne Unterschrift lässt sich die Anmeldung nicht absenden. Auch jede spätere Änderung durch die Eltern braucht eine neue Unterschrift."
-              : "Eltern senden die Anmeldung ohne Unterschrift ab."}
-          </p>
-        </div>
-        <div className="flex items-center justify-between gap-3 sm:justify-end">
-          <span className="text-xs font-medium text-gray-600">
-            {required ? "Erforderlich" : "Aus"}
-          </span>
-          <Switch
-            checked={required}
-            onCheckedChange={onChange}
-            disabled={disabled}
-            ariaLabel="Unterschrift erforderlich"
-          />
-        </div>
-      </div>
-    </SectionCard>
-  );
-}
-
-export function LegalBlocksSection({
-  blocks,
-  standardBlocks,
-  customOnly = false,
-  uploadAdapter,
-  onChange,
-  disabled,
-  draftDocumentURLs,
-  onDraftDocumentUploaded,
-  onDraftDocumentDeleted,
-  onUploadStart,
-  onUploadEnd,
-}: Readonly<{
-  blocks: FormLegalBlock[];
-  standardBlocks: FormLegalBlock[];
-  customOnly?: boolean;
-  uploadAdapter?: import("./attachment-editor").AttachmentUploadAdapter;
-  onChange: Dispatch<SetStateAction<FormLegalBlock[]>>;
-  disabled: boolean;
-  draftDocumentURLs: ReadonlySet<string>;
-  onDraftDocumentUploaded: (documentURL: string) => void;
-  onDraftDocumentDeleted: (documentURL: string) => void;
-  onUploadStart: () => void;
-  onUploadEnd: () => void;
-}>) {
-  const toast = useToast();
-  const { show: showActionError, showMessage } = useApiErrorDisplay();
-  const fieldError = useContext(FieldErrorContext);
-  const [editingStandardKeys, setEditingStandardKeys] = useState<string[]>([]);
-  const [uploadingDocumentKey, setUploadingDocumentKey] = useState<
-    string | null
-  >(null);
-  const blocksRef = useRef(blocks);
-  useEffect(() => {
-    blocksRef.current = blocks;
-  }, [blocks]);
-  const standardByKey = useMemo(
-    () => new Map(standardBlocks.map((block) => [block.key, block])),
-    [standardBlocks],
-  );
-
-  const updateBlock = (index: number, patch: Partial<FormLegalBlock>) => {
-    onChange((currentBlocks) =>
-      currentBlocks.map((block, i) => {
-        if (i !== index) return block;
-        const next = { ...block, ...patch };
-        if (
-          patch.enabled === undefined &&
-          patch.text !== undefined &&
-          patch.text.trim() !== ""
-        ) {
-          next.enabled = true;
-        }
-        return next;
-      }),
-    );
-  };
-  const resetStandardBlock = (index: number, key: string) => {
-    const standardBlock = standardByKey.get(key);
-    if (!standardBlock) return;
-    onChange((currentBlocks) =>
-      currentBlocks.map((block, i) => (i === index ? standardBlock : block)),
-    );
-    setEditingStandardKeys((keys) => keys.filter((value) => value !== key));
-  };
-  const editStandardBlock = (key: string) => {
-    setEditingStandardKeys((keys) =>
-      keys.includes(key) ? keys : [...keys, key],
-    );
-  };
-  const uploadAGBDocument = async (index: number, file: File | null) => {
-    if (!file) return;
-    if (
-      file.type !== "application/pdf" &&
-      !file.name.toLowerCase().endsWith(".pdf")
-    ) {
-      showMessage("Bitte wählen Sie eine PDF-Datei aus.");
-      return;
-    }
-    if (file.size > MAX_ENROLLMENT_DOCUMENT_BYTES) {
-      showMessage(
-        "Die Datei ist größer als 10 MB. Bitte wählen Sie eine kleinere Datei.",
-      );
-      return;
-    }
-    setUploadingDocumentKey(blocks[index]?.key ?? null);
-    onUploadStart();
-    try {
-      const documentURL = await uploadEnrollmentLegalDocument(file);
-      const previousURL = (blocksRef.current[index]?.document_url ?? "").trim();
-      onChange((currentBlocks) => {
-        return currentBlocks.map((block, i) =>
-          i === index
-            ? {
-                ...block,
-                document_url: documentURL,
-                display_mode: LEGAL_BLOCK_DISPLAY_MODE_PDF,
-                enabled: true,
-              }
-            : block,
-        );
-      });
-      onDraftDocumentUploaded(documentURL);
-      if (
-        previousURL &&
-        previousURL !== documentURL &&
-        draftDocumentURLs.has(previousURL)
-      ) {
-        try {
-          await deleteEnrollmentLegalDocument(previousURL);
-          onDraftDocumentDeleted(previousURL);
-        } catch (error) {
-          // The URL stays tracked: the next save or discard tries again.
-          logger.warn("previous_legal_document_cleanup_failed", {
-            error: error instanceof Error ? error.message : String(error),
-          });
-          void showActionError(error, { object: "die vorherige PDF-Datei" });
-        }
-      }
-      toast.success("Die PDF-Datei für die AGB ist hochgeladen.");
-    } catch (error) {
-      logger.error("legal_document_upload_failed", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      // Kein Wiederholen: die Datei muss neu gewählt werden.
-      void showActionError(error, { object: "die PDF-Datei" });
-    } finally {
-      setUploadingDocumentKey(null);
-      onUploadEnd();
-    }
-  };
-  const removeAGBDocument = async (index: number) => {
-    const documentURL = (blocks[index]?.document_url ?? "").trim();
-    updateBlock(index, {
-      document_url: "",
-      display_mode: LEGAL_BLOCK_DISPLAY_MODE_TEXT,
-    });
-    if (!documentURL || !draftDocumentURLs.has(documentURL)) return;
-    try {
-      await deleteEnrollmentLegalDocument(documentURL);
-      onDraftDocumentDeleted(documentURL);
-    } catch (error) {
-      // The URL stays tracked: the next save or discard tries again.
-      logger.warn("legal_document_cleanup_failed", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      void showActionError(error, { object: "die PDF-Datei" });
-    }
-  };
-  const addCustomBlock = () => {
-    onChange((currentBlocks) => [
-      ...currentBlocks,
-      {
-        key: nextCustomLegalBlockKey(currentBlocks),
-        kind: "consent",
-        title: "Weitere Einwilligung",
-        label: "Ich stimme dieser Einwilligung zu.",
-        text: "",
-        required: false,
-        enabled: true,
-        sort_order: currentBlocks.length * 10 + 10,
-        source: "custom",
-      },
-    ]);
-  };
-  const removeBlock = (index: number) => {
-    onChange((currentBlocks) => currentBlocks.filter((_, i) => i !== index));
-  };
-  const standardEntries = blocks
-    .map((block, index) => ({ block, index }))
-    .filter(
-      ({ block }) =>
-        block.source === "standard" || standardByKey.has(block.key),
-    );
-  const customEntries = blocks
-    .map((block, index) => ({ block, index }))
-    .filter(
-      ({ block }) =>
-        block.source !== "standard" && !standardByKey.has(block.key),
-    );
-  const renderBlockEditor = ({
-    block,
-    index,
-    helperText,
-    onRemove,
-    onReset,
-  }: {
-    block: FormLegalBlock;
-    index: number;
-    helperText: string;
-    onRemove?: () => void;
-    onReset?: () => void;
-  }) => {
-    const titleError = fieldErrorProps(
-      fieldError,
-      `legal_blocks.${index}.title`,
-    );
-    const labelError = fieldErrorProps(
-      fieldError,
-      `legal_blocks.${index}.label`,
-    );
-    return (
-      <div
-        key={`${block.key}-${index}-editor`}
-        className="moto-content-surface rounded-xl border p-4"
-      >
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <InlineCheckbox
-            checked={block.enabled}
-            disabled={disabled}
-            onCheckedChange={(checked) =>
-              updateBlock(index, { enabled: checked })
-            }
-          >
-            Im Formular anzeigen
-          </InlineCheckbox>
-          <p className="max-w-xl text-xs leading-5 text-gray-500">
-            {helperText}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {onReset ? (
-              <Button
-                type="button"
-                onClick={onReset}
-                disabled={disabled}
-                variant="ghost"
-                size="compact"
-                className="w-fit"
-              >
-                Einstellungen wieder verwenden
-              </Button>
-            ) : null}
-            {onRemove ? (
-              <Button
-                type="button"
-                onClick={onRemove}
-                disabled={disabled}
-                variant="ghost_danger"
-                size="compact"
-                className="w-fit gap-2"
-              >
-                <Trash2 className="h-4 w-4" aria-hidden="true" />
-                Entfernen
-              </Button>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="mt-3">
-          <Input
-            id={titleError.controlId}
-            name={titleError.controlProps.name}
-            type="text"
-            label="Titel"
-            controlSize="compact"
-            value={block.title}
-            disabled={disabled}
-            onChange={(event) =>
-              updateBlock(index, { title: event.target.value })
-            }
-            error={titleError.message}
-          />
-        </div>
-
-        <div className="mt-3">
-          <Textarea
-            id={`legal-block-label-${block.key}`}
-            name={labelError.controlProps.name}
-            error={labelError.message}
-            label={
-              customOnly
-                ? "Text neben dem Häkchen oder Hinweis"
-                : "Text neben der Checkbox oder dem Hinweis"
-            }
-            value={block.label}
-            disabled={disabled}
-            rows={2}
-            onChange={(event) =>
-              updateBlock(index, { label: event.target.value })
-            }
-          />
-        </div>
-
-        {block.key === "agb" && block.source === "standard" ? (
-          <AGBTemplateSourceEditor
-            mode={legalBlockDisplayMode(block)}
-            onModeChange={(mode) => updateBlock(index, { display_mode: mode })}
-            textValue={block.text}
-            onTextChange={(value) => updateBlock(index, { text: value })}
-            documentURL={block.document_url ?? ""}
-            documentSaving={uploadingDocumentKey === block.key}
-            disabled={disabled}
-            onDocumentUpload={(file) => uploadAGBDocument(index, file)}
-            onDocumentRemove={() => void removeAGBDocument(index)}
-          />
-        ) : (
-          <div className="mt-3">
-            <Textarea
-              id={`legal-block-text-${block.key}`}
-              label="Rechtstext / Erklärung"
-              value={block.text}
-              disabled={disabled}
-              rows={4}
-              onChange={(event) =>
-                updateBlock(index, { text: event.target.value })
-              }
-            />
-          </div>
-        )}
-
-        <div className="mt-3">
-          <AttachmentEditor
-            uploadAdapter={uploadAdapter}
-            fieldPath={`legal_blocks.${index}.attachments`}
-            fieldError={fieldError}
-            attachments={block.attachments}
-            onChange={(attachments) =>
-              updateBlock(index, {
-                attachments,
-                ...(customOnly &&
-                block.display_mode === "pdf" &&
-                attachments.length === 0
-                  ? { display_mode: "text" as const }
-                  : {}),
-              })
-            }
-            disabled={disabled}
-          />
-        </div>
-        <div className="mt-3 flex flex-wrap items-center gap-3">
-          <LegalBlockModeControl
-            checkboxLabel={customOnly ? "Mit Häkchen" : "Mit Checkbox"}
-            isNotice={block.kind === "notice"}
-            disabled={disabled}
-            onModeChange={(isNotice) =>
-              updateBlock(index, {
-                kind: isNotice ? "notice" : checkboxLegalBlockKindFor(block),
-                required: isNotice ? false : block.required,
-              })
-            }
-          />
-          {block.kind !== "notice" &&
-          !(
-            block.kind === "consent" &&
-            (block.source === "standard" || standardByKey.has(block.key))
-          ) ? (
-            <InlineCheckbox
-              checked={block.required}
-              disabled={disabled}
-              muted
-              onCheckedChange={(checked) =>
-                updateBlock(
-                  index,
-                  block.source === "standard" || standardByKey.has(block.key)
-                    ? { required: checked }
-                    : // Eine Pflicht-Checkbox ist eine Bestätigung (terms),
-                      // eine freiwillige Checkbox eine Einwilligung (consent).
-                      {
-                        required: checked,
-                        kind: checked ? "terms" : "consent",
-                      },
-                )
-              }
-            >
-              Muss bestätigt werden
-            </InlineCheckbox>
-          ) : null}
-        </div>
-        {block.kind === "consent" ? (
-          <p className="mt-2 text-xs leading-5 text-gray-500">
-            Freiwillige Einwilligung: Eltern können das Formular auch ohne
-            Häkchen abschicken.
-          </p>
-        ) : null}
-        {block.kind === "terms" &&
-        block.source !== "standard" &&
-        !standardByKey.has(block.key) ? (
-          <p className="mt-2 text-xs leading-5 text-gray-500">
-            Pflicht-Bestätigung: Eltern müssen das Häkchen setzen, sonst können
-            sie das Formular nicht abschicken. Das ist keine freiwillige
-            Einwilligung.
-          </p>
-        ) : null}
-      </div>
-    );
-  };
-
-  return (
-    <SectionCard>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h2 className="text-base font-semibold text-gray-900">
-            {customOnly
-              ? "Hinweise und Einwilligungen"
-              : "Rechtstexte und Einwilligungen"}
-          </h2>
-          <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-            {customOnly
-              ? "Hier ergänzen Sie Hinweise, PDFs und freiwillige Einwilligungen. Die festen Zustimmungen bleiben bestehen."
-              : "Die vier Standardblöcke starten mit den Texten aus den Einstellungen. Hier blenden Sie sie für diese Vorlage aus oder bearbeiten bewusst eine Abweichung. Eigene Zustimmungen bleiben direkt an diese Vorlage gebunden."}
-          </p>
-        </div>
-      </div>
-
-      {!customOnly &&
-      blocks.some((block) => block.enabled) &&
-      !blocks.some(
-        (block) => block.key === "data_processing" && block.enabled,
-      ) ? (
-        <div className="mt-3">
-          <Alert
-            type="warning"
-            announce="off"
-            message="Die Datenschutzinformation ist in dieser Vorlage deaktiviert. Stellen Sie sicher, dass Eltern die Datenschutzhinweise auf anderem Weg erhalten, zum Beispiel über den Elternbrief."
-          />
-        </div>
-      ) : null}
-
-      <div className="mt-4 space-y-3">
-        {standardEntries.map(({ block, index }) => {
-          const standardBlock = standardByKey.get(block.key);
-          const hasOverride = standardBlock
-            ? hasStandardLegalBlockOverride(block, standardBlock)
-            : false;
-          const isEditing = editingStandardKeys.includes(block.key);
-          if (isEditing) {
-            return renderBlockEditor({
-              block,
-              index,
-              helperText:
-                "Abweichung nur für diese Vorlage. Mit Zurücksetzen nutzt der Block wieder die Einstellungen.",
-              onReset: () => resetStandardBlock(index, block.key),
-            });
-          }
-          return (
-            <div
-              key={`${block.key}-${index}`}
-              className="moto-content-surface rounded-xl border p-4"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-sm font-semibold text-gray-900">
-                      {block.title}
-                    </h3>
-                    <StatusBadge
-                      tone="gray"
-                      compact
-                      wrap
-                      label="Aus Einstellungen übernommen"
-                    />
-                    {hasOverride ? (
-                      <StatusColorBadge
-                        color={LOCATION_COLORS.WARNING}
-                        compact
-                        label="Abweichung aktiv"
-                      />
-                    ) : null}
-                  </div>
-                  <p className="mt-1 text-sm leading-6 text-gray-600">
-                    {block.enabled
-                      ? "Wird in dieser Vorlage angezeigt."
-                      : "Ist für diese Vorlage ausgeblendet."}
-                  </p>
-                  {block.label.trim() !== "" ? (
-                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-gray-500">
-                      {block.label}
-                    </p>
-                  ) : null}
-                </div>
-                <div className="flex shrink-0 items-center justify-end gap-1.5">
-                  <Switch
-                    checked={block.enabled}
-                    onCheckedChange={(checked) =>
-                      updateBlock(index, { enabled: checked })
-                    }
-                    disabled={disabled}
-                    ariaLabel={`${block.title} in dieser Vorlage anzeigen`}
-                  />
-                  <OverflowMenu
-                    ariaLabel={`Aktionen für ${block.title}`}
-                    triggerSize="sm"
-                    items={[
-                      {
-                        label: "Abweichend bearbeiten",
-                        icon: <Pencil className="h-4 w-4" aria-hidden="true" />,
-                        onClick: () => editStandardBlock(block.key),
-                        disabled,
-                      },
-                    ]}
-                  />
-                </div>
-              </div>
-            </div>
-          );
-        })}
-
-        {customEntries.map(({ block, index }) =>
-          renderBlockEditor({
-            block,
-            index,
-            helperText: customOnly
-              ? "Eigener Hinweis oder Einwilligung für diesen Zeitraum."
-              : "Eigene Zustimmung für diese Vorlage. Sie erscheint als zusätzliche Checkbox im Anmeldeformular.",
-            onRemove: () => removeBlock(index),
-          }),
-        )}
-
-        {customEntries.length === 0 ? (
-          <EmptyState
-            variant="dashed"
-            title={
-              customOnly
-                ? "Noch keine eigenen Hinweise oder Einwilligungen."
-                : "Noch keine eigenen Zustimmungen."
-            }
-            description={
-              customOnly
-                ? undefined
-                : "Füge hier nur zusätzliche Inhalte hinzu, die nicht in den allgemeinen Einstellungen stehen."
-            }
-          />
-        ) : null}
-      </div>
-
-      <div className="mt-4">
-        <Button
-          type="button"
-          onClick={addCustomBlock}
-          disabled={disabled}
-          variant="outline"
-          size="md"
-          className="inline-flex items-center justify-center gap-2"
-        >
-          <Plus className="h-4 w-4" aria-hidden="true" />
-          Eigene Zustimmung hinzufügen
-        </Button>
-      </div>
-    </SectionCard>
-  );
-}
-
-function hasStandardLegalBlockOverride(
-  block: FormLegalBlock,
-  standardBlock: FormLegalBlock,
-): boolean {
-  return (
-    block.kind !== standardBlock.kind ||
-    block.title !== standardBlock.title ||
-    block.label !== standardBlock.label ||
-    block.text !== standardBlock.text ||
-    block.required !== standardBlock.required ||
-    legalBlockDisplayMode(block) !== legalBlockDisplayMode(standardBlock) ||
-    (block.document_url ?? "") !== (standardBlock.document_url ?? "") ||
-    JSON.stringify(block.attachments ?? []) !==
-      JSON.stringify(standardBlock.attachments ?? [])
-  );
-}
-
-function AGBTemplateSourceEditor({
-  mode,
-  onModeChange,
-  textValue,
-  onTextChange,
-  documentURL,
-  documentSaving,
-  disabled,
-  onDocumentUpload,
-  onDocumentRemove,
-}: Readonly<{
-  mode: LegalBlockDisplayMode;
-  onModeChange: (mode: LegalBlockDisplayMode) => void;
-  textValue: string;
-  onTextChange: (value: string) => void;
-  documentURL: string;
-  documentSaving: boolean;
-  disabled: boolean;
-  onDocumentUpload: (file: File | null) => void;
-  onDocumentRemove: () => void;
-}>) {
-  const hasText = textValue.trim() !== "";
-  const hasDocument = documentURL.trim() !== "";
-  const documentPicker = useRef<HTMLInputElement>(null);
-
-  return (
-    <div className="mt-3 space-y-3">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <ChoiceTile
-          as="button"
-          tone="blue"
-          selected={mode === LEGAL_BLOCK_DISPLAY_MODE_TEXT}
-          onClick={() => onModeChange(LEGAL_BLOCK_DISPLAY_MODE_TEXT)}
-          disabled={disabled}
-          className="block p-3"
-        >
-          <span className="flex items-center gap-2 text-sm font-semibold">
-            <FileText className="h-4 w-4" aria-hidden="true" />
-            Text eingeben
-          </span>
-          <span className="mt-1 block text-xs text-gray-500">
-            Eltern lesen den Text direkt im Formular.
-          </span>
-          {hasText ? (
-            <span className="mt-2 block">
-              <StatusBadge tone="outline" compact label="Text gespeichert" />
-            </span>
-          ) : null}
-        </ChoiceTile>
-        <ChoiceTile
-          as="button"
-          tone="blue"
-          selected={mode === LEGAL_BLOCK_DISPLAY_MODE_PDF}
-          onClick={() => onModeChange(LEGAL_BLOCK_DISPLAY_MODE_PDF)}
-          disabled={disabled}
-          className="block p-3"
-        >
-          <span className="flex items-center gap-2 text-sm font-semibold">
-            <FileUp className="h-4 w-4" aria-hidden="true" />
-            PDF-Datei hochladen
-          </span>
-          <span className="mt-1 block text-xs text-gray-500">
-            Eltern öffnen im Formular einen PDF-Link.
-          </span>
-          {hasDocument ? (
-            <span className="mt-2 block">
-              <StatusBadge tone="outline" compact label="PDF gespeichert" />
-            </span>
-          ) : null}
-        </ChoiceTile>
-      </div>
-
-      {mode === LEGAL_BLOCK_DISPLAY_MODE_TEXT ? (
-        <div>
-          <Textarea
-            id="agb-template-text"
-            label="Rechtstext / Erklärung"
-            value={textValue}
-            disabled={disabled}
-            rows={4}
-            onChange={(event) => onTextChange(event.target.value)}
-          />
-        </div>
-      ) : (
-        <InsetPanel framed padding="sm">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-900">PDF-Datei</p>
-              <p className="mt-0.5 text-xs text-gray-600">
-                {hasDocument
-                  ? "Diese PDF wird in dieser Formularvorlage als Link angezeigt."
-                  : "Laden Sie die AGB / Teilnahmebedingungen als PDF hoch."}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <Button
-                type="button"
-                variant="surface"
-                size="compact"
-                disabled={disabled || documentSaving}
-                onClick={() => documentPicker.current?.click()}
-              >
-                <FileUp className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>{hasDocument ? "PDF ersetzen" : "PDF hochladen"}</span>
-              </Button>
-              <input
-                ref={documentPicker}
-                type="file"
-                accept="application/pdf,.pdf"
-                aria-label={hasDocument ? "PDF ersetzen" : "PDF hochladen"}
-                hidden
-                disabled={disabled || documentSaving}
-                onChange={(event) => {
-                  onDocumentUpload(event.currentTarget.files?.[0] ?? null);
-                  event.currentTarget.value = "";
-                }}
-              />
-              {hasDocument ? (
-                <a
-                  href={publicAGBDocumentURL(documentURL)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={buttonClassName({
-                    variant: "surface",
-                    size: "compact",
-                    className: "",
-                  })}
-                >
-                  <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>Öffnen</span>
-                </a>
-              ) : null}
-              {hasDocument ? (
-                <Button
-                  type="button"
-                  onClick={onDocumentRemove}
-                  disabled={disabled || documentSaving}
-                  variant="outline_danger"
-                  size="compact"
-                >
-                  <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>Entfernen</span>
-                </Button>
-              ) : null}
-            </div>
-          </div>
-          {documentSaving ? (
-            <p className="mt-2 flex items-center gap-2 text-xs text-gray-500">
-              <SpinnerIcon className="h-3 w-3" />
-              PDF wird hochgeladen...
-            </p>
-          ) : null}
-        </InsetPanel>
-      )}
-    </div>
-  );
-}
-
-function LegalBlockModeControl({
-  checkboxLabel = "Mit Checkbox",
-  isNotice,
-  disabled,
-  onModeChange,
-}: Readonly<{
-  checkboxLabel?: string;
-  isNotice: boolean;
-  disabled: boolean;
-  onModeChange: (isNotice: boolean) => void;
-}>) {
-  return (
-    <SegmentedControl
-      ariaLabel="Darstellung im Elternformular"
-      value={isNotice ? "hinweis" : "checkbox"}
-      onChange={(next) => onModeChange(next === "hinweis")}
-      items={[
-        { value: "checkbox", label: checkboxLabel, disabled },
-        { value: "hinweis", label: "Nur Hinweis", disabled },
-      ]}
-    />
-  );
-}
-
-function InlineCheckbox({
-  checked,
-  disabled,
-  muted = false,
-  onCheckedChange,
-  children,
-}: Readonly<{
-  checked: boolean;
-  disabled: boolean;
-  muted?: boolean;
-  onCheckedChange: (checked: boolean) => void;
-  children: ReactNode;
-}>) {
-  return (
-    <label
-      className={`inline-flex min-w-0 items-center gap-2 text-left text-sm font-medium ${
-        muted ? "text-gray-700" : "text-gray-800"
-      } ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}
-    >
-      <Checkbox
-        checked={checked}
-        disabled={disabled}
-        onChange={(event) => onCheckedChange(event.target.checked)}
-      />
-      <span>{children}</span>
-    </label>
-  );
-}
-
-function checkboxLegalBlockKindFor(
-  block: FormLegalBlock,
-): FormLegalBlock["kind"] {
-  if (block.key === "agb") return "terms";
-  if (block.key === "data_processing") return "privacy_notice";
-  return block.required ? "terms" : "consent";
-}
-
-function CoreFieldGroup({
-  title,
-  fields,
-  coreRequirements,
-  onRequirementChange,
-  disabled,
-}: Readonly<{
-  title: string;
-  fields: CoreField[];
-  coreRequirements: CoreRequirements;
-  onRequirementChange: (key: CoreRequirementKey, required: boolean) => void;
-  disabled: boolean;
-}>) {
-  return (
-    <div className="border-b border-gray-100 last:border-b-0">
-      <div className="bg-gray-50/80 px-4 py-2">
-        <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-      </div>
-      <ul className="divide-y divide-gray-100">
-        {fields.map((field) => (
-          <CoreFieldRow
-            key={field.key}
-            field={field}
-            required={Boolean(
-              field.requirementKey
-                ? coreRequirements[field.requirementKey]
-                : field.required,
-            )}
-            onRequirementChange={onRequirementChange}
-            disabled={disabled}
-          />
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function CoreFieldRow({
-  field,
-  required,
-  onRequirementChange,
-  disabled,
-}: {
-  readonly field: CoreField;
-  readonly required: boolean;
-  readonly onRequirementChange: (
-    key: CoreRequirementKey,
-    required: boolean,
-  ) => void;
-  readonly disabled: boolean;
-}) {
-  return (
-    <li className="grid gap-3 bg-white px-4 py-3 sm:grid-cols-[minmax(0,1fr)_220px] sm:items-center">
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <p className="text-sm font-medium text-gray-900">{field.label}</p>
-          <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500">
-            {fieldTypeLabels[field.type]}
-          </span>
-        </div>
-        <p className="mt-0.5 text-xs leading-5 text-gray-500">
-          {field.requirementKey
-            ? required
-              ? (field.requirementHint ?? "Diese Angabe ist verpflichtend.")
-              : "Kann verpflichtend gemacht werden."
-            : "Immer erforderlich und deshalb nicht änderbar."}
-        </p>
-      </div>
-      {field.requirementKey ? (
-        <div className="flex items-center justify-between gap-3 sm:justify-end">
-          <span className="text-xs font-medium text-gray-600">
-            {required ? "Pflicht" : "Optional"}
-          </span>
-          <Switch
-            checked={required}
-            onCheckedChange={(checked) =>
-              onRequirementChange(field.requirementKey!, checked)
-            }
-            disabled={disabled}
-            ariaLabel={field.requirementLabel ?? `${field.label} Pflichtfeld`}
-          />
-        </div>
-      ) : (
-        <div className="flex justify-start sm:justify-end">
-          <StatusBadge tone="gray" icon={Lock} label="Immer Pflicht" />
-        </div>
-      )}
-    </li>
-  );
-}
-
-function TargetSuggestions({
-  fields,
-  onAdd,
-  disabled,
-}: Readonly<{
-  fields: FormField[];
-  onAdd: (target: Exclude<FormFieldTarget, "">) => void;
-  disabled: boolean;
-}>) {
-  const selectedTargets = useMemo(
-    () => new Set(fields.map((field) => field.target).filter(Boolean)),
-    [fields],
-  );
-
-  return (
-    <InsetPanel as="section" framed padding="md">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h3 className="text-sm font-semibold text-gray-900">
-            Stammdaten-Vorschläge
-          </h3>
-          <p className="mt-1 max-w-2xl text-xs leading-5 text-gray-600">
-            Diese Fragen sind mit vorhandenen Stammdaten verbunden. Sie können
-            sie hinzufügen oder entfernen; Label und Typ sind fest vorgegeben.
-          </p>
-        </div>
-        <span className="w-fit">
-          <StatusBadge tone="outline" icon={Lock} label="Stammdaten" />
-        </span>
-      </div>
-
-      <div className="mt-4 grid gap-2 md:grid-cols-2">
-        {TARGET_PICKER_ORDER.map((target) => {
-          const selected = selectedTargets.has(target);
-          return (
-            <ChoiceTile
-              key={target}
-              as="button"
-              selected={selected}
-              disabled={disabled || selected}
-              onClick={() => onAdd(target)}
-              className="min-h-24 items-start p-3 shadow-sm"
-            >
-              <IconTile
-                size="xs"
-                tone={selected ? "neutral" : "inverse"}
-                className="mt-0.5"
-                icon={
-                  selected ? (
-                    <Check aria-hidden="true" />
-                  ) : (
-                    <Plus aria-hidden="true" />
-                  )
-                }
-              />
-              <span className="min-w-0">
-                <span className="block text-sm font-semibold text-gray-900">
-                  {RESERVED_TARGETS[target].label}
-                </span>
-                <span className="mt-1 block text-xs leading-5 text-gray-500">
-                  {targetSuggestionDescriptions[target]}
-                </span>
-                <span className="mt-2 block">
-                  <StatusBadge
-                    tone="gray"
-                    compact
-                    label={selected ? "Ist drin" : "Hinzufügen"}
-                  />
-                </span>
-              </span>
-            </ChoiceTile>
-          );
-        })}
-      </div>
-    </InsetPanel>
-  );
-}
-
-function FormPreview({
-  fields,
-  coreRequirements,
-  legalBlocks,
-  templateName,
-  isActive,
-  isSaved,
-  previewHref,
-  onPreviewClick,
-  assignedPhaseCount = 0,
-  sticky = true,
-}: Readonly<{
-  fields: FormField[];
-  coreRequirements: CoreRequirements;
-  legalBlocks: FormLegalBlock[];
-  templateName: string;
-  isActive: boolean;
-  isSaved: boolean;
-  previewHref?: string;
-  onPreviewClick?: () => void;
-  assignedPhaseCount?: number;
-  sticky?: boolean;
-}>) {
-  const previewStatus = getPreviewStatus({
-    assignedPhaseCount,
-    isActive,
-    isSaved,
-  });
-  const enabledLegalBlocks = legalBlocks.filter((block) => block.enabled);
-  const guardianFields: PreviewFieldLabel[] = [
-    { label: "Vorname", required: true },
-    { label: "Nachname", required: true },
-    { label: "E-Mail", required: true },
-    { label: "Telefonnummer", required: coreRequirements.guardian_phone },
-  ];
-
-  return (
-    <SharedFormPreview
-      sticky={sticky}
-      title={templateName.trim() || "Basisformular"}
-      header={
-        <>
-          <FormPreviewHeading
-            title="Elternformular"
-            hint={previewStatus.hint}
-            status={
-              <StatusBadge
-                tone={previewStatus.tone}
-                label={previewStatus.label}
-              />
-            }
-          />
-
-          {previewHref ? (
-            <TileCard
-              href={previewHref}
-              newTab
-              className="flex items-start gap-3"
-            >
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
-                <ExternalLink className="h-4 w-4" aria-hidden="true" />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-sm font-semibold text-gray-900">
-                  Vorschau öffnen
-                </span>
-                <span className="mt-0.5 block text-xs leading-5 text-gray-500">
-                  Öffnet diese Formularvorlage in einem neuen Tab.
-                </span>
-              </span>
-            </TileCard>
-          ) : onPreviewClick ? (
-            <TileCard
-              onClick={onPreviewClick}
-              className="flex items-start gap-3"
-            >
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
-                <ExternalLink className="h-4 w-4" aria-hidden="true" />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-sm font-semibold text-gray-900">
-                  Vorschau öffnen
-                </span>
-                <span className="mt-0.5 block text-xs leading-5 text-gray-500">
-                  Speichert die Vorlage und öffnet die Vorschau in einem neuen
-                  Tab.
-                </span>
-              </span>
-            </TileCard>
-          ) : (
-            <InsetPanel
-              tone="white"
-              padding="sm"
-              className="flex items-start gap-3 opacity-70"
-            >
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
-                <ExternalLink className="h-4 w-4" aria-hidden="true" />
-              </span>
-              <span className="min-w-0">
-                <span className="block text-sm font-semibold text-gray-900">
-                  Vorschau öffnen
-                </span>
-                <span className="mt-0.5 block text-xs leading-5 text-gray-500">
-                  Speichern Sie die Vorlage zuerst.
-                </span>
-              </span>
-            </InsetPanel>
-          )}
-        </>
-      }
-    >
-      <PreviewSection title="Elternteil" fields={guardianFields} />
-      <PreviewSection
-        title="Kind"
-        fields={[
-          { label: "Vorname", required: true },
-          { label: "Nachname", required: true },
-          { label: "Geburtsdatum", required: true },
-          { label: "Klassenstufe", required: true },
-        ]}
-      />
-      <PreviewSection
-        title="Betreuungsangebot"
-        description="Die Angebote legen Sie in der Anmeldephase fest. Eltern sehen sie über den Link der Phase."
-        fields={["Gewünschtes Angebot", "Betreuungstage"]}
-      />
-
-      <PreviewFieldsSection
-        title="Zusatzfragen"
-        fields={fields}
-        emptyTitle="Keine Zusatzfragen"
-        emptyText="Eltern sehen nur das Basisformular mit den gewählten Pflichtangaben."
-      />
-
-      {enabledLegalBlocks.length > 0 ? (
-        <section>
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <h4 className="text-sm font-semibold text-gray-900">
-              Zustimmungen & Hinweise
-            </h4>
-            <StatusBadge
-              tone="gray"
-              compact
-              label={String(enabledLegalBlocks.length)}
-            />
-          </div>
-          <div className="space-y-2">
-            {enabledLegalBlocks.map((block) => {
-              const previewText = legalBlockPreviewText(block);
-              return (
-                <InsetPanel key={block.key} tone="white" padding="compact">
-                  <div className="flex items-start gap-2.5">
-                    <span
-                      className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-                        block.kind === "notice"
-                          ? "border-moto-blue/30 bg-moto-blue/10"
-                          : "border-gray-300 bg-white"
-                      }`}
-                      aria-hidden="true"
-                    >
-                      {block.kind === "notice" ? (
-                        <Info className="text-moto-blue h-3 w-3" />
-                      ) : null}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <span className="text-sm font-medium text-gray-900">
-                          {block.title.trim() || block.label}
-                        </span>
-                        <span className="shrink-0">
-                          <StatusBadge
-                            tone="gray"
-                            compact
-                            label={
-                              block.kind === "notice"
-                                ? "Hinweis"
-                                : block.required
-                                  ? "Pflicht"
-                                  : "Optional"
-                            }
-                          />
-                        </span>
-                      </div>
-                      <p className="mt-1 line-clamp-2 text-xs leading-5 text-gray-500">
-                        {block.label}
-                      </p>
-                      <PreviewAttachmentNames attachments={block.attachments} />
-                      {previewText.trim() !== "" ? (
-                        <p className="mt-1 line-clamp-2 text-sm leading-5 text-gray-400">
-                          {previewText}
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                </InsetPanel>
-              );
-            })}
-          </div>
-        </section>
-      ) : null}
-    </SharedFormPreview>
-  );
-}
-
-function getPreviewStatus({
-  assignedPhaseCount,
-  isActive,
-  isSaved,
-}: Readonly<{
-  assignedPhaseCount: number;
-  isActive: boolean;
-  isSaved: boolean;
-}>): { label: string; hint: string; tone: StatusBadgeTone } {
-  if (assignedPhaseCount > 0) {
-    return {
-      label: "In Phase verwendet",
-      hint: `Diese Vorlage ist in ${anmeldephasen(assignedPhaseCount)} ausgewählt.`,
-      tone: "green",
-    };
-  }
-
-  if (isActive) {
-    return {
-      label: "Bereit zur Zuordnung",
-      hint: "Eltern sehen diese Vorlage erst, wenn sie einer Anmeldephase zugeordnet ist.",
-      tone: "green",
-    };
-  }
-
-  if (isSaved) {
-    return {
-      label: "Gespeichert",
-      hint: "Ordne die Vorlage in einer Anmeldephase zu, damit Eltern sie verwenden.",
-      tone: "gray",
-    };
-  }
-
-  return {
-    label: "Entwurf",
-    hint: "Speichern Sie die Vorlage zuerst. Danach können Sie sie in einer Anmeldephase auswählen.",
-    tone: "gray",
-  };
-}
-
-function createTargetField(
-  target: Exclude<FormFieldTarget, "">,
-  sortOrder: number,
-  existing?: FormField,
-): FormField {
-  const spec = RESERVED_TARGETS[target];
-  return {
-    key: target.replace(/\./g, "_"),
-    label: spec.label,
-    type: spec.type,
-    required: Boolean(existing?.required),
-    help_text: "",
-    options: getTargetOptions(target),
-    sort_order: sortOrder,
-    applies_to_child: spec.appliesToChild,
-    target,
-  };
-}
-
-function getTargetOptions(
-  _target: Exclude<FormFieldTarget, "">,
-): FormField["options"] {
-  // No reserved target uses static select options anymore. Abholregelung is
-  // a weekday_boolean (the parent picks the pickup weekdays, just like the
-  // Buskind field); structured types carry no options.
-  return [];
-}
-
-/**
- * Every text of the template that parents read, in form order. The id names
- * the owner (`field|3|label`, `option|3|1|label`, `legal|0|title`) so
- * applySchemaTranslation can route the edit back.
- */
-function schemaTranslationTargets(
-  fields: FormField[],
-  legalBlocks: FormLegalBlock[],
-): TranslationTarget[] {
-  const targets: TranslationTarget[] = [];
-  const add = (target: TranslationTarget) => {
-    if (target.german.trim() !== "") targets.push(target);
-  };
-  legalBlocks.forEach((block, index) => {
-    if (!block.enabled) return;
-    const { translations } = block;
-    add({
-      id: `legal|${index}|title`,
-      caption: "Zustimmung: Titel",
-      german: block.title,
-      attr: "title",
-      translations,
-    });
-    add({
-      id: `legal|${index}|label`,
-      caption: "Zustimmung: Text neben der Checkbox",
-      german: block.label,
-      attr: "label",
-      translations,
-    });
-    // A PDF block shows a link to the file instead of its text.
-    if (legalBlockDisplayMode(block) !== LEGAL_BLOCK_DISPLAY_MODE_PDF) {
-      add({
-        id: `legal|${index}|text`,
-        caption: "Zustimmung: Rechtstext / Erklärung",
-        german: block.text,
-        attr: "text",
-        translations,
-        multiline: true,
-      });
-    }
-  });
-  fields.forEach((field, index) => {
-    const { translations } = field;
-    const isInfo = field.type === "information";
-    add({
-      id: `field|${index}|label`,
-      caption: isInfo ? "Infotext: Überschrift" : "Frage",
-      german: field.label,
-      attr: "label",
-      translations,
-    });
-    add({
-      id: `field|${index}|content`,
-      caption: "Infotext: Inhalt",
-      german: isInfo ? (field.content ?? "") : "",
-      attr: "content",
-      translations,
-      multiline: true,
-    });
-    add({
-      id: `field|${index}|help_text`,
-      caption: "Hinweis zur Frage",
-      german: isInfo ? "" : (field.help_text ?? ""),
-      attr: "help_text",
-      translations,
-    });
-    field.options?.forEach((option, optionIndex) =>
-      add({
-        id: `option|${index}|${optionIndex}|label`,
-        caption: `Antwort zu „${field.label}“`,
-        german: option.label,
-        attr: "label",
-        translations: option.translations,
-      }),
-    );
-  });
-  return targets;
-}
-
-export function prepareFieldsForSave(fields: FormField[]): FormField[] {
-  return fields.map((field, index) => {
-    if (field.target) {
-      // Suggested field: type/options/scope are fixed by the spec, but
-      // the admin-edited label + help text + required flag + visibility
-      // ride along.
-      const base = createTargetField(field.target, index, field);
-      return {
-        ...base,
-        label: field.label.trim() || base.label,
-        help_text: field.help_text?.trim() ?? "",
-        required: Boolean(field.required),
-        visible_when: field.visible_when ?? undefined,
-        translations: field.translations,
-        // Carry the admin-configured fixed pickup times through; the
-        // rebuilt base field drops them otherwise. Only the pickup-times
-        // field may carry this (arrival stays free-entry, and the backend
-        // rejects allowed_times on any other target), so anything else is
-        // forced to undefined and omitted on serialize.
-        allowed_times:
-          field.target === "schedule.pickup" ? field.allowed_times : undefined,
-        // Heimweg-Beschränkung (#2381): only the allowed-departure-modes
-        // field may carry grade restrictions; the backend rejects the key
-        // on any other target.
-        single_mode_grades:
-          field.target === "student.allowed_departure_modes" &&
-          (field.single_mode_grades?.length ?? 0) > 0
-            ? field.single_mode_grades
-            : undefined,
-      };
-    }
-    if (field.type === "information") {
-      return {
-        key:
-          field.key.trim() ||
-          normalizeFieldKey(field.label) ||
-          `infotext_${index + 1}`,
-        label: field.label.trim(),
-        type: "information",
-        content: field.content?.trim() ?? "",
-        sort_order: index,
-        applies_to_child: Boolean(field.applies_to_child),
-        visible_when: field.visible_when ?? undefined,
-        translations: field.translations,
-        attachments: field.attachments,
-      };
-    }
-    return applyFileFieldRules({
-      ...field,
-      key: field.key.trim() || normalizeFieldKey(field.label),
-      label: field.label.trim(),
-      help_text: field.help_text?.trim() ?? "",
-      sort_order: index,
-      visible_when: field.visible_when ?? undefined,
-    });
-  });
-}
-
-function mergeStandardLegalBlocks(
-  legalTexts: PublicLegalTexts | null,
-): FormLegalBlock[] {
-  const byKey = new Map(
-    (legalTexts?.blocks ?? []).map((block) => [block.key, block]),
-  );
-  return STANDARD_LEGAL_BLOCKS.map((standard) => {
-    const configured = byKey.get(standard.key);
-    const inheritedText = standardLegalBlockText(standard.key, legalTexts);
-    const inheritedEnabled = standardLegalBlockEnabled(
-      standard.key,
-      legalTexts,
-    );
-    if (!configured) {
-      return {
-        ...standard,
-        text: inheritedText,
-        enabled: inheritedEnabled,
-        display_mode: standardLegalBlockDisplayMode(standard.key, legalTexts),
-        document_url: standardLegalBlockDocumentURL(standard.key, legalTexts),
-      };
-    }
-    return {
-      ...standard,
-      kind: configured.kind,
-      title: configured.title,
-      label: configured.label,
-      text:
-        standard.key === "agb"
-          ? inheritedText
-          : configured.text || inheritedText,
-      required: configured.required,
-      enabled: inheritedEnabled,
-      sort_order: configured.sort_order ?? standard.sort_order,
-      source: "standard",
-      display_mode: standardLegalBlockDisplayMode(standard.key, legalTexts),
-      document_url: standardLegalBlockDocumentURL(standard.key, legalTexts),
-    };
-  });
-}
-
-function standardLegalBlockText(
-  key: string,
-  legalTexts: PublicLegalTexts | null,
-): string {
-  if (!legalTexts) return "";
-  switch (key) {
-    case "agb":
-      return standardAGBText(legalTexts);
-    case "data_processing":
-      return legalTexts.dsgvo;
-    case "photo":
-      return legalTexts.photo;
-    case "email_contact":
-      return legalTexts.email_contact;
-    default:
-      return "";
-  }
-}
-
-function standardAGBText(legalTexts: PublicLegalTexts): string {
-  if (legalTexts.agb_display_mode === LEGAL_BLOCK_DISPLAY_MODE_PDF) {
-    return "";
-  }
-  return legalTexts.agb;
-}
-
-function standardLegalBlockDisplayMode(
-  key: string,
-  legalTexts: PublicLegalTexts | null,
-): LegalBlockDisplayMode {
-  if (key === "agb" && legalTexts?.agb_display_mode === "pdf") {
-    return LEGAL_BLOCK_DISPLAY_MODE_PDF;
-  }
-  return LEGAL_BLOCK_DISPLAY_MODE_TEXT;
-}
-
-function standardLegalBlockDocumentURL(
-  key: string,
-  legalTexts: PublicLegalTexts | null,
-): string {
-  if (key !== "agb") return "";
-  if (legalTexts?.agb_display_mode !== LEGAL_BLOCK_DISPLAY_MODE_PDF) return "";
-  return (legalTexts?.agb_document_url ?? "").trim();
-}
-
-function legalBlockDisplayMode(block: FormLegalBlock): LegalBlockDisplayMode {
-  return block.display_mode === LEGAL_BLOCK_DISPLAY_MODE_PDF
-    ? LEGAL_BLOCK_DISPLAY_MODE_PDF
-    : LEGAL_BLOCK_DISPLAY_MODE_TEXT;
-}
-
-function legalBlockPreviewText(block: FormLegalBlock): string {
-  if (
-    block.key === "agb" &&
-    legalBlockDisplayMode(block) === LEGAL_BLOCK_DISPLAY_MODE_PDF
-  ) {
-    const documentURL = (block.document_url ?? "").trim();
-    if (documentURL === "") return "";
-    return `Die AGB / Teilnahmebedingungen sind als PDF-Datei hinterlegt: [AGB-Dokument öffnen](${publicAGBDocumentURL(documentURL)})`;
-  }
-  return block.text;
-}
-
-function publicAGBDocumentURL(storedURL: string): string {
-  const globalPrefix = "/uploads/enrollment-legal-documents/";
-  if (storedURL.startsWith(globalPrefix)) {
-    return `/api/public/enrollment-legal-documents/${storedURL.slice(globalPrefix.length)}`;
-  }
-  const formPrefix = "/uploads/enrollment-form-legal-documents/";
-  if (storedURL.startsWith(formPrefix)) {
-    return `/api/public/enrollment-form-legal-documents/${storedURL.slice(formPrefix.length)}`;
-  }
-  return storedURL;
-}
-
-function standardLegalBlockEnabled(
-  key: string,
-  legalTexts: PublicLegalTexts | null,
-): boolean {
-  if (!legalTexts) return false;
-  switch (key) {
-    case "agb":
-      if (!legalTexts.terms_enabled) return false;
-      if (
-        standardLegalBlockDisplayMode(key, legalTexts) ===
-        LEGAL_BLOCK_DISPLAY_MODE_PDF
-      ) {
-        return standardLegalBlockDocumentURL("agb", legalTexts) !== "";
-      }
-      return standardAGBText(legalTexts).trim() !== "";
-    case "data_processing":
-      return legalTexts.dsgvo_enabled && legalTexts.dsgvo.trim() !== "";
-    case "photo":
-      return legalTexts.photo_enabled && legalTexts.photo.trim() !== "";
-    case "email_contact":
-      return (
-        legalTexts.email_contact_enabled &&
-        legalTexts.email_contact.trim() !== ""
-      );
-    default:
-      return false;
-  }
-}
-
-function mergeSavedLegalBlocks(
-  savedBlocks: FormLegalBlock[],
-  standardBlocks: FormLegalBlock[],
-): FormLegalBlock[] {
-  const standardKeys = new Set(standardBlocks.map((block) => block.key));
-  const savedByKey = new Map(savedBlocks.map((block) => [block.key, block]));
-  const mergedStandardBlocks = standardBlocks.map(
-    (standard) => savedByKey.get(standard.key) ?? standard,
-  );
-  const customBlocks = savedBlocks.filter(
-    (block) => block.source !== "standard" && !standardKeys.has(block.key),
-  );
-  return [...mergedStandardBlocks, ...customBlocks];
-}
-
-function prepareLegalBlocksForSave(blocks: FormLegalBlock[]): FormLegalBlock[] {
-  return blocks.map((block, index) => {
-    const displayMode = legalBlockDisplayMode(block);
-    const documentURL =
-      displayMode === LEGAL_BLOCK_DISPLAY_MODE_PDF
-        ? (block.document_url ?? "").trim()
-        : "";
-    // Einwilligungen sind immer freiwillig (Art. 7 Abs. 4 DSGVO): eine als
-    // Pflicht markierte Custom-Checkbox ist eine Bestätigung (terms), keine
-    // Einwilligung. Legacy-Blöcke mit consent+required werden beim nächsten
-    // Speichern entsprechend umgeschrieben; das Backend lehnt consent+required ab.
-    const kind =
-      (block.source ?? "custom") !== "standard" &&
-      block.kind === "consent" &&
-      block.required
-        ? "terms"
-        : block.kind;
-    return {
-      key: normalizeFieldKey(block.key) || `custom_consent_${index + 1}`,
-      kind,
-      title: block.title.trim(),
-      label: block.label.trim(),
-      text: block.text.trim(),
-      required:
-        kind === "notice" || kind === "consent"
-          ? false
-          : Boolean(block.required),
-      enabled: Boolean(block.enabled),
-      sort_order: index * 10 + 10,
-      source: block.source ?? "custom",
-      display_mode: displayMode,
-      document_url: documentURL,
-      translations: block.translations,
-      attachments: block.attachments?.map((attachment) => ({
-        label: attachment.label.trim(),
-        document_url: attachment.document_url,
-      })),
-    };
-  });
-}
-
-function draftDocumentURLsInLegalBlocks(
-  blocks: FormLegalBlock[],
-  draftURLs: ReadonlySet<string>,
-): Set<string> {
-  const urls = new Set<string>();
-  for (const block of blocks) {
-    for (const attachment of block.attachments ?? []) {
-      if (draftURLs.has(attachment.document_url))
-        urls.add(attachment.document_url);
-    }
-    const documentURL = (block.document_url ?? "").trim();
-    if (
-      block.display_mode === LEGAL_BLOCK_DISPLAY_MODE_PDF &&
-      documentURL &&
-      draftURLs.has(documentURL)
-    ) {
-      urls.add(documentURL);
-    }
-  }
-  return urls;
-}
-
-function nextCustomLegalBlockKey(blocks: FormLegalBlock[]): string {
-  const usedKeys = new Set(blocks.map((block) => block.key));
-  let nextIndex = Math.max(
-    blocks.length + 1,
-    ...blocks.map((block) => {
-      const match = /^custom_consent_(\d+)$/.exec(block.key);
-      return match ? Number(match[1]) + 1 : 0;
-    }),
-  );
-
-  while (usedKeys.has(`custom_consent_${nextIndex}`)) {
-    nextIndex += 1;
-  }
-
-  return `custom_consent_${nextIndex}`;
-}
-
-function legalBlocksSignature(blocks: FormLegalBlock[]): string {
-  return JSON.stringify(prepareLegalBlocksForSave(blocks));
-}
-
-function coreRequirementsSignature(value: CoreRequirements): string {
-  const enabled = Object.entries(value)
-    .filter(([, required]) => required)
-    .map(([key]) => key)
-    .sort((a, b) => a.localeCompare(b));
-  return JSON.stringify(Object.fromEntries(enabled.map((key) => [key, true])));
-}
-
-/** A check before saving: the sentence for the alert and the control to mark. */
-interface SchemaDraftProblem {
-  readonly message: string;
-  readonly field?: string;
-  readonly hint?: string;
-}
-
-const FILL_IN_HINT = "Bitte füllen Sie dieses Feld aus.";
-
-function getSchemaDraftValidationMessage({
-  fields,
-  legalBlocks,
-  name,
-}: Readonly<{
-  fields: FormField[];
-  legalBlocks: FormLegalBlock[];
-  name: string;
-}>): SchemaDraftProblem | null {
-  if (name.trim() === "") {
-    return {
-      message: "Bitte geben Sie zuerst einen Namen für die Vorlage ein.",
-      field: "name",
-      hint: FILL_IN_HINT,
-    };
-  }
-
-  for (const [prefix, entries] of [
-    ["fields", fields],
-    ["legal_blocks", legalBlocks],
-  ] as const) {
-    for (const [index, entry] of entries.entries()) {
-      const attachmentIndex =
-        entry.attachments?.findIndex((a) => a.label.trim() === "") ?? -1;
-      if (attachmentIndex >= 0)
-        return {
-          message: "Bitte geben Sie jeder PDF-Datei eine Bezeichnung.",
-          field: `${prefix}.${index}.attachments.${attachmentIndex}.label`,
-          hint: FILL_IN_HINT,
-        };
-    }
-  }
-
-  const seenKeys = new Set<string>();
-  for (const [index, field] of fields.entries()) {
-    const position = index + 1;
-
-    if (field.type === "information") {
-      if ((field.content ?? "").trim() === "") {
-        return {
-          message: `Bitte geben Sie für den Infotext ${position} einen Text ein.`,
-          field: `fields.${index}.content`,
-          hint: FILL_IN_HINT,
-        };
-      }
-      const infoKey =
-        field.key.trim() ||
-        normalizeFieldKey(field.label) ||
-        `infotext_${position}`;
-      if (seenKeys.has(infoKey)) {
-        return {
-          message: `Bitte ändern Sie den Titel von Infotext ${position}. Ein anderer Eintrag hat schon denselben Titel.`,
-          field: `fields.${index}.label`,
-          hint: "Bitte wählen Sie einen anderen Titel.",
-        };
-      }
-      seenKeys.add(infoKey);
-      continue;
-    }
-
-    if (field.label.trim() === "") {
-      return {
-        message: `Bitte geben Sie für Frage ${position} einen Fragetext ein.`,
-        field: `fields.${index}.label`,
-        hint: FILL_IN_HINT,
-      };
-    }
-
-    const key = field.key.trim() || normalizeFieldKey(field.label);
-    if (key === "") {
-      return {
-        message: `Bitte ändern Sie den Fragetext von Frage ${position}. Er braucht mindestens einen Buchstaben oder eine Zahl.`,
-        field: `fields.${index}.label`,
-        hint: "Bitte verwenden Sie Buchstaben oder Zahlen.",
-      };
-    }
-    if (seenKeys.has(key)) {
-      return {
-        message: `Bitte ändern Sie den Fragetext von Frage ${position}. Eine andere Zusatzfrage hat denselben oder einen sehr ähnlichen Text.`,
-        field: `fields.${index}.label`,
-        hint: "Bitte wählen Sie einen anderen Fragetext.",
-      };
-    }
-    seenKeys.add(key);
-
-    if (!field.target && structuredFieldTypes.has(field.type)) {
-      return {
-        message: `Bitte wählen Sie für Frage ${position} einen einfachen Typ. Telefonlisten, Wochenzeiten und Kontaktlisten gibt es nur als feste Vorschläge.`,
-      };
-    }
-
-    const fileProblem = fileFieldDraftProblem(field, index);
-    if (fileProblem) return fileProblem;
-
-    if (field.type === "select" && (field.options ?? []).length === 0) {
-      return {
-        message: `Bitte ergänzen Sie für Frage ${position} mindestens eine Auswahloption.`,
-        field: `fields.${index}.options`,
-        hint: "Bitte tragen Sie mindestens eine Option ein.",
-      };
-    }
-  }
-
-  const seenLegalKeys = new Set<string>();
-  for (const [index, block] of prepareLegalBlocksForSave(
-    legalBlocks,
-  ).entries()) {
-    const position = index + 1;
-    if (seenLegalKeys.has(block.key)) {
-      // The key is never shown; only removing the duplicate helps.
-      return {
-        message: `Bitte entfernen Sie Zustimmung ${position} und legen Sie sie neu an. Sie ist doppelt vorhanden.`,
-      };
-    }
-    seenLegalKeys.add(block.key);
-    if (!block.enabled) continue;
-    if (block.title === "") {
-      return {
-        message: `Bitte geben Sie für Zustimmung ${position} einen Titel ein.`,
-        field: `legal_blocks.${index}.title`,
-        hint: FILL_IN_HINT,
-      };
-    }
-    if (block.label === "") {
-      return {
-        message: `Bitte geben Sie für Zustimmung ${position} einen Text neben der Checkbox ein.`,
-        field: `legal_blocks.${index}.label`,
-        hint: FILL_IN_HINT,
-      };
-    }
-    if (
-      block.key === "agb" &&
-      block.display_mode === LEGAL_BLOCK_DISPLAY_MODE_PDF &&
-      (block.document_url ?? "").trim() === ""
-    ) {
-      return {
-        message:
-          "Bitte laden Sie für die AGB eine PDF-Datei hoch. Oder wählen Sie wieder „Text eingeben“.",
-      };
-    }
-  }
-
-  return null;
-}
-
-/** Dative after „in“: „1 Anmeldephase“, „3 Anmeldephasen“. */
-function anmeldephasen(count: number): string {
-  return `${count} Anmeldephase${count === 1 ? "" : "n"}`;
-}
-
-function formatSchemaDate(value: string): string {
-  return new Date(value).toLocaleDateString("de-DE", {
-    timeZone: "Europe/Berlin",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
 }

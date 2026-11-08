@@ -1,4 +1,5 @@
 // app/api/admin/grade-transitions/[id]/revert/route.ts
+import { requireNumericParam } from "~/lib/route-wrapper-utils.server";
 import type { NextRequest } from "next/server";
 import { apiPost } from "~/lib/api-helpers.server";
 import { createPostHandler } from "~/lib/route-wrapper.server";
@@ -15,10 +16,7 @@ export const POST = createPostHandler(
     token,
     params,
   ): Promise<BackendTransitionResult> => {
-    const id = params.id;
-    if (typeof id !== "string" || !/^\d+$/.test(id)) {
-      throw new Error("Invalid id parameter");
-    }
+    const id = requireNumericParam(params);
     const response = await apiPost<ResultResponse>(
       `/api/admin/grade-transitions/${id}/revert`,
       token,

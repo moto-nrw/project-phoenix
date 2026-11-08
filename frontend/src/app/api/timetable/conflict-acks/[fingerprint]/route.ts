@@ -4,7 +4,7 @@
 // DELETE /api/timetable/conflict-acks/{fingerprint} — show it again
 //
 // Both are idempotent on the backend and scoped to the calling user (#2139).
-import { proxyDelete, proxyPut } from "~/lib/route-proxy.server";
+import { proxyDelete, proxyPut } from "~/lib/route-wrapper.server";
 import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 export const PUT = proxyPut(

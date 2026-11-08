@@ -1,9 +1,7 @@
 package identityaccess
 
 import (
-	"context"
 	"encoding/json"
-	"errors"
 	"time"
 )
 
@@ -20,10 +18,10 @@ var (
 	// ErrAccountPasskeyNotFound reports a lookup without an active
 	// credential, or a use or revocation of a credential that is revoked,
 	// belongs to another account or is gone.
-	ErrAccountPasskeyNotFound = errors.New("account passkey not found")
+	ErrAccountPasskeyNotFound = notFoundError("account passkey not found")
 	// ErrAccountPasskeySessionNotFound reports a consumption that found no
 	// unconsumed, unexpired ceremony with that ID and purpose.
-	ErrAccountPasskeySessionNotFound = errors.New("account passkey session not found")
+	ErrAccountPasskeySessionNotFound = notFoundError("account passkey session not found")
 )
 
 // AccountPasskeyCredential is one registered WebAuthn credential of a
@@ -57,33 +55,4 @@ type AccountPasskeySession struct {
 	ConsumedAt     *time.Time
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
-}
-
-// AccountPasskeyQuery resolves active, that is unrevoked, account passkeys.
-type AccountPasskeyQuery interface {
-	// ListActiveAccountPasskeys orders by registration, oldest first.
-	ListActiveAccountPasskeys(ctx context.Context, accountID int64) ([]AccountPasskeyCredential, error)
-	FindActiveAccountPasskey(ctx context.Context, credentialID, userHandle []byte) (AccountPasskeyCredential, error)
-}
-
-// AccountPasskeyCommand changes account passkey records. The creates
-// validate the record and return it with its identity and timestamps.
-type AccountPasskeyCommand interface {
-	CreateAccountPasskey(ctx context.Context, credential AccountPasskeyCredential) (AccountPasskeyCredential, error)
-	// RecordAccountPasskeyUse stores the credential state after a verified
-	// assertion on an active credential.
-	RecordAccountPasskeyUse(ctx context.Context, id int64, credentialJSON json.RawMessage, usedAt time.Time) error
-	// RevokeAccountPasskey revokes an active credential of that account.
-	RevokeAccountPasskey(ctx context.Context, accountID, id int64, revokedAt time.Time) error
-	CreateAccountPasskeySession(ctx context.Context, session AccountPasskeySession) (AccountPasskeySession, error)
-	// ConsumeAccountPasskeySession completes a ceremony exactly once and
-	// returns its state.
-	ConsumeAccountPasskeySession(ctx context.Context, id, purpose string, consumedAt time.Time) (AccountPasskeySession, error)
-}
-
-// AccountPasskeyRecords is the capability the school-portal passkey flows
-// consume.
-type AccountPasskeyRecords interface {
-	AccountPasskeyQuery
-	AccountPasskeyCommand
 }

@@ -50,6 +50,8 @@ type CareStore interface {
 	// ListContributionRules and CareEvidences feed the rule chain (#4685).
 	ListContributionRules(ctx context.Context, organizationID int64, service string) ([]parentbilling.ContributionRule, error)
 	CareEvidences(ctx context.Context, organizationID int64, contractIDs []int64) ([]parentbilling.CareEvidence, error)
+	// FamilyChildCounts reads the numbers of the Träger's families (#5918).
+	FamilyChildCounts(ctx context.Context, organizationID int64) ([]parentbilling.FamilyChildCount, error)
 	ListNumberRanges(ctx context.Context, organizationID int64) ([]parentbilling.NumberRange, error)
 	ReserveNumbers(ctx context.Context, organizationID int64, service string, year, count int) (int64, error)
 	// The terms, the family deviations and the due dates of the run decide
@@ -156,38 +158,17 @@ func (c *CareBilling) ownSchool(ctx context.Context, organizationID, schoolID in
 // list names, by school and module. Counts and weekdays come from the
 // versions only.
 func careModules(versions []parentbilling.CareContractVersion, tariffs []parentbilling.CareTariff) []parentbilling.CareModule {
-	type key struct{ school, offering int64 }
-	modules := map[key]*parentbilling.CareModule{}
-	contracts := map[key]map[int64]bool{}
-	ensure := func(k key, schoolName, moduleName string) *parentbilling.CareModule {
-		module, ok := modules[k]
-		if !ok {
-			module = &parentbilling.CareModule{SchoolID: k.school, SchoolName: schoolName, CareOfferingID: k.offering,
-				ModuleName: moduleName, BookedWeekdays: []string{}}
-			modules[k] = module
-			contracts[k] = map[int64]bool{}
-		}
-		return module
-	}
+	book := moduleBook{modules: map[moduleKey]*parentbilling.CareModule{}, contracts: map[moduleKey]map[int64]bool{}}
 	for _, version := range versions {
-		for _, service := range version.Services {
-			k := key{version.SchoolID, service.CareOfferingID}
-			module := ensure(k, version.SchoolName, service.ModuleName)
-			if module.EndsAt == "" {
-				module.EndsAt = service.EndsAt
-			}
-			if !slices.Contains(module.BookedWeekdays, service.Weekday) {
-				module.BookedWeekdays = append(module.BookedWeekdays, service.Weekday)
-			}
-			contracts[k][version.ContractID] = true
-		}
+		book.addVersion(version)
 	}
 	for _, tariff := range tariffs {
-		ensure(key{tariff.SchoolID, tariff.CareOfferingID}, "", tariff.ModuleName)
+		book.ensure(moduleKey{tariff.SchoolID, tariff.CareOfferingID}, "", tariff.ModuleName)
 	}
-	result := make([]parentbilling.CareModule, 0, len(modules))
-	for k, module := range modules {
-		module.ContractCount = len(contracts[k])
+	result := make([]parentbilling.CareModule, 0, len(book.modules))
+	for k, module := range book.modules {
+		module.ContractCount = len(book.contracts[k])
+		slices.Sort(module.BookedDaysPerWeek)
 		slices.SortFunc(module.BookedWeekdays, func(a, b string) int { return compareOrdered(weekdayOrder[a], weekdayOrder[b]) })
 		result = append(result, *module)
 	}
@@ -195,6 +176,47 @@ func careModules(versions []parentbilling.CareContractVersion, tariffs []parentb
 		return firstNonZero(compareOrdered(a.SchoolID, b.SchoolID), compareOrdered(a.EndsAt, b.EndsAt), compareOrdered(a.ModuleName, b.ModuleName))
 	})
 	return result
+}
+
+// moduleBook collects the modules of the price list with their contracts.
+type moduleBook struct {
+	modules   map[moduleKey]*parentbilling.CareModule
+	contracts map[moduleKey]map[int64]bool
+}
+
+func (b moduleBook) ensure(k moduleKey, schoolName, moduleName string) *parentbilling.CareModule {
+	module, ok := b.modules[k]
+	if !ok {
+		module = &parentbilling.CareModule{SchoolID: k.schoolID, SchoolName: schoolName, CareOfferingID: k.offeringID,
+			ModuleName: moduleName, BookedWeekdays: []string{}, BookedDaysPerWeek: []int{}}
+		b.modules[k] = module
+		b.contracts[k] = map[int64]bool{}
+	}
+	return module
+}
+
+// addVersion adds the booked weekdays, day counts and the contract of a
+// version to its modules.
+func (b moduleBook) addVersion(version parentbilling.CareContractVersion) {
+	for _, service := range version.Services {
+		k := moduleKey{version.SchoolID, service.CareOfferingID}
+		module := b.ensure(k, version.SchoolName, service.ModuleName)
+		if module.EndsAt == "" {
+			module.EndsAt = service.EndsAt
+		}
+		if !slices.Contains(module.BookedWeekdays, service.Weekday) {
+			module.BookedWeekdays = append(module.BookedWeekdays, service.Weekday)
+		}
+		b.contracts[k][version.ContractID] = true
+	}
+	for offering, counts := range bookedDayCounts(version) {
+		module := b.modules[moduleKey{version.SchoolID, offering}]
+		for _, count := range counts {
+			if !slices.Contains(module.BookedDaysPerWeek, count) {
+				module.BookedDaysPerWeek = append(module.BookedDaysPerWeek, count)
+			}
+		}
+	}
 }
 
 // SaveCarePriceList sets the prices of a school from a month on. A month an
@@ -370,10 +392,12 @@ func (c *CareBilling) ReleaseCareRun(ctx context.Context, reviewer parentbilling
 	}
 	if err := c.store.InsertCareRunEvent(ctx, reviewer.OrganizationID, run.ID, reviewer.AccountID, runEventRelease,
 		map[string]any{"document_count": len(month.invoices), "total_cents": month.total(), "month_rule": rule,
+			"free_of_charge":     month.free,
 			"duplicate_children": duplicateChildren(month.duplicates), "issued_on": issuedOn.String(),
 			"excluded_contract_ids": excludedContracts(month.excluded)}); err != nil {
 		return parentbilling.CareRunDetail{}, fmt.Errorf("parent billing: record care release: %w", err)
 	}
+	released.FreeOfCharge = month.free
 	return c.detail(ctx, reviewer, released)
 }
 
@@ -436,8 +460,12 @@ func (c *CareBilling) monthWith(ctx context.Context, organizationID int64, run p
 	if err != nil {
 		return "", careMonth{}, err
 	}
+	familyCounts, err := c.store.FamilyChildCounts(ctx, organizationID)
+	if err != nil {
+		return "", careMonth{}, err
+	}
 	month, err := buildCareMonth(careMonthInput{month: run.BillingMonth, rule: rule, versions: versions, tariffs: tariffs,
-		invoiced: invoiced, recipients: recipients, rules: rules, evidences: evidences, lists: heads})
+		invoiced: invoiced, recipients: recipients, rules: rules, evidences: evidences, lists: heads, familyCounts: familyCounts})
 	if err != nil {
 		return rule, month, err
 	}

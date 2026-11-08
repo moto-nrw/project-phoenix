@@ -20,7 +20,6 @@ export default {
         // is selected by tenant input.
         files: [
           "src/app/api/enrollment/[tenantSlug]/submit/route.ts",
-          "src/app/api/enrollment/captcha-config/[tenantSlug]/route.ts",
           "src/app/api/enrollment/phases/public/[tenantSlug]/route.ts",
         ],
         rules: ["react-doctor/tenant-static-proxy-risk"],

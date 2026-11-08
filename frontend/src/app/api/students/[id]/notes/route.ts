@@ -1,4 +1,4 @@
-import { proxyGet, proxyPost } from "@/lib/route-proxy.server";
+import { proxyGet, proxyPost } from "~/lib/route-wrapper.server";
 import { requirePathSegmentParam } from "@/lib/route-wrapper-utils.server";
 
 // GET /api/students/[id]/notes - Read a child's note card (Kartei)

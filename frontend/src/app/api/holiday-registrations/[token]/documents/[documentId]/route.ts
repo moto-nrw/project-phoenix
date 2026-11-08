@@ -6,8 +6,6 @@ import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 export const GET = withPrivateDownloadNoStore(
   createPublicJsonProxy({
     method: "GET",
-    cache: "no-store",
-    contentTypeOnGet: false,
     onSuccess: (response) => {
       const headers = new Headers({
         "Cache-Control": "private, no-store",

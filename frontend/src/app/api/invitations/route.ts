@@ -1,7 +1,6 @@
 import type { NextRequest } from "next/server";
 import { apiPost } from "~/lib/api-helpers.server";
-import { createPostHandler } from "~/lib/route-wrapper.server";
-import { proxyGet } from "~/lib/route-proxy.server";
+import { createPostHandler, proxyGet } from "~/lib/route-wrapper.server";
 
 interface BackendInvitation {
   id: number;

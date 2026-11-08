@@ -152,6 +152,15 @@ func TestSJRPriceFormsBillThroughTheRoutes(t *testing.T) {
 		billed = append(billed, invoice.ContractID)
 	}
 	assert.ElementsMatch(t, []int64{jonas, klara, rosa}, billed)
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(august.ID, "/release"),
+		map[string]any{"document_count": august.PreviewCount, "total_cents": august.PreviewCents, "fingerprint": august.Fingerprint})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, 2, decodeSchoolPortalData[priceFormsRunBody](t, rec.Body.Bytes()).FreeOfCharge)
+	changedList := ispringenModule2(ispringen)
+	changedList["free_months"] = []int{}
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careTariffsPath, changedList)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, 2, f.priceFormsRun(t, august.ID).FreeOfCharge)
 }
 
 // The routes refuse a price list that mixes forms within a module or puts

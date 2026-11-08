@@ -21,7 +21,7 @@ func (f *AccountMFAFlows) operatorResetCatererMFA(ctx context.Context, operatorI
 	resetAt := f.now()
 	return f.Disable(ctx, accountID, func(txCtx context.Context) error {
 		if err := f.recordOperatorMFAChange(txCtx, operatorID, accountID, domain.OperatorMFAOverrideEvidence{
-			Action: "disable", Scope: domain.MFAChallengeScopeCaterer, Reason: reason,
+			Action: "disable", Scope: domain.PortalCaterer.Name, Reason: reason,
 		}); err != nil {
 			return err
 		}

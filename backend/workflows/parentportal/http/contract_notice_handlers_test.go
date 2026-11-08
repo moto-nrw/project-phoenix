@@ -86,7 +86,7 @@ func TestContractNotice_RefusesWithItsCodes(t *testing.T) {
 		{parentService.ErrContractWithdrawalClosed, http.StatusConflict, "care_contract.withdrawal_closed"},
 		{parentService.ErrContractSpecialTerminationClosed, http.StatusConflict, "care_contract.special_termination_closed"},
 		{parentService.ErrContractNoticeTemplateMissing, http.StatusConflict, "care_contract.notice_template_missing"},
-		{parentService.ErrContractNoticeInvalid, http.StatusBadRequest, "care_contract.contract_input_invalid"},
+		{parentService.ErrContractNoticeInvalid, http.StatusBadRequest, "care_contract.field_invalid"},
 	}
 	for _, tc := range cases {
 		w := serveContractNotice(t, &Resource{ParentService: &fakeParentService{documentsErr: tc.err}}, http.MethodPost, path,

@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
 // The passkey handler tests drive the routes from api/operator; the error
@@ -15,7 +17,7 @@ func TestOperatorPasskeyErrorMapping(t *testing.T) {
 	t.Parallel()
 
 	w := httptest.NewRecorder()
-	mapOperatorPasskeyError(w, httptest.NewRequest(http.MethodPost, "/", nil), ErrPasskeyNotFound)
+	mapOperatorPasskeyError(w, httptest.NewRequest(http.MethodPost, "/", nil), identityaccess.ErrPasskeyNotFound)
 	assert.Equal(t, http.StatusNotFound, w.Code)
 
 	w = httptest.NewRecorder()

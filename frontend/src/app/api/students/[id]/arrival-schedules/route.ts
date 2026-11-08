@@ -1,4 +1,4 @@
-import { proxyGet, proxyPut } from "@/lib/route-proxy.server";
+import { proxyGet, proxyPut } from "~/lib/route-wrapper.server";
 import { requirePathSegmentParam } from "@/lib/route-wrapper-utils.server";
 
 // GET /api/students/[id]/arrival-schedules - Fetch arrival schedules, exceptions and notes

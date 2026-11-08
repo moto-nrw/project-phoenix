@@ -1,7 +1,6 @@
 import { captureBffException } from "~/lib/sentry-bff.server";
 import type { NextRequest } from "next/server";
-import { clientIdentityHeaders } from "~/lib/client-headers.server";
-import { getServerApiUrl } from "~/lib/server-api-url";
+import { sendBackend } from "~/lib/backend-client.server";
 import { createLogger } from "~/lib/logger";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { problemResponse } from "~/lib/api-helpers.server";
@@ -36,16 +35,10 @@ async function POSTHandler(request: NextRequest, context: RouteContext) {
       confirm_password: body.confirmPassword,
     };
 
-    const response = await fetch(
-      `${getServerApiUrl()}/auth/guardian-invitations/${encodeURIComponent(token)}/accept`,
-      {
-        method: "POST",
-        headers: {
-          ...clientIdentityHeaders(request.headers),
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      },
+    const response = await sendBackend(
+      `/auth/guardian-invitations/${encodeURIComponent(token)}/accept`,
+      null,
+      { method: "POST", json: payload, request },
     );
 
     return forwardBackendResponse(response, request);

@@ -1,5 +1,5 @@
 // app/api/active/groups/[id]/route.ts
-import { proxyDelete, proxyGet, proxyPut } from "~/lib/route-proxy.server";
+import { proxyDelete, proxyGet, proxyPut } from "~/lib/route-wrapper.server";
 import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 /**

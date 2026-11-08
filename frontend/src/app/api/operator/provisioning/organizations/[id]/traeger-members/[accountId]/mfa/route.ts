@@ -1,5 +1,5 @@
 import { operatorErrorResponse } from "~/lib/operator/route-wrapper.server";
-import { createOperatorJsonProxy } from "~/lib/backend-proxy-route.server";
+import { createOperatorJsonProxy } from "~/lib/operator/route-wrapper.server";
 
 // Zweiten Faktor einer Person im Träger-Büro zurücksetzen (#4651). Die
 // Person richtet ihn bei der nächsten Anmeldung im Träger-Portal neu ein.
@@ -17,6 +17,5 @@ export const DELETE = createOperatorJsonProxy({
     }
     return `/operator/organizations/${encodeURIComponent(organizationId)}/traeger-members/${encodeURIComponent(accountId)}/mfa`;
   },
-  cache: "no-store",
   body: "json",
 });

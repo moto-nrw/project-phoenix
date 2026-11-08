@@ -165,8 +165,8 @@ export function standAt(stands: readonly string[], month: string): string {
   return started.at(-1) ?? stands[0] ?? "";
 }
 
-/** The scale steps a form shows: 1 to 5 days per week. */
-export const SCALE_STEPS = [1, 2, 3, 4, 5] as const;
+/** Every supported scale step: 1 to 7 days per week. */
+export const SCALE_STEPS = [1, 2, 3, 4, 5, 6, 7] as const;
 
 /** "1 Tag" / "3 Tage". */
 export function daysLabel(days: number): string {
@@ -230,6 +230,7 @@ export interface PriceRow {
   readonly endsAt: string;
   readonly contractCount: number;
   readonly bookedWeekdays: readonly CareWeekday[];
+  readonly bookedDaysPerWeek: readonly number[];
   /** How the module is priced at the month. */
   readonly form: CarePriceForm;
   /** The price excludes the meal (the Mensa bills it). */
@@ -295,6 +296,7 @@ export function priceRowsAt(
       endsAt: module.endsAt,
       contractCount: module.contractCount,
       bookedWeekdays: module.bookedWeekdays,
+      bookedDaysPerWeek: module.bookedDaysPerWeek,
       form,
       mealExtra: latest?.mealExtra ?? false,
       prices,
@@ -319,11 +321,11 @@ export function shownWeekdays(rows: readonly PriceRow[]): CareWeekday[] {
 
 /**
  * What a row books without a price at the month: the weekdays ("sat"), or
- * for a scale the steps up to the number of booked weekdays ("3 Tage").
+ * for a scale the actual booked sizes ("3 Tage").
  */
 export function missingPrices(row: PriceRow): string[] {
   if (row.form === "days_per_week") {
-    return Array.from({ length: row.bookedWeekdays.length }, (_, i) => i + 1)
+    return row.bookedDaysPerWeek
       .filter((days) => row.steps[days] === undefined)
       .map(daysLabel);
   }

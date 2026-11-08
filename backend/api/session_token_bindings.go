@@ -11,6 +11,7 @@ import (
 
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
 )
 
 // requestTokenReads binds the root's request reads to Identity's session
@@ -19,8 +20,8 @@ var requestTokenReads = owners.TokenAdapter{
 	Permissions:           sessiontoken.PermissionsFromCtx,
 	Claims:                requestClaims,
 	Memo:                  requestIdentityMemo,
-	NewCapabilityToken:    sessiontoken.NewOpaqueCapabilityToken,
-	CapabilityFingerprint: sessiontoken.OpaqueCapabilityFingerprint,
+	NewCapabilityToken:    tokenprimitives.NewOpaqueCapabilityToken,
+	CapabilityFingerprint: tokenprimitives.OpaqueCapabilityFingerprint,
 }
 
 // newLegacyTokenAdapter binds the request reads and the session tokens the

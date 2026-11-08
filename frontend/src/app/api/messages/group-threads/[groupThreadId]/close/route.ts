@@ -1,4 +1,4 @@
-import { proxyPost } from "~/lib/route-proxy.server";
+import { proxyPost } from "~/lib/route-wrapper.server";
 
 /**
  * Proxy POST /api/messages/group-threads/{groupThreadId}/close → backend

@@ -5,9 +5,11 @@ const { mockAuth } = vi.hoisted(() => ({
   mockAuth: vi.fn(),
 }));
 
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockAuth,
+  }),
+);
 
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://backend.test",

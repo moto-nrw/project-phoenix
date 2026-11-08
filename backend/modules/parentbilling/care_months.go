@@ -78,7 +78,9 @@ type CareModule struct {
 	ModuleName     string   `json:"module_name"`
 	EndsAt         string   `json:"ends_at"`
 	BookedWeekdays []string `json:"booked_weekdays"`
-	ContractCount  int      `json:"contract_count"`
+	// BookedDaysPerWeek lists actual booking sizes, never the weekday union.
+	BookedDaysPerWeek []int `json:"booked_days_per_week"`
+	ContractCount     int   `json:"contract_count"`
 }
 
 // Price forms of a module (#6196). A module of a price list has one form:
@@ -193,6 +195,8 @@ type CareRun struct {
 	DocumentCount *int           `json:"document_count"`
 	TotalCents    *int64         `json:"total_cents"`
 	MonthRule     string         `json:"month_rule"`
+	// FreeOfCharge is the free-month count saved by the release.
+	FreeOfCharge int `json:"free_of_charge"`
 	// CareRunScope names the schools and the invoice date (#5916).
 	CareRunScope
 }
@@ -353,14 +357,15 @@ type CareRunDetail struct {
 	// DuplicateChildren counts the children of Duplicates: the run, and its
 	// release, bills none of them.
 	DuplicateChildren int `json:"duplicate_children"`
-	Billed            int `json:"billed"`
-	// FreeOfCharge counts the contracts the run bills nothing for because
-	// the price list of their school makes the month free (#6196).
-	FreeOfCharge   int    `json:"free_of_charge"`
-	PreviewCount   int    `json:"preview_count"`
-	PreviewCents   int64  `json:"preview_cents"`
-	NumberPattern  string `json:"number_pattern"`
-	NumberRangeSet bool   `json:"number_range_set"`
+	// UncountedFamilies counts the families a sibling rule that counts the
+	// family ranked without a confirmed number for the month (#5918): the
+	// rule counts their children with a contract alone.
+	UncountedFamilies int    `json:"uncounted_families"`
+	Billed            int    `json:"billed"`
+	PreviewCount      int    `json:"preview_count"`
+	PreviewCents      int64  `json:"preview_cents"`
+	NumberPattern     string `json:"number_pattern"`
+	NumberRangeSet    bool   `json:"number_range_set"`
 	// DueDates are the due dates of the run per payment method (#4689).
 	DueDates []RunDueDate `json:"due_dates"`
 	// CareRunReviewState is the review of a calculated run (#5916).

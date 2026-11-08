@@ -30,7 +30,7 @@ func (d *Decisions) dispatchContactList(ctx context.Context, raw any, studentID 
 		if err := entries[i].Validate(); err != nil {
 			return linkedProfileIDs, fmt.Errorf("%w: %w", enrollment.ErrDecisionInvalidData, err)
 		}
-		emails = append(emails, strings.ToLower(strings.TrimSpace(entries[i].Email)))
+		emails = append(emails, guardianEmailKey(entries[i].Email))
 	}
 	profilesByEmail, err := d.guardianProfilesByEmails(ctx, emails)
 	if err != nil {
@@ -59,7 +59,7 @@ func (d *Decisions) dispatchContact(
 	profilesByEmail map[string]*GuardianProfile,
 	phoneOnlyProfiles *phoneOnlyContactProfiles,
 ) (*GuardianProfile, error) {
-	emailLC := strings.ToLower(strings.TrimSpace(c.Email))
+	emailLC := guardianEmailKey(c.Email)
 	profile, err := d.contactProfile(ctx, c, emailLC, profilesByEmail, phoneOnlyProfiles)
 	if err != nil {
 		return nil, err
@@ -164,10 +164,6 @@ func contactGuardianRole(isEmergencyContact, canPickup bool) GuardianRole {
 	return GuardianRoleCustom
 }
 
-func contactIdentityName(value string) string {
-	return strings.ToLower(strings.TrimSpace(value))
-}
-
 func contactIdentityPhones(entry enrollment.ContactEntry) map[string]bool {
 	phones := map[string]bool{}
 	for _, phone := range entry.PhoneNumbers {
@@ -238,15 +234,15 @@ func guardianPhoneSet(rows []*GuardianPhone) map[string]bool {
 }
 
 func (profiles *phoneOnlyContactProfiles) match(entry enrollment.ContactEntry) []*GuardianProfile {
-	firstName := contactIdentityName(entry.FirstName)
-	lastName := contactIdentityName(entry.LastName)
+	firstName := lowerTrim(entry.FirstName)
+	lastName := lowerTrim(entry.LastName)
 	phones := contactIdentityPhones(entry)
 	if firstName == "" || lastName == "" || len(phones) == 0 {
 		return nil
 	}
 	matches := make([]*GuardianProfile, 0, 1)
 	for profileID, profile := range profiles.profiles {
-		if profile == nil || contactIdentityName(profile.FirstName) != firstName || contactIdentityName(profile.LastName) != lastName {
+		if profile == nil || lowerTrim(profile.FirstName) != firstName || lowerTrim(profile.LastName) != lastName {
 			continue
 		}
 		if sharesPhone(profiles.phonesByProfile[profileID], phones) {

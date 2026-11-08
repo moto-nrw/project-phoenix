@@ -10,6 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
 // refusingSessions refuses every token issue with err; the other operator
@@ -35,8 +37,8 @@ func TestOperatorMFAExchangeRefusalsCarryIdentityCodes(t *testing.T) {
 		status int
 		code   string
 	}{
-		{"operator not found", ErrOperatorNotFound, http.StatusUnauthorized, "identity.invalid_credentials"},
-		{"operator inactive", ErrOperatorInactive, http.StatusForbidden, "identity.account_inactive"},
+		{"operator not found", identityaccess.ErrOperatorNotFound, http.StatusUnauthorized, "identity.invalid_credentials"},
+		{"operator inactive", identityaccess.ErrOperatorInactive, http.StatusForbidden, "identity.account_inactive"},
 		{"issue failure", errors.New("boom"), http.StatusInternalServerError, "general.server"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

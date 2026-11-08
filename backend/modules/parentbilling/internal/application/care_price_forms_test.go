@@ -533,3 +533,80 @@ func TestTariffSiblingPriceIsAnEndPrice(t *testing.T) {
 	// Ben: 78,00 − 10 % = 70,20 €, then down to the sibling price 60,50 €.
 	assert.Equal(t, int64(6050), totalsByContract(month)[802])
 }
+
+func TestTariffSiblingRoundingKeepsTheModuleTotal(t *testing.T) {
+	t.Parallel()
+	versions := []parentbilling.CareContractVersion{
+		sjrVersion(t, contractMia, schoolIspringen, 1, january2027, january2027,
+			booked("mon", moduleUntil1400, "Modul", "14:00")),
+		sjrVersion(t, contractMia, schoolIspringen, 2, "2027-01-02", januaryLastDay2027,
+			booked("tue", moduleUntil1400, "Modul", "14:00")),
+	}
+	first := price(t, schoolIspringen, moduleUntil1400, "Modul", "mon", january2027, 198)
+	first.SiblingCents = ptr(int64(198))
+	second := price(t, schoolIspringen, moduleUntil1400, "Modul", "tue", january2027, 250)
+	second.SiblingCents = ptr(int64(50))
+	invoice, missing := billContract(day(t, january2027), parentbilling.MonthRuleProRata, versions, true, newPriceBook([]parentbilling.CareTariff{first, second}))
+	require.Empty(t, missing)
+	require.Len(t, invoice.Positions, 2)
+	assert.Equal(t, int64(248), invoice.TotalCents)
+	entry := careChainEntry{invoice: &invoice, remaining: []int64{invoice.Positions[0].AmountCents, invoice.Positions[1].AmountCents}}
+	rule := careRule(t, ruleSiblingIspringen, parentbilling.RuleSibling, []int64{schoolIspringen}, func(rule *parentbilling.ContributionRule) {
+		rule.SiblingFromChild, rule.TariffSiblingPrice = ptr(2), true
+	})
+	entry.reduceToSiblingPrices(&rule, ptr(2), ptr(2))
+	assert.Equal(t, int64(55), entry.remaining[0]+entry.remaining[1])
+	for _, position := range invoice.Positions {
+		assert.LessOrEqual(t, position.SiblingCents, position.AmountCents)
+	}
+}
+
+func TestCareModulesKeepActualBookingSizes(t *testing.T) {
+	t.Parallel()
+	first := sjrVersion(t, contractMia, schoolIspringen, 1, january2027, januaryLastDay2027,
+		booked("mon", moduleUntil1400, "Modul", "14:00"), booked("tue", moduleUntil1400, "Modul", "14:00"),
+		booked("wed", moduleUntil1400, "Modul", "14:00"))
+	second := sjrVersion(t, contractNoah, schoolIspringen, 1, january2027, januaryLastDay2027,
+		booked("thu", moduleUntil1400, "Modul", "14:00"), booked("fri", moduleUntil1400, "Modul", "14:00"),
+		booked("sat", moduleUntil1400, "Modul", "14:00"))
+	modules := careModules([]parentbilling.CareContractVersion{first, second}, nil)
+	require.Len(t, modules, 1)
+	assert.Len(t, modules[0].BookedWeekdays, 6)
+	assert.Equal(t, []int{3}, modules[0].BookedDaysPerWeek)
+	first.Services[0].LastDay = ptr(day(t, "2027-01-15"))
+	modules = careModules([]parentbilling.CareContractVersion{first, second}, nil)
+	assert.Equal(t, []int{2, 3}, modules[0].BookedDaysPerWeek)
+}
+
+func TestFreeMonthKeepsTheSiblingAtItsContractSchool(t *testing.T) {
+	t.Parallel()
+	for _, stated := range []int{2, 3} {
+		t.Run(fmt.Sprintf("family with %d children", stated), func(t *testing.T) {
+			t.Parallel()
+			first := price(t, schoolIspringen, moduleUntil1400, "Modul", "mon", january2027, 4000)
+			first.SiblingCents = ptr(int64(3000))
+			rule := careRule(t, ruleSiblingIspringen, parentbilling.RuleSibling, []int64{schoolIspringen}, func(rule *parentbilling.ContributionRule) {
+				rule.SiblingFromChild, rule.TariffSiblingPrice, rule.CountsFamilyChildren = ptr(2), true, true
+			})
+			month, err := buildCareMonth(careMonthInput{
+				month: day(t, january2027), rule: parentbilling.MonthRuleVersionOnFirst,
+				versions: []parentbilling.CareContractVersion{
+					sjrVersion(t, contractMia, schoolIspringen, 1, january2027, januaryLastDay2027, mon1400),
+					sjrVersion(t, contractNoah, schoolBirkenfeld, 1, january2027, januaryLastDay2027, mon1400),
+				},
+				tariffs: []parentbilling.CareTariff{first}, rules: []parentbilling.ContributionRule{rule},
+				recipients:   map[int64]parentbilling.CareRecipient{contractMia: {Email: familyEva}, contractNoah: {Email: familyEva}},
+				familyCounts: confirmedFamily(familyEva, stated, january2027, nil)(t),
+				lists:        []parentbilling.CarePriceListHead{{SchoolID: schoolBirkenfeld, ValidFrom: day(t, january2027), FreeMonths: []int{1}}},
+			})
+			require.NoError(t, err)
+			require.Len(t, month.invoices, 1)
+			assert.Equal(t, 1, month.freeBySchool[schoolBirkenfeld])
+			want := int64(4000)
+			if stated == 3 {
+				want = 3000 // Only the third child is a sibling without a contract.
+			}
+			assert.Equal(t, want, month.invoices[0].TotalCents)
+		})
+	}
+}

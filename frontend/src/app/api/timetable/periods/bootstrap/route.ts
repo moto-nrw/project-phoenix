@@ -7,6 +7,6 @@
 //
 // The Go backend wraps responses in { status, data, message }. proxyPost
 // strips that envelope so route-wrapper does not double-wrap the payload.
-import { proxyPost } from "~/lib/route-proxy.server";
+import { proxyPost } from "~/lib/route-wrapper.server";
 
 export const POST = proxyPost("/api/timetable/periods/bootstrap");

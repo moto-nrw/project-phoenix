@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -126,7 +127,9 @@ func toCareOfferingResponse(o *CareOffering) CareOfferingResponse {
 	}
 	// The document is validated on every write. Should a row still fail to
 	// decode, the offering renders untranslated instead of failing the list.
-	resp.Translations, _ = careOfferingTranslations(o)
+	translations, err := careOfferingTranslations(o)
+	warnUndecodableTranslations(o, err)
+	resp.Translations = translations
 	return resp
 }
 
@@ -134,8 +137,21 @@ func toCareOfferingResponse(o *CareOffering) CareOfferingResponse {
 // reduced to those still matching the German text, without their source.
 func toPublicCareOfferingResponse(o *CareOffering) CareOfferingResponse {
 	resp := toCareOfferingResponse(o)
-	resp.Translations, _ = careOfferingPublicTranslations(o)
+	translations, err := careOfferingPublicTranslations(o)
+	warnUndecodableTranslations(o, err)
+	resp.Translations = translations
 	return resp
+}
+
+// warnUndecodableTranslations logs a stored translation document that does
+// not decode; the offering then renders untranslated.
+func warnUndecodableTranslations(o *CareOffering, err error) {
+	if err == nil {
+		return
+	}
+	slog.Warn("care offering translations do not decode; rendering untranslated",
+		slog.Int64("care_offering_id", o.ID),
+		slog.String("error", err.Error()))
 }
 
 // Care offerings carry their translations (#3377) as stored JSON: the

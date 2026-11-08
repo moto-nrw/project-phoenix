@@ -28,7 +28,8 @@ type PasswordResetRoutes struct {
 	RetryAfter func(error) (int, bool)
 }
 
-func (routes PasswordResetRoutes) complete() bool {
+// Complete reports whether every reset function is bound.
+func (routes PasswordResetRoutes) Complete() bool {
 	return routes.Initiate != nil && routes.Reset != nil && routes.LinkUnusable != nil && routes.TooWeak != nil && routes.RetryAfter != nil
 }
 
@@ -59,7 +60,7 @@ func (routes PasswordResetRoutes) ServeInitiate(w http.ResponseWriter, r *http.R
 		RenderError(w, r, ErrorInvalidRequest(errors.New("email is required")))
 		return
 	}
-	if !routes.complete() {
+	if !routes.Complete() {
 		RenderError(w, r, ErrorInternalServer(errResetUnavailable))
 		return
 	}
@@ -88,7 +89,7 @@ func (routes PasswordResetRoutes) ServeConfirm(w http.ResponseWriter, r *http.Re
 		RenderError(w, r, ErrorInvalidOnField(errResetMismatch, CodeIdentityPasswordMismatch, "confirm_password"))
 		return
 	}
-	if !routes.complete() {
+	if !routes.Complete() {
 		RenderError(w, r, ErrorInternalServer(errResetUnavailable))
 		return
 	}

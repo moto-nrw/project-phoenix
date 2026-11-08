@@ -19,6 +19,27 @@ type moduleKey struct {
 	offeringID int64
 }
 
+// bookedDayCounts keeps the sizes a version actually books, including a
+// smaller booking after a service ends within the version.
+func bookedDayCounts(version parentbilling.CareContractVersion) map[int64][]int {
+	dates := []calendar.Date{version.From}
+	for _, service := range version.Services {
+		if service.LastDay != nil && !service.LastDay.Before(version.From) && service.LastDay.Before(version.Until) {
+			dates = append(dates, service.LastDay.AddDays(1))
+		}
+	}
+	counts := map[int64][]int{}
+	for _, date := range dates {
+		for offering, module := range modulesBookedOn(version, date) {
+			count := len(module.weekdays)
+			if !slices.Contains(counts[offering], count) {
+				counts[offering] = append(counts[offering], count)
+			}
+		}
+	}
+	return counts
+}
+
 // unitPrice is the price of a weekday or a scale step: for the first child
 // and for every further child (the first child's without a sibling price).
 type unitPrice struct {

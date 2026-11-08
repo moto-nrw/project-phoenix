@@ -1,4 +1,4 @@
-import { proxyPut } from "~/lib/route-proxy.server";
+import { proxyPut } from "~/lib/route-wrapper.server";
 import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 interface ReplacementBody {

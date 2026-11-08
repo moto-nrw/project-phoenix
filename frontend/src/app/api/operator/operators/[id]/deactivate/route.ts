@@ -1,11 +1,8 @@
-import { createOperatorProxyMethodHandler } from "~/lib/operator/route-wrapper.server";
+import { createOperatorJsonProxy } from "~/lib/operator/route-wrapper.server";
 
-/**
- * POST /api/operator/operators/[id]/deactivate
- * Proxies to backend POST /operator/operators/{id}/deactivate.
- * Forwards client IP and User-Agent for audit logging.
- */
-export const POST = createOperatorProxyMethodHandler(
-  "POST",
-  (params) => `/operator/operators/${String(params.id)}/deactivate`,
-);
+export const POST = createOperatorJsonProxy({
+  method: "POST",
+  path: (_request, params) =>
+    `/operator/operators/${encodeURIComponent(String(params.id))}/deactivate`,
+  body: "none",
+});

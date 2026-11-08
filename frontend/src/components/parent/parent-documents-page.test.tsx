@@ -293,6 +293,15 @@ describe("ParentDocumentsPage", () => {
       expect(
         screen.getByRole("button", { name: "Als PDF laden" }),
       ).toBeInTheDocument();
+      // Who may sign may also state the children of the family (#5918);
+      // the others only read the number.
+      expect(
+        screen.getByRole("link", {
+          name: canSign
+            ? deMessages.parentDocuments.familyChildren
+            : deMessages.parentFamilyChildren.title,
+        }),
+      ).toBeInTheDocument();
       if (canSign) {
         expect(
           screen.getByRole("link", {
@@ -385,8 +394,56 @@ describe("ParentDocumentsPage", () => {
     expect(
       screen.getByText(deMessages.parentDocuments.cancelNotPermitted),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Kinder in Ihrer Familie" }),
+    ).toHaveAttribute("href", "/documents/vertrag/4/75?family=1");
     // Only the replaced version carries the mark.
     expect(screen.getAllByText("Ersetzt")).toHaveLength(1);
+  });
+
+  // § 356a BGB (#6105): while the withdrawal period may run, the contract
+  // carries the withdrawal function under the label the notice names.
+  it("offers „Vertrag widerrufen“ while the withdrawal period may run", async () => {
+    const contract: ParentDocument = {
+      ...letter,
+      id: "74",
+      organization_id: "2",
+      kind: "care_contract",
+      number: "Nr. 74",
+      period_name: "OGS Ganztag · OGS Sonnenhof",
+      service_from: "2027-03-01",
+      total_cents: 0,
+      child_names: ["Lina"],
+      contract_status: "aktiv",
+      can_end_contract: true,
+    };
+    mocks.listMyDocuments.mockResolvedValue({
+      documents: [
+        { ...contract, can_withdraw_contract: true },
+        {
+          ...contract,
+          id: "75",
+          number: "Nr. 75",
+          can_withdraw_contract: false,
+        },
+      ],
+      shared: [],
+      failedSource: null,
+      error: null,
+    });
+    render(<ParentDocumentsPage />);
+
+    expect(
+      await screen.findAllByRole("link", { name: "Verträge hier kündigen" }),
+    ).toHaveLength(2);
+    const withdraw = screen.getAllByRole("link", {
+      name: "Vertrag widerrufen",
+    });
+    expect(withdraw).toHaveLength(1);
+    expect(withdraw[0]).toHaveAttribute(
+      "href",
+      "/documents/vertraege/2/74?widerruf=1",
+    );
   });
 
   it("explains an empty inbox and how letters arrive", async () => {

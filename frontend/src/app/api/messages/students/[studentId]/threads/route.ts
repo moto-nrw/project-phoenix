@@ -18,7 +18,7 @@ export const GET = createGetHandler(
       throw new Error("Student ID is required");
     }
     const response = await apiGet<{ data: unknown }>(
-      `/api/messages/students/${studentId}/threads`,
+      `/api/messages/students/${encodeURIComponent(studentId)}/threads`,
       token,
     );
     return response.data;

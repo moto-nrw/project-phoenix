@@ -6,10 +6,13 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // The fixed retention of short-lived sign-in data (#3954): guardian
@@ -27,7 +30,7 @@ func retentionRowExists(t *testing.T, db *bun.DB, table string, id any) bool {
 func TestGuardianInvitationsAreDeletedThirtyDaysAfterExpiryOrRedemption(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
-	module := newOperatorTokens(t, db)
+	module := newOwner(t, db)
 	creator := testpkg.CreateTestAccount(t, db, "retention-inviter@example.com")
 	profile := testpkg.CreateTestGuardianProfile(t, db, "retention-guardian@example.com")
 	otherSchool, _ := testpkg.CreateTestTenant(t, db)
@@ -64,7 +67,7 @@ func TestGuardianInvitationsAreDeletedThirtyDaysAfterExpiryOrRedemption(t *testi
 func TestMFAEmailCodesAreDeletedSevenDaysAfterExpiry(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
-	module := newOperatorTokens(t, db)
+	module := newOwner(t, db)
 	account := testpkg.CreateTestAccount(t, db, "retention-mfa@example.com")
 	operator := testpkg.CreateTestOperator(t, db)
 	now := time.Now()
@@ -96,7 +99,7 @@ func TestMFAEmailCodesAreDeletedSevenDaysAfterExpiry(t *testing.T) {
 func TestPasskeySessionsAreDeletedSevenDaysAfterExpiry(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
-	module := newOperatorTokens(t, db)
+	module := newOwner(t, db)
 	now := time.Now()
 	insert := func(table string, expiresAt time.Time) string {
 		id := uuid.Must(uuid.NewV4()).String()
@@ -128,7 +131,7 @@ func TestPasskeySessionsAreDeletedSevenDaysAfterExpiry(t *testing.T) {
 func TestCatererInvitationsAreDeletedThirtyDaysAfterTheyEnd(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
-	module := newOperatorTokens(t, db)
+	module := newOwner(t, db)
 	now := time.Now()
 	daysAgo := func(days int) time.Time { return now.Add(-time.Duration(days) * 24 * time.Hour) }
 	invitation := func(expiresAt time.Time, acceptedAt, revokedAt *time.Time) int64 {
@@ -155,4 +158,11 @@ func TestCatererInvitationsAreDeletedThirtyDaysAfterTheyEnd(t *testing.T) {
 	}
 	assert.True(t, retentionRowExists(t, db, "auth.caterer_invitations", recentlyRevoked), "the revocation starts the window")
 	assert.True(t, retentionRowExists(t, db, "auth.caterer_invitations", open))
+}
+
+func newOwner(t *testing.T, db *bun.DB) identityaccess.Owner {
+	t.Helper()
+	module, err := identityCompose.New(identityCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityCompose.Observation) {}})
+	require.NoError(t, err)
+	return module
 }

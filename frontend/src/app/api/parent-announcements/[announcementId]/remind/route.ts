@@ -16,7 +16,7 @@ export const POST = createPostHandler(
     const id = params.announcementId as string;
     if (!id) throw new Error("Announcement ID is required");
     const response = await apiPost<{ data: unknown }>(
-      `/api/parent-announcements/${id}/remind`,
+      `/api/parent-announcements/${encodeURIComponent(id)}/remind`,
       token,
       {},
     );

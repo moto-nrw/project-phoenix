@@ -81,11 +81,11 @@ func mountServeMiddleware(
 	if err != nil {
 		return nil, err
 	}
-	setupRateLimiting(router, securityLogger, sessionAuth, demoLoopbackExempt())
 	// One verifier serves every route: it only parses the presented token, and
 	// each protected group still rejects through the Authenticator and its
 	// scope gate. A group mounted without it fails closed.
-	router.Use(sessionAuth.Verifier())
+	router.Use(sessionAuth.Verifier(), sessiontoken.ParseVerified)
+	setupRateLimiting(router, securityLogger, demoLoopbackExempt())
 	// Every verified access token must still rest on a live refresh-token
 	// family, so logout ends it at once on every instance (#5194).
 	router.Use(RequireLiveAccessSession(sessions))

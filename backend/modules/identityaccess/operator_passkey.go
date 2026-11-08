@@ -1,9 +1,7 @@
 package identityaccess
 
 import (
-	"context"
 	"encoding/json"
-	"errors"
 	"time"
 )
 
@@ -15,11 +13,11 @@ var (
 	// ErrOperatorPasskeyNotFound reports a lookup without an active
 	// credential, or a use or revocation of a credential that is revoked,
 	// belongs to another operator or is gone.
-	ErrOperatorPasskeyNotFound = errors.New("operator passkey not found")
+	ErrOperatorPasskeyNotFound = notFoundError("operator passkey not found")
 	// ErrOperatorPasskeySessionNotFound reports a consumption that found no
 	// unconsumed, unexpired ceremony with that ID and purpose. The loser of
 	// two concurrent completions receives it.
-	ErrOperatorPasskeySessionNotFound = errors.New("operator passkey session not found")
+	ErrOperatorPasskeySessionNotFound = notFoundError("operator passkey session not found")
 )
 
 // The ceremony purposes a passkey session is bound to, in both portals.
@@ -58,34 +56,4 @@ type OperatorPasskeySession struct {
 	ConsumedAt     *time.Time
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
-}
-
-// OperatorPasskeyQuery resolves active, that is unrevoked, operator
-// passkeys.
-type OperatorPasskeyQuery interface {
-	// ListActiveOperatorPasskeys orders by registration, oldest first.
-	ListActiveOperatorPasskeys(ctx context.Context, operatorID int64) ([]OperatorPasskeyCredential, error)
-	FindActiveOperatorPasskey(ctx context.Context, credentialID, userHandle []byte) (OperatorPasskeyCredential, error)
-}
-
-// OperatorPasskeyCommand changes operator passkey records. The creates
-// validate the record and return it with its identity and timestamps.
-type OperatorPasskeyCommand interface {
-	CreateOperatorPasskey(ctx context.Context, credential OperatorPasskeyCredential) (OperatorPasskeyCredential, error)
-	// RecordOperatorPasskeyUse stores the credential state after a verified
-	// assertion on an active credential.
-	RecordOperatorPasskeyUse(ctx context.Context, id int64, credentialJSON json.RawMessage, usedAt time.Time) error
-	// RevokeOperatorPasskey revokes an active credential of that operator.
-	RevokeOperatorPasskey(ctx context.Context, operatorID, id int64, revokedAt time.Time) error
-	CreateOperatorPasskeySession(ctx context.Context, session OperatorPasskeySession) (OperatorPasskeySession, error)
-	// ConsumeOperatorPasskeySession completes a ceremony exactly once and
-	// returns its state.
-	ConsumeOperatorPasskeySession(ctx context.Context, id, purpose string, consumedAt time.Time) (OperatorPasskeySession, error)
-}
-
-// OperatorPasskeyRecords is the capability the operator passkey flows
-// consume.
-type OperatorPasskeyRecords interface {
-	OperatorPasskeyQuery
-	OperatorPasskeyCommand
 }

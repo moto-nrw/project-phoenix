@@ -391,6 +391,24 @@
       "class": "input",
       "parameters": [],
       "legacy": "parent_billing.due_dates_invalid"
+    },
+    {
+      "code": "parent_billing.family_children_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.family_children_invalid"
+    },
+    {
+      "code": "parent_billing.family_children_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.family_children_not_found"
+    },
+    {
+      "code": "parent_billing.family_without_address",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.family_without_address"
     }
   ]
 }

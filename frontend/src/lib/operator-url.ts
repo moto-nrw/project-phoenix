@@ -6,6 +6,8 @@
  * these to the actual /operator/* routes internally.
  */
 
+import { requiredPortalHostname } from "~/lib/portal-paths";
+
 // Cache the result — window.location.host and the env var never change at runtime
 let _isOperator: boolean | undefined;
 
@@ -17,13 +19,7 @@ export function isOperatorSubdomain(): boolean {
   if (typeof window === "undefined") return true;
   if (_isOperator !== undefined) return _isOperator;
 
-  const operatorHostname = process.env.NEXT_PUBLIC_OPERATOR_HOSTNAME;
-  if (!operatorHostname) {
-    throw new Error(
-      "NEXT_PUBLIC_OPERATOR_HOSTNAME is not set. " +
-        "Add it to your .env.local or docker-compose environment.",
-    );
-  }
+  const operatorHostname = requiredPortalHostname("operator");
 
   _isOperator = window.location.host === operatorHostname;
   return _isOperator;

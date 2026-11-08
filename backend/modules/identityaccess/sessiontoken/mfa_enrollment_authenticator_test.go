@@ -23,6 +23,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
 )
 
 // (a) enrollment token reaches the enroll handler and the claims arrive
@@ -184,4 +185,57 @@ func TestMFAEnrollmentAuthenticator_ExpiredToken(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, rr.Code,
 		"expired enrollment tokens must be rejected, just like expired access tokens")
+}
+
+// A route group of one portal admits only that portal's enrollment tokens,
+// with the school its shape demands: a school for tenant and school, none
+// for the Träger, either for the operator.
+func TestEnrollmentAuthenticatorFor_AdmitsOnlyItsPortal(t *testing.T) {
+	t.Parallel()
+
+	auth, err := newTestTokenAuth(t, testSecret)
+	require.NoError(t, err)
+
+	tokens := []struct {
+		scope    string
+		tenantID int64
+	}{
+		{sessiontoken.MFAEnrollmentScopeTenant, 70010001},
+		{sessiontoken.MFAEnrollmentScopeTenant, 0},
+		{sessiontoken.MFAEnrollmentScopeSchool, 70010001},
+		{sessiontoken.MFAEnrollmentScopeSchool, 0},
+		{sessiontoken.MFAEnrollmentScopeOrg, 0},
+		{sessiontoken.MFAEnrollmentScopeOrg, 70010001},
+		{sessiontoken.MFAEnrollmentScopePlatform, 0},
+	}
+	admitted := map[string]map[string]bool{
+		sessiontoken.MFAEnrollmentScopeTenant:   {"tenant/1": true},
+		sessiontoken.MFAEnrollmentScopeSchool:   {"school/1": true},
+		sessiontoken.MFAEnrollmentScopeOrg:      {"org/0": true},
+		sessiontoken.MFAEnrollmentScopePlatform: {"platform/0": true},
+	}
+	for _, portal := range []tokenprimitives.PortalClaims{tokenprimitives.TenantClaims, tokenprimitives.SchoolClaims, tokenprimitives.OrgClaims, tokenprimitives.PlatformClaims} {
+		router := chi.NewRouter()
+		router.Use(auth.Verifier())
+		router.Use(sessiontoken.EnrollmentAuthenticatorFor(portal))
+		router.Post("/enroll", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
+		for _, token := range tokens {
+			key := token.scope + "/" + map[bool]string{true: "1", false: "0"}[token.tenantID != 0]
+			t.Run(portal.Name+" route, "+key+" token", func(t *testing.T) {
+				signed, err := tokentest.CreateMFAEnrollmentJWT(auth, sessiontoken.MFAEnrollmentClaims{
+					AccountID: 4242, Scope: token.scope, TenantID: token.tenantID,
+				}, 5*time.Minute)
+				require.NoError(t, err)
+				req := httptest.NewRequest(http.MethodPost, "/enroll", nil)
+				req.Header.Set("Authorization", "Bearer "+signed)
+				rr := httptest.NewRecorder()
+				router.ServeHTTP(rr, req)
+				want := http.StatusUnauthorized
+				if admitted[portal.Name][key] {
+					want = http.StatusNoContent
+				}
+				assert.Equal(t, want, rr.Code)
+			})
+		}
+	}
 }

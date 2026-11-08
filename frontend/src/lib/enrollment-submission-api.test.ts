@@ -4,11 +4,8 @@ import { ApiError } from "~/lib/api-error";
 import {
   confirmRenewal,
   createEnrollmentChangeRequest,
-  fetchMyEnrollmentProfile,
   fetchEnrollmentEditBootstrap,
-  fetchPublicCareOfferings,
   fetchPublicEnrollmentBootstrap,
-  EMPTY_SCHOOL_CLASS_CONFIG,
   fetchPublicPhases,
   fetchStatus,
   listEnrollmentChangeRequests,
@@ -40,182 +37,6 @@ describe("enrollment-submission-api", () => {
     global.fetch = originalFetch;
   });
 
-  it("loads public care offerings from the backend envelope", async () => {
-    mockFetch.mockResolvedValueOnce(
-      jsonResponse({
-        data: {
-          offerings: [
-            {
-              id: "11",
-              name: "Flexible Betreuung",
-              days_of_week_mode: "parent_choice",
-              available_days: ["mon"],
-              includes_holiday_care: true,
-              includes_lunch: false,
-              is_active: true,
-            },
-          ],
-          care_offering_selection_mode: "at_least_one",
-          care_required: true,
-        },
-      }),
-    );
-
-    await expect(
-      fetchPublicCareOfferings("test tenant", "phase/5"),
-    ).resolves.toMatchObject({
-      careOfferingSelectionMode: "at_least_one",
-      careRequired: true,
-      offerings: [{ id: "11", name: "Flexible Betreuung" }],
-    });
-    expect(mockFetch).toHaveBeenCalledWith(
-      "/api/enrollment/care-offerings/public/test%20tenant/phase%2F5",
-      { cache: "no-store" },
-    );
-  });
-
-  it("normalizes malformed care offering payloads", async () => {
-    mockFetch.mockResolvedValueOnce(
-      jsonResponse({ data: { offerings: null, care_required: false } }),
-    );
-
-    await expect(fetchPublicCareOfferings("tenant", "5")).resolves.toEqual({
-      offerings: [],
-      careOfferingSelectionMode: "optional",
-      careRequired: false,
-      collectGradeLevel: true,
-      careOfferingsEnabled: true,
-      schoolClass: undefined,
-    });
-
-    mockFetch.mockResolvedValueOnce(
-      jsonResponse({ data: { offerings: [], care_required: true } }),
-    );
-    await expect(fetchPublicCareOfferings("tenant", "5")).resolves.toEqual({
-      offerings: [],
-      careOfferingSelectionMode: "at_least_one",
-      careRequired: true,
-      collectGradeLevel: true,
-      careOfferingsEnabled: true,
-      schoolClass: undefined,
-    });
-  });
-
-  it("normalizes enrollment feature flags from enabled, disabled, and missing fields", async () => {
-    mockFetch
-      .mockResolvedValueOnce(
-        jsonResponse({
-          data: {
-            offerings: [],
-            collect_grade_level: true,
-            care_offerings_enabled: true,
-          },
-        }),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({
-          data: {
-            offerings: [],
-            collect_grade_level: false,
-            care_offerings_enabled: false,
-          },
-        }),
-      )
-      .mockResolvedValueOnce(jsonResponse({ data: { offerings: [] } }));
-
-    await expect(
-      fetchPublicCareOfferings("tenant", "5"),
-    ).resolves.toMatchObject({
-      collectGradeLevel: true,
-      careOfferingsEnabled: true,
-    });
-    await expect(
-      fetchPublicCareOfferings("tenant", "5"),
-    ).resolves.toMatchObject({
-      collectGradeLevel: false,
-      careOfferingsEnabled: false,
-    });
-    await expect(
-      fetchPublicCareOfferings("tenant", "5"),
-    ).resolves.toMatchObject({
-      collectGradeLevel: true,
-      careOfferingsEnabled: true,
-    });
-  });
-
-  it("parses the concrete-class config when the backend sends it", async () => {
-    mockFetch.mockResolvedValueOnce(
-      jsonResponse({
-        data: {
-          offerings: [],
-          care_offering_selection_mode: "optional",
-          school_class: {
-            collect: true,
-            require: true,
-            collect_grade_1: true,
-            // Non-string entries are filtered out.
-            available_classes: ["2a", "2b", 3, null, "3a"],
-          },
-        },
-      }),
-    );
-
-    await expect(
-      fetchPublicCareOfferings("tenant", "5"),
-    ).resolves.toMatchObject({
-      schoolClass: {
-        collect: true,
-        require: true,
-        available_classes: ["2a", "2b", "3a"],
-        // Server-authoritative grade-1 collection flag (#1663).
-        collect_grade_1: true,
-      },
-    });
-  });
-
-  it("coerces a malformed concrete-class config to safe defaults", async () => {
-    mockFetch.mockResolvedValueOnce(
-      jsonResponse({
-        data: {
-          offerings: [],
-          care_offering_selection_mode: "optional",
-          // collect/require missing, available_classes not an array.
-          school_class: { available_classes: "2a" },
-        },
-      }),
-    );
-
-    await expect(
-      fetchPublicCareOfferings("tenant", "5"),
-    ).resolves.toMatchObject({
-      schoolClass: {
-        collect: false,
-        require: false,
-        available_classes: [],
-        collect_grade_1: false,
-      },
-    });
-  });
-
-  it("omits the concrete-class config when the backend does not send it", async () => {
-    mockFetch.mockResolvedValueOnce(
-      jsonResponse({
-        data: { offerings: [], care_offering_selection_mode: "optional" },
-      }),
-    );
-
-    const result = await fetchPublicCareOfferings("tenant", "5");
-    expect(result.schoolClass).toBeUndefined();
-    // The disabled default consumers fall back to.
-    expect(EMPTY_SCHOOL_CLASS_CONFIG).toEqual({
-      collect: false,
-      available_classes: [],
-      require: false,
-      // Grade 1 stays grade-level-only unless the backend says otherwise (#1663).
-      collect_grade_1: false,
-    });
-  });
-
   it("keeps the submission error code for the catalog, never the backend text", async () => {
     mockFetch.mockResolvedValueOnce(
       jsonResponse(
@@ -224,9 +45,10 @@ describe("enrollment-submission-api", () => {
       ),
     );
 
-    const error = await fetchPublicCareOfferings("tenant", "5").catch(
-      (err: unknown) => err,
-    );
+    const error = await submitEnrollment(
+      "tenant",
+      {} as SubmitEnrollmentPayload,
+    ).catch((err: unknown) => err);
     expect(error).toBeInstanceOf(ApiError);
     expect(error).toMatchObject({
       status: 409,
@@ -302,70 +124,6 @@ describe("enrollment-submission-api", () => {
       "/api/enrollment/form-bootstrap/public/demo%20slug/ph%2F5",
       { cache: "no-store" },
     );
-  });
-
-  it("omits credentials without adding a profile-enrichment query flag", async () => {
-    mockFetch.mockResolvedValueOnce(
-      jsonResponse({
-        data: {
-          phase: { id: "5", name: "Ferien" },
-          schema: null,
-          offerings: [],
-          care_offering_selection_mode: "optional",
-          care_required: false,
-          captcha_config: null,
-          legal_texts: { blocks: [] },
-        },
-      }),
-    );
-
-    await fetchPublicEnrollmentBootstrap("demo", "5", {
-      lateInviteToken: "invite token",
-      omitCredentials: true,
-    });
-
-    expect(mockFetch).toHaveBeenCalledWith(
-      "/api/enrollment/form-bootstrap/public/demo/5?late_invite=invite%20token",
-      { cache: "no-store", credentials: "omit" },
-    );
-  });
-
-  it("returns null for unauthenticated profile requests", async () => {
-    mockFetch.mockResolvedValueOnce(
-      jsonResponse({ error: "unauthorized" }, { status: 401 }),
-    );
-
-    await expect(fetchMyEnrollmentProfile()).resolves.toBeNull();
-  });
-
-  it("loads the authenticated enrollment profile", async () => {
-    mockFetch.mockResolvedValueOnce(
-      jsonResponse({
-        guardian: {
-          first_name: "Mara",
-          last_name: "Muster",
-          email: "mara@example.test",
-          phone: "+491234",
-        },
-        children: [
-          {
-            id: "7",
-            first_name: "Lina",
-            last_name: "Muster",
-            school_class: "2a",
-            grade_level: 2,
-          },
-        ],
-      }),
-    );
-
-    await expect(fetchMyEnrollmentProfile()).resolves.toMatchObject({
-      guardian: { email: "mara@example.test" },
-      children: [{ id: "7", school_class: "2a" }],
-    });
-    expect(mockFetch).toHaveBeenCalledWith("/api/enrollment/me/profile", {
-      cache: "no-store",
-    });
   });
 
   it("submits enrollment payloads and unwraps the response", async () => {

@@ -27,7 +27,7 @@ export const GET = createGetHandler(
 
     const response = await apiGet<
       BackendActivity | { status: string; data: BackendActivity }
-    >(`/api/activities/${id}`, token);
+    >(`/api/activities/${encodeURIComponent(id)}`, token);
 
     // Handle both response formats (raw object or wrapped in status/data)
     if (response) {
@@ -71,7 +71,7 @@ export const PUT = createPutHandler<Activity, UpdateActivityRequest>(
       BackendActivity | { status: string; data: BackendActivity },
       UpdateActivityRequest
     >(
-      `/api/activities/${id}`,
+      `/api/activities/${encodeURIComponent(id)}`,
       token,
       body, // Send the raw UpdateActivityRequest
     );
@@ -115,7 +115,7 @@ export const DELETE = createDeleteHandler(
     const response = await apiDelete<{
       status?: string | number;
       success?: boolean;
-    }>(`/api/activities/${id}`, token);
+    }>(`/api/activities/${encodeURIComponent(id)}`, token);
 
     // Backend typically returns no content on successful delete
     if (

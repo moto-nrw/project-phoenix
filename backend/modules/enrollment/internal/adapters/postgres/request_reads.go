@@ -4,22 +4,29 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/uptrace/bun"
 )
 
 // unreadRequestPredicate selects the requests that count as unread for one
 // account (#3778): an active phase, at least one non-terminal child, and no
-// read row at or after the last parent change. Arguments: tenant, account.
+// read row at or after the last parent change. Arguments: tenant, terminal
+// child statuses (unreadRequestArgs), account.
 const unreadRequestPredicate = `"request".tenant_id = ?
 	AND EXISTS (SELECT 1 FROM enrollment.phases AS "phase"
 		WHERE "phase".id = "request".phase_id AND "phase".tenant_id = "request".tenant_id AND "phase".is_active)
 	AND EXISTS (SELECT 1 FROM enrollment.request_children AS "child"
 		WHERE "child".request_id = "request".id AND "child".tenant_id = "request".tenant_id
-		AND "child".status NOT IN ('approved', 'rejected', 'withdrawn'))
+		AND "child".status NOT IN (?))
 	AND NOT EXISTS (SELECT 1 FROM enrollment.request_reads AS "read"
 		WHERE "read".request_id = "request".id AND "read".tenant_id = "request".tenant_id
 		AND "read".account_id = ?
 		AND "read".read_at >= "request".parent_changed_at)`
+
+// unreadRequestArgs are the arguments of unreadRequestPredicate.
+func unreadRequestArgs(tenantID, accountID int64) []any {
+	return []any{tenantID, bun.List(enrollment.TerminalChildStatuses()), accountID}
+}
 
 // CountUnreadRequests counts the unread enrollments of one account.
 func (r *Store) CountUnreadRequests(ctx context.Context, accountID int64) (int, error) {
@@ -32,7 +39,7 @@ func (r *Store) CountUnreadRequests(ctx context.Context, accountID int64) (int, 
 		return 0, err
 	}
 	count, err := db.NewSelect().TableExpr(requestTableExpr).
-		Where(unreadRequestPredicate, tenantID, accountID).Count(ctx)
+		Where(unreadRequestPredicate, unreadRequestArgs(tenantID, accountID)...).Count(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count unread enrollment requests: %w", err)
 	}
@@ -55,7 +62,7 @@ func (r *Store) UnreadRequestIDs(ctx context.Context, accountID int64, requestID
 	}
 	var ids []int64
 	err = db.NewSelect().TableExpr(requestTableExpr).ColumnExpr(`"request".id`).
-		Where(unreadRequestPredicate, tenantID, accountID).
+		Where(unreadRequestPredicate, unreadRequestArgs(tenantID, accountID)...).
 		Where(`"request".id IN (?)`, bun.List(requestIDs)).
 		Scan(ctx, &ids)
 	if err != nil {
@@ -105,7 +112,7 @@ func (r *Store) MarkAllRequestsRead(ctx context.Context, accountID int64) error 
 		FROM enrollment.requests AS "request"
 		WHERE `+unreadRequestPredicate+`
 		ON CONFLICT (request_id, account_id) DO UPDATE SET read_at = EXCLUDED.read_at`,
-		accountID, tenantID, accountID).Exec(ctx)
+		append([]any{accountID}, unreadRequestArgs(tenantID, accountID)...)...).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to mark all enrollment requests read: %w", err)
 	}

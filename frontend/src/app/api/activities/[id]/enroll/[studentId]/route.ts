@@ -21,7 +21,7 @@ export const POST = createPostHandler<
     const studentId = params.studentId as string;
 
     // Match the backend endpoint format
-    const endpoint = `/api/activities/${id}/students/${studentId}`;
+    const endpoint = `/api/activities/${encodeURIComponent(id)}/students/${encodeURIComponent(studentId)}`;
 
     // Empty body since the backend doesn't expect one
     await apiPost(endpoint, token, {});

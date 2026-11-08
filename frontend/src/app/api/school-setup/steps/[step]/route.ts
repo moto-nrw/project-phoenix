@@ -1,4 +1,4 @@
-import { proxyPut } from "~/lib/route-proxy.server";
+import { proxyPut } from "~/lib/route-wrapper.server";
 
 // Einen Schritt überspringen oder das Überspringen zurücknehmen (#2832).
 export const PUT = proxyPut(

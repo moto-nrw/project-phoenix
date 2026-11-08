@@ -1,15 +1,14 @@
 /**
- * API endpoint for client-side log ingestion from the tenant (staff) portal.
- * The parents portal ships to /api/parent/logs with its own session.
+ * Client log ingestion from the tenant (staff) portal. Every other portal
+ * ships to its own route with its own session (`portalLogPath`).
  */
 
 import type { NextRequest } from "next/server";
-import { auth } from "~/server/auth";
-import { withTenantAuth } from "~/server/auth/tenant-route";
+import { tenantPortal } from "~/server/auth";
 import { ingestClientLogs } from "~/lib/client-log-ingest.server";
 
 async function POSTHandler(request: NextRequest) {
-  return ingestClientLogs(request, await auth(), "tenant");
+  return ingestClientLogs(request, await tenantPortal.auth(), "tenant");
 }
 
-export const POST = withTenantAuth(POSTHandler);
+export const POST = tenantPortal.withAuth(POSTHandler);

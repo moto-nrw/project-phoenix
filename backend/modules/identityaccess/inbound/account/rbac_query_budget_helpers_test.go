@@ -78,7 +78,7 @@ func (f *rbacBudgetFixture) accountToken(t *testing.T, name string, permissions 
 	}
 	// The module loads the real persisted role grants, rather than accepting
 	// invented permissions in the successful request's signed claims.
-	token, _, err := f.module.Auth.IssueTokensForAuthenticatedAccount(testpkg.Ctx(t), actor.ID, testpkg.Tenant(t), "", "")
+	token, _, err := f.module.Auth.IssueTokensForPasskey(testpkg.Ctx(t), actor.ID, testpkg.Tenant(t), "", "")
 	require.NoError(t, err)
 	claims, err := testutil.TestTokenAuth(t).ParseAccessJWT(token)
 	require.NoError(t, err)

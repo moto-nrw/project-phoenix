@@ -28,8 +28,7 @@ func NewStore(resolve func(context.Context) (bun.IDB, error), tenantID func(cont
 // row level.
 func (r *Store) IncrementAttempts(ctx context.Context, tenantID int64, keyType, keyValue string, window time.Duration) (*enrollment.SubmissionRateLimitState, error) {
 	type result struct {
-		Attempts int       `bun:"attempts"`
-		RetryAt  time.Time `bun:"retry_at"`
+		Attempts int `bun:"attempts"`
 	}
 
 	windowSeconds := int64(window.Seconds())
@@ -59,21 +58,23 @@ func (r *Store) IncrementAttempts(ctx context.Context, tenantID int64, keyType, 
 		Set("attempts = CASE WHEN submission_rate_limits.window_start > NOW() - (? * INTERVAL '1 second') THEN submission_rate_limits.attempts + 1 ELSE 1 END", windowSeconds).
 		Set("window_start = CASE WHEN submission_rate_limits.window_start > NOW() - (? * INTERVAL '1 second') THEN submission_rate_limits.window_start ELSE NOW() END", windowSeconds).
 		Set("updated_at = NOW()").
-		Returning("attempts, window_start + (? * INTERVAL '1 second') AS retry_at", windowSeconds).
+		Returning("attempts").
 		Scan(ctx, &state)
 	if err != nil {
 		return nil, fmt.Errorf("increment enrollment submission rate limit: %w", err)
 	}
-	return &enrollment.SubmissionRateLimitState{
-		Attempts: state.Attempts,
-		RetryAt:  state.RetryAt,
-	}, nil
+	return &enrollment.SubmissionRateLimitState{Attempts: state.Attempts}, nil
 }
 
 // CleanupExpired removes the school's rows whose window_start is older than
-// 24h, the longest submission window, so no running window loses its count.
+// olderThan, the longest submission window, so no running window loses its
+// count.
 // The nightly retention of the school in context calls it (#4046).
-func (r *Store) CleanupExpired(ctx context.Context) (int, error) {
+func (r *Store) CleanupExpired(ctx context.Context, olderThan time.Duration) (int, error) {
+	seconds, err := positiveSeconds(olderThan)
+	if err != nil {
+		return 0, err
+	}
 	db, err := r.resolve(ctx)
 	if err != nil {
 		return 0, err
@@ -85,7 +86,7 @@ func (r *Store) CleanupExpired(ctx context.Context) (int, error) {
 	res, err := db.NewDelete().
 		Table("enrollment.submission_rate_limits").
 		Where("tenant_id = ?", tenantID).
-		Where("window_start < NOW() - INTERVAL '24 hours'").
+		Where("window_start < NOW() - (? * INTERVAL '1 second')", seconds).
 		Exec(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("cleanup enrollment submission rate limits: %w", err)
@@ -95,4 +96,14 @@ func (r *Store) CleanupExpired(ctx context.Context) (int, error) {
 		return 0, fmt.Errorf("cleanup enrollment submission rate limits: rows affected: %w", err)
 	}
 	return int(affected), nil
+}
+
+// positiveSeconds converts a rate-limit retention to the whole seconds the
+// queries bind.
+func positiveSeconds(d time.Duration) (int64, error) {
+	seconds := int64(d.Seconds())
+	if seconds <= 0 {
+		return 0, fmt.Errorf("enrollment postgres: invalid rate-limit retention %s", d)
+	}
+	return seconds, nil
 }

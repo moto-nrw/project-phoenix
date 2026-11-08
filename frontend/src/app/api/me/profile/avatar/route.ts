@@ -1,148 +1,50 @@
-import type { NextRequest } from "next/server";
-import { createFileUploadHandler } from "~/lib/file-upload-wrapper.server";
+import { apiDelete } from "~/lib/api-helpers.server";
+import { unwrapEnvelope } from "~/lib/backend-client.server";
+import {
+  FileValidationError,
+  proxyFileUpload,
+} from "~/lib/file-upload-wrapper.server";
 import { createDeleteHandler } from "~/lib/route-wrapper.server";
 import type { BackendProfile } from "~/lib/profile-helpers";
-import { getServerApiUrl } from "~/lib/server-api-url";
-import { createLogger } from "~/lib/logger";
-import { backendResponseError } from "~/lib/api-response-error.server";
 
-const logger = createLogger({ component: "AvatarRoute" });
-
-interface ProfileResponse {
-  success: boolean;
-  message: string;
-  data: BackendProfile;
+/** JPEG, PNG and GIF by their first bytes; WebP as RIFF with "WEBP" at 8. */
+function isImage(bytes: Uint8Array): boolean {
+  const hex = Array.from(bytes.subarray(0, 4))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+  if (hex.startsWith("ffd8ff") || hex === "89504e47" || hex === "47494638") {
+    return true;
+  }
+  return (
+    hex === "52494646" &&
+    new TextDecoder().decode(bytes.subarray(8, 12)) === "WEBP"
+  );
 }
 
-// POST handler for avatar upload with security validation
-export const POST = createFileUploadHandler<BackendProfile>(
-  async (request: NextRequest, formData: FormData, token: string) => {
-    // Get the avatar file from form data
-    const avatarFile = formData.get("avatar");
-    if (!avatarFile || !(avatarFile instanceof File)) {
-      throw new Error("No avatar file provided");
-    }
-
-    // Additional validation: Check file header/magic bytes for actual file type
-    // This helps prevent malicious files disguised with false extensions
-    const buffer = await avatarFile.arrayBuffer();
-    const bytes = new Uint8Array(buffer).subarray(0, 12); // Get more bytes for better detection
-    const header = Array.from(bytes.subarray(0, 4))
-      .map((byte) => byte.toString(16).padStart(2, "0"))
-      .join("");
-
-    // Common image file signatures
-    const validHeaders: Record<string, string[]> = {
-      ffd8ff: ["image/jpeg", "image/jpg"], // JPEG
-      "89504e47": ["image/png"], // PNG
-      "47494638": ["image/gif"], // GIF
-      "52494646": ["image/webp"], // WebP (RIFF header)
-    };
-
-    let isValidHeader = false;
-    let detectedType = "";
-
-    for (const [signature, types] of Object.entries(validHeaders)) {
-      if (header.startsWith(signature)) {
-        isValidHeader = true;
-        detectedType = types[0] ?? "";
-        break;
-      }
-      // Special check for WebP (RIFF....WEBP)
-      if (
-        signature === "52494646" &&
-        header.startsWith("52494646") &&
-        bytes[8] === 0x57 &&
-        bytes[9] === 0x45 &&
-        bytes[10] === 0x42 &&
-        bytes[11] === 0x50
-      ) {
-        isValidHeader = true;
-        detectedType = types[0] ?? "";
-        break;
-      }
-    }
-
-    if (!isValidHeader) {
-      throw new Error(
-        "Invalid file format detected. Please upload a valid image file.",
+export const POST = proxyFileUpload("/api/me/profile/avatar", {
+  file: "avatar",
+  maxSizeInMB: 5,
+  allowedMimeTypes: [
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/gif",
+    "image/webp",
+  ],
+  allowedExtensions: [".jpg", ".jpeg", ".png", ".gif", ".webp"],
+  verify: (buffer) => {
+    if (!isImage(new Uint8Array(buffer))) {
+      throw new FileValidationError(
+        "file content is not an image",
+        415,
+        "files.file_type_not_allowed",
       );
     }
-
-    // Verify the detected type matches the declared MIME type
-    if (detectedType && avatarFile.type !== detectedType) {
-      // Allow some flexibility for JPEG variants
-      const isJpegVariant =
-        (detectedType === "image/jpeg" || detectedType === "image/jpg") &&
-        (avatarFile.type === "image/jpeg" || avatarFile.type === "image/jpg");
-
-      if (!isJpegVariant) {
-        logger.warn("file type mismatch", {
-          declared: avatarFile.type,
-          detected: detectedType,
-        });
-      }
-    }
-
-    // Create new FormData with the validated file
-    // We need to create a new file from the buffer since we consumed the stream
-    const validatedFile = new File([buffer], avatarFile.name, {
-      type: avatarFile.type,
-    });
-    const validatedFormData = new FormData();
-    validatedFormData.append("avatar", validatedFile);
-
-    // Forward the request to backend
-    const backendUrl = `${getServerApiUrl()}/api/me/profile/avatar`;
-    const response = await fetch(backendUrl, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      body: validatedFormData,
-    });
-
-    if (!response.ok) {
-      throw await backendResponseError(response);
-    }
-
-    const responseData = (await response.json()) as ProfileResponse;
-
-    // Return the backend profile data (will be wrapped in ApiResponse by the handler)
-    return responseData.data;
   },
-  {
-    maxSizeInMB: 5,
-    allowedMimeTypes: [
-      "image/jpeg",
-      "image/jpg",
-      "image/png",
-      "image/gif",
-      "image/webp",
-    ],
-    allowedExtensions: [".jpg", ".jpeg", ".png", ".gif", ".webp"],
-  },
-);
+});
 
-// DELETE handler for removing avatar
-export const DELETE = createDeleteHandler(
-  async (request: NextRequest, token: string) => {
-    // Forward the request to backend
-    const backendUrl = `${getServerApiUrl()}/api/me/profile/avatar`;
-    const response = await fetch(backendUrl, {
-      method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
-
-    if (!response.ok) {
-      throw await backendResponseError(response);
-    }
-
-    const responseData = (await response.json()) as ProfileResponse;
-
-    // Return the updated profile data
-    return responseData.data;
-  },
+export const DELETE = createDeleteHandler(async (_request, token) =>
+  unwrapEnvelope<BackendProfile>(
+    await apiDelete("/api/me/profile/avatar", token),
+  ),
 );

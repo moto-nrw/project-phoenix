@@ -25,4 +25,7 @@ interface DeclarationSubmitBody {
 export const POST = proxyPost<DeclarationSubmitResult, DeclarationSubmitBody>(
   (params) =>
     `/parent/me/news/${requirePathSegmentParam(params, "announcementId")}/declaration`,
+  {
+    retry: { off: "a renewed session would send the account password twice" },
+  },
 );

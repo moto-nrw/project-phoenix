@@ -7,7 +7,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // The operator invitation and e-mail change flows (#3332) need three seams
@@ -39,6 +38,7 @@ func newOperatorProvisioning(
 	sessions *identityPorts.SessionDependencies,
 	operators *OperatorDependencies,
 	deps *OperatorProvisioningDependencies,
+	runtime tenantRuntime,
 ) (*application.OperatorProvisioning, error) {
 	if deps == nil {
 		return nil, nil
@@ -61,7 +61,7 @@ func newOperatorProvisioning(
 		Audit:     application.OperatorAudit{Source: operators.Audit},
 		Invites:   application.OperatorInvitationDelivery{Source: delivery, Expiry: deps.InvitationExpiry},
 		Changes:   application.OperatorEmailChangeDelivery{OperatorEmailChangeDelivery: delivery, Expiry: deps.EmailChangeExpiry},
-		Runtime:   tenantRuntime{attach: sessions.TenantRuntime, runner: tenant.NewTransactionRunner()},
+		Runtime:   runtime,
 		Attach:    sessions.TenantRuntime,
 		Expiry: application.OperatorProvisioningExpiry{
 			Invitation: deps.InvitationExpiry, EmailChange: deps.EmailChangeExpiry,

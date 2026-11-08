@@ -1,5 +1,5 @@
 // Package http_test drives the production Resource.Router(rootAPI.ProtectedTenantRoutes), so the full
-// middleware chain (Verifier → Authenticator → TenantMiddleware →
+// middleware chain (Verifier → Authenticator → TenantScopeMiddleware →
 // RequiresPermission → TenantTxMiddleware) runs exactly as on the real server.
 //
 // What it pins: the permission gates (a colleague's birth date must not fall

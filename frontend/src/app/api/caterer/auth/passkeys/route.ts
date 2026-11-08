@@ -6,5 +6,4 @@ import { createCatererJsonProxy } from "~/lib/caterer/route-wrapper.server";
 export const GET = createCatererJsonProxy({
   method: "GET",
   path: "/caterer/auth/passkeys",
-  forwardClientHeaders: true,
 });
