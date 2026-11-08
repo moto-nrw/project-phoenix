@@ -14,6 +14,7 @@
 
 import { DataField, DataGrid } from "~/components/ui/data-field";
 import { InsetPanel } from "~/components/ui/inset-panel";
+import { SectionCard } from "~/components/ui/section-card";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ApiError } from "~/lib/api-error";
 import { FileText } from "lucide-react";
@@ -495,7 +496,7 @@ function DeclarationChildCard({
   const name = `${child.first_name} ${child.last_name}`.trim();
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-4">
+    <SectionCard>
       <div className="flex items-center justify-between gap-3">
         <span className="min-w-0 truncate text-base font-semibold text-gray-900">
           {name}
@@ -633,6 +634,6 @@ function DeclarationChildCard({
             {t("closedNoAction")}
           </p>
         )}
-    </div>
+    </SectionCard>
   );
 }
