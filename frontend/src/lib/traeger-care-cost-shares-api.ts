@@ -9,7 +9,10 @@
 
 import { traegerRequest } from "./traeger-api";
 import { type BillingFile, billingFile } from "./traeger-billing-api";
-import type { CareCostShareKind } from "./traeger-care-billing-api";
+import type {
+  CareCostShareKind,
+  CareCostShareScope,
+} from "./traeger-care-billing-api";
 
 /** Where a share stands today; `expiring` ends within `warningDays`. */
 type CareCostShareStatus = "upcoming" | "active" | "expiring" | "expired";
@@ -22,6 +25,8 @@ export interface CareCostShare {
   readonly costBearerName: string;
   readonly shareBasisPoints: number | null;
   readonly shareCents: number | null;
+  /** What the share covers (#4686): the modules, the Mensa or both. */
+  readonly scope: CareCostShareScope;
   readonly validFrom: string;
   readonly validUntil: string;
   readonly reference: string;
@@ -67,6 +72,7 @@ interface BackendShare {
   cost_bearer_name: string;
   share_basis_points: number | null;
   share_cents: number | null;
+  scope?: CareCostShareScope;
   valid_from: string;
   valid_until: string;
   reference: string;
@@ -101,6 +107,7 @@ function shareFromBackend(share: BackendShare): CareCostShare {
     costBearerName: share.cost_bearer_name,
     shareBasisPoints: share.share_basis_points,
     shareCents: share.share_cents,
+    scope: share.scope ?? "care",
     validFrom: share.valid_from,
     validUntil: share.valid_until,
     reference: share.reference,
@@ -136,6 +143,7 @@ function shareBody(input: CareCostShareInput) {
     cost_bearer_id: Number(input.costBearerId),
     share_basis_points: input.shareBasisPoints,
     share_cents: input.shareCents,
+    scope: input.scope,
     valid_from: input.validFrom,
     valid_until: input.validUntil,
     reference: input.reference,

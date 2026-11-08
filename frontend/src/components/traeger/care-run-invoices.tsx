@@ -37,6 +37,8 @@ import {
   costShareAmountText,
 } from "./care-cost-share-format";
 import { reductionExplanation } from "./care-reduction-format";
+import { MealPositionLine } from "./care-run-meals";
+import { InvoiceLine } from "./invoice-line";
 import { InvoicePaymentLine } from "./invoice-payment-line";
 import { recipientKindLabel, recipientLine } from "./billing-payment-format";
 
@@ -83,10 +85,11 @@ function PositionLine({
 }: Readonly<{ position: CarePosition; month: string; showAmount: boolean }>) {
   const days = positionDays(position, month);
   return (
-    <li className="flex items-baseline justify-between gap-4 py-1.5">
-      <div className="min-w-0">
-        <p className="text-sm text-gray-900">{position.moduleName}</p>
-        <p className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-gray-600">
+    <InvoiceLine
+      title={position.moduleName}
+      amount={showAmount ? formatEuro(position.amountCents) : undefined}
+      detail={
+        <>
           {position.weekdays.map((day) => (
             <span key={day.weekday} title={WEEKDAY_LONG[day.weekday]}>
               <span className="font-medium text-gray-700">
@@ -104,33 +107,21 @@ function PositionLine({
             </span>
           ))}
           {days ? <span className="text-gray-500">{days}</span> : null}
-        </p>
-      </div>
-      {showAmount ? (
-        <span className="shrink-0 text-sm text-gray-700 tabular-nums">
-          {formatEuro(position.amountCents)}
-        </span>
-      ) : null}
-    </li>
+        </>
+      }
+    />
   );
 }
 
 /** A reduction of the chain (#4685): rule, explanation, negative amount. */
 function ReductionLine({ reduction }: Readonly<{ reduction: CareReduction }>) {
   return (
-    <li className="flex items-baseline justify-between gap-4 py-1.5">
-      <div className="min-w-0">
-        <p className="text-sm break-words hyphens-auto text-gray-900">
-          {reduction.name}
-        </p>
-        <p className="mt-0.5 text-xs text-gray-600">
-          {reductionExplanation(reduction)}
-        </p>
-      </div>
-      <span className="text-moto-green-strong shrink-0 text-sm tabular-nums">
-        {formatEuro(reduction.amountCents)}
-      </span>
-    </li>
+    <InvoiceLine
+      title={reduction.name}
+      detail={reductionExplanation(reduction)}
+      amount={formatEuro(reduction.amountCents)}
+      amountClassName="text-moto-green-strong"
+    />
   );
 }
 
@@ -203,7 +194,12 @@ function invoiceRows(
     const letter = byKey.get(`invoice-${invoice.id}`) ?? null;
     const storno = byKey.get(`cancellation-${invoice.id}`) ?? null;
     const rows: CareInvoiceRow[] = [
-      { key: invoice.contractId, invoice, letter, storno: false },
+      {
+        key: `${invoice.contractId}-${invoice.service}`,
+        invoice,
+        letter,
+        storno: false,
+      },
     ];
     if (storno) {
       rows.push({
@@ -261,6 +257,11 @@ function invoiceColumns(month: string): DataTableColumn<CareInvoiceRow>[] {
             <p className="font-semibold text-gray-900">
               {invoice.childFirstName} {invoice.childLastName}
             </p>
+            {invoice.service === "meal" ? (
+              <p className="mt-0.5 text-xs font-medium text-gray-700">
+                Mensa-Rechnung
+              </p>
+            ) : null}
             <p className="mt-0.5 truncate text-sm text-gray-600">
               {recipientLine(invoice.recipient)}
             </p>
@@ -321,6 +322,7 @@ function invoiceColumns(month: string): DataTableColumn<CareInvoiceRow>[] {
                 showAmount={
                   invoice.positions.length > 1 ||
                   invoice.reductions.length > 0 ||
+                  invoice.mealPositions.length > 0 ||
                   invoice.costShares.length > 0
                 }
               />
@@ -330,6 +332,9 @@ function invoiceColumns(month: string): DataTableColumn<CareInvoiceRow>[] {
                 key={`${reduction.kind}-${index}`}
                 reduction={reduction}
               />
+            ))}
+            {invoice.mealPositions.map((position) => (
+              <MealPositionLine key={position.mealMonth} position={position} />
             ))}
             <CostShareLines invoice={invoice} />
           </ul>

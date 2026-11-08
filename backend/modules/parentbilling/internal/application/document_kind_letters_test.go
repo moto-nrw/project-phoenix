@@ -513,3 +513,16 @@ func TestCareFeeNoticePrintsTheSharesOfCostBearers(t *testing.T) {
 	assert.Contains(t, text, "Übernimmt Jugendamt Enzkreis (Jugendamt, 50 %): -27,00 €")
 	assert.Contains(t, text, "Ihr Anteil: 27,01 €")
 }
+
+// TestMensaInvoiceOfItsOwnStaysAnInvoice: the kind of document belongs to
+// the care contribution; a Mensa invoice of its own is never a fee notice
+// (#4686, #4688).
+func TestMensaInvoiceOfItsOwnStaysAnInvoice(t *testing.T) {
+	t.Parallel()
+	invoices := []parentbilling.CareInvoice{{Service: parentbilling.ServiceCare}, {Service: parentbilling.ServiceMeal}}
+	excluded := []parentbilling.CareInvoice{{Service: parentbilling.ServiceCare}}
+	markDocumentKind(parentbilling.DocumentKindFeeNotice, invoices, excluded)
+	assert.Equal(t, parentbilling.DocumentKindFeeNotice, invoices[0].DocumentKind)
+	assert.Equal(t, parentbilling.DocumentKindInvoice, invoices[1].DocumentKind)
+	assert.Equal(t, parentbilling.DocumentKindFeeNotice, excluded[0].DocumentKind)
+}

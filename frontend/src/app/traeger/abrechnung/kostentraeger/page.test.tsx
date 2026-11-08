@@ -33,6 +33,7 @@ const share = (overrides: Partial<CareCostShare>): CareCostShare => ({
   costBearerName: "Jugendamt Enzkreis",
   shareBasisPoints: 10000,
   shareCents: null,
+  scope: "care",
   validFrom: "2026-08-01",
   validUntil: "2027-07-31",
   reference: "Bescheid 4-12",
@@ -161,8 +162,53 @@ describe("TraegerKostentraegerPage", () => {
         costBearerId: "8",
         shareBasisPoints: null,
         shareCents: 2550,
+        scope: "meal",
         reference: "BuT-Bescheid 2026-117",
       }),
+    );
+  });
+
+  it("lets a share cover the care and the Mensa (#4686)", async () => {
+    renderPage();
+    await screen.findAllByText("100 %");
+    saveCareCostShare.mockResolvedValue(data);
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Anteile: Lea Ohne" })[0]!,
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Anteil eintragen" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Jugendamt" }));
+    expect(
+      within(dialog).getByRole("button", { name: "Betreuung", pressed: true }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Betreuung und Mensa" }),
+    );
+    // A chosen scope stays when the kind changes afterwards.
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Bildung und Teilhabe" }),
+    );
+    fireEvent.click(
+      within(dialog).getByRole("combobox", { name: /Kostenträger/ }),
+    );
+    fireEvent.click(
+      await screen.findByRole("option", { name: "Jobcenter Enzkreis" }),
+    );
+    fireEvent.change(
+      within(dialog).getByLabelText(/Bescheid/, { selector: "input" }),
+      { target: { value: "BuT-Bescheid 2026-118" } },
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Anteil speichern" }),
+    );
+    await vi.waitFor(() =>
+      expect(saveCareCostShare).toHaveBeenCalledWith(
+        null,
+        expect.objectContaining({
+          kind: "education_participation",
+          scope: "both",
+        }),
+      ),
     );
   });
 });

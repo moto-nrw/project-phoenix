@@ -89,6 +89,14 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.care_meal_positions",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_meal_tariffs",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.care_letter_mailings",
       "write_owner": "parent-billing"
     },

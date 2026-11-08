@@ -27,6 +27,7 @@ var mealPlanAccess = map[mealplanAPI.Access]securityruntime.MealPlanAccess{
 	mealplanAPI.AccessParticipants:      securityruntime.MealPlanAccessParticipants,
 	mealplanAPI.AccessRegister:          securityruntime.MealPlanAccessRegister,
 	mealplanAPI.AccessDailyParticipants: securityruntime.MealPlanAccessDailyParticipants,
+	mealplanAPI.AccessBillingRelease:    securityruntime.MealPlanAccessBillingRelease,
 }
 
 // accessGuard builds the route guard of a Security Runtime access rule.

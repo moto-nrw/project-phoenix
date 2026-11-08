@@ -255,6 +255,67 @@
       "target_owner": "delivery-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareMeals.MealAttendanceFrom",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareMeals.MealAttendanceFrom",
+      "reason": "Read-only: read the retention days from the resolved settings snapshot of a school; no database access, write, lock or scope change.",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsSnapshot.Int",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareMeals.MealAttendanceFrom",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareMeals.MealAttendanceFrom",
+      "reason": "Read-only: resolve the attendance retention of the Träger's Mensa schools in one administrative read of its own (tenant.ContextWithoutTransaction): the Träger transaction of the monthly run hides school settings by row security and shares nothing with it (ADR 0105); no write, lock or change of the run's scope.",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveManyForTenants",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareMeals.MealAttendanceFrom",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareMeals.MealAttendanceFrom",
+      "reason": "Read-only: Student Presence's first complete attendance day of the school under its retention window, counting what the retention already deleted (active.attendance_retention_marks, #4686, ADR 0168); read in the caller's school transaction so a Mensa month whose attendance may be gone is not counted; no write, lock or scope change.",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.AttendanceCompleteFrom",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareMeals.MealAttendanceFrom",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareMeals.MealAttendanceFrom",
+      "reason": "Read-only: how far Student Presence's retention deleted the school's attendance (active.attendance_retention_marks, #4686), read in the caller's school transaction to keep a Mensa month whose attendance may be gone from being counted; no write, lock or scope change.",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.NewTenantID",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareMeals.MealAttendanceFrom",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareMeals.MealAttendanceFrom",
+      "reason": "Platform protocol participation (scope): parent-billing reaches tenant.WithinTenant (tenant-runtime) through api.parentBillingCareMeals.MealAttendanceFrom, which reads how far the retention deleted each Mensa school's attendance in a school transaction of its own (tenant.ContextWithoutTransaction); it shares nothing with the Träger transaction of the run (ADR 0105). The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareMeals.ReleasedMealMonths",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareMeals.ReleasedMealMonths",
+      "reason": "Reviewed read: the released Mensa months of the schools of the session's Träger with the meals per child only, read through schedule.traeger_meal_billing_children in its Träger transaction; the monthly run copies them onto the invoices and records the read in its own trail (#4686).",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/mealplan.TraegerMealMonths.ReleasedMealMonths",
+      "target_owner": "meal-plan"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareSchools.TraegerSchools",
       "classification": "query",
       "effect": "query",

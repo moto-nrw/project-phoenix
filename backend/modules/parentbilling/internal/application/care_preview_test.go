@@ -104,7 +104,9 @@ func TestCareMonthGoldenSJR(t *testing.T) {
 			 "weekdays": [{"weekday": "tue", "monthly_cents": 4550, "amount_cents": 4550}], "amount_cents": 4550}
 		],
 		"reductions": [],
+		"meal_positions": [],
 		"cost_shares": [],
+		"service": "care",
 		"total_cents": 7750
 	}]`, string(got))
 	assert.Empty(t, month.unpriced)

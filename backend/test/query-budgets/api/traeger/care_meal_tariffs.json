@@ -1,0 +1,7 @@
+{
+  "scenario": "api.traeger.care_meal_tariffs",
+  "max": 4,
+  "exact": true,
+  "description": "modules/parentbilling — GET /traeger/care-meal-tariffs (#4686): the Träger\nbinding of the Träger transaction, the schools of the Träger (Organisation &\nTenancy), the Mensa prices and the last billed Mensa month per school.\nFlat in the number of prices and schools.",
+  "route": "GET /traeger/care-meal-tariffs/"
+}

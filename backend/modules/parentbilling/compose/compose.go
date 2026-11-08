@@ -49,9 +49,16 @@ func NewBillingFamilies() parentbilling.BillingFamilies {
 	return application.NewBillingFamilies(postgres.NewStore())
 }
 
-// NewCareBilling builds the monthly contribution of the care contract (#4684) and its rule chain (#4685) over the contracts, schools and settings the root binds.
-func NewCareBilling(contracts parentbilling.CareContracts, schools parentbilling.CareSchools, settings parentbilling.CareBillingSettings, templates parentbilling.BillingDocumentTemplates) (parentbilling.CareBilling, parentbilling.CareReductions) {
-	return application.NewCareBilling(postgres.NewStore(), contracts, schools, settings, rendering.NewRenderer(), templates, calendar.TodayDate), application.NewCareReductions(postgres.NewStore(), contracts, schools, calendar.TodayDate)
+// MonthlyBilling is the monthly run with its Mensa prices (#4684, #4686).
+type MonthlyBilling interface {
+	parentbilling.CareBilling
+	parentbilling.CareMealBilling
+}
+
+// NewCareBilling builds the monthly contribution of the care contract (#4684), its rule chain (#4685) and its Mensa (#4686) over the contracts, schools, settings and released Mensa months the root binds, and the document templates (#4688).
+func NewCareBilling(contracts parentbilling.CareContracts, schools parentbilling.CareSchools, settings parentbilling.CareBillingSettings, meals parentbilling.CareMeals, templates parentbilling.BillingDocumentTemplates) (MonthlyBilling, parentbilling.CareReductions) {
+	store := postgres.NewStore()
+	return application.NewCareBilling(store, contracts, schools, settings, rendering.NewRenderer(), store, meals, templates, calendar.TodayDate), application.NewCareReductions(postgres.NewStore(), contracts, schools, calendar.TodayDate)
 }
 
 // NewCareLetters builds the letters, mail, print and Storno of the monthly runs (#4684, ADR 0165) over the ports the root binds.

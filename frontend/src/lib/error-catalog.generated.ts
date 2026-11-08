@@ -760,6 +760,20 @@ export const ERROR_CATALOG = {
         "Im Raum {room_name} ist kein Platz mehr. Bitte wählen Sie einen anderen Raum.",
       "iot.student_already_active":
         "{object} ist bereits im Raum {room_name}. Bitte prüfen Sie den aktuellen Aufenthalt.",
+      "meals.billing_month_attendance_expired":
+        "Für diesen Monat können Anwesenheiten bereits gelöscht sein. Eine sichere Freigabe ist deshalb nicht mehr möglich. Wenden Sie sich an Ihren Träger.",
+      "meals.billing_month_changed":
+        "Seit dem Laden hat sich der Monat geändert. Bitte prüfen Sie ihn noch einmal und geben Sie ihn dann frei.",
+      "meals.billing_month_invalid":
+        "Diesen Monat gibt es hier nicht. Wählen Sie einen der letzten 12 Monate.",
+      "meals.billing_month_no_traeger":
+        "Ihre Schule gehört zu keinem Träger. Deshalb rechnet niemand die Mensa ab.",
+      "meals.billing_month_reason_required":
+        "Bitte nennen Sie den Grund für die neue Freigabe. Höchstens 500 Zeichen.",
+      "meals.billing_month_released":
+        "Dieser Monat ist schon freigegeben. Eine Freigabe lässt sich nicht ändern.",
+      "meals.billing_month_running":
+        "Der Monat ist noch nicht vorbei. Sie können ihn ab dem 1. des nächsten Monats freigeben.",
       "meals.child_not_enrolled":
         "{object} geht nicht. Das Kind ist an diesem Tag nicht in der Betreuung.",
       "meals.day_closed":
@@ -843,6 +857,12 @@ export const ERROR_CATALOG = {
         "Diese Rechnung ist storniert. Sie wird nicht mehr verschickt.",
       "parent_billing.care_invoice_not_found":
         "Diese Rechnung gibt es in diesem Lauf nicht. Bitte laden Sie die Seite neu.",
+      "parent_billing.care_meal_tariff_invalid":
+        "Bitte prüfen Sie den Mensa-Preis: Schule, erster Monat, Abrechnungsart und Betrag.",
+      "parent_billing.care_meal_tariff_month_billed":
+        "Mit diesem Mensa-Preis ist schon eine Rechnung ausgestellt. Er bleibt für diese Monate. Ändern Sie ihn ab einem späteren Monat.",
+      "parent_billing.care_meal_tariff_not_found":
+        "Diesen Mensa-Preis gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "parent_billing.care_recipient_changed":
         "Die Rechnung geht an eine Person, die nicht mehr im Vertrag steht. Bitte stornieren Sie die Rechnung. Der nächste Lauf stellt sie neu aus.",
       "parent_billing.care_rule_in_use":
@@ -2181,6 +2201,8 @@ export const ERROR_CATALOG = {
         "Another account signed in in another window. moto will reload this page shortly.",
       "identity.session_tenant_mismatch":
         "The school was changed in another window. moto will switch this page back shortly. Please try again afterwards.",
+      "meals.billing_month_attendance_expired":
+        "Attendance records for this month may already have been deleted. The month can no longer be released reliably. Please contact your provider.",
       "meals.child_not_enrolled":
         "{object} is not possible. The child is not in care on this day.",
       "meals.day_closed":
@@ -2728,6 +2750,8 @@ export const ERROR_CATALOG = {
         "В другом окне выполнен вход в другой аккаунт. moto сейчас перезагрузит эту страницу.",
       "identity.session_tenant_mismatch":
         "Школа была изменена в другом окне. moto сейчас переключит эту страницу обратно. Попробуйте ещё раз чуть позже.",
+      "meals.billing_month_attendance_expired":
+        "Данные о посещаемости за этот месяц могли быть удалены. Надёжно подтвердить месяц больше нельзя. Обратитесь к организации, управляющей продлёнкой.",
       "meals.child_not_enrolled":
         "Невозможно: {object}. В этот день ребёнок не находится под присмотром.",
       "meals.day_closed": "Невозможно: {object}. В этот день школа закрыта.",
@@ -3228,6 +3252,8 @@ export const ERROR_CATALOG = {
         "Një llogari tjetër u identifikua në një dritare tjetër. moto do ta ringarkojë këtë faqe së shpejti.",
       "identity.session_tenant_mismatch":
         "Shkolla u ndryshua në një dritare tjetër. moto do ta kthejë këtë faqe së shpejti. Ju lutemi provoni përsëri pak më vonë.",
+      "meals.billing_month_attendance_expired":
+        "Të dhënat e pranisë për këtë muaj mund të jenë fshirë. Muaji nuk mund të miratohet më me siguri. Ju lutemi kontaktoni ofruesin tuaj.",
       "meals.child_not_enrolled":
         "Nuk është e mundur: {object}. Fëmija nuk është në kujdes në këtë ditë.",
       "meals.day_closed":
@@ -3718,6 +3744,8 @@ export const ERROR_CATALOG = {
         "W innym oknie zalogowało się inne konto. moto zaraz odświeży tę stronę.",
       "identity.session_tenant_mismatch":
         "Szkoła została zmieniona w innym oknie. moto zaraz przełączy tę stronę z powrotem. Spróbuj ponownie za chwilę.",
+      "meals.billing_month_attendance_expired":
+        "Dane o obecności z tego miesiąca mogły już zostać usunięte. Nie można bezpiecznie zatwierdzić miesiąca. Prosimy skontaktować się z organem prowadzącym.",
       "meals.child_not_enrolled":
         "Nie można: {object}. Dziecko nie jest tego dnia pod opieką.",
       "meals.day_closed":
@@ -4213,6 +4241,8 @@ export const ERROR_CATALOG = {
         "Başka bir pencerede başka bir hesapla giriş yapıldı. moto bu sayfayı birazdan yeniden yükleyecek.",
       "identity.session_tenant_mismatch":
         "Okul başka bir pencerede değiştirildi. moto bu sayfayı birazdan geri geçirecek. Lütfen biraz sonra tekrar deneyin.",
+      "meals.billing_month_attendance_expired":
+        "Bu aya ait devam kayıtları silinmiş olabilir. Ay artık güvenilir biçimde onaylanamaz. Lütfen hizmet sağlayıcınızla iletişime geçin.",
       "meals.child_not_enrolled":
         "{object} mümkün değil. Çocuk bu gün bakımda değil.",
       "meals.day_closed": "{object} mümkün değil. Okul bu gün kapalı.",
@@ -4700,6 +4730,8 @@ export const ERROR_CATALOG = {
         "В іншому вікні увійшов інший обліковий запис. moto зараз перезавантажить цю сторінку.",
       "identity.session_tenant_mismatch":
         "Школу змінено в іншому вікні. moto зараз перемкне цю сторінку назад. Спробуйте ще раз трохи пізніше.",
+      "meals.billing_month_attendance_expired":
+        "Дані про відвідування за цей місяць могли бути видалені. Надійно підтвердити місяць уже неможливо. Зверніться до організації, що керує групою продовженого дня.",
       "meals.child_not_enrolled":
         "Неможливо: {object}. Цього дня дитина не перебуває під доглядом.",
       "meals.day_closed": "Неможливо: {object}. Цього дня школа зачинена.",

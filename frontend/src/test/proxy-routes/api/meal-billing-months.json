@@ -1,0 +1,11 @@
+{
+  "api/meal-billing-months": [
+    "GET tenant /api/meal-billing-months"
+  ],
+  "api/meal-billing-months/[month]": [
+    "GET tenant /api/meal-billing-months/month%2F1"
+  ],
+  "api/meal-billing-months/[month]/release": [
+    "POST tenant /api/meal-billing-months/month%2F1/release"
+  ]
+}

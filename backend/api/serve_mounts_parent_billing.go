@@ -26,6 +26,7 @@ import (
 	parentBillingCompose "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose"
 	parentBillingHTTP "github.com/moto-nrw/project-phoenix/modules/parentbilling/http"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	"github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -50,7 +51,7 @@ import (
 // /traeger/billing-run-due-dates behind the same right (#4689),
 // and the kind of document of each service at
 // /traeger/billing-document-kinds behind the right "Abrechnung" (#4688).
-func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganizations, settings TraegerBrandingSettings, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, healthData enrollmentOwner.HolidayHealthCipher, logger *slog.Logger) {
+func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganizations, settings TraegerBrandingSettings, schoolSettings owners.MealAttendanceSchoolSettings, marks owners.MealAttendanceMarks, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, healthData enrollmentOwner.HolidayHealthCipher, logger *slog.Logger) {
 	rules, holiday := NewParentBillingHTTP(organizations, settings, delivery, healthData, logger)
 	root.Mount("/traeger/contribution-rules", rules.TraegerRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/cost-bearers", rules.CostBearerRouter(ProtectedTraegerRoutes))
@@ -63,11 +64,12 @@ func mountParentBillingRoutes(root chi.Router, organizations HolidayOrganization
 	families := parentBillingHTTP.NewBillingFamilyResource(parentBillingCompose.NewBillingFamilies(),
 		common.RequiresPermission(identityaccess.TraegerRightBillingManage))
 	root.Mount("/traeger/billing-families", families.Router(ProtectedTraegerRoutes))
-	care, reductions, familyChildren := NewCareBillingHTTP(organizations, settings, delivery, outcomes)
+	care, reductions, meals, familyChildren := NewCareBillingHTTP(organizations, settings, schoolSettings, marks, delivery, outcomes)
 	root.Mount("/traeger/care-tariffs", care.TariffRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/care-billing-runs", care.RunRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/care-rules", reductions.RuleRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/care-evidences", reductions.EvidenceRouter(ProtectedTraegerRoutes))
+	root.Mount("/traeger/care-meal-tariffs", meals.Router(ProtectedTraegerRoutes))
 	root.Mount("/traeger/care-cost-shares", reductions.CostShareRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/family-children", familyChildren.Router(ProtectedTraegerRoutes))
 	terms := NewBillingTermsHTTP()
@@ -87,23 +89,24 @@ func NewBillingTermsHTTP() *parentBillingHTTP.BillingTermsResource {
 }
 
 // NewCareBillingHTTP binds the monthly contribution of the care contract
-// (#4684), its rule chain (#4685) and the children of the families (#5918)
-// to the right "Abrechnung", to the
-// versions in force and the parties of the Betreuungsvertrag in the caller's
-// Träger transaction, to the schools of the Träger and to its month rule; its
-// letters, their mail and Storno to the letterhead of the Träger and to
-// Delivery like the holiday letters (ADR 0165).
-func NewCareBillingHTTP(organizations HolidayOrganizations, settings TraegerBrandingSettings, delivery deliveryRuntime.Capability,
-	outcomes deliveryRuntime.EmailOutcomes,
-) (*parentBillingHTTP.CareBillingResource, *parentBillingHTTP.CareReductionResource, *parentBillingHTTP.FamilyChildrenResource) {
+// (#4684), its rule chain (#4685), the children of the families (#5918) and
+// its Mensa prices (#4686) to the right "Abrechnung", to the versions in force
+// and the parties of the Betreuungsvertrag in the caller's Träger transaction,
+// to the schools of the Träger, to its month rule and to the released Mensa
+// months of Meal Plan; its letters, their mail and Storno to the letterhead of
+// the Träger and to Delivery like the holiday letters (ADR 0165).
+func NewCareBillingHTTP(organizations HolidayOrganizations, settings TraegerBrandingSettings, schoolSettings owners.MealAttendanceSchoolSettings,
+	marks owners.MealAttendanceMarks, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes,
+) (*parentBillingHTTP.CareBillingResource, *parentBillingHTTP.CareReductionResource, *parentBillingHTTP.CareMealTariffResource, *parentBillingHTTP.FamilyChildrenResource) {
 	contracts := parentBillingCareContracts{contracts: careContractCompose.NewContractVersions()}
 	billing, reductions := parentBillingCompose.NewCareBilling(contracts,
-		parentBillingCareSchools{organizations: organizations}, parentBillingSettings{settings: settings}, newParentBillingLetterheads(settings))
+		parentBillingCareSchools{organizations: organizations}, parentBillingSettings{settings: settings}, newParentBillingCareMeals(schoolSettings, marks),
+		newParentBillingLetterheads(settings))
 	post := parentBillingLetterPost{settings: settings, delivery: delivery, outcomes: outcomes}
 	letters := parentBillingCompose.NewCareLetters(newParentBillingLetterheads(settings), contracts, post, post)
 	requireBilling := common.RequiresPermission(identityaccess.TraegerRightBillingManage)
 	return parentBillingHTTP.NewCareBillingResource(billing, letters, requireBilling), parentBillingHTTP.NewCareReductionResource(reductions, requireBilling),
-		parentBillingHTTP.NewFamilyChildrenResource(reductions, requireBilling)
+		parentBillingHTTP.NewCareMealTariffResource(billing, requireBilling), parentBillingHTTP.NewFamilyChildrenResource(reductions, requireBilling)
 }
 
 // parentBillingCareSchools lists the schools of the Träger at Organisation

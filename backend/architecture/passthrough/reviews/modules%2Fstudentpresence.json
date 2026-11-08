@@ -156,6 +156,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0168",
+      "id": "modules/studentpresence/internal/application/Service.AttendanceCompleteFrom",
+      "reason": "Not a forward: validates the retention window, takes the later of today's cutoff and the retention mark the store reads, and reports through the service's query observer (ADR 0168)."
+    },
+    {
       "decision": "0090",
       "id": "modules/studentpresence/internal/application/Service.CheckInParticipants",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."

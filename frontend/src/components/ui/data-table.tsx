@@ -50,8 +50,10 @@ export interface DataTableColumn<T> {
   // What the "row" phone line shows for this column, when it needs a
   // shorter form than the table cell ("15:30" instead of "🕒 15:30 Uhr").
   stackedRender?: (row: T) => ReactNode;
-  // In the "row" phone line, false drops the header in front of the value
-  // where the value names itself (a class, a group). Defaults to true.
+  // False drops the visible header where the value names itself: in the
+  // "row" phone line in front of the value (a class, a group), in the
+  // "lines" layout a "field" then takes the full width (an invoice's
+  // positions); screen readers keep the header. Defaults to true.
   stackedLabel?: boolean;
 }
 
@@ -684,7 +686,18 @@ function StackedRows<T>({
                           // A cell without a value for this row (null) drops
                           // its line instead of showing a bare label.
                           const value = col.render(row);
-                          return value === null ? null : (
+                          if (value === null) return null;
+                          // Without its label a field takes the full width
+                          // (an invoice's positions with their amounts).
+                          if (col.stackedLabel === false) {
+                            return (
+                              <div key={col.key}>
+                                <dt className="sr-only">{col.header}</dt>
+                                <dd className="min-w-0">{value}</dd>
+                              </div>
+                            );
+                          }
+                          return (
                             <StackedField key={col.key} label={col.header}>
                               {value}
                             </StackedField>
