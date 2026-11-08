@@ -10605,6 +10605,16 @@
       "target_owner": "student-presence"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careExitPresence.PresenceDaysBetween",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.CareExitPresence.PresenceDaysBetween",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.PresenceDaysBetween; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PresenceDaysBetween",
+      "target_owner": "student-presence"
+    },
+    {
       "adr": "0067",
       "binding": "github.com/moto-nrw/project-phoenix/workflows/careexit.Roster.CloseOpenStudentAssignments",
       "classification": "workflow",
@@ -10871,19 +10881,19 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.CareStudentDirectory.FindCareStudents",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StudentRepository.FindByIDs; modules/peopledirectory/ports/repository_contracts.go:87. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StudentRepository.FindByIDs; modules/peopledirectory/ports/repository_contracts.go:87. Also maps School Membership's first-care fact (ADR 0166). May-bind method surface, not a production-call/liveness claim.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindByIDs",
       "target_owner": "people-directory"
     },
     {
       "adr": "0067",
-      "approval_adr": "0083",
+      "approval_adr": "0166",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareStudents.FindCareStudents",
       "classification": "E2",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.CareStudentDirectory.FindCareStudents",
-      "reason": "E2 named care confirm/cancel/due-effects protocol: class(shared), recurrence, sorted children, locked preview/removal ledger and conditional membership command; preserve current transaction and failures. Hand row 6 and ADR 0067 E2. Target modules/peopledirectory/ports.StudentRepository.FindByIDsForUpdate; modules/peopledirectory/ports/repository_contracts.go:213. ",
+      "reason": "E2 named care confirm/cancel/due-effects protocol: class(shared), recurrence, sorted children, locked preview/removal ledger and conditional membership command; preserve current transaction and failures. Hand row 6 and ADR 0067 E2. Target modules/peopledirectory/ports.StudentRepository.FindByIDsForUpdate; modules/peopledirectory/ports/repository_contracts.go:213. The binding also maps School Membership's first-care fact; lock order and transaction unchanged (ADR 0166).",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindByIDsForUpdate",
       "target_owner": "people-directory"
