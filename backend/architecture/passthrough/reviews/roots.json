@@ -4493,7 +4493,7 @@
     {
       "decision": "0126",
       "id": "roots/owners/parentBillingDocuments.BillingDocumentLetter",
-      "reason": "ADR 0126 (#4671): Consumer-port adapter of the parents portal's inbox onto the Elternabrechnung; it reads the letter in the caller's Träger transaction and translates the file and the refusal into the portal's vocabulary."
+      "reason": "ADR 0126 (#4671): Consumer-port adapter of the parents portal's inbox onto the Elternabrechnung; it reads the letter in the caller's Träger transaction with the children whose relationship grants the inbox (ADR 0165) and translates the file and the refusal into the portal's vocabulary."
     },
     {
       "decision": "0090",

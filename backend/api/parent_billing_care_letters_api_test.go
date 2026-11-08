@@ -390,7 +390,7 @@ func TestCareLettersQueryBudgetIsFlat(t *testing.T) {
 	require.Len(t, preview.Invoices, 2)
 	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(second.ID, "/release"), careRelease(preview))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	read := func(runID int64) []string {
+	read := func(runID int64) testpkg.QueryMeasurement {
 		rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(runID, "/letters"), careLettersInput())
 		require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 		rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(runID, "/letters/mail"), nil)
@@ -401,10 +401,10 @@ func TestCareLettersQueryBudgetIsFlat(t *testing.T) {
 		recorder := httptest.NewRecorder()
 		f.traeger.ServeHTTP(recorder, req.WithContext(counter.Context(req.Context())))
 		require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
-		return counter.Selects("")
+		return counter.Measurement(counter.Selects(""))
 	}
 	one := read(first.ID)
-	assert.Len(t, read(second.ID), len(one), "the letters read the same statements for any number of invoices")
+	assert.Len(t, read(second.ID).Statements, len(one.Statements), "the letters read the same statements for any number of invoices")
 	querybudgets.AssertQueryBudget(t, "api.traeger.care_billing_run_letters", one)
 }
 
