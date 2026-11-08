@@ -7,14 +7,14 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const studentMembershipCareGapVersion = "1.15.822"
+const studentMembershipCareGapVersion = "1.15.825"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     studentMembershipCareGapVersion,
 		Description: "Mitgliedschaft merkt sich die Lücke zwischen früherem Ende und Wiederaufnahme (#6073)",
 		DependsOn: []string{
-			parentBillingCareAmendmentsVersion,    // the last migration before this one
+			parentBillingSEPAMandatesVersion,      // the last migration before this one
 			studentMembershipFirstCareFromVersion, // the first-care bound this one mirrors
 		},
 	})
