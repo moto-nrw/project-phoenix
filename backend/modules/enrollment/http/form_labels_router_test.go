@@ -77,6 +77,7 @@ func TestAdminFormLabelsKeepTheDisplayedQuestionsAndHistoricalConsents(t *testin
 
 func TestAdminFormLabelsIgnoreDisabledSchemaLegalBlocksWithoutSnapshot(t *testing.T) {
 	t.Parallel()
+	testpkg.SetupTestDB(t)
 	env := setupReviewListTest(t)
 	ctx := testpkg.Ctx(t)
 
