@@ -49,7 +49,7 @@ func NewBillingFamilies() parentbilling.BillingFamilies {
 	return application.NewBillingFamilies(postgres.NewStore())
 }
 
-// NewCareBilling builds the monthly contribution of the care contract (#4684) over the contracts and settings the root binds.
-func NewCareBilling(contracts parentbilling.CareContracts, schools parentbilling.CareSchools, settings parentbilling.CareBillingSettings) parentbilling.CareBilling {
-	return application.NewCareBilling(postgres.NewStore(), contracts, schools, settings, calendar.TodayDate)
+// NewCareBilling builds the monthly contribution of the care contract (#4684) and its rule chain (#4685) over the contracts, schools and settings the root binds.
+func NewCareBilling(contracts parentbilling.CareContracts, schools parentbilling.CareSchools, settings parentbilling.CareBillingSettings) (parentbilling.CareBilling, parentbilling.CareReductions) {
+	return application.NewCareBilling(postgres.NewStore(), contracts, schools, settings, calendar.TodayDate), application.NewCareReductions(postgres.NewStore(), contracts, schools, calendar.TodayDate)
 }

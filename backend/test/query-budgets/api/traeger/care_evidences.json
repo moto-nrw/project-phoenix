@@ -1,0 +1,6 @@
+{
+  "scenario": "api.traeger.care_evidences",
+  "max": 7,
+  "exact": true,
+  "description": "modules/parentbilling — GET /traeger/care-evidences (#4685): the\nTräger binding of the Träger transaction, the contract versions in force\n(Betreuungsvertrag, one statement), the evidences of the shown contracts,\nthe care rules for the income levels and one insert of the read for every\nshown contract into the evidence trail. Flat in the number of contracts\nand evidences."
+}

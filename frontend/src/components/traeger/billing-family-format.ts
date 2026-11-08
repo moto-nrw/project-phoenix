@@ -14,7 +14,13 @@ import { traegerPath } from "~/lib/traeger-url";
  * contribution with its price list (#4684) and the families. Each register
  * is a page of its own, so the tab is a link.
  */
-export type BillingTab = "laeufe" | "monatsbeitraege" | "preise" | "familien";
+export type BillingTab =
+  | "laeufe"
+  | "monatsbeitraege"
+  | "preise"
+  | "ermaessigungen"
+  | "nachweise"
+  | "familien";
 
 export function billingTabs(
   active: BillingTab,
@@ -39,6 +45,16 @@ export function billingTabs(
         value: "preise",
         label: "Preisliste",
         href: traegerPath("/traeger/abrechnung/preise"),
+      },
+      {
+        value: "ermaessigungen",
+        label: "Ermäßigungen",
+        href: traegerPath("/traeger/abrechnung/ermaessigungen"),
+      },
+      {
+        value: "nachweise",
+        label: "Nachweise",
+        href: traegerPath("/traeger/abrechnung/nachweise"),
       },
       {
         value: "familien",
