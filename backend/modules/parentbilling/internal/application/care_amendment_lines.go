@@ -48,8 +48,13 @@ func careCorrectionFacts(invoice parentbilling.CareInvoice, sign int64) []Letter
 func reviewCorrectionRows(base map[string]string, invoice parentbilling.CareInvoice) []map[string]string {
 	rows := []map[string]string{}
 	for _, line := range careCorrectionLines(invoice) {
+		position := careCorrectionLine(line)
+		if line.Kind != parentbilling.AmendAmount {
+			// The review list carries every reason; the letter keeps the label.
+			position += " (Grund: " + strings.TrimSpace(line.Reason) + ")"
+		}
 		rows = append(rows, withValues(base, map[string]string{
-			"position": careCorrectionLine(line), "amount": formatAmount(line.AmountCents),
+			"position": position, "amount": formatAmount(line.AmountCents),
 		}))
 	}
 	return rows

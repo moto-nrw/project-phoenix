@@ -274,8 +274,7 @@ const KIND_LABELS: Record<CareAmendment["kind"], string> = {
 };
 
 const CONFLICT_TEXTS: Record<NonNullable<CareAmendment["conflict"]>, string> = {
-  basis_changed:
-    "Der Betrag hat sich seitdem geändert. Die Änderung gilt nicht.",
+  basis_changed: "Der Wert davor hat sich geändert. Die Änderung gilt nicht.",
   position_missing:
     "Diese Position gibt es nicht mehr. Die Änderung gilt nicht.",
   negative_total: "Die Rechnung käme unter 0 €. Die Änderung gilt nicht.",

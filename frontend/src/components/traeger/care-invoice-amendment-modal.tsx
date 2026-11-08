@@ -6,6 +6,10 @@
 // Rechnung lädt diese Datei, die Seite des Laufs nicht.
 
 import { useEffect, useRef, useState } from "react";
+import {
+  type GuardianAddressDraft,
+  GuardianAddressFields,
+} from "~/components/holiday-registration/holiday-guardian-address-fields";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
@@ -100,20 +104,28 @@ function initialFields(invoice: CareInvoice): Fields {
   };
 }
 
-type FieldErrors = Partial<Record<keyof Fields, string>>;
+/** Field errors by the name of the field in the form. */
+type FieldErrors = Record<string, string>;
 
-const SERVER_FIELDS: Readonly<Record<string, keyof Fields>> = {
+/** The address uses the shared fields (#5625) and their names. */
+const ADDRESS_FIELD = {
+  street: "guardian_address.street",
+  postalCode: "guardian_address.postal_code",
+  city: "guardian_address.city",
+} as const;
+
+const SERVER_FIELDS: Readonly<Record<string, string>> = {
   total_cents: "total",
   amount_cents: "amount",
   "recipient.first_name": "firstName",
   "recipient.last_name": "lastName",
   "recipient.second_name": "secondName",
   "recipient.email": "email",
-  "address.street": "street",
-  "address.postal_code": "postalCode",
-  "address.city": "city",
+  "address.street": ADDRESS_FIELD.street,
+  "address.postal_code": ADDRESS_FIELD.postalCode,
+  "address.city": ADDRESS_FIELD.city,
   recipient: "firstName",
-  address: "street",
+  address: ADDRESS_FIELD.street,
 };
 
 /** The change the fields describe, or the field errors that keep it back. */
@@ -165,10 +177,12 @@ function draftInput(
       break;
     case "address":
       if (!fields.street.trim())
-        errors.street = "Bitte geben Sie Straße und Hausnummer ein.";
+        errors[ADDRESS_FIELD.street] =
+          "Bitte geben Sie Straße und Hausnummer ein.";
       if (!/^\d{5}$/.test(fields.postalCode.trim()))
-        errors.postalCode = "Bitte geben Sie fünf Ziffern ein.";
-      if (!fields.city.trim()) errors.city = "Bitte geben Sie den Ort ein.";
+        errors[ADDRESS_FIELD.postalCode] = "Bitte geben Sie fünf Ziffern ein.";
+      if (!fields.city.trim())
+        errors[ADDRESS_FIELD.city] = "Bitte geben Sie den Ort ein.";
       input = {
         kind: "address",
         address: {
@@ -266,7 +280,7 @@ export function CareInvoiceAmendmentModal({
     }
   };
 
-  const fieldError = (key: keyof Fields) => formErrors.fieldError(key);
+  const fieldError = (key: string) => formErrors.fieldError(key);
   return (
     <FormModal
       isOpen={draft !== null}
@@ -300,6 +314,9 @@ export function CareInvoiceAmendmentModal({
             invoice={invoice}
             fields={fields}
             set={set}
+            setAddress={(address) =>
+              setFields((current) => ({ ...current, ...address }))
+            }
             fieldError={fieldError}
           />
         ) : null}
@@ -327,13 +344,15 @@ function DraftFields({
   invoice,
   fields,
   set,
+  setAddress,
   fieldError,
 }: Readonly<{
   draft: CareAmendmentDraft;
   invoice: CareInvoice;
   fields: Fields;
   set: (key: keyof Fields) => (event: { target: { value: string } }) => void;
-  fieldError: (key: keyof Fields) => string | undefined;
+  setAddress: (address: GuardianAddressDraft) => void;
+  fieldError: (key: string) => string | undefined;
 }>) {
   switch (draft.kind) {
     case "amount":
@@ -424,39 +443,23 @@ function DraftFields({
       );
     case "address":
       return (
-        <div className="grid gap-4 sm:grid-cols-[8rem_minmax(0,1fr)]">
-          <div className="sm:col-span-2">
-            <Input
-              id="care-amendment-street"
-              name="street"
-              label="Straße und Hausnummer"
-              required
-              value={fields.street}
-              error={fieldError("street")}
-              onChange={set("street")}
-            />
-          </div>
-          <Input
-            id="care-amendment-postal-code"
-            name="postalCode"
-            label="PLZ"
+        <div className="space-y-4">
+          <GuardianAddressFields
+            address={{
+              street: fields.street,
+              postalCode: fields.postalCode,
+              city: fields.city,
+            }}
             required
-            inputMode="numeric"
-            maxLength={5}
-            value={fields.postalCode}
-            error={fieldError("postalCode")}
-            onChange={set("postalCode")}
+            labels={{
+              street: "Straße und Hausnummer",
+              postalCode: "PLZ",
+              city: "Ort",
+            }}
+            fieldError={fieldError}
+            onChange={setAddress}
           />
-          <Input
-            id="care-amendment-city"
-            name="city"
-            label="Ort"
-            required
-            value={fields.city}
-            error={fieldError("city")}
-            onChange={set("city")}
-          />
-          <p className="text-sm text-gray-600 sm:col-span-2">
+          <p className="text-sm text-gray-600">
             Gilt nur für diese Rechnung, nicht für die Familie.
           </p>
         </div>

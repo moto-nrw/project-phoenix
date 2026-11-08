@@ -66,7 +66,9 @@ CREATE TABLE parent_billing.care_run_amendments (
 	CONSTRAINT chk_care_run_amendments_service CHECK (service IN ('care', 'meal')),
 	CONSTRAINT chk_care_run_amendments_kind CHECK (kind IN ('amount', 'add_position', 'remove_position', 'recipient', 'address', 'revoke')),
 	CONSTRAINT chk_care_run_amendments_reason CHECK (BTRIM(reason) <> '' AND char_length(reason) <= 500),
-	CONSTRAINT chk_care_run_amendments_label CHECK (char_length(label) <= 200),
+	-- An added position's label has at most 200 characters; a removal's label
+	-- names the module (at most 200) after the prefix "Entfällt: ".
+	CONSTRAINT chk_care_run_amendments_label CHECK (char_length(label) <= 220),
 	CONSTRAINT chk_care_run_amendments_revoke CHECK ((kind = 'revoke') = (num_nonnulls(revokes_amendment_id, revokes_correction_id) = 1)),
 	CONSTRAINT chk_care_run_amendments_position CHECK ((kind = 'remove_position') = (position_key <> '')),
 	CONSTRAINT chk_care_run_amendments_line CHECK (kind IN ('amount', 'add_position', 'remove_position') OR amount_cents = 0),
@@ -127,6 +129,7 @@ CREATE TABLE parent_billing.care_invoice_corrections (
 	CONSTRAINT uq_care_invoice_corrections_position UNIQUE (invoice_id, position),
 	CONSTRAINT chk_care_invoice_corrections_kind CHECK (kind IN ('amount', 'add_position', 'remove_position', 'recipient', 'address')),
 	CONSTRAINT chk_care_invoice_corrections_reason CHECK (BTRIM(reason) <> '' AND char_length(reason) <= 500),
+	CONSTRAINT chk_care_invoice_corrections_label CHECK (char_length(label) <= 220),
 	CONSTRAINT chk_care_invoice_corrections_line CHECK (kind IN ('amount', 'add_position', 'remove_position') OR amount_cents = 0),
 	CONSTRAINT chk_care_invoice_corrections_origin CHECK ((carried_from_number = '') = (amendment_id IS NOT NULL))
 );
