@@ -164,17 +164,17 @@ func TestClassLetterListQueryBudgetStaysFlat(t *testing.T) {
 			}))
 		}
 	}
-	count := func() []string {
+	count := func() querybudgets.Measurement {
 		counter := testpkg.CaptureQueriesForContext(t, db)
 		_, err := testpkg.MeasuredTenantQuery1(t, counter.Context(ctx), db, counter, svc.List, true)
 		require.NoError(t, err)
-		return counter.Queries()
+		return counter.Measurement(counter.Queries())
 	}
 
 	write(3)
 	few := count()
 	write(3)
 	many := count()
-	assert.Len(t, many, len(few), "the list does not grow with the letters")
+	assert.Len(t, many.Statements, len(few.Statements), "the list does not grow with the letters")
 	querybudgets.AssertQueryBudget(t, "modules.communication.school_parent_letters.list", many)
 }

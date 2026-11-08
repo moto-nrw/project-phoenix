@@ -106,7 +106,7 @@ func authExec(t *testing.T, tc *testContext, req *http.Request, claims sessionto
 	t.Helper()
 	claims.Permissions = perms
 	req.Header.Set("Authorization", "Bearer "+testutil.MintTestJWT(t, claims))
-	return testutil.ExecuteRequestForTest(t, tc.router(), req)
+	return testutil.ExecuteRequestForTest(t, testpkg.MountedQueryBudgetRouter("/api/students", tc.router()), req)
 }
 
 // readStudentRecord reads the child's owned row with its departure plan in

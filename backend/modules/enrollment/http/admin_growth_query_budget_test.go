@@ -32,7 +32,7 @@ func TestEnrollmentAdminRouteGrowthQueryBudget(t *testing.T) {
 	router := f.router(t)
 	counter := testpkg.CaptureQueries(t, env.db)
 	// The detail and report grow sibling children in one real submitted request.
-	runDetail := func(n int) ([]string, []string) {
+	runDetail := func(n int) (testpkg.QueryMeasurement, testpkg.QueryMeasurement) {
 		schema, schemaErr := f.resource.FormSchemaService.CreateSchema(ctx, fmt.Sprintf("Upload growth %d", n), []enrollment.FormField{{Key: "proof", Label: "Proof", Type: enrollment.FormFieldFile, FileOptions: &enrollment.FormFileOptions{AllowedTypes: []string{"pdf"}, MaxSizeMB: 1, Multiple: true}}}, env.creatorID)
 		require.NoError(t, schemaErr)
 		phase := *env.phase
@@ -97,10 +97,10 @@ func TestEnrollmentAdminRouteGrowthQueryBudget(t *testing.T) {
 	}
 	small, reportSmall := runDetail(3)
 	large, reportLarge := runDetail(8)
-	require.Equal(t, len(small), len(large))
-	t.Logf("admin detail N3=%d N8=%d", len(small), len(large))
-	require.Equal(t, len(reportSmall), len(reportLarge))
-	t.Logf("care usage children N3=%d N8=%d", len(reportSmall), len(reportLarge))
+	require.Equal(t, len(small.Statements), len(large.Statements))
+	t.Logf("admin detail N3=%d N8=%d", len(small.Statements), len(large.Statements))
+	require.Equal(t, len(reportSmall.Statements), len(reportLarge.Statements))
+	t.Logf("care usage children N3=%d N8=%d", len(reportSmall.Statements), len(reportLarge.Statements))
 	querybudgets.AssertQueryBudget(t, "api.enrollment.growth.complete_admin_detail", large)
 	querybudgets.AssertQueryBudget(t, "api.enrollment.growth.care_usage", reportLarge)
 
@@ -120,7 +120,7 @@ func TestEnrollmentAdminRouteGrowthQueryBudget(t *testing.T) {
 			requestIDs = append(requestIDs, fmt.Sprint(request.ID))
 		}
 	}
-	runHistory := func(n int) []string {
+	runHistory := func(n int) testpkg.QueryMeasurement {
 		raw, q := growthReadOnlyGET(t, f, router, counter, f.token, fmt.Sprintf("/admin/students/%d/requests/", student.ID))
 		var rows []enrollmentHTTP.AdminRequestSummary
 		require.NoError(t, json.Unmarshal(raw, &rows))
@@ -136,7 +136,7 @@ func TestEnrollmentAdminRouteGrowthQueryBudget(t *testing.T) {
 	historySmall := runHistory(3)
 	add(5)
 	historyLarge := runHistory(8)
-	t.Logf("student history N3=%d N8=%d", len(historySmall), len(historyLarge))
+	t.Logf("student history N3=%d N8=%d", len(historySmall.Statements), len(historyLarge.Statements))
 	querybudgets.AssertQueryBudget(t, "api.enrollment.growth.student_history", historyLarge)
 
 	// Audit history uses the actual audit owner store, not a service double.
@@ -155,7 +155,7 @@ func TestEnrollmentAdminRouteGrowthQueryBudget(t *testing.T) {
 			adjustmentIDs = append(adjustmentIDs, fmt.Sprint(row.ID))
 		}
 	}
-	runAdjustments := func(n int) []string {
+	runAdjustments := func(n int) testpkg.QueryMeasurement {
 		raw, q := growthGET(t, router, counter, f.token, fmt.Sprintf("/admin/requests/%d/children/%d/offering-adjustments", request.ID, child.ID))
 		var rows []struct {
 			ID     string `json:"id"`
@@ -173,7 +173,7 @@ func TestEnrollmentAdminRouteGrowthQueryBudget(t *testing.T) {
 	adjustmentSmall := runAdjustments(3)
 	addAdjustments(5)
 	adjustmentLarge := runAdjustments(8)
-	require.Equal(t, len(adjustmentSmall), len(adjustmentLarge))
-	t.Logf("offering adjustments N3=%d N8=%d", len(adjustmentSmall), len(adjustmentLarge))
+	require.Equal(t, len(adjustmentSmall.Statements), len(adjustmentLarge.Statements))
+	t.Logf("offering adjustments N3=%d N8=%d", len(adjustmentSmall.Statements), len(adjustmentLarge.Statements))
 	querybudgets.AssertQueryBudget(t, "api.enrollment.growth.offering_adjustments", adjustmentLarge)
 }

@@ -529,17 +529,17 @@ func TestSurveyListsQueryBudgetStaysFlat(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, rows, 3)
 	assert.Equal(t, 3, rows[2].ParticipantCount+rows[1].ParticipantCount+rows[0].ParticipantCount)
-	querybudgets.AssertQueryBudget(t, "modules.communication.surveys.list", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "modules.communication.surveys.list", counter.Measurement(counter.Queries()))
 
 	open := testpkg.CaptureQueriesForContext(t, f.db)
 	toAnswer, err := testpkg.MeasuredTenantQuery1(t, open.Context(ctx), f.db, open, f.surveys.StaffSurveysToAnswer, f.staff[1].AccountID)
 	require.NoError(t, err)
 	require.Len(t, toAnswer, 3)
-	querybudgets.AssertQueryBudget(t, "modules.communication.surveys.to_answer", open.Queries())
+	querybudgets.AssertQueryBudget(t, "modules.communication.surveys.to_answer", open.Measurement(open.Queries()))
 
 	evaluation := testpkg.CaptureQueriesForContext(t, f.db)
 	results, err := testpkg.MeasuredTenantQuery1(t, evaluation.Context(ctx), f.db, evaluation, f.surveys.SurveyResults, surveys[0].ID)
 	require.NoError(t, err)
 	require.Len(t, results.Questions, 0, "three answers stay below the minimum")
-	querybudgets.AssertQueryBudget(t, "modules.communication.surveys.results", evaluation.Queries())
+	querybudgets.AssertQueryBudget(t, "modules.communication.surveys.results", evaluation.Measurement(evaluation.Queries()))
 }

@@ -64,5 +64,5 @@ func TestActiveStudentEnrollmentsQueryBudgetStaysFlat(t *testing.T) {
 	enroll(3, 5)
 	large := reads(8)
 	require.Len(t, large, len(small), "the read grew with the number of activities")
-	querybudgets.AssertQueryBudget(t, "modules.timetable.active_enrollments.list", large)
+	querybudgets.AssertQueryBudget(t, "modules.timetable.active_enrollments.list", counter.Measurement(large))
 }

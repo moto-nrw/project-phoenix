@@ -120,15 +120,15 @@ func TestCommunication18AttachmentsPositiveGrowthQueryBudget(t *testing.T) {
 			require.Zero(t, counter.WriteRows())
 			if parent {
 				if n == 3 {
-					querybudgets.AssertQueryBudget(t, "communication18.attachments.parent.n3", counter.Queries())
+					querybudgets.AssertQueryBudget(t, "communication18.attachments.parent.n3", counter.Measurement(counter.Queries()))
 				} else {
-					querybudgets.AssertQueryBudget(t, "communication18.attachments.parent.n5", counter.Queries())
+					querybudgets.AssertQueryBudget(t, "communication18.attachments.parent.n5", counter.Measurement(counter.Queries()))
 				}
 			} else {
 				if n == 3 {
-					querybudgets.AssertQueryBudget(t, "communication18.attachments.staff.n3", counter.Queries())
+					querybudgets.AssertQueryBudget(t, "communication18.attachments.staff.n3", counter.Measurement(counter.Queries()))
 				} else {
-					querybudgets.AssertQueryBudget(t, "communication18.attachments.staff.n5", counter.Queries())
+					querybudgets.AssertQueryBudget(t, "communication18.attachments.staff.n5", counter.Measurement(counter.Queries()))
 				}
 			}
 			denied := request(path, other)

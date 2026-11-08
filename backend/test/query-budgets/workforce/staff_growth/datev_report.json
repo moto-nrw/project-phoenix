@@ -2,5 +2,6 @@
   "scenario": "workforce.staff_growth.datev_report",
   "max": 20,
   "exact": true,
-  "description": "Full protected resource request, paired positive N=3/N=8 staff and sessions. Includes tenant transaction, real settings and handler. Fixtures outside capture; no SQL floor claimed."
+  "description": "Full protected resource request, paired positive N=3/N=8 staff and sessions. Includes tenant transaction, real settings and handler. Fixtures outside capture; no SQL floor claimed.",
+  "route": "GET /api/staff/time-tracking/export/datev-report"
 }

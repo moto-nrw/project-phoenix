@@ -76,7 +76,7 @@ func (r *ownAllowancesRoute) get(ctx context.Context, path, token string) *httpt
 	req := httptest.NewRequest(http.MethodGet, path, nil).WithContext(ctx)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
-	r.router.ServeHTTP(rec, req)
+	testpkg.MountedQueryBudgetRouter("/api", r.router).ServeHTTP(rec, req)
 	return rec
 }
 
@@ -221,19 +221,19 @@ func TestOwnAbsenceAllowances_QueryBudget(t *testing.T) {
 	addType("Art B", "2026-02-03")
 	addType("Art C", "2026-02-04")
 
-	measure := func(want int) []string {
+	measure := func(want int) testpkg.QueryMeasurement {
 		counter := testpkg.CaptureQueriesForContext(t, route.db)
 		rec := route.get(counter.Context(context.Background()), ownAllowancesPath+"?year=2026", token)
 		require.Len(t, decodeOwnAllowances(t, rec), want)
 		queries := counter.Queries()
 		counter.Stop()
-		return queries
+		return counter.Measurement(queries)
 	}
 	small := measure(3)
 	addType("Art D", "2026-02-05")
 	addType("Art E", "2026-02-06")
 	large := measure(5)
 
-	assert.Equal(t, len(small), len(large), "the list must not issue a statement per type")
+	assert.Equal(t, len(small.Statements), len(large.Statements), "the list must not issue a statement per type")
 	querybudgets.AssertQueryBudget(t, "workforce.own_absence_allowances.list", large)
 }

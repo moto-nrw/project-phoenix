@@ -189,7 +189,7 @@ func TestOfferingGapsQueryBudget(t *testing.T) {
 	measured.Use(render.SetContentType(render.ContentTypeJSON))
 	measured.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			next.ServeHTTP(w, r.WithContext(testpkg.WithTestTenantRuntime(t, r.Context())))
+			testpkg.MeasuredHTTPRequest(counter, next, w, r.WithContext(testpkg.WithTestTenantRuntime(t, r.Context())))
 		})
 	})
 	measured.Get("/offering-gaps", s.res.listOfferingGaps)
@@ -217,5 +217,5 @@ func TestOfferingGapsQueryBudget(t *testing.T) {
 
 	t.Logf("query budget: 3 templates → %d queries, 8 templates → %d queries", small, large)
 	assert.Equal(t, small, large, "query count must not grow with the number of Regeltermine")
-	querybudgets.AssertQueryBudget(t, "api.timetable.offering_gaps", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.timetable.offering_gaps", counter.Measurement(counter.Queries()))
 }

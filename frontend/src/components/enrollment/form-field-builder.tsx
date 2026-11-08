@@ -39,6 +39,7 @@ import {
   fieldTypeChangePatch,
 } from "~/components/enrollment/file-field-editor";
 import { Input } from "~/components/ui/input";
+import { SectionCard } from "~/components/ui/section-card";
 import { CheckboxCard } from "~/components/ui/checkbox-card";
 import { FieldLabel, RequiredMark } from "~/components/ui/field-label";
 import { Button } from "~/components/ui/button";
@@ -426,425 +427,437 @@ export function FieldEditorRow({
   };
 
   return (
-    <article className="moto-content-surface rounded-2xl border p-4">
-      <div className="flex items-start gap-3">
-        <span className="mt-1 hidden text-gray-300 sm:block">
-          <GripVertical className="h-5 w-5" aria-hidden="true" />
-        </span>
-        <div className="min-w-0 flex-1 space-y-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="text-sm font-semibold text-gray-900">
-                  {isInfo ? "Infotext" : "Frage"} {index + 1}
-                </p>
-                {isInfo ? (
-                  <StatusBadge
-                    tone="blue"
-                    icon={Info}
-                    compact
-                    label="Hinweis"
-                  />
-                ) : isTargetField ? (
-                  <StatusBadge
-                    tone="gray"
-                    icon={Lock}
-                    compact
-                    label="Fester Vorschlag"
-                  />
-                ) : (
-                  <StatusBadge tone="gray" compact label="Freie Zusatzfrage" />
-                )}
-              </div>
-              <h3 className="mt-1 text-sm font-semibold text-gray-900">
-                {displayLabel}
-              </h3>
-            </div>
-            <div className="flex gap-1.5">
-              <Button
-                type="button"
-                onClick={onMoveUp}
-                disabled={disabled || index === 0}
-                variant="surface"
-                size="icon"
-                aria-label="Frage nach oben verschieben"
-              >
-                <ArrowUp className="h-4 w-4" aria-hidden="true" />
-              </Button>
-              <Button
-                type="button"
-                onClick={onMoveDown}
-                disabled={disabled || index === total - 1}
-                variant="surface"
-                size="icon"
-                aria-label="Frage nach unten verschieben"
-              >
-                <ArrowDown className="h-4 w-4" aria-hidden="true" />
-              </Button>
-              <Button
-                type="button"
-                onClick={onRemove}
-                disabled={disabled}
-                variant="outline_danger"
-                size="icon"
-                aria-label="Frage entfernen"
-              >
-                <Trash2 className="h-4 w-4" aria-hidden="true" />
-              </Button>
-            </div>
-          </div>
-
-          {isInfo ? (
-            <Alert
-              type="info"
-              size="compact"
-              announce="off"
-              title="Wird Eltern als Hinweis angezeigt."
-              message="Ein Infotext sammelt keine Antwort. Nutzen Sie ihn für Erklärungen, Hinweise oder Zwischenüberschriften."
-            />
-          ) : isTargetField ? (
-            <InsetPanel
-              framed
-              padding="compact"
-              className="text-xs leading-5 text-gray-600"
-            >
-              <p className="font-medium text-gray-800">
-                Wird bei bestätigter Anmeldung in die Stammdaten übernommen.
-              </p>
-              <p className="mt-0.5">
-                Sie können die angezeigte Frage umbenennen. Inhalt und Typ sind
-                fest vorgegeben. Entfernen Sie den Vorschlag, wenn diese Angabe
-                nicht abgefragt werden soll.
-              </p>
-            </InsetPanel>
-          ) : (
-            <InsetPanel
-              framed
-              padding="compact"
-              className="text-xs leading-5 text-gray-600"
-            >
-              <p className="font-medium text-gray-800">
-                {freeQuestionNote.title}
-              </p>
-              <p className="mt-0.5">{freeQuestionNote.text}</p>
-            </InsetPanel>
-          )}
-
-          {isInfo ? (
-            <>
-              <Input
-                id={labelError.controlId}
-                name={labelError.controlProps.name}
-                type="text"
-                label="Titel (optional)"
-                controlSize="compact"
-                value={field.label}
-                onChange={(event) => onChange({ label: event.target.value })}
-                placeholder="z. B. Wichtiger Hinweis"
-                disabled={disabled}
-                error={labelError.message}
-              />
+    // Die Frage bleibt ein <article>: Liste und Tests erkennen jede Frage
+    // daran; die Fläche kommt aus dem Kit (#6137).
+    <article>
+      <SectionCard>
+        <div className="flex items-start gap-3">
+          <span className="mt-1 hidden text-gray-300 sm:block">
+            <GripVertical className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div className="min-w-0 flex-1 space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <Textarea
-                  id={`field-info-content-${index}`}
-                  name={contentError.controlProps.name}
-                  error={contentError.message}
-                  label="Infotext für Eltern"
-                  value={field.content ?? ""}
-                  onChange={(event) =>
-                    onChange({ content: event.target.value })
-                  }
-                  placeholder="Dieser Text wird Eltern im Formular angezeigt."
-                  disabled={disabled}
-                  rows={3}
-                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-semibold text-gray-900">
+                    {isInfo ? "Infotext" : "Frage"} {index + 1}
+                  </p>
+                  {isInfo ? (
+                    <StatusBadge
+                      tone="blue"
+                      icon={Info}
+                      compact
+                      label="Hinweis"
+                    />
+                  ) : isTargetField ? (
+                    <StatusBadge
+                      tone="gray"
+                      icon={Lock}
+                      compact
+                      label="Fester Vorschlag"
+                    />
+                  ) : (
+                    <StatusBadge
+                      tone="gray"
+                      compact
+                      label="Freie Zusatzfrage"
+                    />
+                  )}
+                </div>
+                <h3 className="mt-1 text-sm font-semibold text-gray-900">
+                  {displayLabel}
+                </h3>
               </div>
-              {allowAttachments ? (
-                <AttachmentEditor
-                  fieldPath={`fields.${index}.attachments`}
-                  fieldError={fieldError}
-                  attachments={field.attachments}
-                  onChange={(attachments) => onChange({ attachments })}
+              <div className="flex gap-1.5">
+                <Button
+                  type="button"
+                  onClick={onMoveUp}
+                  disabled={disabled || index === 0}
+                  variant="surface"
+                  size="icon"
+                  aria-label="Frage nach oben verschieben"
+                >
+                  <ArrowUp className="h-4 w-4" aria-hidden="true" />
+                </Button>
+                <Button
+                  type="button"
+                  onClick={onMoveDown}
+                  disabled={disabled || index === total - 1}
+                  variant="surface"
+                  size="icon"
+                  aria-label="Frage nach unten verschieben"
+                >
+                  <ArrowDown className="h-4 w-4" aria-hidden="true" />
+                </Button>
+                <Button
+                  type="button"
+                  onClick={onRemove}
                   disabled={disabled}
-                />
-              ) : null}
-              <div className="grid gap-2 sm:grid-cols-2">
-                <CheckboxCard
-                  checked={Boolean(field.applies_to_child)}
-                  onChange={(checked) =>
-                    onChange({ applies_to_child: checked })
-                  }
-                  label="Pro Kind anzeigen"
-                  hint="Der Hinweis erscheint bei jedem angemeldeten Kind."
-                  disabled={disabled}
-                />
+                  variant="outline_danger"
+                  size="icon"
+                  aria-label="Frage entfernen"
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden="true" />
+                </Button>
               </div>
-            </>
-          ) : (
-            <>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            </div>
+
+            {isInfo ? (
+              <Alert
+                type="info"
+                size="compact"
+                announce="off"
+                title="Wird Eltern als Hinweis angezeigt."
+                message="Ein Infotext sammelt keine Antwort. Nutzen Sie ihn für Erklärungen, Hinweise oder Zwischenüberschriften."
+              />
+            ) : isTargetField ? (
+              <InsetPanel
+                framed
+                padding="compact"
+                className="text-xs leading-5 text-gray-600"
+              >
+                <p className="font-medium text-gray-800">
+                  Wird bei bestätigter Anmeldung in die Stammdaten übernommen.
+                </p>
+                <p className="mt-0.5">
+                  Sie können die angezeigte Frage umbenennen. Inhalt und Typ
+                  sind fest vorgegeben. Entfernen Sie den Vorschlag, wenn diese
+                  Angabe nicht abgefragt werden soll.
+                </p>
+              </InsetPanel>
+            ) : (
+              <InsetPanel
+                framed
+                padding="compact"
+                className="text-xs leading-5 text-gray-600"
+              >
+                <p className="font-medium text-gray-800">
+                  {freeQuestionNote.title}
+                </p>
+                <p className="mt-0.5">{freeQuestionNote.text}</p>
+              </InsetPanel>
+            )}
+
+            {isInfo ? (
+              <>
                 <Input
                   id={labelError.controlId}
                   name={labelError.controlProps.name}
                   type="text"
-                  label="Frage im Elternformular"
+                  label="Titel (optional)"
                   controlSize="compact"
                   value={field.label}
-                  onChange={(event) => {
-                    const nextLabel = event.target.value;
-                    if (isTargetField) {
-                      // Suggested fields keep their fixed key + type; only
-                      // the displayed question text is editable.
-                      onChange({ label: nextLabel });
-                      return;
-                    }
-                    const currentAutoKey = normalizeFieldKey(field.label);
-                    const shouldUpdateKey =
-                      field.key.trim() === "" || field.key === currentAutoKey;
-                    onChange({
-                      label: nextLabel,
-                      key: shouldUpdateKey
-                        ? normalizeFieldKey(nextLabel)
-                        : field.key,
-                    });
-                  }}
-                  placeholder={
-                    isTargetField && target
-                      ? RESERVED_TARGETS[target].label
-                      : "z. B. Wie haben Sie von uns erfahren?"
-                  }
+                  onChange={(event) => onChange({ label: event.target.value })}
+                  placeholder="z. B. Wichtiger Hinweis"
                   disabled={disabled}
                   error={labelError.message}
                 />
                 <div>
-                  <FieldLabel>
-                    Typ
-                    {isTargetField ? (
-                      <span className="ml-1 font-normal text-gray-500">
-                        (automatisch festgelegt)
-                      </span>
-                    ) : null}
-                  </FieldLabel>
-                  <CustomSelect
-                    ariaLabel="Typ"
-                    value={field.type}
-                    onChange={(value) =>
-                      onChange(
-                        fieldTypeChangePatch(field, value as FormFieldType),
-                      )
-                    }
-                    disabled={disabled || isTargetField}
-                    className="mt-1"
-                    options={(isTargetField ? [field.type] : fieldTypes).map(
-                      (value) => ({
-                        value,
-                        label: fieldTypeLabels[value],
-                      }),
-                    )}
-                  />
-                </div>
-              </div>
-
-              <Input
-                id={`fields-${index}-help_text`}
-                type="text"
-                label="Hilfetext für Eltern"
-                controlSize="compact"
-                value={field.help_text ?? ""}
-                onChange={(event) =>
-                  onChange({ help_text: event.target.value })
-                }
-                placeholder="Optionaler kurzer Hinweis unter der Frage"
-                disabled={disabled}
-              />
-
-              {field.type === "select" ? (
-                <div>
                   <Textarea
-                    id={`field-options-${index}`}
-                    name={optionsError.controlProps.name}
-                    error={optionsError.message}
-                    label="Auswahloptionen"
-                    value={optionsDraft}
-                    onChange={(event) => updateOptions(event.target.value)}
-                    placeholder={"Eine Option pro Zeile\nz. B. Ja\nz. B. Nein"}
-                    disabled={disabled || isTargetField}
+                    id={`field-info-content-${index}`}
+                    name={contentError.controlProps.name}
+                    error={contentError.message}
+                    label="Infotext für Eltern"
+                    value={field.content ?? ""}
+                    onChange={(event) =>
+                      onChange({ content: event.target.value })
+                    }
+                    placeholder="Dieser Text wird Eltern im Formular angezeigt."
+                    disabled={disabled}
                     rows={3}
                   />
                 </div>
-              ) : null}
+                {allowAttachments ? (
+                  <AttachmentEditor
+                    fieldPath={`fields.${index}.attachments`}
+                    fieldError={fieldError}
+                    attachments={field.attachments}
+                    onChange={(attachments) => onChange({ attachments })}
+                    disabled={disabled}
+                  />
+                ) : null}
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <CheckboxCard
+                    checked={Boolean(field.applies_to_child)}
+                    onChange={(checked) =>
+                      onChange({ applies_to_child: checked })
+                    }
+                    label="Pro Kind anzeigen"
+                    hint="Der Hinweis erscheint bei jedem angemeldeten Kind."
+                    disabled={disabled}
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Input
+                    id={labelError.controlId}
+                    name={labelError.controlProps.name}
+                    type="text"
+                    label="Frage im Elternformular"
+                    controlSize="compact"
+                    value={field.label}
+                    onChange={(event) => {
+                      const nextLabel = event.target.value;
+                      if (isTargetField) {
+                        // Suggested fields keep their fixed key + type; only
+                        // the displayed question text is editable.
+                        onChange({ label: nextLabel });
+                        return;
+                      }
+                      const currentAutoKey = normalizeFieldKey(field.label);
+                      const shouldUpdateKey =
+                        field.key.trim() === "" || field.key === currentAutoKey;
+                      onChange({
+                        label: nextLabel,
+                        key: shouldUpdateKey
+                          ? normalizeFieldKey(nextLabel)
+                          : field.key,
+                      });
+                    }}
+                    placeholder={
+                      isTargetField && target
+                        ? RESERVED_TARGETS[target].label
+                        : "z. B. Wie haben Sie von uns erfahren?"
+                    }
+                    disabled={disabled}
+                    error={labelError.message}
+                  />
+                  <div>
+                    <FieldLabel>
+                      Typ
+                      {isTargetField ? (
+                        <span className="ml-1 font-normal text-gray-500">
+                          (automatisch festgelegt)
+                        </span>
+                      ) : null}
+                    </FieldLabel>
+                    <CustomSelect
+                      ariaLabel="Typ"
+                      value={field.type}
+                      onChange={(value) =>
+                        onChange(
+                          fieldTypeChangePatch(field, value as FormFieldType),
+                        )
+                      }
+                      disabled={disabled || isTargetField}
+                      className="mt-1"
+                      options={(isTargetField ? [field.type] : fieldTypes).map(
+                        (value) => ({
+                          value,
+                          label: fieldTypeLabels[value],
+                        }),
+                      )}
+                    />
+                  </div>
+                </div>
 
-              {field.type === "file" ? (
-                <FileFieldOptionsEditor
-                  field={field}
-                  index={index}
-                  onChange={onChange}
+                <Input
+                  id={`fields-${index}-help_text`}
+                  type="text"
+                  label="Hilfetext für Eltern"
+                  controlSize="compact"
+                  value={field.help_text ?? ""}
+                  onChange={(event) =>
+                    onChange({ help_text: event.target.value })
+                  }
+                  placeholder="Optionaler kurzer Hinweis unter der Frage"
                   disabled={disabled}
-                  error={fieldError(`fields.${index}.file_options`)}
                 />
-              ) : null}
 
-              {field.target === "schedule.pickup" ? (
-                <div>
-                  {/* The answer becomes the child's maintained pickup time,
+                {field.type === "select" ? (
+                  <div>
+                    <Textarea
+                      id={`field-options-${index}`}
+                      name={optionsError.controlProps.name}
+                      error={optionsError.message}
+                      label="Auswahloptionen"
+                      value={optionsDraft}
+                      onChange={(event) => updateOptions(event.target.value)}
+                      placeholder={
+                        "Eine Option pro Zeile\nz. B. Ja\nz. B. Nein"
+                      }
+                      disabled={disabled || isTargetField}
+                      rows={3}
+                    />
+                  </div>
+                ) : null}
+
+                {field.type === "file" ? (
+                  <FileFieldOptionsEditor
+                    field={field}
+                    index={index}
+                    onChange={onChange}
+                    disabled={disabled}
+                    error={fieldError(`fields.${index}.file_options`)}
+                  />
+                ) : null}
+
+                {field.target === "schedule.pickup" ? (
+                  <div>
+                    {/* The answer becomes the child's maintained pickup time,
                       which outranks an offering's Gehzeit in the care plan
                       (#6044): two sources for one time. */}
-                  <Alert
-                    type="info"
-                    message="Haben Ihre Betreuungsangebote eine Gehzeit? Dann brauchen Sie diese Frage nicht. Eine Antwort hier ersetzt die Gehzeit des Angebots."
-                    className="mb-3"
-                  />
-                  <span className="text-xs font-medium text-gray-700">
-                    Feste Auswahlzeiten (optional)
-                  </span>
-                  <p className="mt-1 text-xs leading-5 text-gray-500">
-                    Ohne Zeiten geben Eltern die Uhrzeit frei ein. Sobald Zeiten
-                    hinterlegt sind, wählen Eltern pro Wochentag nur aus dieser
-                    Liste.
-                  </p>
-                  <Button
-                    type="button"
-                    onClick={addAllowedTime}
-                    disabled={disabled}
-                    variant="outline"
-                    size="md"
-                    className="mt-2 inline-flex items-center justify-center gap-2"
-                  >
-                    <Plus className="h-4 w-4" aria-hidden="true" />
-                    Zeit hinzufügen
-                  </Button>
-                  {allowedTimesRows.length > 0 ? (
-                    <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      {allowedTimesRows.map((row, index) => (
-                        <li key={row.id} className="flex items-center gap-2">
-                          <div className="min-w-0 flex-1">
-                            <Input
-                              type="time"
-                              controlSize="compact"
-                              value={row.value}
-                              onChange={(event) =>
-                                updateAllowedTime(index, event.target.value)
-                              }
-                              disabled={disabled}
-                              aria-label={`Auswahlzeit ${index + 1}`}
+                    <Alert
+                      type="info"
+                      message="Haben Ihre Betreuungsangebote eine Gehzeit? Dann brauchen Sie diese Frage nicht. Eine Antwort hier ersetzt die Gehzeit des Angebots."
+                      className="mb-3"
+                    />
+                    <span className="text-xs font-medium text-gray-700">
+                      Feste Auswahlzeiten (optional)
+                    </span>
+                    <p className="mt-1 text-xs leading-5 text-gray-500">
+                      Ohne Zeiten geben Eltern die Uhrzeit frei ein. Sobald
+                      Zeiten hinterlegt sind, wählen Eltern pro Wochentag nur
+                      aus dieser Liste.
+                    </p>
+                    <Button
+                      type="button"
+                      onClick={addAllowedTime}
+                      disabled={disabled}
+                      variant="outline"
+                      size="md"
+                      className="mt-2 inline-flex items-center justify-center gap-2"
+                    >
+                      <Plus className="h-4 w-4" aria-hidden="true" />
+                      Zeit hinzufügen
+                    </Button>
+                    {allowedTimesRows.length > 0 ? (
+                      <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        {allowedTimesRows.map((row, index) => (
+                          <li key={row.id} className="flex items-center gap-2">
+                            <div className="min-w-0 flex-1">
+                              <Input
+                                type="time"
+                                controlSize="compact"
+                                value={row.value}
+                                onChange={(event) =>
+                                  updateAllowedTime(index, event.target.value)
+                                }
+                                disabled={disabled}
+                                aria-label={`Auswahlzeit ${index + 1}`}
+                              />
+                            </div>
+                            <OverflowMenu
+                              ariaLabel={`Aktionen für Auswahlzeit ${index + 1}`}
+                              triggerSize="sm"
+                              items={[
+                                {
+                                  label: "Auswahlzeit entfernen",
+                                  icon: (
+                                    <Trash2
+                                      className="h-4 w-4"
+                                      aria-hidden="true"
+                                    />
+                                  ),
+                                  onClick: () => removeAllowedTime(index),
+                                  destructive: true,
+                                  disabled,
+                                },
+                              ]}
                             />
-                          </div>
-                          <OverflowMenu
-                            ariaLabel={`Aktionen für Auswahlzeit ${index + 1}`}
-                            triggerSize="sm"
-                            items={[
-                              {
-                                label: "Auswahlzeit entfernen",
-                                icon: (
-                                  <Trash2
-                                    className="h-4 w-4"
-                                    aria-hidden="true"
-                                  />
-                                ),
-                                onClick: () => removeAllowedTime(index),
-                                destructive: true,
-                                disabled,
-                              },
-                            ]}
-                          />
-                        </li>
-                      ))}
-                    </ul>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {field.target === "student.allowed_departure_modes" ? (
+                  <div>
+                    <FieldLabel
+                      htmlFor={`${allowedTimeIdPrefix}-single-mode-grades`}
+                      className="mb-1"
+                    >
+                      Nur ein Heimweg pro Wochentag (optional)
+                    </FieldLabel>
+                    <p
+                      id={`${allowedTimeIdPrefix}-single-mode-grades-hint`}
+                      className="mb-2 text-xs leading-5 text-gray-500"
+                    >
+                      Tragen Sie Jahrgänge ein, deren Eltern pro Wochentag nur
+                      einen Heimweg auswählen dürfen, zum Beispiel „1“ für die
+                      Erstklässler. Ohne Eintrag bleibt die Mehrfachauswahl für
+                      alle Jahrgänge erlaubt. Voraussetzung: Die Abfrage der
+                      Klassenstufe ist in den Einstellungen aktiv.
+                    </p>
+                    <Input
+                      id={`${allowedTimeIdPrefix}-single-mode-grades`}
+                      type="text"
+                      inputMode="numeric"
+                      controlSize="compact"
+                      aria-describedby={`${allowedTimeIdPrefix}-single-mode-grades-hint`}
+                      value={singleModeDraft}
+                      onChange={(event) =>
+                        updateSingleModeGrades(event.target.value)
+                      }
+                      placeholder="z. B. 1 oder 1, 2"
+                      disabled={disabled}
+                    />
+                  </div>
+                ) : null}
+
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <CheckboxCard
+                    checked={Boolean(field.required)}
+                    onChange={(checked) => onChange({ required: checked })}
+                    label="Pflichtfrage"
+                    hint={getRequiredHint(field)}
+                    disabled={disabled}
+                  />
+                  <CheckboxCard
+                    checked={Boolean(field.applies_to_child)}
+                    onChange={(checked) =>
+                      onChange({ applies_to_child: checked })
+                    }
+                    label="Pro Kind abfragen"
+                    hint={
+                      field.type === "file"
+                        ? "Dateien gelten immer für die ganze Anmeldung."
+                        : "Für Fragen zum Kind, etwa zu Allergien oder zum Schwimmen. Die Frage erscheint dann für jedes angemeldete Kind."
+                    }
+                    disabled={
+                      disabled || isTargetField || field.type === "file"
+                    }
+                  />
+                  {healthToggle ? (
+                    <CheckboxCard
+                      checked={healthToggle.checked}
+                      onChange={healthToggle.onChange}
+                      label="Gesundheitsangabe"
+                      hint="Für Angaben zur Gesundheit. Eltern stimmen dann der Verarbeitung zu. Die Antwort steht nicht in Liste und Export."
+                      disabled={disabled}
+                    />
+                  ) : null}
+                  {hostShareToggle ? (
+                    <CheckboxCard
+                      checked={hostShareToggle.checked}
+                      onChange={hostShareToggle.onChange}
+                      label="OGS sieht die Antwort"
+                      hint={
+                        healthToggle?.checked
+                          ? "Die OGS, die die Woche ausrichtet, sieht die Antwort bei den Gesundheitsangaben des Kindes. Nur wenn die Eltern zustimmen."
+                          : "Bei neuen Fragen ist das an. Die ausrichtende OGS sieht die Antwort. Sie können das ausschalten."
+                      }
+                      disabled={disabled}
+                    />
                   ) : null}
                 </div>
-              ) : null}
+              </>
+            )}
 
-              {field.target === "student.allowed_departure_modes" ? (
-                <div>
-                  <FieldLabel
-                    htmlFor={`${allowedTimeIdPrefix}-single-mode-grades`}
-                    className="mb-1"
-                  >
-                    Nur ein Heimweg pro Wochentag (optional)
-                  </FieldLabel>
-                  <p
-                    id={`${allowedTimeIdPrefix}-single-mode-grades-hint`}
-                    className="mb-2 text-xs leading-5 text-gray-500"
-                  >
-                    Tragen Sie Jahrgänge ein, deren Eltern pro Wochentag nur
-                    einen Heimweg auswählen dürfen, zum Beispiel „1“ für die
-                    Erstklässler. Ohne Eintrag bleibt die Mehrfachauswahl für
-                    alle Jahrgänge erlaubt. Voraussetzung: Die Abfrage der
-                    Klassenstufe ist in den Einstellungen aktiv.
-                  </p>
-                  <Input
-                    id={`${allowedTimeIdPrefix}-single-mode-grades`}
-                    type="text"
-                    inputMode="numeric"
-                    controlSize="compact"
-                    aria-describedby={`${allowedTimeIdPrefix}-single-mode-grades-hint`}
-                    value={singleModeDraft}
-                    onChange={(event) =>
-                      updateSingleModeGrades(event.target.value)
-                    }
-                    placeholder="z. B. 1 oder 1, 2"
-                    disabled={disabled}
-                  />
-                </div>
-              ) : null}
-
-              <div className="grid gap-2 sm:grid-cols-2">
-                <CheckboxCard
-                  checked={Boolean(field.required)}
-                  onChange={(checked) => onChange({ required: checked })}
-                  label="Pflichtfrage"
-                  hint={getRequiredHint(field)}
-                  disabled={disabled}
-                />
-                <CheckboxCard
-                  checked={Boolean(field.applies_to_child)}
-                  onChange={(checked) =>
-                    onChange({ applies_to_child: checked })
-                  }
-                  label="Pro Kind abfragen"
-                  hint={
-                    field.type === "file"
-                      ? "Dateien gelten immer für die ganze Anmeldung."
-                      : "Für Fragen zum Kind, etwa zu Allergien oder zum Schwimmen. Die Frage erscheint dann für jedes angemeldete Kind."
-                  }
-                  disabled={disabled || isTargetField || field.type === "file"}
-                />
-                {healthToggle ? (
-                  <CheckboxCard
-                    checked={healthToggle.checked}
-                    onChange={healthToggle.onChange}
-                    label="Gesundheitsangabe"
-                    hint="Für Angaben zur Gesundheit. Eltern stimmen dann der Verarbeitung zu. Die Antwort steht nicht in Liste und Export."
-                    disabled={disabled}
-                  />
-                ) : null}
-                {hostShareToggle ? (
-                  <CheckboxCard
-                    checked={hostShareToggle.checked}
-                    onChange={hostShareToggle.onChange}
-                    label="OGS sieht die Antwort"
-                    hint={
-                      healthToggle?.checked
-                        ? "Die OGS, die die Woche ausrichtet, sieht die Antwort bei den Gesundheitsangaben des Kindes. Nur wenn die Eltern zustimmen."
-                        : "Bei neuen Fragen ist das an. Die ausrichtende OGS sieht die Antwort. Sie können das ausschalten."
-                    }
-                    disabled={disabled}
-                  />
-                ) : null}
-              </div>
-            </>
-          )}
-
-          <ConditionEditor
-            field={field}
-            index={index}
-            allFields={allFields}
-            onChange={onChange}
-            disabled={disabled}
-            sources={conditionSources}
-          />
+            <ConditionEditor
+              field={field}
+              index={index}
+              allFields={allFields}
+              onChange={onChange}
+              disabled={disabled}
+              sources={conditionSources}
+            />
+          </div>
         </div>
-      </div>
+      </SectionCard>
     </article>
   );
 }
@@ -1273,16 +1286,13 @@ export function PreviewSection({
         {fields.map((entry) => {
           const field = typeof entry === "string" ? { label: entry } : entry;
           return (
-            <div
-              key={field.label}
-              className="rounded-lg border border-gray-200 bg-white px-3 py-2"
-            >
+            <InsetPanel key={field.label} tone="white" padding="compact">
               <span className="block text-sm font-medium text-gray-500">
                 {field.label}
                 {field.required && <RequiredMark />}
               </span>
               <span className="mt-1 block h-2 w-2/3 rounded-full bg-gray-100" />
-            </div>
+            </InsetPanel>
           );
         })}
       </div>
@@ -1338,7 +1348,7 @@ function PreviewCustomField({
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white px-3 py-2">
+    <InsetPanel tone="white" padding="compact">
       <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
         <span className="min-w-0 text-sm font-medium break-words text-gray-900">
           {field.label.trim() || "Neue Zusatzfrage"}
@@ -1357,7 +1367,7 @@ function PreviewCustomField({
         </p>
       ) : null}
       <PreviewInput field={field} />
-    </div>
+    </InsetPanel>
   );
 }
 
@@ -1378,6 +1388,7 @@ function PreviewInput({ field }: Readonly<{ field: FormField }>) {
   if (field.type === "select") {
     const firstOption = field.options?.[0]?.label ?? "Bitte wählen";
     return (
+      // oxlint-disable-next-line ui-kit/no-hand-rolled-surface -- Nachbildung eines Auswahlfelds in der Formularvorschau, keine Fläche; trägt den Radius der Bedienelemente (#6137)
       <div className="mt-3 flex h-10 items-center justify-between rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-500 shadow-sm">
         <span className="min-w-0 truncate">{firstOption}</span>
         <ChevronDown
@@ -1425,7 +1436,7 @@ export function FormPreview({
   return (
     <div className={sticky ? "sticky top-6 space-y-4" : "space-y-4"}>
       {header}
-      <div className="moto-content-surface overflow-hidden rounded-2xl border">
+      <SectionCard padding="none">
         <div className="border-b border-gray-100 px-4 py-4">
           <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
           <p className="mt-1 text-sm leading-6 text-gray-500">{intro}</p>
@@ -1437,7 +1448,7 @@ export function FormPreview({
             {submitLabel}
           </Button>
         </div>
-      </div>
+      </SectionCard>
     </div>
   );
 }

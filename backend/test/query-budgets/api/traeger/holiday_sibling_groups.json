@@ -2,5 +2,6 @@
   "scenario": "api.traeger.holiday_sibling_groups",
   "max": 2,
   "exact": true,
-  "description": "modules/parentbilling — GET /traeger/holiday-contributions/{periodId}/sibling-groups\n(#5628): the Träger binding of the Träger transaction, then the members\nof every sibling group of the period. Flat in the number of groups."
+  "description": "modules/parentbilling — GET /traeger/holiday-contributions/{periodId}/sibling-groups\n(#5628): the Träger binding of the Träger transaction, then the members\nof every sibling group of the period. Flat in the number of groups.",
+  "route": "GET /traeger/holiday-contributions/{periodId}/sibling-groups"
 }

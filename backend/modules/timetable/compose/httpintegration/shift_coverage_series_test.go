@@ -172,7 +172,7 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 	require.NoError(t, err)
 	warnings := coverage.Warnings
 	// Series volume must use eight fixed batch reads.
-	querybudgets.AssertQueryBudget(t, "services.schedule.shift_coverage.series", queryCounter.Queries())
+	querybudgets.AssertQueryBudget(t, "services.schedule.shift_coverage.series", queryCounter.Measurement(queryCounter.Queries()))
 	require.Len(t, warnings, 1, "pre-valid_from candidates must not be projected")
 	assert.Equal(t, nextWednesday.String(), warnings[0].Date)
 	for _, warning := range warnings {

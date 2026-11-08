@@ -5,6 +5,7 @@ import { ArrowRight, CheckCircle2 } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
+import { SectionCard } from "~/components/ui/section-card";
 import { Textarea } from "~/components/ui/textarea";
 
 const intakeFields = [
@@ -68,7 +69,7 @@ export default function StartPage() {
               Wir melden uns danach persönlich und schauen gemeinsam, welche
               Abläufe moto zuerst abbilden soll.
             </p>
-            <div className="moto-content-surface relative z-10 mt-8 rounded-2xl border p-6">
+            <SectionCard overflow="visible" className="relative z-10 mt-8">
               <h2 className="text-lg font-semibold text-gray-950">
                 Was wir zum Start wissen wollen
               </h2>
@@ -83,94 +84,96 @@ export default function StartPage() {
                   </li>
                 ))}
               </ul>
-            </div>
+            </SectionCard>
           </div>
 
           {/* The demo records its sessions (#3603); this form with the
               prospect's name, contact, and organisation is replaced by an
               empty box in every recording (analytics-policy.ts). */}
-          <form
-            onSubmit={handleSubmit}
-            data-analytics-block=""
-            className="moto-content-surface relative z-10 rounded-2xl border p-6 sm:p-8"
-          >
-            <div>
-              <h2 className="text-xl font-semibold text-gray-950">
-                Startfragebogen
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-gray-600">
-                Es reicht ein grober Überblick. Wir nehmen anschließend Kontakt
-                auf und sortieren die nächsten Schritte gemeinsam.
-              </p>
-            </div>
+          <SectionCard overflow="visible" className="relative z-10">
+            <form onSubmit={handleSubmit} data-analytics-block="">
+              <div>
+                <h2 className="text-xl font-semibold text-gray-950">
+                  Startfragebogen
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-gray-600">
+                  Es reicht ein grober Überblick. Wir nehmen anschließend
+                  Kontakt auf und sortieren die nächsten Schritte gemeinsam.
+                </p>
+              </div>
 
-            <div className="mt-6 grid gap-4 sm:grid-cols-2">
-              <Input
-                id="start-name"
-                label="Name und Rolle"
-                value={form.name}
-                onChange={(event) => update("name", event.target.value)}
-                placeholder="z. B. Anna Müller, OGS-Leitung"
-                required
-                controlSize="compact"
-              />
-              <Input
-                id="start-contact"
-                label="Kontakt"
-                value={form.contact}
-                onChange={(event) => update("contact", event.target.value)}
-                placeholder="E-Mail oder Telefonnummer"
-                required
-                controlSize="compact"
-              />
-              <Input
-                id="start-organization"
-                label="OGS oder Träger"
-                value={form.organization}
-                onChange={(event) => update("organization", event.target.value)}
-                placeholder="Name der Einrichtung"
-                controlSize="compact"
-              />
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="mt-6 grid gap-4 sm:grid-cols-2">
                 <Input
-                  id="start-children"
-                  label="Kinder"
-                  value={form.children}
-                  onChange={(event) => update("children", event.target.value)}
-                  placeholder="z. B. 180"
+                  id="start-name"
+                  label="Name und Rolle"
+                  value={form.name}
+                  onChange={(event) => update("name", event.target.value)}
+                  placeholder="z. B. Anna Müller, OGS-Leitung"
+                  required
                   controlSize="compact"
                 />
                 <Input
-                  id="start-locations"
-                  label="Standorte"
-                  value={form.locations}
-                  onChange={(event) => update("locations", event.target.value)}
-                  placeholder="z. B. 3"
+                  id="start-contact"
+                  label="Kontakt"
+                  value={form.contact}
+                  onChange={(event) => update("contact", event.target.value)}
+                  placeholder="E-Mail oder Telefonnummer"
+                  required
                   controlSize="compact"
                 />
-              </div>
-              <div className="sm:col-span-2">
-                <Textarea
-                  id="start-focus"
-                  label="Wobei soll moto zuerst helfen?"
-                  value={form.focus}
-                  onChange={(event) => update("focus", event.target.value)}
-                  placeholder="z. B. Anwesenheit, Abholung, Anmeldungen, Räume, Kommunikation"
-                  className="min-h-28"
+                <Input
+                  id="start-organization"
+                  label="OGS oder Träger"
+                  value={form.organization}
+                  onChange={(event) =>
+                    update("organization", event.target.value)
+                  }
+                  placeholder="Name der Einrichtung"
+                  controlSize="compact"
                 />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Input
+                    id="start-children"
+                    label="Kinder"
+                    value={form.children}
+                    onChange={(event) => update("children", event.target.value)}
+                    placeholder="z. B. 180"
+                    controlSize="compact"
+                  />
+                  <Input
+                    id="start-locations"
+                    label="Standorte"
+                    value={form.locations}
+                    onChange={(event) =>
+                      update("locations", event.target.value)
+                    }
+                    placeholder="z. B. 3"
+                    controlSize="compact"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <Textarea
+                    id="start-focus"
+                    label="Wobei soll moto zuerst helfen?"
+                    value={form.focus}
+                    onChange={(event) => update("focus", event.target.value)}
+                    placeholder="z. B. Anwesenheit, Abholung, Anmeldungen, Räume, Kommunikation"
+                    className="min-h-28"
+                  />
+                </div>
               </div>
-            </div>
 
-            <Button
-              type="submit"
-              variant="primary"
-              size="md"
-              className="mt-6 gap-2"
-            >
-              Kontaktaufnahme starten
-              <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </Button>
-          </form>
+              <Button
+                type="submit"
+                variant="primary"
+                size="md"
+                className="mt-6 gap-2"
+              >
+                Kontaktaufnahme starten
+                <ArrowRight className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </form>
+          </SectionCard>
         </div>
       </section>
     </main>

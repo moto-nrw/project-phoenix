@@ -86,7 +86,7 @@ func TestStudents20PeopleGrowthQueryBudget(t *testing.T) {
 					require.Equal(t, map[string]any{"activities": values}, rows)
 				}
 				require.Zero(t, counter.WriteRows())
-				assertStudents20PeopleBudget(t, route, n, counter.Queries())
+				assertStudents20PeopleBudget(t, route, n, counter.Measurement(counter.Queries()))
 				t.Logf("students20 %s N%d SQL=%d", route, n, counter.Total())
 			}
 			foreignTenant, _ := testpkg.CreateTestTenant(t, tc.db)
@@ -137,7 +137,7 @@ func (s students20Enrollments) ActiveEnrollmentGroups(ctx context.Context, ids [
 	return result, nil
 }
 
-func assertStudents20PeopleBudget(t *testing.T, route string, n int, queries []string) {
+func assertStudents20PeopleBudget(t *testing.T, route string, n int, queries querybudgets.Measurement) {
 	t.Helper()
 	switch fmt.Sprintf("%s.n%d", route, n) {
 	case "change-history.n3":

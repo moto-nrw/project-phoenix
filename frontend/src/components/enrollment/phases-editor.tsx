@@ -1425,15 +1425,10 @@ function PhaseForm(props: PhaseFormProps) {
   }, [highlightFormSection]);
 
   return (
-    <form
-      onSubmit={onSubmit}
-      noValidate
-      className="moto-content-surface space-y-5 rounded-2xl border p-6"
-    >
-      <h3 className="text-base font-semibold text-gray-900">
-        {editing ? "Anmeldephase bearbeiten" : "Neue Anmeldephase"}
-      </h3>
-
+    <form onSubmit={onSubmit} noValidate className="space-y-5">
+      {/* Keine eigene Karte und kein zweiter Titel: das Formular steht im
+          Slide-over, dessen Kopf den Titel trägt, wie beim Betreuungsangebot
+          (#6137). */}
       <div className="grid gap-4 sm:grid-cols-2">
         <Input
           id="phase-name"

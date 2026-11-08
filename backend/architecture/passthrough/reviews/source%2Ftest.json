@@ -22,6 +22,11 @@
     },
     {
       "decision": "0090",
+      "id": "test/mountedQueryBudgetRouter.ServeHTTP",
+      "reason": "HTTP test adapter owns the chi context and clones the relative fixture request at its explicit production mount; not an unchanged forward or new debt floor (ADR 0090 point 5)."
+    },
+    {
+      "decision": "0090",
       "id": "test/statusWriter.WriteHeader",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     }

@@ -30,11 +30,11 @@ func TestGroupQueryBudgetsStayFlat(t *testing.T) {
 		large := captureGroupQueries(t, ctx, module, counter, groupIDs)
 
 		assertQueryCountStable(t, small, large, "modules.timetable.groups.list")
-		querybudgets.AssertQueryBudget(t, "modules.timetable.groups.list", large["modules.timetable.groups.list"])
+		querybudgets.AssertQueryBudget(t, "modules.timetable.groups.list", counter.Measurement(large["modules.timetable.groups.list"]))
 		assertQueryCountStable(t, small, large, "modules.timetable.group_targets.list")
-		querybudgets.AssertQueryBudget(t, "modules.timetable.group_targets.list", large["modules.timetable.group_targets.list"])
+		querybudgets.AssertQueryBudget(t, "modules.timetable.group_targets.list", counter.Measurement(large["modules.timetable.group_targets.list"]))
 		assertQueryCountStable(t, small, large, "modules.timetable.target_students.list")
-		querybudgets.AssertQueryBudget(t, "modules.timetable.target_students.list", large["modules.timetable.target_students.list"])
+		querybudgets.AssertQueryBudget(t, "modules.timetable.target_students.list", counter.Measurement(large["modules.timetable.target_students.list"]))
 
 		return nil
 	}))
