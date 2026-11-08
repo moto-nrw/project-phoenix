@@ -463,16 +463,9 @@ func (b *BillingRuns) preview(ctx context.Context, reviewer parentbilling.Holida
 func (b *BillingRuns) detail(ctx context.Context, reviewer parentbilling.HolidayReviewer, run parentbilling.BillingRun) (parentbilling.BillingRunDetail, error) {
 	detail := parentbilling.BillingRunDetail{BillingRun: run, BilledInAdvance: run.Service == parentbilling.ServiceHoliday}
 	if run.Status == parentbilling.RunReleased {
-		var err error
-		if detail.Documents, detail.Letters, err = b.issued(ctx, reviewer.OrganizationID, run.ID); err != nil {
+		if err := b.releasedDetail(ctx, reviewer.OrganizationID, &detail); err != nil {
 			return parentbilling.BillingRunDetail{}, err
 		}
-		detail.DocumentKind = issuedDocumentKind(detail.Documents)
-		payments, err := readInvoicePayments(ctx, b.store, reviewer.OrganizationID, 0, run.ID)
-		if err != nil {
-			return parentbilling.BillingRunDetail{}, err
-		}
-		detail.DueDates = payments.run.InPaymentOrder()
 	} else {
 		current, err := b.preview(ctx, reviewer, run)
 		if err != nil {
@@ -602,6 +595,23 @@ func (b *BillingRuns) missingDebtorNumbers(ctx context.Context, organizationID i
 		}
 	}
 	return asked, forPaymentText, nil
+}
+
+// releasedDetail reads what a release stored: the issued documents with
+// their letters, the kind of document they froze (#4688) and the due dates
+// of the run (#4689).
+func (b *BillingRuns) releasedDetail(ctx context.Context, organizationID int64, detail *parentbilling.BillingRunDetail) error {
+	var err error
+	if detail.Documents, detail.Letters, err = b.issued(ctx, organizationID, detail.ID); err != nil {
+		return err
+	}
+	detail.DocumentKind = issuedDocumentKind(detail.Documents)
+	payments, err := readInvoicePayments(ctx, b.store, organizationID, 0, detail.ID)
+	if err != nil {
+		return err
+	}
+	detail.DueDates = payments.run.InPaymentOrder()
+	return nil
 }
 
 // previewKind names on the preview the kind of document the release would
