@@ -209,18 +209,9 @@ func seedCareOfferings(client *Client, auth AuthRef) ([]seedCareModule, error) {
 // when asked and there is something to bill. It returns the number of
 // issued invoices.
 func seedCareRun(client *Client, auth AuthRef, month calendar.Date, release bool) (int, error) {
-	runID, open, err := seedOpenCareRun(client, auth, month)
+	runID, err := seedStartCareRun(client, auth, month)
 	if err != nil {
 		return 0, err
-	}
-	if !open {
-		raw, err := client.PostWithAuth(auth, "/traeger/care-billing-runs/", map[string]any{"billing_month": month.String()})
-		if err != nil {
-			return 0, fmt.Errorf("start the monthly run of %s: %w", month, err)
-		}
-		if runID, err = decodeSeedEntityID(raw); err != nil {
-			return 0, fmt.Errorf("read the monthly run: %w", err)
-		}
 	}
 	raw, err := client.GetWithAuth(auth, fmt.Sprintf("/traeger/care-billing-runs/%d", runID))
 	if err != nil {
@@ -239,9 +230,44 @@ func seedCareRun(client *Client, auth AuthRef, month calendar.Date, release bool
 	if _, err := client.PostWithAuth(auth, fmt.Sprintf("/traeger/care-billing-runs/%d/release", runID), map[string]any{
 		"document_count": run.PreviewCount, "total_cents": run.PreviewCents,
 	}); err != nil {
+		if seedConflictCode(err, seedCareRunReleased) {
+			return 0, nil
+		}
 		return 0, fmt.Errorf("release the monthly run: %w", err)
 	}
 	return run.PreviewCount, nil
+}
+
+// The registered codes of a run another seed of the same Träger started or
+// released a moment earlier: the demo queue prepares several schools of one
+// Träger at once.
+const (
+	seedCareRunOpen     = "parent_billing.care_run_open"
+	seedCareRunReleased = "parent_billing.billing_run_released"
+)
+
+// seedStartCareRun takes the open run of a month or starts one. When another
+// seed of the same Träger started it in between, it takes that run.
+func seedStartCareRun(client *Client, auth AuthRef, month calendar.Date) (int64, error) {
+	runID, open, err := seedOpenCareRun(client, auth, month)
+	if err != nil || open {
+		return runID, err
+	}
+	raw, err := client.PostWithAuth(auth, "/traeger/care-billing-runs/", map[string]any{"billing_month": month.String()})
+	if seedConflictCode(err, seedCareRunOpen) {
+		runID, open, err = seedOpenCareRun(client, auth, month)
+		if err == nil && !open {
+			err = fmt.Errorf("the monthly run of %s is neither open nor startable", month)
+		}
+		return runID, err
+	}
+	if err != nil {
+		return 0, fmt.Errorf("start the monthly run of %s: %w", month, err)
+	}
+	if runID, err = decodeSeedEntityID(raw); err != nil {
+		return 0, fmt.Errorf("read the monthly run: %w", err)
+	}
+	return runID, nil
 }
 
 // seedOpenCareRun finds the run of the month that is still a preview; a
