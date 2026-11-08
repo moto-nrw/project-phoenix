@@ -44,3 +44,29 @@ func TestAttendanceRetentionRequiresTheCleanupTransaction(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, found)
 }
+
+// The retention marks how far it deleted (#4686): the first complete day
+// only moves forward, so a longer retention later never reports the
+// deleted days as complete again.
+func TestAttendanceRetentionMarksHowFarItDeleted(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	module, err := compose.New(compose.Dependencies{DB: db, Observe: func(compose.Observation) {}})
+	require.NoError(t, err)
+	_, err = module.AttendanceCompleteFrom(ctx, 0)
+	require.ErrorIs(t, err, studentpresence.ErrAttendanceRetentionWindow)
+	before, err := module.AttendanceCompleteFrom(ctx, 365)
+	require.NoError(t, err)
+
+	require.NoError(t, tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		_, err := module.DeleteExpiredAttendance(txCtx, 10)
+		return err
+	}))
+	after, err := module.AttendanceCompleteFrom(ctx, 365)
+	require.NoError(t, err)
+	assert.True(t, after.After(before), "the deleted days do not count again under a longer retention")
+	shorter, err := module.AttendanceCompleteFrom(ctx, 5)
+	require.NoError(t, err)
+	assert.True(t, shorter.After(after), "a shorter window still counts from its own cutoff")
+}

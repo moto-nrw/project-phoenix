@@ -1,0 +1,7 @@
+{
+  "scenario": "api.traeger.care_cost_shares",
+  "max": 7,
+  "exact": true,
+  "description": "modules/parentbilling — GET /traeger/care-cost-shares (#4687): the\nTräger binding of the Träger transaction, the contract versions in force\n(Betreuungsvertrag, one statement), the shares of the shown contracts with\nthe name of their cost bearer (one join), the cost bearers of the Träger\nand one insert of the read for every shown contract into the share trail.\nFlat in the number of contracts and shares.",
+  "route": "GET /traeger/care-cost-shares/"
+}

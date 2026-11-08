@@ -136,6 +136,7 @@ function leadTopics(
     articles.mealPlanTopic(),
     articles.mealOrderingTopic(),
     articles.mealCatererTopic(),
+    articles.mealBillingReleaseTopic(),
     articles.bankDetailsTopic(),
 
     // --- Anmeldungen ---
@@ -253,6 +254,8 @@ const TRAEGER_TOPICS: readonly HelpTopic[] = [
   articles.traegerBillingRunTopic(),
   articles.traegerCareMonthsTopic(),
   articles.traegerCareReductionsTopic(),
+  articles.traegerCareMealsTopic(),
+  articles.traegerCareCostSharesTopic(),
   articles.traegerBillingTermsTopic(),
   articles.traegerSharedDocumentsTopic(),
   articles.traegerCareTimeOverrunsTopic(),

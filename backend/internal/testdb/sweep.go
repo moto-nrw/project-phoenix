@@ -175,6 +175,9 @@ var tenantIdentityTables = map[string]string{
 	// tenant_id: the school ID is the tenant identity.
 	"platform.demo_school_file_erasures": "school_id",
 	"platform.demo_school_origins":       "school_id",
+	// How far the attendance retention deleted (#4686) is keyed by the
+	// school, without tenant_id, like the Mensa months.
+	"active.attendance_retention_marks": "school_id",
 }
 
 // mappedTenantTables reach their tenant through a join table.

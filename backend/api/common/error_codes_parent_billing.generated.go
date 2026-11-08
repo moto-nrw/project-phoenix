@@ -18,12 +18,18 @@ const CodeParentBillingBillingRunNotReleased = "parent_billing.billing_run_not_r
 const CodeParentBillingBillingRunOpen = "parent_billing.billing_run_open"
 const CodeParentBillingBillingRunReleased = "parent_billing.billing_run_released"
 const CodeParentBillingBillingTermsInvalid = "parent_billing.billing_terms_invalid"
+const CodeParentBillingCareCostShareInvalid = "parent_billing.care_cost_share_invalid"
+const CodeParentBillingCareCostShareNotFound = "parent_billing.care_cost_share_not_found"
+const CodeParentBillingCareCostShareOverlap = "parent_billing.care_cost_share_overlap"
 const CodeParentBillingCareEvidenceInvalid = "parent_billing.care_evidence_invalid"
 const CodeParentBillingCareEvidenceNotFound = "parent_billing.care_evidence_not_found"
 const CodeParentBillingCareEvidenceOverlap = "parent_billing.care_evidence_overlap"
 const CodeParentBillingCareExclusionConflict = "parent_billing.care_exclusion_conflict"
 const CodeParentBillingCareInvoiceCancelled = "parent_billing.care_invoice_cancelled"
 const CodeParentBillingCareInvoiceNotFound = "parent_billing.care_invoice_not_found"
+const CodeParentBillingCareMealTariffInvalid = "parent_billing.care_meal_tariff_invalid"
+const CodeParentBillingCareMealTariffMonthBilled = "parent_billing.care_meal_tariff_month_billed"
+const CodeParentBillingCareMealTariffNotFound = "parent_billing.care_meal_tariff_not_found"
 const CodeParentBillingCareRecipientChanged = "parent_billing.care_recipient_changed"
 const CodeParentBillingCareRuleInUse = "parent_billing.care_rule_in_use"
 const CodeParentBillingCareRunInvalid = "parent_billing.care_run_invalid"
@@ -88,12 +94,18 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingBillingRunOpen, "business_rejection"},
 	{CodeParentBillingBillingRunReleased, "business_rejection"},
 	{CodeParentBillingBillingTermsInvalid, "input"},
+	{CodeParentBillingCareCostShareInvalid, "input"},
+	{CodeParentBillingCareCostShareNotFound, "business_rejection"},
+	{CodeParentBillingCareCostShareOverlap, "business_rejection"},
 	{CodeParentBillingCareEvidenceInvalid, "input"},
 	{CodeParentBillingCareEvidenceNotFound, "business_rejection"},
 	{CodeParentBillingCareEvidenceOverlap, "business_rejection"},
 	{CodeParentBillingCareExclusionConflict, "business_rejection"},
 	{CodeParentBillingCareInvoiceCancelled, "business_rejection"},
 	{CodeParentBillingCareInvoiceNotFound, "business_rejection"},
+	{CodeParentBillingCareMealTariffInvalid, "input"},
+	{CodeParentBillingCareMealTariffMonthBilled, "business_rejection"},
+	{CodeParentBillingCareMealTariffNotFound, "business_rejection"},
 	{CodeParentBillingCareRecipientChanged, "business_rejection"},
 	{CodeParentBillingCareRuleInUse, "business_rejection"},
 	{CodeParentBillingCareRunInvalid, "input"},

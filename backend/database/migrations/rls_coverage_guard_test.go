@@ -1,6 +1,7 @@
 package migrations
 
 import (
+	"strings"
 	"testing"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -26,6 +27,8 @@ func TestTenantRLSCoverageDiscoversSchemaChanges(t *testing.T) {
 		{"partitioned parent", `CREATE TABLE public.rls_probe (tenant_id bigint) PARTITION BY RANGE (tenant_id); CREATE TABLE public.rls_probe_leaf PARTITION OF public.rls_probe DEFAULT`, true, false},
 		{"dropped column", `CREATE TABLE public.rls_probe (tenant_id bigint, value text); ALTER TABLE public.rls_probe DROP COLUMN tenant_id`, false, false},
 		{"no tenant column", `CREATE TABLE public.rls_probe (value text)`, false, false},
+		{"listed school-keyed table", `CREATE TABLE public.rls_probe (school_id bigint)`, true, false},
+		{"listed school-keyed table with RLS", `CREATE TABLE public.rls_probe (school_id bigint); ALTER TABLE public.rls_probe ENABLE ROW LEVEL SECURITY; ALTER TABLE public.rls_probe FORCE ROW LEVEL SECURITY; CREATE POLICY probe ON public.rls_probe TO phoenix_tenant USING (true)`, true, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			tx, err := db.Begin()
@@ -33,7 +36,11 @@ func TestTenantRLSCoverageDiscoversSchemaChanges(t *testing.T) {
 			defer func() { require.NoError(t, tx.Rollback()) }()
 			_, err = tx.ExecContext(ctx, tc.ddl)
 			require.NoError(t, err)
-			tables, err := readTenantRLSCoverage(ctx, tx)
+			var schoolKeyed []string
+			if strings.HasPrefix(tc.name, "listed school-keyed") {
+				schoolKeyed = []string{"public.rls_probe"}
+			}
+			tables, err := readTenantRLSCoverageWith(ctx, tx, schoolKeyed)
 			require.NoError(t, err)
 			var probes []tenantRLSCoverage
 			for _, table := range tables {

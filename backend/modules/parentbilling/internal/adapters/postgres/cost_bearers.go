@@ -11,8 +11,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 )
 
-// The cost bearers of a Träger (#5627). A line of a frozen contribution and
-// a position of an invoice name a cost bearer by its ID without a foreign
+// The cost bearers of a Träger (#5627). A line of a frozen contribution,
+// a position of an invoice and a share of a monthly contribution (#4687) name a cost bearer by its ID without a foreign
 // key, so the erasure of a Träger deletes both in one cascade; the delete
 // here refuses a cost bearer they name. The row lock of LockCostBearer
 // orders a confirmation and a deletion of the same cost bearer.
@@ -24,14 +24,22 @@ const deleteUnusedCostBearerQuery = `DELETE FROM parent_billing.cost_bearers AS 
 		AND NOT EXISTS (SELECT 1 FROM parent_billing.holiday_contribution_lines AS line
 			WHERE line.organization_id = bearer.organization_id AND line.cost_bearer_id = bearer.id)
 		AND NOT EXISTS (SELECT 1 FROM parent_billing.document_positions AS position
-			WHERE position.organization_id = bearer.organization_id AND position.cost_bearer_id = bearer.id)`
+			WHERE position.organization_id = bearer.organization_id AND position.cost_bearer_id = bearer.id)
+		AND NOT EXISTS (SELECT 1 FROM parent_billing.care_cost_shares AS share
+			WHERE share.organization_id = bearer.organization_id AND share.cost_bearer_id = bearer.id)
+		AND NOT EXISTS (SELECT 1 FROM parent_billing.care_invoice_cost_shares AS issued
+			WHERE issued.organization_id = bearer.organization_id AND issued.cost_bearer_id = bearer.id)`
 
 // costBearersInUseQuery names the cost bearers lines or positions name.
 const costBearersInUseQuery = `SELECT cost_bearer_id FROM parent_billing.holiday_contribution_lines
 		WHERE organization_id = ? AND cost_bearer_id IS NOT NULL
 	UNION
 	SELECT cost_bearer_id FROM parent_billing.document_positions
-		WHERE organization_id = ? AND cost_bearer_id IS NOT NULL`
+		WHERE organization_id = ? AND cost_bearer_id IS NOT NULL
+	UNION
+	SELECT cost_bearer_id FROM parent_billing.care_cost_shares WHERE organization_id = ?
+	UNION
+	SELECT cost_bearer_id FROM parent_billing.care_invoice_cost_shares WHERE organization_id = ?`
 
 type costBearerRow struct {
 	bun.BaseModel `bun:"table:parent_billing.cost_bearers"`
@@ -185,7 +193,7 @@ func (s *Store) CostBearersInUse(ctx context.Context, organizationID int64) (map
 		return nil, err
 	}
 	var ids []int64
-	if err := db.NewRaw(costBearersInUseQuery, organizationID, organizationID).Scan(ctx, &ids); err != nil {
+	if err := db.NewRaw(costBearersInUseQuery, organizationID, organizationID, organizationID, organizationID).Scan(ctx, &ids); err != nil {
 		return nil, err
 	}
 	inUse := make(map[int64]bool, len(ids))

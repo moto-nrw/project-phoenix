@@ -126,9 +126,11 @@ export function CarePriceModuleEditor({
   const fillAllDays = () => {
     const first = { ...draft.first };
     const further = { ...draft.further };
+    // A blank sibling price means "as the first child": it is copied too,
+    // so no day keeps an old discount next to Monday's price.
     for (const column of columns) {
-      if (firstValue) first[column.key] = firstValue;
-      if (firstFurther) further[column.key] = firstFurther;
+      first[column.key] = firstValue ?? "";
+      further[column.key] = firstFurther ?? "";
     }
     onChange({ ...draft, first, further });
   };

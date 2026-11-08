@@ -18,9 +18,11 @@ export type BillingTab =
   | "laeufe"
   | "monatsbeitraege"
   | "preise"
+  | "mensa"
   | "ermaessigungen"
   | "nachweise"
   | "kinderzahl"
+  | "kostentraeger"
   | "familien";
 
 export function billingTabs(
@@ -48,6 +50,11 @@ export function billingTabs(
         href: traegerPath("/traeger/abrechnung/preise"),
       },
       {
+        value: "mensa",
+        label: "Mensa",
+        href: traegerPath("/traeger/abrechnung/mensa"),
+      },
+      {
         value: "ermaessigungen",
         label: "Ermäßigungen",
         href: traegerPath("/traeger/abrechnung/ermaessigungen"),
@@ -61,6 +68,11 @@ export function billingTabs(
         value: "kinderzahl",
         label: "Kinderzahl",
         href: traegerPath("/traeger/abrechnung/kinderzahl"),
+      },
+      {
+        value: "kostentraeger",
+        label: "Kostenträger",
+        href: traegerPath("/traeger/abrechnung/kostentraeger"),
       },
       {
         value: "familien",

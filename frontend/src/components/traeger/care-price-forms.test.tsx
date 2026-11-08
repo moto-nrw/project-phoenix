@@ -232,4 +232,30 @@ describe("CarePriceListModal", () => {
     ).toBeInTheDocument();
     expect(saveCarePriceList).not.toHaveBeenCalled();
   });
+
+  it("copies Monday's blank sibling price to every day as well", async () => {
+    open();
+    const forms = await screen.findAllByRole("button", {
+      name: "Je Wochentag",
+    });
+    fireEvent.click(forms[1]!);
+    const field = (day: string, row: string) =>
+      screen.getByRole("textbox", {
+        name: `Modul 1 ohne Mittagessen, ${day}, ${row}, Monatspreis in Euro`,
+      });
+    fireEvent.change(field("Montag", "1. Kind"), { target: { value: "7,00" } });
+    fireEvent.change(field("Dienstag", "1. Kind"), {
+      target: { value: "8,00" },
+    });
+    fireEvent.change(field("Dienstag", "Jedes weitere Kind"), {
+      target: { value: "3,00" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Montag-Preise von Modul 1 ohne Mittagessen für alle Tage übernehmen",
+      }),
+    );
+    expect(field("Dienstag", "1. Kind")).toHaveValue("7,00");
+    expect(field("Dienstag", "Jedes weitere Kind")).toHaveValue("");
+  });
 });

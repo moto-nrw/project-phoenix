@@ -610,3 +610,81 @@ func TestFreeMonthKeepsTheSiblingAtItsContractSchool(t *testing.T) {
 		})
 	}
 }
+
+// One golden row through the whole chain after #5918, #4687 and #4686: Ben
+// books Ispringen Modul 2 Mo–Fr; his family confirmed three children, one of
+// them (Rosa) at Birkenfeld, which the Ispringen rule does not count. So the
+// family counts two children at Ispringen and Ben, the only one with a
+// contract there, is the 2nd: the sibling prices of the price list, 60,50 €.
+// A BuT share of 50 % on the care pays 30,25 €. The Mensa (5 meals at
+// 4,00 €) joins the invoice in full, no rule reduces it. Rosa pays the full
+// Birkenfeld step, 60,00 €, the meal on top of it is billed by the Mensa.
+func TestSJRPriceFormsWithFamilyCountCostSharesAndMensa(t *testing.T) {
+	t.Parallel()
+	children := []sjrChild{
+		{840, "Ben", schoolIspringen, "x", "2019-01-01", sjrListStart, bookOn(ispRS2, "Regelschule Modul 2", weekdaysMonFri...)},
+		{841, "Rosa", schoolBirkenfeld, "x", "2017-01-01", sjrListStart, bookOn(birk4, "Modul 4 mit Mittagessen", "mon", "tue", "wed")},
+	}
+	in := sjrInput(t, "2027-02-01", parentbilling.MonthRuleVersionOnFirst, children, false)
+	in.rules[0].CountsFamilyChildren = true
+	from := day(t, sjrListStart)
+	in.familyCounts = []parentbilling.FamilyChildCount{{ContractID: 840, ConfirmedChildren: ptr(3), ValidFrom: &from,
+		FamilyEmail: parentbilling.FamilyKey("familie-x@example.org")}}
+	share := parentbilling.CareCostShare{ContractID: 840, Kind: parentbilling.CostShareEducationParticipation, CostBearerID: 1,
+		CostBearerName: "Bildung und Teilhabe", ShareBasisPoints: ptr(5000), Scope: parentbilling.CostShareScopeCare,
+		ValidFrom: from, ValidUntil: day(t, "2027-12-31")}
+	in.costShares = []parentbilling.CareCostShare{share}
+	month, err := buildCareMonth(in)
+	require.NoError(t, err)
+	ben := parentbilling.CareMealChild{StudentID: 840 + 9000, FirstName: "Ben", LastName: "Beispiel", MealDays: 5}
+	billMeals(&month, careMealInput{month: in.month, today: day(t, "2027-02-02"),
+		schools:  map[int64]string{schoolIspringen: "Grundschule Ispringen", schoolBirkenfeld: "Grundschule Birkenfeld"},
+		tariffs:  []parentbilling.CareMealTariff{{SchoolID: schoolIspringen, ValidFrom: from, Mode: parentbilling.MealModePerMeal, AmountCents: 400}},
+		releases: []parentbilling.CareMealRelease{{SchoolID: schoolIspringen, Month: from, Children: []parentbilling.CareMealChild{ben}}},
+		billed:   map[CareMealKey]bool{}, versions: in.versions, invoiced: in.invoiced, recipients: in.recipients})
+	applyMealCostShares(&month, in.costShares, in.month, in.invoiced)
+
+	invoices := map[int64]parentbilling.CareInvoice{}
+	for _, invoice := range month.invoices {
+		invoices[invoice.ContractID] = invoice
+	}
+	benInvoice := invoices[840]
+	require.Len(t, benInvoice.Positions, 1)
+	assert.Equal(t, int64(7800), benInvoice.Positions[0].AmountCents)
+	assert.Equal(t, int64(6050), benInvoice.Positions[0].PayableCents, "the sibling prices of the price list")
+	require.Len(t, benInvoice.Reductions, 1)
+	assert.True(t, benInvoice.Reductions[0].TariffSiblingPrice)
+	assert.Equal(t, 2, *benInvoice.Reductions[0].ChildRank, "two children at Ispringen: Rosa counts at Birkenfeld")
+	assert.Equal(t, 2, *benInvoice.Reductions[0].FamilyChildren)
+	require.Len(t, benInvoice.CostShares, 1)
+	assert.Equal(t, int64(3025), benInvoice.CostShares[0].AmountCents, "BuT pays half of the care after the rules")
+	require.Len(t, benInvoice.MealPositions, 1)
+	assert.Equal(t, int64(2000), benInvoice.MealPositions[0].AmountCents, "the Mensa joins in full")
+	assert.Equal(t, int64(3025+2000), benInvoice.TotalCents, "the family pays the rest of the care and the Mensa")
+
+	rosa := invoices[841]
+	assert.Empty(t, rosa.Reductions, "Rosa is the only child at Birkenfeld")
+	assert.Equal(t, int64(6000), rosa.TotalCents)
+	require.Len(t, rosa.Positions, 1)
+	assert.True(t, rosa.Positions[0].MealExtra)
+	assert.Empty(t, rosa.MealPositions, "Birkenfeld has no Mensa price yet: no meal is billed, none at 0 €")
+}
+
+// Only a contract that books care in the month counts as free: one whose
+// modules ended before August is no free contract (#6196).
+func TestFreeMonthCountsOnlyContractsThatBookCare(t *testing.T) {
+	t.Parallel()
+	ended := day(t, "2027-07-31")
+	services := bookOn(ispRS1, "Regelschule Modul 1", weekdaysMonFri...)
+	for i := range services {
+		services[i].LastDay = &ended
+	}
+	children := []sjrChild{
+		{850, "Anna", schoolIspringen, "y", "2017-01-01", sjrListStart, bookOn(ispRS2, "Regelschule Modul 2", weekdaysMonFri...)},
+		{851, "Emil", schoolIspringen, "z", "2018-01-01", sjrListStart, services},
+	}
+	month, err := buildCareMonth(sjrInput(t, "2027-08-01", parentbilling.MonthRuleVersionOnFirst, children, false))
+	require.NoError(t, err)
+	assert.Empty(t, month.invoices)
+	assert.Equal(t, map[int64]int{schoolIspringen: 1}, month.freeBySchool)
+}

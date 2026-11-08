@@ -28,6 +28,8 @@ type careMonthInput struct {
 	evidences []parentbilling.CareEvidence
 	// lists are the heads of the price lists with their free months (#6196).
 	lists []parentbilling.CarePriceListHead
+	// costShares split the contribution with the cost bearers (#4687).
+	costShares []parentbilling.CareCostShare
 	// familyCounts are the numbers of the families (#5918); a sibling rule
 	// that counts the family reads the one confirmed for the month.
 	familyCounts []parentbilling.FamilyChildCount
@@ -49,6 +51,10 @@ type careMonth struct {
 	// freeBySchool counts per school the contracts whose price list makes
 	// the month free of charge (#6196).
 	freeBySchool map[int64]int
+	// mealGaps and mealUnbilled are the Mensa of the run (#4686, care_meals.go).
+	mealGaps     []parentbilling.CareMealGap
+	mealUnbilled []parentbilling.CareMealUnbilled
+	mealChanged  []parentbilling.CareMealChanged
 	// uncounted is the number of families a rule that counts the family
 	// ranked without a confirmed number for the month (#5918), for the
 	// schools of a run; uncountedSchools names per such family the schools
@@ -102,7 +108,7 @@ func buildCareMonth(in careMonthInput) (careMonth, error) {
 		school := byContract[contractID][0].SchoolID
 		freeMonth := !held[contractID] && free.free(school, in.month)
 		if freeMonth {
-			result.freeBySchool[school]++
+			result.countFree(in, byContract[contractID], entries[contractID])
 		}
 		if held[contractID] || freeMonth {
 			unbilled = appendInForce(unbilled, in, byContract[contractID], entries[contractID], childOf[contractID])
@@ -119,6 +125,7 @@ func buildCareMonth(in careMonthInput) (careMonth, error) {
 		}
 		invoice.Recipient = in.recipients[contractID]
 		invoice.FamilyEmail = parentbilling.FamilyKey(invoice.Recipient.Email)
+		invoice.Service = parentbilling.ServiceCare
 		result.invoices = append(result.invoices, invoice)
 		chained = append(chained, &careChainEntry{child: childOf[contractID], birthDate: byContract[contractID][0].ChildBirthDate})
 	}
@@ -143,6 +150,7 @@ func chainCareMonth(result *careMonth, in careMonthInput, chained []*careChainEn
 	}
 	uncounted := map[string][]int64{}
 	applyCareChain(chained, careChainInput{month: in.month, rules: in.rules, evidences: in.evidences,
+		costShares:     in.costShares,
 		familyChildren: familyChildrenIn(in.familyCounts, in.month), uncounted: uncounted, unbilled: unbilled})
 	result.uncounted = len(uncounted)
 	result.uncountedSchools = uncounted
@@ -150,6 +158,15 @@ func chainCareMonth(result *careMonth, in careMonthInput, chained []*careChainEn
 		return firstNonZero(compareOrdered(a.SchoolName, b.SchoolName), compareOrdered(a.ChildLastName, b.ChildLastName),
 			compareOrdered(a.ChildFirstName, b.ChildFirstName), compareOrdered(a.ContractID, b.ContractID))
 	})
+}
+
+// countFree counts a contract a free month leaves out, but only one that
+// books care in the month: a contract the month would not bill anyway
+// (replaced within it, its modules ended) is no free contract (#6196).
+func (m *careMonth) countFree(in careMonthInput, versions []parentbilling.CareContractVersion, entry bool) {
+	if len(tracksOf(in.month, in.rule, versions, entry)) > 0 {
+		m.freeBySchool[versions[0].SchoolID]++
+	}
 }
 
 // appendInForce adds the place of a contract that books care in the month
@@ -384,7 +401,7 @@ func billContract(month calendar.Date, rule string, versions []parentbilling.Car
 	invoice := parentbilling.CareInvoice{
 		ContractID: head.ContractID, SchoolID: head.SchoolID, SchoolName: head.SchoolName,
 		ChildFirstName: head.ChildFirstName, ChildLastName: head.ChildLastName, StudentID: studentOf(versions),
-		Positions: []parentbilling.CarePosition{},
+		Positions: []parentbilling.CarePosition{}, MealPositions: []parentbilling.CareMealPosition{},
 	}
 	daysInMonth := month.DaysUntil(monthEnd(month)) + 1
 	var unpriced []parentbilling.CareUnpriced

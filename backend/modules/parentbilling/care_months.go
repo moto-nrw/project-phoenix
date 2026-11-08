@@ -257,14 +257,18 @@ type CareRecipient struct {
 // CareInvoice is the invoice of one contract and month: a draft without a
 // number in a calculated run, the issued invoice in a released one.
 type CareInvoice struct {
-	ID             int64          `json:"id"`
-	Number         string         `json:"number"`
-	IssuedOn       *calendar.Date `json:"issued_on"`
-	ContractID     int64          `json:"contract_id"`
-	SchoolID       int64          `json:"school_id"`
-	SchoolName     string         `json:"school_name"`
-	ChildFirstName string         `json:"child_first_name"`
-	ChildLastName  string         `json:"child_last_name"`
+	ID         int64          `json:"id"`
+	Number     string         `json:"number"`
+	IssuedOn   *calendar.Date `json:"issued_on"`
+	ContractID int64          `json:"contract_id"`
+	// Service is what the invoice bills (#4686, ADR 0167): ServiceCare with
+	// every service bundled with it, or ServiceMeal on an invoice of its own
+	// when the Träger bills the Mensa apart (TermsSet.InvoiceService).
+	Service        string `json:"service"`
+	SchoolID       int64  `json:"school_id"`
+	SchoolName     string `json:"school_name"`
+	ChildFirstName string `json:"child_first_name"`
+	ChildLastName  string `json:"child_last_name"`
 	// StudentID is the child record the contract names, nil without one; the
 	// parents inbox shows the letter only for it (ADR 0165).
 	StudentID *int64 `json:"-"`
@@ -282,7 +286,15 @@ type CareInvoice struct {
 	// Reductions are the rules of the chain in their order (#4685); the
 	// total is the positions less the reductions.
 	Reductions []CareReduction `json:"reductions"`
-	TotalCents int64           `json:"total_cents"`
+	// MealPositions are the Mensa months of the child the invoice bills
+	// (#4686). No rule of the chain reduces them; TotalCents adds them in
+	// full.
+	MealPositions []CareMealPosition `json:"meal_positions"`
+	// CostShares are the parts cost bearers pay of what the family would
+	// pay after the reductions (#4687, ADR 0169); TotalCents is the rest the
+	// family pays.
+	CostShares []CareInvoiceCostShare `json:"cost_shares"`
+	TotalCents int64                  `json:"total_cents"`
 }
 
 // CareUnpriced is a booked weekday of a module the price list has no price
@@ -366,8 +378,18 @@ type CareRunDetail struct {
 	PreviewCents      int64  `json:"preview_cents"`
 	NumberPattern     string `json:"number_pattern"`
 	NumberRangeSet    bool   `json:"number_range_set"`
+	// MealGaps and MealUnbilled are the Mensa of a calculated run (#4686):
+	// the ended months a school has not released and the released months
+	// of children the run does not bill.
+	MealGaps     []CareMealGap      `json:"meal_gaps"`
+	MealUnbilled []CareMealUnbilled `json:"meal_unbilled"`
+	// MealChanged are Mensa months issued invoices bill with an amount a
+	// later release of the school changed (#4686).
+	MealChanged []CareMealChanged `json:"meal_changed"`
 	// DueDates are the due dates of the run per payment method (#4689).
 	DueDates []RunDueDate `json:"due_dates"`
+	// CostBearers are what each cost bearer pays of the invoices (#4687).
+	CostBearers []CareCostBearerTotal `json:"cost_bearers"`
 	// CareRunReviewState is the review of a calculated run (#5916).
 	CareRunReviewState
 }

@@ -19,6 +19,7 @@ const invoice = (overrides: Partial<CareInvoice> = {}): CareInvoice => ({
   number: "MB-2027-0001",
   issuedOn: "2027-01-04",
   contractId: "11",
+  service: "care",
   schoolId: "3",
   schoolName: "OGS Am Lindenhof",
   childFirstName: "Mia",
@@ -26,6 +27,8 @@ const invoice = (overrides: Partial<CareInvoice> = {}): CareInvoice => ({
   recipient: { firstName: "Eva", lastName: "Beispiel", email: "eva@x.org" },
   positions: [],
   reductions: [],
+  mealPositions: [],
+  costShares: [],
   totalCents: 9600,
   ...overrides,
 });

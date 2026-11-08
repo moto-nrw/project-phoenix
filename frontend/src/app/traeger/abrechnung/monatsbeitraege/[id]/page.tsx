@@ -25,6 +25,7 @@ import {
   CareUnpricedCard,
 } from "~/components/traeger/care-run-invoices";
 import { CareLettersSummaryCard } from "~/components/traeger/care-letters-summary-card";
+import { CareRunMealsCard } from "~/components/traeger/care-run-meals";
 import { runDueDatesText } from "~/components/traeger/billing-payment-format";
 import { invoiceDateLabel } from "~/components/traeger/care-review-format";
 import {
@@ -67,6 +68,14 @@ const CareExcludeModal = dynamic(
   () =>
     import("~/components/traeger/care-run-review-modals").then(
       (module) => module.CareExcludeModal,
+    ),
+  { ssr: false },
+);
+// Only a run in which a cost bearer pays a part loads its card (#4687).
+const CareCostBearerCard = dynamic(
+  () =>
+    import("~/components/traeger/care-cost-bearer-card").then(
+      (module) => module.CareCostBearerCard,
     ),
   { ssr: false },
 );
@@ -213,7 +222,9 @@ export default function TraegerCareRunPage() {
   const preview = run?.status === "calculated";
   const canRelease =
     preview &&
-    (run.previewCount > 0 ? run.numberRangeSet : run.excludedCount > 0);
+    (run.previewCount > 0
+      ? run.numberRangeSet
+      : run.excludedCount > 0 || (run.freeOfCharge ?? 0) > 0);
   const issuable = run?.invoices.filter((invoice) => !invoice.exclusion) ?? [];
   const excluded = run?.invoices.filter((invoice) => invoice.exclusion) ?? [];
 
@@ -401,7 +412,7 @@ export default function TraegerCareRunPage() {
                 </span>
               </DataField>
               <DataField label="Abgerechnet wird">
-                Nach Vertrag, nicht nach Anwesenheit
+                Module nach Vertrag, Mensa nach Freigabe der Schule
               </DataField>
               <DataField label="Vertrag ändert sich im Monat">
                 {run.monthRule ? MONTH_RULE_LABELS[run.monthRule] : "–"}
@@ -470,6 +481,13 @@ export default function TraegerCareRunPage() {
           <CareDuplicatesCard duplicates={run.duplicates} released={!preview} />
           {preview ? <CareUnpricedCard unpriced={run.unpriced} /> : null}
           {preview ? (
+            <CareRunMealsCard
+              gaps={run.mealGaps}
+              unbilled={run.mealUnbilled}
+              changed={run.mealChanged}
+            />
+          ) : null}
+          {preview ? (
             <CareExcludedCard
               invoices={excluded}
               returning={returning}
@@ -483,6 +501,13 @@ export default function TraegerCareRunPage() {
               )}
               letters={letters}
               loadError={lettersLoad.error}
+            />
+          ) : null}
+          {run.costBearers.length > 0 ? (
+            <CareCostBearerCard
+              runId={run.id}
+              released={!preview}
+              totals={run.costBearers}
             />
           ) : null}
           <CareRunInvoices

@@ -187,3 +187,24 @@ func TestPriceFormsAreCheckedBeforeTheyAreSaved(t *testing.T) {
 		map[string]any{"sibling_from_child": 2, "tariff_sibling_price": true, "discount_basis_points": 2500}))
 	assert.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 }
+
+// A run of a free month bills nothing and still closes (#6196): otherwise
+// it would hold the school's August for good.
+func TestFreeMonthRunClosesWithoutInvoices(t *testing.T) {
+	t.Parallel()
+	f := newCareBillingFixture(t, "Träger Preisformen August")
+	ispringen := f.office.schools[0]
+	careContract(t, f.db, f.office.organization, ispringen, "Anna", careReductionStart, sjrModule2Services()...)
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPut, careTariffsPath, ispringenModule2(ispringen))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunsPath,
+		map[string]any{"billing_month": "2030-08-01", "school_ids": []int64{ispringen}})
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	august := f.priceFormsRun(t, decodeSchoolPortalData[priceFormsRunBody](t, rec.Body.Bytes()).ID)
+	assert.Zero(t, august.PreviewCount)
+	assert.Equal(t, 1, august.FreeOfCharge)
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(august.ID, "/release"),
+		map[string]any{"document_count": 0, "total_cents": 0, "fingerprint": august.Fingerprint})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, "released", f.run(t, august.ID).Status)
+}

@@ -111,6 +111,7 @@ type careInvoiceRow struct {
 	IssuedOn           calendar.Date `bun:"issued_on,type:date"`
 	BillingMonth       calendar.Date `bun:"billing_month,type:date"`
 	CareContractID     int64         `bun:"care_contract_id"`
+	Service            string        `bun:"service"`
 	SchoolID           int64         `bun:"school_id"`
 	SchoolName         string        `bun:"school_name"`
 	ChildFirstName     string        `bun:"child_first_name"`
@@ -133,6 +134,9 @@ type careInvoiceRow struct {
 	PaymentMethod       *string        `bun:"payment_method"`
 	DueOn               *calendar.Date `bun:"due_on,type:date"`
 	DueSource           *string        `bun:"due_source"`
+	// CostShares are the issued cost bearer shares (#4687), read in the same
+	// statement as the invoice.
+	CostShares []parentbilling.CareInvoiceCostShare `bun:"cost_shares,type:jsonb,scanonly"`
 }
 
 // invoice is the issued invoice of the row with its positions and reductions
@@ -140,7 +144,7 @@ type careInvoiceRow struct {
 func (row careInvoiceRow) invoice(positions []parentbilling.CarePosition, reductions []parentbilling.CareReduction) parentbilling.CareInvoice {
 	issuedOn := row.IssuedOn
 	invoice := parentbilling.CareInvoice{
-		ID: row.ID, Number: row.Number, IssuedOn: &issuedOn, ContractID: row.CareContractID, SchoolID: row.SchoolID,
+		ID: row.ID, Number: row.Number, IssuedOn: &issuedOn, ContractID: row.CareContractID, Service: row.Service, SchoolID: row.SchoolID,
 		SchoolName: row.SchoolName, ChildFirstName: row.ChildFirstName, ChildLastName: row.ChildLastName, StudentID: row.StudentID,
 		Recipient: parentbilling.CareRecipient{FirstName: row.RecipientFirstName, LastName: row.RecipientLastName, Email: row.RecipientEmail,
 			Kind: textOf(row.RecipientKind), SecondName: textOf(row.RecipientSecondName)},
@@ -154,6 +158,7 @@ func (row careInvoiceRow) invoice(positions []parentbilling.CarePosition, reduct
 	if invoice.Reductions == nil {
 		invoice.Reductions = []parentbilling.CareReduction{}
 	}
+	invoice.CostShares = []parentbilling.CareInvoiceCostShare{}
 	if invoice.Positions == nil {
 		invoice.Positions = []parentbilling.CarePosition{}
 	}
@@ -417,15 +422,24 @@ func (s *Store) InvoicedContracts(ctx context.Context, organizationID int64, mon
 		PayableCents   int64
 		Reductions     []parentbilling.CareReduction `bun:",type:jsonb"`
 	}
+	// A Mensa-only invoice (#4686) has no module position; it still bills
+	// its contract, so the positions join from the left for an invoice with
+	// Mensa months.
 	if err := db.NewRaw(`SELECT i.care_contract_id AS contract_id, i.school_id, i.recipient_email,
 		COALESCE(i.family_email, '') AS family_email, i.total_cents,
-		p.care_offering_id, p.amount_cents, COALESCE(p.payable_cents, p.amount_cents) AS payable_cents,
+		COALESCE(p.care_offering_id, 0) AS care_offering_id, COALESCE(p.amount_cents, 0) AS amount_cents,
+		COALESCE(p.payable_cents, p.amount_cents, 0) AS payable_cents,
 		COALESCE((SELECT jsonb_agg(to_jsonb(r) ORDER BY r.position)
 			FROM parent_billing.care_invoice_reductions r
 			WHERE r.invoice_id = i.id), '[]'::jsonb) AS reductions
 		FROM parent_billing.care_invoices i
-		JOIN parent_billing.care_invoice_positions p ON p.invoice_id = i.id
+		LEFT JOIN parent_billing.care_invoice_positions p ON p.invoice_id = i.id
 		WHERE i.organization_id = ? AND i.billing_month = ?
+			-- The care's invoice; a Mensa invoice of its own (#4686) does not
+			-- bill the contract's care.
+			AND i.service = 'care'
+			AND (p.id IS NOT NULL OR EXISTS (SELECT 1 FROM parent_billing.care_meal_positions AS m
+				WHERE m.organization_id = i.organization_id AND m.invoice_id = i.id))
 			-- A cancelled invoice bills nothing any more (#4684, ADR 0165):
 			-- a later run of the month bills its contract again.
 			AND NOT EXISTS (SELECT 1 FROM parent_billing.care_invoice_cancellations AS cancellation
@@ -440,9 +454,11 @@ func (s *Store) InvoicedContracts(ctx context.Context, organizationID int64, mon
 		invoice.Recipient.Email, invoice.TotalCents = row.RecipientEmail, row.TotalCents
 		invoice.FamilyEmail = row.FamilyEmail
 		invoice.Reductions = row.Reductions
-		invoice.Positions = append(invoice.Positions, parentbilling.CarePosition{
-			CareOfferingID: row.CareOfferingID, AmountCents: row.AmountCents, PayableCents: row.PayableCents,
-		})
+		if row.CareOfferingID != 0 {
+			invoice.Positions = append(invoice.Positions, parentbilling.CarePosition{
+				CareOfferingID: row.CareOfferingID, AmountCents: row.AmountCents, PayableCents: row.PayableCents,
+			})
+		}
 		invoiced[row.ContractID] = invoice
 	}
 	return invoiced, nil
@@ -522,11 +538,11 @@ func (s *Store) IssueCareInvoices(ctx context.Context, organizationID int64, run
 	for i, invoice := range invoices {
 		rows[i] = careInvoiceRow{
 			OrganizationID: organizationID, RunID: run.ID, Number: invoice.Number, NumberYear: year, NumberSequence: first + int64(i),
-			IssuedOn: *invoice.IssuedOn, BillingMonth: run.BillingMonth, CareContractID: invoice.ContractID,
+			IssuedOn: *invoice.IssuedOn, BillingMonth: run.BillingMonth, CareContractID: invoice.ContractID, Service: invoiceService(invoice),
 			SchoolID: invoice.SchoolID, SchoolName: invoice.SchoolName, ChildFirstName: invoice.ChildFirstName,
 			ChildLastName: invoice.ChildLastName, RecipientFirstName: invoice.Recipient.FirstName,
 			RecipientLastName: invoice.Recipient.LastName, RecipientEmail: invoice.Recipient.Email,
-			MonthRule: rule, TotalCents: invoice.TotalCents, ReplacesInvoiceID: replaced[invoice.ContractID],
+			MonthRule: rule, TotalCents: invoice.TotalCents, ReplacesInvoiceID: replaced[replacedKey{invoice.ContractID, invoiceService(invoice)}],
 			StudentID: invoice.StudentID, FamilyEmail: textRef(invoice.FamilyEmail), RecipientKind: textRef(invoice.Recipient.Kind),
 			RecipientSecondName: textRef(invoice.Recipient.SecondName),
 		}
@@ -544,14 +560,29 @@ func (s *Store) IssueCareInvoices(ctx context.Context, organizationID int64, run
 		}
 		return fmt.Errorf("insert care invoices: %w", err)
 	}
+	return insertCareInvoiceParts(ctx, db, organizationID, rows, invoices)
+}
+
+// insertCareInvoiceParts stores what the invoices just issued carry: their
+// positions, reductions, Mensa months (#4686) and cost bearer shares (#4687);
+// rows run parallel to invoices.
+func insertCareInvoiceParts(ctx context.Context, db bun.IDB, organizationID int64, rows []careInvoiceRow, invoices []parentbilling.CareInvoice) error {
 	positions, err := carePositionRows(organizationID, rows, invoices)
-	if err != nil || len(positions) == 0 {
+	if err != nil {
 		return err
 	}
-	if _, err := db.NewInsert().Model(&positions).Exec(ctx); err != nil {
-		return fmt.Errorf("insert care invoice positions: %w", err)
+	if len(positions) > 0 {
+		if _, err := db.NewInsert().Model(&positions).Exec(ctx); err != nil {
+			return fmt.Errorf("insert care invoice positions: %w", err)
+		}
 	}
-	return insertCareReductions(ctx, db, organizationID, rows, invoices)
+	if err := insertCareReductions(ctx, db, organizationID, rows, invoices); err != nil {
+		return err
+	}
+	if err := insertCareMealPositions(ctx, db, organizationID, rows, invoices); err != nil {
+		return err
+	}
+	return insertCareCostShares(ctx, db, organizationID, rows, invoices)
 }
 
 func carePositionRows(organizationID int64, rows []careInvoiceRow, invoices []parentbilling.CareInvoice) ([]careInvoicePositionRow, error) {
@@ -606,9 +637,12 @@ func (s *Store) CareRunInvoices(ctx context.Context, organizationID, runID int64
 	if err != nil {
 		return nil, err
 	}
-	var rows []careInvoiceRow
-	if err := db.NewSelect().Model(&rows).Where("organization_id = ?", organizationID).Where("run_id = ?", runID).
-		OrderExpr("number_sequence").Scan(ctx); err != nil {
+	// The Mensa months (#4686) come with their invoice in one statement.
+	var rows []careInvoiceMealRow
+	if err := db.NewSelect().Model(&rows).ModelTableExpr(`parent_billing.care_invoices AS "care_invoice_row"`).
+		ColumnExpr("?TableColumns").ColumnExpr(careInvoiceMealsColumn).ColumnExpr(careInvoiceCostSharesColumn).
+		Where("care_invoice_row.organization_id = ?", organizationID).Where("care_invoice_row.run_id = ?", runID).
+		OrderExpr("care_invoice_row.number_sequence").Scan(ctx); err != nil {
 		return nil, fmt.Errorf("read care invoices: %w", err)
 	}
 	if len(rows) == 0 {
@@ -644,8 +678,11 @@ func (s *Store) CareRunInvoices(ctx context.Context, organizationID, runID int64
 	invoices := make([]parentbilling.CareInvoice, len(rows))
 	for i, row := range rows {
 		invoices[i] = row.invoice(byInvoice[row.ID], reductions[row.ID])
+		if len(row.CostShares) > 0 {
+			invoices[i].CostShares = row.CostShares
+		}
 	}
-	return invoices, nil
+	return invoices, withCareMealPositions(rows, invoices)
 }
 
 type careRunHoldRow struct {
