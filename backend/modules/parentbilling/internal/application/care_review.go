@@ -67,8 +67,13 @@ func (c *CareBilling) reviewed(ctx context.Context, organizationID int64, run pa
 func narrowMonth(month careMonth, schoolIDs []int64, exclusions map[int64]parentbilling.CareExclusion) reviewedMonth {
 	inRun := func(schoolID int64) bool { return slices.Contains(schoolIDs, schoolID) }
 	review := reviewedMonth{careMonth: careMonth{invoices: []parentbilling.CareInvoice{}, unpriced: []parentbilling.CareUnpriced{},
-		duplicates: []parentbilling.CareDuplicate{}, dueDates: month.dueDates, deviations: month.deviations, uncounted: month.uncounted},
+		duplicates: []parentbilling.CareDuplicate{}, dueDates: month.dueDates, deviations: month.deviations},
 		excluded: []parentbilling.CareInvoice{}}
+	for _, schools := range month.uncountedSchools {
+		if slices.ContainsFunc(schools, inRun) {
+			review.uncounted++
+		}
+	}
 	for schoolID, count := range month.billedBySchool {
 		if inRun(schoolID) {
 			review.billed += count
@@ -144,9 +149,10 @@ func previewFingerprint(run parentbilling.CareRun, rule string, review reviewedM
 		Duplicates  []parentbilling.CareDuplicate `json:"duplicates"`
 		Billed      int                           `json:"billed"`
 		DueDates    []parentbilling.RunDueDate    `json:"due_dates"`
+		Uncounted   int                           `json:"uncounted_families"`
 	}{run.ID, run.SchoolIDs, run.InvoiceDate, rule, fingerprintInvoices(review.invoices),
 		fingerprintInvoices(review.excluded), review.unpriced, review.duplicates, review.billed,
-		review.dueDates.InPaymentOrder()})
+		review.dueDates.InPaymentOrder(), review.uncounted})
 	if err != nil {
 		// Every value above marshals; a failure leaves no fingerprint a
 		// release could match.

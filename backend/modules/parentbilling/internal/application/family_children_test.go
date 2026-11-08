@@ -187,3 +187,24 @@ func TestFamilyChildrenListsAStatementOnASentContract(t *testing.T) {
 	require.NotNil(t, families[0].Count)
 	assert.Equal(t, parentbilling.FamilyChildrenStated, families[0].Status)
 }
+
+// A run of some schools names only the families without a confirmed number
+// whose invoices it bills, and its fingerprint changes when that number
+// does: confirming a family must not let an old review be released.
+func TestUncountedFamiliesFollowTheRunAndItsFingerprint(t *testing.T) {
+	t.Parallel()
+	month := careMonth{uncounted: 2, uncountedSchools: map[string][]int64{
+		"eva@example.org":   {schoolIspringen},
+		"jonas@example.org": {schoolBirkenfeld},
+	}}
+	ispringen := narrowMonth(month, []int64{schoolIspringen}, nil)
+	assert.Equal(t, 1, ispringen.uncounted, "only the Ispringen family")
+	assert.Equal(t, 2, narrowMonth(month, []int64{schoolIspringen, schoolBirkenfeld}, nil).uncounted)
+	assert.Zero(t, narrowMonth(month, []int64{999}, nil).uncounted, "another school names none")
+
+	run := parentbilling.CareRun{ID: 7, SchoolIDs: []int64{schoolIspringen}}
+	before := previewFingerprint(run, parentbilling.MonthRuleVersionOnFirst, ispringen)
+	confirmed := narrowMonth(careMonth{uncountedSchools: map[string][]int64{}}, []int64{schoolIspringen}, nil)
+	assert.NotEqual(t, before, previewFingerprint(run, parentbilling.MonthRuleVersionOnFirst, confirmed),
+		"the confirmation changes what the reviewer saw")
+}
