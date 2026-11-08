@@ -61,6 +61,16 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/feedback/internal/adapters/postgres.Store.CreateBatch",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/feedback/internal/ports.Store.CreateBatch",
+      "reason": "CreateBatch uses the same tenant resolver as Create: tenant.TenantFromContext reads the ambient school ID without persistent, lock or scope effects. The batch writes only Feedback-owned entries inside the existing tenant transaction (#5789).",
+      "source_owner": "feedback",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/feedback/internal/adapters/postgres.Store.Delete",
       "classification": "query",
       "effect": "query",

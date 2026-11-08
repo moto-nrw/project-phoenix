@@ -40,6 +40,7 @@ func (rs *NoticeResource) Router(protectedTraegerRoutes func(chi.Router, func(ch
 		open.Get("/{id}", rs.options)
 		open.Post("/{id}", rs.declare)
 		open.Put("/{id}/ends-on", rs.setEnd)
+		open.Post("/{id}/reason-rejection", rs.rejectReason)
 	})
 	return r
 }
@@ -116,6 +117,33 @@ func (rs *NoticeResource) setEnd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.Respond(w, r, http.StatusOK, options, "Contract end recorded successfully")
+}
+
+// ReasonRejectionRequest is the refusal of the reason of an extraordinary
+// termination; ExpectedEndsOn is the end the office was shown.
+type ReasonRejectionRequest struct {
+	ExpectedEndsOn calendar.Date `json:"expected_ends_on"`
+}
+
+// Bind accepts the body; the owner checks the day.
+func (req *ReasonRejectionRequest) Bind(*http.Request) error { return nil }
+
+func (rs *NoticeResource) rejectReason(w http.ResponseWriter, r *http.Request) {
+	reviewer, id, ok := contractKey(w, r)
+	if !ok {
+		return
+	}
+	req := &ReasonRejectionRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	options, err := rs.notices.RejectNoticeReason(r.Context(), reviewer, id, req.ExpectedEndsOn)
+	if err != nil {
+		RenderNoticeError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, options, "Contract notice reason rejected successfully")
 }
 
 var noticeErrorRules = []struct {

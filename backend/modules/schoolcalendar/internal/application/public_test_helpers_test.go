@@ -80,6 +80,18 @@ func (s *seamStore) ListClosingDays(ctx context.Context, f schoolcalendar.Closin
 	v, err := s.e.ListClosingDays(ctx, f)
 	return v, domain.OperationStats{}, err
 }
+func (s *seamStore) ListCareCalendarRanges(ctx context.Context, from, to string) ([]schoolcalendar.ClosingDay, []schoolcalendar.ClosingDay, domain.OperationStats, error) {
+	closing, err := s.e.ListClosingDays(ctx, schoolcalendar.ClosingDayFilter{OverlappingFrom: from, OverlappingTo: to})
+	if err != nil {
+		return nil, nil, domain.OperationStats{}, err
+	}
+	periods, err := s.e.ListCalendarPeriods(ctx, schoolcalendar.HolidaysOverlapping(from, to))
+	holidays := make([]schoolcalendar.ClosingDay, 0, len(periods))
+	for _, period := range periods {
+		holidays = append(holidays, schoolcalendar.ClosingDay{StartDate: period.StartDate, EndDate: period.EndDate})
+	}
+	return closing, holidays, domain.OperationStats{}, err
+}
 func (s *seamStore) CreateClosingDay(ctx context.Context, f schoolcalendar.ClosingDayFields) (schoolcalendar.ClosingDay, domain.OperationStats, error) {
 	v, err := s.e.CreateClosingDay(ctx, schoolcalendar.CreateClosingDay{ClosingDayFields: f})
 	return v, domain.OperationStats{}, err

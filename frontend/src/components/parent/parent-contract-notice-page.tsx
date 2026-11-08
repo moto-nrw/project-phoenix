@@ -376,6 +376,16 @@ function NoticeForm({
   );
 }
 
+/**
+ * The success line after the end is known: the plain termination, or the
+ * Träger's decision on an extraordinary one.
+ */
+const DONE_BY_DECISION = {
+  none: "doneTermination",
+  festgelegt: "doneDecidedSet",
+  umgedeutet: "doneDecidedReinterpreted",
+} as const;
+
 /** The declaration made, with its confirmation as sent. */
 function NoticeDone({
   options,
@@ -395,7 +405,7 @@ function NoticeDone({
             ? t("doneWithdrawal")
             : endOpen
               ? t("doneExtraordinary")
-              : t("doneTermination", {
+              : t(DONE_BY_DECISION[notice.endDecision ?? "none"], {
                   date: formatDate(notice.endsOn ?? "", false, locale),
                 })
         }
@@ -431,6 +441,13 @@ function NoticeDone({
                 </span>
               </DataField>
             ) : null}
+            {notice.endDecision ? (
+              <DataField label={t("decisionLabel")}>
+                {notice.endDecision === "umgedeutet"
+                  ? t("decisionReinterpreted")
+                  : t("decisionSet")}
+              </DataField>
+            ) : null}
             <DataField label={t("declaredAt")}>
               {/* § 312k Abs. 4 BGB: date and time of a declaration with the
                   button; a letter the Träger recorded has only its day. */}
@@ -446,6 +463,19 @@ function NoticeDone({
               <span className="wrap-anywhere">{notice.recipient}</span>
             </DataField>
           </DataGrid>
+          {notice.endNoticeText ? (
+            <figure
+              aria-label={t("endNoticeTitle")}
+              className="moto-content-surface rounded-xl border p-4"
+            >
+              <figcaption className="mb-2 text-sm font-medium text-gray-900">
+                {t("endNoticeTitle")}
+              </figcaption>
+              <p className="text-sm wrap-anywhere whitespace-pre-line text-gray-700">
+                {notice.endNoticeText}
+              </p>
+            </figure>
+          ) : null}
           <figure
             aria-label={t("confirmationTitle")}
             className="moto-content-surface rounded-xl border p-4"

@@ -6,7 +6,7 @@ import {
   type ButtonSize,
   type ButtonVariant,
 } from "./button-styles";
-import Link from "next/link";
+import Link from "next/link.js";
 import { useLinkIntentPrefetch } from "./use-link-intent-prefetch";
 import { cn } from "~/lib/utils";
 

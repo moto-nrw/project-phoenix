@@ -7,6 +7,7 @@
 // zwischen den Modulen ab, entsteht kein Entwurf; die Zeile sagt das und
 // nennt den nächsten Schritt.
 
+import { SectionLabel } from "~/components/ui/section-label";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -264,9 +265,9 @@ export function CareContractCreateModal({
         ) : null}
         {bySchool(candidates).map((group) => (
           <fieldset key={group.schoolName} className="space-y-2">
-            <legend className="mb-2 text-xs font-semibold tracking-wide text-gray-500 uppercase">
+            <SectionLabel as="legend" className="mb-2">
               {group.schoolName}
-            </legend>
+            </SectionLabel>
             {group.candidates.map((candidate) => {
               const key = candidateKey(candidate);
               const isSelected = selected.has(key);

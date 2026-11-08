@@ -198,6 +198,7 @@ func TestAFailedTraegerDocumentDeletionChangesNothing(t *testing.T) {
 	documents := organizationtenancyCompose.NewTraegerDocuments(organizationtenancy.TraegerDocumentPorts{
 		Schools: traegerDocumentSchools{organizations: organizations}, Groups: traegerDocumentGroups{},
 		Runtime: failingTraegerRuntime{}, Access: traegerDocumentAccessLog{}, Downloads: traegerDocumentDownloadLedger{},
+		Notices: owners.TraegerDocumentReleaseNotices{},
 	})
 	unit := tenant.WithUnitOfWork(context.Background(), testpkg.TenantRuntime(t, f.db))
 	err = documents.DeleteDocument(unit, f.office.organization, 0, document.ID)

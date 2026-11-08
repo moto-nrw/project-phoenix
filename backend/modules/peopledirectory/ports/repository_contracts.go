@@ -131,6 +131,10 @@ type StudentRepository interface {
 	// stored birth date are omitted, never rendered as an unknown date.
 	FindBirthdaysOn(ctx context.Context, days []peopleBirthday.MonthDay) ([]peopleBirthday.BirthdayEntry, error)
 
+	// FindBornOn returns every child of the school born on one of dates,
+	// also one whose care has ended, with its membership interval (#5994).
+	FindBornOn(ctx context.Context, dates []calendar.Date) ([]peopledirectory.StudentBorn, error)
+
 	// ListWithOptions retrieves students with query options
 	// ListByGroupIDsIncludingAlumni is the care-participation candidate set:
 	// the rule that follows decides per child whether a graduate still counts.

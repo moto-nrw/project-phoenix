@@ -71,7 +71,7 @@ func BuildDeliveryNotifications(
 		return DeliveryNotifications{}, err
 	}
 	notifier := deliveryCompose.NewNotifier(settings, logger.With("service", "notifications"), deliveryCompose.NotificationDeliveryObserver(env.Observe.Delivery), sse, push)
-	preferences, err := deliveryCompose.NewTenantPreferenceService(unit, consent, settings, db.Pool(), identity, securityruntime.HasPermission)
+	preferences, err := deliveryCompose.NewTenantPreferenceService(unit, consent, DeliveryPreferenceSettings(settings), db.Pool(), identity, securityruntime.HasPermission)
 	if err != nil {
 		return DeliveryNotifications{}, err
 	}

@@ -15,6 +15,13 @@ export type NoticeKind = "kuendigung" | "widerruf";
 export type TerminationKind =
   "ordentlich" | "sonderkuendigung" | "ausserordentlich";
 
+/**
+ * How the Träger-Büro decided the end of an extraordinary termination: it
+ * set the last day, or it did not accept the reason and the declaration
+ * holds as an ordinary termination (Umdeutung, § 140 BGB).
+ */
+type EndDecision = "festgelegt" | "umgedeutet";
+
 /** A declaration as recorded, with its confirmation as sent. */
 export interface ContractNotice {
   readonly kind: NoticeKind;
@@ -33,6 +40,16 @@ export interface ContractNotice {
   readonly endsOn: string | null;
   readonly recipient: string;
   readonly confirmationText: string;
+  /** Null while the end is open and for every other declaration. */
+  readonly endDecision?: EndDecision | null;
+  readonly endDecidedAt?: string | null;
+  /** The notice of the decided end the parents got, as sent. */
+  readonly endNoticeText?: string | null;
+  /**
+   * False when no address of the contract still belongs to a guardian with
+   * the right to act for the child: the office tells the parents itself.
+   */
+  readonly endNoticeSent?: boolean;
 }
 
 /** What can be declared on a contract today, or the declaration made. */
@@ -51,6 +68,11 @@ export interface ContractNoticeOptions {
   /** Last dispatch day. Office reads retain expired deadlines for postal notices. */
   readonly withdrawalUntil: string | null;
   readonly earlyStart: boolean;
+  /**
+   * For the office, while an extraordinary termination waits: the last day
+   * if it does not accept the reason. Null otherwise.
+   */
+  readonly reinterpretedEndsOn?: string | null;
   readonly notice: ContractNotice | null;
 }
 
@@ -73,6 +95,10 @@ interface BackendNotice {
   ends_on: string | null;
   recipient: string;
   confirmation_text: string;
+  end_decision?: EndDecision;
+  end_decided_at?: string;
+  end_notice_text?: string;
+  end_notice_sent?: boolean;
 }
 
 export interface BackendNoticeOptions {
@@ -87,6 +113,7 @@ export interface BackendNoticeOptions {
   special_ends_on: string | null;
   withdrawal_until: string | null;
   early_start: boolean;
+  reinterpreted_ends_on?: string | null;
   notice: BackendNotice | null;
 }
 
@@ -105,6 +132,7 @@ export function noticeOptionsFromBackend(
     specialEndsOn: row.special_ends_on,
     withdrawalUntil: row.withdrawal_until,
     earlyStart: row.early_start,
+    reinterpretedEndsOn: row.reinterpreted_ends_on ?? null,
     notice: row.notice
       ? {
           kind: row.notice.kind,
@@ -117,6 +145,10 @@ export function noticeOptionsFromBackend(
           endsOn: row.notice.ends_on,
           recipient: row.notice.recipient,
           confirmationText: row.notice.confirmation_text,
+          endDecision: row.notice.end_decision ?? null,
+          endDecidedAt: row.notice.end_decided_at ?? null,
+          endNoticeText: row.notice.end_notice_text ?? null,
+          endNoticeSent: row.notice.end_notice_sent ?? false,
         }
       : null,
   };

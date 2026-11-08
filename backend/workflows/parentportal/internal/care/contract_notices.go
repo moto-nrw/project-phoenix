@@ -56,6 +56,12 @@ type ContractNotice struct {
 	EndsOn           *calendar.Date `json:"ends_on"`
 	Recipient        string         `json:"recipient"`
 	ConfirmationText string         `json:"confirmation_text"`
+	// EndDecision tells how the Träger decided the end of an extraordinary
+	// termination ("festgelegt", "umgedeutet"); EndNoticeText is the notice
+	// the parents got with it, as sent.
+	EndDecision   string     `json:"end_decision,omitempty"`
+	EndDecidedAt  *time.Time `json:"end_decided_at,omitempty"`
+	EndNoticeText string     `json:"end_notice_text,omitempty"`
 }
 
 // ContractNoticeOptions is what the parents can declare today, or the

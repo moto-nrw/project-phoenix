@@ -27,6 +27,8 @@ type holidayTimeModelBody struct {
 	StartsAt   string `json:"starts_at"`
 	EndsAt     string `json:"ends_at"`
 	PriceCents int64  `json:"price_cents"`
+	Archived   bool   `json:"archived,omitempty"`
+	Protected  bool   `json:"protected,omitempty"`
 }
 
 type holidayWeekBody struct {

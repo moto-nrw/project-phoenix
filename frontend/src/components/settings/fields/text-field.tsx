@@ -8,6 +8,8 @@ interface TextFieldProps {
   readonly onChange: (value: string) => void;
   readonly onBlur?: () => void;
   readonly disabled?: boolean;
+  /** The id of the hint that names what is wrong with the value. */
+  readonly errorId?: string;
 }
 
 export function TextField({
@@ -16,6 +18,7 @@ export function TextField({
   onChange,
   onBlur,
   disabled = false,
+  errorId,
 }: TextFieldProps) {
   return (
     <Input
@@ -34,6 +37,8 @@ export function TextField({
         }
       }}
       disabled={disabled}
+      aria-invalid={errorId ? true : undefined}
+      aria-describedby={errorId}
       className="max-w-xs"
     />
   );

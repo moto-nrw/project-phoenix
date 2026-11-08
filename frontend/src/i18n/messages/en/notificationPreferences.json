@@ -39,7 +39,7 @@
     },
     "parent_billing_document": {
       "label": "New document from the provider",
-      "description": "When the provider sends you a document, for example a confirmation letter."
+      "description": "When the provider sends or shares a document with you, for example a contract."
     }
   },
   "errorObjectList": "the list of notifications",

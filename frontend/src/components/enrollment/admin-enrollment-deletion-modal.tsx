@@ -232,35 +232,26 @@ export function AdminEnrollmentDeletionModal({
               ) : null}
 
               {impact.blocking_student_ids.length > 0 ? (
-                <section className="border-moto-red/20 bg-moto-red/10 rounded-xl border p-4">
-                  <div className="flex gap-3">
-                    <ShieldAlert
-                      className="text-moto-red mt-0.5 h-5 w-5 shrink-0"
-                      aria-hidden="true"
-                    />
-                    <div>
-                      <h4 className="text-sm font-semibold text-gray-900">
-                        Löschung blockiert
-                      </h4>
-                      <p className="mt-1 text-sm text-gray-700">
-                        Mindestens ein angelegtes Kind besteht noch. Löschen Sie
-                        das Kind zuerst über die Kindverwaltung; die Anmeldung
-                        löscht niemals still einen Kind-Datensatz.
-                      </p>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {impact.blocking_student_ids.map((studentId) => (
-                          <NavigationLink
-                            key={studentId}
-                            href={studentHref(studentId)}
-                            className="text-moto-red text-sm font-semibold underline underline-offset-2"
-                          >
-                            Kind #{studentId} öffnen
-                          </NavigationLink>
-                        ))}
-                      </div>
+                <Alert
+                  type="warning"
+                  announce="off"
+                  icon={<ShieldAlert className="h-5 w-5" aria-hidden="true" />}
+                  title="Löschung blockiert"
+                  message="Mindestens ein angelegtes Kind besteht noch. Löschen Sie das Kind zuerst über die Kindverwaltung; die Anmeldung löscht niemals still einen Kind-Datensatz."
+                  details={
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {impact.blocking_student_ids.map((studentId) => (
+                        <NavigationLink
+                          key={studentId}
+                          href={studentHref(studentId)}
+                          className="text-sm font-semibold underline underline-offset-2"
+                        >
+                          Kind #{studentId} öffnen
+                        </NavigationLink>
+                      ))}
                     </div>
-                  </div>
-                </section>
+                  }
+                />
               ) : null}
 
               {impact.preserved_guardian_profiles > 0 ||

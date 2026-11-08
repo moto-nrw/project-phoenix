@@ -271,6 +271,48 @@
       "class": "unavailable",
       "parameters": [],
       "legacy": "parent_billing.letter_mail_block_unreadable"
+    },
+    {
+      "code": "parent_billing.care_run_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.care_run_not_found"
+    },
+    {
+      "code": "parent_billing.care_run_open",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.care_run_open"
+    },
+    {
+      "code": "parent_billing.care_run_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.care_run_invalid"
+    },
+    {
+      "code": "parent_billing.care_versions_overlap",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.care_versions_overlap"
+    },
+    {
+      "code": "parent_billing.care_tariff_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.care_tariff_invalid"
+    },
+    {
+      "code": "parent_billing.care_tariff_month_billed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.care_tariff_month_billed"
+    },
+    {
+      "code": "parent_billing.care_tariff_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.care_tariff_not_found"
     }
   ]
 }

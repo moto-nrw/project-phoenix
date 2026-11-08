@@ -73,6 +73,7 @@ import {
   InfoSection,
 } from "~/components/ui/detail-modal-components";
 import { SectionCard } from "~/components/ui/section-card";
+import { SectionLabel } from "~/components/ui/section-label";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { Textarea } from "~/components/ui/textarea";
@@ -1192,9 +1193,7 @@ export function RequestExtraSection({
 
       {hasConsents && (
         <div>
-          <h3 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-            Zustimmungen
-          </h3>
+          <SectionLabel>Zustimmungen</SectionLabel>
           <ul className="mt-1.5 space-y-1 text-sm">
             {Object.entries(request.consent_flags ?? {}).map(([key, val]) => (
               <li key={key} className="flex items-center gap-2">
@@ -1283,23 +1282,19 @@ export function ChildOfferings({
   const rows = [...(offerings ?? []), ...(upcomingOfferings ?? [])];
   if (unavailable) {
     return (
-      <div className="border-moto-orange/30 bg-moto-orange-soft mt-3 rounded-lg border p-3">
-        <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-          Betreuungsangebote
-        </h4>
-        <p className="text-moto-orange-strong mt-1.5 text-sm">
-          Die gebuchten Angebote konnten nicht geladen werden. Bitte die Seite
-          neu laden, bevor Sie über dieses Kind entscheiden.
-        </p>
-      </div>
+      <Alert
+        type="warning"
+        announce="off"
+        title="Betreuungsangebote"
+        message="Die gebuchten Angebote konnten nicht geladen werden. Bitte die Seite neu laden, bevor Sie über dieses Kind entscheiden."
+        className="mt-3"
+      />
     );
   }
   if (rows.length === 0) return null;
   return (
     <InsetPanel framed className="mt-3">
-      <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-        Betreuungsangebote
-      </h4>
+      <SectionLabel as="h4">Betreuungsangebote</SectionLabel>
       <ul className="mt-1.5 space-y-2 text-sm">
         {rows.map((o) => {
           const parentChoice = o.days_of_week_mode === "parent_choice";
@@ -1828,9 +1823,7 @@ export function ChildOfferingAdjustment({
       {careOfferingsEnabled ? (
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-              Nachbearbeitung
-            </h4>
+            <SectionLabel as="h4">Nachbearbeitung</SectionLabel>
             <p className="mt-1 text-sm text-gray-600">
               {child.offerings_unavailable
                 ? "Die gebuchten Angebote konnten nicht geladen werden. Bitte die Seite neu laden, eine Korrektur würde sonst auf einem unbekannten Stand aufsetzen."
@@ -1950,9 +1943,9 @@ export function ChildOfferingAdjustment({
               })}
               {blockedCatalog.length > 0 ? (
                 <div className="space-y-2 pt-1">
-                  <p className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+                  <SectionLabel as="p">
                     Für dieses Kind nicht wählbar
-                  </p>
+                  </SectionLabel>
                   {blockedCatalog.map((offering) => (
                     <BlockedOfferingRow
                       key={offering.id}
@@ -2025,10 +2018,10 @@ export function ChildOfferingAdjustment({
             careOfferingsEnabled ? "mt-3 border-t border-gray-100 pt-3" : ""
           }
         >
-          <div className="flex items-center gap-2 text-xs font-medium tracking-wide text-gray-500 uppercase">
+          <SectionLabel as="p" className="flex items-center gap-2">
             <MotoConceptIcon concept={changeHistoryConcept} size={14} />
             Änderungshistorie
-          </div>
+          </SectionLabel>
           <ul className="mt-2 space-y-2">
             {history.slice(0, 5).map((entry) => (
               <li key={entry.id} className="text-xs leading-5 text-gray-600">

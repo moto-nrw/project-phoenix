@@ -12,19 +12,6 @@ import (
 	"github.com/uptrace/bun"
 )
 
-type recipientLinkReader struct {
-	read  func(context.Context, int64) ([]*calendarCompose.StudentGuardian, error)
-	after func()
-}
-
-func (p recipientLinkReader) FindByGuardianProfileID(ctx context.Context, id int64) ([]*calendarCompose.StudentGuardian, error) {
-	rows, err := p.read(ctx, id)
-	if err == nil {
-		p.after()
-	}
-	return rows, err
-}
-
 type recipientContactReader struct {
 	calendarCompose.GuardianDirectory
 	after func()
@@ -38,9 +25,12 @@ func (p recipientContactReader) ListPortalContacts(ctx context.Context, guardian
 	return rows, err
 }
 
-// The port wrapper supplies a scheduling point, not substituted data. Both
-// candidate contacts and baseline individual links come from the real stores.
-func TestRecipientOptionsObserveLaterPortalRevocation(t *testing.T) {
+// The picker reads the portal visibility of all candidates once (#5784,
+// decision E2: one early shared read replaces the former per-parent READ
+// COMMITTED reads). A revocation committed after that read is therefore not
+// seen by this listing; creating an appointment resolves its targets afresh.
+// The port wrapper supplies a scheduling point, not substituted data.
+func TestRecipientOptionsShareOnePortalVisibilityRead(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
 	for range 2 {
@@ -67,11 +57,13 @@ func TestRecipientOptionsObserveLaterPortalRevocation(t *testing.T) {
 		})
 		require.NoError(t, err)
 	}
-	cfg.StudentGuardianRepo = recipientLinkReader{read: cfg.StudentGuardianRepo.FindByGuardianProfileID, after: after}
 	cfg.GuardianProfileRepo = recipientContactReader{GuardianDirectory: cfg.GuardianProfileRepo, after: after}
 	svc := owners.NewCalendarPortal(cfg)
 	out, err := testpkg.TenantQuery2(t, testpkg.Ctx(t), db, svc.RecipientOptions, "schneider", 50)
 	require.NoError(t, err)
 	require.True(t, fired)
-	require.Equal(t, []string{strconv.FormatInt(parents[0].ID, 10)}, parentOptionIDs(out.Parents))
+	require.Equal(t, []string{strconv.FormatInt(parents[0].ID, 10), strconv.FormatInt(laterID, 10)}, parentOptionIDs(out.Parents))
+	fresh, err := testpkg.TenantQuery2(t, testpkg.Ctx(t), db, svc.RecipientOptions, "schneider", 50)
+	require.NoError(t, err)
+	require.Equal(t, []string{strconv.FormatInt(parents[0].ID, 10)}, parentOptionIDs(fresh.Parents), "the next listing sees the revocation")
 }

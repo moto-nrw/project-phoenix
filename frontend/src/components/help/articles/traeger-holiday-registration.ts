@@ -38,7 +38,7 @@ export function traegerHolidayRegistrationTopic(): HelpTopic {
       "Sie sehen keinen Link? Dann ist der Ferienzeitraum noch ein Entwurf. Veröffentlichen Sie ihn zuerst.",
     ],
     troubleshootingDetails: [
-      "Eine Woche oder ein Zeitmodell lässt sich nicht entfernen? Dafür gibt es schon Anmeldungen.",
+      "Eine Woche oder ein Zeitmodell lässt sich nicht entfernen? Dafür gibt es schon Anmeldungen. Ein gebuchtes Zeitmodell können Sie `Archivieren`.",
       "Eltern sagen, die Anmeldung sei nicht offen? Prüfen Sie `Anmeldebeginn` und `Anmeldeschluss`.",
     ],
     related: [HELP_TOPICS.traegerHolidayPeriod],

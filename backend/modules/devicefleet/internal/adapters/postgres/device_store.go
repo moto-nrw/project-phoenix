@@ -491,3 +491,32 @@ func toDeviceDomain(row deviceRow) devicefleet.Device {
 		TransferredToDeviceID: row.TransferredToDeviceID,
 	}
 }
+
+// UpdateColumnsReturning reads the row already locked by this UPDATE. It never
+// writes archived devices or widens the caller's column/tenant scope.
+func (s *DeviceStore) UpdateColumnsReturning(ctx context.Context, input domain.UpdateDevice, columns []string) (devicefleet.Device, domain.OperationStats, error) {
+	if len(columns) == 0 {
+		return devicefleet.Device{}, domain.OperationStats{}, errors.New("devicefleet postgres: no columns to update")
+	}
+	db, scope, err := s.database(ctx)
+	if err != nil {
+		return devicefleet.Device{}, domain.OperationStats{}, err
+	}
+	row := deviceRowFromUpdate(input)
+	query := db.NewUpdate().Model(&row).ModelTableExpr(deviceTableExpr).
+		Column(columns...).Where(`"device".id = ?`, input.ID).Where(deviceNotArchive)
+	if !scope.AcrossSchools {
+		query = query.Where(`"device".tenant_id = ?`, scope.TenantID)
+	}
+	started := time.Now()
+	err = query.Returning("*").Scan(ctx)
+	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
+	if errors.Is(err, sql.ErrNoRows) {
+		return devicefleet.Device{}, stats, devicefleet.ErrDeviceNotFound
+	}
+	if err != nil {
+		return devicefleet.Device{}, stats, fmt.Errorf("devicefleet postgres: update device columns: %w", err)
+	}
+	stats.Rows = 1
+	return toDeviceDomain(row), stats, nil
+}

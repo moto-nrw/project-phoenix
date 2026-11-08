@@ -7,6 +7,7 @@
 "use client";
 
 import { EmptyState } from "~/components/ui/empty-state";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
@@ -61,7 +62,6 @@ export default function RootPage() {
   return (
     <AuthShell
       eyebrow="Einrichtung auswählen"
-      eyebrowClassName="tracking-[0.08em] text-moto-green"
       title="Willkommen"
       subtitle="Wählen Sie Ihre Einrichtung aus."
       variant="tenant-select"
@@ -80,9 +80,7 @@ export default function RootPage() {
     >
       <div className="space-y-6">
         {!loading && listStatus === "error" ? (
-          <p className="border-moto-red/20 bg-moto-red-soft text-moto-red-strong rounded-xl border px-4 py-3 text-sm">
-            Backend nicht erreichbar. Bitte versuchen Sie es später erneut.
-          </p>
+          <LoadErrorAlert error="Backend nicht erreichbar. Bitte versuchen Sie es später erneut." />
         ) : !loading && tenants.length === 0 ? (
           <EmptyState
             variant="compact"

@@ -131,6 +131,9 @@ type ParentAccounts interface {
 // BillingDocumentPush is the push that a document is in the inbox, for one
 // account at one school, about the children the relationship covers.
 type BillingDocumentPush struct {
+	// Kind names the document: DocumentPushBilling for a letter, or a care
+	// contract or a release of a Träger (#5941).
+	Kind       string
 	TenantID   int64
 	AccountID  int64
 	StudentIDs []int64

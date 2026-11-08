@@ -60,6 +60,21 @@ func confirmationText(template string, values confirmationValues) (string, error
 	return strings.TrimSpace(replacer.Replace(template)), nil
 }
 
+// endText fills the Träger's template of the notice of a decided end
+// (#4682). Like the confirmation it admits only the fixed placeholders and
+// never falls back to a built-in text; the last day is never left to the
+// template: a template without {Vertragsende} gets the line appended.
+func endText(template string, values confirmationValues) (string, error) {
+	template = strings.TrimSpace(template)
+	if template == "" {
+		return "", carecontract.ErrNoticeTemplateMissing
+	}
+	if !strings.Contains(template, "{Vertragsende}") {
+		template += "\n\nLetzter Betreuungstag: {Vertragsende}"
+	}
+	return confirmationText(template, values)
+}
+
 // receipt names when the declaration reached the Träger. A declaration with
 // the button reaches it when the parents send it, so its confirmation names
 // day and time (§ 312k Abs. 4 BGB); a letter the Träger-Büro records has
@@ -91,8 +106,13 @@ func RenderNoticeMail(_ context.Context, payload []byte) (carecontract.RenderedN
 		return carecontract.RenderedNoticeMail{}, errors.New(carecontract.MailKindNotice + " payload has no text")
 	}
 	// The subject names no child: the mailers log it at Info level.
-	subject := "Bestätigung Ihrer Kündigung"
-	if mail.Kind == carecontract.NoticeWithdrawal {
+	subject, heading := "Bestätigung Ihrer Kündigung", ""
+	switch {
+	case mail.Decision == carecontract.EndDecisionSet:
+		subject, heading = "Ende Ihres Betreuungsvertrags", "Ende Ihres Betreuungsvertrags"
+	case mail.Decision == carecontract.EndDecisionReinterpreted:
+		subject, heading = "Ihre Kündigung gilt als ordentliche Kündigung", "Ihre Kündigung gilt als ordentliche Kündigung"
+	case mail.Kind == carecontract.NoticeWithdrawal:
 		subject = "Bestätigung Ihres Widerrufs"
 	}
 	paragraphs := []string{}
@@ -104,6 +124,6 @@ func RenderNoticeMail(_ context.Context, payload []byte) (carecontract.RenderedN
 	return carecontract.RenderedNoticeMail{
 		SenderName: strings.TrimSpace(mail.TraegerName), Subject: subject, Template: noticeMailTemplate,
 		GuardianName: mail.GuardianName, TraegerName: mail.TraegerName,
-		Withdrawal: mail.Kind == carecontract.NoticeWithdrawal, Paragraphs: paragraphs,
+		Withdrawal: mail.Kind == carecontract.NoticeWithdrawal, Heading: heading, Paragraphs: paragraphs,
 	}, nil
 }

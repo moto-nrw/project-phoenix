@@ -508,6 +508,12 @@ func (s notificationModeSettings) NotifyPerDecision(ctx context.Context) (string
 	return s.settings.ResolveString(ctx, enrollmentKeys.NotifyPerDecision)
 }
 
+// CareFacilityTerm leaves the mail header at its "OGS" stand-in: the care
+// plan contract does not read the header (#6042).
+func (notificationModeSettings) CareFacilityTerm(context.Context) (string, error) {
+	return "", nil
+}
+
 // testNotifications composes Enrollment's parent mails for a flow under
 // test: the owner pins the mode, the suite's settings choose it, and a
 // recording outbox takes the mails.

@@ -21,6 +21,10 @@ export interface TimeModelDraft {
   readonly endsAt: string;
   /** Price as typed, in euro: "45", "45,5" or "45,50". */
   readonly price: string;
+  /** No longer bookable; stays in the week for the days booked on it. */
+  readonly archived: boolean;
+  /** Bookings name it: it cannot be removed, only archived (#5994). */
+  readonly protected: boolean;
 }
 
 export interface WeekDraft {
@@ -60,6 +64,8 @@ export function emptyTimeModel(): TimeModelDraft {
     startsAt: "",
     endsAt: "",
     price: "",
+    archived: false,
+    protected: false,
   };
 }
 
@@ -106,6 +112,8 @@ function timeModelDraft(model: HolidayTimeModel): TimeModelDraft {
     startsAt: model.startsAt,
     endsAt: model.endsAt,
     price: centsToEuroInput(model.priceCents),
+    archived: model.archived ?? false,
+    protected: model.protected ?? false,
   };
 }
 
@@ -150,6 +158,7 @@ export function inputFromDraft(draft: HolidayPeriodDraft): HolidayPeriodInput {
         startsAt: model.startsAt,
         endsAt: model.endsAt,
         priceCents: euroInputToCents(model.price) ?? 0,
+        archived: model.archived,
       })),
     })),
   };
@@ -283,10 +292,15 @@ export function validateHolidayPeriod(
   return errors;
 }
 
-/** Publishing needs at least one week, each with a time model. */
+/**
+ * Publishing needs at least one week, each with a time model that is not
+ * archived.
+ */
 export function holidayPeriodComplete(period: HolidayPeriod): boolean {
   return (
     period.weeks.length > 0 &&
-    period.weeks.every((week) => week.timeModels.length > 0)
+    period.weeks.every((week) =>
+      week.timeModels.some((model) => !model.archived),
+    )
   );
 }

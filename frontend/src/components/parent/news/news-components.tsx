@@ -34,6 +34,7 @@ import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { Radio } from "~/components/ui/radio";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { SectionCard } from "~/components/ui/section-card";
+import { SectionLabel } from "~/components/ui/section-label";
 import { LONG_POLL_OPTIONS } from "~/lib/announcement-poll-options";
 import { formatBerlinDate, formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
@@ -136,11 +137,13 @@ function pollAnswerSummary(
 }
 
 /**
- * The type line above the title, only where the type is news: an Umfrage, an
+ * The type tag above the title, only where the type is news: an Umfrage, an
  * Einverständnis or a cancelled care day. The page is called "Elternbriefe", so "Elternbrief" on
  * every card only repeated it. "Wichtig" and "Erinnerung" describe the message
  * and sit with its other states in the last line; up here they stacked into
- * two or three mini-headings above the title on a phone (#3719).
+ * two or three mini-headings above the title on a phone (#3719). The tag is a
+ * small kit pill, not a capitalised kicker: outside a `SectionCard` the
+ * parents portal has no kicker (#5590).
  */
 function NewsCardType({
   item,
@@ -148,8 +151,8 @@ function NewsCardType({
   const t = useTranslations("parentDashboard");
   if (item.system_kind === "care_cancellation") {
     return (
-      <span className="text-moto-red-strong mb-1 block text-xs font-semibold tracking-wide uppercase">
-        {t("newsCareCancellation")}
+      <span className="mb-1 block">
+        <StatusBadge size="xs" tone="red" label={t("newsCareCancellation")} />
       </span>
     );
   }
@@ -161,8 +164,8 @@ function NewsCardType({
         : null;
   if (type === null) return null;
   return (
-    <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
-      {type}
+    <span className="mb-1 block">
+      <StatusBadge size="xs" tone="gray" label={type} />
     </span>
   );
 }
@@ -955,9 +958,9 @@ function NewsReminderNote({
   const locale = useLocale();
   return (
     <div className="bg-moto-blue-soft mt-4 rounded-xl px-4 py-3">
-      <p className="text-moto-blue-strong text-xs font-semibold tracking-wide uppercase">
+      <SectionLabel as="p">
         {t("newsReminderFrom", { date: formatBerlinDate(sentAt, locale) })}
-      </p>
+      </SectionLabel>
       {text && (
         <p className="mt-1 text-base leading-7 whitespace-pre-line text-gray-900">
           <LinkifiedText text={text} />

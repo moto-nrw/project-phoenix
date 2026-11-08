@@ -10,8 +10,8 @@ import (
 )
 
 // NewHolidayPeriods builds a Träger's holiday periods (#4659) in the Träger-Portal's Träger transaction (ADR 0105).
-func NewHolidayPeriods() enrollment.HolidayPeriods {
-	return applicationNative.NewHolidayPeriods(postgres.NewHolidayPeriodStore(), postgres.NewHolidayPeriodStore())
+func NewHolidayPeriods(today func() calendar.Date) enrollment.HolidayPeriods {
+	return applicationNative.NewHolidayPeriods(postgres.NewHolidayPeriodStore(), postgres.NewHolidayPeriodStore(), today)
 }
 
 // NewHolidayRegistrations builds the public holiday registration (ADR 0110, #4722).
@@ -45,6 +45,11 @@ func NewHolidayGuests(people enrollment.HolidayGuestPeople, schools enrollment.H
 // NewHolidayGuestBadgeList builds only the hints „Gast aus …“, for the tablet (PyrePortal#499); nil today: Berlin day.
 func NewHolidayGuestBadgeList(today func() calendar.Date) enrollment.HolidayGuestBadgeList {
 	return applicationNative.NewHolidayGuestBadgeList(postgres.NewHolidayGuestStore(), today)
+}
+
+// NewHolidayGuestBookedCare builds the read of the guests' booked days for Soll und Ist (#5994), in the hosting school's tenant transaction.
+func NewHolidayGuestBookedCare(children enrollment.HolidayStudentsByBirthDate) enrollment.HolidayGuestBookedCare {
+	return applicationNative.NewHolidayGuestBookedCare(postgres.NewHolidayGuestStore(), children)
 }
 
 // NewHolidayAccessTrail builds the Träger access log's holiday trail (#5326), read in the Träger projection's transaction (ADR 0137).
