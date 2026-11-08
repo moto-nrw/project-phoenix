@@ -176,6 +176,8 @@ type CarePosition struct {
 	ServiceUntil   calendar.Date      `json:"service_until"`
 	Weekdays       []CareWeekdayPrice `json:"weekdays"`
 	AmountCents    int64              `json:"amount_cents"`
+	// PayableCents preserves the rule chain allocation for later runs of the month.
+	PayableCents int64 `json:"-"`
 }
 
 // CareRecipient is the contract party an invoice goes to.
@@ -198,10 +200,13 @@ type CareInvoice struct {
 	ChildLastName  string         `json:"child_last_name"`
 	// StudentID is the child record the contract names, nil without one; the
 	// parents inbox shows the letter only for it (ADR 0165).
-	StudentID  *int64         `json:"-"`
-	Recipient  CareRecipient  `json:"recipient"`
-	Positions  []CarePosition `json:"positions"`
-	TotalCents int64          `json:"total_cents"`
+	StudentID *int64         `json:"-"`
+	Recipient CareRecipient  `json:"recipient"`
+	Positions []CarePosition `json:"positions"`
+	// Reductions are the rules of the chain in their order (#4685); the
+	// total is the positions less the reductions.
+	Reductions []CareReduction `json:"reductions"`
+	TotalCents int64           `json:"total_cents"`
 }
 
 // CareUnpriced is a booked weekday of a module the price list has no price

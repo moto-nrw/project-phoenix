@@ -102,6 +102,12 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodDelete, "/traeger/care-tariffs/{schoolID}/{validFrom}"}: notCaptured,
 	{http.MethodPost, "/traeger/care-billing-runs/"}:                    notCaptured,
 	{http.MethodPost, "/traeger/care-billing-runs/{id}/release"}:        notCaptured,
+	{http.MethodPost, "/traeger/care-rules/"}:                           notCaptured,
+	{http.MethodPut, "/traeger/care-rules/{id}"}:                        notCaptured,
+	{http.MethodDelete, "/traeger/care-rules/{id}"}:                     notCaptured,
+	{http.MethodPost, "/traeger/care-evidences/"}:                       notCaptured,
+	{http.MethodPut, "/traeger/care-evidences/{id}"}:                    notCaptured,
+	{http.MethodDelete, "/traeger/care-evidences/{id}"}:                 notCaptured,
 	// The letters, mails and Storno of a monthly run (#4684, ADR 0165).
 	{http.MethodPost, "/traeger/care-billing-runs/{id}/letters"}:                           notCaptured,
 	{http.MethodPost, "/traeger/care-billing-runs/{id}/letters/preview"}:                   notCaptured,

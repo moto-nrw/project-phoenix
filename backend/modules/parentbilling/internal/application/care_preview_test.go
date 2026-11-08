@@ -101,6 +101,7 @@ func TestCareMonthGoldenSJR(t *testing.T) {
 			 "service_from": "2027-01-01", "service_until": "2027-01-31",
 			 "weekdays": [{"weekday": "tue", "monthly_cents": 4550, "amount_cents": 4550}], "amount_cents": 4550}
 		],
+		"reductions": [],
 		"total_cents": 7750
 	}]`, string(got))
 	assert.Empty(t, month.unpriced)
@@ -252,7 +253,7 @@ func TestCareMonthLeavesOutUnpricedAndBilled(t *testing.T) {
 	billed := sjrVersion(t, contractNoah, schoolIspringen, 1, january2027, januaryLastDay2027,
 		booked("mon", moduleUntil1400, "Betreuung bis 14:00 Uhr", "14:00"))
 	month, err := buildCareMonth(careMonthInput{month: day(t, january2027), rule: parentbilling.MonthRuleVersionOnFirst,
-		versions: []parentbilling.CareContractVersion{unpriced, billed}, tariffs: sjrTariffs(t), invoiced: map[int64]bool{contractNoah: true}})
+		versions: []parentbilling.CareContractVersion{unpriced, billed}, tariffs: sjrTariffs(t), invoiced: map[int64]parentbilling.CareInvoice{contractNoah: {}}})
 	require.NoError(t, err)
 	assert.Empty(t, month.invoices)
 	assert.Equal(t, 1, month.billed)

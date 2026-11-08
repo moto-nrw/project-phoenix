@@ -59,6 +59,12 @@ type ruleRow struct {
 	DiscountBasisPoints *int           `bun:"discount_basis_points"`
 	DiscountCents       *int64         `bun:"discount_cents"`
 	Note                string         `bun:"note"`
+	Name                string         `bun:"name"`
+	SchoolIDs           []int64        `bun:"school_ids,array"`
+	CareOfferingIDs     []int64        `bun:"care_offering_ids,array"`
+	CountSchoolIDs      []int64        `bun:"count_school_ids,array"`
+	PriceCents          *int64         `bun:"price_cents"`
+	CapCents            *int64         `bun:"cap_cents"`
 	UpdatedAt           time.Time      `bun:"updated_at,nullzero,default:current_timestamp"`
 }
 
@@ -66,8 +72,18 @@ func (r ruleRow) rule() parentbilling.ContributionRule {
 	return parentbilling.ContributionRule{
 		ID: r.ID, Service: r.Service, Kind: r.Kind, ValidFrom: r.ValidFrom, ValidUntil: r.ValidUntil,
 		SiblingFromChild: r.SiblingFromChild, DiscountBasisPoints: r.DiscountBasisPoints, DiscountCents: r.DiscountCents,
-		Note: r.Note, UpdatedAt: r.UpdatedAt,
+		Note: r.Note, Name: r.Name, SchoolIDs: idsOrEmpty(r.SchoolIDs), CareOfferingIDs: idsOrEmpty(r.CareOfferingIDs),
+		CountSchoolIDs: idsOrEmpty(r.CountSchoolIDs), PriceCents: r.PriceCents, CapCents: r.CapCents, UpdatedAt: r.UpdatedAt,
 	}
+}
+
+// idsOrEmpty answers an empty list for no IDs, so the wire never carries
+// null for a list.
+func idsOrEmpty(ids []int64) []int64 {
+	if ids == nil {
+		return []int64{}
+	}
+	return ids
 }
 
 func newRuleRow(organizationID int64, input parentbilling.ContributionRuleInput) *ruleRow {
@@ -75,6 +91,7 @@ func newRuleRow(organizationID int64, input parentbilling.ContributionRuleInput)
 		OrganizationID: organizationID, Service: input.Service, Kind: input.Kind, ValidFrom: input.ValidFrom,
 		ValidUntil: input.ValidUntil, SiblingFromChild: input.SiblingFromChild, DiscountBasisPoints: input.DiscountBasisPoints,
 		DiscountCents: input.DiscountCents, Note: input.Note,
+		SchoolIDs: []int64{}, CareOfferingIDs: []int64{}, CountSchoolIDs: []int64{},
 	}
 }
 
@@ -120,7 +137,7 @@ func (s *Store) UpdateContributionRule(ctx context.Context, organizationID, rule
 	row.ID = ruleID
 	result, err := db.NewUpdate().Model(row).
 		Column("service", "kind", "valid_from", "valid_until", "sibling_from_child", "discount_basis_points", "discount_cents", "note").
-		Where("id = ?", ruleID).Where("organization_id = ?", organizationID).
+		Where("id = ?", ruleID).Where("organization_id = ?", organizationID).Where("service = ?", parentbilling.ServiceHoliday).
 		Returning("updated_at").Exec(ctx)
 	if err != nil {
 		return parentbilling.ContributionRule{}, ruleWriteError(err)
@@ -134,14 +151,15 @@ func (s *Store) UpdateContributionRule(ctx context.Context, organizationID, rule
 	return row.rule(), nil
 }
 
-// DeleteContributionRule removes a rule.
+// DeleteContributionRule removes a holiday rule; a care rule goes through
+// DeleteCareRule.
 func (s *Store) DeleteContributionRule(ctx context.Context, organizationID, ruleID int64) error {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return err
 	}
 	result, err := db.NewDelete().TableExpr("parent_billing.contribution_rules").
-		Where("id = ?", ruleID).Where("organization_id = ?", organizationID).Exec(ctx)
+		Where("id = ?", ruleID).Where("organization_id = ?", organizationID).Where("service = ?", parentbilling.ServiceHoliday).Exec(ctx)
 	if err != nil {
 		return err
 	}

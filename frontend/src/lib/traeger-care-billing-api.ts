@@ -126,7 +126,25 @@ export interface CareInvoice {
     readonly email: string;
   };
   readonly positions: readonly CarePosition[];
+  /** The rules of the chain in their order (#4685); negative amounts. */
+  readonly reductions: readonly CareReduction[];
   readonly totalCents: number;
+}
+
+/**
+ * One reduction of an invoice with a copy of its rule (#4685). A sibling
+ * reduction names the child's rank among the children its rule counted.
+ */
+export interface CareReduction {
+  readonly kind: "income_level" | "sibling" | "single_parent" | "cap";
+  readonly name: string;
+  readonly childRank: number | null;
+  readonly familyChildren: number | null;
+  readonly discountBasisPoints: number | null;
+  readonly discountCents: number | null;
+  readonly priceCents: number | null;
+  readonly capCents: number | null;
+  readonly amountCents: number;
 }
 
 export interface CareUnpriced {
@@ -235,6 +253,19 @@ interface BackendInvoice {
               amount_cents: number;
             }[]
           | null;
+        amount_cents: number;
+      }[]
+    | null;
+  reductions:
+    | {
+        kind: CareReduction["kind"];
+        name: string;
+        child_rank: number | null;
+        family_children: number | null;
+        discount_basis_points: number | null;
+        discount_cents: number | null;
+        price_cents: number | null;
+        cap_cents: number | null;
         amount_cents: number;
       }[]
     | null;
@@ -351,6 +382,17 @@ function invoiceFromBackend(invoice: BackendInvoice): CareInvoice {
         amountCents: weekday.amount_cents,
       })),
       amountCents: position.amount_cents,
+    })),
+    reductions: (invoice.reductions ?? []).map((reduction) => ({
+      kind: reduction.kind,
+      name: reduction.name,
+      childRank: reduction.child_rank,
+      familyChildren: reduction.family_children,
+      discountBasisPoints: reduction.discount_basis_points,
+      discountCents: reduction.discount_cents,
+      priceCents: reduction.price_cents,
+      capCents: reduction.cap_cents,
+      amountCents: reduction.amount_cents,
     })),
     totalCents: invoice.total_cents,
   };
