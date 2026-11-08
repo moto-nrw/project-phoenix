@@ -6,11 +6,11 @@ import type { RosterImpactWire } from "~/lib/roster-impact";
 import { announceEnrollmentReadChange } from "~/lib/enrollment-unread-api";
 import { createLogger } from "~/lib/logger";
 import type {
-  CareOfferingSelectionMode,
   PublicEnrollmentBootstrap,
   SubmitEnrollmentPayload,
   SubmitEnrollmentResult,
 } from "~/lib/enrollment-submission-api";
+import type { CareOfferingSelectionMode } from "~/lib/enrollment-phase-api";
 import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
 import type { EnrollmentSignature } from "~/lib/enrollment-submission-api";
 import {

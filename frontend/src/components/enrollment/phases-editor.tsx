@@ -1,7 +1,7 @@
 "use client";
 
 import { phaseHasPublicForm } from "~/lib/enrollment-phase-rules";
-import type { CareOfferingSelectionMode } from "~/lib/enrollment-submission-api";
+import type { CareOfferingSelectionMode } from "~/lib/enrollment-phase-api";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   useCallback,

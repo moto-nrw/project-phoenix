@@ -33,7 +33,6 @@ import {
   submitEnrollment,
   type MeProfileChild,
   type MeProfileResponse,
-  type CareOfferingSelectionMode,
   type PublicCareOffering,
   type SubmitChildPayload,
   type SubmitGuardianPayload,
@@ -43,6 +42,7 @@ import {
   type PublicSchoolClassConfig,
   EMPTY_SCHOOL_CLASS_CONFIG,
 } from "~/lib/enrollment-submission-api";
+import type { CareOfferingSelectionMode } from "~/lib/enrollment-phase-api";
 import {
   fetchPublicActiveSchema,
   fetchPublicCaptchaConfig,

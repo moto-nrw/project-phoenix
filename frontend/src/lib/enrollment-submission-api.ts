@@ -14,13 +14,13 @@ import {
   sendEnrollmentRequest,
 } from "~/lib/enrollment-http";
 
-import type { PhaseAudience } from "~/lib/enrollment-phase-api";
+import type {
+  CareOfferingSelectionMode,
+  PhaseAudience,
+} from "~/lib/enrollment-phase-api";
 import type { ChangeRequestStatus, ChildStatus } from "~/lib/enrollment-status";
 
 const logger = createLogger({ component: "EnrollmentSubmissionAPI" });
-
-export type CareOfferingSelectionMode =
-  "optional" | "at_least_one" | "exactly_one";
 
 export interface PublicCareOffering {
   id: string;
