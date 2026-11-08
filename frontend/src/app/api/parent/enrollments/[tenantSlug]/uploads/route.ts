@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import { sendWithTokenRefresh } from "~/lib/token-refresh-retry.server";
 import { canonicalForwardedFor } from "~/lib/client-headers.server";
 import { problemResponse } from "~/lib/api-helpers.server";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
@@ -71,16 +72,11 @@ export const POST = withParentAuth(
         },
       );
     try {
-      let response = await sendUpload(session.user.token);
-      if (response.status === 401) {
-        const refreshed = await uncachedParentAuth();
-        if (
-          refreshed?.user?.token &&
-          refreshed.user.token !== session.user.token
-        ) {
-          response = await sendUpload(refreshed.user.token);
-        }
-      }
+      const response = await sendWithTokenRefresh(
+        session.user.token,
+        sendUpload,
+        () => uncachedParentAuth(),
+      );
       return forwardBackendResponse(response, request);
     } catch (error) {
       captureBffException(error, request);

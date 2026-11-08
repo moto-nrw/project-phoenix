@@ -14,6 +14,7 @@
 
 "use client";
 
+import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { me as meKeys } from "~/lib/swr/me";
 import { rooms as roomsKeys } from "~/lib/swr/rooms";
@@ -25,7 +26,7 @@ import {
   useState,
   type RefObject,
 } from "react";
-import { Check, ExternalLink } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import type { Session } from "next-auth";
@@ -61,6 +62,7 @@ import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled"
 import { createLogger } from "~/lib/logger";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { Checkbox } from "~/components/ui/checkbox";
 import { SectionCard } from "~/components/ui/section-card";
 
 const logger = createLogger({ component: "StudentsInRoomSection" });
@@ -472,12 +474,12 @@ export function StudentsInRoomSection({
     // (Rauminformationen / Belegungshistorie). Section element +
     // aria-label keep the named landmark the tests and a11y tooling expect.
     <section aria-label="Kinder im Raum">
-      <SectionCard overflow="visible">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
-            Kinder im Raum
-          </h2>
-          {totalCount > 0 && (
+      <SectionCard
+        overflow="visible"
+        title="Kinder im Raum"
+        inlineActions
+        action={
+          totalCount > 0 ? (
             <Button
               type="button"
               variant="outline"
@@ -490,23 +492,28 @@ export function StudentsInRoomSection({
               Alle Kinder
               <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
             </Button>
-          )}
-        </div>
+          ) : undefined
+        }
+      >
         <p className="text-sm text-gray-600">
           <span className="font-medium text-gray-900">{totalCount}</span>{" "}
           {totalCount === 1 ? "Kind" : "Kinder"} aktuell anwesend
         </p>
 
         {isTruncated && (
-          <div
-            role="status"
-            className="border-moto-amber/30 bg-moto-amber/10 text-moto-amber-strong mt-3 rounded-lg border p-3 text-sm"
-          >
-            Es werden {students.length} von {totalCount} Kindern angezeigt.{" "}
-            {hiddenCount} weitere{" "}
-            {hiddenCount === 1 ? "Kind ist" : "Kinder sind"} aktuell nicht in
-            dieser Übersicht. Öffnen Sie „Alle Kinder“, um alle zu sehen.
-          </div>
+          <Alert
+            type="warning"
+            announce="polite"
+            className="mt-3"
+            message={
+              <>
+                Es werden {students.length} von {totalCount} Kindern angezeigt.{" "}
+                {hiddenCount} weitere{" "}
+                {hiddenCount === 1 ? "Kind ist" : "Kinder sind"} aktuell nicht
+                in dieser Übersicht. Öffnen Sie „Alle Kinder“, um alle zu sehen.
+              </>
+            }
+          />
         )}
 
         {/* Breathing room between the count + Kindersuche button row and
@@ -896,30 +903,18 @@ function SelectableStudentRow({
   return (
     <ChoiceTile as="div" selected={isSelected} className="gap-2">
       {selectable ? (
-        <button
-          type="button"
-          role="checkbox"
-          aria-checked={isSelected}
-          aria-label={`${fullName} auswählen`}
-          onClick={onToggleSelection}
-          className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
+        <label
+          htmlFor={`room-select-${student.id}`}
+          className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left"
         >
-          <span
-            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border shadow-sm transition-all ${
-              isSelected
-                ? "border-gray-900 bg-gray-900"
-                : "border-gray-300 bg-white"
-            }`}
-            aria-hidden="true"
-          >
-            <Check
-              className={`h-3.5 w-3.5 text-white transition-opacity ${
-                isSelected ? "opacity-100" : "opacity-0"
-              }`}
-            />
-          </span>
+          <Checkbox
+            id={`room-select-${student.id}`}
+            checked={isSelected}
+            aria-label={`${fullName} auswählen`}
+            onChange={onToggleSelection}
+          />
           {studentCard}
-        </button>
+        </label>
       ) : (
         <div className="flex min-w-0 flex-1 items-center gap-3">
           {studentCard}

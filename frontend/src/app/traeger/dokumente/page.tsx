@@ -29,8 +29,8 @@ import { formatBerlinDate } from "~/lib/date-helpers";
 import type { TraegerDocument } from "~/lib/traeger-documents-api";
 import { traegerPath } from "~/lib/traeger-url";
 
-/** Das Recht, das Hochladen und Freigeben öffnet (Verwaltung). */
-const MANAGE_RIGHT = "traeger_enrollment:manage";
+/** Das Recht, das Hochladen und Freigeben öffnet (Rolle Dokumente, #5992). */
+const MANAGE_RIGHT = "traeger_documents:manage";
 
 function columns(schools: SchoolNames): DataTableColumn<TraegerDocument>[] {
   return [
@@ -119,7 +119,7 @@ export default function TraegerDocumentsPage() {
   return (
     <TenantPage
       title="Dokumente"
-      info="Hier teilen Sie vorhandene Dokumente und Listen mit Eltern und Schulen, zum Beispiel eine Hausordnung oder einen Elternbrief. Ein hochgeladenes Dokument sieht noch niemand. Erst wenn Sie es freigeben, finden Eltern es in der Eltern-App und die OGS-Leitung in moto unter „Dateien“."
+      info="Hier teilen Sie vorhandene Dokumente und Listen mit Eltern und Schulen, zum Beispiel eine Hausordnung oder einen Elternbrief. Ein hochgeladenes Dokument sieht noch niemand. Erst wenn Sie es freigeben, finden Eltern es in der Eltern-App und die OGS-Leitung in moto unter „Dateien“. Hochladen, freigeben und löschen darf, wer die Rolle „Dokumente“ hat."
       stats={
         documents.length > 0 ? (
           <span className="flex flex-wrap items-center gap-2">
@@ -180,7 +180,7 @@ export default function TraegerDocumentsPage() {
             description={
               canManage
                 ? "Laden Sie oben ein Dokument hoch. Danach geben Sie es für Eltern oder Schulen frei."
-                : "Sobald die Verwaltung ein Dokument hochlädt, steht es hier."
+                : "Sobald jemand mit der Rolle „Dokumente“ ein Dokument hochlädt, steht es hier."
             }
           />
         }

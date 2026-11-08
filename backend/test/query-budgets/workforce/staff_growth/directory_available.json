@@ -2,5 +2,6 @@
   "scenario": "workforce.staff_growth.directory_available",
   "max": 7,
   "exact": true,
-  "description": "Measured full composed directory request with tenant transaction; positive N=3/N=8, fixtures outside capture."
+  "description": "Measured full composed directory request with tenant transaction; positive N=3/N=8, fixtures outside capture.",
+  "route": "GET /api/staff/available"
 }

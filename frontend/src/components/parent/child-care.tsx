@@ -75,6 +75,7 @@ import {
 import { pickupConcept } from "~/lib/concepts/pickup";
 import { sickConcept } from "~/lib/concepts/sick";
 import { InsetPanel } from "~/components/ui/inset-panel";
+import { SectionLabel } from "~/components/ui/section-label";
 
 const logger = createLogger({ component: "ChildCare" });
 
@@ -903,9 +904,7 @@ export function SickNoteModal({
             {t(kindHint)}
           </InsetPanel>
           <fieldset className="space-y-2">
-            <legend className="text-sm font-medium text-gray-700">
-              {t("sick.periodLabel")}
-            </legend>
+            <SectionLabel as="legend">{t("sick.periodLabel")}</SectionLabel>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <ISODatePicker
                 {...datePicker}
@@ -1526,7 +1525,11 @@ export function PickupTimeModal({
         )}
 
         {pending && (
-          <div className="bg-moto-orange-soft text-moto-orange-strong space-y-2 rounded-lg px-3 py-2.5">
+          <InsetPanel
+            tone="warning"
+            padding="compact"
+            className="text-moto-orange-strong space-y-2"
+          >
             {request.pickup_time && (
               <p className="text-base font-semibold tabular-nums">
                 {request.previous_pickup_time
@@ -1581,7 +1584,7 @@ export function PickupTimeModal({
                 isSelf={request.is_self === true}
               />
             )}
-          </div>
+          </InsetPanel>
         )}
         {request?.status === "approved" && (
           <InsetPanel as="p" framed className="text-sm text-gray-600">

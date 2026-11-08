@@ -64,6 +64,7 @@ import {
 } from "~/components/ui/slide-over";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { SectionLabel } from "~/components/ui/section-label";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { useApiFormError } from "~/contexts/ToastContext";
 
@@ -85,6 +86,7 @@ import {
 } from "./guardian-notice-fields";
 import type { GuardianNoticeReach } from "~/lib/timetable-types";
 import { substitutionConcept } from "~/lib/concepts/substitution";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { InsetPanel } from "~/components/ui/inset-panel";
 
 interface StaffOption {
@@ -617,12 +619,13 @@ export function SubstitutionSlideOver({
                     blendet die Besetzungs-Kontrollen aus (R3 Schwäche 8). */}
                 {canEdit && (
                   <fieldset className="space-y-2">
-                    <legend className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                    <legend className="text-sm font-medium text-gray-700">
                       Aktion
                     </legend>
-                    <label
+                    <ChoiceTile
                       htmlFor="vp-action-edit"
-                      className="moto-content-surface flex items-start gap-2 rounded-xl border p-3"
+                      selected={!cancel}
+                      className="items-start gap-2 p-3 font-normal"
                     >
                       <Radio
                         id="vp-action-edit"
@@ -639,10 +642,11 @@ export function SubstitutionSlideOver({
                           pflegen.
                         </span>
                       </span>
-                    </label>
-                    <label
+                    </ChoiceTile>
+                    <ChoiceTile
                       htmlFor="vp-action-cancel"
-                      className="moto-content-surface flex items-start gap-2 rounded-xl border p-3"
+                      selected={cancel}
+                      className="items-start gap-2 p-3 font-normal"
                     >
                       <Radio
                         id="vp-action-cancel"
@@ -659,7 +663,7 @@ export function SubstitutionSlideOver({
                           unverändert.
                         </span>
                       </span>
-                    </label>
+                    </ChoiceTile>
                   </fieldset>
                 )}
 
@@ -667,9 +671,7 @@ export function SubstitutionSlideOver({
                     gewählt ist. */}
                 {!cancel && (
                   <section className="space-y-2">
-                    <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                      Personal
-                    </h3>
+                    <SectionLabel>Personal</SectionLabel>
                     {plannedStaff.length === 0 ? (
                       <InsetPanel framed padding="tight">
                         <EmptyState
@@ -737,9 +739,7 @@ export function SubstitutionSlideOver({
 
                     {substitutes.length > 0 && (
                       <div className="space-y-1 pt-1">
-                        <h4 className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
-                          Aktuelle Vertretung
-                        </h4>
+                        <SectionLabel as="h4">Aktuelle Vertretung</SectionLabel>
                         {canEdit && (
                           <p className="mt-1 text-[11px] leading-5 text-gray-500">
                             „Entfernen“ löscht die Vertretung nur aus diesem
@@ -872,9 +872,7 @@ export function SubstitutionSlideOver({
                 {/* Bewusst unbesetzt (Zweig A) */}
                 {canEdit && !cancel && (
                   <section className="space-y-2">
-                    <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                      Block
-                    </h3>
+                    <SectionLabel>Block</SectionLabel>
                     <InsetPanel tone="white" className="space-y-3">
                       <label
                         htmlFor="vp-unstaffed"
@@ -917,9 +915,7 @@ export function SubstitutionSlideOver({
                 {/* Absage (Zweig B) */}
                 {canEdit && cancel && (
                   <section className="space-y-2">
-                    <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                      Absage
-                    </h3>
+                    <SectionLabel>Absage</SectionLabel>
                     <p className="text-xs leading-5 text-gray-500">
                       Der Termin wird abgesagt. Abwesenheit, Ersatz und „bewusst
                       unbesetzt“ sind dabei ohne Wirkung.

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
 	careContractCompose "github.com/moto-nrw/project-phoenix/modules/carecontract/compose"
@@ -18,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	parentBillingCompose "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -52,7 +52,7 @@ func NewParentBillingDocuments() parentportal.BillingDocumentsPort {
 }
 
 func (d parentBillingDocuments) ListBillingDocuments(ctx context.Context, organizationID int64, reader parentportal.BillingDocumentReader) ([]parentportal.BillingDocument, error) {
-	found, err := d.documents.ListParentDocuments(ctx, organizationID, parentbilling.ParentDocumentReader{AccountID: reader.AccountID, Email: reader.Email})
+	found, err := d.documents.ListParentDocuments(ctx, organizationID, parentBillingReader(reader))
 	if errors.Is(err, parentbilling.ErrParentDocumentNotFound) {
 		return nil, nil
 	}
@@ -71,7 +71,7 @@ func (d parentBillingDocuments) ListBillingDocuments(ctx context.Context, organi
 }
 
 func (d parentBillingDocuments) BillingDocumentLetter(ctx context.Context, organizationID, documentID int64, reader parentportal.BillingDocumentReader) (parentportal.BillingDocumentFile, error) {
-	file, err := d.documents.ParentDocumentLetter(ctx, organizationID, documentID, parentbilling.ParentDocumentReader{AccountID: reader.AccountID, Email: reader.Email})
+	file, err := d.documents.ParentDocumentLetter(ctx, organizationID, documentID, parentBillingReader(reader))
 	if errors.Is(err, parentbilling.ErrParentDocumentNotFound) {
 		return parentportal.BillingDocumentFile{}, fmt.Errorf("%w: %w", parentportal.ErrBillingDocumentNotFound, err)
 	}
@@ -107,9 +107,10 @@ func (d parentContractDocuments) ListContractDocuments(ctx context.Context, orga
 	for i, contract := range found {
 		documents[i] = parentportal.BillingDocument{
 			ID: contract.ID, OrganizationID: organizationID, Kind: parentportal.DocumentKindContract,
-			Number: "Nr. " + strconv.FormatInt(contract.ID, 10), PeriodName: strings.Join(contract.ModuleNames, ", ") + " · " + contract.SchoolName,
+			Number: "Nr. " + strconv.FormatInt(contract.ID, 10), PeriodName: contract.ModulesText + " · " + contract.SchoolName,
 			ServiceFrom: contract.EffectiveOn, ChildNames: contract.ChildNames, SentAt: contract.SentAt,
 			ContractStatus: contract.Status, SignedAt: contract.SignedAt, CanSign: contract.CanSign, Replaced: contract.Replaced,
+			EndsOn: contract.EndsOn, CanEndContract: contract.CanEnd,
 		}
 	}
 	return documents, nil
@@ -123,7 +124,7 @@ func (d parentContractDocuments) ContractDocumentFile(ctx context.Context, organ
 	if err != nil {
 		return parentportal.BillingDocumentFile{}, err
 	}
-	return parentportal.BillingDocumentFile(file), nil
+	return parentportal.BillingDocumentFile{Filename: file.Filename, ContentType: file.ContentType, Data: file.Data}, nil
 }
 
 // parentSchoolTraeger binds the Träger of a school to Organisation &
@@ -205,29 +206,49 @@ type DocumentNotificationPreferences interface {
 	FilterOptedIn(ctx context.Context, notificationType string, accountIDs []int64) ([]int64, error)
 }
 
-// parentDocumentNotifier sends the push that a document arrived through the
+// ParentDocumentNotifier sends the push that a document arrived through the
 // school's notification router: only with the parent's consent, in the
-// parent's language, naming no child and no amount.
-type parentDocumentNotifier struct {
+// parent's language, naming no child and no amount. It serves the letters'
+// port and, for a contract or a release (#5941), the one that reports
+// whether a push went out.
+type ParentDocumentNotifier struct {
 	notifications deliveryPolicy.NotificationCommands
 	preferences   DocumentNotificationPreferences
 }
 
+var (
+	_ parentportal.BillingDocumentNotifierPort = ParentDocumentNotifier{}
+	_ parentportal.TraegerDocumentNotifierPort = ParentDocumentNotifier{}
+)
+
 // NewParentDocumentNotifier binds the push of the inbox to Delivery.
-func NewParentDocumentNotifier(notifications deliveryPolicy.NotificationCommands, preferences DocumentNotificationPreferences) parentportal.BillingDocumentNotifierPort {
-	return parentDocumentNotifier{notifications: notifications, preferences: preferences}
+func NewParentDocumentNotifier(notifications deliveryPolicy.NotificationCommands, preferences DocumentNotificationPreferences) ParentDocumentNotifier {
+	return ParentDocumentNotifier{notifications: notifications, preferences: preferences}
 }
 
-func (n parentDocumentNotifier) NotifyBillingDocument(ctx context.Context, push parentportal.BillingDocumentPush) error {
+func (n ParentDocumentNotifier) NotifyBillingDocument(ctx context.Context, push parentportal.BillingDocumentPush) error {
+	_, err := n.NotifyTraegerDocument(ctx, push)
+	return err
+}
+
+// NotifyTraegerDocument sends the push of any document kind (#5941) and
+// tells whether a device push was enqueued at the school. Without consent,
+// with notifications switched off at the school or outside its active window
+// none is.
+func (n ParentDocumentNotifier) NotifyTraegerDocument(ctx context.Context, push parentportal.BillingDocumentPush) (bool, error) {
 	optedIn, err := n.preferences.FilterOptedIn(ctx, parentBillingDocumentType, []int64{push.AccountID})
 	if err != nil || len(optedIn) == 0 {
-		return err
+		return false, err
+	}
+	keyPrefix, relatedType, err := documentPushIdentity(push.Kind)
+	if err != nil {
+		return false, err
 	}
 	title, body := deliveryPolicy.ParentDeliveryPolicy{}.ParentBillingDocumentCopy(push.Locale)
-	_, err = n.notifications.NotifyEventDurably(ctx, deliveryPolicy.NotificationEvent{
+	accepted, err := n.notifications.NotifyEventDurably(ctx, deliveryPolicy.NotificationEvent{
 		Type:           parentBillingDocumentType,
-		IdempotencyKey: fmt.Sprintf("parent-billing-document:%d:%d", push.DocumentID, push.AccountID),
-		RelatedType:    parentbilling.PushRelatedBillingDocument, RelatedID: push.DocumentID,
+		IdempotencyKey: fmt.Sprintf("%s:%d:%d", keyPrefix, push.DocumentID, push.AccountID),
+		RelatedType:    relatedType, RelatedID: push.DocumentID,
 		Audience: deliveryPolicy.NotificationAudience{
 			TenantID: push.TenantID, Scope: "guardian", GuardianAccountIDs: optedIn, StudentIDs: push.StudentIDs,
 		},
@@ -235,9 +256,9 @@ func (n parentDocumentNotifier) NotifyBillingDocument(ctx context.Context, push 
 	})
 	policy := deliveryPolicy.ParentDeliveryPolicy{}
 	if policy.IsNotificationsDisabled(err) || policy.IsOutsideActiveWindow(err) {
-		return nil
+		return false, nil
 	}
-	return err
+	return accepted > 0 && err == nil, err
 }
 
 // parentDocumentPushes routes the Träger's deferred push that a document
@@ -267,28 +288,34 @@ func (p parentDocumentPushes) send(ctx context.Context, intent deliveryContract.
 // administrative lookup; Delivery's module gate still drops the push of a
 // school that does not book the Eltern-App.
 func BuildParentDocumentNotices(
-	env RootEnvironment, portal carePlanCompose.ParentPortalRepositories, organizations organizationtenancy.Query,
-	identity identityaccess.GuardianAccessQuery, people PeopleRows, notifications DeliveryNotifications,
+	db transactionruntime.Database, env RootEnvironment, portal carePlanCompose.ParentPortalRepositories, organizations organizationtenancy.Query,
+	identity identityaccess.GuardianAccessQuery, people PeopleRows, notifications DeliveryNotifications, outbox DeferredPushOutbox,
 ) parentportal.DocumentNotices {
+	notifier := NewParentDocumentNotifier(notifications.Notifier, notifications.Preferences)
 	return parentportalcompose.NewDocumentNotices(parentportalcompose.Dependencies{
 		Runtime: ParentPortalRuntime{}, ChildRepo: NewParentChildReads(carePlanCompose.NewParentChildQueries(portal.ParentChild, securityruntime.GuardianPermissionGranted)),
 		SchoolTraeger: NewParentSchoolTraeger(organizations), ParentAccounts: NewParentAccounts(identity),
 		GuardianProfileRepo: NewParentGuardianProfileReads(people.GuardianProfiles),
-		DocumentNotifier:    NewParentDocumentNotifier(notifications.Notifier, notifications.Preferences),
-		Logger:              env.Logger.With("service", "parent-document-notices"),
+		DocumentNotifier:    notifier, TraegerRuntime: ParentPortalRuntime{}, StudentRepo: NewParentStudentReads(people.Students),
+		Logger: env.Logger.With("service", "parent-document-notices"),
+	}, parentportal.DocumentPushPorts{
+		// The pushes of a sent contract and of a release (#5941).
+		ContractInboxNotices: NewParentContractInboxNotices(), ReleaseNotices: NewParentReleaseNotices(),
+		ReleaseSchools: NewParentReleaseSchools(organizations), ReleaseRecipients: NewParentReleaseRecipients(NewParentGroupAudience(db)),
+		ReleaseFanOut: ParentReleaseFanOut{Delivery: outbox}, TraegerDocumentNotifier: notifier,
 	})
 }
 
 // deferredPushes routes a claimed deferred push by its kind: the Träger's
-// push of a new document to the parents portal, every other kind to the
-// appointment reminders.
+// pushes of a new document (a letter, a contract, a release) to the parents
+// portal, every other kind to the appointment reminders.
 func deferredPushes(reminders func(context.Context, deliveryContract.ClaimedIntent) error, documents parentportal.DocumentNotices) func(context.Context, deliveryContract.ClaimedIntent) error {
 	return func(ctx context.Context, intent deliveryContract.ClaimedIntent) error {
-		if intent.Template == parentbilling.PushKindBillingDocument {
+		if isTraegerDocumentPush(intent.Template) {
 			if documents == nil {
 				return errors.New("delivery: document notices are not configured")
 			}
-			return parentDocumentPushes{notices: documents}.send(ctx, intent)
+			return parentDocumentPushes{notices: documents}.route(ctx, intent)
 		}
 		if reminders == nil {
 			return errors.New("delivery: deferred push dispatcher is not configured")
@@ -329,4 +356,17 @@ func parentSigningView(view carecontract.SigningView, err error) (parentportal.C
 		return nil, fmt.Errorf("encode contract signing view: %w", err)
 	}
 	return encoded, nil
+}
+
+// parentBillingReader passes the account with the children whose
+// relationship grants it the inbox now, so a monthly letter shows only for
+// its own child (ADR 0126 point 2, ADR 0165).
+func parentBillingReader(reader parentportal.BillingDocumentReader) parentbilling.ParentDocumentReader {
+	children := make([]parentbilling.ParentDocumentChild, 0)
+	for schoolID, students := range reader.Children {
+		for _, studentID := range students {
+			children = append(children, parentbilling.ParentDocumentChild{SchoolID: schoolID, StudentID: studentID})
+		}
+	}
+	return parentbilling.ParentDocumentReader{AccountID: reader.AccountID, Email: reader.Email, Children: children}
 }

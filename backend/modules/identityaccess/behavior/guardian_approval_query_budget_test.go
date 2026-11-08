@@ -40,5 +40,5 @@ func TestPendingGuardianApprovalsQueryBudget(t *testing.T) {
 	add(3, 8)
 	large := run()
 	assert.Equal(t, len(small), len(large))
-	querybudgets.AssertQueryBudget(t, "services.auth.pending_guardian_approvals.reads", large)
+	querybudgets.AssertQueryBudget(t, "services.auth.pending_guardian_approvals.reads", counter.Measurement(large))
 }

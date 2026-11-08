@@ -39,9 +39,6 @@ import { traegerPath } from "~/lib/traeger-url";
 const logger = createLogger({ component: "TraegerLoginPage" });
 
 const SHELL_COPY = {
-  eyebrow: "Träger-Portal",
-  // Akzentfarbe wie die Eyebrow des Schul-Logins (#5145).
-  eyebrowClassName: "text-moto-blue",
   title: "Willkommen im Träger-Portal",
   subtitle: "Melden Sie sich mit Ihrem moto-Konto an.",
 } as const;
@@ -206,7 +203,7 @@ function LoginForm() {
   if (status === "loading") {
     return (
       <AuthShell {...SHELL_COPY} variant="tenant" brand={<MotoBrand />}>
-        <Loading fullPage={false} message="Sitzung wird überprüft …" />
+        <Loading message="Sitzung wird überprüft …" />
       </AuthShell>
     );
   }
@@ -402,7 +399,7 @@ export default function TraegerLoginPage() {
     <Suspense
       fallback={
         <AuthShell {...SHELL_COPY} variant="tenant" brand={<MotoBrand />}>
-          <Loading fullPage={false} message="Laden …" />
+          <Loading message="Laden …" />
         </AuthShell>
       }
     >

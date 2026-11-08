@@ -7,6 +7,8 @@ import {
   useRef,
   useState,
 } from "react";
+import { InsetPanel } from "~/components/ui/inset-panel";
+import { SectionCard } from "~/components/ui/section-card";
 import { ArrowRight, Check, Mail, UserRound, X } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
@@ -234,9 +236,9 @@ export function AdminEnrollmentChangeRequestDetail({
         </div>
       }
     >
-      <section className="moto-content-surface overflow-hidden rounded-2xl border">
+      <SectionCard padding="none">
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_420px]">
-          <div className="space-y-5 p-5 sm:p-6">
+          <div className="space-y-5 p-5 max-sm:p-4">
             <p className="text-sm leading-6 text-gray-600">
               {data.origin === "admin"
                 ? "Diese Korrektur wurde direkt an der Anmeldung vorgenommen, in die verknüpften Stammdaten übernommen und protokolliert."
@@ -258,12 +260,9 @@ export function AdminEnrollmentChangeRequestDetail({
             {data.origin === "parent" ? <MessageThread request={data} /> : null}
           </div>
 
-          <aside className="border-t border-gray-100 bg-gray-50/70 p-5 sm:p-6 lg:border-t-0 lg:border-l">
+          <aside className="border-t border-gray-100 bg-gray-50/70 p-5 max-sm:p-4 lg:border-t-0 lg:border-l">
             <div className="space-y-4 lg:sticky lg:top-6">
-              <section className="moto-content-surface rounded-2xl border p-4">
-                <h2 className="text-base font-semibold text-gray-900">
-                  Anmeldung
-                </h2>
+              <SectionCard title="Anmeldung" bodyClassName="">
                 {request ? (
                   <>
                     <p className="mt-1 text-sm font-semibold text-gray-900">
@@ -300,13 +299,10 @@ export function AdminEnrollmentChangeRequestDetail({
                   Anmeldung öffnen
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </ButtonLink>
-              </section>
+              </SectionCard>
 
               {data.origin === "parent" ? (
-                <section className="moto-content-surface rounded-2xl border p-4">
-                  <h2 className="text-base font-semibold text-gray-900">
-                    Rückfrage
-                  </h2>
+                <SectionCard title="Rückfrage" bodyClassName="">
                   <FormErrorAlert
                     message={questionErrors.error}
                     className="mt-3"
@@ -337,14 +333,11 @@ export function AdminEnrollmentChangeRequestDetail({
                     />
                     {busy === "question" ? "Sendet…" : "Rückfrage senden"}
                   </Button>
-                </section>
+                </SectionCard>
               ) : null}
 
               {data.origin === "parent" ? (
-                <section className="moto-content-surface rounded-2xl border p-4">
-                  <h2 className="text-base font-semibold text-gray-900">
-                    Entscheidung
-                  </h2>
+                <SectionCard title="Entscheidung" bodyClassName="">
                   <FormErrorAlert
                     message={reviewErrors.error}
                     className="mt-3"
@@ -392,12 +385,12 @@ export function AdminEnrollmentChangeRequestDetail({
                       Prüfung wartet.
                     </p>
                   ) : null}
-                </section>
+                </SectionCard>
               ) : null}
             </div>
           </aside>
         </div>
-      </section>
+      </SectionCard>
     </TenantPage>
   );
 }
@@ -408,27 +401,34 @@ function ChangeSummary({
   readonly request: AdminEnrollmentChangeRequest;
 }) {
   return (
-    <section className="moto-content-surface space-y-4 rounded-2xl border p-4 sm:p-6">
-      <div>
-        <h2 className="text-base font-semibold text-gray-900">
-          {request.origin === "admin"
-            ? "Protokollierte OGS-Korrektur"
-            : "Eingereichte Korrektur"}
-        </h2>
-      </div>
-
+    <SectionCard
+      title={
+        request.origin === "admin"
+          ? "Protokollierte OGS-Korrektur"
+          : "Eingereichte Korrektur"
+      }
+      bodyClassName="mt-4 space-y-4"
+    >
       {request.parent_note ? (
-        <div className="rounded-xl border border-gray-100 bg-gray-50/70 px-3 py-2 text-sm leading-6 text-gray-700">
+        <InsetPanel
+          framed
+          padding="compact"
+          className="text-sm leading-6 text-gray-700"
+        >
           <span className="font-semibold">Hinweis der Eltern: </span>
           {request.parent_note}
-        </div>
+        </InsetPanel>
       ) : null}
 
       {request.origin === "admin" && request.admin_decision_note ? (
-        <div className="rounded-xl border border-gray-100 bg-gray-50/70 px-3 py-2 text-sm leading-6 text-gray-700">
+        <InsetPanel
+          framed
+          padding="compact"
+          className="text-sm leading-6 text-gray-700"
+        >
           <span className="font-semibold">Grund: </span>
           {request.admin_decision_note}
-        </div>
+        </InsetPanel>
       ) : null}
 
       <EnrollmentChangeRequestDiff
@@ -436,7 +436,7 @@ function ChangeSummary({
         proposedSnapshot={request.proposed_snapshot}
         diff={request.diff}
       />
-    </section>
+    </SectionCard>
   );
 }
 
@@ -448,10 +448,7 @@ function MessageThread({
   const messages = request.messages ?? [];
 
   return (
-    <section className="moto-content-surface space-y-4 rounded-2xl border p-4 sm:p-6">
-      <div>
-        <h2 className="text-base font-semibold text-gray-900">Nachrichten</h2>
-      </div>
+    <SectionCard title="Nachrichten" bodyClassName="mt-4 space-y-4">
       {messages.length === 0 ? (
         <EmptyState
           variant="compact"
@@ -461,10 +458,7 @@ function MessageThread({
       ) : (
         <ol className="space-y-3">
           {messages.map((message) => (
-            <li
-              key={message.id}
-              className="rounded-xl border border-gray-100 bg-gray-50/70 px-3 py-2"
-            >
+            <InsetPanel as="li" framed padding="compact" key={message.id}>
               <p className="text-xs font-semibold text-gray-500">
                 {messageAuthorLabel(message.author_type)} ·{" "}
                 {formatChatDateTime(message.created_at)}
@@ -472,17 +466,21 @@ function MessageThread({
               <p className="mt-1 text-sm leading-6 whitespace-pre-wrap text-gray-700">
                 {message.body}
               </p>
-            </li>
+            </InsetPanel>
           ))}
         </ol>
       )}
       {request.admin_decision_note ? (
-        <div className="rounded-xl border border-gray-100 bg-gray-50/70 px-3 py-2 text-sm leading-6 text-gray-700">
+        <InsetPanel
+          framed
+          padding="compact"
+          className="text-sm leading-6 text-gray-700"
+        >
           <span className="font-semibold">Entscheidung: </span>
           {request.admin_decision_note}
-        </div>
+        </InsetPanel>
       ) : null}
-    </section>
+    </SectionCard>
   );
 }
 

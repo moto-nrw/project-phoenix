@@ -17,6 +17,7 @@ import {
   suggestExpiry,
   type QualificationType,
 } from "~/lib/staff-qualification-api";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 // Feldgruppen der Stammdaten (#1423). Sie sind reine Eingabeflächen ohne
 // eigenen Speichern-Knopf: der Reiter hat EINEN Bearbeiten-Zustand mit EINEM
@@ -451,7 +452,7 @@ export function QualifikationenFields({
           // Die Zeilen sind positionsgebunden (die Liste wird komplett
           // ersetzt); der Index ist die Identität.
           // eslint-disable-next-line react/no-array-index-key
-          <div key={index} className="rounded-xl bg-gray-50 p-3">
+          <InsetPanel key={index}>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto]">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <SelectField
@@ -502,7 +503,7 @@ export function QualifikationenFields({
                 />
               </div>
             </div>
-          </div>
+          </InsetPanel>
         ))}
       </div>
       <Button

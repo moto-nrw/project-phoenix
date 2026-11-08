@@ -45,8 +45,6 @@ const logger = createLogger({ component: "CatererLoginPage" });
 // Wie die anderen Anmeldungen: der Portalname klein darüber, die Begrüßung
 // als Titel.
 const SHELL_COPY = {
-  eyebrow: "Caterer-Portal",
-  eyebrowClassName: "text-moto-blue",
   title: "Willkommen im Caterer-Portal",
   subtitle: "Melden Sie sich mit Ihrem Caterer-Konto an.",
 } as const;
@@ -238,7 +236,7 @@ function LoginForm() {
             onCancel={backToCredentials}
           />
         ) : isCheckingAuth ? (
-          <Loading fullPage={false} message="Anmeldung wird geprüft …" />
+          <Loading message="Anmeldung wird geprüft …" />
         ) : (
           <form
             ref={formRef}
@@ -361,7 +359,7 @@ export default function CatererLoginPage() {
     <Suspense
       fallback={
         <AuthShell {...SHELL_COPY} variant="tenant" brand={<MotoBrand />}>
-          <Loading fullPage={false} message="Anmeldung wird vorbereitet …" />
+          <Loading message="Anmeldung wird vorbereitet …" />
         </AuthShell>
       }
     >

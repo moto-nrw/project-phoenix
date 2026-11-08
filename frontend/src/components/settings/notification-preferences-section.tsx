@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { SectionLabel } from "~/components/ui/section-label";
 import { Check } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Alert } from "~/components/ui/alert";
@@ -14,7 +15,7 @@ import { Button } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Skeleton } from "~/components/ui/skeleton";
 import { SectionCard } from "~/components/ui/section-card";
-import { BooleanField } from "~/components/settings/fields/boolean-field";
+import { Switch } from "~/components/ui/switch";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { LOCATION_COLORS } from "~/lib/location-helper";
@@ -395,9 +396,9 @@ function NotificationPreferencesSectionContent({
         <div className="space-y-5">
           {groups.map(({ group, label, items }) => (
             <div key={group}>
-              <h4 className="mb-2 text-xs font-semibold tracking-wide text-gray-500 uppercase">
+              <SectionLabel as="h4" className="mb-2">
                 {label}
-              </h4>
+              </SectionLabel>
               <div className="divide-y divide-gray-100">
                 {items.map((type) => (
                   <div
@@ -426,9 +427,9 @@ function NotificationPreferencesSectionContent({
                         </p>
                       )}
                     </div>
-                    <BooleanField
-                      value={type.enabled}
-                      onChange={(next) => void toggle(type, next)}
+                    <Switch
+                      checked={type.enabled}
+                      onCheckedChange={(next) => void toggle(type, next)}
                       disabled={busy}
                       ariaLabel={
                         isParentPortal && PARENT_TYPES.has(type.key)

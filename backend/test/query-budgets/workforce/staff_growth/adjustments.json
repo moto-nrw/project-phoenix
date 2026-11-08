@@ -1,6 +1,7 @@
 {
   "scenario": "workforce.staff_growth.adjustments",
-  "max": 6,
+  "max": 5,
   "exact": true,
-  "description": "Measured full resource request with tenant transaction; positive N=3/N=8 records, fixture SQL outside capture."
+  "description": "Measured full resource request with tenant transaction; positive N=3/N=8 records, fixture SQL outside capture.",
+  "route": "GET /api/staff/{id}/time-tracking/adjustments"
 }

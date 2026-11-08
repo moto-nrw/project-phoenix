@@ -52,6 +52,8 @@ import {
 } from "./arbeitszeit-hours";
 import { SonderarbeitszeitenSection } from "./sonderarbeitszeiten-section";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
+import { InsetPanel } from "~/components/ui/inset-panel";
+import { SectionLabel } from "~/components/ui/section-label";
 
 export {
   formatDecimalHours,
@@ -228,7 +230,7 @@ export function ArbeitszeitmodellTab({
                   const minutes = entry?.targetMinutes ?? 0;
                   return (
                     <div key={d} className="space-y-0.5">
-                      <div className="text-xs tracking-wider text-gray-400 uppercase">
+                      <div className="text-xs text-gray-500">
                         {dayLabels[d]}
                       </div>
                       <div
@@ -357,17 +359,14 @@ function FourWeekPreview({
         {weeks.map((week) => {
           const badge = WEEK_BADGE_LETTERS[week.weekIndex] ?? "?";
           return (
-            <div
+            <InsetPanel
               key={toDateKey(week.monday)}
-              className={`flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 ${
-                week.isCurrent
-                  ? "border-moto-orange/40 bg-moto-orange-soft shadow-sm"
-                  : "moto-content-surface"
-              }`}
+              tone={week.isCurrent ? "warning" : "white"}
+              className="flex flex-wrap items-center gap-3"
             >
-              <span className="w-16 text-xs font-semibold tracking-wider text-gray-500 uppercase">
+              <SectionLabel as="p" className="w-16">
                 {week.label}
-              </span>
+              </SectionLabel>
               {schedule.rotationLength > 1 && (
                 <StatusBadge tone="gray" label={`Woche ${badge}`} />
               )}
@@ -400,7 +399,7 @@ function FourWeekPreview({
               <span className="ml-auto text-sm font-bold text-gray-700 tabular-nums">
                 {week.total === null ? pending : formatDuration(week.total)}
               </span>
-            </div>
+            </InsetPanel>
           );
         })}
       </div>
@@ -759,10 +758,10 @@ function TemplateSelector({
 }) {
   if (templates.length === 0) {
     return (
-      <p className="rounded-xl bg-gray-50 px-3 py-2 text-xs text-gray-500">
+      <InsetPanel as="p" padding="compact" className="text-xs text-gray-500">
         Es gibt noch keine Vorlagen. Wählen Sie „Eigenes Modell“ und speichern
         Sie das Modell dort als Vorlage.
-      </p>
+      </InsetPanel>
     );
   }
   const selected = templates.find((t) => t.id === selectedId);
@@ -792,7 +791,7 @@ function TemplateSelector({
 
 function TemplatePreviewBlock({ model }: { readonly model: WorkTimeModel }) {
   return (
-    <div className="rounded-2xl border border-gray-100 bg-gray-50/50 px-4 py-3">
+    <InsetPanel framed padding="md">
       <p className="text-xs text-gray-500">
         {model.rotationLength > 1
           ? `${model.rotationLength}-Wochen-Rotation`
@@ -833,7 +832,7 @@ function TemplatePreviewBlock({ model }: { readonly model: WorkTimeModel }) {
           );
         })}
       </div>
-    </div>
+    </InsetPanel>
   );
 }
 

@@ -64,6 +64,14 @@ func (f *fakeMembership) ListStaff(_ context.Context, filter schoolmembership.St
 		if staff.IsDeleted() && !filter.IncludeDeleted {
 			continue
 		}
+		if filter.MembershipOnly {
+			staff.StaffNotes = ""
+			staff.EmploymentType = nil
+			staff.WorkTimeModelID = nil
+			staff.PersonnelNumber = nil
+			staff.RotationAnchorDate = ""
+			staff.BirthdayDisplayOptOut = false
+		}
 		result = append(result, staff)
 	}
 	sortByID(result)
@@ -248,6 +256,12 @@ func newHarness(t *testing.T, membership *fakeMembership) *harness {
 				return staffHTTP.Person{}, errors.New("person not found")
 			}
 			return person, nil
+		},
+		PersonAccountID: func(_ context.Context, id int64) (*int64, error) {
+			if h.personErr != nil {
+				return nil, h.personErr
+			}
+			return h.persons[id].AccountID, nil
 		},
 		PersonNotFound: func(err error) bool { return err.Error() == "person not found" },
 		Persons: func(_ context.Context, ids []int64) ([]staffHTTP.Person, error) {

@@ -1,6 +1,7 @@
 {
   "scenario": "communication18.recipients.n3",
-  "max": 9,
+  "max": 7,
   "exact": true,
-  "description": "Literal protected staff parent-announcement recipients route. N3/N8 real parent/child audience memberships. Complete transaction plus actual settings, audience and delivery owners; foreign-tenant and missing-auth checks. Measured fixture contract, not a global minimum."
+  "description": "Literal protected staff parent-announcement recipients route. N3/N8 real parent/child audience memberships. Complete transaction plus actual settings, audience and delivery owners; foreign-tenant and missing-auth checks. Measured fixture contract, not a global minimum.",
+  "route": "GET /api/parent-announcements/{announcementId}/recipients"
 }

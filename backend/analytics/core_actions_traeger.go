@@ -96,6 +96,24 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	// Träger as well.
 	{http.MethodPost, "/traeger/billing-runs/{id}/documents/{documentID}/cancellation"}: notCaptured,
 	{http.MethodPost, "/traeger/billing-runs/{id}/documents/{documentID}/credits"}:      notCaptured,
+	// The monthly contribution of the care contract (#4684): the price list
+	// and the monthly runs of a Träger, no school to count it for.
+	{http.MethodPut, "/traeger/care-tariffs/"}:                          notCaptured,
+	{http.MethodDelete, "/traeger/care-tariffs/{schoolID}/{validFrom}"}: notCaptured,
+	{http.MethodPost, "/traeger/care-billing-runs/"}:                    notCaptured,
+	{http.MethodPost, "/traeger/care-billing-runs/{id}/release"}:        notCaptured,
+	{http.MethodPost, "/traeger/care-rules/"}:                           notCaptured,
+	{http.MethodPut, "/traeger/care-rules/{id}"}:                        notCaptured,
+	{http.MethodDelete, "/traeger/care-rules/{id}"}:                     notCaptured,
+	{http.MethodPost, "/traeger/care-evidences/"}:                       notCaptured,
+	{http.MethodPut, "/traeger/care-evidences/{id}"}:                    notCaptured,
+	{http.MethodDelete, "/traeger/care-evidences/{id}"}:                 notCaptured,
+	// The letters, mails and Storno of a monthly run (#4684, ADR 0165).
+	{http.MethodPost, "/traeger/care-billing-runs/{id}/letters"}:                           notCaptured,
+	{http.MethodPost, "/traeger/care-billing-runs/{id}/letters/preview"}:                   notCaptured,
+	{http.MethodPost, "/traeger/care-billing-runs/{id}/letters/mail"}:                      notCaptured,
+	{http.MethodPost, "/traeger/care-billing-runs/{id}/invoices/{invoiceID}/mail"}:         notCaptured,
+	{http.MethodPost, "/traeger/care-billing-runs/{id}/invoices/{invoiceID}/cancellation"}: notCaptured,
 	// The care contracts and their templates (#4678, ADR 0153) belong to
 	// the Träger, not to a school.
 	{http.MethodPost, "/traeger/contracts/"}:       notCaptured,
@@ -104,6 +122,13 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	// The paper contract (#4679) is recorded by the office, no core action.
 	{http.MethodPost, "/traeger/contracts/{id}/paper-signature"}:            notCaptured,
 	{http.MethodPut, "/traeger/contract-templates/{schoolId}/{offeringId}"}: notCaptured,
+	// Withdrawal and termination (#4682): the Träger-Büro records a
+	// declaration it received and sets the end of an extraordinary
+	// termination it checked; the parents' own one in the parents portal.
+	{http.MethodPost, "/traeger/contract-notices/{id}"}:                                      notCaptured,
+	{http.MethodPut, "/traeger/contract-notices/{id}/ends-on"}:                               notCaptured,
+	{http.MethodPost, "/traeger/contract-notices/{id}/reason-rejection"}:                     notCaptured,
+	{http.MethodPost, "/parent/me/documents/{organizationId}/contracts/{contractId}/notice"}: notCaptured,
 }
 
 func init() {

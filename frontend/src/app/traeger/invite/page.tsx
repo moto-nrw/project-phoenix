@@ -44,9 +44,6 @@ import { Button } from "~/components/ui/button";
 const logger = createLogger({ component: "TraegerInvitePage" });
 
 const SHELL_COPY = {
-  eyebrow: "Träger-Portal",
-  // Akzentfarbe wie die Eyebrow des Schul-Logins (#5145).
-  eyebrowClassName: "text-moto-blue",
   title: "Einladung ins Träger-Büro",
   subtitle: "Nehmen Sie die Einladung an. Danach melden Sie sich an.",
 } as const;
@@ -271,7 +268,7 @@ function InviteContent() {
   }, [load]);
 
   if (loading) {
-    return <Loading fullPage={false} message="Einladung wird geprüft …" />;
+    return <Loading message="Einladung wird geprüft …" />;
   }
   if (invitationLoad.error || !invitation) {
     return (
@@ -286,7 +283,7 @@ function InviteContent() {
 export default function TraegerInvitePage() {
   return (
     <AuthShell {...SHELL_COPY} variant="tenant" brand={<MotoBrand />}>
-      <Suspense fallback={<Loading fullPage={false} message="Laden …" />}>
+      <Suspense fallback={<Loading message="Laden …" />}>
         <InviteContent />
       </Suspense>
     </AuthShell>

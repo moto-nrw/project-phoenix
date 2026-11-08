@@ -78,6 +78,24 @@ func groupStudentEnrollments(ctx context.Context, enrollments timetable.StudentE
 	if err != nil || len(rows) == 0 {
 		return rows, err
 	}
+	return nameStudentEnrollments(ctx, directories, rows)
+}
+
+// groupsStudentEnrollments lists the enrollments of several groups by their
+// start, each with the child's alumni state and name; no groups list nothing.
+func groupsStudentEnrollments(ctx context.Context, enrollments timetable.StudentEnrollmentQuery, directories ports.RepositoryDirectories, groupIDs []int64) ([]*activityContract.StudentEnrollment, error) {
+	if len(groupIDs) == 0 {
+		return []*activityContract.StudentEnrollment{}, nil
+	}
+	rows, err := listLegacyStudentEnrollments(ctx, enrollments, timetable.StudentEnrollmentFilter{ActivityGroupIDs: groupIDs, OrderByValidFrom: true}, "find by group ID")
+	if err != nil || len(rows) == 0 {
+		return rows, err
+	}
+	return nameStudentEnrollments(ctx, directories, rows)
+}
+
+// nameStudentEnrollments attaches each child's alumni state and name.
+func nameStudentEnrollments(ctx context.Context, directories ports.RepositoryDirectories, rows []*activityContract.StudentEnrollment) ([]*activityContract.StudentEnrollment, error) {
 	if directories.StudentAlumni == nil || directories.StudentNames == nil {
 		return nil, errors.New("student enrollment repository: people directory is required")
 	}

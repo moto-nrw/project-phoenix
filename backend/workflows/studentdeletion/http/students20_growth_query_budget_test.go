@@ -91,9 +91,9 @@ func TestStudents20DeletionImpactGrowthQueryBudget(t *testing.T) {
 				require.Zero(t, counter.WriteRows())
 				require.NotEmpty(t, counter.Selects("feedback.entries"), "real Feedback count must execute")
 				if withdrawal {
-					assertStudents20DeletionBudget(t, "withdrawal_deletion_impact", n, counter.Queries())
+					assertStudents20DeletionBudget(t, "withdrawal_deletion_impact", n, counter.Measurement(counter.Queries()))
 				} else {
-					assertStudents20DeletionBudget(t, "delete_impact", n, counter.Queries())
+					assertStudents20DeletionBudget(t, "delete_impact", n, counter.Measurement(counter.Queries()))
 				}
 				t.Logf("students20 deletion_impact withdrawal=%t N%d SQL=%d", withdrawal, n, counter.Total())
 			}
@@ -107,7 +107,7 @@ func TestStudents20DeletionImpactGrowthQueryBudget(t *testing.T) {
 	}
 }
 
-func assertStudents20DeletionBudget(t *testing.T, route string, n int, queries []string) {
+func assertStudents20DeletionBudget(t *testing.T, route string, n int, queries querybudgets.Measurement) {
 	t.Helper()
 	switch fmt.Sprintf("%s.n%d", route, n) {
 	case "delete_impact.n3":

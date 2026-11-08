@@ -40,6 +40,7 @@ import {
 } from "~/lib/care-offering-day-conflicts";
 import { createLogger } from "~/lib/logger";
 import { formatDate } from "~/lib/date-helpers";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 
 const logger = createLogger({ component: "OfferingChangeRequestModal" });
 
@@ -497,10 +498,7 @@ export function OfferingChangeRequestModal({
                   const unavailable =
                     item.is_active === false && !item.selected;
                   return (
-                    <div
-                      key={item.id}
-                      className="rounded-xl border border-gray-200 p-3"
-                    >
+                    <ChoiceTile as="div" key={item.id} className="block p-3">
                       <label className="flex cursor-pointer items-start gap-3">
                         <Checkbox
                           checked={selected}
@@ -557,9 +555,11 @@ export function OfferingChangeRequestModal({
                               {DAY_ORDER.filter((day) =>
                                 item.available_days.includes(day),
                               ).map((day) => (
-                                <label
+                                <ChoiceTile
                                   key={day}
-                                  className={`flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 ${item.automatic ? "cursor-not-allowed" : "cursor-pointer"}`}
+                                  selected={row?.days.has(day) ?? false}
+                                  disabled={item.automatic}
+                                  className="gap-1.5 px-2.5 py-1.5 font-normal"
                                 >
                                   <Checkbox
                                     checked={row?.days.has(day) ?? false}
@@ -569,7 +569,7 @@ export function OfferingChangeRequestModal({
                                   <span className="text-sm text-gray-700">
                                     {weekdayLabel(day)}
                                   </span>
-                                </label>
+                                </ChoiceTile>
                               ))}
                             </div>
                           </div>
@@ -585,7 +585,7 @@ export function OfferingChangeRequestModal({
                             })}
                           </p>
                         )}
-                    </div>
+                    </ChoiceTile>
                   );
                 })}
                 {dayConflicts.map((conflict) => (

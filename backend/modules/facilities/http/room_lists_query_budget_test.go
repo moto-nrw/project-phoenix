@@ -93,15 +93,15 @@ func TestRoomListsQueryBudget(t *testing.T) {
 		{"/by-category?category=BudgetCategory", false, "Rooms retrieved successfully"},
 	}
 	counter := testpkg.CaptureQueriesForContext(t, db)
-	measure := func(n int) map[string][]string {
+	measure := func(n int) map[string]testpkg.QueryMeasurement {
 		t.Helper()
 		require.Len(t, expected, n)
-		statements := make(map[string][]string, len(routes))
+		statements := make(map[string]testpkg.QueryMeasurement, len(routes))
 		for _, route := range routes {
 			counter.Reset()
 			request := testutil.NewRequest(http.MethodGet, route.path, nil)
 			request = request.WithContext(counter.Context(request.Context()))
-			response := testutil.ExecuteWithAuth(t, router, request, testutil.AdminTestClaims(int(account.ID)))
+			response := testutil.ExecuteWithAuth(t, testpkg.MountedQueryBudgetRouter("/api/rooms", router), request, testutil.AdminTestClaims(int(account.ID)))
 			require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 			var body struct {
 				Status     string                     `json:"status"`
@@ -169,8 +169,8 @@ func TestRoomListsQueryBudget(t *testing.T) {
 			}
 			require.Zero(t, counter.WriteRows())
 			require.NotEmpty(t, counter.Selects("facilities.rooms"), "read persisted rooms")
-			statements[route.path] = counter.Queries()
-			t.Logf("room list %s N=%d SQL=%d", route.path, n, len(statements[route.path]))
+			statements[route.path] = counter.Measurement(counter.Queries())
+			t.Logf("room list %s N=%d SQL=%d", route.path, n, len(statements[route.path].Statements))
 		}
 		return statements
 	}
@@ -181,13 +181,13 @@ func TestRoomListsQueryBudget(t *testing.T) {
 		counter.Reset()
 		faultRequest := testutil.NewRequest(http.MethodGet, "/?page=1&page_size=100", nil)
 		faultRequest = faultRequest.WithContext(counter.Context(faultRequest.Context()))
-		faultResponse := testutil.ExecuteWithAuth(t, router, faultRequest, testutil.AdminTestClaims(int(account.ID)))
-		assertRoomEmploymentReadFailure(t, counter, faultResponse)
+		faultResponse := testutil.ExecuteWithAuth(t, testpkg.MountedQueryBudgetRouter("/api/rooms", router), faultRequest, testutil.AdminTestClaims(int(account.ID)))
+		assertRoomEmploymentReadIndependent(t, counter, faultResponse)
 	})
 	add(3, 8)
 	large := measure(8)
 	for _, route := range routes {
-		require.Len(t, large[route.path], len(small[route.path]), "%s grows with rooms", route.path)
+		require.Len(t, large[route.path].Statements, len(small[route.path].Statements), "%s grows with rooms", route.path)
 	}
 	querybudgets.AssertQueryBudget(t, "api.rooms.list", small["/?page=1&page_size=100"])
 	querybudgets.AssertQueryBudget(t, "api.rooms.list", large["/?page=1&page_size=100"])

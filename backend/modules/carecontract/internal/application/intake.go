@@ -12,10 +12,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// maxCreateBatch bounds a creation of several drafts in one request.
 const maxCreateBatch = 200
 
-// The views of the access log of a school.
 const (
 	accessViewCandidates = "care_contract_candidates"
 	accessViewCreate     = "care_contract_create"
@@ -49,7 +47,6 @@ type IntakePorts struct {
 
 var _ carecontract.Intake = (*Intake)(nil)
 
-// NewIntake builds the intake over the root-bound ports.
 func NewIntake(store Store, ports IntakePorts, today func() calendar.Date) *Intake {
 	if store == nil || ports.Schools == nil || ports.Applications == nil || ports.Bookings == nil || ports.Access == nil ||
 		ports.Runtime == nil || ports.Modes == nil || ports.Mail == nil || today == nil {
@@ -159,6 +156,7 @@ func collectCandidates(reads []schoolRead, existing map[ContractKey]bool, templa
 				Services:      boundServices(booked.services, lastDay(booked.until)),
 				EffectiveFrom: booked.effectiveFrom(application, today),
 				TemplateIssue: issue,
+				ModulesText:   carecontract.JoinNames(ModuleNames(booked.services)),
 				AcceptanceIssue: acceptanceIssue(NewContract{AcceptedAt: application.AcceptedAt, Acceptances: application.Acceptances,
 					Version: carecontract.Version{Terms: terms}},
 					changed.since(read.school.ID, booked.offerings)),
@@ -239,11 +237,8 @@ func (in *Intake) create(ctx context.Context, reviewer carecontract.Reviewer, ke
 		if err != nil {
 			return result, err
 		}
-		schoolID := key.SchoolID
-		if err := in.store.InsertEvents(ctx, reviewer.OrganizationID, []Event{{
-			ContractID: &id, SchoolID: &schoolID, AccountID: reviewer.AccountID, Action: ActionCreate,
-			Details: map[string]any{"request_child_id": key.RequestChildID, "care_offering_ids": draftOfferings(draft)},
-		}}); err != nil {
+		if err := trail(ctx, in.store, reviewer.OrganizationID, reviewer.AccountID, id, key.SchoolID, ActionCreate,
+			map[string]any{"request_child_id": key.RequestChildID, "care_offering_ids": draftOfferings(draft)}); err != nil {
 			return result, err
 		}
 		record, err := in.store.Contract(ctx, reviewer.OrganizationID, id, false)
@@ -293,14 +288,16 @@ func (in *Intake) draft(key carecontract.CandidateKey, reads []schoolRead, templ
 		SchoolName: read.school.Name, PhaseName: firstText(booked.phaseName, application.PhaseName),
 		Services: boundServices(booked.services, ends), PriceCents: booked.price, Terms: terms,
 	}
-	return NewContract{
+	draft := NewContract{
 		AcceptedAt: application.AcceptedAt, Acceptances: application.Acceptances,
 		Key: contractKey, StudentID: application.StudentID, Version: version,
 		Party: NewParty{
 			FirstName: application.GuardianFirstName, LastName: application.GuardianLastName,
 			Email: strings.TrimSpace(application.GuardianEmail), AccountID: application.GuardianAccountID,
 		},
-	}, ""
+	}
+	draft.EarlyStart = earlyStartRequested(draft)
+	return draft, ""
 }
 
 func draftOfferings(draft NewContract) []int64 {
@@ -340,7 +337,6 @@ func (in *Intake) ConclusionModes(ctx context.Context, reviewer carecontract.Rev
 	return result, nil
 }
 
-// Templates lists every offering of the Träger's schools with its template.
 func (in *Intake) Templates(ctx context.Context, reviewer carecontract.Reviewer) ([]carecontract.OfferingTemplate, error) {
 	if err := checkReviewer(reviewer); err != nil {
 		return nil, err
@@ -448,10 +444,8 @@ func (in *Intake) SaveTemplate(ctx context.Context, reviewer carecontract.Review
 		if saved, err = in.store.UpsertTemplate(txCtx, reviewer.OrganizationID, reviewer.AccountID, schoolID, offeringID, input); err != nil {
 			return err
 		}
-		return in.store.InsertEvents(txCtx, reviewer.OrganizationID, []Event{{
-			SchoolID: &schoolID, AccountID: reviewer.AccountID, Action: ActionTemplate,
-			Details: map[string]any{"care_offering_id": offeringID, "template_id": saved.ID},
-		}})
+		return trail(txCtx, in.store, reviewer.OrganizationID, reviewer.AccountID, 0, schoolID, ActionTemplate,
+			map[string]any{"care_offering_id": offeringID, "template_id": saved.ID})
 	})
 	if err != nil {
 		return carecontract.OfferingTemplate{}, err
@@ -585,13 +579,15 @@ func (in *Intake) templateIndex(ctx context.Context, organizationID int64) (temp
 }
 
 func offeringTemplate(school carecontract.School, offering carecontract.Offering, template *carecontract.Template) carecontract.OfferingTemplate {
-	text := ""
+	text, withdrawal, earlyStart, term, notice := "", "", "", "", ""
 	if template != nil {
 		text = acceptanceText(template.TemplateInput)
+		withdrawal, earlyStart = withdrawalTexts(template.TemplateInput)
+		term, notice = TermText(template.TemplateInput, nil), NoticeText(template.TemplateInput)
 	}
 	return carecontract.OfferingTemplate{
-		AcceptanceText: text,
-		SchoolID:       school.ID, SchoolName: school.Name, OfferingID: offering.ID, OfferingName: offering.Name,
+		AcceptanceText: text, WithdrawalText: withdrawal, EarlyStartText: earlyStart, TermText: term, NoticeText: notice,
+		SchoolID: school.ID, SchoolName: school.Name, OfferingID: offering.ID, OfferingName: offering.Name,
 		PhaseName: offering.PhaseName, PriceCents: offering.PriceCents, Active: offering.Active, Template: template,
 	}
 }

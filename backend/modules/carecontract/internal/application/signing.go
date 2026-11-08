@@ -26,7 +26,6 @@ type (
 	SentState         = ports.SentState
 )
 
-// ContractStore is the store of the contracts with their signatures.
 type ContractStore interface {
 	Store
 	SignatureStore
@@ -58,7 +57,6 @@ var (
 	_ carecontract.PaperSignatures = (*Signatures)(nil)
 )
 
-// NewSignatures builds the signature over the root-bound ports.
 func NewSignatures(store ContractStore, ports SignaturePorts, clock Clock, contracts *Contracts) *Signatures {
 	if store == nil || ports.Ledger == nil || ports.Links.Tokens == nil || ports.Links.Fingerprint == nil || ports.Sender == nil || ports.Post == nil || ports.Runtime == nil {
 		panic("care contract: the store, the ledger, the tokens, the sender, the post and the runtime are required")
@@ -131,12 +129,11 @@ func (s *Signatures) LinkSigning(ctx context.Context, link string) (carecontract
 		if view, err = s.view(txCtx, organizationID, target.record, target.document); err != nil {
 			return err
 		}
-		return s.event(txCtx, organizationID, target.record, 0, ports.ActionRead, map[string]any{"via": carecontract.ChannelMailLink})
+		return trailContract(txCtx, s.store, organizationID, 0, target.record, ports.ActionRead, map[string]any{"via": carecontract.ChannelMailLink})
 	})
 	return view, err
 }
 
-// LinkSigningDocument answers the frozen PDF of an open link.
 func (s *Signatures) LinkSigningDocument(ctx context.Context, link string) (carecontract.File, error) {
 	organizationID, token, err := parseLink(link)
 	if err != nil {
@@ -149,7 +146,7 @@ func (s *Signatures) LinkSigningDocument(ctx context.Context, link string) (care
 			return err
 		}
 		file = target.document.File
-		return s.event(txCtx, organizationID, target.record, 0, ports.ActionRead,
+		return trailContract(txCtx, s.store, organizationID, 0, target.record, ports.ActionRead,
 			map[string]any{"via": carecontract.ChannelMailLink, "view": "document"})
 	})
 	return file, err
@@ -196,6 +193,11 @@ func (s *Signatures) InboxSigningView(ctx context.Context, organizationID, contr
 	if err != nil {
 		return carecontract.SigningView{}, err
 	}
+	// The page shows a contract that waits for the signature or carries it;
+	// a terminated or withdrawn one has its confirmation page (#4682).
+	if record.Summary.Status != carecontract.StatusSent && record.Summary.Status != carecontract.StatusActive {
+		return carecontract.SigningView{}, carecontract.ErrContractNotSignable
+	}
 	view, err := s.view(ctx, organizationID, record, document)
 	if err != nil {
 		return carecontract.SigningView{}, err
@@ -214,10 +216,9 @@ func (s *Signatures) InboxSigningView(ctx context.Context, organizationID, contr
 			view.Signature.WithdrawalEndsOn = &ends
 		}
 	}
-	return view, s.event(ctx, organizationID, record, reader.AccountID, ports.ActionRead, map[string]any{"via": carecontract.ChannelParentAccount})
+	return view, trailContract(ctx, s.store, organizationID, reader.AccountID, record, ports.ActionRead, map[string]any{"via": carecontract.ChannelParentAccount})
 }
 
-// SignInInbox signs a contract addressed to the reader.
 func (s *Signatures) SignInInbox(ctx context.Context, organizationID, contractID int64, reader carecontract.InboxReader, input carecontract.SignatureInput) (carecontract.SigningView, error) {
 	record, document, err := s.inboxContract(ctx, organizationID, contractID, reader, true)
 	if err != nil {
@@ -235,7 +236,7 @@ func (s *Signatures) SignInInbox(ctx context.Context, organizationID, contractID
 		sent = &link.Sent
 	}
 	return s.sign(ctx, organizationID, record, document, input,
-		signer{channel: carecontract.ChannelParentAccount, accountID: &account, sent: sent}, s.now())
+		signer{channel: carecontract.ChannelParentAccount, accountID: &account, sent: sent}, s.clock.now())
 }
 
 // inboxContract reads a contract the reader may see and sign: sent to the
@@ -350,7 +351,7 @@ func (s *Signatures) sign(ctx context.Context, organizationID int64, record Cont
 	if err != nil {
 		return carecontract.SigningView{}, err
 	}
-	if err := s.event(ctx, organizationID, record, accountID, ports.ActionSign, map[string]any{
+	if err := trailContract(ctx, s.store, organizationID, accountID, record, ports.ActionSign, map[string]any{
 		"via": who.channel, "method": input.Method, "document_sha256": document.SHA256, "version_sha256": checksum,
 		"early_start": input.EarlyStart, "status": status,
 	}); err != nil {
@@ -376,20 +377,16 @@ func (s *Signatures) confirm(ctx context.Context, organizationID int64, record C
 	if strings.TrimSpace(party.Email) == "" {
 		return nil
 	}
-	mailings, err := s.store.Mailings(ctx, organizationID, record.Summary.ID)
+	address, err := deliveryAddress(ctx, s.store, organizationID, record.Summary.ID, party.Email)
 	if err != nil {
 		return err
-	}
-	address := party.Email
-	if len(mailings) > 0 {
-		address = mailings[0].Recipient
 	}
 	signature := view.Signature
 	_, err = s.ports.Post.EnqueueContractMail(ctx, carecontract.ContractMail{
 		OrganizationID: organizationID, ContractID: record.Summary.ID, Recipient: address,
 		GuardianName: fullName(party.FirstName, party.LastName), TraegerName: view.TraegerName,
 		ChildName: fullName(record.Version.ChildFirstName, record.Version.ChildLastName),
-		Modules:   joinGerman(ModuleNames(record.Version.Services)), Filename: document.File.Filename, PDF: document.File.Data,
+		Modules:   carecontract.JoinNames(ModuleNames(record.Version.Services)), Filename: document.File.Filename, PDF: document.File.Data,
 		IdempotencyKey: fmt.Sprintf("care-contract:%d:signed:%d", record.Summary.ID, record.Version.ID),
 		Purpose:        carecontract.MailPurposeSigned, SignerName: signature.SignerName,
 		SignedAt: berlinStamp(signature.SignedAt), DocumentSHA256: document.SHA256, EarlyStart: signature.EarlyStartRequested,
@@ -401,38 +398,36 @@ func (s *Signatures) confirm(ctx context.Context, organizationID int64, record C
 	return nil
 }
 
-// view is what the parents read of a contract.
 func (s *Signatures) view(ctx context.Context, organizationID int64, record ContractRecord, document StoredDocument) (carecontract.SigningView, error) {
 	letterhead, err := s.ports.Sender.TraegerLetterhead(ctx, organizationID)
 	if err != nil {
 		return carecontract.SigningView{}, fmt.Errorf("care contract: letterhead: %w", err)
 	}
 	// A contract is sent only with a named party, so one of both is set.
-	traeger := firstText(firstLine(textLines(letterhead)), record.Version.Terms.ContractPartner)
+	traeger := traegerName(letterhead, record.Version.Terms)
 	partner := firstText(record.Version.Terms.ContractPartner, traeger)
 	party, _ := recipient(record.Parties)
-	version := record.Version
-	version.ChildBirthDate = nil
 	return carecontract.SigningView{
 		ContractID: record.Summary.ID, OrganizationID: organizationID, Status: record.Summary.Status,
-		TraegerName: traeger, PartyName: fullName(party.FirstName, party.LastName), Version: version,
+		TraegerName: traeger, PartyName: fullName(party.FirstName, party.LastName), Version: signingContract(record.Version),
 		DocumentSHA256: document.SHA256, WithdrawalNotice: withdrawalNotice(partner, letterhead),
 	}, nil
 }
 
-func (s *Signatures) event(ctx context.Context, organizationID int64, record ContractRecord, accountID int64, action string, details map[string]any) error {
-	contractID, schoolID := record.Summary.ID, record.Summary.SchoolID
-	if err := s.store.InsertEvents(ctx, organizationID, []Event{{
-		ContractID: &contractID, SchoolID: &schoolID, AccountID: accountID, Action: action, Details: details,
-	}}); err != nil {
-		return fmt.Errorf("care contract: record %s: %w", action, err)
-	}
-	return nil
-}
-
-// berlinStamp prints an instant as the parents read it.
 func berlinStamp(at time.Time) string {
 	return at.In(calendar.Berlin).Format("02.01.2006, 15:04") + " Uhr"
 }
 
-func (s *Signatures) now() time.Time { return s.clock.now() }
+func signingContract(version carecontract.Version) carecontract.SigningContract {
+	services := make([]carecontract.SigningService, len(version.Services))
+	for i, service := range version.Services {
+		services[i] = carecontract.SigningService{
+			Weekday: service.Weekday, ModuleName: service.ModuleName, EndsAt: service.EndsAt, LastDay: service.LastDay,
+		}
+	}
+	return carecontract.SigningContract{
+		ChildFirstName: version.ChildFirstName, ChildLastName: version.ChildLastName,
+		SchoolName: version.SchoolName, PhaseName: version.PhaseName,
+		EffectiveFrom: version.EffectiveFrom, EndsOn: version.EndsOn, PriceCents: version.PriceCents, Services: services,
+	}
+}

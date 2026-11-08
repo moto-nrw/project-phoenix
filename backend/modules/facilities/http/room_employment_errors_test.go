@@ -37,15 +37,18 @@ func withRoomEmploymentReadDenied(t *testing.T, db *bun.DB, run func()) {
 	run()
 }
 
-func assertRoomEmploymentReadFailure(t *testing.T, counter *testpkg.QueryCounter, response *httptest.ResponseRecorder) {
+func assertRoomEmploymentReadIndependent(t *testing.T, counter *testpkg.QueryCounter, response *httptest.ResponseRecorder) {
 	t.Helper()
-	require.Equal(t, http.StatusInternalServerError, response.Code, response.Body.String())
-	var body map[string]any
+	// E1 (#5570): unused Employment failures no longer reject room reads.
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	var body struct {
+		Status string            `json:"status"`
+		Data   []json.RawMessage `json:"data"`
+	}
 	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
-	require.Equal(t, "general.server", body["code"])
-	require.Equal(t, float64(http.StatusInternalServerError), body["status"])
-	require.NotContains(t, body, "data")
-	require.Len(t, counter.Selects("staff_employment_profiles"), 1)
+	require.Equal(t, "success", body.Status)
+	require.Len(t, body.Data, 3)
+	require.Empty(t, counter.Selects("staff_employment_profiles"))
 	for _, operation := range []string{"INSERT", "UPDATE", "DELETE", "MERGE"} {
 		require.Empty(t, counter.Operation(operation))
 	}

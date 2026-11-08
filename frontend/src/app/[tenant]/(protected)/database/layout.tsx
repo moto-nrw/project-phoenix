@@ -71,9 +71,7 @@ export default function DatabaseLayout({
       variant="adminOnly"
       permission={permissionForPath(pathname ?? null)}
       message="Sie verfügen nicht über die notwendigen Berechtigungen, um die Datenverwaltung aufzurufen."
-      fallback={
-        <Loading message="Berechtigungen werden geprüft…" fullPage={false} />
-      }
+      fallback={<Loading message="Berechtigungen werden geprüft…" />}
     >
       {children}
     </RoleGuard>

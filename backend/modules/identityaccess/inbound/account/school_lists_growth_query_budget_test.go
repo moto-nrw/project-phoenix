@@ -127,9 +127,9 @@ func schoolListsGrowthBudget(t *testing.T, accountList bool) {
 		require.Len(t, envelope.Data, n)
 		require.Equal(t, want, envelope.Data, "preserve the catalog name ordering")
 		if accountList {
-			querybudgets.AssertQueryBudget(t, "api.auth.account.tenants.positive_growth", queries)
+			querybudgets.AssertQueryBudget(t, "api.auth.account.tenants.positive_growth", counter.Measurement(queries))
 		} else {
-			querybudgets.AssertQueryBudget(t, "api.auth.tenants.positive_growth", queries)
+			querybudgets.AssertQueryBudget(t, "api.auth.tenants.positive_growth", counter.Measurement(queries))
 		}
 		require.Equal(t, before, schoolListsState(t, db), "GET preserves rows and sequence state")
 		require.Zero(t, counter.WriteRows())

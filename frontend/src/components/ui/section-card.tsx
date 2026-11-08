@@ -7,15 +7,17 @@ import type { LucideIcon } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { IconTile } from "~/components/ui/icon-tile";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import {
+  SECTION_CARD_PADDING,
+  SectionCardSurface,
+} from "~/components/ui/section-card-surface";
 import type { MotoConcept } from "~/lib/moto-concepts";
 import type { MotoDuotoneTone } from "~/lib/location-helper";
 import { cn } from "~/lib/utils";
 
-// Das eine Kartenpolster (ADR 0149, Entscheidung 9): 20 px, auf dem Telefon
-// und in der kompakten Ansicht 16 px. Mit `flush` oder `footer` liegt es auf
-// den Zonen statt auf der Fläche, damit Rumpf und Fußzone bis an den Rand
-// laufen können, ohne das Polster per Negativrand wieder aufzuheben.
-const CARD_PADDING = "compact:p-4 p-5 max-sm:p-4";
+// Mit `flush` oder `footer` liegt das Polster auf den Zonen statt auf der
+// Fläche, damit Rumpf und Fußzone bis an den Rand laufen können, ohne das
+// Polster per Negativrand wieder aufzuheben.
 const ZONE_PADDING_X = "compact:px-4 px-5 max-sm:px-4";
 const ZONE_PADDING_TOP = "compact:pt-4 pt-5 max-sm:pt-4";
 const ZONE_PADDING_BOTTOM = "compact:pb-4 pb-5 max-sm:pb-4";
@@ -256,6 +258,8 @@ export function SectionCard({
   padding = "default",
   loading = false,
   loadingRows = 3,
+  as = "section",
+  hoverElevated = false,
   children,
   id,
 }: Readonly<{
@@ -331,6 +335,17 @@ export function SectionCard({
   /** Zeigt Balken in Feldform statt des Inhalts; der Kopf bleibt echt. */
   loading?: boolean;
   loadingRows?: number;
+  /**
+   * `article` für eine Karte, die für sich allein steht und in einer Reihe
+   * gleichartiger Karten liegt (eine Serie im Stundenplan).
+   */
+  as?: "section" | "article";
+  /**
+   * Hebt die Karte beim Hovern an wie eine `TileCard`, ohne sie klickbar zu
+   * machen. Für Karten, deren Bedienelemente im Inhalt liegen; ist die ganze
+   * Karte ein Ziel, ist `TileCard` richtig.
+   */
+  hoverElevated?: boolean;
   children?: ReactNode;
   id?: string;
 }>) {
@@ -358,7 +373,7 @@ export function SectionCard({
   // Zonen tragen das Polster, wenn ein Teil bis an den Rand laufen soll.
   const zoned = !bare && padding === "default" && (flush || footer != null);
   let surfacePadding = "";
-  if (padding === "default" && !zoned) surfacePadding = CARD_PADDING;
+  if (padding === "default" && !zoned) surfacePadding = SECTION_CARD_PADDING;
   const bodySpacing =
     hasHeader && !bare ? (bodyClassName ?? "compact:mt-3 mt-4") : bodyClassName;
   const bodyClasses = zoned
@@ -371,20 +386,15 @@ export function SectionCard({
     : bodySpacing;
 
   return (
-    <section
+    <SectionCardSurface
       id={id}
       data-testid={testId}
       aria-labelledby={namedRegion && title != null ? headingId : undefined}
-      className={
-        bare
-          ? cn("space-y-4", className)
-          : cn(
-              "moto-content-surface rounded-2xl border",
-              overflow === "hidden" ? "overflow-hidden" : "overflow-visible",
-              surfacePadding,
-              className,
-            )
-      }
+      bare={bare}
+      as={as}
+      hoverElevated={hoverElevated}
+      overflow={overflow}
+      className={cn(!bare && surfacePadding, className)}
     >
       {hasHeader && (
         // `flex-wrap` + `flex-1` am Titelblock: der Einklapp-Pfeil bleibt auf
@@ -509,6 +519,6 @@ export function SectionCard({
           {footer}
         </div>
       )}
-    </section>
+    </SectionCardSurface>
   );
 }

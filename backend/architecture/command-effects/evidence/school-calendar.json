@@ -881,6 +881,14 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.CareCalendarDays",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.CareCalendarDays",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.ChangeCalendarPeriod",
       "binding_digest": "4933a6c6a93d2e3afafe135908c50686",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.ChangeCalendarPeriod",
@@ -1444,6 +1452,14 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.UpdateDateframe",
       "binding_digest": "be95033208c6ac1126d984e6f084406e",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.UpdateDateframe",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.CareCalendarDays",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.CareCalendarDays",
       "source_owner": "school-calendar",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime"
@@ -2246,14 +2262,6 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.GuardianDirectory.SearchByText",
       "source_owner": "school-calendar",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuardianProfileRepository.SearchByText",
-      "target_owner": "people-directory"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarRelationshipPort.FindByGuardianProfileID",
-      "binding_digest": "91a83fb6b4837dc28cc73170b4ee42e9",
-      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.GuardianRelationships.FindByGuardianProfileID",
-      "source_owner": "school-calendar",
-      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentGuardianRepository.FindByGuardianProfileID",
       "target_owner": "people-directory"
     },
     {

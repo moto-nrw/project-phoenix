@@ -14,6 +14,7 @@
 
 import { Archive, Palette, Users } from "lucide-react";
 import { Button } from "~/components/ui/button";
+import { SectionCard } from "~/components/ui/section-card";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import { schoolClassLabel } from "~/lib/school-class-label";
@@ -108,12 +109,22 @@ export function TemplateCard({
   const targetSummary = summarizeTargets(template);
 
   return (
-    <article className="moto-content-surface relative flex flex-col rounded-2xl border transition-shadow hover:shadow-md!">
+    <SectionCard
+      as="article"
+      hoverElevated
+      padding="none"
+      overflow="visible"
+      className="relative flex flex-col"
+      // Der Rumpf wächst mit, damit „Termine erzeugen“ in einer Reihe
+      // ungleich hoher Karten unten bündig bleibt (`mt-auto`).
+      bodyClassName="flex flex-1 flex-col"
+    >
       {/* The card itself must not clip: the roster-maintenance tooltip has to
           leave it. Only this layer clips, so the colour bar follows the card's
-          rounded edge exactly as before. */}
+          rounded edge. It sits in the SectionCard body, not directly in the
+          card, so it names the card radius instead of inheriting it. */}
       <div
-        className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]"
+        className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl"
         aria-hidden
       >
         <div className="h-full w-1" style={{ backgroundColor: color }} />
@@ -125,7 +136,7 @@ export function TemplateCard({
             <h3 className="truncate text-sm font-semibold text-gray-900">
               {template.name}
             </h3>
-            <p className="mt-0.5 text-[11px] font-medium tracking-wide text-gray-500 uppercase">
+            <p className="mt-0.5 text-xs text-gray-500">
               {TYPE_LABELS[template.type]}
               {template.categoryName ? ` · ${template.categoryName}` : ""}
             </p>
@@ -292,6 +303,6 @@ export function TemplateCard({
           </Button>
         </div>
       )}
-    </article>
+    </SectionCard>
   );
 }

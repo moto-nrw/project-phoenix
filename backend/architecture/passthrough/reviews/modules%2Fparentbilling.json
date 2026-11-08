@@ -11,6 +11,11 @@
       "reason": "ADR 0119 (#4668): lists the billing runs of the session's Träger after refusing a missing Träger; the Träger transaction is the caller's."
     },
     {
+      "decision": "0158",
+      "id": "modules/parentbilling/internal/application/CareBilling.ListCareRuns",
+      "reason": "ADR 0158 (#4684): lists the monthly runs of the session's Träger after refusing a missing Träger and derives the month a new run bills; the Träger transaction is the caller's."
+    },
+    {
       "decision": "0115",
       "id": "modules/parentbilling/internal/application/HolidayContributions.ResolveHolidayLink",
       "reason": "ADR 0115 (#4664): refuses an empty key and a link without Träger or period before the public contribution opens the Träger transaction; the administrative transaction is the caller's."

@@ -132,7 +132,7 @@ type documentDirectoryEntry struct {
 // roles. It intentionally omits directory, attendance, and account data.
 func (rs *Resource) listDocumentDirectory(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	members, err := rs.membership.ListStaff(ctx, schoolmembership.StaffFilter{})
+	members, err := rs.membership.ListStaff(ctx, schoolmembership.StaffFilter{MembershipOnly: true})
 	if err != nil {
 		rs.internal(w, r, err)
 		return
@@ -254,24 +254,24 @@ func (rs *Resource) serveStaffAvatar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	staff, findErr := rs.membership.FindStaff(ctx, id)
-	if findErr != nil {
+	members, findErr := rs.membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: []int64{id}, MembershipOnly: true})
+	if findErr != nil || len(members) == 0 {
 		rs.runtime.Failure(w, r, FailureNotFound, errStaffAvatarNotFound)
 		return
 	}
-	person, personErr := rs.personFor(ctx, staff)
+	accountID, personErr := rs.runtime.PersonAccountID(ctx, members[0].PersonID)
 	if personErr != nil {
 		rs.runtime.Failure(w, r, FailureNotFound, errStaffAvatarNotFound)
 		return
 	}
-	if person == nil || person.AccountID == nil {
+	if accountID == nil {
 		rs.runtime.Failure(w, r, FailureNotFound, errStaffAvatarNotFound)
 		return
 	}
-	avatars, avatarErr := rs.runtime.AccountAvatars(ctx, []int64{*person.AccountID})
-	if avatarErr != nil || avatars[*person.AccountID] == "" {
+	avatars, avatarErr := rs.runtime.AccountAvatars(ctx, []int64{*accountID})
+	if avatarErr != nil || avatars[*accountID] == "" {
 		rs.runtime.Failure(w, r, FailureNotFound, errStaffAvatarNotFound)
 		return
 	}
-	rs.runtime.ServeAvatar(w, r, avatars[*person.AccountID])
+	rs.runtime.ServeAvatar(w, r, avatars[*accountID])
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { EmptyState } from "~/components/ui/empty-state";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import {
   useCallback,
   useContext,
@@ -61,6 +62,7 @@ import {
 import { FormModal } from "~/components/ui/form-modal";
 import { Alert } from "~/components/ui/alert";
 import { SectionCard } from "~/components/ui/section-card";
+import { TileCard } from "~/components/ui/tile-card";
 import { Textarea } from "~/components/ui/textarea";
 import { BackAction } from "~/components/ui/back-link";
 import { Button, ButtonLink, buttonClassName } from "~/components/ui/button";
@@ -69,7 +71,7 @@ import { FormSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { Input } from "~/components/ui/input";
 import { ChoiceTile } from "~/components/ui/choice-tile";
-import { BooleanField } from "~/components/settings/fields/boolean-field";
+import { Switch } from "~/components/ui/switch";
 import {
   TranslationsSection,
   type TranslationTarget,
@@ -127,6 +129,7 @@ import { permissionsConcept } from "~/lib/concepts/permissions";
 import { IconTile } from "~/components/ui/icon-tile";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { SpinnerIcon } from "~/components/ui/icons";
+import { Checkbox } from "~/components/ui/checkbox";
 
 const logger = createLogger({ component: "EnrollmentFormEditor" });
 
@@ -861,8 +864,6 @@ export function EnrollmentFormEditor({
   const pendingUploadMessage = hasPendingLegalDocumentUpload
     ? LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE
     : null;
-  const effectiveSaveBlockedMessage =
-    saveBlockedMessage ?? pendingUploadMessage;
 
   // "Wiederholen" sends the draft as it is then, not as it was when the
   // save failed.
@@ -1167,8 +1168,8 @@ export function EnrollmentFormEditor({
     <AttachmentUploadContext.Provider value={attachmentLifecycle}>
       <FieldErrorContext.Provider value={fieldError}>
         <div ref={builderRef} className="flex flex-col space-y-5">
-          <section className="moto-content-surface overflow-hidden rounded-2xl border">
-            <div className="border-b border-gray-100 px-5 py-3 sm:px-6">
+          <SectionCard padding="none">
+            <div className="compact:px-4 border-b border-gray-100 px-5 py-3 max-sm:px-4">
               <BackAction
                 onClick={requestBackToOverview}
                 disabled={saving || hasPendingLegalDocumentUpload}
@@ -1176,7 +1177,7 @@ export function EnrollmentFormEditor({
               />
             </div>
             <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_430px]">
-              <div className="space-y-6 p-5 sm:p-6">
+              <div className="compact:p-4 space-y-6 p-5 max-sm:p-4">
                 {/* Ein Neuladen nach dem Speichern kann scheitern; der Entwurf
                 bleibt dann stehen. */}
                 <LoadErrorAlert error={loadError} />
@@ -1324,7 +1325,7 @@ export function EnrollmentFormEditor({
                 </section>
               </div>
 
-              <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 sm:p-6 lg:border-t-0 lg:border-l">
+              <aside className="moto-dotted-background moto-dotted-background--split compact:p-4 border-t border-gray-100 p-5 max-sm:p-4 lg:border-t-0 lg:border-l">
                 <FormPreview
                   fields={fields}
                   coreRequirements={coreRequirements}
@@ -1350,11 +1351,12 @@ export function EnrollmentFormEditor({
                 />
               </aside>
             </div>
-          </section>
+          </SectionCard>
           <UnsavedChangesDialog
             pendingNavigation={pendingNavigation}
             saving={saving || hasPendingLegalDocumentUpload}
-            saveBlockedMessage={effectiveSaveBlockedMessage}
+            saveValidationMessage={saveBlockedMessage}
+            pendingUploadMessage={pendingUploadMessage}
             onCancel={() => setPendingNavigation(null)}
             onDiscard={discardPendingNavigation}
             onSave={savePendingNavigation}
@@ -1394,9 +1396,13 @@ function EnrollmentFormsOverview({
       {/* Karte als Flex-Spalte und das Raster darin `flex-1`: wächst die
           Karte bis zur Unterkante, läuft die graue Seitenspalte mit bis
           dorthin, statt über dem Kartenrand zu enden. */}
-      <section className="moto-content-surface flex flex-col overflow-hidden rounded-2xl border">
+      <SectionCard
+        padding="none"
+        className="flex flex-col"
+        bodyClassName="flex min-h-0 flex-1 flex-col"
+      >
         <div className="grid flex-1 gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
-          <div className="space-y-6 p-5 sm:p-6">
+          <div className="compact:p-4 space-y-6 p-5 max-sm:p-4">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 className="text-base font-semibold text-gray-900">
@@ -1445,14 +1451,14 @@ function EnrollmentFormsOverview({
             </section>
           </div>
 
-          <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 sm:p-6 lg:border-t-0 lg:border-l">
+          <aside className="moto-dotted-background moto-dotted-background--split compact:p-4 border-t border-gray-100 p-5 max-sm:p-4 lg:border-t-0 lg:border-l">
             <OverviewGuide
               templateCount={templates.length}
               assignedTemplateCount={assignedTemplateCount}
             />
           </aside>
         </div>
-      </section>
+      </SectionCard>
     </div>
   );
 }
@@ -1473,7 +1479,7 @@ function TemplateOverviewList({
   onDelete: (schema: FormSchema) => void;
 }>) {
   return (
-    <div className="moto-content-surface overflow-hidden rounded-2xl border">
+    <SectionCard padding="none">
       <div className="divide-y divide-gray-100">
         <BaseTemplateOverviewRow />
         {templates.map((schema) => (
@@ -1490,7 +1496,7 @@ function TemplateOverviewList({
           />
         ))}
       </div>
-    </div>
+    </SectionCard>
   );
 }
 
@@ -1726,13 +1732,17 @@ function FormTemplateDetail({
   return (
     // Flex-Spalte, siehe die Übersicht derselben Seite.
     <div className="flex flex-col space-y-5">
-      <section className="moto-content-surface flex flex-col overflow-hidden rounded-2xl border">
+      <SectionCard
+        padding="none"
+        className="flex flex-col"
+        bodyClassName="flex min-h-0 flex-1 flex-col"
+      >
         <div className="grid flex-1 gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
           <div>
-            <div className="border-b border-gray-100 px-5 py-3 sm:px-6">
+            <div className="compact:px-4 border-b border-gray-100 px-5 py-3 max-sm:px-4">
               <BackAction onClick={onBack} label="Zurück zur Übersicht" />
             </div>
-            <div className="space-y-5 p-5 sm:p-6">
+            <div className="compact:p-4 space-y-5 p-5 max-sm:p-4">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <h2 className="text-xl font-semibold text-gray-900">
@@ -1801,7 +1811,7 @@ function FormTemplateDetail({
             </div>
           </div>
 
-          <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 sm:p-6 lg:border-t-0 lg:border-l">
+          <aside className="moto-dotted-background moto-dotted-background--split compact:p-4 border-t border-gray-100 p-5 max-sm:p-4 lg:border-t-0 lg:border-l">
             <div className="sticky top-6 space-y-4">
               <div>
                 <h2 className="text-base font-semibold text-gray-900">
@@ -1811,7 +1821,7 @@ function FormTemplateDetail({
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-gray-600">
                   {assignedPhases.length > 0
-                    ? `Diese Vorlage ist in ${assignedPhases.length} Anmeldephase ausgewählt.`
+                    ? `Diese Vorlage ist in ${anmeldephasen(assignedPhases.length)} ausgewählt.`
                     : "Eine Vorlage wird erst für Eltern relevant, wenn sie in einer Anmeldephase ausgewählt ist. Ohne Auswahl nutzt die Phase das Basisformular."}
                 </p>
               </div>
@@ -1835,13 +1845,12 @@ function FormTemplateDetail({
                   : "In Anmeldephase auswählen"}
               </ButtonLink>
 
-              <a
+              <TileCard
                 href={tenantPath(
                   `/anmeldung/preview?schemaId=${encodeURIComponent(schema.id)}`,
                 )}
-                target="_blank"
-                rel="noreferrer"
-                className="moto-content-surface moto-hover-elevated flex items-start gap-3 rounded-2xl border p-3 text-left focus-visible:outline-2 focus-visible:outline-gray-400"
+                newTab
+                className="flex items-start gap-3"
               >
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
                   <ExternalLink className="h-4 w-4" aria-hidden="true" />
@@ -1854,9 +1863,9 @@ function FormTemplateDetail({
                     Öffnet die Formularvorschau in einem neuen Tab.
                   </span>
                 </span>
-              </a>
+              </TileCard>
 
-              <div className="moto-content-surface rounded-2xl border p-4">
+              <InsetPanel tone="white" padding="md">
                 <h3 className="text-sm font-semibold text-gray-900">Status</h3>
                 <div className="mt-4 space-y-3">
                   <GuideStep
@@ -1880,11 +1889,11 @@ function FormTemplateDetail({
                     done={assignedPhases.length > 0}
                   />
                 </div>
-              </div>
+              </InsetPanel>
             </div>
           </aside>
         </div>
-      </section>
+      </SectionCard>
     </div>
   );
 }
@@ -2069,14 +2078,16 @@ function RenameSchemaDialog({
 function UnsavedChangesDialog({
   pendingNavigation,
   saving,
-  saveBlockedMessage,
+  saveValidationMessage,
+  pendingUploadMessage,
   onCancel,
   onDiscard,
   onSave,
 }: Readonly<{
   pendingNavigation: PendingNavigation | null;
   saving: boolean;
-  saveBlockedMessage: string | null;
+  saveValidationMessage: string | null;
+  pendingUploadMessage: string | null;
   onCancel: () => void;
   onDiscard: () => void;
   onSave: () => void;
@@ -2084,6 +2095,7 @@ function UnsavedChangesDialog({
   if (!pendingNavigation) return null;
 
   const isPreview = pendingNavigation === "preview";
+  const saveBlocked = Boolean(saveValidationMessage || pendingUploadMessage);
   const footer = (
     <>
       <Button
@@ -2111,7 +2123,7 @@ function UnsavedChangesDialog({
       <Button
         type="button"
         onClick={onSave}
-        disabled={saving || Boolean(saveBlockedMessage)}
+        disabled={saving || saveBlocked}
         variant="primary"
         size="md"
         className="inline-flex items-center justify-center"
@@ -2139,9 +2151,14 @@ function UnsavedChangesDialog({
           ? "Für die externe Vorschau muss die Vorlage zuerst gespeichert werden."
           : "Sie haben Änderungen an dieser Vorlage. Speichern Sie sie, bevor Sie den Bereich verlassen, oder verwerfen Sie sie bewusst."}
       </p>
-      {saveBlockedMessage ? (
-        <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong mt-4 rounded-lg border px-3 py-2 text-sm font-medium">
-          {saveBlockedMessage}
+      {saveValidationMessage || pendingUploadMessage ? (
+        <div className="mt-4 space-y-3">
+          {saveValidationMessage ? (
+            <FormErrorAlert message={saveValidationMessage} />
+          ) : null}
+          {pendingUploadMessage ? (
+            <Alert type="warning" message={pendingUploadMessage} />
+          ) : null}
         </div>
       ) : null}
     </Modal>
@@ -2187,7 +2204,7 @@ function BuilderTemplateSummary({
   ).length;
 
   return (
-    <section className="moto-content-surface rounded-2xl border p-4">
+    <SectionCard>
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_280px]">
         <div className="min-w-0">
           <h2 className="text-base font-semibold text-gray-900">
@@ -2239,7 +2256,7 @@ function BuilderTemplateSummary({
           />
         </div>
       ) : null}
-    </section>
+    </SectionCard>
   );
 }
 
@@ -2260,7 +2277,7 @@ function CoreFieldsSection({
   ] satisfies ReadonlyArray<{ title: string; fields: CoreField[] }>;
 
   return (
-    <section className="moto-content-surface rounded-2xl border p-5">
+    <SectionCard>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-base font-semibold text-gray-900">
@@ -2288,7 +2305,7 @@ function CoreFieldsSection({
           />
         ))}
       </div>
-    </section>
+    </SectionCard>
   );
 }
 
@@ -2305,7 +2322,7 @@ function SignatureRequirementSection({
   disabled: boolean;
 }>) {
   return (
-    <section className="moto-content-surface rounded-2xl border p-5">
+    <SectionCard>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-base font-semibold text-gray-900">
@@ -2321,15 +2338,15 @@ function SignatureRequirementSection({
           <span className="text-xs font-medium text-gray-600">
             {required ? "Erforderlich" : "Aus"}
           </span>
-          <BooleanField
-            value={required}
-            onChange={onChange}
+          <Switch
+            checked={required}
+            onCheckedChange={onChange}
             disabled={disabled}
             ariaLabel="Unterschrift erforderlich"
           />
         </div>
       </div>
-    </section>
+    </SectionCard>
   );
 }
 
@@ -2540,7 +2557,7 @@ export function LegalBlocksSection({
         className="moto-content-surface rounded-xl border p-4"
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <StyledCheckboxButton
+          <InlineCheckbox
             checked={block.enabled}
             disabled={disabled}
             onCheckedChange={(checked) =>
@@ -2548,7 +2565,7 @@ export function LegalBlocksSection({
             }
           >
             Im Formular anzeigen
-          </StyledCheckboxButton>
+          </InlineCheckbox>
           <p className="max-w-xl text-xs leading-5 text-gray-500">
             {helperText}
           </p>
@@ -2679,7 +2696,7 @@ export function LegalBlocksSection({
             block.kind === "consent" &&
             (block.source === "standard" || standardByKey.has(block.key))
           ) ? (
-            <StyledCheckboxButton
+            <InlineCheckbox
               checked={block.required}
               disabled={disabled}
               muted
@@ -2698,7 +2715,7 @@ export function LegalBlocksSection({
               }
             >
               Muss bestätigt werden
-            </StyledCheckboxButton>
+            </InlineCheckbox>
           ) : null}
         </div>
         {block.kind === "consent" ? (
@@ -2721,7 +2738,7 @@ export function LegalBlocksSection({
   };
 
   return (
-    <section className="moto-content-surface rounded-2xl border p-5">
+    <SectionCard>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-base font-semibold text-gray-900">
@@ -2804,7 +2821,7 @@ export function LegalBlocksSection({
                   ) : null}
                 </div>
                 <div className="flex shrink-0 items-center justify-end gap-1.5">
-                  <CompactSwitchButton
+                  <Switch
                     checked={block.enabled}
                     onCheckedChange={(checked) =>
                       updateBlock(index, { enabled: checked })
@@ -2871,7 +2888,7 @@ export function LegalBlocksSection({
           Eigene Zustimmung hinzufügen
         </Button>
       </div>
-    </section>
+    </SectionCard>
   );
 }
 
@@ -2976,7 +2993,7 @@ function AGBTemplateSourceEditor({
           />
         </div>
       ) : (
-        <div className="border-moto-blue/20 bg-moto-blue/5 rounded-xl border p-3">
+        <InsetPanel framed padding="sm">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-sm font-medium text-gray-900">PDF-Datei</p>
@@ -3044,7 +3061,7 @@ function AGBTemplateSourceEditor({
               PDF wird hochgeladen...
             </p>
           ) : null}
-        </div>
+        </InsetPanel>
       )}
     </div>
   );
@@ -3074,7 +3091,7 @@ function LegalBlockModeControl({
   );
 }
 
-function StyledCheckboxButton({
+function InlineCheckbox({
   checked,
   disabled,
   muted = false,
@@ -3088,65 +3105,18 @@ function StyledCheckboxButton({
   children: ReactNode;
 }>) {
   return (
-    <button
-      type="button"
-      role="checkbox"
-      aria-checked={checked}
-      disabled={disabled}
-      onClick={() => onCheckedChange(!checked)}
-      className={`inline-flex min-w-0 items-center gap-2 rounded-xl text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300 disabled:cursor-not-allowed disabled:opacity-50 ${
-        muted
-          ? "text-sm font-medium text-gray-700"
-          : "text-sm font-medium text-gray-800"
-      }`}
+    <label
+      className={`inline-flex min-w-0 items-center gap-2 text-left text-sm font-medium ${
+        muted ? "text-gray-700" : "text-gray-800"
+      } ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}
     >
-      <span
-        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border shadow-sm transition-all ${
-          checked ? "border-gray-900 bg-gray-900" : "border-gray-300 bg-white"
-        }`}
-        aria-hidden="true"
-      >
-        <Check
-          className={`h-3.5 w-3.5 text-white transition-opacity ${
-            checked ? "opacity-100" : "opacity-0"
-          }`}
-        />
-      </span>
-      <span>{children}</span>
-    </button>
-  );
-}
-
-function CompactSwitchButton({
-  checked,
-  disabled,
-  ariaLabel,
-  onCheckedChange,
-}: Readonly<{
-  checked: boolean;
-  disabled: boolean;
-  ariaLabel: string;
-  onCheckedChange: (checked: boolean) => void;
-}>) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      aria-label={ariaLabel}
-      disabled={disabled}
-      onClick={() => onCheckedChange(!checked)}
-      className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${
-        checked ? "bg-gray-900" : "bg-gray-200"
-      }`}
-    >
-      <span
-        className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
-          checked ? "translate-x-[18px]" : "translate-x-0.5"
-        }`}
-        aria-hidden="true"
+      <Checkbox
+        checked={checked}
+        disabled={disabled}
+        onChange={(event) => onCheckedChange(event.target.checked)}
       />
-    </button>
+      <span>{children}</span>
+    </label>
   );
 }
 
@@ -3231,9 +3201,9 @@ function CoreFieldRow({
           <span className="text-xs font-medium text-gray-600">
             {required ? "Pflicht" : "Optional"}
           </span>
-          <BooleanField
-            value={required}
-            onChange={(checked) =>
+          <Switch
+            checked={required}
+            onCheckedChange={(checked) =>
               onRequirementChange(field.requirementKey!, checked)
             }
             disabled={disabled}
@@ -3264,7 +3234,7 @@ function TargetSuggestions({
   );
 
   return (
-    <section className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
+    <InsetPanel as="section" framed padding="md">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 className="text-sm font-semibold text-gray-900">
@@ -3323,7 +3293,7 @@ function TargetSuggestions({
           );
         })}
       </div>
-    </section>
+    </InsetPanel>
   );
 }
 
@@ -3381,11 +3351,10 @@ function FormPreview({
           />
 
           {previewHref ? (
-            <a
+            <TileCard
               href={previewHref}
-              target="_blank"
-              rel="noreferrer"
-              className="moto-content-surface moto-hover-elevated flex items-start gap-3 rounded-2xl border p-3 text-left focus-visible:outline-2 focus-visible:outline-gray-400"
+              newTab
+              className="flex items-start gap-3"
             >
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
                 <ExternalLink className="h-4 w-4" aria-hidden="true" />
@@ -3398,12 +3367,11 @@ function FormPreview({
                   Öffnet diese Formularvorlage in einem neuen Tab.
                 </span>
               </span>
-            </a>
+            </TileCard>
           ) : onPreviewClick ? (
-            <button
-              type="button"
+            <TileCard
               onClick={onPreviewClick}
-              className="moto-content-surface moto-hover-elevated flex w-full items-start gap-3 rounded-2xl border p-3 text-left focus-visible:outline-2 focus-visible:outline-gray-400"
+              className="flex items-start gap-3"
             >
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
                 <ExternalLink className="h-4 w-4" aria-hidden="true" />
@@ -3417,9 +3385,13 @@ function FormPreview({
                   Tab.
                 </span>
               </span>
-            </button>
+            </TileCard>
           ) : (
-            <div className="moto-content-surface flex items-start gap-3 rounded-2xl border p-3 text-left opacity-70">
+            <InsetPanel
+              tone="white"
+              padding="sm"
+              className="flex items-start gap-3 opacity-70"
+            >
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
                 <ExternalLink className="h-4 w-4" aria-hidden="true" />
               </span>
@@ -3431,7 +3403,7 @@ function FormPreview({
                   Speichern Sie die Vorlage zuerst.
                 </span>
               </span>
-            </div>
+            </InsetPanel>
           )}
         </>
       }
@@ -3448,6 +3420,7 @@ function FormPreview({
       />
       <PreviewSection
         title="Betreuungsangebot"
+        description="Die Angebote legen Sie in der Anmeldephase fest. Eltern sehen sie über den Link der Phase."
         fields={["Gewünschtes Angebot", "Betreuungstage"]}
       />
 
@@ -3474,10 +3447,7 @@ function FormPreview({
             {enabledLegalBlocks.map((block) => {
               const previewText = legalBlockPreviewText(block);
               return (
-                <div
-                  key={block.key}
-                  className="rounded-lg border border-gray-200 bg-white px-3 py-2"
-                >
+                <InsetPanel key={block.key} tone="white" padding="compact">
                   <div className="flex items-start gap-2.5">
                     <span
                       className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
@@ -3521,7 +3491,7 @@ function FormPreview({
                       ) : null}
                     </div>
                   </div>
-                </div>
+                </InsetPanel>
               );
             })}
           </div>
@@ -3543,7 +3513,7 @@ function getPreviewStatus({
   if (assignedPhaseCount > 0) {
     return {
       label: "In Phase verwendet",
-      hint: `Diese Vorlage ist in ${assignedPhaseCount} Anmeldephase ausgewählt.`,
+      hint: `Diese Vorlage ist in ${anmeldephasen(assignedPhaseCount)} ausgewählt.`,
       tone: "green",
     };
   }
@@ -4141,6 +4111,11 @@ function getSchemaDraftValidationMessage({
   }
 
   return null;
+}
+
+/** Dative after „in“: „1 Anmeldephase“, „3 Anmeldephasen“. */
+function anmeldephasen(count: number): string {
+  return `${count} Anmeldephase${count === 1 ? "" : "n"}`;
 }
 
 function formatSchemaDate(value: string): string {

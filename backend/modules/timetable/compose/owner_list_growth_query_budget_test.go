@@ -154,9 +154,9 @@ func TestOwnerListGrowthQueryBudgets(t *testing.T) {
 					}
 					// The register ratchet discovers literal scenario references.
 					if tc.name == "conflict_acks" {
-						querybudgets.AssertQueryBudget(t, "modules.timetable.conflict_acks.list", queries)
+						querybudgets.AssertQueryBudget(t, "modules.timetable.conflict_acks.list", counter.Measurement(queries))
 					} else {
-						querybudgets.AssertQueryBudget(t, tc.scenario, queries)
+						querybudgets.AssertQueryBudget(t, tc.scenario, counter.Measurement(queries))
 					}
 					return nil
 				}))

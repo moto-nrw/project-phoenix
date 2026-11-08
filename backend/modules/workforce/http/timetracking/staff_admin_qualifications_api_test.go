@@ -140,16 +140,16 @@ func TestQualificationsAPI_ListQueryBudgets(t *testing.T) {
 		rec := ctx.put(fmt.Sprintf("/staff/%d/stammdaten/qualifikationen", staff.ID), body, "staff:stammdaten")
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	}
-	measure := func(path string) []string {
+	measure := func(path string) testpkg.QueryMeasurement {
 		counter := testpkg.CaptureQueriesForContext(t, ctx.tc.db)
 		req := httptest.NewRequest(http.MethodGet, path, nil).WithContext(counter.Context(context.Background()))
 		req.Header.Set("Authorization", "Bearer "+authToken(t, "staff:stammdaten"))
 		rec := httptest.NewRecorder()
-		ctx.tc.router.ServeHTTP(rec, req)
+		testpkg.MeasuredHTTPRequest(counter, testpkg.MountedQueryBudgetRouter("/api", ctx.tc.router), rec, req)
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 		queries := counter.Queries()
 		counter.Stop()
-		return queries
+		return counter.Measurement(queries)
 	}
 	addQualifications()
 	smallTypes, smallList := measure("/staff/qualification-types"), measure("/staff/qualifications")
@@ -157,8 +157,8 @@ func TestQualificationsAPI_ListQueryBudgets(t *testing.T) {
 	addQualifications()
 	largeTypes, largeList := measure("/staff/qualification-types"), measure("/staff/qualifications")
 
-	assert.Equal(t, len(smallList), len(largeList), "the list must not issue a statement per person or row")
-	assert.Equal(t, len(smallTypes), len(largeTypes))
+	assert.Equal(t, len(smallList.Statements), len(largeList.Statements), "the list must not issue a statement per person or row")
+	assert.Equal(t, len(smallTypes.Statements), len(largeTypes.Statements))
 	querybudgets.AssertQueryBudget(t, "workforce.staff_qualifications.list", largeList)
 	querybudgets.AssertQueryBudget(t, "workforce.staff_qualification_types.list", largeTypes)
 }

@@ -18,11 +18,13 @@
 
 import { EmptyState } from "~/components/ui/empty-state";
 import { Fragment, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { TriangleAlert, UserPlus } from "lucide-react";
+import { UserPlus } from "lucide-react";
 
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { InsetPanel } from "~/components/ui/inset-panel";
+import { ListGroupHeader } from "~/components/ui/list-group-header";
 import {
   FormErrorAlert,
   LoadErrorAlert,
@@ -174,14 +176,11 @@ export function StaffPoolSlideOver({
             )}
             <LoadErrorAlert error={poolLoadError} />
             {pool && !pool.dienstplanInUse && (
-              <div className="border-moto-orange/30 bg-moto-orange/10 flex items-start gap-2 rounded-xl border p-3 text-xs text-gray-700">
-                <TriangleAlert className="text-moto-orange mt-0.5 h-4 w-4 shrink-0" />
-                <span>
-                  Für diese Woche ist kein Dienstplan gepflegt. Die
-                  Verfügbarkeit laut Schichten kann daher nicht angezeigt
-                  werden.
-                </span>
-              </div>
+              <Alert
+                type="warning"
+                announce="off"
+                message="Für diese Woche ist kein Dienstplan gepflegt. Die Verfügbarkeit laut Schichten kann daher nicht angezeigt werden."
+              />
             )}
             {pool && !canManage && (
               <Alert
@@ -407,16 +406,24 @@ function PoolSection({
   const [expanded, setExpanded] = useState(!collapsedByDefault);
   return (
     <div className="space-y-2">
-      <button
-        type="button"
-        className="flex w-full items-center gap-1.5 text-left text-[10px] font-bold tracking-wider text-gray-400 uppercase"
-        onClick={() => setExpanded((current) => !current)}
-        aria-expanded={expanded}
-      >
-        <span className="text-gray-400">{icon}</span>
-        {title}
-        <span className="font-medium text-gray-300">({entries.length})</span>
-      </button>
+      <ListGroupHeader
+        className="rounded-lg px-3"
+        title={
+          <span className="inline-flex items-center gap-1.5">
+            <span className="text-gray-400">{icon}</span>
+            {title}
+          </span>
+        }
+        addon={
+          <span className="text-xs text-gray-500 tabular-nums">
+            {entries.length}
+          </span>
+        }
+        collapsible={{
+          expanded,
+          onToggle: () => setExpanded((current) => !current),
+        }}
+      />
       {expanded &&
         (entries.length === 0 ? (
           <EmptyState
@@ -464,13 +471,7 @@ function PoolEntryRow({
     );
   }
   return (
-    <div
-      className={`rounded-xl border p-3 ${
-        danger
-          ? "border-moto-red/20 bg-moto-red/10 shadow-sm"
-          : "moto-content-surface"
-      }`}
-    >
+    <InsetPanel tone={danger ? "danger" : "white"}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="truncate text-sm font-semibold text-gray-900">
@@ -497,6 +498,6 @@ function PoolEntryRow({
           </div>
         )}
       </div>
-    </div>
+    </InsetPanel>
   );
 }

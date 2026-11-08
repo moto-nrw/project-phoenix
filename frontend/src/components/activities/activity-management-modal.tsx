@@ -17,6 +17,7 @@ import {
   FormErrorAlert,
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -293,7 +294,7 @@ export function ActivityManagementModal({
         footer={footer}
       >
         {loading ? (
-          <Loading fullPage={false} message="Kategorien werden geladen…" />
+          <Loading message="Kategorien werden geladen…" />
         ) : (
           <form
             ref={formRef}
@@ -317,7 +318,7 @@ export function ActivityManagementModal({
             <FormErrorAlert message={formErrors.error} />
 
             {/* Activity Name Card - Compact */}
-            <div className="rounded-xl border border-gray-200/50 bg-gray-50 p-3 md:p-4">
+            <InsetPanel framed>
               <div>
                 <label
                   htmlFor="name"
@@ -342,10 +343,10 @@ export function ActivityManagementModal({
                   maxLength={255}
                 />
               </div>
-            </div>
+            </InsetPanel>
 
             {/* Category Card - Compact */}
-            <div className="rounded-xl border border-gray-200/50 bg-gray-50 p-3 md:p-4">
+            <InsetPanel framed>
               <div>
                 <label
                   id="category_id-label"
@@ -379,10 +380,10 @@ export function ActivityManagementModal({
                   disabled={readOnly}
                 />
               </div>
-            </div>
+            </InsetPanel>
 
             {/* Participants Card - Compact */}
-            <div className="rounded-xl border border-gray-200/50 bg-gray-50 p-3 md:p-4">
+            <InsetPanel framed>
               <div>
                 <label
                   htmlFor="max_participants"
@@ -428,14 +429,14 @@ export function ActivityManagementModal({
                   Keine Begrenzung
                 </label>
               </div>
-            </div>
+            </InsetPanel>
 
             <ActivityWaitlistSection activityId={activity.id} />
 
             {/* Hinweiskarte. Die Löschabfrage läuft über das
               `ConfirmDeleteModal`, nicht über einen Wechsel dieser Karte
               und des Fußes (Bauart 2, Regel 6). */}
-            <div className="rounded-lg border border-gray-200/30 bg-gray-50 p-3">
+            <InsetPanel framed>
               <div className="flex items-center gap-2">
                 <MotoDuotoneIcon
                   icon={InfoIcon}
@@ -449,7 +450,7 @@ export function ActivityManagementModal({
                     : "Änderungen werden sofort wirksam."}
                 </p>
               </div>
-            </div>
+            </InsetPanel>
           </form>
         )}
       </FormModal>

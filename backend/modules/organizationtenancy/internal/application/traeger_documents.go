@@ -31,8 +31,8 @@ var _ organizationtenancy.TraegerDocuments = (*TraegerDocuments)(nil)
 // NewTraegerDocuments builds the Träger-Büro's service.
 func NewTraegerDocuments(store ports.TraegerDocumentStore, dependencies organizationtenancy.TraegerDocumentPorts) *TraegerDocuments {
 	if store == nil || dependencies.Schools == nil || dependencies.Groups == nil || dependencies.Runtime == nil ||
-		dependencies.Access == nil || dependencies.Downloads == nil {
-		panic("organization tenancy: the document store, the schools, the groups, the runtime and both audit logs are required")
+		dependencies.Access == nil || dependencies.Downloads == nil || dependencies.Notices == nil {
+		panic("organization tenancy: the document store, the schools, the groups, the runtime, both audit logs and the notices are required")
 	}
 	return &TraegerDocuments{store: store, ports: dependencies}
 }
@@ -242,7 +242,10 @@ func (d *TraegerDocuments) Release(ctx context.Context, organizationID, accountI
 	err = d.ports.Runtime.WithinTraeger(ctx, organizationID, func(txCtx context.Context) error {
 		var insertErr error
 		release, insertErr = d.store.InsertRelease(txCtx, organizationID, accountID, documentID, input, groupName)
-		return insertErr
+		if insertErr != nil {
+			return insertErr
+		}
+		return d.enqueueReleaseNotice(txCtx, organizationID, documentID, release)
 	})
 	return release, err
 }
@@ -272,6 +275,21 @@ func (d *TraegerDocuments) audienceGroupName(ctx context.Context, organizationID
 		return "", organizationtenancy.ErrTraegerDocumentAudienceInvalid
 	}
 	return groups[index].Name, nil
+}
+
+// DeleteDocument deletes a document of the Träger in one Träger transaction: the
+// releases end, the file goes, the deletion is recorded, all or nothing.
+func (d *TraegerDocuments) DeleteDocument(ctx context.Context, organizationID, accountID, documentID int64) error {
+	if organizationID <= 0 {
+		return errTraegerRequired
+	}
+	return d.ports.Runtime.WithinTraeger(ctx, organizationID, func(txCtx context.Context) error {
+		deleted, err := d.store.DeleteDocument(txCtx, organizationID, accountID, documentID)
+		if err == nil && !deleted {
+			err = organizationtenancy.ErrTraegerDocumentNotFound
+		}
+		return err
+	})
 }
 
 // Revoke revokes an active release of a document.

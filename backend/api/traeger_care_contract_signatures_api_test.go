@@ -36,6 +36,9 @@ type careContractSignatureBody struct {
 	DocumentSHA256 string `json:"document_sha256"`
 	Intact         bool   `json:"intact"`
 	PaperFilename  string `json:"paper_filename"`
+	// WithdrawalEndsOn is the last day of the withdrawal period the
+	// signature names (#4682 compares it with the notice page).
+	WithdrawalEndsOn *string `json:"withdrawal_ends_on"`
 }
 
 type careContractSignedDetailBody struct {
@@ -133,6 +136,8 @@ func TestCareContractMailLinkSignsOnceOnlyItsContract(t *testing.T) {
 	assert.Equal(t, contract, view.ContractID, "the link names its contract")
 	assert.Equal(t, "versendet", view.Status)
 	assert.NotEmpty(t, view.WithdrawalNotice)
+	assert.NotContains(t, rec.Body.String(), "child_birth_date", "the link without an account shows no birth date")
+	assert.NotContains(t, rec.Body.String(), `"terms"`, "the terms stand in the PDF, not in the view")
 	rec = publicSigning(t, f.traeger, http.MethodGet, link+"/document", nil)
 	require.Equal(t, http.StatusOK, rec.Code)
 	assert.True(t, bytes.HasPrefix(rec.Body.Bytes(), []byte("%PDF")), "the frozen PDF")

@@ -1,6 +1,7 @@
 {
   "scenario": "communication18.letter_status.n3",
-  "max": 9,
+  "max": 8,
   "exact": true,
-  "description": "Literal protected staff parent-announcement letter_status route. N3/N8 children and real queued tracked email recipient rows. Complete transaction plus actual settings, audience and delivery owners; foreign-tenant and missing-auth checks. Measured fixture contract, not a global minimum."
+  "description": "Literal protected staff parent-announcement letter_status route. N3/N8 children and real queued tracked email recipient rows. Complete transaction plus actual settings, audience and delivery owners; foreign-tenant and missing-auth checks. Measured fixture contract, not a global minimum.",
+  "route": "GET /api/parent-announcements/{announcementId}/letter-status"
 }

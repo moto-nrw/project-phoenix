@@ -1,5 +1,5 @@
 // Router-level tests for the documents a Träger shares with parents and
-// schools (#4692): the Verwaltung uploads a file and releases it for the
+// schools (#4692): the role Dokumente (#5992) uploads a file and releases it for the
 // parents of all schools, of a school or of a group, or for the schools; a
 // release is revoked, which ends the access at once. A school's OGS-Leitung
 // reads only what a release covers for its school; a role without the right
@@ -26,6 +26,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	organizationtenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
@@ -75,7 +77,13 @@ type traegerDocumentsFixture struct {
 
 func newTraegerDocumentsFixture(t *testing.T) traegerDocumentsFixture {
 	t.Helper()
-	db := testpkg.SetupTestDB(t)
+	return newTraegerDocumentsFixtureOn(t, testpkg.SetupTestDB(t))
+}
+
+// newTraegerDocumentsFixtureOn builds the fixture on db; a test that sweeps
+// across every Träger passes its own isolated database.
+func newTraegerDocumentsFixtureOn(t *testing.T, db *bun.DB) traegerDocumentsFixture {
+	t.Helper()
 	unit := testpkg.TenantRuntime(t, db)
 	portal, _ := traegerPortalOn(t, db, unit)
 	organizations, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
@@ -91,10 +99,14 @@ func newTraegerDocumentsFixture(t *testing.T) traegerDocumentsFixture {
 	require.NoError(t, err)
 	ledger, err := auditCompose.NewObservedCommand(audit.AppendStore, slog.Default(), func(string, time.Duration, int, error) {})
 	require.NoError(t, err)
-	require.NoError(t, mountTraegerDocumentRoutes(router, tenantRouter, testpkg.NewDatabase(t, db), organizations, audit.DataAccessLog, ledger))
+	delivery, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{
+		DB: db, People: owners.EnrollmentFlowGuardianDirectory{}, Observe: func(deliveryContract.Observation) {},
+	})
+	require.NoError(t, err)
+	require.NoError(t, mountTraegerDocumentRoutes(router, tenantRouter, testpkg.NewDatabase(t, db), organizations, audit.DataAccessLog, ledger, delivery.Module))
 	router.Mount("/api", tenantRouter)
 	f := traegerDocumentsFixture{db: db, portal: portal, router: testpkg.SessionVerifier(router)}
-	f.office = f.newOffice(t, "Träger Dokumente", identityaccess.TraegerRoleAdministration)
+	f.office = f.newOffice(t, "Träger Dokumente", identityaccess.TraegerRoleDocuments)
 	return f
 }
 
@@ -281,8 +293,8 @@ func TestTraegerDocumentsReachOnlyTheReleasedSchool(t *testing.T) {
 	assert.Len(t, f.schoolDocuments(t, suedLead), 1)
 }
 
-// TestTraegerDocumentsNeedTheirRights pins the rights of #4692: a Träger role
-// without "Anmeldung verwalten" reads but neither uploads, releases nor
+// TestTraegerDocumentsNeedTheirRights pins the rights of #4692 and #5992: a
+// Träger role without "Dokumente verwalten" reads but neither uploads, releases nor
 // revokes; school staff without the right to manage the school's files gets
 // 403; another Träger reaches no document, release or file of this one.
 func TestTraegerDocumentsNeedTheirRights(t *testing.T) {
@@ -302,7 +314,7 @@ func TestTraegerDocumentsNeedTheirRights(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, f.schoolGet(t, teacher, "/").Code, "the school's documents need files:manage")
 	assert.Equal(t, http.StatusForbidden, f.schoolGet(t, teacher, fmt.Sprintf("/%d/file", document.ID)).Code)
 
-	other := f.newOffice(t, "Träger Fremd", identityaccess.TraegerRoleAdministration)
+	other := f.newOffice(t, "Träger Fremd", identityaccess.TraegerRoleDocuments)
 	assert.Empty(t, f.documents(t, other.token), "another Träger lists nothing of this one")
 	rec := traegerJSON(t, f.router, other.token, http.MethodGet, fmt.Sprintf("/traeger/documents/%d/file", document.ID), nil)
 	assert.Equal(t, http.StatusNotFound, rec.Code)
@@ -344,14 +356,14 @@ func TestTraegerDocumentListsReadFlat(t *testing.T) {
 	t.Parallel()
 	f := newTraegerDocumentsFixture(t)
 	lead := f.staff(t, f.office.schools[0], permissions.FilesManage)
-	read := func(token, path string) []string {
+	read := func(token, path string) testpkg.QueryMeasurement {
 		counter := testpkg.CaptureQueriesForContext(t, f.db)
 		req := httptest.NewRequest(http.MethodGet, path, nil)
 		req.Header.Set("Authorization", "Bearer "+token)
 		rec := httptest.NewRecorder()
-		f.router.ServeHTTP(rec, req.WithContext(counter.Context(req.Context())))
+		testpkg.MeasuredHTTPRequest(counter, f.router, rec, req.WithContext(counter.Context(req.Context())))
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		return counter.Selects("")
+		return counter.Measurement(counter.Selects(""))
 	}
 	add := func() {
 		document := f.uploaded(t, f.office.token, "Liste")
@@ -362,8 +374,8 @@ func TestTraegerDocumentListsReadFlat(t *testing.T) {
 	traeger, school := read(f.office.token, "/traeger/documents/"), read(lead, "/api/traeger-documents/")
 	add()
 	add()
-	assert.Len(t, read(f.office.token, "/traeger/documents/"), len(traeger))
-	assert.Len(t, read(lead, "/api/traeger-documents/"), len(school))
+	assert.Len(t, read(f.office.token, "/traeger/documents/").Statements, len(traeger.Statements))
+	assert.Len(t, read(lead, "/api/traeger-documents/").Statements, len(school.Statements))
 	querybudgets.AssertQueryBudget(t, "api.traeger.documents", traeger)
 	querybudgets.AssertQueryBudget(t, "api.school.traeger_documents", school)
 }

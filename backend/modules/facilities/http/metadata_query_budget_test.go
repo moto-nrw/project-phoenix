@@ -62,9 +62,9 @@ func TestRoomMetadataListsQueryBudget(t *testing.T) {
 	}
 
 	counter := testpkg.CaptureQueriesForContext(t, db)
-	measure := func(n int) map[string][]string {
+	measure := func(n int) map[string]testpkg.QueryMeasurement {
 		t.Helper()
-		statements := make(map[string][]string, 2)
+		statements := make(map[string]testpkg.QueryMeasurement, 2)
 		for _, field := range []string{"buildings", "categories"} {
 			prefix := "Building"
 			if field == "categories" {
@@ -77,7 +77,7 @@ func TestRoomMetadataListsQueryBudget(t *testing.T) {
 			counter.Reset()
 			request := testutil.NewRequest(http.MethodGet, "/"+field, nil)
 			request = request.WithContext(counter.Context(request.Context()))
-			response := testutil.ExecuteWithAuth(t, router, request, testutil.AdminTestClaims(int(account.ID)))
+			response := testutil.ExecuteWithAuth(t, testpkg.MountedQueryBudgetRouter("/api/rooms", router), request, testutil.AdminTestClaims(int(account.ID)))
 			require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 			var body struct {
 				Status  string              `json:"status"`
@@ -93,8 +93,8 @@ func TestRoomMetadataListsQueryBudget(t *testing.T) {
 			}
 			require.Zero(t, counter.WriteRows())
 			require.NotEmpty(t, counter.Selects("facilities.rooms"), "the successful response must read persisted rooms")
-			statements[field] = counter.Queries()
-			t.Logf("api.rooms.%s N=%d statements=%d", field, n, len(statements[field]))
+			statements[field] = counter.Measurement(counter.Queries())
+			t.Logf("api.rooms.%s N=%d statements=%d", field, n, len(statements[field].Statements))
 		}
 		return statements
 	}
@@ -104,7 +104,7 @@ func TestRoomMetadataListsQueryBudget(t *testing.T) {
 	addRooms(3, 8)
 	large := measure(8)
 	for _, field := range []string{"buildings", "categories"} {
-		require.Len(t, large[field], len(small[field]), "%s statements must not grow with rooms", field)
+		require.Len(t, large[field].Statements, len(small[field].Statements), "%s statements must not grow with rooms", field)
 
 	}
 	querybudgets.AssertQueryBudget(t, "api.rooms.buildings", small["buildings"])

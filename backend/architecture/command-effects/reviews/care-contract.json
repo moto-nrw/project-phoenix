@@ -11,6 +11,17 @@
       "target_owner": "settings-platform"
     },
     {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractDocumentNotices.EnqueueContractDocumentNotice",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.DocumentNotices.EnqueueContractDocumentNotice",
+      "reason": "Platform protocol participation (durable): care-contract reaches modules/delivery/runtime.Capability.EnqueueDeferredPush (delivery-platform) through roots/owners.CareContractDocumentNotices.EnqueueContractDocumentNotice. The push of a Träger that a sent care contract is in the inbox of the parents portal is enqueued in the caller's Träger transaction before the mailing is recorded, keyed by the contract and the address and enqueued for the first stored send to that address only; the worker resolves the account, its relationship to the contract's child and its devices when it sends (ADR 0126, #5941); transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueDeferredPush",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.careContractLetterheads.Letterhead",
       "classification": "query",
       "effect": "query",
@@ -60,6 +71,77 @@
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.EmailOutcomes.TraegerMailHoldsOf",
       "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractNoticeAddressees.PermittedAddresses",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.NoticeAddressees.PermittedAddresses",
+      "reason": "Reviewed read (#4682): the guardian relationships of the contract's accounts with their portal permissions, row-level in the school's tenant transaction the Betreuungsvertrag opens; decides whether the notice of a decided end may go to them. No owned-row mutation or locking read.",
+      "source_owner": "care-contract",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListGuardianLinksByAccounts",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractNoticeAddressees.PermittedAddresses",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.NoticeAddressees.PermittedAddresses",
+      "reason": "Reviewed read (#4682): the guardian profiles of the contract's accounts for their address, in the school's tenant transaction; no owned-row mutation or locking read.",
+      "source_owner": "care-contract",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListGuardiansByAccount",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractNoticeAddressees.PermittedAddresses",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.NoticeAddressees.PermittedAddresses",
+      "reason": "Reviewed read (#4682): the account addresses of the permitted guardians, restricted to the supplied account IDs; no mutation or locking read.",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListAccountEmails",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractNoticeAddressees.PermittedAddresses",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.NoticeAddressees.PermittedAddresses",
+      "reason": "Pure value method (#4682): reports whether a guardian link grants parent_portal.enrollment.submit; no I/O.",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.GuardianLink.HasPermission",
+      "target_owner": "people-directory"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractNoticePost.EnqueueNoticeMail",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.NoticePost.EnqueueNoticeMail",
+      "reason": "Platform protocol participation (durable): care-contract reaches modules/delivery/runtime.Capability.EnqueueEmail (delivery-platform) through roots/owners.careContractNoticePost.EnqueueNoticeMail. The confirmation of a withdrawal or termination is enqueued in the caller's Träger transaction with the declaration (#4682, ADR 0098, ADR 0123). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueEmail",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractNoticePost.NoticeDeliveries",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.NoticePost.NoticeDeliveries",
+      "reason": "Reads the existing Träger-scoped delivery statuses and exposes only positive delivery receipts with their timestamps. Care Contract, not Delivery, decides and persists withdrawal-notice provision (ADR 0159). No cross-owner write or locking read occurs in this binding.",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.TraegerEmailStatuses",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractNoticeTemplates.NoticeTemplate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.NoticeTemplates.NoticeTemplate",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerTexts: reads the Träger's confirmation template of a withdrawal or termination and the template of the notice of a decided end of an extraordinary termination (#4682).",
+      "source_owner": "care-contract",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractPost.ContractMailBlock",
@@ -166,44 +248,48 @@
     },
     {
       "adr": "0098",
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/api.careContractAccessLog.RecordAccess",
       "classification": "platform",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolAccessLog.RecordAccess",
-      "reason": "Platform protocol participation (mutation): care-contract reaches modules/auditlog/compose.Command.Append (audit-platform) through api.careContractAccessLog.RecordAccess. A read of the accepted applications lands in the access log of the school in its tenant transaction (ADR 0084 section 7, ADR 0153). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Since #4683 the same binding records the children an overrun evaluation shows by name, with the window (ADR 0156).",
+      "reason": "Platform protocol participation (mutation): care-contract reaches modules/auditlog/compose.Command.Append (audit-platform) through api.careContractAccessLog.RecordAccess. A read of the accepted applications lands in the access log of the school in its tenant transaction (ADR 0084 section 7, ADR 0153). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Since #4683 the same binding records the children an overrun evaluation shows by name, with the window (ADR 0156). ADR 0163 review: the binding adds the care_contract_changes resource for office reads and decisions; audit writes still join the authorized contract school transaction.",
       "source_owner": "care-contract",
       "target": "*github.com/moto-nrw/project-phoenix/modules/auditlog/compose.Command.Append",
       "target_owner": "audit-platform"
     },
     {
       "adr": "0098",
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/api.careContractAccessLog.RecordAccess",
       "classification": "platform",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolAccessLog.RecordAccess",
-      "reason": "Platform protocol participation (mutation): care-contract reaches modules/auditlog/records.AppendStore.Append (audit-platform) through api.careContractAccessLog.RecordAccess. A read of the accepted applications lands in the access log of the school in its tenant transaction (ADR 0084 section 7, ADR 0153). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Since #4683 the same binding records the children an overrun evaluation shows by name, with the window (ADR 0156).",
+      "reason": "Platform protocol participation (mutation): care-contract reaches modules/auditlog/records.AppendStore.Append (audit-platform) through api.careContractAccessLog.RecordAccess. A read of the accepted applications lands in the access log of the school in its tenant transaction (ADR 0084 section 7, ADR 0153). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Since #4683 the same binding records the children an overrun evaluation shows by name, with the window (ADR 0156). ADR 0163 review: the binding adds the care_contract_changes resource for office reads and decisions; audit writes still join the authorized contract school transaction.",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.AppendStore.Append",
       "target_owner": "audit-platform"
     },
     {
       "adr": "0098",
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/api.careContractAccessLog.RecordAccess",
       "classification": "platform",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolAccessLog.RecordAccess",
-      "reason": "Platform protocol participation (mutation): care-contract reaches modules/auditlog/records.Command.Append (audit-platform) through api.careContractAccessLog.RecordAccess. A read of the accepted applications lands in the access log of the school in its tenant transaction (ADR 0084 section 7, ADR 0153). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Since #4683 the same binding records the children an overrun evaluation shows by name, with the window (ADR 0156).",
+      "reason": "Platform protocol participation (mutation): care-contract reaches modules/auditlog/records.Command.Append (audit-platform) through api.careContractAccessLog.RecordAccess. A read of the accepted applications lands in the access log of the school in its tenant transaction (ADR 0084 section 7, ADR 0153). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Since #4683 the same binding records the children an overrun evaluation shows by name, with the window (ADR 0156). ADR 0163 review: the binding adds the care_contract_changes resource for office reads and decisions; audit writes still join the authorized contract school transaction.",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.Command.Append",
       "target_owner": "audit-platform"
     },
     {
       "adr": "0098",
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/api.careContractAccessLog.RecordAccess",
       "classification": "platform",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolAccessLog.RecordAccess",
-      "reason": "Platform protocol participation (mutation): care-contract reaches modules/auditlog/records.DataAccessLogRepository.Create (audit-platform) through api.careContractAccessLog.RecordAccess. A read of the accepted applications lands in the access log of the school in its tenant transaction (ADR 0084 section 7, ADR 0153). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Since #4683 the same binding records the children an overrun evaluation shows by name, with the window (ADR 0156).",
+      "reason": "Platform protocol participation (mutation): care-contract reaches modules/auditlog/records.DataAccessLogRepository.Create (audit-platform) through api.careContractAccessLog.RecordAccess. A read of the accepted applications lands in the access log of the school in its tenant transaction (ADR 0084 section 7, ADR 0153). Transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Since #4683 the same binding records the children an overrun evaluation shows by name, with the window (ADR 0156). ADR 0163 review: the binding adds the care_contract_changes resource for office reads and decisions; audit writes still join the authorized contract school transaction.",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.DataAccessLogRepository.Create",
       "target_owner": "audit-platform"
@@ -213,7 +299,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolApplications.AcceptedApplications",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.ContractApplications.AcceptedContractApplications: reads the accepted application children, original acceptance instant and checksummed consent text in the school transaction. The root only maps values; no mutation or scope switch (#4678, #4680, ADR 0153).",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.ContractApplications.AcceptedContractApplications: reads the accepted application children, original acceptance instant and checksummed consent text in the school transaction, with whether the form required each ticked block (#4682: an optional block records the early start wish, never the conditions). The root only maps values; no mutation or scope switch (#4678, #4680, #4682, ADR 0153).",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.ContractApplications.AcceptedContractApplications",
       "target_owner": "enrollment"
@@ -268,6 +354,88 @@
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatisticsReports.CareTimeOverruns",
       "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0163",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractChangeRequests.DecideChange",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolChangeRequests.DecideChange",
+      "reason": "Care Contract joins Care Plan’s guarded Decide in the contract school transaction after contract-right, organization and school checks. Care Plan retains request/student locks, the student and enrollment pins, validation, booking writes and the parent notice. The caller propagates failure; returned planning consequences add no coordinated write protocol (ADR 0163).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.Decide",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractChangeRequests.DecideChange",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolChangeRequests.DecideChange",
+      "reason": "Pure reason-policy value check, retaining the same staff-side policy for the school and the office (ADR 0163).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests.ReasonRequired",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractChangeRequests.DecideChange",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolChangeRequests.DecideChange",
+      "reason": "Reads the school’s parent-request reason policy in the existing school transaction, using tenant registry resolution without another write or scope switch (ADR 0163).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractChangeRequests.PendingChanges",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolChangeRequests.PendingChanges",
+      "reason": "Reads the student’s pending request, comparison and recent decision inside the school transaction; the binding filters both outcomes to the contract enrollment before returning them (ADR 0163).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.GetForStudent",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractChangeRequests.PendingChanges",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolChangeRequests.PendingChanges",
+      "reason": "Read-only materialization for the selected effective date, after matching the request to the contract enrollment. Reuses Care Plan’s validation and full dated comparison; no booking or decision is written (ADR 0163).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.PreviewDecision",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractChangeRequests.PendingChanges",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolChangeRequests.PendingChanges",
+      "reason": "Pure timestamp-to-version value mapping used to reject obsolete request forms; no mutation or locking read (ADR 0163).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.ParentRequestVersion",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractChangeRequests.PendingChanges",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolChangeRequests.PendingChanges",
+      "reason": "Pure reason-policy value check, retaining the same staff-side policy for the school and the office (ADR 0163).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests.ReasonRequired",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractChangeRequests.PendingChanges",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolChangeRequests.PendingChanges",
+      "reason": "Reads the school’s parent-request reason policy in the existing school transaction, using tenant registry resolution without another write or scope switch (ADR 0163).",
+      "source_owner": "care-contract",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractSignatures.ContractSignatureProofs",

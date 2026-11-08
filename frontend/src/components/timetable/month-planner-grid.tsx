@@ -17,6 +17,8 @@ import { capacityTone, TimetableRatioPill } from "./timetable-ratio-pill";
 import { TIMETABLE_UNTYPED_EDGE_COLOR } from "./timetable-colors";
 import { calendarConcept } from "~/lib/concepts/calendar";
 import { StatusDot } from "~/components/ui/status-dot";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { SectionCard } from "~/components/ui/section-card";
 
 interface MonthPlannerGridProps {
   days: Date[];
@@ -56,12 +58,12 @@ export function MonthPlannerGrid({
   const currentMonth = monthDate.getMonth();
 
   return (
-    <div className="moto-content-surface overflow-hidden rounded-2xl border">
+    <SectionCard padding="none">
       <div className="grid grid-cols-7 border-b border-gray-200">
         {days.slice(0, 7).map((day) => (
           <div
             key={getGermanWeekdayShort(day)}
-            className="px-3 py-2 text-center text-[11px] font-medium tracking-wide text-gray-500 uppercase"
+            className="px-3 py-2 text-center text-xs font-medium text-gray-500"
           >
             {getGermanWeekdayShort(day)}
           </div>
@@ -167,7 +169,7 @@ export function MonthPlannerGrid({
                                 onClick: () => onInstanceClick(inst),
                               }
                             : {})}
-                          className={`pointer-events-auto flex min-w-0 items-center gap-1.5 rounded-lg border border-l-[3px] bg-white px-1.5 py-1 text-[11px] shadow-sm ${
+                          className={`pointer-events-auto flex max-w-full min-w-0 items-center gap-1.5 rounded-lg border border-l-[3px] bg-white px-1.5 py-1 text-[11px] shadow-sm ${
                             isCancelled
                               ? "border-moto-red border-dashed text-gray-400 line-through"
                               : "border-gray-200 text-gray-700"
@@ -197,12 +199,13 @@ export function MonthPlannerGrid({
                             </span>
                           )}
                           {inst.isSpontaneous && !isCancelled && (
-                            <span
-                              className="shrink-0 rounded-full bg-gray-100 px-1 text-[9px] font-bold tracking-wide text-gray-600 uppercase"
+                            <StatusBadge
+                              label="Spontan"
+                              tone="gray"
+                              size="xs"
+                              className="shrink-0"
                               title="Dieser Termin wurde spontan gestartet und war nicht geplant."
-                            >
-                              Spontan
-                            </span>
+                            />
                           )}
                           {isActive && !isCancelled && (
                             <StatusDot
@@ -249,6 +252,6 @@ export function MonthPlannerGrid({
           {legend}
         </div>
       ) : null}
-    </div>
+    </SectionCard>
   );
 }

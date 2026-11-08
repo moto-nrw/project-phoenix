@@ -1,6 +1,7 @@
 "use client";
 
 import { useMessageSendAttempt } from "~/lib/swr/optimistic";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 import {
   useCallback,
@@ -504,6 +505,7 @@ export function OgsConversation({
                 </h1>
               </div>
               {showChild && thread?.student_name ? (
+                // oxlint-disable-next-line ui-kit/no-hand-rolled-notice -- Namensschild des Kindes im Gesprächskopf, kein Hinweis
                 <div
                   className="bg-moto-green-soft inline-flex w-fit shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-gray-900"
                   title={tm("aboutChild", { name: thread.student_name })}
@@ -706,13 +708,21 @@ export function OgsConversation({
               <Skeleton shape="control" className="h-16 w-full" />
             </div>
           ) : !care.features.notes_enabled ? (
-            <p className="rounded-xl bg-gray-50 px-4 py-3 text-[15px] text-gray-600">
+            <InsetPanel
+              as="p"
+              padding="md"
+              className="text-[15px] text-gray-600"
+            >
               {tm("writingDisabled")}
-            </p>
+            </InsetPanel>
           ) : !thread ? null : leadershipClosed ? (
-            <p className="rounded-xl bg-gray-50 px-4 py-3 text-[15px] text-gray-600">
+            <InsetPanel
+              as="p"
+              padding="md"
+              className="text-[15px] text-gray-600"
+            >
               {leadershipClosedText}
-            </p>
+            </InsetPanel>
           ) : (
             <>
               {/* Wer mitliest, steht auch direkt am Schreibfeld: dort fällt
@@ -812,7 +822,7 @@ function RequestItem({
 }: Readonly<{ message: ParentMessage; locale: string }>) {
   const t = useTranslations("parentOgsMessaging");
   return (
-    <div className="moto-content-surface rounded-2xl border p-4">
+    <InsetPanel tone="white" padding="md">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-gray-900">
@@ -827,7 +837,7 @@ function RequestItem({
           label={t(parentRequestStatusI18nKey(message.request_status))}
         />
       </div>
-    </div>
+    </InsetPanel>
   );
 }
 

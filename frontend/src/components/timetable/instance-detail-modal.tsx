@@ -53,6 +53,7 @@ import {
 } from "./guardian-notice-fields";
 import { OriginChip } from "~/components/ui/planning/origin-chip";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { SectionLabel } from "~/components/ui/section-label";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { useTenantAwarePath } from "~/lib/tenant-path";
@@ -1071,17 +1072,24 @@ export function InstanceDetailModal({
               )}
             </div>
             {instance.conflictWarnings.length > 0 && (
-              <InsetPanel tone="danger">
-                <div className="text-moto-red-strong flex items-center gap-2 text-xs font-bold">
-                  <TriangleAlert className="h-4 w-4" />
-                  {instance.conflictWarnings.length} Konflikt(e)
-                </div>
-                <ul className="text-moto-red-strong mt-1 space-y-0.5 text-xs">
-                  {instance.conflictWarnings.map((warning) => (
-                    <li key={warning.message}>• {warning.message}</li>
-                  ))}
-                </ul>
-              </InsetPanel>
+              <Alert
+                type="warning"
+                size="compact"
+                announce="off"
+                icon={<TriangleAlert className="h-4 w-4" aria-hidden="true" />}
+                message={
+                  <>
+                    <p className="font-semibold">
+                      {instance.conflictWarnings.length} Konflikt(e)
+                    </p>
+                    <ul className="mt-1 space-y-0.5">
+                      {instance.conflictWarnings.map((warning) => (
+                        <li key={warning.message}>• {warning.message}</li>
+                      ))}
+                    </ul>
+                  </>
+                }
+              />
             )}
 
             <StatsRow instance={instance} />
@@ -1348,13 +1356,17 @@ function StudentGroup({
   const isPlanned = instanceStatus === "planned";
   return (
     <div className="space-y-1.5">
-      <div className="flex items-center justify-between text-[11px] font-bold tracking-wide text-gray-400 uppercase">
-        <span>
+      <div className="flex items-center justify-between gap-2">
+        <SectionLabel as="p">
           {careDayGroup
             ? "Heute nicht eingeplant"
             : attendanceLabel(status, isPlanned)}
-        </span>
-        {showTimetableCounts ? <span>{students.length}</span> : null}
+        </SectionLabel>
+        {showTimetableCounts ? (
+          <span className="text-xs text-gray-500 tabular-nums">
+            {students.length}
+          </span>
+        ) : null}
       </div>
       {students.map((student) => {
         const studentName =
@@ -1635,9 +1647,7 @@ interface SectionProps {
 function Section({ title, children }: SectionProps) {
   return (
     <div className="space-y-2">
-      <h4 className="text-[10px] font-bold tracking-wider text-gray-400 uppercase">
-        {title}
-      </h4>
+      <SectionLabel as="h4">{title}</SectionLabel>
       <div className="space-y-1.5">{children}</div>
     </div>
   );

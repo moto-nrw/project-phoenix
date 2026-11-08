@@ -9,7 +9,7 @@
 // schon erfasst sind und welche noch fehlen.
 //
 // Design follows the Anmeldungen/Planung surface language: calm content
-// section, uppercase kicker, gray-50 stats, no colored dashboards.
+// section without a kicker, gray-50 stats, no colored dashboards.
 
 import Link from "~/components/ui/navigation-link";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -26,6 +26,7 @@ import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
+import { SuggestInput } from "~/components/ui/suggest-input";
 import { Radio } from "~/components/ui/radio";
 import {
   OverflowMenu,
@@ -54,6 +55,7 @@ import type { Student } from "~/lib/student-helpers";
 import { useSWRAuth } from "~/lib/swr";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { fetchSchoolClasses } from "~/lib/student-api";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 
 const logger = createLogger({ component: "ClassListEntriesPage" });
 
@@ -638,27 +640,20 @@ export default function ClassListEntriesPage() {
                 />
               </div>
               <div>
-                <Input
+                <SuggestInput
                   id="entry-school-class"
                   name="school_class"
                   label="Klasse"
                   hint="Genau wie bei den regulären Kindern geschrieben, damit der Eintrag in derselben Klassenliste landet."
                   error={formErrors.fieldError("school_class")}
                   value={form.schoolClass}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      schoolClass: e.target.value,
-                    }))
+                  onValueChange={(schoolClass) =>
+                    setForm((prev) => ({ ...prev, schoolClass }))
                   }
+                  suggestions={classSuggestions ?? []}
+                  listLabel="Vorschläge für die Klasse"
                   placeholder="z.B. 1a"
-                  list="class-list-class-suggestions"
                 />
-                <datalist id="class-list-class-suggestions">
-                  {(classSuggestions ?? []).map((klass) => (
-                    <option key={klass} value={klass} />
-                  ))}
-                </datalist>
               </div>
               <div className="flex justify-end gap-2 border-t border-gray-100 pt-4">
                 <Button
@@ -742,10 +737,11 @@ export default function ClassListEntriesPage() {
                       den richtigen Datensatz auswählen:
                     </legend>
                     {modal.entry.matchingStudentIds.map((studentId) => (
-                      <label
+                      <ChoiceTile
                         key={studentId}
                         htmlFor={`assign-target-${studentId}`}
-                        className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700"
+                        selected={assignTarget === studentId}
+                        className="justify-between gap-2 py-2 font-normal"
                       >
                         <span className="flex items-center gap-2">
                           <Radio
@@ -763,7 +759,7 @@ export default function ClassListEntriesPage() {
                         >
                           Öffnen
                         </Link>
-                      </label>
+                      </ChoiceTile>
                     ))}
                   </fieldset>
                 ) : null}

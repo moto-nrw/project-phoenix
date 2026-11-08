@@ -133,6 +133,41 @@ describe("ParentDocumentsPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("names the letter of a monthly invoice and of its Storno (#4684)", async () => {
+    mocks.listMyDocuments.mockResolvedValue({
+      documents: [
+        {
+          ...letter,
+          id: "10",
+          kind: "care_invoice_letter",
+          number: "MB-2027-0001",
+          period_name: "Monatsbeitrag Januar 2027",
+        },
+        {
+          ...letter,
+          id: "11",
+          kind: "care_cancellation_letter",
+          number: "MB-2027-0009",
+          period_name: "Monatsbeitrag Januar 2027",
+        },
+      ],
+      shared: [],
+      failedSource: null,
+      error: null,
+    });
+
+    render(<ParentDocumentsPage />);
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Rechnung Monatsbeitrag Januar 2027",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Storno Monatsbeitrag Januar 2027" }),
+    ).toBeInTheDocument();
+  });
+
   it("downloads the stored PDF of a letter", async () => {
     mocks.listMyDocuments.mockResolvedValue({
       documents: [letter],
@@ -313,8 +348,19 @@ describe("ParentDocumentsPage", () => {
     };
     mocks.listMyDocuments.mockResolvedValue({
       documents: [
-        { ...contract, replaced: true },
-        { ...contract, id: "75", replaced: false },
+        {
+          ...contract,
+          contract_status: "aktiv",
+          replaced: true,
+          can_end_contract: true,
+        },
+        {
+          ...contract,
+          id: "75",
+          contract_status: "aktiv",
+          replaced: false,
+          can_end_contract: false,
+        },
       ],
       shared: [],
       failedSource: null,
@@ -330,6 +376,14 @@ describe("ParentDocumentsPage", () => {
       screen.getByText(
         "Diese Fassung gilt nicht mehr. Ab 01.03.2027 gilt eine neue Fassung. Sie enthält Ihre bestätigten Änderungen. Die neue Fassung bekommen Sie vom Träger.",
       ),
+    ).toBeInTheDocument();
+    // The button only where the relationship may end the contract (#4682);
+    // the other contract says why it has none.
+    expect(
+      screen.getAllByRole("link", { name: "Verträge hier kündigen" }),
+    ).toHaveLength(1);
+    expect(
+      screen.getByText(deMessages.parentDocuments.cancelNotPermitted),
     ).toBeInTheDocument();
     // Only the replaced version carries the mark.
     expect(screen.getAllByText("Ersetzt")).toHaveLength(1);

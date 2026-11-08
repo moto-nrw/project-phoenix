@@ -26,7 +26,7 @@ import {
   FormErrorAlert,
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
-import { Input } from "~/components/ui/input";
+import { SuggestInput } from "~/components/ui/suggest-input";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { RemovableChip } from "~/components/ui/removable-chip";
@@ -251,10 +251,11 @@ export function KlassenTab({
             <>
               <div className="flex items-center gap-2">
                 <div className="w-40">
-                  <Input
-                    type="text"
+                  <SuggestInput
                     value={newClass}
-                    onChange={(event) => setNewClass(event.target.value)}
+                    onValueChange={setNewClass}
+                    suggestions={suggestions}
+                    listLabel="Vorschläge für die Klasse"
                     onKeyDown={(event) => {
                       if (event.key === "Enter") {
                         event.preventDefault();
@@ -263,18 +264,12 @@ export function KlassenTab({
                     }}
                     name="school_classes"
                     error={formErrors.fieldError("school_classes")}
-                    list="staff-known-classes"
                     placeholder="z. B. 1a"
                     aria-label="Klassenname"
                     disabled={saving}
                     controlSize="compact"
                   />
                 </div>
-                <datalist id="staff-known-classes">
-                  {suggestions.map((klass) => (
-                    <option key={klass} value={klass} />
-                  ))}
-                </datalist>
                 <Button
                   type="button"
                   variant="surface"

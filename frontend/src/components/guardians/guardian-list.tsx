@@ -44,6 +44,7 @@ import {
   OverflowMenu,
   type OverflowMenuEntry,
 } from "~/components/ui/page-header/OverflowMenu";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 // Account-status pill: the tint carries the status (no dot, #2476). Routes
 // color through LOCATION_COLORS.
@@ -219,9 +220,11 @@ export default function GuardianList({
         const menuItems = buildGuardianMenu(guardian, showInvite);
 
         return (
-          <div
+          <InsetPanel
             key={guardian.id}
-            className="rounded-lg border border-gray-200 bg-white p-3 transition-colors sm:p-4"
+            tone="white"
+            padding="md"
+            className="max-sm:p-3"
           >
             {/* Header with name and actions */}
             <div className="mb-3 flex items-start justify-between gap-2">
@@ -368,9 +371,12 @@ export default function GuardianList({
 
             {/* Notes */}
             {guardian.notes && (
-              <div className="mt-2 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600 sm:text-sm">
+              <InsetPanel
+                padding="compact"
+                className="mt-2 text-xs text-gray-600 sm:text-sm"
+              >
                 {guardian.notes}
-              </div>
+              </InsetPanel>
             )}
 
             {/* Contact Actions */}
@@ -388,7 +394,7 @@ export default function GuardianList({
                 contactName={getGuardianFullName(guardian)}
               />
             </div>
-          </div>
+          </InsetPanel>
         );
       })}
     </div>

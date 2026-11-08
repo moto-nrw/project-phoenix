@@ -168,7 +168,9 @@ func buildCareUsageReport(in *careUsageInputs, filters enrollmentNative.CareUsag
 		if err != nil {
 			return nil, fmt.Errorf("care usage report: child %d pickup schedule: %w", child.ID, err)
 		}
-		row := careUsageRow(req, child, in.linksByChild[child.ID], in.offeringByID, includedOfferingIDs, pickupByDay)
+		links := in.linksByChild[child.ID]
+		pickupByDay = careUsageRequestedPickupByDay(pickupByDay, links, in.offeringByID)
+		row := careUsageRow(req, child, links, in.offeringByID, includedOfferingIDs, pickupByDay)
 		tally.observeOptions(child, row)
 		if !careUsageRowMatches(row, filters) {
 			continue

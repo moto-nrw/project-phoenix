@@ -21,6 +21,17 @@ import (
 	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
+// justNow is an instant of today shortly before the request, so an open stay
+// that starts there belongs to the day the figures read.
+func justNow() (calendar.Date, time.Time) {
+	today := calendar.TodayDate()
+	at := time.Now().Add(-time.Minute)
+	if midnight := today.BerlinMidnight(); at.Before(midnight) {
+		at = midnight
+	}
+	return today, at
+}
+
 // traegerSchoolsAlerts reads GET /traeger/schools/alerts with the session's
 // token; a counter, when given, counts the statements of the request.
 func traegerSchoolsAlerts(t *testing.T, router http.Handler, token string, counter *testpkg.QueryCounter) *httptest.ResponseRecorder {
@@ -200,11 +211,11 @@ func TestTraegerSchoolsAlertsQueryBudgetIsFlat(t *testing.T) {
 	testpkg.CreateTestTraegerMember(t, db, organization, account.ID, identityaccess.TraegerRoleReadOnly)
 	code, answer := traegerSignIn(t, router, account.Email, password, 0)
 	require.Equal(t, http.StatusOK, code)
-	read := func() []string {
+	read := func() testpkg.QueryMeasurement {
 		counter := testpkg.CaptureQueriesForContext(t, db)
 		rec := traegerSchoolsAlerts(t, router, answer.AccessToken, counter)
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		return counter.Selects("")
+		return counter.Measurement(counter.Selects(""))
 	}
 	three := read()
 	for _, name := range []string{"OGS Vier", "OGS Fünf"} {
@@ -212,6 +223,6 @@ func TestTraegerSchoolsAlertsQueryBudgetIsFlat(t *testing.T) {
 		testpkg.CreateTestStudentForTenant(t, db, school, "Kind", name, "1a")
 		insertEnrollmentChildren(t, db, school, false, "submitted")
 	}
-	assert.Len(t, read(), len(three), "the hints read the same statements for any number of schools")
+	assert.Len(t, read().Statements, len(three.Statements), "the hints read the same statements for any number of schools")
 	querybudgets.AssertQueryBudget(t, "api.traeger.schools_alerts", three)
 }

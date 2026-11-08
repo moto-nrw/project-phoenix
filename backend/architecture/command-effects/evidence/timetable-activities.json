@@ -12106,7 +12106,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.TimetablePeople.StaffPersonID",
-      "binding_digest": "cc19777b0a9a8bbee8d489108d3418ac",
+      "binding_digest": "3eda2669b1ba4187387ede1d719fe670",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/http.People.StaffPersonID",
       "source_owner": "timetable-activities",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
@@ -12114,7 +12114,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.TimetablePeople.StaffPersonID",
-      "binding_digest": "f7b64f513d8a9066e57c1b0b51aaf281",
+      "binding_digest": "da2c09bc07f9b3566e66dafccd28f525",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/http.People.StaffPersonID",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonDirectory.StaffRows",
@@ -12122,15 +12122,15 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.TimetablePeople.StaffPersonID",
-      "binding_digest": "1c02220ffbf32c2e1971c15d23886cc1",
+      "binding_digest": "b0a35d5d83b4c6b65437ca37342b753a",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/http.People.StaffPersonID",
       "source_owner": "timetable-activities",
-      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindByID",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindMembershipByID",
       "target_owner": "people-directory"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.TimetablePeople.StaffPersonID",
-      "binding_digest": "ca95c74428090fcc279b876b0b7cb092",
+      "binding_digest": "8f4a4ce25f8be48f45c591a7477ceb5f",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/http.People.StaffPersonID",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaff",
@@ -12138,10 +12138,26 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.TimetablePeople.StaffPersonID",
-      "binding_digest": "c143fac2a78acd56b86062afef8967ab",
+      "binding_digest": "8267db1617ea37e7ff3fadf4d19531c8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/http.People.StaffPersonID",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.TimetablePeople.StaffPersonID",
+      "binding_digest": "dc7af0831fe2a45b44fe52736aaad306",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/http.People.StaffPersonID",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.TimetablePeople.StaffPersonID",
+      "binding_digest": "a8b143b8e596f166bfb6ee00941b8dc1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/http.People.StaffPersonID",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
       "target_owner": "school-membership"
     },
     {

@@ -296,20 +296,20 @@ func TestHolidayStudentHealthQueryBudgetIsFlat(t *testing.T) {
 	_, err := f.db.ExecContext(context.Background(), `UPDATE users.persons SET birthday = '2018-04-02' WHERE id = ?`, mila.PersonID)
 	require.NoError(t, err)
 	lead := f.staffOf(t, f.nord, permissions.ConfigRead, permissions.UsersRead)
-	read := func() []string {
+	read := func() testpkg.QueryMeasurement {
 		counter := testpkg.CaptureQueriesForContext(t, f.db)
 		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/holiday-weeks/students/%d/health", mila.ID), nil)
 		req.Header.Set("Authorization", "Bearer "+lead)
 		rec := httptest.NewRecorder()
-		f.school.ServeHTTP(rec, req.WithContext(counter.Context(req.Context())))
+		testpkg.MeasuredHTTPRequest(counter, f.school, rec, req.WithContext(counter.Context(req.Context())))
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		return counter.Selects("")
+		return counter.Measurement(counter.Selects(""))
 	}
 	none := read()
 	registration := registerWithHealth(t, f)
 	f.confirm(t, registration, "confirm")
 	f.confirm(t, f.siblings, "confirm")
-	assert.Len(t, read(), len(none), "the read is flat in the number of registrations and weeks")
+	assert.Len(t, read().Statements, len(none.Statements), "the read is flat in the number of registrations and weeks")
 	querybudgets.AssertQueryBudget(t, "api.holiday_weeks.student_health", none)
 }
 

@@ -313,10 +313,15 @@ type ParentAnnouncementCapability interface {
 	ParentDeclarationCapability
 }
 
+// ParentAnnouncementRead selects a narrow projection; the default read remains complete.
+type ParentAnnouncementRead uint8
+
+const ParentAnnouncementHeaderOnly ParentAnnouncementRead = 1
+
 // ParentAnnouncementQuery reads announcements and their engagement reports.
 type ParentAnnouncementQuery interface {
 	ListParentAnnouncements(context.Context, bool) ([]ParentAnnouncement, error)
-	GetParentAnnouncement(context.Context, int64) (*ParentAnnouncement, error)
+	GetParentAnnouncement(context.Context, int64, ...ParentAnnouncementRead) (*ParentAnnouncement, error)
 	ParentAnnouncementStats(context.Context, int64) (*ParentAnnouncementStats, error)
 	ParentAnnouncementRecipients(context.Context, int64) ([]ParentAnnouncementRecipient, error)
 	ParentAnnouncementPollResults(context.Context, int64) (*ParentAnnouncementPollResults, error)

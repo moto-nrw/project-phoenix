@@ -203,7 +203,7 @@ func TestOGSGroupNavigation_NamesTheGroupLeadership(t *testing.T) {
 	}
 	run()
 	assert.Equal(t, smallCount, counter.Total(), "leadership is one bulk lookup, not one per group")
-	querybudgets.AssertQueryBudget(t, "api.students.ogs_group_navigation", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.students.ogs_group_navigation", counter.Measurement(counter.Queries()))
 }
 
 func TestOGSGroupLive_AdminSeesAllGroupsInPersonalScope(t *testing.T) {
@@ -565,7 +565,7 @@ func TestOGSGroupLive_QueryBudget(t *testing.T) {
 	// snapshot (~6), status days + day planning (~6), class day exceptions (~1),
 	// transfers + settings (~4), tenant tx overhead (~6). Raise only with a
 	// written justification.
-	querybudgets.AssertQueryBudget(t, "api.students.ogs_group_live", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.students.ogs_group_live", counter.Measurement(counter.Queries()))
 }
 
 // TestOGSGroupLive_PayloadBudget bounds the wire size for a production-sized

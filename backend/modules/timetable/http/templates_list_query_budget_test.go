@@ -63,7 +63,7 @@ func TestListTemplatesQueryBudget(t *testing.T) {
 	t.Logf("query budget: 3 templates → %d queries, 8 templates → %d queries", smallCount, largeCount)
 	assert.Equal(t, smallCount, largeCount,
 		"query count must be independent of the number of templates (no per-template N+1)")
-	querybudgets.AssertQueryBudget(t, "api.timetable.templates.list", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.timetable.templates.list", counter.Measurement(counter.Queries()))
 }
 
 // TestListTargetedTemplatesQueryBudget measures the populated display target
@@ -110,7 +110,7 @@ func TestListTargetedTemplatesQueryBudget(t *testing.T) {
 	large := run()
 	t.Logf("query budget: 3 targeted templates → %d queries, 8 targeted templates → %d queries", small, large)
 	assert.Equal(t, small, large)
-	querybudgets.AssertQueryBudget(t, "api.timetable.templates.list.targeted", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.timetable.templates.list.targeted", counter.Measurement(counter.Queries()))
 }
 
 func templateQueryBudgetRouter(t *testing.T, parentCtx context.Context, resource *Resource) chi.Router {

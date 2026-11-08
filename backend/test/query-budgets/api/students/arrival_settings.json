@@ -2,5 +2,6 @@
   "scenario": "api.students.arrival_settings",
   "max": 4,
   "exact": true,
-  "description": "GET /api/students/arrival-settings: BEGIN, tenant-role/tenant-ID setup, one bulk Settings read for the eleven school-only keys, COMMIT. Real handler test covers zero, three and eight maintained lesson end times, both care-day sources and configured arrival/pickup presets; fixture writes are outside the reader scope."
+  "description": "GET /api/students/arrival-settings: BEGIN, tenant-role/tenant-ID setup, one bulk Settings read for the eleven school-only keys, COMMIT. Real handler test covers zero, three and eight maintained lesson end times, both care-day sources and configured arrival/pickup presets; fixture writes are outside the reader scope.",
+  "route": "GET /api/students/arrival-settings"
 }

@@ -6,6 +6,8 @@
   "confirmationLetter": "Potwierdzenie: {period}",
   "cancellationLetter": "Anulowanie: {period}",
   "creditLetter": "Nota uznaniowa: {period}",
+  "careInvoiceLetter": "Faktura: {period}",
+  "careCancellationLetter": "Anulowanie: {period}",
   "sender": "Od: {traeger}",
   "children": "Dla",
   "amount": "Kwota",
@@ -32,6 +34,11 @@
   "signed": "Podpisano",
   "concluded": "Umowa zawarta",
   "signNow": "Przeczytaj i podpisz",
-  "signedAt": "Podpisano dnia",
-  "status": "Status"
+  "status": "Status",
+  "cancelContract": "Wypowiedz umowy tutaj",
+  "cancelNotPermitted": "Wypowiedzieć mogą tylko rodzice, którzy mogą zapisać dziecko. Proszę zapytać szkołę.",
+  "terminatedOn": "Wypowiedziana na {date}",
+  "withdrawn": "Odstąpiono",
+  "showConfirmation": "Zobacz potwierdzenie",
+  "terminationInReview": "Wypowiedziano, data końca w sprawdzeniu"
 }

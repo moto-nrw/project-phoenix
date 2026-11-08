@@ -1,6 +1,7 @@
 {
   "scenario": "communication18.school_declaration_status.n3",
-  "max": 12,
+  "max": 10,
   "exact": true,
-  "description": "Literal protected school class-letter school_declaration_status route. N3/N8 children, eligible guardians, immutable versions and agreed submissions, all ordered DTO fields or CSV columns/headers asserted. Complete transaction plus actual settings, audience and delivery owners; foreign-tenant and missing-auth checks. Measured fixture contract, not a global minimum."
+  "description": "Literal protected school class-letter school_declaration_status route. N3/N8 children, eligible guardians, immutable versions and agreed submissions, all ordered DTO fields or CSV columns/headers asserted. Complete transaction plus actual settings, audience and delivery owners; foreign-tenant and missing-auth checks. Measured fixture contract, not a global minimum.",
+  "route": "GET /school/parent-letters/{announcementId}/declaration-status"
 }

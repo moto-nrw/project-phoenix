@@ -19,10 +19,21 @@ import (
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
 )
 
-// recordedPushes records the pushes the document notice sends.
+// recordedPushes records the pushes the document notice sends; a school in
+// unsent enqueues no device push there (#5941).
 type recordedPushes struct {
 	mu     sync.Mutex
 	pushes []parentService.BillingDocumentPush
+	unsent map[int64]bool
+}
+
+func (r *recordedPushes) NotifyTraegerDocument(ctx context.Context, push parentService.BillingDocumentPush) (bool, error) {
+	if err := r.NotifyBillingDocument(ctx, push); err != nil {
+		return false, err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return !r.unsent[push.TenantID], nil
 }
 
 func (r *recordedPushes) NotifyBillingDocument(_ context.Context, push parentService.BillingDocumentPush) error {
@@ -51,15 +62,25 @@ func documentInbox(t *testing.T) (*parentService.Portal, parentService.DocumentN
 func documentInboxWithMails(t *testing.T) (*parentService.Portal, parentService.DocumentNotices, *recordedPushes, *bun.DB, *owners.CareContractTestMails) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
+	mails := &owners.CareContractTestMails{}
+	deps := documentInboxDependencies(t, db, mails)
+	pushes := &recordedPushes{}
+	deps.DocumentNotifier = pushes
+	return parentportalcompose.New(deps), parentportalcompose.NewDocumentNotices(deps, parentService.DocumentPushPorts{}), pushes, db, mails
+}
+
+// documentInboxDependencies are the parents portal's dependencies of the
+// document inbox over db, without the push of a document; the signature's
+// mails go to mails.
+func documentInboxDependencies(t *testing.T, db *bun.DB, mails *owners.CareContractTestMails) parentportalcompose.Dependencies {
+	t.Helper()
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	people := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	organizations, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	identity, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	pushes := &recordedPushes{}
-	mails := &owners.CareContractTestMails{}
-	deps := parentportalcompose.Dependencies{
+	return parentportalcompose.Dependencies{
 		GuardianChanges: owners.ParentGuardianChanges(), DeparturePolicy: owners.ParentDeparturePolicy(),
 		GuardianPolicy: owners.NewParentGuardianPolicy(), Fingerprints: owners.SecurityFingerprints{},
 		Declarations: owners.ParentDeclarationPolicy(), Locales: owners.ParentPortalLocales(), Runtime: owners.ParentPortalRuntime{},
@@ -68,9 +89,7 @@ func documentInboxWithMails(t *testing.T) (*parentService.Portal, parentService.
 		Logger:              slog.Default(), CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 		BillingDocuments: owners.NewParentBillingDocuments(), ContractDocuments: owners.NewParentContractDocuments(owners.NewParentContractSigningForTests(mails)), TraegerRuntime: owners.ParentPortalRuntime{},
 		SchoolTraeger: owners.NewParentSchoolTraeger(organizations), ParentAccounts: owners.NewParentAccounts(identity),
-		DocumentNotifier: pushes,
 	}
-	return parentportalcompose.New(deps), parentportalcompose.NewDocumentNotices(deps), pushes, db, mails
 }
 
 // inboxTraeger writes the invoices of one Träger as the Elternabrechnung
@@ -265,7 +284,7 @@ func TestDocumentInboxQueryBudget(t *testing.T) {
 		assert.Len(t, documents, n)
 		assert.EqualValues(t, 1, counter.WriteRows(), "one read trail entry per inbox request, not per document")
 		t.Logf("billing documents N=%d total=%d", n, counter.Total())
-		querybudgets.AssertQueryBudget(t, "workflows.parentportal.billing_documents.list", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "workflows.parentportal.billing_documents.list", counter.Measurement(counter.Queries()))
 		if n == 1 {
 			smallStatements = counter.Total()
 		} else {
@@ -294,7 +313,7 @@ func TestContractInboxQueryBudget(t *testing.T) {
 	documents, err := portal.ListBillingDocuments(counter.Context(ctx), chain.AccountID, parentService.DocumentInboxContracts)
 	require.NoError(t, err)
 	assert.Len(t, documents, 3)
-	querybudgets.AssertQueryBudget(t, "workflows.parentportal.contract_documents.list", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "workflows.parentportal.contract_documents.list", counter.Measurement(counter.Queries()))
 }
 
 // inboxContract stores a care contract of the Träger for child as the
@@ -365,7 +384,7 @@ func TestDocumentInboxShowsTheFamilysSentContracts(t *testing.T) {
 	assert.Equal(t, sent, documents[0].ID)
 	assert.Equal(t, parentService.DocumentKindContract, documents[0].Kind)
 	assert.Equal(t, []string{"Felix"}, documents[0].ChildNames)
-	assert.Equal(t, "Frühbetreuung, Ganztag · OGS Am Lindenhof", documents[0].PeriodName, "the modules once each, then the place")
+	assert.Equal(t, "Frühbetreuung und Ganztag · OGS Am Lindenhof", documents[0].PeriodName, "the modules once each as the contract names them, then the place")
 
 	file, err := portal.ContractDocumentFile(ctx, chain.AccountID, organization, sent)
 	require.NoError(t, err)

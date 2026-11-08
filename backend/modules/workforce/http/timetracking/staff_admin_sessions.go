@@ -77,7 +77,7 @@ func (rs *StaffAdminResource) exportStaffSessions(w http.ResponseWriter, r *http
 		common.RenderError(w, r, common.ErrorForbidden(errors.New("insufficient permission to export time tracking")))
 		return
 	}
-	if _, err := rs.PersonService.StaffByID(r.Context(), staffID); err != nil {
+	if _, err := rs.PersonService.StaffByID(r.Context(), staffID, workforce.StaffMembershipOnly); err != nil {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
 		return
 	}
@@ -508,7 +508,7 @@ func (rs *StaffAdminResource) getStaffSessionEdits(w http.ResponseWriter, r *htt
 		return
 	}
 
-	if _, err := rs.PersonService.StaffByID(r.Context(), staffID); err != nil {
+	if _, err := rs.PersonService.StaffByID(r.Context(), staffID, workforce.StaffMembershipOnly); err != nil {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
 		return
 	}
@@ -545,7 +545,7 @@ func (rs *StaffAdminResource) getStaffAbsences(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	if _, err := rs.PersonService.StaffByID(r.Context(), staffID); err != nil {
+	if _, err := rs.PersonService.StaffByID(r.Context(), staffID, workforce.StaffMembershipOnly); err != nil {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
 		return
 	}
@@ -652,7 +652,7 @@ func (rs *StaffAdminResource) adminCreateStaffAbsence(w http.ResponseWriter, r *
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	if _, err := rs.PersonService.StaffByID(r.Context(), staffID); err != nil {
+	if _, err := rs.PersonService.StaffByID(r.Context(), staffID, workforce.StaffMembershipOnly); err != nil {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
 		return
 	}
@@ -695,7 +695,7 @@ func (rs *StaffAdminResource) adminDeleteStaffAbsence(w http.ResponseWriter, r *
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	if _, err := rs.PersonService.StaffByID(r.Context(), staffID); err != nil {
+	if _, err := rs.PersonService.StaffByID(r.Context(), staffID, workforce.StaffMembershipOnly); err != nil {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
 		return
 	}
@@ -729,7 +729,7 @@ func (rs *StaffAdminResource) adminRebookStaffAbsences(w http.ResponseWriter, r 
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	if _, err := rs.PersonService.StaffByID(r.Context(), staffID); err != nil {
+	if _, err := rs.PersonService.StaffByID(r.Context(), staffID, workforce.StaffMembershipOnly); err != nil {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
 		return
 	}
@@ -763,7 +763,7 @@ func (rs *StaffAdminResource) getCompTimeBalancePreview(w http.ResponseWriter, r
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	if _, err := rs.PersonService.StaffByID(r.Context(), staffID); err != nil {
+	if _, err := rs.PersonService.StaffByID(r.Context(), staffID, workforce.StaffMembershipOnly); err != nil {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
 		return
 	}

@@ -24,6 +24,7 @@ import { createLogger } from "~/lib/logger";
 import { useTenantSafe } from "~/lib/tenant-context";
 import { loginImageSrc } from "~/lib/tenant-api";
 import { Button } from "~/components/ui/button";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "ResetPasswordPage" });
 
@@ -58,11 +59,13 @@ export interface ResetPasswordPageCopy {
   readonly passwordMissingNumber: string;
   readonly passwordMissingSpecial: string;
   readonly passwordMismatch: string;
-  readonly successEyebrow: string;
+  /** Kopfzeile über dem Titel, nur im Elternportal (#5607). */
+  readonly successEyebrow?: string;
   readonly successTitle: string;
   readonly successSubtitle: string;
   readonly successBody: string;
-  readonly formEyebrow: string;
+  /** Kopfzeile über dem Titel, nur im Elternportal (#5607). */
+  readonly formEyebrow?: string;
   readonly formTitle: string;
   readonly formSubtitle: string;
   readonly passwordLabel: string;
@@ -89,11 +92,9 @@ const DEFAULT_RESET_PASSWORD_PAGE_COPY: ResetPasswordPageCopy = {
   passwordMissingSpecial:
     "Das Passwort muss mindestens ein Sonderzeichen enthalten.",
   passwordMismatch: "Die Passwörter stimmen nicht überein.",
-  successEyebrow: "Passwort geändert",
   successTitle: "Passwort erfolgreich geändert",
   successSubtitle: "Sie werden automatisch zur Anmeldeseite weitergeleitet.",
   successBody: "Die Anmeldung ist gleich wieder möglich.",
-  formEyebrow: "Passwort zurücksetzen",
   formTitle: "Neues Passwort festlegen",
   formSubtitle: "Wählen Sie ein starkes Passwort für Ihr Konto.",
   passwordLabel: "Neues Passwort",
@@ -303,7 +304,6 @@ export function ResetPasswordPageContent({
     return (
       <AuthShell
         eyebrow={copy.successEyebrow}
-        eyebrowClassName="text-moto-green"
         title={copy.successTitle}
         subtitle={copy.successSubtitle}
         variant="reset"
@@ -314,7 +314,7 @@ export function ResetPasswordPageContent({
           tone="success"
           icon={<CheckIcon />}
           description={copy.successBody}
-          progress={<Loading fullPage={false} />}
+          progress={<Loading />}
           className="py-0"
         />
       </AuthShell>
@@ -324,7 +324,6 @@ export function ResetPasswordPageContent({
   return (
     <AuthShell
       eyebrow={copy.formEyebrow}
-      eyebrowClassName="text-moto-green"
       title={copy.formTitle}
       subtitle={copy.formSubtitle}
       variant="reset"
@@ -364,7 +363,7 @@ export function ResetPasswordPageContent({
           />
         </div>
 
-        <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-left">
+        <InsetPanel framed className="text-left">
           <p className="mb-1.5 text-xs font-medium text-gray-700">
             {copy.requirementsTitle}
           </p>
@@ -373,7 +372,7 @@ export function ResetPasswordPageContent({
               <li key={requirement}>{requirement}</li>
             ))}
           </ul>
-        </div>
+        </InsetPanel>
 
         <Button
           type="submit"

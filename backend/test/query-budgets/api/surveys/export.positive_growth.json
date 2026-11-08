@@ -1,6 +1,7 @@
 {
   "scenario": "api.surveys.export.positive_growth",
-  "max": 9,
+  "max": 8,
   "exact": true,
-  "description": "Protected survey route at N3/N8 ordered questions, two options each and N3/N8 real named staff respondents. Capture includes tenant transaction and real audience capability; excludes fixture writes and outer session verification. Foreign-school access rejected. Export uses real PDF renderer. Not a global minimum."
+  "description": "Protected survey route at N3/N8 ordered questions, two options each and N3/N8 real named staff respondents. Capture includes tenant transaction and real audience capability; excludes fixture writes and outer session verification. Foreign-school access rejected. Export uses real PDF renderer. Not a global minimum.",
+  "route": "GET /api/surveys/{surveyId}/results/export"
 }

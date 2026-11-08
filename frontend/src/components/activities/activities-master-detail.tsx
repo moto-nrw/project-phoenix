@@ -214,7 +214,6 @@ function ActivityStammdatenTab({
   if (loading) {
     return (
       <Loading
-        fullPage={false}
         className="h-full min-h-[240px]"
         message="Aktivitätsdaten werden geladen..."
       />

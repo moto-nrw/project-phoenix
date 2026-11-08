@@ -21,7 +21,11 @@ export const TAB_LABELS: Record<string, string> = {
   branding: "Briefkopf",
   // Ferienbetreuung des Trägers (#5621); nur im Träger-Portal.
   ferien: "Ferienbetreuung",
-  // Betreuungsverträge des Trägers (#4679); nur im Träger-Portal.
+  // Monatsbeitrag des Trägers (#4684); nur im Träger-Portal.
+  monatsbeitrag: "Monatsbeitrag",
+  // Betreuungsverträge des Trägers (#4679, #4682): Erinnerung an die
+  // Unterschrift und die Bestätigungen von Kündigung und Widerruf; nur im
+  // Träger-Portal.
   vertraege: "Betreuungsverträge",
   // Grenzen der Auffälligkeiten im Dashboard (#4675); nur im Träger-Portal.
   dashboard: "Dashboard",
@@ -68,6 +72,7 @@ export const categoryLabels: Record<string, string> = {
   "ferien-beitrag": "Ferienbeitrag",
   "ferien-bestaetigung": "Bestätigen einer Ferienanmeldung",
   "ferien-schreiben": "Schreiben an die Familien",
+  "monatsbeitrag-lauf": "Monatslauf",
   "vertraege-unterschrift": "Unterschrift der Eltern",
   formular: "Anmeldeformular",
   "fristen-essen": "Fristen",
@@ -88,6 +93,8 @@ export const categoryLabels: Record<string, string> = {
   personaldokumente: "Personaldokumente",
   pin: "Zugang zum Tablet",
   rechtstexte: "Rechtstexte",
+  // Bestätigung von Kündigung und Widerruf (#4682); nur im Träger-Portal.
+  "vertrag-bestaetigungen": "Bestätigungen und Mitteilungen an die Eltern",
   // Wann der Betreuungsvertrag gilt (#4680); Träger-Wert, Schule darf abweichen.
   vertragsabschluss: "Betreuungsvertrag",
   schulstunden: "Schulstunden",

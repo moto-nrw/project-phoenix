@@ -17,6 +17,7 @@ import {
   useApiLoadError,
   useToast,
 } from "~/contexts/ToastContext";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
@@ -681,21 +682,28 @@ export function PersonalInfoEditPanel({
       {/* Speicherfehler oben im Bearbeiten-Bereich (Bauart 2 Regel 5). */}
       <FormErrorAlert message={errors.error} />
       {companionsStale ? (
-        <div className="border-moto-orange bg-moto-orange/5 rounded-lg border p-3">
-          <p className="text-sm text-gray-900">
-            Die Laufgemeinschaft dieses Kindes wurde zwischenzeitlich an anderer
-            Stelle geändert. Speichern ist gesperrt, damit die fremde Änderung
-            nicht überschrieben wird.
-          </p>
-          <p className="mt-1 text-xs text-gray-600">
-            Neu laden verwirft die hier vorgenommenen Änderungen an der
-            Laufgemeinschaft.
-          </p>
-          <div className="mt-2 flex justify-end">
+        <Alert
+          type="warning"
+          announce="polite"
+          actionLayout="stacked"
+          message={
+            <>
+              <p>
+                Die Laufgemeinschaft dieses Kindes wurde zwischenzeitlich an
+                anderer Stelle geändert. Speichern ist gesperrt, damit die
+                fremde Änderung nicht überschrieben wird.
+              </p>
+              <p className="mt-1 text-xs">
+                Neu laden verwirft die hier vorgenommenen Änderungen an der
+                Laufgemeinschaft.
+              </p>
+            </>
+          }
+          action={
             <Button
               type="button"
               variant="primary"
-              size="md"
+              size="compact"
               onClick={() => {
                 errors.clear();
                 refreshFromRemote();
@@ -703,8 +711,8 @@ export function PersonalInfoEditPanel({
             >
               Neu laden
             </Button>
-          </div>
-        </div>
+          }
+        />
       ) : null}
       {companionsStatus === "error" ? (
         <div className="space-y-1">
@@ -716,52 +724,60 @@ export function PersonalInfoEditPanel({
         </div>
       ) : null}
       {planConflict ? (
-        <div className="border-moto-orange bg-moto-orange/5 rounded-lg border p-3">
-          <p className="text-sm text-gray-900">{COMPANION_PLAN_QUESTION}</p>
-          <p className="mt-1 text-xs text-gray-600">
-            Soll „Anderes Kind“ im Heimweg des verknüpften Kindes ergänzt
-            werden? Bestehende Heimwege bleiben erhalten.
-          </p>
-          <div className="mt-2 flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={() => {
-                // Dismissing the question is a NO: drop the conflicts with
-                // it, so the next save asks again instead of widening the
-                // linked child's Heimweg on a yes that was never given.
-                setPlanConflict(false);
-                setPendingExtensions([]);
-              }}
-            >
-              Abbrechen
-            </Button>
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              disabled={isSaving || companionsStale}
-              onClick={() => {
-                // Same reason as in handleSave — the confirmed retry
-                // re-sends the very list that went stale.
-                if (companionsStale) return;
-                // The yes happens HERE: only now do the conflicts the
-                // question named become confirmed extensions.
-                const confirmed = mergeCompanionConfirmations(
-                  confirmedExtensions,
-                  pendingExtensions,
-                );
-                setConfirmedExtensions(confirmed);
-                setPendingExtensions([]);
-                updateField("extend_companion_plans", true);
-                void submit(departureModesOf(editedStudent), true, confirmed);
-              }}
-            >
-              Ergänzen und speichern
-            </Button>
-          </div>
-        </div>
+        <Alert
+          type="warning"
+          actionLayout="stacked"
+          message={
+            <>
+              <p>{COMPANION_PLAN_QUESTION}</p>
+              <p className="mt-1 text-xs">
+                Soll „Anderes Kind“ im Heimweg des verknüpften Kindes ergänzt
+                werden? Bestehende Heimwege bleiben erhalten.
+              </p>
+            </>
+          }
+          action={
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="compact"
+                onClick={() => {
+                  // Dismissing the question is a NO: drop the conflicts with
+                  // it, so the next save asks again instead of widening the
+                  // linked child's Heimweg on a yes that was never given.
+                  setPlanConflict(false);
+                  setPendingExtensions([]);
+                }}
+              >
+                Abbrechen
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="compact"
+                disabled={isSaving || companionsStale}
+                onClick={() => {
+                  // Same reason as in handleSave — the confirmed retry
+                  // re-sends the very list that went stale.
+                  if (companionsStale) return;
+                  // The yes happens HERE: only now do the conflicts the
+                  // question named become confirmed extensions.
+                  const confirmed = mergeCompanionConfirmations(
+                    confirmedExtensions,
+                    pendingExtensions,
+                  );
+                  setConfirmedExtensions(confirmed);
+                  setPendingExtensions([]);
+                  updateField("extend_companion_plans", true);
+                  void submit(departureModesOf(editedStudent), true, confirmed);
+                }}
+              >
+                Ergänzen und speichern
+              </Button>
+            </div>
+          }
+        />
       ) : null}
       <ParentVisibilityLegend />
       <TextInput

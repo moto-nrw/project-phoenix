@@ -10,12 +10,14 @@ import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
+import { FieldLabel } from "~/components/ui/field-label";
 import { Radio } from "~/components/ui/radio";
 
 import {
   isEditableAppointment,
   type PersonForm,
 } from "./substitution-deviation-input";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { InsetPanel } from "~/components/ui/inset-panel";
 
 interface PersonCardProps {
@@ -156,9 +158,10 @@ function ScopeChoice({
 }: ScopeChoiceProps) {
   const id = `vp-scope-${scope}-${staffId}`;
   return (
-    <label
+    <ChoiceTile
       htmlFor={id}
-      className="flex items-start gap-2 rounded-lg border border-gray-200 bg-white p-3"
+      selected={selected}
+      className="items-start gap-2 p-3 font-normal"
     >
       <Radio
         id={id}
@@ -172,7 +175,7 @@ function ScopeChoice({
         {title}
         <span className="block text-xs text-gray-500">{description}</span>
       </span>
-    </label>
+    </ChoiceTile>
   );
 }
 
@@ -366,9 +369,7 @@ function SubstitutePicker(props: PersonCardProps) {
   const { person, name, canEdit, substituteOptions, onUpdate } = props;
   return (
     <div>
-      <span className="mb-1 block text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
-        Vertretung für {name}
-      </span>
+      <FieldLabel className="mb-1">Vertretung für {name}</FieldLabel>
       {canEdit ? (
         <CustomSelect
           value={person.substituteId}

@@ -52,12 +52,14 @@ const DRAFT: CareContractSummary = {
   childFirstName: "Lina",
   childLastName: "Muster",
   moduleNames: ["Offene Ganztagsschule"],
+  modulesText: "Offene Ganztagsschule",
   partyName: "Erika Muster",
   partyEmail: "erika@example.org",
   effectiveFrom: "2027-08-01",
   createdAt: "2026-09-01T08:00:00Z",
   sentAt: null,
   concluded: null,
+  endsOn: null,
 };
 
 const SENT: CareContractSummary = {
@@ -95,6 +97,7 @@ const CANDIDATE: ContractCandidate = {
   ],
   effectiveFrom: "2027-08-01",
   templateIssue: null,
+  modulesText: "Kurzbetreuung und Ganztag",
   acceptanceIssue: null,
   mailBlock: null,
 };
@@ -259,8 +262,8 @@ describe("TraegerVertraegePage", () => {
     const list = await screen.findByRole("list", {
       name: "Abschluss je Schule",
     });
-    expect(list).toHaveTextContent("OGS Am LindenhofGilt bei der Annahme");
-    expect(list).toHaveTextContent("OGS NordSie verschicken ihn");
+    expect(list).toHaveTextContent("OGS Am LindenhofBei der Annahme");
+    expect(list).toHaveTextContent("OGS NordSpäter verschicken");
     expect(
       screen.getByText(/entsteht der Vertrag von selbst, sobald die Schule/),
     ).toBeInTheDocument();
@@ -311,10 +314,11 @@ describe("TraegerVertraegePage", () => {
     ).toBeInTheDocument();
 
     // Only the child with the proof comes about by itself.
-    expect(screen.getAllByText("Entsteht bei der Annahme")).toHaveLength(1);
     expect(
-      screen.getByText("Der Vertrag entsteht in wenigen Minuten von selbst."),
-    ).toBeInTheDocument();
+      screen.getAllByText(
+        "Der Vertrag entsteht in wenigen Minuten von selbst.",
+      ),
+    ).toHaveLength(1);
     // Changed conditions name the real state and the next step.
     expect(
       screen.getByText("Bedingungen nach der Anmeldung geändert"),
@@ -362,7 +366,11 @@ describe("TraegerVertraegePage", () => {
     expect(await screen.findByLabelText("Jona Kern auswählen")).toBeDisabled();
 
     // Only the child whose mail goes out is promised a contract in minutes.
-    expect(screen.getAllByText("Entsteht bei der Annahme")).toHaveLength(1);
+    expect(
+      screen.getAllByText(
+        "Der Vertrag entsteht in wenigen Minuten von selbst.",
+      ),
+    ).toHaveLength(1);
     expect(screen.getByText("Mail-Adresse gesperrt")).toBeInTheDocument();
     expect(screen.getByText("Mails gestoppt")).toBeInTheDocument();
     // A failed address is freed at the child; the application's address

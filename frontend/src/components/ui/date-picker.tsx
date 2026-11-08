@@ -23,6 +23,7 @@ import "react-day-picker/style.css";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { isValidISODate, parseISODate, toISODate } from "~/lib/date-helpers";
 import type { DatePickerLabels } from "~/lib/date-picker-labels";
+import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { ListboxDropdown } from "~/components/ui/listbox-dropdown";
 import { cn } from "~/lib/utils";
@@ -512,8 +513,12 @@ export function DatePicker({
           </svg>
         </button>
         {canClear && (
-          <button
+          <Button
             type="button"
+            variant="surface"
+            size="icon"
+            // Neben dem großen Feld (44 px) so hoch wie das Feld (#5608).
+            touchTarget={!isMultiple && props.controlSize === "lg"}
             onClick={() => {
               if (isMultiple) {
                 props.onChangeDates([]);
@@ -521,11 +526,7 @@ export function DatePicker({
                 props.onChange(null);
               }
             }}
-            className={`flex shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-              !isMultiple && props.controlSize === "lg"
-                ? "h-11 w-11"
-                : "h-8 w-8"
-            }`}
+            className="shrink-0"
             aria-label={labels.clear}
           >
             <svg
@@ -542,7 +543,7 @@ export function DatePicker({
                 d="M6 18L18 6M6 6l12 12"
               />
             </svg>
-          </button>
+          </Button>
         )}
       </div>
       {hint && (

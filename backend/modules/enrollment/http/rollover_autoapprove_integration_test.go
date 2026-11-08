@@ -46,6 +46,19 @@ func setupAutoApproveIntegrationEnvWithSettings(
 	settings owners.EnrollmentDecisionSettings,
 ) *rolloverTestEnv {
 	t.Helper()
+	env, _ := setupAutoApproveIntegrationEnvWithDecision(t, settings, nil)
+	return env
+}
+
+// setupAutoApproveIntegrationEnvWithDecision also returns the decision flow
+// the rollover service approves through; lockRecurrence, when set, is its
+// tenant recurrence gate.
+func setupAutoApproveIntegrationEnvWithDecision(
+	t *testing.T,
+	settings owners.EnrollmentDecisionSettings,
+	lockRecurrence func(context.Context) error,
+) (*rolloverTestEnv, *TestDecisions) {
+	t.Helper()
 	env := setupRolloverTest(t)
 	if settings == nil {
 		settings = env.settings
@@ -64,11 +77,12 @@ func setupAutoApproveIntegrationEnvWithSettings(
 		People: owners.EnrollmentDecisionPeopleDirectory(
 			repoFactory.Person, repoFactory.Staff, repoFactory.Student, repoFactory.StudentGuardian, repoFactory.GuardianProfile, nil, studentEnrollment,
 		),
-		StudentEnrollment: studentEnrollment,
-		Companions:        owners.EnrollmentDecisionCompanions(owners.NewStudentCompanionRepository(repoFactoryCare.CarePlan), repoFactoryCare.CarePlan.DeleteCompanionEdges),
-		StudentAudit:      owners.EnrollmentDecisionStudentAudit(api.NewEnrollmentFlowStudentAudit(testpkg.NewDatabase(t, env.db), testpkg.RequestAuditActor)),
-		ParentsURL:        owners.EnrollmentDecisionParentsURL("http://parents.localhost:3000", "http://localhost:3000"),
-		Logger:            slog.Default(),
+		StudentEnrollment:      studentEnrollment,
+		Companions:             owners.EnrollmentDecisionCompanions(owners.NewStudentCompanionRepository(repoFactoryCare.CarePlan), repoFactoryCare.CarePlan.DeleteCompanionEdges),
+		StudentAudit:           owners.EnrollmentDecisionStudentAudit(api.NewEnrollmentFlowStudentAudit(testpkg.NewDatabase(t, env.db), testpkg.RequestAuditActor)),
+		ParentsURL:             owners.EnrollmentDecisionParentsURL("http://parents.localhost:3000", "http://localhost:3000"),
+		LockTemplateRecurrence: lockRecurrence,
+		Logger:                 slog.Default(),
 	}, settings, env.outbox)
 
 	// Rebuild the rollover service so DecisionService is injected.
@@ -85,7 +99,7 @@ func setupAutoApproveIntegrationEnvWithSettings(
 		Logger:     slog.Default(),
 	})
 
-	return env
+	return env, decision
 }
 
 // seedApprovedChildWithStudent mirrors the post-approval state the

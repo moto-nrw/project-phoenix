@@ -50,7 +50,7 @@ func TestEnrollmentExpiryRouteGrowthQueryBudget(t *testing.T) {
 			ids = append(ids, fmt.Sprint(phase.ID))
 		}
 	}
-	run := func(n int) []string {
+	run := func(n int) testpkg.QueryMeasurement {
 		raw, q := growthGET(t, router, counter, f.token, "/phases/expiry-warnings")
 		var rows []struct {
 			ID         string `json:"source_phase_id"`
@@ -72,7 +72,7 @@ func TestEnrollmentExpiryRouteGrowthQueryBudget(t *testing.T) {
 	small := run(3)
 	add(5)
 	large := run(8)
-	require.Equal(t, len(small), len(large))
-	t.Logf("expiry N3=%d N8=%d", len(small), len(large))
+	require.Equal(t, len(small.Statements), len(large.Statements))
+	t.Logf("expiry N3=%d N8=%d", len(small.Statements), len(large.Statements))
 	querybudgets.AssertQueryBudget(t, "api.enrollment.growth.expiry", large)
 }

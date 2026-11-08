@@ -16,7 +16,6 @@ import {
   FormErrorAlert,
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
-import { Loading } from "~/components/ui/loading";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
@@ -41,6 +40,7 @@ import {
 import { NOTE_SHARED_WITH_SCHOOL_BADGE } from "~/components/students/note-badges";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { studentKeys } from "~/lib/swr/portal-keys";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 // Notizen tab (#3632): the chronicle of one child. The backend resolves who
 // may read which note and sends can_edit / can_delete with every entry, so
@@ -630,7 +630,7 @@ export function StudentNotizenTab({
   };
 
   const renderNote = (note: StudentNote) => (
-    <li key={note.id} className="moto-content-surface rounded-2xl border p-4">
+    <InsetPanel as="li" key={note.id} tone="white" padding="md">
       {editing?.id === note.id ? (
         <NoteForm
           idPrefix={`note-${note.id}`}
@@ -682,14 +682,10 @@ export function StudentNotizenTab({
           ) : null}
         </div>
       )}
-    </li>
+    </InsetPanel>
   );
 
-  if (isLoading) {
-    return <Loading />;
-  }
-
-  if (error) {
+  if (error && !isLoading) {
     return <LoadErrorAlert error={load.error} />;
   }
 
@@ -698,8 +694,9 @@ export function StudentNotizenTab({
       title="Notizen"
       description="Einträge zu diesem Kind. Eltern sehen sie nicht."
       icon={NotebookPen}
+      loading={isLoading}
       action={
-        composing ? undefined : (
+        composing || isLoading ? undefined : (
           <Button type="button" size="md" onClick={startCompose}>
             Neue Notiz
           </Button>
@@ -710,7 +707,7 @@ export function StudentNotizenTab({
         <FormErrorAlert message={formErrors.error} />
 
         {composing ? (
-          <div className="moto-content-surface rounded-2xl border p-4 sm:p-6">
+          <InsetPanel tone="white" padding="md">
             <NoteForm
               idPrefix="new-note"
               draft={draft}
@@ -730,7 +727,7 @@ export function StudentNotizenTab({
                   : undefined
               }
             />
-          </div>
+          </InsetPanel>
         ) : null}
 
         {notes.length === 0 && !composing ? (

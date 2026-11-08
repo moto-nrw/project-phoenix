@@ -31,7 +31,6 @@ type BookedContract struct {
 	Versions   []BookedVersion
 }
 
-// BookedDay is what a contract books on one day.
 type BookedDay struct {
 	// InForce reports that a version of the contract covers the day. A day
 	// outside every version leaves the Soll to the care plan.

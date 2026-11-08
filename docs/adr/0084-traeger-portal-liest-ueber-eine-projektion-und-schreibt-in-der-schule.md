@@ -314,3 +314,36 @@ Die Rollennamen sind `leadership` und `school_access`. Regeln:
 - Laufende Sitzungen bekommen die neuen Rechte beim nächsten Refresh: Die
   Träger-Sitzung liest ihre Rollen neu, die Schulsitzung prüft „In OGS
   wechseln“ neu (Abschnitt 5) und endet ohne Schulzugang.
+
+## Nachtrag 2026-11-07: Rolle Dokumente mit Recht „Dokumente verwalten“ (#5992)
+
+Status: Akzeptiert. Freigegeben von Yannick Wenger am 07.11.2026 (Option A
+aus [#5992](https://github.com/moto-nrw/project-phoenix/issues/5992)).
+
+Hochladen, Freigeben, Zurücknehmen und Löschen der Träger-Dokumente
+([ADR 0157](0157-traeger-teilt-vorhandene-dokumente-ueber-organisation-und-tenancy.md))
+hingen an „Anmeldung verwalten“. Dokumente und Anmeldungen sind verschiedene
+Aufgaben, die verschiedene Personen übernehmen. Die Dokumente bekommen ein
+eigenes Recht `traeger_documents:manage` („Dokumente verwalten“) und eine
+eigene Rolle `documents` („Dokumente“), nach dem Muster von #5471.
+
+| Recht | Leitung | Verwaltung | Dokumente | Schulzugang | Abrechnung | Personal | nur lesen |
+|---|---|---|---|---|---|---|---|
+| Übersicht lesen | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Anmeldung verwalten | | ✓ | | | | | |
+| Dokumente verwalten | | | ✓ | | | | |
+
+Die übrigen Zeilen bleiben wie im Nachtrag vom 02.11.2026. Regeln:
+
+- Jede schreibende Route unter `/traeger/documents` verlangt „Dokumente
+  verwalten“: Hochladen, die Zielgruppen für den Freigabe-Dialog, Freigeben,
+  Zurücknehmen, Löschen. „Anmeldung verwalten“ allein öffnet sie nicht mehr.
+  Lesen und Herunterladen bleiben bei „Übersicht lesen“.
+- Die Migration 1.15.799 gibt jeder Person und jeder offenen Einladung mit
+  Verwaltung zusätzlich Dokumente, beim selben Träger. Niemand verliert den
+  Zugriff; das Träger-Büro entscheidet danach selbst, wer welche Rolle behält.
+- Der Rückweg entfernt die Rolle Dokumente und zieht Einladungen zurück, die
+  nur sie nannten. Er gibt niemandem Verwaltung: Das würde mehr Rechte
+  verleihen, als die Person hatte.
+- Laufende Sitzungen bekommen das neue Recht beim nächsten Refresh, der die
+  Rollen neu liest.

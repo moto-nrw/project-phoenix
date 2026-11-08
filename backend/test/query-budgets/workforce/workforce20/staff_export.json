@@ -1,6 +1,7 @@
 {
   "scenario": "workforce.workforce20.staff_export",
-  "max": 15,
+  "max": 14,
   "exact": true,
-  "description": "Full protected Resource HTTP request with positive N=3/N=8 sessions and edits, exact observed count; fixtures outside capture. Not a SQL minimum."
+  "description": "Full protected Resource HTTP request with positive N=3/N=8 sessions and edits, exact observed count; fixtures outside capture. Not a SQL minimum.",
+  "route": "GET /api/staff/{id}/time-tracking/export"
 }

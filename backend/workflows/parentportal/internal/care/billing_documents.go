@@ -64,6 +64,12 @@ type BillingDocument struct {
 	// Replaced marks a sent contract version that a change on its own first
 	// day replaced (#4681); it holds on no day.
 	Replaced bool
+	// EndsOn is the last day of a terminated contract (#4682). CanEndContract
+	// tells that the contract is active and the account's relationship to
+	// its child grants parent_portal.enrollment.submit, the right a
+	// declaration needs; the inbox offers „Verträge hier kündigen“ only then.
+	EndsOn         *calendar.Date
+	CanEndContract bool
 }
 
 // BillingDocumentFile is the PDF of one document.
@@ -125,6 +131,9 @@ type ParentAccounts interface {
 // BillingDocumentPush is the push that a document is in the inbox, for one
 // account at one school, about the children the relationship covers.
 type BillingDocumentPush struct {
+	// Kind names the document: DocumentPushBilling for a letter, or a care
+	// contract or a release of a Träger (#5941).
+	Kind       string
 	TenantID   int64
 	AccountID  int64
 	StudentIDs []int64
@@ -246,7 +255,7 @@ func (s *Service) billingInboxAccess(ctx context.Context, accountID int64) ([]Tr
 	}
 	var access documentAccess
 	var email string
-	err := s.billingDocumentAccess(ctx, accountID, func(adminCtx context.Context, children []*ChildSummary) error {
+	err := s.accountDocumentAccess(ctx, accountID, func(adminCtx context.Context, children []*ChildSummary) error {
 		var err error
 		if access, err = s.documentAccess(adminCtx, children); err != nil || len(access.traeger) == 0 {
 			return err
@@ -264,18 +273,24 @@ func (s *Service) billingInboxAccess(ctx context.Context, accountID int64) ([]Tr
 		Children: access.permittedChildren(), SigningChildren: access.signingChildren()}, nil
 }
 
-// billingDocumentAccess runs visit with the account's children in one
+// accountDocumentAccess runs visit with the account's children in one
 // administrative transaction: the one boundary every part of the document
 // inbox resolves its relationships in (letters, contracts and the documents
 // a Träger released for parents, #4692).
-func (s *Service) billingDocumentAccess(ctx context.Context, accountID int64, visit func(context.Context, []*ChildSummary) error) error {
-	return s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
+func (s *Service) accountDocumentAccess(ctx context.Context, accountID int64, visit func(context.Context, []*ChildSummary) error) error {
+	return s.billingDocumentAccess(ctx, func(adminCtx context.Context) error {
 		children, err := s.ListChildrenForAccount(adminCtx, accountID)
 		if err != nil {
 			return err
 		}
 		return visit(adminCtx, children)
 	})
+}
+
+// billingDocumentAccess is the shared document-read boundary: parent reads
+// resolve one account here; the delivery batch resolves its persisted recipients.
+func (s *Service) billingDocumentAccess(ctx context.Context, visit func(context.Context) error) error {
+	return s.Runtime.WithinAdmin(ctx, visit)
 }
 
 // documentAccess is what an account's relationships open for the inbox:

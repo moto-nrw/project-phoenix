@@ -3,7 +3,7 @@
 // Betreuungsverträge des Trägers (#4678, ADR 0153): alle Verträge mit Status,
 // gefiltert nach Status, Schule und Name. „Verträge erstellen“ legt Entwürfe
 // aus angenommenen Anmeldungen an; ausgewählte Entwürfe gehen per Mail und in
-// die Eltern-App. Schulen mit „Gilt bei der Annahme“ (#4680) brauchen das
+// die Eltern-App. Schulen mit „Bei der Annahme“ (#4680) brauchen das
 // nicht: ihr Vertrag entsteht von selbst und ist sofort aktiv. Nur die Rolle
 // mit dem Recht „Verträge verwalten“ sieht die Seite.
 
@@ -27,7 +27,6 @@ import {
   CONTRACT_STATUS_TONES,
   SEND_SKIP_LABELS,
   childName,
-  formatModules,
 } from "~/components/traeger/care-contract-format";
 import { careContractTabs } from "~/components/traeger/care-contract-tabs";
 import { Button, ButtonLink } from "~/components/ui/button";
@@ -86,7 +85,7 @@ function conclusionDescription(modes: readonly SchoolConclusionMode[]): string {
   if (onAcceptance.length === modes.length) {
     return "Nimmt die Schule eine Anmeldung an, gilt der Vertrag. Die Eltern bekommen ihn per E-Mail und in der Eltern-App. Voraussetzung: Die Eltern haben im Anmeldeformular den Vertragsbedingungen zugestimmt, und Sie haben die Bedingungen seitdem nicht geändert.";
   }
-  return "Bei „Gilt bei der Annahme“ entsteht der Vertrag von selbst, sobald die Schule die Anmeldung annimmt. Voraussetzung: Die Eltern haben im Anmeldeformular den Vertragsbedingungen zugestimmt. Die anderen Verträge erstellen und verschicken Sie hier.";
+  return "Steht eine Schule auf „Bei der Annahme“, entsteht der Vertrag von selbst, sobald die Schule die Anmeldung annimmt. Voraussetzung: Die Eltern haben im Anmeldeformular den Vertragsbedingungen zugestimmt. Die anderen Verträge erstellen und verschicken Sie hier.";
 }
 
 function contractHref(contract: CareContractSummary): string {
@@ -109,7 +108,7 @@ const COLUMNS: DataTableColumn<CareContractSummary>[] = [
           {childName(contract)}
         </NavigationLink>
         <span className="block text-sm text-gray-500">
-          {formatModules(contract.moduleNames)}
+          {contract.modulesText || "–"}
           <span className="sm:hidden">
             {" "}
             · ab {formatDate(contract.effectiveFrom)}
@@ -157,7 +156,13 @@ const COLUMNS: DataTableColumn<CareContractSummary>[] = [
           label={CONTRACT_STATUS_LABELS[contract.status]}
           tone={CONTRACT_STATUS_TONES[contract.status]}
         />
-        {contract.concluded ? (
+        {contract.status === "gekuendigt" && contract.endsOn ? (
+          <span className="text-xs text-gray-500">
+            zum {formatDate(contract.endsOn)}
+          </span>
+        ) : contract.status === "gekuendigt" ? (
+          <span className="text-xs text-gray-500">Ende offen</span>
+        ) : contract.status === "widerrufen" ? null : contract.concluded ? (
           <span className="text-xs text-gray-500">
             seit {formatBerlinDate(contract.concluded.at)}
           </span>

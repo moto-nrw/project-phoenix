@@ -346,6 +346,7 @@ export function WeeklyCalendarGrid({
 
   return (
     <div
+      // oxlint-disable-next-line ui-kit/no-hand-rolled-page-card -- Rahmen des Planrasters, kein Abschnitt: er trägt die Spaltenvariablen des Rasters per style, das SectionCard nicht annimmt
       className="moto-content-surface overflow-hidden rounded-2xl border"
       style={
         {
@@ -452,7 +453,7 @@ export function WeeklyCalendarGrid({
                     }`}
                   >
                     <div className="flex min-w-0 items-center gap-1 sm:gap-2">
-                      <span className="text-[10px] font-medium tracking-wide text-gray-500 uppercase sm:text-[11px]">
+                      <span className="text-xs font-medium text-gray-500">
                         {getGermanWeekdayShort(day)}
                       </span>
                       {isToday ? (
@@ -680,6 +681,7 @@ export function WeeklyCalendarGrid({
 
           {emptyState && (
             <div className="pointer-events-none absolute inset-x-0 top-1/2 z-20 flex -translate-y-1/2 justify-center px-4">
+              {/* oxlint-disable-next-line ui-kit/no-hand-rolled-page-card -- schwebendes Hinweisschild über dem leeren Raster, keine Abschnittskarte */}
               <div className="moto-content-surface max-w-sm rounded-2xl border px-4 py-1">
                 <EmptyState
                   variant="compact"

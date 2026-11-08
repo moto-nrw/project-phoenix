@@ -12,6 +12,7 @@
  * care-plan-helpers.ts from data the student detail page already holds.
  */
 
+import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { Ban, Check, LogIn, LogOut } from "lucide-react";
@@ -28,6 +29,8 @@ import type {
   CarePlanSlot,
 } from "~/lib/student-care-plan-api";
 import { parseTimeToMinutes } from "~/lib/timetable-helpers";
+import { InsetPanel } from "~/components/ui/inset-panel";
+import { ColorBar } from "~/components/ui/color-bar";
 
 interface CarePlanDayTimelineProps {
   readonly day: CarePlanDay | null;
@@ -84,23 +87,22 @@ function buildTimeline(day: CarePlanDay): TimelineItem[] {
 }
 
 function DeviationBanner({ deviation }: { readonly deviation: DayDeviation }) {
-  const color = DEVIATION_COLORS[deviation.kind];
   return (
-    <div
-      className="mb-3 rounded-lg border px-3 py-2 text-sm font-semibold"
-      style={{
-        borderColor: `${color}40`,
-        backgroundColor: `${color}14`,
-        color,
-      }}
-    >
-      {deviation.label}
-      {deviation.note ? (
-        <span className="ml-1 font-normal text-gray-600">
-          · {deviation.note}
-        </span>
-      ) : null}
-    </div>
+    <Alert
+      type="info"
+      size="compact"
+      announce="off"
+      color={DEVIATION_COLORS[deviation.kind]}
+      className="mb-3"
+      message={
+        <>
+          <span className="font-semibold">{deviation.label}</span>
+          {deviation.note ? (
+            <span className="ml-1 text-gray-600">· {deviation.note}</span>
+          ) : null}
+        </>
+      }
+    />
   );
 }
 
@@ -173,26 +175,35 @@ function InstanceBlock({
 }) {
   const cancelled = instance.status === "cancelled";
   return (
-    <div
-      className="rounded-lg border border-l-4 border-gray-200 bg-white px-3 py-2 shadow-sm"
-      style={{ borderLeftColor: LOCATION_COLORS.GROUP_ROOM }}
-    >
-      <div className="flex items-baseline justify-between gap-2">
-        <span
-          className={`truncate font-semibold text-gray-900 ${
-            compact ? "text-sm" : ""
-          } ${cancelled ? "line-through" : ""}`}
-        >
-          {instance.title}
-        </span>
-        <span className="shrink-0 text-xs text-gray-500 tabular-nums">
-          {instance.startTime}–{instance.endTime}
-        </span>
+    // Weiße Innenfläche mit dem Farbbalken der Gruppe als Typkennzeichen
+    // (#6135). Kein PlanBlock: dessen 12-px-Titel wären in der Tagesansicht
+    // des Kindes zu klein.
+    <InsetPanel tone="white" padding="compact" className="flex gap-2.5">
+      <ColorBar
+        color={LOCATION_COLORS.GROUP_ROOM}
+        size="lg"
+        className="self-center"
+      />
+      <div className="min-w-0 flex-1">
+        {/* In einer schmalen Wochenspalte bricht die Zeit unter den Titel um,
+            statt ihn auf null Breite zu kürzen. */}
+        <div className="flex flex-wrap items-baseline justify-between gap-x-2">
+          <span
+            className={`max-w-full min-w-0 truncate font-semibold text-gray-900 ${
+              compact ? "text-sm" : ""
+            } ${cancelled ? "line-through" : ""}`}
+          >
+            {instance.title}
+          </span>
+          <span className="shrink-0 text-xs text-gray-500 tabular-nums">
+            {instance.startTime}–{instance.endTime}
+          </span>
+        </div>
+        <div className="mt-0.5">
+          <AttendanceTag instance={instance} />
+        </div>
       </div>
-      <div className="mt-0.5">
-        <AttendanceTag instance={instance} />
-      </div>
-    </div>
+    </InsetPanel>
   );
 }
 
@@ -204,8 +215,9 @@ function FreeCareBandRow({
   readonly compact: boolean;
 }) {
   return (
-    <div
-      className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-3 py-2"
+    <InsetPanel
+      dashed
+      padding="compact"
       style={{ color: LOCATION_COLORS.UNKNOWN }}
     >
       <div className="flex items-baseline justify-between gap-2">
@@ -216,7 +228,7 @@ function FreeCareBandRow({
           {band.startTime}–{band.endTime}
         </span>
       </div>
-    </div>
+    </InsetPanel>
   );
 }
 
@@ -229,21 +241,20 @@ function FreeCareBandRow({
  */
 function AbsenceNotice({ reason }: { readonly reason?: string }) {
   return (
-    <div
-      className="rounded-lg border px-3 py-2 text-sm"
-      style={{
-        borderColor: `${LOCATION_COLORS.NOT_ARRIVAL}33`,
-        backgroundColor: `${LOCATION_COLORS.NOT_ARRIVAL}14`,
-      }}
-    >
-      <span
-        className="font-semibold"
-        style={{ color: LOCATION_COLORS.NOT_ARRIVAL }}
-      >
-        Kommt heute nicht
-      </span>
-      {reason ? <span className="ml-1 text-gray-600">· {reason}</span> : null}
-    </div>
+    <Alert
+      type="info"
+      size="compact"
+      announce="off"
+      color={LOCATION_COLORS.NOT_ARRIVAL}
+      message={
+        <>
+          <span className="font-semibold">Kommt heute nicht</span>
+          {reason ? (
+            <span className="ml-1 text-gray-600">· {reason}</span>
+          ) : null}
+        </>
+      }
+    />
   );
 }
 

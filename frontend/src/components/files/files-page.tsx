@@ -6,6 +6,7 @@
 // rendered as-is. Follows the calm Anmeldungen/Planung surface language: one
 // content section, gray-50 stat blocks, no colored chips.
 
+import { SectionLabel } from "~/components/ui/section-label";
 import { FileText, FolderOpen, Lock, Users } from "lucide-react";
 import Link from "~/components/ui/navigation-link";
 import { useSession } from "next-auth/react";
@@ -270,7 +271,7 @@ export function FilesPage() {
         {folders.length > 0 && (
           <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
             {/* Folder list: a panel on desktop, a select on small screens */}
-            <div className="moto-content-surface rounded-2xl border p-3 lg:hidden">
+            <SectionCard className="lg:hidden">
               <CustomSelect
                 id="dateien-ordner"
                 label="Ordner"
@@ -282,38 +283,45 @@ export function FilesPage() {
                 onChange={(value) => setSelectedId(value)}
                 controlSize="compact"
               />
-            </div>
-            <aside className="moto-content-surface hidden flex-col rounded-2xl border p-3 lg:flex">
-              <p className="px-3 pt-1 pb-2 text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
-                Ordner
-              </p>
-              <div className="min-h-0 flex-1 overflow-y-auto">{folderNav}</div>
-              {canManage && overview && overview.maxBytes > 0 && (
-                <dl className="mt-3 space-y-3 border-t border-gray-100 px-3 pt-3">
-                  <DataField label="Speicherplatz">
-                    <span className="tabular-nums">
-                      {formatBytes(overview.usedBytes)} von{" "}
-                      {formatBytes(overview.maxBytes)} belegt
-                    </span>
-                  </DataField>
-                  <DataField label="Dateien hochladen">
-                    {overview.staffUploadEnabled
-                      ? "Leitung und Team"
-                      : "Nur Leitung"}
-                    {canChangeUploadPermission && (
-                      <span className="mt-1 block">
-                        <Link
-                          href="/settings?tab=operations&highlight=files.staff_upload_enabled"
-                          className="inline-flex min-h-6 items-center text-xs font-medium text-gray-500 underline decoration-gray-300 underline-offset-2 transition-colors hover:text-gray-800 hover:decoration-gray-500 focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-1 focus-visible:outline-none"
-                        >
-                          Berechtigung ändern
-                        </Link>
+            </SectionCard>
+            <SectionCard
+              className="hidden h-full min-h-0 flex-col lg:flex"
+              bodyClassName="flex min-h-0 flex-1 flex-col"
+            >
+              <aside className="flex min-h-0 flex-1 flex-col">
+                <SectionLabel as="p" className="px-3 pt-1 pb-2">
+                  Ordner
+                </SectionLabel>
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                  {folderNav}
+                </div>
+                {canManage && overview && overview.maxBytes > 0 && (
+                  <dl className="mt-3 space-y-3 border-t border-gray-100 px-3 pt-3">
+                    <DataField label="Speicherplatz">
+                      <span className="tabular-nums">
+                        {formatBytes(overview.usedBytes)} von{" "}
+                        {formatBytes(overview.maxBytes)} belegt
                       </span>
-                    )}
-                  </DataField>
-                </dl>
-              )}
-            </aside>
+                    </DataField>
+                    <DataField label="Dateien hochladen">
+                      {overview.staffUploadEnabled
+                        ? "Leitung und Team"
+                        : "Nur Leitung"}
+                      {canChangeUploadPermission && (
+                        <span className="mt-1 block">
+                          <Link
+                            href="/settings?tab=operations&highlight=files.staff_upload_enabled"
+                            className="inline-flex min-h-6 items-center text-xs font-medium text-gray-500 underline decoration-gray-300 underline-offset-2 transition-colors hover:text-gray-800 hover:decoration-gray-500 focus-visible:rounded-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-1 focus-visible:outline-none"
+                          >
+                            Berechtigung ändern
+                          </Link>
+                        </span>
+                      )}
+                    </DataField>
+                  </dl>
+                )}
+              </aside>
+            </SectionCard>
 
             {selected && (
               <SectionCard className="flex min-h-0 flex-col">

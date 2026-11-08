@@ -38,7 +38,7 @@ func newDashboardContext(t *testing.T) (*testContext, testutil.Router) {
 			return svcSettings.Settings.SetValue(ctx, key, value, actor, perms)
 		},
 		ResetValue: svcSettings.Settings.ResetValue,
-	}}, router
+	}}, testpkg.MountedQueryBudgetRouter("/api", router)
 }
 func TestMain(m *testing.M) {
 	testpkg.PerTestTenants()

@@ -1,5 +1,6 @@
 "use client";
 
+import { SectionLabel } from "~/components/ui/section-label";
 import { groups as groupsKeys } from "~/lib/swr/groups";
 import {
   Suspense,
@@ -136,6 +137,7 @@ import type {
   AnnouncementTarget,
   DeclarationSigners,
 } from "~/lib/parent-announcements-api";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "ParentAnnouncementsPage" });
 
@@ -1513,7 +1515,7 @@ function AnnouncementFormModal({
             <WizardStepper steps={WIZARD_STEPS} current={step} />
 
             {step === 0 ? (
-              // Sections with quiet uppercase headers, every control on the full
+              // Sections with quiet section labels, every control on the full
               // width — the same form language as the Vertretungsplan slide-over.
               // No nested cards and no per-option input rows: at this size they
               // read as clutter, not as structure.
@@ -1558,9 +1560,7 @@ function AnnouncementFormModal({
 
                 {isPollForm && (
                   <section className="space-y-3">
-                    <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                      Antwortmöglichkeiten
-                    </h3>
+                    <SectionLabel>Antwortmöglichkeiten</SectionLabel>
                     <div>
                       <ul className="space-y-2">
                         {optionRows.map((option, index) => (
@@ -1639,9 +1639,7 @@ function AnnouncementFormModal({
                 {isDeclarationForm && (
                   <section className="space-y-4">
                     <div>
-                      <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                        Einverständnis
-                      </h3>
+                      <SectionLabel>Einverständnis</SectionLabel>
                       <p className="mt-1 text-sm text-gray-600">
                         Eltern stimmen im Eltern-Portal für jedes Kind einzeln
                         zu oder lehnen ab. Das ist eine einfache Erklärung per
@@ -1746,9 +1744,7 @@ function AnnouncementFormModal({
                 )}
 
                 <section className="space-y-3">
-                  <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                    Zeitraum
-                  </h3>
+                  <SectionLabel>Zeitraum</SectionLabel>
                   <div className="grid gap-4 sm:grid-cols-2">
                     {hasDeadline && (
                       <div>
@@ -1799,9 +1795,7 @@ function AnnouncementFormModal({
 
                 {!isPollForm && (
                   <section className="space-y-3">
-                    <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                      Erinnerung
-                    </h3>
+                    <SectionLabel>Erinnerung</SectionLabel>
                     <p className="text-sm text-gray-600">
                       Optional: moto schickt{" "}
                       {isLetterForm
@@ -1860,9 +1854,7 @@ function AnnouncementFormModal({
                 )}
 
                 <section className="space-y-3">
-                  <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                    Veröffentlichung
-                  </h3>
+                  <SectionLabel>Veröffentlichung</SectionLabel>
 
                   <div>
                     <FieldLabel>Priorität</FieldLabel>
@@ -1879,7 +1871,7 @@ function AnnouncementFormModal({
                   they are stated as facts instead of offered as choices. Shown,
                   not hidden: the author must see what will happen. */}
                   {isLetterForm && (
-                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                    <InsetPanel framed padding="md">
                       <p className="text-sm font-medium text-gray-800">
                         Beim Veröffentlichen passiert automatisch:
                       </p>
@@ -1895,7 +1887,7 @@ function AnnouncementFormModal({
                           Bestätigung pro Kind genügt.
                         </li>
                       </ul>
-                    </div>
+                    </InsetPanel>
                   )}
 
                   {/* A poll answer already IS the confirmation — offering a second,
@@ -2013,9 +2005,12 @@ function AnnouncementFormModal({
                   {pendingFiles.length > 0 && (
                     <ul className="flex flex-col gap-2">
                       {pendingFiles.map((file, index) => (
-                        <li
+                        <InsetPanel
+                          as="li"
                           key={`${file.name}-${index}`}
-                          className="flex items-center gap-3 rounded-md border border-dashed border-gray-300 bg-gray-50 px-3 py-2"
+                          dashed
+                          padding="compact"
+                          className="flex items-center gap-3"
                         >
                           <FileTypeIcon contentType={file.type} />
                           <span className="min-w-0 flex-1 truncate text-sm text-gray-900">
@@ -2032,7 +2027,7 @@ function AnnouncementFormModal({
                           >
                             Entfernen
                           </Button>
-                        </li>
+                        </InsetPanel>
                       ))}
                       <li className="text-xs text-gray-500">
                         Diese Dateien werden mit dem Speichern hochgeladen.

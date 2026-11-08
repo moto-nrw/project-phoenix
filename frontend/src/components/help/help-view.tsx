@@ -25,6 +25,8 @@ import {
 import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { SectionCard } from "~/components/ui/section-card";
+import { TileCard } from "~/components/ui/tile-card";
 import { cn } from "~/lib/utils";
 import {
   getHelpTopics,
@@ -92,9 +94,11 @@ const GROUP_ORDER_BY_ROLE: Readonly<
   ],
 };
 
-// Wer die geoeffnete Anleitung liest. Steht ueber dem Titel der Startseite,
-// damit eine falsche Rolle sofort auffaellt.
-const ROLE_KICKER: Readonly<Record<HelpRole, string>> = {
+// Wer die geoeffnete Anleitung liest. Steht als Statuszeile unter dem Titel
+// der Startseite und der Bereichsseiten, damit eine falsche Rolle sofort
+// auffaellt. Ueber dem Titel stand sie als Kicker, den es ausserhalb des
+// Elternportals nicht mehr gibt (#5607).
+const ROLE_LINE: Readonly<Record<HelpRole, string>> = {
   caregiver: "Für Betreuungskräfte",
   lead: "Für die Leitung",
   parent: "Für Eltern",
@@ -359,19 +363,21 @@ function HelpMobileHeader({
 function TopicImage({ topic }: Readonly<{ topic: HelpTopic }>) {
   if (!topic.image || !topic.imageAlt) return null;
   return (
-    <figure className="moto-content-surface overflow-hidden rounded-2xl border">
-      <Image
-        src={topic.image}
-        alt={topic.imageAlt}
-        width={1280}
-        height={800}
-        priority
-        className="h-auto w-full"
-      />
-      <figcaption className="border-t border-gray-100 px-4 py-3 text-sm text-gray-600">
-        {topic.imageAlt}
-      </figcaption>
-    </figure>
+    <SectionCard padding="none">
+      <figure>
+        <Image
+          src={topic.image}
+          alt={topic.imageAlt}
+          width={1280}
+          height={800}
+          priority
+          className="h-auto w-full"
+        />
+        <figcaption className="border-t border-gray-100 px-4 py-3 text-sm text-gray-600">
+          {topic.imageAlt}
+        </figcaption>
+      </figure>
+    </SectionCard>
   );
 }
 
@@ -413,12 +419,10 @@ function GroupOverview({
   const groupTopics = topics.filter((item) => item.group === group);
   return (
     <section className="max-w-4xl">
-      <p className="text-moto-green-strong text-sm font-bold tracking-wide uppercase">
-        {ROLE_KICKER[role]}
-      </p>
-      <h1 className="mt-2 text-4xl font-semibold tracking-tight text-gray-950 sm:text-5xl">
+      <h1 className="text-4xl font-semibold tracking-tight text-gray-950 sm:text-5xl">
         {helpGroupLabel(group, presenceMode, groupMode)}
       </h1>
+      <p className="mt-3 text-sm text-gray-600">{ROLE_LINE[role]}</p>
       <p className="mt-4 max-w-2xl text-lg leading-8 text-gray-600">
         {groupTopics.length === 1
           ? "Zu diesem Bereich gibt es eine Anleitung."
@@ -427,11 +431,7 @@ function GroupOverview({
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
         {groupTopics.map((item) => {
           return (
-            <Link
-              key={item.id}
-              href={hrefFor(item.id)}
-              className="moto-content-surface group rounded-2xl border p-5 focus-visible:outline-2 focus-visible:outline-gray-400"
-            >
+            <TileCard key={item.id} href={hrefFor(item.id)}>
               <MotoDuotoneIcon
                 icon={HELP_ICONS[item.icon]}
                 tone="greenDeep"
@@ -442,7 +442,7 @@ function GroupOverview({
               <p className="mt-2 text-sm leading-6 text-gray-600">
                 {item.summary}
               </p>
-            </Link>
+            </TileCard>
           );
         })}
       </div>
@@ -580,10 +580,7 @@ function DocumentationArticle({
 
       <article className="max-w-2xl min-w-0">
         <header>
-          <p className="text-moto-green-strong text-sm font-bold tracking-wide uppercase">
-            {helpGroupLabel(topic.group, presenceMode, groupMode)}
-          </p>
-          <h1 className="mt-3 text-4xl font-semibold tracking-tight text-balance text-gray-950 sm:text-5xl">
+          <h1 className="text-4xl font-semibold tracking-tight text-balance text-gray-950 sm:text-5xl">
             {topic.question}
           </h1>
           <p className="mt-5 text-lg leading-8 text-pretty text-gray-600">
@@ -1175,12 +1172,10 @@ function HelpDocumentationShell({
           />
         ) : (
           <section className="max-w-4xl">
-            <p className="text-moto-green-strong text-sm font-bold tracking-wide uppercase">
-              {ROLE_KICKER[role]}
-            </p>
-            <h1 className="mt-2 text-4xl font-semibold tracking-tight text-gray-950 sm:text-5xl">
+            <h1 className="text-4xl font-semibold tracking-tight text-gray-950 sm:text-5xl">
               Was möchten Sie erledigen?
             </h1>
+            <p className="mt-3 text-sm text-gray-600">{ROLE_LINE[role]}</p>
             <p className="mt-4 max-w-2xl text-lg leading-8 text-gray-600">
               Wählen Sie ein Thema. Jede Seite erklärt eine Aufgabe.
             </p>
@@ -1190,11 +1185,7 @@ function HelpDocumentationShell({
                 .slice(0, HOME_TOPIC_COUNT)
                 .map((item) => {
                   return (
-                    <Link
-                      key={item.id}
-                      href={hrefFor(item.id)}
-                      className="moto-content-surface group rounded-2xl border p-5 focus-visible:outline-2 focus-visible:outline-gray-400"
-                    >
+                    <TileCard key={item.id} href={hrefFor(item.id)}>
                       <MotoDuotoneIcon
                         icon={HELP_ICONS[item.icon]}
                         tone="greenDeep"
@@ -1207,7 +1198,7 @@ function HelpDocumentationShell({
                       <p className="mt-2 text-sm leading-6 text-gray-600">
                         {item.summary}
                       </p>
-                    </Link>
+                    </TileCard>
                   );
                 })}
             </div>

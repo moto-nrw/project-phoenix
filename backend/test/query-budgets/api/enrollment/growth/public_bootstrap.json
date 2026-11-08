@@ -2,5 +2,6 @@
   "scenario": "api.enrollment.growth.public_bootstrap",
   "max": 24,
   "exact": true,
-  "description": "Positive mounted handler with real settings and persistence, all SQL including transaction envelope; N3/N8 offerings or sibling children. JWT verification performs no SQL."
+  "description": "Positive mounted handler with real settings and persistence, all SQL including transaction envelope; N3/N8 offerings or sibling children. JWT verification performs no SQL.",
+  "route": "GET /api/enrollment/form-bootstrap/public/{tenantSlug}/{phaseId}"
 }

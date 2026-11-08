@@ -245,16 +245,12 @@ function LoginForm() {
   return (
     <>
       <AuthShell
-        eyebrow="Schulportal"
-        eyebrowClassName="text-moto-blue"
         title="Willkommen im Schulportal"
         subtitle="Melden Sie sich mit Ihrem Konto für moto schule an."
         variant="tenant"
         brand={<MotoBrand />}
       >
-        {isCheckingAuth && (
-          <Loading fullPage={false} message="Sitzung wird überprüft..." />
-        )}
+        {isCheckingAuth && <Loading message="Sitzung wird überprüft..." />}
 
         <div
           className={`transition-opacity duration-300 ${isCheckingAuth ? "pointer-events-none hidden" : "opacity-100"}`}
@@ -412,14 +408,12 @@ export default function SchoolLoginPage() {
     <Suspense
       fallback={
         <AuthShell
-          eyebrow="Schulportal"
-          eyebrowClassName="text-moto-blue"
           title="Willkommen im Schulportal"
           subtitle="Melden Sie sich mit Ihrem Konto für moto schule an."
           variant="tenant"
           brand={<MotoBrand />}
         >
-          <Loading fullPage={false} message="Anmeldung wird vorbereitet …" />
+          <Loading message="Anmeldung wird vorbereitet …" />
         </AuthShell>
       }
     >

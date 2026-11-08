@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Clock } from "lucide-react";
+import { Alert } from "~/components/ui/alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   SlideOver,
@@ -35,6 +36,7 @@ import {
 import { parentsConcept } from "~/lib/concepts/parents";
 import { pickupConcept } from "~/lib/concepts/pickup";
 import { IconTile } from "~/components/ui/icon-tile";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 /**
  * The care plan is edited through exactly two doors, and each one owns one kind
@@ -393,18 +395,12 @@ export function CarePlanEditorModal({
               </p>
 
               {parentAuthored ? (
-                <div className="border-moto-blue/20 bg-moto-blue/10 text-moto-blue-hover flex items-start gap-2.5 rounded-xl border px-4 py-3 text-sm">
-                  <MotoConceptIcon
-                    concept={parentsConcept}
-                    size={18}
-                    className="mt-0.5"
-                  />
-                  <span>
-                    Diese Zeiten wurden von den Eltern über das Elternportal
-                    gesetzt. Wenn du sie änderst, ersetzt deine Eingabe die
-                    Angabe der Eltern.
-                  </span>
-                </div>
+                <Alert
+                  type="info"
+                  announce="off"
+                  icon={<MotoConceptIcon concept={parentsConcept} size={18} />}
+                  message="Diese Zeiten wurden von den Eltern über das Elternportal gesetzt. Wenn du sie änderst, ersetzt deine Eingabe die Angabe der Eltern."
+                />
               ) : null}
 
               <div className="grid gap-3 sm:grid-cols-2">
@@ -470,18 +466,20 @@ export function CarePlanEditorModal({
                 showReason={departureMode !== "regular"}
               />
               {pickupPulledForward(pickupMode, pickupTime, pickupDay) ? (
-                <div className="border-moto-amber/40 bg-moto-amber-soft text-moto-amber-strong flex items-start gap-2.5 rounded-xl border px-4 py-3 text-sm">
-                  <Clock
-                    className="mt-0.5 h-4 w-4 shrink-0"
-                    aria-hidden="true"
-                  />
-                  <span>
-                    Abholung vorverlegt: Betreuungsblöcke, die um {pickupTime}{" "}
-                    Uhr oder später beginnen, werden für diesen Tag automatisch
-                    abgemeldet (entschuldigt). Wird die Zeit wieder geändert
-                    oder die Ausnahme entfernt, gilt der reguläre Plan.
-                  </span>
-                </div>
+                <Alert
+                  type="warning"
+                  announce="off"
+                  icon={<Clock className="h-4 w-4" aria-hidden="true" />}
+                  message={
+                    <>
+                      Abholung vorverlegt: Betreuungsblöcke, die um {pickupTime}{" "}
+                      Uhr oder später beginnen, werden für diesen Tag
+                      automatisch abgemeldet (entschuldigt). Wird die Zeit
+                      wieder geändert oder die Ausnahme entfernt, gilt der
+                      reguläre Plan.
+                    </>
+                  }
+                />
               ) : null}
               {onResetPickupToOffering &&
               pickupDay.baseSchedule &&
@@ -617,7 +615,7 @@ function LegSection({
   const timeId = `exception-${label.toLowerCase()}-time`;
   const reasonId = `exception-${label.toLowerCase()}-reason`;
   return (
-    <section className="moto-content-surface rounded-xl border p-3 sm:rounded-2xl sm:p-4">
+    <InsetPanel as="section" tone="white" padding="md">
       <div className="mb-3 flex items-start gap-3">
         <IconTile size="sm" icon={icon} />
         <div>
@@ -671,7 +669,7 @@ function LegSection({
           />
         </div>
       ) : null}
-    </section>
+    </InsetPanel>
   );
 }
 
@@ -713,7 +711,7 @@ function DayNotesEditor({
   readonly onRequestDelete: (target: NoteDeletionTarget) => void;
 }) {
   return (
-    <div className="space-y-3 rounded-xl border border-gray-200 p-4">
+    <InsetPanel tone="white" padding="md" className="space-y-3">
       <p className="text-sm font-semibold text-gray-900">
         Hinweise nur für diesen Tag
       </p>
@@ -751,7 +749,7 @@ function DayNotesEditor({
         onNoteDraftChange={onNoteDraftChange}
         onRequestDelete={onRequestDelete}
       />
-    </div>
+    </InsetPanel>
   );
 }
 

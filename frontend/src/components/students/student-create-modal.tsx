@@ -71,6 +71,7 @@ import {
 } from "~/lib/pickup-schedule-helpers";
 import { careTimesConcept } from "~/lib/concepts/careTimes";
 import { groupsConcept } from "~/lib/concepts/groups";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "StudentCreateModal" });
 
@@ -647,16 +648,24 @@ export function StudentCreateModal({
 
               {mode === "list-entry" ? (
                 <div className="space-y-4">
-                  <div className="border-moto-blue/20 bg-moto-blue-soft rounded-xl border p-3 text-xs leading-5 text-gray-700 md:p-4 md:text-sm">
-                    Für Kinder, die nicht im Ganztag sind: Der Eintrag besteht
-                    nur aus Name und Klasse und erscheint ausschließlich auf
-                    Klassenlisten und in der Klassenansicht (
-                    <span className="font-medium">Keine Betreuung</span>). Keine
-                    Anwesenheit, keine Betreuungsplanung, keine Kontaktdaten.
-                    Verwalten lässt sich die Liste über das Menü oben rechts
-                    unter <span className="font-medium">Klassenliste</span>.
-                  </div>
-                  <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4">
+                  <Alert
+                    type="info"
+                    announce="off"
+                    message={
+                      <>
+                        Für Kinder, die nicht im Ganztag sind: Der Eintrag
+                        besteht nur aus Name und Klasse und erscheint
+                        ausschließlich auf Klassenlisten und in der
+                        Klassenansicht (
+                        <span className="font-medium">Keine Betreuung</span>).
+                        Keine Anwesenheit, keine Betreuungsplanung, keine
+                        Kontaktdaten. Verwalten lässt sich die Liste über das
+                        Menü oben rechts unter{" "}
+                        <span className="font-medium">Klassenliste</span>.
+                      </>
+                    }
+                  />
+                  <InsetPanel framed padding="md">
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
                       <div>
                         <FieldLabel
@@ -721,7 +730,7 @@ export function StudentCreateModal({
                         )}
                       </div>
                     </div>
-                  </div>
+                  </InsetPanel>
                 </div>
               ) : null}
 
@@ -744,111 +753,117 @@ export function StudentCreateModal({
                   <section
                     ref={guardianSectionRef}
                     aria-label="Erziehungsberechtigte"
-                    className="scroll-mt-4 rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4"
+                    className="scroll-mt-4"
                   >
-                    <div className="mb-3 flex items-center justify-between md:mb-4">
-                      <h3 className="flex items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
-                        <MotoConceptIcon concept={groupsConcept} size={18} />
-                        Erziehungsberechtigte
-                      </h3>
-                      <span className="text-xs text-gray-500">
-                        {guardians.length > 0
-                          ? `${guardians.length} hinzugefügt`
-                          : "Optional"}
-                      </span>
-                    </div>
-
-                    {guardians.length > 0 && (
-                      <ul className="mb-3 space-y-2">
-                        {guardians.map((guardian, index) => {
-                          const flags = [
-                            guardian.can_pickup ? "Abholberechtigt" : null,
-                            guardian.is_emergency_contact
-                              ? "Notfallkontakt"
-                              : null,
-                            guardian.is_primary ? "Primär" : null,
-                          ].filter(Boolean);
-                          return (
-                            <li
-                              key={`${guardian.first_name}-${guardian.last_name}-${guardian.email ?? ""}`}
-                              className="flex items-start justify-between gap-2 rounded-lg border border-gray-100 bg-white p-2 md:p-3"
-                            >
-                              <div className="min-w-0">
-                                <p className="truncate text-xs font-medium text-gray-900 md:text-sm">
-                                  {`${guardian.first_name} ${guardian.last_name}`.trim() ||
-                                    "Erziehungsberechtigte/r"}
-                                  <span className="ml-2 font-normal text-gray-500">
-                                    {relationshipLabel(
-                                      guardian.relationship_type,
-                                    )}
-                                  </span>
-                                </p>
-                                {flags.length > 0 && (
-                                  <p className="mt-0.5 truncate text-xs text-gray-500">
-                                    {flags.join(" · ")}
-                                  </p>
-                                )}
-                              </div>
-                              <Button
-                                type="button"
-                                variant="ghost_danger"
-                                size="icon"
-                                onClick={() => removeGuardian(index)}
-                                disabled={saveLoading}
-                                aria-label="Erziehungsberechtigte/n entfernen"
-                                className="shrink-0"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    )}
-
-                    {guardianPickerOpen ? (
-                      // Existing-guardian path is inline (not a second modal): a search
-                      // is a light lookup, so it expands here in place. "Neu anlegen"
-                      // stays a full modal because the new-guardian form is heavy.
-                      <GuardianPickerPanel
-                        onSelect={handleGuardianPick}
-                        onCancel={handlePickerCancel}
-                        excludeProfileIds={addedProfileIds}
-                      />
-                    ) : (
-                      <div className="flex flex-col gap-2 sm:flex-row">
-                        <Button
-                          type="button"
-                          variant="dashed"
-                          size="md"
-                          onClick={() => setGuardianModalOpen(true)}
-                          disabled={saveLoading}
-                          className="flex-1 gap-2"
-                        >
-                          <Plus className="h-4 w-4" />
-                          Neu anlegen
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="dashed"
-                          size="md"
-                          onClick={() => setGuardianPickerOpen(true)}
-                          disabled={saveLoading}
-                          className="flex-1 gap-2"
-                        >
-                          <Search className="h-4 w-4" />
-                          Vorhandene/n suchen
-                        </Button>
+                    <InsetPanel framed padding="md">
+                      <div className="mb-3 flex items-center justify-between md:mb-4">
+                        <h3 className="flex items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
+                          <MotoConceptIcon concept={groupsConcept} size={18} />
+                          Erziehungsberechtigte
+                        </h3>
+                        <span className="text-xs text-gray-500">
+                          {guardians.length > 0
+                            ? `${guardians.length} hinzugefügt`
+                            : "Optional"}
+                        </span>
                       </div>
-                    )}
+
+                      {guardians.length > 0 && (
+                        <ul className="mb-3 space-y-2">
+                          {guardians.map((guardian, index) => {
+                            const flags = [
+                              guardian.can_pickup ? "Abholberechtigt" : null,
+                              guardian.is_emergency_contact
+                                ? "Notfallkontakt"
+                                : null,
+                              guardian.is_primary ? "Primär" : null,
+                            ].filter(Boolean);
+                            return (
+                              <InsetPanel
+                                as="li"
+                                key={`${guardian.first_name}-${guardian.last_name}-${guardian.email ?? ""}`}
+                                tone="white"
+                                className="flex items-start justify-between gap-2"
+                              >
+                                <div className="min-w-0">
+                                  <p className="truncate text-xs font-medium text-gray-900 md:text-sm">
+                                    {`${guardian.first_name} ${guardian.last_name}`.trim() ||
+                                      "Erziehungsberechtigte/r"}
+                                    <span className="ml-2 font-normal text-gray-500">
+                                      {relationshipLabel(
+                                        guardian.relationship_type,
+                                      )}
+                                    </span>
+                                  </p>
+                                  {flags.length > 0 && (
+                                    <p className="mt-0.5 truncate text-xs text-gray-500">
+                                      {flags.join(" · ")}
+                                    </p>
+                                  )}
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="ghost_danger"
+                                  size="icon"
+                                  onClick={() => removeGuardian(index)}
+                                  disabled={saveLoading}
+                                  aria-label="Erziehungsberechtigte/n entfernen"
+                                  className="shrink-0"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </InsetPanel>
+                            );
+                          })}
+                        </ul>
+                      )}
+
+                      {guardianPickerOpen ? (
+                        // Existing-guardian path is inline (not a second modal): a search
+                        // is a light lookup, so it expands here in place. "Neu anlegen"
+                        // stays a full modal because the new-guardian form is heavy.
+                        <GuardianPickerPanel
+                          onSelect={handleGuardianPick}
+                          onCancel={handlePickerCancel}
+                          excludeProfileIds={addedProfileIds}
+                        />
+                      ) : (
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <Button
+                            type="button"
+                            variant="dashed"
+                            size="md"
+                            onClick={() => setGuardianModalOpen(true)}
+                            disabled={saveLoading}
+                            className="flex-1 gap-2"
+                          >
+                            <Plus className="h-4 w-4" />
+                            Neu anlegen
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="dashed"
+                            size="md"
+                            onClick={() => setGuardianPickerOpen(true)}
+                            disabled={saveLoading}
+                            className="flex-1 gap-2"
+                          >
+                            <Search className="h-4 w-4" />
+                            Vorhandene/n suchen
+                          </Button>
+                        </div>
+                      )}
+                    </InsetPanel>
                   </section>
 
                   {/* Betreuungszeiten — weekly arrival/pickup times staged here and
               persisted atomically with the student, mirroring the guardian
               section above. Reuses the existing CareWeeklyPlanModal editor. */}
-                  <section
+                  <InsetPanel
+                    as="section"
                     aria-label="Betreuungszeiten"
-                    className="rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4"
+                    framed
+                    padding="md"
                   >
                     <div className="mb-3 flex items-center justify-between md:mb-4">
                       <h3 className="flex items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
@@ -863,7 +878,10 @@ export function StudentCreateModal({
                     </div>
 
                     {hasCarePlan && (
-                      <div className="mb-3 flex items-start justify-between gap-2 rounded-lg border border-gray-100 bg-white p-2 md:p-3">
+                      <InsetPanel
+                        tone="white"
+                        className="mb-3 flex items-start justify-between gap-2"
+                      >
                         <div className="min-w-0">
                           <p className="truncate text-xs font-medium text-gray-900 md:text-sm">
                             {scheduledWeekdays.map(weekdayShort).join(" · ")}
@@ -886,7 +904,7 @@ export function StudentCreateModal({
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
-                      </div>
+                      </InsetPanel>
                     )}
 
                     <Button
@@ -902,7 +920,7 @@ export function StudentCreateModal({
                         ? "Wochenplan ändern"
                         : "Wochenplan hinzufügen"}
                     </Button>
-                  </section>
+                  </InsetPanel>
 
                   <HealthInfoSection
                     value={formData.health_info}

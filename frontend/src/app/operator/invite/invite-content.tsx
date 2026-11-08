@@ -190,14 +190,13 @@ export function InviteContent() {
   if (state === "loading") {
     return (
       <AuthShell
-        eyebrow="Operator"
         title="Einladung prüfen"
         subtitle="Wir laden die Einladung."
         variant="operator"
         brand={<OperatorBrand />}
         formMaxWidth="max-w-[31rem]"
       >
-        <Loading fullPage={false} />
+        <Loading />
       </AuthShell>
     );
   }
@@ -205,7 +204,6 @@ export function InviteContent() {
   if (state === "success") {
     return (
       <AuthShell
-        eyebrow="Operator"
         title="Konto erstellt"
         subtitle="Dein Operator-Konto wurde erfolgreich erstellt."
         variant="operator"
@@ -234,7 +232,6 @@ export function InviteContent() {
   if (state === "error") {
     return (
       <AuthShell
-        eyebrow="Operator"
         title="Einladung nicht geöffnet"
         subtitle="Die Einladung konnte nicht geöffnet werden."
         variant="operator"
@@ -266,7 +263,6 @@ export function InviteContent() {
 
   return (
     <AuthShell
-      eyebrow="Operator"
       title="Operator-Konto erstellen"
       subtitle="Lege dein Operator-Konto an und melde dich danach im Operator-Portal an."
       variant="operator"

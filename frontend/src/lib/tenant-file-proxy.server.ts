@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
-import { auth } from "~/server/auth";
-import { sendWithTokenRefresh } from "~/lib/tenant-token-retry.server";
+import { auth, uncachedAuth } from "~/server/auth";
+import { sendWithTokenRefresh } from "~/lib/token-refresh-retry.server";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { problemResponse } from "./api-response-error.server";
 import { forwardBackendResponse } from "./backend-proxy-response.server";
@@ -47,6 +47,9 @@ function fileResponse(backend: Response, request: NextRequest): Response {
     const value = backend.headers.get(name);
     if (value) headers.set(name, value);
   }
+  if (!headers.has("X-Content-Type-Options")) {
+    headers.set("X-Content-Type-Options", "nosniff");
+  }
   return new Response(backend.body, { status: backend.status, headers });
 }
 
@@ -90,7 +93,10 @@ export function proxyFile(
           cache: "no-store",
         });
 
-      return fileResponse(await sendWithTokenRefresh(token, send), request);
+      return fileResponse(
+        await sendWithTokenRefresh(token, send, () => uncachedAuth()),
+        request,
+      );
     } catch (error) {
       captureBffException(error, request);
       logger.error("tenant_file_proxy_failed", {

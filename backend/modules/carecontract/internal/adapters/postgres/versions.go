@@ -19,7 +19,6 @@ import (
 // apart. A version holds from its effective date to the day before the next
 // effective version starts, or to its own end.
 
-// effectiveStatusSQL names the statuses of the timeline.
 const effectiveStatusSQL = `('` + carecontract.VersionEffective + `', '` + carecontract.VersionSuperseded + `')`
 
 // validUntilSQL is the last day version v holds; NULL when it holds open
@@ -32,11 +31,15 @@ const validUntilSQL = `CASE WHEN v.status IN ` + effectiveStatusSQL + ` THEN LEA
 
 // versionsSQL reads every version of a contract with its services, oldest
 // first.
-const versionsSQL = `SELECT ` + versionColumns + `, v.source, ` + servicesSQL + ` AS services, ` + validUntilSQL + ` AS valid_until
+// The last day a version holds is cut at the last day of a terminated
+// contract (#4682), so the list shows where the contract ends.
+const versionsSQL = `SELECT ` + versionColumns + `, v.source, ` + servicesSQL + ` AS services,
+	CASE WHEN v.status IN ` + effectiveStatusSQL + ` THEN LEAST(` + validUntilSQL + `,
+		(SELECT c.ends_on FROM care_contract.contracts AS c WHERE c.organization_id = v.organization_id AND c.id = v.contract_id))
+	END AS valid_until
 	FROM care_contract.contract_versions AS v
 	WHERE v.organization_id = ? AND v.contract_id = ? ORDER BY v.version_number`
 
-// Versions reads every version of a contract, oldest first.
 func (Store) Versions(ctx context.Context, organizationID, contractID int64) ([]carecontract.Version, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
@@ -166,7 +169,6 @@ func (Store) InsertVersion(ctx context.Context, organizationID, contractID int64
 	return insertVersion(ctx, db, organizationID, contractID, version)
 }
 
-// insertVersion stores one version with its services.
 func insertVersion(ctx context.Context, db bun.IDB, organizationID, contractID int64, version carecontract.Version) (int64, error) {
 	terms := version.Terms
 	source := version.Source
@@ -201,8 +203,10 @@ type periodRow struct {
 	StudentID  *int64 `bun:"student_id"`
 }
 
-// VersionsInForce reads the effective versions of the active and ended
-// contracts that hold on a day between from and to, by contract and start.
+// VersionsInForce reads the effective versions of the active, terminated
+// and ended contracts that hold on a day between from and to, by contract
+// and start. A terminated contract cuts its versions at its last day
+// (#4682); a withdrawn one holds on no day.
 func (Store) VersionsInForce(ctx context.Context, organizationID int64, from, to calendar.Date, contractIDs []int64) ([]carecontract.VersionPeriod, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
@@ -211,14 +215,16 @@ func (Store) VersionsInForce(ctx context.Context, organizationID int64, from, to
 	var rows []periodRow
 	if err := db.NewRaw(`SELECT * FROM (
 			SELECT c.id AS contract_id, c.school_id, c.student_id, `+versionColumns+`, v.source, `+servicesSQL+` AS services,
-				`+validUntilSQL+` AS valid_until
+				LEAST(`+validUntilSQL+`, c.ends_on) AS valid_until
 			FROM care_contract.contracts AS c
 			JOIN care_contract.contract_versions AS v ON v.organization_id = c.organization_id AND v.contract_id = c.id
-			WHERE c.organization_id = ? AND c.status IN (?, ?) AND v.status IN `+effectiveStatusSQL+`
+			WHERE c.organization_id = ? AND c.status IN (?, ?, ?) AND v.status IN `+effectiveStatusSQL+`
+				AND (c.ends_on IS NULL OR v.effective_from <= c.ends_on)
 				AND v.effective_from <= ? AND (cardinality(?::bigint[]) = 0 OR c.id = ANY(?::bigint[]))) AS t
 		WHERE t.valid_until IS NULL OR t.valid_until >= ?
 		ORDER BY t.contract_id, t.effective_from`,
-		organizationID, carecontract.StatusActive, carecontract.StatusEnded, to, pgdialect.Array(nonNilIDs(contractIDs)),
+		organizationID, carecontract.StatusActive, carecontract.StatusTerminated, carecontract.StatusEnded, to,
+		pgdialect.Array(nonNilIDs(contractIDs)),
 		pgdialect.Array(nonNilIDs(contractIDs)), from).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("care contract postgres: read versions in force: %w", err)
 	}
@@ -240,15 +246,13 @@ func nonNilIDs(ids []int64) []int64 {
 	return ids
 }
 
-// VersionDocument reads the stored PDF of one version; ok is false when the
-// version was never sent.
 func (Store) VersionDocument(ctx context.Context, organizationID, versionID int64) (carecontract.File, bool, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return carecontract.File{}, false, err
 	}
 	var row documentRow
-	err = db.NewRaw(`SELECT d.filename, d.pdf FROM care_contract.contract_documents AS d
+	err = db.NewRaw(`SELECT d.filename, d.pdf, d.withdrawal_notice FROM care_contract.contract_documents AS d
 		WHERE d.organization_id = ? AND d.contract_version_id = ?`, organizationID, versionID).Scan(ctx, &row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return carecontract.File{}, false, nil

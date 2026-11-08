@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
 
+import { Alert } from "~/components/ui/alert";
 import { FieldLabel } from "~/components/ui/field-label";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -28,7 +29,6 @@ import {
   type CalendarPeriod,
 } from "~/lib/calendar-period-helpers";
 import { berlinTodayISO, parseISODate, toISODate } from "~/lib/date-helpers";
-import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import {
   copyStableObjectKey,
@@ -52,6 +52,8 @@ import {
   RhythmPicker,
   WeekdayPicker,
 } from "./shift-recurrence-fields";
+import { InsetPanel } from "~/components/ui/inset-panel";
+import { SectionLabel } from "~/components/ui/section-label";
 
 const logger = createLogger({ component: "ShiftEditModal" });
 const STAFF_SHIFT_MAX_BREAK_MINUTES = 300;
@@ -1068,9 +1070,12 @@ export function ShiftEditModal({
             {seriesNotice ? (
               <div className="space-y-3 text-sm">
                 <p className="text-gray-700">Die Serie wurde gespeichert.</p>
-                <p className="bg-moto-amber/10 text-moto-amber-strong rounded-md px-3 py-2 text-xs">
-                  {seriesNotice}
-                </p>
+                <Alert
+                  type="warning"
+                  size="compact"
+                  announce="off"
+                  message={seriesNotice}
+                />
               </div>
             ) : (
               <div ref={formRef} className="space-y-4 text-sm">
@@ -1080,7 +1085,7 @@ export function ShiftEditModal({
                   // "Teil einer Serie" leaves the planner guessing which days the
                   // series covers and how far it runs — and the way to the whole
                   // series used to exist only as a dialog after Speichern.
-                  <div className="space-y-2 rounded-md bg-gray-50 px-3 py-2.5">
+                  <InsetPanel className="space-y-2">
                     <p className="text-xs text-gray-600">
                       {shift?.detached
                         ? "Diese Schicht gehört zu einer Serie und wurde für diese Woche angepasst."
@@ -1104,7 +1109,7 @@ export function ShiftEditModal({
                         Serie bearbeiten
                       </Button>
                     )}
-                  </div>
+                  </InsetPanel>
                 )}
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <Field label="Beginn">
@@ -1183,19 +1188,15 @@ export function ShiftEditModal({
                   </Field>
                 )}
                 {isReplacementRow && (
-                  <p
-                    className="rounded-md px-3 py-2 text-xs"
-                    style={{
-                      backgroundColor: `${LOCATION_COLORS.OTHER_ROOM}14`,
-                      color: LOCATION_COLORS.OTHER_ROOM,
-                    }}
-                  >
-                    Diese Schicht ist eine Vertretung für eine ausgefallene
-                    Schicht.
-                  </p>
+                  <Alert
+                    type="info"
+                    size="compact"
+                    announce="off"
+                    message="Diese Schicht ist eine Vertretung für eine ausgefallene Schicht."
+                  />
                 )}
                 {seriesEditOpen && seriesRule && (
-                  <div className="space-y-3 rounded-md border border-gray-200 p-3">
+                  <InsetPanel tone="white" className="space-y-3">
                     <p className="text-xs text-gray-600">
                       {`Die Änderungen gelten ab ${formatShortDate(seriesAppliesFrom)} für alle weiteren Termine der Serie. Termine davor bleiben unverändert, ebenso Termine bis heute.`}
                     </p>
@@ -1257,23 +1258,20 @@ export function ShiftEditModal({
                     {/* Say it before the save fails: a segment whose last day has
                     arrived has nothing left for the re-plan to change (#2028). */}
                     {!seriesHasRemainingOccurrence && (
-                      <p
-                        className="rounded-md px-3 py-2 text-xs"
-                        style={{
-                          backgroundColor: `${LOCATION_COLORS.SCHOOLYARD}14`,
-                          color: LOCATION_COLORS.SCHOOLYARD,
-                        }}
-                      >
-                        {seriesNoOccurrenceMessage}
-                      </p>
+                      <Alert
+                        type="warning"
+                        size="compact"
+                        announce="off"
+                        message={seriesNoOccurrenceMessage}
+                      />
                     )}
-                  </div>
+                  </InsetPanel>
                 )}
                 {mode === "edit" &&
                   shift &&
                   !isReplacementRow &&
                   !seriesEditOpen && (
-                    <div className="space-y-3 rounded-md border border-gray-200 p-3">
+                    <InsetPanel tone="white" className="space-y-3">
                       <label
                         htmlFor="shift-cancel-toggle"
                         className="flex items-center gap-2"
@@ -1302,14 +1300,15 @@ export function ShiftEditModal({
                             ein.
                           </p>
                           {replacements.map((row, index) => (
-                            <div
+                            <InsetPanel
                               key={getStableObjectKey(row, "replacement")}
-                              className="space-y-2 rounded-md border border-gray-100 bg-gray-50/60 p-2.5"
+                              framed
+                              className="space-y-2"
                             >
                               <div className="flex items-center justify-between gap-2">
-                                <span className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                                <SectionLabel as="p">
                                   Vertretung {index + 1}
-                                </span>
+                                </SectionLabel>
                                 <span className="inline-flex rounded-full">
                                   <Button
                                     type="button"
@@ -1361,7 +1360,7 @@ export function ShiftEditModal({
                                   />
                                 </Field>
                               </div>
-                            </div>
+                            </InsetPanel>
                           ))}
                           <Button
                             type="button"
@@ -1380,10 +1379,10 @@ export function ShiftEditModal({
                           )}
                         </div>
                       )}
-                    </div>
+                    </InsetPanel>
                   )}
                 {mode === "create" && (
-                  <div className="space-y-3 rounded-md border border-gray-200 p-3">
+                  <InsetPanel tone="white" className="space-y-3">
                     <label
                       htmlFor="shift-series-toggle"
                       className="flex items-center gap-2"
@@ -1409,11 +1408,12 @@ export function ShiftEditModal({
                           {periodsLoad.error ? (
                             <LoadErrorAlert error={periodsLoad.error} />
                           ) : periods !== null && periodOptions.length === 0 ? (
-                            <p className="bg-moto-amber/10 text-moto-amber-strong rounded-md px-3 py-2 text-xs">
-                              Kein aktiver Kalenderzeitraum vorhanden. Bitte
-                              zuerst unter Planung → Kalenderzeiträume einen
-                              Zeitraum anlegen.
-                            </p>
+                            <Alert
+                              type="warning"
+                              size="compact"
+                              announce="off"
+                              message="Kein aktiver Kalenderzeitraum vorhanden. Bitte zuerst unter Planung → Kalenderzeiträume einen Zeitraum anlegen."
+                            />
                           ) : (
                             <CustomSelect
                               value={periodId}
@@ -1491,7 +1491,7 @@ export function ShiftEditModal({
                         </p>
                       </div>
                     )}
-                  </div>
+                  </InsetPanel>
                 )}
               </div>
             )}

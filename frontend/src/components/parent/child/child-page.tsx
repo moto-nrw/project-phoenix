@@ -11,6 +11,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { ButtonLink } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { SectionLabel } from "~/components/ui/section-label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import {
   PickupTimeModal,
@@ -19,7 +20,10 @@ import {
   useChildCare,
 } from "~/components/parent/child-care";
 import { BookedCareSection } from "~/components/parent/child/booked-care-section";
-import { ParentSection } from "~/components/parent/shell/parent-section";
+import {
+  ParentSection,
+  ParentSubsection,
+} from "~/components/parent/shell/parent-section";
 import { ChildDayCard } from "~/components/parent/child/child-day-card";
 import { ChildConsentsSection } from "~/components/parent/child/child-consents-section";
 import { CoursesSection } from "~/components/parent/child/courses-section";
@@ -305,12 +309,10 @@ function ChildSections({
     <>
       <LoadErrorAlert error={careLoadError} />
       {careEnded && !care.loading ? (
-        <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
-          <p className="text-sm font-semibold text-gray-900">
-            {t("careEnded.title")}
-          </p>
-          <p className="mt-1 text-sm text-gray-600">{t("careEnded.body")}</p>
-        </div>
+        <ParentSubsection
+          title={t("careEnded.title")}
+          description={t("careEnded.body")}
+        />
       ) : null}
       <ChildDayCard
         child={{
@@ -650,9 +652,7 @@ function PickupSummary({
         aria-hidden="true"
       />
       <div className="min-w-0">
-        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          {t("today.pickupLabel")}
-        </p>
+        <SectionLabel as="p">{t("today.pickupLabel")}</SectionLabel>
         <p className="mt-1 text-sm leading-6 font-medium text-gray-900">
           <PlannedPickup care={care} />
         </p>

@@ -11,6 +11,7 @@ import { Mail, Plus, Trash2 } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { Input } from "~/components/ui/input";
 import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
@@ -236,116 +237,114 @@ export function PasskeySettingsSection({
       )}
 
       {confirmingEnrollment && (
-        <div
-          ref={enrollRef}
-          className="mb-4 space-y-3 rounded-lg border border-gray-200 bg-white p-3"
-        >
-          <FormErrorAlert message={enrollErrors.error} />
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-gray-900">
-              Sicherheitscode per E-Mail senden
-            </p>
-            <p className="text-sm text-gray-600">
-              Zum Einrichten senden wir einen sechsstelligen Code an Ihre
-              E-Mail-Adresse. Öffnen Sie danach Ihr E-Mail-Postfach und geben
-              Sie den Code hier ein.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              className="gap-2"
-              disabled={busy}
-              onClick={() => void startEnrollment()}
-            >
-              <Mail className="h-4 w-4" aria-hidden="true" />
-              E-Mail senden
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              disabled={busy}
-              onClick={() => {
-                setConfirmingEnrollment(false);
-                enrollErrors.clear();
-              }}
-            >
-              Abbrechen
-            </Button>
-          </div>
+        <div ref={enrollRef} className="mb-4">
+          <InsetPanel tone="white" className="space-y-3">
+            <FormErrorAlert message={enrollErrors.error} />
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-gray-900">
+                Sicherheitscode per E-Mail senden
+              </p>
+              <p className="text-sm text-gray-600">
+                Zum Einrichten senden wir einen sechsstelligen Code an Ihre
+                E-Mail-Adresse. Öffnen Sie danach Ihr E-Mail-Postfach und geben
+                Sie den Code hier ein.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                className="gap-2"
+                disabled={busy}
+                onClick={() => void startEnrollment()}
+              >
+                <Mail className="h-4 w-4" aria-hidden="true" />
+                E-Mail senden
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                disabled={busy}
+                onClick={() => {
+                  setConfirmingEnrollment(false);
+                  enrollErrors.clear();
+                }}
+              >
+                Abbrechen
+              </Button>
+            </div>
+          </InsetPanel>
         </div>
       )}
 
       {enrolling && (
-        <div
-          ref={enrollRef}
-          className="mb-4 space-y-3 rounded-lg border border-gray-200 bg-white p-3"
-        >
-          <FormErrorAlert message={enrollErrors.error} />
-          {maskedEmail && (
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-gray-900">
-                Code gesendet an {maskedEmail}
-              </p>
-              <p className="text-sm text-gray-600">
-                Öffnen Sie Ihr E-Mail-Postfach und tragen Sie den sechsstelligen
-                Code ein.
-              </p>
+        <div ref={enrollRef} className="mb-4">
+          <InsetPanel tone="white" className="space-y-3">
+            <FormErrorAlert message={enrollErrors.error} />
+            {maskedEmail && (
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-gray-900">
+                  Code gesendet an {maskedEmail}
+                </p>
+                <p className="text-sm text-gray-600">
+                  Öffnen Sie Ihr E-Mail-Postfach und tragen Sie den
+                  sechsstelligen Code ein.
+                </p>
+              </div>
+            )}
+            <Input
+              label="Code"
+              name="passkey-code"
+              value={code}
+              onChange={(event) => setCode(event.target.value)}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+            />
+            <Input
+              label="Name"
+              name="passkey-name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              maxLength={80}
+            />
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                disabled={busy || code.trim().length === 0}
+                onClick={() => void finishEnrollment()}
+              >
+                Speichern
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                disabled={busy}
+                onClick={() => {
+                  setConfirmingEnrollment(false);
+                  setEnrolling(false);
+                  setCode("");
+                  setName("");
+                  setMaskedEmail("");
+                  enrollErrors.clear();
+                }}
+              >
+                Abbrechen
+              </Button>
             </div>
-          )}
-          <Input
-            label="Code"
-            name="passkey-code"
-            value={code}
-            onChange={(event) => setCode(event.target.value)}
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            maxLength={6}
-          />
-          <Input
-            label="Name"
-            name="passkey-name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            maxLength={80}
-          />
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              disabled={busy || code.trim().length === 0}
-              onClick={() => void finishEnrollment()}
-            >
-              Speichern
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              disabled={busy}
-              onClick={() => {
-                setConfirmingEnrollment(false);
-                setEnrolling(false);
-                setCode("");
-                setName("");
-                setMaskedEmail("");
-                enrollErrors.clear();
-              }}
-            >
-              Abbrechen
-            </Button>
-          </div>
+          </InsetPanel>
         </div>
       )}
 
       {/* Bis der Text eines Ladefehlers da ist, bleibt der Ladehinweis
           stehen; danach steht der Fehler statt einer leeren Liste. */}
       {loading || (loadFailed && !loadError) ? (
-        <Loading fullPage={false} message="Passkeys werden geladen …" />
+        <Loading message="Passkeys werden geladen …" />
       ) : loadFailed ? (
         <LoadErrorAlert error={loadError} />
       ) : credentials.length === 0 ? (
@@ -361,9 +360,11 @@ export function PasskeySettingsSection({
       ) : (
         <div className="space-y-2">
           {credentials.map((credential) => (
-            <div
+            <InsetPanel
               key={credential.id}
-              className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2"
+              tone="white"
+              padding="compact"
+              className="flex items-center justify-between gap-3"
             >
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-gray-900">
@@ -387,7 +388,7 @@ export function PasskeySettingsSection({
                   },
                 ]}
               />
-            </div>
+            </InsetPanel>
           ))}
         </div>
       )}

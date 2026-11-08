@@ -1,6 +1,7 @@
 "use client";
 
 import { ApiError } from "~/lib/api-error";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import {
   useCallback,
   useEffect,
@@ -61,10 +62,7 @@ import {
 import { formatOfferingPrice } from "~/lib/care-offering-format";
 import { FeaturePill } from "~/components/enrollment/feature-pill";
 import { isSupportedGradeLevelMax } from "~/lib/grade-level";
-import {
-  BLOCKED_OFFERING_ROW_TONE,
-  OfferingRowShell,
-} from "~/components/enrollment/offering-row-shell";
+import { OfferingRowShell } from "~/components/enrollment/offering-row-shell";
 import { StatusBadge } from "~/components/ui/status-badge";
 import {
   DataField,
@@ -72,6 +70,7 @@ import {
   InfoSection,
 } from "~/components/ui/detail-modal-components";
 import { SectionCard } from "~/components/ui/section-card";
+import { SectionLabel } from "~/components/ui/section-label";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { Textarea } from "~/components/ui/textarea";
@@ -80,6 +79,8 @@ import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 import { EnrollmentRequestUploadList } from "~/components/enrollment/admin-enrollment-upload-list";
 import { AdminEnrollmentSignature } from "~/components/enrollment/admin-enrollment-signature";
 import { formatCalendarDate } from "~/lib/localized-date-format";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
+import { berlinTodayISO } from "~/lib/date-helpers";
 import { schoolClassLabel } from "~/lib/school-class-label";
 import { AdminChildDataCorrection } from "~/components/enrollment/admin-child-data-correction";
 import { AdminEnrollmentDeletionModal } from "~/components/enrollment/admin-enrollment-deletion-modal";
@@ -158,6 +159,10 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
   const tenantPath = useTenantAwarePath();
   const router = useTenantRouter();
   const [data, setData] = useState<AdminRequestDetail | null>(null);
+  const today = useBerlinToday();
+  const [weeklyPlanCheckedOn, setWeeklyPlanCheckedOn] = useState<string | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const toast = useToast();
   const loadError = useApiLoadError();
@@ -192,8 +197,10 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
       if (!options?.quiet) setLoading(true);
       clearLoadError();
       try {
+        const checkedOn = berlinTodayISO();
         const fresh = await getAdminRequest(requestId);
         setData(fresh);
+        setWeeklyPlanCheckedOn(checkedOn);
         // Das Öffnen hat die Anmeldung für diese Person gelesen (#3778).
         announceAdminRequestOpened();
       } catch (err) {
@@ -235,6 +242,25 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const hasPendingWeeklyPlan = data?.children.some(
+    (child) => child.status === "approved" && child.weekly_plan_on,
+  );
+  useEffect(() => {
+    if (hasPendingWeeklyPlan && weeklyPlanCheckedOn !== today) {
+      void load({ quiet: true });
+    }
+  }, [today, weeklyPlanCheckedOn, hasPendingWeeklyPlan, load]);
+
+  useEffect(() => {
+    if (!hasPendingWeeklyPlan) return;
+    const refreshOnVisible = () => {
+      if (document.visibilityState === "visible") void load({ quiet: true });
+    };
+    document.addEventListener("visibilitychange", refreshOnVisible);
+    return () =>
+      document.removeEventListener("visibilitychange", refreshOnVisible);
+  }, [hasPendingWeeklyPlan, load]);
 
   const availableActions = waitlistEnabled
     ? ACTIONS
@@ -445,9 +471,9 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
         </>
       }
     >
-      <section className="moto-content-surface overflow-hidden rounded-2xl border">
+      <SectionCard padding="none">
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_430px]">
-          <div className="space-y-6 p-4 sm:p-6">
+          <div className="space-y-6 p-5 max-sm:p-4">
             {/* Ein gescheitertes Neuladen nach einer Änderung: die Seite zeigt
                 weiter den letzten Stand und sagt, dass er veraltet sein kann. */}
             <LoadErrorAlert error={loadError.error} />
@@ -483,6 +509,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
                   phaseId={data.phase_id}
                   phaseName={data.phase_name}
                   child={child}
+                  weeklyPlanToday={weeklyPlanCheckedOn === today ? today : null}
                   busy={busyChildId === child.id}
                   reason={reasons[child.id] ?? ""}
                   schemaFields={data.schema_fields}
@@ -515,7 +542,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
             </SectionCard>
           </div>
 
-          <aside className="border-t border-gray-100 bg-gray-50/70 p-4 sm:p-6 lg:border-t-0 lg:border-l">
+          <aside className="border-t border-gray-100 bg-gray-50/70 p-5 max-sm:p-4 lg:border-t-0 lg:border-l">
             <LoadErrorAlert error={requestMailsError} className="mb-4" />
             {/* Stays away while no mail exists: a card that always reads „keine
                 Mail“ tells the school nothing. */}
@@ -579,7 +606,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
             />
           </aside>
         </div>
-      </section>
+      </SectionCard>
     </TenantPage>
   );
 }
@@ -592,7 +619,7 @@ function EnrollmentSummary({
   submittedAt: string;
 }>) {
   return (
-    <section className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
+    <InsetPanel as="section" framed padding="md">
       <div className="flex items-start gap-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm">
           <MotoConceptIcon concept={parentsConcept} size={16} />
@@ -623,10 +650,7 @@ function EnrollmentSummary({
             Weitere erziehungsberechtigte Personen
           </h3>
           {data.additional_guardians.map((g: AdminRequestGuardian) => (
-            <div
-              key={g.id}
-              className="rounded-xl border border-gray-100 bg-gray-50/70 p-3"
-            >
+            <InsetPanel framed key={g.id}>
               <p className="text-sm font-semibold text-gray-900">
                 {g.first_name} {g.last_name}
               </p>
@@ -640,11 +664,11 @@ function EnrollmentSummary({
                   {g.phone && g.phone.trim() !== "" ? g.phone : "Nicht gesetzt"}
                 </span>
               </div>
-            </div>
+            </InsetPanel>
           ))}
         </div>
       )}
-    </section>
+    </InsetPanel>
   );
 }
 
@@ -664,6 +688,7 @@ function ChildInformationCard({
   reason,
   requestId,
   schemaFields,
+  weeklyPlanToday,
 }: Readonly<{
   actions: ActionDef[];
   busy: boolean;
@@ -680,6 +705,7 @@ function ChildInformationCard({
   onDelete: () => void;
   reason: string;
   schemaFields?: AdminRequestSchemaField[];
+  weeklyPlanToday: string | null;
 }>) {
   const terminal = TERMINAL.has(child.status);
   const canDeleteFromEnrollment =
@@ -694,8 +720,8 @@ function ChildInformationCard({
       : "/students",
   );
   return (
-    <article className="moto-content-surface overflow-hidden rounded-2xl border">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 p-4">
+    <SectionCard padding="none">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 p-5 max-sm:p-4">
         <div>
           <h3 className="text-base font-semibold text-gray-900">
             {child.first_name} {child.last_name}
@@ -745,7 +771,7 @@ function ChildInformationCard({
           {isHeldForChildQuota(child) ? <ChildQuotaHeldBadge /> : null}
         </div>
       </div>
-      <div className="space-y-4 p-4">
+      <div className="space-y-4 p-5 max-sm:p-4">
         {isHeldForChildQuota(child) ? (
           <Alert
             type="warning"
@@ -754,17 +780,30 @@ function ChildInformationCard({
           />
         ) : null}
         {child.status_reason ? (
-          <div className="rounded-xl border border-gray-100 bg-gray-50/70 px-3 py-2 text-sm text-gray-700">
+          <InsetPanel
+            framed
+            padding="compact"
+            className="text-sm text-gray-700"
+          >
             <span className="text-xs font-medium text-gray-500">
               Begründung:{" "}
             </span>
             {child.status_reason}
-          </div>
+          </InsetPanel>
         ) : null}
         {child.reviewed_at ? (
           <p className="text-xs text-gray-500">
             Letzte Entscheidung: {formatDateTime(child.reviewed_at)}
           </p>
+        ) : null}
+        {child.status === "approved" &&
+        child.weekly_plan_on &&
+        weeklyPlanToday ? (
+          <Alert
+            type={child.weekly_plan_on < weeklyPlanToday ? "warning" : "info"}
+            announce="off"
+            message={weeklyPlanMessage(child.weekly_plan_on, weeklyPlanToday)}
+          />
         ) : null}
         <ChildOfferings
           offerings={child.offerings}
@@ -783,10 +822,14 @@ function ChildInformationCard({
         <ChildExtraFields child={child} schemaFields={schemaFields} />
         {terminal ? (
           <div className="space-y-3">
-            <div className="rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2 text-sm text-gray-600">
+            <InsetPanel
+              framed
+              padding="compact"
+              className="text-sm text-gray-600"
+            >
               Die Entscheidung ist final. Bei bestätigten Kindern können falsche
               Anmeldedaten weiterhin gezielt korrigiert werden.
-            </div>
+            </InsetPanel>
             {canDeleteFromEnrollment ? (
               <Button
                 type="button"
@@ -812,7 +855,7 @@ function ChildInformationCard({
           />
         )}
       </div>
-    </article>
+    </SectionCard>
   );
 }
 
@@ -945,10 +988,7 @@ function ReviewSidebar({
 
       {data.children.map((child) => {
         return (
-          <section
-            key={child.id}
-            className="moto-content-surface rounded-2xl border p-4"
-          >
+          <SectionCard key={child.id}>
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <h3 className="truncate text-sm font-semibold text-gray-900">
@@ -969,12 +1009,16 @@ function ReviewSidebar({
                 <ChildQuotaHeldBadge />
               </div>
             ) : null}
-            <div className="mt-3 rounded-xl border border-gray-100 bg-gray-50/70 px-3 py-2 text-sm text-gray-600">
+            <InsetPanel
+              framed
+              padding="compact"
+              className="mt-3 text-sm text-gray-600"
+            >
               {TERMINAL.has(child.status)
                 ? "Entscheidung abgeschlossen"
                 : "Entscheidung ausstehend"}
-            </div>
-          </section>
+            </InsetPanel>
+          </SectionCard>
         );
       })}
     </div>
@@ -1001,7 +1045,7 @@ function DecisionPanel({
   reason: string;
 }>) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-4">
+    <InsetPanel framed padding="md">
       <div className="flex items-start gap-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-gray-500 shadow-sm">
           <MotoConceptIcon concept={enrollmentsConcept} size={18} />
@@ -1051,7 +1095,7 @@ function DecisionPanel({
           );
         })}
       </div>
-    </div>
+    </InsetPanel>
   );
 }
 
@@ -1115,6 +1159,17 @@ export function formatDateTime(
   });
 }
 
+// Only classify a pending plan against the day its enrollment was fetched.
+// A mounted page must recheck the plan before reporting an overdue failure.
+function weeklyPlanMessage(on: string, today: string): string {
+  if (on < today) {
+    return `Abholzeiten, Betreuungstage und Heimweg aus dieser Anmeldung sollten ab ${formatPlainDate(on)} gelten. moto konnte sie noch nicht übernehmen. Darum gelten noch die bisherigen. moto versucht es jede Stunde neu. Bleibt dieser Hinweis, melden Sie sich bitte beim moto-Team.`;
+  }
+  return on === today
+    ? "Abholzeiten, Betreuungstage und Heimweg aus dieser Anmeldung gelten ab heute. moto übernimmt sie im Lauf des Tages."
+    : `Abholzeiten, Betreuungstage und Heimweg aus dieser Anmeldung gelten ab ${formatPlainDate(on)}. Bis dahin bleiben die bisherigen.`;
+}
+
 export function formatPlainDate(value: string): string {
   return formatCalendarDate(value, "de-DE");
 }
@@ -1149,16 +1204,10 @@ export function RequestExtraSection({
   if (!hasCustom && !hasConsents) return null;
 
   return (
-    <section className="moto-content-surface space-y-3 rounded-2xl border p-4 sm:p-6">
-      <h2 className="text-base font-semibold text-gray-900">
-        Zusätzliche Angaben
-      </h2>
-
+    <SectionCard title="Zusätzliche Angaben" bodyClassName="mt-3 space-y-3">
       {hasConsents && (
         <div>
-          <h3 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-            Zustimmungen
-          </h3>
+          <SectionLabel>Zustimmungen</SectionLabel>
           <ul className="mt-1.5 space-y-1 text-sm">
             {Object.entries(request.consent_flags ?? {}).map(([key, val]) => (
               <li key={key} className="flex items-center gap-2">
@@ -1208,7 +1257,7 @@ export function RequestExtraSection({
           </DataGrid>
         </InfoSection>
       )}
-    </section>
+    </SectionCard>
   );
 }
 
@@ -1247,23 +1296,19 @@ export function ChildOfferings({
   const rows = [...(offerings ?? []), ...(upcomingOfferings ?? [])];
   if (unavailable) {
     return (
-      <div className="border-moto-orange/30 bg-moto-orange-soft mt-3 rounded-lg border p-3">
-        <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-          Betreuungsangebote
-        </h4>
-        <p className="text-moto-orange-strong mt-1.5 text-sm">
-          Die gebuchten Angebote konnten nicht geladen werden. Bitte die Seite
-          neu laden, bevor Sie über dieses Kind entscheiden.
-        </p>
-      </div>
+      <Alert
+        type="warning"
+        announce="off"
+        title="Betreuungsangebote"
+        message="Die gebuchten Angebote konnten nicht geladen werden. Bitte die Seite neu laden, bevor Sie über dieses Kind entscheiden."
+        className="mt-3"
+      />
     );
   }
   if (rows.length === 0) return null;
   return (
-    <div className="mt-3 rounded-lg border border-gray-100 bg-gray-50/70 p-3">
-      <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-        Betreuungsangebote
-      </h4>
+    <InsetPanel framed className="mt-3">
+      <SectionLabel as="h4">Betreuungsangebote</SectionLabel>
       <ul className="mt-1.5 space-y-2 text-sm">
         {rows.map((o) => {
           const parentChoice = o.days_of_week_mode === "parent_choice";
@@ -1302,7 +1347,7 @@ export function ChildOfferings({
           : " der Anmeldephase"}{" "}
         (Anmeldungen → Betreuungsangebote).
       </p>
-    </div>
+    </InsetPanel>
   );
 }
 
@@ -1401,7 +1446,7 @@ function BlockedOfferingRow({
   const inputId = `blocked-offering-${offering.id}`;
   const heldAutomatically = automaticDays.length > 0;
   return (
-    <OfferingRowShell tone={BLOCKED_OFFERING_ROW_TONE}>
+    <OfferingRowShell state="blocked">
       {/* A real <label> is load-bearing, not decoration: the kit Checkbox
           renders an sr-only input behind a pointer-events-none visual, so
           without the label wrapping it a mouse click on the box does nothing
@@ -1782,7 +1827,7 @@ export function ChildOfferingAdjustment({
     return null;
 
   return (
-    <div className="rounded-lg border border-gray-100 bg-white p-3">
+    <InsetPanel framed>
       {withdrawalCreated ? (
         <Alert
           type="warning"
@@ -1792,9 +1837,7 @@ export function ChildOfferingAdjustment({
       {careOfferingsEnabled ? (
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-              Nachbearbeitung
-            </h4>
+            <SectionLabel as="h4">Nachbearbeitung</SectionLabel>
             <p className="mt-1 text-sm text-gray-600">
               {child.offerings_unavailable
                 ? "Die gebuchten Angebote konnten nicht geladen werden. Bitte die Seite neu laden, eine Korrektur würde sonst auf einem unbekannten Stand aufsetzen."
@@ -1840,11 +1883,7 @@ export function ChildOfferingAdjustment({
                 return (
                   <OfferingRowShell
                     key={offering.id}
-                    tone={
-                      checked
-                        ? "border-moto-green/40 bg-moto-green/10"
-                        : "border-gray-200 bg-white"
-                    }
+                    state={checked ? "selected" : "available"}
                   >
                     {/* Wie in BlockedOfferingRow: das Kit-Checkbox-Feld ist
                         sr-only, erst das <label> mit htmlFor macht den Klick
@@ -1914,9 +1953,9 @@ export function ChildOfferingAdjustment({
               })}
               {blockedCatalog.length > 0 ? (
                 <div className="space-y-2 pt-1">
-                  <p className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+                  <SectionLabel as="p">
                     Für dieses Kind nicht wählbar
-                  </p>
+                  </SectionLabel>
                   {blockedCatalog.map((offering) => (
                     <BlockedOfferingRow
                       key={offering.id}
@@ -1989,10 +2028,10 @@ export function ChildOfferingAdjustment({
             careOfferingsEnabled ? "mt-3 border-t border-gray-100 pt-3" : ""
           }
         >
-          <div className="flex items-center gap-2 text-xs font-medium tracking-wide text-gray-500 uppercase">
+          <SectionLabel as="p" className="flex items-center gap-2">
             <MotoConceptIcon concept={changeHistoryConcept} size={14} />
             Änderungshistorie
-          </div>
+          </SectionLabel>
           <ul className="mt-2 space-y-2">
             {history.slice(0, 5).map((entry) => (
               <li key={entry.id} className="text-xs leading-5 text-gray-600">
@@ -2045,7 +2084,7 @@ export function ChildOfferingAdjustment({
           Abmeldung muss anschließend abgeschlossen werden.
         </p>
       </ConfirmationModal>
-    </div>
+    </InsetPanel>
   );
 }
 

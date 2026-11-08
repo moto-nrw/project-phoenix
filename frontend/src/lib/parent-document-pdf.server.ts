@@ -2,16 +2,15 @@ import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 // Dokumentenpostfach (#4671, #4678): ein Dokument des Trägers als
 // gespeichertes PDF, ein Schreiben oder ein Betreuungsvertrag.
 //
-// Eigener Handler statt des JSON-Proxys, weil hier Bytes durchlaufen. Spiegelt
-// den Download-Proxy des Erklärungsnachweises: JWT serverseitig setzen, bei 401
-// einmal erneuern, Body mit Content-Type und Content-Disposition unverändert
-// durchreichen. Ein Dokument außerhalb des Postfachs beantwortet das Backend
+// Eigener Handler statt des JSON-Proxys, weil hier Bytes durchlaufen. Ein
+// Dokument außerhalb des Postfachs beantwortet das Backend
 // mit 404, ein Konto ohne Recht mit 403.
 
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { parentAuth, uncachedParentAuth } from "~/server/auth/parent";
 import { getServerApiUrl } from "~/lib/server-api-url";
+import { sendWithTokenRefresh } from "~/lib/token-refresh-retry.server";
 import { incomingAnalyticsSessionHeaders } from "~/lib/analytics-session-header.server";
 import { clientIdentityHeaders } from "~/lib/client-headers.server";
 import { createLogger } from "~/lib/logger";
@@ -64,13 +63,11 @@ async function proxyParentDocumentPdf(
       cache: "no-store",
     });
 
-  let upstream = await makeRequest(token);
-  if (upstream.status === 401) {
-    const refreshed = await uncachedParentAuth();
-    if (refreshed?.user?.token && refreshed.user.token !== token) {
-      upstream = await makeRequest(refreshed.user.token);
-    }
-  }
+  const upstream = await sendWithTokenRefresh(
+    token,
+    makeRequest,
+    uncachedParentAuth,
+  );
 
   if (!upstream.ok) {
     logger.warn("parent_document_pdf_proxy_non_ok", {

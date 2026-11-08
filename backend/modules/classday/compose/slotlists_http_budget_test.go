@@ -42,7 +42,7 @@ func TestSlotListExportHTTPQueryBudget(t *testing.T) {
 // Count the real HTTP adapter, its permission gate, and the existing composed
 // projection's tenant transaction. Session verification and registry-backed
 // settings have their own scenarios; these fixture bindings are unchanged.
-func measureSlotListHTTPQueries(t *testing.T, action string) ([]string, []string) {
+func measureSlotListHTTPQueries(t *testing.T, action string) (testpkg.QueryMeasurement, testpkg.QueryMeasurement) {
 	t.Helper()
 	db := testpkg.SetupIsolatedTestDB(t)
 	f := buildMensaFixtureOn(t, db)
@@ -50,7 +50,7 @@ func measureSlotListHTTPQueries(t *testing.T, action string) ([]string, []string
 	claims := testpkg.Claims{ID: int(account.ID), Sub: account.Email, Roles: []string{"schulverwaltung"}, TenantID: testpkg.Tenant(t), Scope: tenant.ScopeSchool}
 	router := rootAPI.NewSlotListTestRouter(f.svc)
 	counter := testpkg.CaptureQueries(t, db)
-	measure := func(wantSlots int) []string {
+	measure := func(wantSlots int) testpkg.QueryMeasurement {
 		params := map[string]any{"date": listDate.String()}
 		if action != "options" {
 			params["target"], params["source"] = "slots", "reconciliation"
@@ -68,7 +68,7 @@ func measureSlotListHTTPQueries(t *testing.T, action string) ([]string, []string
 		request.Header.Set("Content-Type", "application/json")
 		request = request.WithContext(testpkg.Ctx(t))
 		counter.Reset()
-		response := testutil.ExecuteWithAuthPermissions(t, router, request, claims, []string{"schedules:read", "users:read"})
+		response := testutil.ExecuteWithAuthPermissions(t, testpkg.MountedQueryBudgetRouter("/api/timetable", router), request, claims, []string{"schedules:read", "users:read"})
 		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 		queries := counter.Queries()
 		if action == "export" {
@@ -91,7 +91,7 @@ func measureSlotListHTTPQueries(t *testing.T, action string) ([]string, []string
 		}
 		t.Logf("action=%s slots=%d total=%d", action, wantSlots, len(queries))
 		require.Len(t, counter.Selects("facilities.rooms"), 1)
-		return queries
+		return counter.Measurement(queries)
 	}
 	small := measure(1)
 	for i := range 7 {
@@ -104,6 +104,6 @@ func measureSlotListHTTPQueries(t *testing.T, action string) ([]string, []string
 		testpkg.InsertActivityInstanceRow(t, testpkg.Ctx(t), db, instance)
 	}
 	large := measure(8)
-	assert.Len(t, large, len(small), "the HTTP list must not add a read for each room")
+	assert.Len(t, large.Statements, len(small.Statements), "the HTTP list must not add a read for each room")
 	return small, large
 }

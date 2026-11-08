@@ -8,6 +8,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
 import {
   OverflowMenu,
@@ -42,6 +43,7 @@ import {
   phaseToInput,
   updatePhase,
 } from "~/lib/enrollment-phase-api";
+import { Alert } from "~/components/ui/alert";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { DateTimePicker } from "~/components/ui/date-time-picker";
@@ -109,6 +111,7 @@ import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { SpinnerIcon } from "~/components/ui/icons";
 import { RemovableChip } from "~/components/ui/removable-chip";
+import { FormFieldset } from "~/components/ui/form-fieldset";
 
 const logger = createLogger({ component: "PhasesEditor" });
 
@@ -998,45 +1001,21 @@ export function PhasesEditor() {
               }
               warningSlot={
                 <div className="space-y-2">
-                  <div className="bg-moto-amber/10 text-moto-amber-strong rounded-lg px-3 py-2 text-sm">
-                    <p className="font-medium">
-                      Diese Aktion kann nicht rückgängig gemacht werden:
-                    </p>
-                    {impactLoading ? (
-                      <p className="mt-1 flex items-center gap-2 text-xs">
-                        <SpinnerIcon className="h-3 w-3" />
-                        Löschvorschau wird geladen…
-                      </p>
-                    ) : impactLoad.error ? (
-                      <p className="mt-1 text-xs">
-                        Das Löschen ist erst möglich, sobald die Vorschau
-                        vorliegt.
-                      </p>
-                    ) : deleteImpact ? (
-                      <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs">
-                        <li>
-                          {deleteImpact.requests}{" "}
-                          {deleteImpact.requests === 1
-                            ? "Anmeldung"
-                            : "Anmeldungen"}{" "}
-                          werden endgültig gelöscht
-                        </li>
-                        <li>
-                          {deleteImpact.care_offerings}{" "}
-                          {deleteImpact.care_offerings === 1
-                            ? "Betreuungsangebot"
-                            : "Betreuungsangebote"}{" "}
-                          werden endgültig gelöscht
-                        </li>
-                      </ul>
-                    ) : null}
-                  </div>
+                  <PhaseDeleteImpactAlert
+                    loading={impactLoading}
+                    failed={Boolean(impactLoad.error)}
+                    impact={deleteImpact}
+                  />
                   {!impactLoading && deleteImpact && (
-                    <div className="bg-moto-green/10 text-moto-green-strong rounded-lg px-3 py-2 text-sm">
-                      {deleteImpact.students_kept === 1
-                        ? "1 bereits angelegter Kind bleibt erhalten."
-                        : `${deleteImpact.students_kept} bereits angelegte Kinder bleiben erhalten.`}
-                    </div>
+                    <Alert
+                      type="success"
+                      announce="off"
+                      message={
+                        deleteImpact.students_kept === 1
+                          ? "1 bereits angelegtes Kind bleibt erhalten."
+                          : `${deleteImpact.students_kept} bereits angelegte Kinder bleiben erhalten.`
+                      }
+                    />
                   )}
                 </div>
               }
@@ -1116,6 +1095,59 @@ interface PhaseFormProps {
   readonly onCancel: () => void;
   /** Hint for a field the last save or local check rejected. */
   readonly fieldError: (name: string) => string | undefined;
+}
+
+// Warnung im Löschdialog: was beim Löschen der Phase endgültig wegfällt.
+// Orange über Alert wie jede Warnung (#5591). Lädt die Vorschau noch oder
+// fehlt sie, steht statt der Liste der passende Satz.
+function PhaseDeleteImpactAlert({
+  loading,
+  failed,
+  impact,
+}: Readonly<{
+  loading: boolean;
+  failed: boolean;
+  impact: PhaseDeleteImpact | null;
+}>) {
+  const title = "Diese Aktion kann nicht rückgängig gemacht werden:";
+  let details: ReactNode = null;
+  if (loading) {
+    details = (
+      <span className="flex items-center gap-2">
+        <SpinnerIcon className="h-3 w-3" />
+        Löschvorschau wird geladen…
+      </span>
+    );
+  } else if (failed) {
+    details = "Das Löschen ist erst möglich, sobald die Vorschau vorliegt.";
+  } else if (impact) {
+    details = (
+      <ul className="list-inside list-disc space-y-0.5">
+        <li>
+          {impact.requests === 1
+            ? "1 Anmeldung wird endgültig gelöscht"
+            : `${impact.requests} Anmeldungen werden endgültig gelöscht`}
+        </li>
+        <li>
+          {impact.care_offerings === 1
+            ? "1 Betreuungsangebot wird endgültig gelöscht"
+            : `${impact.care_offerings} Betreuungsangebote werden endgültig gelöscht`}
+        </li>
+      </ul>
+    );
+  }
+  if (details === null) {
+    return (
+      <Alert
+        type="warning"
+        announce="off"
+        message="Diese Aktion kann nicht rückgängig gemacht werden."
+      />
+    );
+  }
+  return (
+    <Alert type="warning" announce="off" title={title} message={details} />
+  );
 }
 
 function EnrollmentWindowCell({
@@ -1225,6 +1257,17 @@ function PhaseActions({
       icon: <Pencil className="h-4 w-4" aria-hidden />,
       disabled: saving,
       onClick: onEdit,
+    },
+    // Works for every phase, also inactive, closed or invitation-only ones
+    // whose public link shows nothing yet (#6044).
+    {
+      label: "Vorschau mit Angeboten",
+      icon: <ExternalLink className="h-4 w-4" aria-hidden />,
+      href: tenantPath(
+        `/anmeldung/preview?phaseId=${encodeURIComponent(phase.id)}`,
+      ),
+      external: true,
+      onClick: () => undefined,
     },
     ...(hasNoPublicForm
       ? []
@@ -1382,15 +1425,10 @@ function PhaseForm(props: PhaseFormProps) {
   }, [highlightFormSection]);
 
   return (
-    <form
-      onSubmit={onSubmit}
-      noValidate
-      className="moto-content-surface space-y-5 rounded-2xl border p-6"
-    >
-      <h3 className="text-base font-semibold text-gray-900">
-        {editing ? "Anmeldephase bearbeiten" : "Neue Anmeldephase"}
-      </h3>
-
+    <form onSubmit={onSubmit} noValidate className="space-y-5">
+      {/* Keine eigene Karte und kein zweiter Titel: das Formular steht im
+          Slide-over, dessen Kopf den Titel trägt, wie beim Betreuungsangebot
+          (#6137). */}
       <div className="grid gap-4 sm:grid-cols-2">
         <Input
           id="phase-name"
@@ -1423,10 +1461,7 @@ function PhaseForm(props: PhaseFormProps) {
         </div>
       </div>
 
-      <fieldset className="rounded-xl border border-gray-200 p-4">
-        <legend className="px-1 text-xs font-medium text-gray-700">
-          Betreuungszeitraum
-        </legend>
+      <FormFieldset legend="Betreuungszeitraum">
         {periods.length > 0 && (
           <div className="mb-3">
             <CustomSelect
@@ -1533,12 +1568,9 @@ function PhaseForm(props: PhaseFormProps) {
             />
           </div>
         </div>
-      </fieldset>
+      </FormFieldset>
 
-      <fieldset className="rounded-xl border border-gray-200 p-4">
-        <legend className="px-1 text-xs font-medium text-gray-700">
-          Anmeldefenster (optional)
-        </legend>
+      <FormFieldset legend="Anmeldefenster (optional)">
         <p className="mt-1 mb-2 text-sm leading-6 text-gray-600">
           Lassen Sie beide Felder leer, wenn das Anmeldeformular jederzeit
           erreichbar sein soll. Sonst kann die Anmeldung nur in diesem Zeitraum
@@ -1592,19 +1624,17 @@ function PhaseForm(props: PhaseFormProps) {
             />
           </div>
         </div>
-      </fieldset>
+      </FormFieldset>
 
-      <fieldset
+      <FormFieldset
         ref={formSectionRef}
-        className={`rounded-xl border p-4 transition-colors duration-300 ${
+        legend="Formular"
+        className={`transition-colors duration-300 ${
           highlightFormSection
             ? "border-moto-green bg-moto-green/8 ring-moto-green/12 ring-4"
-            : "border-gray-200"
+            : ""
         }`}
       >
-        <legend className="px-1 text-xs font-medium text-gray-700">
-          Formular
-        </legend>
         <div className="space-y-2 text-sm">
           <label
             htmlFor="schema-source-base"
@@ -1674,7 +1704,7 @@ function PhaseForm(props: PhaseFormProps) {
             </span>
           </label>
         </div>
-      </fieldset>
+      </FormFieldset>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <CustomSelect
@@ -1737,10 +1767,7 @@ function PhaseForm(props: PhaseFormProps) {
         </div>
       </div>
 
-      <fieldset className="rounded-xl border border-gray-200 p-4">
-        <legend className="px-1 text-xs font-medium text-gray-700">
-          Zielgruppe
-        </legend>
+      <FormFieldset legend="Zielgruppe">
         <div className="space-y-2 text-sm">
           {AUDIENCE_OPTIONS.map((option) => (
             <label
@@ -1813,12 +1840,9 @@ function PhaseForm(props: PhaseFormProps) {
             }
           />
         </div>
-      </fieldset>
+      </FormFieldset>
 
-      <fieldset className="rounded-xl border border-gray-200 p-4">
-        <legend className="px-1 text-xs font-medium text-gray-700">
-          Konkrete Klassen
-        </legend>
+      <FormFieldset legend="Konkrete Klassen">
         <p className="mt-1 mb-2 text-sm leading-6 text-gray-600">
           Ab der 2. Klasse können Eltern die konkrete Klasse (z. B. 2a) aus
           dieser Liste wählen. Für die 1. Klasse wird weiterhin nur die
@@ -1860,7 +1884,7 @@ function PhaseForm(props: PhaseFormProps) {
             hint="(Eltern müssen ab der 2. Klasse eine Klasse wählen)"
           />
         </div>
-      </fieldset>
+      </FormFieldset>
 
       <TranslationsSection
         targets={

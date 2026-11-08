@@ -1490,7 +1490,7 @@ func TestWeeklyListReadsFlatInTheNumberOfChildren(t *testing.T) {
 	register(4)
 	large := run()
 	assert.Len(t, large, len(small), "one candidate and one participation read per day, not per child")
-	querybudgets.AssertQueryBudget(t, "modules.mealplan.weekly_participants", large)
+	querybudgets.AssertQueryBudget(t, "modules.mealplan.weekly_participants", counter.Measurement(large))
 }
 
 func testParticipantDaysFinder(ctx context.Context, dates []string) (map[string][]mealplan.ParticipantCandidate, error) {

@@ -24,6 +24,7 @@ const (
 	settingCollectSchoolClass   = "enrollment.collect_school_class"
 	settingCareOfferingsEnabled = "enrollment.care_offerings_enabled"
 	settingGradeLevelMax        = "enrollment.grade_level_max"
+	settingCareFacilityTerm     = "enrollment.care_facility_term"
 )
 
 // Values of enrollment.duplicate_handling.
@@ -146,6 +147,9 @@ type IntakeSettings interface {
 	CollectSchoolClass(ctx context.Context) (bool, error)
 	CareOfferingsEnabled(ctx context.Context) (bool, error)
 	GradeLevelMax(ctx context.Context) (int, error)
+	// CareFacilityTerm is the school's term for its care in fixed parent
+	// texts (enrollment.care_facility_term, #6042).
+	CareFacilityTerm(ctx context.Context) (string, error)
 	// LegalSettings resolves the tenant-wide legal texts and toggles. A
 	// toggle without a tenant override is off.
 	LegalSettings(ctx context.Context) (LegalSettings, error)

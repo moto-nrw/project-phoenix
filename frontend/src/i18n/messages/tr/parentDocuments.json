@@ -6,6 +6,8 @@
   "confirmationLetter": "Onay yazısı: {period}",
   "cancellationLetter": "İptal yazısı: {period}",
   "creditLetter": "Alacak dekontu: {period}",
+  "careInvoiceLetter": "Fatura: {period}",
+  "careCancellationLetter": "İptal yazısı: {period}",
   "sender": "Gönderen: {traeger}",
   "children": "Çocuk",
   "amount": "Tutar",
@@ -32,6 +34,11 @@
   "signed": "İmzalandı",
   "concluded": "Sözleşme tamamlandı",
   "signNow": "Oku ve imzala",
-  "signedAt": "İmzalanma tarihi",
-  "status": "Durum"
+  "status": "Durum",
+  "cancelContract": "Sözleşmeleri burada feshet",
+  "cancelNotPermitted": "Yalnızca çocuğu kaydettirme hakkı olan veliler iptal edebilir. Lütfen okula sorun.",
+  "terminatedOn": "{date} itibarıyla feshedildi",
+  "withdrawn": "Cayıldı",
+  "showConfirmation": "Onayı görüntüle",
+  "terminationInReview": "Feshedildi, bitiş tarihi inceleniyor"
 }

@@ -1,6 +1,7 @@
 // components/dashboard/sidebar.tsx
 "use client";
 
+import { SectionLabel } from "~/components/ui/section-label";
 import { Fragment, Suspense, useCallback, useEffect, useMemo } from "react";
 import { NavLink } from "~/components/ui/nav-link";
 import { usePathname, useSearchParams } from "next/navigation";
@@ -1556,12 +1557,13 @@ function SidebarContent({
                     blendet nur aus: so bleibt die Gruppierung als Abstand
                     erhalten und die Icons darunter springen beim Klappen
                     nicht nach oben. */}
-              <p
-                className={`mb-1.5 truncate px-3 text-xs font-semibold tracking-wider text-gray-400 uppercase motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-100" : "opacity-0"}`}
+              <SectionLabel
+                as="p"
+                className={`mb-1.5 truncate px-3 motion-safe:transition-opacity motion-safe:duration-150 ${labelsVisible ? "opacity-100" : "opacity-0"}`}
                 aria-hidden={collapsed}
               >
                 {section.label}
-              </p>
+              </SectionLabel>
               <div className={SIDEBAR_NAV_GAP}>
                 {section.items.map(renderOperatorItem)}
               </div>

@@ -1455,6 +1455,16 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StatisticsHolidayStudents.HolidayStudentsBornOn",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayStudentsByBirthDate.HolidayStudentsBornOn",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target ports.StudentRepository.FindBornOn: reads in one batch every child of the school born on the dates of the own holiday bookings, also those whose care ended, with the membership interval (#5994, rule of #4722).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindBornOn",
+      "target_owner": "people-directory"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.holidayTraegerDirectory.HolidayTraeger",
       "classification": "query",
       "effect": "query",
@@ -2339,11 +2349,22 @@
       "target_owner": "settings-platform"
     },
     {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.holidayProofUnits.CountHolidayProofUpload",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayProofUploads.CountHolidayProofUpload",
+      "reason": "Platform protocol participation (scope): enrollment reaches tenant.WithinTraeger (tenant-runtime) through api.holidayProofUnits.CountHolidayProofUpload, which counts a public proof upload before the route reads its body. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTraeger",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.holidayProofUnits.UploadHolidayProof",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayProofUploads.UploadHolidayProof",
-      "reason": "Read-only target: enrollment reaches modules/securityruntime.FillRandom (security-runtime) through api.holidayProofUnits.UploadHolidayProof for the token of a proof of benefits (#5238). No persistent, lock or scope effect, like the uploads of #4783 (ADR 0098).",
+      "reason": "Read-only target: enrollment reaches modules/securityruntime.FillRandom (security-runtime) through api.holidayProofUnits.UploadHolidayProof for the token of a proof of benefits (#5238); the upload count moved to CountHolidayProofUpload. No persistent, lock or scope effect, like the uploads of #4783 (ADR 0098).",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.FillRandom",
       "target_owner": "security-runtime"
@@ -2354,7 +2375,7 @@
       "classification": "platform",
       "effect": "scope",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayProofUploads.UploadHolidayProof",
-      "reason": "Platform protocol participation (scope): enrollment reaches tenant.WithinTraeger (tenant-runtime) through api.holidayProofUnits.UploadHolidayProof (#5238). The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (scope): enrollment reaches tenant.WithinTraeger (tenant-runtime) through api.holidayProofUnits.UploadHolidayProof (#5238), which stores the proof after the route counted the upload through CountHolidayProofUpload. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTraeger",
       "target_owner": "tenant-runtime"
@@ -2502,6 +2523,27 @@
       "source_owner": "enrollment",
       "target": "*github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/documents.Coordinator.ServeInline",
       "target_owner": "file-storage"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.enrollmentUploadUnits.CountUploadAttempt",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.UploadService.CountUploadAttempt",
+      "reason": "Read-only platform helper: enrollment reaches tenant.NewTenantID (tenant-runtime) through api.enrollmentUploadUnits.CountUploadAttempt. It validates the supplied tenant ID but performs no persistent, lock or scope effect.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.NewTenantID",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.enrollmentUploadUnits.CountUploadAttempt",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.UploadService.CountUploadAttempt",
+      "reason": "Platform protocol participation (scope): enrollment reaches tenant.WithinTenant (tenant-runtime) through api.enrollmentUploadUnits.CountUploadAttempt, which counts an upload before the route reads its body. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.enrollmentUploadUnits.DiscardUpload",
@@ -2897,6 +2939,16 @@
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.CompanionGraphCoordinator.VerifyCompanionStrandingBatch",
       "reason": "Read or pure value helper on the supplied interface: modules/peopledirectory/ports.StudentRepository.VerifyCompanionStrandingBatch. No mutation or locking read at this terminal; type-level binding coverage, not proof that Enrollment calls every exposed method.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.VerifyCompanionStrandingBatch",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentStudentRows.VerifyCompanionStrandingBatch",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.CompanionStrandings.VerifyCompanionStrandingBatch",
+      "reason": "Final companion stranding verdict reads remaining edges and student plans through StudentService.VerifyStrandingBatch/decideStranding; it writes nothing and takes no row locks. Enrollment locks the connected graph before the writes and verifies the batch before releasing its savepoint (weekly_plan_batch.go).",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.VerifyCompanionStrandingBatch",
       "target_owner": "people-directory"
@@ -3534,6 +3586,16 @@
       "target_owner": "settings-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentIntakeSettings.CareFacilityTerm",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.IntakeSettings.CareFacilityTerm",
+      "reason": "Read-only target: enrollment reaches modules/settings.EnrollmentIntakeValues.CareFacilityTerm (settings-platform) through roots/owners.enrollmentIntakeSettings.CareFacilityTerm to name the school's care in parent mails and token pages (#6042). No persistent, lock or scope effect.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.EnrollmentIntakeValues.CareFacilityTerm",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentIntakeSettings.CareOfferingsEnabled",
       "classification": "query",
       "effect": "query",
@@ -3725,6 +3787,26 @@
       "source_owner": "enrollment",
       "target": "unresolved:interface{Field(byte) string; error}.Field",
       "target_owner": ""
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentNotificationSettings.CareFacilityTerm",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.NotificationSettings.CareFacilityTerm",
+      "reason": "Read-only target: enrollment reaches modules/settings/records.BatchSettingsService.ResolveString (settings-platform) through roots/owners.enrollmentNotificationSettings.CareFacilityTerm to name the school's care in parent mails and token pages (#6042). No persistent, lock or scope effect.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentNotificationSettings.CareFacilityTerm",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.NotificationSettings.CareFacilityTerm",
+      "reason": "Read-only target: enrollment reaches modules/settings/records.SettingsService.ResolveString (settings-platform) through roots/owners.enrollmentNotificationSettings.CareFacilityTerm to name the school's care in parent mails and token pages (#6042). No persistent, lock or scope effect.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentNotificationSettings.NotifyPerDecision",
@@ -4163,6 +4245,110 @@
     },
     {
       "adr": "0083",
+      "approval_adr": "0162",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.ApplyDueWeeklyPlans",
+      "classification": "debt",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverDecider.ApplyDueWeeklyPlans",
+      "reason": "Unreviewed cross-owner mutation, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/careplan.PickupAutoExcusal.RecordWeeklyPickupChanges (care-plan) through modules/enrollment/compose.Decisions.ApplyDueWeeklyPlans, the same weekly pickup rewrite an immediate renewal approval (Decide) makes, applied at the renewal start (#6043). Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098); approved for the weekly plan at the renewal start by ADR 0162.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupAutoExcusal.RecordWeeklyPickupChanges",
+      "target_owner": "care-plan"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0162",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.ApplyDueWeeklyPlans",
+      "classification": "debt",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverDecider.ApplyDueWeeklyPlans",
+      "reason": "Unreviewed cross-owner mutation, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/careplan.PickupAutoExcusal.ResyncFutureExceptions (care-plan) through modules/enrollment/compose.Decisions.ApplyDueWeeklyPlans, the same weekly pickup rewrite an immediate renewal approval (Decide) makes, applied at the renewal start (#6043). Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098); approved for the weekly plan at the renewal start by ADR 0162.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupAutoExcusal.ResyncFutureExceptions",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.ApplyDueWeeklyPlans",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverDecider.ApplyDueWeeklyPlans",
+      "reason": "Read-only newly exposed target: enrollment reaches modules/careplan.PickupAutoExcusal.SnapshotWeeklyPickups (care-plan) through modules/enrollment/compose.Decisions.ApplyDueWeeklyPlans, the same weekly pickup rewrite an immediate renewal approval (Decide) makes, applied at the renewal start (#6043). No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupAutoExcusal.SnapshotWeeklyPickups",
+      "target_owner": "care-plan"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0162",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.ApplyDueWeeklyPlans",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverDecider.ApplyDueWeeklyPlans",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/careplan/compose.LockWeeklyPickupStudents (care-plan) through modules/enrollment/compose.Decisions.ApplyDueWeeklyPlans, the same weekly pickup rewrite an immediate renewal approval (Decide) makes, applied at the renewal start (#6043). Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098); approved for the weekly plan at the renewal start by ADR 0162.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan/compose.LockWeeklyPickupStudents",
+      "target_owner": "care-plan"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0162",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.ApplyDueWeeklyPlans",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverDecider.ApplyDueWeeklyPlans",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/compose.Decisions.ApplyDueWeeklyPlans; takes the class-writes and recurrence gates (Decisions.LockApprovalGates) before it reads the due plans and locks students, in the documented order class-writes, recurrence, row locks (#6043 review). The same gate ApplyDueClassSwitches and Decide already take; protocol review is follow-up work (ADR 0098); approved for the rollover tick lock order by ADR 0162.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.ApplyDueWeeklyPlans",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverDecider.ApplyDueWeeklyPlans",
+      "reason": "Platform protocol participation (scope): enrollment reaches tenant.RegisterAfterCommit (tenant-runtime) through modules/enrollment/compose.Decisions.ApplyDueWeeklyPlans. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RegisterAfterCommit",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.ApplyDueWeeklyPlans",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverDecider.ApplyDueWeeklyPlans",
+      "reason": "Platform protocol participation (scope): enrollment reaches tenant.WithSavepoint (tenant-runtime) through modules/enrollment/compose.Decisions.ApplyDueWeeklyPlans. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithSavepoint",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0162",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.ApplyDueWeeklyPlans",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverDecider.ApplyDueWeeklyPlans",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.now. Exposed by #4836 callable resolution (ADR 0098); approved for the weekly plan at the renewal start by ADR 0162 (#6043).",
+      "source_owner": "enrollment",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0162",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.ApplyDueWeeklyPlans",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverDecider.ApplyDueWeeklyPlans",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. No indexed concrete body or provider. Exact boundary: unresolved:interface{Field(byte) string; error}.Field. Exposed by #4836 callable resolution (ADR 0098); approved for the weekly plan at the renewal start by ADR 0162 (#6043).",
+      "source_owner": "enrollment",
+      "target": "unresolved:interface{Field(byte) string; error}.Field",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
       "approval_adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.Decide",
       "classification": "debt",
@@ -4244,6 +4430,18 @@
       "target_owner": ""
     },
     {
+      "adr": "0083",
+      "approval_adr": "0162",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.LockApprovalGates",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverDecider.LockApprovalGates",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/compose.Decisions.LockApprovalGates; the rollover tick takes the class-writes and recurrence gates before its first bulk transition, in the documented order class-writes, recurrence, row locks (#6043 review). The same gate ApplyDueClassSwitches and Decide already take; protocol review is follow-up work (ADR 0098); approved for the rollover tick lock order by ADR 0162.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CompanionRepository.ListLinksForStudents",
       "classification": "query",
       "effect": "query",
@@ -4323,6 +4521,17 @@
       "reason": "E1 existing decision/renewal/approved-child-sync surface: decision_ports.go, approval.go, guardian_profiles.go, guardian_links.go, approved_child_sync.go and change_request_apply.go; caller tenant unit, request/class/recurrence/child ordering and account-before-roster protocol remain as documented in the #4538 inventory. This exact binding is retained coordination, including raw record halves, not newly approved as a guarded leaf. Target: modules/peopledirectory/ports.StudentAuditService.RecordChangesForActor.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentAuditService.RecordChangesForActor",
+      "target_owner": "people-directory"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentStudentAudit.RecordSystemChanges",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.StudentAudit.RecordSystemChanges",
+      "reason": "Name-explicit audit command owns snapshot validation and tracked-field diffing (peopledirectory/internal/application/capability_student_audit.go and student_audit.go). Its audit append joins the caller tenant transaction, with no separate commit, scope switch, lifecycle coordination or additional lock protocol. Enrollment names the tick as System; the companion-group rollback tests verify that its audit rows roll back with the weekly plans.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentAuditService.RecordChanges",
       "target_owner": "people-directory"
     },
     {
@@ -4489,6 +4698,17 @@
       "effect": "notice",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.StudentPlanBroadcasts.BroadcastStudentCompanionsChanged",
       "reason": "Platform protocol participation (notice): enrollment reaches realtime.Broadcaster.BroadcastToTenant (delivery-platform) through roots/owners.enrollmentPlanBroadcasts.BroadcastStudentCompanionsChanged. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastToTenant",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.studentUpdatedOnly.BroadcastStudentUpdated",
+      "classification": "platform",
+      "effect": "notice",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.StudentPlanBroadcasts.BroadcastStudentUpdated",
+      "reason": "The existing studentUpdatedOnly wrapper forwards the losable student_updated notice to realtime.Broadcaster.BroadcastToTenant after commit. It adds no durable write; deferStudentPlanBroadcasts and its registered after-commit callback remain byte-identical. Same notice terminal and binding digest as enrollmentPlanBroadcasts.BroadcastStudentUpdated.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastToTenant",
       "target_owner": "delivery-platform"

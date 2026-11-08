@@ -96,7 +96,7 @@ func TestOGSGroupLiveIdentityQueryBudget(t *testing.T) {
 		counter.Reset()
 		req := testutil.NewRequest("GET", fmt.Sprintf("/ogs-group-live?group_id=%d", group.ID), nil)
 		req.Header.Set("Authorization", "Bearer "+token)
-		rr := testutil.ExecuteRequest(router, req)
+		rr := testutil.ExecuteRequest(testpkg.MountedQueryBudgetRouter("/api/students", router), req)
 		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
 		data := decodeOGSLive(t, rr.Body.Bytes()).Data
 		require.Len(t, data.Students, len(studentIDs))
@@ -107,12 +107,12 @@ func TestOGSGroupLiveIdentityQueryBudget(t *testing.T) {
 			actualIDs = append(actualIDs, id)
 		}
 		require.ElementsMatch(t, studentIDs, actualIDs, "the budget covers all real group members")
-		stage := func(name string) []string {
+		stage := func(name string) testpkg.QueryMeasurement {
 			queries := counter.Matching(func(q string) bool {
 				return strings.HasPrefix(strings.TrimSpace(q), "select") && identityStageMatchers[name](q)
 			})
 			t.Logf("N%d identity stage %q: %d queries", len(studentIDs), name, len(queries))
-			return queries
+			return counter.Measurement(queries)
 		}
 
 		person, staff, teacher, substitutions := stage("person"), stage("staff"), stage("teacher"), stage("substitutions")
@@ -121,8 +121,8 @@ func TestOGSGroupLiveIdentityQueryBudget(t *testing.T) {
 		querybudgets.AssertQueryBudget(t, "api.students.ogs_group_live.identity.teacher", teacher)
 		querybudgets.AssertQueryBudget(t, "api.students.ogs_group_live.identity.substitutions", substitutions)
 		t.Logf("live middleware N%d total=%d", len(studentIDs), counter.Total())
-		querybudgets.AssertQueryBudget(t, "api.students.ogs_group_live.identity.live_middleware", counter.Queries())
-		return map[string]int{"person": len(person), "staff": len(staff), "teacher": len(teacher), "substitutions": len(substitutions)}
+		querybudgets.AssertQueryBudget(t, "api.students.ogs_group_live.identity.live_middleware", counter.Measurement(counter.Queries()))
+		return map[string]int{"person": len(person.Statements), "staff": len(staff.Statements), "teacher": len(teacher.Statements), "substitutions": len(substitutions.Statements)}
 	}
 
 	addStudents(3)

@@ -28,6 +28,12 @@ export const buttonRatchetAllowlist = [
   },
   {
     rule: "no-hand-rolled-button",
+    file: "src/components/ui/switch.tsx",
+    lines: [39],
+    reason: "Switch: der Kit-Baustein für An/Aus (role=switch), kein Knopf",
+  },
+  {
+    rule: "no-hand-rolled-button",
     file: "src/components/ui/page-header/FilterPanel.tsx",
     lines: [224],
     reason: "Auswahloptionen eines Filters, kein Knopf",
@@ -41,7 +47,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/date-picker.tsx",
-    lines: [456],
+    lines: [457],
     reason: "Auslöser des Datumsfelds (Eingabefeld, sieht aus wie ein Select)",
   },
   {
@@ -59,13 +65,13 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/guardians/guardian-picker-panel.tsx",
-    lines: [329],
+    lines: [323],
     reason: "Trefferzeile der Erziehungsberechtigten-Suche: Auswahlzeile",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/messaging/new-message-modal.tsx",
-    lines: [379],
+    lines: [380],
     reason: "Elternteil in der Empfängerliste wählen: Auswahlzeile",
   },
   {
@@ -76,20 +82,14 @@ export const buttonRatchetAllowlist = [
   },
   {
     rule: "no-hand-rolled-button",
-    file: "src/components/announcements/parent-target-picker.tsx",
-    lines: [49],
-    reason: "Zielgruppe ankreuzen (Häkchen-Zeile): Auswahlzeile",
-  },
-  {
-    rule: "no-hand-rolled-button",
     file: "src/components/files/files-page.tsx",
-    lines: [157],
+    lines: [158],
     reason: "Ordner-Navigation (aria-current), Navigationszeile",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/help/help-view.tsx",
-    lines: [1055],
+    lines: [1052],
     reason: "Artikel-Navigation der Hilfe (aria-current), Navigationszeile",
   },
   {
@@ -97,24 +97,6 @@ export const buttonRatchetAllowlist = [
     file: "src/components/auth/auth-shell.tsx",
     lines: [349],
     reason: "Auswahlpunkte des Zitat-Karussells (Seitenauswahl), kein Knopf",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/settings/fields/boolean-field.tsx",
-    lines: [17],
-    reason: "Schalter (role=switch)",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/components/enrollment/enrollment-form-editor.tsx",
-    lines: [3132],
-    reason: "Schalter (role=switch)",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/app/operator/provisioning/provisioning-shared.tsx",
-    lines: [218],
-    reason: "Schalter (role=switch)",
   },
   {
     rule: "no-button-override",
@@ -126,39 +108,32 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-button-override",
     file: "src/components/parent/calendar/parent-calendar-page.tsx",
-    lines: [521, 771],
+    lines: [521, 773],
     reason:
       "Termin-Zeilen und Monats-Chips im Elternkalender, optisch Listeneinträge (#5529: nicht angleichen)",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/active-supervisions/spontaneous-activity-start.tsx",
-    lines: [379],
+    lines: [329],
     reason: "Startkachel mit Symbol, Titel und Beschreibung: Kachel",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/calendar/personal-calendar.tsx",
-    lines: [1068],
+    lines: [1066],
     reason: "Termin-Block im Kalenderraster: Kalenderzelle",
-  },
-  {
-    rule: "no-button-override",
-    file: "src/components/class-day/class-day-overview.tsx",
-    lines: [179],
-    reason:
-      "Klassenkarte: Kachel. Bleibt ButtonLink, weil TileCard den Seitenwechsel nicht an die Portalhülle meldet",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/care-schedule-manager.tsx",
-    lines: [1545],
+    lines: [1544],
     reason: "Wochentagskarte, öffnet den Editor: Kachel",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/companion-picker.tsx",
-    lines: [397],
+    lines: [403],
     reason: "Suchtreffer zum Auswählen: Auswahlzeile",
   },
   {
@@ -175,29 +150,57 @@ export const buttonRatchetAllowlist = [
   },
   {
     rule: "no-hand-rolled-button",
-    file: "src/components/timetable/event-form/step-termin.tsx",
-    lines: [149],
-    reason: "Typauswahl im Terminformular: Auswahlkachel",
+    file: "src/components/timetable/period-switcher-dropdown.tsx",
+    lines: [306],
+    reason: "Zeitraum-Option im Auswahlmenü: Menüeintrag",
+  },
+  // #5608: Seit die Regel `moto-content-surface`, Farben per `style` und
+  // `label`/`span` mit `cursor-pointer` erkennt, sieht sie diese Kacheln und
+  // Felder. Sie sind keine Knöpfe im Sinn von #5529.
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/ui/tile-card.tsx",
+    lines: [94, 149],
+    reason: "TileCard selbst: der Kit-Baustein für klickbare Kacheln",
   },
   {
     rule: "no-hand-rolled-button",
-    file: "src/components/timetable/period-switcher-dropdown.tsx",
-    lines: [305],
-    reason: "Zeitraum-Option im Auswahlmenü: Menüeintrag",
+    file: "src/components/ui/color-swatch-input.tsx",
+    lines: [21],
+    reason: "Farbfeld: zeigt die gewählte Farbe und öffnet die Farbauswahl",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/students/compact-student-card.tsx",
+    lines: [88],
+    reason: "Kinderkarte im Raster, öffnet das Profil: Kachel",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/parent/child/child-switcher.tsx",
+    lines: [53],
+    reason:
+      "Kinderkarte im Elternportal (Ausnahme des Epics #5576, nicht anfassen): Kachel",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/students/care-schedule-manager.tsx",
+    lines: [1501],
+    reason: "Statustag-Karte, öffnet das Entfernen: Kachel",
+  },
+  {
+    rule: "no-hand-rolled-button",
+    file: "src/components/calendar/personal-calendar.tsx",
+    lines: [1015],
+    reason: "Termin-Block in der Wochenansicht: Kalenderzelle",
   },
   // #5574: hellgraue Fläche als gewählter Zustand einer Auswahl oder
   // Navigation, nicht als Ruhezustand eines Knopfs.
   {
     rule: "no-grey-button-fill",
     file: "src/components/timetable/period-switcher-dropdown.tsx",
-    lines: [305],
+    lines: [306],
     reason:
       "Auswahlzeile im Zeitraum-Menü: grau markiert den gewählten Zeitraum",
-  },
-  {
-    rule: "no-hand-rolled-button",
-    file: "src/app/operator/announcements/page.tsx",
-    lines: [696, 841, 929],
-    reason: "Auswahlzeilen mit Häkchen (Rollen, Träger, Schulen), kein Knopf",
   },
 ];

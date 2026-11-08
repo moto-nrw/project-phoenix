@@ -1,0 +1,28 @@
+{
+  "api/traeger/care-billing-runs": [
+    "GET traeger /traeger/care-billing-runs",
+    "POST traeger /traeger/care-billing-runs"
+  ],
+  "api/traeger/care-billing-runs/[id]": [
+    "GET traeger /traeger/care-billing-runs/id%2F1"
+  ],
+  "api/traeger/care-billing-runs/[id]/invoices/[invoiceId]/cancellation": [
+    "POST traeger /traeger/care-billing-runs/id%2F1/invoices/invoiceId%2F1/cancellation"
+  ],
+  "api/traeger/care-billing-runs/[id]/invoices/[invoiceId]/cancellation/mail": [
+    "POST traeger /traeger/care-billing-runs/id%2F1/invoices/invoiceId%2F1/mail?kind=cancellation"
+  ],
+  "api/traeger/care-billing-runs/[id]/invoices/[invoiceId]/mail": [
+    "POST traeger /traeger/care-billing-runs/id%2F1/invoices/invoiceId%2F1/mail"
+  ],
+  "api/traeger/care-billing-runs/[id]/letters": [
+    "GET traeger /traeger/care-billing-runs/id%2F1/letters",
+    "POST traeger /traeger/care-billing-runs/id%2F1/letters"
+  ],
+  "api/traeger/care-billing-runs/[id]/letters/mail": [
+    "POST traeger /traeger/care-billing-runs/id%2F1/letters/mail"
+  ],
+  "api/traeger/care-billing-runs/[id]/release": [
+    "POST traeger /traeger/care-billing-runs/id%2F1/release"
+  ]
+}

@@ -10,7 +10,7 @@ import {
   useState,
 } from "react";
 import { useSWRAuth } from "~/lib/swr";
-import { BooleanField } from "~/components/settings/fields/boolean-field";
+import { SwitchRow } from "~/components/ui/switch";
 import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
@@ -698,22 +698,13 @@ function LohnbueroCard({
       description="Nach dem Monatsabschluss schickt moto die Monatsdatei aller Mitarbeitenden an das Lohnbüro. Änderungen werden sofort gespeichert."
     >
       <div className="space-y-5">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <span className="block text-sm font-medium text-gray-800">
-              Automatisch nach dem Monatsabschluss senden
-            </span>
-            <p className="mt-1 text-xs text-gray-500">
-              Schließen Sie einen Monat nach dem Wiederöffnen erneut ab, geht
-              die Datei noch einmal raus. Ihr Name enthält dann „korrektur“.
-            </p>
-          </div>
-          <BooleanField
-            ariaLabel="Automatisch nach dem Monatsabschluss senden"
-            value={current.auto}
-            onChange={(next) => change("auto", next)}
-          />
-        </div>
+        <SwitchRow
+          framed={false}
+          label="Automatisch nach dem Monatsabschluss senden"
+          description="Schließen Sie einen Monat nach dem Wiederöffnen erneut ab, geht die Datei noch einmal raus. Ihr Name enthält dann „korrektur“."
+          checked={current.auto}
+          onCheckedChange={(next) => change("auto", next)}
+        />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>

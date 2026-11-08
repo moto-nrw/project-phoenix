@@ -38,7 +38,7 @@ func TestListActiveGroupsQueryBudget(t *testing.T) {
 	run := func() int {
 		counter.Reset()
 		req := testutil.NewRequest("GET", "/active/groups?active=true", nil)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := testutil.ExecuteWithAuthPermissions(t, testpkg.MountedQueryBudgetRouter("/api", router), req, testutil.AdminTestClaims(1), []string{"admin:*"})
 		require.Equal(t, testutil.StatusOK, rr.Code, "body: %s", rr.Body.String())
 		return counter.Total()
 	}
@@ -53,5 +53,5 @@ func TestListActiveGroupsQueryBudget(t *testing.T) {
 
 	assert.Equal(t, smallCount, largeCount,
 		"query count must be independent of the active group count (no per-group N+1)")
-	querybudgets.AssertQueryBudget(t, "api.active.groups.list", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.active.groups.list", counter.Measurement(counter.Queries()))
 }

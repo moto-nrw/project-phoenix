@@ -427,8 +427,6 @@ function LoginForm() {
   return (
     <>
       <AuthShell
-        eyebrow="Ihr OGS Portal"
-        eyebrowClassName="text-moto-green"
         title={loginTitle}
         subtitle="Melden Sie sich mit Ihrem Konto an."
         variant="tenant"
@@ -677,14 +675,12 @@ export default function HomePage() {
     <Suspense
       fallback={
         <AuthShell
-          eyebrow="Ihr OGS Portal"
-          eyebrowClassName="text-moto-green"
           title="Willkommen"
           subtitle="Melden Sie sich mit Ihrem Konto an."
           variant="tenant"
           brand={<MotoBrand />}
         >
-          <Loading fullPage={false} message="Anmeldung wird vorbereitet …" />
+          <Loading message="Anmeldung wird vorbereitet …" />
         </AuthShell>
       }
     >

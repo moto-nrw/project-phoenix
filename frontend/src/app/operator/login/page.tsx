@@ -131,7 +131,7 @@ export default function OperatorLoginPage() {
   ) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center p-4">
-        <Loading />
+        <Loading fullPage />
       </div>
     );
   }
@@ -219,8 +219,6 @@ export default function OperatorLoginPage() {
 
   return (
     <AuthShell
-      eyebrow="Operator"
-      eyebrowClassName="text-gray-700"
       title="Operator Dashboard"
       subtitle="Melden Sie sich an, um Plattformbetrieb, Träger und Schulen zu verwalten."
       variant="operator"

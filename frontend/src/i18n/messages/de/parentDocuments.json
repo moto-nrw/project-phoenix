@@ -6,6 +6,8 @@
   "confirmationLetter": "Bestätigungsschreiben {period}",
   "cancellationLetter": "Storno {period}",
   "creditLetter": "Gutschrift {period}",
+  "careInvoiceLetter": "Rechnung {period}",
+  "careCancellationLetter": "Storno {period}",
   "sender": "Von {traeger}",
   "children": "Für",
   "amount": "Betrag",
@@ -32,6 +34,11 @@
   "signed": "Unterschrieben",
   "concluded": "Abgeschlossen",
   "signNow": "Lesen und unterschreiben",
-  "signedAt": "Unterschrieben am",
-  "status": "Stand"
+  "status": "Stand",
+  "cancelContract": "Verträge hier kündigen",
+  "cancelNotPermitted": "Kündigen dürfen nur Eltern mit dem Recht, das Kind anzumelden. Fragen Sie die Schule.",
+  "terminatedOn": "Gekündigt zum {date}",
+  "withdrawn": "Widerrufen",
+  "showConfirmation": "Bestätigung ansehen",
+  "terminationInReview": "Gekündigt, Ende wird geprüft"
 }

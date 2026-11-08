@@ -12,6 +12,8 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { VisibilityBadge } from "~/components/ui/visibility-badge";
 import { PARENT_VISIBLE_HINTS } from "~/lib/parent-visible-fields";
+import { ChoiceTile } from "~/components/ui/choice-tile";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 // Shared relationship UI used by BOTH the multi-guardian form (create/edit) and
 // the existing-guardian picker (#1513). Extracting these blocks keeps the two
@@ -140,7 +142,7 @@ export function RelationshipPermissionsFields({
   return (
     <>
       {/* Relationship Flags */}
-      <div className="bg-moto-blue-soft/30 rounded-xl border border-gray-100 p-3 md:p-4">
+      <InsetPanel framed padding="md">
         <h3 className="mb-3 flex flex-wrap items-center gap-2 text-xs font-semibold text-gray-900 md:mb-4 md:text-sm">
           <svg
             className="text-moto-blue-strong h-3.5 w-3.5 md:h-4 md:w-4"
@@ -184,10 +186,15 @@ export function RelationshipPermissionsFields({
             <span className="text-sm text-gray-700">Abholberechtigt</span>
           </label>
         </div>
-      </div>
+      </InsetPanel>
 
       {/* Emergency Contact */}
-      <div className="border-moto-red/20 bg-moto-red-soft flex flex-wrap items-center justify-between gap-2 rounded-xl border px-4 py-2">
+      <ChoiceTile
+        as="div"
+        tone="red"
+        selected={isEmergencyContact}
+        className="flex-wrap justify-between gap-2 px-4 py-2 font-normal"
+      >
         <label
           htmlFor={`${idPrefix}-emergency`}
           className="group flex cursor-pointer items-center gap-3"
@@ -224,7 +231,7 @@ export function RelationshipPermissionsFields({
           hint={PARENT_VISIBLE_HINTS.guardianPermissions}
           bubbleClassName="left-auto right-0"
         />
-      </div>
+      </ChoiceTile>
     </>
   );
 }

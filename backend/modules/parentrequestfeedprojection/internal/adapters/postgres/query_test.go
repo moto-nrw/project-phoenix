@@ -189,7 +189,7 @@ func TestListNewParentRequestsQueryBudget(t *testing.T) {
 	}
 	require.NoError(t, read(testpkg.Ctx(t)))
 	require.NoError(t, read(counter.Context(testpkg.Ctx(t))))
-	querybudgets.AssertQueryBudget(t, "modules.careplan.request_feed.list", counter.Matching(func(sqlLower string) bool {
+	querybudgets.AssertQueryBudget(t, "modules.careplan.request_feed.list", counter.Measurement(counter.Matching(func(sqlLower string) bool {
 		return strings.Contains(sqlLower, "select kind, id, created_at")
-	}))
+	})))
 }

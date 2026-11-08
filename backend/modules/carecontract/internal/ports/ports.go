@@ -59,9 +59,11 @@ type NewContract struct {
 	StudentID   *int64
 	Version     carecontract.Version
 	Party       NewParty
+	// EarlyStart is the parents' express wish in the application that care
+	// begins within the withdrawal period (§ 356 Abs. 4 BGB, #4682).
+	EarlyStart bool
 }
 
-// NewParty is the party of a new draft.
 type NewParty struct {
 	FirstName string
 	LastName  string
@@ -84,6 +86,9 @@ type ContractRecord struct {
 	// (#4681). Once a later version holds, the current version has no PDF of
 	// its own; a send again or an address correction delivers this one.
 	SentDocument *SentDocument
+	// EarlyStart tells that the parents asked for care within the
+	// withdrawal period (#4682); the PDF says so.
+	EarlyStart bool
 }
 
 // SentDocument is a stored PDF of a contract and the version it shows.
@@ -92,11 +97,11 @@ type SentDocument struct {
 	VersionID int64
 }
 
-// StoredMailing is a send of the contract as stored.
 type StoredMailing struct {
-	OutboxID  int64
-	Recipient string
-	SentAt    time.Time
+	WithdrawalNotice bool
+	OutboxID         int64
+	Recipient        string
+	SentAt           time.Time
 }
 
 // Event is one entry of the trail.
@@ -120,6 +125,7 @@ const (
 
 // Store persists the contracts of a Träger in its Träger transaction.
 type Store interface {
+	MarkWithdrawalInformed(ctx context.Context, organizationID, contractID int64, at time.Time) error
 	Templates(ctx context.Context, organizationID int64) ([]TemplateRow, error)
 	UpsertTemplate(ctx context.Context, organizationID, accountID, schoolID, offeringID int64, input carecontract.TemplateInput) (carecontract.Template, error)
 	ContractKeys(ctx context.Context, organizationID int64, schoolIDs []int64) (map[ContractKey]bool, error)
@@ -158,4 +164,5 @@ type Store interface {
 	VersionDocument(ctx context.Context, organizationID, versionID int64) (carecontract.File, bool, error)
 	InboxContracts(ctx context.Context, organizationID int64, reader carecontract.InboxReader) ([]carecontract.InboxContract, error)
 	InboxDocument(ctx context.Context, organizationID, contractID int64, reader carecontract.InboxReader) (carecontract.File, error)
+	ContractNoticeTarget(ctx context.Context, organizationID, contractID int64, email string) (carecontract.ContractNoticeTarget, bool, error)
 }

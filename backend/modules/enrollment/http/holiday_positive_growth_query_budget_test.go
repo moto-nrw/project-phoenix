@@ -228,7 +228,7 @@ func TestHolidayPositiveGrowthQueryBudget(t *testing.T) {
 			require.Equal(t, n, len(sheet.Emergency)+len(sheet.Pickup))
 			require.Equal(t, before+1, f.auditCount(t, "holiday_guest_sheet"))
 			t.Logf("guest sheet N%d contacts=%d guests=%d SQL=%d", n, n, len(f.students), len(queries))
-			querybudgets.AssertQueryBudget(t, "api.holiday_guests.growth.sheet", queries)
+			querybudgets.AssertQueryBudget(t, "api.holiday_guests.growth.sheet", counter.Measurement(queries))
 			before = f.auditCount(t, "holiday_participants_export")
 			counter.Reset()
 			rec = f.get(f.token, exportPath)
@@ -255,7 +255,7 @@ func TestHolidayPositiveGrowthQueryBudget(t *testing.T) {
 			require.Equal(t, expectedNames, gotNames, "exact confirmed XLSX rows, received and cancelled children excluded")
 			require.Equal(t, before+1, f.auditCount(t, "holiday_participants_export"))
 			t.Logf("participant XLSX N%d SQL=%d children=%v", n, len(queries), f.children)
-			querybudgets.AssertQueryBudget(t, "api.holiday_weeks.growth.participants_export", queries)
+			querybudgets.AssertQueryBudget(t, "api.holiday_weeks.growth.participants_export", counter.Measurement(queries))
 			var metadata string
 			require.NoError(t, f.db.NewRaw(`SELECT metadata::text FROM audit.data_access_log WHERE tenant_id=? AND resource_type='holiday_participants_export' ORDER BY id DESC LIMIT 1`, f.school).Scan(t.Context(), &metadata))
 			var audit struct {

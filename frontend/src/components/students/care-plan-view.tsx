@@ -53,6 +53,7 @@ import { useWeekendFollowsFriday } from "~/lib/tenant-context";
 import { CarePlanDayTimeline } from "./care-plan-day";
 import { carePlanConcept } from "~/lib/concepts/carePlan";
 import { studentKeys } from "~/lib/swr/portal-keys";
+import { InsetPanel } from "~/components/ui/inset-panel";
 
 type ViewMode = "day" | "week";
 
@@ -473,10 +474,7 @@ function WeekBody({
             const iso = toISODate(date);
             const day = daysByDate.get(iso) ?? null;
             return (
-              <div
-                key={iso}
-                className="rounded-xl border border-gray-200 bg-white/60 p-2.5"
-              >
+              <InsetPanel key={iso} tone="white">
                 <div className="mb-2 flex items-baseline justify-between">
                   <span className="text-sm font-semibold text-gray-900">
                     {WEEKDAY_LABELS[i]}
@@ -490,7 +488,7 @@ function WeekBody({
                   deviation={deviationFor(iso)}
                   compact
                 />
-              </div>
+              </InsetPanel>
             );
           })}
         </div>

@@ -8,7 +8,9 @@ import {
   useRef,
   useState,
 } from "react";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { Check, Copy, Pencil, Plus, Trash2 } from "lucide-react";
+import { Alert } from "~/components/ui/alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
   type CareOffering,
@@ -95,6 +97,7 @@ import { calendarPeriodsConcept } from "~/lib/concepts/calendarPeriods";
 import { carePlanConcept } from "~/lib/concepts/carePlan";
 import { childrenConcept } from "~/lib/concepts/children";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { FormFieldset } from "~/components/ui/form-fieldset";
 
 const logger = createLogger({ component: "CareOfferingsEditor" });
 
@@ -1132,7 +1135,7 @@ function CareOfferingToolbar({
   onCreate: () => void;
 }>) {
   return (
-    <section className="moto-content-surface rounded-2xl border p-4">
+    <SectionCard>
       {/* Kennzahlen, Phasenauswahl und Anlegen stehen in einer Zeile, solange
           alles hineinpasst; sonst rutschen Auswahl und Knopf in eine eigene
           Zeile. Ein langer Phasenname wird im Auswahlfeld gekürzt und
@@ -1200,27 +1203,27 @@ function CareOfferingToolbar({
           ) : null}
         </div>
       </div>
-    </section>
+    </SectionCard>
   );
 }
 
 function PlannerMetadataNotice({ onRetry }: Readonly<{ onRetry: () => void }>) {
   return (
-    <div
-      className="border-moto-amber/50 bg-moto-amber/10 text-moto-amber-strong flex flex-col gap-3 rounded-2xl border p-4 text-sm sm:flex-row sm:items-center sm:justify-between"
-      role="status"
-    >
-      <p>{PLANNER_METADATA_UNAVAILABLE_MESSAGE}</p>
-      <Button
-        type="button"
-        variant="surface"
-        size="md"
-        onClick={onRetry}
-        className="shrink-0"
-      >
-        Erneut laden
-      </Button>
-    </div>
+    <Alert
+      type="warning"
+      announce="polite"
+      message={PLANNER_METADATA_UNAVAILABLE_MESSAGE}
+      action={
+        <Button
+          type="button"
+          variant="surface"
+          size="compact"
+          onClick={onRetry}
+        >
+          Erneut laden
+        </Button>
+      }
+    />
   );
 }
 
@@ -1570,7 +1573,7 @@ function CareOfferingTemplateField({
   );
 
   return (
-    <section className="rounded-xl border border-gray-200 bg-white/70 p-4">
+    <InsetPanel as="section" tone="white" padding="md">
       <CustomSelect
         id="care-offering-template"
         label="Regeltermin"
@@ -1588,9 +1591,13 @@ function CareOfferingTemplateField({
         den ausgewählten Angebotstagen erwartet.
       </p>
       {compatibilityUnknown ? (
-        <p className="border-moto-amber/50 bg-moto-amber/10 text-moto-amber-strong mt-2 rounded-lg border px-3 py-2 text-xs">
-          {unknownCompatibilityMessage(metadataStatus)}
-        </p>
+        <Alert
+          type="warning"
+          size="compact"
+          announce="off"
+          className="mt-2"
+          message={unknownCompatibilityMessage(metadataStatus)}
+        />
       ) : null}
       {metadataStatus === "ready" &&
       !periodMismatch &&
@@ -1602,13 +1609,21 @@ function CareOfferingTemplateField({
         </p>
       ) : null}
       {templateWarnings.length > 0 ? (
-        <ul className="border-moto-amber/50 bg-moto-amber/10 text-moto-amber-strong mt-2 space-y-1 rounded-lg border px-3 py-2 text-xs">
-          {templateWarnings.map((warning) => (
-            <li key={warning}>{warning}</li>
-          ))}
-        </ul>
+        <Alert
+          type="warning"
+          size="compact"
+          announce="off"
+          className="mt-2"
+          message={
+            <ul className="space-y-1">
+              {templateWarnings.map((warning) => (
+                <li key={warning}>{warning}</li>
+              ))}
+            </ul>
+          }
+        />
       ) : null}
-    </section>
+    </InsetPanel>
   );
 }
 
@@ -1645,10 +1660,7 @@ function CareOfferingWeekdayFields({
   const pickupTimesRequired = draft.is_active && draft.counts_as_care;
 
   return (
-    <fieldset className="rounded-xl border border-gray-200 p-4">
-      <legend className="px-1 text-xs font-medium text-gray-700">
-        Wochentage
-      </legend>
+    <FormFieldset legend="Wochentage">
       <div className="flex flex-wrap gap-2">
         {WEEKDAY_KEYS.map((day) => {
           const active = draft.available_days.includes(day);
@@ -1664,9 +1676,13 @@ function CareOfferingWeekdayFields({
         })}
       </div>
       {nameMismatch ? (
-        <p className="border-moto-amber/50 bg-moto-amber/10 text-moto-amber-strong mt-3 rounded-lg border px-3 py-2 text-xs">
-          {nameMismatch}
-        </p>
+        <Alert
+          type="warning"
+          size="compact"
+          announce="off"
+          className="mt-3"
+          message={nameMismatch}
+        />
       ) : null}
       {draft.available_days.length > 0 ? (
         <div className="mt-4">
@@ -1710,7 +1726,7 @@ function CareOfferingWeekdayFields({
           hint="Sonst gilt das Angebot für den gesamten gewählten Rhythmus."
         />
       </div>
-    </fieldset>
+    </FormFieldset>
   );
 }
 
@@ -1765,10 +1781,7 @@ function CareOfferingAutomationFields({
   );
 
   return (
-    <fieldset className="rounded-xl border border-gray-200 p-4">
-      <legend className="px-1 text-xs font-medium text-gray-700">
-        Betreuungstage & Mitbuchung
-      </legend>
+    <FormFieldset legend="Betreuungstage & Mitbuchung">
       <div className="space-y-4">
         <CheckboxCard
           checked={draft.counts_as_care}
@@ -1777,7 +1790,7 @@ function CareOfferingAutomationFields({
           hint="Gilt für Filter, Kennzahlen und Exporte."
         />
 
-        <div className="rounded-lg border border-gray-100 bg-gray-50/70 p-3">
+        <InsetPanel framed>
           <p className="text-xs font-medium text-gray-700">
             {offeringLabel} wird automatisch mitgebucht, wenn Eltern eines
             dieser Angebote wählen:
@@ -1802,7 +1815,11 @@ function CareOfferingAutomationFields({
             </p>
           )}
           {selectedTriggers.length > 0 ? (
-            <div className="mt-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700">
+            <InsetPanel
+              tone="white"
+              padding="compact"
+              className="mt-2 text-xs text-gray-700"
+            >
               {selectedTriggers.map((trigger) => (
                 <p key={trigger.id}>
                   Wenn Eltern „{trigger.name}“ wählen, wird{" "}
@@ -1813,15 +1830,19 @@ function CareOfferingAutomationFields({
                 Andersherum gilt das nicht: Wer nur {offeringLabelMidSentence}{" "}
                 wählt, bekommt die anderen Angebote nicht automatisch dazu.
               </p>
-            </div>
+            </InsetPanel>
           ) : null}
           {draft.auto_add_trigger_offering_ids.length > 0 &&
           draft.days_of_week_mode !== "parent_choice" ? (
-            <p className="border-moto-amber/50 bg-moto-amber/10 text-moto-amber-strong mt-2 rounded-lg border px-3 py-2 text-xs">
-              Mitgebuchte Angebote müssen einzelne Tage auswählbar machen.
-            </p>
+            <Alert
+              type="warning"
+              size="compact"
+              announce="off"
+              className="mt-2"
+              message="Mitgebuchte Angebote müssen einzelne Tage auswählbar machen."
+            />
           ) : null}
-        </div>
+        </InsetPanel>
 
         <div>
           <FieldLabel id="auto-add-grades-label">
@@ -1853,7 +1874,7 @@ function CareOfferingAutomationFields({
           </p>
         </div>
       </div>
-    </fieldset>
+    </FormFieldset>
   );
 }
 
@@ -1908,10 +1929,7 @@ function CareOfferingAvailabilityFields({
   const conflicts = countCareOfferingRuleConflicts(rule, bookingGradeCounts);
 
   return (
-    <fieldset className="rounded-xl border border-gray-200 p-4">
-      <legend className="px-1 text-xs font-medium text-gray-700">
-        Bedingungen für die Verfügbarkeit
-      </legend>
+    <FormFieldset legend="Bedingungen für die Verfügbarkeit">
       <CheckboxCard
         checked={rule !== null}
         onChange={(checked) =>
@@ -1926,12 +1944,12 @@ function CareOfferingAvailabilityFields({
               : null,
           })
         }
-        label={
-          rule
-            ? "Nur unter Bedingungen anbieten"
-            : "Für alle Klassenstufen / ohne Bedingungen"
-        }
-        hint="Ohne Bedingungen ist dieses Angebot für jedes Kind verfügbar."
+        // One label for both states: it names what a tick does. The old
+        // pair called the unticked box „Für alle Klassenstufen“, so schools
+        // ticked it to mean „for everyone“ and restricted the offering
+        // instead (#6044).
+        label="Nur für bestimmte Klassenstufen anbieten"
+        hint="Ohne Haken können alle Kinder das Angebot wählen."
       />
       {rule ? (
         <div className="mt-4 space-y-3">
@@ -1961,9 +1979,9 @@ function CareOfferingAvailabilityFields({
             />
           ) : null}
           {rule.conditions.map((condition, index) => (
-            <div
+            <InsetPanel
+              framed
               key={getStableObjectKey(condition, "availability-condition")}
-              className="rounded-lg border border-gray-200 bg-gray-50/70 p-3"
             >
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs font-semibold text-gray-800">
@@ -2067,7 +2085,7 @@ function CareOfferingAvailabilityFields({
                   })}
                 </div>
               </div>
-            </div>
+            </InsetPanel>
           ))}
           <Button
             type="button"
@@ -2096,30 +2114,32 @@ function CareOfferingAvailabilityFields({
             live
           />
           {!error && conflicts > 0 ? (
-            <p
-              role="status"
-              className="border-moto-amber/40 bg-moto-amber/10 text-moto-amber-strong rounded-lg border px-3 py-2 text-xs leading-5"
-            >
-              {conflicts === 1
-                ? "1 bestehende Buchung erfüllt diese Bedingung nicht."
-                : `${conflicts} bestehende Buchungen erfüllen diese Bedingung nicht.`}{" "}
-              Sie {conflicts === 1 ? "bleibt" : "bleiben"} bestehen, die Regel
-              gilt nur für neue Auswahlen.
-            </p>
+            <Alert
+              type="warning"
+              size="compact"
+              announce="polite"
+              message={
+                <>
+                  {conflicts === 1
+                    ? "1 bestehende Buchung erfüllt diese Bedingung nicht."
+                    : `${conflicts} bestehende Buchungen erfüllen diese Bedingung nicht.`}{" "}
+                  Sie {conflicts === 1 ? "bleibt" : "bleiben"} bestehen, die
+                  Regel gilt nur für neue Auswahlen.
+                </>
+              }
+            />
           ) : null}
           {!error && bookingCountUnknown ? (
-            <p
-              role="status"
-              className="border-moto-amber/40 bg-moto-amber/10 text-moto-amber-strong rounded-lg border px-3 py-2 text-xs leading-5"
-            >
-              Ob bestehende Buchungen diese Bedingung erfüllen, lässt sich
-              gerade nicht prüfen. Bestehende Buchungen bleiben in jedem Fall
-              bestehen.
-            </p>
+            <Alert
+              type="warning"
+              size="compact"
+              announce="polite"
+              message="Ob bestehende Buchungen diese Bedingung erfüllen, lässt sich gerade nicht prüfen. Bestehende Buchungen bleiben in jedem Fall bestehen."
+            />
           ) : null}
         </div>
       ) : null}
-    </fieldset>
+    </FormFieldset>
   );
 }
 
@@ -2204,10 +2224,7 @@ function CareOfferingDisplayFields({
   onChange: (patch: Partial<CareOfferingInput>) => void;
 }>) {
   return (
-    <fieldset className="rounded-xl border border-gray-200 p-4">
-      <legend className="px-1 text-xs font-medium text-gray-700">
-        Anzeige im Elternformular
-      </legend>
+    <FormFieldset legend="Anzeige im Elternformular">
       <div className="grid gap-2 sm:grid-cols-3">
         <CheckboxCard
           checked={draft.includes_holiday_care}
@@ -2240,7 +2257,7 @@ function CareOfferingDisplayFields({
           hint="Jedes Kind muss dieses Angebot wählen (ohne Platzbegrenzung)"
         />
       </div>
-    </fieldset>
+    </FormFieldset>
   );
 }
 
@@ -2399,10 +2416,7 @@ function CareOfferingForm({
         placeholder="Kurz erklären, was Eltern hier auswählen."
       />
 
-      <fieldset className="rounded-xl border border-gray-200 p-4">
-        <legend className="px-1 text-xs font-medium text-gray-700">
-          Pflichtauswahl
-        </legend>
+      <FormFieldset legend="Pflichtauswahl">
         <p className="mt-1 mb-3 text-sm leading-6 text-gray-600">
           Angebote mit demselben Gruppennamen werden bei der Anmeldung gemeinsam
           geprüft. Verwenden Sie für eine Gruppe überall dieselbe Regel.
@@ -2457,7 +2471,7 @@ function CareOfferingForm({
             einer späteren Änderung gilt dann pro Tag ein Angebot.
           </p>
         )}
-      </fieldset>
+      </FormFieldset>
 
       <CareOfferingWeekdayFields draft={draft} onChange={update} />
 

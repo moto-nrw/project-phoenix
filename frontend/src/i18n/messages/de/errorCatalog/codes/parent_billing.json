@@ -43,5 +43,19 @@
   "sibling_group_not_found": "Diese Anmeldung gehört nicht mehr zu Geschwistern. Bitte laden Sie die Seite neu.",
   "letter_mail_delayed": "Die letzte Mail an diese Familie ist noch unterwegs. Bitte warten Sie, sonst kommt sie doppelt an.",
   "letter_mail_blocked": "Diese Adresse ist gesperrt. Bitte drucken Sie das Schreiben. Der moto-Support klärt die Sperre.",
-  "letter_mail_block_unreadable": "Ob diese Adresse gesperrt ist, lässt sich gerade nicht prüfen. Bitte versuchen Sie es später noch einmal."
+  "letter_mail_block_unreadable": "Ob diese Adresse gesperrt ist, lässt sich gerade nicht prüfen. Bitte versuchen Sie es später noch einmal.",
+  "care_run_not_found": "Diesen Monatslauf gibt es nicht. Bitte öffnen Sie ihn über „Abrechnung“ und „Monatsbeiträge“.",
+  "care_run_open": "Für diesen Monat gibt es schon einen Lauf in der Vorschau. Bitte öffnen Sie diesen Lauf.",
+  "care_run_invalid": "Bitte wählen Sie einen Monat.",
+  "care_versions_overlap": "Ein Vertrag hat an einem Tag zwei gültige Fassungen. Bitte melden Sie das dem Support. Der Lauf rechnet diesen Monat nicht ab.",
+  "care_tariff_invalid": "Bitte prüfen Sie die Preise. Jeder Preis ist ein Betrag in Euro, nicht unter 0 €, und gilt ab dem 1. eines Monats.",
+  "care_tariff_month_billed": "Mit diesem Preis ist schon eine Rechnung ausgestellt. Er bleibt für diesen Monat. Ändern Sie ihn ab einem späteren Monat.",
+  "care_tariff_not_found": "Diese Preisliste gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+  "care_invoice_not_found": "Diese Rechnung gibt es in diesem Lauf nicht. Bitte laden Sie die Seite neu.",
+  "care_invoice_cancelled": "Diese Rechnung ist storniert. Sie wird nicht mehr verschickt.",
+  "care_recipient_changed": "Die Rechnung geht an eine Person, die nicht mehr im Vertrag steht. Bitte stornieren Sie die Rechnung. Der nächste Lauf stellt sie neu aus.",
+  "care_rule_in_use": "Diese Einkommensstufe ist bei Kindern eingetragen. Ändern oder löschen Sie zuerst deren Nachweise.",
+  "care_evidence_invalid": "Der Nachweis konnte nicht gespeichert werden. Bitte prüfen Sie die markierten Felder.",
+  "care_evidence_not_found": "Diesen Nachweis gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+  "care_evidence_overlap": "Für diese Zeit gibt es schon einen Nachweis dieser Art. Beenden Sie zuerst den alten Nachweis."
 }

@@ -1,5 +1,7 @@
 import { Children, cloneElement, isValidElement } from "react";
+import { SectionLabel } from "~/components/ui/section-label";
 import { Inbox, Plus } from "lucide-react";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { EmptyState as UIEmptyState } from "~/components/ui/empty-state";
@@ -11,6 +13,7 @@ import {
 } from "~/components/ui/status-badge";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { LOCATION_COLORS } from "~/lib/location-helper";
+import { SwitchRow } from "~/components/ui/switch";
 
 /**
  * Label, control and its field error (#2519) for a control without a `label`
@@ -63,9 +66,13 @@ export function FormField({
 
 export function FieldWarning({ message }: { readonly message: string }) {
   return (
-    <p className="bg-moto-amber-soft text-moto-amber-strong mt-1 rounded px-2 py-1 text-xs">
-      {message}
-    </p>
+    <Alert
+      type="warning"
+      size="compact"
+      announce="polite"
+      message={message}
+      className="mt-1"
+    />
   );
 }
 
@@ -201,37 +208,18 @@ export function VisibilityToggle({
 }) {
   return (
     <div className="border-t border-gray-100 pt-4">
-      <p className="mb-3 text-xs font-medium text-gray-500 uppercase">
-        Sichtbarkeit
-      </p>
-      <div className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2">
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-gray-900">
-            {hidden ? "Verborgen" : "Sichtbar"}
-          </p>
-          <p className="text-xs text-gray-500">
-            {hidden
-              ? "Schule wird nicht auf der Startseite angezeigt, ist aber über den Direktlink erreichbar."
-              : "Schule wird auf der Startseite im Schulwähler angezeigt."}
-          </p>
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={!hidden}
-          aria-label="Sichtbarkeit umschalten"
-          onClick={onToggle}
-          className={`focus:ring-moto-blue relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:ring-2 focus:ring-offset-2 focus:outline-none ${
-            hidden ? "bg-gray-300" : "bg-moto-blue"
-          }`}
-        >
-          <span
-            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-              hidden ? "translate-x-0" : "translate-x-5"
-            }`}
-          />
-        </button>
-      </div>
+      <SectionLabel className="mb-3">Sichtbarkeit</SectionLabel>
+      <SwitchRow
+        label={hidden ? "Verborgen" : "Sichtbar"}
+        description={
+          hidden
+            ? "Schule wird nicht auf der Startseite angezeigt, ist aber über den Direktlink erreichbar."
+            : "Schule wird auf der Startseite im Schulwähler angezeigt."
+        }
+        checked={!hidden}
+        onCheckedChange={onToggle}
+        ariaLabel="Sichtbarkeit umschalten"
+      />
     </div>
   );
 }

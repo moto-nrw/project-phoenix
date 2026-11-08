@@ -4,8 +4,9 @@
  * Dokumente (#4671): the documents the Träger of the family's OGS sent to
  * this account: the confirmation letters of holiday registrations and the
  * letters of their Storno and Gutschrift (#4690), and the care contracts
- * (#4678), and the documents the Träger released for the parents, such as a
- * house rule (#4692).
+ * (#4678), the letters of the monthly invoices and their Storno (#4684),
+ * and the documents the Träger released for the parents, such as a house
+ * rule (#4692).
  * Each one downloads as the stored file. The Träger decides what is sent or
  * released; a care contract that waits for the signature links to the page
  * where the parents sign it (#4679).
@@ -42,6 +43,8 @@ const DOCUMENT_TITLES = {
   confirmation_letter: "confirmationLetter",
   cancellation_letter: "cancellationLetter",
   credit_letter: "creditLetter",
+  care_invoice_letter: "careInvoiceLetter",
+  care_cancellation_letter: "careCancellationLetter",
   care_contract: "careContract",
 } as const satisfies Record<ParentDocument["kind"], string>;
 
@@ -296,7 +299,57 @@ function ParentDocumentCard({
           {formatDate(document.sent_at, false, locale)}
         </DataField>
       </DataGrid>
+      {contract ? <ContractNoticeRow document={document} /> : null}
     </InboxDocumentCard>
+  );
+}
+
+/**
+ * The way to end a care contract (#4682, § 312k BGB): the button „Verträge
+ * hier kündigen“ on an active contract, or the end and the confirmation of
+ * one the parents or the Träger ended.
+ */
+function ContractNoticeRow({
+  document,
+}: Readonly<{ document: ParentDocument }>) {
+  const t = useTranslations("parentDocuments");
+  const locale = useLocale();
+  const href = `/documents/vertraege/${encodeURIComponent(document.organization_id)}/${encodeURIComponent(document.id)}`;
+  const status = document.contract_status;
+  if (status === "aktiv") {
+    // Only where the declaration would pass: without the relationship right
+    // the button would open a page that refuses (#4682).
+    return (
+      <div className="mt-4 border-t border-gray-100 pt-4">
+        {document.can_end_contract ? (
+          <ButtonLink href={href} variant="outline" size="md">
+            {t("cancelContract")}
+          </ButtonLink>
+        ) : (
+          <p className="text-sm text-gray-500">{t("cancelNotPermitted")}</p>
+        )}
+      </div>
+    );
+  }
+  if (status !== "gekuendigt" && status !== "widerrufen") return null;
+  return (
+    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-4">
+      <StatusBadge
+        label={
+          status === "widerrufen"
+            ? t("withdrawn")
+            : document.ends_on
+              ? t("terminatedOn", {
+                  date: formatDate(document.ends_on, false, locale),
+                })
+              : t("terminationInReview")
+        }
+        tone={status === "widerrufen" ? "red" : "orange"}
+      />
+      <ButtonLink href={href} variant="ghost" size="md">
+        {t("showConfirmation")}
+      </ButtonLink>
+    </div>
   );
 }
 

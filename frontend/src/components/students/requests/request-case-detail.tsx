@@ -27,6 +27,7 @@ import { ConflictDecisionGroup } from "./conflict-decision-group";
 import { RequestDecisionRow } from "./request-decision-row";
 import { OpenWithdrawalCard } from "./withdrawal-cards";
 import { childrenConcept } from "~/lib/concepts/children";
+import { SectionCard } from "~/components/ui/section-card";
 
 export function RequestCaseDetail({
   childCase,
@@ -85,103 +86,101 @@ export function RequestCaseDetail({
   const total = childCase.items.length + childCase.withdrawals.length;
 
   return (
-    <div
-      ref={paneRef}
-      tabIndex={-1}
-      className="moto-content-surface overflow-hidden rounded-2xl border focus:outline-none"
-    >
-      {narrow && (
-        <div className="px-4 pt-3 sm:px-5">
-          <Button
-            type="button"
-            variant="ghost"
-            size="md"
-            onClick={onBackToList}
-          >
-            Zur Liste
-          </Button>
-        </div>
-      )}
-      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 bg-gray-50/70 px-4 py-3 sm:px-5">
-        <div className="min-w-0">
-          <div className="flex min-w-0 items-center gap-2">
-            <MotoConceptIcon concept={childrenConcept} size={20} />
-            <h3 className="truncate font-semibold text-gray-900">
-              {childCase.studentName}
-            </h3>
+    <SectionCard padding="none">
+      <div ref={paneRef} tabIndex={-1} className="focus:outline-none">
+        {narrow && (
+          <div className="px-4 pt-3 sm:px-5">
+            <Button
+              type="button"
+              variant="ghost"
+              size="md"
+              onClick={onBackToList}
+            >
+              Zur Liste
+            </Button>
           </div>
-          <p className="text-sm font-medium text-gray-600">
-            {requestCount > 0 || expired === 0 ? (
-              <span>
-                {requestCount === 0 && decidedRequestCount(childCase) > 0
-                  ? "Freigegeben"
-                  : requestCount === 1
-                    ? "1 offene Anfrage"
-                    : `${requestCount} offene Anfragen`}
-              </span>
-            ) : null}
-            {expired > 0
-              ? `${requestCount > 0 ? " · " : ""}${expired === 1 ? "1 abgelaufene Anfrage" : `${expired} abgelaufene Anfragen`}`
-              : ""}
-            {typeLabels.length > 0 ? ` · ${typeLabels.join(", ")}` : ""}
-          </p>
-        </div>
-        {childCase.studentID && childCase.familyProtected !== undefined ? (
-          <FamilyProtectionControl
-            studentId={childCase.studentID}
-            canManage={canManageFamilyProtection}
-            initialEnabled={childCase.familyProtected}
-            compact
-            onChanged={(enabled) =>
-              onProtectionChanged(childCase.studentID!, enabled)
-            }
-          />
-        ) : null}
-      </header>
-      {childCase.conflicts.length > 0 && (
-        <div className="space-y-3 border-b border-gray-100 bg-gray-50/40 p-4 sm:p-5">
-          {childCase.conflicts.map((group) => (
-            <ConflictDecisionGroup
-              key={group.key}
-              group={group}
-              onResolved={(notice: string) => {
-                onNotice(notice);
-                onReload();
-              }}
+        )}
+        <header className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 bg-gray-50/70 px-4 py-3 sm:px-5">
+          <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-2">
+              <MotoConceptIcon concept={childrenConcept} size={20} />
+              <h3 className="truncate font-semibold text-gray-900">
+                {childCase.studentName}
+              </h3>
+            </div>
+            <p className="text-sm font-medium text-gray-600">
+              {requestCount > 0 || expired === 0 ? (
+                <span>
+                  {requestCount === 0 && decidedRequestCount(childCase) > 0
+                    ? "Freigegeben"
+                    : requestCount === 1
+                      ? "1 offene Anfrage"
+                      : `${requestCount} offene Anfragen`}
+                </span>
+              ) : null}
+              {expired > 0
+                ? `${requestCount > 0 ? " · " : ""}${expired === 1 ? "1 abgelaufene Anfrage" : `${expired} abgelaufene Anfragen`}`
+                : ""}
+              {typeLabels.length > 0 ? ` · ${typeLabels.join(", ")}` : ""}
+            </p>
+          </div>
+          {childCase.studentID && childCase.familyProtected !== undefined ? (
+            <FamilyProtectionControl
+              studentId={childCase.studentID}
+              canManage={canManageFamilyProtection}
+              initialEnabled={childCase.familyProtected}
+              compact
+              onChanged={(enabled) =>
+                onProtectionChanged(childCase.studentID!, enabled)
+              }
+            />
+          ) : null}
+        </header>
+        {childCase.conflicts.length > 0 && (
+          <div className="space-y-3 border-b border-gray-100 bg-gray-50/40 p-4 sm:p-5">
+            {childCase.conflicts.map((group) => (
+              <ConflictDecisionGroup
+                key={group.key}
+                group={group}
+                onResolved={(notice: string) => {
+                  onNotice(notice);
+                  onReload();
+                }}
+                onStale={onReload}
+              />
+            ))}
+          </div>
+        )}
+        <div>
+          {childCase.items.map((request, index) => (
+            <RequestDecisionRow
+              key={itemKey(request)}
+              request={request}
+              selected={selected.has(itemKey(request))}
+              position={index + 1}
+              total={total}
+              inConflict={conflicted.has(itemKey(request))}
+              approveReasonRequired={reasonRequired}
+              onSelectionChange={onSelectionChange}
+              onDecided={onDecided}
+              onHold={onHold}
+              held={held?.get(itemKey(request))}
               onStale={onReload}
             />
           ))}
+          {childCase.withdrawals.map((row, index) => (
+            <OpenWithdrawalCard
+              key={`care_withdrawal:${row.id}`}
+              row={row}
+              grouped
+              position={childCase.items.length + index + 1}
+              total={total}
+              finish={finishWithdrawal}
+              remove={removeWithdrawal}
+            />
+          ))}
         </div>
-      )}
-      <div>
-        {childCase.items.map((request, index) => (
-          <RequestDecisionRow
-            key={itemKey(request)}
-            request={request}
-            selected={selected.has(itemKey(request))}
-            position={index + 1}
-            total={total}
-            inConflict={conflicted.has(itemKey(request))}
-            approveReasonRequired={reasonRequired}
-            onSelectionChange={onSelectionChange}
-            onDecided={onDecided}
-            onHold={onHold}
-            held={held?.get(itemKey(request))}
-            onStale={onReload}
-          />
-        ))}
-        {childCase.withdrawals.map((row, index) => (
-          <OpenWithdrawalCard
-            key={`care_withdrawal:${row.id}`}
-            row={row}
-            grouped
-            position={childCase.items.length + index + 1}
-            total={total}
-            finish={finishWithdrawal}
-            remove={removeWithdrawal}
-          />
-        ))}
       </div>
-    </div>
+    </SectionCard>
   );
 }

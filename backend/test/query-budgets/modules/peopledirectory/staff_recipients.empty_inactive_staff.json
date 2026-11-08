@@ -1,6 +1,7 @@
 {
   "scenario": "modules.peopledirectory.staff_recipients.empty_inactive_staff",
-  "max": 8,
+  "max": 7,
   "exact": true,
-  "description": "Real recipient router with 3 and 12 globally inactive staff accounts. Complete request including tenant frame, settings, school staff/employment profiles, batched person-account resolution and active-school account filtering; no final empty recipient identity hydration or writes."
+  "description": "Real recipient router with 3 and 12 globally inactive staff accounts. Complete request including tenant frame, settings, school staff/employment profiles, batched person-account resolution and active-school account filtering; no final empty recipient identity hydration or writes.",
+  "route": "GET /api/staff-messages/recipients"
 }

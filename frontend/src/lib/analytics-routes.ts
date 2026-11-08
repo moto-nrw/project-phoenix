@@ -147,6 +147,8 @@ export const TRACKED_PARENT_ROUTE_TEMPLATES = [
   "/demo",
   // Dokumente des Trägers (#4671).
   "/documents",
+  // Kündigung und Widerruf eines Betreuungsvertrags (#4682).
+  "/documents/vertraege/:organizationId/:contractId",
   // Einen Betreuungsvertrag lesen und unterschreiben (#4679).
   "/documents/vertrag/:organizationId/:contractId",
   // Öffentliche Ferienanmeldung eines Trägers (#4661), ohne Konto.
@@ -199,8 +201,14 @@ export const TRACKED_TRAEGER_ROUTE_TEMPLATES = [
   "/",
   "/abrechnung",
   "/abrechnung/:id",
+  "/abrechnung/ermaessigungen",
   "/abrechnung/familien",
   "/abrechnung/familien/:id",
+  "/abrechnung/monatsbeitraege",
+  "/abrechnung/monatsbeitraege/:id",
+  "/abrechnung/monatsbeitraege/:id/schreiben",
+  "/abrechnung/nachweise",
+  "/abrechnung/preise",
   "/belegung",
   "/dokumente",
   "/dokumente/:id",

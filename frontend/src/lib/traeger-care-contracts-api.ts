@@ -7,7 +7,7 @@
  */
 
 import type { MailOutcome } from "~/lib/email-delivery-status";
-import { apiErrorFromBody, transportFetch } from "./api-error";
+import { apiErrorFromResponse, transportFetch } from "./api-error";
 import { filenameFromDisposition } from "./file-download";
 import { traegerRequest } from "./traeger-api";
 
@@ -16,10 +16,11 @@ const TEMPLATES_PATH = "/api/traeger/contract-templates";
 
 /**
  * Every state of ADR 0088. The office reaches draft and sent; the conclusion
- * at the acceptance (#4680) or the signature (#4679) reaches active.
+ * at the acceptance (#4680) or the signature (#4679) reaches active; a
+ * termination or a withdrawal (#4682) ends an active contract.
  */
 export type CareContractStatus =
-  "entwurf" | "versendet" | "unterschrieben" | "aktiv" | "beendet";
+  "entwurf" | "versendet" | "aktiv" | "gekuendigt" | "widerrufen" | "beendet";
 
 export type ContractTermKind = "open_ended" | "school_year" | "fixed_months";
 export type ContractNoticeTo = "month_end" | "half_year" | "school_year_end";
@@ -47,6 +48,15 @@ interface ContractTemplate extends ContractTerms {
 /** One offering of a school with its template, or none yet. */
 export interface OfferingTemplate {
   readonly acceptanceText?: string;
+  /**
+   * The withdrawal notice and the block for an early start the school adds
+   * to the enrollment form (#4682); empty like `acceptanceText`.
+   */
+  readonly withdrawalText?: string;
+  readonly earlyStartText?: string;
+  /** The term and the notice period as the PDF prints them. */
+  readonly termText: string;
+  readonly noticeText: string;
   readonly schoolId: string;
   readonly schoolName: string;
   readonly offeringId: string;
@@ -109,6 +119,8 @@ export interface ContractCandidate extends CandidateKey {
   readonly services: readonly ContractService[];
   readonly effectiveFrom: string;
   readonly templateIssue: TemplateIssue | null;
+  /** The booked modules as the contract names them: „A, B und C“. */
+  readonly modulesText: string;
   /**
    * Why a mail to the parents' address would stay back now, for a child the
    * conclusion at the acceptance could conclude (#4680); null otherwise.
@@ -125,7 +137,6 @@ export type ConclusionMethod =
 
 export interface ContractConclusion {
   readonly method: ConclusionMethod;
-  /** The instant of the conclusion. */
   readonly at: string;
 }
 
@@ -149,6 +160,8 @@ export interface CareContractSummary {
   readonly childFirstName: string;
   readonly childLastName: string;
   readonly moduleNames: readonly string[];
+  /** The modules as the contract names them: „A, B und C“. */
+  readonly modulesText: string;
   readonly partyName: string;
   readonly partyEmail: string;
   readonly effectiveFrom: string;
@@ -156,6 +169,8 @@ export interface CareContractSummary {
   readonly sentAt: string | null;
   /** Null until the contract is concluded. */
   readonly concluded: ContractConclusion | null;
+  /** Last day of a terminated contract (#4682); null otherwise. */
+  readonly endsOn: string | null;
 }
 
 export interface CareContractList {
@@ -173,7 +188,6 @@ type ContractVersionStatus =
 /** Where a version came from: the conclusion or an approved change. */
 type ContractVersionSource = "abschluss" | "buchungsaenderung";
 
-/** One version of a contract with the days it holds (#4681). */
 export interface ContractVersion {
   readonly number: number;
   readonly status: ContractVersionStatus;
@@ -223,9 +237,15 @@ export interface CareContractDetail extends CareContractSummary {
     readonly number: number;
     readonly sentAt: string;
   }[];
+  /**
+   * Term up to the contract's last day, notice period and monthly fee of the
+   * version above, as the contract PDF prints them.
+   */
+  readonly termText: string;
+  readonly noticeText: string;
+  readonly feeText: string;
 }
 
-/** How a contract was signed (#4679). */
 export interface ContractSignature {
   readonly method: "drawn" | "typed" | "paper";
   readonly channel: "parent_account" | "mail_link" | "office";
@@ -296,6 +316,10 @@ interface BackendTemplate extends BackendTerms {
 
 interface BackendOfferingTemplate {
   acceptance_text?: string;
+  withdrawal_text?: string;
+  early_start_text?: string;
+  term_text?: string;
+  notice_text?: string;
   school_id: number;
   school_name: string;
   offering_id: number;
@@ -328,6 +352,7 @@ interface BackendCandidate {
   services: BackendService[] | null;
   effective_from: string;
   template_issue: TemplateIssue | "";
+  modules_text?: string;
 }
 
 interface BackendSummary {
@@ -338,12 +363,14 @@ interface BackendSummary {
   child_first_name: string;
   child_last_name: string;
   module_names: string[] | null;
+  modules_text?: string;
   party_name: string;
   party_email: string;
   effective_from: string;
   created_at: string;
   sent_at: string | null;
   concluded?: { method: ConclusionMethod; at: string } | null;
+  ends_on?: string | null;
 }
 
 interface BackendDetail extends BackendSummary {
@@ -392,6 +419,9 @@ interface BackendDetail extends BackendSummary {
   } | null;
   reminders?: { number: number; sent_at: string }[] | null;
   versions?: BackendVersion[] | null;
+  term_text?: string;
+  notice_text?: string;
+  fee_text?: string;
 }
 
 interface BackendVersion {
@@ -438,6 +468,10 @@ function termsToBackend(terms: ContractTerms): BackendTerms {
 function offeringFromBackend(row: BackendOfferingTemplate): OfferingTemplate {
   return {
     acceptanceText: row.acceptance_text ?? "",
+    withdrawalText: row.withdrawal_text ?? "",
+    earlyStartText: row.early_start_text ?? "",
+    termText: row.term_text ?? "",
+    noticeText: row.notice_text ?? "",
     schoolId: String(row.school_id),
     schoolName: row.school_name,
     offeringId: String(row.offering_id),
@@ -478,6 +512,7 @@ function candidateFromBackend(row: BackendCandidate): ContractCandidate {
     services: servicesFromBackend(row.services),
     effectiveFrom: row.effective_from,
     templateIssue: row.template_issue === "" ? null : row.template_issue,
+    modulesText: row.modules_text ?? "",
     acceptanceIssue: row.acceptance_issue ? row.acceptance_issue : null,
     mailBlock: row.mail_block ? row.mail_block : null,
   };
@@ -492,6 +527,7 @@ function summaryFromBackend(row: BackendSummary): CareContractSummary {
     childFirstName: row.child_first_name,
     childLastName: row.child_last_name,
     moduleNames: row.module_names ?? [],
+    modulesText: row.modules_text ?? "",
     partyName: row.party_name,
     partyEmail: row.party_email,
     effectiveFrom: row.effective_from,
@@ -500,6 +536,7 @@ function summaryFromBackend(row: BackendSummary): CareContractSummary {
     concluded: row.concluded
       ? { method: row.concluded.method, at: row.concluded.at }
       : null,
+    endsOn: row.ends_on ?? null,
   };
 }
 
@@ -561,6 +598,9 @@ function detailFromBackend(row: BackendDetail): CareContractDetail {
       services: servicesFromBackend(version.services),
       createdAt: version.created_at,
     })),
+    termText: row.term_text ?? "",
+    noticeText: row.notice_text ?? "",
+    feeText: row.fee_text ?? "",
   };
 }
 
@@ -601,7 +641,6 @@ export async function fetchCareContracts(
   };
 }
 
-/** How the contracts of every school of the Träger come about (#4680). */
 export async function fetchConclusionModes(): Promise<SchoolConclusionMode[]> {
   const rows = await traegerRequest<
     { school_id: number; school_name: string; mode: ConclusionMode }[] | null
@@ -741,28 +780,23 @@ export async function downloadCareContractVersion(
   );
 }
 
-async function downloadContractFile(path: string): Promise<ContractFile> {
+async function downloadContractFile(
+  path: string,
+  fallbackFilename = "betreuungsvertrag.pdf",
+): Promise<ContractFile> {
   const response = await transportFetch(path, {
     credentials: "include",
     cache: "no-store",
   });
   if (!response.ok) {
-    const text = await response.text();
-    let body: unknown = null;
-    try {
-      body = text ? (JSON.parse(text) as unknown) : null;
-    } catch {
-      body = null;
-    }
-    throw apiErrorFromBody(
+    throw await apiErrorFromResponse(
+      response,
       `Request failed (${response.status})`,
-      response.status,
-      body,
     );
   }
   return {
     blob: await response.blob(),
-    filename: filenameFromDisposition(response) ?? "betreuungsvertrag.pdf",
+    filename: filenameFromDisposition(response) ?? fallbackFilename,
   };
 }
 
@@ -809,45 +843,18 @@ export async function recordPaperSignature(
     body: form,
   });
   if (!response.ok) {
-    const text = await response.text();
-    let body: unknown = null;
-    try {
-      body = text ? (JSON.parse(text) as unknown) : null;
-    } catch {
-      body = null;
-    }
-    throw apiErrorFromBody(
+    throw await apiErrorFromResponse(
+      response,
       `Request failed (${response.status})`,
-      response.status,
-      body,
     );
   }
 }
 
-/** The uploaded PDF of a contract signed on paper. */
 export async function downloadPaperSignature(
   id: string,
 ): Promise<ContractFile> {
-  const response = await transportFetch(`${contractPath(id)}/paper-signature`, {
-    credentials: "include",
-    cache: "no-store",
-  });
-  if (!response.ok) {
-    const text = await response.text();
-    let body: unknown = null;
-    try {
-      body = text ? (JSON.parse(text) as unknown) : null;
-    } catch {
-      body = null;
-    }
-    throw apiErrorFromBody(
-      `Request failed (${response.status})`,
-      response.status,
-      body,
-    );
-  }
-  return {
-    blob: await response.blob(),
-    filename: filenameFromDisposition(response) ?? "vertrag-papier.pdf",
-  };
+  return downloadContractFile(
+    `${contractPath(id)}/paper-signature`,
+    "vertrag-papier.pdf",
+  );
 }

@@ -41,7 +41,7 @@ func TestListCareWithdrawalsQueryBudget(t *testing.T) {
 	counter := testpkg.CaptureQueries(t, tc.db)
 
 	type measurement struct {
-		statements []string
+		statements testpkg.QueryMeasurement
 		rows       int64
 		total      int
 		items      int
@@ -58,7 +58,7 @@ func TestListCareWithdrawalsQueryBudget(t *testing.T) {
 		}
 		require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
 		rows, _ := counter.Rows()
-		return measurement{statements: counter.Queries(), rows: rows, total: body.Data.Total, items: len(body.Data.Items)}
+		return measurement{statements: counter.Measurement(counter.Queries()), rows: rows, total: body.Data.Total, items: len(body.Data.Items)}
 	}
 
 	const page, search = "?page_size=1", "?page_size=1&search=abmeldebudget"
@@ -74,11 +74,11 @@ func TestListCareWithdrawalsQueryBudget(t *testing.T) {
 		small, large measurement
 	}{{"page", smallPage, largePage}, {"search", smallSearch, largeSearch}} {
 		t.Logf("%s: 1 child → %d statements/%d rows, 4 children → %d statements/%d rows",
-			pair.name, len(pair.small.statements), pair.small.rows, len(pair.large.statements), pair.large.rows)
+			pair.name, len(pair.small.statements.Statements), pair.small.rows, len(pair.large.statements.Statements), pair.large.rows)
 		assert.Equal(t, 1, pair.small.total, pair.name)
 		assert.Equal(t, 4, pair.large.total, "%s: total counts the filtered queue, not the page", pair.name)
 		assert.Equal(t, 1, pair.large.items, "%s: the page holds page_size tasks", pair.name)
-		assert.Len(t, pair.large.statements, len(pair.small.statements),
+		assert.Len(t, pair.large.statements.Statements, len(pair.small.statements.Statements),
 			"%s: statement count must not grow with the queue", pair.name)
 		assert.Equal(t, pair.small.rows, pair.large.rows,
 			"%s: rows read must not grow with the queue; only the requested page may be loaded", pair.name)

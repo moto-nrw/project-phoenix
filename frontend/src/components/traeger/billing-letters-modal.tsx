@@ -3,7 +3,8 @@
 // Bestätigungsschreiben eines freigegebenen Laufs erstellen (#4669):
 // Zahlungsfrist, Hinweise für die Eltern (Packliste, Krankheitsregel) und
 // die Notfallnummern der ausrichtenden OGS. Die Vorschau zeigt das Schreiben
-// der ersten Familie; erstellt werden alle Schreiben einmal.
+// der ersten Familie; erstellt werden alle Schreiben einmal. Ein Monatslauf
+// (#4684) nimmt dasselbe Formular mit eigener Quelle, ohne Notfallnummern.
 
 import { Plus, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -19,11 +20,31 @@ import { downloadBlob } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
 import {
   type BillingEmergencyContact,
+  type BillingFile,
   type BillingLetters,
   type BillingLettersInput,
   createBillingLetters,
   previewBillingLetter,
 } from "~/lib/traeger-billing-api";
+
+/**
+ * Where the letters of another kind of run come from (#4684): its own
+ * create and preview, its own words, and no emergency numbers.
+ */
+export interface LetterSource<T> {
+  readonly create: (input: {
+    paymentDueOn: string;
+    notes: string;
+  }) => Promise<T>;
+  readonly preview: (input: {
+    paymentDueOn: string;
+    notes: string;
+  }) => Promise<BillingFile>;
+  /** The sentence above the fields. */
+  readonly intro: string;
+  readonly notesLabel: string;
+  readonly notesPlaceholder: string;
+}
 
 const logger = createLogger({ component: "BillingLettersModal" });
 
@@ -97,17 +118,21 @@ function ContactRow({
   );
 }
 
-export function BillingLettersModal({
+export function BillingLettersModal<T = BillingLetters>({
   runId,
   isOpen,
   onClose,
   onCreated,
+  source,
 }: Readonly<{
   runId: string;
   isOpen: boolean;
   onClose: () => void;
-  onCreated: (letters: BillingLetters) => void;
+  onCreated: (letters: T) => void;
+  /** Another kind of run; without it the holiday letters of `runId`. */
+  source?: LetterSource<T>;
 }>) {
+  const withContacts = source === undefined;
   const [dueDate, setDueDate] = useState("");
   // The date field keeps the last valid date while the typed one is not;
   // nothing goes out until the field holds a valid date again.
@@ -126,9 +151,9 @@ export function BillingLettersModal({
     setDueDate(defaultDueDate());
     setDueDateValid(true);
     setNotes("");
-    setContacts([{ name: "", phone: "" }]);
+    setContacts(withContacts ? [{ name: "", phone: "" }] : []);
     clearErrors();
-  }, [isOpen, clearErrors]);
+  }, [isOpen, clearErrors, withContacts]);
 
   // An empty row is no emergency number; a half-filled one is a mistake.
   const filled = contacts.filter(
@@ -170,7 +195,9 @@ export function BillingLettersModal({
     const tab = globalThis.open("", "_blank");
     setPreviewing(true);
     try {
-      const file = await previewBillingLetter(runId, value);
+      const file = source
+        ? await source.preview(value)
+        : await previewBillingLetter(runId, value);
       const url = URL.createObjectURL(file.blob);
       if (tab) {
         tab.location.href = url;
@@ -196,7 +223,9 @@ export function BillingLettersModal({
     if (!value) return;
     setSaving(true);
     try {
-      const letters = await createBillingLetters(runId, value);
+      const letters = source
+        ? await source.create(value)
+        : ((await createBillingLetters(runId, value)) as T);
       success("Die Schreiben sind erstellt.");
       onCreated(letters);
     } catch (err) {
@@ -253,9 +282,8 @@ export function BillingLettersModal({
         }}
       >
         <p className="text-sm text-gray-700">
-          Jede Familie bekommt ein Schreiben mit ihrer Rechnung. Was Sie hier
-          eingeben, steht in allen Schreiben. Danach lässt sich nichts mehr
-          ändern.
+          {source?.intro ??
+            "Jede Familie bekommt ein Schreiben mit ihrer Rechnung. Was Sie hier eingeben, steht in allen Schreiben. Danach lässt sich nichts mehr ändern."}
         </p>
         <ISODateInput
           id="payment_due_on"
@@ -270,8 +298,9 @@ export function BillingLettersModal({
         <Textarea
           id="billing-letters-notes"
           name="notes"
-          label="Hinweise für die Eltern (freiwillig)"
+          label={source?.notesLabel ?? "Hinweise für die Eltern (freiwillig)"}
           placeholder={
+            source?.notesPlaceholder ??
             "Zum Beispiel: Bitte denken Sie an Frühstück, Wechselkleidung und Hausschuhe.\nKinder mit ansteckenden Krankheiten bleiben zu Hause."
           }
           rows={5}
@@ -280,48 +309,53 @@ export function BillingLettersModal({
           error={formErrors.fieldError("notes") ?? undefined}
           onChange={(event) => setNotes(event.target.value)}
         />
-        <fieldset className="space-y-3" id="emergency_contacts">
-          <legend className="text-sm font-medium text-gray-700">
-            Notfallnummern der Betreuung (freiwillig)
-          </legend>
-          <p className="text-sm text-gray-600">
-            Unter diesen Nummern erreichen Eltern die Betreuung, wenn ihr Kind
-            krank ist.
-          </p>
-          {contacts.map((contact, index) => (
-            <ContactRow
-              // Rows have no ID of their own; the position is the row.
-              // oxlint-disable-next-line react/no-array-index-key
-              key={index}
-              index={index}
-              contact={contact}
-              error={index === incomplete ? (contactsError ?? null) : null}
-              onChange={(next) =>
-                setContacts((current) =>
-                  current.map((row, at) => (at === index ? next : row)),
-                )
-              }
-              onRemove={() =>
-                setContacts((current) =>
-                  current.filter((_, at) => at !== index),
-                )
-              }
-            />
-          ))}
-          {contacts.length < MAX_CONTACTS ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={() =>
-                setContacts((current) => [...current, { name: "", phone: "" }])
-              }
-            >
-              <Plus className="mr-1 h-4 w-4" aria-hidden="true" />
-              Notfallnummer hinzufügen
-            </Button>
-          ) : null}
-        </fieldset>
+        {withContacts ? (
+          <fieldset className="space-y-3" id="emergency_contacts">
+            <legend className="text-sm font-medium text-gray-700">
+              Notfallnummern der Betreuung (freiwillig)
+            </legend>
+            <p className="text-sm text-gray-600">
+              Unter diesen Nummern erreichen Eltern die Betreuung, wenn ihr Kind
+              krank ist.
+            </p>
+            {contacts.map((contact, index) => (
+              <ContactRow
+                // Rows have no ID of their own; the position is the row.
+                // oxlint-disable-next-line react/no-array-index-key
+                key={index}
+                index={index}
+                contact={contact}
+                error={index === incomplete ? (contactsError ?? null) : null}
+                onChange={(next) =>
+                  setContacts((current) =>
+                    current.map((row, at) => (at === index ? next : row)),
+                  )
+                }
+                onRemove={() =>
+                  setContacts((current) =>
+                    current.filter((_, at) => at !== index),
+                  )
+                }
+              />
+            ))}
+            {contacts.length < MAX_CONTACTS ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={() =>
+                  setContacts((current) => [
+                    ...current,
+                    { name: "", phone: "" },
+                  ])
+                }
+              >
+                <Plus className="mr-1 h-4 w-4" aria-hidden="true" />
+                Notfallnummer hinzufügen
+              </Button>
+            ) : null}
+          </fieldset>
+        ) : null}
       </form>
     </FormModal>
   );

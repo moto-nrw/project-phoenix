@@ -81,7 +81,7 @@ func TestTrackingIndicatorsIssuesOneSettingValuesQuery(t *testing.T) {
 		req := httptest.NewRequest("POST", "/tracking-indicators", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
 		counter.Reset()
-		rr := testutil.ExecuteWithAuth(t, router, req, testutil.AdminTestClaimsForTenant(1, tenantID))
+		rr := testutil.ExecuteWithAuth(t, testpkg.MountedQueryBudgetRouter("/api/active", router), req, testutil.AdminTestClaimsForTenant(1, tenantID))
 		queries := counter.Selects("config.setting_values")
 		require.Equal(t, testutil.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 
@@ -100,6 +100,6 @@ func TestTrackingIndicatorsIssuesOneSettingValuesQuery(t *testing.T) {
 		}
 		t.Logf("students N=%d: %d setting_values statements", n, len(queries))
 		// Toggle + three label keys must share one read at every cardinality.
-		querybudgets.AssertQueryBudget(t, "api.active.tracking_indicators.setting_values", queries)
+		querybudgets.AssertQueryBudget(t, "api.active.tracking_indicators.setting_values", counter.Measurement(queries))
 	}
 }

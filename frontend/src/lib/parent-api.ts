@@ -1,4 +1,5 @@
 import type { ParentConferenceOffer } from "~/lib/parent-conferences";
+import type { CareContractStatus } from "./traeger-care-contracts-api";
 import {
   ApiError,
   transportFetch as fetchTransport,
@@ -40,6 +41,13 @@ import type {
 } from "~/lib/enrollment-submission-api";
 
 import { boundSessionAccount } from "~/lib/session-account";
+import {
+  type BackendNoticeOptions,
+  type ContractNoticeOptions,
+  declarationBody,
+  type NoticeDeclaration,
+  noticeOptionsFromBackend,
+} from "~/lib/care-contract-notices";
 import {
   isParentAccessRefusal,
   PARENT_ACCESS_REFUSED_EVENT,
@@ -2453,12 +2461,15 @@ export interface ParentDocument {
   readonly traeger_name: string;
   /**
    * The confirmation letter, the letter of its Storno or Gutschrift (#4690),
-   * or a care contract (#4678).
+   * a care contract (#4678), or the letter of a monthly invoice and of its
+   * Storno (#4684), named „Monatsbeitrag Januar 2027“ in `period_name`.
    */
   readonly kind:
     | "confirmation_letter"
     | "cancellation_letter"
     | "credit_letter"
+    | "care_invoice_letter"
+    | "care_cancellation_letter"
     | "care_contract";
   readonly number: string;
   readonly period_name: string;
@@ -2469,7 +2480,7 @@ export interface ParentDocument {
   readonly child_names: readonly string[];
   readonly sent_at: string;
   /** The state of a care contract (#4679); absent for a letter. */
-  readonly contract_status?: string;
+  readonly contract_status?: CareContractStatus;
   readonly can_sign?: boolean;
   readonly signed_at?: string | null;
   /**
@@ -2478,6 +2489,13 @@ export interface ParentDocument {
    * `service_from`.
    */
   readonly replaced?: boolean;
+  /** The last day of a terminated care contract (#4682). */
+  readonly ends_on?: string;
+  /**
+   * The account may withdraw or terminate this contract: its relationship
+   * to the child grants the right (#4682). Absent when it may only read.
+   */
+  readonly can_end_contract?: boolean;
 }
 
 /**
@@ -2584,5 +2602,41 @@ export async function downloadMyDocument(
   downloadBlob(
     blob,
     filenameFromDisposition(response) ?? `dokument-${document.number}.pdf`,
+  );
+}
+
+// ── Kündigung und Widerruf (#4682) ─────────────────────────────────────────
+
+const contractNoticePath = (organizationId: string, contractId: string) =>
+  `/api/parent/me/documents/${encodeURIComponent(organizationId)}/contracts/${encodeURIComponent(contractId)}/notice`;
+
+/**
+ * What the parents can declare today on a care contract sent to them, or
+ * the declaration made. 403 without the relationship right to bind the
+ * family (parent_portal.enrollment.submit), 404 for a contract outside the
+ * inbox.
+ */
+export async function fetchMyContractNoticeOptions(
+  organizationId: string,
+  contractId: string,
+): Promise<ContractNoticeOptions> {
+  return noticeOptionsFromBackend(
+    await getJson<BackendNoticeOptions>(
+      contractNoticePath(organizationId, contractId),
+    ),
+  );
+}
+
+/** The parents' „jetzt kündigen“ or „jetzt widerrufen“ (§ 312k BGB). */
+export async function declareMyContractNotice(
+  organizationId: string,
+  contractId: string,
+  declaration: NoticeDeclaration,
+): Promise<ContractNoticeOptions> {
+  return noticeOptionsFromBackend(
+    await postJson<BackendNoticeOptions>(
+      contractNoticePath(organizationId, contractId),
+      declarationBody(declaration),
+    ),
   );
 }

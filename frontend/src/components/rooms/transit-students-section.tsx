@@ -1,10 +1,11 @@
 "use client";
 
+import { SECTION_LABEL_CLASS } from "~/components/ui/section-label";
 import { EmptyState } from "~/components/ui/empty-state";
 import { me as meKeys } from "~/lib/swr/me";
 import { rooms as roomsKeys } from "~/lib/swr/rooms";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, ExternalLink } from "lucide-react";
+import { ChevronDown, ExternalLink } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import type { Session } from "next-auth";
@@ -40,6 +41,7 @@ import {
 import { transitConcept } from "~/lib/concepts/transit";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { Loading } from "~/components/ui/loading";
+import { Checkbox } from "~/components/ui/checkbox";
 import { SectionCard } from "~/components/ui/section-card";
 
 const EMPTY_STUDENTS: Student[] = [];
@@ -403,7 +405,10 @@ export function TransitStudentsSection({
 
   return (
     <section aria-label="Kinder unterwegs">
-      <SectionCard overflow="visible">
+      <SectionCard
+        overflow="visible"
+        title={collapsible ? undefined : "Kinder unterwegs"}
+      >
         {collapsible ? (
           <button
             type="button"
@@ -417,7 +422,7 @@ export function TransitStudentsSection({
               aria-hidden="true"
             />
             <span className="min-w-0 flex-1">
-              <span className="block text-xs font-semibold tracking-wider text-gray-500 uppercase">
+              <span className={`block ${SECTION_LABEL_CLASS}`}>
                 Kinder unterwegs
               </span>
               <span className="block truncate text-sm text-gray-600">
@@ -433,17 +438,12 @@ export function TransitStudentsSection({
             />
           </button>
         ) : (
-          <>
-            <h2 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
-              Kinder unterwegs
-            </h2>
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <p className="text-sm text-gray-600">
-                <span className="font-medium text-gray-900">{totalCount}</span>{" "}
-                {totalCount === 1 ? "Kind" : "Kinder"} ohne Raum
-              </p>
-            </div>
-          </>
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <p className="text-sm text-gray-600">
+              <span className="font-medium text-gray-900">{totalCount}</span>{" "}
+              {totalCount === 1 ? "Kind" : "Kinder"} ohne Raum
+            </p>
+          </div>
         )}
 
         {isExpanded && loadError ? (
@@ -528,7 +528,7 @@ export function TransitStudentsSection({
 
             <div className="mt-4 flex flex-col gap-2">
               {studentsLoading && students.length === 0 ? (
-                <Loading fullPage={false} message="Kinder werden geladen …" />
+                <Loading message="Kinder werden geladen …" />
               ) : studentsError ? null : students.length === 0 ? (
                 <EmptyState
                   variant="dashed"
@@ -549,28 +549,16 @@ export function TransitStudentsSection({
                       className="gap-2"
                     >
                       {attendanceWebEnabled ? (
-                        <button
-                          type="button"
-                          role="checkbox"
-                          aria-checked={checked}
-                          aria-label={`${fullName} auswählen`}
-                          onClick={() => toggleSelected(studentId)}
-                          className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
+                        <label
+                          htmlFor={`transit-select-${studentId}`}
+                          className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left"
                         >
-                          <span
-                            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border shadow-sm transition-all ${
-                              checked
-                                ? "border-gray-900 bg-gray-900"
-                                : "border-gray-300 bg-white"
-                            }`}
-                            aria-hidden="true"
-                          >
-                            <Check
-                              className={`h-3.5 w-3.5 text-white transition-opacity ${
-                                checked ? "opacity-100" : "opacity-0"
-                              }`}
-                            />
-                          </span>
+                          <Checkbox
+                            id={`transit-select-${studentId}`}
+                            checked={checked}
+                            aria-label={`${fullName} auswählen`}
+                            onChange={() => toggleSelected(studentId)}
+                          />
                           <CompactStudentCard
                             studentId={student.id}
                             firstName={student.first_name}
@@ -580,7 +568,7 @@ export function TransitStudentsSection({
                             photoUrl={student.photo_url ?? null}
                             chrome="plain"
                           />
-                        </button>
+                        </label>
                       ) : (
                         <div className="min-w-0 flex-1">
                           <CompactStudentCard

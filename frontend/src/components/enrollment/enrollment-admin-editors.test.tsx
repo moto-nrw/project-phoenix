@@ -563,6 +563,41 @@ describe("CareOfferingsEditor", () => {
     });
   });
 
+  // #6044: the checkbox read „Für alle Klassenstufen“ while it was NOT
+  // ticked for an unrestricted offering, and ticking it restricted the
+  // offering. A school ticked it to mean „for everyone“. The label must say
+  // what a tick does, in both states.
+  it("names the availability checkbox after what a tick does", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([]);
+
+    render(<CareOfferingsEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Neues Betreuungsangebot",
+      }),
+    );
+
+    const restrict = screen.getByRole("checkbox", {
+      name: /^Nur für bestimmte Klassenstufen anbieten/,
+    });
+    expect(restrict).not.toBeChecked();
+    expect(
+      screen.getByText("Ohne Haken können alle Kinder das Angebot wählen."),
+    ).toBeVisible();
+
+    fireEvent.click(restrict);
+
+    expect(
+      screen.getByRole("checkbox", {
+        name: /^Nur für bestimmte Klassenstufen anbieten/,
+      }),
+    ).toBeChecked();
+    expect(
+      screen.getByText("Bedingung 1: Wählen Sie mindestens eine Klassenstufe."),
+    ).toBeVisible();
+  });
+
   it("edits availability rules without JSON and blocks incomplete rules", async () => {
     mocks.listPhases.mockResolvedValue([phase()]);
     mocks.listCareOfferings.mockResolvedValue([]);
@@ -579,7 +614,7 @@ describe("CareOfferingsEditor", () => {
 
     expect(
       screen.getByRole("checkbox", {
-        name: /Für alle Klassenstufen \/ ohne Bedingungen/,
+        name: /^Nur für bestimmte Klassenstufen anbieten/,
       }),
     ).not.toBeChecked();
     fireEvent.change(await waitForInputByName("name"), {
@@ -589,7 +624,7 @@ describe("CareOfferingsEditor", () => {
     setPickupTime("Mo");
     fireEvent.click(
       screen.getByRole("checkbox", {
-        name: /Für alle Klassenstufen \/ ohne Bedingungen/,
+        name: /^Nur für bestimmte Klassenstufen anbieten/,
       }),
     );
 
@@ -975,7 +1010,7 @@ describe("CareOfferingsEditor", () => {
     );
     fireEvent.click(
       await screen.findByRole("checkbox", {
-        name: /Für alle Klassenstufen \/ ohne Bedingungen/,
+        name: /^Nur für bestimmte Klassenstufen anbieten/,
       }),
     );
   }
@@ -1239,7 +1274,7 @@ describe("CareOfferingsEditor", () => {
     );
     fireEvent.click(
       await screen.findByRole("checkbox", {
-        name: /Für alle Klassenstufen \/ ohne Bedingungen/,
+        name: /^Nur für bestimmte Klassenstufen anbieten/,
       }),
     );
     fireEvent.click(
@@ -2683,6 +2718,31 @@ describe("PhasesEditor", () => {
     ).toBeInTheDocument();
   });
 
+  // #6044: the public form of an inactive or closed phase shows parents an
+  // error, so „Formular ansehen“ never showed a school its offerings before
+  // opening the enrollment. Every phase offers the staff preview instead.
+  it.each([
+    { name: "Inaktive Phase", overrides: { is_active: false } },
+    { name: "Nur Konto", overrides: { audience: "linked_parents" as const } },
+  ])(
+    "offers the preview with offerings for a phase like $name",
+    async ({ name, overrides }) => {
+      mocks.listPhases.mockResolvedValue([
+        phase({ id: "12", name, ...overrides }),
+      ]);
+      mocks.listSchemas.mockResolvedValue([schema()]);
+
+      render(<PhasesEditor />);
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: `Aktionen für ${name}` }),
+      );
+      expect(
+        await screen.findByRole("menuitem", { name: "Vorschau mit Angeboten" }),
+      ).toHaveAttribute("href", "/demo/anmeldung/preview?phaseId=12");
+    },
+  );
+
   it("round-trips the Zielgruppe audience and eligible classes into the create payload (#1663)", async () => {
     mocks.listPhases.mockResolvedValue([]);
     mocks.listSchemas.mockResolvedValue([schema()]);
@@ -3053,6 +3113,30 @@ describe("EnrollmentFormEditor", () => {
         defaultLegalBlocksForSave,
       );
     });
+  });
+
+  it("shows an error when unsaved changes cannot be saved as a valid template", async () => {
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+
+    render(<EnrollmentFormEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Vorlage" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Freie Zusatzfrage" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Zurück zur Übersicht" }),
+    );
+
+    const error = await screen.findByRole("alert");
+    expect(error).toHaveTextContent(
+      "Bitte geben Sie zuerst einen Namen für die Vorlage ein.",
+    );
+    expect(error).toHaveClass("bg-moto-red-soft");
+    expect(
+      screen.getByRole("button", { name: "Speichern und fortfahren" }),
+    ).toBeDisabled();
   });
 
   it("creates, previews, updates, and deletes schemas", async () => {
@@ -4161,7 +4245,7 @@ describe("EnrollmentFormEditor", () => {
     );
   });
 
-  it("uses compact right-side controls for inherited standard legal blocks", async () => {
+  it("uses right-side kit switches and icon menus for inherited standard legal blocks", async () => {
     mocks.listSchemas.mockResolvedValue([]);
     mocks.listPhases.mockResolvedValue([]);
 
@@ -4183,12 +4267,11 @@ describe("EnrollmentFormEditor", () => {
       name: /^Aktionen für (AGB \/ Teilnahmebedingungen|Datenschutzinformation|Fotoeinwilligung|E-Mail-Kontakt)$/,
     });
 
+    // Kit-Switch (#5595): eine Größe für alle Schalter.
     expect(displaySwitches[0]?.tagName).toBe("BUTTON");
-    expect(displaySwitches[0]).toHaveClass("h-5", "w-9");
+    expect(displaySwitches[0]).toHaveAttribute("aria-checked", "false");
     fireEvent.click(displaySwitches[0]!);
-    expect(displaySwitches[0]!.querySelector("span")).toHaveClass(
-      "translate-x-[18px]",
-    );
+    expect(displaySwitches[0]).toHaveAttribute("aria-checked", "true");
     expect(actionMenus[0]).toHaveTextContent("");
     expect(actionMenus[0]).not.toHaveClass("border", "bg-white", "shadow-sm");
   });
@@ -4371,10 +4454,13 @@ describe("EnrollmentFormEditor", () => {
       name: "Muss bestätigt werden",
     });
 
-    expect(displayToggles[0]?.tagName).toBe("BUTTON");
-    expect(requiredToggles[0]?.tagName).toBe("BUTTON");
-    expect(displayToggles[0]).not.toHaveAttribute("type", "checkbox");
-    expect(requiredToggles[0]).not.toHaveAttribute("type", "checkbox");
+    // Kit-Checkbox (#5595): natives Kästchen, sichtbar über das gestaltete
+    // Kästchen daneben, kein unstyled Browser-Kästchen.
+    for (const toggle of [displayToggles[0], requiredToggles[0]]) {
+      expect(toggle).toHaveAttribute("type", "checkbox");
+      expect(toggle).toHaveClass("sr-only");
+      expect(toggle?.nextElementSibling).toHaveAttribute("aria-hidden", "true");
+    }
   });
 
   it("saves a required custom checkbox as terms instead of consent", async () => {
@@ -4767,6 +4853,39 @@ describe("EnrollmentFormEditor", () => {
     expect(
       (screen.getByLabelText("Auswahlzeit 2") as HTMLInputElement).value,
     ).toBe("");
+  });
+
+  // #6044: a school asked for pickup times in its form AND gave each offering
+  // a Gehzeit. The answer replaces the offering time in the care plan, so
+  // the two sources contradicted each other without any hint. The template
+  // preview also listed „Gewünschtes Angebot“ with no word that the offerings
+  // come from the phase.
+  it("says where offerings and their Gehzeit come from", async () => {
+    mocks.listSchemas.mockResolvedValue([]);
+    mocks.listPhases.mockResolvedValue([]);
+
+    render(<EnrollmentFormEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Vorlage" }),
+    );
+    expect(
+      screen.getByText(
+        "Die Angebote legen Sie in der Anmeldephase fest. Eltern sehen sie über den Link der Phase.",
+      ),
+    ).toBeVisible();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /^Abholzeiten\b/,
+      }),
+    );
+
+    expect(
+      screen.getByText(
+        "Haben Ihre Betreuungsangebote eine Gehzeit? Dann brauchen Sie diese Frage nicht. Eine Antwort hier ersetzt die Gehzeit des Angebots.",
+      ),
+    ).toBeVisible();
   });
 });
 

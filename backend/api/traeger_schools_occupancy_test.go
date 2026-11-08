@@ -296,17 +296,17 @@ func TestTraegerOccupancyQueryBudgetIsFlat(t *testing.T) {
 	testpkg.CreateTestTraegerMember(t, db, organization, account.ID, identityaccess.TraegerRoleReadOnly)
 	code, answer := traegerSignIn(t, router, account.Email, password, 0)
 	require.Equal(t, http.StatusOK, code)
-	read := func() []string {
+	read := func() testpkg.QueryMeasurement {
 		counter := testpkg.CaptureQueriesForContext(t, db)
 		rec := traegerOccupancyRequest(t, router, "/traeger/schools/occupancy", answer.AccessToken, counter)
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		return counter.Selects("")
+		return counter.Measurement(counter.Selects(""))
 	}
 	three := read()
 	for _, name := range []string{"OGS Vier", "OGS Fünf"} {
 		addSchool(name)
 	}
-	assert.Len(t, read(), len(three), "the occupancy reads the same statements for any number of schools")
+	assert.Len(t, read().Statements, len(three.Statements), "the occupancy reads the same statements for any number of schools")
 	querybudgets.AssertQueryBudget(t, "api.traeger.schools_occupancy", three)
 }
 
@@ -320,7 +320,16 @@ func TestTraegerOccupancyReadsRefuseOutsideTheAdministrativeTransaction(t *testi
 	testpkg.AssignStudentToGroup(t, db, child.ID, group.ID)
 	testpkg.CreateTestEducationGroupForTenant(t, db, other, "Fremd")
 	bookings := newOccupancyBookings(t, db, school)
-	bookings.book(child.ID, bookings.offering("OGS", true, 0), "approved", nil, nil)
+	ogs := bookings.offering("OGS", true, 0)
+	bookings.book(child.ID, ogs, "approved", nil, nil)
+	// The other school holds everything the reads look for: a running phase,
+	// a booked and an unbooked offering and an approved child. The
+	// administrative transaction bypasses RLS (#5977, rule 25), so only the
+	// school filter of each statement keeps them out.
+	foreignChild := testpkg.CreateTestStudentForTenant(t, db, other, "Fritz", "Fremd", "1a")
+	foreign := newOccupancyBookings(t, db, other)
+	foreign.book(foreignChild.ID, foreign.offering("Fremd gebucht", true, 0), "approved", nil, nil)
+	foreign.offering("Fremd leer", true, 5)
 
 	ports := traegerOccupancyPorts()
 	day := calendar.TodayDate()
@@ -338,6 +347,23 @@ func TestTraegerOccupancyReadsRefuseOutsideTheAdministrativeTransaction(t *testi
 		names, err := ports.GroupNames.GroupsByTenant(adminCtx, []int64{school})
 		require.NoError(t, err)
 		assert.Equal(t, map[int64][]traegerview.NamedGroup{school: {{ID: group.ID, Name: group.Name}}}, names, "only the given schools")
+
+		children, phases, err := ports.Children.BookedChildrenAndRunningPhases(adminCtx, []int64{school}, day)
+		require.NoError(t, err)
+		assert.Equal(t, []int64{bookings.phase}, phases, "only the running phases of the given schools")
+		require.Len(t, children, 1, "only the children of the given schools")
+		for _, student := range children[school] {
+			assert.Equal(t, child.ID, student)
+		}
+		require.Len(t, children[school], 1)
+
+		// Even a phase of another school in the list does not bring its
+		// offerings: the statement filters on the schools itself.
+		offerings, err := ports.Bookings.CareOfferingBookingsByTenant(adminCtx, []int64{school}, day, []int64{bookings.phase, foreign.phase})
+		require.NoError(t, err)
+		require.Len(t, offerings, 1, "only the offerings of the given schools")
+		require.Len(t, offerings[school], 1)
+		assert.Equal(t, ogs, offerings[school][0].ID)
 		return nil
 	}))
 }

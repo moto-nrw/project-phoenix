@@ -123,16 +123,12 @@ func (c *Conclusions) amend(ctx context.Context, organizationID int64, contract 
 		if err != nil {
 			return err
 		}
-		contractID, schoolID := contract.ID, contract.Key.SchoolID
-		if err := c.intake.store.InsertEvents(txCtx, organizationID, []Event{{
-			ContractID: &contractID, SchoolID: &schoolID, Action: ActionCreate,
-			Details: map[string]any{
-				"version_id": versionID, "version_number": version.Number, "source": version.Source,
-				"effective_from": version.EffectiveFrom.String(), "status": version.Status,
-				"replaced_version_id": replacedID(plan),
-			},
-		}}); err != nil {
-			return fmt.Errorf("care contract: record amendment: %w", err)
+		if err := trail(txCtx, c.intake.store, organizationID, 0, contract.ID, contract.Key.SchoolID, ActionCreate, map[string]any{
+			"version_id": versionID, "version_number": version.Number, "source": version.Source,
+			"effective_from": version.EffectiveFrom.String(), "status": version.Status,
+			"replaced_version_id": replacedID(plan),
+		}); err != nil {
+			return err
 		}
 		amended = true
 		return nil
@@ -180,8 +176,6 @@ func (c *Conclusions) lockedTimeline(ctx context.Context, organizationID int64, 
 	return sameTimeline(versions, contract.Versions), nil
 }
 
-// sameTimeline compares the effective versions of all versions with the
-// planned timeline by ID and status.
 func sameTimeline(all, planned []carecontract.Version) bool {
 	effective := []string{}
 	for _, version := range all {
