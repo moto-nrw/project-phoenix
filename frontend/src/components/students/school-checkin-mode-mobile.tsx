@@ -112,7 +112,7 @@ export function SchoolCheckinModeMobile({
         onClick={onToggle}
         aria-pressed={false}
         aria-label="Kinder an- und abmelden"
-        variant="surface_success"
+        variant="surface"
         size="base"
         className="w-full gap-2"
       >

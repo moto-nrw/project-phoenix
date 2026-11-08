@@ -49,9 +49,10 @@ type SchoolCheckinFabProps = SchoolCheckinFabBaseProps &
  *   primaryAction slot. Default at ≥1024px so desktop reads as a native
  *   page-level action instead of a mobile-style floating button.
  *
- * Kit button (#5608): OFF is `surface_success` (light green, green text) so
- * it doesn't dominate the page; ON is `success` (solid green) to give an
- * unambiguous "mode is active" cue. Icon morphs in place via framer-motion +
+ * Kit button (#5608): OFF is `surface` (opaque white) so it doesn't dominate
+ * the page and stays readable while floating over cards (`surface_success`
+ * is translucent); ON is `success` (solid green) to give an unambiguous
+ * "mode is active" cue. Icon morphs in place via framer-motion +
  * AnimatePresence.
  */
 export function SchoolCheckinFab({
@@ -111,7 +112,7 @@ export function SchoolCheckinFab({
         aria-label={label}
         data-checkin-fab-variant={resolved}
         data-checkin-fab-active={isActive || undefined}
-        variant={isActive ? "success" : "surface_success"}
+        variant={isActive ? "success" : "surface"}
         size={resolved === "floating" ? "base" : "md"}
         className="relative gap-2"
       >
