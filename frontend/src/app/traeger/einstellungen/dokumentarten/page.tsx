@@ -22,6 +22,7 @@ import { createLogger } from "~/lib/logger";
 import {
   type DocumentKindOverview,
   fetchDocumentKinds,
+  mergeSavedService,
 } from "~/lib/traeger-document-kinds-api";
 import { traegerPath } from "~/lib/traeger-url";
 
@@ -110,7 +111,11 @@ export default function TraegerDocumentKindsPage() {
                   ? holidayWeeksConcept
                   : contributionsConcept
               }
-              onSaved={setOverview}
+              onSaved={(next) =>
+                setOverview((current) =>
+                  mergeSavedService(current, next, service.service),
+                )
+              }
             />
           ))}
           <SectionCard

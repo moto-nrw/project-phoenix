@@ -83,3 +83,24 @@ export async function saveDocumentKind(
     ),
   );
 }
+
+/**
+ * Takes over only the service a card saved: two cards may save at once, and
+ * the answer of one must not hide the choice the other just stored.
+ */
+export function mergeSavedService(
+  current: DocumentKindOverview | null,
+  next: DocumentKindOverview,
+  saved: BillingService,
+): DocumentKindOverview {
+  if (!current) return next;
+  return {
+    ...next,
+    services: current.services.map((service) =>
+      service.service === saved
+        ? (next.services.find((candidate) => candidate.service === saved) ??
+          service)
+        : service,
+    ),
+  };
+}
