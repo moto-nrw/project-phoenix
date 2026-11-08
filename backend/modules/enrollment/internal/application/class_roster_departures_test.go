@@ -78,23 +78,23 @@ func TestClassRosterRowDropsCompanionDaysOutsideThePhasePlan(t *testing.T) {
 	t.Parallel()
 
 	schemaID := int64(88)
-	req := &Request{
+	req := &enrollmentNative.Request{
 		ID:          10,
 		SchemaID:    &schemaID,
 		SubmittedAt: time.Date(2026, 6, 1, 8, 0, 0, 0, time.UTC),
 	}
-	child := &reportChild{
+	child := &enrollmentNative.RequestChild{
 		ID:        20,
 		RequestID: 10,
 		FirstName: "Lina",
 		LastName:  "Muster",
 		Status:    enrollmentNative.ChildStatusApproved,
-		CustomData: map[string]any{
+		CustomData: formValues(map[string]any{
 			"departure": map[string]any{
 				"mon": []any{"accompanied"},
 				"tue": []any{"bus"},
 			},
-		},
+		}),
 	}
 	student := &RosterStudent{
 		ID:          100,

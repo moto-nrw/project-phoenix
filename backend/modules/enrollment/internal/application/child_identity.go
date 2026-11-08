@@ -3,6 +3,7 @@ package application
 import (
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
@@ -33,7 +34,7 @@ func requestChildIdentityKey(firstName, lastName, dateOfBirth string) string {
 // sameSubmittedIdentity reports whether an edited child still names the same
 // person as the stored child it was paired to; a changed identity drops a
 // stale existing-student pin (#1663).
-func sameSubmittedIdentity(existing *RequestChild, submitted SubmitChild) bool {
+func sameSubmittedIdentity(existing *enrollment.RequestChild, submitted SubmitChild) bool {
 	if existing == nil {
 		return false
 	}

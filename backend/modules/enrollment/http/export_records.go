@@ -24,7 +24,7 @@ import (
 // the shared row/block unit for BOTH the PDF and the XLSX so the two
 // formats list registrations in exactly the same order.
 type exportEntry struct {
-	request   *Request
+	request   *capability.Request
 	child     *ExportChildRow               // nil = registration has no children
 	guardians []*capability.RequestGuardian // co-guardians of this submission (nil when none)
 	sortLast  string                        // sort key in German collation (child surname, or guardian surname when childless)
@@ -184,7 +184,7 @@ func buildPhaseExportRecords(data *PhaseExport, title, childStatus string) lists
 // fields first (the child is the subject), then the guardian/contact
 // details led by the parent name, repeated on every child so a single
 // block holds everything a supervisor needs offline.
-func childRecord(req *Request, ch ExportChildRow, guardians []*capability.RequestGuardian, guardianCustoms, childCustoms []capability.FormField) lists.Record {
+func childRecord(req *capability.Request, ch ExportChildRow, guardians []*capability.RequestGuardian, guardianCustoms, childCustoms []capability.FormField) lists.Record {
 	return enrollmentChildBlock{
 		Name:        childFullName(ch.Child),
 		Child:       childFields(ch, childCustoms),
@@ -198,7 +198,7 @@ func childRecord(req *Request, ch ExportChildRow, guardians []*capability.Reques
 // child rows — keeps the guardian (and their answers) in the export
 // rather than dropping the submission entirely. The guardian's name is the
 // heading, so the block carries no "Eltern" line.
-func guardianOnlyRecord(req *Request, guardians []*capability.RequestGuardian, guardianCustoms []capability.FormField) lists.Record {
+func guardianOnlyRecord(req *capability.Request, guardians []*capability.RequestGuardian, guardianCustoms []capability.FormField) lists.Record {
 	return enrollmentChildBlock{
 		Name:        guardianFullName(req),
 		Guardian:    guardianReachFields(req.GuardianEmail, deref(req.GuardianPhone)),
@@ -269,7 +269,7 @@ func childFields(ch ExportChildRow, childCustoms []capability.FormField) []lists
 		lists.Field{Label: "Betreuungsangebote", Value: formatOfferings(ch.Offerings)},
 	)
 	for _, cf := range childCustoms {
-		if v, ok := c.CustomData[cf.Key]; ok {
+		if v, ok := c.CustomData.Lookup(cf.Key); ok {
 			fields = append(fields, lists.Field{Label: cf.Label, Value: formatCustomValue(cf, v)})
 		}
 	}
@@ -289,15 +289,15 @@ const departureCompanionLabelDE = "Mit welchem Kind?"
 // allowed_departure_modes (not a schema field), so the field-iterating export
 // loops never emit it — it must be pulled out explicitly. Returns "" when
 // absent or blank.
-func childCompanionNote(c *RequestChild) string {
-	if c == nil || c.CustomData == nil {
+func childCompanionNote(c *capability.RequestChild) string {
+	if c == nil {
 		return ""
 	}
-	return strings.TrimSpace(stringifyValue(c.CustomData[capability.TargetStudentDepartureCompanionNote]))
+	return strings.TrimSpace(stringifyValue(formValue(c.CustomData, capability.TargetStudentDepartureCompanionNote)))
 }
 
 // childFullName is the child's display heading for its block.
-func childFullName(c *RequestChild) string {
+func childFullName(c *capability.RequestChild) string {
 	name := strings.TrimSpace(c.FirstName + " " + c.LastName)
 	if name == "" {
 		return "Kind"

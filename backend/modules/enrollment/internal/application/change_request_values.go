@@ -115,16 +115,8 @@ func (c *changeRequestCase) public() (*enrollment.ChangeRequestCase, error) {
 	if err != nil {
 		return nil, err
 	}
-	request, err := requestInput(c.Request)
-	if err != nil {
-		return nil, err
-	}
-	children, err := childInputs(c.Children)
-	if err != nil {
-		return nil, err
-	}
 	return &enrollment.ChangeRequestCase{
-		ChangeRequest: changeRequest, Request: request, Children: children, Messages: c.Messages, Phase: c.Phase,
+		ChangeRequest: changeRequest, Request: c.Request, Children: c.Children, Messages: c.Messages, Phase: c.Phase,
 		RosterImpacts: c.RosterImpacts,
 	}, nil
 }

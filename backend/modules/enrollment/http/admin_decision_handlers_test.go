@@ -47,7 +47,7 @@ type mockDecisionService struct {
 	listChildOffResult map[int64]ChildOfferingSet
 	listChildOffErr    error
 
-	updateChildOffResult *RequestChild
+	updateChildOffResult *capability.RequestChild
 	updateChildOffErr    error
 	updateChildOffInput  UpdateChildOfferingsInput
 
@@ -115,11 +115,7 @@ func (m *mockDecisionService) DecideAndInvite(ctx context.Context, input DecideI
 	if out == nil || out.Child == nil {
 		return nil, err
 	}
-	child, encodeErr := childInput(out.Child)
-	if encodeErr != nil {
-		return nil, encodeErr
-	}
-	return &capability.DecideOutcome{Child: child}, err
+	return &capability.DecideOutcome{Child: out.Child}, err
 }
 
 func (m *mockDecisionService) RestoreWithdrawn(_ context.Context, requestID, restoredBy int64) (*RestoreOutcome, error) {
@@ -211,9 +207,9 @@ func executeAdminRouteWithPermissions(t *testing.T, rs *Resource, method, path s
 }
 
 // makeReqSummary builds an enrollment request summary with the supplied IDs.
-func makeReqSummary(id, phaseID int64, children ...*RequestChild) *RequestSummary {
+func makeReqSummary(id, phaseID int64, children ...*capability.RequestChild) *RequestSummary {
 	return &RequestSummary{
-		Request: &Request{
+		Request: &capability.Request{
 			ID:                id,
 			PhaseID:           phaseID,
 			GuardianFirstName: "Anna",
@@ -226,8 +222,8 @@ func makeReqSummary(id, phaseID int64, children ...*RequestChild) *RequestSummar
 	}
 }
 
-func makeChildSummary(id int64, firstName, lastName, status string) *RequestChild {
-	return &RequestChild{
+func makeChildSummary(id int64, firstName, lastName, status string) *capability.RequestChild {
+	return &capability.RequestChild{
 		ID:             id,
 		FirstName:      firstName,
 		LastName:       lastName,

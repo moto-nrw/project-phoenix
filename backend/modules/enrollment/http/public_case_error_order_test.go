@@ -2,6 +2,7 @@ package enrollmenthttp_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -45,6 +46,6 @@ func TestEnrollmentPublicCaseChildErrorPrecedesMessages(t *testing.T) {
 	require.Equal(t, "enrollment operation failed", detail)
 	_, aggregateErr := f.resource.ChangeRequestService.ListPublic(ctx, submitted.Request.StatusToken)
 	t.Logf("capability error=%v", aggregateErr)
-	require.EqualError(t, aggregateErr, "change request: list aggregate children: json: cannot unmarshal array into Go value of type map[string]interface {}")
+	require.EqualError(t, aggregateErr, fmt.Sprintf("change request: list aggregate children: decode request child %d custom_data: json: cannot unmarshal array into Go value of type map[string]interface {}", submitted.Children[0].ID))
 	require.JSONEq(t, `"general.server"`, string(body["code"]))
 }

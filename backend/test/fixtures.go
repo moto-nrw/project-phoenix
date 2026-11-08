@@ -2891,10 +2891,7 @@ func CreateTestEnrollmentRequestAwaitingGuardian(tb testing.TB, db *bun.DB, phas
 		GuardianFirstName: "Guardian",
 		GuardianLastName:  "Test",
 		GuardianEmail:     guardianEmail,
-		ConsentFlags:      []byte("{}"),
-		CustomData:        []byte("{}"),
 		SubmissionSource:  enrollmentOwner.RequestSourcePublic,
-		SourceMetadata:    []byte("{}"),
 		StatusToken:       statusToken,
 		SubmittedAt:       time.Now(),
 	}

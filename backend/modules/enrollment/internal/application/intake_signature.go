@@ -56,20 +56,20 @@ func (s *Intake) requireSignature(required bool, signature *enrollmentNative.Sub
 // signedEnrollmentDocument is what the parent signs: the stored submission
 // with its offering choices and the legal snapshot entry of this submission.
 type signedEnrollmentDocument struct {
-	Format              int                        `json:"format"`
-	TenantID            int64                      `json:"tenant_id"`
-	RequestID           int64                      `json:"request_id"`
-	PhaseID             int64                      `json:"phase_id"`
-	SchemaID            *int64                     `json:"schema_id"`
-	GuardianFirstName   string                     `json:"guardian_first_name"`
-	GuardianLastName    string                     `json:"guardian_last_name"`
-	GuardianEmail       string                     `json:"guardian_email"`
-	GuardianPhone       *string                    `json:"guardian_phone"`
-	AdditionalGuardians []signedEnrollmentGuardian `json:"additional_guardians"`
-	ConsentFlags        map[string]any             `json:"consent_flags"`
-	CustomData          map[string]any             `json:"custom_data"`
-	Children            []signedEnrollmentChild    `json:"children"`
-	LegalSnapshot       LegalBlocksSnapshotEntry   `json:"legal_snapshot"`
+	Format              int                                       `json:"format"`
+	TenantID            int64                                     `json:"tenant_id"`
+	RequestID           int64                                     `json:"request_id"`
+	PhaseID             int64                                     `json:"phase_id"`
+	SchemaID            *int64                                    `json:"schema_id"`
+	GuardianFirstName   string                                    `json:"guardian_first_name"`
+	GuardianLastName    string                                    `json:"guardian_last_name"`
+	GuardianEmail       string                                    `json:"guardian_email"`
+	GuardianPhone       *string                                   `json:"guardian_phone"`
+	AdditionalGuardians []signedEnrollmentGuardian                `json:"additional_guardians"`
+	ConsentFlags        map[string]any                            `json:"consent_flags"`
+	CustomData          map[string]any                            `json:"custom_data"`
+	Children            []signedEnrollmentChild                   `json:"children"`
+	LegalSnapshot       enrollmentNative.LegalBlocksSnapshotEntry `json:"legal_snapshot"`
 }
 
 type signedEnrollmentGuardian struct {
@@ -97,13 +97,13 @@ type signedEnrollmentSelections struct {
 // newSignedEnrollmentDocument builds the signed document from the stored
 // request, the stored children's submitted values and their materialized
 // offering choices.
-func newSignedEnrollmentDocument(request *Request, children []SubmitChild, guardians []SubmitGuardian, selections [][]selection.Selection) signedEnrollmentDocument {
+func newSignedEnrollmentDocument(request *enrollmentNative.Request, children []SubmitChild, guardians []SubmitGuardian, selections [][]selection.Selection) signedEnrollmentDocument {
 	doc := signedEnrollmentDocument{
 		Format: signedEnrollmentFormat, TenantID: request.TenantID, RequestID: request.ID, PhaseID: request.PhaseID,
 		SchemaID: request.SchemaID, GuardianFirstName: request.GuardianFirstName, GuardianLastName: request.GuardianLastName,
 		GuardianEmail: request.GuardianEmail, GuardianPhone: request.GuardianPhone,
 		AdditionalGuardians: make([]signedEnrollmentGuardian, 0, len(guardians)),
-		ConsentFlags:        request.ConsentFlags, CustomData: request.CustomData,
+		ConsentFlags:        formMap(request.ConsentFlags), CustomData: formMap(request.CustomData),
 		Children: make([]signedEnrollmentChild, 0, len(children)),
 	}
 	if n := len(request.LegalBlocksSnapshot); n > 0 {
@@ -131,7 +131,7 @@ func newSignedEnrollmentDocument(request *Request, children []SubmitChild, guard
 // recordSignature stores the parent's signature of the request's current
 // version inside the write transaction. The document checksum covers the
 // stored submission with its legal snapshot.
-func (s *Intake) recordSignature(ctx context.Context, request *Request, signature *enrollmentNative.SubmitSignature, doc signedEnrollmentDocument) error {
+func (s *Intake) recordSignature(ctx context.Context, request *enrollmentNative.Request, signature *enrollmentNative.SubmitSignature, doc signedEnrollmentDocument) error {
 	encoded, err := json.Marshal(doc)
 	if err != nil {
 		return fmt.Errorf("signature: encode signed document: %w", err)
@@ -185,15 +185,15 @@ func (s *Intake) SignatureProof(ctx context.Context, requestID int64) (*enrollme
 
 // requestWithChildren reads a request of the school in context and its
 // children; a miss is ErrRequestNotFound.
-func (s *Intake) requestWithChildren(ctx context.Context, requestID int64) (*Request, []*RequestChild, error) {
-	req, err := decodedRequestByID(ctx, s.deps.Requests, requestID, false)
+func (s *Intake) requestWithChildren(ctx context.Context, requestID int64) (*enrollmentNative.Request, []*enrollmentNative.RequestChild, error) {
+	req, err := s.deps.Requests.RequestByID(ctx, requestID, false)
 	if (err != nil && s.deps.Runtime.NotFound(err)) || (err == nil && req == nil) {
 		return nil, nil, enrollmentNative.ErrRequestNotFound
 	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("signature proof: load request: %w", err)
 	}
-	children, err := decodedChildrenOfRequest(ctx, s.deps.Children, req.ID, false)
+	children, err := s.deps.Children.ChildrenForRequest(ctx, req.ID, false)
 	if err != nil {
 		return nil, nil, fmt.Errorf("signature proof: list children: %w", err)
 	}
@@ -239,7 +239,7 @@ func (s *Intake) SignatureStatusByStatusToken(ctx context.Context, token string)
 // signatureProof completes a loaded request inside its school's
 // transaction: whether its form asks for a signature, its co-guardians and
 // its newest signature.
-func (s *Intake) signatureProof(ctx context.Context, req *Request, children []*RequestChild) (*enrollmentNative.RequestSignatureProof, error) {
+func (s *Intake) signatureProof(ctx context.Context, req *enrollmentNative.Request, children []*enrollmentNative.RequestChild) (*enrollmentNative.RequestSignatureProof, error) {
 	status, err := publicRequestStatus(req, children)
 	if err != nil {
 		return nil, err
@@ -263,7 +263,7 @@ func (s *Intake) signatureProof(ctx context.Context, req *Request, children []*R
 	return proof, nil
 }
 
-func (s *Intake) signatureProofSchema(ctx context.Context, req *Request, proof *enrollmentNative.RequestSignatureProof) error {
+func (s *Intake) signatureProofSchema(ctx context.Context, req *enrollmentNative.Request, proof *enrollmentNative.RequestSignatureProof) error {
 	if req.SchemaID == nil {
 		return nil
 	}
@@ -276,7 +276,7 @@ func (s *Intake) signatureProofSchema(ctx context.Context, req *Request, proof *
 	return nil
 }
 
-func (s *Intake) signatureProofGuardians(ctx context.Context, req *Request, proof *enrollmentNative.RequestSignatureProof) error {
+func (s *Intake) signatureProofGuardians(ctx context.Context, req *enrollmentNative.Request, proof *enrollmentNative.RequestSignatureProof) error {
 	if s.deps.Guardians == nil {
 		return nil
 	}
@@ -288,7 +288,7 @@ func (s *Intake) signatureProofGuardians(ctx context.Context, req *Request, proo
 	return nil
 }
 
-func (s *Intake) signatureProofOfferings(ctx context.Context, req *Request, children []*RequestChild, proof *enrollmentNative.RequestSignatureProof) error {
+func (s *Intake) signatureProofOfferings(ctx context.Context, req *enrollmentNative.Request, children []*enrollmentNative.RequestChild, proof *enrollmentNative.RequestSignatureProof) error {
 	childIDs := make([]int64, 0, len(children))
 	for _, child := range children {
 		childIDs = append(childIDs, child.ID)

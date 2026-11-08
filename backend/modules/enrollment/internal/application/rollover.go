@@ -116,7 +116,7 @@ type rolloverRequestInput struct {
 	tenantID          int64
 	sourcePhase       *enrollment.Phase
 	newPhase          *enrollment.Phase
-	sourceChildren    []*RequestChild
+	sourceChildren    []*enrollment.RequestChild
 	maxGrade          int
 	collectGradeLevel bool
 	// offeringIDMap translates source-phase care offering IDs to their
@@ -220,7 +220,7 @@ func (s *Rollovers) cloneOfferingCatalog(ctx context.Context, sourcePhaseID, tar
 	return mapping, nil
 }
 
-func (s *Rollovers) listCarriedOfferingIDs(ctx context.Context, sourcePhase *enrollment.Phase, children []*RequestChild) ([]int64, error) {
+func (s *Rollovers) listCarriedOfferingIDs(ctx context.Context, sourcePhase *enrollment.Phase, children []*enrollment.RequestChild) ([]int64, error) {
 	childIDs := make([]int64, 0, len(children))
 	for _, child := range children {
 		childIDs = append(childIDs, child.ID)
@@ -374,10 +374,6 @@ func (s *Rollovers) resolveMaxGrade(ctx context.Context) (int, error) {
 }
 
 // childrenByStatuses reads and decodes a phase's children in the statuses.
-func (s *Rollovers) childrenByStatuses(ctx context.Context, phaseID int64, statuses []string) ([]*RequestChild, error) {
-	values, err := s.deps.Children.ChildrenByPhaseStatuses(ctx, phaseID, statuses)
-	if err != nil {
-		return nil, err
-	}
-	return childValues(values)
+func (s *Rollovers) childrenByStatuses(ctx context.Context, phaseID int64, statuses []string) ([]*enrollment.RequestChild, error) {
+	return s.deps.Children.ChildrenByPhaseStatuses(ctx, phaseID, statuses)
 }

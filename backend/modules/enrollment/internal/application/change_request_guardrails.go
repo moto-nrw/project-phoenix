@@ -14,7 +14,7 @@ import (
 // validateAccountLinkedGuardianEdits refuses a proposal that changes the
 // details of an account-linked primary guardian or co-guardian, or that adds
 // an account-linked co-guardian whose details differ from the portal profile.
-func (s *ChangeRequests) validateAccountLinkedGuardianEdits(ctx context.Context, req *Request, editReq SubmitRequest) error {
+func (s *ChangeRequests) validateAccountLinkedGuardianEdits(ctx context.Context, req *enrollment.Request, editReq SubmitRequest) error {
 	if s.deps.People.GuardianProfiles == nil {
 		return nil
 	}
@@ -92,7 +92,7 @@ func guardianHasPortalAccount(profile *GuardianProfile) bool {
 
 // primaryGuardianProfile resolves the request's primary guardian profile: by
 // the submitting account first, by the email otherwise.
-func (s *ChangeRequests) primaryGuardianProfile(ctx context.Context, req *Request) (*GuardianProfile, error) {
+func (s *ChangeRequests) primaryGuardianProfile(ctx context.Context, req *enrollment.Request) (*GuardianProfile, error) {
 	profiles := s.deps.People.GuardianProfiles
 	if profiles == nil || req == nil {
 		return nil, nil

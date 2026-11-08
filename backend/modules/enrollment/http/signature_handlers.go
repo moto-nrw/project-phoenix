@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/http"
 	"sort"
 	"strconv"
@@ -119,8 +120,8 @@ func (rs *Resource) logAdminSignatureLoadFailure(err error) {
 
 // signatureProof is what a proof PDF prints.
 type signatureProof struct {
-	Request            *Request
-	Children           []*RequestChild
+	Request            *capability.Request
+	Children           []*capability.RequestChild
 	Guardians          []*capability.RequestGuardian
 	Schema             *capability.FormSchema
 	OfferingSelections []*capability.RequestChildOfferingRecord
@@ -249,7 +250,7 @@ func signatureProofRequestRecords(p signatureProof) []lists.Record {
 	return append(records, signatureProofChildRecords(p.Children, p.Schema, choicesByChild, p.OfferingNames)...)
 }
 
-func signatureProofPrimaryGuardianRecord(req *Request, schema *capability.FormSchema) lists.Record {
+func signatureProofPrimaryGuardianRecord(req *capability.Request, schema *capability.FormSchema) lists.Record {
 	guardian := []lists.Field{
 		proofField("Name", strings.TrimSpace(req.GuardianFirstName+" "+req.GuardianLastName)),
 		proofField("E-Mail", req.GuardianEmail),
@@ -288,7 +289,7 @@ func signatureProofChoicesByChild(selections []*capability.RequestChildOfferingR
 	return choicesByChild
 }
 
-func signatureProofChildRecords(children []*RequestChild, schema *capability.FormSchema, choicesByChild map[int64][]*capability.RequestChildOfferingRecord, offeringNames map[int64]string) []lists.Record {
+func signatureProofChildRecords(children []*capability.RequestChild, schema *capability.FormSchema, choicesByChild map[int64][]*capability.RequestChildOfferingRecord, offeringNames map[int64]string) []lists.Record {
 	records := make([]lists.Record, 0, len(children))
 	for _, c := range children {
 		fields := []lists.Field{proofField("Geburtsdatum", c.DateOfBirth.Format("02.01.2006"))}
@@ -333,10 +334,11 @@ func signatureProofOfferings(choices []*capability.RequestChildOfferingRecord, n
 	return strings.Join(parts, "; ")
 }
 
-func signatureProofCustomFields(values map[string]any, schema *capability.FormSchema, appliesToChild bool) []lists.Field {
-	if len(values) == 0 {
+func signatureProofCustomFields(answers capability.FormValues, schema *capability.FormSchema, appliesToChild bool) []lists.Field {
+	if answers.IsZero() {
 		return nil
 	}
+	values := maps.Collect(answers.All())
 	seen := make(map[string]bool, len(values))
 	fields := make([]lists.Field, 0, len(values))
 	if schema != nil {
@@ -365,7 +367,7 @@ func signatureProofCustomFields(values map[string]any, schema *capability.FormSc
 
 // signatureProofConsents reproduces each legal block of the newest legal
 // snapshot with the parent's answer, text and document references.
-func signatureProofConsents(req *Request) (lists.Record, error) {
+func signatureProofConsents(req *capability.Request) (lists.Record, error) {
 	record := lists.Record{Title: "Rechtstexte zum Zeitpunkt der letzten Abgabe"}
 	if len(req.LegalBlocksSnapshot) == 0 {
 		return record, nil

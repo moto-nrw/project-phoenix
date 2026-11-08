@@ -141,12 +141,12 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 		GuardianFirstName: "Annegret",
 		GuardianLastName:  "Zoffenbach",
 		GuardianEmail:     "review-list@example.com",
-		ConsentFlags: map[string]any{
+		ConsentFlags: testFormValues(map[string]any{
 			"agb":             true,
 			"data_processing": true,
 			"email_contact":   true,
 			"photo":           false,
-		},
+		}),
 		Children: []enrollmentAPI.SubmitChild{
 			{
 				FirstName:        "Quirina",

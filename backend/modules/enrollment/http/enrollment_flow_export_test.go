@@ -11,106 +11,61 @@ import (
 )
 
 // The enrollment flow suites of the external test package (#3565) seed and
-// read the owner's rows in the decoded values these routes speak; only this
-// package's internal tests reach the decoding the helpers below share with
-// the routes.
+// read the owner's rows through the helpers below, each in a transaction of
+// its own.
 
-// InsertOwnerChildForTest persists a decoded child fixture through the owner
-// and copies the generated metadata back.
+// InsertOwnerChildForTest persists a child fixture through the owner and
+// copies the generated metadata back.
 func InsertOwnerChildForTest(ctx context.Context, owner interface {
 	InsertChild(context.Context, *capability.RequestChild) error
-}, child *RequestChild) error {
-	value, err := fixtureChildInput(child)
-	if err != nil {
-		return err
-	}
-	if err := fixtureOwnerCommand(ctx, func(txCtx context.Context) error { return owner.InsertChild(txCtx, value) }); err != nil {
-		return err
-	}
-	stored, err := childValue(value)
-	if err != nil {
-		return err
-	}
-	*child = *stored
-	return nil
+}, child *capability.RequestChild) error {
+	return fixtureOwnerCommand(ctx, func(txCtx context.Context) error { return owner.InsertChild(txCtx, child) })
 }
 
-// ReadOwnerRequestChildrenForTest loads the decoded children of a request.
+// ReadOwnerRequestChildrenForTest loads the children of a request.
 func ReadOwnerRequestChildrenForTest(ctx context.Context, owner interface {
 	ChildrenForRequest(context.Context, int64, bool) ([]*capability.RequestChild, error)
-}, requestID int64) ([]*RequestChild, error) {
-	values, err := fixtureOwnerQuery(ctx, func(txCtx context.Context) ([]*capability.RequestChild, error) {
+}, requestID int64) ([]*capability.RequestChild, error) {
+	return fixtureOwnerQuery(ctx, func(txCtx context.Context) ([]*capability.RequestChild, error) {
 		return owner.ChildrenForRequest(txCtx, requestID, false)
 	})
-	if err != nil {
-		return nil, err
-	}
-	return childValues(values)
 }
 
-// ReadOwnerChildForTest loads a decoded child through the owner query.
+// ReadOwnerChildForTest loads a child through the owner query.
 func ReadOwnerChildForTest(ctx context.Context, owner interface {
 	ChildByID(context.Context, int64) (*capability.RequestChild, error)
-}, id int64) (*RequestChild, error) {
-	value, err := fixtureOwnerQuery(ctx, func(txCtx context.Context) (*capability.RequestChild, error) { return owner.ChildByID(txCtx, id) })
-	if err != nil {
-		return nil, err
-	}
-	return childValue(value)
+}, id int64) (*capability.RequestChild, error) {
+	return fixtureOwnerQuery(ctx, func(txCtx context.Context) (*capability.RequestChild, error) { return owner.ChildByID(txCtx, id) })
 }
 
-// UpdateOwnerChildForTest writes decoded child data through the owner.
+// UpdateOwnerChildForTest writes child data through the owner.
 func UpdateOwnerChildForTest(ctx context.Context, owner interface {
 	UpdateChildData(context.Context, *capability.RequestChild) error
-}, child *RequestChild) error {
-	value, err := fixtureChildInput(child)
-	if err != nil {
-		return err
-	}
-	return fixtureOwnerCommand(ctx, func(txCtx context.Context) error { return owner.UpdateChildData(txCtx, value) })
+}, child *capability.RequestChild) error {
+	return fixtureOwnerCommand(ctx, func(txCtx context.Context) error { return owner.UpdateChildData(txCtx, child) })
 }
 
 // InsertOwnerRequestForTest persists a request fixture through the owner and
 // copies the generated metadata back.
 func InsertOwnerRequestForTest(ctx context.Context, owner interface {
 	InsertRequest(context.Context, *capability.Request) error
-}, request *Request) error {
-	value, err := fixtureRequestInput(request)
-	if err != nil {
-		return err
-	}
-	if err := fixtureOwnerCommand(ctx, func(txCtx context.Context) error { return owner.InsertRequest(txCtx, value) }); err != nil {
-		return err
-	}
-	stored, err := requestValue(value)
-	if err != nil {
-		return err
-	}
-	*request = *stored
-	return nil
+}, request *capability.Request) error {
+	return fixtureOwnerCommand(ctx, func(txCtx context.Context) error { return owner.InsertRequest(txCtx, request) })
 }
 
-// ReadOwnerRequestForTest loads a decoded request through the owner query.
+// ReadOwnerRequestForTest loads a request through the owner query.
 func ReadOwnerRequestForTest(ctx context.Context, owner interface {
 	RequestByID(context.Context, int64, bool) (*capability.Request, error)
-}, id int64) (*Request, error) {
-	value, err := fixtureOwnerQuery(ctx, func(txCtx context.Context) (*capability.Request, error) { return owner.RequestByID(txCtx, id, false) })
-	if err != nil {
-		return nil, err
-	}
-	return requestValue(value)
+}, id int64) (*capability.Request, error) {
+	return fixtureOwnerQuery(ctx, func(txCtx context.Context) (*capability.Request, error) { return owner.RequestByID(txCtx, id, false) })
 }
 
 // UpdateOwnerRequestGuardianForTest writes a request fixture's guardian
 // fields through the owner.
 func UpdateOwnerRequestGuardianForTest(ctx context.Context, owner interface {
 	UpdateRequestGuardian(context.Context, *capability.Request, bool) error
-}, request *Request, includeEmail bool) error {
-	value, err := fixtureRequestInput(request)
-	if err != nil {
-		return err
-	}
-	return fixtureOwnerCommand(ctx, func(txCtx context.Context) error { return owner.UpdateRequestGuardian(txCtx, value, includeEmail) })
+}, request *capability.Request, includeEmail bool) error {
+	return fixtureOwnerCommand(ctx, func(txCtx context.Context) error { return owner.UpdateRequestGuardian(txCtx, request, includeEmail) })
 }
 
 // InsertOwnerPhaseForTest persists a phase fixture and returns generated
@@ -158,9 +113,9 @@ type SyncApprovedChildDataInput struct {
 }
 
 // ChangeRequestDecisionApplier is the admin correction's sync of an
-// approved child onto its student, decoded.
+// approved child onto its student.
 type ChangeRequestDecisionApplier interface {
-	SyncApprovedChildData(ctx context.Context, input SyncApprovedChildDataInput) (*RequestChild, error)
+	SyncApprovedChildData(ctx context.Context, input SyncApprovedChildDataInput) (*capability.RequestChild, error)
 }
 
 // ChangeRequestApplierForTest syncs approved children through the owner's
@@ -173,63 +128,18 @@ type changeRequestApplier struct {
 	owner capability.ApprovedChildChanges
 }
 
-func (a changeRequestApplier) SyncApprovedChildData(ctx context.Context, input SyncApprovedChildDataInput) (*RequestChild, error) {
+func (a changeRequestApplier) SyncApprovedChildData(ctx context.Context, input SyncApprovedChildDataInput) (*capability.RequestChild, error) {
 	snapshot, err := json.Marshal(input.PreviousSnapshot)
 	if err != nil {
 		return nil, err
 	}
-	value, err := fixtureOwnerQuery(ctx, func(txCtx context.Context) (*capability.RequestChild, error) {
+	return fixtureOwnerQuery(ctx, func(txCtx context.Context) (*capability.RequestChild, error) {
 		return a.owner.SyncApprovedChildData(txCtx, capability.ApprovedChildSync{
 			RequestID: input.RequestID, ChildID: input.ChildID, ActorAccountID: input.ActorAccountID,
 			ReplaceTargetedData: input.ReplaceTargetedData, PreviousSnapshot: snapshot,
 			PreviousRequestGuardians: input.PreviousRequestGuardians,
 		})
 	})
-	if err != nil {
-		return nil, err
-	}
-	return childValue(value)
-}
-
-// fixtureChildInput encodes a decoded child the way the retained service
-// stored its fixtures: an absent answer map is stored as JSON null.
-func fixtureChildInput(child *RequestChild) (*capability.RequestChild, error) {
-	value, err := childInput(child)
-	if err != nil || value == nil {
-		return value, err
-	}
-	if value.CustomData == nil {
-		value.CustomData = json.RawMessage("null")
-	}
-	return value, nil
-}
-
-// fixtureRequestInput encodes every JSON column of a request fixture.
-func fixtureRequestInput(r *Request) (*capability.Request, error) {
-	if r == nil {
-		return nil, nil
-	}
-	status, err := requestStatusInput(r, nil)
-	if err != nil {
-		return nil, err
-	}
-	value := status.Request
-	for _, field := range []struct {
-		from any
-		into *json.RawMessage
-	}{
-		{r.ConsentFlags, &value.ConsentFlags},
-		{r.LegalBlocksSnapshot, &value.LegalBlocksSnapshot},
-		{r.CustomData, &value.CustomData},
-		{r.SourceMetadata, &value.SourceMetadata},
-	} {
-		encoded, err := json.Marshal(field.from)
-		if err != nil {
-			return nil, err
-		}
-		*field.into = encoded
-	}
-	return value, nil
 }
 
 // These are fixture roots, not owner persistence fallbacks. Tests that inspect

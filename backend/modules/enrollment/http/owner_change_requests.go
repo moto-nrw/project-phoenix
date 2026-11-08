@@ -10,7 +10,7 @@ import (
 )
 
 // The change requests as these routes speak them: the owner's cases with
-// the snapshots and answers decoded.
+// the snapshots decoded.
 
 // Change-request values the owner's contract carries unchanged.
 type (
@@ -20,6 +20,9 @@ type (
 	ChangeRequestFilters          = capability.ChangeRequestFilters
 	ChangeRequestReviewQuery      = capability.ChangeRequestReviewQuery
 	ChangeRequestReviewChild      = capability.ChangeRequestReviewChild
+	// CreateChangeRequestInput is a family's proposed correction of its
+	// request.
+	CreateChangeRequestInput = capability.CreateChangeRequestInput
 )
 
 // ChangeRequest is a change request with its snapshots decoded, because the
@@ -60,19 +63,12 @@ func (r *ChangeRequest) DecisionInstant() time.Time {
 // messages and phase it concerns, decoded.
 type ChangeRequestAggregate struct {
 	ChangeRequest *ChangeRequest
-	Request       *Request
-	Children      []*RequestChild
+	Request       *capability.Request
+	Children      []*capability.RequestChild
 	Messages      []*capability.ChangeRequestMessage
 	Phase         *capability.Phase
 	// RosterImpacts are set by an approval that changed bookings (#5102).
 	RosterImpacts []capability.ChildRosterImpact
-}
-
-// CreateChangeRequestInput is a family's proposed correction of its request.
-type CreateChangeRequestInput struct {
-	Submission         SubmitRequest
-	ParentNote         string
-	CreatedByAccountID *int64
 }
 
 // ChangeRequestReviewRow is one change request of the review list plus the
@@ -157,16 +153,8 @@ func changeRequestCase(value *capability.ChangeRequestCase, err error) (*ChangeR
 	if err != nil {
 		return nil, err
 	}
-	request, err := requestValue(value.Request)
-	if err != nil {
-		return nil, err
-	}
-	children, err := childValues(value.Children)
-	if err != nil {
-		return nil, err
-	}
 	return &ChangeRequestAggregate{
-		ChangeRequest: changeRequest, Request: request, Children: children,
+		ChangeRequest: changeRequest, Request: value.Request, Children: value.Children,
 		Messages: value.Messages, Phase: value.Phase, RosterImpacts: value.RosterImpacts,
 	}, nil
 }
@@ -187,13 +175,7 @@ func changeRequestCases(values []*capability.ChangeRequestCase, err error) ([]*C
 }
 
 func (s changeRequestService) Create(ctx context.Context, token string, input CreateChangeRequestInput) (*ChangeRequestAggregate, error) {
-	submission, err := encodeSubmitRequest(input.Submission)
-	if err != nil {
-		return nil, err
-	}
-	return changeRequestCase(s.owner.Propose(ctx, token, capability.CreateChangeRequestInput{
-		Submission: submission, ParentNote: input.ParentNote, CreatedByAccountID: input.CreatedByAccountID,
-	}))
+	return changeRequestCase(s.owner.Propose(ctx, token, input))
 }
 
 func (s changeRequestService) ListPublic(ctx context.Context, token string) ([]*ChangeRequestAggregate, error) {

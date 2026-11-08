@@ -2,7 +2,6 @@ package enrollmenthttp
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -73,9 +72,6 @@ func (rs *StudentResource) toStudentEnrollmentExtraFieldGroups(r *http.Request, 
 	var versions map[int64]enrollmentCapability.SchemaVersionResult
 	var readErr error
 	for _, item := range prepared {
-		if item.err != nil {
-			return nil, item.err
-		}
 		if len(item.customData) == 0 {
 			continue
 		}
@@ -122,19 +118,6 @@ func linkedSummaryChild(summary *enrollmentCapability.DecisionSummary, studentID
 		}
 	}
 	return nil
-}
-
-// decodeEnrollmentCustomData decodes the answers a family gave for a child,
-// which the Enrollment owner hands over as raw JSON.
-func decodeEnrollmentCustomData(raw json.RawMessage) (map[string]any, error) {
-	if len(raw) == 0 {
-		return nil, nil
-	}
-	var customData map[string]any
-	if err := json.Unmarshal(raw, &customData); err != nil {
-		return nil, fmt.Errorf("decode enrollment child custom data: %w", err)
-	}
-	return customData, nil
 }
 
 func (rs *StudentResource) studentEnrollmentExtraFieldsForChild(schemaID int64, customData map[string]any, result enrollmentCapability.SchemaVersionResult, readErr error) ([]StudentEnrollmentExtraField, error) {

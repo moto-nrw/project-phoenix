@@ -18,8 +18,8 @@ import (
 // (no existing portal account) so the handler can fire it post-commit.
 func (d *Decisions) applyApproval(
 	ctx context.Context,
-	request *Request,
-	child *RequestChild,
+	request *enrollment.Request,
+	child *enrollment.RequestChild,
 	phase *enrollment.Phase,
 	reviewedBy int64,
 ) (*enrollment.PendingGuardianInvite, error) {
@@ -70,8 +70,8 @@ func (d *Decisions) applyApproval(
 // materialization and the activation plan.
 func (d *Decisions) approveNewStudent(
 	ctx context.Context,
-	request *Request,
-	child *RequestChild,
+	request *enrollment.Request,
+	child *enrollment.RequestChild,
 	phase *enrollment.Phase,
 	reviewedBy int64,
 ) (*enrollment.PendingGuardianInvite, error) {
@@ -130,7 +130,7 @@ func (d *Decisions) approveNewStudent(
 
 // createChildPerson creates the person row of the child. DateOfBirth is
 // required so a copy is fine.
-func (d *Decisions) createChildPerson(ctx context.Context, child *RequestChild) (*Person, error) {
+func (d *Decisions) createChildPerson(ctx context.Context, child *enrollment.RequestChild) (*Person, error) {
 	dob := child.DateOfBirth
 	person := &Person{FirstName: child.FirstName, LastName: child.LastName, Birthday: &dob}
 	if err := d.deps.People.Rules.ValidatePerson(person); err != nil {
@@ -149,7 +149,7 @@ func (d *Decisions) createChildPerson(ctx context.Context, child *RequestChild) 
 // active right away. enrolled_from stays the phase's ServiceStartDate in BOTH
 // modes — it is the official start date and is no longer read once a student
 // is active; only enrolled_until drives later deactivation.
-func (d *Decisions) createApprovedStudent(ctx context.Context, child *RequestChild, phase *enrollment.Phase, personID int64, plan approvalActivationPlan) (*Student, error) {
+func (d *Decisions) createApprovedStudent(ctx context.Context, child *enrollment.RequestChild, phase *enrollment.Phase, personID int64, plan approvalActivationPlan) (*Student, error) {
 	enrolledFrom := calendar.Date(phase.ServiceStartDate)
 	enrolledUntil := calendar.Date(phase.ServiceEndDate)
 	student := &Student{
@@ -199,7 +199,7 @@ func (d *Decisions) linkPrimaryGuardian(ctx context.Context, studentID, guardian
 // deliberately dropped: this student row was created moments ago in this
 // transaction, so no "läuft mit" link can exist yet and a companion broadcast
 // would only wake every open editor once per mass approval.
-func (d *Decisions) applyFreshTargetedFields(ctx context.Context, request *Request, child *RequestChild, student *Student, guardian *GuardianProfile, reviewedBy int64) error {
+func (d *Decisions) applyFreshTargetedFields(ctx context.Context, request *enrollment.Request, child *enrollment.RequestChild, student *Student, guardian *GuardianProfile, reviewedBy int64) error {
 	_, err := d.applyTargetedFields(ctx, request, child, student, guardian, reviewedBy, targetedFieldSyncOptions{})
 	if err == nil {
 		return nil
@@ -246,7 +246,7 @@ func (d *Decisions) materializeApprovedOfferings(ctx context.Context, requestChi
 // approval; profileWasNew is logging context only.
 func (d *Decisions) attachGuardianAccountIfPresent(
 	ctx context.Context,
-	request *Request,
+	request *enrollment.Request,
 	guardian *GuardianProfile,
 	profileWasNew bool,
 ) error {
@@ -322,12 +322,12 @@ func (d *Decisions) pendingGuardianInvite(
 // unique index already prevents source-row reuse so this is rare).
 func (d *Decisions) applyApprovalRollover(
 	ctx context.Context,
-	request *Request,
-	child *RequestChild,
+	request *enrollment.Request,
+	child *enrollment.RequestChild,
 	phase *enrollment.Phase,
 	reviewedBy int64,
 ) (*enrollment.PendingGuardianInvite, error) {
-	source, err := decodedChildByID(ctx, d.deps.Children, *child.RolloverSourceChildID)
+	source, err := d.deps.Children.ChildByID(ctx, *child.RolloverSourceChildID)
 	if err != nil || source == nil || source.CreatedStudentID == nil {
 		d.logger().Warn("decision: rollover source has no created_student, falling back to fresh approval",
 			slog.Int64("request_child_id", child.ID),
