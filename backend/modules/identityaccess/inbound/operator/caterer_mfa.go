@@ -96,7 +96,7 @@ func (rs *CatererMFAResource) ResetCatererMFA(w http.ResponseWriter, r *http.Req
 	case errors.Is(err, identityaccess.ErrCatererMFAResetReasonRequired):
 		common.RenderError(w, r, common.OperatorInvalidRequest(err))
 	case errors.Is(err, identityaccess.ErrOperatorAuditUnavailable):
-		common.RenderError(w, r, common.OperatorRejection(http.StatusServiceUnavailable, common.CodeOperatorAuditUnavailable, "Operator audit unavailable"))
+		common.RenderError(w, r, common.OperatorRejection(http.StatusServiceUnavailable, common.CodeOperatorAuditUnavailable, "identityaccess.Operator audit unavailable"))
 	default:
 		common.RenderError(w, r, common.OperatorInternal("caterer MFA reset failed"))
 	}

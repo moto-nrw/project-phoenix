@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	classdayhttp "github.com/moto-nrw/project-phoenix/modules/classday/http"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
@@ -33,7 +34,7 @@ func setupSchoolArrivalExceptionRoute(t *testing.T) (*testpkg.DB, *schoolportal.
 	t.Helper()
 	db, services, classDayModule, _ := setupSchoolPortalModule(t)
 	classDay := classdayhttp.NewResource(classDayModule.ClassDay, nil)
-	return db, NewSchoolPortalHTTP(services.SchoolAuth, services.SchoolMFA, schoolportal.PasswordResetRuntime{}, classDay, nil, nil, nil, nil, nil)
+	return db, NewSchoolPortalHTTP(services.SchoolAuth, services.SchoolMFA, common.PasswordResetRoutes{}, classDay, nil, nil, nil, nil, nil)
 }
 
 func TestSchoolArrivalExceptionsScopeRatchet(t *testing.T) {

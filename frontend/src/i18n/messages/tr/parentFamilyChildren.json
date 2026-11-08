@@ -1,0 +1,18 @@
+{
+  "title": "Ailenizdeki çocuklar",
+  "description": "Kardeş indirimi için kurum ailenizdeki tüm çocukları sayar. Bakım sözleşmesi olmayan çocuklar da sayılır.",
+  "fieldLabel": "Ailenizde kaç çocuk var?",
+  "less": "Bir çocuk az",
+  "more": "Bir çocuk fazla",
+  "send": "Gönder",
+  "sending": "Gönderiliyor …",
+  "saved": "Kurum cevabınızı aldı ve kontrol edecek.",
+  "errorObject": "çocuk sayısı",
+  "confirmedBadge": "Onaylandı",
+  "confirmedFrom": "{count, plural, one {1 çocuk} other {# çocuk}}, {from} tarihinden itibaren geçerli.",
+  "confirmedUntil": "{count, plural, one {1 çocuk} other {# çocuk}}, {from} ile {until} arasında geçerli.",
+  "pendingBadge": "Kontrol ediliyor",
+  "pending": "{date} tarihli cevabınız: {count, plural, one {1 çocuk} other {# çocuk}}. Kurum kontrol ediyor.",
+  "noRight": "Sayıyı bu çocuk için kayıt gönderebilen ebeveynler girer.",
+  "onlyNumber": "Sadece sayıyı kaydediyoruz. Diğer çocukların adlarına ihtiyacımız yok."
+}

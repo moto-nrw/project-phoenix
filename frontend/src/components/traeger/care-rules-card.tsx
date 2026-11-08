@@ -87,7 +87,7 @@ function RuleDetails({
         rule.countSchoolIds.length > 0
           ? `Geschwister zählen auch an: ${names(rule.countSchoolIds, data)}`
           : "Geschwister zählen nur an diesen Schulen"
-      }`,
+      }${rule.countsFamilyChildren ? " · Geschwister ohne Vertrag zählen mit" : ""}`,
     );
   }
   return (

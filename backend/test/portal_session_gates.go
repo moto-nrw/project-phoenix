@@ -12,7 +12,7 @@ import (
 // TenantSessionGates supplies native gates and facts to consumer-owned session ports.
 // These route fixtures avoid importing the root into its own dependencies.
 func TenantSessionGates() (func(http.Handler) http.Handler, func(http.Handler) http.Handler, func(context.Context) bool, func(context.Context) securityruntime.PrincipalFacts) {
-	return sessiontoken.Authenticator, sessiontoken.TenantMiddleware(tenant.ClaimScope{}), previewSessionFact, principalSessionFacts
+	return sessiontoken.Authenticator, sessiontoken.PortalGate(tenant.ClaimScope{}, sessiontoken.TenantRoutePortals...), previewSessionFact, principalSessionFacts
 }
 
 func previewSessionFact(ctx context.Context) bool {

@@ -106,7 +106,7 @@ func setupPublicRouterWithDB(t *testing.T) (*bun.DB, chi.Router) {
 
 // setupProtectedRouter mounts the resource's real Router() under /auth, so
 // tests exercise the production middleware chain (Verifier → Authenticator →
-// TenantMiddleware → RequiresPermission → TenantTxMiddleware). Requests carry a
+// TenantScopeMiddleware → RequiresPermission → TenantTxMiddleware). Requests carry a
 // signed JWT minted by executeWithAuth.
 func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 	t.Helper()
@@ -241,7 +241,7 @@ func loginAsAdmin(t *testing.T, db *bun.DB, _ chi.Router) (token string, validRo
 	// Password-only login now correctly returns an enrollment token, not a
 	// usable admin session. Login/MFA behavior has its own HTTP/behavior tests.
 	module := setupAuthModuleOn(t, db)
-	accessToken, _, err := module.Auth.IssueTokensForAuthenticatedAccount(ctx, adminAccount.ID, testpkg.Tenant(t), "", "")
+	accessToken, _, err := module.Auth.IssueTokensForPasskey(ctx, adminAccount.ID, testpkg.Tenant(t), "", "")
 	require.NoError(t, err)
 
 	return accessToken, userRole.ID

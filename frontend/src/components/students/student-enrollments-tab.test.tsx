@@ -17,9 +17,12 @@ vi.mock("~/lib/swr", () => ({
   useSWRAuth: () => ({ ...swrResult, mutate }),
 }));
 
-vi.mock("~/components/enrollment/admin-enrollment-detail", () => ({
-  ChildExtraFields: () => null,
+vi.mock("~/components/enrollment/child-offering-adjustment", () => ({
   ChildOfferingAdjustment: () => null,
+}));
+
+vi.mock("~/components/enrollment/enrollment-request-display", () => ({
+  ChildExtraFields: () => null,
   ChildOfferings: () => null,
   RequestExtraSection: () => null,
   formatDateTime: () => "09.09.2026, 12:00",

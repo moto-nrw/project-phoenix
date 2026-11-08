@@ -21,7 +21,7 @@ func legacyRefreshToken(t *testing.T, refresh string) string {
 	claims := decodePreviewTokenPayload(t, refresh)
 	auth, err := sessiontoken.NewTokenAuthWithDurations(authSigningSecret, 15*time.Minute, 24*time.Hour)
 	require.NoError(t, err)
-	legacy := sessiontoken.RefreshClaims{ID: int(claims["id"].(float64)), Token: claims["token"].(string)}
+	legacy := tokentest.RefreshClaims{ID: int(claims["id"].(float64)), Token: claims["token"].(string)}
 	if tenantID, ok := claims["tenant_id"].(float64); ok {
 		legacy.TenantID = int64(tenantID)
 	}
@@ -165,7 +165,7 @@ func TestLegacyDeadlineSurvivesConsecutiveSwitches(t *testing.T) {
 
 	firstAccess, _, err := f.switchToTarget(ctx, family)
 	require.NoError(t, err)
-	secondAccess, secondRefresh, err := f.service.SwitchTenant(ctx, f.accountID, fmt.Sprintf("t%d", f.homeTenantID), accessSessionOf(t, firstAccess).FamilyID)
+	secondAccess, secondRefresh, err := f.service.SwitchTenant(ctx, f.accountID, fmt.Sprintf("t%d", f.homeTenantID), accessSessionOf(t, firstAccess).FamilyID, "", "")
 	require.NoError(t, err)
 
 	second := accessSessionOf(t, secondAccess).FamilyID
@@ -196,13 +196,13 @@ func TestEveryLegacyFamilyKeepsItsDeadline(t *testing.T) {
 	require.NoError(t, err)
 	school := testpkg.Tenant(t)
 	testpkg.EnsureAccountTenant(t, db, account.ID, school)
-	loginAccess, _, err := service.IssueTokensForAuthenticatedAccount(ctx, account.ID, school, "", "")
+	loginAccess, _, err := service.IssueTokensForPasskey(ctx, account.ID, school, "", "")
 	require.NoError(t, err)
 	login := accessSessionOf(t, loginAccess).FamilyID
 	slug := fmt.Sprintf("t%d", school)
-	firstAccess, firstRefresh, err := service.SwitchTenant(ctx, account.ID, slug, login)
+	firstAccess, firstRefresh, err := service.SwitchTenant(ctx, account.ID, slug, login, "", "")
 	require.NoError(t, err, "a switch into the current school")
-	secondAccess, secondRefresh, err := service.SwitchTenant(ctx, account.ID, slug, login)
+	secondAccess, secondRefresh, err := service.SwitchTenant(ctx, account.ID, slug, login, "", "")
 	require.NoError(t, err, "a second tab switches into the same school")
 
 	for name, sibling := range map[string]struct{ access, refresh string }{

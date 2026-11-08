@@ -14,7 +14,8 @@ func init() {
 		Version:     parentBillingCareCostSharesVersion,
 		Description: "Elternabrechnung: Kostenträger-Anteile am Monatsbeitrag (BuT, Jugendamt, Zuschüsse) (#4687)",
 		DependsOn: []string{
-			parentBillingCareReviewVersion,     // the last migration of the monthly billing before this one
+			parentBillingFamilyChildrenVersion, // the last migration of the monthly billing before this one
+			parentBillingCareReviewVersion,     // the review the fingerprint covers
 			parentBillingCareReductionsVersion, // the rule chain the shares follow
 			parentBillingCostBearersVersion,    // the cost bearers a share names
 		},

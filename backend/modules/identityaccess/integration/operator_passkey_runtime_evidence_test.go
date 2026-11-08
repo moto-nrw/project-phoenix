@@ -9,11 +9,13 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // TestOperatorPasskeyRuntimeEvidence records the runtime evidence for the
@@ -27,8 +29,9 @@ func TestOperatorPasskeyRuntimeEvidence(t *testing.T) {
 	t.Parallel()
 	testpkg.RequireRuntimeEvidence(t)
 	db := testpkg.SetupIsolatedTestDB(t)
-	records, err := identityCompose.New(identityCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityCompose.Observation) {}})
+	owner, err := identityCompose.New(identityCompose.Dependencies{DB: db, TenantRuntime: testpkg.TenantRuntime(t, db), Observe: func(identityCompose.Observation) {}})
 	require.NoError(t, err)
+	records := owner.(ports.Records)
 	operator := testpkg.CreateTestOperator(t, db)
 	counter := testpkg.CaptureQueriesForContext(t, db)
 	testpkg.AttachLockWaitEvidence(t, db)

@@ -236,7 +236,7 @@ func (l schoolLookup) IsSchoolClosed(ctx context.Context, schoolID int64) (bool,
 }
 
 // bindTenant makes the device's school the ambient tenant. Device routes do
-// not use sessiontoken.TenantMiddleware, so an unusable tenant id is reported here.
+// not use TenantScopeMiddleware, so an unusable tenant id is reported here.
 func bindTenant(ctx context.Context, tenantID int64) (context.Context, error) {
 	id, err := tenant.NewTenantID(tenantID)
 	if err != nil {

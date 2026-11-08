@@ -87,7 +87,6 @@ func TestErrorHelpers_ResponseBody(t *testing.T) {
 		{"ErrorInternalServer", common.ErrorInternalServer(errors.New("database connection failed")), http.StatusInternalServerError, "database connection failed"},
 		{"ErrorConflict", common.ErrorConflict(errors.New("resource already exists")), http.StatusConflict, "resource already exists"},
 		{"ErrorTooManyRequests", common.ErrorTooManyRequests(errors.New("rate limit exceeded")), http.StatusTooManyRequests, "rate limit exceeded"},
-		{"ErrorGone", common.ErrorGone(errors.New("invitation expired")), http.StatusGone, "invitation expired"},
 	}
 
 	for _, tc := range cases {
@@ -372,7 +371,6 @@ func TestErrorHelpers_NilErrorDoesNotPanic(t *testing.T) {
 		{"ErrorInternalServer", common.ErrorInternalServer(nil), http.StatusInternalServerError},
 		{"ErrorConflict", common.ErrorConflict(nil), http.StatusConflict},
 		{"ErrorTooManyRequests", common.ErrorTooManyRequests(nil), http.StatusTooManyRequests},
-		{"ErrorGone", common.ErrorGone(nil), http.StatusGone},
 	}
 
 	for _, tc := range cases {
@@ -449,7 +447,6 @@ func TestErrorHelpers_NonNilErrorPreservesMessage(t *testing.T) {
 		{"ErrorInternalServer", common.ErrorInternalServer(customErr)},
 		{"ErrorConflict", common.ErrorConflict(customErr)},
 		{"ErrorTooManyRequests", common.ErrorTooManyRequests(customErr)},
-		{"ErrorGone", common.ErrorGone(customErr)},
 		{"ErrorConflictWithCode", common.ErrorConflictWithCode(customErr, common.CodeGeneralBusinessRejection)},
 	}
 

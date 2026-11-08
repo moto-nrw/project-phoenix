@@ -156,9 +156,9 @@ func TestSessionChainFollowsSwitchLineageWithoutAncestorRows(t *testing.T) {
 func TestSessionChainJoinsTheOriginOnlyWithinItsPortal(t *testing.T) {
 	t.Parallel()
 	sessions := []AccountSession{
-		{ID: 1, AccountID: 7, FamilyID: "traeger", SwitchedFromFamilyID: "traeger", PortalScope: PortalScopeOrg},
-		{ID: 2, AccountID: 7, FamilyID: "school-a", SwitchedFromFamilyID: "traeger", PortalScope: PortalScopeTenant},
-		{ID: 3, AccountID: 7, FamilyID: "school-b", SwitchedFromFamilyID: "traeger", PortalScope: PortalScopeTenant},
+		{ID: 1, AccountID: 7, FamilyID: "traeger", SwitchedFromFamilyID: "traeger", PortalScope: PortalOrg.Name},
+		{ID: 2, AccountID: 7, FamilyID: "school-a", SwitchedFromFamilyID: "traeger", PortalScope: PortalTenant.Name},
+		{ID: 3, AccountID: 7, FamilyID: "school-b", SwitchedFromFamilyID: "traeger", PortalScope: PortalTenant.Name},
 	}
 	for _, tc := range []struct {
 		start AccountSession

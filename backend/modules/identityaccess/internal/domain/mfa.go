@@ -19,26 +19,11 @@ import (
 // trusted-device cookie — so the flows above them read as one story and the
 // clock and the random source stay injected.
 
-// The portal a challenge belongs to. A code is only redeemable at the
-// surface it was started for.
-const (
-	MFAChallengeScopeTenant   = "tenant"
-	MFAChallengeScopePlatform = "platform"
-	MFAChallengeScopeSchool   = "school"
-	MFAChallengeScopeOrg      = "org"
-	// MFAChallengeScopeCaterer is the caterer portal (#4497); its challenge
-	// names no school.
-	MFAChallengeScopeCaterer = "caterer"
-)
-
 // AccountMFAChallengeScope reports the portals an account's e-mail challenge
 // may be started for; the operator keeps its own challenges.
 func AccountMFAChallengeScope(scope string) bool {
-	switch scope {
-	case MFAChallengeScopeTenant, MFAChallengeScopeSchool, MFAChallengeScopeOrg, MFAChallengeScopeCaterer:
-		return true
-	}
-	return false
+	portal, ok := PortalOfPersisted(scope)
+	return ok && portal.Challenge
 }
 
 // Fixed MFA protocol and operator-policy constants. Account lockout and

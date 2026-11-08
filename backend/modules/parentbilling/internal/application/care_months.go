@@ -55,6 +55,8 @@ type CareStore interface {
 	CostBearer(ctx context.Context, organizationID, costBearerID int64) (parentbilling.CostBearer, error)
 	// CareRunCancellations reads the Stornos of the invoices of a run.
 	CareRunCancellations(ctx context.Context, organizationID, runID int64) ([]parentbilling.CareCancellation, error)
+	// FamilyChildCounts reads the numbers of the Träger's families (#5918).
+	FamilyChildCounts(ctx context.Context, organizationID int64) ([]parentbilling.FamilyChildCount, error)
 	ListNumberRanges(ctx context.Context, organizationID int64) ([]parentbilling.NumberRange, error)
 	ReserveNumbers(ctx context.Context, organizationID int64, service string, year, count int) (int64, error)
 	// The terms, the family deviations and the due dates of the run decide
@@ -528,8 +530,13 @@ func (c *CareBilling) monthWith(ctx context.Context, organizationID int64, run p
 	if err != nil {
 		return "", careMonth{}, err
 	}
+	familyCounts, err := c.store.FamilyChildCounts(ctx, organizationID)
+	if err != nil {
+		return "", careMonth{}, err
+	}
 	month, err := buildCareMonth(careMonthInput{month: run.BillingMonth, rule: rule, versions: versions, tariffs: tariffs,
-		invoiced: invoiced, recipients: recipients, rules: rules, evidences: evidences, costShares: costShares})
+		invoiced: invoiced, recipients: recipients, rules: rules, evidences: evidences, costShares: costShares,
+		familyCounts: familyCounts})
 	if err != nil {
 		return rule, month, err
 	}

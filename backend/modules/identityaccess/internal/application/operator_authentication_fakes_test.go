@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -305,10 +304,4 @@ func newOperatorFixture(t *testing.T) *operatorFixture {
 func (f *operatorFixture) seedOperator(id int64) domain.Operator {
 	f.store.addOperator(id, fmt.Sprintf("operator%d@example.com", id), "hash:secret", true)
 	return f.store.operators[id]
-}
-
-// withProof attaches a recovery proof the fake rotation policy hashes.
-func withProof(ctx context.Context, proof string) context.Context {
-	padded := strings.Repeat("0", 32-len(proof)) + proof
-	return context.WithValue(ctx, fakeProofKey{}, []byte(padded[:32]))
 }

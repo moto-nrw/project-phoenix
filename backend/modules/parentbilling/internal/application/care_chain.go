@@ -31,10 +31,29 @@ type careChainEntry struct {
 
 // careChainInput are the rules and evidences of the Träger the chain reads.
 type careChainInput struct {
-	month      calendar.Date
-	rules      []parentbilling.ContributionRule
-	evidences  []parentbilling.CareEvidence
+	month     calendar.Date
+	rules     []parentbilling.ContributionRule
+	evidences []parentbilling.CareEvidence
+	// costShares split the contribution with the cost bearers (#4687).
 	costShares []parentbilling.CareCostShare
+	// familyChildren is the confirmed number of children valid in the
+	// month per family (#5918); a sibling rule reads it only when it counts
+	// the family.
+	familyChildren map[string]int
+	// uncounted collects, per family a rule that counts the family ranked
+	// without a confirmed number, the schools of its invoices the rule
+	// reduces; nil collects nothing.
+	uncounted map[string][]int64
+	// unbilled are the contracts in force in the month without a draft in
+	// the chain (a missing price, a child billed twice): they bill nothing
+	// yet but still place their child at its school.
+	unbilled []careContractPlace
+}
+
+// careContractPlace is the school a child of a family has a contract at.
+type careContractPlace struct {
+	family, child string
+	school        int64
 }
 
 // applyCareChain runs the chain over the invoices of one month and writes
@@ -48,7 +67,7 @@ func applyCareChain(entries []*careChainEntry, in careChainInput) {
 		entry.applyIncome(in, rules)
 	}
 	for _, rule := range rulesOfKind(rules, parentbilling.RuleSibling) {
-		applyCareSiblingRule(entries, rule)
+		applyCareSiblingRule(entries, rule, in)
 	}
 	for _, entry := range entries {
 		entry.applySingleParent(in, rules)
@@ -216,7 +235,8 @@ type rankedCareChild struct {
 
 // rankFamilies groups the entries by family and, in each family, by child,
 // in the order of the sibling rule: the highest base price first, then the
-// oldest, then the child key, so the order is the same on every run.
+// oldest, then the child key, so the order is the same on every run. The
+// families come by their key.
 func rankFamilies(entries []*careChainEntry, rule *parentbilling.ContributionRule) [][]*rankedCareChild {
 	families := map[string]map[string]*rankedCareChild{}
 	order := []string{}
@@ -274,7 +294,7 @@ func countingSchools(rule *parentbilling.ContributionRule) []int64 {
 // applyCareSiblingRule ranks the children of every family that have a
 // position of the rule at a counting school and reduces the invoices at the
 // rule's schools of every child from the rule's rank on.
-func applyCareSiblingRule(entries []*careChainEntry, rule *parentbilling.ContributionRule) {
+func applyCareSiblingRule(entries []*careChainEntry, rule *parentbilling.ContributionRule, in careChainInput) {
 	counting := countingSchools(rule)
 	counted := []*careChainEntry{}
 	for _, entry := range entries {
@@ -282,14 +302,116 @@ func applyCareSiblingRule(entries []*careChainEntry, rule *parentbilling.Contrib
 			counted = append(counted, entry)
 		}
 	}
+	others := otherContractChildren(entries, in.unbilled, counted, counting)
 	for _, children := range rankFamilies(counted, rule) {
-		total := len(children)
+		total, ahead := familySize(children, rule, in, others[familyOf(children[0].entries[0])])
 		for index, child := range children {
-			rank := index + 1
+			rank := ahead + index + 1
 			if rank < *rule.SiblingFromChild {
 				continue
 			}
 			reduceCareSiblingChild(child, rule, rank, total)
+		}
+	}
+}
+
+// familySize is how many children a sibling rule counts in a family and how
+// many of them, the siblings without a contract, come before its children
+// with one (#5918). A rule that counts the family takes the confirmed number
+// valid in the month, but never fewer than the children with a contract it
+// counts; without a confirmed number it counts those children alone and
+// notes the family as uncounted.
+//
+// The family states all its children. A child whose contract this month is
+// only at a school the rule does not count is no sibling here: the counting
+// schools of the rule decide, as for the children with a contract (SJR
+// 08.11.2026, each location apart). Such children come off the stated
+// number. Siblings without a contract belong to no school and count at every
+// one. A rule that counts both schools counts them all; the choice is the
+// rule's setting „Geschwister zählen an“.
+//
+// A child with a contract at a counting school is a child with a contract
+// even when the rule's part of it costs nothing (a price of 0 €, a full
+// reduction before) or it bills nothing yet: it takes no place of a sibling
+// without a contract. With the lowest base price it ranks behind the ranked
+// children (ADR 0115 point 3); only the stated children beyond all children
+// with a contract are siblings without one.
+func familySize(children []*rankedCareChild, rule *parentbilling.ContributionRule, in careChainInput, others contractChildren) (total, ahead int) {
+	withContract := len(children)
+	if !rule.CountsFamilyChildren {
+		return withContract, 0
+	}
+	family := familyOf(children[0].entries[0])
+	stated, ok := in.familyChildren[family]
+	if !ok {
+		if in.uncounted != nil && !strings.HasPrefix(family, "contract:") {
+			noteUncounted(in.uncounted, family, children, rule)
+		}
+		return withContract, 0
+	}
+	total = max(stated-others.elsewhere, withContract+others.unranked)
+	return total, total - withContract - others.unranked
+}
+
+// contractChildren are the children of a family with a contract in the
+// month that a sibling rule does not rank: elsewhere only at schools it does
+// not count, unranked at a counting school without a base price of the rule.
+type contractChildren struct {
+	elsewhere, unranked int
+}
+
+// otherContractChildren counts per family the children with a contract of
+// the month, with a draft or not yet billable, that are not among the ranked
+// entries.
+func otherContractChildren(entries []*careChainEntry, unbilled []careContractPlace, ranked []*careChainEntry, counting []int64) map[string]contractChildren {
+	type familyChild struct{ family, child string }
+	isRanked := map[familyChild]bool{}
+	for _, entry := range ranked {
+		isRanked[familyChild{familyOf(entry), entry.child}] = true
+	}
+	places := slices.Clone(unbilled)
+	for _, entry := range entries {
+		places = append(places, careContractPlace{family: familyOf(entry), child: entry.child, school: entry.invoice.SchoolID})
+	}
+	inside := map[familyChild]bool{}
+	outside := map[familyChild]bool{}
+	for _, place := range places {
+		key := familyChild{place.family, place.child}
+		if slices.Contains(counting, place.school) {
+			inside[key] = true
+		} else {
+			outside[key] = true
+		}
+	}
+	others := map[string]contractChildren{}
+	for key := range inside {
+		if !isRanked[key] {
+			tally := others[key.family]
+			tally.unranked++
+			others[key.family] = tally
+		}
+	}
+	for key := range outside {
+		if !inside[key] {
+			tally := others[key.family]
+			tally.elsewhere++
+			others[key.family] = tally
+		}
+	}
+	return others
+}
+
+// noteUncounted records the schools of the family's invoices the rule
+// reduces: only there the missing number changes an amount.
+func noteUncounted(uncounted map[string][]int64, family string, children []*rankedCareChild, rule *parentbilling.ContributionRule) {
+	if _, ok := uncounted[family]; !ok {
+		uncounted[family] = []int64{}
+	}
+	for _, child := range children {
+		for _, entry := range child.entries {
+			if appliesAt(rule.SchoolIDs, entry) && !slices.Contains(uncounted[family], entry.invoice.SchoolID) {
+				uncounted[family] = append(uncounted[family], entry.invoice.SchoolID)
+			}
 		}
 	}
 }

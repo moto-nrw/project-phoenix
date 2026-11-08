@@ -64,7 +64,9 @@ func TestCareCostSharesFollowTheRuleChain(t *testing.T) {
 		rules     func(t *testing.T) []parentbilling.ContributionRule
 		evidences func(t *testing.T) []parentbilling.CareEvidence
 		shares    func(t *testing.T) []parentbilling.CareCostShare
-		want      map[int64]splitOf
+		// families are the numbers of children the families stated (#5918).
+		families func(t *testing.T) []parentbilling.FamilyChildCount
+		want     map[int64]splitOf
 	}{
 		{
 			// No rule: 80,00 €, Bildung und Teilhabe takes 100 %, the family pays nothing.
@@ -217,6 +219,23 @@ func TestCareCostSharesFollowTheRuleChain(t *testing.T) {
 			// for the whole of January (ADR 0169 point 2, like an evidence in
 			// ADR 0164 point 6): the Jugendamt takes Noah's 60,00 €. The share
 			// need not last to the end of the month.
+			// The family states 2 children and the rule counts the family
+			// (#5918). Bildung und Teilhabe takes all of Mia's 80,00 €; she stays
+			// a child with a contract and, with the higher base price, the 1st.
+			// Noah (60,00 €) is the 2nd: 60,00 − 50 % = 30,00 €. The share comes
+			// after the chain and takes no place in the ranking.
+			name: "full takeover keeps the child first among the stated two", children: []careChainChild{mia, noah},
+			rules:    familySiblingRule(true),
+			families: confirmedFamily(familyEva, 2, "2026-09-01", nil),
+			shares: func(t *testing.T) []parentbilling.CareCostShare {
+				return []parentbilling.CareCostShare{costShare(t, contractMia, parentbilling.CostShareEducationParticipation, bearerJobcenter, "2026-08-01", "2027-07-31", basisPoints(10000))}
+			},
+			want: map[int64]splitOf{
+				contractMia:  {8000, []shareOf{{bearerJobcenter, 8000}}, 0},
+				contractNoah: {3000, []shareOf{}, 3000},
+			},
+		},
+		{
 			name: "a share ending mid-month holds for that month", children: []careChainChild{noah}, rules: noRules,
 			shares: func(t *testing.T) []parentbilling.CareCostShare {
 				return []parentbilling.CareCostShare{
@@ -241,6 +260,9 @@ func TestCareCostSharesFollowTheRuleChain(t *testing.T) {
 			}
 			if tc.evidences != nil {
 				in.evidences = tc.evidences(t)
+			}
+			if tc.families != nil {
+				in.familyCounts = tc.families(t)
 			}
 			if len(tc.invoiced) > 0 {
 				prior, err := buildCareMonth(in)

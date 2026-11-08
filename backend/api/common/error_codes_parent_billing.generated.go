@@ -50,8 +50,11 @@ const CodeParentBillingDebtorNumberLocked = "parent_billing.debtor_number_locked
 const CodeParentBillingDueDatesInvalid = "parent_billing.due_dates_invalid"
 const CodeParentBillingFamilyBillingInvalid = "parent_billing.family_billing_invalid"
 const CodeParentBillingFamilyBillingNotFound = "parent_billing.family_billing_not_found"
+const CodeParentBillingFamilyChildrenInvalid = "parent_billing.family_children_invalid"
+const CodeParentBillingFamilyChildrenNotFound = "parent_billing.family_children_not_found"
 const CodeParentBillingFamilyNotFound = "parent_billing.family_not_found"
 const CodeParentBillingFamilyUnknown = "parent_billing.family_unknown"
+const CodeParentBillingFamilyWithoutAddress = "parent_billing.family_without_address"
 const CodeParentBillingHolidayQuoteInvalid = "parent_billing.holiday_quote_invalid"
 const CodeParentBillingInvoiceCancelled = "parent_billing.invoice_cancelled"
 const CodeParentBillingInvoiceCredited = "parent_billing.invoice_credited"
@@ -120,8 +123,11 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingDueDatesInvalid, "input"},
 	{CodeParentBillingFamilyBillingInvalid, "input"},
 	{CodeParentBillingFamilyBillingNotFound, "business_rejection"},
+	{CodeParentBillingFamilyChildrenInvalid, "input"},
+	{CodeParentBillingFamilyChildrenNotFound, "business_rejection"},
 	{CodeParentBillingFamilyNotFound, "business_rejection"},
 	{CodeParentBillingFamilyUnknown, "business_rejection"},
+	{CodeParentBillingFamilyWithoutAddress, "business_rejection"},
 	{CodeParentBillingHolidayQuoteInvalid, "input"},
 	{CodeParentBillingInvoiceCancelled, "business_rejection"},
 	{CodeParentBillingInvoiceCredited, "business_rejection"},
