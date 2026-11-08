@@ -25,23 +25,11 @@ func EnsureServer(ctx context.Context, cfg *Config) error {
 	if err := HoldServer(ctx, cfg); err != nil {
 		return fmt.Errorf("protect local test server: %w", err)
 	}
-	return ensureServer(ctx, cfg, func(ctx context.Context) error {
+	start := func(ctx context.Context) error {
 		return startTestContainer(ctx, cfg)
-	})
-}
-
-func ensureServer(
-	ctx context.Context,
-	cfg *Config,
-	start func(context.Context) error,
-) error {
-	return ensureServerWithDependencies(
-		ctx,
-		cfg,
-		start,
-		pingServer,
-		isPostgresAuthenticationFailure,
-	)
+	}
+	return ensureServerWithRecovery(ctx, cfg, start, pingServer, isPostgresAuthenticationFailure,
+		func(ctx context.Context) (bool, error) { return rebuildCorruptServer(ctx, cfg, start) })
 }
 
 type serverPinger func(context.Context, *Config) error
@@ -54,13 +42,28 @@ func ensureServerWithDependencies(
 	ping serverPinger,
 	isAuthenticationFailure authenticationFailureClassifier,
 ) error {
+	return ensureServerWithRecovery(ctx, cfg, start, ping, isAuthenticationFailure, nil)
+}
+
+// corruptServerRecovery rebuilds a managed server that cannot start and
+// reports whether it did (#6230); nil disables recovery.
+type corruptServerRecovery func(context.Context) (bool, error)
+
+func ensureServerWithRecovery(
+	ctx context.Context,
+	cfg *Config,
+	start func(context.Context) error,
+	ping serverPinger,
+	isAuthenticationFailure authenticationFailureClassifier,
+	recoverCorrupt corruptServerRecovery,
+) error {
 	pingErr := ping(ctx, cfg)
 	if pingErr == nil {
 		return nil
 	}
 
 	if isPostgresStarting(pingErr) || isConnectionTimeout(pingErr) {
-		return waitForServer(ctx, cfg, ping, isAuthenticationFailure)
+		return waitForServer(ctx, cfg, ping, isAuthenticationFailure, recoverCorrupt)
 	}
 	if isAuthenticationFailure(pingErr) {
 		return testDatabaseAuthenticationError()
@@ -76,23 +79,41 @@ To run integration tests manually:
   1. Start test database: docker compose --profile test up -d postgres-test
   2. Set TEST_DB_DSN from the server-owning checkout's root .env (see docs/agents/operations.md#test-database)`, err)
 	}
-	return waitForServer(ctx, cfg, ping, isAuthenticationFailure)
+	return waitForServer(ctx, cfg, ping, isAuthenticationFailure, recoverCorrupt)
 }
+
+// corruptServerCheckInterval spaces the Docker inspections of a refused
+// server: a corrupt cluster exits within a second of its start.
+const corruptServerCheckInterval = 2 * time.Second
 
 func waitForServer(
 	ctx context.Context,
 	cfg *Config,
 	ping serverPinger,
 	isAuthenticationFailure authenticationFailureClassifier,
+	recoverCorrupt corruptServerRecovery,
 ) error {
 	deadline := time.Now().Add(60 * time.Second)
+	nextCheck := time.Now().Add(corruptServerCheckInterval)
 	for {
-		if err := ping(ctx, cfg); err == nil {
+		err := ping(ctx, cfg)
+		if err == nil {
 			return nil
 		} else if isAuthenticationFailure(err) {
 			return testDatabaseAuthenticationError()
 		} else if time.Now().After(deadline) {
 			return fmt.Errorf("test database server did not become ready within 60s after container start: %w", err)
+		}
+		if recoverCorrupt != nil && errors.Is(err, syscall.ECONNREFUSED) && !time.Now().Before(nextCheck) {
+			rebuilt, recoverErr := recoverCorrupt(ctx)
+			if recoverErr != nil {
+				return fmt.Errorf("rebuild corrupt test database server: %w", recoverErr)
+			}
+			if rebuilt {
+				// A fresh cluster runs initdb before it accepts connections.
+				deadline = time.Now().Add(60 * time.Second)
+			}
+			nextCheck = time.Now().Add(corruptServerCheckInterval)
 		}
 		select {
 		case <-ctx.Done():
