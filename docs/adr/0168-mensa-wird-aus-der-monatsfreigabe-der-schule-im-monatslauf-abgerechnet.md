@@ -138,9 +138,9 @@ ein. Sie führt keinen Owner und keinen zweiten Lauf ein.
 - Budgets (gemessen auf dem Stand dieses PRs): `modules/mealplan/compose`
   74 → 105 Zeilen (Freigabe und Träger-Lesung, +31),
   `modules/parentbilling/compose` 67 → 74 Zeilen (Mensa im Monatslauf, +7,
-  auf den 67 aus ADR 0167), `moduleComposeBudgetTotal` 13093 → 13131 (+38).
+  auf den 67 aus ADR 0167), `moduleComposeBudgetTotal` 13087 → 13125 (+38).
   Pass-through `modules/studentpresence` 122 → 123 und
-  `modulePassthroughOwnerBudgetTotal` 1407 → 1408: `AttendanceCompleteFrom`
+  `modulePassthroughOwnerBudgetTotal` 1404 → 1405: `AttendanceCompleteFrom`
   prüft die Frist und nimmt das spätere von Stichtag und Löschstand; die
   Prüfung zählt es als einen Feldaufruf.
 - Command-Effects: die Leseaufrufe von `AttendanceCompleteFrom` aus Meal Plan
@@ -148,5 +148,6 @@ ein. Sie führt keinen Owner und keinen zweiten Lauf ein.
   beim Träger (`platform`/`scope`) und der Beobachtungs-Hook von Student
   Presence (`unresolved`, Freigabe 0168).
 - Aufbewahrung und Datenlebenszyklus: je fünf Einträge (der Löschstand ohne
-  Personendaten, `tenantReference` über `school_id`).
+  Personendaten, `tenantReference` über `school_id`). Die Schullöschung
+  (`platform.school_erasure_*`) löscht den Löschstand mit seiner Schule.
 - Migration `1.15.811`.

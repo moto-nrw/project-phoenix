@@ -48,7 +48,7 @@ func schoolListsGrowthBudget(t *testing.T, accountList bool) {
 	router.Mount("/auth", resource.Router(api.TenantSessionChain))
 	actor := testpkg.CreateTestAccount(t, db, "school-list-reader")
 	testpkg.EnsureAccountTenant(t, db, actor.ID, testpkg.Tenant(t))
-	token, _, err := module.Auth.IssueTokensForAuthenticatedAccount(testpkg.Ctx(t), actor.ID, testpkg.Tenant(t), "", "")
+	token, _, err := module.Auth.IssueTokensForPasskey(testpkg.Ctx(t), actor.ID, testpkg.Tenant(t), "", "")
 	require.NoError(t, err)
 	other := testpkg.CreateTestAccount(t, db, "school-list-other")
 	_, err = db.ExecContext(context.Background(), "UPDATE platform.schools SET hidden = true")

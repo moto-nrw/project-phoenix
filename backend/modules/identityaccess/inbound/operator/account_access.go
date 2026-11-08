@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/go-chi/render"
+
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
@@ -126,7 +127,7 @@ func (rs *Resource) GrantAccountTenantAccess(w http.ResponseWriter, r *http.Requ
 	}
 	req := &grantAccountTenantAccessRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, rs.responses.InvalidRequest(err))
+		common.RenderError(w, r, common.OperatorInvalidRequest(err))
 		return
 	}
 	entries, err := rs.identity.GrantAccountTenantAccess(r.Context(), identityaccess.GrantAccountTenantAccess{
@@ -145,7 +146,7 @@ func (rs *Resource) UpdateAccountTenantRole(w http.ResponseWriter, r *http.Reque
 	}
 	req := &updateAccountTenantRoleRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, rs.responses.InvalidRequest(err))
+		common.RenderError(w, r, common.OperatorInvalidRequest(err))
 		return
 	}
 	entries, err := rs.identity.UpdateAccountTenantRole(

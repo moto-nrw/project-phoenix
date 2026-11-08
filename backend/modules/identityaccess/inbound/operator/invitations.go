@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/gofrs/uuid"
+
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
@@ -154,7 +154,7 @@ func (rs *InvitationsResource) CreateInvitation(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	if err := rs.invitationService.InviteOperator(r.Context(), OperatorInvitationRequest{
+	if err := rs.invitationService.InviteOperator(r.Context(), identityaccess.OperatorInvitationRequest{
 		Email: req.Email, DisplayName: req.DisplayName, CreatedBy: operatorID, IPAddress: clientIP(r),
 	}); err != nil {
 		common.RenderError(w, r, invitationErrorRenderer(err))
@@ -284,7 +284,7 @@ func (rs *InvitationsResource) AcceptInvitation(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	operator, err := rs.invitationService.AcceptOperatorInvitation(r.Context(), OperatorInvitationAcceptance{
+	operator, err := rs.invitationService.AcceptOperatorInvitation(r.Context(), identityaccess.OperatorInvitationAcceptance{
 		Token: req.Token, DisplayName: req.DisplayName, Password: req.Password, IPAddress: clientIP(r),
 	})
 	if err != nil {
@@ -296,7 +296,7 @@ func (rs *InvitationsResource) AcceptInvitation(w http.ResponseWriter, r *http.R
 		ID:          operator.ID,
 		Email:       operator.Email,
 		DisplayName: operator.DisplayName,
-	}, "Operator account created successfully")
+	}, "identityaccess.Operator account created successfully")
 }
 
 // --- Error translation ---
@@ -322,11 +322,11 @@ func invitationErrorRenderer(err error) render.Renderer {
 		return invalidOperatorInput(invalid, "password")
 	}
 	switch {
-	case errors.Is(err, ErrOperatorInvitationNotFound):
+	case errors.Is(err, identityaccess.ErrOperatorInvitationNotFound):
 		return common.OperatorRejection(http.StatusNotFound, common.CodeIdentityInvitationNotFound, "Einladung nicht gefunden oder abgelaufen")
-	case errors.Is(err, ErrOperatorEmailExists):
-		return common.OperatorRejection(http.StatusConflict, common.CodeIdentityEmailAlreadyExists, "Ein Operator mit dieser E-Mail existiert bereits")
-	case errors.Is(err, ErrOperatorInvitationRateLimited):
+	case errors.Is(err, identityaccess.ErrOperatorEmailExists):
+		return common.OperatorRejection(http.StatusConflict, common.CodeIdentityEmailAlreadyExists, "Ein identityaccess.Operator mit dieser E-Mail existiert bereits")
+	case errors.Is(err, identityaccess.ErrOperatorInvitationRateLimited):
 		return common.OperatorRejection(http.StatusTooManyRequests, common.CodeIdentityInvitationRateLimited, "Zu viele Einladungen. Bitte warte eine Stunde.")
 	default:
 		return common.OperatorInternal("Ein Fehler ist aufgetreten")
@@ -340,8 +340,8 @@ func publicInvitationErrorRenderer(err error) render.Renderer {
 		return invalidOperatorInput(invalid, "password")
 	}
 	switch {
-	case errors.Is(err, ErrOperatorInvitationNotFound),
-		errors.Is(err, ErrOperatorEmailExists):
+	case errors.Is(err, identityaccess.ErrOperatorInvitationNotFound),
+		errors.Is(err, identityaccess.ErrOperatorEmailExists):
 		// One code for both cases to prevent email enumeration
 		return common.OperatorRejection(http.StatusBadRequest, common.CodeIdentityOperatorInvitationInvalid, "dieser Link ist abgelaufen oder ungültig")
 	default:

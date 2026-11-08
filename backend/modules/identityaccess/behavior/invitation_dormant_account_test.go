@@ -29,7 +29,7 @@ func TestInvitationRestoresOffboardedAccount(t *testing.T) {
 	account, err := service.Register(testpkg.TenantContext(tenantID), email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
-	_, _, err = service.LoginWithAudit(context.Background(), email, testPassword, "", "", "")
+	_, _, err = tenantPasswordLogin(service, email, testPassword, "", "", "")
 	require.NoError(t, err, "the account has to work before it is offboarded")
 
 	// ARRANGE — the school removes the user. This is the production path:
@@ -65,11 +65,11 @@ func TestInvitationRestoresOffboardedAccount(t *testing.T) {
 
 	// ASSERT — the restored account signs in with the password just chosen,
 	// and only with that one.
-	accessToken, refreshToken, err := service.LoginWithAudit(context.Background(), email, testNewPassword, "", "", "")
+	accessToken, refreshToken, err := tenantPasswordLogin(service, email, testNewPassword, "", "", "")
 	require.NoError(t, err)
 	require.NotEmpty(t, accessToken)
 	require.NotEmpty(t, refreshToken)
-	_, _, err = service.LoginWithAudit(context.Background(), email, testPassword, "", "", "")
+	_, _, err = tenantPasswordLogin(service, email, testPassword, "", "", "")
 	require.ErrorIs(t, err, identityaccess.ErrInvalidCredentials, "the old credential must not survive the restore")
 
 	active, err := factory.VerifyAccountTenantMembership(ctx, account.ID, tenantID)

@@ -72,21 +72,21 @@ func TestAccountMFARejectsUnreadableSecuritySettings(t *testing.T) {
 				assert.Empty(t, records.trusted)
 				return
 			}
-			challengeRow, err := records.CreateChallenge(context.Background(), domain.AccountMFAChallenge{AccountID: 1, TenantID: 10, Scope: domain.MFAChallengeScopeTenant, CodeHash: "hash:123456", ExpiresAt: time.Now().Add(time.Minute)})
+			challengeRow, err := records.CreateChallenge(context.Background(), domain.AccountMFAChallenge{AccountID: 1, TenantID: 10, Scope: domain.PortalTenant.Name, CodeHash: "hash:123456", ExpiresAt: time.Now().Add(time.Minute)})
 			require.NoError(t, err)
-			codec.parse["challenge"] = domain.MFAChallengeClaims{AccountID: 1, TenantID: 10, Scope: domain.MFAChallengeScopeTenant, ChallengeID: challengeRow.ID}
+			codec.parse["challenge"] = domain.MFAChallengeClaims{AccountID: 1, TenantID: 10, Scope: domain.PortalTenant.Name, ChallengeID: challengeRow.ID}
 			challenge := "challenge"
 			for range 6 {
 				verified, err := flows.VerifyChallenge(context.Background(), challenge, "wrong-code")
 				require.ErrorIs(t, err, identityaccess.ErrMFAStatusUnavailable)
 				assert.Zero(t, verified.AccountID)
-				require.ErrorIs(t, flows.VerifyCodeForAccount(context.Background(), 1, 10, "wrong-code", domain.MFAChallengeScopeTenant), identityaccess.ErrMFAStatusUnavailable)
+				require.ErrorIs(t, flows.VerifyCodeForAccount(context.Background(), 1, 10, "wrong-code", domain.PortalTenant.Name), identityaccess.ErrMFAStatusUnavailable)
 			}
 			// A correct guess must not bypass the unavailable lockout policy.
 			verified, err := flows.VerifyChallenge(context.Background(), challenge, "123456")
 			assert.ErrorIs(t, err, identityaccess.ErrMFAStatusUnavailable)
 			assert.Zero(t, verified.AccountID)
-			assert.ErrorIs(t, flows.VerifyCodeForAccount(context.Background(), 1, 10, "123456", domain.MFAChallengeScopeTenant), identityaccess.ErrMFAStatusUnavailable)
+			assert.ErrorIs(t, flows.VerifyCodeForAccount(context.Background(), 1, 10, "123456", domain.PortalTenant.Name), identityaccess.ErrMFAStatusUnavailable)
 			assert.Nil(t, records.challenges[0].ConsumedAt)
 			// Once settings recover, the same unconsumed challenge still works.
 			flows.settings = optionalMFASettings{}

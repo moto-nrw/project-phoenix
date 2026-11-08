@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 )
 
@@ -236,14 +237,11 @@ func (rs *Resource) mountSessionRoutes(r chi.Router) {
 		r.Post("/logout", rs.logout)
 	})
 
-	// Enrollment-only routes (issue #1308): accept the narrow enrollment
-	// JWT that login mints for accounts on an mfa-required tenant that
-	// have no credential yet. Lives in its own group with a dedicated
-	// authenticator so the enrollment token NEVER reaches a fully
-	// authenticated handler. The full session is minted by
+	// Enrollment-only routes (issue #1308): only a tenant enrollment token
+	// enters, and it enters nothing else. The full session is minted by
 	// mfaEnrollConfirm after successful enrollment.
 	r.Group(func(r chi.Router) {
-		r.Use(sessiontoken.MFAEnrollmentAuthenticator)
+		r.Use(sessiontoken.EnrollmentAuthenticatorFor(tokenprimitives.TenantClaims))
 		r.Route("/mfa/enroll", func(r chi.Router) {
 			r.Post("/start", rs.mfaEnrollStart)
 			r.Post("/confirm", rs.mfaEnrollConfirm)

@@ -11,14 +11,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 type passkeyServiceStub struct {
@@ -135,7 +135,7 @@ func TestPasskeyLoginHandlers(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	req := passkeyJSONRequest("/passkeys/login/options", `{"tenant_slug":" school-a "}`)
-	req.Header.Set(headerMotoFrontendOrigin, "https://school-a.localhost")
+	req.Header.Set("X-Moto-Frontend-Origin", "https://school-a.localhost")
 	rs.passkeyLoginOptions(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
@@ -146,7 +146,7 @@ func TestPasskeyLoginHandlers(t *testing.T) {
 
 	w = httptest.NewRecorder()
 	req = passkeyJSONRequest("/passkeys/login/verify", `{"session_id":"login-session","response":{"id":"assertion"}}`)
-	req.Header.Set(headerUserAgent, "test-agent")
+	req.Header.Set("User-Agent", "test-agent")
 	req.RemoteAddr = "203.0.113.10:1234"
 	rs.passkeyLoginVerify(w, req)
 

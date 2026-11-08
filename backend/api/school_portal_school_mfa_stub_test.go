@@ -5,21 +5,15 @@ import (
 	"errors"
 	"net"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/schoolportal"
 )
 
 // The second factor reaches the school portal as the runtime the composition
 // root binds, with the school scope already applied (#3364). The stub below
 // fills the closures a test does not describe, so an unexpected call fails
-// loudly instead of nil-dereferencing, and the classifiers answer on the
-// stub's own sentinels.
-var (
-	errStubMFAUnavailable       = errors.New("stub: mfa status unavailable")
-	errStubMFABlocked           = errors.New("stub: mfa blocked")
-	errStubMFAChallengeUnusable = errors.New("stub: mfa challenge unusable")
-	errStubMFAAlreadyEnrolled   = errors.New("stub: mfa already enrolled")
-	errStubMFAUnexpectedCall    = errors.New("stub: unexpected MFA call")
-)
+// loudly instead of nil-dereferencing.
+var errStubMFAUnexpectedCall = errors.New("stub: unexpected MFA call")
 
 func stubSchoolMFA(runtime schoolportal.MFARuntime) schoolportal.MFARuntime {
 	if runtime.VerifyChallenge == nil {
@@ -46,13 +40,9 @@ func stubSchoolMFA(runtime schoolportal.MFARuntime) schoolportal.MFARuntime {
 		runtime.Enroll = func(context.Context, int64) error { return nil }
 	}
 	if runtime.PrepareTrustedDevice == nil {
-		runtime.PrepareTrustedDevice = func(context.Context, int64, int64, string, net.IP) (schoolportal.TrustedDeviceIssue, error) {
+		runtime.PrepareTrustedDevice = func(context.Context, int64, int64, string, net.IP) (identityaccess.TrustedDeviceIssue, error) {
 			return nil, nil
 		}
 	}
-	runtime.ChallengeUnusable = func(err error) bool { return errors.Is(err, errStubMFAChallengeUnusable) }
-	runtime.Blocked = func(err error) bool { return errors.Is(err, errStubMFABlocked) }
-	runtime.Unavailable = func(err error) bool { return errors.Is(err, errStubMFAUnavailable) }
-	runtime.AlreadyEnrolled = func(err error) bool { return errors.Is(err, errStubMFAAlreadyEnrolled) }
 	return runtime
 }

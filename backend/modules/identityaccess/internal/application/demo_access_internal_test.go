@@ -50,7 +50,7 @@ func (s demoRedemptionSchools) MarkDemoSchoolUsed(context.Context, string, time.
 
 type demoRedemptionSessions struct{ ports.DemoSessions }
 
-func (demoRedemptionSessions) IssueTokensForAuthenticatedAccount(context.Context, int64, int64, string, string) (string, string, error) {
+func (demoRedemptionSessions) IssueDemoTokens(context.Context, int64, int64, string, string) (string, string, error) {
 	return "access", "refresh", nil
 }
 

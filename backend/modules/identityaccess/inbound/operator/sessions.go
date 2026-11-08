@@ -3,7 +3,9 @@ package operator
 import (
 	"net/http"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
 )
 
 // Sessions are the operator session middleware chains the operator router
@@ -12,12 +14,12 @@ import (
 // Identity & Access's.
 type Sessions struct {
 	tokenAuth *sessiontoken.TokenAuth
-	operators OperatorLookup
+	operators identityaccess.OperatorSessionLiveness
 }
 
 // NewSessions binds the operator session chains to the session signer and
 // the operator lookup of the active-operator gate.
-func NewSessions(tokenAuth *sessiontoken.TokenAuth, operators OperatorLookup) Sessions {
+func NewSessions(tokenAuth *sessiontoken.TokenAuth, operators identityaccess.OperatorSessionLiveness) Sessions {
 	return Sessions{tokenAuth: tokenAuth, operators: operators}
 }
 
@@ -25,12 +27,6 @@ func NewSessions(tokenAuth *sessiontoken.TokenAuth, operators OperatorLookup) Se
 // chains cannot verify a token.
 func (s Sessions) Configured() bool {
 	return s.tokenAuth != nil
-}
-
-// TokenAuth is the session signer the operator MFA exchange mints tokens
-// with.
-func (s Sessions) TokenAuth() *sessiontoken.TokenAuth {
-	return s.tokenAuth
 }
 
 // Refresh authenticates a refresh token, without a scope check.
@@ -41,13 +37,13 @@ func (s Sessions) Refresh() []func(http.Handler) http.Handler {
 	}
 }
 
-// MFAEnrollment accepts only the narrow enrollment token operator login
-// mints when no MFA credential is on file (#1308), never a full operator
-// access token.
+// MFAEnrollment accepts only the operator enrollment token the login mints
+// when no MFA credential is on file (#1308): never an access token and never
+// another portal's enrollment token.
 func (s Sessions) MFAEnrollment() []func(http.Handler) http.Handler {
 	return []func(http.Handler) http.Handler{
 		s.tokenAuth.Verifier(),
-		sessiontoken.MFAEnrollmentAuthenticator,
+		sessiontoken.EnrollmentAuthenticatorFor(tokenprimitives.PlatformClaims),
 	}
 }
 

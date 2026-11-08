@@ -253,7 +253,7 @@ func normalizePickupTimes(times map[string]string, availableDays []string) (map[
 		if !IsDayCode(key) {
 			return nil, fmt.Errorf("pickup_times key %q is not a known day abbreviation", day)
 		}
-		if key == "sat" || key == "sun" {
+		if !IsSchoolDayCode(key) {
 			return nil, fmt.Errorf("pickup_times day %q must be Monday through Friday", key)
 		}
 		if !available[key] {

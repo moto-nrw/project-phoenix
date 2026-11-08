@@ -48,8 +48,8 @@ type CountKey = keyof typeof COUNT_LABELS;
 interface Props {
   readonly isOpen: boolean;
   readonly requestId: string;
-  readonly childId?: string;
-  readonly childLabel?: string;
+  /** Set to delete one child; absent, the whole request is deleted. */
+  readonly child?: { readonly id: string; readonly label: string };
   readonly studentHref: (studentId: string) => string;
   readonly onClose: () => void;
   readonly onDeleted: (impact: AdminEnrollmentDeletionImpact) => void;
@@ -58,12 +58,12 @@ interface Props {
 export function AdminEnrollmentDeletionModal({
   isOpen,
   requestId,
-  childId,
-  childLabel,
+  child,
   studentHref,
   onClose,
   onDeleted,
 }: Props) {
+  const childId = child?.id;
   const [impact, setImpact] = useState<AdminEnrollmentDeletionImpact | null>(
     null,
   );
@@ -178,8 +178,8 @@ export function AdminEnrollmentDeletionModal({
   const title = childId
     ? "Kind aus Anmeldung löschen"
     : "Gesamte Anmeldung löschen";
-  const targetLabel = childId
-    ? `${childLabel ?? `Kind ${childId}`} · Anmeldung #${requestId}`
+  const targetLabel = child
+    ? `${child.label} · Anmeldung #${requestId}`
     : `Anmeldung #${requestId}`;
 
   return (

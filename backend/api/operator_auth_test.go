@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
@@ -25,10 +24,9 @@ import (
 // Mock OperatorAuthService
 type mockOperatorAuthService struct {
 	loginFn                          func(ctx context.Context, email, password string, clientIP net.IP) (string, string, *identityaccess.Operator, error)
-	refreshTokenFn                   func(ctx context.Context, operatorID int64, refreshTokenValue string) (string, string, error)
+	refreshTokenFn                   func(ctx context.Context, refreshToken, recoveryProof string) (string, string, error)
 	logoutFn                         func(ctx context.Context, operatorID int64, familyID string) error
 	getOperatorFn                    func(ctx context.Context, id int64) (*identityaccess.Operator, error)
-	latestOperatorSessionFn          func(ctx context.Context, familyID string) (identityaccess.OperatorSession, error)
 	updateProfileFn                  func(ctx context.Context, operatorID int64, displayName string) (*identityaccess.Operator, error)
 	changePasswordFn                 func(ctx context.Context, operatorID int64, currentPassword, newPassword string) error
 	initiateEmailChangeFn            func(ctx context.Context, operatorID int64, newEmail, currentPassword string, clientIP net.IP) error
@@ -54,7 +52,7 @@ func (m *mockOperatorAuthService) LoginOperatorWithMFAGate(ctx context.Context, 
 	}
 	return nil, nil
 }
-func (m *mockOperatorAuthService) SetMFAService(_ identityoperator.OperatorMFA) {}
+func (m *mockOperatorAuthService) SetMFAService(_ identityaccess.OperatorMFAFlows) {}
 
 // IssueTokensForAuthenticatedOperator no-op stub. The legacy auth_test cases
 // exercise the password-only Login flow; the new MFA verify flow has its own
@@ -63,9 +61,9 @@ func (m *mockOperatorAuthService) IssueTokensForAuthenticatedOperator(ctx contex
 	return "", "", nil
 }
 
-func (m *mockOperatorAuthService) RefreshOperatorToken(ctx context.Context, operatorID int64, refreshTokenValue string) (string, string, error) {
+func (m *mockOperatorAuthService) RefreshOperatorToken(ctx context.Context, refreshToken, recoveryProof string) (string, string, error) {
 	if m.refreshTokenFn != nil {
-		return m.refreshTokenFn(ctx, operatorID, refreshTokenValue)
+		return m.refreshTokenFn(ctx, refreshToken, recoveryProof)
 	}
 	return "", "", nil
 }
@@ -82,28 +80,26 @@ func (m *mockOperatorAuthService) FindOperator(ctx context.Context, id int64) (i
 		op, err := m.getOperatorFn(ctx, id)
 		if op == nil {
 			if err == nil {
-				err = identityoperator.ErrOperatorNotFound
+				err = identityaccess.ErrOperatorNotFound
 			}
 			return identityaccess.Operator{}, err
 		}
 		return *identityOperatorOf(op), err
 	}
-	return identityaccess.Operator{}, identityoperator.ErrOperatorNotFound
+	return identityaccess.Operator{}, identityaccess.ErrOperatorNotFound
 }
 
-func (m *mockOperatorAuthService) LatestOperatorSessionInFamily(ctx context.Context, familyID string) (identityaccess.OperatorSession, error) {
-	if m.latestOperatorSessionFn != nil {
-		return m.latestOperatorSessionFn(ctx, familyID)
+// VerifyOperatorSession treats every family as live and refuses only an
+// unknown or inactive operator.
+func (m *mockOperatorAuthService) VerifyOperatorSession(ctx context.Context, operatorID int64, _ string) error {
+	operator, err := m.FindOperator(ctx, operatorID)
+	if err != nil {
+		return err
 	}
-	return identityaccess.OperatorSession{OperatorID: 42, FamilyID: familyID, Expiry: time.Now().Add(time.Hour)}, nil
-}
-
-func (m *mockOperatorAuthService) FindOperatorForUpdate(ctx context.Context, id int64) (identityaccess.Operator, error) {
-	return m.FindOperator(ctx, id)
-}
-
-func (m *mockOperatorAuthService) FindOperatorByEmail(context.Context, string) (identityaccess.Operator, error) {
-	return identityaccess.Operator{}, identityoperator.ErrOperatorNotFound
+	if !operator.Active {
+		return identityaccess.ErrOperatorInactive
+	}
+	return nil
 }
 
 func (m *mockOperatorAuthService) ListOperators(context.Context) ([]identityaccess.Operator, error) {
@@ -276,7 +272,7 @@ func TestLogin_InvalidCredentials(t *testing.T) {
 
 	mockService := &mockOperatorAuthService{
 		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*identityaccess.OperatorLoginResult, error) {
-			return nil, identityoperator.ErrOperatorInvalidCredentials
+			return nil, identityaccess.ErrOperatorInvalidCredentials
 		},
 	}
 
@@ -302,7 +298,7 @@ func TestLogin_OperatorInactive(t *testing.T) {
 
 	mockService := &mockOperatorAuthService{
 		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*identityaccess.OperatorLoginResult, error) {
-			return nil, identityoperator.ErrOperatorInactive
+			return nil, identityaccess.ErrOperatorInactive
 		},
 	}
 
@@ -328,7 +324,7 @@ func TestLogin_OperatorNotFound(t *testing.T) {
 
 	mockService := &mockOperatorAuthService{
 		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*identityaccess.OperatorLoginResult, error) {
-			return nil, identityoperator.ErrOperatorNotFound
+			return nil, identityaccess.ErrOperatorNotFound
 		},
 	}
 
@@ -475,18 +471,17 @@ func TestLoginRequest_Bind(t *testing.T) {
 }
 
 // recoveryProofHeader is the HTTP contract of the refresh recovery proof
-// (auth/rotation.RecoveryProofHeader), spelled out so the router test does not
-// import the rotation policy.
+// (sessiontoken.RecoveryProofHeader), spelled out because the frontend sends
+// exactly this name.
 const recoveryProofHeader = "X-Refresh-Recovery-Proof"
 
 func TestRefreshToken_Success(t *testing.T) {
 	t.Parallel()
 
+	var handedThrough, handedProof string
 	mockService := &mockOperatorAuthService{
-		refreshTokenFn: func(ctx context.Context, operatorID int64, refreshTokenValue string) (string, string, error) {
-			assert.Equal(t, int64(42), operatorID)
-			assert.Equal(t, "opaque-refresh-handle", refreshTokenValue)
-			// COVERAGE GAP (#2736): the header → recovery-proof context wiring is no longer asserted; it needs auth/rotation, which this package may not import.
+		refreshTokenFn: func(ctx context.Context, refreshToken, recoveryProof string) (string, string, error) {
+			handedThrough, handedProof = refreshToken, recoveryProof
 			return "new-access-token", "new-refresh-token", nil
 		},
 	}
@@ -517,6 +512,8 @@ func TestRefreshToken_Success(t *testing.T) {
 	resource.RefreshToken(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, tokenString, handedThrough, "the handler hands the presented refresh JWT to the capability")
+	assert.Equal(t, "independent-recovery-secret", handedProof, "the recovery proof header reaches the capability")
 
 	var response map[string]interface{}
 	err := json.Unmarshal(rr.Body.Bytes(), &response)
@@ -542,92 +539,12 @@ func TestRefreshToken_MissingTokenContext(t *testing.T) {
 	assert.Contains(t, rr.Body.String(), "Unauthorized")
 }
 
-func TestRefreshToken_InvalidClaims(t *testing.T) {
-	t.Parallel()
-
-	mockService := &mockOperatorAuthService{}
-	resource := newIdentityResource(mockService)
-
-	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", nil)
-	ctx := routetest.WithRefreshToken(req.Context(), "some-token-string")
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
-
-	resource.RefreshToken(rr, req)
-
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
-	assert.Contains(t, rr.Body.String(), "Unauthorized")
-}
-
-func TestRefreshToken_RejectsNonPlatformScope(t *testing.T) {
-	t.Parallel()
-
-	called := false
-	mockService := &mockOperatorAuthService{
-		refreshTokenFn: func(ctx context.Context, operatorID int64, refreshTokenValue string) (string, string, error) {
-			called = true
-			return "", "", nil
-		},
-	}
-	resource := newIdentityResource(mockService)
-
-	tokenAuth := jwtauth.New("HS256", []byte("test-secret"), nil)
-	_, tokenString, _ := tokenAuth.Encode(map[string]interface{}{
-		"id":        float64(42),
-		"token":     "tenant-refresh-handle",
-		"tenant_id": float64(1),
-	})
-
-	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", nil)
-	ctx := routetest.WithRefreshToken(req.Context(), tokenString)
-	token, _ := jwtauth.VerifyToken(tokenAuth, tokenString)
-	ctx = jwtauth.NewContext(ctx, token, nil)
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
-
-	resource.RefreshToken(rr, req)
-
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
-	assert.False(t, called, "non-platform refresh claims must be rejected before service rotation")
-}
-
-func TestRefreshToken_RejectsLegacyDeterministicOperatorToken(t *testing.T) {
-	t.Parallel()
-
-	called := false
-	mockService := &mockOperatorAuthService{
-		refreshTokenFn: func(ctx context.Context, operatorID int64, refreshTokenValue string) (string, string, error) {
-			called = true
-			return "", "", nil
-		},
-	}
-	resource := newIdentityResource(mockService)
-
-	tokenAuth := jwtauth.New("HS256", []byte("test-secret"), nil)
-	_, tokenString, _ := tokenAuth.Encode(map[string]interface{}{
-		"id":    float64(42),
-		"token": "operator-refresh-42",
-	})
-
-	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", nil)
-	ctx := routetest.WithRefreshToken(req.Context(), tokenString)
-	token, _ := jwtauth.VerifyToken(tokenAuth, tokenString)
-	ctx = jwtauth.NewContext(ctx, token, nil)
-	req = req.WithContext(ctx)
-	rr := httptest.NewRecorder()
-
-	resource.RefreshToken(rr, req)
-
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
-	assert.False(t, called, "legacy deterministic operator refresh claims must not reach the service")
-}
-
 func TestRefreshToken_ServiceError(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{
-		refreshTokenFn: func(ctx context.Context, operatorID int64, refreshTokenValue string) (string, string, error) {
-			return "", "", identityoperator.ErrOperatorInactive
+		refreshTokenFn: func(ctx context.Context, refreshToken, recoveryProof string) (string, string, error) {
+			return "", "", identityaccess.ErrOperatorInactive
 		},
 	}
 
@@ -659,7 +576,7 @@ func TestRefreshToken_InvalidRefreshSessionMapsToUnauthorized(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{
-		refreshTokenFn: func(ctx context.Context, operatorID int64, refreshTokenValue string) (string, string, error) {
+		refreshTokenFn: func(ctx context.Context, refreshToken, recoveryProof string) (string, string, error) {
 			return "", "", identityaccess.ErrOperatorRefreshTokenInvalid
 		},
 	}

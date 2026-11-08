@@ -30,11 +30,6 @@ func InvalidInput(message string) error { return &InvalidInputError{Err: errors.
 const (
 	// OperatorRoleName is the single role every operator access token carries.
 	OperatorRoleName = "operator"
-	// OperatorScope is the JWT scope of the platform portal.
-	OperatorScope = ScopePlatform
-	// OperatorMFAEnrollmentScope is the enrollment-token scope the codec maps
-	// to the platform enrollment surface.
-	OperatorMFAEnrollmentScope = "platform"
 
 	OperatorAuditActionLogin        = "login"
 	OperatorAuditActionTokenRevoked = "token_revoked"

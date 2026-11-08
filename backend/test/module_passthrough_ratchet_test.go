@@ -250,7 +250,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // Raised by ADR 0167: the payment terms read of modules/parentbilling (+1).
 // Raised by ADR 0168: the first complete attendance day of
 // modules/studentpresence (+1).
-const modulePassthroughOwnerBudgetTotal = 1408
+const modulePassthroughOwnerBudgetTotal = 1405
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -285,7 +285,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/feedback":       2,
 	"modules/filestorage":    6,
 	// Raised by ADR 0077: the caterer flows.
-	"modules/identityaccess": 214,
+	"modules/identityaccess": 211,
 	"modules/mealplan":       1,
 	// Raised by ADR 0112: the Träger logo read of the Träger-Portal.
 	"modules/organizationtenancy": 12,

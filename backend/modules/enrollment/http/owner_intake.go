@@ -43,19 +43,18 @@ type StatusSignature struct {
 
 // Intake values the owner's contract carries unchanged.
 type (
-	SubmitGuardian                 = capability.SubmitGuardian
-	SubmitOfferingDays             = capability.SubmitOfferingDays
-	SubmissionWarning              = capability.SubmissionWarning
-	FormCapabilities               = capability.FormCapabilities
-	CreateLateInviteInput          = capability.CreateLateInviteInput
-	CreateLateInviteResult         = capability.CreateLateInviteResult
-	LegalTexts                     = capability.LegalTexts
-	LegalBlock                     = capability.LegalBlock
-	EnrolleeAudienceAccess         = capability.EnrolleeAudienceAccess
-	BootstrapStage                 = capability.BootstrapStage
-	BootstrapStageError            = capability.BootstrapStageError
-	CareOfferingBookingStat        = capability.CareOfferingBookingStat
-	ManualApprovedEnrollmentOutput = capability.ManualApprovedEnrollmentResult
+	SubmitGuardian          = capability.SubmitGuardian
+	SubmitOfferingDays      = capability.SubmitOfferingDays
+	SubmissionWarning       = capability.SubmissionWarning
+	FormCapabilities        = capability.FormCapabilities
+	CreateLateInviteInput   = capability.CreateLateInviteInput
+	CreateLateInviteResult  = capability.CreateLateInviteResult
+	LegalTexts              = capability.LegalTexts
+	LegalBlock              = capability.LegalBlock
+	EnrolleeAudienceAccess  = capability.EnrolleeAudienceAccess
+	BootstrapStage          = capability.BootstrapStage
+	BootstrapStageError     = capability.BootstrapStageError
+	CareOfferingBookingStat = capability.CareOfferingBookingStat
 )
 
 // Stages of a form load that fail as a server error.

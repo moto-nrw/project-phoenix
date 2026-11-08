@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"strconv"
 	"strings"
 	"time"
@@ -27,7 +26,7 @@ func (s *Intake) lateInviteTokenHash(token string) string {
 }
 
 func normalizeGuardianEmail(email string) (string, error) {
-	trimmed := strings.ToLower(strings.TrimSpace(email))
+	trimmed := guardianEmailKey(email)
 	if trimmed == "" {
 		return "", enrollment.InvalidInput(enrollment.CodeGuardianEmailRequired, "guardian_email", fmt.Errorf("%w: guardian email is required", enrollment.ErrInvalidSubmission))
 	}
@@ -163,54 +162,13 @@ func (s *Intake) enforceRateLimit(ctx context.Context, tenantID int64, count fun
 	if s.deps.Runtime.TenantTx == nil {
 		return count(ctx)
 	}
-	var limitErr error
 	rateCtx := s.deps.Runtime.WithoutTransaction(ctx)
-	err := s.deps.Runtime.TenantTx(rateCtx, tenantID, func(txCtx context.Context) error {
-		limitErr = count(txCtx)
-		if errors.Is(limitErr, enrollment.ErrRateLimited) {
-			return nil
+	return countSurvivingRefusal(func(fn func(context.Context) error) error {
+		if err := s.deps.Runtime.TenantTx(rateCtx, tenantID, fn); err != nil {
+			return fmt.Errorf("enrollment submit: rate-limit transaction: %w", err)
 		}
-		return limitErr
-	})
-	if err != nil {
-		return fmt.Errorf("enrollment submit: rate-limit transaction: %w", err)
-	}
-	if errors.Is(limitErr, enrollment.ErrRateLimited) {
-		return limitErr
-	}
-	return nil
-}
-
-// countSubmissionAttempt counts the submission in the per-IP and per-email
-// buckets and refuses once either crosses its threshold.
-func (s *Intake) countSubmissionAttempt(ctx context.Context, req SubmitRequest) error {
-	ip := strings.TrimSpace(req.RemoteIP)
-	email := strings.ToLower(strings.TrimSpace(req.GuardianEmail))
-	if ip != "" {
-		if err := s.countRateLimitAttempt(ctx, req.TenantID, ipRateLimit, ip); err != nil {
-			return err
-		}
-	}
-	if email != "" {
-		return s.countRateLimitAttempt(ctx, req.TenantID, emailRateLimit, email)
-	}
-	return nil
-}
-
-func (s *Intake) countRateLimitAttempt(ctx context.Context, tenantID int64, bucket rateLimitBucket, keyValue string) error {
-	keyType, maxAttempts := bucket.keyType, bucket.maxAttempts
-	state, err := s.deps.RateLimits.IncrementAttempts(ctx, tenantID, keyType, keyValue, bucket.window)
-	if err != nil {
-		return fmt.Errorf("enrollment submit: rate-limit %s increment: %w", bucket.label, err)
-	}
-	if state.Attempts > maxAttempts {
-		s.logger().Info("enrollment submit rate-limited",
-			slog.String("key_type", keyType),
-			slog.Int("attempts", state.Attempts),
-			slog.Int64("tenant_id", tenantID))
-		return enrollment.ErrRateLimited
-	}
-	return nil
+		return nil
+	}, count)
 }
 
 // cloneSourceMetadata copies a metadata map so the submission can add to it.

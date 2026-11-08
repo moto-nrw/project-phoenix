@@ -61,6 +61,5 @@ var (
 	TestTokenAuth                 = routetest.TestTokenAuth
 	ClaimsFromContext             = routetest.ClaimsFromContext
 	WithEnrollmentClaims          = routetest.WithEnrollmentClaims
-	OpaqueCapabilityFingerprint   = routetest.OpaqueCapabilityFingerprint
 	WithRefreshToken              = routetest.WithRefreshToken
 )

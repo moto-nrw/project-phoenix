@@ -16,6 +16,7 @@ import (
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationTenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	organizationTenancyTraeger "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/traeger"
@@ -122,7 +123,7 @@ func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organiza
 		common.RequiresPermission(identityaccess.TraegerRightOverviewRead), common.RequiresPermission(identityaccess.TraegerRightSettingsManage))
 	overviewRoutes := traegerViewHTTP.NewResource(overview)
 	return traegerportal.NewResource(TraegerPortalAuth(identity), TraegerPortalMFA(identity),
-		portalPasswordResets(identity, identityaccess.PasswordResetScopeTraeger), overviewRoutes, holidayPeriods,
+		portalauth.PasswordResetRoutes(identity, identityaccess.PasswordResetScopeTraeger), overviewRoutes, holidayPeriods,
 		traegerViewHTTP.NewAccessLogResource(overview), traegerSettings, masterData, identity, overviewRoutes, identity), nil
 }
 
@@ -411,40 +412,12 @@ func TraegerPortalAuth(sessions identityaccess.TraegerAccountLogin) traegerporta
 		return traegerportal.AuthRuntime{}
 	}
 	return traegerportal.AuthRuntime{
-		Login: func(ctx context.Context, email, password, ipAddress, userAgent string, organizationID int64) (*traegerportal.LoginResult, error) {
-			result, err := sessions.LoginTraeger(ctx, email, password, ipAddress, userAgent, organizationID)
-			if err != nil || result == nil {
-				return nil, err
-			}
-			return traegerPortalLoginResult(result), nil
-		},
-		IssueTokens: func(ctx context.Context, proof traegerportal.VerifiedChallenge, organizationID int64, ipAddress, userAgent string) (*traegerportal.LoginResult, error) {
-			result, err := sessions.IssueTraegerTokensForVerifiedMFA(ctx, identityaccess.VerifiedMFAChallenge{
+		Login: sessions.LoginTraeger,
+		IssueTokens: func(ctx context.Context, proof traegerportal.VerifiedChallenge, organizationID int64, ipAddress, userAgent string) (*identityaccess.TraegerLoginResult, error) {
+			return sessions.IssueTraegerTokensForVerifiedMFA(ctx, identityaccess.VerifiedMFAChallenge{
 				AccountID: proof.AccountID, Scope: identityaccess.MFAChallengeScopeOrg, MFAResetGeneration: proof.MFAResetGeneration,
 			}, organizationID, ipAddress, userAgent)
-			if err != nil || result == nil {
-				return nil, err
-			}
-			return traegerPortalLoginResult(result), nil
 		},
-		InvalidCredentials: identityInvalidCredentials,
-		AccountInactive:    identityIs(identityaccess.ErrAccountInactive),
-		NoMembership:       identityIs(identityaccess.ErrNoTraegerMembership),
-		MFABlocked:         identityMFABlocked,
-		MFAUnavailable:     identityIs(identityaccess.ErrMFAStatusUnavailable),
-		InvalidSession:     identityIs(identityaccess.ErrInvalidToken),
-	}
-}
-
-func traegerPortalLoginResult(result *identityaccess.TraegerLoginResult) *traegerportal.LoginResult {
-	organizations := make([]traegerportal.Organization, 0, len(result.Organizations))
-	for _, organization := range result.Organizations {
-		organizations = append(organizations, traegerportal.Organization(organization))
-	}
-	return &traegerportal.LoginResult{
-		Status: traegerportal.LoginStatus(result.Status), AccessToken: result.AccessToken,
-		RefreshToken: result.RefreshToken, ChallengeToken: result.ChallengeToken, MaskedEmail: result.MaskedEmail,
-		OrganizationID: result.OrganizationID, Organizations: organizations,
 	}
 }
 
@@ -476,10 +449,6 @@ func TraegerPortalMFA(mfa interface {
 		StartChallenge: func(ctx context.Context, accountID int64, ip net.IP) (string, error) {
 			return mfa.StartMFAChallenge(ctx, accountID, 0, identityaccess.MFAChallengeScopeOrg, ip)
 		},
-		Enroll:            mfa.EnrollMFA,
-		ChallengeUnusable: identityChallengeUnusable,
-		Blocked:           identityMFABlocked,
-		Unavailable:       identityIs(identityaccess.ErrMFAStatusUnavailable),
-		AlreadyEnrolled:   identityIs(identityaccess.ErrMFAAlreadyEnrolled),
+		Enroll: mfa.EnrollMFA,
 	}
 }

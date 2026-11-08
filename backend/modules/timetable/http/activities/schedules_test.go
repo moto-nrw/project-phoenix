@@ -32,7 +32,7 @@ type schedulesTestContext struct {
 
 // setupSchedulesRoute initializes test database, services, and resource. The
 // router serves the resource through the production middleware chain (Verifier →
-// Authenticator → TenantMiddleware → RequiresPermission → TenantTxMiddleware)
+// Authenticator → TenantScopeMiddleware → RequiresPermission → TenantTxMiddleware)
 // exactly as the real server does.
 func setupSchedulesRoute(t *testing.T) *schedulesTestContext {
 	t.Helper()

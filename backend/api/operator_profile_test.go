@@ -10,13 +10,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 )
 
 func TestGetProfile_Success(t *testing.T) {
@@ -61,7 +60,7 @@ func TestGetProfile_OperatorNotFound(t *testing.T) {
 
 	mockService := &mockOperatorAuthService{
 		getOperatorFn: func(ctx context.Context, id int64) (*identityaccess.Operator, error) {
-			return nil, identityoperator.ErrOperatorNotFound
+			return nil, identityaccess.ErrOperatorNotFound
 		},
 	}
 
@@ -193,7 +192,7 @@ func TestUpdateProfile_InvalidData(t *testing.T) {
 
 	mockService := &mockOperatorAuthService{
 		updateProfileFn: func(ctx context.Context, operatorID int64, displayName string) (*identityaccess.Operator, error) {
-			return nil, &identityoperator.InvalidInputError{Err: errors.New("display name too long")}
+			return nil, &identityaccess.InvalidInputError{Err: errors.New("display name too long")}
 		},
 	}
 
@@ -318,7 +317,7 @@ func TestChangePassword_PasswordMismatch(t *testing.T) {
 
 	mockService := &mockOperatorAuthService{
 		changePasswordFn: func(ctx context.Context, operatorID int64, currentPassword, newPassword string) error {
-			return identityoperator.ErrOperatorPasswordMismatch
+			return identityaccess.ErrOperatorPasswordMismatch
 		},
 	}
 
@@ -469,7 +468,7 @@ func TestInitiateEmailChange_PasswordMismatch(t *testing.T) {
 
 	mockService := &mockOperatorAuthService{
 		initiateEmailChangeFn: func(ctx context.Context, operatorID int64, newEmail, currentPassword string, clientIP net.IP) error {
-			return identityoperator.ErrOperatorPasswordMismatch
+			return identityaccess.ErrOperatorPasswordMismatch
 		},
 	}
 
@@ -498,7 +497,7 @@ func TestInitiateEmailChange_SameEmail(t *testing.T) {
 
 	mockService := &mockOperatorAuthService{
 		initiateEmailChangeFn: func(ctx context.Context, operatorID int64, newEmail, currentPassword string, clientIP net.IP) error {
-			return identityoperator.ErrOperatorEmailChangeSameEmail
+			return identityaccess.ErrOperatorEmailChangeSameEmail
 		},
 	}
 
@@ -527,7 +526,7 @@ func TestInitiateEmailChange_EmailAlreadyInUse(t *testing.T) {
 
 	mockService := &mockOperatorAuthService{
 		initiateEmailChangeFn: func(ctx context.Context, operatorID int64, newEmail, currentPassword string, clientIP net.IP) error {
-			return identityoperator.ErrOperatorEmailInUse
+			return identityaccess.ErrOperatorEmailInUse
 		},
 	}
 
@@ -556,7 +555,7 @@ func TestInitiateEmailChange_RateLimit(t *testing.T) {
 
 	mockService := &mockOperatorAuthService{
 		initiateEmailChangeFn: func(ctx context.Context, operatorID int64, newEmail, currentPassword string, clientIP net.IP) error {
-			return identityoperator.ErrOperatorEmailChangeRateLimited
+			return identityaccess.ErrOperatorEmailChangeRateLimited
 		},
 	}
 
@@ -585,7 +584,7 @@ func TestInitiateEmailChange_OperatorInactive(t *testing.T) {
 
 	mockService := &mockOperatorAuthService{
 		initiateEmailChangeFn: func(ctx context.Context, operatorID int64, newEmail, currentPassword string, clientIP net.IP) error {
-			return identityoperator.ErrOperatorInactive
+			return identityaccess.ErrOperatorInactive
 		},
 	}
 
@@ -716,7 +715,7 @@ func TestConfirmEmailChange_TokenInvalid(t *testing.T) {
 	testUUID := "00000000-0000-4000-a000-000000000001"
 	mockService := &mockOperatorAuthService{
 		confirmEmailChangeFn: func(ctx context.Context, token string, clientIP net.IP) (string, error) {
-			return "", identityoperator.ErrOperatorEmailChangeNotFound
+			return "", identityaccess.ErrOperatorEmailChangeNotFound
 		},
 	}
 
@@ -742,7 +741,7 @@ func TestConfirmEmailChange_EmailAlreadyInUse(t *testing.T) {
 	testUUID := "00000000-0000-4000-a000-000000000001"
 	mockService := &mockOperatorAuthService{
 		confirmEmailChangeFn: func(ctx context.Context, token string, clientIP net.IP) (string, error) {
-			return "", identityoperator.ErrOperatorEmailInUse
+			return "", identityaccess.ErrOperatorEmailInUse
 		},
 	}
 
@@ -769,7 +768,7 @@ func TestConfirmEmailChange_OperatorInactive(t *testing.T) {
 	testUUID := "00000000-0000-4000-a000-000000000001"
 	mockService := &mockOperatorAuthService{
 		confirmEmailChangeFn: func(ctx context.Context, token string, clientIP net.IP) (string, error) {
-			return "", identityoperator.ErrOperatorInactive
+			return "", identityaccess.ErrOperatorInactive
 		},
 	}
 

@@ -17,6 +17,7 @@ func newAccountAdministration(
 	auth *application.AccountAuthentication,
 	sessions *identityBindingPorts.SessionDependencies,
 	deps *LifecycleDependencies,
+	runtime tenantRuntime,
 ) (*application.AccountAdministration, error) {
 	if deps == nil {
 		return nil, nil
@@ -31,7 +32,7 @@ func newAccountAdministration(
 		Store:     store,
 		Verifier:  sessions.Passwords,
 		Passwords: deps.Passwords,
-		Runtime:   tenantRuntime{attach: sessions.TenantRuntime, runner: application.NewTransactionRunner()},
+		Runtime:   runtime,
 		Logger:    deps.Logger,
 	})
 }

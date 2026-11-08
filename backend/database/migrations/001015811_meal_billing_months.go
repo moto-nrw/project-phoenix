@@ -310,6 +310,12 @@ func mealBillingMonthsUp(ctx context.Context, db *bun.DB) error {
 	if _, err := db.ExecContext(ctx, mealBillingMonthsUpSQL); err != nil {
 		return fmt.Errorf("create meal billing months: %w", err)
 	}
+	if err := installSchoolErasureSteps(ctx, db, "add the attendance retention marks to the school erasure",
+		installAttendanceRetentionMarkErasurePlan, installAttendanceRetentionMarkErasureResidual,
+		installAttendanceRetentionMarkErasureDelete, installAttendanceRetentionMarkErasurePreview,
+	); err != nil {
+		return err
+	}
 	return installMealBillingErasure(ctx, db)
 }
 
@@ -318,6 +324,12 @@ func mealBillingMonthsUp(ctx context.Context, db *bun.DB) error {
 func mealBillingMonthsDown(ctx context.Context, db *bun.DB) error {
 	if err := installDemoVisitorErasureOf809(ctx, db); err != nil {
 		return fmt.Errorf("restore the demo visitor erasure of 1.15.809: %w", err)
+	}
+	if err := installSchoolErasureSteps(ctx, db, "remove the attendance retention marks from the school erasure",
+		installEmailDeliveryEventErasurePlan, installEmailDeliveryEventErasureResidual,
+		installEmailDeliveryEventErasureDelete, installEmailDeliveryEventErasurePreview,
+	); err != nil {
+		return err
 	}
 	if _, err := db.ExecContext(ctx, mealBillingMonthsDownSQL); err != nil {
 		return fmt.Errorf("drop meal billing months: %w", err)

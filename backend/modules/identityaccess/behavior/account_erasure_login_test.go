@@ -155,29 +155,27 @@ func (e erasureLogin) holdBefore(t *testing.T, table, marker string) bun.Tx {
 	return holder
 }
 
-// The login has checked the credentials and the guardian role and stops
-// right before it stamps the last login; the erasure anonymizes the account
-// and commits; the login goes on. It must mint nothing: no session, no last
-// login on the tombstone, and the answer of an unknown account, which the
-// login route renders like wrong credentials.
-func TestParentLoginMintsNothingForAnAccountErasedMeanwhile(t *testing.T) {
+// The login locks the live account first in its mint transaction, before
+// it re-checks the guardian role and stamps the last login. An erasure that
+// runs while the login stops at its stamp passes the account over instead of
+// anonymizing it under the login; the login mints its session.
+func TestParentLoginHoldsTheAccountBeforeItStampsTheLogin(t *testing.T) {
 	t.Parallel()
 	e := newErasureLogin(t)
-	before := e.state(t)
 	holder := e.holdBefore(t, "auth.accounts", "last_login")
 	login := e.startLogin()
 	e.waitFor(t, "last_login", "advisory")
 
-	assert.Equal(t, 1, e.erase(t), "the erasure does not wait for the stopped login")
+	assert.Zero(t, e.erase(t), "the erasure passes over the account the login holds")
 	require.NoError(t, holder.Rollback())
 	result := <-login
 
-	requireRefusedLikeWrongCredentials(t, result.err)
-	assert.Empty(t, result.refresh)
+	require.NoError(t, result.err)
+	assert.NotEmpty(t, result.refresh)
 	after := e.state(t)
-	assert.True(t, after.Erased)
-	assert.Equal(t, before.LastLogin, after.LastLogin, "the tombstone records no login")
-	assert.Zero(t, after.Sessions, "no session exists for the erased account")
+	assert.False(t, after.Erased)
+	assert.True(t, after.LastLogin.Valid)
+	assert.Equal(t, 1, after.Sessions)
 }
 
 // The erasure has anonymized the account and holds it until it commits; the

@@ -31,14 +31,13 @@ var (
 	ErrCatererMFAResetReasonRequired = errors.New("reason must be at least 3 characters")
 )
 
-// CatererLoginStatus is the outcome of a caterer's password sign-in.
-type CatererLoginStatus string
+// CatererLoginStatus is the LoginStatus of a caterer's password sign-in:
+// the session pair, or the challenge of the mailed code.
+type CatererLoginStatus = LoginStatus
 
 const (
-	// CatererLoginAuthenticated carries the session pair.
-	CatererLoginAuthenticated CatererLoginStatus = "authenticated"
-	// CatererLoginMFARequired carries the challenge of the mailed code.
-	CatererLoginMFARequired CatererLoginStatus = "mfa_required"
+	CatererLoginAuthenticated = LoginStatusAuthenticated
+	CatererLoginMFARequired   = LoginStatusMFARequired
 )
 
 // CatererLoginRequest is a caterer's password sign-in. TrustedDeviceCookie

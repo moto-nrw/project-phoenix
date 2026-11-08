@@ -3,7 +3,6 @@ package application
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
@@ -15,5 +14,5 @@ func (m *Service) AccountRequests(ctx context.Context, accountID int64, accountE
 	if accountID <= 0 {
 		return nil, fmt.Errorf("parent: account_id must be positive")
 	}
-	return m.store.AccountRequests(ctx, accountID, strings.ToLower(strings.TrimSpace(accountEmail)))
+	return m.store.AccountRequests(ctx, accountID, guardianEmailKey(accountEmail))
 }

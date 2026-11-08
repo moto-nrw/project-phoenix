@@ -67,7 +67,7 @@ type accountPasskeyGate interface {
 // accountPasskeySessions mints the pair a completed login returns and proves
 // the account's membership in the school whose portal started the ceremony.
 type accountPasskeySessions interface {
-	IssueTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (string, string, error)
+	IssueTokensForPasskey(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (string, string, error)
 	VerifyAccountTenantMembership(ctx context.Context, accountID, tenantID int64) (bool, error)
 }
 
@@ -104,7 +104,7 @@ func (f *AccountPasskeyFlows) StartEnrollmentChallenge(ctx context.Context, acco
 	if err != nil || !found {
 		return domain.PasskeyEnrollmentChallenge{}, domain.ErrAccountNotFound
 	}
-	token, err := f.mfa.StartChallenge(ctx, accountID, tenantID, domain.MFAChallengeScopeTenant, ip)
+	token, err := f.mfa.StartChallenge(ctx, accountID, tenantID, domain.PortalTenant.Name, ip)
 	if err != nil {
 		return domain.PasskeyEnrollmentChallenge{}, err
 	}
@@ -119,7 +119,7 @@ func (f *AccountPasskeyFlows) BeginRegistration(ctx context.Context, request dom
 	if err := domain.ValidateTenantPasskeyOrigin(request.ExpectedOrigin, request.TenantSubdomain, f.tenantDomain); err != nil {
 		return domain.PasskeyCeremonyOptions{}, err
 	}
-	if err := f.mfa.VerifyCodeForAccount(ctx, request.AccountID, request.TenantID, request.Code, domain.MFAChallengeScopeTenant); err != nil {
+	if err := f.mfa.VerifyCodeForAccount(ctx, request.AccountID, request.TenantID, request.Code, domain.PortalTenant.Name); err != nil {
 		return domain.PasskeyCeremonyOptions{}, err
 	}
 	account, found, err := f.accounts.FindAccountIdentity(ctx, request.AccountID)
@@ -306,7 +306,7 @@ func (f *AccountPasskeyFlows) FinishLogin(ctx context.Context, request domain.Ac
 	if err != nil {
 		return domain.PasskeyLoginResult{}, err
 	}
-	accessToken, refreshToken, err := f.sessions.IssueTokensForAuthenticatedAccount(ctx, verified.accountID, verified.tenantID, request.IPAddress, request.UserAgent)
+	accessToken, refreshToken, err := f.sessions.IssueTokensForPasskey(ctx, verified.accountID, verified.tenantID, request.IPAddress, request.UserAgent)
 	if err != nil {
 		return domain.PasskeyLoginResult{}, err
 	}

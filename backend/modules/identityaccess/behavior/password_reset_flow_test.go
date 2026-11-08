@@ -290,7 +290,7 @@ func TestResetPasswordReplacesTheAccountCredential(t *testing.T) {
 	require.NotNil(t, link)
 	require.NoError(t, module.AccountAuthentication.ResetPassword(ctx, link.Token, resetPassword))
 
-	accessToken, refreshToken, err := module.Auth.LoginWithAudit(ctx, email, resetPassword, "", "", "")
+	accessToken, refreshToken, err := tenantPasswordLogin(module.Auth, email, resetPassword, "", "", "")
 	require.NoError(t, err)
 	assert.NotEmpty(t, accessToken)
 	assert.NotEmpty(t, refreshToken)

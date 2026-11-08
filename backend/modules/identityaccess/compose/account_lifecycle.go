@@ -44,7 +44,7 @@ type LifecycleDependencies struct {
 // newAccountLifecycle composes the lifecycle flows and the role
 // administration: offboarding removes roles through the administration, and
 // an assignment completes the school identity through the lifecycle.
-func newAccountLifecycle(service *application.Service, auth *application.AccountAuthentication, store *postgres.Store, sessions *identityPorts.SessionDependencies, deps *LifecycleDependencies, administration *application.AccountAdministration) (*application.AccountLifecycle, *application.RoleAdministration, error) {
+func newAccountLifecycle(service *application.Service, auth *application.AccountAuthentication, store *postgres.Store, sessions *identityPorts.SessionDependencies, deps *LifecycleDependencies, administration *application.AccountAdministration, runtime tenantRuntime) (*application.AccountLifecycle, *application.RoleAdministration, error) {
 	if deps == nil {
 		return nil, nil, nil
 	}
@@ -58,7 +58,6 @@ func newAccountLifecycle(service *application.Service, auth *application.Account
 	case administration == nil:
 		return nil, nil, errors.New("identity access compose: the account administration is required")
 	}
-	runtime := tenantRuntime{attach: sessions.TenantRuntime, runner: application.NewTransactionRunner()}
 	var lifecycle *application.AccountLifecycle
 	roles, err := newRoleAdministration(auth, runtime, postgres.NewRoleStore(store), administration, deps, func() *application.AccountLifecycle { return lifecycle })
 	if err != nil {

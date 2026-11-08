@@ -6,14 +6,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 func TestOperatorMFAAuditSharesTriggeringTransaction(t *testing.T) {
@@ -34,7 +34,9 @@ func TestOperatorMFAAuditSharesTriggeringTransaction(t *testing.T) {
 			if action == "mfa_verified" || action == "mfa_failed" || action == "mfa_locked" {
 				hash, err := securityruntime.HashPassword("123456")
 				require.NoError(t, err)
-				_, err = module.Auth.CreateOperatorMFAChallenge(ctx, identityaccess.OperatorMFAChallenge{OperatorID: operator.ID, CodeHash: hash, ExpiresAt: time.Now().Add(time.Hour)})
+				// An active, delivered code; the e-mail step is not under test.
+				_, err = db.NewRaw(`INSERT INTO platform.operator_mfa_email_challenges (operator_id, code_hash, expires_at) VALUES (?, ?, ?)`,
+					operator.ID, hash, time.Now().Add(time.Hour)).Exec(ctx)
 				require.NoError(t, err)
 				if action == "mfa_locked" {
 					_, err = db.NewRaw(`UPDATE platform.operators SET mfa_attempts=? WHERE id=?`, identityaccess.MFALockoutThreshold-1, operator.ID).Exec(ctx)

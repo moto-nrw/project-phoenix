@@ -9,40 +9,29 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 )
 
-// Password reset is owned by Identity & Access (#2722). The parents portal
-// consumes it through the runtime below, which the composition root binds to
-// the owner's capability — the same shape the People Directory guardian
-// routes use. The portal names no owner contract, so its status codes and
-// the Retry-After header stay this package's business.
+// Password reset is owned by Identity & Access (#2722). The composition root
+// binds its reset routes with the parent scope, so the link reaches only
+// guardians and lands on the parents host. The parents portal keeps its own
+// handlers: they validate the address and the password length before the
+// owner is asked.
 
-// PasswordResetRuntime is the reset port of the parents portal. Initiate
-// answers nil whether or not a link was issued, so the response cannot be
-// used to enumerate addresses; the classifiers say what a refused Reset was.
+// PasswordResetRuntime is the parents portal's reset port, the shape of the
+// shared reset routes. Initiate answers nil whether or not a link was issued.
 type PasswordResetRuntime struct {
-	// Initiate issues a reset link for an address with guardian access, so
-	// the link lands on the parents host.
-	Initiate func(ctx context.Context, email string) error
-	Reset    func(ctx context.Context, token, newPassword string) error
-	// LinkUnusable reports a link that is unknown, expired or already spent;
-	// the parents reset page renders that as "request a new link".
+	Initiate     func(ctx context.Context, email string) error
+	Reset        func(ctx context.Context, token, newPassword string) error
 	LinkUnusable func(error) bool
-	// TooWeak reports a credential the password policy refused, which the
-	// page renders as "fix the password" instead.
-	TooWeak func(error) bool
-	// RetryAfter reports the rate-limit rejection and the seconds until the
-	// address may request again.
-	RetryAfter func(error) (int, bool)
+	TooWeak      func(error) bool
+	RetryAfter   func(error) (int, bool)
 }
 
-func (rt *PasswordResetRuntime) complete() bool {
-	return rt != nil && rt.Initiate != nil && rt.Reset != nil &&
-		rt.LinkUnusable != nil && rt.TooWeak != nil && rt.RetryAfter != nil
+func (rt PasswordResetRuntime) complete() bool {
+	return rt.Initiate != nil && rt.Reset != nil && rt.LinkUnusable != nil && rt.TooWeak != nil && rt.RetryAfter != nil
 }
 
 var (
 	// ErrPasswordResetUnavailable reports a resource composed without the
-	// reset runtime; the routes answer 500, as a service composed without
-	// the reset dependencies did.
+	// reset routes.
 	ErrPasswordResetUnavailable = errors.New("password reset is not composed")
 	// ErrPasswordResetRateLimited is the 429 body of a rate-limited request.
 	ErrPasswordResetRateLimited = errors.New("too many password reset requests")
