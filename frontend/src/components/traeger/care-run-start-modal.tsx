@@ -6,6 +6,7 @@
 // nennt den Lauf. Ohne Rechnungsdatum gilt der Tag der Freigabe.
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CheckboxCard } from "~/components/ui/checkbox-card";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -151,7 +152,7 @@ export function CareRunStartModal({
           onCancel={onClose}
           onSave={() => formRef.current?.requestSubmit()}
           saving={saving}
-          disabled={schools === null}
+          disabled={schools === null || free.length === 0}
           saveLabel="Vorschau öffnen"
         />
       }
@@ -182,12 +183,18 @@ export function CareRunStartModal({
         >
           {schools === null ? (
             <Loading />
+          ) : free.length === 0 && schools.length > 0 ? (
+            <Alert
+              type="info"
+              message={`Für ${formatMonth(month)} ist jede Schule schon in einem offenen Lauf. Öffnen Sie diesen Lauf in der Liste oder wählen Sie einen anderen Monat.`}
+            />
           ) : (
             <div className="space-y-2">
               {free.length > 1 ? (
                 <Button
                   type="button"
                   variant="link"
+                  size="md"
                   onClick={() => setSelected(allSelected ? [] : free)}
                 >
                   {allSelected ? "Keine wählen" : "Alle wählen"}

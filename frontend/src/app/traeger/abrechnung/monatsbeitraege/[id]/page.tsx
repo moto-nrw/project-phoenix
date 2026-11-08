@@ -336,6 +336,8 @@ export default function TraegerCareRunPage() {
                     <Button
                       type="button"
                       variant="link"
+                      size="md"
+                      aria-label="Rechnungsdatum ändern"
                       onClick={() => setEditingDate(true)}
                     >
                       Ändern
