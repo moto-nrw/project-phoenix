@@ -345,12 +345,12 @@ func TestConfirmationLetterFollowsTheTemplateOfTheTraeger(t *testing.T) {
 func TestConfirmationLetterFillsEveryPlaceholderOfItsKind(t *testing.T) {
 	t.Parallel()
 	content := goldenLetterContent(t)
-	assert.Empty(t, missingLetterValues(letterValues(content)))
+	assert.Empty(t, missingLetterValuesOf(templateKindOf(parentbilling.DocumentKindConfirmation), letterValues(content)))
 	// Values the invoice does not have stay present and empty.
 	content.document.TotalCents, content.document.IssuedOn = 0, nil
-	assert.Empty(t, missingLetterValues(letterValues(content)))
+	assert.Empty(t, missingLetterValuesOf(templateKindOf(parentbilling.DocumentKindConfirmation), letterValues(content)))
 	// The check itself notices a placeholder without a value.
-	assert.Contains(t, missingLetterValues(nil), "familienname")
+	assert.Contains(t, missingLetterValuesOf(templateKindOf(parentbilling.DocumentKindConfirmation), nil), "familienname")
 }
 
 // TestLetterheadTextsPrintLineByLineAndNothingWhenEmpty holds #5693: every

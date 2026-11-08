@@ -28,6 +28,9 @@ type TemplateRequest struct {
 	// Invoice is the layout of the table of amounts (#5691); missing is the
 	// standard table.
 	Invoice templates.InvoiceLayout `json:"invoice"`
+	// LegalRemedy is the Rechtsbehelfsbelehrung of a fee notice (#4688);
+	// every other kind refuses one.
+	LegalRemedy string `json:"legal_remedy"`
 }
 
 // Bind accepts the body; the Owner validates it.

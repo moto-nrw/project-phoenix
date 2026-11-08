@@ -115,8 +115,12 @@ type BillingLetterMail struct {
 	// DocumentKind is the kind of the document whose letter the mail
 	// carries; empty is an invoice (#4690).
 	DocumentKind string `json:"document_kind,omitempty"`
-	Filename     string `json:"filename"`
-	PDF          []byte `json:"pdf"`
+	// LetterKind is the kind of document the release froze (#4688): an
+	// invoice, a fee notice or, empty, the confirmation letter or the
+	// monthly invoice of before.
+	LetterKind string `json:"letter_kind,omitempty"`
+	Filename   string `json:"filename"`
+	PDF        []byte `json:"pdf"`
 }
 
 // BillingLetterSend is one stored send of a letter: the outbox entry of

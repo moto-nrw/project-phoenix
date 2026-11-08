@@ -276,6 +276,10 @@ type CareInvoice struct {
 	// (#5916).
 	Exclusion *CareExclusion `json:"exclusion,omitempty"`
 	Recipient CareRecipient  `json:"recipient"`
+	// DocumentKind is the kind of document the release froze (#4688); a
+	// draft carries the kind its release would freeze now, so the
+	// fingerprint of the review covers it.
+	DocumentKind string `json:"document_kind,omitempty"`
 	// FamilyEmail is the family of the invoice: the mail address of the
 	// contract party, whoever pays (#4689). The sibling rules count by it.
 	FamilyEmail string `json:"family_email"`
@@ -392,6 +396,8 @@ type CareRunDetail struct {
 	CostBearers []CareCostBearerTotal `json:"cost_bearers"`
 	// CareRunReviewState is the review of a calculated run (#5916).
 	CareRunReviewState
+	// DocumentKindState is the kind the run issues (#4688).
+	DocumentKindState
 }
 
 // CareContractService is a booked module of a contract version on a

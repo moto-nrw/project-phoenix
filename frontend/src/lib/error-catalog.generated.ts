@@ -902,6 +902,8 @@ export const ERROR_CATALOG = {
         "Bitte prüfen Sie die Debitorennummer.",
       "parent_billing.debtor_number_locked":
         "Für diese Anmeldung gibt es schon eine Rechnung. Die Debitorennummer lässt sich nicht mehr ändern.",
+      "parent_billing.document_kind_invalid":
+        "Diese Dokumentart gibt es für diese Leistung nicht. Bitte wählen Sie eine aus der Liste.",
       "parent_billing.due_dates_invalid":
         "Die Fälligkeiten konnten nicht gespeichert werden. Bitte prüfen Sie die Daten.",
       "parent_billing.family_billing_invalid":
@@ -926,6 +928,8 @@ export const ERROR_CATALOG = {
         "Diese Rechnung hat schon eine Gutschrift. Schreiben Sie den Rest gut, statt zu stornieren.",
       "parent_billing.invoice_number_taken":
         "Diese Rechnungsnummer gibt es schon. Bitte ändern Sie das Muster unter „Abrechnungsvorgaben“.",
+      "parent_billing.legal_remedy_missing":
+        "Der Gebührenbescheid braucht eine Rechtsbehelfsbelehrung. Tragen Sie sie in der Vorlage „Bescheid“ ein. Danach können Sie freigeben.",
       "parent_billing.letter_mail_block_unreadable":
         "Ob diese Adresse gesperrt ist, lässt sich gerade nicht prüfen. Bitte versuchen Sie es später noch einmal.",
       "parent_billing.letter_mail_blocked":

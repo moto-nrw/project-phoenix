@@ -174,6 +174,9 @@ func (b *BillingLetters) correctionLetter(ctx context.Context, reviewer parentbi
 	if err != nil {
 		return fmt.Errorf("parent billing: read letterhead: %w", err)
 	}
+	if head, err = withNoticeTemplate(ctx, b.letterheads, reviewer.OrganizationID, head, document.DocumentKind, false); err != nil {
+		return err
+	}
 	file, err := b.render(letterContent{
 		run: target.run, document: document, letterhead: head, invoice: &target.invoice,
 		leftCents: leftOf(target.invoice, append(append([]parentbilling.BillingDocument{}, target.history...), document)),
@@ -225,7 +228,7 @@ func creditOf(invoice parentbilling.BillingDocument, child parentbilling.Billing
 func correctionOf(invoice parentbilling.BillingDocument, kind, reason string) parentbilling.BillingDocument {
 	reference := invoice.ID
 	return parentbilling.BillingDocument{
-		Kind: kind, ReferenceDocumentID: &reference, ReferenceNumber: invoice.Number, Reason: reason,
+		Kind: kind, DocumentKind: invoice.DocumentKind, ReferenceDocumentID: &reference, ReferenceNumber: invoice.Number, Reason: reason,
 		RegistrationID: invoice.RegistrationID, RecipientFirstName: invoice.RecipientFirstName,
 		RecipientLastName: invoice.RecipientLastName, RecipientEmail: invoice.RecipientEmail,
 		RecipientAddress: invoice.RecipientAddress, RecipientKind: invoice.RecipientKind,

@@ -145,6 +145,8 @@ describe("TraegerSidebar", () => {
       "Mitglieder und Rollen",
       "Briefkopf und Vorlagen",
       "Abrechnungsvorgaben",
+      // Dokumentart je Leistung, für die Rolle „Abrechnung“ (#4688).
+      "Dokumentarten",
       "Zugriffsprotokoll",
     ]);
     expect(
