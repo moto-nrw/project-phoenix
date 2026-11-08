@@ -244,6 +244,14 @@ const SANDBOXED_FILE_ROUTES: readonly RegExp[] = [
   /^\/api\/parent\/me\/news\/[^/]+\/attachments\/[^/]+\/download$/,
   // Documents staff attach to a child (#777) or a staff member (#1424).
   /^\/api\/(?:students|staff)\/[^/]+\/documents\/[^/]+\/download$/,
+  // The proof of a care schedule request a parent signed (#4780).
+  /^\/api\/students\/care-schedule-change-requests\/[^/]+\/proof$/,
+  // The paper-signed contract a Träger uploads (#4679).
+  /^\/api\/traeger\/contracts\/[^/]+\/paper-signature$/,
+  // Documents a Träger attaches to a holiday-period form.
+  /^\/api\/traeger\/holiday-periods\/[^/]+\/form\/documents\/[^/]+$/,
+  // Träger documents, in the Träger portal and shared with a school (#4692).
+  /^\/api\/(?:traeger-documents|traeger\/documents)\/[^/]+\/file$/,
 ];
 
 /** Like NextResponse.next, but strips any client-forged localize header. */
