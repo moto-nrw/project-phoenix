@@ -603,23 +603,33 @@ func (s *ChangeRequests) withLockedChangeRequest(ctx context.Context, id int64, 
 		return enrollmentNative.ErrChangeRequestNotFound
 	}
 	return s.deps.Runtime.TenantTx(ctx, row.TenantID, func(txCtx context.Context) error {
-		if gates != nil {
-			if err := gates(txCtx); err != nil {
-				return err
-			}
-		}
-		if _, err := s.requestByID(txCtx, row.RequestID, true); err != nil {
+		locked, err := s.lockChangeRequest(txCtx, row.RequestID, id, gates)
+		if err != nil {
 			return err
-		}
-		locked, err := s.readChangeRequest(txCtx, id, true)
-		if err != nil && !s.deps.Runtime.NotFound(err) {
-			return err
-		}
-		if err != nil || locked == nil {
-			return enrollmentNative.ErrChangeRequestNotFound
 		}
 		return fn(txCtx, locked)
 	})
+}
+
+// lockChangeRequest takes the gates, then the parent request and the change
+// request row, in the tenant transaction.
+func (s *ChangeRequests) lockChangeRequest(ctx context.Context, requestID, id int64, gates func(context.Context) error) (*ChangeRequest, error) {
+	if gates != nil {
+		if err := gates(ctx); err != nil {
+			return nil, err
+		}
+	}
+	if _, err := s.requestByID(ctx, requestID, true); err != nil {
+		return nil, err
+	}
+	locked, err := s.readChangeRequest(ctx, id, true)
+	if err != nil && !s.deps.Runtime.NotFound(err) {
+		return nil, err
+	}
+	if err != nil || locked == nil {
+		return nil, enrollmentNative.ErrChangeRequestNotFound
+	}
+	return locked, nil
 }
 
 func (s *ChangeRequests) loadAggregate(ctx context.Context, id int64, includeInternal bool) (*changeRequestCase, error) {

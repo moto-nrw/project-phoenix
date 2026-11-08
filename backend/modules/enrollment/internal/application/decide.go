@@ -48,11 +48,8 @@ func (d *Decisions) Decide(ctx context.Context, input enrollmentNative.DecideInp
 	if err := validateDecideInput(input); err != nil {
 		return nil, err
 	}
-	if input.Status == enrollmentNative.DecisionApproved {
-		// Other decisions write no gated state and stay ungated.
-		if err := d.LockApprovalGates(ctx); err != nil {
-			return nil, err
-		}
+	if err := d.lockDecisionGates(ctx, input.Status); err != nil {
+		return nil, err
 	}
 	target, err := d.lockDecisionTarget(ctx, input)
 	if err != nil {
@@ -110,6 +107,16 @@ func validateDecideInput(input enrollmentNative.DecideInput) error {
 		return fmt.Errorf("%w: %s", enrollmentNative.ErrDecisionInvalidStatus, input.Status)
 	}
 	return nil
+}
+
+// lockDecisionGates takes the approval gates before the request and child row
+// locks and the phase read. Other decisions write no gated state and stay
+// ungated.
+func (d *Decisions) lockDecisionGates(ctx context.Context, status enrollmentNative.DecisionStatus) error {
+	if status != enrollmentNative.DecisionApproved {
+		return nil
+	}
+	return d.LockApprovalGates(ctx)
 }
 
 // LockApprovalGates takes the tenant-wide gates of an approval in the
