@@ -335,21 +335,21 @@ interface SubstituteHintProps {
 function SubstituteHint(props: SubstituteHintProps) {
   if (props.unstaffed) {
     return (
-      <p className="mt-1 text-sm text-gray-400">
+      <p className="mt-1 text-xs text-gray-400">
         Der Termin ist bewusst unbesetzt. Deshalb ist keine Vertretung möglich.
       </p>
     );
   }
   if (!props.scopeReady) {
     return (
-      <p className="mt-1 text-sm text-gray-500">
+      <p className="mt-1 text-xs text-gray-500">
         Wählen Sie zuerst die Termine.
       </p>
     );
   }
   if (props.fullyCovered) {
     return (
-      <p className="mt-1 text-sm text-gray-400">
+      <p className="mt-1 text-xs text-gray-400">
         Der Termin ist bereits vollständig vertreten. Wählen Sie zuerst
         „Entfernen“.
       </p>
@@ -357,7 +357,7 @@ function SubstituteHint(props: SubstituteHintProps) {
   }
   if (props.staffLoadError && !props.hasOptions) {
     return (
-      <p className="text-moto-red-strong mt-1 text-sm">
+      <p className="text-moto-red-strong mt-1 text-xs">
         Die Personalliste konnte nicht geladen werden. Laden Sie die Seite neu.
       </p>
     );
