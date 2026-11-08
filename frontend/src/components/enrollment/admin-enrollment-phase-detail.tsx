@@ -54,6 +54,7 @@ import {
   DataTableStatusBadge,
 } from "~/components/ui/data-table";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { SectionCard } from "~/components/ui/section-card";
 import type {
   ActiveFilter,
   FilterConfig,
@@ -1095,7 +1096,7 @@ function ClassRosterExportPanel({
   onExport: (format: EnrollmentReportFormat) => void;
 }>) {
   return (
-    <section className="moto-content-surface relative z-10 rounded-2xl border p-4">
+    <SectionCard overflow="visible" className="relative z-10">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div className="min-w-0 md:w-72">
           <CustomSelect
@@ -1130,7 +1131,7 @@ function ClassRosterExportPanel({
           }}
         />
       </div>
-    </section>
+    </SectionCard>
   );
 }
 

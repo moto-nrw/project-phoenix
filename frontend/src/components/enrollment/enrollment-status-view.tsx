@@ -600,10 +600,7 @@ function EnrollmentStatusContent({
       <LoadErrorAlert error={errors.load} />
 
       {allLocked ? (
-        <section className="moto-content-surface space-y-2 rounded-2xl border p-5 sm:p-6">
-          <h2 className="text-lg font-semibold text-gray-900">
-            {t("lockedAllTitle")}
-          </h2>
+        <SectionCard title={t("lockedAllTitle")} bodyClassName="mt-2 space-y-2">
           <p className="text-sm leading-6 text-gray-600">
             {status.children.length > 1
               ? t("lockedAllBodyMany")
@@ -625,7 +622,7 @@ function EnrollmentStatusContent({
               </ButtonLink>
             </>
           )}
-        </section>
+        </SectionCard>
       ) : null}
       {!allLocked &&
       anyLocked &&
@@ -744,9 +741,9 @@ function EnrollmentStatusHero({
   const statusIconTone = justSubmitted ? "green" : "neutral";
 
   return (
-    <section className="moto-content-surface overflow-hidden rounded-2xl border">
+    <SectionCard padding="none">
       <div className="grid lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="p-5 sm:p-8 lg:p-10">
+        <div className="p-5 max-sm:p-4">
           {backHref ? (
             <BackLink
               href={backHref}
@@ -787,7 +784,7 @@ function EnrollmentStatusHero({
             </div>
           ) : null}
         </div>
-        <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 sm:p-8 lg:border-t-0 lg:border-l">
+        <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 max-sm:p-4 lg:border-t-0 lg:border-l">
           <h2 className="text-lg font-semibold text-gray-900">
             {justSubmitted ? t("nextTitle") : t("currentTitle")}
           </h2>
@@ -809,7 +806,7 @@ function EnrollmentStatusHero({
           </ol>
         </aside>
       </div>
-    </section>
+    </SectionCard>
   );
 }
 

@@ -55,7 +55,6 @@ export function PayrollDownloadContent({ link }: { readonly link: string }) {
   return (
     <AuthShell
       eyebrow="Lohnbüro"
-      eyebrowClassName="text-moto-green"
       title="Monatsdatei herunterladen"
       subtitle="Eine Schule schickt Ihnen die Arbeitszeiten ihres Teams für einen Monat."
       variant="tenant"

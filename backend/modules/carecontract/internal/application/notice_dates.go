@@ -19,7 +19,6 @@ func addMonths(day calendar.Date, months int) calendar.Date {
 	return calendar.NewDate(first.Year(), first.Month(), min(day.Day(), last))
 }
 
-// monthEnd is the last day of the month of day.
 func monthEnd(day calendar.Date) calendar.Date {
 	return addMonths(calendar.NewDate(day.Year(), day.Month(), 1), 1).AddDays(-1)
 }

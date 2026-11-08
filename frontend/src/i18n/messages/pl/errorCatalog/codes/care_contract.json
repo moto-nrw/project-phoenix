@@ -1,5 +1,9 @@
 {
   "application_not_found": "This application no longer exists or is not accepted. Please reload the page.",
+  "change_contract_not_active": "This contract is no longer in force. The school now decides change requests.",
+  "change_ends_care": "The parents give up all care with this. That is a termination. Please record it under “End contract” or reject the request.",
+  "change_not_applicable": "The school does not allow this change right now. Please talk to the school.",
+  "change_not_found": "This change request no longer exists. Please reload the page.",
   "contract_input_invalid": "Please select at least one and at most 200 entries.",
   "contract_not_draft": "The contract has already been sent. It can no longer be discarded.",
   "contract_not_endable": "Ta umowa została już wypowiedziana lub odwołana albo nie została jeszcze zawarta. Proszę odświeżyć stronę.",

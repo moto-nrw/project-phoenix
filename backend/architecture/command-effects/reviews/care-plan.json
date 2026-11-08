@@ -1687,33 +1687,35 @@
       "target_owner": ""
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.CourseWaitlists",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.CourseWaitlists",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan/internal/application.CareOfferings.CourseWaitlists. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan/internal/application.CareOfferings.CourseWaitlists. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: the private office review marker is set only after contract-right, organization and school checks. Ordinary school review reach stays unchanged; the decision checks student and enrollment under the request lock.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentRequestReviews.ReviewScope",
       "target_owner": "identity-access"
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.CourseWaitlists",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.CourseWaitlists",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan/internal/application.CareOfferings.CourseWaitlists. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan/internal/application.CareOfferings.CourseWaitlists. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: permission extraction remains a read. The office-only review marker does not change the permissions or reach of an ordinary school context.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
     },
     {
       "adr": "0083",
-      "approval_adr": "0143",
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.CourseWaitlists",
       "classification": "unresolved",
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.CourseWaitlists",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR. ADR 0163 review: refreshed binding evidence for the private office review marker and the enrollment/date contracts. This test-supplied callable remains explicitly unresolved, not promoted to a query or a guarded command.",
       "source_owner": "care-plan",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.s",
       "target_owner": ""
@@ -1767,21 +1769,23 @@
       "target_owner": ""
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.Decide",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.Decide",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan/internal/application.CareOfferings.Decide. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan/internal/application.CareOfferings.Decide. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: the private office review marker is set only after contract-right, organization and school checks. Ordinary school review reach stays unchanged; the decision checks student and enrollment under the request lock.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentRequestReviews.ReviewScope",
       "target_owner": "identity-access"
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.Decide",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.Decide",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan/internal/application.CareOfferings.Decide. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan/internal/application.CareOfferings.Decide. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: permission extraction remains a read. The office-only review marker does not change the permissions or reach of an ordinary school context.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
@@ -1800,12 +1804,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0098",
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.Decide",
       "classification": "unresolved",
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.Decide",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR. ADR 0163 review: refreshed binding evidence for the private office review marker and the enrollment/date contracts. This test-supplied callable remains explicitly unresolved, not promoted to a query or a guarded command.",
       "source_owner": "care-plan",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.s",
       "target_owner": ""
@@ -1823,21 +1827,23 @@
       "target_owner": ""
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.DecideConflictRequest",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.DecideConflictRequest",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan/internal/application.CareOfferings.DecideConflictRequest. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan/internal/application.CareOfferings.DecideConflictRequest. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: the private office review marker is set only after contract-right, organization and school checks. Ordinary school review reach stays unchanged; the decision checks student and enrollment under the request lock.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentRequestReviews.ReviewScope",
       "target_owner": "identity-access"
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.DecideConflictRequest",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.DecideConflictRequest",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan/internal/application.CareOfferings.DecideConflictRequest. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan/internal/application.CareOfferings.DecideConflictRequest. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: permission extraction remains a read. The office-only review marker does not change the permissions or reach of an ordinary school context.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
@@ -1856,12 +1862,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0098",
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.DecideConflictRequest",
       "classification": "unresolved",
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.DecideConflictRequest",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR. ADR 0163 review: refreshed binding evidence for the private office review marker and the enrollment/date contracts. This test-supplied callable remains explicitly unresolved, not promoted to a query or a guarded command.",
       "source_owner": "care-plan",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.s",
       "target_owner": ""
@@ -2093,21 +2099,23 @@
       "target_owner": ""
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.MarkDone",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.MarkDone",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan/internal/application.CareOfferings.MarkDone. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan/internal/application.CareOfferings.MarkDone. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: the private office review marker is set only after contract-right, organization and school checks. Ordinary school review reach stays unchanged; the decision checks student and enrollment under the request lock.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentRequestReviews.ReviewScope",
       "target_owner": "identity-access"
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.MarkDone",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.MarkDone",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan/internal/application.CareOfferings.MarkDone. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan/internal/application.CareOfferings.MarkDone. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: permission extraction remains a read. The office-only review marker does not change the permissions or reach of an ordinary school context.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
@@ -2126,12 +2134,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0098",
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.MarkDone",
       "classification": "unresolved",
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.MarkDone",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR. ADR 0163 review: refreshed binding evidence for the private office review marker and the enrollment/date contracts. This test-supplied callable remains explicitly unresolved, not promoted to a query or a guarded command.",
       "source_owner": "care-plan",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.s",
       "target_owner": ""
@@ -2244,21 +2252,23 @@
       "target_owner": ""
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.PreviewDecision",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.PreviewDecision",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan/internal/application.CareOfferings.PreviewDecision. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan/internal/application.CareOfferings.PreviewDecision. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: the private office review marker is set only after contract-right, organization and school checks. Ordinary school review reach stays unchanged; the decision checks student and enrollment under the request lock.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentRequestReviews.ReviewScope",
       "target_owner": "identity-access"
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.PreviewDecision",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.PreviewDecision",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan/internal/application.CareOfferings.PreviewDecision. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan/internal/application.CareOfferings.PreviewDecision. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: permission extraction remains a read. The office-only review marker does not change the permissions or reach of an ordinary school context.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
@@ -2277,12 +2287,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0098",
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.PreviewDecision",
       "classification": "unresolved",
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.PreviewDecision",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR. ADR 0163 review: refreshed binding evidence for the private office review marker and the enrollment/date contracts. This test-supplied callable remains explicitly unresolved, not promoted to a query or a guarded command.",
       "source_owner": "care-plan",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.s",
       "target_owner": ""
@@ -3769,65 +3779,69 @@
       "target_owner": ""
     },
     {
+      "approval_adr": "0163",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.OfferingChanges.CourseWaitlists",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.CourseWaitlists",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan/internal/application.OfferingChanges.CourseWaitlists. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan/internal/application.OfferingChanges.CourseWaitlists. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: the private office review marker is set only after contract-right, organization and school checks. Ordinary school review reach stays unchanged; the decision checks student and enrollment under the request lock.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentRequestReviews.ReviewScope",
       "target_owner": "identity-access"
     },
     {
+      "approval_adr": "0163",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.OfferingChanges.CourseWaitlists",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.CourseWaitlists",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan/internal/application.OfferingChanges.CourseWaitlists. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan/internal/application.OfferingChanges.CourseWaitlists. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: permission extraction remains a read. The office-only review marker does not change the permissions or reach of an ordinary school context.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
     },
     {
       "adr": "0083",
-      "approval_adr": "0143",
+      "approval_adr": "0163",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.OfferingChanges.CourseWaitlists",
       "classification": "unresolved",
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.CourseWaitlists",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR. ADR 0163 review: refreshed binding evidence for the private office review marker and the enrollment/date contracts. This test-supplied callable remains explicitly unresolved, not promoted to a query or a guarded command.",
       "source_owner": "care-plan",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.s",
       "target_owner": ""
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeLifecycle.CourseWaitlists",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.CourseWaitlists",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through roots/owners.offeringChangeLifecycle.CourseWaitlists. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through roots/owners.offeringChangeLifecycle.CourseWaitlists. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: the private office review marker is set only after contract-right, organization and school checks. Ordinary school review reach stays unchanged; the decision checks student and enrollment under the request lock.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentRequestReviews.ReviewScope",
       "target_owner": "identity-access"
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeLifecycle.CourseWaitlists",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.CourseWaitlists",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through roots/owners.offeringChangeLifecycle.CourseWaitlists. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through roots/owners.offeringChangeLifecycle.CourseWaitlists. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: permission extraction remains a read. The office-only review marker does not change the permissions or reach of an ordinary school context.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
     },
     {
       "adr": "0083",
-      "approval_adr": "0143",
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeLifecycle.CourseWaitlists",
       "classification": "unresolved",
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.CourseWaitlists",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR. ADR 0163 review: refreshed binding evidence for the private office review marker and the enrollment/date contracts. This test-supplied callable remains explicitly unresolved, not promoted to a query or a guarded command.",
       "source_owner": "care-plan",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.s",
       "target_owner": ""
@@ -3881,21 +3895,23 @@
       "target_owner": ""
     },
     {
+      "approval_adr": "0163",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.OfferingChanges.Decide",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.Decide",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan/internal/application.OfferingChanges.Decide. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan/internal/application.OfferingChanges.Decide. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: the private office review marker is set only after contract-right, organization and school checks. Ordinary school review reach stays unchanged; the decision checks student and enrollment under the request lock.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentRequestReviews.ReviewScope",
       "target_owner": "identity-access"
     },
     {
+      "approval_adr": "0163",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.OfferingChanges.Decide",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.Decide",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan/internal/application.OfferingChanges.Decide. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan/internal/application.OfferingChanges.Decide. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: permission extraction remains a read. The office-only review marker does not change the permissions or reach of an ordinary school context.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
@@ -3914,12 +3930,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0098",
+      "approval_adr": "0163",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.OfferingChanges.Decide",
       "classification": "unresolved",
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.Decide",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR. ADR 0163 review: refreshed binding evidence for the private office review marker and the enrollment/date contracts. This test-supplied callable remains explicitly unresolved, not promoted to a query or a guarded command.",
       "source_owner": "care-plan",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.s",
       "target_owner": ""
@@ -3937,21 +3953,23 @@
       "target_owner": ""
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeLifecycle.Decide",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.Decide",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through roots/owners.offeringChangeLifecycle.Decide. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #5102: Decide now returns the roster impact; the read is unchanged.",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through roots/owners.offeringChangeLifecycle.Decide. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #5102: Decide now returns the roster impact; the read is unchanged. ADR 0163 review: the private office review marker is set only after contract-right, organization and school checks. Ordinary school review reach stays unchanged; the decision checks student and enrollment under the request lock.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentRequestReviews.ReviewScope",
       "target_owner": "identity-access"
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeLifecycle.Decide",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.Decide",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through roots/owners.offeringChangeLifecycle.Decide. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #5102: Decide now returns the roster impact; the read is unchanged.",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through roots/owners.offeringChangeLifecycle.Decide. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). Re-reviewed for #5102: Decide now returns the roster impact; the read is unchanged. ADR 0163 review: permission extraction remains a read. The office-only review marker does not change the permissions or reach of an ordinary school context.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
@@ -3970,12 +3988,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0128",
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeLifecycle.Decide",
       "classification": "unresolved",
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.Decide",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); re-keyed when Decide started returning the roster impact (#5102, ADR 0128). A changed value or closure needs a fresh approval ADR.",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); re-keyed when Decide started returning the roster impact (#5102, ADR 0128). A changed value or closure needs a fresh approval ADR. ADR 0163 review: refreshed binding evidence for the private office review marker and the enrollment/date contracts. This test-supplied callable remains explicitly unresolved, not promoted to a query or a guarded command.",
       "source_owner": "care-plan",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.s",
       "target_owner": ""
@@ -3993,21 +4011,23 @@
       "target_owner": ""
     },
     {
+      "approval_adr": "0163",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.OfferingChanges.DecideConflictRequest",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.DecideConflictRequest",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan/internal/application.OfferingChanges.DecideConflictRequest. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan/internal/application.OfferingChanges.DecideConflictRequest. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: the private office review marker is set only after contract-right, organization and school checks. Ordinary school review reach stays unchanged; the decision checks student and enrollment under the request lock.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentRequestReviews.ReviewScope",
       "target_owner": "identity-access"
     },
     {
+      "approval_adr": "0163",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.OfferingChanges.DecideConflictRequest",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.DecideConflictRequest",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan/internal/application.OfferingChanges.DecideConflictRequest. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan/internal/application.OfferingChanges.DecideConflictRequest. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: permission extraction remains a read. The office-only review marker does not change the permissions or reach of an ordinary school context.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
@@ -4026,12 +4046,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0098",
+      "approval_adr": "0163",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.OfferingChanges.DecideConflictRequest",
       "classification": "unresolved",
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.DecideConflictRequest",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR. ADR 0163 review: refreshed binding evidence for the private office review marker and the enrollment/date contracts. This test-supplied callable remains explicitly unresolved, not promoted to a query or a guarded command.",
       "source_owner": "care-plan",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.s",
       "target_owner": ""
@@ -4049,21 +4069,23 @@
       "target_owner": ""
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeLifecycle.DecideConflictRequest",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.DecideConflictRequest",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through roots/owners.offeringChangeLifecycle.DecideConflictRequest. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through roots/owners.offeringChangeLifecycle.DecideConflictRequest. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: the private office review marker is set only after contract-right, organization and school checks. Ordinary school review reach stays unchanged; the decision checks student and enrollment under the request lock.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentRequestReviews.ReviewScope",
       "target_owner": "identity-access"
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeLifecycle.DecideConflictRequest",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.DecideConflictRequest",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through roots/owners.offeringChangeLifecycle.DecideConflictRequest. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through roots/owners.offeringChangeLifecycle.DecideConflictRequest. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: permission extraction remains a read. The office-only review marker does not change the permissions or reach of an ordinary school context.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
@@ -4082,12 +4104,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0098",
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeLifecycle.DecideConflictRequest",
       "classification": "unresolved",
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.DecideConflictRequest",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR. ADR 0163 review: refreshed binding evidence for the private office review marker and the enrollment/date contracts. This test-supplied callable remains explicitly unresolved, not promoted to a query or a guarded command.",
       "source_owner": "care-plan",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.s",
       "target_owner": ""
@@ -4249,21 +4271,23 @@
       "target_owner": ""
     },
     {
+      "approval_adr": "0163",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.OfferingChanges.MarkDone",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.MarkDone",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan/internal/application.OfferingChanges.MarkDone. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan/internal/application.OfferingChanges.MarkDone. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: the private office review marker is set only after contract-right, organization and school checks. Ordinary school review reach stays unchanged; the decision checks student and enrollment under the request lock.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentRequestReviews.ReviewScope",
       "target_owner": "identity-access"
     },
     {
+      "approval_adr": "0163",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.OfferingChanges.MarkDone",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.MarkDone",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan/internal/application.OfferingChanges.MarkDone. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan/internal/application.OfferingChanges.MarkDone. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: permission extraction remains a read. The office-only review marker does not change the permissions or reach of an ordinary school context.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
@@ -4282,12 +4306,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0098",
+      "approval_adr": "0163",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.OfferingChanges.MarkDone",
       "classification": "unresolved",
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.MarkDone",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR. ADR 0163 review: refreshed binding evidence for the private office review marker and the enrollment/date contracts. This test-supplied callable remains explicitly unresolved, not promoted to a query or a guarded command.",
       "source_owner": "care-plan",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.s",
       "target_owner": ""
@@ -4305,21 +4329,23 @@
       "target_owner": ""
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeLifecycle.MarkDone",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.MarkDone",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through roots/owners.offeringChangeLifecycle.MarkDone. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through roots/owners.offeringChangeLifecycle.MarkDone. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: the private office review marker is set only after contract-right, organization and school checks. Ordinary school review reach stays unchanged; the decision checks student and enrollment under the request lock.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentRequestReviews.ReviewScope",
       "target_owner": "identity-access"
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeLifecycle.MarkDone",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.MarkDone",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through roots/owners.offeringChangeLifecycle.MarkDone. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through roots/owners.offeringChangeLifecycle.MarkDone. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: permission extraction remains a read. The office-only review marker does not change the permissions or reach of an ordinary school context.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
@@ -4338,12 +4364,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0098",
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeLifecycle.MarkDone",
       "classification": "unresolved",
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.MarkDone",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR. ADR 0163 review: refreshed binding evidence for the private office review marker and the enrollment/date contracts. This test-supplied callable remains explicitly unresolved, not promoted to a query or a guarded command.",
       "source_owner": "care-plan",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.s",
       "target_owner": ""
@@ -4409,21 +4435,23 @@
       "target_owner": ""
     },
     {
+      "approval_adr": "0163",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.OfferingChanges.PreviewDecision",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.PreviewDecision",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan/internal/application.OfferingChanges.PreviewDecision. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan/internal/application.OfferingChanges.PreviewDecision. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: the private office review marker is set only after contract-right, organization and school checks. Ordinary school review reach stays unchanged; the decision checks student and enrollment under the request lock.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentRequestReviews.ReviewScope",
       "target_owner": "identity-access"
     },
     {
+      "approval_adr": "0163",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.OfferingChanges.PreviewDecision",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.PreviewDecision",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan/internal/application.OfferingChanges.PreviewDecision. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan/internal/application.OfferingChanges.PreviewDecision. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: permission extraction remains a read. The office-only review marker does not change the permissions or reach of an ordinary school context.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
@@ -4442,12 +4470,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0098",
+      "approval_adr": "0163",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.OfferingChanges.PreviewDecision",
       "classification": "unresolved",
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.PreviewDecision",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR. ADR 0163 review: refreshed binding evidence for the private office review marker and the enrollment/date contracts. This test-supplied callable remains explicitly unresolved, not promoted to a query or a guarded command.",
       "source_owner": "care-plan",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.s",
       "target_owner": ""
@@ -4465,21 +4493,23 @@
       "target_owner": ""
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeLifecycle.PreviewDecision",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.PreviewDecision",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through roots/owners.offeringChangeLifecycle.PreviewDecision. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through roots/owners.offeringChangeLifecycle.PreviewDecision. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: the private office review marker is set only after contract-right, organization and school checks. Ordinary school review reach stays unchanged; the decision checks student and enrollment under the request lock.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentRequestReviews.ReviewScope",
       "target_owner": "identity-access"
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeLifecycle.PreviewDecision",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.PreviewDecision",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through roots/owners.offeringChangeLifecycle.PreviewDecision. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through roots/owners.offeringChangeLifecycle.PreviewDecision. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: permission extraction remains a read. The office-only review marker does not change the permissions or reach of an ordinary school context.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
@@ -4498,12 +4528,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0098",
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeLifecycle.PreviewDecision",
       "classification": "unresolved",
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.PreviewDecision",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR. ADR 0163 review: refreshed binding evidence for the private office review marker and the enrollment/date contracts. This test-supplied callable remains explicitly unresolved, not promoted to a query or a guarded command.",
       "source_owner": "care-plan",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.s",
       "target_owner": ""
@@ -4713,21 +4743,23 @@
       "target_owner": ""
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.DecideConflictRequest",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeConflicts.DecideConflictRequest",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan.OfferingChangeCapability.DecideConflictRequest. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan.OfferingChangeCapability.DecideConflictRequest. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: the private office review marker is set only after contract-right, organization and school checks. Ordinary school review reach stays unchanged; the decision checks student and enrollment under the request lock.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentRequestReviews.ReviewScope",
       "target_owner": "identity-access"
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.DecideConflictRequest",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeConflicts.DecideConflictRequest",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan.OfferingChangeCapability.DecideConflictRequest. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan.OfferingChangeCapability.DecideConflictRequest. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: permission extraction remains a read. The office-only review marker does not change the permissions or reach of an ordinary school context.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
@@ -4746,12 +4778,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0098",
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.DecideConflictRequest",
       "classification": "unresolved",
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeConflicts.DecideConflictRequest",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR. ADR 0163 review: refreshed binding evidence for the private office review marker and the enrollment/date contracts. This test-supplied callable remains explicitly unresolved, not promoted to a query or a guarded command.",
       "source_owner": "care-plan",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.s",
       "target_owner": ""
@@ -4889,85 +4921,91 @@
       "target_owner": ""
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.CourseWaitlists",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.CourseWaitlists",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan.CareOfferingCapability.CourseWaitlists. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan.CareOfferingCapability.CourseWaitlists. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: the private office review marker is set only after contract-right, organization and school checks. Ordinary school review reach stays unchanged; the decision checks student and enrollment under the request lock.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentRequestReviews.ReviewScope",
       "target_owner": "identity-access"
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.CourseWaitlists",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.CourseWaitlists",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan.CareOfferingCapability.CourseWaitlists. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan.CareOfferingCapability.CourseWaitlists. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: permission extraction remains a read. The office-only review marker does not change the permissions or reach of an ordinary school context.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
     },
     {
       "adr": "0083",
-      "approval_adr": "0143",
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.CourseWaitlists",
       "classification": "unresolved",
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.CourseWaitlists",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR. ADR 0163 review: refreshed binding evidence for the private office review marker and the enrollment/date contracts. This test-supplied callable remains explicitly unresolved, not promoted to a query or a guarded command.",
       "source_owner": "care-plan",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.s",
       "target_owner": ""
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.CourseWaitlists",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.CourseWaitlists",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan.OfferingChangeCapability.CourseWaitlists. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan.OfferingChangeCapability.CourseWaitlists. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: the private office review marker is set only after contract-right, organization and school checks. Ordinary school review reach stays unchanged; the decision checks student and enrollment under the request lock.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentRequestReviews.ReviewScope",
       "target_owner": "identity-access"
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.CourseWaitlists",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.CourseWaitlists",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan.OfferingChangeCapability.CourseWaitlists. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan.OfferingChangeCapability.CourseWaitlists. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: permission extraction remains a read. The office-only review marker does not change the permissions or reach of an ordinary school context.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
     },
     {
       "adr": "0083",
-      "approval_adr": "0143",
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.CourseWaitlists",
       "classification": "unresolved",
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.CourseWaitlists",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR. ADR 0163 review: refreshed binding evidence for the private office review marker and the enrollment/date contracts. This test-supplied callable remains explicitly unresolved, not promoted to a query or a guarded command.",
       "source_owner": "care-plan",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.s",
       "target_owner": ""
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.Decide",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.Decide",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan.CareOfferingCapability.Decide. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan.CareOfferingCapability.Decide. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: the private office review marker is set only after contract-right, organization and school checks. Ordinary school review reach stays unchanged; the decision checks student and enrollment under the request lock.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentRequestReviews.ReviewScope",
       "target_owner": "identity-access"
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.Decide",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.Decide",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan.CareOfferingCapability.Decide. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan.CareOfferingCapability.Decide. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: permission extraction remains a read. The office-only review marker does not change the permissions or reach of an ordinary school context.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
@@ -4986,12 +5024,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0098",
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.Decide",
       "classification": "unresolved",
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.Decide",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR. ADR 0163 review: refreshed binding evidence for the private office review marker and the enrollment/date contracts. This test-supplied callable remains explicitly unresolved, not promoted to a query or a guarded command.",
       "source_owner": "care-plan",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.s",
       "target_owner": ""
@@ -5009,21 +5047,23 @@
       "target_owner": ""
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.Decide",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.Decide",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan.OfferingChangeCapability.Decide. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan.OfferingChangeCapability.Decide. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: the private office review marker is set only after contract-right, organization and school checks. Ordinary school review reach stays unchanged; the decision checks student and enrollment under the request lock.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentRequestReviews.ReviewScope",
       "target_owner": "identity-access"
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.Decide",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.Decide",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan.OfferingChangeCapability.Decide. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan.OfferingChangeCapability.Decide. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: permission extraction remains a read. The office-only review marker does not change the permissions or reach of an ordinary school context.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
@@ -5042,12 +5082,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0098",
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.Decide",
       "classification": "unresolved",
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.Decide",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR. ADR 0163 review: refreshed binding evidence for the private office review marker and the enrollment/date contracts. This test-supplied callable remains explicitly unresolved, not promoted to a query or a guarded command.",
       "source_owner": "care-plan",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.s",
       "target_owner": ""
@@ -5209,21 +5249,23 @@
       "target_owner": ""
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.MarkDone",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.MarkDone",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan.CareOfferingCapability.MarkDone. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan.CareOfferingCapability.MarkDone. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: the private office review marker is set only after contract-right, organization and school checks. Ordinary school review reach stays unchanged; the decision checks student and enrollment under the request lock.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentRequestReviews.ReviewScope",
       "target_owner": "identity-access"
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.MarkDone",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.MarkDone",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan.CareOfferingCapability.MarkDone. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan.CareOfferingCapability.MarkDone. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: permission extraction remains a read. The office-only review marker does not change the permissions or reach of an ordinary school context.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
@@ -5242,12 +5284,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0098",
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.MarkDone",
       "classification": "unresolved",
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.MarkDone",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR. ADR 0163 review: refreshed binding evidence for the private office review marker and the enrollment/date contracts. This test-supplied callable remains explicitly unresolved, not promoted to a query or a guarded command.",
       "source_owner": "care-plan",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.s",
       "target_owner": ""
@@ -5265,21 +5307,23 @@
       "target_owner": ""
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.MarkDone",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.MarkDone",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan.OfferingChangeCapability.MarkDone. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan.OfferingChangeCapability.MarkDone. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: the private office review marker is set only after contract-right, organization and school checks. Ordinary school review reach stays unchanged; the decision checks student and enrollment under the request lock.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentRequestReviews.ReviewScope",
       "target_owner": "identity-access"
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.MarkDone",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.MarkDone",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan.OfferingChangeCapability.MarkDone. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan.OfferingChangeCapability.MarkDone. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: permission extraction remains a read. The office-only review marker does not change the permissions or reach of an ordinary school context.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
@@ -5298,12 +5342,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0098",
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.MarkDone",
       "classification": "unresolved",
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.MarkDone",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR. ADR 0163 review: refreshed binding evidence for the private office review marker and the enrollment/date contracts. This test-supplied callable remains explicitly unresolved, not promoted to a query or a guarded command.",
       "source_owner": "care-plan",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.s",
       "target_owner": ""
@@ -5321,21 +5365,23 @@
       "target_owner": ""
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.PreviewDecision",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.PreviewDecision",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan.CareOfferingCapability.PreviewDecision. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan.CareOfferingCapability.PreviewDecision. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: the private office review marker is set only after contract-right, organization and school checks. Ordinary school review reach stays unchanged; the decision checks student and enrollment under the request lock.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentRequestReviews.ReviewScope",
       "target_owner": "identity-access"
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.PreviewDecision",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.PreviewDecision",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan.CareOfferingCapability.PreviewDecision. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan.CareOfferingCapability.PreviewDecision. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: permission extraction remains a read. The office-only review marker does not change the permissions or reach of an ordinary school context.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
@@ -5354,12 +5400,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0098",
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.PreviewDecision",
       "classification": "unresolved",
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.PreviewDecision",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR. ADR 0163 review: refreshed binding evidence for the private office review marker and the enrollment/date contracts. This test-supplied callable remains explicitly unresolved, not promoted to a query or a guarded command.",
       "source_owner": "care-plan",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.s",
       "target_owner": ""
@@ -5377,21 +5423,23 @@
       "target_owner": ""
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.PreviewDecision",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.PreviewDecision",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan.OfferingChangeCapability.PreviewDecision. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through modules/careplan.OfferingChangeCapability.PreviewDecision. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: the private office review marker is set only after contract-right, organization and school checks. Ordinary school review reach stays unchanged; the decision checks student and enrollment under the request lock.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentRequestReviews.ReviewScope",
       "target_owner": "identity-access"
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.PreviewDecision",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.PreviewDecision",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan.OfferingChangeCapability.PreviewDecision. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through modules/careplan.OfferingChangeCapability.PreviewDecision. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: permission extraction remains a read. The office-only review marker does not change the permissions or reach of an ordinary school context.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
@@ -5410,12 +5458,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0098",
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.PreviewDecision",
       "classification": "unresolved",
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeRequests.PreviewDecision",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR. ADR 0163 review: refreshed binding evidence for the private office review marker and the enrollment/date contracts. This test-supplied callable remains explicitly unresolved, not promoted to a query or a guarded command.",
       "source_owner": "care-plan",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.s",
       "target_owner": ""
@@ -11601,21 +11649,23 @@
       "target_owner": ""
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeConflictPort.DecideConflictRequest",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.ConflictPort.DecideConflictRequest",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through roots/owners.offeringChangeConflictPort.DecideConflictRequest. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess.ParentRequestReviews.ReviewScope (identity-access) through roots/owners.offeringChangeConflictPort.DecideConflictRequest. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: the private office review marker is set only after contract-right, organization and school checks. Ordinary school review reach stays unchanged; the decision checks student and enrollment under the request lock.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentRequestReviews.ReviewScope",
       "target_owner": "identity-access"
     },
     {
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeConflictPort.DecideConflictRequest",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.ConflictPort.DecideConflictRequest",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through roots/owners.offeringChangeConflictPort.DecideConflictRequest. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: care-plan reaches modules/identityaccess/sessiontoken.PermissionsFromCtx (identity-access) through roots/owners.offeringChangeConflictPort.DecideConflictRequest. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). ADR 0163 review: permission extraction remains a read. The office-only review marker does not change the permissions or reach of an ordinary school context.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken.PermissionsFromCtx",
       "target_owner": "identity-access"
@@ -11634,12 +11684,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0098",
+      "approval_adr": "0163",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeConflictPort.DecideConflictRequest",
       "classification": "unresolved",
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.ConflictPort.DecideConflictRequest",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.s. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR. ADR 0163 review: refreshed binding evidence for the private office review marker and the enrollment/date contracts. This test-supplied callable remains explicitly unresolved, not promoted to a query or a guarded command.",
       "source_owner": "care-plan",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.s",
       "target_owner": ""

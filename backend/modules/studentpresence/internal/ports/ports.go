@@ -65,6 +65,7 @@ type Store interface {
 	VisitStore
 	GroupSessionStore
 	PrivacyConsentStore
+	PastPresenceStore
 	LatestPresenceDate(context.Context, int64) (*string, Stats, error)
 	PresenceDaysBetween(ctx context.Context, studentIDs []int64, from, to calendar.Date) ([]studentpresence.PresenceDay, Stats, error)
 	CountAttendanceRecords(context.Context, int64) (int, Stats, error)

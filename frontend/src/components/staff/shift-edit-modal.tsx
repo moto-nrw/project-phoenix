@@ -1196,7 +1196,7 @@ export function ShiftEditModal({
                   />
                 )}
                 {seriesEditOpen && seriesRule && (
-                  <div className="space-y-3 rounded-md border border-gray-200 p-3">
+                  <InsetPanel tone="white" className="space-y-3">
                     <p className="text-xs text-gray-600">
                       {`Die Änderungen gelten ab ${formatShortDate(seriesAppliesFrom)} für alle weiteren Termine der Serie. Termine davor bleiben unverändert, ebenso Termine bis heute.`}
                     </p>
@@ -1265,13 +1265,13 @@ export function ShiftEditModal({
                         message={seriesNoOccurrenceMessage}
                       />
                     )}
-                  </div>
+                  </InsetPanel>
                 )}
                 {mode === "edit" &&
                   shift &&
                   !isReplacementRow &&
                   !seriesEditOpen && (
-                    <div className="space-y-3 rounded-md border border-gray-200 p-3">
+                    <InsetPanel tone="white" className="space-y-3">
                       <label
                         htmlFor="shift-cancel-toggle"
                         className="flex items-center gap-2"
@@ -1379,10 +1379,10 @@ export function ShiftEditModal({
                           )}
                         </div>
                       )}
-                    </div>
+                    </InsetPanel>
                   )}
                 {mode === "create" && (
-                  <div className="space-y-3 rounded-md border border-gray-200 p-3">
+                  <InsetPanel tone="white" className="space-y-3">
                     <label
                       htmlFor="shift-series-toggle"
                       className="flex items-center gap-2"
@@ -1491,7 +1491,7 @@ export function ShiftEditModal({
                         </p>
                       </div>
                     )}
-                  </div>
+                  </InsetPanel>
                 )}
               </div>
             )}

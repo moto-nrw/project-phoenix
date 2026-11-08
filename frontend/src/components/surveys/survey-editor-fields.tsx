@@ -56,9 +56,6 @@ const KIND_ITEMS: readonly SegmentedControlItem<SurveyQuestionKind>[] = (
   ["single", "multiple", "scale", "text"] as const
 ).map((kind) => ({ value: kind, label: SURVEY_QUESTION_KIND_LABEL[kind] }));
 
-const SECTION_TITLE =
-  "text-xs font-semibold tracking-wide text-gray-500 uppercase";
-
 export interface SurveyEditorFieldsProps {
   readonly draft: SurveyEditorDraft;
   readonly onChange: (next: SurveyEditorDraft) => void;
@@ -115,7 +112,7 @@ export function SurveyEditorFields({
       </section>
 
       <section className="space-y-4">
-        <h3 className={SECTION_TITLE}>Wer soll antworten?</h3>
+        <SectionLabel>Wer soll antworten?</SectionLabel>
         <SegmentedControl
           items={AUDIENCE_ITEMS}
           value={draft.audience}
@@ -180,7 +177,7 @@ export function SurveyEditorFields({
       </section>
 
       <section className="space-y-4">
-        <h3 className={SECTION_TITLE}>Anonym und Frist</h3>
+        <SectionLabel>Anonym und Frist</SectionLabel>
         <ChoiceTile
           selected={draft.anonymous}
           className="items-start gap-3 px-4 py-3"
@@ -234,7 +231,7 @@ export function SurveyEditorFields({
 
       <section className="space-y-4">
         <div>
-          <h3 className={SECTION_TITLE}>Fragen</h3>
+          <SectionLabel>Fragen</SectionLabel>
           <p className="mt-1 text-sm text-gray-600">
             {`Bis zu ${SURVEY_MAX_QUESTIONS} Fragen. Die Skala geht von 1 (trifft gar nicht zu) bis 5 (trifft voll zu).`}
           </p>

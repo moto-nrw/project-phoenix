@@ -1,5 +1,6 @@
 "use client";
 
+import { SECTION_LABEL_CLASS } from "~/components/ui/section-label";
 import { EmptyState } from "~/components/ui/empty-state";
 import { me as meKeys } from "~/lib/swr/me";
 import { rooms as roomsKeys } from "~/lib/swr/rooms";
@@ -404,7 +405,10 @@ export function TransitStudentsSection({
 
   return (
     <section aria-label="Kinder unterwegs">
-      <SectionCard overflow="visible">
+      <SectionCard
+        overflow="visible"
+        title={collapsible ? undefined : "Kinder unterwegs"}
+      >
         {collapsible ? (
           <button
             type="button"
@@ -418,7 +422,7 @@ export function TransitStudentsSection({
               aria-hidden="true"
             />
             <span className="min-w-0 flex-1">
-              <span className="block text-xs font-semibold tracking-wider text-gray-500 uppercase">
+              <span className={`block ${SECTION_LABEL_CLASS}`}>
                 Kinder unterwegs
               </span>
               <span className="block truncate text-sm text-gray-600">
@@ -434,17 +438,12 @@ export function TransitStudentsSection({
             />
           </button>
         ) : (
-          <>
-            <h2 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
-              Kinder unterwegs
-            </h2>
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <p className="text-sm text-gray-600">
-                <span className="font-medium text-gray-900">{totalCount}</span>{" "}
-                {totalCount === 1 ? "Kind" : "Kinder"} ohne Raum
-              </p>
-            </div>
-          </>
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <p className="text-sm text-gray-600">
+              <span className="font-medium text-gray-900">{totalCount}</span>{" "}
+              {totalCount === 1 ? "Kind" : "Kinder"} ohne Raum
+            </p>
+          </div>
         )}
 
         {isExpanded && loadError ? (

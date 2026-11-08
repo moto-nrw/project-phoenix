@@ -1,0 +1,8 @@
+{
+  "api/traeger/contract-changes/[id]": [
+    "GET traeger /traeger/contract-changes/id%2F1"
+  ],
+  "api/traeger/contract-changes/[id]/requests/[requestId]/decide": [
+    "POST traeger /traeger/contract-changes/id%2F1/requests/requestId%2F1/decide"
+  ]
+}
