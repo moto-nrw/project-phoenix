@@ -284,8 +284,11 @@ export function FilesPage() {
                 controlSize="compact"
               />
             </SectionCard>
-            <SectionCard className="hidden lg:block">
-              <aside className="flex flex-col">
+            <SectionCard
+              className="hidden h-full min-h-0 flex-col lg:flex"
+              bodyClassName="flex min-h-0 flex-1 flex-col"
+            >
+              <aside className="flex min-h-0 flex-1 flex-col">
                 <SectionLabel as="p" className="px-3 pt-1 pb-2">
                   Ordner
                 </SectionLabel>
