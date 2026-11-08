@@ -109,7 +109,6 @@ var seedCoverageExemptions = map[string]string{
 	"meta.migration_metadata":                       "empty in prod too",
 	"meta.parent_student_consent_permission_grants": "one-time migration ledger; only upgrades with pre-existing guardian relationships can contain rows",
 
-	"platform.cleanup_runs":                 "the Worker writes it when a nightly cleanup succeeds at the school's configured minute (#3950); a seed run never reaches that minute",
 	"platform.operator_email_change_tokens": "empty in prod too",
 	"platform.operator_invitation_tokens":   "empty in prod too",
 	"platform.operator_mfa_trusted_devices": "cryptographically bound trusted-device state; never forge in demo data",
@@ -141,8 +140,9 @@ var seedCoverageExemptions = map[string]string{
 var seedCoverageDebt = map[string]string{}
 
 // Transient tables may be populated during a seed flow and empty again after
-// their lifecycle completes. Unlike exemptions, a populated transient table
-// is not stale classification debt.
+// their lifecycle completes. Runtime-owned state may also stay empty until
+// its scheduled job runs. Unlike exemptions, populated entries are not stale
+// classification debt.
 var seedCoverageTransient = map[string]string{
 	"auth.account_avatar_file_cleanup":      "transient deletion intents for anonymized accounts; drained hourly, never create orphan files as demo data",
 	"auth.invitation_tokens":                "short-lived invitation state; the seed accepts some and leaves some open",
@@ -150,6 +150,7 @@ var seedCoverageTransient = map[string]string{
 	"parent_billing.care_invoices":          "monthly invoices bill only active contracts (#4684); the Worker concludes the contracts of Weg b on its five-minute tick (#4680), so a seed run may finish before the first one is active, and a later seed run issues them",
 	"parent_billing.care_run_holds":         "children a release held back for a duplicate contract (#4684, ADR 0158 E5); present only after a release that found one, which the seed's contracts never are",
 	"parent_billing.care_invoice_positions": "positions of the monthly invoices above (#4684); present exactly when an invoice is",
+	"platform.cleanup_runs":                 "last successful nightly cleanup per school and job (#3950); empty before the Worker succeeds, populated if the seed smoke overlaps the school's cleanup time (02:00 by default) or a due catch-up run",
 	"platform.push_outbox":                  "transient delivery state that requires an honest browser/VAPID-bound push subscription, which the server-side seed cannot create",
 	"platform.email_suppressions":           "addresses that bounced for good or complained (#5932); the local mail catcher never refuses an address",
 	"platform.email_delivery_events":        "events a mail provider reports after sending (#5932); the seed stack sends to the local mail catcher, which reports none",
