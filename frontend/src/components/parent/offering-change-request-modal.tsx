@@ -498,9 +498,11 @@ export function OfferingChangeRequestModal({
                   const unavailable =
                     item.is_active === false && !item.selected;
                   return (
-                    <div
+                    <ChoiceTile
+                      as="div"
                       key={item.id}
-                      className="rounded-xl border border-gray-200 p-3"
+                      selected={selected}
+                      className="block p-3"
                     >
                       <label className="flex cursor-pointer items-start gap-3">
                         <Checkbox
@@ -588,7 +590,7 @@ export function OfferingChangeRequestModal({
                             })}
                           </p>
                         )}
-                    </div>
+                    </ChoiceTile>
                   );
                 })}
                 {dayConflicts.map((conflict) => (

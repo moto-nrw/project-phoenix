@@ -632,25 +632,27 @@ function PollChildCard({
 }>) {
   const status = usePollChildStatus(poll, child);
   return (
-    <fieldset
-      disabled={poll.closed || poll.saving}
-      className="moto-content-surface rounded-2xl border p-4 disabled:opacity-60"
-    >
-      <legend className="mb-3 w-full">
-        <span className="flex items-center justify-between gap-3">
-          <span className="min-w-0 truncate text-base font-semibold text-gray-900">
-            {child.first_name} {child.last_name}
+    <SectionCard>
+      <fieldset
+        disabled={poll.closed || poll.saving}
+        className="disabled:opacity-60"
+      >
+        <legend className="mb-3 w-full">
+          <span className="flex items-center justify-between gap-3">
+            <span className="min-w-0 truncate text-base font-semibold text-gray-900">
+              {child.first_name} {child.last_name}
+            </span>
+            <StatusBadge label={status.label} tone={status.tone} />
           </span>
-          <StatusBadge label={status.label} tone={status.tone} />
-        </span>
-      </legend>
-      {long && (
-        <p className="-mt-1 mb-3 text-sm text-gray-600">
-          <PollSelectionSummary poll={poll} child={child} />
-        </p>
-      )}
-      <PollOptionList poll={poll} child={child} compact={long} />
-    </fieldset>
+        </legend>
+        {long && (
+          <p className="-mt-1 mb-3 text-sm text-gray-600">
+            <PollSelectionSummary poll={poll} child={child} />
+          </p>
+        )}
+        <PollOptionList poll={poll} child={child} compact={long} />
+      </fieldset>
+    </SectionCard>
   );
 }
 
@@ -975,25 +977,24 @@ function NewsMessageSection({
 }: Readonly<{ item: ParentAnnouncement }>): React.ReactNode {
   const t = useTranslations("parentDashboard");
   const locale = useLocale();
-  const headingId = `news-message-${item.id}`;
-
   return (
-    <section
-      aria-labelledby={headingId}
-      className="moto-content-surface rounded-2xl border p-4"
-    >
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h4 id={headingId} className="text-base font-semibold text-gray-950">
-          {isDeclarationItem(item)
-            ? t("newsDeclarationFrom", { school: senderLabel(item, t) })
-            : t("newsMessageFrom", { school: senderLabel(item, t) })}
-        </h4>
-        {item.published_at && (
+    <SectionCard
+      title={
+        isDeclarationItem(item)
+          ? t("newsDeclarationFrom", { school: senderLabel(item, t) })
+          : t("newsMessageFrom", { school: senderLabel(item, t) })
+      }
+      headingLevel={4}
+      namedRegion
+      action={
+        item.published_at ? (
           <time className="text-sm text-gray-500">
             {formatDate(item.published_at, false, locale)}
           </time>
-        )}
-      </div>
+        ) : undefined
+      }
+      bodyClassName=""
+    >
       {item.reminder_sent_at && (
         <NewsReminderNote
           sentAt={item.reminder_sent_at}
@@ -1028,7 +1029,7 @@ function NewsMessageSection({
           </span>
         </a>
       )}
-    </section>
+    </SectionCard>
   );
 }
 
