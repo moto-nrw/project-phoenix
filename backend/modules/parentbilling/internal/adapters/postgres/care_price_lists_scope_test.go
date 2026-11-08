@@ -142,3 +142,52 @@ func TestCareBilledPricesNameTheScaleStep(t *testing.T) {
 	})
 	require.ErrorIs(t, err, rollback)
 }
+
+// The one statement the price list and the monthly run read (#6196) joins
+// the heads with the prices. Each side names the Träger in its own filter:
+// below row level security another Träger's head and price, at the same
+// month, never join in. Dropping either filter turns this red.
+func TestCarePriceListsJoinKeepsTheTraegerBelowRLS(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	own := newCareScope(t, db, "Träger Preisbuch A")
+	other := newCareScope(t, db, "Träger Preisbuch B")
+	store := NewStore()
+	january := calendar.NewDate(2030, 1, 1)
+	rollback := errors.New("roll the price lists back")
+
+	ctx := testpkg.ContextWithTenantRuntime(context.Background(), testpkg.TenantRuntime(t, db))
+	err := testpkg.WithinTraeger(ctx, own.organization, func(ctx context.Context) error {
+		require.NoError(t, testpkg.WithoutRequestRole(ctx))
+		tx, err := traegerDB(ctx, own.organization)
+		require.NoError(t, err)
+		var bypasses bool
+		require.NoError(t, tx.NewRaw(`SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user`).Scan(ctx, &bypasses))
+		require.True(t, bypasses, "the test runs below row level security")
+		for _, scope := range []careScope{own, other} {
+			_, err = tx.ExecContext(ctx, `INSERT INTO parent_billing.care_price_lists (organization_id, school_id, valid_from, free_months)
+				VALUES (?, ?, ?, '{8}')`, scope.organization, scope.school, january)
+			require.NoError(t, err)
+			_, err = tx.ExecContext(ctx, `INSERT INTO parent_billing.care_tariffs (organization_id, school_id, care_offering_id, module_name,
+				days_per_week, valid_from, monthly_cents, sibling_cents) VALUES (?, ?, 704, 'Modul 4', 3, ?, 6000, 4500)`,
+				scope.organization, scope.school, january)
+			require.NoError(t, err)
+		}
+		// A price of the other Träger without a head of its own would join as
+		// a price without a head if the price side lost its filter.
+		_, err = tx.ExecContext(ctx, `INSERT INTO parent_billing.care_tariffs (organization_id, school_id, care_offering_id, module_name,
+			weekday, valid_from, monthly_cents) VALUES (?, ?, 701, 'Modul 1', 'mon', DATE '2030-02-01', 650)`,
+			other.organization, other.school)
+		require.NoError(t, err)
+
+		tariffs, heads, err := store.CarePriceLists(ctx, own.organization)
+		require.NoError(t, err)
+		require.Len(t, tariffs, 1, "CarePriceLists prices")
+		assert.Equal(t, own.school, tariffs[0].SchoolID)
+		assert.Equal(t, int64(4500), *tariffs[0].SiblingCents)
+		require.Len(t, heads, 1, "CarePriceLists heads")
+		assert.Equal(t, parentbilling.CarePriceListHead{SchoolID: own.school, ValidFrom: january, FreeMonths: []int{8}}, heads[0])
+		return rollback
+	})
+	require.ErrorIs(t, err, rollback)
+}
