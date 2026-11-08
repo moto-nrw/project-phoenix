@@ -105,7 +105,8 @@ describe("PUT /api/operator/provisioning/organizations/[id]", () => {
     };
     const response = await PUT(request, context);
 
-    expect(response.status).toBe(500);
+    // A non-string route param is the request's mistake: 400.
+    expect(response.status).toBe(400);
   });
 
   it("forwards 409 conflict from backend", async () => {
@@ -184,7 +185,12 @@ describe("DELETE /api/operator/provisioning/organizations/[id]", () => {
     };
     const response = await DELETE(request, context);
 
-    expect(response.status).toBe(500);
+    // An invalid route param is the request's mistake: a coded 400.
+    expect(response.status).toBe(400);
+    await expect(response.clone().json()).resolves.toMatchObject({
+      status: 400,
+      code: "general.input",
+    });
   });
 
   it("forwards 409 when organization has schools", async () => {

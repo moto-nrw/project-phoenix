@@ -1,6 +1,6 @@
-// app/api/active/visits/route.ts
 import type { NextRequest } from "next/server";
-import { apiGet, apiPost, extractParams } from "~/lib/api-helpers.server";
+import { apiGet, apiPost } from "~/lib/api-helpers.server";
+import { buildQueryString } from "~/lib/route-wrapper-utils.server";
 import {
   createGetHandler,
   createPostHandler,
@@ -13,26 +13,12 @@ interface VisitCreateRequest {
   student_id: string;
   active_group_id: string;
   start_time?: string;
-  // Add any other required fields
 }
 
-/**
- * Handler for GET /api/active/visits
- * Returns list of active visits, with optional query filters
- */
 export const GET = createGetHandler(
-  async (request: NextRequest, token: string, params) => {
-    // Extract query params
-    const queryParams = extractParams(request, params);
+  async (request: NextRequest, token: string) => {
+    const endpoint = `/api/active/visits${buildQueryString(request)}`;
 
-    // Construct query string
-    let endpoint = "/api/active/visits";
-    const queryString = new URLSearchParams(queryParams).toString();
-    if (queryString) {
-      endpoint += `?${queryString}`;
-    }
-
-    // Fetch visits from the API
     const response = await apiGet(endpoint, token);
 
     // Extract data from backend response structure {status, data, message}
@@ -44,10 +30,6 @@ export const GET = createGetHandler(
   },
 );
 
-/**
- * Handler for POST /api/active/visits
- * Creates a new visit
- */
 export const POST = createPostHandler<unknown, VisitCreateRequest>(
   async (
     _request: NextRequest,
@@ -55,7 +37,6 @@ export const POST = createPostHandler<unknown, VisitCreateRequest>(
     token: string,
     _params,
   ) => {
-    // Create a new visit via the API
     return await apiPost("/api/active/visits", token, body);
   },
 );

@@ -72,13 +72,13 @@ describe("GET /api/auth/account", () => {
 
     expect(global.fetch).toHaveBeenCalledWith(
       "http://server:8080/auth/account",
-      {
-        headers: {
-          Authorization: "Bearer test-token",
-          "Content-Type": "application/json",
-        },
-      },
+      expect.objectContaining({ method: "GET", cache: "no-store" }),
     );
+    const init = vi.mocked(global.fetch).mock.calls[0]?.[1];
+    const headers = init?.headers as Record<string, string>;
+    expect(headers.Authorization).toBe("Bearer test-token");
+    // Contract: a GET without body carries no Content-Type.
+    expect(headers).not.toHaveProperty("Content-Type");
 
     expect(response.status).toBe(200);
     const json = await parseJsonResponse<typeof accountData>(response);

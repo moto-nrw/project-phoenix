@@ -16,12 +16,12 @@ vi.mock("~/server/auth", () => ({
   withTenantAuth: (handler: unknown) => handler,
 }));
 
-vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("~/lib/api-helpers.server")>()),
-  handleApiError: vi.fn(
-    (await import("~/test/helpers/handle-api-error")).mockHandleApiError,
-  ),
-}));
+function jsonResponse(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
 
 // Helper to create a valid image file with proper magic bytes
 function createMockImageFile(
@@ -60,10 +60,9 @@ describe("POST /api/me/profile/avatar", () => {
       avatar_url: "/avatars/1.jpg",
     };
 
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ success: true, data: mockProfile }),
-    });
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      jsonResponse({ success: true, data: mockProfile }),
+    );
 
     const formData = new FormData();
     formData.append("avatar", createMockImageFile("jpeg"));
@@ -88,10 +87,9 @@ describe("POST /api/me/profile/avatar", () => {
       avatar_url: "/avatars/1.png",
     };
 
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ success: true, data: mockProfile }),
-    });
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      jsonResponse({ success: true, data: mockProfile }),
+    );
 
     const formData = new FormData();
     formData.append("avatar", createMockImageFile("png"));
@@ -125,10 +123,11 @@ describe("POST /api/me/profile/avatar", () => {
     );
     const response = await POST(request, createMockContext());
 
-    expect(response.status).toBe(500);
-    const json = (await response.json()) as { detail: string };
-    expect(json.detail).toBe("Internal Server Error");
-    expect(JSON.stringify(json)).not.toContain("Invalid file format");
+    // The upload validator answers a content mismatch itself (415).
+    expect(response.status).toBe(415);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "files.file_type_not_allowed",
+    });
   });
 
   it("rejects request with no file", async () => {
@@ -143,18 +142,17 @@ describe("POST /api/me/profile/avatar", () => {
     );
     const response = await POST(request, createMockContext());
 
-    expect(response.status).toBe(500);
-    const json = (await response.json()) as { detail: string };
-    expect(json.detail).toBe("Internal Server Error");
-    expect(JSON.stringify(json)).not.toContain("No avatar file provided");
+    // A missing file is the request's mistake (400 files.file_missing).
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      code: "files.file_missing",
+    });
   });
 
   it("handles backend upload errors", async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      ok: false,
-      status: 500,
-      text: async () => "Backend upload failed",
-    });
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      new Response("Backend upload failed", { status: 500 }),
+    );
 
     const formData = new FormData();
     formData.append("avatar", createMockImageFile());
@@ -186,10 +184,9 @@ describe("DELETE /api/me/profile/avatar", () => {
       avatar_url: null,
     };
 
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ success: true, data: mockProfile }),
-    });
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      jsonResponse({ success: true, data: mockProfile }),
+    );
 
     const request = new NextRequest(
       "http://localhost:3000/api/me/profile/avatar",
@@ -207,11 +204,9 @@ describe("DELETE /api/me/profile/avatar", () => {
   });
 
   it("handles backend deletion errors", async () => {
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      ok: false,
-      status: 404,
-      text: async () => "Avatar not found",
-    });
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      new Response("Avatar not found", { status: 404 }),
+    );
 
     const request = new NextRequest(
       "http://localhost:3000/api/me/profile/avatar",
@@ -221,6 +216,8 @@ describe("DELETE /api/me/profile/avatar", () => {
     );
     const response = await DELETE(request, createMockContext());
 
-    expect(response.status).toBe(500);
+    // The backend status passes through. The old 500 came from the fixture:
+    // a fake response without headers made the client throw a TypeError.
+    expect(response.status).toBe(404);
   });
 });

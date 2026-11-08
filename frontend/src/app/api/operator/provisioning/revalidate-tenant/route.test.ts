@@ -150,7 +150,7 @@ describe("POST /api/operator/provisioning/revalidate-tenant", () => {
     });
   });
 
-  it("returns 500 when request body is invalid JSON", async () => {
+  it("returns 400 when request body is invalid JSON", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
 
     const request = new NextRequest(
@@ -163,6 +163,7 @@ describe("POST /api/operator/provisioning/revalidate-tenant", () => {
     );
 
     const response = await POST(request, emptyContext);
-    expect(response.status).toBe(500);
+    // Contract: a malformed JSON body in a handler route answers 400 (was 500).
+    expect(response.status).toBe(400);
   });
 });

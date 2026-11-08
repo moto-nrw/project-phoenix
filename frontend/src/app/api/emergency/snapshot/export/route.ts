@@ -6,7 +6,6 @@ export const POST = withPrivateDownloadNoStore(
   withTenantAuth(
     createFileExportRoute({
       backendPath: "/api/emergency/snapshot/export",
-      component: "EmergencyExportRoute",
     }),
   ),
 );

@@ -1,58 +1,15 @@
-import { backendResponseError } from "~/lib/api-helpers.server";
-// Dateiablage (#2596): file list + multipart upload proxy. The backend owns
-// the authoritative magic-number validation and the visibility / upload
-// permission checks; this route mirrors the size and type gate so oversized
-// or obviously wrong files never leave the Next.js server, and forwards the
-// multipart body unchanged.
-
-import type { NextRequest } from "next/server";
-import {
-  createFileUploadHandler,
-  FileValidationError,
-} from "~/lib/file-upload-wrapper.server";
+import { proxyFileUpload } from "~/lib/file-upload-wrapper.server";
 import { proxyGet } from "~/lib/route-proxy.server";
 import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
-import { getServerApiUrl } from "~/lib/server-api-url";
 
 export const GET = proxyGet(
   (p) => `/api/files/folders/${requirePathSegmentParam(p, "folderId")}/files`,
 );
 
-interface BackendFileResponse {
-  status?: string;
-  message?: string;
-  data?: unknown;
-}
-
-export const POST = createFileUploadHandler<unknown>(
-  async (request: NextRequest, formData: FormData, token: string) => {
-    const folderId = extractFolderIdFromUrl(request);
-
-    const file = formData.get("file");
-    if (!file || !(file instanceof File)) {
-      throw new FileValidationError(
-        "Bitte wählen Sie eine Datei aus.",
-        400,
-        "files.file_missing",
-      );
-    }
-
-    const backendUrl = `${getServerApiUrl()}/api/files/folders/${folderId}/files`;
-    const forwarded = new FormData();
-    forwarded.append("file", file);
-
-    const response = await fetch(backendUrl, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-      body: forwarded,
-    });
-
-    if (!response.ok) throw await backendResponseError(response);
-
-    const body = (await response.json()) as BackendFileResponse;
-    return body.data ?? {};
-  },
+export const POST = proxyFileUpload(
+  (p) => `/api/files/folders/${requirePathSegmentParam(p, "folderId")}/files`,
   {
+    file: "file",
     maxSizeInMB: 25,
     // OOXML containers are ZIP archives; browsers without the OOXML mapping
     // label them as plain ZIP (or not at all). The extension gate below still
@@ -82,17 +39,3 @@ export const POST = createFileUploadHandler<unknown>(
     ],
   },
 );
-
-// Pulls {folderId} out of the URL because createFileUploadHandler doesn't
-// expose `params` to the body callback. Throws so a regex drift can never
-// silently target the wrong folder.
-function extractFolderIdFromUrl(request: NextRequest): string {
-  const match = request.nextUrl.pathname.match(
-    /\/files\/folders\/([^/]+)\/files/,
-  );
-  const id = match?.[1];
-  if (!id) {
-    throw new Error("Could not extract folder ID from request URL");
-  }
-  return id;
-}

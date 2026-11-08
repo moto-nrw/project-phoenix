@@ -20,7 +20,7 @@ vi.mock("~/lib/server-api-url", () => ({
 }));
 
 vi.mock("~/lib/logger", () => ({
-  createLogger: () => ({ error: vi.fn(), warn: vi.fn() }),
+  createLogger: () => ({ info: vi.fn(), error: vi.fn(), warn: vi.fn() }),
 }));
 
 global.fetch = mockFetch as unknown as typeof fetch;
@@ -63,10 +63,11 @@ describe("POST /api/enrollment/admin/reports/class-roster/export", () => {
       "http://localhost:8080/api/enrollment/admin/reports/class-roster/export",
       expect.objectContaining({
         method: "POST",
-        headers: {
+        // Contract: the header set also carries the client identity, so pin only what matters.
+        headers: expect.objectContaining({
           Authorization: "Bearer access-token",
           "Content-Type": "application/json",
-        },
+        }),
         body: JSON.stringify(body),
         cache: "no-store",
       }),

@@ -112,7 +112,8 @@ describe("PUT /api/operator/provisioning/schools/[id]", () => {
     };
     const response = await PUT(request, context);
 
-    expect(response.status).toBe(500);
+    // A non-string route param is the request's mistake: 400.
+    expect(response.status).toBe(400);
   });
 
   it("forwards 404 not found from backend", async () => {

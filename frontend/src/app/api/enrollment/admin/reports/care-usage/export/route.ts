@@ -6,7 +6,6 @@ export const POST = withPrivateDownloadNoStore(
   withTenantAuth(
     createFileExportRoute({
       backendPath: "/api/enrollment/admin/reports/care-usage/export",
-      component: "EnrollmentCareUsageReportExportRoute",
     }),
   ),
 );

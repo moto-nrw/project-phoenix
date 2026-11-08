@@ -1,120 +1,35 @@
-// src/app/api/activities/[id]/supervisors/[supervisorId]/route.ts
-import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { apiPut } from "~/lib/api-helpers.server";
+import { createPutHandler, tenant } from "~/lib/route-wrapper.server";
+import { bffError } from "~/lib/api-response-error.server";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
-import { apiPut, handleApiError } from "~/lib/api-helpers.server";
-import { createPutHandler } from "~/lib/route-wrapper.server";
-import { auth, uncachedAuth, withTenantAuth } from "~/server/auth";
-import { getServerApiUrl } from "~/lib/server-api-url";
-import { sendWithTokenRefresh } from "~/lib/token-refresh-retry.server";
 import {
-  createTokenExpiredResponse,
-  createUnauthorizedResponse,
-  encodePathSegment,
-  extractParams,
-  isStringParam,
-  type RouteContext,
+  allowedQueryString,
+  requirePathSegmentParam,
 } from "~/lib/route-wrapper-utils.server";
 
-/**
- * PUT handler for updating a supervisor's role for an activity (primarily is_primary status)
- * @route PUT /api/activities/:id/supervisors/:supervisorId
- * Request body: { is_primary: boolean }
- */
+const supervisorPath = (params: Record<string, unknown>) =>
+  `/api/activities/${requirePathSegmentParam(params)}/supervisors/${requirePathSegmentParam(params, "supervisorId")}`;
+
 export const PUT = createPutHandler(
-  async (
-    _request: NextRequest,
-    body: { is_primary: boolean },
-    token: string,
-    params: Record<string, unknown>,
-  ) => {
-    // Extract parameters
-    const activityId = String(params.id);
-    const supervisorId = String(params.supervisorId);
-
-    if (!activityId) {
-      throw new Error("Activity ID is required");
-    }
-
-    if (!supervisorId) {
-      throw new Error("Supervisor ID is required");
-    }
-
+  async (_request, body: { is_primary?: boolean }, token, params) => {
     if (body.is_primary === undefined) {
-      throw new Error("is_primary parameter is required");
+      throw bffError(400, "is_primary parameter is required");
     }
-
-    await apiPut(
-      `/api/activities/${activityId}/supervisors/${supervisorId}`,
-      token,
-      {
-        is_primary: body.is_primary,
-      },
-    );
-
+    await apiPut(supervisorPath(params), token, {
+      is_primary: body.is_primary,
+    });
     return { success: true };
   },
 );
 
-/**
- * DELETE handler for removing a supervisor from an activity
- * @route DELETE /api/activities/:id/supervisors/:supervisorId
- */
-export const DELETE = withTenantAuth(
-  async (
-    request: NextRequest,
-    context: RouteContext,
-  ): Promise<NextResponse> => {
-    try {
-      const session = await auth();
-
-      if (!session?.user?.token) {
-        return createUnauthorizedResponse(request);
-      }
-
-      const params = await extractParams(request, context);
-      const activityId = params.id;
-      const supervisorId = params.supervisorId;
-
-      if (!isStringParam(activityId) || activityId.length === 0) {
-        throw new Error("Activity ID is required");
-      }
-
-      if (!isStringParam(supervisorId) || supervisorId.length === 0) {
-        throw new Error("Supervisor ID is required");
-      }
-
-      const backendUrl = new URL(
-        `${getServerApiUrl()}/api/activities/${encodePathSegment(activityId)}/supervisors/${encodePathSegment(supervisorId)}`,
-      );
-
-      const replacementStaffId = request.nextUrl.searchParams.get(
-        "replacement_staff_id",
-      );
-      if (replacementStaffId) {
-        backendUrl.searchParams.set("replacement_staff_id", replacementStaffId);
-      }
-
-      const makeRequest = (token: string) =>
-        fetch(backendUrl.toString(), {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          cache: "no-store",
-        });
-
-      const response = await sendWithTokenRefresh(
-        session.user.token,
-        makeRequest,
-        () => uncachedAuth(),
-      );
-      if (response.status === 401) return createTokenExpiredResponse(request);
-      if (!response.ok) return forwardBackendResponse(response, request);
-
-      return NextResponse.json({ success: true });
-    } catch (error) {
-      return handleApiError(error, request);
-    }
-  },
-);
+/** Removing a supervisor may name the staff member who takes over. */
+export const DELETE = tenant.route(async (request, _token, params) => {
+  const response = await tenant.backendFetch(
+    request,
+    `${supervisorPath(params)}${allowedQueryString(request, ["replacement_staff_id"])}`,
+    { method: "DELETE" },
+  );
+  if (!response.ok) return forwardBackendResponse(response, request);
+  return NextResponse.json({ success: true });
+});

@@ -1,5 +1,5 @@
 import { operatorErrorResponse } from "~/lib/operator/route-wrapper.server";
-import { createOperatorJsonProxy } from "~/lib/backend-proxy-route.server";
+import { createOperatorJsonProxy } from "~/lib/operator/route-wrapper.server";
 
 export const PUT = createOperatorJsonProxy({
   method: "PUT",
@@ -15,5 +15,4 @@ export const PUT = createOperatorJsonProxy({
     }
     return `/operator/schools/${encodeURIComponent(schoolId)}/accounts/${encodeURIComponent(accountId)}/mfa/override`;
   },
-  cache: "no-store",
 });

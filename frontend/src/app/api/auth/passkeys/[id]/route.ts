@@ -1,17 +1,7 @@
-import { forwardJsonPost } from "~/lib/auth-proxy.server";
-import { withTenantAuth } from "~/server/auth";
-import type { ServerAuthRequest } from "~/server/auth/route-handler";
+import { createTenantJsonProxy } from "~/lib/route-wrapper.server";
 
-async function DELETEHandler(
-  request: ServerAuthRequest,
-  context: { params: Promise<{ id: string }> },
-) {
-  const { id } = await context.params;
-  return forwardJsonPost(request, `/auth/passkeys/${id}`, {
-    sessionToken: request.auth?.user?.token ?? null,
-    method: "DELETE",
-    hasBody: false,
-  });
-}
-
-export const DELETE = withTenantAuth(DELETEHandler);
+export const DELETE = createTenantJsonProxy({
+  method: "DELETE",
+  path: (_request, params) =>
+    `/auth/passkeys/${encodeURIComponent(String(params.id))}`,
+});

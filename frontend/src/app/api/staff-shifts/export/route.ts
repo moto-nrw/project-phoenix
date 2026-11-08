@@ -8,7 +8,6 @@ export const POST = withPrivateDownloadNoStore(
   withTenantAuth(
     createFileExportRoute({
       backendPath: "/api/staff-shifts/export",
-      component: "DienstplanExportRoute",
     }),
   ),
 );

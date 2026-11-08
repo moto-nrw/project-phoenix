@@ -15,10 +15,6 @@ vi.mock("~/server/auth", () => ({
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://backend:8080",
 }));
-vi.mock("~/lib/analytics-session-header.server", () => ({
-  incomingAnalyticsSessionHeaders: async () => ({}),
-}));
-
 global.fetch = mockFetch as unknown as typeof fetch;
 
 const { GET } = await import("./route");

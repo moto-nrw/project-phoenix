@@ -124,7 +124,7 @@ describe("POST /api/auth/accounts", () => {
       method: "POST",
       body: { id: "1", active: false },
     });
-    const response = await POST(request);
+    const response = await POST(request, createMockContext());
 
     expect(mockApiPut).toHaveBeenCalledWith("/auth/accounts/1", "test-token", {
       active: false,
@@ -150,7 +150,7 @@ describe("POST /api/auth/accounts", () => {
       method: "POST",
       body: { id: "1", active: false },
     });
-    const response = await POST(request);
+    const response = await POST(request, createMockContext());
 
     expect(response.status).toBe(500);
     const json = (await response.json()) as { detail: string };
@@ -181,6 +181,7 @@ describe("POST /api/auth/accounts", () => {
         method: "POST",
         body: { id: "1", email: "taken@example.com" },
       }),
+      createMockContext(),
     );
 
     expect(response.status).toBe(409);
@@ -197,12 +198,14 @@ describe("POST /api/auth/accounts", () => {
         method: "POST",
         body: '{"password":"cleartext-secret"',
       }),
+      createMockContext(),
     );
 
     expect(response.status).toBe(400);
+    // Contract change: handler routes share one malformed-JSON 400 detail.
     expect(await response.json()).toMatchObject({
       status: 400,
-      detail: "Invalid JSON",
+      detail: "request body is not valid JSON",
       code: "general.input",
     });
     expect(mockApiPut).not.toHaveBeenCalled();

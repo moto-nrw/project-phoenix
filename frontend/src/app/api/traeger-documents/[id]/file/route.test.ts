@@ -83,10 +83,11 @@ describe("GET /api/traeger-documents/[id]/file", () => {
   it("answers an unreachable backend with the error envelope and no-store", async () => {
     mockFetch.mockRejectedValue(new TypeError("fetch failed"));
     const response = await call();
-    expect(response.status).toBe(500);
+    // An unreachable backend is unavailability: 503.
+    expect(response.status).toBe(503);
     expect(response.headers.get("cache-control")).toContain("no-store");
     const body = (await response.json()) as { status?: number; code?: string };
-    expect(body.status).toBe(500);
+    expect(body.status).toBe(503);
     expect(body.code).toBeTruthy();
   });
 });

@@ -91,7 +91,8 @@ describe("PUT /api/activities/categories/[id]", () => {
       createContext({}),
     );
 
-    expect(response.status).toBe(500);
+    // A missing route param is the request's mistake: 400.
+    expect(response.status).toBe(400);
     expect(mockApiPut).not.toHaveBeenCalled();
   });
 });

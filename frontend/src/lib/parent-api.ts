@@ -583,12 +583,14 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
   return unwrapEnvelope((await response.json()) as ApiEnvelope<T>);
 }
 
+/** A DELETE without a result answers 204. */
 async function deleteJson<T>(url: string): Promise<T> {
   const response = await transportFetch(url, {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
   });
   if (!response.ok) await throwResponseError(url, response);
+  if (response.status === 204) return undefined as T;
   return unwrapEnvelope((await response.json()) as ApiEnvelope<T>);
 }
 

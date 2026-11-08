@@ -47,9 +47,12 @@ describe("GET /api/enrollment/admin/reports/care-usage", () => {
     expect(url?.toString()).toBe(
       "http://localhost:8080/api/enrollment/admin/reports/care-usage?phase_id=42&weekday=mon&pickup_time=14%3A30&search=Ada",
     );
-    expect(init).toEqual({
-      headers: { Authorization: "Bearer access-token" },
+    expect(init).toMatchObject({
+      method: "GET",
       cache: "no-store",
+      headers: { Authorization: "Bearer access-token" },
     });
+    // Contract change: no Content-Type on a GET without body.
+    expect(init?.headers).not.toHaveProperty("Content-Type");
   });
 });

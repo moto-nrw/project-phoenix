@@ -11,11 +11,9 @@ import {
 // Mocks (using vi.hoisted for proper hoisting)
 // ============================================================================
 
-const { mockAuth, mockApiGet, mockApiPut, mockApiDelete } = vi.hoisted(() => ({
+const { mockAuth, mockFetch } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
-  mockApiGet: vi.fn(),
-  mockApiPut: vi.fn(),
-  mockApiDelete: vi.fn(),
+  mockFetch: vi.fn<typeof fetch>(),
 }));
 
 vi.mock("~/server/auth", () => ({
@@ -23,17 +21,27 @@ vi.mock("~/server/auth", () => ({
   withTenantAuth: (handler: unknown) => handler,
 }));
 
-vi.mock("~/lib/api-helpers.server", async () => {
-  const { mockHandleApiError } =
-    await import("~/test/helpers/handle-api-error");
-  return {
-    apiGet: mockApiGet,
-    apiPost: vi.fn(),
-    apiPut: mockApiPut,
-    apiDelete: mockApiDelete,
-    handleApiError: vi.fn(mockHandleApiError),
-  };
-});
+global.fetch = mockFetch;
+
+function jsonResponse(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+function expectBackendCall(method: string, body?: unknown) {
+  expect(mockFetch).toHaveBeenCalledWith(
+    "http://server:8080/api/active/groups/123",
+    expect.objectContaining({
+      method,
+      body: body === undefined ? undefined : JSON.stringify(body),
+      headers: expect.objectContaining({
+        Authorization: "Bearer test-token",
+      }) as Record<string, string>,
+    }),
+  );
+}
 
 // ============================================================================
 // Test Helpers
@@ -66,15 +74,12 @@ describe("GET /api/active/groups/[id]", () => {
       room_id: 10,
       description: "Test group",
     };
-    mockApiGet.mockResolvedValueOnce(mockGroup);
+    mockFetch.mockResolvedValueOnce(jsonResponse(mockGroup));
 
     const request = createMockRequest("/api/active/groups/123");
     const response = await GET(request, createMockContext({ id: "123" }));
 
-    expect(mockApiGet).toHaveBeenCalledWith(
-      "/api/active/groups/123",
-      "test-token",
-    );
+    expectBackendCall("GET");
     expect(response.status).toBe(200);
 
     const json =
@@ -100,7 +105,7 @@ describe("PUT /api/active/groups/[id]", () => {
       description: "Updated description",
       room_id: 10,
     };
-    mockApiPut.mockResolvedValueOnce(mockUpdatedGroup);
+    mockFetch.mockResolvedValueOnce(jsonResponse(mockUpdatedGroup));
 
     const request = createMockRequest("/api/active/groups/123", {
       method: "PUT",
@@ -108,11 +113,7 @@ describe("PUT /api/active/groups/[id]", () => {
     });
     const response = await PUT(request, createMockContext({ id: "123" }));
 
-    expect(mockApiPut).toHaveBeenCalledWith(
-      "/api/active/groups/123",
-      "test-token",
-      updateBody,
-    );
+    expectBackendCall("PUT", updateBody);
     expect(response.status).toBe(200);
 
     const json =
@@ -127,7 +128,7 @@ describe("PUT /api/active/groups/[id]", () => {
       name: "OGS Group A",
       room_id: 15,
     };
-    mockApiPut.mockResolvedValueOnce(mockUpdatedGroup);
+    mockFetch.mockResolvedValueOnce(jsonResponse(mockUpdatedGroup));
 
     const request = createMockRequest("/api/active/groups/123", {
       method: "PUT",
@@ -135,11 +136,7 @@ describe("PUT /api/active/groups/[id]", () => {
     });
     const response = await PUT(request, createMockContext({ id: "123" }));
 
-    expect(mockApiPut).toHaveBeenCalledWith(
-      "/api/active/groups/123",
-      "test-token",
-      updateBody,
-    );
+    expectBackendCall("PUT", updateBody);
     expect(response.status).toBe(200);
   });
 });
@@ -151,17 +148,14 @@ describe("DELETE /api/active/groups/[id]", () => {
   });
 
   it("deletes active group via backend and returns 204", async () => {
-    mockApiDelete.mockResolvedValueOnce(undefined);
+    mockFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
 
     const request = createMockRequest("/api/active/groups/123", {
       method: "DELETE",
     });
     const response = await DELETE(request, createMockContext({ id: "123" }));
 
-    expect(mockApiDelete).toHaveBeenCalledWith(
-      "/api/active/groups/123",
-      "test-token",
-    );
+    expectBackendCall("DELETE");
     expect(response.status).toBe(204);
   });
 });

@@ -119,9 +119,11 @@ describe("/api/operator/accounts/[accountId]/tenants", () => {
     );
 
     expect(response.status).toBe(400);
+    // Contract change: invalidJsonMessage is gone; the operator portal's
+    // shared malformed-JSON answer applies.
     expect(await response.json()).toMatchObject({
       status: 400,
-      detail: "Invalid JSON body",
+      detail: "Invalid JSON request body",
       code: "general.input",
     });
     expect(mockFetch).not.toHaveBeenCalled();

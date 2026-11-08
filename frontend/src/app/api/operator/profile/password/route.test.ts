@@ -154,6 +154,7 @@ describe("POST /api/operator/profile/password", () => {
     });
     const response = await POST(request, mockContext);
 
+    // No retry: a renewed session would send the current password twice.
     expect(response.status).toBe(401);
   });
 

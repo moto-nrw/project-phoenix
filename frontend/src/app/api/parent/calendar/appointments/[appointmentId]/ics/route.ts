@@ -1,44 +1,15 @@
 import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
-import { type NextRequest } from "next/server";
-import {
-  parentAuth,
-  uncachedParentAuth,
-  withParentAuth,
-} from "~/server/auth/parent";
-import { streamIcsDownload } from "~/lib/ics-download.server";
-import {
-  createUnauthorizedResponse,
-  extractParams,
-  isStringParam,
-  type RouteContext,
-} from "~/lib/route-wrapper-utils.server";
-import { problemResponse } from "~/lib/api-helpers.server";
+import { parent } from "~/lib/parent/route-wrapper.server";
+import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
+import { ICS_FILE } from "~/lib/file-response.server";
 
 export const runtime = "nodejs";
 
-// Streams a parent-visible appointment as a text/calendar (.ics) download,
-// authenticated with the parent-portal session. Wrapped in `withParentAuth`
-// (response-aware auth) so a session token refreshed during the download — by
-// the outer wrapper or by streamIcsDownload's retry-on-401 — is persisted back
-// as a Set-Cookie. Without it the rotated cookie is dropped and a later download
-// after the refresh could fail with a stale token.
+/** A parent-visible appointment as an iCalendar file on the parent session. */
 export const GET = withPrivateDownloadNoStore(
-  withParentAuth(
-    async (request: NextRequest, context: RouteContext): Promise<Response> => {
-      const session = await parentAuth();
-      if (!session?.user?.token) {
-        return createUnauthorizedResponse(request);
-      }
-      const params = await extractParams(request, context);
-      const appointmentId = params.appointmentId;
-      if (!isStringParam(appointmentId) || appointmentId.length === 0) {
-        return problemResponse(400, "Appointment ID is required", request);
-      }
-      return streamIcsDownload(
-        `/parent/me/calendar/appointments/${encodeURIComponent(appointmentId)}/ics`,
-        session.user.token,
-        uncachedParentAuth,
-      );
-    },
+  parent.proxyFile(
+    (params) =>
+      `/parent/me/calendar/appointments/${requirePathSegmentParam(params, "appointmentId")}/ics`,
+    ICS_FILE,
   ),
 );

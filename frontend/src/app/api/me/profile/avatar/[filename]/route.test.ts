@@ -55,7 +55,7 @@ describe("GET /api/me/profile/avatar/[filename]", () => {
 
     expect(response.status).toBe(400);
     const json = (await response.json()) as { detail: string };
-    expect(json.detail).toContain("Filename is required");
+    expect(json.detail).toContain("Invalid filename parameter");
   });
 
   it("rejects filename with path traversal attack", async () => {
@@ -103,11 +103,12 @@ describe("GET /api/me/profile/avatar/[filename]", () => {
   it("successfully fetches JPEG avatar", async () => {
     const mockImageBuffer = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0]);
 
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      ok: true,
-      headers: new Map([["content-type", "image/jpeg"]]),
-      arrayBuffer: async () => mockImageBuffer.buffer,
-    });
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      new Response(mockImageBuffer, {
+        status: 200,
+        headers: { "content-type": "image/jpeg" },
+      }),
+    );
 
     const request = new NextRequest(
       "http://localhost:3000/api/me/profile/avatar/avatar123.jpg",
@@ -130,11 +131,12 @@ describe("GET /api/me/profile/avatar/[filename]", () => {
   it("successfully fetches PNG avatar", async () => {
     const mockImageBuffer = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
 
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      ok: true,
-      headers: new Map([["content-type", "image/png"]]),
-      arrayBuffer: async () => mockImageBuffer.buffer,
-    });
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      new Response(mockImageBuffer, {
+        status: 200,
+        headers: { "content-type": "image/png" },
+      }),
+    );
 
     const request = new NextRequest(
       "http://localhost:3000/api/me/profile/avatar/avatar456.png",
@@ -151,11 +153,11 @@ describe("GET /api/me/profile/avatar/[filename]", () => {
   it("uses default content-type when backend doesn't provide one", async () => {
     const mockImageBuffer = new Uint8Array([0, 0, 0, 0]);
 
-    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      ok: true,
-      headers: new Map(),
-      arrayBuffer: async () => mockImageBuffer.buffer,
-    });
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
+      new Response(mockImageBuffer, {
+        status: 200,
+      }),
+    );
 
     const request = new NextRequest(
       "http://localhost:3000/api/me/profile/avatar/test.jpg",

@@ -96,6 +96,7 @@ describe("GET /api/operator/provisioning/schools/[id]/settings/values/[key]/reve
     };
     const response = await GET(request, context);
 
-    expect(response.status).toBe(500);
+    // An invalid route param is the request's mistake: a coded 400.
+    expect(response.status).toBe(400);
   });
 });

@@ -101,7 +101,7 @@ describe("DELETE /api/enrollment/legal-documents/[filename]", () => {
     );
   });
 
-  it("answers token expired when the refreshed token is unchanged", async () => {
+  it("answers 503 when the refreshed token is unchanged", async () => {
     mockUncachedAuth.mockResolvedValueOnce(session("old-token"));
     mockApiDelete.mockRejectedValueOnce(
       new ApiResponseError(401, "Unauthorized"),
@@ -110,9 +110,9 @@ describe("DELETE /api/enrollment/legal-documents/[filename]", () => {
     const response = await DELETE(request(), context("1_terms.pdf"));
     const body = (await response.json()) as { code?: string; detail?: string };
 
-    expect(response.status).toBe(401);
-    expect(body.code).toBe("general.permission");
-    expect(body.detail).toBe("Token expired");
+    // A renewal that kept the old token is undecided: 503, session left as is.
+    expect(response.status).toBe(503);
+    expect(body.code).toBe("general.unavailable");
     expect(mockApiDelete).toHaveBeenCalledTimes(1);
   });
 });

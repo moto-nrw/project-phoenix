@@ -10,7 +10,6 @@ import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
 export const GET = withPrivateDownloadNoStore(
   createPublicJsonProxy({
     method: "GET",
-    cache: "no-store",
     onSuccess: (response) => {
       const headers = new Headers({
         "Cache-Control": "private, no-store",

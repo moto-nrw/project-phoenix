@@ -216,11 +216,8 @@ describe("DELETE /api/settings/login-image", () => {
   });
 
   it("successfully deletes login image", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      text: async () => "",
-    });
+    // The backend answers the delete with 204 (settings/http/settings_api.go).
+    mockFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
 
     const request = new NextRequest(
       "http://localhost:3000/api/settings/login-image",
@@ -252,11 +249,8 @@ describe("DELETE /api/settings/login-image", () => {
   });
 
   it("calls revalidateTag after successful delete", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      text: async () => "",
-    });
+    // The backend answers the delete with 204 (settings/http/settings_api.go).
+    mockFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
 
     const request = new NextRequest(
       "http://localhost:3000/api/settings/login-image",

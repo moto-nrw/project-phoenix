@@ -12,7 +12,6 @@ export const GET = withPrivateDownloadNoStore(
     createFileDownloadRoute<{ surveyId: string }>({
       backendPath: ({ surveyId }) =>
         `/api/surveys/${encodeURIComponent(surveyId)}/results/export`,
-      component: "SurveyResultsExportRoute",
     }),
   ),
 );

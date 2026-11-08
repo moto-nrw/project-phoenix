@@ -1,5 +1,5 @@
 import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
-import { proxyFile } from "~/lib/tenant-file-proxy.server";
+import { proxyFile } from "~/lib/route-wrapper.server";
 import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 // One proof file of an enrollment request (#4783). The backend checks
@@ -9,5 +9,6 @@ export const GET = withPrivateDownloadNoStore(
   proxyFile(
     (p) =>
       `/api/enrollment/admin/requests/${requirePathSegmentParam(p)}/uploads/${requirePathSegmentParam(p, "uploadId")}`,
+    { uploadedFile: true },
   ),
 );

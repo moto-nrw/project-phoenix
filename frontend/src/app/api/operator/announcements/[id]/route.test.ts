@@ -106,7 +106,8 @@ describe("GET /api/operator/announcements/[id]", () => {
     };
     const response = await GET(request, context);
 
-    expect(response.status).toBe(500);
+    // A missing or invalid route param is the request's mistake: 400.
+    expect(response.status).toBe(400);
   });
 });
 

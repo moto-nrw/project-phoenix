@@ -7,7 +7,6 @@ export const POST = withPrivateDownloadNoStore(
     createFileExportRoute<{ studentId: string }>({
       backendPath: ({ studentId }) =>
         `/api/enrollment/admin/students/${encodeURIComponent(studentId)}/requests/export`,
-      component: "EnrollmentStudentRequestsExportRoute",
     }),
   ),
 );

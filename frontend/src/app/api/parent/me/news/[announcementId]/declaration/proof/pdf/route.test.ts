@@ -2,12 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import type { ExtendedSession } from "~/test/route-test-helpers";
 
-const { mockParentAuth, mockUncachedParentAuth, mockAnalyticsHeaders } =
-  vi.hoisted(() => ({
-    mockParentAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
-    mockUncachedParentAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
-    mockAnalyticsHeaders: vi.fn(),
-  }));
+const { mockParentAuth, mockUncachedParentAuth } = vi.hoisted(() => ({
+  mockParentAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
+  mockUncachedParentAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
+}));
 
 vi.mock("~/server/auth/parent", () => ({
   parentAuth: mockParentAuth,
@@ -16,9 +14,6 @@ vi.mock("~/server/auth/parent", () => ({
 }));
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://backend:8080",
-}));
-vi.mock("~/lib/analytics-session-header.server", () => ({
-  incomingAnalyticsSessionHeaders: mockAnalyticsHeaders,
 }));
 
 const { GET } = await import("./route");
@@ -34,9 +29,6 @@ describe("GET /api/parent/me/news/[announcementId]/declaration/proof/pdf", () =>
 
   it("forwards the active analytics session with the proof download", async () => {
     mockParentAuth.mockResolvedValue(session("tok"));
-    mockAnalyticsHeaders.mockResolvedValue({
-      "X-POSTHOG-SESSION-ID": "4f79f286-6f14-49cb-bb84-16fd4f906eba",
-    });
     global.fetch = vi.fn(
       async () =>
         new Response("pdf", {
@@ -47,6 +39,11 @@ describe("GET /api/parent/me/news/[announcementId]/declaration/proof/pdf", () =>
     const response = await GET(
       new NextRequest(
         "http://localhost:3000/api/parent/me/news/42/declaration/proof/pdf?student_id=5",
+        {
+          headers: {
+            "x-posthog-session-id": "4f79f286-6f14-49cb-bb84-16fd4f906eba",
+          },
+        },
       ),
       { params: Promise.resolve({ announcementId: "42" }) },
     );

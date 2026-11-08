@@ -282,7 +282,8 @@ describe("sandbox CSP of uploaded files (#5275)", () => {
     const routes = readdirSync(apiDir, { recursive: true, encoding: "utf8" })
       .filter((file) => file.endsWith("route.ts"))
       .filter((file) =>
-        /content-security-policy/i.test(
+        // fileResponse forwards the backend's CSP only for uploadedFile.
+        /uploadedFile: true/.test(
           readFileSync(path.join(apiDir, file), "utf8"),
         ),
       )
@@ -295,7 +296,7 @@ describe("sandbox CSP of uploaded files (#5275)", () => {
             .map((segment) => (segment.startsWith("[") ? "1" : segment))
             .join("/"),
       );
-    expect(routes.length).toBeGreaterThan(0);
+    expect(routes.length).toBe(5);
     for (const route of routes) {
       const host = hostFor(route);
       const res = proxy(makeRequest(`http://${host}${route}`, host));

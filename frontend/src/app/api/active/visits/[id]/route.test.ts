@@ -11,11 +11,8 @@ import {
 // Mocks (using vi.hoisted for proper hoisting)
 // ============================================================================
 
-const { mockAuth, mockApiGet, mockApiPut, mockApiDelete } = vi.hoisted(() => ({
+const { mockAuth } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
-  mockApiGet: vi.fn(),
-  mockApiPut: vi.fn(),
-  mockApiDelete: vi.fn(),
 }));
 
 vi.mock("~/server/auth", () => ({
@@ -23,17 +20,8 @@ vi.mock("~/server/auth", () => ({
   withTenantAuth: (handler: unknown) => handler,
 }));
 
-vi.mock("~/lib/api-helpers.server", async () => {
-  const { mockHandleApiError } =
-    await import("~/test/helpers/handle-api-error");
-  return {
-    apiGet: mockApiGet,
-    apiPost: vi.fn(),
-    apiPut: mockApiPut,
-    apiDelete: mockApiDelete,
-    handleApiError: vi.fn(mockHandleApiError),
-  };
-});
+const mockFetch = vi.fn<typeof fetch>();
+global.fetch = mockFetch;
 
 // ============================================================================
 // Test Helpers
@@ -45,6 +33,18 @@ interface ApiResponse<T> {
   success: boolean;
   message: string;
   data: T;
+}
+
+function jsonResponse(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+function backendCall(index = 0): [string, RequestInit] {
+  const [url, init] = mockFetch.mock.calls[index] ?? [];
+  return [String(url), init ?? {}];
 }
 
 async function parseJsonResponse<T>(response: Response): Promise<T> {
@@ -68,16 +68,24 @@ describe("GET /api/active/visits/[id]", () => {
       active_group_id: 1,
       start_time: "2024-01-15T09:00:00Z",
     };
-    mockApiGet.mockResolvedValueOnce(mockVisit);
+    mockFetch.mockResolvedValueOnce(jsonResponse(mockVisit));
 
     const request = createMockRequest("/api/active/visits/123");
     const response = await GET(request, createMockContext({ id: "123" }));
 
-    expect(mockApiGet).toHaveBeenCalledWith(
-      "/api/active/visits/123",
-      "test-token",
+    const [url, init] = backendCall();
+    expect(url).toBe("http://server:8080/api/active/visits/123");
+    expect(init).toEqual(
+      expect.objectContaining({ method: "GET", cache: "no-store" }),
+    );
+    expect(init.headers).toEqual(
+      expect.objectContaining({ Authorization: "Bearer test-token" }),
     );
     expect(response.status).toBe(200);
+    // raw: the backend JSON is answered inside the BFF envelope as it is.
+    const json =
+      await parseJsonResponse<ApiResponse<typeof mockVisit>>(response);
+    expect(json.data).toEqual(mockVisit);
   });
 });
 
@@ -96,7 +104,7 @@ describe("PUT /api/active/visits/[id]", () => {
       start_time: "2024-01-15T09:00:00Z",
       end_time: "2024-01-15T17:00:00Z",
     };
-    mockApiPut.mockResolvedValueOnce(mockUpdatedVisit);
+    mockFetch.mockResolvedValueOnce(jsonResponse(mockUpdatedVisit));
 
     const request = createMockRequest("/api/active/visits/123", {
       method: "PUT",
@@ -104,10 +112,15 @@ describe("PUT /api/active/visits/[id]", () => {
     });
     const response = await PUT(request, createMockContext({ id: "123" }));
 
-    expect(mockApiPut).toHaveBeenCalledWith(
-      "/api/active/visits/123",
-      "test-token",
-      updateBody,
+    const [url, init] = backendCall();
+    expect(url).toBe("http://server:8080/api/active/visits/123");
+    expect(init).toEqual(expect.objectContaining({ method: "PUT" }));
+    expect(JSON.parse(String(init.body))).toEqual(updateBody);
+    expect(init.headers).toEqual(
+      expect.objectContaining({
+        Authorization: "Bearer test-token",
+        "Content-Type": "application/json",
+      }),
     );
     expect(response.status).toBe(200);
 
@@ -124,16 +137,18 @@ describe("DELETE /api/active/visits/[id]", () => {
   });
 
   it("deletes visit via backend and returns 204", async () => {
-    mockApiDelete.mockResolvedValueOnce(undefined);
+    mockFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
 
     const request = createMockRequest("/api/active/visits/123", {
       method: "DELETE",
     });
     const response = await DELETE(request, createMockContext({ id: "123" }));
 
-    expect(mockApiDelete).toHaveBeenCalledWith(
-      "/api/active/visits/123",
-      "test-token",
+    const [url, init] = backendCall();
+    expect(url).toBe("http://server:8080/api/active/visits/123");
+    expect(init).toEqual(expect.objectContaining({ method: "DELETE" }));
+    expect(init.headers).toEqual(
+      expect.objectContaining({ Authorization: "Bearer test-token" }),
     );
     expect(response.status).toBe(204);
   });

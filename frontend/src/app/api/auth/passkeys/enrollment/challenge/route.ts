@@ -1,11 +1,7 @@
-import { forwardJsonPost } from "~/lib/auth-proxy.server";
-import { withTenantAuth } from "~/server/auth";
-import type { ServerAuthRequest } from "~/server/auth/route-handler";
+import { createTenantJsonProxy } from "~/lib/route-wrapper.server";
 
-async function POSTHandler(request: ServerAuthRequest) {
-  return forwardJsonPost(request, "/auth/passkeys/enrollment/challenge", {
-    sessionToken: request.auth?.user?.token ?? null,
-  });
-}
-
-export const POST = withTenantAuth(POSTHandler);
+export const POST = createTenantJsonProxy({
+  method: "POST",
+  path: "/auth/passkeys/enrollment/challenge",
+  body: "optional-json",
+});

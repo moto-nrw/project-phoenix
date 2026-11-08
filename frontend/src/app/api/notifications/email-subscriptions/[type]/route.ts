@@ -1,4 +1,4 @@
-import { createTenantJsonProxy } from "~/lib/backend-proxy-route.server";
+import { createTenantJsonProxy } from "~/lib/route-wrapper.server";
 import { problemResponse } from "~/lib/api-helpers.server";
 
 /** Bounds the path segment before it reaches the backend. */
@@ -19,7 +19,6 @@ function emailSubscriptionPath(
 export const GET = createTenantJsonProxy({
   method: "GET",
   path: emailSubscriptionPath,
-  cache: "no-store",
 });
 
 /** Eigene Entscheidung für eine E-Mail-Benachrichtigung setzen (#3780). */

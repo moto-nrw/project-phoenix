@@ -13,7 +13,6 @@ export const GET = withPrivateDownloadNoStore(
     createFileDownloadRoute<{ weekId: string; format: string }>({
       backendPath: ({ weekId, format }) =>
         `/api/holiday-weeks/${encodeURIComponent(weekId)}/participants/export?format=${encodeURIComponent(format)}`,
-      component: "HolidayParticipantsExportRoute",
     }),
   ),
 );

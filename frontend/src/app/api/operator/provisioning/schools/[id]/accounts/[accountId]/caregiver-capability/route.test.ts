@@ -75,12 +75,15 @@ describe("/api/operator/provisioning/schools/[id]/accounts/[accountId]/caregiver
       "http://localhost:8080/operator/schools/10/accounts/42/caregiver-capability",
       expect.objectContaining({
         method: "GET",
-        headers: {
+        headers: expect.objectContaining({
           Authorization: "Bearer operator-token",
-          "Content-Type": "application/json",
-        },
+        }) as Record<string, string>,
+        cache: "no-store",
       }),
     );
+    // Content-Type only travels with a JSON body (was sent on GET too).
+    const getInit = mockFetch.mock.calls[0]?.[1] as RequestInit;
+    expect(getInit.headers).not.toHaveProperty("Content-Type");
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ ok: true });
   });
@@ -109,12 +112,15 @@ describe("/api/operator/provisioning/schools/[id]/accounts/[accountId]/caregiver
     expect(mockFetch).toHaveBeenCalledTimes(2);
     expect(mockFetch.mock.calls[1]?.[1]).toEqual(
       expect.objectContaining({
-        headers: {
+        method: "DELETE",
+        headers: expect.objectContaining({
           Authorization: "Bearer operator-token-refreshed",
-          "Content-Type": "application/json",
-        },
+        }) as Record<string, string>,
       }),
     );
+    // No Content-Type on a DELETE without body (was sent before).
+    const retryInit = mockFetch.mock.calls[1]?.[1] as RequestInit;
+    expect(retryInit.headers).not.toHaveProperty("Content-Type");
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ deleted: true });
   });

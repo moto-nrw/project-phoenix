@@ -16,7 +16,12 @@ vi.mock("~/lib/server-api-url", () => ({
 }));
 
 vi.mock("~/lib/logger", () => ({
-  createLogger: () => ({ error: vi.fn() }),
+  createLogger: () => ({
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  }),
 }));
 
 global.fetch = mockFetch as unknown as typeof fetch;
@@ -51,9 +56,21 @@ describe("PUT /api/enrollment/admin/offerings", () => {
       },
     );
 
-    await PUT(request);
+    // Next always hands a route its context; the portal factory reads it.
+    const response = await PUT(request, { params: Promise.resolve({}) });
 
-    const [, init] = mockFetch.mock.calls[0] ?? [];
+    expect(response.status).toBe(200);
+    const [url, init] = mockFetch.mock.calls[0] ?? [];
+    expect(url).toBe(
+      "http://localhost:8080/api/enrollment/admin/requests/12/children/13/offerings",
+    );
+    expect(init).toMatchObject({
+      method: "PUT",
+      headers: {
+        Authorization: "Bearer access-token",
+        "Content-Type": "application/json",
+      },
+    });
     expect(JSON.parse(init?.body as string)).toEqual({
       offerings: [],
       reason: "Betreuung endet",

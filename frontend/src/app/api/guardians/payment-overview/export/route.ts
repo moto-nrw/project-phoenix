@@ -6,7 +6,6 @@ export const POST = withPrivateDownloadNoStore(
   withTenantAuth(
     createFileExportRoute({
       backendPath: "/api/guardians/payment-overview/export",
-      component: "GuardianPaymentExportRoute",
     }),
   ),
 );

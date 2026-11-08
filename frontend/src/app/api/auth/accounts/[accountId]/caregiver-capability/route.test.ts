@@ -64,13 +64,18 @@ describe("/api/auth/accounts/[accountId]/caregiver-capability", () => {
       "http://localhost:8080/auth/accounts/42/caregiver-capability",
       expect.objectContaining({
         method: "GET",
-        headers: {
+        headers: expect.objectContaining({
           Authorization: "Bearer session-token",
-          "Content-Type": "application/json",
-        },
+        }) as Record<string, string>,
         cache: "no-store",
       }),
     );
+    // Content-Type only travels with a JSON body (was sent on GET too).
+    const getInit = mockFetch.mock.calls[0]?.[1] as RequestInit;
+    expect(getInit.headers).toMatchObject({
+      Authorization: "Bearer session-token",
+    });
+    expect(getInit.headers).not.toHaveProperty("Content-Type");
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("application/json");
     await expect(response.json()).resolves.toEqual({ ok: true });
@@ -99,10 +104,10 @@ describe("/api/auth/accounts/[accountId]/caregiver-capability", () => {
     expect(mockFetch).toHaveBeenCalledTimes(2);
     expect(mockFetch.mock.calls[1]?.[1]).toEqual(
       expect.objectContaining({
-        headers: {
+        headers: expect.objectContaining({
           Authorization: "Bearer refreshed-token",
           "Content-Type": "application/json",
-        },
+        }) as Record<string, string>,
         body: JSON.stringify({ first_name: "Ada" }),
       }),
     );

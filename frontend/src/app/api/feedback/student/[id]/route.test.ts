@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   type ExtendedSession,
+  createMockContext,
   createMockRequest,
   defaultSession,
 } from "~/test/route-test-helpers";
@@ -9,20 +10,18 @@ import {
 // Mocks
 // ============================================================================
 
-const { mockAuth, mockApiGet } = vi.hoisted(() => ({
+const { mockAuth, mockFetch } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
-  mockApiGet: vi.fn(),
+  mockFetch: vi.fn<typeof fetch>(),
 }));
 
 vi.mock("~/server/auth", () => ({
   auth: mockAuth,
+  uncachedAuth: mockAuth,
   withTenantAuth: (handler: unknown) => handler,
 }));
 
-vi.mock("~/lib/api-helpers.server", async (importOriginal) => {
-  const actual = await importOriginal<Record<string, unknown>>();
-  return { ...actual, apiGet: mockApiGet };
-});
+vi.stubGlobal("fetch", mockFetch);
 
 const { GET } = await import("./route");
 
@@ -46,7 +45,7 @@ describe("GET /api/feedback/student/[id]", () => {
 
   it("returns 400 when student ID is missing from path", async () => {
     const request = createMockRequest("/api/feedback/other/path");
-    const response = await GET(request);
+    const response = await GET(request, createMockContext());
 
     expect(response.status).toBe(400);
     const json = await parseJsonResponse<{ detail: string }>(response);
@@ -68,15 +67,25 @@ describe("GET /api/feedback/student/[id]", () => {
         },
       ],
     };
-    mockApiGet.mockResolvedValueOnce(backendResponse);
+    mockFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify(backendResponse), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
 
     const request = createMockRequest("/api/feedback/student/123");
-    const response = await GET(request);
+    const response = await GET(request, createMockContext({ id: "123" }));
 
     expect(response.status).toBe(200);
-    expect(mockApiGet).toHaveBeenCalledWith(
-      "/api/feedback/student/123",
-      "test-token",
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://server:8080/api/feedback/student/123",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Authorization: "Bearer test-token",
+        }),
+      }),
     );
 
     const json = await parseJsonResponse<{

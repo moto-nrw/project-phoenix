@@ -185,8 +185,12 @@ describe("GET /api/students/[id]/photo/[filename] — conditional headers", () =
     const headers = (mockFetch.mock.calls[0]?.[1] as RequestInit | undefined)
       ?.headers as Record<string, string> | undefined;
     expect(headers).toBeDefined();
-    // Only Authorization should be set.
-    expect(Object.keys(headers ?? {})).toEqual(["Authorization"]);
+    // Contract change: the frontend origin travels with every BFF call;
+    // no conditional header joins it.
+    expect(Object.keys(headers ?? {}).sort()).toEqual([
+      "Authorization",
+      "X-Moto-Frontend-Origin",
+    ]);
   });
 });
 
@@ -232,7 +236,8 @@ describe("GET /api/students/[id]/photo/[filename] — 401 retry", () => {
     });
 
     // 401 falls through to the non-OK branch — body null, status preserved.
-    expect(response.status).toBe(401);
+    // A renewal that kept the old token is undecided: 503, session left as is.
+    expect(response.status).toBe(503);
     expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 });

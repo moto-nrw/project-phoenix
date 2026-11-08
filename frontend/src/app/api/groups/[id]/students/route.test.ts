@@ -50,7 +50,7 @@ describe("GET /api/groups/[id]/students", () => {
 
     expect(response.status).toBe(400);
     const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Group ID is required");
+    expect(json.detail).toBe("Invalid id parameter");
   });
 
   it("fetches students in group from backend", async () => {

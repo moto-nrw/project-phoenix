@@ -1,14 +1,13 @@
-import { backendResponseError } from "~/lib/api-response-error.server";
+import { apiDelete } from "~/lib/api-helpers.server";
 import { revalidateTag } from "next/cache";
 import type { NextRequest } from "next/server";
 import {
   createFileUploadHandler,
   FileValidationError,
+  postForm,
 } from "~/lib/file-upload-wrapper.server";
-import {
-  createDeleteHandler,
-  createGetHandler,
-} from "~/lib/route-wrapper.server";
+import { proxyGet } from "~/lib/route-proxy.server";
+import { createDeleteHandler } from "~/lib/route-wrapper.server";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "LoginImageRoute" });
@@ -63,7 +62,6 @@ function revalidateTenantCache(request: NextRequest) {
   });
 }
 
-// POST handler for login image upload
 export const POST = createFileUploadHandler<LoginImageResponse>(
   async (request: NextRequest, formData: FormData, token: string) => {
     const file = formData.get("login_image");
@@ -74,24 +72,15 @@ export const POST = createFileUploadHandler<LoginImageResponse>(
         "files.file_missing",
       );
     }
-
-    const validatedFormData = new FormData();
-    validatedFormData.append("login_image", file);
-
-    const { getServerApiUrl } = await import("~/lib/server-api-url");
-    const url = `${getServerApiUrl()}/api/settings/login-image`;
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-      body: validatedFormData,
-    });
-
-    if (!response.ok) throw await backendResponseError(response);
-
-    const data = ((await response.json()) as { data: LoginImageResponse }).data;
-
+    const forwarded = new FormData();
+    forwarded.append("login_image", file);
+    const data = await postForm<LoginImageResponse>(
+      request,
+      "/api/settings/login-image",
+      token,
+      forwarded,
+    );
     revalidateTenantCache(request);
-
     return data;
   },
   {
@@ -101,42 +90,12 @@ export const POST = createFileUploadHandler<LoginImageResponse>(
   },
 );
 
-// DELETE handler for removing login image
 export const DELETE = createDeleteHandler(
   async (request: NextRequest, token: string) => {
-    const { getServerApiUrl } = await import("~/lib/server-api-url");
-    const url = `${getServerApiUrl()}/api/settings/login-image`;
-    const response = await fetch(url, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    if (!response.ok) throw await backendResponseError(response);
-
+    await apiDelete("/api/settings/login-image", token);
     revalidateTenantCache(request);
-
     return null;
   },
 );
 
-// GET handler for fetching current login image URL
-export const GET = createGetHandler(
-  async (_request: NextRequest, token: string) => {
-    const { getServerApiUrl } = await import("~/lib/server-api-url");
-    const url = `${getServerApiUrl()}/api/settings/login-image`;
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-    });
-
-    if (!response.ok) throw await backendResponseError(response);
-
-    const responseData = (await response.json()) as {
-      data: { login_image_url: string | null; can_edit: boolean };
-    };
-    return responseData.data;
-  },
-);
+export const GET = proxyGet("/api/settings/login-image");

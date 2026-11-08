@@ -39,9 +39,11 @@ describe("/api/operator/accounts/[accountId]/tenants/[tenantId]", () => {
     );
 
     expect(response.status).toBe(400);
+    // The per-route invalidJsonMessage option is gone; the operator portal's
+    // shared invalid-JSON answer carries its detail text.
     expect(await response.json()).toMatchObject({
       status: 400,
-      detail: "Invalid JSON body",
+      detail: "Invalid JSON request body",
       code: "general.input",
     });
     expect(mockFetch).not.toHaveBeenCalled();

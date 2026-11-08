@@ -2,20 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
 import type { RouteContext } from "~/lib/route-wrapper-utils.server";
 
-const {
-  mockFetch,
-  mockGetServerApiUrl,
-  mockAuth,
-  mockGetClientForwardHeaders,
-} = vi.hoisted(() => ({
+const { mockFetch, mockGetServerApiUrl, mockAuth } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
   mockGetServerApiUrl: vi.fn(() => "http://localhost:8080"),
   mockAuth: vi.fn(),
-  mockGetClientForwardHeaders: vi.fn(() => ({
-    "X-Forwarded-For": "localhost",
-    "X-Real-IP": "localhost",
-    "User-Agent": "test-agent",
-  })),
 }));
 
 vi.mock("~/lib/server-api-url", () => ({
@@ -26,10 +16,6 @@ vi.mock("~/server/auth/operator", () => ({
   operatorAuth: mockAuth,
   uncachedOperatorAuth: mockAuth,
   withOperatorAuth: (handler: unknown) => handler,
-}));
-
-vi.mock("~/lib/client-headers.server", () => ({
-  getClientForwardHeaders: mockGetClientForwardHeaders,
 }));
 
 global.fetch = mockFetch as unknown as typeof fetch;

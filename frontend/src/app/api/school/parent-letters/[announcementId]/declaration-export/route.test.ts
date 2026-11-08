@@ -15,10 +15,6 @@ vi.mock("~/server/auth/school", () => ({
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://backend:8080",
 }));
-vi.mock("~/lib/analytics-session-header.server", () => ({
-  incomingAnalyticsSessionHeaders: vi.fn(async () => ({})),
-}));
-
 const { GET } = await import("./route");
 
 function session(token: string): ExtendedSession {

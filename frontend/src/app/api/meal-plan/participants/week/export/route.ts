@@ -1,32 +1,10 @@
 import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
-import type { NextRequest } from "next/server";
-
-import { auth, withTenantAuth } from "~/server/auth";
-import { getServerApiUrl } from "~/lib/server-api-url";
-import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
-import { problemResponse } from "~/lib/api-helpers.server";
+import { proxyFile } from "~/lib/route-wrapper.server";
 
 export const GET = withPrivateDownloadNoStore(
-  withTenantAuth(async (request: NextRequest): Promise<Response> => {
-    const session = await auth();
-    if (!session?.user?.token) {
-      return problemResponse(401, "Unauthorized", request);
-    }
-    const response = await fetch(
-      `${getServerApiUrl()}/api/meal-plan/participants/week/export${request.nextUrl.search}`,
-      { headers: { Authorization: `Bearer ${session.user.token}` } },
-    );
-    if (!response.ok) {
-      return forwardBackendResponse(response, request);
-    }
-    return new Response(await response.arrayBuffer(), {
-      status: response.status,
-      headers: {
-        "Content-Type":
-          response.headers.get("Content-Type") ?? "application/octet-stream",
-        "Content-Disposition":
-          response.headers.get("Content-Disposition") ?? "attachment",
-      },
-    });
+  proxyFile("/api/meal-plan/participants/week/export", {
+    forwardQuery: true,
+    fallbackType: "application/octet-stream",
+    fallbackDisposition: "attachment",
   }),
 );

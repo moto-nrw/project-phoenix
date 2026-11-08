@@ -11,29 +11,25 @@ import {
 // Mocks (using vi.hoisted for proper hoisting)
 // ============================================================================
 
-const { mockAuth, mockApiGet, mockApiPut, mockApiDelete } = vi.hoisted(() => ({
+const { mockAuth, mockFetch } = vi.hoisted(() => ({
   mockAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
-  mockApiGet: vi.fn(),
-  mockApiPut: vi.fn(),
-  mockApiDelete: vi.fn(),
+  mockFetch: vi.fn<typeof fetch>(),
 }));
 
 vi.mock("~/server/auth", () => ({
   auth: mockAuth,
+  uncachedAuth: mockAuth,
   withTenantAuth: (handler: unknown) => handler,
 }));
 
-vi.mock("~/lib/api-helpers.server", async () => {
-  const { mockHandleApiError } =
-    await import("~/test/helpers/handle-api-error");
-  return {
-    apiGet: mockApiGet,
-    apiPost: vi.fn(),
-    apiPut: mockApiPut,
-    apiDelete: mockApiDelete,
-    handleApiError: vi.fn(mockHandleApiError),
-  };
-});
+vi.stubGlobal("fetch", mockFetch);
+
+function backendJson(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
 
 // ============================================================================
 // Test Helpers
@@ -61,14 +57,19 @@ describe("GET /api/active/supervisors/[id]", () => {
 
   it("fetches supervisor by ID", async () => {
     const mockSupervisor = { id: 1, staff_id: 10, active_group_id: 5 };
-    mockApiGet.mockResolvedValueOnce(mockSupervisor);
+    mockFetch.mockResolvedValueOnce(backendJson(mockSupervisor));
 
     const request = createMockRequest("/api/active/supervisors/1");
     const response = await GET(request, createMockContext({ id: "1" }));
 
-    expect(mockApiGet).toHaveBeenCalledWith(
-      "/api/active/supervisors/1",
-      "test-token",
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://server:8080/api/active/supervisors/1",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({
+          Authorization: "Bearer test-token",
+        }),
+      }),
     );
     expect(response.status).toBe(200);
 
@@ -81,10 +82,10 @@ describe("GET /api/active/supervisors/[id]", () => {
     const request = createMockRequest("/api/active/supervisors/invalid");
     const response = await GET(request, createMockContext({ id: undefined }));
 
-    expect(response.status).toBe(500);
+    // A missing or invalid route param is the request's mistake: 400.
+    expect(response.status).toBe(400);
     const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Internal Server Error");
-    expect(JSON.stringify(json)).not.toContain("Invalid id parameter");
+    expect(json.detail).toBe("Invalid id parameter");
   });
 });
 
@@ -101,7 +102,7 @@ describe("PUT /api/active/supervisors/[id]", () => {
       staff_id: 10,
       active_group_id: 6,
     };
-    mockApiPut.mockResolvedValueOnce(mockUpdatedSupervisor);
+    mockFetch.mockResolvedValueOnce(backendJson(mockUpdatedSupervisor));
 
     const request = createMockRequest("/api/active/supervisors/1", {
       method: "PUT",
@@ -109,10 +110,16 @@ describe("PUT /api/active/supervisors/[id]", () => {
     });
     const response = await PUT(request, createMockContext({ id: "1" }));
 
-    expect(mockApiPut).toHaveBeenCalledWith(
-      "/api/active/supervisors/1",
-      "test-token",
-      updateBody,
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://server:8080/api/active/supervisors/1",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify(updateBody),
+        headers: expect.objectContaining({
+          Authorization: "Bearer test-token",
+          "Content-Type": "application/json",
+        }),
+      }),
     );
     expect(response.status).toBe(200);
 
@@ -130,10 +137,10 @@ describe("PUT /api/active/supervisors/[id]", () => {
     });
     const response = await PUT(request, createMockContext({ id: undefined }));
 
-    expect(response.status).toBe(500);
+    // A missing or invalid route param is the request's mistake: 400.
+    expect(response.status).toBe(400);
     const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Internal Server Error");
-    expect(JSON.stringify(json)).not.toContain("Invalid id parameter");
+    expect(json.detail).toBe("Invalid id parameter");
   });
 });
 
@@ -144,16 +151,21 @@ describe("DELETE /api/active/supervisors/[id]", () => {
   });
 
   it("deletes supervisor via backend and returns 204", async () => {
-    mockApiDelete.mockResolvedValueOnce(undefined);
+    mockFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
 
     const request = createMockRequest("/api/active/supervisors/1", {
       method: "DELETE",
     });
     const response = await DELETE(request, createMockContext({ id: "1" }));
 
-    expect(mockApiDelete).toHaveBeenCalledWith(
-      "/api/active/supervisors/1",
-      "test-token",
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://server:8080/api/active/supervisors/1",
+      expect.objectContaining({
+        method: "DELETE",
+        headers: expect.objectContaining({
+          Authorization: "Bearer test-token",
+        }),
+      }),
     );
     expect(response.status).toBe(204);
   });
@@ -167,9 +179,9 @@ describe("DELETE /api/active/supervisors/[id]", () => {
       createMockContext({ id: undefined }),
     );
 
-    expect(response.status).toBe(500);
+    // A missing or invalid route param is the request's mistake: 400.
+    expect(response.status).toBe(400);
     const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Internal Server Error");
-    expect(JSON.stringify(json)).not.toContain("Invalid id parameter");
+    expect(json.detail).toBe("Invalid id parameter");
   });
 });
