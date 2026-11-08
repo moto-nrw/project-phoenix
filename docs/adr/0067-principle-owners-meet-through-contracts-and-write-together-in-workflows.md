@@ -11,6 +11,8 @@ rules for contracts, workflows and transactions that still hold. The ADRs it
 cites keep their context and history; this ADR changes none of them.
 The [#4538 addendum](#addendum-2026-10-23-command-participation-and-coordination-4538)
 narrows point 4 and records the remaining coordinator exceptions.
+The [addendum of 2026-11-08](#addendum-2026-11-08-datenimport-schreibt-je-chunk-gebündelt-5552-5827-5887)
+extends exception E3 to batch forms of the data import.
 
 ## Decision
 
@@ -310,3 +312,422 @@ ADR 0023's old #4076 promise is replaced by this decision: #4076 closed with
 PR #4338 after removing foreign-import debt, not after moving the complete
 care coordinator. PR #4619 (#4531, ADR 0075) subsequently cut the source-booking
 lock/end round trip; it did not move `EndCare` or `ResumeCare` into a workflow.
+
+## Addendum 2026-11-08: Datenimport schreibt je Chunk gebündelt (#5552, #5827, #5887)
+
+Vorgeschlagen am 08.11.2026 für
+[#5552](https://github.com/moto-nrw/project-phoenix/issues/5552),
+[#5827](https://github.com/moto-nrw/project-phoenix/issues/5827) und
+[#5887](https://github.com/moto-nrw/project-phoenix/issues/5887); gilt mit
+dem Merge. Grundlage ist der Entwurf in
+[#5552](https://github.com/moto-nrw/project-phoenix/issues/5552#issuecomment-6711342905),
+geprüft am Code von `development` @ `82fed4f213`. Das Addendum ändert keinen
+Code und kein Register. Es legt fest, in welcher Form der Datenimport die
+Owner-Kommandos eines Chunks gebündelt aufrufen darf und was dabei für IDs,
+Fehler, Rollback, Frische der Reads und Sperren gilt.
+
+### Begriffe
+
+- **Entscheidung E2, E3, E4, E10** meint die Entscheidungen der
+  DB-Roundtrip-Runden vom 07. und 08.11.2026: E2 gemeinsamer Lese-Snapshot
+  außer nach Locks, E3 zusätzliche Sequenzlücken bei fehlgeschlagenen
+  Batch-Inserts, E4 500-Details dürfen sich ändern, 4xx-Codes und ihre
+  Reihenfolge nicht, E10 frühere Sperre späterer Zeilen nur mit Auflagen.
+- **Ausnahme E3** meint die Zeile E3 der Tabelle
+  [Finite retained coordinator exceptions](#finite-retained-coordinator-exceptions)
+  oben. Der Entwurf in #5552 nennt beides „E3“; hier sind sie getrennt.
+- **Chunk:** bis zu 100 Positionen der Verarbeitungsreihenfolge in einer
+  Tenant-Transaktion (`importservice/import_service.go:75`,
+  `batches.go:243–313`). Commit-, Checkpoint-, Retry- und Resume-Einheit.
+- **Segment:** zusammenhängender Teil eines Chunks, in dem keine Zeile einen
+  Match-Schlüssel mit einer früheren Zeile desselben Segments teilt.
+- **Zeilenpfad:** der heutige Ablauf `applyBatchRow` je akzeptierter Zeile
+  (`batches.go:384–411`). **Batchpfad:** die Owner-Batch-Kommandos dieses
+  Addendums.
+
+Pfade ohne Verzeichnis liegen unter
+`backend/modules/dataimport/internal/application/importservice/`.
+
+### Ablauf heute
+
+1. Validierung in einer Tenant-Transaktion (`batches.go:184–188`):
+   Mode-Check, Checkpoints, `PreloadReferenceData`, `ValidateBatch`,
+   `Validate` je Zeile, `ProcessingOrder` (`:195–218`). Kein Lock.
+2. Je Chunk ein `WithinRetry` (`:246`): Advisory Lock `data-import:<key>`
+   exklusiv (`:317`), Checkpoint-Read (`:320`), erneutes
+   `PreloadReferenceData` (`:296`), optional `BatchWriteConfig` (`:331–341`),
+   `applyBatchRow` je Zeile (`:342–347`), Checkpoint als Audit-Zeile (`:352`).
+3. Ein Schreibfehler in Zeile k trägt den Fehler in `result.Errors` ein
+   (`import_service.go:507–528`) und rollt den ganzen Chunk zurück
+   (`batches.go:398–408`); frühere Chunks bleiben committet, die bestätigten
+   Zähler des Chunks werden 0 (`:248–251`).
+4. Wiederholt wird die ganze Transaktion bei `40P01`/`40001`, höchstens
+   dreimal (`modules/transactionruntime/internal/adapters/postgres/tenant_runtime.go:68`,
+   `tenant/runtime.go:284`, `:324`). `55P03` kommt im Importpfad nicht vor:
+   Er sperrt blockierend, ohne `NOWAIT` und ohne `lock_timeout`.
+
+Antwort bei Abbruch (`modules/dataimport/http/api.go:222–233`,
+`api/data_import_http_runtime.go:85–94`): 500 `import.import_batch_failed`
+mit dem bisherigen Ergebnis. Ist die Ursache eine `BusinessRejection`, etwa
+`students.child_quota_reached`, wird es 409 mit demselben Code und
+`details.rejection` (Code und Details der Ablehnung). Fachfehler vor dem
+Schreiben (`duplicate_check_failed`, `already_exists`, `not_found`,
+`import_service.go:428–443`) sind Zeilenfehler ohne Rollback.
+
+### Messung
+
+Gemessen am 08.11.2026 auf `development` @ `82fed4f213` mit
+`testpkg.CaptureQueriesForContext` über `ImportBatches`, nach zwei Warmups
+wie `importtest/query_budget_test.go`, in einem temporären, nicht
+eingecheckten Test gegen einen eigenen Postgres 17.
+Zeilen: Student wie `studentBatch` (ein Guardian, ein Telefon, eine
+Abholzeit, Datenschutz); Student-Update spielt dieselben Zeilen im Modus
+`update` erneut ein; Staff mit Rolle, Personalnummer, Stunden und
+Qualifikation, ohne E-Mail; Klassenliste mit Name und Klasse; Anfangssalden
+mit Stunden, Anspruch, Übertrag und Rest.
+
+| Szenario | N10 | N110 | je Zeile |
+|---|---:|---:|---:|
+| Student create | 235 | 2445 | 22,1 |
+| Student update (unveränderte Zeilen) | 282 | 2989 | 27,1 |
+| Staff Vorschau | 29 | 229 | 2,0 |
+| Staff create ohne E-Mail | 190 | 1901 | 17,1 |
+| Klassenliste Vorschau | 24 | 224 | 2,0 |
+| Klassenliste create | 80 | 786 | 7,1 |
+| Anfangssalden Vorschau | 199 | 2099 | 19,0 |
+| Anfangssalden create | 550 | 5861 | 53,1 |
+
+„je Zeile“ ist (N110 − N10) / 100.
+
+Kontrolle: Student-Create trifft die Register
+`modules.dataimport.student_batch.import` (235) und `.import_110` (2445).
+
+### Befunde am Code
+
+Die Annahmen des Entwurfs gelten mit diesen Abweichungen:
+
+1. **Ausnahme E3 ist enger als im Entwurf.** Durch People Directory als
+   Koordinator über School Membership und Care Plan laufen nur die
+   Kinderanlage (`CreateEnrollment`,
+   `modules/peopledirectory/internal/application/student_enrollment.go:78–104`)
+   und das Student-Update (`ApplyEnrollmentProfile` `:42–76`,
+   `RenewEnrollment` `:106–126`). Die
+   [Inventur](../architecture/4538-cross-owner-write-inventory.md) führt sie
+   als E3 (Zeilen „People student create/profile/renew → School Membership“
+   und „… → Care Plan“).
+2. **Der Guardian-Link ist ein Leaf.** Beziehung, Abholrecht und
+   Portalzugang schreibt People in einem Savepoint
+   (`peoplepostgres/guardian_relationships.go:322–357`, `:242–247`); die
+   Inventur führt das als Leaf („Identity guardian link insert“, „People
+   relationship creation/permissions → Identity access“, „People
+   relationship/pickup patch → Care Plan“). Seine Batch-Form braucht keine
+   Ausnahme; die Verträge dieses Addendums gelten trotzdem.
+3. **Staff-Create und Staff-Update laufen nicht über einen E3-Koordinator.**
+   Der Import ruft People, School Membership und Workforce direkt
+   (`staff_import_owner.go:211–252`, `:383–433`; Ports
+   `modules/dataimport/ports/ports.go:57–65`, `:150–159`, `:180–185`). Data
+   Import ist Workflow-Owner (`backend/architecture/policy.json`, Kind
+   `workflow`) und hält diese Reihenfolge selbst (Entscheidungspunkte 4 und 5 dieses ADR).
+4. **Staff hat keine Advisory Locks mit eigenem Schlüssel je Zeile.** Die
+   Advisory Locks einer Staff-Zeile gelten alle demselben mandantenweiten
+   Schlüssel `staff-person-merge:<Schule>`, geteilt: in `CreatePerson`
+   (`modules/peopledirectory/internal/adapters/postgres/store.go:73`,
+   `peoplepostgres/person.go:511`) und in `CreateStaff`
+   (`modules/schoolmembership/internal/adapters/postgres/store.go:190`).
+   Eine Sortierung nach Schlüssel, wie der Entwurf sie vorsieht, entfällt.
+   Exklusiv nimmt ihn nur der Workflow `staffpersonmerge`
+   (`workflows/staffpersonmerge/compose/new.go:23`). Auch die
+   Student-Anlage nimmt ihn über `CreatePerson`.
+5. **Rollen kommen nicht über eine Port-Regel.** Die Identity-Lesungen bindet
+   die Root als Funktionsfeld (`api/import_composition.go:107–108`) über die
+   Regeln `data-import.compose.identity-queries` und
+   `data-import.public.identity-role`. Die Namensauflösung senkt die Eingabe in
+   Go (`strings.ToLower`) und vergleicht sie mit SQL `LOWER(name)`
+   (`modules/identityaccess/internal/application/school_role.go:33`,
+   `internal/adapters/postgres/school_role.go:44–47`). Der eindeutige Index
+   ist groß/klein-sensitiv (`idx_roles_name_tenant (tenant_id, name)`); zwei
+   Rollen einer Schule mit gleichem `LOWER(name)` sind möglich, `LIMIT 1`
+   wählt dann heute ohne Ordnung.
+6. **Update-Werte sind nicht mit dem Entwurf vergleichbar.** Der Entwurf
+   nennt für das Update 332/3539, ohne die geänderten Spalten festzuhalten.
+   Die Messung oben spielt unveränderte Zeilen ein; geänderte Werte kosten
+   zusätzliche Writes. Schritt 1 legt die Update-Szenarien deshalb mit
+   festen Änderungen an.
+7. **Kontingent: Der Entwurf übersieht sinkende Zeilen.** `CheckChildQuota`
+   beurteilt einen Schreibvorgang als Ganzes
+   (`modules/schoolmembership/internal/application/child_quota.go:25–86`).
+   Senkt eine Update-Zeile die Kontingentzahl (Betreuung endet), kann der
+   Batch passieren, obwohl sequenziell eine frühere Zeile abgelehnt würde.
+   Punkt 8 unten regelt das.
+8. **Ein Batch-Deadlock verbraucht einen Retry.** Der Entwurf lässt
+   `40P01` aus dem Batchpfad die Transaktion wiederholen. Ohne Auflage
+   könnte ein Deadlock, den nur der Batchpfad erzeugt, die drei Versuche
+   aufbrauchen. Punkt 5 unten regelt das (Fehlerpunkt F8).
+
+### Entscheidung
+
+1. **Ausnahme E3 umfasst Batch-Formen.** People Directory darf für den
+   Datenimport Kinderanlage und Student-Update für die Zeilen eines Segments
+   in einem Kommando
+   ausführen und dabei School Membership und Care Plan je einmal gebündelt
+   aufrufen. Damit ändert sich die Reihenfolge der Owner-Schritte über die
+   Zeilen: erst alle Profile, dann alle Mitgliedschaften, dann alle
+   Betreuungsdaten. Gates, Kontingentprüfung, Alles-oder-nichts und die Owner
+   bleiben. Das ist keine Erlaubnis für weitere Owner oder einen weiteren
+   Koordinator. Alle übrigen Batch-Kommandos sind Leafs nach der #4538-Regel
+   „Command participation is allowed“.
+2. **Chunk-Ausführung (#5827).** `applyAcceptedRows` (`batches.go:329–350`)
+   bildet Segmente (Schlüssel: Student Karte, Vor- und Nachname,
+   Guardian-E-Mail; Staff Personalnummer, E-Mail, Name; Klassenliste Name und
+   Klasse). Segmente mit weniger als zwei Zeilen nehmen den Zeilenpfad. Je
+   Segment:
+   1. `ResolveChunk` als geschützter Read (Savepoint, wie
+      `student_import_preview.go:70`); scheitert er, gilt `FindExisting` je
+      Zeile wie heute.
+   2. `determineImportAction` je Zeile in Verarbeitungsreihenfolge,
+      unverändert.
+   3. `SAVEPOINT chunk`, Batch-Kommandos, `RELEASE`.
+   4. Jeder Fehler in Schritt 3, außer `40P01`/`40001`: `ROLLBACK TO
+      SAVEPOINT chunk`, Speicherzustand der Config verwerfen (Namenskonsum,
+      Staff-Index, `rolesByID`, Command-Observations), erneut
+      `PreloadReferenceData`, dann das Segment im Zeilenpfad wiederholen
+      (Replay). Der Replay bestimmt das Ergebnis.
+   Im Batchpfad entfällt der Zeilen-Savepoint der Configs; das Legacy-`Import()`
+   behält ihn.
+3. **Batch-Formen.** Jedes Kommando tritt der Transaktion des Aufrufers bei
+   (`RequireTransaction`), schreibt nur eigene Tabellen, filtert
+   `tenant_id = ?` aus dem Scope, liefert Ergebnisse indexgleich zur Eingabe
+   und ist alles oder nichts. Neue Methoden kommen in eigene, schmale
+   exportierte Interfaces, damit `TestModuleFacadeWidthRatchet` nicht steigt.
+
+   | Owner | Kommando | Ersetzt je Zeile | Einordnung |
+   |---|---|---|---|
+   | People Directory | `CreateEnrollmentStudents(ctx, []EnrollmentStudent) ([]CreatedEnrollmentStudent, error)` | `CreateEnrollmentStudent` | Ausnahme E3 |
+   | People Directory | `ReadEnrollmentStudents(ctx, ids []int64, lock string) ([]EnrollmentRecord, error)`; fehlende ID ergibt je Index `ErrStudentNotFound` | `ReadEnrollmentStudent(…, "update")` | Teil der Ausnahme E3 (Klassen-Gate vor Kind-Sperre) |
+   | People Directory | `ApplyEnrollmentUpdates(ctx, []EnrollmentUpdate) error` mit `EnrollmentUpdate{StudentID int64; Renewal *EnrollmentStudent; Profile *EnrollmentProfilePatch}` | `RenewEnrollmentStudent`, `ApplyEnrollmentProfile` | Ausnahme E3 |
+   | People Directory, intern | Port `StudentOwners`: `EnrollBatch(ctx, []StudentRecord) ([]int64, error)`, `RenewBatch(ctx, []StudentRecord) ([]int64, error)`, `SaveCareBatch(ctx, []StudentCare) error` | `Enroll`, `Renew`, `SaveCare` | Teil der Ausnahme E3 |
+   | School Membership | `EnrollStudents(ctx, []StudentEnrollment) ([]int64, error)`, `RenewEnrollments(ctx, []StudentEnrollment) ([]int64, error)`: ein Klassen-Gate geteilt, ein Kontingent-Lock, eine Prüfung | `Enroll`, `RenewEnrollment` | Leaf, aufgerufen von E3 |
+   | Care Plan | `SaveStudentCareProfiles(ctx, []StudentCareProfileSave) error` | `SaveStudentCareProfile` | Leaf, aufgerufen von E3 |
+   | People Directory | `LinkGuardiansToStudents(ctx, []LinkGuardian) ([]GuardianLink, error)` mit Care Plan `CreateGuardianPickupPermissions` und Identity & Access `GrantGuardianStudentAccesses` | `LinkGuardianToStudent` | Leaf |
+   | People Directory | `CreatePersons`, `UpdatePersons`, `CreateGuardians`, `AddGuardianPhones` | Einzelkommandos | Leaf |
+   | School Membership | `CreateStaffBatch`, `UpdateStaffBatch`, `CreateTeachers`, `UpdateTeachers`, `CreateClassListEntries` | Einzelkommandos | Leaf |
+   | Workforce | `CreateStaffMasterDataBatch`, `UpdateStaffMasterDataBatch`, `ReplaceStaffQualificationsBatch` | Einzelkommandos | Leaf |
+   | Identity & Access | `FindRolePermissionsByRoleIDs(ctx, []int64) (map[int64][]string, error)`; `ListSchoolRoles` liefert zusätzlich den Schlüssel `LOWER(name)` aus SQL | `FindSchoolRoleByName`, `FindRolePermissions` (#5887) | Leaf |
+   | Student Presence, Audit | `RecordPrivacyConsents`, `RecordTransitionsBatch`, `AppendAll` | Einzelkommandos | Leaf |
+
+   Die Signaturen sind die Form, nicht der genaue Name; die Umsetzung darf
+   Namen und Werttypen an das Vokabular des Owners anpassen (ADR 0080). Sie
+   darf keine Zeile, keinen Fehler und keine Sperre anders zuordnen als hier
+   festgelegt. Anfangssalden (Workforce) brauchen einen eigenen Entwurf vor
+   der Umsetzung (Umsetzungsschritt 8).
+4. **ID-Vertrag (Entscheidung E3).**
+   - Jede erzeugte ID gehört genau ihrer Eingabezeile. Zugeordnet wird über
+     einen eindeutigen fachlichen Schlüssel (`student_profiles.person_id`,
+     Beziehung `(student_id, guardian_profile_id)`, Schedule
+     `(student_id, weekday)`, Consent `student_id`, Staff `person_id`,
+     Teacher und Stammdaten `staff_id`) oder, ohne Schlüssel, über die
+     Eingabeposition: `INSERT … SELECT … FROM unnest(…) WITH ORDINALITY`
+     bzw. `MERGE … ON false … RETURNING src.ord, id`. Nie über eine
+     angenommene `RETURNING`-Reihenfolge.
+   - Die Reihenfolge der IDs innerhalb eines Chunks ist kein Vertrag.
+   - Erlaubt: zusätzlicher Sequenzverbrauch durch fehlgeschlagene
+     Batch-Inserts und den Replay, Lücken, andere IDs als heute.
+   - Nicht erlaubt: Entitäten einer Zeile an einer anderen Zeile, ein
+     teilweise sichtbarer Chunk, IDs in Antwort oder Receipt (beide enthalten
+     heute keine, `batches.go:433–439`).
+   - Jede Batch-INSERT nennt dieselben Spalten wie der Zeilenpfad. Eine
+     Spalte, die der Zeilenpfad dem DB-Default überlässt, überlässt auch der
+     Batch ihm; eine Spalte, die der Zeilenpfad mit NULL schreibt, schreibt
+     auch der Batch mit NULL.
+   - Zeilentrigger feuern je Zeile in Eingabereihenfolge. Statement-Trigger
+     gibt es auf den berührten Tabellen heute keine (der einzige Fall ist
+     `active.visits`, Migration `001015705`); jeder Umsetzungsschritt prüft
+     das erneut.
+5. **Fehler-, Status- und Rollback-Vertrag je Fehlerpunkt.** Phase und
+   Reihenfolge jedes 4xx bleiben (Entscheidung E4). „Committet“ meint den
+   Stand nach dem Ende der Anfrage.
+
+   | Fehlerpunkt | Status, Code heute | neu | committet nach Abbruch |
+   |---|---|---|---|
+   | F1 Validierung (Mode, Checkpoints, Vorlast, Zeilen) | Zeilenfehler 200 bzw. 500 | gleich; der Bulk-Read der Rollen (#5887) läuft in einem Savepoint und fällt bei Fehler auf den Read je Zeile zurück, der dieselben `role_lookup_failed` liefert | frühere Chunks; nichts aus der Validierung |
+   | F2 Import-Lock, Checkpoint, Vorlast im Chunk | 500 `import.import_batch_failed` | gleich, unverändert vor dem Segment | frühere Chunks |
+   | F3 `ResolveChunk` scheitert | – (gibt es heute nicht) | kein Ausgang: Rollback des Read-Savepoints, dann `FindExisting` je Zeile wie heute | – |
+   | F4 Match-Fehler je Zeile, `already_exists`, `not_found` | Zeilenfehler, Chunk läuft weiter | gleich, gleiche Reihenfolge | wie heute |
+   | F5 Batch-Kommando scheitert (SQL-Fehler, `BusinessRejection`, Owner-Fehler) | – | kein Ausgang: `ROLLBACK TO SAVEPOINT chunk`, dann Replay | – |
+   | F6 Replay scheitert in Zeile k | 500 `import.import_batch_failed`; 409 mit `details.rejection` bei `BusinessRejection` | gleich: dieselbe erste Fehlerzeile, derselbe Zeilenfehler, dieselben Details (etwa `occupied_places`, `requested_places`), dieselben bestätigten Zähler | frühere Chunks; vom Chunk nichts |
+   | F7 Replay gelingt | – | Chunk committet wie heute; Observation `batch_fallback` | frühere Chunks und dieser Chunk |
+   | F8 `40P01`/`40001` im Batchpfad | – | Wiederholung der ganzen Transaktion; dieser Versuch nimmt für den Chunk den Zeilenpfad (Auflage, Befund 8) | wie heute nach Retry |
+   | F9 `40P01`/`40001` im Zeilenpfad, Retries erschöpft | 500 | gleich | frühere Chunks |
+   | F10 Checkpoint-Append | 500 | gleich | frühere Chunks |
+
+   Abbruchpriorität: `StopOnError` vor dem Schreiben (`batches.go:103`), dann
+   wiederholbarer DB-Konflikt, dann die erste Fehlerzeile des Replays in
+   Verarbeitungsreihenfolge, dann der Checkpoint. Im Erfolgsfall sind
+   `Errors` (Inhalt und Reihenfolge), `CreatedCount`, `UpdatedCount` und
+   `WarningCount` identisch; `Timestamp` ist kein Vertrag.
+
+   Der Replay ist nötig, weil der Batchpfad Fehler in anderer Reihenfolge
+   findet: Das Kontingent-409 aus `EnrollStudents` käme vor einem 500 aus dem
+   Guardian-Kommando einer früheren Zeile, und `ChildQuotaReachedError`
+   nennte `Occupied`/`Requested` des ganzen Batches statt der Zeile k. Das
+   verbietet Entscheidung E4.
+6. **Frische der Reads (Entscheidung E2).**
+
+   | Read | Lock, den er voraussetzt | Regel |
+   |---|---|---|
+   | Rollen und Rechte der Staff-Validierung (#5887) | keiner; die Validierung nimmt keinen Lock | ein Snapshot je Validierungstransaktion erlaubt; über Transaktionsgrenzen nicht |
+   | Namens- und Match-Auflösung (`ResolveChunk`) | Import-Schlüssel `data-import:<key>` | nach dem Import-Lock, vor den Gates. Kein Lock serialisiert Namensgleiche aus anderen Anfragen; der Student-Create liest heute schon gebündelt vor dem ersten Gate (`student_import_write_batch.go:11–15`) |
+   | Kinddatensatz beim Update | Klassen-Gate geteilt und Zeilensperre des Kindes (`peopledirectory/internal/adapters/postgres/enrollment_read.go:17–29`) | erst nach Gate und Sperre, einmal je Kind im Batch (`ReadEnrollmentStudents`); kein Read davor ersetzt ihn |
+   | Kontingentzahl und Grenze | Kontingent-Lock exklusiv (`schoolmembership/internal/adapters/postgres/student_counts.go:113`) | erst nach dem Lock, je Batch-Kommando einmal vorher und einmal nachher |
+   | Guardian-Profil beim Link | Zeilensperre des Guardians (Update in `guardian_relationship_insert.go:5–30`) | `account_id` aus `RETURNING` der sperrenden Anweisung, nie aus einem früheren Read |
+   | Rollen im Schreibpfad (`rolesByID`, Caregiver-Bedarf) | keiner | aus der Vorlast des Chunks, wie heute |
+
+   Weitere Schreiber unter demselben Lock: Unter dem Klassen-Gate geteilt
+   schreiben alle Kind-Schreiber, unter dem Kontingent-Lock alle zählenden
+   Schreiber. Kein vorgezogener Read darf Daten liefern, die einer von ihnen
+   unter diesen Locks ändert. Deshalb steht kein Kind-, Kontingent- oder
+   Guardian-Read vor seinem Lock.
+7. **Lock-Invarianten je Position.** Für einen Chunk mit den Zeilen 1…n in
+   Verarbeitungsreihenfolge und einem Abbruch in Zeile k:
+
+   | Sperre | heute gehalten bei Abbruch in k | neu während des Batch-Versuchs | neu bei Abbruch in k |
+   |---|---|---|---|
+   | `data-import:<key>` exklusiv | ab Chunk-Beginn | ab Chunk-Beginn, vor dem Savepoint | gleich |
+   | `staff-person-merge:<Schule>` geteilt | ab der ersten Person | ab dem ersten Batch-Kommando, einmal | wie heute (Replay) |
+   | Klassen-Gate geteilt, Kontingent exklusiv | ab dem ersten Kind | ab dem ersten Batch-Kommando, einmal | wie heute (Replay) |
+   | Kind-Zeilen (Update) | Zeilen 1…k | alle Kinder des Segments, aufsteigend nach ID, vor dem ersten Schreiben | Zeilen 1…k |
+   | bestehende Guardian-Zeilen (Link, Telefon) | Guardians der Zeilen 1…k | alle Guardians des Segments, aufsteigend nach ID | Guardians der Zeilen 1…k |
+   | sonst geänderte bestehende Zeilen (Personen, Staff, Caregiver, Stammdaten, Schedules) | die der Zeilen 1…k | je Batch-Kommando alle des Segments, aufsteigend nach ID | die der Zeilen 1…k |
+   | neu angelegte Zeilen | für andere unsichtbar | für andere unsichtbar | – |
+
+   `ROLLBACK TO SAVEPOINT` gibt alle Sperren frei, die nach dem Savepoint
+   genommen wurden; das gilt für Zeilen- und Tabellensperren (PostgreSQL,
+   „Explicit Locking“) und wird für transaktionsgebundene Advisory Locks
+   durch Test belegt. Der Replay fordert dann in heutiger Reihenfolge an.
+
+   Damit gilt bei Abbruch dieselbe Sperrmenge wie heute. Während des
+   Batch-Versuchs weicht der Batchpfad in zwei Punkten ab, die Entscheidung
+   E10 erlaubt:
+   - **Spätere Zeilen früher gesperrt.** Ein Kind oder Guardian einer späteren
+     Zeile mit kleinerer ID ist gesperrt, bevor eine frühere Zeile ihren
+     Konflikt erreicht. Begründung: Die anderen Mehrzeilen-Schreiber sperren
+     Kinder aufsteigend nach ID (Sammelgenehmigung, Student-Edit mit
+     Begleitern, Abschnitt #4640 oben); der heutige Import sperrt in
+     Verarbeitungsreihenfolge und kann gegen sie verklemmen. Die sortierte
+     Sperre senkt dieses Risiko.
+   - **Hinter einer Ablehnung kurz gesperrt.** Lehnt der Batch ab, waren die
+     Zeilen hinter k bis zum `ROLLBACK TO SAVEPOINT` gesperrt, nicht bis zum
+     Ende der Anfrage. Folge für Dritte: Eine gleichzeitige Löschung mit
+     `NOWAIT` (`peopledirectory/student_deletion.go:9`) kann in diesem Fenster
+     als belegt abgelehnt werden, wo sie heute je nach Zeitpunkt durchkäme.
+     Das ist eine Frage des Zeitpunkts, kein Vertrag.
+
+   Auflagen (E10): Sperren in fester PK-Reihenfolge wie die anderen
+   Schreiber; kein neues `NOWAIT`, kein `lock_timeout`; die erste
+   Fehlerstelle und ihr Status sind dieselben wie im Zeilenpfad (Punkt 5 dieses
+   Addendums);
+   vor der ersten Fehlerstelle wird nichts persistiert, was der Zeilenpfad
+   nicht persistiert (Chunk-Savepoint); ein Real-DB-Test mit parallelem
+   Schreiber je Sperrart belegt, dass kein neuer `40P01` entsteht und dass
+   nach dem Rollback eines abgelehnten Batches keine Sperre hinter k bleibt.
+   Die Gate-Reihenfolge von Entscheidungspunkt 5 dieses ADR (Klassen-Gate vor Recurrence vor
+   Transition) und „Gate vor Kontingent“ (`child_quota.go:14–24`) bleiben.
+8. **Kontingent.** `EnrollStudents` und `RenewEnrollments` prüfen das
+   Kontingent einmal für den Batch. Das ist nur dann gleichwertig zur Prüfung
+   je Zeile, wenn keine Zeile die Kontingentzahl senkt: Dann steigt die Zahl
+   monoton, keine Zwischenstufe liegt über dem Endwert, und ein Batch, der
+   passiert, hätte auch Zeile für Zeile passiert. Darum nimmt ein Segment den
+   Zeilenpfad, sobald eine Update-Zeile nach `CountsTowardChildQuota`
+   (`modules/dataimport/ports/imports.go:116–119`) mit dem unter Sperre
+   gelesenen Datensatz vorher zählt und nachher nicht. Lehnt der Batch ab,
+   bestimmt der Replay die Zeile und die Details. Der Stichtag wird je
+   Batch-Kommando einmal gelesen; ein Chunk über Mitternacht zählt einheitlich.
+
+### Umsetzungsreihenfolge
+
+Jeder Schritt ist ein eigener PR, misst vor und nach und senkt die Register
+auf den gemessenen Wert (Regel 15, shrink-only). Die erwartete Ersparnis ist
+aus der Messung abgeleitet, nicht gemessen.
+
+| Schritt | Issue | Umfang | Erwartet | Risiko |
+|---|---|---|---|---|
+| 1 | #5552 | Budget-Szenarien N10/N110 für alle Configs und Modi (`test/query-budgets/modules/dataimport/`, `max`, Vorschau `exact`); keine Verhaltensänderung | 0 | gering |
+| 2 | #5887 | Rollen aus `ListSchoolRoles` mit SQL-Schlüssel `LOWER(name)`, Tenant- vor Systemrolle, exakter Name vor Alias, bei Gleichstand gleichen Rangs die kleinste ID; `FindRolePermissionsByRoleIDs` einmal in `ValidateBatch` | Staff-Vorschau auf etwa 10 je N | gering |
+| 3 | #5552 | kein Zeilen-Savepoint im Batchpfad | −2 je Zeile | gering |
+| 4 | #5827 | Chunk-Executor: Segmente, `ResolveChunk`, Chunk-Savepoint, Replay; erster Nutzer Klassenliste | Klassenliste N110 auf etwa 25 | mittel |
+| 5 | #5552 | Student-Create, Leafs: Personen, Guardians, Telefone, Link, Consent, Schedules, Consent-Verlauf | etwa −8 je Zeile | mittel |
+| 6 | #5552 | Staff-Create und Staff-Update, Leafs | etwa −10 je Zeile | mittel |
+| 7 | #5552 | Ausnahme E3: Kinderanlage und Student-Update gebündelt, Kontingent nach Punkt 8 | Student-Create N110 auf etwa 60 | hoch |
+| 8 | #5552 | Anfangssalden: eigener Workforce-Entwurf (Sperren je Staff sortiert, Guards nach dem Lock mengenbasiert, Einstellungen einmal je Transaktion), danach Umsetzung | etwa −40 je Zeile | mittel |
+
+2, 3 und 4 sind unabhängig. 5 und 6 brauchen 4; 7 braucht 5.
+
+Jeder Schritt prüft:
+
+- **Äquivalenz:** jeder Fehlerfall einmal im Batchpfad und einmal mit
+  erzwungenem Zeilenpfad. Gleich sein müssen Antwort-JSON ohne Timestamps,
+  Owner-Zeilen ohne `id`/`created_at`/`updated_at`, NULL gegen Default und
+  Fehlercodes.
+- **Fehler in Zeile k:** k = 1, 5, 10 von 10 und k = 1, 55, 101, 110 von 110
+  per Trigger, je Owner-Tabelle; Status, Code, Zeilenfehler, bestätigte
+  Zähler und Persistenz wie im Zeilenpfad.
+- **Sperren:** die Real-DB-Tests aus Punkt 7, auch ein Kontingent-409 mit
+  einer Sperrprobe auf Zeilen hinter k nach dem Replay.
+- **Retry:** ein erzwungener `40P01` im Batchpfad läuft im zweiten Versuch im
+  Zeilenpfad und committet.
+- **Bestehende Suiten grün:** `importtest/owner_failure_test.go`,
+  `child_quota_batches_test.go`, `row_isolation_test.go`,
+  `batches_test.go` (Rollback, Resume, parallele Uploads, Retry),
+  `student_write_batch_test.go`, `guardian_execution_test.go`,
+  `opening_balance_batches_test.go`, `guardian_link_owners_test.go` und die
+  Lock-Order-Suiten der Inventur.
+
+### Messplan N10/N110
+
+Gemessen wird wie im Abschnitt „Messung“, je Modus nach den Warmups.
+`N110 − N10` ist das Wachstum für 100 Zeilen; Ziel ist ein nahezu konstanter
+Import.
+
+| Szenario | heute N10 / N110 | Ziel | nach Schritt |
+|---|---|---|---|
+| `student_batch.import(_110)` | 235 / 2445 | etwa 33 / 60 | 7 |
+| `student_batch.update(_110)` | 282 / 2989 (unveränderte Zeilen) | nahezu konstant; Wert gemessen | 7 |
+| `staff_batch.preview(_110)` | 29 / 229 | 10 / 10 (`exact`) | 2 |
+| `staff_batch.import(_110)` | 190 / 1901 | 171 / 1682 nach 2, danach gemessen | 2, 3, 6 |
+| `class_list_batch.preview(_110)` | 24 / 224 | etwa 6 / 6 (`exact`) | 4 |
+| `class_list_batch.import(_110)` | 80 / 786 | etwa 18 / 25 | 3, 4 |
+| `opening_balance_batch.preview(_110)` | 199 / 2099 | im Entwurf zu 8 festgelegt | 8 |
+| `opening_balance_batch.import(_110)` | 550 / 5861 | im Entwurf zu 8 festgelegt | 8 |
+
+Die Ziele sind Ableitungen aus den Statements je Tabelle, keine Messung. Jeder
+Schritt trägt den gemessenen Wert ein. `exact`-Budgets kollidieren mit
+parallelen PRs; vor dem Merge wird gegen den aktuellen `development` neu
+gemessen.
+
+### Erwogene Optionen
+
+- **Koordination in den Data-Import-Workflow ziehen:** Data Import riefe
+  People-Profil, School-Membership-Mitgliedschaft und Care-Plan-Betreuung
+  selbst. Das spaltete `CreateEnrollment`, das auch Enrollment (E1) und die
+  HTTP-Kindanlage (E4) nutzen, und ließe die Sperren im alten Koordinator
+  (Begründung der Ausnahme E3). Verworfen.
+- **Nur Leaf-Batches, keine Ausnahme:** Student-Create endet bei etwa 1470
+  statt etwa 60 Statements (N110), das Update bleibt linear. Verworfen.
+- **Batch ohne Replay, Fehler direkt melden:** kürzer, aber andere erste
+  Fehlerzeile und andere Kontingent-Details (Entscheidung E4). Verworfen.
+- **Größere Chunks:** halten Gates und Kontingent länger und vergrößern den
+  Wiederholungsumfang bei kaum weiterer Ersparnis. Verworfen; 100 bleibt.
+- **Garantierte ID-Reihenfolge je Tabelle:** ein `nextval` vorab je Tabelle
+  ohne fachlichen Schlüssel, ohne fachlichen Nutzen. Verworfen.
+
+### Folgen und Risiken
+
+- Ein abgelehnter Batch kostet den Batch-Versuch und den Replay; der
+  Fehlerfall wird teurer, der Erfolgsfall billiger.
+- Der Replay ist ein zweiter Ausführungsweg. Ohne Äquivalenztests kann er
+  vom Batchpfad abweichen; darum sind sie Pflicht in jedem Schritt.
+- Die Ausnahme E3 wird größer, nicht breiter: dieselben Owner und
+  Sperren, eine Batch-Form mehr. Die Architektur-Checks sehen das nicht
+  (Abschnitt „Evidence and enforcement“); der Review prüft es.
+- Die Befunde 1, 3 und 4 korrigieren den Entwurf in #5552. Seine Tabelle
+  „Owner-Batch-Kommandos“ gilt mit den Einordnungen dieses Addendums.
