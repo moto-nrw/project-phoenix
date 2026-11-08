@@ -36,6 +36,7 @@
   "signNow": "Lexo dhe nënshkruaj",
   "status": "Statusi",
   "cancelContract": "Ndërpritni kontratat këtu",
+  "withdrawContract": "Tërhiqu nga kontrata",
   "cancelNotPermitted": "Vetëm prindërit që mund ta regjistrojnë fëmijën mund ta anulojnë. Ju lutemi pyesni shkollën.",
   "terminatedOn": "E ndërprerë më {date}",
   "withdrawn": "E tërhequr",

@@ -28,7 +28,11 @@ describe("GET /api/request-feed/[token]", () => {
 
     expect(mockFetch).toHaveBeenCalledWith(
       "http://backend:8080/public/request-feed/secret",
-      { headers: {}, cache: "no-store" },
+      expect.objectContaining({ cache: "no-store" }),
+    );
+    // The path secret is the only credential.
+    expect(mockFetch.mock.calls[0]?.[1]?.headers).not.toHaveProperty(
+      "Authorization",
     );
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe(
@@ -57,13 +61,13 @@ describe("GET /api/request-feed/[token]", () => {
 
     expect(mockFetch).toHaveBeenCalledWith(
       "http://backend:8080/public/request-feed/secret",
-      {
-        headers: {
+      expect.objectContaining({
+        headers: expect.objectContaining({
           "X-Forwarded-For": "198.51.100.23",
           "User-Agent": "FeedReader/2",
-        },
+        }),
         cache: "no-store",
-      },
+      }),
     );
   });
 
@@ -90,7 +94,7 @@ describe("GET /api/request-feed/[token]", () => {
 
     expect(mockFetch).toHaveBeenCalledWith(
       "http://backend:8080/public/request-feed/part%2Fwith%20space",
-      { headers: {}, cache: "no-store" },
+      expect.objectContaining({ cache: "no-store" }),
     );
   });
 });

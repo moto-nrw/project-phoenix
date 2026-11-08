@@ -11,6 +11,15 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
+// InboxRow is a contract of the inbox with what its withdrawal period
+// needs: the conclusion and the earliest recorded provision of the notice,
+// the stored one or that of the latest online signature (#6105).
+type InboxRow struct {
+	Contract   carecontract.InboxContract
+	Concluded  *carecontract.Concluded
+	InformedAt *time.Time
+}
+
 // AmendableContract is an active contract with its timeline (#4681): every
 // effective version by effective date, the newest of them, the start of the
 // first, which a fixed term counts from, and the number its next version
@@ -162,7 +171,7 @@ type Store interface {
 	// VersionDocument reads the stored PDF of a version; ok is false before
 	// its first send.
 	VersionDocument(ctx context.Context, organizationID, versionID int64) (carecontract.File, bool, error)
-	InboxContracts(ctx context.Context, organizationID int64, reader carecontract.InboxReader) ([]carecontract.InboxContract, error)
+	InboxContracts(ctx context.Context, organizationID int64, reader carecontract.InboxReader) ([]InboxRow, error)
 	InboxDocument(ctx context.Context, organizationID, contractID int64, reader carecontract.InboxReader) (carecontract.File, error)
 	ContractNoticeTarget(ctx context.Context, organizationID, contractID int64, email string) (carecontract.ContractNoticeTarget, bool, error)
 }

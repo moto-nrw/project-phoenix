@@ -11,7 +11,7 @@ export const DELETE = createOperatorDeleteHandler(
     params: Record<string, unknown>,
   ) => {
     return await operatorApiDelete(
-      `/operator/devices/${String(params.id)}`,
+      `/operator/devices/${encodeURIComponent(String(params.id))}`,
       token,
     );
   },

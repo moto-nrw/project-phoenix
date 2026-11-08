@@ -1,16 +1,18 @@
 import type { NextRequest } from "next/server";
-import { problemResponse } from "./api-response-error.server";
 import { NextResponse } from "next/server";
-import { auth, uncachedAuth } from "../server/auth";
-import { executeWithTokenRefresh } from "./token-refresh-retry.server";
-import { withTenantAuth } from "~/server/auth/tenant-route";
-import type { ApiErrorResponse, ApiResponse } from "./api-helpers.server";
-import { handleApiError } from "./api-helpers.server";
-import { backendResponseError } from "./api-response-error.server";
-import { clientIdentityHeaders } from "./client-headers.server";
+import { problemResponse } from "./api-response-error.server";
+import {
+  readBackendJson,
+  sendBackend,
+  unwrapEnvelope,
+} from "./backend-client.server";
 import type { ErrorCode } from "./error-codes.generated";
-import type { ProxyEndpoint } from "./route-proxy-factory.server";
-import { getServerApiUrl } from "./server-api-url";
+import type { ProxyEndpoint } from "./portal-handlers.server";
+import {
+  readBoundedBody,
+  wrapInApiResponse,
+} from "./route-wrapper-utils.server";
+import { tenant } from "./route-wrapper.server";
 
 interface FileUploadOptions {
   maxSizeInMB?: number;
@@ -147,9 +149,11 @@ export async function parseBoundedMultipartFormData(
   request: NextRequest,
   maxSizeInBytes: number,
 ): Promise<FormData> {
-  const maxBodySize = maxSizeInBytes + MULTIPART_OVERHEAD_BYTES;
-  const contentLength = request.headers.get("content-length");
-  if (contentLength !== null && Number(contentLength) > maxBodySize) {
+  const bytes = await readBoundedBody(
+    request,
+    maxSizeInBytes + MULTIPART_OVERHEAD_BYTES,
+  );
+  if (bytes === null) {
     throw new FileValidationError(
       `Request body exceeds ${maxSizeInBytes / (1024 * 1024)}MB limit`,
       413,
@@ -157,45 +161,26 @@ export async function parseBoundedMultipartFormData(
       { max_mb: maxSizeInBytes / (1024 * 1024) },
     );
   }
-
-  if (!request.body) {
-    return request.formData();
-  }
-
-  const reader = request.body.getReader();
-  const chunks: ArrayBuffer[] = [];
-  let size = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) {
-        break;
-      }
-      size += value.byteLength;
-      if (size > maxBodySize) {
-        await reader.cancel();
-        throw new FileValidationError(
-          `Request body exceeds ${maxSizeInBytes / (1024 * 1024)}MB limit`,
-          413,
-          "files.file_too_large",
-          { max_mb: maxSizeInBytes / (1024 * 1024) },
-        );
-      }
-      const chunk = new Uint8Array(value.byteLength);
-      chunk.set(value);
-      chunks.push(chunk.buffer);
-    }
-  } finally {
-    reader.releaseLock();
-  }
-
   return new Request(request.url, {
     method: request.method,
-    headers: {
-      "content-type": request.headers.get("content-type") ?? "",
-    },
-    body: new Blob(chunks),
+    headers: { "content-type": request.headers.get("content-type") ?? "" },
+    body: bytes,
   }).formData();
+}
+
+/** Sends a multipart form to the tenant backend and answers its `data`. */
+export async function postForm<T>(
+  request: NextRequest,
+  path: string,
+  token: string,
+  form: FormData,
+): Promise<T> {
+  const response = await sendBackend(path, token, {
+    method: "POST",
+    body: form,
+    request,
+  });
+  return unwrapEnvelope<T>(await readBackendJson(response));
 }
 
 /**
@@ -213,75 +198,29 @@ export function createFileUploadHandler<T>(
   ) => Promise<T>,
   options?: FileUploadOptions,
 ) {
-  return withTenantAuth(
-    async (
-      request,
-      context: {
-        params: Promise<Record<string, string | string[] | undefined>>;
-      },
-    ): Promise<NextResponse<ApiResponse<T> | ApiErrorResponse | T>> => {
-      try {
-        const session = await auth();
-
-        if (!session?.user?.token) {
-          return problemResponse(401, "Unauthorized", request);
-        }
-
-        // Extract parameters
-        const safeParams: Record<string, unknown> = {};
-
-        const contextParams = await context.params;
-        if (contextParams) {
-          Object.entries(contextParams).forEach(([key, value]) => {
-            if (value !== undefined) {
-              safeParams[key] = value;
-            }
-          });
-        }
-
-        // Get form data
-        const maxSizeInBytes = (options?.maxSizeInMB ?? 5) * 1024 * 1024;
-        const formData = await parseBoundedMultipartFormData(
-          request,
-          maxSizeInBytes,
-        );
-
-        // Validate all files in the form data — return the semantically correct
-        // HTTP status (413/415/422) instead of letting validation errors fall
-        // through to the generic 500 handler.
-        try {
-          for (const [, value] of formData.entries()) {
-            if (value instanceof File) {
-              validateFile(value, options ?? {});
-            }
-          }
-        } catch (validationError) {
-          if (validationError instanceof FileValidationError) {
-            return fileValidationProblemResponse(validationError, request);
-          }
-          throw validationError;
-        }
-
-        return await executeWithTokenRefresh(
-          request,
-          session.user.token,
-          (token) => handler(request, formData, token, safeParams),
-          (data) =>
-            NextResponse.json<ApiResponse<T>>(
-              typeof data === "object" && data !== null && "success" in data
-                ? (data as unknown as ApiResponse<T>)
-                : { success: true, message: "Success", data },
-            ),
-          () => uncachedAuth(),
-        );
-      } catch (error) {
-        if (error instanceof FileValidationError) {
-          return fileValidationProblemResponse(error, request);
-        }
-        return handleApiError(error, request);
+  return tenant.route(async (request, token, params) => {
+    try {
+      const maxSizeInBytes = (options?.maxSizeInMB ?? 5) * 1024 * 1024;
+      const formData = await parseBoundedMultipartFormData(
+        request,
+        maxSizeInBytes,
+      );
+      for (const [, value] of formData.entries()) {
+        if (value instanceof File) validateFile(value, options ?? {});
       }
-    },
-  );
+      const result = await tenant.runWithRenewal(request, token, (current) =>
+        handler(request, formData, current, params),
+      );
+      return result instanceof Response
+        ? result
+        : NextResponse.json(wrapInApiResponse(result));
+    } catch (error) {
+      if (error instanceof FileValidationError) {
+        return fileValidationProblemResponse(error, request);
+      }
+      throw error;
+    }
+  });
 }
 
 interface FileForwardOptions extends FileUploadOptions {
@@ -336,18 +275,7 @@ export function proxyFileUpload(
       }
 
       const path = typeof endpoint === "string" ? endpoint : endpoint(params);
-      const response = await fetch(`${getServerApiUrl()}${path}`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          ...clientIdentityHeaders(request.headers),
-        },
-        body: forwarded,
-        cache: "no-store",
-      });
-
-      if (!response.ok) throw await backendResponseError(response);
-      return ((await response.json()) as { data?: unknown }).data;
+      return postForm(request, path, token, forwarded);
     },
     options,
   );

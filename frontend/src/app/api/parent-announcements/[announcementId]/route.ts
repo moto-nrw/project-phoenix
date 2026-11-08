@@ -20,7 +20,7 @@ export const GET = createGetHandler(
     params: Record<string, unknown>,
   ) => {
     const response = await apiGet<{ data: unknown }>(
-      `/api/parent-announcements/${announcementID(params)}`,
+      `/api/parent-announcements/${encodeURIComponent(announcementID(params))}`,
       token,
     );
     return response.data;
@@ -36,7 +36,7 @@ export const PUT = createPutHandler(
     params: Record<string, unknown>,
   ) => {
     const response = await apiPut<{ data: unknown }>(
-      `/api/parent-announcements/${announcementID(params)}`,
+      `/api/parent-announcements/${encodeURIComponent(announcementID(params))}`,
       token,
       body,
     );
@@ -52,7 +52,7 @@ export const DELETE = createDeleteHandler(
     params: Record<string, unknown>,
   ) => {
     const response = await apiDelete<{ data: unknown }>(
-      `/api/parent-announcements/${announcementID(params)}`,
+      `/api/parent-announcements/${encodeURIComponent(announcementID(params))}`,
       token,
     );
     // DELETE may return 204 No Content (response is void) — mirror the

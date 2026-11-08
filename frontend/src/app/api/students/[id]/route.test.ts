@@ -20,9 +20,11 @@ const { mockAuth, mockApiGet, mockApiPut, mockApiDelete } = vi.hoisted(() => ({
   mockApiDelete: vi.fn(),
 }));
 
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockAuth,
+  }),
+);
 
 // The real handleApiError: the consent marker test reads the forwarded envelope.
 vi.mock("~/lib/api-helpers.server", async (importOriginal) => ({

@@ -1,4 +1,5 @@
 // app/api/admin/grade-transitions/[id]/history/route.ts
+import { requireNumericParam } from "~/lib/route-wrapper-utils.server";
 import type { NextRequest } from "next/server";
 import { apiGet } from "~/lib/api-helpers.server";
 import { createGetHandler } from "~/lib/route-wrapper.server";
@@ -14,10 +15,7 @@ export const GET = createGetHandler(
     token,
     params,
   ): Promise<BackendTransitionHistoryEntry[]> => {
-    const id = params.id;
-    if (typeof id !== "string" || !/^\d+$/.test(id)) {
-      throw new Error("Invalid id parameter");
-    }
+    const id = requireNumericParam(params);
     const response = await apiGet<HistoryResponse>(
       `/api/admin/grade-transitions/${id}/history`,
       token,

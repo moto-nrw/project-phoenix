@@ -67,7 +67,14 @@ describe("GET /api/tenant/resolve", () => {
 
     expect(global.fetch).toHaveBeenCalledWith(
       "http://server:8080/auth/tenant/resolve?slug=demo-school",
+      expect.objectContaining({ method: "GET", cache: "no-store" }),
     );
+    // Public: the frontend origin travels, no session bearer.
+    const init = vi.mocked(global.fetch).mock.calls[0]?.[1] as RequestInit;
+    expect(init.headers).toMatchObject({
+      "X-Moto-Frontend-Origin": "http://localhost:3000",
+    });
+    expect(init.headers).not.toHaveProperty("Authorization");
 
     expect(response.status).toBe(200);
     const json = await parseJsonResponse<typeof tenantData>(response);
@@ -89,6 +96,7 @@ describe("GET /api/tenant/resolve", () => {
 
     expect(global.fetch).toHaveBeenCalledWith(
       "http://server:8080/auth/tenant/resolve?slug=school%20with%20spaces",
+      expect.objectContaining({ method: "GET", cache: "no-store" }),
     );
   });
 });

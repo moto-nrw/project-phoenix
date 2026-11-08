@@ -28,29 +28,25 @@ const PORTAL_PROXIES = ["proxyGet", "proxyPost", "proxyPut", "proxyPatch"];
 
 /**
  * Factories that apply the cache policy, keyed by module. Authenticated
- * factories run through `createResponseAwareAuth().withAuthResponse`; the
+ * factories run through a portal object's `withAuth`; the
  * public ones wrap themselves in `withPrivateNoStore`. Tests:
  * `src/server/auth/portal-cache-control.test.ts`.
  */
 const POLICY_FACTORIES: Record<string, readonly string[]> = {
-  "~/lib/portal-login-route.server": ["createPortalLoginRoute"],
-  "~/lib/tenant-login-route.server": ["createTenantLoginRoute"],
+  "~/lib/login-route.server": ["createPortalLoginRoute"],
+  "~/lib/logout-route.server": ["createLogoutRoute"],
   "~/lib/private-no-store": [
     "withPrivateNoStore",
     "withPrivateDownloadNoStore",
   ],
-  "~/server/auth": ["withTenantAuth"],
-  "~/server/auth/tenant-route": ["withTenantAuth"],
-  "~/server/auth/operator": ["withOperatorAuth"],
-  "~/server/auth/parent": ["withParentAuth"],
-  "~/server/auth/school": ["withSchoolAuth"],
-  "~/server/auth/caterer": ["withCatererAuth"],
-  "~/server/auth/traeger": ["withTraegerAuth"],
-  "~/server/auth/operator-route": ["withOperatorAuth"],
-  "~/server/auth/parent-route": ["withParentAuth"],
-  "~/server/auth/school-route": ["withSchoolAuth"],
-  "~/server/auth/caterer-route": ["withCatererAuth"],
-  "~/server/auth/traeger-route": ["withTraegerAuth"],
+  "~/server/auth": ["tenantPortal.withAuth"],
+  "~/server/auth/operator": ["operatorPortal.withAuth"],
+  "~/server/auth/parent": ["parentPortal.withAuth"],
+  "~/server/auth/school": ["schoolPortal.withAuth"],
+  "~/server/auth/caterer": ["catererPortal.withAuth"],
+  "~/server/auth/traeger": ["traegerPortal.withAuth"],
+  // `binding.method(…)`: every builder of a portal's handlers runs in the
+  // portal's response wrapper (makePortalHandlers).
   "~/lib/route-wrapper.server": [
     "createGetHandler",
     "createPostHandler",
@@ -58,8 +54,16 @@ const POLICY_FACTORIES: Record<string, readonly string[]> = {
     "createPatchHandler",
     "createDeleteHandler",
     "createDeleteWithBodyHandler",
+    "createTenantJsonProxy",
+    "createOptionalTenantJsonProxy",
+    "proxyFile",
+    "tenant.route",
+    "tenant.get",
+    "tenant.post",
+    "tenant.proxyFile",
+    ...PORTAL_PROXIES,
+    "proxyDelete",
   ],
-  "~/lib/route-proxy.server": [...PORTAL_PROXIES, "proxyDelete"],
   "~/lib/operator/route-wrapper.server": [
     ...PORTAL_PROXIES,
     "proxyDelete",
@@ -67,9 +71,8 @@ const POLICY_FACTORIES: Record<string, readonly string[]> = {
     "createOperatorPostHandler",
     "createOperatorPutHandler",
     "createOperatorDeleteHandler",
-    "createOperatorProxyPostHandler",
-    "createOperatorPublicProxyPostHandler",
-    "createOperatorProxyMethodHandler",
+    "createOperatorJsonProxy",
+    "operator.proxyFile",
   ],
   "~/lib/parent/route-wrapper.server": [
     ...PORTAL_PROXIES,
@@ -77,16 +80,20 @@ const POLICY_FACTORIES: Record<string, readonly string[]> = {
     "createParentDeleteHandler",
     "createParentPutHandler",
     "createParentPatchHandler",
+    "parent.route",
+    "parent.proxyFile",
   ],
   "~/lib/school/route-wrapper.server": [
     ...PORTAL_PROXIES,
     "proxyDelete",
     "createSchoolDeleteHandler",
+    "school.route",
   ],
   "~/lib/caterer/route-wrapper.server": [
     "proxyGet",
     "proxyPost",
     "createCatererJsonProxy",
+    "caterer.proxyFile",
   ],
   "~/lib/traeger/route-wrapper.server": [
     ...PORTAL_PROXIES,
@@ -94,13 +101,8 @@ const POLICY_FACTORIES: Record<string, readonly string[]> = {
     "proxyFile",
     "proxyUpload",
   ],
-  "~/lib/backend-proxy-route.server": [
-    "createTenantJsonProxy",
-    "createOptionalTenantJsonProxy",
-    "createPublicJsonProxy",
-    "createOperatorJsonProxy",
-    "createTenantApiAdapter",
-  ],
+  "~/lib/backend-proxy-route.server": ["createPublicJsonProxy"],
+  "~/lib/auth-proxy.server": ["authStepProxy"],
   "~/lib/file-upload-wrapper.server": [
     "createFileUploadHandler",
     "proxyFileUpload",
@@ -200,11 +202,22 @@ function isPolicyFactoryCall(
     );
   }
   if (!ts.isCallExpression(expression)) return false;
-  if (!ts.isIdentifier(expression.expression)) return false;
-  const binding = bindings.get(expression.expression.text);
+  const callee = expression.expression;
+  const member =
+    ts.isPropertyAccessExpression(callee) && ts.isIdentifier(callee.expression)
+      ? callee
+      : null;
+  const local = member
+    ? (member.expression as ts.Identifier)
+    : ts.isIdentifier(callee)
+      ? callee
+      : null;
+  if (!local) return false;
+  const binding = bindings.get(local.text);
   if (!binding) return false;
   const [module, name] = binding.split("#") as [string, string];
-  return factories[module]?.includes(name) ?? false;
+  const called = member ? `${name}.${member.name.text}` : name;
+  return factories[module]?.includes(called) ?? false;
 }
 
 function hasExportModifier(node: ts.Node): boolean {
@@ -366,7 +379,7 @@ describe("private download cache policy (#5119)", () => {
       const route = path.relative(API_ROOT, path.dirname(file));
       const text = readFileSync(file, "utf8");
       const fileFactory =
-        /\b(?:createFileExportRoute|createFileDownloadRoute|pdfDownloadResponse|proxyFile|streamIcsDownload)\s*[(<]/.test(
+        /\b(?:createFileExportRoute|createFileDownloadRoute|fileResponse|downloadFile|proxyFile)\s*[(<]/.test(
           text,
         );
       const binaryResponse =
@@ -400,11 +413,11 @@ describe("private download cache policy (#5119)", () => {
 
   it("does not mistake a JSON or portal wrapper for a download policy", () => {
     const file = path.join(API_ROOT, "fixture/route.ts");
-    for (const [module, name] of [
-      ["~/lib/private-no-store", "withPrivateNoStore"],
-      ["~/server/auth/tenant-route", "withTenantAuth"],
+    for (const [module, binding, name] of [
+      ["~/lib/private-no-store", "withPrivateNoStore", "withPrivateNoStore"],
+      ["~/server/auth", "tenantPortal", "tenantPortal.withAuth"],
     ]) {
-      const text = `import { ${name} } from "${module}"; export const GET = ${name}(handler);`;
+      const text = `import { ${binding} } from "${module}"; export const GET = ${name}(handler);`;
       expect(
         analyzeRouteSource(file, text, DOWNLOAD_POLICY_FACTORIES).get("GET"),
       ).toBe(false);

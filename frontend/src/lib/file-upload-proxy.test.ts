@@ -7,10 +7,12 @@ const { mockAuth, mockUncachedAuth } = vi.hoisted(() => ({
   mockUncachedAuth: vi.fn<() => Promise<ExtendedSession | null>>(),
 }));
 
-vi.mock("~/server/auth", () => ({
-  auth: mockAuth,
-  uncachedAuth: mockUncachedAuth,
-}));
+vi.mock("~/server/auth", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("tenant", {
+    auth: mockAuth,
+    uncachedAuth: mockUncachedAuth,
+  }),
+);
 
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: () => "http://backend.test",

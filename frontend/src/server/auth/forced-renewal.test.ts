@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { Session, User } from "next-auth";
 import type { JWT } from "next-auth/jwt";
-import { tenantAuthConfig as authConfig } from "./tenant-config";
-import { _resetRefreshState, withForcedSessionRenewal } from "./shared";
+import { _resetRefreshState, withForcedSessionRenewal } from "./token-refresh";
+import { createPortalAuthConfig } from "./portal-config";
+import { PORTALS } from "./portals";
+const authConfig = createPortalAuthConfig(PORTALS.tenant);
 
 vi.mock("~/env", () => ({
   env: {

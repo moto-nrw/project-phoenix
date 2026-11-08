@@ -8,10 +8,12 @@ const { mockAuth, mockFetch, mockGetServerApiUrl } = vi.hoisted(() => ({
   mockGetServerApiUrl: vi.fn(() => "http://localhost:8080"),
 }));
 
-vi.mock("~/server/auth/operator", () => ({
-  operatorAuth: mockAuth,
-  uncachedOperatorAuth: mockAuth,
-}));
+vi.mock("~/server/auth/operator", async () =>
+  (await import("~/test/portal-binding")).mockPortalModule("operator", {
+    auth: mockAuth,
+    uncachedAuth: mockAuth,
+  }),
+);
 
 vi.mock("~/lib/server-api-url", () => ({
   getServerApiUrl: mockGetServerApiUrl,
@@ -95,6 +97,7 @@ describe("GET /api/operator/provisioning/schools/[id]/settings/values/[key]/reve
     };
     const response = await GET(request, context);
 
-    expect(response.status).toBe(500);
+    // An invalid route param is the request's mistake: a coded 400.
+    expect(response.status).toBe(400);
   });
 });

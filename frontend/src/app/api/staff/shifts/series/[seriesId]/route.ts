@@ -1,10 +1,9 @@
 import { apiDelete } from "~/lib/api-helpers.server";
-import { proxyGet } from "~/lib/route-proxy.server";
 import {
   buildQueryString,
   requirePathSegmentParam,
 } from "~/lib/route-wrapper-utils.server";
-import { createDeleteHandler } from "~/lib/route-wrapper.server";
+import { createDeleteHandler, proxyGet } from "~/lib/route-wrapper.server";
 
 /**
  * GET /api/staff/shifts/series/{seriesId}

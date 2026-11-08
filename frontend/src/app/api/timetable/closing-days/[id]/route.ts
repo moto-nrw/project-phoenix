@@ -5,7 +5,7 @@
 //
 // Both strip the Go envelope ({ status, data, message }) so route-wrapper
 // produces a single envelope on the wire.
-import { proxyDelete, proxyPut } from "~/lib/route-proxy.server";
+import { proxyDelete, proxyPut } from "~/lib/route-wrapper.server";
 import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 
 export const PUT = proxyPut(

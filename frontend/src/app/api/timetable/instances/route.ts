@@ -10,7 +10,7 @@
 //
 // The Go backend returns { status, data, message }; the proxies strip that
 // envelope so route-wrapper does not double-wrap the payload.
-import { proxyGet, proxyPost } from "~/lib/route-proxy.server";
+import { proxyGet, proxyPost } from "~/lib/route-wrapper.server";
 
 export const GET = proxyGet("/api/timetable/instances");
 

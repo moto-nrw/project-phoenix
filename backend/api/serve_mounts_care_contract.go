@@ -97,6 +97,7 @@ func careContractPorts(organizations HolidayOrganizations, settings TraegerBrand
 		Bookings: careContractBookings{offerings: carePlanCompose.NewContractOfferings(), bookings: carePlanCompose.NewOfferingBookings()},
 		Access:   careContractAccessLog{log: accessLog}, Runtime: owners.CareContractRuntime{},
 		Modes: careContractModes{settings: schoolSettings}, Mail: owners.CareContractPost{Delivery: delivery, Outcomes: outcomes},
+		Letterheads: letterheads,
 	}
 }
 

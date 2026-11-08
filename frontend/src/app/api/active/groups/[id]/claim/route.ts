@@ -23,6 +23,10 @@ export const POST = createPostHandler(
     // Claim the group with default supervisor role
     const requestBody = { role: "supervisor" };
 
-    return await apiPost(`/api/active/groups/${id}/claim`, token, requestBody);
+    return await apiPost(
+      `/api/active/groups/${encodeURIComponent(id)}/claim`,
+      token,
+      requestBody,
+    );
   },
 );

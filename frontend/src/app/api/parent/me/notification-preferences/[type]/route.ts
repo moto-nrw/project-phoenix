@@ -25,7 +25,7 @@ export const PUT = createParentPutHandler(
       throw bffError(400, "Invalid notification type format");
     }
     return parentApiPut(
-      `/parent/me/notification-preferences/${type}`,
+      `/parent/me/notification-preferences/${encodeURIComponent(type)}`,
       token,
       body,
     );

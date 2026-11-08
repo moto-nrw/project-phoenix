@@ -1,9 +1,11 @@
 import { validateSessionToken } from "./token-validation";
 vi.mock("./token-validation", () => ({ validateSessionToken: vi.fn() }));
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AuthUser } from "./shared";
-import { tenantAuthConfig } from "./tenant-config";
-import { _resetRefreshState } from "./shared";
+import type { AuthUser } from "./session-types";
+import { _resetRefreshState } from "./token-refresh";
+import { createPortalAuthConfig } from "./portal-config";
+import { PORTALS } from "./portals";
+const tenantAuthConfig = createPortalAuthConfig(PORTALS.tenant);
 
 vi.mock("~/env", () => ({
   env: {
