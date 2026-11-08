@@ -15,7 +15,7 @@
 // selbst aus und zeigt deshalb nie einen Block, dessen Öffnen mit 403
 // scheitern würde.
 
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import {
   Fragment,
