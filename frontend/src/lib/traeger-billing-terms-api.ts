@@ -13,7 +13,7 @@ export type BillingService = "care" | "meal" | "holiday";
 /** Who an invoice goes to; empty on an invoice issued before #4689. */
 export type RecipientKind = "applicant" | "both" | "payer";
 /** Where the due date of an invoice comes from. */
-export type DueSource = "family" | "run" | "term";
+type DueSource = "family" | "run" | "term";
 
 /** The payment methods in the order the forms show them. */
 export const PAYMENT_METHODS: readonly PaymentMethod[] = [
@@ -37,7 +37,7 @@ export interface ServiceTerms {
   readonly updatedAt: string | null;
 }
 
-export interface BillingServiceOption {
+interface BillingServiceOption {
   readonly service: BillingService;
   /** The services whose invoice may carry this one; empty = always its own. */
   readonly bundleWith: readonly string[];
@@ -106,7 +106,7 @@ export interface InvoicePayment {
   readonly dueSource: DueSource;
 }
 
-export interface BackendServiceTerms {
+interface BackendServiceTerms {
   service: BillingService;
   payment_method: PaymentMethod;
   due_days: number;

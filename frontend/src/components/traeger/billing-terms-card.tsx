@@ -56,7 +56,7 @@ export function parseDueDays(value: string): number | null {
   return days <= MAX_DUE_DAYS ? days : null;
 }
 
-export function ServiceTermsModal({
+function ServiceTermsModal({
   row,
   onClose,
   onSaved,
