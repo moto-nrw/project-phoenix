@@ -73,8 +73,6 @@ const currentVersionOrderSQL = `(v.status IN ` + effectiveStatusSQL + `
 	CASE WHEN v.status IN ` + effectiveStatusSQL + ` THEN v.effective_from END ASC NULLS LAST,
 	v.version_number DESC`
 
-// currentVersionSQL reads the current version of a contract with its
-// services.
 const currentVersionSQL = `SELECT ` + versionColumns + `, v.source, ` + servicesSQL + ` AS services, ` + validUntilSQL + ` AS valid_until
 	FROM care_contract.contract_versions AS v
 	WHERE v.organization_id = ? AND v.contract_id = ? ORDER BY ` + currentVersionOrderSQL + ` LIMIT 1`
@@ -246,7 +244,6 @@ func (r documentRow) file(err error, notFound error) (carecontract.File, error) 
 	return carecontract.File{Filename: r.Filename, ContentType: "application/pdf", Data: r.PDF, WithdrawalNotice: r.WithdrawalNotice}, nil
 }
 
-// InsertMailing records one send of a document.
 func (Store) InsertMailing(ctx context.Context, organizationID, accountID, contractID, documentID, outboxID int64, recipient string) error {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
@@ -298,7 +295,7 @@ func (Store) DeleteDraft(ctx context.Context, organizationID, contractID int64) 
 // to the address, so the list matches the PDF the parents open (#4681).
 const inboxSQL = `SELECT c.id, v.child_first_name, v.child_last_name, ` + moduleNamesSQL + ` AS module_names, v.school_name,
 	v.effective_from, v.status = '` + carecontract.VersionReplaced + `' AS replaced, m.first_sent AS sent_at, c.status, c.ends_on,
-	(c.status = 'versendet' AND ` + inboxChildScopeSQL + ` AND EXISTS (SELECT 1 FROM care_contract.contract_signing_links AS l
+	(c.status = '` + carecontract.StatusSent + `' AND ` + inboxChildScopeSQL + ` AND EXISTS (SELECT 1 FROM care_contract.contract_signing_links AS l
 		WHERE l.organization_id = c.organization_id AND l.contract_id = c.id)) AS can_sign,
 	(c.status = '` + carecontract.StatusActive + `' AND ` + inboxChildScopeSQL + `) AS can_end,
 	(SELECT MAX(s.signed_at) FROM care_contract.contract_signatures AS s
@@ -347,7 +344,8 @@ func (Store) InboxContracts(ctx context.Context, organizationID int64, reader ca
 	for i, row := range rows {
 		result[i] = carecontract.InboxContract{
 			ID: row.ID, ChildNames: []string{row.ChildFirstName}, ModuleNames: nonNil(row.ModuleNames),
-			SchoolName: row.SchoolName, SentAt: row.SentAt, EffectiveOn: row.EffectiveFrom, Replaced: row.Replaced,
+			ModulesText: carecontract.JoinNames(row.ModuleNames),
+			SchoolName:  row.SchoolName, SentAt: row.SentAt, EffectiveOn: row.EffectiveFrom, Replaced: row.Replaced,
 			Status: row.Status, EndsOn: row.EndsOn, SignedAt: row.SignedAt, CanSign: row.CanSign, CanEnd: row.CanEnd,
 		}
 	}

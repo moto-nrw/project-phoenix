@@ -150,7 +150,7 @@ func TestInstanceStudentListQueryBudgetStaysFlat(t *testing.T) {
 		counter := testpkg.CaptureQueries(t, db)
 		_, err := module.ListInstanceStudents(ctx, timetable.InstanceStudentFilter{InstanceIDs: []int64{instance.ID}})
 		require.NoError(t, err)
-		querybudgets.AssertQueryBudget(t, "modules.timetable.instance_students.list", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "modules.timetable.instance_students.list", counter.Measurement(counter.Queries()))
 
 		return nil
 	}))

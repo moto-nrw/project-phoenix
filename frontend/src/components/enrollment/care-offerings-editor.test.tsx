@@ -245,6 +245,41 @@ describe("CareOfferingsEditor", () => {
     });
   });
 
+  // #6044: the checkbox read „Für alle Klassenstufen“ while it was NOT
+  // ticked for an unrestricted offering, and ticking it restricted the
+  // offering. A school ticked it to mean „for everyone“. The label must say
+  // what a tick does, in both states.
+  it("names the availability checkbox after what a tick does", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([]);
+
+    render(<CareOfferingsEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Neues Betreuungsangebot",
+      }),
+    );
+
+    const restrict = screen.getByRole("checkbox", {
+      name: /^Nur für bestimmte Klassenstufen anbieten/,
+    });
+    expect(restrict).not.toBeChecked();
+    expect(
+      screen.getByText("Ohne Haken können alle Kinder das Angebot wählen."),
+    ).toBeVisible();
+
+    fireEvent.click(restrict);
+
+    expect(
+      screen.getByRole("checkbox", {
+        name: /^Nur für bestimmte Klassenstufen anbieten/,
+      }),
+    ).toBeChecked();
+    expect(
+      screen.getByText("Bedingung 1: Wählen Sie mindestens eine Klassenstufe."),
+    ).toBeVisible();
+  });
+
   it("edits availability rules without JSON and blocks incomplete rules", async () => {
     mocks.listPhases.mockResolvedValue([phase()]);
     mocks.listCareOfferings.mockResolvedValue([]);
@@ -261,7 +296,7 @@ describe("CareOfferingsEditor", () => {
 
     expect(
       screen.getByRole("checkbox", {
-        name: /Für alle Klassenstufen \/ ohne Bedingungen/,
+        name: /^Nur für bestimmte Klassenstufen anbieten/,
       }),
     ).not.toBeChecked();
     fireEvent.change(await waitForInputByName("name"), {
@@ -271,7 +306,7 @@ describe("CareOfferingsEditor", () => {
     setPickupTime("Mo");
     fireEvent.click(
       screen.getByRole("checkbox", {
-        name: /Für alle Klassenstufen \/ ohne Bedingungen/,
+        name: /^Nur für bestimmte Klassenstufen anbieten/,
       }),
     );
 
@@ -657,7 +692,7 @@ describe("CareOfferingsEditor", () => {
     );
     fireEvent.click(
       await screen.findByRole("checkbox", {
-        name: /Für alle Klassenstufen \/ ohne Bedingungen/,
+        name: /^Nur für bestimmte Klassenstufen anbieten/,
       }),
     );
   }
@@ -921,7 +956,7 @@ describe("CareOfferingsEditor", () => {
     );
     fireEvent.click(
       await screen.findByRole("checkbox", {
-        name: /Für alle Klassenstufen \/ ohne Bedingungen/,
+        name: /^Nur für bestimmte Klassenstufen anbieten/,
       }),
     );
     fireEvent.click(

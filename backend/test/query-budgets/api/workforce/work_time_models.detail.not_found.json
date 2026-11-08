@@ -2,5 +2,6 @@
   "scenario": "api.workforce.work_time_models.detail.not_found",
   "max": 4,
   "exact": true,
-  "description": "GET /api/work-time-models/{id}: real protected tenant resource and Workforce composition, for a deleted model and a foreign tenant's existing model. BEGIN, combined tenant role/config, one tenant-scoped model SELECT and COMMIT; exact 404 envelope, no nested-entry read, DML, notifications or row locks. A successful model with zero entries is covered separately by detail. Listener and outer process middleware are outside scope."
+  "description": "GET /api/work-time-models/{id}: real protected tenant resource and Workforce composition, for a deleted model and a foreign tenant's existing model. BEGIN, combined tenant role/config, one tenant-scoped model SELECT and COMMIT; exact 404 envelope, no nested-entry read, DML, notifications or row locks. A successful model with zero entries is covered separately by detail. Listener and outer process middleware are outside scope.",
+  "route": "GET /api/work-time-models/{id}"
 }

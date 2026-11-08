@@ -591,7 +591,7 @@ func TestSchoolInvitationMailStatesQueryBudget(t *testing.T) {
 			return counter.Operation("SELECT")
 		}
 		small := read()
-		querybudgets.AssertQueryBudget(t, "api.invitations.mail_states", small)
+		querybudgets.AssertQueryBudget(t, "api.invitations.mail_states", counter.Measurement(small))
 		invite("mail-budget-2")
 		invite("mail-budget-3")
 		assert.Equal(t, len(small), len(read()), "a further invitation adds no statement")

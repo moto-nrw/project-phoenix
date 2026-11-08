@@ -169,23 +169,18 @@ function EnrollmentRequestCard({
   });
 
   return (
-    <article className="moto-content-surface overflow-hidden rounded-2xl border">
-      <div className="flex flex-col gap-3 border-b border-gray-100 p-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h4 className="text-base font-semibold text-gray-900">
-            {request.phase_name || "Nicht zugeordnet"}
-          </h4>
-          <p className="mt-1 text-sm text-gray-600">
-            Eingegangen am {submittedAt}
-          </p>
-        </div>
+    <SectionCard
+      headingLevel={4}
+      title={request.phase_name || "Nicht zugeordnet"}
+      description={`Eingegangen am ${submittedAt}`}
+      action={
         <StatusBadge
           label={`${request.children.length} Kind${request.children.length === 1 ? "" : "er"}`}
           tone="gray"
         />
-      </div>
-
-      <div className="space-y-4 p-4">
+      }
+    >
+      <div className="space-y-4">
         {request.children.map((child) => (
           <InsetPanel as="section" key={child.id} framed>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -208,12 +203,16 @@ function EnrollmentRequestCard({
             </div>
 
             {child.status_reason ? (
-              <div className="mt-3 rounded-lg border border-gray-100 bg-white px-3 py-2 text-sm text-gray-700">
+              <InsetPanel
+                tone="white"
+                padding="compact"
+                className="mt-3 text-sm text-gray-700"
+              >
                 <span className="text-xs font-medium text-gray-500">
                   Begründung:{" "}
                 </span>
                 {child.status_reason}
-              </div>
+              </InsetPanel>
             ) : null}
 
             <ChildOfferings
@@ -239,6 +238,6 @@ function EnrollmentRequestCard({
 
         <RequestExtraSection request={request} />
       </div>
-    </article>
+    </SectionCard>
   );
 }

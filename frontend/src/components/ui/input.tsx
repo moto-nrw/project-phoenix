@@ -18,7 +18,12 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
    * the form's `FormErrorAlert` announces the failure once.
    */
   readonly errorLive?: boolean;
-  readonly controlSize?: "default" | "compact";
+  /**
+   * `compact`: 40 px, like a `field` button. `touch`: 40 px from `lg` on,
+   * 44 px with 16-px text below (finger height, no zoom on iOS) — for a field
+   * that stands alone in a phone layout, such as the help search.
+   */
+  readonly controlSize?: "default" | "compact" | "touch";
   /**
    * With `type="password"`: an eye button in the field shows and hides the
    * value. The field keeps the visibility itself unless `revealed` is passed.
@@ -32,6 +37,12 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   readonly showPasswordLabel?: string;
   readonly hidePasswordLabel?: string;
 }
+
+const CONTROL_SIZE_CLASS = {
+  default: "px-4 py-3 text-base",
+  compact: "h-10 px-3 py-2 text-sm",
+  touch: "h-11 px-3 py-2 text-base lg:h-10 lg:text-sm",
+} as const;
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   {
@@ -65,12 +76,9 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   const errorId = error && inputId ? `${inputId}-error` : undefined;
   const hintId = hint && inputId ? `${inputId}-hint` : undefined;
 
-  const controlClassName =
-    controlSize === "compact"
-      ? "block h-10 w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500 disabled:ring-gray-200 read-only:bg-gray-50 read-only:text-gray-500 aria-[invalid=true]:ring-moto-red"
-      : "block w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500 disabled:ring-gray-200 read-only:bg-gray-50 read-only:text-gray-500 aria-[invalid=true]:ring-moto-red";
+  const controlClassName = `block w-full rounded-lg border-0 bg-white text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500 disabled:ring-gray-200 read-only:bg-gray-50 read-only:text-gray-500 aria-[invalid=true]:ring-moto-red ${CONTROL_SIZE_CLASS[controlSize]}`;
 
-  const revealPadding = controlSize === "compact" ? "pr-10" : "pr-12";
+  const revealPadding = controlSize === "default" ? "pr-12" : "pr-10";
   const control = (
     <input
       ref={ref}

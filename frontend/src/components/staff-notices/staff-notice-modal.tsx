@@ -289,10 +289,8 @@ export function StaffNoticeModal({
             days={WEEKDAYS}
             value={form.weekdays}
             onToggle={toggleWeekday}
+            hint="Ohne Auswahl gilt der Hinweis an jedem Tag des Zeitraums."
           />
-          <p className="mt-1 text-xs text-gray-500">
-            Ohne Auswahl gilt der Hinweis an jedem Tag des Zeitraums.
-          </p>
         </div>
 
         <label

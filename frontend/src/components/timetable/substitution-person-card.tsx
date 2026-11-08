@@ -10,6 +10,7 @@ import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
+import { FieldLabel } from "~/components/ui/field-label";
 import { Radio } from "~/components/ui/radio";
 
 import {
@@ -55,7 +56,7 @@ function PersonIdentity({ row, person, name }: PersonHeaderProps) {
       >
         {name}
       </div>
-      <div className="mt-0.5 flex items-center gap-1.5 text-[11px]">
+      <div className="mt-0.5 flex items-center gap-1.5 text-xs">
         <span
           className={
             person.absent
@@ -334,21 +335,21 @@ interface SubstituteHintProps {
 function SubstituteHint(props: SubstituteHintProps) {
   if (props.unstaffed) {
     return (
-      <p className="mt-1 text-[11px] text-gray-400">
+      <p className="mt-1 text-xs text-gray-400">
         Der Termin ist bewusst unbesetzt. Deshalb ist keine Vertretung möglich.
       </p>
     );
   }
   if (!props.scopeReady) {
     return (
-      <p className="mt-1 text-[11px] text-gray-500">
+      <p className="mt-1 text-xs text-gray-500">
         Wählen Sie zuerst die Termine.
       </p>
     );
   }
   if (props.fullyCovered) {
     return (
-      <p className="mt-1 text-[11px] text-gray-400">
+      <p className="mt-1 text-xs text-gray-400">
         Der Termin ist bereits vollständig vertreten. Wählen Sie zuerst
         „Entfernen“.
       </p>
@@ -356,7 +357,7 @@ function SubstituteHint(props: SubstituteHintProps) {
   }
   if (props.staffLoadError && !props.hasOptions) {
     return (
-      <p className="text-moto-red-strong mt-1 text-[11px]">
+      <p className="text-moto-red-strong mt-1 text-xs">
         Die Personalliste konnte nicht geladen werden. Laden Sie die Seite neu.
       </p>
     );
@@ -368,9 +369,7 @@ function SubstitutePicker(props: PersonCardProps) {
   const { person, name, canEdit, substituteOptions, onUpdate } = props;
   return (
     <div>
-      <span className="mb-1 block text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
-        Vertretung für {name}
-      </span>
+      <FieldLabel className="mb-1">Vertretung für {name}</FieldLabel>
       {canEdit ? (
         <CustomSelect
           value={person.substituteId}

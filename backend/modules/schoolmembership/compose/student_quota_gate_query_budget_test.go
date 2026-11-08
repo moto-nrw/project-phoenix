@@ -66,7 +66,7 @@ func TestStudentQuotaClassGateQueryBudget(t *testing.T) {
 				}
 				queries := counter.Queries()
 				classLocks := counter.Matching(func(q string) bool { return strings.HasPrefix(q, "select pg_advisory_xact_lock_shared(") })
-				require.Len(t, classLocks, 2, "retain the cancellation error boundary before the quota lock")
+				require.Len(t, classLocks, 1, "reuse the held class gate before the quota lock")
 				classIndex := slices.IndexFunc(queries, func(q string) bool {
 					return strings.HasPrefix(strings.ToLower(q), "select pg_advisory_xact_lock_shared(")
 				})
@@ -75,7 +75,7 @@ func TestStudentQuotaClassGateQueryBudget(t *testing.T) {
 				require.Less(t, classIndex, quotaIndex, "the first class gate must still precede the quota lock")
 				require.Len(t, counter.Selects("platform.schools"), 1, "read the real quota owner, not a quota double")
 				require.Len(t, counter.Selects("users.student_school_memberships"), 2, "retain the before and after quota observations")
-				assertStudentQuotaClassGateBudget(t, operation, queries)
+				assertStudentQuotaClassGateBudget(t, operation, counter.Measurement(queries))
 				people := api.NewPeopleRepositorySuiteFactory(testpkg.MustDatabase(db))
 				for i, id := range ids {
 					student, err := people.Student.FindByID(ctx, id)
@@ -98,7 +98,7 @@ func TestStudentQuotaClassGateQueryBudget(t *testing.T) {
 	}
 }
 
-func assertStudentQuotaClassGateBudget(t *testing.T, operation string, queries []string) {
+func assertStudentQuotaClassGateBudget(t *testing.T, operation string, queries querybudgets.Measurement) {
 	t.Helper()
 	switch operation {
 	case "renew":

@@ -43,7 +43,7 @@ func TestStudentImportLinkedPhoneGrowthQueryBudget(t *testing.T) {
 			requireNoRowErrors(t, result)
 			require.Equal(t, 1, result.UpdatedCount)
 			t.Logf("linked guardians=%d statements=%d phone_reads=%d", n, counter.Total(), len(counter.Selects("users.guardian_phone_numbers")))
-			querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.linked_phones", counter.Queries())
+			querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.linked_phones", counter.Measurement(counter.Queries()))
 			require.Len(t, counter.Selects("users.guardian_phone_numbers"), 1, "reuse the ID-set phone read of ListStudentGuardians")
 			after := countImportRows(t, db, testpkg.Tenant(t))
 			require.Equal(t, before.guardians, after.guardians)

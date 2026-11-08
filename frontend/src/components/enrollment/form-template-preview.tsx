@@ -19,6 +19,8 @@ import type {
   FormField,
   FormLegalBlock,
 } from "~/lib/enrollment-form-schema-api";
+import { InsetPanel } from "~/components/ui/inset-panel";
+import { TileCard } from "~/components/ui/tile-card";
 import { legalBlockPreviewText } from "~/lib/enrollment-legal-blocks";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 
@@ -68,32 +70,32 @@ export function PreviewLinkCard({
 }>) {
   if (href) {
     return (
-      <a
-        href={href}
-        target="_blank"
-        rel="noreferrer"
-        className="moto-content-surface moto-hover-elevated flex items-start gap-3 rounded-2xl border p-3 text-left focus-visible:outline-2 focus-visible:outline-gray-400"
-      >
+      <TileCard href={href} newTab className="flex items-start gap-3">
         <PreviewLinkCardContent description={description} />
-      </a>
+      </TileCard>
     );
   }
   if (onClick) {
     return (
-      <button
-        type="button"
-        onClick={onClick}
-        className="moto-content-surface moto-hover-elevated flex w-full items-start gap-3 rounded-2xl border p-3 text-left focus-visible:outline-2 focus-visible:outline-gray-400"
-      >
+      <TileCard onClick={onClick} className="flex items-start gap-3">
         <PreviewLinkCardContent description={description} />
-      </button>
+      </TileCard>
     );
   }
   return (
-    <div className="moto-content-surface flex items-start gap-3 rounded-2xl border p-3 text-left opacity-70">
+    <InsetPanel
+      tone="white"
+      padding="sm"
+      className="flex items-start gap-3 opacity-70"
+    >
       <PreviewLinkCardContent description={description} />
-    </div>
+    </InsetPanel>
   );
+}
+
+/** Dative after „in“: „1 Anmeldephase“, „3 Anmeldephasen“. */
+export function anmeldephasen(count: number): string {
+  return `${count} Anmeldephase${count === 1 ? "" : "n"}`;
 }
 
 export function FormPreview({
@@ -168,6 +170,7 @@ export function FormPreview({
       <PreviewSection title="Kind" fields={coreFieldLabels("child")} />
       <PreviewSection
         title="Betreuungsangebot"
+        description="Die Angebote legen Sie in der Anmeldephase fest. Eltern sehen sie über den Link der Phase."
         fields={["Gewünschtes Angebot", "Betreuungstage"]}
       />
 
@@ -194,10 +197,7 @@ export function FormPreview({
             {enabledLegalBlocks.map((block) => {
               const previewText = legalBlockPreviewText(block);
               return (
-                <div
-                  key={block.key}
-                  className="rounded-lg border border-gray-200 bg-white px-3 py-2"
-                >
+                <InsetPanel key={block.key} tone="white" padding="compact">
                   <div className="flex items-start gap-2.5">
                     <span
                       className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
@@ -241,7 +241,7 @@ export function FormPreview({
                       ) : null}
                     </div>
                   </div>
-                </div>
+                </InsetPanel>
               );
             })}
           </div>
@@ -263,7 +263,7 @@ function getPreviewStatus({
   if (assignedPhaseCount > 0) {
     return {
       label: "In Phase verwendet",
-      hint: `Diese Vorlage ist in ${assignedPhaseCount} Anmeldephase ausgewählt.`,
+      hint: `Diese Vorlage ist in ${anmeldephasen(assignedPhaseCount)} ausgewählt.`,
       tone: "green",
     };
   }

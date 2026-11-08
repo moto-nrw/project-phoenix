@@ -14,6 +14,7 @@ type intakeSettingsFake struct {
 	collectSchoolClass   bool
 	careOfferingsEnabled bool
 	gradeLevelMax        int
+	careFacilityTerm     string
 	duplicateHandling    string
 	legal                LegalSettings
 	legalErr             error
@@ -52,6 +53,10 @@ func (f intakeSettingsFake) CareOfferingsEnabled(context.Context) (bool, error) 
 
 func (f intakeSettingsFake) GradeLevelMax(context.Context) (int, error) {
 	return f.gradeLevelMax, f.errFor[settingGradeLevelMax]
+}
+
+func (f intakeSettingsFake) CareFacilityTerm(context.Context) (string, error) {
+	return f.careFacilityTerm, f.errFor[settingCareFacilityTerm]
 }
 
 func (f intakeSettingsFake) LegalSettings(context.Context) (LegalSettings, error) {

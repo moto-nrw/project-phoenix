@@ -2,5 +2,6 @@
   "scenario": "api.workforce.work_time_models.detail",
   "max": 5,
   "exact": true,
-  "description": "GET /api/work-time-models/{id}: real protected tenant resource and Workforce owner composition. Complete capture: BEGIN, combined tenant role/config, one scoped model SELECT, one ordered entry SELECT and COMMIT. Exact at 0, 3 and 8 nested entries across two rotation weeks, including present/omitted clocks, totals, foreign-tenant exclusion, no DML, notifications or row locks. Listener and outer process middleware are outside scope."
+  "description": "GET /api/work-time-models/{id}: real protected tenant resource and Workforce owner composition. Complete capture: BEGIN, combined tenant role/config, one scoped model SELECT, one ordered entry SELECT and COMMIT. Exact at 0, 3 and 8 nested entries across two rotation weeks, including present/omitted clocks, totals, foreign-tenant exclusion, no DML, notifications or row locks. Listener and outer process middleware are outside scope.",
+  "route": "GET /api/work-time-models/{id}"
 }

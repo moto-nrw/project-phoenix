@@ -156,7 +156,7 @@ func TestTraegerAccountHistoryIsPagedAndFlat(t *testing.T) {
 			require.NoError(t, err)
 		}
 	}
-	read := func(before int64) ([]string, traegerHistoryAnswer) {
+	read := func(before int64) (testpkg.QueryMeasurement, traegerHistoryAnswer) {
 		counter := testpkg.CaptureQueriesForContext(t, db)
 		path := "/traeger/accounts/history"
 		if before > 0 {
@@ -165,16 +165,16 @@ func TestTraegerAccountHistoryIsPagedAndFlat(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, path, nil)
 		req.Header.Set("Authorization", "Bearer "+session.AccessToken)
 		rec := httptest.NewRecorder()
-		router.ServeHTTP(rec, req.WithContext(counter.Context(req.Context())))
+		testpkg.MeasuredHTTPRequest(counter, router, rec, req.WithContext(counter.Context(req.Context())))
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		return counter.Selects(""), decodeSchoolPortalData[traegerHistoryAnswer](t, rec.Body.Bytes())
+		return counter.Measurement(counter.Selects("")), decodeSchoolPortalData[traegerHistoryAnswer](t, rec.Body.Bytes())
 	}
 
 	ledger(leader.ID, 3)
 	few, _ := read(0)
 	ledger(second.ID, identityaccess.TraegerAccountHistoryPageSize)
 	many, first := read(0)
-	assert.Len(t, many, len(few), "the history reads the same statements for any number of entries and people")
+	assert.Len(t, many.Statements, len(few.Statements), "the history reads the same statements for any number of entries and people")
 	querybudgets.AssertQueryBudget(t, "api.traeger.accounts.history", few)
 
 	require.Len(t, first.Entries, identityaccess.TraegerAccountHistoryPageSize)

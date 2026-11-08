@@ -783,7 +783,7 @@ func TestCalendarServiceIntegration_StaffCalDAVUsesSharedReadOnlyProjectionAndTo
 	queryCounter := testpkg.CaptureQueriesForContext(t, db)
 	calendar, err := service.AuthenticateStaffCalDAV(queryCounter.Context(testpkg.Ctx(t)), strings.ToUpper(account.Email), access.CalDAV.AppPassword)
 	require.NoError(t, err)
-	querybudgets.AssertQueryBudget(t, "services.calendar.caldav_snapshot", queryCounter.Queries())
+	querybudgets.AssertQueryBudget(t, "services.calendar.caldav_snapshot", queryCounter.Measurement(queryCounter.Queries()))
 	require.NotEmpty(t, calendar.Items)
 	assert.Equal(t, testpkg.Tenant(t), calendar.TenantID)
 

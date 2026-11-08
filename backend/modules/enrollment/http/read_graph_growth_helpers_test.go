@@ -16,7 +16,7 @@ import (
 
 // History and public case lists must neither mark requests read nor mutate
 // records or consume sequences, including through a database-side effect.
-func growthReadOnlyGET(t *testing.T, f *enrollmentGrowthFixture, router http.Handler, counter *testpkg.QueryCounter, token, path string) (json.RawMessage, []string) {
+func growthReadOnlyGET(t *testing.T, f *enrollmentGrowthFixture, router http.Handler, counter *testpkg.QueryCounter, token, path string) (json.RawMessage, testpkg.QueryMeasurement) {
 	t.Helper()
 	before := enrollmentReadState(t, f)
 	req := httptest.NewRequest(http.MethodGet, path, nil)
@@ -25,7 +25,7 @@ func growthReadOnlyGET(t *testing.T, f *enrollmentGrowthFixture, router http.Han
 	}
 	rec := httptest.NewRecorder()
 	counter.Reset()
-	router.ServeHTTP(rec, req)
+	testpkg.MeasuredHTTPRequest(counter, testpkg.MountedQueryBudgetRouter("/api/enrollment", router), rec, req)
 	queries := counter.Queries()
 	require.Equal(t, before, enrollmentReadState(t, f), "read graph changed database state")
 	for _, query := range queries {
@@ -33,6 +33,7 @@ func growthReadOnlyGET(t *testing.T, f *enrollmentGrowthFixture, router http.Han
 		require.False(t, strings.HasPrefix(upper, "INSERT ") || strings.HasPrefix(upper, "UPDATE ") || strings.HasPrefix(upper, "DELETE ") || strings.Contains(upper, "NEXTVAL("), query)
 	}
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
 	// A private, opt-in complete wire capture supports the implementation's
 	// baseline/candidate replay; ordinary runs need no artifact directory.
 	if dir := os.Getenv("PHX_ENROLLMENT_READ_CAPTURE"); dir != "" {
@@ -57,7 +58,7 @@ func growthReadOnlyGET(t *testing.T, f *enrollmentGrowthFixture, router http.Han
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
 	require.NotEmpty(t, body.Data)
-	return body.Data, queries
+	return body.Data, counter.Measurement(queries)
 }
 
 func enrollmentReadState(t *testing.T, f *enrollmentGrowthFixture) map[string]string {

@@ -138,9 +138,11 @@ func TestAllDefinitions(t *testing.T) {
 func TestDefinitionValidate_OptionsOnNonSelect(t *testing.T) {
 	t.Parallel()
 
+	// Text fields take presets since #6042 (TestDefinitionValidate_TextPresets);
+	// every other non-select type still refuses options.
 	def := Definition{
-		Key:      "test.opts_on_text",
-		Type:     FieldText,
+		Key:      "test.opts_on_number",
+		Type:     FieldNumber,
 		Tab:      "general",
 		Category: "test",
 		Options: &SelectOptions{
@@ -404,4 +406,39 @@ func TestAllDefinitions_DeepCopy(t *testing.T) {
 	// Original in registry should be unchanged
 	orig := registry.GetDefinition("test.copy")
 	assert.Equal(t, "Test Setting", orig.Label)
+}
+
+func textPresetDefinition(presets ...SelectOption) Definition {
+	pattern := `^[A-Z]+$`
+	return Definition{
+		Key:        "test.text_presets",
+		Type:       FieldText,
+		Default:    "OGS",
+		Tab:        "general",
+		Category:   "test",
+		Validation: &ValidationRules{Pattern: &pattern},
+		Options:    &SelectOptions{Static: presets},
+	}
+}
+
+// A text field may offer labelled presets like a colour field (#6042): the
+// presets are quick picks, never a restriction of the value.
+func TestDefinitionValidate_TextPresets(t *testing.T) {
+	t.Parallel()
+
+	valid := textPresetDefinition(SelectOption{Label: "OGS", Value: "OGS"}, SelectOption{Label: "GTS", Value: "GTS"})
+	assert.NoError(t, valid.Validate())
+
+	for name, def := range map[string]Definition{
+		"empty":            textPresetDefinition(),
+		"no label":         textPresetDefinition(SelectOption{Value: "OGS"}),
+		"not a string":     textPresetDefinition(SelectOption{Label: "OGS", Value: 17}),
+		"pattern mismatch": textPresetDefinition(SelectOption{Label: "Ogs", Value: "ogs"}),
+	} {
+		assert.Error(t, def.Validate(), name)
+	}
+
+	textarea := textPresetDefinition(SelectOption{Label: "OGS", Value: "OGS"})
+	textarea.Type = FieldTextarea
+	assert.Error(t, textarea.Validate(), "presets stay limited to single-line text and colour fields")
 }

@@ -307,7 +307,7 @@ func doTemplateJSON(t *testing.T, router http.Handler, method, path string, body
 		req.Header.Set("Content-Type", "application/json")
 	}
 	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
+	testpkg.MountedQueryBudgetRouter("/api/timetable", router).ServeHTTP(w, req)
 	return w
 }
 

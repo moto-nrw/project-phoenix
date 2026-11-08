@@ -8,6 +8,7 @@ import {
 } from "~/components/enrollment/form-field-builder";
 import type { ReservedTarget } from "~/components/enrollment/form-template-draft";
 import { Alert } from "~/components/ui/alert";
+import { SectionCard } from "~/components/ui/section-card";
 import { Button } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
@@ -183,7 +184,7 @@ export function BuilderTemplateSummary({
   ).length;
 
   return (
-    <section className="moto-content-surface rounded-2xl border p-4">
+    <SectionCard>
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_280px]">
         <div className="min-w-0">
           <h2 className="text-base font-semibold text-gray-900">
@@ -235,7 +236,7 @@ export function BuilderTemplateSummary({
           />
         </div>
       ) : null}
-    </section>
+    </SectionCard>
   );
 }
 
@@ -252,7 +253,7 @@ export function SignatureRequirementSection({
   disabled: boolean;
 }>) {
   return (
-    <section className="moto-content-surface rounded-2xl border p-5">
+    <SectionCard>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-base font-semibold text-gray-900">
@@ -276,7 +277,7 @@ export function SignatureRequirementSection({
           />
         </div>
       </div>
-    </section>
+    </SectionCard>
   );
 }
 

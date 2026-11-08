@@ -775,9 +775,20 @@ func (f *fakeApproveDecisionService) Decide(ctx context.Context, input capabilit
 	return &capability.DecideOutcome{}, nil
 }
 
+// LockApprovalGates is a no-op: the stub writes no gated state.
+func (f *fakeApproveDecisionService) LockApprovalGates(context.Context) error {
+	return nil
+}
+
 // ApplyDueClassSwitches is a no-op: the stub approves without planning a
 // class switch, so none can be due.
 func (f *fakeApproveDecisionService) ApplyDueClassSwitches(context.Context, calendar.Date) (int, error) {
+	return 0, nil
+}
+
+// ApplyDueWeeklyPlans is a no-op for the same reason: the stub plans no
+// weekly plan.
+func (f *fakeApproveDecisionService) ApplyDueWeeklyPlans(context.Context, calendar.Date) (int, error) {
 	return 0, nil
 }
 

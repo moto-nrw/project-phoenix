@@ -74,6 +74,7 @@ export function TraegerLetterheadPreview({
     : null;
 
   return (
+    // oxlint-disable-next-line ui-kit/no-hand-rolled-surface -- Nachbildung eines Briefbogens: Papierkante, Seitenrand und Schatten des Blatts, keine Karte
     <figure
       aria-label={label}
       className="mx-auto w-full max-w-2xl rounded-md border border-gray-200 bg-white p-6 text-sm text-gray-800 shadow-sm sm:p-10"

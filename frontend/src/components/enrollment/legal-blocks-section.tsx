@@ -28,6 +28,7 @@ import {
   fieldErrorProps,
 } from "~/components/enrollment/form-field-builder";
 import { Alert } from "~/components/ui/alert";
+import { SectionCard } from "~/components/ui/section-card";
 import { Button, buttonClassName } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
@@ -446,7 +447,7 @@ export function LegalBlocksSection({
   };
 
   return (
-    <section className="moto-content-surface rounded-2xl border p-5">
+    <SectionCard>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-base font-semibold text-gray-900">
@@ -596,7 +597,7 @@ export function LegalBlocksSection({
           Eigene Zustimmung hinzufügen
         </Button>
       </div>
-    </section>
+    </SectionCard>
   );
 }
 

@@ -3,6 +3,7 @@
 import { Lock } from "lucide-react";
 import { fieldTypeLabels } from "~/components/enrollment/form-field-builder";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { SectionCard } from "~/components/ui/section-card";
 import { Switch } from "~/components/ui/switch";
 import type {
   CoreRequirementKey,
@@ -110,7 +111,7 @@ export function CoreFieldsSection({
   ] satisfies ReadonlyArray<{ title: string; fields: CoreField[] }>;
 
   return (
-    <section className="moto-content-surface rounded-2xl border p-5">
+    <SectionCard>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-base font-semibold text-gray-900">
@@ -138,7 +139,7 @@ export function CoreFieldsSection({
           />
         ))}
       </div>
-    </section>
+    </SectionCard>
   );
 }
 

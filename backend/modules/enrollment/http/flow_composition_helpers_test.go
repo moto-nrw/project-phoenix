@@ -47,6 +47,13 @@ func (s notificationModeSettings) NotifyPerDecision(ctx context.Context) (string
 	return s.settings.ResolveString(ctx, settingKeyNotifyPerDecision)
 }
 
+func (s notificationModeSettings) CareFacilityTerm(ctx context.Context) (string, error) {
+	if s.settings == nil {
+		return "", nil
+	}
+	return s.settings.ResolveString(ctx, settingKeyCareFacilityTerm)
+}
+
 // collectionSettings reads the grade and class collection toggles from a
 // suite's settings double; a double without the class-collection lock
 // skips it.

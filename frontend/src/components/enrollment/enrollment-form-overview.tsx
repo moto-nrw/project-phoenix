@@ -74,9 +74,13 @@ export function EnrollmentFormsOverview({
       {/* Karte als Flex-Spalte und das Raster darin `flex-1`: wächst die
           Karte bis zur Unterkante, läuft die graue Seitenspalte mit bis
           dorthin, statt über dem Kartenrand zu enden. */}
-      <section className="moto-content-surface flex flex-col overflow-hidden rounded-2xl border">
+      <SectionCard
+        padding="none"
+        className="flex flex-col"
+        bodyClassName="flex min-h-0 flex-1 flex-col"
+      >
         <div className="grid flex-1 gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
-          <div className="space-y-6 p-5 sm:p-6">
+          <div className="compact:p-4 space-y-6 p-5 max-sm:p-4">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 className="text-base font-semibold text-gray-900">
@@ -125,14 +129,14 @@ export function EnrollmentFormsOverview({
             </section>
           </div>
 
-          <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 sm:p-6 lg:border-t-0 lg:border-l">
+          <aside className="moto-dotted-background moto-dotted-background--split compact:p-4 border-t border-gray-100 p-5 max-sm:p-4 lg:border-t-0 lg:border-l">
             <OverviewGuide
               templateCount={templates.length}
               assignedTemplateCount={assignedTemplateCount}
             />
           </aside>
         </div>
-      </section>
+      </SectionCard>
     </div>
   );
 }
@@ -153,7 +157,7 @@ function TemplateOverviewList({
   onDelete: (schema: FormSchema) => void;
 }>) {
   return (
-    <div className="moto-content-surface overflow-hidden rounded-2xl border">
+    <SectionCard padding="none">
       <div className="divide-y divide-gray-100">
         <BaseTemplateOverviewRow />
         {templates.map((schema) => (
@@ -170,7 +174,7 @@ function TemplateOverviewList({
           />
         ))}
       </div>
-    </div>
+    </SectionCard>
   );
 }
 

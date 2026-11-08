@@ -34,11 +34,12 @@ import (
 // /traeger/contract-templates and withdrawal and termination at
 // /traeger/contract-notices (#4682).
 func mountCareContractRoutes(root chi.Router, organizations HolidayOrganizations, settings TraegerBrandingSettings,
-	schoolSettings CareContractSchoolSettings, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender, parentsURL string) {
+	schoolSettings CareContractSchoolSettings, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender,
+	addressees carecontract.NoticeAddressees, parentsURL string) {
 	resource := NewCareContractHTTP(organizations, settings, schoolSettings, delivery, outcomes, accessLog, parentsURL)
 	root.Mount("/traeger/contracts", resource.ContractRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/contract-templates", resource.TemplateRouter(ProtectedTraegerRoutes))
-	mountCareContractNoticeRoutes(root, organizations, settings, schoolSettings, delivery, outcomes, accessLog, parentsURL)
+	mountCareContractNoticeRoutes(root, organizations, settings, schoolSettings, delivery, outcomes, accessLog, addressees, parentsURL)
 	// The one-time link of a contract mail (#4679), without an account.
 	signing := careContractCompose.NewSigning(careContractSignaturePorts(organizations, settings, delivery, outcomes, parentsURL))
 	root.Mount("/public/care-contract-signing", careContractHTTP.NewSigningResource(signing).PublicRouter())
@@ -90,6 +91,7 @@ func careContractPorts(organizations HolidayOrganizations, settings TraegerBrand
 		Letterheads: letterheads, Post: owners.CareContractPost{Delivery: delivery, Outcomes: outcomes},
 		Runtime: owners.CareContractRuntime{}, Access: careContractAccessLog{log: accessLog},
 		Ledger: owners.NewCareContractSignatures(), Links: owners.CareContractLinks(parentsURL),
+		Notices: owners.CareContractDocumentNotices{Delivery: delivery},
 	}, careContractCompose.IntakePorts{
 		Schools: careContractSchools{organizations: organizations}, Applications: careContractApplications{applications: enrollmentCompose.NewContractApplications(securityruntime.Fingerprint)},
 		Bookings: careContractBookings{offerings: carePlanCompose.NewContractOfferings(), bookings: carePlanCompose.NewOfferingBookings()},
@@ -263,6 +265,10 @@ func (l careContractAccessLog) RecordAccess(ctx context.Context, access carecont
 	case carecontract.SchoolAccessContracts:
 		resource = auditModels.ResourceTypeCareContracts
 		metadata["contract_ids"] = access.ContractIDs
+	case carecontract.SchoolAccessChanges:
+		resource = auditModels.ResourceTypeCareContractChanges
+		metadata["contract_ids"] = access.ContractIDs
+		metadata["student_ids"] = access.StudentIDs
 	case carecontract.SchoolAccessOverruns:
 		resource = auditModels.ResourceTypeCareTimeOverruns
 		metadata["student_ids"] = access.StudentIDs

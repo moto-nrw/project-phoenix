@@ -180,6 +180,12 @@ const (
 	// window; metadata carries the view, the row count and the student IDs.
 	// One row per school and read.
 	ResourceTypeCareTimeOverruns = "care_time_overruns"
+	// ResourceTypeCareContractChanges records the Träger-Büro reading or
+	// deciding the change of the booked care the parents of a contract's
+	// child asked for (#5979): the requested modules and days. StudentID is
+	// NULL; metadata carries the view (read, approve, reject), the row count,
+	// the contract IDs and the student IDs. One row per read or decision.
+	ResourceTypeCareContractChanges = "care_contract_changes"
 	// ResourceTypeTraegerDocumentDownload records the Träger-Büro
 	// downloading one of its shared documents (#4692, ADR 0084 section 7):
 	// written at each school the document reaches through an active release,

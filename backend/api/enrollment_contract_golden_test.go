@@ -167,7 +167,7 @@ func checkPhaseResponseQueryBudget(t *testing.T, api *goldenRuntime) {
 	countedHandler := api.queryBudgetHandler(counter)
 	type queryRun struct {
 		total     []string
-		overview  []string
+		overview  testpkg.QueryMeasurement
 		settings  []string
 		responded int
 	}
@@ -195,7 +195,7 @@ func checkPhaseResponseQueryBudget(t *testing.T, api *goldenRuntime) {
 		}
 		return queryRun{
 			total:     total,
-			overview:  overview,
+			overview:  counter.Measurement(overview),
 			settings:  counter.Selects("config.setting_values"),
 			responded: payload.Data.Responded,
 		}
@@ -225,8 +225,8 @@ func checkPhaseResponseQueryBudget(t *testing.T, api *goldenRuntime) {
 		}
 		return count
 	}
-	require.Equal(t, 1, countRolloverSourceQueries(small.overview), "the shallow rollover chain must use one source query")
-	require.Equal(t, 1, countRolloverSourceQueries(large.overview), "a deeper rollover chain must not add source queries")
+	require.Equal(t, 1, countRolloverSourceQueries(small.overview.Statements), "the shallow rollover chain must use one source query")
+	require.Equal(t, 1, countRolloverSourceQueries(large.overview.Statements), "a deeper rollover chain must not add source queries")
 	querybudgets.AssertQueryBudget(t, "api.enrollment.phase_responses.list", large.overview)
 }
 

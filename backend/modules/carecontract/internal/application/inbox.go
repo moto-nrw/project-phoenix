@@ -14,16 +14,25 @@ import (
 // portal supplies the schools and children its relationship checks permit.
 type Inbox struct {
 	store Store
+	// InboxNotices is the store's check for the push of a sent contract
+	// (#5941): it records no read, so it needs no layer of its own.
+	carecontract.InboxNotices
+	carecontract.DocumentPushValidity
 }
 
-var _ carecontract.Inbox = (*Inbox)(nil)
+var (
+	_ carecontract.Inbox        = (*Inbox)(nil)
+	_ carecontract.InboxNotices = (*Inbox)(nil)
+)
 
-// NewInbox builds the contracts of the parents' inbox.
-func NewInbox(store Store) *Inbox {
+func NewInbox(store interface {
+	Store
+	carecontract.DocumentPushValidity
+}) *Inbox {
 	if store == nil {
 		panic("care contract: the store is required")
 	}
-	return &Inbox{store: store}
+	return &Inbox{store: store, InboxNotices: store, DocumentPushValidity: store}
 }
 
 // InboxContracts lists the sent contracts addressed to the reader and
@@ -45,10 +54,8 @@ func (in *Inbox) InboxContracts(ctx context.Context, organizationID int64, reade
 	for i, contract := range contracts {
 		ids[i] = contract.ID
 	}
-	if err := in.store.InsertEvents(ctx, organizationID, []Event{{
-		AccountID: reader.AccountID, Action: ActionRead, Details: map[string]any{"inbox": "list", "contract_ids": ids},
-	}}); err != nil {
-		return nil, fmt.Errorf("care contract: record inbox read: %w", err)
+	if err := trail(ctx, in.store, organizationID, reader.AccountID, 0, 0, ActionRead, map[string]any{"inbox": "list", "contract_ids": ids}); err != nil {
+		return nil, err
 	}
 	return contracts, nil
 }
@@ -73,11 +80,8 @@ func (in *Inbox) InboxContractDocument(ctx context.Context, organizationID, cont
 			return carecontract.File{}, err
 		}
 	}
-
-	if err := in.store.InsertEvents(ctx, organizationID, []Event{{
-		ContractID: &contractID, AccountID: reader.AccountID, Action: ActionRead, Details: map[string]any{"inbox": "download"},
-	}}); err != nil {
-		return carecontract.File{}, fmt.Errorf("care contract: record inbox read: %w", err)
+	if err := trail(ctx, in.store, organizationID, reader.AccountID, contractID, 0, ActionRead, map[string]any{"inbox": "download"}); err != nil {
+		return carecontract.File{}, err
 	}
 	return file, nil
 }

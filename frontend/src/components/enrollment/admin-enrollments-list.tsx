@@ -26,6 +26,8 @@ import {
   listAdminRequests,
 } from "~/lib/enrollment-admin-api";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { SectionCard } from "~/components/ui/section-card";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { listPhases, type Phase } from "~/lib/enrollment-phase-api";
 import { listCareOfferings } from "~/lib/care-offering-api";
 import {
@@ -315,23 +317,13 @@ function ChangeRequestsOverview({
   const openCount = pending.length + waitingForParent.length;
 
   return (
-    <section className="moto-content-surface rounded-2xl border p-4 sm:p-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex gap-3">
-          <ConceptIconTile
-            concept={parentConversationsConcept}
-            size="section"
-          />
-          <div>
-            <h2 className="text-base font-semibold text-gray-900">
-              Änderungsanfragen
-            </h2>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-              Familien können nach einer Entscheidung Korrekturen einreichen.
-              Offene Anfragen prüfen Sie gesammelt im Anfragen-Modul.
-            </p>
-          </div>
-        </div>
+    <SectionCard
+      title="Änderungsanfragen"
+      description="Familien können nach einer Entscheidung Korrekturen einreichen. Offene Anfragen prüfen Sie gesammelt im Anfragen-Modul."
+      leading={
+        <ConceptIconTile concept={parentConversationsConcept} size="section" />
+      }
+      action={
         <ButtonLink
           href={tenantPath("/anfragen")}
           variant="primary"
@@ -341,11 +333,12 @@ function ChangeRequestsOverview({
           Anfragen prüfen
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
         </ButtonLink>
-      </div>
+      }
+    >
       {failed ? (
-        <LoadErrorAlert error={error} className="mt-4" />
+        <LoadErrorAlert error={error} />
       ) : (
-        <div className="mt-4 grid gap-2 sm:grid-cols-3">
+        <div className="grid gap-2 sm:grid-cols-3">
           <StatCard variant="inline" label="Offen" value={pending.length} />
           <StatCard
             variant="inline"
@@ -363,7 +356,7 @@ function ChangeRequestsOverview({
           description="Aktuell wartet keine Änderungsanfrage auf Bearbeitung."
         />
       ) : null}
-    </section>
+    </SectionCard>
   );
 }
 
@@ -420,7 +413,7 @@ function EnrollmentPhaseOverview({
 
   if (phases.length === 0) {
     return (
-      <section className="moto-content-surface rounded-2xl border p-4 sm:p-6">
+      <SectionCard>
         {/* Leerzustand als EmptyState statt als loser Textblock mit Button. */}
         <EmptyState
           title="Noch keine Anmeldephase"
@@ -436,26 +429,17 @@ function EnrollmentPhaseOverview({
             </ButtonLink>
           }
         />
-      </section>
+      </SectionCard>
     );
   }
 
   return (
-    <section
+    <SectionCard
       id="enrollment-phase-overview"
-      className="moto-content-surface rounded-2xl border p-4 sm:p-6"
-    >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h2 className="text-base font-semibold text-gray-900">
-            Anmeldephasen und Eingänge
-          </h2>
-          <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-            Wählen Sie eine Phase aus, um die eingegangenen Anmeldungen zu
-            prüfen und zu bearbeiten.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+      title="Anmeldephasen und Eingänge"
+      description="Wählen Sie eine Phase aus, um die eingegangenen Anmeldungen zu prüfen und zu bearbeiten."
+      actions={
+        <>
           <ButtonLink
             href={tenantPath("/anmeldung")}
             target="_blank"
@@ -475,10 +459,10 @@ function EnrollmentPhaseOverview({
           >
             Anmeldephasen verwalten
           </ButtonLink>
-        </div>
-      </div>
-
-      <div className="mt-4 grid gap-3 lg:grid-cols-2">
+        </>
+      }
+    >
+      <div className="grid gap-3 lg:grid-cols-2">
         {sortedPhases.map((phase) => {
           const stats = phaseStats.get(phase.id) ?? {
             total: 0,
@@ -487,10 +471,7 @@ function EnrollmentPhaseOverview({
             rejected: 0,
           };
           return (
-            <article
-              key={phase.id}
-              className="moto-content-surface rounded-2xl border p-4"
-            >
+            <InsetPanel key={phase.id} tone="white" padding="md">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
@@ -531,11 +512,11 @@ function EnrollmentPhaseOverview({
                   value={stats.rejected}
                 />
               </div>
-            </article>
+            </InsetPanel>
           );
         })}
       </div>
-    </section>
+    </SectionCard>
   );
 }
 
@@ -726,7 +707,7 @@ function EnrollmentSetupGuide({
   const contentExpanded = !setupComplete || expanded;
 
   return (
-    <section className="moto-content-surface overflow-hidden rounded-2xl border">
+    <SectionCard padding="none">
       {setupComplete && (
         <button
           type="button"
@@ -901,7 +882,7 @@ function EnrollmentSetupGuide({
                   </ButtonLink>
                 ) : null}
 
-                <div className="moto-content-surface rounded-2xl border p-3">
+                <InsetPanel tone="white">
                   <p className="text-xs font-semibold text-gray-900">
                     Prozessstatus
                   </p>
@@ -927,7 +908,7 @@ function EnrollmentSetupGuide({
                       </NavigationLink>
                     ))}
                   </div>
-                </div>
+                </InsetPanel>
 
                 <div className="text-xs leading-relaxed text-gray-500">
                   Für den Elternlink sind Aktivierung, Anmeldephase und
@@ -940,7 +921,7 @@ function EnrollmentSetupGuide({
           </div>
         </div>
       </div>
-    </section>
+    </SectionCard>
   );
 }
 
@@ -967,7 +948,7 @@ function StepMeta({
         : "text-gray-500";
   return (
     <span
-      className={`inline-flex items-center gap-1.5 text-[11px] font-medium whitespace-nowrap ${className}`}
+      className={`inline-flex items-center gap-1.5 text-xs font-medium whitespace-nowrap ${className}`}
     >
       {label}
     </span>

@@ -31,6 +31,7 @@ import {
   quoteHolidayContribution,
 } from "~/lib/holiday-registration-api";
 import { createLogger } from "~/lib/logger";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 import {
   quoteAgeRanks,
   quoteBookings,
@@ -61,7 +62,7 @@ export function HolidayRegistrationContribution({
   const t = useTranslations("holidayRegistration");
   // The upload control speaks with the texts of the online registration's
   // uploads (#4783).
-  const uploadText = useTranslations("enrollmentForm");
+  const uploadText = useCareTermTranslations("enrollmentForm");
   const locale = useLocale();
   const proofField = useMemo<FormField>(
     () => ({

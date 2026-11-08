@@ -27,6 +27,7 @@ import {
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
+import { SectionCard } from "~/components/ui/section-card";
 import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
 import {
   absenceRowLabel,
@@ -258,7 +259,7 @@ export function StaffAbsenceRequestList({
     return (
       <>
         {revalidationError}
-        <div className="moto-content-surface overflow-hidden rounded-2xl border">
+        <SectionCard padding="none">
           <RequestRowHeader view="history" />
           {rows.map((row) => (
             <RequestReviewCard
@@ -285,7 +286,7 @@ export function StaffAbsenceRequestList({
               )}
             </RequestReviewCard>
           ))}
-        </div>
+        </SectionCard>
       </>
     );
   }
@@ -293,7 +294,7 @@ export function StaffAbsenceRequestList({
   return (
     <>
       {revalidationError}
-      <div className="moto-content-surface rounded-2xl border p-4 sm:p-5">
+      <SectionCard>
         <ul className="divide-y divide-gray-100">
           {rows.map((row) => (
             <AbsenceRequestRow
@@ -331,7 +332,7 @@ export function StaffAbsenceRequestList({
             }}
           />
         )}
-      </div>
+      </SectionCard>
     </>
   );
 }

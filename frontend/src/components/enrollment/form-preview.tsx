@@ -11,6 +11,8 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { RequiredMark } from "~/components/ui/field-label";
+import { InsetPanel } from "~/components/ui/inset-panel";
+import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import type {
   FormAttachment,
@@ -25,28 +27,31 @@ export interface PreviewFieldLabel {
 
 export function PreviewSection({
   title,
+  description,
   fields,
 }: Readonly<{
   title: string;
+  /** One line under the title: where the shown answers come from. */
+  description?: string;
   fields: readonly (string | PreviewFieldLabel)[];
 }>) {
   return (
     <section>
       <h4 className="text-sm font-semibold text-gray-900">{title}</h4>
+      {description ? (
+        <p className="mt-1 text-xs leading-5 text-gray-500">{description}</p>
+      ) : null}
       <div className="mt-3 grid gap-2">
         {fields.map((entry) => {
           const field = typeof entry === "string" ? { label: entry } : entry;
           return (
-            <div
-              key={field.label}
-              className="rounded-lg border border-gray-200 bg-white px-3 py-2"
-            >
+            <InsetPanel key={field.label} tone="white" padding="compact">
               <span className="block text-sm font-medium text-gray-500">
                 {field.label}
                 {field.required && <RequiredMark />}
               </span>
               <span className="mt-1 block h-2 w-2/3 rounded-full bg-gray-100" />
-            </div>
+            </InsetPanel>
           );
         })}
       </div>
@@ -102,7 +107,7 @@ function PreviewCustomField({
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white px-3 py-2">
+    <InsetPanel tone="white" padding="compact">
       <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
         <span className="min-w-0 text-sm font-medium break-words text-gray-900">
           {field.label.trim() || "Neue Zusatzfrage"}
@@ -121,7 +126,7 @@ function PreviewCustomField({
         </p>
       ) : null}
       <PreviewInput field={field} />
-    </div>
+    </InsetPanel>
   );
 }
 
@@ -142,6 +147,7 @@ function PreviewInput({ field }: Readonly<{ field: FormField }>) {
   if (field.type === "select") {
     const firstOption = field.options?.[0]?.label ?? "Bitte wählen";
     return (
+      // oxlint-disable-next-line ui-kit/no-hand-rolled-surface -- Nachbildung eines Auswahlfelds in der Formularvorschau, keine Fläche; trägt den Radius der Bedienelemente (#6137)
       <div className="mt-3 flex h-10 items-center justify-between rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-500 shadow-sm">
         <span className="min-w-0 truncate">{firstOption}</span>
         <ChevronDown
@@ -189,7 +195,7 @@ export function FormPreviewFrame({
   return (
     <div className={sticky ? "sticky top-6 space-y-4" : "space-y-4"}>
       {header}
-      <div className="moto-content-surface overflow-hidden rounded-2xl border">
+      <SectionCard padding="none">
         <div className="border-b border-gray-100 px-4 py-4">
           <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
           <p className="mt-1 text-sm leading-6 text-gray-500">{intro}</p>
@@ -201,7 +207,7 @@ export function FormPreviewFrame({
             {submitLabel}
           </Button>
         </div>
-      </div>
+      </SectionCard>
     </div>
   );
 }

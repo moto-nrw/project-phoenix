@@ -118,7 +118,7 @@ func (s *Service) sharedDocumentAccess(ctx context.Context, accountID int64) (sh
 		return sharedAccess{}, errors.New("parent: shared documents are not configured")
 	}
 	var access sharedAccess
-	err := s.billingDocumentAccess(ctx, accountID, func(adminCtx context.Context, children []*ChildSummary) error {
+	err := s.accountDocumentAccess(ctx, accountID, func(adminCtx context.Context, children []*ChildSummary) error {
 		groups, err := s.permittedSchoolGroups(adminCtx, children)
 		if err != nil || len(groups) == 0 {
 			return err

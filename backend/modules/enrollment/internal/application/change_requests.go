@@ -208,6 +208,7 @@ func (s *ChangeRequests) Approve(ctx context.Context, changeRequestID int64, inp
 	return publicCase(s.review(ctx, changeRequestID, input, reviewOutcome{
 		status:    enrollmentNative.ChangeRequestStatusApproved,
 		emailKind: enrollmentNative.MailKindChangeRequestApproved,
+		gates:     s.lockApprovalGates,
 		apply:     s.applyApprovedChange,
 	}))
 }
@@ -371,7 +372,7 @@ func (s *ChangeRequests) askQuestion(ctx context.Context, changeRequestID int64,
 		return nil, enrollmentNative.InvalidInput(enrollmentNative.CodeMessageRequired, "body", fmt.Errorf("%w: message body is required", enrollmentNative.ErrChangeRequestInvalidData))
 	}
 	var req *Request
-	if err := s.withLockedChangeRequest(ctx, changeRequestID, func(txCtx context.Context, row *ChangeRequest) error {
+	if err := s.withLockedChangeRequest(ctx, changeRequestID, nil, func(txCtx context.Context, row *ChangeRequest) error {
 		if row.Status != enrollmentNative.ChangeRequestStatusPendingReview {
 			return enrollmentNative.ErrChangeRequestInvalidStatus
 		}
@@ -396,15 +397,18 @@ func (s *ChangeRequests) askQuestion(ctx context.Context, changeRequestID int64,
 	return s.loadAggregate(ctx, changeRequestID, true)
 }
 
-// reviewOutcome parameterizes the shared approve/reject flow. apply, when
-// set, changes the request inside the locked transaction before the change
-// request is marked reviewed. noteRequired refuses an empty note with
-// noteRequiredMsg; without it an empty note stores no note and no message.
+// reviewOutcome parameterizes the shared approve/reject flow. gates, when
+// set, takes the tenant gates in the transaction before the request row lock.
+// apply, when set, changes the request inside the locked transaction before
+// the change request is marked reviewed. noteRequired refuses an empty note
+// with noteRequiredMsg; without it an empty note stores no note and no
+// message.
 type reviewOutcome struct {
 	noteRequired    bool
 	noteRequiredMsg string
 	status          string
 	emailKind       string
+	gates           func(ctx context.Context) error
 	apply           func(ctx context.Context, row *ChangeRequest, input enrollmentNative.ReviewChangeRequestInput) ([]enrollmentNative.ChildRosterImpact, error)
 }
 
@@ -415,7 +419,7 @@ func (s *ChangeRequests) review(ctx context.Context, changeRequestID int64, inpu
 	}
 	var req *Request
 	var impacts []enrollmentNative.ChildRosterImpact
-	if err := s.withLockedChangeRequest(ctx, changeRequestID, func(txCtx context.Context, row *ChangeRequest) error {
+	if err := s.withLockedChangeRequest(ctx, changeRequestID, outcome.gates, func(txCtx context.Context, row *ChangeRequest) error {
 		var reviewErr error
 		req, impacts, reviewErr = s.reviewLockedChangeRequest(txCtx, row, input, outcome, note)
 		return reviewErr
@@ -587,8 +591,10 @@ func (s *ChangeRequests) formCapabilities(ctx context.Context, pinnedCareOfferin
 
 // withLockedChangeRequest runs fn on the locked change request in its
 // tenant's transaction. It locks the parent request first, the order the
-// cleanup and every edit flow take, so the two cannot deadlock.
-func (s *ChangeRequests) withLockedChangeRequest(ctx context.Context, id int64, fn func(context.Context, *ChangeRequest) error) error {
+// cleanup and every edit flow take, so the two cannot deadlock. gates, when
+// set, runs before that lock: the global order is class-writes, recurrence,
+// row locks (ADR 0162).
+func (s *ChangeRequests) withLockedChangeRequest(ctx context.Context, id int64, gates func(context.Context) error, fn func(context.Context, *ChangeRequest) error) error {
 	row, err := s.readChangeRequest(ctx, id, false)
 	if err != nil && !s.deps.Runtime.NotFound(err) {
 		return err
@@ -597,18 +603,33 @@ func (s *ChangeRequests) withLockedChangeRequest(ctx context.Context, id int64, 
 		return enrollmentNative.ErrChangeRequestNotFound
 	}
 	return s.deps.Runtime.TenantTx(ctx, row.TenantID, func(txCtx context.Context) error {
-		if _, err := s.requestByID(txCtx, row.RequestID, true); err != nil {
+		locked, err := s.lockChangeRequest(txCtx, row.RequestID, id, gates)
+		if err != nil {
 			return err
-		}
-		locked, err := s.readChangeRequest(txCtx, id, true)
-		if err != nil && !s.deps.Runtime.NotFound(err) {
-			return err
-		}
-		if err != nil || locked == nil {
-			return enrollmentNative.ErrChangeRequestNotFound
 		}
 		return fn(txCtx, locked)
 	})
+}
+
+// lockChangeRequest takes the gates, then the parent request and the change
+// request row, in the tenant transaction.
+func (s *ChangeRequests) lockChangeRequest(ctx context.Context, requestID, id int64, gates func(context.Context) error) (*ChangeRequest, error) {
+	if gates != nil {
+		if err := gates(ctx); err != nil {
+			return nil, err
+		}
+	}
+	if _, err := s.requestByID(ctx, requestID, true); err != nil {
+		return nil, err
+	}
+	locked, err := s.readChangeRequest(ctx, id, true)
+	if err != nil && !s.deps.Runtime.NotFound(err) {
+		return nil, err
+	}
+	if err != nil || locked == nil {
+		return nil, enrollmentNative.ErrChangeRequestNotFound
+	}
+	return locked, nil
 }
 
 func (s *ChangeRequests) loadAggregate(ctx context.Context, id int64, includeInternal bool) (*changeRequestCase, error) {

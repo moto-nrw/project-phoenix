@@ -48,7 +48,7 @@ func TestPublicCalendarFeedPositiveGrowthQueryBudget(t *testing.T) {
 		counter := testpkg.CaptureQueries(t, db)
 		rec := httptest.NewRecorder()
 		router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/public/calendar/"+feedToken, nil))
-		queries := counter.Queries()
+		queries := counter.Measurement(counter.Queries())
 		counter.Stop()
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 		require.Equal(t, "text/calendar; charset=utf-8", rec.Header().Get("Content-Type"))
@@ -56,7 +56,7 @@ func TestPublicCalendarFeedPositiveGrowthQueryBudget(t *testing.T) {
 		for i := range n {
 			require.Contains(t, rec.Body.String(), fmt.Sprintf("SUMMARY:Feed growth %d", i))
 		}
-		t.Logf("public calendar staff-token N%d statements=%d", n, len(queries))
+		t.Logf("public calendar staff-token N%d statements=%d", n, len(queries.Statements))
 		querybudgets.AssertQueryBudget(t, "api.calendar.public_feed.staff", queries)
 	}
 }
@@ -110,7 +110,7 @@ func TestSchoolCalendarConferenceDetailPositiveGrowthQueryBudget(t *testing.T) {
 		}
 		counter := testpkg.CaptureQueries(t, db)
 		rec := doJSON(t, router, http.MethodGet, "/school/calendar/parent-conferences/"+initial.Data.ID, token, nil)
-		queries := counter.Queries()
+		queries := counter.Measurement(counter.Queries())
 		counter.Stop()
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 		var out struct {
@@ -129,7 +129,7 @@ func TestSchoolCalendarConferenceDetailPositiveGrowthQueryBudget(t *testing.T) {
 			}
 		}
 		require.ElementsMatch(t, wantIDs, gotIDs)
-		t.Logf("school calendar conference bookings N%d statements=%d", n, len(queries))
+		t.Logf("school calendar conference bookings N%d statements=%d", n, len(queries.Statements))
 		querybudgets.AssertQueryBudget(t, "api.school.calendar.parent_conference_detail", queries)
 	}
 }

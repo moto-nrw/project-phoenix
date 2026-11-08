@@ -5,29 +5,25 @@
 
 import { apiErrorFromResponse, transportFetch } from "./api-error";
 import type { SignatureValue } from "./signature";
+import type { CareContractStatus, Weekday } from "./traeger-care-contracts-api";
 
-/** One booked service of the contract: weekday, module and its end time. */
 export interface SigningService {
-  readonly weekday: string;
+  readonly weekday: Weekday;
   readonly moduleName: string;
   readonly endsAt: string;
   readonly lastDay: string | null;
 }
 
-/** The signature after signing, as the parents see it. */
 interface SigningSignature {
-  readonly method: "drawn" | "typed";
+  readonly method: "drawn" | "typed" | "paper";
   readonly signerName: string;
   readonly signedAt: string;
   readonly earlyStartRequested: boolean;
   readonly withdrawalEndsOn: string | null;
 }
 
-/** A care contract to read and sign. */
 export interface SigningView {
-  readonly contractId: string;
-  readonly organizationId: string;
-  readonly status: string;
+  readonly status: CareContractStatus;
   readonly traegerName: string;
   readonly partyName: string;
   readonly childName: string;
@@ -43,9 +39,7 @@ export interface SigningView {
 }
 
 interface BackendSigningView {
-  contract_id: number | string;
-  organization_id: number | string;
-  status: string;
+  status: CareContractStatus;
   traeger_name: string;
   party_name: string;
   version: {
@@ -57,7 +51,7 @@ interface BackendSigningView {
     ends_on: string | null;
     price_cents: number | null;
     services: {
-      weekday: string;
+      weekday: Weekday;
       module_name: string;
       ends_at: string;
       last_day: string | null;
@@ -66,7 +60,7 @@ interface BackendSigningView {
   document_sha256: string;
   withdrawal_notice: string[] | null;
   signature: {
-    method: "drawn" | "typed";
+    method: SigningSignature["method"];
     signer_name: string;
     signed_at: string;
     early_start_requested: boolean;
@@ -74,12 +68,9 @@ interface BackendSigningView {
   } | null;
 }
 
-/** Maps the backend view to the camelCase view the screens read. */
 function mapSigningView(raw: BackendSigningView): SigningView {
   const version = raw.version;
   return {
-    contractId: String(raw.contract_id),
-    organizationId: String(raw.organization_id),
     status: raw.status,
     traegerName: raw.traeger_name,
     partyName: raw.party_name,
@@ -109,8 +100,7 @@ function mapSigningView(raw: BackendSigningView): SigningView {
   };
 }
 
-/** What the parents confirm with their signature. */
-export interface SigningInput {
+interface SigningInput {
   readonly signature: SignatureValue;
   readonly noticeAcknowledged: boolean;
   readonly earlyStart: boolean;

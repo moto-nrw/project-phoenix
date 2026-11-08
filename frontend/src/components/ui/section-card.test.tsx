@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import type { CSSProperties } from "react";
 import userEvent from "@testing-library/user-event";
 import { createPortal } from "react-dom";
 import { describe, expect, it, vi } from "vitest";
@@ -348,4 +349,62 @@ describe("SectionCard titleSize", () => {
       ).toBeInTheDocument();
     },
   );
+});
+
+describe("SectionCard as und hoverElevated (#5594)", () => {
+  it("rendert als article mit Hover-Anhebung, ohne klickbar zu werden", () => {
+    render(
+      <SectionCard as="article" hoverElevated testId="serie">
+        Serie
+      </SectionCard>,
+    );
+
+    const card = screen.getByRole("article");
+    expect(card).toBe(screen.getByTestId("serie"));
+    expect(card).toHaveClass(
+      "moto-content-surface",
+      "rounded-2xl",
+      "moto-hover-elevated",
+    );
+    expect(screen.queryByRole("button")).toBeNull();
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
+  it("bleibt ohne Angaben ein Abschnitt ohne Hover-Anhebung", () => {
+    render(<SectionCard testId="abschnitt">Inhalt</SectionCard>);
+
+    const card = screen.getByTestId("abschnitt");
+    expect(card.tagName).toBe("SECTION");
+    expect(card).not.toHaveClass("moto-hover-elevated");
+  });
+
+  it("hebt eine bare Karte nicht an", () => {
+    render(
+      <SectionCard bare hoverElevated testId="bare">
+        Inhalt
+      </SectionCard>,
+    );
+
+    expect(screen.getByTestId("bare")).not.toHaveClass("moto-hover-elevated");
+  });
+});
+
+// #6182: Ein Raster liest seine Spaltenvorlage aus CSS-Variablen der Karte;
+// ohne `style` baute das Wochenraster seine Kartenfläche selbst.
+describe("SectionCard style", () => {
+  it("reicht style an die Kartenfläche durch", () => {
+    render(
+      <SectionCard
+        testId="raster"
+        padding="none"
+        style={{ "--day-grid-cols": "repeat(5, 1fr)" } as CSSProperties}
+      >
+        Raster
+      </SectionCard>,
+    );
+
+    expect(
+      screen.getByTestId("raster").style.getPropertyValue("--day-grid-cols"),
+    ).toBe("repeat(5, 1fr)");
+  });
 });

@@ -62,6 +62,7 @@ import {
 } from "~/components/enrollment/translations-section";
 import { BackAction } from "~/components/ui/back-link";
 import { Button } from "~/components/ui/button";
+import { SectionCard } from "~/components/ui/section-card";
 import {
   FormErrorAlert,
   LoadErrorAlert,
@@ -753,8 +754,8 @@ export function EnrollmentFormEditor({
     <DraftDocumentContext.Provider value={draftDocuments.lifecycle}>
       <FieldErrorContext.Provider value={fieldError}>
         <div ref={builderRef} className="flex flex-col space-y-5">
-          <section className="moto-content-surface overflow-hidden rounded-2xl border">
-            <div className="border-b border-gray-100 px-5 py-3 sm:px-6">
+          <SectionCard padding="none">
+            <div className="compact:px-4 border-b border-gray-100 px-5 py-3 max-sm:px-4">
               <BackAction
                 onClick={requestBackToOverview}
                 disabled={locked}
@@ -762,7 +763,7 @@ export function EnrollmentFormEditor({
               />
             </div>
             <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_430px]">
-              <div className="space-y-6 p-5 sm:p-6">
+              <div className="compact:p-4 space-y-6 p-5 max-sm:p-4">
                 {/* Ein Neuladen nach dem Speichern kann scheitern; der Entwurf
                 bleibt dann stehen. */}
                 <LoadErrorAlert error={loadError} />
@@ -905,7 +906,7 @@ export function EnrollmentFormEditor({
                 </section>
               </div>
 
-              <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 sm:p-6 lg:border-t-0 lg:border-l">
+              <aside className="moto-dotted-background moto-dotted-background--split compact:p-4 border-t border-gray-100 p-5 max-sm:p-4 lg:border-t-0 lg:border-l">
                 <FormPreview
                   fields={fields}
                   coreRequirements={coreRequirements}
@@ -929,7 +930,7 @@ export function EnrollmentFormEditor({
                 />
               </aside>
             </div>
-          </section>
+          </SectionCard>
           <UnsavedChangesDialog
             pendingNavigation={pendingNavigation}
             saving={locked}

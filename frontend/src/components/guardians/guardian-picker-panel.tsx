@@ -203,7 +203,7 @@ export default function GuardianPickerPanel({
       {selected ? (
         <div className="space-y-3">
           {/* Chosen person (read-only) */}
-          <div className="rounded-lg border border-gray-200 bg-white p-3">
+          <InsetPanel tone="white">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold text-gray-900">
@@ -232,7 +232,7 @@ export default function GuardianPickerPanel({
                 Andere wählen
               </Button>
             </div>
-          </div>
+          </InsetPanel>
 
           {/* Relationship for THIS child only (shared with the guardian form) */}
           <RelationshipTypeSelect

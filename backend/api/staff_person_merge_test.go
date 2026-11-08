@@ -106,7 +106,7 @@ func newStaffMergeHarness(t *testing.T) staffMergeHarness {
 func (h staffMergeHarness) request(t *testing.T, method string, schoolID int64, body any) *httptest.ResponseRecorder {
 	t.Helper()
 	req := testutil.NewAuthenticatedRequest(t, method, fmt.Sprintf("/%d", schoolID), body, testutil.WithClaims(t, sessiontoken.AppClaims{ID: int(h.operatorID), Scope: "platform"}))
-	return testutil.ExecuteRequest(h.router, req)
+	return testutil.ExecuteRequest(testpkg.MountedQueryBudgetRouter("/operator/staff-person-merges", h.router), req)
 }
 func (h staffMergeHarness) preview(t *testing.T) []staffpersonmerge.Candidate {
 	t.Helper()
@@ -712,7 +712,7 @@ func TestStaffPersonMergePreviewUsesTwoBulkReads(t *testing.T) {
 	}
 	counter := testpkg.CaptureQueriesForContext(t, h.db)
 	req := testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/%d", h.schoolID), nil, testutil.WithClaims(t, sessiontoken.AppClaims{ID: int(h.operatorID), Scope: "platform"}))
-	rr := testutil.ExecuteRequest(h.router, req.WithContext(counter.Context(req.Context())))
+	rr := testutil.ExecuteRequest(testpkg.MountedQueryBudgetRouter("/operator/staff-person-merges", h.router), req.WithContext(counter.Context(req.Context())))
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
-	querybudgets.AssertQueryBudget(t, "api.operator.staff_person_merge.preview", counter.Selects(""))
+	querybudgets.AssertQueryBudget(t, "api.operator.staff_person_merge.preview", counter.Measurement(counter.Selects("")))
 }

@@ -326,20 +326,20 @@ func TestHolidayHostParticipantListQueryBudgetIsFlat(t *testing.T) {
 	f := newHolidayHostFixture(t, "Träger Ausrichtung Budget")
 	host := f.staffOf(t, f.office.schools[0], permissions.ConfigRead)
 	week := f.offer.Weeks[0].ID
-	read := func(path string) []string {
+	read := func(path string) testpkg.QueryMeasurement {
 		counter := testpkg.CaptureQueriesForContext(t, f.db)
 		req := httptest.NewRequest(http.MethodGet, "/api/holiday-weeks"+path, nil)
 		req.Header.Set("Authorization", "Bearer "+host)
 		rec := httptest.NewRecorder()
-		f.school.ServeHTTP(rec, req.WithContext(counter.Context(req.Context())))
+		testpkg.MeasuredHTTPRequest(counter, f.school, rec, req.WithContext(counter.Context(req.Context())))
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-		return counter.Selects("")
+		return counter.Measurement(counter.Selects(""))
 	}
 	participants := fmt.Sprintf("/%d/participants", week)
 	oneWeek, oneList := read("/"), read(participants)
 	f.confirm(t, f.siblings, "confirm")
-	assert.Len(t, read("/"), len(oneWeek), "the weeks read the same statements for any number of children")
-	assert.Len(t, read(participants), len(oneList), "the list reads the same statements for any number of children")
+	assert.Len(t, read("/").Statements, len(oneWeek.Statements), "the weeks read the same statements for any number of children")
+	assert.Len(t, read(participants).Statements, len(oneList.Statements), "the list reads the same statements for any number of children")
 	querybudgets.AssertQueryBudget(t, "api.holiday_weeks.list", oneWeek)
 	querybudgets.AssertQueryBudget(t, "api.holiday_weeks.participants", oneList)
 }

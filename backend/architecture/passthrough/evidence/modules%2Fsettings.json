@@ -37,6 +37,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (v EnrollmentIntakeValues) CareFacilityTerm(ctx context.Context) (string, error) {\n\treturn v.source.ResolveString(ctx, configModel.KeyEnrollmentCareFacilityTerm)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/EnrollmentIntakeValues.CareFacilityTerm",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
       "evidence": "func (v EnrollmentIntakeValues) CareOfferingsEnabled(ctx context.Context) (bool, error) {\n\treturn v.source.ResolveBool(ctx, configModel.KeyEnrollmentCareOfferingsEnabled)\n}",
       "form": "unclassified-evidence",
       "id": "modules/settings/EnrollmentIntakeValues.CareOfferingsEnabled",

@@ -2,5 +2,6 @@
   "scenario": "api.active.mappings.group",
   "max": 4,
   "exact": true,
-  "description": "GET /api/active/mappings/group/{groupId} through setupProtectedRouter with real owner stores, permissions and TenantTx. One session with 0/1/3/8 legal mappings: one current combination and 2/7 distinct ended combinations, plus unrelated-session, foreign-tenant and missing-ID controls. Four complete request statements for successful responses. Valid signed fixture claims, not cold production login/auth cost."
+  "description": "GET /api/active/mappings/group/{groupId} through setupProtectedRouter with real owner stores, permissions and TenantTx. One session with 0/1/3/8 legal mappings: one current combination and 2/7 distinct ended combinations, plus unrelated-session, foreign-tenant and missing-ID controls. Four complete request statements for successful responses. Valid signed fixture claims, not cold production login/auth cost.",
+  "route": "GET /api/active/mappings/group/{groupId}"
 }

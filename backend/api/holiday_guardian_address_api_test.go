@@ -318,7 +318,7 @@ func TestReleasedBillingRunCopiesTheAddressIntoTheInvoice(t *testing.T) {
 	rec = traegerJSON(t, f.traeger, billing, http.MethodGet, billingRunPath(run.ID, "/export?format=csv"), nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	lines := strings.Split(strings.TrimSpace(strings.TrimPrefix(rec.Body.String(), "\xEF\xBB\xBF")), "\n")
-	assert.Equal(t, "Rechnungsnummer;Empfänger;Straße und Hausnummer;PLZ;Ort;Kind;Position;Betrag in Euro", strings.TrimSpace(lines[0]))
+	assert.Equal(t, "Rechnungsnummer;Empfänger;Straße und Hausnummer;PLZ;Ort;Kind;Position;Betrag in Euro;Zahlungsweg;Fällig am", strings.TrimSpace(lines[0]))
 	assert.Contains(t, rec.Body.String(), ";Muster, Eva;Musterweg 12;01234;Bissendorf;")
 	rec = traegerJSON(t, f.traeger, billing, http.MethodGet, billingRunPath(run.ID, "/export?format=xlsx"), nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())

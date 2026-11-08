@@ -6,17 +6,20 @@ import (
 	"io"
 	"os"
 	"runtime"
+
+	"github.com/moto-nrw/project-phoenix/architecture/querybudget"
 )
 
 // Test names retain fixture-size subtests when several calls share a scenario.
 type budgetReport struct {
-	Scenario            string         `json:"scenario"`
-	Test                string         `json:"test"`
-	Actual              int            `json:"actual"`
-	Max                 int            `json:"max"`
-	Exact               bool           `json:"exact"`
-	DuplicateStatements map[string]int `json:"duplicate_statements"`
-	Statements          []string       `json:"statements,omitempty"`
+	Route               querybudget.Routes `json:"route,omitempty"`
+	Scenario            string             `json:"scenario"`
+	Test                string             `json:"test"`
+	Actual              int                `json:"actual"`
+	Max                 int                `json:"max"`
+	Exact               bool               `json:"exact"`
+	DuplicateStatements map[string]int     `json:"duplicate_statements"`
+	Statements          []string           `json:"statements,omitempty"`
 }
 
 type feedbackTB interface {

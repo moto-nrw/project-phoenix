@@ -78,6 +78,6 @@ func TestWorkforce20AllowancePreviewGrowth(t *testing.T) {
 			}
 			require.Equal(t, float64(days), row.BookingDays)
 		}
-		querybudgets.AssertQueryBudget(t, "workforce.workforce20.allowance_preview", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "workforce.workforce20.allowance_preview", counter.Measurement(counter.Queries()))
 	}
 }

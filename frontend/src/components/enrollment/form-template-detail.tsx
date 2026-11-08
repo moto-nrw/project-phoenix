@@ -5,9 +5,12 @@ import { GuideStep } from "~/components/enrollment/enrollment-form-overview";
 import {
   FormPreview,
   PreviewLinkCard,
+  anmeldephasen,
   useTemplatePreviewHref,
 } from "~/components/enrollment/form-template-preview";
 import { BackAction } from "~/components/ui/back-link";
+import { InsetPanel } from "~/components/ui/inset-panel";
+import { SectionCard } from "~/components/ui/section-card";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { StatCard } from "~/components/ui/stat-card";
@@ -40,13 +43,17 @@ export function FormTemplateDetail({
   return (
     // Flex-Spalte, siehe die Übersicht derselben Seite.
     <div className="flex flex-col space-y-5">
-      <section className="moto-content-surface flex flex-col overflow-hidden rounded-2xl border">
+      <SectionCard
+        padding="none"
+        className="flex flex-col"
+        bodyClassName="flex min-h-0 flex-1 flex-col"
+      >
         <div className="grid flex-1 gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
           <div>
-            <div className="border-b border-gray-100 px-5 py-3 sm:px-6">
+            <div className="compact:px-4 border-b border-gray-100 px-5 py-3 max-sm:px-4">
               <BackAction onClick={onBack} label="Zurück zur Übersicht" />
             </div>
-            <div className="space-y-5 p-5 sm:p-6">
+            <div className="compact:p-4 space-y-5 p-5 max-sm:p-4">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <h2 className="text-xl font-semibold text-gray-900">
@@ -113,7 +120,7 @@ export function FormTemplateDetail({
             </div>
           </div>
 
-          <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 sm:p-6 lg:border-t-0 lg:border-l">
+          <aside className="moto-dotted-background moto-dotted-background--split compact:p-4 border-t border-gray-100 p-5 max-sm:p-4 lg:border-t-0 lg:border-l">
             <div className="sticky top-6 space-y-4">
               <div>
                 <h2 className="text-base font-semibold text-gray-900">
@@ -123,7 +130,7 @@ export function FormTemplateDetail({
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-gray-600">
                   {assignedPhases.length > 0
-                    ? `Diese Vorlage ist in ${assignedPhases.length} Anmeldephase ausgewählt.`
+                    ? `Diese Vorlage ist in ${anmeldephasen(assignedPhases.length)} ausgewählt.`
                     : "Eine Vorlage wird erst für Eltern relevant, wenn sie in einer Anmeldephase ausgewählt ist. Ohne Auswahl nutzt die Phase das Basisformular."}
                 </p>
               </div>
@@ -152,7 +159,7 @@ export function FormTemplateDetail({
                 description="Öffnet die Formularvorschau in einem neuen Tab."
               />
 
-              <div className="moto-content-surface rounded-2xl border p-4">
+              <InsetPanel tone="white" padding="md">
                 <h3 className="text-sm font-semibold text-gray-900">Status</h3>
                 <div className="mt-4 space-y-3">
                   <GuideStep
@@ -176,11 +183,11 @@ export function FormTemplateDetail({
                     done={assignedPhases.length > 0}
                   />
                 </div>
-              </div>
+              </InsetPanel>
             </div>
           </aside>
         </div>
-      </section>
+      </SectionCard>
     </div>
   );
 }
