@@ -112,3 +112,43 @@ auf. Sie führt keinen Owner ein (ADR 0057 Punkt 5, ADR 0070).
 - Datenlebenszyklus und Aufbewahrung: je drei Einträge.
 - Query-Budgets `api.traeger.care_rules` und `api.traeger.care_evidences`.
 - Migration `1.15.807`.
+
+## Nachtrag 2026-11-08: Geschwisterpreis laut Preisliste (#6196)
+
+**Status: Vorgeschlagen.**
+
+Ispringen (SJR 2026/27) hat für jedes weitere Kind einen eigenen Preis je
+Modul und Wochentag, zum Beispiel Modul 2 Mo–Do 12,50 € und Fr 10,50 € statt
+16,00 € und 14,00 €. Ein fester Endpreis der Modulsumme (Punkt 4) bildet
+beliebige Tageskombinationen nicht ab.
+
+1. **Eine Preisquelle.** Der Geschwisterpreis steht in der Preisliste neben
+   dem Preis für das 1. Kind (`care_tariffs.sibling_cents`, je Wochentag oder
+   Staffelstufe, ADR 0158 Nachtrag #6196). Die Regel enthält keinen Preis.
+2. **Regelmodus statt Sonderweg.** Eine Geschwisterregel hat genau eine
+   Wirkung: Anteil, fester Abzug, fester Endpreis oder **Geschwisterpreis
+   laut Preisliste** (`tariff_sibling_price`). Ab dem Rang der Regel endet
+   jede Position eines Moduls der Regel bei ihrem Betrag zu
+   Geschwisterpreisen. Fehlt ein Geschwisterpreis, gilt der Preis für das
+   1. Kind. Der Abzug wird je Position gerechnet, nicht anteilig über die
+   Rechnung verteilt.
+3. **Reihenfolge der Kette bleibt:** Einkommensstufe → Geschwister →
+   Alleinerziehende → Höchstbetrag. Der Geschwisterpreis ist ein Endpreis:
+   Ein Einkommensabzug davor zählt auf ihn an, die Position fällt durch
+   beide zusammen nie unter den Geschwisterpreis. Alleinerziehende und
+   Höchstbetrag wirken danach wie bisher.
+4. **Reihenfolge der Kinder** wie Punkt 4: höchster Grundbeitrag (Preise für
+   das 1. Kind) der Regelmodule an den Zählschulen zuerst, bei Gleichstand
+   das ältere Kind, dann eine feste Reihenfolge. Je Schule und Monat gilt
+   höchstens eine Geschwisterregel; die Rangfolge entsteht damit einmal je
+   Regel und nie je Modul neu. Für Ispringen nennt die Regel keine Module.
+5. **Geltungsbereich je Standort** ist eine Einstellung der Regel
+   (Schulen und Zählschulen), nicht fest eingebaut. SJR zählt Ispringen und
+   Birkenfeld getrennt (Entscheidung 08.11., wartet auf Ute): je Standort
+   eine Regel ohne fremde Zählschulen.
+6. **Birkenfeld** bleibt bei 25 % ab dem 2. Kind (Anteil). Alternativ kann das
+   Büro die Geschwisterstufen der Staffel eintragen und den Modus „laut
+   Preisliste“ wählen; beide Wege ergeben dieselben Beträge (Golden-Test).
+7. Die ausgestellte Ermäßigung hält den Modus fest
+   (`care_invoice_reductions.tariff_sibling_price`); das Schreiben nennt
+   „Geschwisterpreis laut Preisliste“.

@@ -29,18 +29,19 @@ import { centsToEuroInput, euroInputToCents } from "./holiday-period-model";
 
 const logger = createLogger({ component: "CareRuleModal" });
 
-type Effect = "share" | "amount" | "price";
+type Effect = "share" | "amount" | "price" | "tariff";
 
 const EFFECT_LABELS: Record<Effect, string> = {
   share: "Anteil weniger",
   amount: "Betrag weniger",
   price: "Fester Preis",
+  tariff: "Preis laut Preisliste",
 };
 
 /** The effects a kind may have; a cap has only its amount. */
 const KIND_EFFECTS: Record<CareRuleKind, readonly Effect[]> = {
   income_level: ["share", "amount", "price"],
-  sibling: ["share", "amount", "price"],
+  sibling: ["share", "amount", "price", "tariff"],
   single_parent: ["share", "amount"],
   cap: [],
 };
@@ -65,6 +66,7 @@ interface Draft {
 }
 
 function effectOf(rule: CareRule): Effect {
+  if (rule.tariffSiblingPrice) return "tariff";
   if (rule.priceCents !== null) return "price";
   if (rule.discountCents !== null) return "amount";
   return "share";
@@ -215,7 +217,9 @@ export function CareRuleModal({
     }
     let basisPoints: number | null = null;
     let cents: number | null = null;
-    if (kind !== "cap" && draft.effect === "share") {
+    if (kind !== "cap" && draft.effect === "tariff") {
+      // The prices come from the price list; the rule carries none.
+    } else if (kind !== "cap" && draft.effect === "share") {
       basisPoints = percentToBasisPoints(draft.value);
       if (basisPoints === null) {
         fieldErrors.discount_basis_points =
@@ -253,6 +257,7 @@ export function CareRuleModal({
       discountCents: kind !== "cap" && draft.effect === "amount" ? cents : null,
       priceCents: kind !== "cap" && draft.effect === "price" ? cents : null,
       capCents: kind === "cap" ? cents : null,
+      tariffSiblingPrice: kind === "sibling" && draft.effect === "tariff",
     };
     setSaving(true);
     try {
@@ -450,21 +455,29 @@ export function CareRuleModal({
             />
           </div>
         ) : null}
-        <Input
-          id="care-rule-value"
-          name={valueField}
-          label={valueLabel}
-          required
-          inputMode="decimal"
-          value={draft.value}
-          hint={
-            kind === "sibling" && draft.effect === "price"
-              ? "Das Kind zahlt diesen Preis statt des Grundbeitrags."
-              : undefined
-          }
-          error={formErrors.fieldError(valueField)}
-          onChange={(event) => set({ value: event.target.value })}
-        />
+        {kind === "sibling" && draft.effect === "tariff" ? (
+          <p className="text-sm text-gray-600">
+            Jedes weitere Kind zahlt den Preis aus der Zeile „Jedes weitere
+            Kind“ der Preisliste, je Modul und Tag. Wo dort nichts steht, zahlt
+            es den Preis des 1. Kindes.
+          </p>
+        ) : (
+          <Input
+            id="care-rule-value"
+            name={valueField}
+            label={valueLabel}
+            required
+            inputMode="decimal"
+            value={draft.value}
+            hint={
+              kind === "sibling" && draft.effect === "price"
+                ? "Das Kind zahlt diesen Preis statt des Grundbeitrags."
+                : undefined
+            }
+            error={formErrors.fieldError(valueField)}
+            onChange={(event) => set({ value: event.target.value })}
+          />
+        )}
       </form>
     </FormModal>
   );

@@ -6,6 +6,7 @@
 
 import type {
   CareModule,
+  CarePriceForm,
   CareMonthRule,
   CareRunStatus,
   CareTariffs,
@@ -144,11 +145,14 @@ export function careSchools(data: CareTariffs): CareSchoolOption[] {
 /** The months a school has a price list from, oldest first. */
 export function priceStands(data: CareTariffs, schoolId: string): string[] {
   return [
-    ...new Set(
-      data.tariffs
+    ...new Set([
+      ...data.tariffs
         .filter((tariff) => tariff.schoolId === schoolId)
         .map((tariff) => tariff.validFrom),
-    ),
+      ...(data.lists ?? [])
+        .filter((list) => list.schoolId === schoolId)
+        .map((list) => list.validFrom),
+    ]),
   ].sort();
 }
 
@@ -161,18 +165,96 @@ export function standAt(stands: readonly string[], month: string): string {
   return started.at(-1) ?? stands[0] ?? "";
 }
 
-/** One module of a school with its price per weekday at a month. */
+/** The scale steps a form shows: 1 to 5 days per week. */
+export const SCALE_STEPS = [1, 2, 3, 4, 5] as const;
+
+/** "1 Tag" / "3 Tage". */
+export function daysLabel(days: number): string {
+  return days === 1 ? "1 Tag" : `${days} Tage`;
+}
+
+/** The two price forms as the price list names them (#6196). */
+export const PRICE_FORM_LABELS: Record<CarePriceForm, string> = {
+  weekday: "Preis je Wochentag",
+  days_per_week: "Staffel nach Tagen je Woche",
+};
+
+const MONTH_SHORT = [
+  "Jan",
+  "Feb",
+  "Mär",
+  "Apr",
+  "Mai",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Okt",
+  "Nov",
+  "Dez",
+] as const;
+
+/** "August" for 8. */
+export function monthName(month: number): string {
+  return MONTH_NAMES[month - 1] ?? "";
+}
+
+/** "Jan" for 1. */
+export function monthShort(month: number): string {
+  return MONTH_SHORT[month - 1] ?? "";
+}
+
+/** "August" / "Juli und August" / "Juli, August und Dezember". */
+export function freeMonthsLabel(months: readonly number[]): string {
+  const names = [...months].sort((a, b) => a - b).map(monthName);
+  if (names.length <= 1) return names.join("");
+  return `${names.slice(0, -1).join(", ")} und ${names.at(-1)}`;
+}
+
+/** The months the price list of a school at `month` bills nothing for. */
+export function freeMonthsAt(
+  data: CareTariffs,
+  schoolId: string,
+  month: string,
+): readonly number[] {
+  const lists = (data.lists ?? [])
+    .filter((list) => list.schoolId === schoolId && list.validFrom <= month)
+    .sort((a, b) => a.validFrom.localeCompare(b.validFrom));
+  return lists.at(-1)?.freeMonths ?? [];
+}
+
+/** One module of a school with its prices at a month. */
 export interface PriceRow {
   readonly careOfferingId: string;
   readonly moduleName: string;
   readonly endsAt: string;
   readonly contractCount: number;
   readonly bookedWeekdays: readonly CareWeekday[];
+  /** How the module is priced at the month. */
+  readonly form: CarePriceForm;
+  /** The price excludes the meal (the Mensa bills it). */
+  readonly mealExtra: boolean;
   /** Monthly price in cent per weekday; missing when none holds. */
   readonly prices: Partial<Record<CareWeekday, number>>;
+  /** Price for every further child per weekday; missing: as the first. */
+  readonly siblingPrices: Partial<Record<CareWeekday, number>>;
+  /** Monthly price in cent per number of days per week. */
+  readonly steps: Partial<Record<number, number>>;
+  /** Price for every further child per number of days. */
+  readonly siblingSteps: Partial<Record<number, number>>;
 }
 
-/** The modules of a school with the price of every weekday at `month`. */
+type Tariff = CareTariffs["tariffs"][number];
+
+function formOf(tariff: Tariff): CarePriceForm {
+  return (tariff.daysPerWeek ?? null) === null ? "weekday" : "days_per_week";
+}
+
+/**
+ * The modules of a school with their prices at `month`. A module has the
+ * form of its latest price that started by then; prices of the other form
+ * do not hold (as the monthly run reads them).
+ */
 export function priceRowsAt(
   data: CareTariffs,
   schoolId: string,
@@ -180,17 +262,32 @@ export function priceRowsAt(
 ): PriceRow[] {
   const modules = data.modules.filter((module) => module.schoolId === schoolId);
   return modules.map((module: CareModule) => {
+    const started = data.tariffs
+      .filter(
+        (tariff) =>
+          tariff.schoolId === schoolId &&
+          tariff.careOfferingId === module.careOfferingId &&
+          tariff.validFrom <= month &&
+          (tariff.validUntil === null || tariff.validUntil >= month),
+      )
+      .sort((a, b) => a.validFrom.localeCompare(b.validFrom));
+    const latest = started.at(-1);
+    const form: CarePriceForm = latest ? formOf(latest) : "weekday";
     const prices: Partial<Record<CareWeekday, number>> = {};
-    for (const tariff of data.tariffs) {
-      if (
-        tariff.schoolId !== schoolId ||
-        tariff.careOfferingId !== module.careOfferingId ||
-        tariff.validFrom > month ||
-        (tariff.validUntil !== null && tariff.validUntil < month)
-      ) {
-        continue;
+    const siblingPrices: Partial<Record<CareWeekday, number>> = {};
+    const steps: Partial<Record<number, number>> = {};
+    const siblingSteps: Partial<Record<number, number>> = {};
+    for (const tariff of started) {
+      if (formOf(tariff) !== form) continue;
+      const days = tariff.daysPerWeek ?? null;
+      const sibling = tariff.siblingCents ?? null;
+      if (days !== null) {
+        steps[days] = tariff.monthlyCents;
+        if (sibling !== null) siblingSteps[days] = sibling;
+      } else if (tariff.weekday !== "") {
+        prices[tariff.weekday] = tariff.monthlyCents;
+        if (sibling !== null) siblingPrices[tariff.weekday] = sibling;
       }
-      prices[tariff.weekday] = tariff.monthlyCents;
     }
     return {
       careOfferingId: module.careOfferingId,
@@ -198,7 +295,12 @@ export function priceRowsAt(
       endsAt: module.endsAt,
       contractCount: module.contractCount,
       bookedWeekdays: module.bookedWeekdays,
+      form,
+      mealExtra: latest?.mealExtra ?? false,
       prices,
+      siblingPrices,
+      steps,
+      siblingSteps,
     };
   });
 }
@@ -215,8 +317,16 @@ export function shownWeekdays(rows: readonly PriceRow[]): CareWeekday[] {
   );
 }
 
-/** The weekdays a row books that have no price at the month. */
-export function missingPrices(row: PriceRow): CareWeekday[] {
+/**
+ * What a row books without a price at the month: the weekdays ("sat"), or
+ * for a scale the steps up to the number of booked weekdays ("3 Tage").
+ */
+export function missingPrices(row: PriceRow): string[] {
+  if (row.form === "days_per_week") {
+    return Array.from({ length: row.bookedWeekdays.length }, (_, i) => i + 1)
+      .filter((days) => row.steps[days] === undefined)
+      .map(daysLabel);
+  }
   return row.bookedWeekdays.filter((day) => row.prices[day] === undefined);
 }
 

@@ -36,6 +36,11 @@ export interface CareRule {
   readonly discountCents: number | null;
   readonly priceCents: number | null;
   readonly capCents: number | null;
+  /**
+   * A sibling rule charges every further child the sibling prices of the
+   * price list (#6196) instead of a share, an amount or one price.
+   */
+  readonly tariffSiblingPrice?: boolean;
 }
 
 export type CareRuleInput = Omit<CareRule, "id">;
@@ -87,6 +92,7 @@ interface BackendRule {
   discount_cents: number | null;
   price_cents: number | null;
   cap_cents: number | null;
+  tariff_sibling_price?: boolean;
 }
 
 interface BackendModule {
@@ -151,6 +157,7 @@ function ruleFromBackend(rule: BackendRule): CareRule {
     discountCents: rule.discount_cents,
     priceCents: rule.price_cents,
     capCents: rule.cap_cents,
+    tariffSiblingPrice: rule.tariff_sibling_price ?? false,
   };
 }
 
@@ -214,6 +221,7 @@ function ruleBody(input: CareRuleInput) {
     discount_cents: input.discountCents,
     price_cents: input.priceCents,
     cap_cents: input.capCents,
+    tariff_sibling_price: input.tariffSiblingPrice ?? false,
   };
 }
 

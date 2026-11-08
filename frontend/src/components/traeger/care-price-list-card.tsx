@@ -1,7 +1,10 @@
 "use client";
 
-// Die Preisliste einer Schule (#4684): je Modul eine Zeile, je Wochentag der
-// Monatspreis, der im gewählten Monat gilt. Ein gebuchter Wochentag ohne
+// Die Preisliste einer Schule (#4684, #6196). Jedes Modul hat eine Preisform:
+// „Preis je Wochentag“ (der Monatsbeitrag ist die Summe der gebuchten Tage)
+// oder „Staffel nach Tagen je Woche“ (der Monatsbeitrag hängt nur von der
+// Zahl der gebuchten Tage ab). Je Preis steht darunter der Preis für jedes
+// weitere Kind, wenn das Büro einen eingetragen hat. Ein gebuchter Tag ohne
 // Preis ist markiert, denn das Kind kommt sonst nicht in den Monatslauf.
 
 import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
@@ -10,14 +13,21 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
+import { SectionLabel } from "~/components/ui/section-label";
+import { StatusBadge } from "~/components/ui/status-badge";
 import type { CareTariffs, CareWeekday } from "~/lib/traeger-care-billing-api";
 import {
   type PriceRow,
+  PRICE_FORM_LABELS,
+  SCALE_STEPS,
   WEEKDAY_LONG,
   WEEKDAY_SHORT,
   contractCountLabel,
+  daysLabel,
   endsAtLabel,
   formatMonth,
+  freeMonthsAt,
+  freeMonthsLabel,
   missingPrices,
   priceRowsAt,
   priceStands,
@@ -26,14 +36,25 @@ import {
 } from "./care-billing-format";
 import { formatEuro } from "./contribution-format";
 
-function priceCell(row: PriceRow, weekday: CareWeekday) {
-  const cents = row.prices[weekday];
+/** A price with the price for every further child under it. */
+function PriceCell({
+  cents,
+  sibling,
+  booked,
+}: Readonly<{ cents?: number; sibling?: number; booked: boolean }>) {
   if (cents !== undefined) {
     return (
-      <span className="text-gray-900 tabular-nums">{formatEuro(cents)}</span>
+      <span className="inline-flex flex-col items-end leading-tight">
+        <span className="text-gray-900 tabular-nums">{formatEuro(cents)}</span>
+        {sibling !== undefined && sibling !== cents ? (
+          <span className="text-xs text-gray-600 tabular-nums">
+            weitere {formatEuro(sibling)}
+          </span>
+        ) : null}
+      </span>
     );
   }
-  if (row.bookedWeekdays.includes(weekday)) {
+  if (booked) {
     return (
       <span className="text-moto-orange-strong font-medium">Preis fehlt</span>
     );
@@ -45,30 +66,51 @@ function priceCell(row: PriceRow, weekday: CareWeekday) {
   );
 }
 
-function columns(
+function moduleColumn(): DataTableColumn<PriceRow> {
+  return {
+    key: "module",
+    header: "Modul",
+    stacked: "title",
+    render: (row) => (
+      <div className="min-w-0">
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 font-medium text-gray-900">
+          {row.moduleName}
+          {row.mealExtra ? (
+            <StatusBadge
+              tone="blue"
+              size="xs"
+              label="Essen extra"
+              title="Der Preis enthält das Essen nicht. Das Essen rechnet die Mensa ab."
+            />
+          ) : null}
+        </p>
+        <p className="mt-0.5 text-xs text-gray-600">
+          {[
+            endsAtLabel(row.endsAt),
+            row.contractCount > 0
+              ? `${contractCountLabel(row.contractCount)} · ${weekdayList(row.bookedWeekdays)}`
+              : "Noch nicht gebucht",
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
+      </div>
+    ),
+  };
+}
+
+function weekdayColumns(
   weekdays: readonly CareWeekday[],
 ): DataTableColumn<PriceRow>[] {
+  const cell = (row: PriceRow, weekday: CareWeekday) => (
+    <PriceCell
+      cents={row.prices[weekday]}
+      sibling={row.siblingPrices[weekday]}
+      booked={row.bookedWeekdays.includes(weekday)}
+    />
+  );
   return [
-    {
-      key: "module",
-      header: "Modul",
-      stacked: "title",
-      render: (row) => (
-        <div className="min-w-0">
-          <p className="font-medium text-gray-900">{row.moduleName}</p>
-          <p className="mt-0.5 text-xs text-gray-600">
-            {[
-              endsAtLabel(row.endsAt),
-              row.contractCount > 0
-                ? `${contractCountLabel(row.contractCount)} · ${weekdayList(row.bookedWeekdays)}`
-                : "Noch nicht gebucht",
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          </p>
-        </div>
-      ),
-    },
+    moduleColumn(),
     ...weekdays.map((weekday): DataTableColumn<PriceRow> => ({
       key: weekday,
       header: WEEKDAY_SHORT[weekday],
@@ -77,10 +119,36 @@ function columns(
       stackedRender: (row) => (
         <span>
           <span className="text-gray-600">{WEEKDAY_LONG[weekday]}: </span>
-          {priceCell(row, weekday)}
+          {cell(row, weekday)}
         </span>
       ),
-      render: (row) => priceCell(row, weekday),
+      render: (row) => cell(row, weekday),
+    })),
+  ];
+}
+
+function scaleColumns(): DataTableColumn<PriceRow>[] {
+  const cell = (row: PriceRow, days: number) => (
+    <PriceCell
+      cents={row.steps[days]}
+      sibling={row.siblingSteps[days]}
+      booked={days <= row.bookedWeekdays.length}
+    />
+  );
+  return [
+    moduleColumn(),
+    ...SCALE_STEPS.map((days): DataTableColumn<PriceRow> => ({
+      key: `days-${days}`,
+      header: daysLabel(days),
+      align: "right",
+      stacked: "field",
+      stackedRender: (row) => (
+        <span>
+          <span className="text-gray-600">{daysLabel(days)} je Woche: </span>
+          {cell(row, days)}
+        </span>
+      ),
+      render: (row) => cell(row, days),
     })),
   ];
 }
@@ -105,8 +173,12 @@ export function CarePriceListCard({
   onDelete: (validFrom: string) => void;
 }>) {
   const stands = priceStands(data, school.id);
-  const rows = priceRowsAt(data, school.id, shownMonth || currentMonth);
-  const weekdays = shownWeekdays(rows);
+  const month = shownMonth || currentMonth;
+  const rows = priceRowsAt(data, school.id, month);
+  const weekdayRows = rows.filter((row) => row.form === "weekday");
+  const scaleRows = rows.filter((row) => row.form === "days_per_week");
+  const weekdays = shownWeekdays(weekdayRows);
+  const freeMonths = freeMonthsAt(data, school.id, month);
   const billedUntil = data.billedUntil[school.id];
   const gaps = rows.filter((row) => missingPrices(row).length > 0);
   const deletable = shownMonth !== "";
@@ -125,6 +197,9 @@ export function CarePriceListCard({
 
   const description = [
     stands.length === 0 ? "Noch keine Preise." : null,
+    freeMonths.length > 0
+      ? `Im ${freeMonthsLabel(freeMonths)} zahlen Familien keinen Beitrag.`
+      : null,
     billedUntil
       ? `Abgerechnet bis ${formatMonth(billedUntil)}. Preise, mit denen schon abgerechnet ist, bleiben. Fehlende Preise können Sie ergänzen.`
       : null,
@@ -132,10 +207,34 @@ export function CarePriceListCard({
     .filter(Boolean)
     .join(" ");
 
+  const table = (
+    groupRows: PriceRow[],
+    columns: DataTableColumn<PriceRow>[],
+    label: string,
+  ) =>
+    groupRows.length === 0 ? null : (
+      <div className="space-y-2">
+        {weekdayRows.length > 0 && scaleRows.length > 0 ? (
+          <SectionLabel as="h3">{label}</SectionLabel>
+        ) : null}
+        <DataTable
+          columns={columns}
+          rows={groupRows}
+          getRowKey={(row) => row.careOfferingId}
+          stackedOnMobile
+        />
+      </div>
+    );
+
   return (
     <SectionCard
       title={school.name}
-      description={description || "Monatspreis je gebuchtem Wochentag."}
+      description={
+        description ||
+        (scaleRows.length > 0 && weekdayRows.length === 0
+          ? "Monatspreis nach Zahl der gebuchten Tage je Woche."
+          : "Monatspreis je gebuchtem Wochentag.")
+      }
       actions={
         <div className="flex items-center gap-2">
           <Button type="button" variant="outline" size="md" onClick={onEdit}>
@@ -159,7 +258,7 @@ export function CarePriceListCard({
         </div>
       }
     >
-      <div className="space-y-4">
+      <div className="space-y-5">
         {stands.length > 1 ? (
           <div className="max-w-xs">
             <CustomSelect
@@ -181,12 +280,14 @@ export function CarePriceListCard({
             Schule.
           </p>
         ) : (
-          <DataTable
-            columns={columns(weekdays)}
-            rows={rows}
-            getRowKey={(row) => row.careOfferingId}
-            stackedOnMobile
-          />
+          <>
+            {table(
+              weekdayRows,
+              weekdayColumns(weekdays),
+              PRICE_FORM_LABELS.weekday,
+            )}
+            {table(scaleRows, scaleColumns(), PRICE_FORM_LABELS.days_per_week)}
+          </>
         )}
         {gaps.length > 0 ? (
           <ResponsiveActionList>

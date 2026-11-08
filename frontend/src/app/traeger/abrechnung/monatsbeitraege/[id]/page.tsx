@@ -421,6 +421,13 @@ export default function TraegerCareRunPage() {
                   </span>
                 </DataField>
               ) : null}
+              {(run.freeOfCharge ?? 0) > 0 ? (
+                <DataField label="Beitragsfreier Monat">
+                  {run.freeOfCharge === 1
+                    ? "1 Vertrag ohne Rechnung"
+                    : `${run.freeOfCharge} Verträge ohne Rechnung`}
+                </DataField>
+              ) : null}
               {run.billed > 0 ? (
                 <DataField label="Schon abgerechnet">
                   {run.billed === 1
