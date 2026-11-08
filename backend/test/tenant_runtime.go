@@ -229,6 +229,10 @@ func SettingsRuntime(tb testing.TB, db *bun.DB) SettingsRuntimeAdapter {
 
 func (r SettingsRuntimeAdapter) TenantID(ctx context.Context) int64 { return tenant.FromContext(ctx) }
 
+func (r SettingsRuntimeAdapter) IsTraegerTransaction(ctx context.Context) bool {
+	return tenant.TraegerTransactionFromContext(ctx) > 0
+}
+
 func (r SettingsRuntimeAdapter) HasTransaction(ctx context.Context) bool {
 	_, ok := tenant.TransactionFromContext(ctx)
 	return ok
