@@ -33,7 +33,9 @@ func (s overlapStep) Run(context.Context, *Runtime) error {
 	return nil
 }
 
-func runOverlapping(organizations []int64) int32 {
+func runOverlapping(t *testing.T, organizations []int64, wantRunning int32) int32 {
+	t.Helper()
+
 	var running, peak atomic.Int32
 	release := make(chan struct{})
 	step := traegerSerialStep{Step: overlapStep{running: &running, peak: &peak, release: release}}
@@ -45,8 +47,8 @@ func runOverlapping(organizations []int64) int32 {
 			_ = step.Run(context.Background(), &Runtime{Bootstrap: &bootstrapSeedState{OrganizationID: organizationID}})
 		}()
 	}
-	// Let every run that can start do so before any finishes.
-	time.Sleep(50 * time.Millisecond)
+	assert.Eventually(t, func() bool { return running.Load() >= wantRunning }, time.Second, time.Millisecond,
+		"independent runs must enter before any finishes")
 	close(release)
 	done.Wait()
 	return peak.Load()
@@ -58,8 +60,8 @@ func runOverlapping(organizations []int64) int32 {
 func TestTraegerStepsRunOneSchoolAtATimePerTraeger(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, int32(1), runOverlapping([]int64{9101, 9101, 9101}), "schools of one Träger wait for each other")
-	assert.Equal(t, int32(2), runOverlapping([]int64{9201, 9202}), "different Träger do not wait")
+	assert.Equal(t, int32(1), runOverlapping(t, []int64{9101, 9101, 9101}, 1), "schools of one Träger wait for each other")
+	assert.Equal(t, int32(2), runOverlapping(t, []int64{9201, 9202}, 2), "different Träger do not wait")
 }
 
 func TestTraegerStepWaitEndsWithTheContext(t *testing.T) {
