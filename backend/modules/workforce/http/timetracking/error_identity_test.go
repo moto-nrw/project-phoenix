@@ -54,3 +54,29 @@ func TestClassifiersDoNotMatchDiagnosticLookalikes(t *testing.T) {
 		})
 	}
 }
+
+// TestSessionDayRejectionsAreInputErrors pins the #6288 save checks: both are
+// the caller's input, never a 500, and a check-in in the future carries its
+// own code so the person reads what to correct.
+func TestSessionDayRejectionsAreInputErrors(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name     string
+		classify func(error) render.Renderer
+		kind     error
+		code     string
+	}{
+		{"future check-in", classifyServiceError, workforce.ErrSessionCheckInInFuture, `"code":"workforce.session_check_in_in_future"`},
+		{"check-in after day", classifyServiceError, workforce.ErrSessionCheckInAfterDate, `"status":400`},
+		{"admin check-in after day", classifyAdminEditError, workforce.ErrSessionCheckInAfterDate, `"status":400`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			failure := &workforce.TimeTrackingError{Kind: workforce.ErrTimeTrackingInvalid, Cause: fmt.Errorf("invalid: %w", tc.kind)}
+			w := httptest.NewRecorder()
+			require.NoError(t, render.Render(w, httptest.NewRequest(http.MethodPut, "/", nil), tc.classify(failure)))
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+			assert.Contains(t, w.Body.String(), tc.code)
+		})
+	}
+}

@@ -266,7 +266,7 @@ function ParentDocumentCard({
         {contract && document.contract_status ? (
           <DataField label={t("status")}>
             {awaitingSignature ? (
-              <StatusBadge label={t("awaitingSignature")} tone="orange" />
+              <StatusBadge label={t("awaitingSignature")} tone="warning" />
             ) : document.signed_at ? (
               <StatusBadge
                 label={`${t("signed")} · ${formatDate(document.signed_at, false, locale)}`}
@@ -373,7 +373,7 @@ function ContractNoticeRow({
                 })
               : t("terminationInReview")
         }
-        tone={status === "widerrufen" ? "red" : "orange"}
+        tone={status === "widerrufen" ? "red" : "warning"}
       />
       <ButtonLink href={href} variant="ghost" size="md">
         {t("showConfirmation")}

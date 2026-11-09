@@ -68,9 +68,9 @@ func NewCareLetters(letterheads parentbilling.BillingLetterheads, contracts pare
 	}, rendering.NewRenderer(), rendering.NewRenderer(), calendar.TodayDate)
 }
 
-// NewBillingTerms builds the payment terms, the bundling, the family deviations and the due dates of the runs (#4689) over the contracts the root binds.
-func NewBillingTerms(contracts parentbilling.CareContracts) parentbilling.BillingTerms {
-	return application.NewBillingTerms(postgres.NewStore(), contracts)
+// NewBillingTerms builds the payment terms, the bundling, the family deviations and the due dates of the runs (#4689) over the contracts the root binds, and the DATEV booking batch of both payment methods (#4694) over the DATEV settings of the Träger.
+func NewBillingTerms(contracts parentbilling.CareContracts, datev parentbilling.DatevBillingSettings) (parentbilling.BillingTerms, parentbilling.DatevExport) {
+	return application.NewBillingTerms(postgres.NewStore(), contracts), application.NewDatevExport(datev, calendar.TodayDate, calendar.Now)
 }
 
 // NewCareFeeNotices builds the Jahresbescheide of the monthly care (#6219, ADR 0182) over the monthly computation and the letterhead of the Träger, which carries the template of the fee notice; the root binds the ports.
@@ -83,6 +83,11 @@ func NewCareFeeNotices(contracts parentbilling.CareContracts, schools parentbill
 // NewSEPAMandates builds the SEPA mandates and the creditor of the Träger (#4695, ADR 0171) over the contracts and the field cipher the root binds.
 func NewSEPAMandates(contracts parentbilling.CareContracts, cipher parentbilling.BankDataCipher) parentbilling.SEPAMandates {
 	return application.NewSEPAMandates(postgres.NewStore(), contracts, cipher, calendar.TodayDate)
+}
+
+// NewBankDataRekey builds maintenance-only re-encryption; never bind it to HTTP.
+func NewBankDataRekey(cipher parentbilling.BankDataRewrapper) parentbilling.BankDataRekey {
+	return application.NewBankDataRekey(postgres.NewBankDataRekeyStore(), cipher)
 }
 
 // NewSEPADebits builds the SEPA direct debit file of the issued runs (#4697, ADR 0181) over the letterhead with the bank account of the Träger and the field cipher the root binds.

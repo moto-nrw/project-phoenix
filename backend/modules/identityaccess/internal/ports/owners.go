@@ -92,5 +92,7 @@ type OperatorAudit interface {
 // e-mail change links. The composition binds it to the module's own link
 // operations (#2722), so the revocation joins the password change.
 type OperatorCredentialCleanup interface {
-	RevokeEmailChanges(ctx context.Context, operatorID int64) error
+	// RevokePasswordBoundCredentials ends the operator's e-mail change links
+	// and remembered devices when the password changes (#6289).
+	RevokePasswordBoundCredentials(ctx context.Context, operatorID int64) error
 }

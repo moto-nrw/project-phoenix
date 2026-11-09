@@ -71,44 +71,44 @@
       "target_owner": "document-rendering"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Open",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.BankDataCipher.BankDataRing",
       "classification": "query",
       "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.Open",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/securityruntime/internal/domain/fieldcipher.Cipher.Open. ADR 0171 (#4695): the Elternabrechnung seals and opens the IBAN of a SEPA mandate with Security Runtime's field cipher, the key ring the root binds for the holiday health information (#4722), a pure computation bound to the Träger and the mandate reference.",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.BankDataRing",
+      "reason": "ADR 0183 (#6252): empty BankDataRing type marker; no runtime work, writes, locking reads or audit mutation. Health-only ciphers cannot satisfy the bank port.",
       "source_owner": "parent-billing",
-      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.Cipher.Open",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.BankDataRing",
       "target_owner": "security-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Open",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.BankDataCipher.Open",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.Open",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.HolidayHealthCipher.Open. ADR 0171 (#4695): the Elternabrechnung seals and opens the IBAN of a SEPA mandate with Security Runtime's field cipher, the key ring the root binds for the holiday health information (#4722), a pure computation bound to the Träger and the mandate reference.",
+      "reason": "ADR 0183 (#6252): the owner-neutral root bank-value port binds only Security Runtime bank crypto. Pure in-memory authentication or sealing; no database write, locking read or audit mutation.",
       "source_owner": "parent-billing",
-      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Open",
-      "target_owner": "enrollment"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Seal",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.Seal",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/securityruntime/internal/domain/fieldcipher.Cipher.Seal. ADR 0171 (#4695): the Elternabrechnung seals and opens the IBAN of a SEPA mandate with Security Runtime's field cipher, the key ring the root binds for the holiday health information (#4722), a pure computation bound to the Träger and the mandate reference.",
-      "source_owner": "parent-billing",
-      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.Cipher.Seal",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Open",
       "target_owner": "security-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Seal",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.BankDataCipher.Seal",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.Seal",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.HolidayHealthCipher.Seal. ADR 0171 (#4695): the Elternabrechnung seals and opens the IBAN of a SEPA mandate with Security Runtime's field cipher, the key ring the root binds for the holiday health information (#4722), a pure computation bound to the Träger and the mandate reference.",
+      "reason": "ADR 0183 (#6252): the owner-neutral root bank-value port binds only Security Runtime bank crypto. Pure in-memory authentication or sealing; no database write, locking read or audit mutation.",
       "source_owner": "parent-billing",
-      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Seal",
-      "target_owner": "enrollment"
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Seal",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Rewrap",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataRewrapper.Rewrap",
+      "reason": "ADR 0183 (#6252): Security Runtime authenticates, seals or rewraps an in-memory field value on the independent bank ring. No database writes, locking reads or audit changes; the parent-billing maintenance adapter owns the separately guarded batch writes.",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Rewrap",
+      "target_owner": "security-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingLetterheads.DocumentTemplate",
@@ -360,7 +360,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareMeals.ReleasedMealMonths",
-      "reason": "Reviewed read: the released Mensa months of the schools of the session's Träger with the meals per child only, read through schedule.traeger_meal_billing_children in its Träger transaction; the monthly run copies them onto the invoices and records the read in its own trail (#4686).",
+      "reason": "Reviewed read: the released Mensa months within the caller's inclusive calendar window, of the schools of the session's Träger with the meals per child only, read through schedule.traeger_meal_billing_children and its billing_month lower bound in its Träger transaction; the monthly run copies them onto the invoices and records the read in its own trail (#4686).",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/mealplan.TraegerMealMonths.ReleasedMealMonths",
       "target_owner": "meal-plan"
@@ -394,6 +394,26 @@
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
       "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.DatevSettings",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.DatevBillingSettings.DatevSettings",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerBools: whether the batch of the session's Träger is locked (its value of parent_billing.datev_locked or the registry default), read in its Träger transaction for the check of the DATEV booking batch (#4694).",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerBools",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.DatevSettings",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.DatevBillingSettings.DatevSettings",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerTexts: the DATEV values of the session's Träger (Beraternummer, Mandantennummer, Sachkontenlänge, Kontenrahmen, first month of the fiscal year, revenue account; its values of parent_billing.datev_* or the registry defaults), read in its Träger transaction for the check of the DATEV booking batch (#4694).",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform"
     },
     {
       "adr": "0067",

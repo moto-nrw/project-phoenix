@@ -660,7 +660,7 @@ function IdentityFact({
                 <span className="min-w-0 text-base font-medium break-words text-gray-900">
                   {requestedValue}
                 </span>
-                <StatusBadge label={t("pendingBadge")} tone="orange" />
+                <StatusBadge label={t("pendingBadge")} tone="warning" />
               </div>
             </div>
             {isSelf && (
@@ -973,7 +973,7 @@ function DepartureSection({
                 // Der Wrapper nimmt die volle Breite der Aktionsspalte auf
                 // dem Handy, das Badge behält seine eigene Breite.
                 <div>
-                  <StatusBadge label={t("pendingBadge")} tone="orange" />
+                  <StatusBadge label={t("pendingBadge")} tone="warning" />
                 </div>
               }
             >

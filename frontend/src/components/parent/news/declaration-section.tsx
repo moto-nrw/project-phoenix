@@ -55,6 +55,15 @@ export function isDeclarationItem(
 }
 
 /**
+ * True when the school no longer shows the Einverständnis. It stays in the
+ * feed for the children this guardian answered for, so a consent can still be
+ * revoked (#6290); it asks for nothing and has no live attachments.
+ */
+export function isEndedDeclaration(item: ParentAnnouncement): boolean {
+  return isDeclarationItem(item) && item.declaration.ended;
+}
+
+/**
  * True while one of the guardian's own children still needs THIS guardian's
  * action: allowed to act, nothing given yet, the deadline has not passed, and
  * the child is still open or partly done. With signers "any" a decision by
@@ -72,7 +81,7 @@ export function isOpenDeclaration(item: ParentAnnouncement): boolean {
 }
 
 const STATE_TONE: Record<ParentDeclarationState, StatusBadgeTone> = {
-  open: "orange",
+  open: "warning",
   partial: "blue",
   agreed: "green",
   declined: "red",
@@ -343,14 +352,16 @@ export function DeclarationSection({
           {t("sectionTitle")}
         </h4>
         <p className="mt-0.5 text-sm leading-6 text-gray-600">
-          {declaration.signers === "all" ? t("signersAll") : t("signersAny")}{" "}
-          {t("nothingPreselected")}
+          {declaration.ended
+            ? t("endedNote")
+            : `${declaration.signers === "all" ? t("signersAll") : t("signersAny")} ${t("nothingPreselected")}`}
         </p>
         <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-sm text-gray-600">
           <span>
             {t("version", { version: declaration.version.version_no })}
           </span>
-          {declaration.closed ? (
+          {/* An ended request says so in the line above. */}
+          {declaration.ended ? null : declaration.closed ? (
             <span className="text-moto-red-strong font-semibold">
               {t("closed")}
             </span>
@@ -361,7 +372,9 @@ export function DeclarationSection({
               })}
             </span>
           ) : null}
-          {declaration.requires_signature && <span>{t("signatureNote")}</span>}
+          {declaration.requires_signature && !declaration.ended && (
+            <span>{t("signatureNote")}</span>
+          )}
           {declaration.requires_password && <span>{t("passwordNote")}</span>}
         </p>
       </div>
@@ -509,7 +522,11 @@ function DeclarationChildCard({
 
       {!child.can_submit && (
         <p className="mt-2 text-sm leading-6 text-gray-600">
-          {t("cannotSubmit", { name: child.first_name })}
+          {/* A guardian who answered before keeps their answer and its
+              withdrawal, even without the right to declare (#6290). */}
+          {child.my_action
+            ? t("cannotSubmitAnymore", { name: child.first_name })
+            : t("cannotSubmit", { name: child.first_name })}
         </p>
       )}
 

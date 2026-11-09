@@ -45,6 +45,7 @@
   "session_note_required": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "session_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "session_not_owned": "У вас немає доступу до: {object}. Зверніться до школи.",
+  "session_check_in_in_future": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "session_times_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "shift_changed": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "shift_duplicate": "Не вдалося змінити: {object}. Перевірте поточний стан.",

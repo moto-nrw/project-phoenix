@@ -175,13 +175,13 @@ export const employmentTypeLabels: Record<string, string> = {
  */
 export interface ExternalAccountMark {
   readonly label: string;
-  readonly tone: "orange" | "gray";
+  readonly tone: "warning" | "gray";
 }
 
 const EXTERNAL_ACCOUNT_MARKS: Readonly<
   Record<Exclude<ExternalAccountStatus, "account">, ExternalAccountMark>
 > = {
-  invitation_pending: { label: "Einladung offen", tone: "orange" },
+  invitation_pending: { label: "Einladung offen", tone: "warning" },
   none: { label: "Kein Konto", tone: "gray" },
 };
 

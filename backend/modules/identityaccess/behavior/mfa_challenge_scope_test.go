@@ -44,7 +44,7 @@ func TestMFAService_ResendChallengeForScope_ForeignScope_RefusedBeforeSending(t 
 	require.NoError(t, svc.EnrollMFA(ctx, accID))
 
 	// A challenge started at the TENANT login…
-	token, err := svc.StartMFAChallenge(ctx, accID, 0, identityaccess.MFAChallengeScopeTenant, net.ParseIP("127.0.0.1"))
+	token, err := svc.StartMFAChallenge(ctx, accID, 0, identityaccess.MFAChallengeScopeTenant, net.ParseIP("127.0.0.1"), 0)
 	require.NoError(t, err)
 	require.NotEmpty(t, token)
 
@@ -70,7 +70,7 @@ func TestMFAService_ResendChallengeForScope_SchoolScope_HappyPath(t *testing.T) 
 	ctx := context.Background()
 	require.NoError(t, svc.EnrollMFA(ctx, accID))
 
-	token, err := svc.StartMFAChallenge(ctx, accID, 0, identityaccess.MFAChallengeScopeSchool, net.ParseIP("127.0.0.1"))
+	token, err := svc.StartMFAChallenge(ctx, accID, 0, identityaccess.MFAChallengeScopeSchool, net.ParseIP("127.0.0.1"), 0)
 	require.NoError(t, err)
 	require.NotEmpty(t, token)
 

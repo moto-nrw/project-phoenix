@@ -1,0 +1,11 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (c *BankCipher) Rewrap(sealed, aad []byte) ([]byte, error) {\n\t_, err := c.Cipher.Open(sealed, aad)\n\tid, _, _ := splitSealedField(sealed)\n\tif err == nil \u0026\u0026 id == c.activeID {\n\t\treturn sealed, nil\n\t}\n\tplain, err := c.Open(sealed, aad)\n\tif err != nil {\n\t\treturn nil, ErrOpen\n\t}\n\treturn c.Seal(plain, aad)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/securityruntime/internal/domain/fieldcipher/BankCipher.Rewrap",
+      "owner": "modules/securityruntime"
+    }
+  ]
+}

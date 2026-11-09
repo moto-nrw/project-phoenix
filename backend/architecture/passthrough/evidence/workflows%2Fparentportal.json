@@ -471,13 +471,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (p declarationPolicyBinding) ActionAllowed(revocable bool, deadline *time.Time, canSubmit bool, latest string, action string, now time.Time) bool {\n\tresult0 := p.callbacks.ActionAllowed(revocable, deadline, canSubmit, latest, action, now)\n\treturn result0\n}",
-      "form": "unchanged-forward-evidence",
-      "id": "workflows/parentportal/declarationPolicyBinding.ActionAllowed",
-      "owner": "workflows/parentportal"
-    },
-    {
-      "build": "production",
       "evidence": "func (p declarationPolicyBinding) AllowedActions(revocable bool, deadline *time.Time, canSubmit bool, latest string, now time.Time) []string {\n\tresult0 := p.callbacks.AllowedActions(revocable, deadline, canSubmit, latest, now)\n\treturn result0\n}",
       "form": "unchanged-forward-evidence",
       "id": "workflows/parentportal/declarationPolicyBinding.AllowedActions",
@@ -873,6 +866,13 @@
       "evidence": "func (s studentRecords[C, P]) SetStudentPhotoConsent(ctx context.Context, photo StudentPhotoState) error {\n\treturn s.people.SetStudentPhotoConsent(ctx, portalRecord(photo, s.rows.Photo))\n}",
       "form": "unclassified-evidence",
       "id": "workflows/parentportal/internal/care/studentRecords[C, P].SetStudentPhotoConsent",
+      "owner": "workflows/parentportal"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a *AnnouncementAttachments[A, C]) OpenGuardianAttachment(ctx context.Context, accountID, announcementID, attachmentID int64) (C, error) {\n\tvar none C\n\ttenantID, err := a.withinAnnouncementTenant(ctx, accountID, announcementID, func(txCtx context.Context, tenantID int64) error {\n\t\t_, findErr := a.files.FindAnnouncementAttachmentInTenant(txCtx, tenantID, announcementID, attachmentID)\n\t\treturn findErr\n\t})\n\tif err != nil {\n\t\treturn none, err\n\t}\n\treturn a.handOut(ctx, func(ctx context.Context) (int64, error) {\n\t\treturn a.announcementTenant(ctx, accountID, announcementID)\n\t}, tenantID, announcementID, attachmentID)\n}",
+      "form": "unclassified-evidence",
+      "id": "workflows/parentportal/internal/messaging/AnnouncementAttachments[A, C].OpenGuardianAttachment",
       "owner": "workflows/parentportal"
     },
     {

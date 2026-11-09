@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/spf13/viper"
+
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -32,7 +34,11 @@ func authTestInvitationReset(db transactionruntime.Database, members owners.Memb
 	if err != nil {
 		return nil, err
 	}
-	env := owners.RootEnvironment{Logger: slog.Default(), Now: now}
+	bankData, err := BankDataCipher(viper.GetString("bank_data_keys"), "")
+	if err != nil {
+		return nil, err
+	}
+	env := owners.RootEnvironment{Logger: slog.Default(), Now: now, BankData: bankData}
 	if now != nil {
 		env.Today = func() calendar.Date { return calendar.DateFromTime(now()) }
 	}

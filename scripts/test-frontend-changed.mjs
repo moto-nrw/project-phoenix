@@ -118,6 +118,7 @@ const guards = [
   "src/test/proxy-routes.table.test.ts",
   "src/test/session-cookie-writers.test.ts",
   "src/lib/moto-concepts.test.ts",
+  "src/lib/hooks/chat-viewport-lock-consumers.test.ts",
   ...externalTests,
 ];
 

@@ -81,7 +81,7 @@ func TestPublicChangeBeforeAPlannedVersionHoldsUntilItAndEveryDayHasOneVersion(t
 		child: testpkg.UniqueTestTenantID(t), offering: testpkg.UniqueTestTenantID(t)}}
 	contract := plannedContract(t, ctx, organization, school)
 	conclusion := compose.NewConclusion(
-		compose.ContractPorts{Letterheads: letterheadDouble{}, Post: &postDouble{}, Runtime: runtimeDouble{}, Access: school,
+		compose.ContractPorts{Holidays: holidaysDouble{}, Letterheads: letterheadDouble{}, Post: &postDouble{}, Runtime: runtimeDouble{}, Access: school,
 			Ledger: ledgerDouble{}, Links: testSigningLinks()},
 		compose.IntakePorts{Schools: school, Applications: school, Bookings: school, Access: school, Runtime: runtimeDouble{}, Modes: modesDouble{}, Mail: noMailBlocks{}, Letterheads: letterheadDouble{}})
 

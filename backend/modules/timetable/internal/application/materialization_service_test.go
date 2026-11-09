@@ -1033,7 +1033,7 @@ func TestMaterializationServiceMethodsAndCopyBranches(t *testing.T) {
 		future := &activityContract.SupervisorPlanned{StaffID: 702, ValidFrom: validFrom.AddDays(1)}
 		result := &timetable.MaterializationResult{}
 
-		err := svc.copySupervisors(context.Background(), 603, []*activityContract.SupervisorPlanned{valid, duplicate, future}, date, periodID, isoWeekday(date), result)
+		err := svc.copySupervisors(context.Background(), 603, []*activityContract.SupervisorPlanned{valid, duplicate, future}, date, periodID, isoWeekday(date), nil, result)
 
 		require.NoError(t, err)
 		assert.Equal(t, 1, result.InstanceStaffCreated)
@@ -1047,7 +1047,7 @@ func TestMaterializationServiceMethodsAndCopyBranches(t *testing.T) {
 		svc := &materializationService{staffRepo: staffRepo, logger: slog.Default()}
 		result := &timetable.MaterializationResult{}
 
-		err := svc.copySupervisors(context.Background(), 604, []*activityContract.SupervisorPlanned{{StaffID: 703, ValidFrom: validFrom}}, date, periodID, isoWeekday(date), result)
+		err := svc.copySupervisors(context.Background(), 604, []*activityContract.SupervisorPlanned{{StaffID: 703, ValidFrom: validFrom}}, date, periodID, isoWeekday(date), nil, result)
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "copy supervisor")

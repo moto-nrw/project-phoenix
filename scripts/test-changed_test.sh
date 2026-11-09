@@ -20,7 +20,7 @@ cleanup() {
 trap cleanup EXIT
 
 mkdir -p "$fixture"/{backend/probe,fake-bin,scripts,frontend/scripts}
-for script in test-backend.sh test-changed.sh test-frontend-changed.mjs test-run-id.sh go-package-workers.sh go-test-workspace.sh go-test-link-cache.sh go-test-link-key.go; do
+for script in test-backend.sh test-changed.sh test-frontend-changed.mjs backend-source-ratchets.mjs test-run-id.sh go-package-workers.sh go-test-workspace.sh go-test-link-cache.sh go-test-link-key.go; do
   cp "$repo_root/scripts/$script" "$fixture/scripts/$script"
 done
 cat >"$fixture/scripts/total-memory-gb.sh" <<'EOF'
@@ -30,7 +30,7 @@ EOF
 cat >"$fixture/scripts/backend-affected-packages.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-if [ "${PHX_FIXTURE_NO_BACKEND:-0}" -eq 0 ]; then echo './probe'; fi
+if [ "${PHX_FIXTURE_NO_BACKEND:-0}" -eq 0 ]; then echo "${PHX_FIXTURE_PACKAGES:-./probe}"; fi
 EOF
 cat >"$fixture/fake-bin/pnpm" <<'EOF'
 #!/usr/bin/env bash
@@ -101,6 +101,10 @@ case "$*" in
     exec "$0" test "$@"
     ;;
   test\ *)
+    if [[ "$*" = *' ./test -run '* ]]; then
+      printf 'source:%s\n' "$*" >>"$TEST_CHANGED_CALL_LOG"
+      exit "${PHX_FIXTURE_SOURCE_STATUS:-0}"
+    fi
     if [ "${PHX_FIXTURE_EXPECT_GOGC+x}" = x ] && [ "${GOGC-unset}" != "$PHX_FIXTURE_EXPECT_GOGC" ]; then
       echo "go test: expected GOGC=$PHX_FIXTURE_EXPECT_GOGC, got ${GOGC-unset}" >&2
       exit 1
@@ -150,6 +154,7 @@ chmod +x \
 
 printf '// opaque subprocess consumer\n' >"$fixture/frontend/scripts/opaque.test.ts"
 printf 'package probe\n' >"$fixture/backend/probe/probe.go"
+printf 'module example.test/project\n' >"$fixture/backend/go.mod"
 init_git_fixture "$fixture"
 git -C "$fixture" config user.email test-changed@example.invalid
 git -C "$fixture" config user.name test-changed
@@ -257,6 +262,7 @@ guards=(
   src/test/proxy-routes.table.test.ts
   src/test/session-cookie-writers.test.ts
   src/lib/moto-concepts.test.ts
+  src/lib/hooks/chat-viewport-lock-consumers.test.ts
 )
 for guard in "${guards[@]}"; do
   if [ ! -f "$repo_root/frontend/$guard" ]; then
@@ -301,6 +307,36 @@ Linux 16 4 1
 EOF
 
 export PHX_FIXTURE_OS=Darwin PHX_FIXTURE_CPUS=16 PHX_FIXTURE_RAM_GB=16
+
+# The fast path executes filesystem guards without requiring a DB bootstrap.
+# A violation fails the public wrapper even when no ordinary package exists
+# (for example, deletion of the last Go file in an unused package).
+PHX_FIXTURE_SOURCE_STATUS=6 PHX_FIXTURE_NO_BACKEND=1 run_wrapper test-changed.sh 6 --fast origin/development
+grep -q '^source:test -p 2 -parallel 8 -tags=testhooks -count=1 ./test -run ' "$call_log"
+grep -q 'TestHermeticTestPatterns' "$call_log"
+grep -q 'TestTransactionBoundaryRatchet' "$call_log"
+if grep -qE '^(bootstrap|sweep|test:)' "$call_log"; then
+  echo 'source-only failure unexpectedly bootstrapped or ran ordinary tests' >&2
+  exit 1
+fi
+
+# Full-package and full-suite selections already execute the ratchets. Do not
+# duplicate them, and keep the ordinary test invocation unfiltered.
+for selection in ./test ./... example.test/project/test; do
+  PHX_FIXTURE_PACKAGES=$selection run_wrapper test-changed.sh 0 --fast origin/development
+  if grep -q '^source:' "$call_log"; then
+    echo 'source ratchets ran twice for a full test-package selection' >&2
+    exit 1
+  fi
+  grep -qF "$(go_test_call test-changed.sh 2 "$selection")" "$call_log"
+done
+
+run_wrapper test-changed.sh 0 --fast origin/development
+grep -q '^source:' "$call_log"
+grep -qF "$(go_test_call test-changed.sh 2 ./probe)" "$call_log"
+PHX_FIXTURE_PACKAGES=example.test/project/nested/test run_wrapper test-changed.sh 0 --fast origin/development
+grep -q '^source:' "$call_log"
+
 run_wrapper test-backend.sh 0
 assert_calls $'bootstrap\n'"$(go_test_call test-backend.sh 2 ./...)"$'\nsweep'
 
@@ -376,6 +412,9 @@ unset PHX_FIXTURE_TMPDIR
 
 # Frontend failures must survive both the frontend-only path (no EXIT trap)
 # and the mixed-stack path, whose backend cleanup runs after Vitest.
+# Source dispatch is exercised above with the real selector. Isolate these
+# frontend cases from the synthetic backend files they keep modifying below.
+printf 'console.log("");\n' >"$fixture/scripts/backend-source-ratchets.mjs"
 mkdir -p "$fixture/frontend/src/lib"
 for no_backend in 0 1; do
   export PHX_FIXTURE_NO_BACKEND=$no_backend

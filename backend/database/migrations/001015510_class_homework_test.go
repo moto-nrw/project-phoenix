@@ -123,7 +123,7 @@ func TestClassHomeworkIsTenantIsolated(t *testing.T) {
 	assert.Equal(t, []string{"eigene"}, texts, "only the own school's rows are visible")
 	_, err = tx.ExecContext(t.Context(), `INSERT INTO education.class_homework (tenant_id, school_class, date, description)
 		VALUES (?, '3a', '2026-10-22', 'eingeschmuggelt')`, other)
-	assert.ErrorContains(t, err, "row-level security", "a row for another school is refused")
+	assert.Equal(t, "42501", testpkg.PostgresSQLState(err), "a row for another school is refused")
 }
 
 // TestSchoolErasureDeletesHomework proves the reinstalled erasure phases

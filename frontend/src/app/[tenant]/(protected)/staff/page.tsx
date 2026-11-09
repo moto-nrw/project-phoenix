@@ -1137,7 +1137,7 @@ function StaffPageContent() {
                                 {staffMember.plannedExitDate ? (
                                   <StatusBadge
                                     label={`Austritt am ${formatDate(staffMember.plannedExitDate)}`}
-                                    tone="orange"
+                                    tone="warning"
                                   />
                                 ) : null}
                               </span>

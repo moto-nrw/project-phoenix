@@ -72,16 +72,18 @@ const (
 // Its functions are supplied by the composition root; this package does not
 // know which database or transaction adapter backs them.
 type UnitOfWork struct {
-	withinTenant    func(context.Context, int64, func(context.Context, any) error) error
-	withinAdmin     func(context.Context, func(context.Context, any) error) error
-	withinTraeger   func(context.Context, int64, func(context.Context, any) error) error
-	savepoint       func(context.Context, SavepointAction) error
-	retryable       func(error) bool
-	acquireLock     func(context.Context, string, bool) error
-	boundStatements func(context.Context, time.Duration, func(context.Context) error) error
-	withoutTx       func(context.Context) context.Context
-	withTenant      func(context.Context, int64) context.Context
-	withTransaction func(context.Context, any) context.Context
+	withinTenant  func(context.Context, int64, func(context.Context, any) error) error
+	withinAdmin   func(context.Context, func(context.Context, any) error) error
+	withinTraeger func(context.Context, int64, func(context.Context, any) error) error
+	// withinAdminThenTenant is the one-way handoff of ADR 0161 point 2.
+	withinAdminThenTenant func(context.Context, func(context.Context, any) (int64, error), func(context.Context, any) error) error
+	savepoint             func(context.Context, SavepointAction) error
+	retryable             func(error) bool
+	acquireLock           func(context.Context, string, bool) error
+	boundStatements       func(context.Context, time.Duration, func(context.Context) error) error
+	withoutTx             func(context.Context) context.Context
+	withTenant            func(context.Context, int64) context.Context
+	withTransaction       func(context.Context, any) context.Context
 }
 
 // IsZero reports whether the unit of work carries no transaction functions,
@@ -323,12 +325,23 @@ func (uow UnitOfWork) execute(ctx context.Context, retry bool, run func(context.
 		}
 		runAfterRollbackHooks(commitHooks)
 		attemptHooks = nil
-		if !retry || attempt == maxTransactionRetries || !uow.retryable(err) {
+		if !retry || attempt == maxTransactionRetries || !uow.replayable(err) {
 			observeTransaction(ctx, transactionResult(err), err, started, retries)
 			return err
 		}
 		retries++
 	}
+}
+
+// replayable lets the adapter's classifier decide only for an attempt that
+// started and whose savepoint rollbacks succeeded (#6316). A failed savepoint
+// rollback leaves the transaction untrusted (E19), and a failed start never
+// reached the callback; neither replays, whatever SQLSTATE the chain carries.
+func (uow UnitOfWork) replayable(err error) bool {
+	if errors.Is(err, ErrSavepointRollback) || transactionResult(err) == UnitOfWorkNotStarted {
+		return false
+	}
+	return uow.retryable(err)
 }
 
 func observeTransaction(ctx context.Context, result UnitOfWorkResult, err error, started time.Time, retries int) {
@@ -418,6 +431,79 @@ func withinAdmin(ctx context.Context, retry bool, fn func(context.Context) error
 			})
 		})
 	})
+}
+
+// WithAdminThenTenantTransaction installs the adapter function of the one-way
+// admin-to-tenant handoff. A unit of work without it, such as the demo
+// runtime, refuses WithinAdminThenTenant.
+func (uow UnitOfWork) WithAdminThenTenantTransaction(within func(context.Context, func(context.Context, any) (int64, error), func(context.Context, any) error) error) UnitOfWork {
+	uow.withinAdminThenTenant = within
+	return uow
+}
+
+// WithinAdminThenTenant is the one-way handoff of ADR 0161 point 2: ONE
+// transaction runs discover in the administrative context, which returns the
+// school, and then, after the adapter switched the same transaction to the
+// tenant role and that school, fn in a tenant context built from ctx. An
+// error from discover ends the transaction before the switch. No
+// administrative context reaches fn and there is no way back; an
+// administrative join inside fn fails as in any school unit. Any ambient
+// transaction is refused, because the handoff would switch the role of a
+// unit it does not own, and so is a ctx bound to another school.
+func WithinAdminThenTenant(ctx context.Context, discover func(context.Context) (int64, error), fn func(context.Context) error) error {
+	runtime, err := handoffRuntime(ctx, discover, fn)
+	if err != nil {
+		return err
+	}
+	bound, boundErr := TenantFromContext(ctx)
+	return runtime.execute(ContextWithoutTenant(ctx), false, func(attemptCtx context.Context) error {
+		var school TenantID
+		return runtime.withinAdminThenTenant(attemptCtx, func(adminCtx context.Context, tx any) (int64, error) {
+			id, discoverErr := discoverSchool(withAdminTxFlag(withTransaction(adminCtx, tx)), discover, bound, boundErr == nil)
+			school = id
+			return id.Int64(), discoverErr
+		}, func(txCtx context.Context, tx any) error {
+			return runInTransaction(WithTenant(txCtx, school), tx, fn)
+		})
+	})
+}
+
+// handoffRuntime returns the unit of work of a handoff that may start: both
+// callbacks set, the handoff bound, and no ambient unit of any scope.
+func handoffRuntime(ctx context.Context, discover func(context.Context) (int64, error), fn func(context.Context) error) (UnitOfWork, error) {
+	if discover == nil || fn == nil {
+		return UnitOfWork{}, errors.New("tenant: callbacks are required")
+	}
+	runtime, err := unitOfWorkFromContext(ctx)
+	if err == nil && runtime.withinAdminThenTenant == nil {
+		err = fmt.Errorf("%w: admin-to-tenant handoff function is required", ErrRuntimeRequired)
+	}
+	if err != nil {
+		observeUnitOfWork(ctx, UnitOfWorkEvent{Kind: UnitOfWorkTransaction, Result: UnitOfWorkNotStarted, Err: err})
+		return UnitOfWork{}, err
+	}
+	if _, active := TransactionFromContext(ctx); active || IsAdminTx(ctx) || TraegerTransactionFromContext(ctx) != 0 {
+		return UnitOfWork{}, errors.New("tenant: an admin-to-tenant handoff cannot join an ambient transaction")
+	}
+	return runtime, nil
+}
+
+// discoverSchool runs discover in the administrative context and validates
+// the school it returns, also against a school the caller's context is
+// already bound to.
+func discoverSchool(adminCtx context.Context, discover func(context.Context) (int64, error), bound TenantID, isBound bool) (TenantID, error) {
+	discovered, err := discover(adminCtx)
+	if err != nil {
+		return TenantID{}, err
+	}
+	id, err := NewTenantID(discovered)
+	if err != nil {
+		return TenantID{}, err
+	}
+	if isBound && bound != id {
+		return TenantID{}, fmt.Errorf("tenant: handoff to school %d from a context bound to school %d", id.Int64(), bound.Int64())
+	}
+	return id, nil
 }
 
 // WithTenantTx is the compatibility entry point for callers that still need

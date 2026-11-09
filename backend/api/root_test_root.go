@@ -162,7 +162,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 			people, peopleIdentity = owners.BuildPeopleRows(db, env.Observe.IdentityAccess, groups, rooms, membership, workTime)
 			return nil
 		},
-		func() (err error) { guardian, err = owners.BuildGuardianService(db, people, audit); return },
+		func() (err error) { guardian, err = owners.BuildGuardianService(db, people, audit, env); return },
 		func() error {
 			unlinker := peopledirectory.NewPhotoUnlinker(env.Logger.With("component", "student-photo-unlinker"), "public", nativeUploads.UploadFiles{})
 			photoRuntime = owners.BuildStudentPhotoRuntime(db, env, settings.Service, hub, audit, unlinker, actingAccountID)
@@ -286,12 +286,12 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 			return
 		},
 		func() (err error) {
-			materialization, err = owners.BuildTimetableMaterialization(db, env, hub, timetableRows, people, calendar)
+			materialization, err = owners.BuildTimetableMaterialization(db, env, hub, timetableRows, people, calendar, workTime)
 			return
 		},
 		func() (err error) {
 			lifecycle, err = owners.BuildTimetableLifecycle(db, env, hub, timetableRows, days, people, careRows, presence, supervisions,
-				owners.WorkforceShiftRows(workTime), schedules, carePlan, active, materialization, announcements, settings.Service)
+				owners.WorkforceShiftRows(workTime), schedules, carePlan, active, materialization, announcements, settings.Service, owners.NewTimetableSickReports(workTime))
 			return
 		},
 		func() (err error) {
@@ -339,7 +339,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 		},
 		func() (err error) {
 			planning, err = buildTimetablePlanning(db, env, hub, timetableRows, lifecycle, schedules, presence, timetableOwner,
-				offerings, audit, people)
+				offerings, audit, people, owners.NewTimetableSickReports(workTime))
 			return
 		},
 		func() (err error) {

@@ -58,6 +58,8 @@ def main():
         "VAPID_PUBLIC_KEY": "", "VAPID_PRIVATE_KEY": "", "VAPID_SUBSCRIBER": "",
         # The demo seals its holiday health data with a key ring of its own,
         # never the one of staging (#4722).
+        "BANK_DATA_KEYS": "bank1:" + base64.b64encode(secrets.token_bytes(32)).decode(),
+        "BANK_DATA_LEGACY_KEYS": "",
         "HEALTH_DATA_KEYS": "demo1:" + base64.b64encode(secrets.token_bytes(32)).decode(),
     })
     result = subprocess.run(

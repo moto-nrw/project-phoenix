@@ -69,6 +69,8 @@ type MandateStore interface {
 	// SEPADebitsOfMandate reads the debits of a mandate, newest first,
 	// without the account (#4697).
 	SEPADebitsOfMandate(ctx context.Context, organizationID, mandateID int64) ([]parentbilling.SealedSEPADebit, error)
+	// MandateImportStore records the imports of existing mandates (#6198).
+	MandateImportStore
 }
 
 // SEPAMandates serves parentbilling.SEPAMandates. The family of a contract

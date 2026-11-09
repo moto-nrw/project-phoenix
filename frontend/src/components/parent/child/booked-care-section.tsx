@@ -352,7 +352,7 @@ export function BookedCareSection({
               actions={
                 <StatusBadge
                   label={t("careOfferings.pendingBadge")}
-                  tone="orange"
+                  tone="warning"
                 />
               }
             >

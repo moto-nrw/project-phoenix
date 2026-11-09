@@ -724,7 +724,7 @@ export default function StaffDetailContent() {
           {plannedExitDate ? (
             <StatusBadge
               label={`Austritt am ${formatDate(plannedExitDate)}`}
-              tone="orange"
+              tone="warning"
             />
           ) : null}
           {recordMenuItems.length > 0 ? (

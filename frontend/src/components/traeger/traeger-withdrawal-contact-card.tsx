@@ -37,7 +37,7 @@ const SOURCE_BADGES: Record<
 > = {
   own: { label: "Eigene Angabe", tone: "green" },
   contact: { label: "Vom Ansprechpartner", tone: "gray" },
-  missing: { label: "Fehlt", tone: "orange" },
+  missing: { label: "Fehlt", tone: "warning" },
 };
 
 function sameReach(

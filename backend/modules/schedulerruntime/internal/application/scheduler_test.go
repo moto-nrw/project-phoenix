@@ -1335,8 +1335,32 @@ func TestExecuteCleanupForTenant_ReturnsFalseOnError(t *testing.T) {
 		},
 		logger: slog.Default()})
 
-	result := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
+	result, err := cleanupComplete(context.Background(), s, testpkg.Tenant(t))
+	require.NoError(t, err)
 	assert.False(t, result)
+}
+
+type countingFeedbackCleaner struct{ calls int }
+
+func (f *countingFeedbackCleaner) DeleteExpired(context.Context) (int, error) {
+	f.calls++
+	return 0, nil
+}
+
+// TestExecuteCleanupForTenant_VisitFailureStillRunsLaterSteps pins AN-5 of
+// #6288: a failed visit retention used to skip the attendance cleanup and
+// every later step of the school. Each step now runs in its own savepoint.
+func TestExecuteCleanupForTenant_VisitFailureStillRunsLaterSteps(t *testing.T) {
+	t.Parallel()
+	cleanup := &mockCleanupService{cleanupErr: errors.New("db error")}
+	feedback := &countingFeedbackCleaner{}
+	s := unitScheduler(&unitSchedulerDependencies{cleanupService: cleanup, feedbackCleaner: feedback, logger: slog.Default()})
+
+	complete, err := cleanupComplete(context.Background(), s, testpkg.Tenant(t))
+	require.NoError(t, err)
+	assert.False(t, complete, "a failed visit retention leaves the run due")
+	assert.Equal(t, 1, cleanup.attendanceCalls, "the attendance cleanup still runs")
+	assert.Equal(t, 1, feedback.calls, "the later required steps still run")
 }
 
 func TestExecuteCleanupForTenant_ReturnsTrueOnSuccess(t *testing.T) {
@@ -1344,11 +1368,12 @@ func TestExecuteCleanupForTenant_ReturnsTrueOnSuccess(t *testing.T) {
 
 	s := unitScheduler(&unitSchedulerDependencies{
 		cleanupService: &mockCleanupService{
-			cleanupResult: &ports.ExpiredVisitCleanup{},
+			cleanupResult: &ports.ExpiredVisitCleanup{Success: true},
 		},
 		logger: slog.Default()})
 
-	result := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
+	result, err := cleanupComplete(context.Background(), s, testpkg.Tenant(t))
+	require.NoError(t, err)
 	assert.True(t, result)
 }
 
@@ -1356,12 +1381,14 @@ func TestExecuteCleanupForTenant_ReturnsFalseOnFeedbackFailure(t *testing.T) {
 	t.Parallel()
 	wantErr := errors.New("feedback database unavailable")
 	s := unitScheduler(&unitSchedulerDependencies{
-		cleanupService:  &mockCleanupService{cleanupResult: &ports.ExpiredVisitCleanup{}},
+		cleanupService:  &mockCleanupService{cleanupResult: &ports.ExpiredVisitCleanup{Success: true}},
 		feedbackCleaner: &fakeFeedbackCleaner{err: wantErr},
 		logger:          slog.Default(),
 	})
 
-	assert.False(t, s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t)))
+	complete, err := cleanupComplete(context.Background(), s, testpkg.Tenant(t))
+	require.NoError(t, err)
+	assert.False(t, complete)
 }
 
 func TestExecuteCleanupForTenant_AttendanceError(t *testing.T) {
@@ -1369,14 +1396,15 @@ func TestExecuteCleanupForTenant_AttendanceError(t *testing.T) {
 
 	s := unitScheduler(&unitSchedulerDependencies{
 		cleanupService: &mockCleanupService{
-			cleanupResult: &ports.ExpiredVisitCleanup{},
+			cleanupResult: &ports.ExpiredVisitCleanup{Success: true},
 			attendanceErr: errors.New("attendance db error"),
 		},
 		logger: slog.Default()})
 
-	result := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
-	// Returns true because primary cleanup (expired visits) succeeded
-	assert.True(t, result)
+	result, err := cleanupComplete(context.Background(), s, testpkg.Tenant(t))
+	require.NoError(t, err)
+	// Every step is required and a failed step keeps the run due (#6288).
+	assert.False(t, result, "a failed attendance step keeps the run due")
 }
 
 func TestExecuteCleanupForTenant_AttendancePartialFailure(t *testing.T) {
@@ -1384,7 +1412,7 @@ func TestExecuteCleanupForTenant_AttendancePartialFailure(t *testing.T) {
 
 	s := unitScheduler(&unitSchedulerDependencies{
 		cleanupService: &mockCleanupService{
-			cleanupResult: &ports.ExpiredVisitCleanup{},
+			cleanupResult: &ports.ExpiredVisitCleanup{Success: true},
 			attendanceResult: &ports.StaleAttendanceCleanup{
 				Success:       false,
 				RecordsClosed: 3,
@@ -1393,8 +1421,9 @@ func TestExecuteCleanupForTenant_AttendancePartialFailure(t *testing.T) {
 		},
 		logger: slog.Default()})
 
-	result := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
-	assert.True(t, result)
+	result, err := cleanupComplete(context.Background(), s, testpkg.Tenant(t))
+	require.NoError(t, err)
+	assert.False(t, result, "a failed attendance step keeps the run due")
 }
 
 func TestExecuteCleanupForTenant_AttendanceSuccess(t *testing.T) {
@@ -1402,7 +1431,7 @@ func TestExecuteCleanupForTenant_AttendanceSuccess(t *testing.T) {
 
 	s := unitScheduler(&unitSchedulerDependencies{
 		cleanupService: &mockCleanupService{
-			cleanupResult: &ports.ExpiredVisitCleanup{},
+			cleanupResult: &ports.ExpiredVisitCleanup{Success: true},
 			attendanceResult: &ports.StaleAttendanceCleanup{
 				Success:          true,
 				RecordsClosed:    5,
@@ -1411,7 +1440,8 @@ func TestExecuteCleanupForTenant_AttendanceSuccess(t *testing.T) {
 		},
 		logger: slog.Default()})
 
-	result := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
+	result, err := cleanupComplete(context.Background(), s, testpkg.Tenant(t))
+	require.NoError(t, err)
 	assert.True(t, result)
 }
 
@@ -1420,7 +1450,7 @@ func TestExecuteCleanupForTenant_AttendanceNoRecords(t *testing.T) {
 
 	s := unitScheduler(&unitSchedulerDependencies{
 		cleanupService: &mockCleanupService{
-			cleanupResult: &ports.ExpiredVisitCleanup{},
+			cleanupResult: &ports.ExpiredVisitCleanup{Success: true},
 			attendanceResult: &ports.StaleAttendanceCleanup{
 				Success:       true,
 				RecordsClosed: 0,
@@ -1428,7 +1458,8 @@ func TestExecuteCleanupForTenant_AttendanceNoRecords(t *testing.T) {
 		},
 		logger: slog.Default()})
 
-	result := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
+	result, err := cleanupComplete(context.Background(), s, testpkg.Tenant(t))
+	require.NoError(t, err)
 	assert.True(t, result)
 }
 
@@ -1437,12 +1468,13 @@ func TestExecuteCleanupForTenant_AttendanceNilResult(t *testing.T) {
 
 	s := unitScheduler(&unitSchedulerDependencies{
 		cleanupService: &mockCleanupService{
-			cleanupResult:    &ports.ExpiredVisitCleanup{},
+			cleanupResult:    &ports.ExpiredVisitCleanup{Success: true},
 			attendanceResult: nil,
 		},
 		logger: slog.Default()})
 
-	result := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
+	result, err := cleanupComplete(context.Background(), s, testpkg.Tenant(t))
+	require.NoError(t, err)
 	assert.True(t, result)
 }
 
@@ -2154,4 +2186,11 @@ func TestRunMaterializationTaskPolling_TickerFires(t *testing.T) {
 		close(s.done)
 		s.wg.Wait()
 	})
+}
+
+// cleanupComplete reports whether every nightly cleanup step of the school
+// succeeded.
+func cleanupComplete(ctx context.Context, s *Scheduler, tenantID int64) (bool, error) {
+	failed, err := s.executeCleanupForTenant(ctx, tenantID)
+	return err == nil && len(failed) == 0, err
 }

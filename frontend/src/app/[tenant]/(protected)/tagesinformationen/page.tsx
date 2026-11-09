@@ -296,7 +296,7 @@ export default function TagesinformationenPage() {
                           {notice.title}
                         </span>
                         {notice.priority === "important" && (
-                          <StatusBadge label="Wichtig" tone="orange" />
+                          <StatusBadge label="Wichtig" tone="warning" />
                         )}
                         {!notice.active && (
                           <StatusBadge label="Abgeschaltet" tone="gray" />

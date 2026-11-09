@@ -243,7 +243,7 @@ func TestPublicCareContractBooksModulesPerWeekdayInOneDraftAndFreezesItsPDFAtThe
 	post := &postDouble{next: testpkg.UniqueTestTenantID(t)}
 	reads := []carecontract.SchoolAccess{}
 	school.reads = &reads
-	ports := compose.ContractPorts{Letterheads: letterheadDouble{}, Post: post, Runtime: runtimeDouble{}, Access: school,
+	ports := compose.ContractPorts{Holidays: holidaysDouble{}, Letterheads: letterheadDouble{}, Post: post, Runtime: runtimeDouble{}, Access: school,
 		Ledger: ledgerDouble{}, Links: carecontract.SigningLinks{Tokens: &tokenDouble{}, ParentsURL: "http://parents.localhost", Fingerprint: sha256Hex}}
 	contracts := compose.NewContracts(ports)
 	id := created.Created[0].ID
@@ -312,4 +312,16 @@ type noMailBlocks struct{}
 
 func (noMailBlocks) ContractMailBlocks(context.Context, int64, []string) (map[string]string, error) {
 	return nil, nil
+}
+
+// holidaysDouble answers no statutory holidays for any school: only
+// Saturday and Sunday move a withdrawal period (#6350).
+type holidaysDouble struct{}
+
+func (holidaysDouble) SchoolHolidayDates(_ context.Context, schoolIDs []int64, _, _ calendar.Date) (map[int64]map[calendar.Date]bool, error) {
+	result := make(map[int64]map[calendar.Date]bool, len(schoolIDs))
+	for _, schoolID := range schoolIDs {
+		result[schoolID] = map[calendar.Date]bool{}
+	}
+	return result, nil
 }

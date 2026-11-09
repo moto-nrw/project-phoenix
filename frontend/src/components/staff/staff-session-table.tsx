@@ -21,6 +21,7 @@ import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { ABSENCE_TYPE_HEX, ABSENCE_TYPE_LABEL } from "~/lib/absence-helpers";
 import {
+  berlinClockFromISO,
   berlinTodayISO,
   endOfBerlinDayISO,
   isoWeekNumber,
@@ -1531,7 +1532,7 @@ function HintBadges({
     pills.push({
       key: "auto-checkout",
       label: "Auto-Checkout",
-      tone: "orange",
+      tone: "warning",
     });
   }
   if (pills.length === 0 && laborHints.length === 0) {
@@ -1638,7 +1639,7 @@ function LaborHintList({ hints }: { readonly hints: readonly LaborHint[] }) {
     <>
       {hints.map((hint) => (
         <span key={hint.key} className="flex flex-col items-start gap-0.5">
-          <StatusBadge label={hint.label} tone="orange" title={hint.title} />
+          <StatusBadge label={hint.label} tone="warning" title={hint.title} />
           {hint.detail ? (
             <span className="text-moto-amber-strong text-xs">
               {hint.detail}
@@ -1679,9 +1680,7 @@ function formatShortDate(d: Date): string {
   return `${dd}.${mm}.`;
 }
 
+// School time, whatever the viewer's zone (#6293).
 function formatTimeOnly(iso: string): string {
-  const date = new Date(iso);
-  const hh = String(date.getHours()).padStart(2, "0");
-  const mm = String(date.getMinutes()).padStart(2, "0");
-  return `${hh}:${mm}`;
+  return berlinClockFromISO(iso);
 }

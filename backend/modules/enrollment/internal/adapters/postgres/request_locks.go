@@ -62,8 +62,8 @@ func (r *Store) AcquireChildIdentityLock(ctx context.Context, firstName, lastNam
 		return err
 	}
 	_, err = db.NewRaw(`SELECT pg_advisory_xact_lock(?, hashtext(
-		?::text || chr(31) || LOWER(NORMALIZE(TRIM(?::text), NFC)) || chr(31) ||
-		LOWER(NORMALIZE(TRIM(?::text), NFC)) || chr(31) || ?::text))`,
+		?::text || chr(31) || LOWER(NORMALIZE(TRIM(?::text), NFC) COLLATE public.german_name) || chr(31) ||
+		LOWER(NORMALIZE(TRIM(?::text), NFC) COLLATE public.german_name) || chr(31) || ?::text))`,
 		childIdentityLockClass, tenantID, strings.TrimSpace(firstName), strings.TrimSpace(lastName), birthday.String()).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to acquire child identity lock: %w", err)

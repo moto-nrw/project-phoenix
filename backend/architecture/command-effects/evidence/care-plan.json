@@ -9385,46 +9385,6 @@
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.pickupScheduleService.DeleteAllStudentPickupExceptions",
-      "binding_digest": "08c32eee6fb24b94b614071563e99a85",
-      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupScheduleService.DeleteAllStudentPickupExceptions",
-      "source_owner": "care-plan",
-      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.LockStudent",
-      "target_owner": "people-directory"
-    },
-    {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.pickupScheduleService.DeleteAllStudentPickupExceptions",
-      "binding_digest": "3a246e5fb33d8c42523f5686fcd5ae7c",
-      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupScheduleService.DeleteAllStudentPickupExceptions",
-      "source_owner": "care-plan",
-      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.LockStudent",
-      "target_owner": "people-directory"
-    },
-    {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.pickupScheduleService.DeleteAllStudentPickupExceptions",
-      "binding_digest": "28b8ee823d52672d17dc4ac467655f6a",
-      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupScheduleService.DeleteAllStudentPickupExceptions",
-      "source_owner": "care-plan",
-      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
-      "target_owner": "people-directory"
-    },
-    {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.pickupScheduleService.DeleteAllStudentPickupExceptions",
-      "binding_digest": "c7d7ae797df94381dcb458f1d083c512",
-      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupScheduleService.DeleteAllStudentPickupExceptions",
-      "source_owner": "care-plan",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTransaction",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.pickupScheduleService.DeleteAllStudentPickupExceptions",
-      "binding_digest": "616ef626ec4955ebda5240ed980feef3",
-      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupScheduleService.DeleteAllStudentPickupExceptions",
-      "source_owner": "care-plan",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
-      "target_owner": "tenant-runtime"
-    },
-    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.pickupScheduleService.DeleteAllStudentPickupSchedules",
       "binding_digest": "cbe4b4ff3455625752118a54efda4848",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupScheduleService.DeleteAllStudentPickupSchedules",

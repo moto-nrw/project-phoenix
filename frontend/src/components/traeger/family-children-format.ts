@@ -28,10 +28,10 @@ export const STATUS_LABELS: Record<FamilyChildrenStatus, string> = {
 
 export const STATUS_TONES: Record<FamilyChildrenStatus, StatusBadgeTone> = {
   missing: "gray",
-  stated: "orange",
-  changed: "orange",
+  stated: "warning",
+  changed: "warning",
   confirmed: "green",
-  expiring: "orange",
+  expiring: "warning",
   expired: "red",
   upcoming: "blue",
 };

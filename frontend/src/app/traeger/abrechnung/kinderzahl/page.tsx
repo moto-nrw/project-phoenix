@@ -339,7 +339,7 @@ export default function TraegerKinderzahlPage() {
         <SectionCard
           title="Zu prüfen"
           titleBadge={
-            <StatusBadge tone="orange" label={`${toCheck.length} offen`} />
+            <StatusBadge tone="warning" label={`${toCheck.length} offen`} />
           }
           description="Bis Sie prüfen, zählt der Monatslauf die bisher bestätigte Zahl. Ohne sie zählen nur die Kinder mit Vertrag."
           leading={

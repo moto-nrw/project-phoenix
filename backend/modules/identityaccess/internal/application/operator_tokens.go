@@ -204,6 +204,22 @@ func (t *OperatorTokens) RevokeEmailChanges(ctx context.Context, operatorID int6
 	})
 }
 
+// RevokePasswordBoundCredentials ends, in one unit, what a rotated password
+// must not leave behind: the open e-mail change links and the remembered
+// devices that would skip the second factor (#6289).
+func (t *OperatorTokens) RevokePasswordBoundCredentials(ctx context.Context, operatorID int64) error {
+	return t.run(ctx, "revoke_operator_password_bound_credentials", func(txCtx context.Context, stats *domain.OperationStats) error {
+		queryStats, err := t.store.RevokeOperatorEmailChanges(txCtx, operatorID)
+		stats.Add(queryStats)
+		if err != nil {
+			return err
+		}
+		queryStats, err = t.store.RevokeOperatorTrustedDevices(txCtx, operatorID, t.now())
+		stats.Add(queryStats)
+		return err
+	})
+}
+
 func (t *OperatorTokens) RevokeExpiredEmailChanges(ctx context.Context) (result int, err error) {
 	err = t.run(ctx, "revoke_expired_operator_email_changes", func(txCtx context.Context, stats *domain.OperationStats) error {
 		revoked, queryStats, revokeErr := t.store.RevokeExpiredOperatorEmailChanges(txCtx, t.now())

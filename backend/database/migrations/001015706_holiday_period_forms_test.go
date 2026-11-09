@@ -119,7 +119,7 @@ func TestHolidayPeriodFormsGiveEveryPeriodItsVersionOne(t *testing.T) {
 			_, err := tx.ExecContext(ctx, change, own)
 			return err
 		})
-		assert.ErrorContains(t, err, "permission denied", "a version never changes: %s", change)
+		assert.Equal(t, "42501", testpkg.PostgresSQLState(err), "a version never changes: %s", change)
 	}
 	require.NoError(t, asRequestRole("app.current_org_id", fmt.Sprint(own), func(ctx context.Context, tx bun.Tx) error {
 		var period int64

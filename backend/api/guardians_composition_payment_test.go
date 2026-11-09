@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -183,6 +184,42 @@ func TestGuardianComposition_PaymentMaskedByDefaultRevealOnDemand(t *testing.T) 
 
 	assert.Equal(t, 1, ctx.accessLogs(accessGuardianFinancialView))
 	assert.Equal(t, 1, ctx.accessLogs(accessGuardianFinancialReveal))
+}
+
+func TestGuardianComposition_PaymentAccessAuditSurvivesDecryptionFailure(t *testing.T) {
+	t.Parallel()
+	c := setupGuardiansCompositionRoute(t)
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	studentID, _ := c.createStudent("Payment", "Unreadable", "1a")
+	guardianID, _ := c.createGuardian("payment-unreadable")
+	c.link(studentID, guardianID, "custom")
+	c.requirePayerSet(t, studentID, &guardianID)
+	code, body := c.paymentRequest(t, http.MethodPut, fmt.Sprintf("/%d/payment", guardianID),
+		map[string]any{"iban": testIBAN, "account_holder": "Synthetic holder"}, financialPerm)
+	require.Equal(t, http.StatusOK, code, body)
+	_, err := db.NewRaw(`UPDATE users.guardian_financial_data
+SET iban_sealed = ?, account_holder_sealed = ? WHERE guardian_profile_id = ?`,
+		[]byte("damaged IBAN"), []byte("damaged holder"), guardianID).Exec(ctx)
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		name, method, path, resource string
+		body                         any
+	}{
+		{"view", http.MethodGet, fmt.Sprintf("/%d/payment", guardianID), accessGuardianFinancialView, nil},
+		{"reveal", http.MethodPost, fmt.Sprintf("/%d/payment/reveal", guardianID), accessGuardianFinancialReveal, map[string]any{}},
+		{"overview", http.MethodGet, "/payment-overview", accessGuardianPaymentOverview, nil},
+		{"export", http.MethodPost, "/payment-overview/export", accessGuardianPaymentExport, map[string]any{"format": "xlsx"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			code, body := c.paymentRequest(t, tc.method, tc.path, tc.body, financialPerm)
+			require.Equal(t, http.StatusInternalServerError, code, body)
+			assert.NotContains(t, body, testIBAN)
+			assert.NotContains(t, body, "Synthetic holder")
+			assert.Equal(t, 1, c.accessLogs(tc.resource), "the access attempt must remain committed after an HTTP failure")
+		})
+	}
 }
 
 func TestGuardianComposition_PaymentRejectsMalformedIBAN(t *testing.T) {

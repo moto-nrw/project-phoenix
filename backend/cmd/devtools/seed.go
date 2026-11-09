@@ -146,6 +146,12 @@ Usage:
 		}
 		defer closeHistory()
 		options.PresenceHistory = history
+		meals, closeMeals, err := openMealHistory()
+		if err != nil {
+			return err
+		}
+		defer closeMeals()
+		options.MealHistory = meals
 
 		return defaultSeedRoot.run(cmd.Context(), url, verbose, options, email, password, pin)
 	},
