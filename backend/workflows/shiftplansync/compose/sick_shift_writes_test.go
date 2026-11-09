@@ -53,16 +53,23 @@ func (e *sickCascadeEnv) mustPlanShift(t *testing.T, staffID int64, date calenda
 
 func (e *sickCascadeEnv) moveShift(t *testing.T, shift workforce.StaffShift, targetStaffID int64, date calendar.Date, start, end string) workforce.StaffShift {
 	t.Helper()
+	moved, err := e.tryMoveShift(t, shift, targetStaffID, date, start, end)
+	require.NoError(t, err)
+	return moved
+}
+
+func (e *sickCascadeEnv) tryMoveShift(t *testing.T, shift workforce.StaffShift, targetStaffID int64, date calendar.Date, start, end string) (workforce.StaffShift, error) {
+	t.Helper()
 	var moved workforce.PlannedShift
+	var moveErr error
 	e.inTx(t, func(ctx context.Context) error {
-		var err error
-		moved, err = e.Planning.MoveShift(ctx, workforce.MoveStaffShift{
+		moved, moveErr = e.Planning.MoveShift(ctx, workforce.MoveStaffShift{
 			ShiftID: shift.ID, SourceStaffID: shift.StaffID, TargetStaffID: targetStaffID,
 			Date: date.String(), StartTime: clock(start), EndTime: clock(end), ActorStaffID: e.admin.ID,
 		})
-		return err
+		return nil
 	})
-	return moved.StaffShift
+	return moved.StaffShift, moveErr
 }
 
 // W1: created before and after the report, the shifts end up alike.
@@ -156,6 +163,11 @@ func TestSickReport_MoveOntoSickDayStaysIdempotent(t *testing.T) {
 		assertSickCancelled(t, e.moveShift(t, own, e.subject.ID, stampWeekTwo, "08:00", "10:00"), absenceID, attempt+" same-person move")
 		assertSickCancelled(t, e.moveShift(t, colleagues, e.subject.ID, stampWeekTwo, "13:00", "15:00"), absenceID, attempt+" cross-person move")
 	}
+
+	_, err := e.tryMoveShift(t, own, e.subject.ID, stampWeekThree, "08:00", "10:00")
+	require.Error(t, err, "a cancelled shift still cannot be moved elsewhere")
+	assert.True(t, errors.Is(err, workforce.ErrInvalidStaffShift), "input refusal: %v", err)
+	assertSickCancelled(t, e.reloadShift(t, own.ID), absenceID, "row unchanged by the refused move")
 }
 
 // W3: a sick person cannot cover a gap; a healthy day can.
