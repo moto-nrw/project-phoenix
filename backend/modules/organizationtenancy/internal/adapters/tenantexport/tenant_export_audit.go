@@ -89,31 +89,38 @@ func sepaDebitFileReadmeFiles(files []organizationtenancy.ExportSEPADebitFileOri
 }
 
 // writeSEPADebitFiles writes the PAIN.008 files Parent Billing answers for
-// this Träger into their own directory and checksums each in the manifest.
-// They are read after the catalog snapshot, in a Träger transaction of the
-// owner, so the runbook runs the package with every writer stopped: the
-// Träger is deactivated, and nothing changes in between.
+// this Träger into their own directory, each as it comes, and checksums each
+// in the manifest. They are read after the catalog snapshot, in a Träger
+// transaction of the owner, so the runbook runs the package with every
+// writer stopped: the Träger is deactivated, and nothing changes in between.
+// A failure leaves the files written so far to the cleanup of the run.
 func (r *exportRun) writeSEPADebitFiles(ctx context.Context, owner organizationtenancy.TenantExportSEPADebitFiles) error {
-	files, err := owner.SEPADebitFiles(ctx, r.options.OrganizationID)
-	if err != nil {
-		return fmt.Errorf("tenant export: PAIN.008 files unavailable: %w", err)
-	}
 	if err := os.Mkdir(filepath.Join(r.options.Output, sepaDebitFileDirectory), 0o700); err != nil {
 		return errors.New("tenant export: cannot create the PAIN.008 directory")
 	}
-	origins := make([]organizationtenancy.ExportSEPADebitFileOrigin, 0, len(files))
-	for _, file := range files {
+	origins := []organizationtenancy.ExportSEPADebitFileOrigin{}
+	var invalid error
+	err := owner.SEPADebitFiles(ctx, r.options.OrganizationID, func(file organizationtenancy.ExportSEPADebitFile) error {
 		// One plain file name per message: never a path beside or above
 		// the directory, never the notice.
 		if file.Name == "" || path.Base(file.Name) != file.Name || file.Name == ".." || file.Name == "LIESMICH.txt" ||
 			!strings.HasSuffix(file.Name, ".xml") || file.Origin == "" {
-			return errors.New("tenant export: invalid PAIN.008 file")
+			invalid = errors.New("tenant export: invalid PAIN.008 file")
+			return invalid
 		}
 		name := path.Join(sepaDebitFileDirectory, file.Name)
 		if err := r.writeArtifact(name, file.Data); err != nil {
+			invalid = err
 			return err
 		}
 		origins = append(origins, organizationtenancy.ExportSEPADebitFileOrigin{Path: name, Origin: file.Origin, Reason: file.Reason})
+		return nil
+	})
+	if invalid != nil {
+		return invalid
+	}
+	if err != nil {
+		return fmt.Errorf("tenant export: PAIN.008 files unavailable: %w", err)
 	}
 	if err := r.writeArtifact(path.Join(sepaDebitFileDirectory, "LIESMICH.txt"), sepaDebitFileReadmeFiles(origins)); err != nil {
 		return err

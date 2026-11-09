@@ -43,7 +43,13 @@ func TestSEPAReturnReadsOnlyTheTraegersOwnBankData(t *testing.T) {
 			submitted_amount_cents = 7000, collect_on = ? WHERE id = ?`, fmt.Sprintf("MOTO-RUECKGABE-%d", other.organization), collectOn, other.debit)
 		require.NoError(t, err)
 
-		debits, err := store.ReturnSEPADebits(ctx, own.organization)
+		messages, err := store.ReturnSEPAMessages(ctx, own.organization)
+		require.NoError(t, err)
+		require.Equal(t, []string{fmt.Sprintf("MOTO-RUECKGABE-%d", own.organization)}, messages, "only the Träger's own message")
+		foreign, err := store.ReturnSEPAMessageDebits(ctx, own.organization, fmt.Sprintf("MOTO-RUECKGABE-%d", other.organization))
+		require.NoError(t, err)
+		require.Empty(t, foreign, "no debit of the other Träger by its message ID")
+		debits, err := store.ReturnSEPAMessageDebits(ctx, own.organization, messages[0])
 		require.NoError(t, err)
 		require.Len(t, debits, 1, "only the Träger's own debit")
 		debit := debits[0]

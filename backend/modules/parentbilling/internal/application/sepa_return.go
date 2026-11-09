@@ -24,14 +24,21 @@ import (
 // of the download; the creation time is the confirmation of the submission.
 // Each file names its origin and why.
 
-// SEPAReturnStore reads the sealed debits and stored files of one Träger.
-// Every method runs in the Träger transaction of organizationID.
+// SEPAReturnStore reads the sealed debits and stored files of one Träger,
+// one message at a time. Every method runs in the Träger transaction of
+// organizationID.
 type SEPAReturnStore interface {
-	// ReturnSEPADebits reads every debit with its sealed account, ordered
-	// by message ID, then as the file orders them.
-	ReturnSEPADebits(ctx context.Context, organizationID int64) ([]parentbilling.SealedSEPADebit, error)
-	// ReturnSEPADebitFiles reads the stored files of the submitted messages.
-	ReturnSEPADebitFiles(ctx context.Context, organizationID int64) ([]parentbilling.StoredSEPADebitFile, error)
+	// ReturnSEPAMessages answers the ID of every submitted message, ordered
+	// by message ID: each with a submitted debit and each whose stored
+	// original stayed, also after its last debit was deleted (a submitted
+	// file stays while an installment notice of it stays).
+	ReturnSEPAMessages(ctx context.Context, organizationID int64) ([]string, error)
+	// ReturnSEPAMessageDebits reads the submitted debits of one message with
+	// their sealed account, as the file orders them.
+	ReturnSEPAMessageDebits(ctx context.Context, organizationID int64, messageID string) ([]parentbilling.SealedSEPADebit, error)
+	// ReturnSEPADebitFile reads the stored file of one submitted message;
+	// found is false without one.
+	ReturnSEPADebitFile(ctx context.Context, organizationID int64, messageID string) (file parentbilling.StoredSEPADebitFile, found bool, err error)
 }
 
 // The reasons a PAIN.008 file of the Rückgabe names for its origin.
@@ -63,61 +70,43 @@ func NewSEPAReturn(store SEPAReturnStore, creditors parentbilling.SEPACreditorAc
 	return &SEPAReturn{store: store, creditors: creditors, cipher: cipher, fingerprint: fingerprint}
 }
 
-// SEPAReturn answers the PAIN.008 file of each submitted message: the
-// stored original, or else the file regenerated from the debits.
-func (r *SEPAReturn) SEPAReturn(ctx context.Context, organizationID int64) (parentbilling.SEPAReturnData, error) {
+// SEPAReturn writes the PAIN.008 file of each submitted message: the
+// stored original, or else the file regenerated from the debits. It reads
+// one message, writes its file and only then reads the next.
+func (r *SEPAReturn) SEPAReturn(ctx context.Context, organizationID int64, write func(parentbilling.SEPAReturnFile) error) error {
 	if organizationID <= 0 {
-		return parentbilling.SEPAReturnData{}, parentbilling.ErrSEPADebitRunNotFound
+		return parentbilling.ErrSEPADebitRunNotFound
 	}
-	debits, err := r.store.ReturnSEPADebits(ctx, organizationID)
+	messages, err := r.store.ReturnSEPAMessages(ctx, organizationID)
 	if err != nil {
-		return parentbilling.SEPAReturnData{}, err
-	}
-	order, messages := submittedMessages(debits)
-	if len(order) == 0 {
-		return parentbilling.SEPAReturnData{}, nil
-	}
-	storedFiles, err := r.store.ReturnSEPADebitFiles(ctx, organizationID)
-	if err != nil {
-		return parentbilling.SEPAReturnData{}, err
-	}
-	stored := make(map[string]parentbilling.StoredSEPADebitFile, len(storedFiles))
-	for _, file := range storedFiles {
-		stored[file.MessageID] = file
+		return err
 	}
 	today := func() (*parentbilling.LetterheadBankAccount, error) { return r.creditorAccount(ctx, organizationID) }
-	files := make([]parentbilling.SEPAReturnFile, 0, len(order))
-	for _, messageID := range order {
-		kept, found := stored[messageID]
-		file, err := r.messageFile(organizationID, messageID, messages[messageID], kept, found, today)
+	for _, messageID := range messages {
+		kept, found, err := r.store.ReturnSEPADebitFile(ctx, organizationID, messageID)
 		if err != nil {
-			return parentbilling.SEPAReturnData{}, err
+			return err
 		}
-		files = append(files, file)
+		var entries []parentbilling.SealedSEPADebit
+		if !found || kept.Sealed == nil { // only a reconstruction reads the debits
+			if entries, err = r.store.ReturnSEPAMessageDebits(ctx, organizationID, messageID); err != nil {
+				return err
+			}
+		}
+		file, err := r.messageFile(organizationID, messageID, entries, kept, found, today)
+		if err != nil {
+			return err
+		}
+		if err := write(file); err != nil {
+			return err
+		}
 	}
-	return parentbilling.SEPAReturnData{Files: files}, nil
-}
-
-// submittedMessages groups the submitted debits per message, in the order
-// of the debits.
-func submittedMessages(debits []parentbilling.SealedSEPADebit) ([]string, map[string][]parentbilling.SealedSEPADebit) {
-	var order []string
-	messages := map[string][]parentbilling.SealedSEPADebit{}
-	for _, entry := range debits {
-		if entry.Debit.Status != parentbilling.DebitSubmitted || entry.Debit.MessageID == "" {
-			continue
-		}
-		if _, seen := messages[entry.Debit.MessageID]; !seen {
-			order = append(order, entry.Debit.MessageID)
-		}
-		messages[entry.Debit.MessageID] = append(messages[entry.Debit.MessageID], entry)
-	}
-	return order, messages
+	return nil
 }
 
 // messageFile is the file of one message with its origin: the stored
-// original, else reconstructed with the creditor account of the submission,
-// else with today's default account.
+// original, also without a surviving debit, else reconstructed with the
+// creditor account of the submission, else with today's default account.
 func (r *SEPAReturn) messageFile(organizationID int64, messageID string, entries []parentbilling.SealedSEPADebit,
 	kept parentbilling.StoredSEPADebitFile, found bool, today func() (*parentbilling.LetterheadBankAccount, error),
 ) (parentbilling.SEPAReturnFile, error) {
@@ -127,6 +116,8 @@ func (r *SEPAReturn) messageFile(organizationID int64, messageID string, entries
 	case found && kept.Sealed != nil:
 		file.Origin, file.Reason = parentbilling.SEPAReturnOriginal, reasonOriginal
 		file.Data, err = r.storedOriginal(organizationID, kept)
+	case len(entries) == 0:
+		return file, fmt.Errorf("parent billing: the SEPA direct debit file %s has neither a stored original nor debits", messageID)
 	case found && kept.CreditorIBAN != "":
 		file.Origin, file.Reason = parentbilling.SEPAReturnReconstructed, reasonSnapshot
 		file.Data, err = r.submittedFile(organizationID, messageID, entries, &parentbilling.LetterheadBankAccount{

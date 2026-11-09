@@ -74,14 +74,16 @@ type TenantExportDependencies struct {
 	Audit          TenantExportAudit
 }
 
-// TenantExportSEPADebitFiles answers the PAIN.008 file of each submitted
-// SEPA message of a Träger (#6314, ADR 0187): the stored original, else a
-// file reconstructed from the stored debits, each with its origin. The rows
-// of the mandates and debits already carry the opened account (ADR 0184);
-// the files are what those rows cannot carry. The root binds it to Parent
-// Billing, which owns the bank key.
+// TenantExportSEPADebitFiles hands the PAIN.008 file of each submitted
+// SEPA message of a Träger to write (#6314, ADR 0187): the stored original,
+// else a file reconstructed from the stored debits, each with its origin.
+// It reads the next message only after write returned, so the export holds
+// one file in memory; an error of write stops it. The rows of the mandates
+// and debits already carry the opened account (ADR 0184); the files are
+// what those rows cannot carry. The root binds it to Parent Billing, which
+// owns the bank key.
 type TenantExportSEPADebitFiles interface {
-	SEPADebitFiles(ctx context.Context, organizationID int64) ([]ExportSEPADebitFile, error)
+	SEPADebitFiles(ctx context.Context, organizationID int64, write func(ExportSEPADebitFile) error) error
 }
 
 // ExportSEPADebitFile is one PAIN.008 file: its name (message ID with .xml),

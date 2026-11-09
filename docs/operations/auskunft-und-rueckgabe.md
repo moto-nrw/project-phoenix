@@ -197,9 +197,10 @@ scripts/dev-native.sh backend go run . tenant export \
     Gläubigerkonto darin (`parent_billing.sepa_debit_files`); ein späterer
     Download derselben Nachricht ersetzt sie bis zur Bestätigung der
     Einreichung. Ein nicht eingereichter Download geht nach 30 Tagen; eine
-    eingereichte Datei bleibt, solange eine ihrer Lastschriften bleibt. Das
-    Paket enthält diese Datei unverändert und prüft die Prüfsumme. Ein
-    späterer Wechsel des Standardkontos ändert sie nicht.
+    eingereichte Datei bleibt, solange eine ihrer Lastschriften oder einer
+    ihrer Ratenbescheide bleibt. Das Paket enthält diese Datei unverändert
+    und prüft die Prüfsumme, auch wenn keine ihrer Lastschriften mehr da ist.
+    Ein späterer Wechsel des Standardkontos ändert sie nicht.
   - **Rekonstruiert:** Fehlt das Original, erzeugt der Export die Datei mit
     demselben Generator neu aus den gespeicherten Lastschriften
     (Nachrichten-ID, eingereichte Beträge, Sequenz, Einzugstag, Konto zur

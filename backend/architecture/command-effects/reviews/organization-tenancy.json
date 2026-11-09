@@ -148,6 +148,18 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "adr": "0083",
+      "approval_adr": "0187",
+      "binding": "github.com/moto-nrw/project-phoenix/cmd.traegerSEPADebitFiles.SEPADebitFiles",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportSEPADebitFiles.SEPADebitFiles",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Dynamic callable/parameter flow; typed assignments do not prove its runtime function target. Exact boundary: unresolved:callable:github.com/moto-nrw/project-phoenix/cmd.write. The write callback is the export's own file writer (tenantexport writeSEPADebitFiles), handed in by the caller so the Träger package holds one PAIN.008 file in memory (#6317, ADR 0187); it writes into the private output directory, no database row. See ADR 0083 domain-source expansion and reconciliation binding-flow follow-up.",
+      "source_owner": "organization-tenancy",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/cmd.write",
+      "target_owner": ""
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthExportFields.OpenExportField",
       "classification": "query",
       "effect": "query",

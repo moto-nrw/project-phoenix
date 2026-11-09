@@ -23,15 +23,26 @@ import (
 
 const syntheticIBAN = "DE89370400440532013000"
 
+// sepaFilesFake hands files to the export one at a time. err fails the
+// read before any file, or, with errAfterFiles, after every file was written.
 type sepaFilesFake struct {
-	called []int64
-	files  []organizationtenancy.ExportSEPADebitFile
-	err    error
+	called        []int64
+	files         []organizationtenancy.ExportSEPADebitFile
+	err           error
+	errAfterFiles bool
 }
 
-func (f *sepaFilesFake) SEPADebitFiles(_ context.Context, organizationID int64) ([]organizationtenancy.ExportSEPADebitFile, error) {
+func (f *sepaFilesFake) SEPADebitFiles(_ context.Context, organizationID int64, write func(organizationtenancy.ExportSEPADebitFile) error) error {
 	f.called = append(f.called, organizationID)
-	return f.files, f.err
+	if f.err != nil && !f.errAfterFiles {
+		return f.err
+	}
+	for _, file := range f.files {
+		if err := write(file); err != nil {
+			return err
+		}
+	}
+	return f.err
 }
 
 // exportAuditFake records the attempt and the outcome of each run. err fails
@@ -212,7 +223,9 @@ func TestTenantExportOrganizationRecordsTheAttemptFirstAndEveryOutcome(t *testin
 		class string
 	}{
 		"PAIN.008 files unavailable": {files: &sepaFilesFake{err: errors.New("bank key missing")}, audit: &exportAuditFake{}, class: "sepa_debit_files"},
-		"completion unrecorded":      {files: &sepaFilesFake{files: syntheticSEPAFiles()}, audit: &exportAuditFake{completedErr: errors.New("ledger down")}, class: "audit"},
+		"PAIN.008 read fails after a written file": {files: &sepaFilesFake{files: syntheticSEPAFiles(), err: errors.New("bank key missing"),
+			errAfterFiles: true}, audit: &exportAuditFake{}, class: "sepa_debit_files"},
+		"completion unrecorded": {files: &sepaFilesFake{files: syntheticSEPAFiles()}, audit: &exportAuditFake{completedErr: errors.New("ledger down")}, class: "audit"},
 	} {
 		out, err := export(failing.files, failing.audit)
 		require.Error(t, err, name)

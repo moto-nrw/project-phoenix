@@ -79,7 +79,12 @@ für die Rückgabe am Vertragsende:
    Standardkonto des Trägers. Abweichend ist dann `CreDtTm` (Bestätigung der
    Einreichung). `LIESMICH.txt` im Ordner und `manifest.json` unter
    `sepaDebitFiles` nennen je Datei „Original“ oder „rekonstruiert“ mit
-   Grund; das Manifest prüft jede Datei mit Prüfsumme. Die Zeilen von
+   Grund; das Manifest prüft jede Datei mit Prüfsumme. Eingereicht ist jede
+   Nachricht mit eingereichter Lastschrift und jede, deren gespeichertes
+   Original geblieben ist: Es bleibt, solange ein Ratenbescheid der Datei
+   bleibt, auch nach der letzten Lastschrift, und geht dann als „Original“
+   mit. Eine ohne Bytes gespeicherte Einreichung ohne Lastschrift hat
+   nichts mehr, woraus eine Datei entstünde. Die Zeilen von
    `parent_billing.sepa_debit_files` stehen im Katalog-Export ohne
    `file_sealed`. Die Mandate und Lastschriften mit IBAN und Kontoinhaber
    bleiben allein Sache von ADR 0184; dieser Dateisatz gibt keinen Wert ein
@@ -108,7 +113,13 @@ für die Rückgabe am Vertragsende:
    geschrieben) und den consumer-owned Port `SEPACreditorAccounts` für das
    Standardkonto des Trägers. Organisation & Tenancy definiert den
    consumer-owned Port `TenantExportSEPADebitFiles` und öffnet nie einen
-   versiegelten Wert. Nur die CLI-Root `cmd/tenant_return.go` bindet beide;
+   versiegelten Wert. Beide reichen die Dateien einzeln an einen Schreiber
+   des Exports weiter: Parent Billing liest eine Nachricht, der Export
+   schreibt ihre Datei, erst dann folgt die nächste. Im Speicher liegt
+   höchstens eine geöffnete Datei; ein Fehler des Schreibers beendet den
+   Lauf, und dessen Aufräumen entfernt die schon geschriebenen Dateien. Den
+   Schreiber als Parameter kann die Effekt-Analyse nicht auflösen; die
+   Bindung steht darum als `unresolved` mit dieser ADR im Inventar. Nur die CLI-Root `cmd/tenant_return.go` bindet beide;
    keine HTTP-Route, kein Workflow-Owner, kein Lesen fremder Tabellen.
 5. **Transaktionen:** Erst der Read-only-Snapshot des Katalogs von ADR 0185,
    nach dessen Commit eine Träger-Transaktion von Parent Billing für die

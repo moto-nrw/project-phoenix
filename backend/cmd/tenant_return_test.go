@@ -230,3 +230,80 @@ func TestTenantExportOrganizationReturnsTheStoredOriginalAfterTheAccountChanged(
 		Reason: parsed.SEPADebitFiles.Files[0].Reason}}, parsed.SEPADebitFiles.Files)
 	require.NotContains(t, string(manifest), "DE89370400440532013000", "the manifest names no bank data of a family")
 }
+
+// A submitted original stays while an installment notice of its file stays,
+// also after its last debit was deleted (ADR 0187). The Träger package ships
+// it as the Original, beside the files of the messages that still have
+// their debits, in the order of the message IDs.
+func TestTenantExportOrganizationReturnsAStoredOriginalWithoutSurvivingDebits(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	database := testpkg.NewDatabase(t, db)
+	ctx := tenant.WithUnitOfWork(context.Background(), database.UnitOfWork())
+	cipher, err := securityRuntimeCompose.NewBankDataCipher(testpkg.TestBankDataKeys, "")
+	require.NoError(t, err)
+	operator := testpkg.CreateTestOperator(t, db)
+	org := testpkg.CreateTestOrganization(t, db, &testpkg.Organization{
+		Name: "Träger Rate", Slug: fmt.Sprintf("rueckgabe-rate-%d", testpkg.UniqueTestTenantID(t))}).ID
+	const kept, debited = "MOTO-20261121-RATERATERATERATERATE", "MOTO-20261120-LASTSCHRIFTLASTSCHRI"
+	original := []byte("<Document><MsgId>" + kept + "</MsgId><IBAN>DE89370400440532013000</IBAN></Document>\n")
+	sealedFile, err := cipher.Seal(original, []byte(fmt.Sprintf("parent_billing.sepa_debit_files.file|%d|%s", org, kept)))
+	require.NoError(t, err)
+	reference := "REF-RATE"
+	sealedIBAN, err := cipher.Seal([]byte("DE02120300000000202051"), []byte(fmt.Sprintf("parent_billing.sepa_mandates.iban|%d|%s", org, reference)))
+	require.NoError(t, err)
+	sealedHolder, err := cipher.Seal([]byte("Synthetic Holder"), []byte(fmt.Sprintf("parent_billing.sepa_mandates.account_holder|%d|%s", org, reference)))
+	require.NoError(t, err)
+	require.NoError(t, db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		// Replica role: the file row of the installment run is inserted as it
+		// stays after its last debit was deleted, without the notice behind it.
+		if _, err := tx.ExecContext(ctx, "SET LOCAL session_replication_role = replica"); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO platform.traeger_bank_accounts (organization_id, label, account_holder, iban, bic, is_default)
+			VALUES (?, 'Hauptkonto', 'Träger Rate e. V.', 'DE75512108001245126199', 'SOLADES1PFO', true)`, org); err != nil {
+			return err
+		}
+		contract := testpkg.UniqueTestTenantID(t)
+		var mandate int64
+		if err := tx.NewRaw(`INSERT INTO parent_billing.sepa_mandates (organization_id, family_email, care_contract_id, reference,
+			signed_on, kind, sequence, creditor_id, account_holder_sealed, iban_sealed, iban_masked, source)
+			VALUES (?, 'rate@example.invalid', ?, ?, '2026-09-01', 'recurring', 'recurring', 'DE98ZZZ09999999999', ?, ?, 'masked', 'office')
+			RETURNING id`, org, contract, reference, sealedHolder, sealedIBAN).Scan(ctx, &mandate); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO parent_billing.sepa_debits (organization_id, mandate_id, care_contract_id, run_kind,
+			run_id, care_invoice_id, invoice_number, amount_cents, due_on, sequence_type, creditor_id, mandate_reference,
+			mandate_signed_on, account_holder_sealed, iban_sealed, status, message_id, submitted_at, submitted_amount_cents, collect_on)
+			VALUES (?, ?, ?, 'care', 3, ?, 'RE-2027-0001', 7800, '2027-01-01', 'FRST', 'DE98ZZZ09999999999', ?, '2026-09-01', ?, ?,
+				'submitted', ?, '2026-11-20T09:00:00Z', 7800, '2027-01-01')`,
+			org, mandate, contract, testpkg.UniqueTestTenantID(t), reference, sealedHolder, sealedIBAN, debited); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(ctx, `INSERT INTO parent_billing.sepa_debit_files (organization_id, message_id, run_kind, run_id,
+			file_sealed, file_sha256, creditor_name, creditor_iban, creditor_bic, creditor_id, notice_ids, downloaded_at, submitted_at)
+			VALUES (?, ?, 'notice', 4, ?, ?, 'Träger Rate e. V.', 'DE75512108001245126199', 'SOLADES1PFO', 'DE98ZZZ09999999999',
+				ARRAY[?]::bigint[], now(), now())`,
+			org, kept, sealedFile, testpkg.ContentFingerprint(original), testpkg.UniqueTestTenantID(t))
+		return err
+	}))
+
+	out := filepath.Join(t.TempDir(), "export")
+	exporter, err := newTraegerTenantExporter(database, returnSealedFields(t), tenantExportProjectedFields(), cipher)
+	require.NoError(t, err)
+	require.NoError(t, exporter.Export(ctx, organizationtenancy.TenantExportOptions{OrganizationID: org, OperatorID: operator.ID, Output: out, Uploads: t.TempDir()}))
+	returned, err := os.ReadFile(filepath.Join(out, "SEPA-LASTSCHRIFTDATEIEN", kept+".xml"))
+	require.NoError(t, err, "the stored original of the installments ships without a surviving debit")
+	require.Equal(t, original, returned)
+	manifest, err := os.ReadFile(filepath.Join(out, "manifest.json"))
+	require.NoError(t, err)
+	var parsed organizationtenancy.ExportManifest
+	require.NoError(t, json.Unmarshal(manifest, &parsed))
+	require.NotNil(t, parsed.SEPADebitFiles)
+	require.Len(t, parsed.SEPADebitFiles.Files, 2)
+	require.Equal(t, organizationtenancy.ExportSEPADebitFileOrigin{Path: "SEPA-LASTSCHRIFTDATEIEN/" + debited + ".xml", Origin: "rekonstruiert",
+		Reason: parsed.SEPADebitFiles.Files[0].Reason}, parsed.SEPADebitFiles.Files[0])
+	require.Equal(t, organizationtenancy.ExportSEPADebitFileOrigin{Path: "SEPA-LASTSCHRIFTDATEIEN/" + kept + ".xml", Origin: "Original",
+		Reason: parsed.SEPADebitFiles.Files[1].Reason}, parsed.SEPADebitFiles.Files[1])
+	require.Contains(t, parsed.SEPADebitFiles.Files[1].Reason, "Original")
+}

@@ -98,7 +98,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/cmd.traegerSEPADebitFiles.SEPADebitFiles",
-      "binding_digest": "db09ea7e0a0d576afb92995576ca5310",
+      "binding_digest": "0e0725e350245ed408af38ebde57bf92",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportSEPADebitFiles.SEPADebitFiles",
       "source_owner": "organization-tenancy",
       "target": "github.com/moto-nrw/project-phoenix/modules/parentbilling.SEPAReturn.SEPAReturn",
@@ -106,11 +106,19 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/cmd.traegerSEPADebitFiles.SEPADebitFiles",
-      "binding_digest": "de5b4eb8b0ad3fa149cdb29e1d3d35b7",
+      "binding_digest": "0aa2acbe0447a4f3f0927033072dd3bc",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportSEPADebitFiles.SEPADebitFiles",
       "source_owner": "organization-tenancy",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTraeger",
       "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/cmd.traegerSEPADebitFiles.SEPADebitFiles",
+      "binding_digest": "8bc6b9f73b9e8bd937abc18a983365f6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportSEPADebitFiles.SEPADebitFiles",
+      "source_owner": "organization-tenancy",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/cmd.write",
+      "target_owner": ""
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthExportFields.OpenExportField",

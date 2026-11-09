@@ -2,8 +2,10 @@ package application
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"testing"
 
@@ -19,17 +21,75 @@ import (
 // debits. The opened accounts of the mandates and debits come with their
 // catalog rows (ADR 0184), not from here.
 
+// returnStoreFake answers the messages as the store does: every message
+// with a submitted debit or a stored original, ordered by message ID, then
+// the debits and the stored file of one message. log records each read.
 type returnStoreFake struct {
 	debits []parentbilling.SealedSEPADebit
 	files  []parentbilling.StoredSEPADebitFile
+	log    *[]string
 }
 
-func (s returnStoreFake) ReturnSEPADebitFiles(context.Context, int64) ([]parentbilling.StoredSEPADebitFile, error) {
-	return s.files, nil
+func (s returnStoreFake) record(entry string) {
+	if s.log != nil {
+		*s.log = append(*s.log, entry)
+	}
 }
 
-func (s returnStoreFake) ReturnSEPADebits(context.Context, int64) ([]parentbilling.SealedSEPADebit, error) {
-	return s.debits, nil
+func (s returnStoreFake) ReturnSEPAMessages(context.Context, int64) ([]string, error) {
+	s.record("messages")
+	seen := map[string]bool{}
+	for _, entry := range s.debits {
+		if entry.Debit.Status == parentbilling.DebitSubmitted && entry.Debit.MessageID != "" {
+			seen[entry.Debit.MessageID] = true
+		}
+	}
+	for _, file := range s.files {
+		if file.Sealed != nil {
+			seen[file.MessageID] = true
+		}
+	}
+	messages := make([]string, 0, len(seen))
+	for messageID := range seen {
+		messages = append(messages, messageID)
+	}
+	sort.Strings(messages)
+	return messages, nil
+}
+
+func (s returnStoreFake) ReturnSEPAMessageDebits(_ context.Context, _ int64, messageID string) ([]parentbilling.SealedSEPADebit, error) {
+	s.record("debits " + messageID)
+	var debits []parentbilling.SealedSEPADebit
+	for _, entry := range s.debits {
+		if entry.Debit.Status == parentbilling.DebitSubmitted && entry.Debit.MessageID == messageID {
+			debits = append(debits, entry)
+		}
+	}
+	return debits, nil
+}
+
+func (s returnStoreFake) ReturnSEPADebitFile(_ context.Context, _ int64, messageID string) (parentbilling.StoredSEPADebitFile, bool, error) {
+	s.record("file " + messageID)
+	for _, file := range s.files {
+		if file.MessageID == messageID {
+			return file, true, nil
+		}
+	}
+	return parentbilling.StoredSEPADebitFile{}, false, nil
+}
+
+// returnedFiles collects what SEPAReturn writes.
+type returnedFiles struct {
+	Files []parentbilling.SEPAReturnFile
+}
+
+func returnFiles(r *SEPAReturn, organizationID int64) (returnedFiles, error) {
+	var collected returnedFiles
+	err := r.SEPAReturn(context.Background(), organizationID, func(file parentbilling.SEPAReturnFile) error {
+		collected.Files = append(collected.Files, file)
+		return nil
+	})
+	return collected, err
 }
 
 type creditorAccountFake struct {
@@ -61,9 +121,9 @@ func TestSEPAReturnRegeneratesTheSubmittedFile(t *testing.T) {
 	// the Träger is active.
 	pending := sealedDebit(4, 14, "RE-2027-0004", 1000, parentbilling.SequenceTypeRecurring, "Ida Pending", "DE44500105175407324931")
 
-	returned, err := NewSEPAReturn(returnStoreFake{
+	returned, err := returnFiles(NewSEPAReturn(returnStoreFake{
 		debits: append(append([]parentbilling.SealedSEPADebit{}, store.debits...), pending),
-	}, creditorAccountFake{account: sjrCreditorAccount}, prefixCipher{}, testpkg.ContentFingerprint).SEPAReturn(context.Background(), 7)
+	}, creditorAccountFake{account: sjrCreditorAccount}, prefixCipher{}, testpkg.ContentFingerprint), 7)
 	require.NoError(t, err)
 
 	require.Len(t, returned.Files, 1, "one file per submitted message, none for the pending debit")
@@ -90,12 +150,11 @@ func TestSEPAReturnNeedsTheCreditorAccountForSubmittedFiles(t *testing.T) {
 	require.NoError(t, err)
 	_, err = debits.SubmitSEPADebits(context.Background(), sjrReviewer, parentbilling.DebitRunCare, 3, run.MessageID)
 	require.NoError(t, err)
-	_, err = NewSEPAReturn(returnStoreFake{debits: store.debits}, creditorAccountFake{}, prefixCipher{}, testpkg.ContentFingerprint).SEPAReturn(context.Background(), 7)
+	_, err = returnFiles(NewSEPAReturn(returnStoreFake{debits: store.debits}, creditorAccountFake{}, prefixCipher{}, testpkg.ContentFingerprint), 7)
 	require.ErrorIs(t, err, parentbilling.ErrSEPACreditorAccountMissing)
 
 	// A sealed value of another Träger does not open under this one.
-	_, err = NewSEPAReturn(returnStoreFake{debits: store.debits}, creditorAccountFake{account: sjrCreditorAccount}, prefixCipher{}, testpkg.ContentFingerprint).
-		SEPAReturn(context.Background(), 8)
+	_, err = returnFiles(NewSEPAReturn(returnStoreFake{debits: store.debits}, creditorAccountFake{account: sjrCreditorAccount}, prefixCipher{}, testpkg.ContentFingerprint), 8)
 	require.Error(t, err)
 }
 
@@ -118,8 +177,8 @@ func TestSEPAReturnShipsTheStoredOriginalAfterTheDefaultAccountChanged(t *testin
 	assert.True(t, stored[0].Submitted)
 
 	changed := &parentbilling.LetterheadBankAccount{AccountHolder: "Neues Konto e. V.", IBAN: "DE12 5001 0517 0648 4898 90", BIC: "INGDDEFFXXX"}
-	returned, err := NewSEPAReturn(returnStoreFake{debits: store.debits, files: stored},
-		creditorAccountFake{account: changed}, prefixCipher{}, testpkg.ContentFingerprint).SEPAReturn(context.Background(), 7)
+	returned, err := returnFiles(NewSEPAReturn(returnStoreFake{debits: store.debits, files: stored},
+		creditorAccountFake{account: changed}, prefixCipher{}, testpkg.ContentFingerprint), 7)
 	require.NoError(t, err)
 	var file *parentbilling.SEPAReturnFile
 	for i := range returned.Files {
@@ -136,8 +195,8 @@ func TestSEPAReturnShipsTheStoredOriginalAfterTheDefaultAccountChanged(t *testin
 	// creditor account recorded at its submission.
 	snapshot := stored[0]
 	snapshot.Sealed, snapshot.SHA256 = nil, ""
-	returned, err = NewSEPAReturn(returnStoreFake{debits: store.debits, files: []parentbilling.StoredSEPADebitFile{snapshot}},
-		creditorAccountFake{account: changed}, prefixCipher{}, testpkg.ContentFingerprint).SEPAReturn(context.Background(), 7)
+	returned, err = returnFiles(NewSEPAReturn(returnStoreFake{debits: store.debits, files: []parentbilling.StoredSEPADebitFile{snapshot}},
+		creditorAccountFake{account: changed}, prefixCipher{}, testpkg.ContentFingerprint), 7)
 	require.NoError(t, err)
 	reconstructed := returned.Files[len(returned.Files)-1]
 	assert.Equal(t, parentbilling.SEPAReturnReconstructed, reconstructed.Origin)
@@ -146,8 +205,8 @@ func TestSEPAReturnShipsTheStoredOriginalAfterTheDefaultAccountChanged(t *testin
 	assert.Equal(t, string(creDtTm.ReplaceAll(downloaded.Data, nil)), string(creDtTm.ReplaceAll(reconstructed.Data, nil)))
 
 	// An older file without either is reconstructed with today's account and says so.
-	returned, err = NewSEPAReturn(returnStoreFake{debits: store.debits},
-		creditorAccountFake{account: changed}, prefixCipher{}, testpkg.ContentFingerprint).SEPAReturn(context.Background(), 7)
+	returned, err = returnFiles(NewSEPAReturn(returnStoreFake{debits: store.debits},
+		creditorAccountFake{account: changed}, prefixCipher{}, testpkg.ContentFingerprint), 7)
 	require.NoError(t, err)
 	older := returned.Files[len(returned.Files)-1]
 	assert.Equal(t, parentbilling.SEPAReturnReconstructed, older.Origin)
@@ -157,7 +216,42 @@ func TestSEPAReturnShipsTheStoredOriginalAfterTheDefaultAccountChanged(t *testin
 	// A stored original whose checksum does not match is refused, never shipped.
 	tampered := stored[0]
 	tampered.SHA256 = strings.Repeat("0", 64)
-	_, err = NewSEPAReturn(returnStoreFake{debits: store.debits, files: []parentbilling.StoredSEPADebitFile{tampered}},
-		creditorAccountFake{account: changed}, prefixCipher{}, testpkg.ContentFingerprint).SEPAReturn(context.Background(), 7)
+	_, err = returnFiles(NewSEPAReturn(returnStoreFake{debits: store.debits, files: []parentbilling.StoredSEPADebitFile{tampered}},
+		creditorAccountFake{account: changed}, prefixCipher{}, testpkg.ContentFingerprint), 7)
 	require.Error(t, err)
+}
+
+// The Rückgabe holds one file in memory at a time: it reads the debits and
+// the stored file of a message, hands the file to the writer and only then
+// reads the next message (#6317). A writer that fails stops the run.
+func TestSEPAReturnWritesEachFileBeforeItReadsTheNextMessage(t *testing.T) {
+	t.Parallel()
+	store := sjrDebits()
+	debits := newSJRDebits(store)
+	_, err := debits.SEPADebitFile(context.Background(), sjrReviewer, parentbilling.DebitRunCare, 3)
+	require.NoError(t, err)
+	run, err := debits.SEPADebitRun(context.Background(), sjrReviewer, parentbilling.DebitRunCare, 3)
+	require.NoError(t, err)
+	_, err = debits.SubmitSEPADebits(context.Background(), sjrReviewer, parentbilling.DebitRunCare, 3, run.MessageID)
+	require.NoError(t, err)
+	const older = "MOTO-20261119-OLDEROLDEROLDEROLDER"
+	legacy := sealedDebit(5, 15, "RE-2026-0005", 3000, parentbilling.SequenceTypeRecurring, "Ida Legacy", "DE44500105175407324931")
+	legacy.Debit.Status, legacy.Debit.MessageID, legacy.Debit.SubmittedAt = parentbilling.DebitSubmitted, older, store.debits[0].Debit.SubmittedAt
+
+	var log []string
+	fake := returnStoreFake{debits: append([]parentbilling.SealedSEPADebit{legacy}, store.debits...), files: store.storedFiles(), log: &log}
+	sepaReturn := NewSEPAReturn(fake, creditorAccountFake{account: sjrCreditorAccount}, prefixCipher{}, testpkg.ContentFingerprint)
+	require.NoError(t, sepaReturn.SEPAReturn(context.Background(), 7, func(file parentbilling.SEPAReturnFile) error {
+		log = append(log, "write "+file.Path)
+		return nil
+	}))
+	require.Equal(t, []string{"messages",
+		"file " + older, "debits " + older, "write " + older + ".xml",
+		"file " + run.MessageID, "write " + run.MessageID + ".xml"}, log, "the stored original needs no debits")
+
+	log = nil
+	refused := errors.New("disk full")
+	err = sepaReturn.SEPAReturn(context.Background(), 7, func(parentbilling.SEPAReturnFile) error { return refused })
+	require.ErrorIs(t, err, refused)
+	require.Equal(t, []string{"messages", "file " + older, "debits " + older}, log, "nothing read after the failed write")
 }

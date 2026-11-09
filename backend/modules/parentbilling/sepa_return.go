@@ -54,17 +54,15 @@ type StoredSEPADebitFile struct {
 	MandateIDs []int64
 }
 
-// SEPAReturnData holds one PAIN.008 file per submitted message of one Träger.
-type SEPAReturnData struct {
-	Files []SEPAReturnFile
-}
-
-// SEPAReturn answers the PAIN.008 files of one Träger for its Rückgabe. It runs in
-// the Träger transaction of organizationID, which the caller opens, and
-// changes nothing. Never bind it to HTTP: the internal Rückgabe procedure
-// (tenant export --organization) is its only caller.
+// SEPAReturn writes the PAIN.008 files of one Träger for its Rückgabe, one
+// submitted message at a time: it reads a message, hands its file to write
+// and reads the next one only after write returned, so at most one opened
+// file is in memory. An error of write stops it. It runs in the Träger
+// transaction of organizationID, which the caller opens, and changes
+// nothing. Never bind it to HTTP: the internal Rückgabe procedure (tenant
+// export --organization) is its only caller.
 type SEPAReturn interface {
-	SEPAReturn(ctx context.Context, organizationID int64) (SEPAReturnData, error)
+	SEPAReturn(ctx context.Context, organizationID int64, write func(SEPAReturnFile) error) error
 }
 
 // SEPADebitDownloadRetention expires, across every Träger, the unsubmitted

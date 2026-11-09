@@ -59,24 +59,18 @@ func newTraegerTenantExporter(db transactionCompose.Database, sealed organizatio
 	})
 }
 
-// traegerSEPADebitFiles reads the PAIN.008 files in a Träger transaction of
-// the Träger and hands them to the export.
+// traegerSEPADebitFiles hands the PAIN.008 files to the export one at a
+// time, read in a Träger transaction of the Träger.
 type traegerSEPADebitFiles struct{ billing parentbilling.SEPAReturn }
 
-func (b traegerSEPADebitFiles) SEPADebitFiles(ctx context.Context, organizationID int64) ([]organizationtenancy.ExportSEPADebitFile, error) {
-	var data parentbilling.SEPAReturnData
-	if err := tenant.WithinTraeger(ctx, organizationID, func(ctx context.Context) error {
-		var err error
-		data, err = b.billing.SEPAReturn(ctx, organizationID)
-		return err
-	}); err != nil {
-		return nil, err
-	}
-	files := make([]organizationtenancy.ExportSEPADebitFile, len(data.Files))
-	for i, file := range data.Files {
-		files[i] = organizationtenancy.ExportSEPADebitFile{Name: file.Path, Data: file.Data, Origin: file.Origin, Reason: file.Reason}
-	}
-	return files, nil
+func (b traegerSEPADebitFiles) SEPADebitFiles(ctx context.Context, organizationID int64,
+	write func(organizationtenancy.ExportSEPADebitFile) error,
+) error {
+	return tenant.WithinTraeger(ctx, organizationID, func(ctx context.Context) error {
+		return b.billing.SEPAReturn(ctx, organizationID, func(file parentbilling.SEPAReturnFile) error {
+			return write(organizationtenancy.ExportSEPADebitFile{Name: file.Path, Data: file.Data, Origin: file.Origin, Reason: file.Reason})
+		})
+	})
 }
 
 // traegerCreditorAccounts reads the default bank account of the Träger from

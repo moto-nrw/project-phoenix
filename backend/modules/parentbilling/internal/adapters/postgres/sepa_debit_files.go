@@ -110,29 +110,31 @@ type sepaDebitFileRow struct {
 	CreditorID   string  `bun:"creditor_id"`
 }
 
-const returnSEPADebitFilesSQL = `SELECT message_id, run_kind, run_id, file_sealed, file_sha256, creditor_name, creditor_iban, creditor_bic, creditor_id
-	FROM parent_billing.sepa_debit_files WHERE organization_id = ? AND submitted_at IS NOT NULL ORDER BY message_id`
+const returnSEPADebitFileSQL = `SELECT message_id, run_kind, run_id, file_sealed, file_sha256, creditor_name, creditor_iban, creditor_bic, creditor_id
+	FROM parent_billing.sepa_debit_files WHERE organization_id = ? AND message_id = ? AND submitted_at IS NOT NULL`
 
-// ReturnSEPADebitFiles reads the stored files of the submitted messages.
-func (s *Store) ReturnSEPADebitFiles(ctx context.Context, organizationID int64) ([]parentbilling.StoredSEPADebitFile, error) {
+// ReturnSEPADebitFile reads the stored file of one submitted message;
+// found is false without one.
+func (s *Store) ReturnSEPADebitFile(ctx context.Context, organizationID int64, messageID string) (parentbilling.StoredSEPADebitFile, bool, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
-		return nil, err
+		return parentbilling.StoredSEPADebitFile{}, false, err
 	}
 	var rows []sepaDebitFileRow
-	if err := db.NewRaw(returnSEPADebitFilesSQL, organizationID).Scan(ctx, &rows); err != nil {
-		return nil, fmt.Errorf("read the SEPA debit files of the Rückgabe: %w", err)
+	if err := db.NewRaw(returnSEPADebitFileSQL, organizationID, messageID).Scan(ctx, &rows); err != nil {
+		return parentbilling.StoredSEPADebitFile{}, false, fmt.Errorf("read the SEPA debit file of the Rückgabe: %w", err)
 	}
-	files := make([]parentbilling.StoredSEPADebitFile, len(rows))
-	for i, row := range rows {
-		files[i] = parentbilling.StoredSEPADebitFile{MessageID: row.MessageID, RunKind: row.RunKind, RunID: row.RunID,
-			Sealed: row.FileSealed, CreditorName: row.CreditorName, CreditorIBAN: row.CreditorIBAN, CreditorBIC: row.CreditorBIC,
-			CreditorID: row.CreditorID, Submitted: true}
-		if row.FileSHA256 != nil {
-			files[i].SHA256 = *row.FileSHA256
-		}
+	if len(rows) == 0 {
+		return parentbilling.StoredSEPADebitFile{}, false, nil
 	}
-	return files, nil
+	row := rows[0]
+	file := parentbilling.StoredSEPADebitFile{MessageID: row.MessageID, RunKind: row.RunKind, RunID: row.RunID,
+		Sealed: row.FileSealed, CreditorName: row.CreditorName, CreditorIBAN: row.CreditorIBAN, CreditorBIC: row.CreditorBIC,
+		CreditorID: row.CreditorID, Submitted: true}
+	if row.FileSHA256 != nil {
+		file.SHA256 = *row.FileSHA256
+	}
+	return file, true, nil
 }
 
 // DeleteExpiredSEPADebitDownloads deletes, across every Träger, the
