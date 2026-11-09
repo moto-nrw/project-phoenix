@@ -3,10 +3,11 @@ import { spawn, spawnSync } from 'node:child_process';
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { unchangedForHour } from './cleanup-devbox-tmp.mjs';
 
 function fixture(t) {
-  const base = new URL('../tmp/', import.meta.url).pathname;
+  const base = fileURLToPath(new URL('../tmp/', import.meta.url));
   mkdirSync(base, { recursive: true });
   const root = mkdtempSync(join(base, 'moto-devbox-tmp-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
@@ -21,8 +22,20 @@ function fixture(t) {
   const setup = (overrides = {}) => spawnSync('bash', ['-c', 'source scripts/devbox-tmpdir.sh || exit; printf "%s" "$TMPDIR"'], {
     cwd: root, env: { ...env, ...overrides }, encoding: 'utf8',
   });
-  const cleanup = (elapsed = 0) => spawnSync(process.execPath, [
-    '--import', `data:text/javascript,Date.now = () => ${Date.now() + elapsed}`,
+  const cleanup = (elapsed = 0, denyReferences = false) => spawnSync(process.execPath, [
+    '--import', `data:text/javascript,${encodeURIComponent(`
+      import fs from 'node:fs';
+      import { syncBuiltinESMExports } from 'node:module';
+      Date.now = () => ${Date.now() + elapsed};
+      if (${denyReferences}) {
+        const readlink = fs.readlinkSync;
+        fs.readlinkSync = path => {
+          if (path === '/proc/' + process.pid + '/cwd') throw Object.assign(new Error('fixture permission denied'), { code: 'EACCES' });
+          return readlink(path);
+        };
+        syncBuiltinESMExports();
+      }
+    `)}`,
     'scripts/cleanup-devbox-tmp.mjs',
   ], {
     cwd: root, env: { ...env, TMPDIR: temp }, encoding: 'utf8',
@@ -63,19 +76,28 @@ test('cleanup removes only dead, unreferenced Nix trees, preserving live PIDs, l
   for (const path of [live, unknown, target, join(f.temp, 'nix-2147483646-1')]) assert.ok(existsSync(path), path);
 });
 
-test('an open descriptor or cwd retains an orphan until the referencing process exits', async t => {
-  const f = fixture(t);
-  assert.equal(f.setup().status, 0);
-  const orphan = f.tree('nix-2147483647-123');
-  const child = spawn(process.execPath, ['-e', 'require("fs").openSync("manifest.json", "r"); process.stdout.write("ready"); process.stdin.resume()'], { cwd: orphan });
-  t.after(() => { if (child.exitCode === null) child.kill(); });
-  await new Promise(resolve => child.stdout.once('data', resolve));
-  assert.equal(f.cleanup(61 * 60 * 1000).status, 0);
-  assert.ok(existsSync(orphan));
-  child.stdin.end();
-  await new Promise(resolve => child.once('exit', resolve));
-  assert.equal(f.cleanup(61 * 60 * 1000).status, 0);
-  assert.equal(existsSync(orphan), false);
+test('open descriptors and working directories independently retain an orphan', async t => {
+  for (const reference of ['descriptor', 'cwd']) {
+    await t.test(reference, async t => {
+      const f = fixture(t);
+      assert.equal(f.setup().status, 0);
+      const orphan = f.tree('nix-2147483647-123');
+      const code = reference === 'descriptor'
+        ? 'require("fs").openSync(process.argv[1], "r");'
+        : '';
+      const child = spawn(process.execPath, ['-e', `${code} process.stdout.write("ready"); process.stdin.resume()`, join(orphan, 'manifest.json')], {
+        cwd: reference === 'cwd' ? orphan : f.root,
+      });
+      t.after(() => { if (child.exitCode === null) child.kill(); });
+      await new Promise(resolve => child.stdout.once('data', resolve));
+      assert.equal(f.cleanup(61 * 60 * 1000).status, 0);
+      assert.ok(existsSync(orphan));
+      child.stdin.end();
+      await new Promise(resolve => child.once('exit', resolve));
+      assert.equal(f.cleanup(61 * 60 * 1000).status, 0);
+      assert.equal(existsSync(orphan), false);
+    });
+  }
 });
 
 test('cleanup refuses a custom or publicly writable namespace', t => {
@@ -133,6 +155,10 @@ test('the one-hour fallback checks nested entries and both timestamps', t => {
   assert.equal(f.setup().status, 0);
   const tree = f.tree('nix-2147483647-123');
   const now = Date.now();
+  // Old mtime alone is insufficient: utimes leaves a fresh ctime.
+  const old = new Date(now - 90 * 60 * 1000);
+  utimesSync(join(tree, 'manifest.json'), old, old);
+  utimesSync(tree, old, old);
   assert.equal(unchangedForHour(tree, now + 30 * 60 * 1000), false);
   assert.equal(unchangedForHour(tree, now + 61 * 60 * 1000), true);
   const changed = new Date(now + 60 * 60 * 1000);
@@ -179,4 +205,15 @@ test('worktrees share the same private namespace', t => {
   });
   assert.equal(result.status, 0, result.stderr);
   assert.equal(result.stdout, f.temp);
+});
+
+
+test('incomplete Linux inspection retains young trees and allows the agreed aged fallback', { skip: process.platform !== 'linux' }, t => {
+  const f = fixture(t);
+  assert.equal(f.setup().status, 0);
+  const orphan = f.tree('nix-2147483647-123');
+  assert.equal(f.cleanup(59 * 60 * 1000, true).status, 0);
+  assert.ok(existsSync(orphan));
+  assert.equal(f.cleanup(61 * 60 * 1000, true).status, 0);
+  assert.equal(existsSync(orphan), false);
 });
