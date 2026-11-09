@@ -51,6 +51,7 @@ func authTestFactoryConfig(rateLimitEnabled bool) owners.ServiceConfig {
 		OperatorHostname: "operator.localhost:3000",
 		RateLimitEnabled: rateLimitEnabled,
 		HealthDataKeys:   testpkg.TestHealthDataKeys,
+		BankDataKeys:     testpkg.TestBankDataKeys,
 	}
 }
 

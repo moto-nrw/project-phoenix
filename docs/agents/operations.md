@@ -617,8 +617,8 @@ refusal a human has to resolve registers that same check next to its `Up`.
 
 All encrypted files must have identical keys and match `.env.example` except
 the script's dev-only whitelist. The shared `.env` supplies Compose interpolation
-only. Each service receives an explicit environment allowlist; `migrate` alone
-receives the privileged DSN. Read [runtime environment boundaries](../operations/runtime-environment-boundaries.md)
+only. Each service receives an explicit environment allowlist; only the explicit
+maintenance jobs `migrate` and `bank-data-rekey` receive the privileged DSN. Read [runtime environment boundaries](../operations/runtime-environment-boundaries.md)
 before changing deployment environments or maintenance jobs.
 
 CI uses `SOPS_AGE_KEY`, `STAGING_SSH_*`, `PRODUCTION_SSH_*`, and `DEMO_SSH_*` secrets;

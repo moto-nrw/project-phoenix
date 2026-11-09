@@ -40,7 +40,8 @@
     "agent-browser@0.38.2",
     "gitleaks@8.30.1",
     "rclone@latest",
-    "python3@latest"
+    "python3@latest",
+    "lsof@latest"
   ],
   "env": {
     "CGO_ENABLED": "0",

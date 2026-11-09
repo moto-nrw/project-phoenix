@@ -14,6 +14,7 @@ from urllib.parse import parse_qs, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 OPTIONAL_VALUES = {
+    "BANK_DATA_LEGACY_KEYS",
     "EMAIL_SMTP_USER", "EMAIL_SMTP_PASSWORD", "NEXT_PUBLIC_POSTHOG_KEY",
     "NEXT_PUBLIC_SENTRY_DSN", "NEXT_PUBLIC_SENTRY_ENVIRONMENT",
     "SENTRY_DSN", "SENTRY_PYREPORTAL_DSN", "POSTHOG_API_KEY", "POSTHOG_HOST",
@@ -68,7 +69,7 @@ def check(path, target, expected):
         if any(".env" in str(volume.get("source", "")) for volume in service.get("volumes", [])):
             raise ValueError(name + ": dotenv mounts are forbidden")
         for key, value in service["environment"].items():
-            if key in ("DB_DSN", "DEMO_DB_DSN", "API_URL", "PORT", "HOSTNAME") and name != "migrate":
+            if key in ("DB_DSN", "DEMO_DB_DSN", "API_URL", "PORT", "HOSTNAME") and name not in ("migrate", "bank-data-rekey"):
                 continue
             operator = "?" if key in OPTIONAL_VALUES else ":?"
             expected_binding = "${" + key + "-}" if key in PENDING_SOPS_VALUES else "${" + key + operator + key + " is required}"
@@ -87,11 +88,27 @@ def check(path, target, expected):
         raise ValueError("migrate: unexpected command")
     if services["migrate"]["image"] != services["server"]["image"]:
         raise ValueError("migrate: must use the serving backend image")
+    check_bank_rekey_service(services)
+
+
+def check_bank_rekey_service(services):
+    job = services["bank-data-rekey"]
+    if job.get("profiles") != ["maintenance"]:
+        raise ValueError("bank-data-rekey: must be an explicit maintenance job")
+    if job.get("command") != ["./main", "bank-data-rekey"]:
+        raise ValueError("bank-data-rekey: unexpected command")
+    if job["image"] != services["server"]["image"]:
+        raise ValueError("bank-data-rekey: must use the serving backend image")
+    if job["environment"]["DB_DSN"] != "${DB_DSN:?DB_DSN is required}":
+        raise ValueError("bank-data-rekey: privileged maintenance DSN required")
+    if job.get("volumes") or job.get("ports"):
+        raise ValueError("bank-data-rekey: no filesystem or listener authority")
+
 
 
 def check_missing_config(path, directory):
     lines = (ROOT / ".env.example").read_text().splitlines()
-    for key in ("NEXTAUTH_SECRET", "PHOENIX_AUTH_PASSWORD", "POSTGRES_PASSWORD", "DB_DSN"):
+    for key in ("NEXTAUTH_SECRET", "PHOENIX_AUTH_PASSWORD", "POSTGRES_PASSWORD", "DB_DSN", "BANK_DATA_KEYS", "BANK_DATA_LEGACY_KEYS"):
         fixture = Path(directory) / "missing.env"
         fixture.write_text("\n".join(line for line in lines if not line.startswith(key + "=")) + "\n")
         try:

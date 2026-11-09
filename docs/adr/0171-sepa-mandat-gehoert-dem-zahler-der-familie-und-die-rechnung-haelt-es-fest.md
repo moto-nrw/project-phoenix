@@ -120,3 +120,11 @@ Später erteilen Eltern das Mandat digital ([#4696](https://github.com/moto-nrw/
 - **Ausstellung immer blockieren:** Ein fehlendes Mandat hielte den ganzen
   Lauf an; als Einstellung bleibt es wählbar.
 - **IBAN im Klartext neben einer Maske:** widerspricht dem Schutz at rest.
+
+## Ergänzung #6252: Getrennte Schlüsselringe
+
+[ADR 0183](0183-bankdaten-haben-einen-eigenen-schluesselring-und-einen-wiederholbaren-rekey.md)
+ersetzt die gemeinsame Schlüsselverwendung aus Punkt 4 und dem entsprechenden
+Folgepunkt: Bankdaten nutzen einen eigenen Pflichtring mit explizitem,
+vorübergehendem Legacy-Lesepfad und wiederholbarem Rekey. Fachliche Mandats-
+Unveränderlichkeit und Audit bleiben erhalten.

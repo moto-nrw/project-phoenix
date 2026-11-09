@@ -322,9 +322,11 @@ func ResolveDebit(payment InvoicePayment, terms ServiceTerms, run RunDueDates, f
 }
 
 // BankDataCipher seals and opens single database values bound to their
-// context. The root binds Security Runtime's field cipher (#4722), the same
-// key ring that seals the health information (ADR 0171).
+// context. The root binds Security Runtime's independent bank ring
+// (BANK_DATA_KEYS, ADR 0183); legacy reading is an explicit transition only.
 type BankDataCipher interface {
+	// BankDataRing prevents health-only ciphers from satisfying this port.
+	BankDataRing()
 	Seal(plaintext, context []byte) ([]byte, error)
 	Open(sealed, context []byte) ([]byte, error)
 }
