@@ -64,14 +64,26 @@ const FIELD_LABELS: Record<string, string> = {
   sequence: "Lastschriftart",
 };
 
-/** The state of a mandate as a badge. */
-export function mandateState(mandate: SepaMandate): {
+/** A mandate whose 36 months without a collection ran out on the school
+ * day today (#4697). */
+export function mandateExpired(mandate: SepaMandate, today: string): boolean {
+  return mandate.expiresOn !== null && mandate.expiresOn <= today;
+}
+
+/** The state of a mandate as a badge on the school day today. */
+export function mandateState(
+  mandate: SepaMandate,
+  today: string,
+): {
   readonly label: string;
   readonly tone: StatusBadgeTone;
 } {
   if (mandate.revokedOn) return { label: "Widerrufen", tone: "gray" };
   if (!mandate.creditorCurrent) {
     return { label: "Neues Mandat nötig", tone: "orange" };
+  }
+  if (mandateExpired(mandate, today)) {
+    return { label: "Verfallen", tone: "red" };
   }
   return { label: "Gültig", tone: "green" };
 }

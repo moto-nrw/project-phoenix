@@ -1,5 +1,6 @@
 GET /traeger/sepa-mandates/
 GET /traeger/sepa-mandates/imports
+GET /traeger/sepa-mandates/{id}/collections
 GET /traeger/sepa-mandates/{id}/history
 POST /traeger/sepa-mandates/
 POST /traeger/sepa-mandates/imports

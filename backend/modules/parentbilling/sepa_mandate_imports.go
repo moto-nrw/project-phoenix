@@ -92,9 +92,6 @@ const (
 const (
 	MaxImportFileBytes = 2 << 20
 	MaxImportRows      = 5000
-	// MandateLapseMonths is the time a SEPA mandate holds without a
-	// collection (SEPA rulebook).
-	MandateLapseMonths = 36
 )
 
 var (

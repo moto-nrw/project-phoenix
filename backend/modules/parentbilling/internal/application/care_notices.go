@@ -104,6 +104,13 @@ func (n *CareFeeNotices) EffectiveNoticeDues(ctx context.Context, organizationID
 	return effectiveDues(read), nil
 }
 
+// noticeDueReader reads the installments of a month as stored; the SEPA
+// file (#4697) reads them through it and resolves them with effectiveDues,
+// as CareFeeNotices.EffectiveNoticeDues does.
+type noticeDueReader interface {
+	EffectiveNoticeDues(ctx context.Context, organizationID int64, month calendar.Date) ([]parentbilling.CareNoticeDue, error)
+}
+
 // effectiveDues keeps one rate per contract: the notice nobody amended is
 // the one with the highest ID of a chain, because a change notice is
 // always issued after the notice it amends.

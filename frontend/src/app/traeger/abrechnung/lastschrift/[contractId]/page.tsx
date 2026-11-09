@@ -1,12 +1,13 @@
 "use client";
 
 // Das SEPA-Lastschriftmandat der Familie eines Vertrags (#4695): erfassen,
-// widerrufen, Verlauf. Eine eigene Seite, damit Vertrags- und Empfängerseite
+// widerrufen, Verlauf, und seine Abbuchungen je Rechnung (#4697). Eine eigene Seite, damit Vertrags- und Empfängerseite
 // nur den Stand zeigen und die Formulare nicht laden. Die Familie ist die
 // E-Mail-Adresse der Vertragspartei; ihr Mandat gilt auch für Geschwister.
 
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { SepaCollectionsCard } from "~/components/traeger/sepa-collections-card";
 import { SepaMandatesCard } from "~/components/traeger/sepa-mandates-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useApiLoadError } from "~/contexts/ToastContext";
@@ -59,12 +60,15 @@ export default function TraegerSepaMandatePage() {
       loading={!pageLoad.error && mandates === null}
     >
       {mandates !== null ? (
-        <SepaMandatesCard
-          contractId={contractId}
-          holder={family}
-          mandates={mandates}
-          onChanged={() => void load()}
-        />
+        <>
+          <SepaMandatesCard
+            contractId={contractId}
+            holder={family}
+            mandates={mandates}
+            onChanged={() => void load()}
+          />
+          <SepaCollectionsCard mandates={mandates} />
+        </>
       ) : null}
     </TenantPage>
   );

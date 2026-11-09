@@ -260,3 +260,31 @@ func TestImportFileNameKeepsOnlyTheBaseName(t *testing.T) {
 	assert.Equal(t, "import.csv", importFileName(""))
 	assert.Len(t, []rune(importFileName(strings.Repeat("ä", 300))), parentbilling.MaxImportFileNameLength)
 }
+
+// The import follows the expiry rule of the debit file (#4697): a mandate
+// used elsewhere whose last collection the file does not tell counts from
+// the import, never from its signature, and stays RCUR; one never collected
+// with counts from its signature.
+func TestImportCheckUsesTheExpiryRuleOfTheDebitFile(t *testing.T) {
+	t.Parallel()
+	check := newTestImportCheck(nil, nil)
+	used := check.row(importRow("SJR-U", "01.01.2020", importIBAN, "a@example.org", importCreditor, "RCUR", ""), 2)
+	assert.Equal(t, parentbilling.ImportRowReady, used.row.Status, problemCodes(used.row))
+	assert.Equal(t, parentbilling.SequenceRecurring, used.row.Sequence, "a used mandate never becomes FRST")
+	assert.Nil(t, used.row.LastCollectedOn)
+	assert.Equal(t, []string{parentbilling.ImportHintLastCollectionUnknown}, used.row.Hints, "an open question, not a lapse")
+
+	mandate := parentbilling.SEPAMandate{SignedOn: *used.row.SignedOn, Kind: parentbilling.MandateRecurring,
+		Sequence: used.row.Sequence, CreatedAt: importToday.BerlinMidnight()}
+	assert.False(t, mandate.Expired(importToday), "imported today it holds")
+	assert.Equal(t, calendar.NewDate(2029, 11, 9), mandate.ExpiryDay(), "36 months from the import")
+	assert.Equal(t, parentbilling.SequenceTypeRecurring, mandate.SequenceType())
+
+	collected := check.row(importRow("SJR-C", "01.01.2020", importIBAN, "b@example.org", importCreditor, "RCUR", "15.03.2025"), 3)
+	require.Equal(t, parentbilling.ImportRowReady, collected.row.Status, problemCodes(collected.row))
+	mandate.Sequence, mandate.LastCollectedOn = collected.row.Sequence, collected.row.LastCollectedOn
+	assert.Equal(t, calendar.NewDate(2028, 3, 15), mandate.ExpiryDay(), "36 months from the last collection of the file")
+
+	unused := check.row(importRow("SJR-F", "08.11.2023", importIBAN, "c@example.org", importCreditor, "FRST", ""), 4)
+	assert.Equal(t, []string{"signed_on:expired"}, problemCodes(unused.row), "never collected: 36 months from the signature")
+}

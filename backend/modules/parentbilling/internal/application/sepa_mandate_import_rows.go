@@ -267,18 +267,16 @@ func (c *importCheck) fileSequence(row *parentbilling.SEPAMandateImportRow, cell
 	return sequence, ""
 }
 
-// checkLapse refuses a mandate unused for MandateLapseMonths since its
-// last collection or, never collected with, since its signature.
+// checkLapse refuses a mandate that would no longer hold today by the rule
+// of the debit file (#4697): 36 months after the last collection, after
+// the import for a mandate used elsewhere whose last collection the file
+// does not tell, or after the signature for one never collected with.
 func (c *importCheck) checkLapse(row *parentbilling.SEPAMandateImportRow) {
-	anchor := row.LastCollectedOn
-	if anchor == nil && row.Sequence == parentbilling.SequenceFirst {
-		anchor = row.SignedOn
-	}
-	if anchor == nil {
+	if row.SignedOn == nil {
 		return
 	}
-	lapses := calendar.DateFromTime(anchor.BerlinMidnight().AddDate(0, parentbilling.MandateLapseMonths, 0))
-	if !lapses.After(c.today) {
+	usedOn := parentbilling.MandateUsedOn(row.Sequence, row.LastCollectedOn, c.today)
+	if !parentbilling.MandateExpiresOn(*row.SignedOn, usedOn).After(c.today) {
 		addProblem(row, parentbilling.ImportFieldSignedOn, parentbilling.ImportProblemExpired)
 	}
 }

@@ -14,7 +14,7 @@ func init() {
 		Version:     parentBillingSEPAMandateImportsVersion,
 		Description: "Elternabrechnung: Import bestehender SEPA-Mandate mit Herkunft im Protokoll (#6198)",
 		DependsOn: []string{
-			studentMembershipCareGapVersion,  // the newest migration on development
+			parentBillingSEPADebitsVersion,   // the newest migration on development
 			parentBillingSEPAMandatesVersion, // the trail it extends
 		},
 	})

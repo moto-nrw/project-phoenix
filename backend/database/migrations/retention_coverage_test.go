@@ -331,6 +331,7 @@ var tableRetentions = map[string]tableRetention{
 	"parent_billing.run_due_dates":                          notPersonal("due date of a run per payment method (#4689), no person"),
 	"parent_billing.runs":                                   notPersonal("billing run of a Träger (#4668): period, status, issue date and sums, no person"),
 	"parent_billing.sepa_creditors":                         notPersonal("SEPA creditor identifier of a Träger, its pre-notification days and its choice for a direct debit without a mandate (#4695), no person"),
+	"parent_billing.sepa_debits":                            parent("care_contract.contracts"),
 	"parent_billing.sepa_mandate_events":                    parent("care_contract.contracts"),
 	"parent_billing.sepa_mandates":                          parent("care_contract.contracts"),
 	"parent_billing.service_terms":                          notPersonal("payment method, payment term and bundling of a service of a Träger (#4689), no person"),

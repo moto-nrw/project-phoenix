@@ -243,7 +243,9 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0175: the school-read context guard adds exactly 5 LOC in settings/compose.
 // ADR 0182: the constructor of the Jahresbescheide of
 // modules/parentbilling/compose adds exactly 7 LOC.
-const moduleComposeBudgetTotal = 13142
+// ADR 0181: the constructor of the SEPA direct debit file of
+// modules/parentbilling/compose adds exactly 5 LOC.
+const moduleComposeBudgetTotal = 13147
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -322,8 +324,9 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0167: the constructor of the payment terms (+5);
 	// ADR 0168: the Mensa of the monthly run (+7);
 	// ADR 0171: the constructor of the SEPA mandates (+5);
-	// ADR 0182: the constructor of the Jahresbescheide (+7).
-	"modules/parentbilling/compose":               86,
+	// ADR 0182: the constructor of the Jahresbescheide (+7);
+	// ADR 0181: the constructor of the SEPA direct debit file (+5).
+	"modules/parentbilling/compose":               91,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	"modules/peopledirectory/compose":    973,

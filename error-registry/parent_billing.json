@@ -571,6 +571,42 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "parent_billing.sepa_creditor_missing"
+    },
+    {
+      "code": "parent_billing.sepa_debit_run_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.sepa_debit_run_not_found"
+    },
+    {
+      "code": "parent_billing.sepa_debits_empty",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.sepa_debits_empty"
+    },
+    {
+      "code": "parent_billing.sepa_debits_changed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.sepa_debits_changed"
+    },
+    {
+      "code": "parent_billing.sepa_creditor_account_missing",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.sepa_creditor_account_missing"
+    },
+    {
+      "code": "parent_billing.sepa_account_holder_unsupported",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.sepa_account_holder_unsupported"
+    },
+    {
+      "code": "parent_billing.sepa_end_to_end_duplicate",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.sepa_end_to_end_duplicate"
     }
   ]
 }

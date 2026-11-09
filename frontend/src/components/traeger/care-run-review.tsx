@@ -201,6 +201,7 @@ const DEBIT_GAP_LABELS = {
   mandate_missing: "Kein gültiges Mandat",
   creditor_missing: "Gläubiger-ID fehlt",
   creditor_changed: "Mandat für eine frühere Gläubiger-ID",
+  mandate_expired: "Mandat verfallen: 36 Monate ohne Abbuchung",
 } as const;
 
 /** At most this many hints show before „weitere anzeigen“. */

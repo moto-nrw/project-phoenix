@@ -15,12 +15,15 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/text/encoding/charmap"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
@@ -164,6 +167,24 @@ func TestSEPAMandateImportTakesOverOldMandatesOnce(t *testing.T) {
 	assert.Equal(t, sepaCreditorID, byReference["OGS-0001"].CreditorID)
 	assert.Equal(t, "first", byReference["OGS-0002"].Sequence)
 	assert.Equal(t, "recurring", byReference["OGS-0003"].Sequence, "the office's answer")
+	// The mandates fit the debit file (#4697): the used ones are RCUR and
+	// run 36 months from their last collection, or from the import when the
+	// file does not tell it; none counts as expired.
+	var expiry []struct {
+		Reference string    `json:"reference"`
+		ExpiresOn string    `json:"expires_on"`
+		CreatedAt time.Time `json:"created_at"`
+	}
+	require.NoError(t, json.Unmarshal(mustData(t, rec.Body.Bytes()), &expiry))
+	expires, takenOver := map[string]string{}, map[string]calendar.Date{}
+	for _, mandate := range expiry {
+		expires[mandate.Reference], takenOver[mandate.Reference] = mandate.ExpiresOn, calendar.DateFromTime(mandate.CreatedAt)
+	}
+	assert.Equal(t, "2029-10-01", expires["OGS-0001"], "36 months from the last collection")
+	importedOn := takenOver["OGS-0003"]
+	assert.Equal(t, parentbilling.MandateExpiresOn(calendar.NewDate(2025, 9, 1), &importedOn).String(), expires["OGS-0003"],
+		"used elsewhere without a date: 36 months from the import")
+	assert.Equal(t, "2029-09-01", expires["OGS-0002"], "never collected: 36 months from the signature")
 	var lastCollected string
 	require.NoError(t, f.db.NewRaw(`SELECT last_collected_on::text FROM parent_billing.sepa_mandates WHERE id = ?`,
 		byReference["OGS-0001"].ID).Scan(context.Background(), &lastCollected))

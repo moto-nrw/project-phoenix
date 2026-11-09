@@ -3,6 +3,9 @@
     "GET traeger /traeger/sepa-mandates",
     "POST traeger /traeger/sepa-mandates"
   ],
+  "api/traeger/sepa-mandates/[id]/collections": [
+    "GET traeger /traeger/sepa-mandates/id%2F1/collections"
+  ],
   "api/traeger/sepa-mandates/[id]/history": [
     "GET traeger /traeger/sepa-mandates/id%2F1/history"
   ],

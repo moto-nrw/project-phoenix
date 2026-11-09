@@ -249,6 +249,10 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.sepa_debits",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.sepa_mandate_events",
       "write_owner": "parent-billing"
     },

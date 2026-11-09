@@ -138,7 +138,7 @@ export function importProblemText(problem: ImportProblem): string {
 /** Hinweise, die eine Zeile nicht aufhalten. */
 export function importHintText(hint: string): string {
   if (hint === "last_collection_unknown") {
-    return "Letzte Abbuchung unbekannt. Die 36 Monate zählen ab heute.";
+    return "Offen: Die letzte Abbuchung fehlt. Die 36 Monate zählen ab dem Import.";
   }
   return hint;
 }

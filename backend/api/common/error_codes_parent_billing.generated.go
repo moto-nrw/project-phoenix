@@ -83,8 +83,14 @@ const CodeParentBillingNumberRangeMissing = "parent_billing.number_range_missing
 const CodeParentBillingParentDocumentNotFound = "parent_billing.parent_document_not_found"
 const CodeParentBillingPaymentTextDebtorNumberMissing = "parent_billing.payment_text_debtor_number_missing"
 const CodeParentBillingRecipientEmailMissing = "parent_billing.recipient_email_missing"
+const CodeParentBillingSepaAccountHolderUnsupported = "parent_billing.sepa_account_holder_unsupported"
+const CodeParentBillingSepaCreditorAccountMissing = "parent_billing.sepa_creditor_account_missing"
 const CodeParentBillingSepaCreditorInvalid = "parent_billing.sepa_creditor_invalid"
 const CodeParentBillingSepaCreditorMissing = "parent_billing.sepa_creditor_missing"
+const CodeParentBillingSepaDebitRunNotFound = "parent_billing.sepa_debit_run_not_found"
+const CodeParentBillingSepaDebitsChanged = "parent_billing.sepa_debits_changed"
+const CodeParentBillingSepaDebitsEmpty = "parent_billing.sepa_debits_empty"
+const CodeParentBillingSepaEndToEndDuplicate = "parent_billing.sepa_end_to_end_duplicate"
 const CodeParentBillingSepaImportFileInvalid = "parent_billing.sepa_import_file_invalid"
 const CodeParentBillingSepaImportFileTooLarge = "parent_billing.sepa_import_file_too_large"
 const CodeParentBillingSepaImportMappingInvalid = "parent_billing.sepa_import_mapping_invalid"
@@ -180,8 +186,14 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingParentDocumentNotFound, "business_rejection"},
 	{CodeParentBillingPaymentTextDebtorNumberMissing, "business_rejection"},
 	{CodeParentBillingRecipientEmailMissing, "business_rejection"},
+	{CodeParentBillingSepaAccountHolderUnsupported, "business_rejection"},
+	{CodeParentBillingSepaCreditorAccountMissing, "business_rejection"},
 	{CodeParentBillingSepaCreditorInvalid, "input"},
 	{CodeParentBillingSepaCreditorMissing, "business_rejection"},
+	{CodeParentBillingSepaDebitRunNotFound, "business_rejection"},
+	{CodeParentBillingSepaDebitsChanged, "business_rejection"},
+	{CodeParentBillingSepaDebitsEmpty, "business_rejection"},
+	{CodeParentBillingSepaEndToEndDuplicate, "business_rejection"},
 	{CodeParentBillingSepaImportFileInvalid, "input"},
 	{CodeParentBillingSepaImportFileTooLarge, "input"},
 	{CodeParentBillingSepaImportMappingInvalid, "input"},
