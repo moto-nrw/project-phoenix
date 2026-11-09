@@ -132,6 +132,26 @@ export function HolidayFormEditor({
     JSON.stringify(legalBlocks) !== JSON.stringify(form.legalBlocks ?? []) ||
     address !== form.addressRequirement;
   const missingTemplateFields = templateFieldsMissing(fields, form.template);
+  // On a phone a question folds to its head, so the long form stays
+  // walkable; with a mouse every question starts open. A new question opens,
+  // and so does one the check marks.
+  const isPhone = useMediaQuery("(max-width: 639px)");
+  const [foldChoice, setFoldChoice] = useState<ReadonlyMap<string, boolean>>(
+    () => new Map(),
+  );
+  const fieldKey = (field: HolidayFormField) =>
+    getStableObjectKey(field, "holiday-field");
+  const isOpen = (key: string) => foldChoice.get(key) ?? !isPhone;
+  const setOpen = (keys: readonly string[], open: boolean) =>
+    setFoldChoice((current) => {
+      const next = new Map(current);
+      for (const key of keys) next.set(key, open);
+      return next;
+    });
+  const addField = (field: HolidayFormField) => {
+    setOpen([fieldKey(field)], true);
+    setFields((current) => [...current, field]);
+  };
 
   const update = (index: number, patch: Partial<HolidayFormField>) =>
     setFields((current) =>
@@ -156,6 +176,13 @@ export function HolidayFormEditor({
   const save = async () => {
     const errors = validateHolidayForm(fields);
     if (Object.keys(errors).length > 0) {
+      const marked = new Set(
+        Object.keys(errors).map((name) => /^fields\.(\d+)\./.exec(name)?.[1]),
+      );
+      setOpen(
+        fields.filter((_, index) => marked.has(String(index))).map(fieldKey),
+        true,
+      );
       errorPath.invalid("Bitte prüfen Sie die markierten Fragen.", errors);
       return;
     }
@@ -191,7 +218,6 @@ export function HolidayFormEditor({
     }
   };
 
-  const isPhone = useMediaQuery("(max-width: 639px)");
   const familyFields = fields.filter((field) => !field.applies_to_child);
   const childFields = fields.filter((field) => field.applies_to_child);
 
@@ -262,7 +288,12 @@ export function HolidayFormEditor({
                 <div className="space-y-3">
                   {fields.map((field, index) => (
                     <FieldEditorRow
-                      key={getStableObjectKey(field, "holiday-field")}
+                      key={fieldKey(field)}
+                      fold={{
+                        open: isOpen(fieldKey(field)),
+                        onToggle: () =>
+                          setOpen([fieldKey(field)], !isOpen(fieldKey(field))),
+                      }}
                       field={field}
                       index={index}
                       total={fields.length}
@@ -307,10 +338,10 @@ export function HolidayFormEditor({
                   disabled={saving || uploading}
                   className="inline-flex items-center gap-2"
                   onClick={() =>
-                    setFields((current) => [
-                      ...current,
-                      { ...blankField(current.length), share_with_host: true },
-                    ])
+                    addField({
+                      ...blankField(fields.length),
+                      share_with_host: true,
+                    })
                   }
                 >
                   <Plus className="h-4 w-4" aria-hidden="true" />
@@ -323,12 +354,7 @@ export function HolidayFormEditor({
                   size="md"
                   disabled={saving || uploading}
                   className="inline-flex items-center gap-2"
-                  onClick={() =>
-                    setFields((current) => [
-                      ...current,
-                      blankInfoField(current.length),
-                    ])
-                  }
+                  onClick={() => addField(blankInfoField(fields.length))}
                 >
                   <Plus className="h-4 w-4" aria-hidden="true" />
                   <FileText className="h-4 w-4" aria-hidden="true" />
