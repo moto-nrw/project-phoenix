@@ -19,3 +19,15 @@ func FailInCurrentTransaction(ctx context.Context) error {
 	_, err = tx.ExecContext(ctx, "SELECT 1 / 0")
 	return err
 }
+
+// PingCurrentTransaction runs a harmless statement in the transaction of ctx.
+// It fails once an earlier error aborted that transaction, so a test can see
+// whether a failed step was contained by its savepoint.
+func PingCurrentTransaction(ctx context.Context) error {
+	tx, err := tenant.CurrentTransaction[bun.IDB](ctx)
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, "SELECT 1")
+	return err
+}

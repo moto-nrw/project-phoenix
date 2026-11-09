@@ -109,35 +109,47 @@ func (s *Scheduler) checkAndRunCleanup(ctx context.Context, task *ScheduledTask)
 // their own writes. The other steps commit and the run stays due.
 var errCleanupIncomplete = errors.New("data cleanup incomplete")
 
-// cleanupStep is one step of the nightly data cleanup. A required step that
-// fails leaves the run incomplete; the others are best effort and only log.
+// errCleanupStepPartial reports a step that finished but failed for part of
+// its records. A partial failure is a failure: its savepoint rolls back and
+// the run stays due (#6288).
+var errCleanupStepPartial = errors.New("cleanup step failed for part of its records")
+
+// cleanupStep is one step of the nightly data cleanup, named as it is logged.
 type cleanupStep struct {
-	run      func(context.Context, int64) error
-	required bool
+	name string
+	run  func(context.Context, int64) error
 }
 
-// executeCleanupForTenant runs the cleanup steps for a single tenant. Each
-// step runs in its own savepoint: a failed step undoes only its own writes
-// and every later step still runs (#6288). complete is false when a required
-// step failed; an error means the tenant transaction is unusable.
+// executeCleanupForTenant runs the cleanup steps for a single tenant under
+// the invariants of #6288: every step runs in its own savepoint; a step's
+// result is success or failure, a partial failure counts as failure; a failed
+// step prevents no other step; the run stays due while any step failed, every
+// step being required; every failure is logged with school and step.
+// complete is false when a step failed; an error means the tenant
+// transaction itself is unusable.
 func (s *Scheduler) executeCleanupForTenant(ctx context.Context, tenantID int64) (complete bool, err error) {
 	steps := []cleanupStep{
-		{run: s.cleanupExpiredVisits, required: true},
-		{run: s.cleanupStaleSupervisors},
-		{run: s.cleanupStaleAttendance},
-		{run: s.cleanupOpenWorkSessions},
-		{run: s.cleanupExpiredFeedback, required: true},
-		{run: s.cleanupRejectedEnrollments, required: true},
-		{run: s.runTenantRetention, required: true},
+		{name: "visits", run: s.cleanupExpiredVisits},
+		{name: "supervisors", run: s.cleanupStaleSupervisors},
+		{name: "attendance", run: s.cleanupStaleAttendance},
+		{name: "work_sessions", run: s.cleanupOpenWorkSessions},
+		{name: "feedback", run: s.cleanupExpiredFeedback},
+		{name: "rejected_enrollments", run: s.cleanupRejectedEnrollments},
+		{name: "retention", run: s.runTenantRetention},
 	}
 	complete = true
 	for _, step := range steps {
 		usable, stepErr := s.inCleanupSavepoint(ctx, func(stepCtx context.Context) error { return step.run(stepCtx, tenantID) })
+		if stepErr != nil {
+			complete = false
+			s.getLogger().Error("cleanup step failed",
+				slog.Int64("tenant_id", tenantID),
+				slog.String("step", step.name),
+				slog.String("error", stepErr.Error()),
+			)
+		}
 		if !usable {
 			return false, stepErr
-		}
-		if stepErr != nil && step.required {
-			complete = false
 		}
 	}
 	return complete, nil
@@ -162,6 +174,12 @@ func (s *Scheduler) cleanupExpiredVisits(ctx context.Context, tenantID int64) er
 		return err
 	}
 
+	if result == nil {
+		return nil
+	}
+	if !result.Success {
+		return errCleanupStepPartial
+	}
 	s.getLogger().Info("cleanup completed for tenant",
 		slog.Int64("tenant_id", tenantID),
 		slog.Int("students_processed", result.StudentsProcessed),
@@ -285,6 +303,12 @@ func (s *Scheduler) cleanupStaleSupervisors(ctx context.Context, tenantID int64)
 		)
 		return err
 	}
+	if supervisorResult == nil {
+		return nil
+	}
+	if !supervisorResult.Success {
+		return errCleanupStepPartial
+	}
 	if supervisorResult.RecordsClosed > 0 {
 		s.getLogger().Info("supervisor cleanup completed",
 			slog.Int64("tenant_id", tenantID),
@@ -295,7 +319,7 @@ func (s *Scheduler) cleanupStaleSupervisors(ctx context.Context, tenantID int64)
 }
 
 // cleanupStaleAttendance closes attendance records still open from previous
-// days. A partial failure is only logged; its closed records stay.
+// days. A partial failure is a failure of the step.
 func (s *Scheduler) cleanupStaleAttendance(ctx context.Context, tenantID int64) error {
 	attendanceResult, err := s.cleanupService.CleanupStaleAttendance(ctx)
 	if err != nil {
@@ -313,6 +337,7 @@ func (s *Scheduler) cleanupStaleAttendance(ctx context.Context, tenantID int64) 
 			slog.Int("records_closed", attendanceResult.RecordsClosed),
 			slog.Int("errors", len(attendanceResult.Errors)),
 		)
+		return errCleanupStepPartial
 	case attendanceResult.RecordsClosed > 0:
 		s.getLogger().Info("attendance cleanup completed",
 			slog.Int64("tenant_id", tenantID),

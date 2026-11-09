@@ -21,6 +21,7 @@ func NewCleanupTestRunner(deps ports.WorkerDependencies) func() {
 		settings:  deps.Settings, cleanupRuns: deps.CleanupRuns, cleanupClock: deps.Now,
 		cleanupService: deps.ActiveCleanup, workerTracer: deps.Tracer,
 		workSessionCleanup: deps.WorkSessionCleanup, feedbackCleaner: deps.FeedbackCleaner,
+		enrollmentRejectedCleanup: deps.EnrollmentRejectedCleanup,
 	}
 	return func() {
 		s.runJobCheck(&ScheduledTask{Name: "visit-cleanup"}, s.checkAndRunCleanup)
