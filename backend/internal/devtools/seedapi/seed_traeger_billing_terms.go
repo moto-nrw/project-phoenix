@@ -142,7 +142,8 @@ func seedImportedMandate(client *Client, auth AuthRef, familyEmail, lastName str
 		fmt.Sprintf("OGS-2024-0001;15.08.2024;%s;Familie %s;%s;Folgelastschrift;01.10.2026\r\n", demoIBAN(9200), lastName, familyEmail)
 	mapping := `{"columns":{"reference":"Mandatsreferenz","signed_on":"Unterschriftsdatum","iban":"IBAN","bic":"",` +
 		`"account_holder":"Kontoinhaber","payer":"E-Mail","creditor_id":"","sequence":"Lastschriftart",` +
-		`"last_collected_on":"Letzter Einzug"},"payer_key":"email","creditor_from_traeger":true}`
+		`"last_collected_on":"Letzter Einzug"},"payer_key":"email","creditor_from_traeger":true,` +
+		`"confirmed_creditor_id":"DE98ZZZ09999999999"}`
 	if _, err := client.PostFileWithAuthFields(auth, "/traeger/sepa-mandates/imports", "file", "ogs-connect-mandate.csv",
 		[]byte(csv), map[string]string{"mapping": mapping}); err != nil {
 		return fmt.Errorf("import the SEPA mandate of a family: %w", err)

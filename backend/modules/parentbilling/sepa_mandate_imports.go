@@ -125,6 +125,10 @@ type SEPAMandateImportMapping struct {
 	Columns             SEPAMandateImportColumns `json:"columns"`
 	PayerKey            string                   `json:"payer_key"`
 	CreditorFromTraeger bool                     `json:"creditor_from_traeger"`
+	// ConfirmedCreditorID is the creditor identifier the office saw when it
+	// chose CreditorFromTraeger. The choice holds only while the Träger
+	// still has that identifier.
+	ConfirmedCreditorID string `json:"confirmed_creditor_id"`
 }
 
 // MaxImportFileNameLength bounds the file name the trail keeps.

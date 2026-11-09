@@ -127,7 +127,7 @@ func TestSEPAMandateImportTakesOverOldMandatesOnce(t *testing.T) {
 	assert.Equal(t, "parent_billing.sepa_import_mapping_invalid", code)
 
 	mapping := `{"columns":{"reference":"Mandatsreferenz","signed_on":"Unterschriftsdatum","iban":"IBAN","account_holder":"Kontoinhaber",` +
-		`"payer":"E-Mail","sequence":"Lastschriftart","last_collected_on":"Letzter Einzug"},"payer_key":"email","creditor_from_traeger":true}`
+		`"payer":"E-Mail","sequence":"Lastschriftart","last_collected_on":"Letzter Einzug"},"payer_key":"email","creditor_from_traeger":true,"confirmed_creditor_id":"DE98ZZZ09999999999"}`
 	rec = importForm(t, f.traeger, f.office.token, sepaImportPreviewPath, "ogs-connect.csv", content, map[string]string{"mapping": mapping})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.NotContains(t, rec.Body.String(), "0532013000", "the preview shows no IBAN")
@@ -356,4 +356,38 @@ func TestSEPAMandateImportLogQueryBudgetIsFlat(t *testing.T) {
 	importFor("Lia")
 	assert.Len(t, measure().Statements, len(first.Statements), "the log reads the same statements for any number of imports")
 	querybudgets.AssertQueryBudget(t, "api.traeger.sepa_mandate_imports", first)
+}
+
+// The office confirms that a file without a creditor column holds the
+// Träger's mandates for the creditor identifier it saw. When the identifier
+// changes before the import, that confirmation no longer holds: the import
+// is refused and the preview asks again, so no mandate is bound to an
+// identifier nobody confirmed.
+func TestSEPAMandateImportNeedsTheConfirmationOfTheCurrentCreditor(t *testing.T) {
+	t.Parallel()
+	f := newCareBillingFixture(t, "Träger Mandatsimport Gläubiger")
+	contract := careContract(t, f.db, f.office.organization, f.office.schools[0], "Mia", careMonth, sjrServices()...)
+	saveCreditor(t, f, map[string]any{"creditor_id": sepaCreditorID, "prenotification_days": 14, "missing_mandate": "transfer"})
+	csv := fmt.Sprintf("Mandatsreferenz;Mandatsdatum;IBAN;Kontoinhaber;E-Mail;Sequenz\nSJR-G-1;01.09.2026;%s;Eva Beispiel;%s;FRST\n",
+		sepaIBAN, partyEmail(t, f, contract))
+	mapping := `{"columns":{"reference":"Mandatsreferenz","signed_on":"Mandatsdatum","iban":"IBAN","account_holder":"Kontoinhaber",` +
+		`"payer":"E-Mail","sequence":"Sequenz"},"payer_key":"email","creditor_from_traeger":true,"confirmed_creditor_id":"` + sepaCreditorID + `"}`
+	rec := importForm(t, f.traeger, f.office.token, sepaImportPreviewPath, "mandate.csv", []byte(csv), map[string]string{"mapping": mapping})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.Empty(t, decodeSchoolPortalData[sepaImportBody](t, rec.Body.Bytes()).Unmapped, "confirmed for the current identifier")
+
+	saveCreditor(t, f, map[string]any{"creditor_id": "DE98ABC09999999999", "prenotification_days": 14, "missing_mandate": "transfer"})
+	rec = importForm(t, f.traeger, f.office.token, sepaImportPath, "mandate.csv", []byte(csv), map[string]string{"mapping": mapping})
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	code, fields := registrationRefusalOf(t, rec)
+	assert.Equal(t, "parent_billing.sepa_import_mapping_invalid", code)
+	assert.Equal(t, []string{"creditor_id"}, fields)
+	rec = importForm(t, f.traeger, f.office.token, sepaImportPreviewPath, "mandate.csv", []byte(csv), map[string]string{"mapping": mapping})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	preview := decodeSchoolPortalData[sepaImportBody](t, rec.Body.Bytes())
+	assert.Equal(t, []string{"creditor_id"}, preview.Unmapped, "the preview asks for the new identifier")
+	var stored int
+	require.NoError(t, f.db.NewRaw(`SELECT count(*) FROM parent_billing.sepa_mandates WHERE organization_id = ?`,
+		f.office.organization).Scan(context.Background(), &stored))
+	assert.Zero(t, stored, "no mandate for an unconfirmed identifier")
 }

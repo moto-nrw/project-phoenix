@@ -12,6 +12,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/sepa"
 )
 
 // The import of existing SEPA mandates (#6198). A look at a file reads it,
@@ -56,11 +57,6 @@ func (m *SEPAMandates) ImportSEPAMandates(ctx context.Context, reviewer parentbi
 	if request.Mapping != nil {
 		result.Mapping = *request.Mapping
 	}
-	columns, unmapped, err := importColumns(table.headers, result.Mapping)
-	if err != nil {
-		return parentbilling.SEPAMandateImport{}, err
-	}
-	result.Unmapped = unmapped
 	creditor, err := creditorOf(ctx, m.store, reviewer.OrganizationID)
 	if err != nil {
 		return parentbilling.SEPAMandateImport{}, err
@@ -69,6 +65,12 @@ func (m *SEPAMandates) ImportSEPAMandates(ctx context.Context, reviewer parentbi
 		return parentbilling.SEPAMandateImport{}, parentbilling.ErrSEPACreditorMissing
 	}
 	result.CreditorID = creditor.CreditorID
+	bindCreditorChoice(&result.Mapping, creditor.CreditorID)
+	columns, unmapped, err := importColumns(table.headers, result.Mapping)
+	if err != nil {
+		return parentbilling.SEPAMandateImport{}, err
+	}
+	result.Unmapped = unmapped
 	if len(unmapped) > 0 {
 		if request.Apply {
 			return parentbilling.SEPAMandateImport{}, unmappedError(unmapped)
@@ -90,6 +92,19 @@ func (m *SEPAMandates) ImportSEPAMandates(ctx context.Context, reviewer parentbi
 		countImportRow(&result.Counts, candidate.row.Status)
 	}
 	return result, nil
+}
+
+// bindCreditorChoice keeps the office's choice that the file holds the
+// Träger's mandates only while the Träger has the creditor identifier the
+// office confirmed. After a change of the identifier the choice is void and
+// the office confirms the new one: a mandate binds the creditor it was given
+// to (ADR 0171).
+func bindCreditorChoice(mapping *parentbilling.SEPAMandateImportMapping, creditorID string) {
+	if mapping.CreditorFromTraeger && sepa.Compact(mapping.ConfirmedCreditorID) == creditorID {
+		mapping.ConfirmedCreditorID = creditorID
+		return
+	}
+	mapping.CreditorFromTraeger, mapping.ConfirmedCreditorID = false, ""
 }
 
 // importColumns finds the column of each mapped field. A header the file

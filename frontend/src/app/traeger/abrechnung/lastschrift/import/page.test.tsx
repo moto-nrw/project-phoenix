@@ -53,6 +53,7 @@ const preview: ImportResult = {
     },
     payerKey: "email",
     creditorFromTraeger: true,
+    confirmedCreditorId: "DE98ZZZ09999999999",
   },
   unmapped: [],
   creditorId: "DE98ZZZ09999999999",

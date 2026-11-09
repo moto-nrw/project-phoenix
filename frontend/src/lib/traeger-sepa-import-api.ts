@@ -40,6 +40,8 @@ export interface ImportMapping {
   readonly payerKey: PayerKey;
   /** The office says every mandate of the file is given to its creditor ID. */
   readonly creditorFromTraeger: boolean;
+  /** The creditor ID the office saw when it confirmed; "" without confirmation. */
+  readonly confirmedCreditorId: string;
 }
 
 export interface ImportProblem {
@@ -99,6 +101,7 @@ interface BackendMapping {
   columns: Record<ImportField, string>;
   payer_key: PayerKey;
   creditor_from_traeger: boolean;
+  confirmed_creditor_id?: string;
 }
 
 interface BackendRow {
@@ -143,6 +146,7 @@ function toBackendMapping(mapping: ImportMapping): BackendMapping {
     columns: { ...mapping.columns },
     payer_key: mapping.payerKey,
     creditor_from_traeger: mapping.creditorFromTraeger,
+    confirmed_creditor_id: mapping.confirmedCreditorId,
   };
 }
 
@@ -175,6 +179,7 @@ function mapImportResult(result: BackendResult): ImportResult {
       columns: result.mapping.columns,
       payerKey: result.mapping.payer_key,
       creditorFromTraeger: result.mapping.creditor_from_traeger,
+      confirmedCreditorId: result.mapping.confirmed_creditor_id ?? "",
     },
     unmapped: result.unmapped ?? [],
     creditorId: result.creditor_id,

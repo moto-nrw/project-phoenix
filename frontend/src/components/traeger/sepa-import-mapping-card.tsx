@@ -101,7 +101,13 @@ export function SepaImportMappingCard({
           <CheckboxCard
             checked={mapping.creditorFromTraeger}
             onChange={(creditorFromTraeger) =>
-              onChange({ ...mapping, creditorFromTraeger })
+              onChange({
+                ...mapping,
+                creditorFromTraeger,
+                // The confirmation names the identifier the office saw; a
+                // later change of it needs a new confirmation.
+                confirmedCreditorId: creditorFromTraeger ? creditorId : "",
+              })
             }
             disabled={disabled}
             label={`Alle Mandate gehören zu unserer Gläubiger-ID ${creditorId}`}

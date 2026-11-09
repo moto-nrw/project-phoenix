@@ -49,12 +49,19 @@ function SequenceCell({
 }>) {
   if (row.status === "clarify" || answer !== undefined) {
     return (
-      <SegmentedControl
-        ariaLabel={`Zeile ${row.line}: Wurde schon abgebucht?`}
-        items={ANSWER_ITEMS.map((item) => ({ ...item, disabled }))}
-        value={answer ?? null}
-        onChange={(sequence) => onAnswer(row.line, sequence)}
-      />
+      <span className="block w-full">
+        {/* On a phone the question stands above the full-width choice. */}
+        <span className="mb-1.5 block text-sm text-gray-600 sm:hidden">
+          Schon abgebucht?
+        </span>
+        <SegmentedControl
+          ariaLabel={`Zeile ${row.line}: Wurde schon abgebucht?`}
+          items={ANSWER_ITEMS.map((item) => ({ ...item, disabled }))}
+          value={answer ?? null}
+          onChange={(sequence) => onAnswer(row.line, sequence)}
+          fullWidth
+        />
+      </span>
     );
   }
   if (row.sequence === "") return <span className="text-gray-400">–</span>;
@@ -209,6 +216,9 @@ export function SepaImportPreviewCard({
     {
       key: "sequence",
       header: "Schon abgebucht?",
+      // The answer needs the full row width on a phone; the cell names
+      // its question itself there.
+      stackedLabel: false,
       render: (row) => (
         <SequenceCell
           row={row}
