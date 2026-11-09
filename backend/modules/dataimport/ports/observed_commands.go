@@ -272,3 +272,35 @@ func (o observedAuditCommand) Append(ctx context.Context, event any) (err error)
 	defer observeCommand(ctx, "audit-platform", "append", time.Now(), &err)
 	return o.AuditCommand.Append(ctx, event)
 }
+
+type observedClassListEntryBatches struct{ ClassListEntryBatches }
+
+func ObserveClassListEntryBatches(source ClassListEntryBatches) ClassListEntryBatches {
+	if source == nil {
+		return nil
+	}
+	if _, observed := source.(observedClassListEntryBatches); observed {
+		return source
+	}
+	return observedClassListEntryBatches{source}
+}
+
+func (o observedClassListEntryBatches) CreateClassListEntries(ctx context.Context, inputs []CreateClassListEntry) (result []ClassListEntry, err error) {
+	defer observeCommand(ctx, "school-membership", "create_class_list_entries", time.Now(), &err)
+	return o.ClassListEntryBatches.CreateClassListEntries(ctx, inputs)
+}
+
+// AppendAll appends in one call where the command can, one by one otherwise.
+func (o observedAuditCommand) AppendAll(ctx context.Context, events []any) (err error) {
+	batch, ok := o.AuditCommand.(AuditBatchCommand)
+	if !ok {
+		for _, event := range events {
+			if err := o.Append(ctx, event); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	defer observeCommand(ctx, "audit-platform", "append_all", time.Now(), &err)
+	return batch.AppendAll(ctx, events)
+}

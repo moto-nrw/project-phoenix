@@ -78,6 +78,7 @@ type UnitOfWork struct {
 	savepoint       func(context.Context, SavepointAction) error
 	retryable       func(error) bool
 	acquireLock     func(context.Context, string, bool) error
+	boundStatements func(context.Context, time.Duration, func(context.Context) error) error
 	withoutTx       func(context.Context) context.Context
 	withTenant      func(context.Context, int64) context.Context
 	withTransaction func(context.Context, any) context.Context

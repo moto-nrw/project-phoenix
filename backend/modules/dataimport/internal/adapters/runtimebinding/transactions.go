@@ -2,6 +2,8 @@ package runtimebinding
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/dataimport"
@@ -35,9 +37,16 @@ func ObserveImportTransaction[K comparable](observe func(dataimport.TransactionO
 
 // ImportSavepoint runs the first savepoint of a batch row write directly and
 // every other one through savepoint (dataimport.WithBatchRowWrite, #5552).
-func ImportSavepoint(ctx context.Context, fn func(context.Context) error, savepoint func(context.Context, func(context.Context) error) error) error {
+// A failure of the savepoint itself carries dataimport.ErrSavepointControl.
+func ImportSavepoint(ctx context.Context, fn func(context.Context) error, savepoint func(context.Context, func(context.Context) error) error, control error) error {
 	if ctx, rowWrite := dataimport.TakeBatchRowWrite(ctx); rowWrite {
 		return fn(ctx)
 	}
-	return savepoint(ctx, fn)
+	if err := savepoint(ctx, fn); err != nil {
+		if errors.Is(err, control) {
+			return fmt.Errorf("%w: %w", dataimport.ErrSavepointControl, err)
+		}
+		return err
+	}
+	return nil
 }
