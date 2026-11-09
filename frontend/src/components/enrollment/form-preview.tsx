@@ -39,7 +39,7 @@ export function PreviewSection({
     <section>
       <h4 className="text-sm font-semibold text-gray-900">{title}</h4>
       {description ? (
-        <p className="mt-1 text-xs leading-5 text-gray-500">{description}</p>
+        <p className="mt-1 text-sm leading-5 text-gray-500">{description}</p>
       ) : null}
       <div className="mt-3 grid gap-2">
         {fields.map((entry) => {
@@ -120,7 +120,7 @@ function PreviewCustomField({
         </div>
       </div>
       {field.help_text ? (
-        <p className="mt-1 text-xs leading-5 text-gray-500">
+        <p className="mt-1 text-sm leading-5 text-gray-500">
           {field.help_text}
         </p>
       ) : null}
@@ -243,7 +243,7 @@ export function FormPreviewHeading({
           <h2 className="text-base font-semibold text-gray-900">{title}</h2>
           {status}
         </div>
-        <p className="mt-1 max-w-sm text-xs leading-5 text-gray-500">{hint}</p>
+        <p className="mt-1 max-w-sm text-sm leading-5 text-gray-500">{hint}</p>
       </div>
       {/* A plain mark, not a button: the heading has nothing to press. */}
       <Eye

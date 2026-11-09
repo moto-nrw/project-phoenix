@@ -114,7 +114,7 @@ export const DEFAULT_RESET_PASSWORD_PAGE_COPY: ResetPasswordPageCopy = {
     "Mindestens eine Zahl",
     "Mindestens ein Sonderzeichen",
   ],
-  submitting: "Wird gespeichert...",
+  submitting: "Wird gespeichert …",
   submit: "Passwort ändern",
 };
 
@@ -404,10 +404,10 @@ export function ResetPasswordPageContent({
         </div>
 
         <InsetPanel framed className="text-left">
-          <p className="mb-1.5 text-xs font-medium text-gray-700">
+          <p className="mb-1.5 text-sm font-medium text-gray-700">
             {copy.requirementsTitle}
           </p>
-          <ul className="space-y-0.5 text-xs text-gray-600">
+          <ul className="space-y-0.5 text-sm text-gray-600">
             {copy.requirements.map((requirement) => (
               <li key={requirement}>{requirement}</li>
             ))}

@@ -265,7 +265,7 @@ export function LegalBlocksSection({
           >
             Im Formular anzeigen
           </InlineCheckbox>
-          <p className="max-w-xl text-xs leading-5 text-gray-500">
+          <p className="max-w-xl text-sm leading-5 text-gray-500">
             {helperText}
           </p>
           <div className="flex flex-wrap gap-2">
@@ -504,7 +504,7 @@ export function LegalBlocksSection({
                       : "Ist für diese Vorlage ausgeblendet."}
                   </p>
                   {block.label.trim() !== "" ? (
-                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-gray-500">
+                    <p className="mt-1 line-clamp-2 text-sm leading-5 text-gray-500">
                       {block.label}
                     </p>
                   ) : null}
@@ -621,7 +621,7 @@ function AGBTemplateSourceEditor({
             <FileText className="h-4 w-4" aria-hidden="true" />
             Text eingeben
           </span>
-          <span className="mt-1 block text-xs text-gray-500">
+          <span className="mt-1 block text-sm text-gray-500">
             Eltern lesen den Text direkt im Formular.
           </span>
           {hasText ? (
@@ -642,7 +642,7 @@ function AGBTemplateSourceEditor({
             <FileUp className="h-4 w-4" aria-hidden="true" />
             PDF-Datei hochladen
           </span>
-          <span className="mt-1 block text-xs text-gray-500">
+          <span className="mt-1 block text-sm text-gray-500">
             Eltern öffnen im Formular einen PDF-Link.
           </span>
           {hasDocument ? (
@@ -669,7 +669,7 @@ function AGBTemplateSourceEditor({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-sm font-medium text-gray-900">PDF-Datei</p>
-              <p className="mt-0.5 text-xs text-gray-600">
+              <p className="mt-0.5 text-sm text-gray-600">
                 {hasDocument
                   ? "Diese PDF wird in dieser Formularvorlage als Link angezeigt."
                   : "Laden Sie die AGB / Teilnahmebedingungen als PDF hoch."}
@@ -728,9 +728,9 @@ function AGBTemplateSourceEditor({
             </div>
           </div>
           {documentSaving ? (
-            <p className="mt-2 flex items-center gap-2 text-xs text-gray-500">
+            <p className="mt-2 flex items-center gap-2 text-sm text-gray-500">
               <SpinnerIcon className="h-3 w-3" />
-              PDF wird hochgeladen...
+              PDF wird hochgeladen …
             </p>
           ) : null}
         </InsetPanel>
