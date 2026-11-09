@@ -473,7 +473,20 @@ describe("RejectReasonModal", () => {
     expect(onRejected).not.toHaveBeenCalled();
   });
 
-  it("tells the office when the notice could not go out", async () => {
+  it.each([
+    [
+      "missing_student",
+      "Für dieses Kind fehlt die Zuordnung zur Schülerliste.",
+    ],
+    [
+      "no_permitted_address",
+      "Keine Vertragsadresse gehört zu einer Bezugsperson mit dem nötigen Recht.",
+    ],
+    [
+      undefined,
+      "Eine berechtigte Empfängeradresse konnte nicht ermittelt werden.",
+    ],
+  ] as const)("explains the unsent notice: %s", async (reason, explanation) => {
     mocks.fetchContractNoticeOptions.mockResolvedValue({
       ...active,
       status: "gekuendigt",
@@ -491,6 +504,7 @@ describe("RejectReasonModal", () => {
         endDecidedAt: "2026-11-09T10:00:00Z",
         endNoticeText: "Der Vertrag endet am 31.12.2026.",
         endNoticeSent: false,
+        endNoticeNotSentReason: reason,
       },
     } satisfies ContractNoticeOptions);
     render(
@@ -506,5 +520,18 @@ describe("RejectReasonModal", () => {
         /Die Mitteilung zum Vertragsende ging nicht raus/,
       ),
     ).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(explanation))).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Teilen Sie den Eltern das Vertragsende selbst mit, zum Beispiel per Brief/,
+      ),
+    ).toBeInTheDocument();
+    if (reason !== "no_permitted_address") {
+      expect(
+        screen.queryByText(
+          /Keine Vertragsadresse gehört|Keine Adresse des Vertrags gehört/,
+        ),
+      ).not.toBeInTheDocument();
+    }
   });
 });

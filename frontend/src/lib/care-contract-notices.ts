@@ -22,6 +22,8 @@ export type TerminationKind =
  * set the last day, or it did not accept the reason and the declaration
  * holds as an ordinary termination (Umdeutung, § 140 BGB).
  */
+type EndNoticeNotSentReason = "missing_student" | "no_permitted_address";
+
 type EndDecision = "festgelegt" | "umgedeutet";
 
 /** A declaration as recorded, with its confirmation as sent. */
@@ -48,10 +50,11 @@ export interface ContractNotice {
   /** The notice of the decided end the parents got, as sent. */
   readonly endNoticeText?: string | null;
   /**
-   * False when no address of the contract still belongs to a guardian with
-   * the right to act for the child: the office tells the parents itself.
+   * Whether the end notice was queued. When false, the office tells the
+   * parents itself; endNoticeNotSentReason explains the recorded cause.
    */
   readonly endNoticeSent?: boolean;
+  readonly endNoticeNotSentReason?: EndNoticeNotSentReason | null;
 }
 
 /** What can be declared on a contract today, or the declaration made. */
@@ -101,6 +104,7 @@ interface BackendNotice {
   end_decided_at?: string;
   end_notice_text?: string;
   end_notice_sent?: boolean;
+  end_notice_not_sent_reason?: EndNoticeNotSentReason;
 }
 
 export interface BackendNoticeOptions {
@@ -151,6 +155,7 @@ export function noticeOptionsFromBackend(
           endDecidedAt: row.notice.end_decided_at ?? null,
           endNoticeText: row.notice.end_notice_text ?? null,
           endNoticeSent: row.notice.end_notice_sent ?? false,
+          endNoticeNotSentReason: row.notice.end_notice_not_sent_reason ?? null,
         }
       : null,
   };

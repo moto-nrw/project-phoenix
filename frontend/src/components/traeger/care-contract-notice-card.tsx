@@ -345,7 +345,13 @@ function NoticeFacts({
       {notice.endNoticeText && !notice.endNoticeSent ? (
         <Alert
           type="warning"
-          message="Die Mitteilung zum Vertragsende ging nicht raus. Keine Adresse des Vertrags gehört noch einer Bezugsperson, die für das Kind handeln darf. Teilen Sie den Eltern das Vertragsende selbst mit, zum Beispiel per Brief."
+          message={`Die Mitteilung zum Vertragsende ging nicht raus. ${
+            notice.endNoticeNotSentReason === "missing_student"
+              ? "Für dieses Kind fehlt die Zuordnung zur Schülerliste."
+              : notice.endNoticeNotSentReason === "no_permitted_address"
+                ? "Keine Vertragsadresse gehört zu einer Bezugsperson mit dem nötigen Recht."
+                : "Eine berechtigte Empfängeradresse konnte nicht ermittelt werden."
+          } Teilen Sie den Eltern das Vertragsende selbst mit, zum Beispiel per Brief.`}
         />
       ) : null}
       {notice.endNoticeText ? (
