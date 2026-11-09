@@ -48,8 +48,8 @@ func NewHolidayPlaceReads() enrollment.HolidayPlaces {
 
 func newHolidayRegistrationReview(health enrollment.HolidayHealthCipher, traeger enrollment.HolidayTraegerDirectory, mail enrollment.TraegerMailOutbox) enrollment.HolidayRegistrationReview {
 	store := postgres.NewHolidayRegistrationStore()
-	return applicationNative.NewHolidayRegistrationReview(store, postgres.NewHolidayPeriodStore(), postgres.NewHolidayPeriodStore(), health, nil).
-		WithHolidayPlaces(store, traeger, mail)
+	return applicationNative.NewHolidayRegistrationReview(store, postgres.NewHolidayPeriodStore(), postgres.NewHolidayPeriodStore(), health, nil,
+		applicationNative.HolidayPlaceDependencies{Store: store, Traeger: traeger, Mail: mail})
 }
 
 // NewHolidayHostParticipants builds the hosting school's participant lists (ADR 0116).

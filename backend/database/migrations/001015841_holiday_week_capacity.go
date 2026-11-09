@@ -3,7 +3,6 @@ package migrations
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/uptrace/bun"
 )
@@ -98,12 +97,8 @@ const (
 	holidayPlacedPrevious = "\n\t\tWHERE COALESCE((previous->>'waitlisted')::boolean, false) = false"
 )
 
-func holidayHostPlacementSQL(placed, previous string) string {
-	return strings.NewReplacer("{{placed}}", placed, "{{previous_placed}}", previous).Replace(holidayHostBookingFunctionsSQL)
-}
-
-const holidayHostBookingFunctionsSQL = `
-CREATE OR REPLACE FUNCTION enrollment.holiday_host_booking(p_organization_id bigint, p_week_id bigint, p_child_id bigint)
+const (
+	holidayHostSQL0 = `CREATE OR REPLACE FUNCTION enrollment.holiday_host_booking(p_organization_id bigint, p_week_id bigint, p_child_id bigint)
  RETURNS boolean
  LANGUAGE sql
  STABLE SECURITY DEFINER
@@ -118,7 +113,8 @@ AS $function$
 			ON registration.organization_id = child.organization_id AND registration.id = child.holiday_registration_id
 		WHERE booking.organization_id = p_organization_id AND booking.holiday_period_week_id = p_week_id
 			AND booking.holiday_registration_child_id = p_child_id
-			AND registration.status = 'confirmed'{{placed}}
+			AND registration.status = 'confirmed'`
+	holidayHostSQL1 = `
 	)
 	$function$;
 
@@ -208,7 +204,8 @@ AS $function$
 	CROSS JOIN LATERAL (
 		SELECT registration.consent_version >= 2 AND registration.health_consent_at IS NOT NULL AS health
 	) AS consented
-	WHERE registration.status = 'confirmed'{{placed}}
+	WHERE registration.status = 'confirmed'`
+	holidayHostSQL2 = `
 	$function$;
 
 CREATE OR REPLACE FUNCTION enrollment.holiday_host_guest_contacts(p_organization_id bigint, p_week_id bigint)
@@ -227,7 +224,8 @@ AS $function$
 		JOIN enrollment.holiday_registrations AS registration
 			ON registration.organization_id = child.organization_id AND registration.id = child.holiday_registration_id
 		WHERE booking.organization_id = p_organization_id AND booking.holiday_period_week_id = p_week_id
-			AND registration.status = 'confirmed'{{placed}}
+			AND registration.status = 'confirmed'`
+	holidayHostSQL3 = `
 			AND child.home_school_id IS DISTINCT FROM NULLIF(current_setting('app.current_tenant_id', true), '')::bigint
 			AND enrollment.holiday_host_week(p_organization_id, p_week_id)
 	)
@@ -305,14 +303,16 @@ AS $function$
 			NULL::date AS valid_until
 		FROM own
 		JOIN enrollment.holiday_registration_bookings AS booking
-			ON booking.organization_id = own.organization_id AND booking.holiday_registration_child_id = own.child_id{{placed}}
+			ON booking.organization_id = own.organization_id AND booking.holiday_registration_child_id = own.child_id`
+	holidayHostSQL4 = `
 		UNION ALL
 		SELECT rebook.child_id, (previous->>'week_id')::bigint, (previous->>'time_model_id')::bigint,
 			(SELECT max(earlier.on_date) FROM rebook AS earlier
 				WHERE earlier.child_id = rebook.child_id AND earlier.occurred_at < rebook.occurred_at),
 			rebook.on_date - 1
 		FROM rebook
-		CROSS JOIN LATERAL jsonb_array_elements(COALESCE(rebook.details->'before', '[]'::jsonb)) AS previous{{previous_placed}}
+		CROSS JOIN LATERAL jsonb_array_elements(COALESCE(rebook.details->'before', '[]'::jsonb)) AS previous`
+	holidayHostSQL5 = `
 	),
 	booked AS (
 		SELECT own.organization_id, own.child_id, week.id AS week_id, own.home_school_id, own.first_name, own.last_name, own.birth_date, care_window.starts_at, care_window.ends_at,
@@ -337,13 +337,36 @@ AS $function$
 	WHERE first_day <= last_day AND first_day <= p_to AND last_day >= p_from
 	$function$;
 `
+)
+
+// holidayHostPlacedSQL are the functions with the placement condition,
+// holidayHostUnplacedSQL those of before (the down migration).
+const (
+	holidayHostPlacedSQL = holidayHostSQL0 +
+		holidayPlacedBooking +
+		holidayHostSQL1 +
+		holidayPlacedBooking +
+		holidayHostSQL2 +
+		holidayPlacedBooking +
+		holidayHostSQL3 +
+		holidayPlacedBooking +
+		holidayHostSQL4 +
+		holidayPlacedPrevious +
+		holidayHostSQL5
+	holidayHostUnplacedSQL = holidayHostSQL0 +
+		holidayHostSQL1 +
+		holidayHostSQL2 +
+		holidayHostSQL3 +
+		holidayHostSQL4 +
+		holidayHostSQL5
+)
 
 func holidayWeekCapacityUp(ctx context.Context, db *bun.DB) error {
 	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		if _, err := tx.ExecContext(ctx, holidayWeekCapacityUpSQL); err != nil {
 			return fmt.Errorf("add holiday week capacity and booking placement: %w", err)
 		}
-		if _, err := tx.ExecContext(ctx, holidayHostPlacementSQL(holidayPlacedBooking, holidayPlacedPrevious)); err != nil {
+		if _, err := tx.ExecContext(ctx, holidayHostPlacedSQL); err != nil {
 			return fmt.Errorf("let the host school read only placed holiday bookings: %w", err)
 		}
 		return nil
@@ -352,7 +375,7 @@ func holidayWeekCapacityUp(ctx context.Context, db *bun.DB) error {
 
 func holidayWeekCapacityDown(ctx context.Context, db *bun.DB) error {
 	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		if _, err := tx.ExecContext(ctx, holidayHostPlacementSQL("", "")); err != nil {
+		if _, err := tx.ExecContext(ctx, holidayHostUnplacedSQL); err != nil {
 			return fmt.Errorf("restore the host school's holiday booking reads: %w", err)
 		}
 		if _, err := tx.ExecContext(ctx, holidayWeekCapacityDownSQL); err != nil {

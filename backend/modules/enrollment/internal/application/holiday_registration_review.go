@@ -93,7 +93,7 @@ var _ enrollment.HolidayRegistrationReview = (*HolidayRegistrationReview)(nil)
 // NewHolidayRegistrationReview builds the review; forms reads the form
 // versions the answers belong to (#5198), health opens the health
 // information (#4722). A nil today uses the Berlin calendar day.
-func NewHolidayRegistrationReview(store HolidayReviewStore, periods HolidayPeriodStore, forms HolidayFormStore, health enrollment.HolidayHealthCipher, today func() calendar.Date) *HolidayRegistrationReview {
+func NewHolidayRegistrationReview(store HolidayReviewStore, periods HolidayPeriodStore, forms HolidayFormStore, health enrollment.HolidayHealthCipher, today func() calendar.Date, places HolidayPlaceDependencies) *HolidayRegistrationReview {
 	if store == nil || periods == nil || forms == nil {
 		panic("enrollment: the holiday review store, the period store and the form store are required")
 	}
@@ -103,20 +103,24 @@ func NewHolidayRegistrationReview(store HolidayReviewStore, periods HolidayPerio
 	if today == nil {
 		today = calendar.TodayDate
 	}
-	return &HolidayRegistrationReview{store: store, periods: periods, forms: forms, health: health, today: today}
+	return &HolidayRegistrationReview{
+		store: store, periods: periods, forms: forms, health: health, today: today,
+		placement: holidayPlacement{store: places.Store, traeger: places.Traeger, mail: places.Mail},
+	}
+}
+
+// HolidayPlaceDependencies let a cancellation and a rebooking give the
+// places they free to the waiting lists (#4699); Traeger and Mail tell the
+// parents of a booking that moved up. Without Store the review refuses both.
+type HolidayPlaceDependencies struct {
+	Store   HolidayPlaceStore
+	Traeger enrollment.HolidayTraegerDirectory
+	Mail    enrollment.TraegerMailOutbox
 }
 
 // errHolidayPlacesRequired reports a cancellation or rebooking of a review
 // built without the places: the waiting lists would not move up.
 var errHolidayPlacesRequired = errors.New("enrollment: cancelling or rebooking a holiday registration needs the places")
-
-// WithHolidayPlaces lets a cancellation and a rebooking give the places they
-// free to the waiting lists (#4699); traeger and mail tell the parents of a
-// booking that moved up. Without places the review refuses both.
-func (h *HolidayRegistrationReview) WithHolidayPlaces(places HolidayPlaceStore, traeger enrollment.HolidayTraegerDirectory, mail enrollment.TraegerMailOutbox) *HolidayRegistrationReview {
-	h.placement = holidayPlacement{store: places, traeger: traeger, mail: mail}
-	return h
-}
 
 // moveUp gives the places of the weeks to their waiting lists after a
 // change of the locked registration.

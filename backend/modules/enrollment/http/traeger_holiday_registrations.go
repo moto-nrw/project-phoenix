@@ -142,8 +142,6 @@ func (rs *HolidayPeriodResource) registrationAction(action string) http.HandlerF
 	}
 }
 
-var errHolidayPlacesUnbound = errors.New("enrollment http: the holiday places are not bound")
-
 // listPlaces lists the places and the waiting list of every week of the
 // period (#4699). A rebooking and a new capacity run in the
 // Elternabrechnung, which computes the contribution of whoever moves up.
@@ -155,10 +153,6 @@ func (rs *HolidayPeriodResource) listPlaces(w http.ResponseWriter, r *http.Reque
 	periodID, err := common.ParseIDParam(r, "id")
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return
-	}
-	if rs.places == nil {
-		common.RenderError(w, r, common.ErrorInternalServer(errHolidayPlacesUnbound))
 		return
 	}
 	places, err := rs.places.HolidayWeekPlaces(r.Context(), reviewer, periodID)

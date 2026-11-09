@@ -1,4 +1,4 @@
-package postgres_test
+package integration
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment/internal/adapters/postgres"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
