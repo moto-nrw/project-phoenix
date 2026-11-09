@@ -1,13 +1,20 @@
 # Interne Auskunft und Datenrückgabe
 
-Stand: 24.10.2026, Slices 3838-a/b/c, Refs #3838, Teil von #3846.
+Stand: 09.11.2026, Refs #3838, Teil von #3846.
 Grundlage: [ADR 0092](../adr/0092-mandanten-datenlebenszyklus-nutzt-einen-gemeinsamen-katalog.md),
-[ADR 0097](../adr/0097-mandantenrueckgabe-hat-einen-eigenen-leseadapter.md)
-und [Datenkatalog](../reference/datenkatalog.md).
+[ADR 0097](../adr/0097-mandantenrueckgabe-hat-einen-eigenen-leseadapter.md),
+[ADR 0192](../adr/0192-mandantenrueckgabe-oeffnet-feldverschluesselte-bankdaten.md),
+[ADR 0193](../adr/0193-mandantenrueckgabe-gibt-gesundheit-einstellungen-und-traegerpaket-zurueck.md)
+und [Datenkatalog](../reference/datenkatalog.md). Öffentliche Beschreibung für
+Kunden: [Datenexport und Anbieterwechsel](https://moto-ogs.de/rechtliches/datenexport)
+und [Infrastruktur und technische Anbieter](https://moto-ogs.de/rechtliches/infrastruktur)
+(Website-Repo, `src/app/(de)/rechtliches/`). Wer Format, Ablauf oder Grenzen
+hier ändert, gleicht diese Seiten im selben Zug an.
 
 ## Stand und Grenzen
 
-**Im Code umgesetzt:** `tenant export` erstellt für genau eine Schule einen
+**Im Code umgesetzt:** `tenant export` erstellt für genau eine Schule
+(`--school`) oder genau einen Träger (`--organization`) einen
 lokalen, maschinenlesbaren Export aus dem gemeinsamen Katalog. Er liefert
 JSON Lines, Originaldateien, eine Datenmodellbeschreibung, Ausschlussgründe,
 Zeilenzahlen und SHA-256-Prüfsummen. Die Datenbank wird in einer einzigen
@@ -24,11 +31,19 @@ automatisch vollständige oder freigegebene Art.-15-Antwort. Die zuständige
 Person muss die Ergänzungs- und Drittpersonenprüfung in Abschnitt 6 abschließen.
 Weder Gesamtexport noch internes Prüfpaket unverändert an Betroffene geben.
 
-**Weiter offen:** geprüfte Projektionen nicht geheimer Werte aus den bewusst
-ausgeschlossenen Settings-/Zustellcontainern, erforderlicher Kontext aus
-internen Protokollen sowie der gesonderte Data-Act-Schnittstellen- und
-Wechselabgleich. Das Verfahren belegt die technische Rückgabe des aktuell
-freigegebenen Katalogumfangs, nicht die Erfüllung aller AKs von #3838.
+**Geöffnet und projiziert:** IBAN und Kontoinhaber der SEPA-Daten
+(Bankring) und alle Gesundheitsangaben (Gesundheitsring) stehen geöffnet im
+Paket, nie als Chiffrat. Einstellungen gehen ohne Geheimnisse mit:
+`password`-Definitionen und unbekannte Schlüssel als `null`. Zustellprotokolle
+(Sperrliste, Zustellereignisse, Push-Inhalte) gehen mit. Ein Wert, der nicht
+öffnet, oder ein Container ohne Besitzer bricht den Export ab.
+
+**Weiter offen:** Der Mail-Payload bleibt ausgeschlossen (Sicherheitsmails
+tragen dort Link oder Code); der Inhalt einer Mail ist der verknüpfte
+Datensatz. Die rechtliche Bewertung der Data-Act-Schnittstellenpflicht
+(Abschnitt 7) und die menschlichen Nachweise unten. Die Beschäftigtenauskunft
+nimmt weiter mehr Kontextzeilen auf als nötig; Pflicht-Redigierung und
+Zweitprüfung fangen das ab.
 
 **Produktiv nachzuweisen:** benannte Zuständigkeit, Migration und wirksame
 Berechtigungen, vollständiger DB-/Upload-Bestand, Schreibpause, Probelauf,
@@ -40,7 +55,8 @@ Sicherungen sind nicht Bestandteil dieses PostgreSQL-/Upload-Exports.
 
 1. Dokumentierte Weisung des Kunden, Zweck, berechtigten Auftraggeber,
    Schul-ID und Empfänger prüfen. Bei einem Träger jede Schule einzeln
-   autorisieren. Keine Auswahl allein anhand einer E-Mail-Adresse oder
+   autorisieren; die Rückgabe eines Trägers besteht aus dem Trägerpaket und je
+   Schule einem Schulpaket (Abschnitt 3). Keine Auswahl allein anhand einer E-Mail-Adresse oder
    eines Plattform-Tokens. Die HTTP-Middleware wird nicht verwendet.
 2. Vor Beginn eine verantwortliche Person und Vertretung im geschützten
    Auftrag benennen. Diese organisatorische Zuordnung ist noch offen und
@@ -91,7 +107,17 @@ Sicherungen sind nicht Bestandteil dieses PostgreSQL-/Upload-Exports.
    ein fehlendes referenziertes Original oder ein Symlink ist ein Fehler.
    Bereits abgeschlossene Dateilöschungen erfordern kein Original;
    Cleanup-Intents können auch nie geschriebene Dateien beschreiben.
-5. Privates, lokal verschlüsseltes Arbeitsmedium mit genug freiem Platz
+5. Bankring der Herkunftsinstallation bereitstellen: `BANK_DATA_KEYS` und,
+   solange deren Rekey nicht abgeschlossen ist, `BANK_DATA_LEGACY_KEYS`
+   ([ADR 0183](../adr/0183-bankdaten-haben-einen-eigenen-schluesselring-und-einen-wiederholbaren-rekey.md)).
+   und den Gesundheitsring `HEALTH_DATA_KEYS` derselben Installation
+   ([ADR 0193](../adr/0193-mandantenrueckgabe-gibt-gesundheit-einstellungen-und-traegerpaket-zurueck.md)).
+   Der Export öffnet damit IBAN und Kontoinhaber der SEPA-Mandate und
+   -Lastschriften sowie die Gesundheitsangaben; ohne passende Ringe bricht er
+   ab, statt Chiffrat oder eine Lücke zu übergeben, auch für Schulen ohne
+   solche Daten. Die Werte nur per SOPS in die Umgebung des Exportprozesses
+   geben, nie als Datei, Shell-Literal oder CLI-Argument.
+6. Privates, lokal verschlüsseltes Arbeitsmedium mit genug freiem Platz
    und einem vorhandenen privaten Elternverzeichnis verwenden. Ziel und
    Uploads dürfen nicht ineinander liegen. Dateinamen und Inhalte nicht
    in Tickets, Shell-Traces, Bildschirmaufnahmen oder Logs ausgeben.
@@ -107,6 +133,16 @@ scripts/dev-native.sh backend go run . tenant export \
   --school "$SCHOOL_ID" --uploads "$UPLOADS_SNAPSHOT" --out "$EXPORT_DIR"
 ```
 
+Für das Trägerpaket statt `--school "$SCHOOL_ID"` den Parameter
+`--organization "$ORGANIZATION_ID"` setzen. Es enthält die Trägertabellen
+(Verträge, Elternabrechnung, SEPA, Ferienanmeldungen, Trägereinstellungen), die
+Stammzeilen der Schulen des Trägers und die Konten der Träger-Geschäftsstelle
+samt Avataren. Was eine Schule hält, steht im Manifest als `schoolPackage`
+ohne Zeilen und kommt mit dem Schulpaket. Ein Schulpaket trägt weiter den
+Trägerbestand; bei einer Trägerrückgabe ist das Trägerpaket desselben Auftrags
+für diese Tabellen maßgeblich. Wechselt nur eine Schule, enthält ihr Schulpaket
+die Trägerdaten aller Schulen des Trägers: Umfang mit dem Träger abstimmen.
+
 `EXPORT_DIR` darf noch nicht existieren. Die CLI erzeugt Verzeichnisse mit
 0700 und Dateien mit 0600. Sie schreibt keine Datenzeilen oder Originalnamen
 ins Terminal. Jeden Exit-Code ungleich 0 als fehlgeschlagen behandeln.
@@ -118,6 +154,13 @@ Exportformat, Version 1:
 
 - `schema.tabelle.jsonl`: eine JSON-Zeile je freigegebenem Datensatz,
   einschließlich vorhandener Soft-Delete-Daten; keine Roh-Geheimnisspalten.
+  Feldverschlüsselte Werte, die der Katalog unter `openSealedColumns` führt,
+  stehen geöffnet in eigenen Spalten (`iban`, `account_holder` bei SEPA-
+  Mandaten und -Lastschriften, `health_info` bei Betreuungsprofilen, `health`
+  als JSON-Text bei Ferienanmeldungen, -kindern und -gästen), ihr Chiffrat
+  nicht. Container unter `projectedColumns` stehen projiziert in eigenen
+  Spalten (`exported_value`, `exported_old_value`/`exported_new_value` bei
+  Einstellungen, `exported_settings` bei Schulen), ihr Rohwert nicht.
   PostgreSQL-JSON stellt Zahlen numerisch dar. Empfänger müssen `bigint`
   ohne Rundung lesen; Zeit-/Datumsbedeutungen ergeben sich aus `model.json`.
 - `model.json`: exportierte Spalten mit `information_schema`-Typen,
@@ -128,7 +171,8 @@ Exportformat, Version 1:
   `objects.jsonl` ordnet diese Dateien den ursprünglichen Speicherschlüsseln
   zu. Diese Zuordnung gehört in den geschützten Datenexport, nicht ins
   Durchführungsprotokoll.
-- `manifest.json`: Format-/Katalogversion, SHA-256 des eingebetteten
+- `manifest.json`: Paketart (`package: organization` beim Trägerpaket),
+  Format-/Katalogversion, SHA-256 des eingebetteten
   Katalogs, Snapshot-Zeitpunkt in UTC, Tabellen mit Zeilenzahlen und
   Ausschlüssen sowie Pfad, Größe und SHA-256 jedes Daten-/Modellartefakts.
   Keine Datensätze, Personennamen oder ursprünglichen Dateinamen.
@@ -189,9 +233,9 @@ Es gibt keinen Modus zum stillen Überspringen.
    Sicherungen genügt Überschreiben einzelner Dateien nicht als sicherer
    Löschbeleg. Geschütztes temporäres Medium und dessen Lebenszyklus nutzen;
    keine dauerhaften unkontrollierten Kopien erstellen.
-4. Ein Wechselauftrag folgt zusätzlich dem **Wechselprozess nach AGB 10.3**
-   und dem noch offenen Data-Act-Abgleich. Dieser CLI-Lauf legt weder
-   Abruf-/Wechselfristen noch offene Schnittstellen abschließend fest.
+4. Ein Wechselauftrag folgt zusätzlich dem Wechselprozess mit seinen Fristen
+   in Abschnitt 7. Bei einem Wechsel bleibt das verschlüsselte Paket bis zum
+   Ende des Abrufzeitraums erhalten; erst danach die lokalen Kopien entfernen.
 
 ## 5. Datensparsamer Durchführungsnachweis
 
@@ -287,6 +331,7 @@ im gefilterten JSONL) mit `third-party-review`. Zusätzlich gelten:
 | `context-not-subject` | Gehört der Kontext zur Anfrage? Andere Erziehungsberechtigte, Geschwister, Beschäftigte und deren Kennungen entfernen oder begründet freigeben. |
 | `free-text-snapshots-and-embedded-persons` | Freitexte, Nachrichten, frühere/neue Werte, JSON und Formulare auf eingebettete Drittpersonen und Geheimnisse prüfen. Keine bloße Suche nach Spaltennamen. |
 | `audit-actors-and-historical-values` | Akteure und historische Werte prüfen; den erforderlichen Auskunftskontext nicht pauschal als „intern“ zurückhalten. |
+| `special-category-health-data` | Geöffnete Gesundheitsangaben (Art. 9 DSGVO): nur die der betroffenen Person und nur an den von der Schule bestätigten Empfänger. Zeilen von Geschwistern oder anderen Gästen entfernen. |
 | `original-content-and-group-photos` | Jede markierte Originaldatei ansehen. Gruppenfotos und Mehrpersonen-Dokumente redigieren oder begründet zurückhalten; das Original bleibt nur im internen Paket. |
 
 Die Markierungen sind bewusst konservativ, keine automatische juristische
@@ -345,8 +390,29 @@ keine Vollständigkeit. `COMPLETE` bestätigt nur den technischen Lauf.
    Aufbewahrung, Sicherungszyklus und Wiederholung nach Restore nachweisen.
    Die CLI-Nachweise allein bedeuten nicht „vollständig gelöscht“.
 
-**AK6 offen, Recht 3838-e:** Data-Act-Schnittstellen, Wechselunterstützung,
-Wechsel-/Abruffristen und Abrufmöglichkeiten gesondert rechtlich und technisch
-abgleichen. Dieses Runbook und die interne Export-CLI setzen diese offenen
-Verträge nicht fest. Kein jederzeitiger Selbstdownload und keine vollständige
-Data-Act-Erfüllung zugesagt.
+### Wechselprozess und Fristen (AGB Ziff. 10, AVV Ziff. 8.2)
+
+Technisch steht das Verfahren dieses Runbooks bereit: vollständiger
+Schul- und Trägerbestand in offenem, dokumentiertem Format (JSON Lines,
+`model.json`, Originaldateien, Prüfsummen), ohne Wechselentgelt.
+Die Fristen laufen ab dem Eingang der Wechselanfrage:
+
+| Schritt | Frist nach AGB | Wer |
+|---|---|---|
+| Wechselanfrage bestätigen, Umfang (Schulen, Träger, Ziel) festhalten | unverzüglich; Ankündigungsfrist höchstens 2 Monate (10.1) | zuständige Person |
+| Ist der Übergang in 30 Tagen nicht machbar: begründen, Ersatzzeitraum ≤ 7 Monate nennen | 14 Arbeitstage nach der Anfrage (10.3) | zuständige Person |
+| Pakete erstellen, prüfen, verschlüsselt übergeben; Dienst läuft weiter | Übergangszeitraum ≤ 30 Kalendertage nach der Ankündigungsfrist, einmal verlängerbar (10.3) | zuständige Person, zweite Person prüft |
+| Verschlüsselte Pakete zum Abruf bereithalten, erneute Übergabe auf Anfrage | 30 Kalendertage nach dem Übergangszeitraum (10.3) | zuständige Person |
+| Löschung nach [tenant-erasure.md](tenant-erasure.md), Nachweis auf Anfrage | danach (10.4, AVV 8.2) | zuständige Person |
+
+Bekannte Wechselrisiken, die dem Kunden mitzuteilen sind: Daten ändern sich
+während des Übergangs weiter, also vor der letzten Übergabe eine Schreibpause
+vereinbaren und neu exportieren; Kennwörter, Passkeys, MFA-Faktoren, Tokens und
+`password`-Einstellungen (Geräte-PIN, SFTP-Passwort) kommen nicht mit und
+müssen im Zielsystem neu gesetzt werden; der Import braucht eine Feldzuordnung.
+
+**Offen (Recht, Yannick):** Ob ein von moto-Mitarbeitenden betreuter Export
+in offenem, dokumentiertem Format die „offenen Schnittstellen“ nach Art. 30
+Abs. 2 Data Act erfüllt oder ob Kunde oder Zielanbieter einen eigenen Abruf
+(etwa eine API) erhalten müssen. Bis zur Entscheidung kein jederzeitiger
+Selbstdownload zugesagt.

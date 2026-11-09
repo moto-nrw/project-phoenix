@@ -7833,6 +7833,14 @@
       "target_owner": ""
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.CreatePersons",
+      "binding_digest": "05b26a22d12d74354c60930bfa26ec5c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.PersonBatches.CreatePersons",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.MasterDataPeople.SetPersonDetails",
       "binding_digest": "d5349101396c74a6f997482c10fd407a",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.PersonDetailsCommand.SetPersonDetails",

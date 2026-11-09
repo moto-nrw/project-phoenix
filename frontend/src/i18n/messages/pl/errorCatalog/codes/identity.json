@@ -10,6 +10,7 @@
   "demo_school_preparing": "Szkoła demo jest właśnie przygotowywana. Spróbuj ponownie za chwilę.",
   "demo_session": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
   "email_already_exists": "Dla tego adresu e-mail istnieje już konto. Użyj innego adresu.",
+  "guardian_invitation_address_changed": "Ten link jest już nieważny. Poproś szkołę o nowe zaproszenie.",
   "invalid_credentials": "Adres e-mail lub hasło są nieprawidłowe. Sprawdź wpisane dane.",
   "invitation_account_login_required": "Dla tego adresu e-mail istnieje już konto. Najpierw zaloguj się na nie, a potem ponownie otwórz zaproszenie.",
   "invitation_account_mismatch": "Jesteś zalogowany na inne konto. Zaloguj się adresem e-mail, na który przyszło zaproszenie.",

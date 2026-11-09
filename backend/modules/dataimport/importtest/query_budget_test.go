@@ -55,9 +55,10 @@ func TestStudentImportBatchQueryBudget(t *testing.T) {
 	querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.import", counter.Measurement(counter.Queries()))
 	require.Empty(t, counter.Selects("users.guardian_phone_numbers"), "new-profile create proves the phone list is empty")
 	// BUN labels RawQuery as SELECT, including the three owner INSERTs of each
-	// guardian link; this is the driver-reported DML counter, not physical
-	// table writes.
-	require.EqualValues(t, 51, counter.WriteRows())
+	// guardian link and, since the student chunk executor (#5552), the one
+	// statement that creates the ten persons; this is the driver-reported DML
+	// counter, not physical table writes.
+	require.EqualValues(t, 41, counter.WriteRows())
 	smallImport := counter.Total()
 
 	// A second point, eleven times the file: one more statement per row in

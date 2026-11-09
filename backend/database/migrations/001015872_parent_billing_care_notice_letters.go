@@ -14,9 +14,9 @@ func init() {
 		Version:     parentBillingCareNoticeLettersVersion,
 		Description: "Elternabrechnung: gespeichertes Original, Versand und Elternpostfach der Jahresbescheide (#6347)",
 		DependsOn: []string{
-			parentBillingBelegRetentionVersion,   // the newest migration before this one
-			parentBillingCareNoticesVersion,      // the notices whose originals these are
-			demoVisitorErasureOutboxKindsVersion, // the erasure this one extends
+			guardianInvitationAddressBindingVersion,   // the newest migration before this one
+			parentBillingCareNoticesVersion,           // the notices whose originals these are
+			parentBillingCareInvoiceExclusionsVersion, // the erasure this one extends
 		},
 	})
 	Migrations.MustRegister(parentBillingCareNoticeLettersUp, parentBillingCareNoticeLettersDown)
@@ -122,7 +122,7 @@ ALTER TABLE parent_billing.care_notice_run_events ADD CONSTRAINT chk_care_notice
 	CHECK (action IN ('create', 'read', 'release', 'letter'));
 `
 
-// careNoticeLetterErasureAnchor is where 1.15.843 deletes the notices of a
+// careNoticeLetterErasureAnchor is where 1.15.864 deletes the notices of a
 // retired demo school; the originals and their sends still exist there.
 const careNoticeLetterErasureAnchor = `					-- A Jahresbescheid of the school copies child, recipient and
 					-- mail address (#6219); it goes with the school, its months
@@ -188,7 +188,7 @@ func parentBillingCareNoticeLettersUp(ctx context.Context, db *bun.DB) error {
 }
 
 func parentBillingCareNoticeLettersDown(ctx context.Context, db *bun.DB) error {
-	if err := installOutboxKindErasure(ctx, db); err != nil {
+	if err := installCareInvoiceExclusionErasure(ctx, db); err != nil {
 		return err
 	}
 	if _, err := db.ExecContext(ctx, parentBillingCareNoticeLettersDownSQL); err != nil {

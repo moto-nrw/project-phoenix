@@ -51,6 +51,9 @@ type ImportTestOptions struct {
 	// WrapClassListBatches decorates School Membership's class-list batch
 	// slice, so a suite can fail or delay a batch command.
 	WrapClassListBatches func(importPorts.ClassListEntryBatches) importPorts.ClassListEntryBatches
+	// WrapPersonBatches decorates People Directory's person batch slice, so
+	// a suite can fail or delay the student batch command.
+	WrapPersonBatches func(importPorts.PersonBatches) importPorts.PersonBatches
 }
 
 // NewImportTestRuntime is the import runtime NewImportTestModule composes,
@@ -169,8 +172,8 @@ func NewImportTestModuleWithOwners(db transactionruntime.Database, unit tenant.U
 	}
 	dataImports := imports{
 		Student: newStudentImport(
-			runtime, rfid, groups, rooms, persons, studentGuardians, students.CarePlan, NewStudentPresenceForTests(db),
-			auditCompose.NewConsentRecorder(command),
+			runtime, rfid, groups, rooms, persons, wrapPersonBatches(personBatches(persons), options.WrapPersonBatches),
+			studentGuardians, students.CarePlan, NewStudentPresenceForTests(db), auditCompose.NewConsentRecorder(command),
 		),
 		Staff:     newStaffImport(runtime, rfid, auth.Invitation, organizations, persons, membership, workTime),
 		ClassList: newClassListImport(runtime, membership, persons, wrapClassListBatches(classListBatches(membership), options.WrapClassListBatches)),
@@ -187,6 +190,13 @@ func NewImportTestModuleWithOwners(db transactionruntime.Database, unit tenant.U
 }
 
 func wrapClassListBatches(batches importPorts.ClassListEntryBatches, wrap func(importPorts.ClassListEntryBatches) importPorts.ClassListEntryBatches) importPorts.ClassListEntryBatches {
+	if wrap == nil || batches == nil {
+		return batches
+	}
+	return wrap(batches)
+}
+
+func wrapPersonBatches(batches importPorts.PersonBatches, wrap func(importPorts.PersonBatches) importPorts.PersonBatches) importPorts.PersonBatches {
 	if wrap == nil || batches == nil {
 		return batches
 	}

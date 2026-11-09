@@ -8,10 +8,10 @@ import (
 )
 
 // demoVisitorErasureCareNoticeLettersSQL is platform.erase_closed_demo_visitors
-// of 1.15.843 with the copies of the sent originals of the Jahresbescheide
-// (#6347): the erasure of 1.15.843 with careNoticeLetterErasureStatement
+// of 1.15.864 with the copies of the sent originals of the Jahresbescheide
+// (#6347): the erasure of 1.15.864 with careNoticeLetterErasureStatement
 // before careNoticeLetterErasureAnchor. The rest of the function is
-// unchanged; TestCareNoticeLetterErasureIsTheErasureOf843WithTheOriginals
+// unchanged; TestCareNoticeLetterErasureIsTheErasureOf864WithTheOriginals
 // keeps it that way.
 const demoVisitorErasureCareNoticeLettersSQL = `
 		CREATE OR REPLACE FUNCTION platform.erase_closed_demo_visitors()
@@ -348,6 +348,33 @@ const demoVisitorErasureCareNoticeLettersSQL = `
 					WHERE contract.school_id = ANY (hidden_schools)
 						AND event.organization_id = contract.organization_id
 						AND event.details->'contract_ids' @> to_jsonb(contract.id);
+					-- A release names the invoices it left out by their contract
+					-- (#6346); the retired school's contracts leave the entry,
+					-- which stays with the run and the other schools.
+					UPDATE parent_billing.care_run_events AS event
+					SET details = event.details
+						|| jsonb_build_object('excluded_contract_ids', COALESCE((
+							SELECT jsonb_agg(kept.value ORDER BY kept.position)
+							FROM jsonb_array_elements(COALESCE(event.details->'excluded_contract_ids', '[]'::jsonb))
+								WITH ORDINALITY AS kept(value, position)
+							WHERE NOT EXISTS (SELECT 1 FROM care_contract.contracts AS contract
+								WHERE contract.school_id = ANY (hidden_schools)
+									AND contract.organization_id = event.organization_id
+									AND to_jsonb(contract.id) = kept.value)), '[]'::jsonb))
+						|| jsonb_build_object('excluded_invoices', COALESCE((
+							SELECT jsonb_agg(kept.value ORDER BY kept.position)
+							FROM jsonb_array_elements(COALESCE(event.details->'excluded_invoices', '[]'::jsonb))
+								WITH ORDINALITY AS kept(value, position)
+							WHERE NOT EXISTS (SELECT 1 FROM care_contract.contracts AS contract
+								WHERE contract.school_id = ANY (hidden_schools)
+									AND contract.organization_id = event.organization_id
+									AND to_jsonb(contract.id) = kept.value->'contract_id')), '[]'::jsonb))
+					WHERE event.action = 'release'
+						AND EXISTS (SELECT 1 FROM care_contract.contracts AS contract
+							WHERE contract.school_id = ANY (hidden_schools)
+								AND contract.organization_id = event.organization_id
+								AND (event.details->'excluded_contract_ids' @> to_jsonb(contract.id)
+									OR event.details->'excluded_invoices' @> jsonb_build_array(jsonb_build_object('contract_id', contract.id))));
 					DELETE FROM parent_billing.care_run_events AS event
 					USING care_contract.contracts AS contract
 					WHERE contract.school_id = ANY (hidden_schools)

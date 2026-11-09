@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
@@ -387,7 +386,26 @@ func (l *AccountLifecycle) skipBulkInviteEmailProblem(run *bulkInviteRun, candid
 	return false
 }
 
+// workingBulkInvitations keeps the invitations that still lead somewhere: a
+// request awaiting staff, or a running link issued for the address the
+// guardian has now. A legacy link without a recipient or one mailed to an
+// earlier address works for nobody (#6294); the guardian gets a new link
+// instead of being counted as already invited.
+func workingBulkInvitations(profile domain.GuardianProfile, open []domain.GuardianInvitation, now time.Time) []domain.GuardianInvitation {
+	working := make([]domain.GuardianInvitation, 0, len(open))
+	for _, invitation := range open {
+		if !invitation.ExpiresAt.After(now) {
+			continue
+		}
+		if invitation.IsPendingApproval() || identityaccess.GuardianInvitation(invitation).AddressedTo(profile.Email) {
+			working = append(working, invitation)
+		}
+	}
+	return working
+}
+
 func (l *AccountLifecycle) inviteEligibleBulkGuardian(ctx context.Context, run *bulkInviteRun, candidate bulkInviteCandidate, profile domain.GuardianProfile, email string, open []domain.GuardianInvitation) error {
+	open = workingBulkInvitations(profile, open, time.Now())
 	if len(open) > 0 && !run.req.ResendOpen {
 		run.result.SkippedOpen++
 		return nil
@@ -423,9 +441,9 @@ func bulkInviteEmailProblem(email string, seen map[string]bool) string {
 }
 
 // resendOpenInvitation mails the redeemable invitation again with a new link
-// and restarts its window, so nobody receives a link that expires within the
-// hour. Only the hash of a token is stored (#4902): the previous link stops
-// working. A request
+// for the address on file and restarts its window, so nobody receives a link
+// that expires within the hour. Only the hash of a token is stored (#4902):
+// the previous link stops working. A request
 // still waiting for staff approval is not redeemable; the caller then issues
 // a staff invitation, which supersedes it.
 func (l *AccountLifecycle) resendOpenInvitation(ctx context.Context, dryRun bool, profile domain.GuardianProfile, open []domain.GuardianInvitation) (bool, error) {
@@ -440,7 +458,7 @@ func (l *AccountLifecycle) resendOpenInvitation(ctx context.Context, dryRun bool
 		if err != nil {
 			return false, failed(opGuardianBulkInvite, err)
 		}
-		invitation.Token = uuid.Must(uuid.NewV4()).String()
+		issueGuardianInvitationLink(&invitation, profile)
 		invitation.ExpiresAt = time.Now().Add(expiry)
 		invitation.EmailSentAt = nil
 		invitation.EmailError = nil
