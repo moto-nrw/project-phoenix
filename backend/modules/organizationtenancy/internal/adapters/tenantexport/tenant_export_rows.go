@@ -89,7 +89,7 @@ func (r *exportRun) exportTable(ctx context.Context, table organizationtenancy.L
 		return 0, exportTableError(table.Name)
 	}
 	query := "SELECT row_to_json(export_row) FROM (SELECT " + strings.Join(columns, ", ") + " FROM " + quoteExportTable(table.Name) + " AS t WHERE " + where + " ORDER BY t.ctid) AS export_row"
-	rows, err := r.tx.QueryContext(ctx, query, r.options.SchoolID)
+	rows, err := r.tx.QueryContext(ctx, query, r.subjectID())
 	if err != nil {
 		return 0, exportTableError(table.Name)
 	}
@@ -142,6 +142,9 @@ func (r *exportRun) streamExportRows(rows *sql.Rows, w io.Writer, entry organiza
 func (r *exportRun) scope(table organizationtenancy.LifecycleTable, alias string, depth int) (string, error) {
 	if depth > len(r.catalog.Tables) {
 		return "", errors.New("tenant export: cyclic scope path")
+	}
+	if r.options.OrganizationID > 0 {
+		return r.organizationScope(table, alias, depth)
 	}
 	switch table.Scope {
 	case "tenant":

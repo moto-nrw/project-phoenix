@@ -62,7 +62,13 @@ func (owners TenantExportProjectedFieldsByTable) ProjectExportField(table, colum
 }
 
 type TenantExportOptions struct {
-	SchoolID int64
+	// SchoolID or OrganizationID, exactly one. A school package carries the
+	// school's data and, as before, the data of its Träger. A Träger package
+	// (#3838) carries only the Träger's own tables, its schools' master rows
+	// and the accounts of its Träger office: everything a school holds goes
+	// in the package of that school.
+	SchoolID       int64
+	OrganizationID int64
 	// Person optionally derives an INTERNAL review workspace: kind:<profile ID>,
 	// guardian:<profile ID>, staff:<school membership ID>. Never hand it over
 	// without the completeness and third-party review in the runbook.
@@ -78,7 +84,10 @@ type TenantExportOptions struct {
 // ExportManifest contains no row contents or original object names. Original
 // names and their mapping live in objects.jsonl, inside the protected export.
 type ExportManifest struct {
-	ReviewRequired bool             `json:"reviewRequired,omitempty"`
+	ReviewRequired bool `json:"reviewRequired,omitempty"`
+	// Package is "organization" for a Träger package; a school package has
+	// none, as in format version 1 before it.
+	Package        string           `json:"package,omitempty"`
 	FormatVersion  int              `json:"formatVersion"`
 	CatalogVersion int              `json:"catalogVersion"`
 	CatalogSHA256  string           `json:"catalogSHA256"`

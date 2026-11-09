@@ -97,7 +97,7 @@ func tenantCommand(run func(*cobra.Command, organizationtenancy.TenantExportOpti
 	parent := &cobra.Command{Use: "tenant", Short: "Internal tenant data lifecycle procedures"}
 	options := organizationtenancy.TenantExportOptions{}
 	export := &cobra.Command{
-		Use: "export", Short: "Return one school's data to a new private local directory", Args: cobra.NoArgs,
+		Use: "export", Short: "Return one school's or one Träger's data to a new private local directory", Args: cobra.NoArgs,
 		SilenceErrors: true, SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if cmd.Flags().Changed("person") && options.Person == "" {
@@ -107,16 +107,19 @@ func tenantCommand(run func(*cobra.Command, organizationtenancy.TenantExportOpti
 		},
 	}
 	export.Flags().Int64Var(&options.SchoolID, "school", 0, "Authorized school ID")
+	export.Flags().Int64Var(&options.OrganizationID, "organization", 0, "Authorized Träger ID: the Träger package, without the data its schools hold")
 	export.Flags().StringVar(&options.Output, "out", "", "New private output directory")
 	export.Flags().StringVar(&options.Uploads, "uploads", "", "Complete stable uploads root")
 	export.Flags().StringVar(&options.Person, "person", "", "Internal review only: kind:<profile ID>, guardian:<profile ID>, staff:<school membership ID>")
+	export.MarkFlagsMutuallyExclusive("school", "organization")
+	export.MarkFlagsMutuallyExclusive("organization", "person")
 	parent.AddCommand(export)
 	return parent
 }
 
 func runTenantExport(cmd *cobra.Command, options organizationtenancy.TenantExportOptions) error {
-	if options.SchoolID <= 0 || options.Output == "" || options.Uploads == "" {
-		return errors.New("tenant export: --school, --out and --uploads are required")
+	if (options.SchoolID <= 0 && options.OrganizationID <= 0) || options.Output == "" || options.Uploads == "" {
+		return errors.New("tenant export: --school or --organization, --out and --uploads are required")
 	}
 	db, err := transactionCompose.OpenDatabase()
 	if err != nil {

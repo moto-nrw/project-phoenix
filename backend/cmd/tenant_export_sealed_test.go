@@ -72,3 +72,35 @@ func readExportRows(t *testing.T, path string) []map[string]json.RawMessage {
 	require.NoError(t, scanner.Err())
 	return rows
 }
+
+// The Träger package runs on the migrated schema with the root bindings and
+// names the Träger's schools, but carries no school-held row (#3838).
+func TestTenantExportOrganizationPackageOnTheMigratedSchema(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	school := testpkg.Tenant(t)
+	testpkg.CreateTestStudentForTenant(t, db, school, "Synthetic", "Traeger", "1a")
+	var organization int64
+	require.NoError(t, db.NewRaw(`SELECT organization_id FROM platform.schools WHERE id = ?`, school).Scan(t.Context(), &organization))
+
+	sealed, err := tenantExportSealedFields()
+	require.NoError(t, err)
+	exporter, err := organizationCompose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{
+		Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint,
+	}, sealed, tenantExportProjectedFields())
+	require.NoError(t, err)
+	out := filepath.Join(t.TempDir(), "traeger")
+	require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{OrganizationID: organization, Output: out, Uploads: t.TempDir()}))
+	require.FileExists(t, filepath.Join(out, "COMPLETE"))
+
+	var schools []int64
+	for _, row := range readExportRows(t, filepath.Join(out, "platform.schools.jsonl")) {
+		var id, owner int64
+		require.NoError(t, json.Unmarshal(row["id"], &id))
+		require.NoError(t, json.Unmarshal(row["organization_id"], &owner))
+		require.Equal(t, organization, owner)
+		schools = append(schools, id)
+	}
+	require.Contains(t, schools, school)
+	require.NoFileExists(t, filepath.Join(out, "users.persons.jsonl"), "school-held rows go in the school package")
+}
