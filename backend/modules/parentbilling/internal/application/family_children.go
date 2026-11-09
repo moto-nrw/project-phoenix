@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	validation "github.com/go-ozzo/ozzo-validation"
 
@@ -20,7 +21,10 @@ type FamilyChildrenStore interface {
 	FamilyChildCount(ctx context.Context, organizationID int64, family string) (parentbilling.FamilyChildCount, bool, error)
 	// StateFamilyChildren and ConfirmFamilyChildren report a contract that
 	// is no contract of the Träger as ErrFamilyChildrenNotFound.
-	StateFamilyChildren(ctx context.Context, organizationID, accountID int64, family string, contractID int64, children int) (int64, error)
+	// A statement made before the family's newest one changes nothing:
+	// applied is false.
+	StateFamilyChildren(ctx context.Context, organizationID, accountID int64, family string, contractID int64, children int,
+		statedAt *time.Time) (id int64, applied bool, err error)
 	ConfirmFamilyChildren(ctx context.Context, organizationID, accountID int64, family string, input parentbilling.FamilyChildrenInput) (int64, error)
 	DeleteFamilyChildren(ctx context.Context, organizationID int64, family string) (parentbilling.FamilyChildCount, error)
 	InsertFamilyChildEvents(ctx context.Context, organizationID int64, event parentbilling.FamilyChildEvent, targets []parentbilling.FamilyChildTarget) error
@@ -42,6 +46,7 @@ type FamilyNumbers struct {
 var (
 	_ parentbilling.FamilyChildrenOffice          = (*FamilyNumbers)(nil)
 	_ parentbilling.ParentFamilyChildrenStatement = (*FamilyNumbers)(nil)
+	_ parentbilling.ContractFamilyChildren        = (*FamilyNumbers)(nil)
 )
 
 // NewFamilyChildren builds the numbers of the families.
@@ -358,7 +363,30 @@ func validChildren(children int) error {
 // ParentFamilyChildren reads the number of the reader's family and records
 // the read on the reader's contract.
 func (f *FamilyNumbers) ParentFamilyChildren(ctx context.Context, organizationID int64, reader parentbilling.ParentFamilyReader) (parentbilling.ParentFamilyChildren, error) {
-	family, err := parentFamily(organizationID, reader)
+	if reader.AccountID <= 0 {
+		return parentbilling.ParentFamilyChildren{}, parentbilling.ErrFamilyChildrenNotFound
+	}
+	return f.ContractFamilyChildren(ctx, organizationID, portalFamily(reader))
+}
+
+// StateFamilyChildren stores the number the parents state for their family
+// on their contract. It counts once the Abrechnung confirmed it.
+func (f *FamilyNumbers) StateFamilyChildren(ctx context.Context, organizationID int64, reader parentbilling.ParentFamilyReader, children int) (parentbilling.ParentFamilyChildren, error) {
+	if reader.AccountID <= 0 {
+		return parentbilling.ParentFamilyChildren{}, parentbilling.ErrFamilyChildrenNotFound
+	}
+	return f.StateContractFamilyChildren(ctx, organizationID, portalFamily(reader), children, nil)
+}
+
+func portalFamily(reader parentbilling.ParentFamilyReader) parentbilling.ContractFamily {
+	return parentbilling.ContractFamily{ContractID: reader.ContractID, Email: reader.Email, AccountID: reader.AccountID,
+		Channel: parentbilling.FamilyChannelPortal}
+}
+
+// ContractFamilyChildren reads the number of a contract's family and
+// records the read with its channel on the contract (#6335).
+func (f *FamilyNumbers) ContractFamilyChildren(ctx context.Context, organizationID int64, contract parentbilling.ContractFamily) (parentbilling.ParentFamilyChildren, error) {
+	family, err := parentFamily(organizationID, contract)
 	if err != nil {
 		return parentbilling.ParentFamilyChildren{}, err
 	}
@@ -367,8 +395,8 @@ func (f *FamilyNumbers) ParentFamilyChildren(ctx context.Context, organizationID
 		return parentbilling.ParentFamilyChildren{}, err
 	}
 	event := parentbilling.FamilyChildEvent{Action: parentbilling.FamilyChildEventRead, Actor: parentbilling.FamilyChildActorParent,
-		AccountID: reader.AccountID}
-	target := parentbilling.FamilyChildTarget{ContractID: reader.ContractID}
+		Channel: contract.Channel, AccountID: contract.AccountID}
+	target := parentbilling.FamilyChildTarget{ContractID: contract.ContractID}
 	if found {
 		target.CountID = &count.ID
 	}
@@ -381,10 +409,13 @@ func (f *FamilyNumbers) ParentFamilyChildren(ctx context.Context, organizationID
 	return parentView(count), nil
 }
 
-// StateFamilyChildren stores the number the parents state for their family
-// on their contract. It counts once the Abrechnung confirmed it.
-func (f *FamilyNumbers) StateFamilyChildren(ctx context.Context, organizationID int64, reader parentbilling.ParentFamilyReader, children int) (parentbilling.ParentFamilyChildren, error) {
-	family, err := parentFamily(organizationID, reader)
+// StateContractFamilyChildren stores the number the parents state for the
+// family of a contract. A statement made before the family's newest one
+// (the registration's, taken over later) leaves the newer one and records
+// nothing (#6335): an older number never silently replaces a newer one.
+func (f *FamilyNumbers) StateContractFamilyChildren(ctx context.Context, organizationID int64, contract parentbilling.ContractFamily, children int,
+	statedAt *time.Time) (parentbilling.ParentFamilyChildren, error) {
+	family, err := parentFamily(organizationID, contract)
 	if err != nil {
 		return parentbilling.ParentFamilyChildren{}, err
 	}
@@ -394,15 +425,17 @@ func (f *FamilyNumbers) StateFamilyChildren(ctx context.Context, organizationID 
 	if err := f.store.LockCareBilling(ctx, organizationID); err != nil {
 		return parentbilling.ParentFamilyChildren{}, fmt.Errorf("parent billing: hold the monthly billing: %w", err)
 	}
-	id, err := f.store.StateFamilyChildren(ctx, organizationID, reader.AccountID, family, reader.ContractID, children)
+	id, applied, err := f.store.StateFamilyChildren(ctx, organizationID, contract.AccountID, family, contract.ContractID, children, statedAt)
 	if err != nil {
 		return parentbilling.ParentFamilyChildren{}, err
 	}
-	event := parentbilling.FamilyChildEvent{Action: parentbilling.FamilyChildEventState, Actor: parentbilling.FamilyChildActorParent,
-		AccountID: reader.AccountID, Children: &children}
-	target := parentbilling.FamilyChildTarget{ContractID: reader.ContractID, CountID: &id}
-	if err := f.store.InsertFamilyChildEvents(ctx, organizationID, event, []parentbilling.FamilyChildTarget{target}); err != nil {
-		return parentbilling.ParentFamilyChildren{}, fmt.Errorf("parent billing: record family child count statement: %w", err)
+	if applied {
+		event := parentbilling.FamilyChildEvent{Action: parentbilling.FamilyChildEventState, Actor: parentbilling.FamilyChildActorParent,
+			Channel: contract.Channel, AccountID: contract.AccountID, Children: &children}
+		target := parentbilling.FamilyChildTarget{ContractID: contract.ContractID, CountID: &id}
+		if err := f.store.InsertFamilyChildEvents(ctx, organizationID, event, []parentbilling.FamilyChildTarget{target}); err != nil {
+			return parentbilling.ParentFamilyChildren{}, fmt.Errorf("parent billing: record family child count statement: %w", err)
+		}
 	}
 	count, _, err := f.store.FamilyChildCount(ctx, organizationID, family)
 	if err != nil {
@@ -411,9 +444,20 @@ func (f *FamilyNumbers) StateFamilyChildren(ctx context.Context, organizationID 
 	return parentView(count), nil
 }
 
-func parentFamily(organizationID int64, reader parentbilling.ParentFamilyReader) (string, error) {
-	family := familyKey(reader.Email)
-	if organizationID <= 0 || reader.AccountID <= 0 || reader.ContractID <= 0 || family == "" {
+// parentFamily keys the family of a checked contract. The parents portal
+// names its account; the link and the registration may have none.
+func parentFamily(organizationID int64, contract parentbilling.ContractFamily) (string, error) {
+	family := familyKey(contract.Email)
+	if organizationID <= 0 || contract.ContractID <= 0 || contract.AccountID < 0 || family == "" {
+		return "", parentbilling.ErrFamilyChildrenNotFound
+	}
+	switch contract.Channel {
+	case parentbilling.FamilyChannelPortal:
+		if contract.AccountID == 0 {
+			return "", parentbilling.ErrFamilyChildrenNotFound
+		}
+	case parentbilling.FamilyChannelLink, parentbilling.FamilyChannelEnrollment:
+	default:
 		return "", parentbilling.ErrFamilyChildrenNotFound
 	}
 	return family, nil

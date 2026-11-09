@@ -17,6 +17,8 @@ type SignaturePorts struct {
 	Post     carecontract.Post
 	Runtime  carecontract.Runtime
 	Holidays carecontract.SchoolHolidays
+	// Families keeps the parents' number of children of the link (#6335).
+	Families carecontract.FamilyNumbers
 }
 
 // NewSigning builds the one-time mail link; it opens its own Träger

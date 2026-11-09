@@ -85,3 +85,10 @@ type (
 func NewOfferingChangeRecords(carePlan CarePlanOfferingChanges) *OfferingChangeRecords {
 	return application.NewOfferingChangeRecords(carePlan, sql.ErrNoRows)
 }
+
+// NewRequestFamilyChildren stores the number of children the parents state
+// on the status page of their registration (#6335), in the school
+// transaction the intake opens.
+func NewRequestFamilyChildren() application.IntakeFamilyChildrenStore {
+	return newStore()
+}

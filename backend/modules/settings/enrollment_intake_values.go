@@ -43,6 +43,16 @@ func (v EnrollmentIntakeValues) OnlineAnmeldungBooked(ctx context.Context) bool 
 	return configSvc.ResolveBoolOrDefault(ctx, v.source, configModel.KeyModuleOnlineAnmeldung, false, nil)
 }
 
+// FamilyChildrenAsked reports whether the status page of a registration
+// asks the parents for the children of their family (#6335): only where the
+// number has a use, a school that booked the contracts, which take the
+// number over, and the parents' contributions, whose sibling rule counts
+// it. A read failure asks nothing.
+func (v EnrollmentIntakeValues) FamilyChildrenAsked(ctx context.Context) bool {
+	return configSvc.ResolveBoolOrDefault(ctx, v.source, configModel.KeyModuleVertraege, false, nil) &&
+		configSvc.ResolveBoolOrDefault(ctx, v.source, configModel.KeyModuleElternbeitraege, false, nil)
+}
+
 func (v EnrollmentIntakeValues) AllowSubmissionEdit(ctx context.Context) (bool, error) {
 	return v.source.ResolveBool(ctx, configModel.KeyEnrollmentAllowSubmissionEdit)
 }

@@ -40,6 +40,9 @@ type SignaturePorts struct {
 	Runtime carecontract.Runtime
 	// Holidays dates the withdrawal period the signature names (#6350).
 	Holidays carecontract.SchoolHolidays
+	// Families keeps the number of children the parents state on the link
+	// (#6335).
+	Families carecontract.FamilyNumbers
 }
 
 // Signatures serves carecontract.Signing, carecontract.InboxSigning and
@@ -61,8 +64,8 @@ var (
 
 func NewSignatures(store ContractStore, ports SignaturePorts, clock Clock, contracts *Contracts) *Signatures {
 	if store == nil || ports.Ledger == nil || ports.Links.Tokens == nil || ports.Links.Fingerprint == nil || ports.Sender == nil || ports.Post == nil || ports.Runtime == nil ||
-		ports.Holidays == nil {
-		panic("care contract: the store, the ledger, the tokens, the sender, the post, the runtime and the school holidays are required")
+		ports.Holidays == nil || ports.Families == nil {
+		panic("care contract: the store, the ledger, the tokens, the sender, the post, the runtime, the school holidays and the family numbers are required")
 	}
 	return &Signatures{store: store, ports: ports, clock: clock, contracts: contracts}
 }
