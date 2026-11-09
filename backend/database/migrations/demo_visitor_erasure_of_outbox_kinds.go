@@ -25,7 +25,7 @@ import (
 //
 // The rest of the function is unchanged.
 // demoVisitorErasureOutboxKindsSQL is assembled from constants, so a later
-// migration (1.15.858) can name one more kind next to the receipt and stay
+// migration (1.15.869) can name one more kind next to the receipt and stay
 // statically resolvable for the architecture check. Its value is unchanged.
 const demoVisitorErasureOutboxKindsSQL = demoVisitorErasureBeforeReceiptKindSQL + holidayReceiptErasureKind + demoVisitorErasureAfterReceiptKindSQL
 
@@ -654,7 +654,7 @@ func installOutboxKindErasure(ctx context.Context, db *bun.DB) error {
 	return nil
 }
 
-// The erasure of 1.15.858 (#4699): the receipt statement also deletes the
+// The erasure of 1.15.869 (#4699): the receipt statement also deletes the
 // mail of a booking that moved up from the waiting list; both name the
 // registration.
 const (

@@ -7,15 +7,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const holidayWeekCapacityVersion = "1.15.858"
+const holidayWeekCapacityVersion = "1.15.869"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     holidayWeekCapacityVersion,
 		Description: "Ferien: Kapazität je Woche, Platz oder Warteliste je Buchung, Teilnehmerliste nur mit Platz, Nachrück-Mail (#4699)",
 		DependsOn: []string{
-			parentBillingOnlineSEPAMandatesVersion, // the newest migration on development
-			demoVisitorErasureOutboxKindsVersion,   // the outbox CHECK and erasure this one extends
+			parentBillingBelegRetentionVersion,   // the newest migration on development
+			demoVisitorErasureOutboxKindsVersion, // the outbox CHECK and erasure this one extends
 		},
 	})
 	Migrations.MustRegister(holidayWeekCapacityUp, holidayWeekCapacityDown)

@@ -62,7 +62,7 @@ func TestHolidayPromotedCareWindowsStartOnTheBerlinPromotionDay(t *testing.T) {
 	assert.Equal(t, []string{"2020-07-08..2020-07-09"}, retained, "source retention preserves the promotion boundary")
 }
 
-// The erasure of 1.15.858 is that of 1.15.843 with the place mail named
+// The erasure of 1.15.869 is that of 1.15.843 with the place mail named
 // next to the receipt, nothing else.
 func TestHolidayPlaceErasureExtendsTheErasureOf843(t *testing.T) {
 	t.Parallel()
@@ -72,7 +72,7 @@ func TestHolidayPlaceErasureExtendsTheErasureOf843(t *testing.T) {
 		strings.Replace(holidayPlaceErasureSQL, holidayPlaceErasureKinds, holidayReceiptErasureKind, 1))
 }
 
-// A base line frozen before 1.15.858 gets the id of its week only where one
+// A base line frozen before 1.15.869 gets the id of its week only where one
 // week of its period has its dates (#4699). Parallel weeks of the same dates
 // at two host schools leave it NULL: a wrong id would let a later move up
 // price the replacement on top of it.

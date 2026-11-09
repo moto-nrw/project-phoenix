@@ -136,7 +136,7 @@ func (f reviewFixture) hostParticipants(t *testing.T, hostSchoolID, weekID int64
 // placement at sending (waitlisted bookings), the order of the waiting list,
 // the contribution without waiting bookings (chain filter), the host
 // school's list without them (the placement condition of migration
-// 1.15.858) and the move up with its mail and new contribution.
+// 1.15.869) and the move up with its mail and new contribution.
 func TestHolidayPlacesGoInOrderOfArrivalAndMoveUpOnCancellation(t *testing.T) {
 	t.Parallel()
 	f := newReviewFixture(t, "Träger Plätze Reihenfolge")
