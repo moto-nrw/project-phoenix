@@ -43,7 +43,7 @@ func (s *RetainedGuardianService) getStudentGuardians(ctx context.Context, stude
 	if err != nil {
 		return nil, fmt.Errorf("failed to load guardian phone numbers: %w", err)
 	}
-	invitations, err := s.unspentInvitationsByProfile(ctx, profileIDs)
+	invitations, err := s.openInvitationsByProfile(ctx, profileIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -120,12 +120,11 @@ func splitGuardianInvitations(profile *peopleValues.GuardianProfileSnapshot, inv
 	return open, ended
 }
 
-// unspentInvitationsByProfile batches the invitation state used by the
-// guardian list: the owner returns every invitation nobody accepted or
-// refused, expired ones included.
-func (s *RetainedGuardianService) unspentInvitationsByProfile(ctx context.Context, profileIDs []int64) (map[int64][]peoplePorts.GuardianInvitationRecord, error) {
+// openInvitationsByProfile batches the invitation state used by the guardian
+// list: the open invitations and the legacy links without a recipient.
+func (s *RetainedGuardianService) openInvitationsByProfile(ctx context.Context, profileIDs []int64) (map[int64][]peoplePorts.GuardianInvitationRecord, error) {
 	byProfile := make(map[int64][]peoplePorts.GuardianInvitationRecord)
-	invitations, err := s.GuardianInvitations.ListUnspent(ctx, profileIDs)
+	invitations, err := s.GuardianInvitations.ListOpen(ctx, profileIDs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load guardian invitations: %w", err)
 	}

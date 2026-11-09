@@ -427,3 +427,95 @@ func TestCreateGuardianInvitation_LocksAccountBeforeProfile(t *testing.T) {
 		t.Fatal(ctx.Err())
 	}
 }
+
+// Locks follow one order: account, then school, then profile. Accept took the
+// shared school lock before the account, so a transaction that holds the
+// account and then locks the school (as a school-wide account flow does)
+// closed a cycle with it and one of them ended with 40P01. The other
+// transaction stands in for that flow.
+func TestGuardianInvitationAccept_LocksAccountBeforeSchool(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	service, err := api.NewGuardianInvitationServiceForTests(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), api.GuardianInvitationTestConfig{
+		Outbox: api.NewCapturingOutbox(),
+	})
+	require.NoError(t, err)
+	_, creator := testpkg.CreateTestPersonWithAccount(t, db, "Inviter", "SchoolOrder")
+	profile := testpkg.CreateTestGuardianProfile(t, db, "account-before-school")
+	account := testpkg.CreateTestAccountWithPassword(t, db, *profile.Email, strongTestPassword)
+	invitation, err := service.CreateGuardianInvitation(testpkg.Ctx(t), identityaccess.GuardianInvitationRequest{
+		GuardianProfileID: profile.ID, CreatedBy: creator.ID,
+	})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	other, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = other.Rollback() }()
+	_, err = other.NewRaw(`SELECT id FROM auth.accounts WHERE id = ? FOR UPDATE`, account.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	results := make(chan error, 1)
+	finished := make(chan struct{})
+	go func() {
+		defer close(finished)
+		_, acceptErr := service.AcceptGuardianInvitation(ctx, invitation.Token, identityaccess.GuardianRegistration{
+			Password: strongTestPassword, ConfirmPassword: strongTestPassword,
+		})
+		results <- acceptErr
+	}()
+	defer func() {
+		cancel()
+		_ = other.Rollback()
+		<-finished
+	}()
+	require.Eventually(t, func() bool {
+		var waiting int
+		if scanErr := db.NewRaw(`SELECT count(*) FROM pg_stat_activity
+			WHERE datname = current_database() AND wait_event_type = 'Lock' AND query ILIKE '%auth.accounts%'`).
+			Scan(ctx, &waiting); scanErr != nil {
+			return false
+		}
+		return waiting > 0
+	}, 10*time.Second, 10*time.Millisecond, "the acceptance must wait for the account the other transaction holds")
+
+	_, err = other.NewRaw(`SELECT id FROM platform.schools WHERE id = ? FOR UPDATE`, testpkg.Tenant(t)).Exec(ctx)
+	require.NoError(t, err, "the other transaction must get the school: acceptance may not hold it while it waits for the account")
+	require.NoError(t, other.Rollback())
+
+	select {
+	case acceptErr := <-results:
+		require.NoError(t, acceptErr)
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	assert.NotNil(t, testpkg.GuardianInvitationByID(t, db, invitation.ID).AcceptedAt)
+}
+
+// The school check runs after the account is provisioned (lock order). A
+// deleted school still refuses the link, and the account it provisioned
+// rolls back with the acceptance.
+func TestGuardianInvitationAccept_RefusesDeletedSchoolWithoutAccount(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	service, err := api.NewGuardianInvitationServiceForTests(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), api.GuardianInvitationTestConfig{
+		Outbox: api.NewCapturingOutbox(),
+	})
+	require.NoError(t, err)
+	_, creator := testpkg.CreateTestPersonWithAccount(t, db, "Inviter", "DeletedSchool")
+	profile := testpkg.CreateTestGuardianProfile(t, db, "deleted-school-accept")
+	invitation, err := service.CreateGuardianInvitation(testpkg.Ctx(t), identityaccess.GuardianInvitationRequest{
+		GuardianProfileID: profile.ID, CreatedBy: creator.ID,
+	})
+	require.NoError(t, err)
+	_, err = db.NewRaw(`UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, testpkg.Tenant(t)).Exec(context.Background())
+	require.NoError(t, err)
+
+	_, err = service.AcceptGuardianInvitation(context.Background(), invitation.Token, identityaccess.GuardianRegistration{
+		Password: strongTestPassword, ConfirmPassword: strongTestPassword,
+	})
+	require.ErrorIs(t, err, identityaccess.ErrInvitationTenantDeleted)
+	assert.Zero(t, accountCountByEmail(t, db, *profile.Email), "the provisioned account rolls back")
+	assert.Nil(t, testpkg.GuardianInvitationByID(t, db, invitation.ID).AcceptedAt)
+}

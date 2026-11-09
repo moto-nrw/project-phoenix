@@ -143,9 +143,6 @@ type GuardianInvitationStore interface {
 	// ListOpenGuardianInvitations returns the invitations of the profiles
 	// that are still going somewhere: redeemable or awaiting a decision.
 	ListOpenGuardianInvitations(ctx context.Context, guardianProfileIDs []int64, now time.Time) ([]domain.GuardianInvitation, error)
-	// ListUnspentGuardianInvitations returns the invitations of the profiles
-	// that nobody accepted or refused, expired ones included (#6294).
-	ListUnspentGuardianInvitations(ctx context.Context, guardianProfileIDs []int64) ([]domain.GuardianInvitation, error)
 	// ListRedeemableGuardianInvitations returns the invitations of the
 	// school in context whose link can still be spent.
 	ListRedeemableGuardianInvitations(ctx context.Context, now time.Time) ([]domain.GuardianInvitation, error)

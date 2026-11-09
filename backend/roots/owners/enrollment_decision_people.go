@@ -304,7 +304,7 @@ func (a enrollmentGuardianInvitationAvailability) HasRedeemableGuardianInvitatio
 		return false, err
 	}
 	for _, invitation := range invitations {
-		if invitation.ApprovalAllowsRedemption() {
+		if invitation.Email != "" && invitation.ApprovalAllowsRedemption() {
 			return true, nil
 		}
 	}

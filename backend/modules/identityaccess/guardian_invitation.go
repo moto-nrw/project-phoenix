@@ -146,12 +146,10 @@ type GuardianInvitationReads interface {
 	// ListGuardianInvitations returns every invitation of the contact.
 	ListGuardianInvitations(ctx context.Context, guardianProfileID int64) ([]GuardianInvitation, error)
 	// ListOpenGuardianInvitations returns the invitations of those contacts
-	// that are redeemable or awaiting a staff decision.
+	// that are redeemable or awaiting a staff decision, and the legacy links
+	// that ended without a recorded recipient (Email ""), which nobody can
+	// redeem: the guardian list shows them as dead links (#6294).
 	ListOpenGuardianInvitations(ctx context.Context, guardianProfileIDs []int64) ([]GuardianInvitation, error)
-	// ListUnspentGuardianInvitations returns the invitations of those
-	// contacts that nobody accepted or refused, expired ones included: the
-	// guardian list tells an open link from one that ended unused (#6294).
-	ListUnspentGuardianInvitations(ctx context.Context, guardianProfileIDs []int64) ([]GuardianInvitation, error)
 	// ListRedeemableGuardianInvitations returns the invitations of the school
 	// in context whose link can still be spent.
 	ListRedeemableGuardianInvitations(ctx context.Context) ([]GuardianInvitation, error)

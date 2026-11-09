@@ -4394,7 +4394,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentGuardianInvitationAvailability.HasRedeemableGuardianInvitation",
-      "binding_digest": "7136babfd9b77f14cdd7b3eead613555",
+      "binding_digest": "6ac7f159efdc9f2fd3f7059da448c83c",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianInvitationAvailability.HasRedeemableGuardianInvitation",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.GuardianInvitation.ApprovalAllowsRedemption",
@@ -4402,7 +4402,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentGuardianInvitationAvailability.HasRedeemableGuardianInvitation",
-      "binding_digest": "b9c6b86cb2d0a782fdf62a765f701aa7",
+      "binding_digest": "d127b9a7df65d91f9bce1201f11a73ce",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianInvitationAvailability.HasRedeemableGuardianInvitation",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListOpenGuardianInvitations",

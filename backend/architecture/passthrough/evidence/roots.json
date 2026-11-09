@@ -5350,7 +5350,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (a enrollmentGuardianInvitationAvailability) HasRedeemableGuardianInvitation(ctx context.Context, profileID int64) (bool, error) {\n\tinvitations, err := a.invitations.ListOpenGuardianInvitations(ctx, []int64{profileID})\n\tif err != nil {\n\t\treturn false, err\n\t}\n\tfor _, invitation := range invitations {\n\t\tif invitation.ApprovalAllowsRedemption() {\n\t\t\treturn true, nil\n\t\t}\n\t}\n\treturn false, nil\n}",
+      "evidence": "func (a enrollmentGuardianInvitationAvailability) HasRedeemableGuardianInvitation(ctx context.Context, profileID int64) (bool, error) {\n\tinvitations, err := a.invitations.ListOpenGuardianInvitations(ctx, []int64{profileID})\n\tif err != nil {\n\t\treturn false, err\n\t}\n\tfor _, invitation := range invitations {\n\t\tif invitation.Email != \"\" \u0026\u0026 invitation.ApprovalAllowsRedemption() {\n\t\t\treturn true, nil\n\t\t}\n\t}\n\treturn false, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/enrollmentGuardianInvitationAvailability.HasRedeemableGuardianInvitation",
       "owner": "roots"

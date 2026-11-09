@@ -797,20 +797,6 @@ func (s *lifecycleInvitations) ListOpenGuardianInvitations(_ context.Context, pr
 	}), nil
 }
 
-func (s *lifecycleInvitations) ListUnspentGuardianInvitations(_ context.Context, profileIDs []int64) ([]domain.GuardianInvitation, error) {
-	if s.listErr != nil {
-		return nil, s.listErr
-	}
-	wanted := map[int64]bool{}
-	for _, id := range profileIDs {
-		wanted[id] = true
-	}
-	return s.sorted(func(invitation domain.GuardianInvitation) bool {
-		return wanted[invitation.GuardianProfileID] && invitation.AcceptedAt == nil &&
-			invitation.ApprovalStatus != domain.GuardianInvitationApprovalRejected
-	}), nil
-}
-
 func (s *lifecycleInvitations) ListRedeemableGuardianInvitations(_ context.Context, now time.Time) ([]domain.GuardianInvitation, error) {
 	if s.listErr != nil {
 		return nil, s.listErr

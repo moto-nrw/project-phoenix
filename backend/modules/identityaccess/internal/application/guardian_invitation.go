@@ -108,7 +108,9 @@ func issueGuardianInvitationLink(invitation *domain.GuardianInvitation, profile 
 // holding the profile while waiting for the account would close a cycle with
 // an acceptance (40P01). The address is read again under the profile lock; a
 // change in between refuses the invitation instead of binding it to an
-// account that was not locked.
+// account that was not locked. The school sits between account and profile in
+// the lock order; this tenant transaction only reaches it through the
+// invitation's foreign key, after the profile (left to #6333).
 func (l *AccountLifecycle) lockInvitationAccountThenProfile(ctx context.Context, profileID int64) (domain.GuardianProfile, error) {
 	unlocked, found, err := l.guardians.FindGuardianProfile(ctx, profileID)
 	if err != nil {
@@ -297,11 +299,7 @@ func (l *AccountLifecycle) AcceptGuardianInvitation(ctx context.Context, token s
 		if fetchErr != nil {
 			return fetchErr
 		}
-		if err := l.requireInvitationSchool(txCtx, invitation); err != nil {
-			return err
-		}
-		invitationCtx := l.runtime.WithTenantID(txCtx, invitation.TenantID)
-		account, acceptErr := l.acceptGuardianAtSchool(invitationCtx, invitation, registration)
+		account, acceptErr := l.acceptGuardianAtSchool(txCtx, invitation, registration)
 		if acceptErr != nil {
 			return acceptErr
 		}
@@ -511,10 +509,12 @@ func (l *AccountLifecycle) requireInvitationSchool(txCtx context.Context, invita
 // link was issued for (#6294). The profile stays locked until commit, the
 // lock both contact edit paths take before they change the address: an
 // address change either commits first, and the link is refused, or waits for
-// the acceptance. Lock the account before the profile, as account-linking
-// flows do. The first address check is only an early refusal; the check under
-// the profile lock decides whether access can be granted.
-func (l *AccountLifecycle) acceptGuardianAtSchool(invitationCtx context.Context, invitation domain.GuardianInvitation, registration identityaccess.GuardianRegistration) (domain.LoginAccount, error) {
+// the acceptance. Locks follow one order: account, then school, then profile
+// (40P01 otherwise, #6294/#6333). The first address check is only an early
+// refusal; the check under the profile lock decides whether access can be
+// granted.
+func (l *AccountLifecycle) acceptGuardianAtSchool(txCtx context.Context, invitation domain.GuardianInvitation, registration identityaccess.GuardianRegistration) (domain.LoginAccount, error) {
+	invitationCtx := l.runtime.WithTenantID(txCtx, invitation.TenantID)
 	profile, found, profileErr := l.guardians.FindGuardianProfile(invitationCtx, invitation.GuardianProfileID)
 	if profileErr != nil {
 		return domain.LoginAccount{}, failed(opGuardianInviteAccept, profileErr)
@@ -529,6 +529,9 @@ func (l *AccountLifecycle) acceptGuardianAtSchool(invitationCtx context.Context,
 	account, accountErr := l.provisionGuardianAccount(invitationCtx, email, registration)
 	if accountErr != nil {
 		return domain.LoginAccount{}, accountErr
+	}
+	if err := l.requireInvitationSchool(txCtx, invitation); err != nil {
+		return domain.LoginAccount{}, err
 	}
 	profile, found, profileErr = l.guardians.LockGuardianProfile(invitationCtx, invitation.GuardianProfileID)
 	if profileErr != nil {
