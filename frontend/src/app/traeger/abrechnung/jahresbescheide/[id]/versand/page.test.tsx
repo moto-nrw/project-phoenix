@@ -6,6 +6,7 @@ import type {
   CareNoticeMailing,
 } from "~/lib/traeger-care-notice-letters-api";
 import type { CareNoticeRunDetail } from "~/lib/traeger-care-notices-api";
+import { usePhoneViewport } from "~/test/helpers/viewport";
 
 const { notices, letters } = vi.hoisted(() => ({
   notices: { fetchCareNoticeRun: vi.fn() },
@@ -13,6 +14,8 @@ const { notices, letters } = vi.hoisted(() => ({
     fetchCareNoticeLetters: vi.fn(),
     createCareNoticeLetters: vi.fn(),
     mailCareNoticeLetters: vi.fn(),
+    mailCareNoticeLetter: vi.fn(),
+    downloadCareNoticePDF: vi.fn(),
   },
 }));
 vi.mock("~/lib/traeger-care-notices-api", async (original) => ({
@@ -100,6 +103,112 @@ describe("TraegerCareNoticeDeliveryPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     notices.fetchCareNoticeRun.mockResolvedValue(RUN);
+  });
+
+  it.each([
+    { name: "queued", counts: { letters: 2, queued: 1 } },
+    { name: "failed", counts: { letters: 2, failed: 1 } },
+    { name: "missing original", counts: { letters: 1 } },
+  ])("does not report completion with a $name notice", async ({ counts }) => {
+    const data = state({
+      ...MAILING,
+      hasLetter: true,
+      status: "sent",
+      sends: 1,
+    });
+    letters.fetchCareNoticeLetters.mockResolvedValue({
+      ...data,
+      summary: { ...data.summary, notices: 2, sent: 1, notSent: 0, ...counts },
+    });
+    renderPage();
+
+    // Anker: der geladene Versandstand enthält einen gesendeten Bescheid.
+    expect(
+      await screen.findByText(/1 von .*Bescheid.*gesendet/),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Alle Bescheide mit E-Mail-Adresse sind gesendet/),
+    ).not.toBeInTheDocument();
+    if ("failed" in counts) {
+      expect(screen.getByText(/erneut.*oder drucken/i)).toBeInTheDocument();
+    }
+  });
+
+  it("reports completion when only families without email remain", async () => {
+    const data = state({
+      ...MAILING,
+      hasLetter: true,
+      status: "sent",
+      sends: 1,
+    });
+    letters.fetchCareNoticeLetters.mockResolvedValue({
+      ...data,
+      summary: {
+        ...data.summary,
+        notices: 2,
+        letters: 2,
+        sent: 1,
+        notSent: 1,
+        withoutEmail: 1,
+      },
+    });
+    renderPage();
+    expect(
+      await screen.findByText(
+        /Alle Bescheide mit E-Mail-Adresse sind gesendet/,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  describe("phone actions", () => {
+    usePhoneViewport();
+
+    it.each([
+      { status: "not_sent", sends: 0, action: "Senden" },
+      { status: "failed", sends: 1, action: "Erneut senden" },
+    ] as const)(
+      "opens the original and sends a $status notice",
+      async ({ status, sends, action }) => {
+        letters.fetchCareNoticeLetters.mockResolvedValue(
+          state({ ...MAILING, hasLetter: true, status, sends }),
+        );
+        letters.downloadCareNoticePDF.mockResolvedValue({
+          blob: new Blob(["PDF"], { type: "application/pdf" }),
+          filename: "bescheid.pdf",
+        });
+        letters.mailCareNoticeLetter.mockResolvedValue(undefined);
+        renderPage();
+
+        fireEvent.click(
+          await screen.findByRole("button", {
+            name: "Aktionen für den Bescheid von Mia Beispiel",
+          }),
+        );
+        fireEvent.click(
+          await screen.findByRole("menuitem", { name: "Original ansehen" }),
+        );
+        expect(
+          await screen.findByRole("heading", { name: "Bescheid MB-2030-0001" }),
+        ).toBeInTheDocument();
+        await waitFor(() =>
+          expect(letters.downloadCareNoticePDF).toHaveBeenCalledWith("9", "21"),
+        );
+        fireEvent.click(screen.getByRole("button", { name: "Schließen" }));
+        fireEvent.click(
+          await screen.findByRole("button", {
+            name: "Aktionen für den Bescheid von Mia Beispiel",
+          }),
+        );
+        fireEvent.click(
+          await screen.findByRole("menuitem", {
+            name: new RegExp(`^${action}`),
+          }),
+        );
+        await waitFor(() =>
+          expect(letters.mailCareNoticeLetter).toHaveBeenCalledWith("9", "21"),
+        );
+      },
+    );
   });
 
   it("stores the originals first and sends nothing with it", async () => {

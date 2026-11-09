@@ -7,7 +7,7 @@
 
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { CareNoticeLetterPanel } from "~/components/traeger/care-notice-letter-panel";
+import { CareLetterPanel } from "~/components/traeger/care-letter-panel";
 import {
   NOTICE_KIND_LABELS,
   NOTICE_KIND_TONES,
@@ -49,6 +49,7 @@ import {
   type CareNoticeMailing,
   type CareNoticeSeries,
   createCareNoticeLetters,
+  downloadCareNoticePDF,
   fetchCareNoticeLetters,
   mailCareNoticeLetter,
   mailCareNoticeLetters,
@@ -218,7 +219,7 @@ function noticeColumns(
     {
       key: "notice",
       header: "Bescheid",
-      stacked: "meta",
+      stacked: "field",
       render: (notice) => (
         <div className="flex min-w-0 flex-col items-start gap-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -470,9 +471,15 @@ export default function TraegerCareNoticeDeliveryPage() {
       overlays={
         run && summary ? (
           <>
-            <CareNoticeLetterPanel
-              runId={run.id}
-              notice={shown}
+            <CareLetterPanel
+              letter={shown}
+              title={
+                shown ? `${NOTICE_KIND_LABELS[shown.kind]} ${shown.number}` : ""
+              }
+              fileKey={shown ? `notice-${shown.noticeId}` : ""}
+              load={(notice) =>
+                downloadCareNoticePDF(run.id, notice.contractId)
+              }
               onClose={() => setShown(null)}
             />
             <ConfirmationModal
@@ -577,7 +584,17 @@ export default function TraegerCareNoticeDeliveryPage() {
               title="Keine förmliche Zustellung"
               message="E-Mail und Eltern-App sind kein Nachweis, dass die Familie den Bescheid bekommen hat. Brauchen Sie einen Nachweis? Dann stellen Sie den Bescheid zusätzlich auf anderem Weg zu."
             />
-            {toSend === 0 && summary.sent > 0 ? (
+            {summary.failed > 0 ? (
+              <p className="text-sm text-gray-600">
+                Einige Bescheide sind nicht angekommen. Senden Sie diese über
+                das Menü ihrer Zeile erneut oder drucken Sie sie.
+              </p>
+            ) : null}
+            {toSend === 0 &&
+            summary.sent > 0 &&
+            summary.queued === 0 &&
+            summary.failed === 0 &&
+            missing === 0 ? (
               <p className="text-sm text-gray-600">
                 Alle Bescheide mit E-Mail-Adresse sind gesendet. Einzelne
                 Bescheide senden Sie erneut über das Menü ihrer Zeile.
@@ -596,8 +613,6 @@ export default function TraegerCareNoticeDeliveryPage() {
           rows={[...letters.notices]}
           getRowKey={(notice) => notice.noticeId}
           stackedOnMobile
-          stackedLayout="row"
-          stackedDetailKey="send"
           caption="Jede Zeile ist ein ausgestellter Bescheid mit seinem Original."
           emptyState={
             <EmptyState

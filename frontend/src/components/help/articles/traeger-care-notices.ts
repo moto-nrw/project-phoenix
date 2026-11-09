@@ -90,6 +90,7 @@ export function traegerCareNoticesTopic(): HelpTopic {
       "Ermäßigungen und Anteile von Kostenträgern stehen als eigene Zeilen im Bescheid.",
     ],
     troubleshootingDetails: [
+      "Bei `Nicht angekommen`: Wählen Sie im Menü der Zeile `Erneut senden`. Oder geben Sie der Familie den gedruckten Bescheid.",
       "Ein Bescheid geht nicht raus und es steht `Die Person zahlt nicht mehr für diesen Vertrag`: Empfänger oder Zahler haben sich nach dem Ausstellen geändert. Der Bescheid geht nur an die Adresse, die er nennt. Stellen Sie mit einem neuen Jahreslauf einen Änderungsbescheid aus.",
       "Ein Bescheid steht nicht in der Eltern-App: Das Kind hat noch keinen Schülerdatensatz, oder das Konto der Familie hat eine andere E-Mail-Adresse. Die Familie bekommt ihn per E-Mail oder auf Papier.",
       "`Bescheide ausstellen` geht nicht und oben steht `Rechtsbehelfsbelehrung fehlt`: Tragen Sie die Belehrung in der Vorlage `Bescheid` ein. Dafür brauchen Sie das Recht `Einstellungen`.",
