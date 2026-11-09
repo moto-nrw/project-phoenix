@@ -1285,6 +1285,11 @@ export type UpdateTemplateBody = Omit<
    * predecessor row when the user actually changed it (#2187).
    */
   series_roster_primary_changed?: boolean;
+  /**
+   * A chain-resolved Wochennotiz-only save applies the note to capped
+   * predecessor segments too, so every occurrence keeps one series note.
+   */
+  propagate_notes_to_predecessors?: boolean;
 };
 
 /**
