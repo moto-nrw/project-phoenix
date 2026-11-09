@@ -132,7 +132,7 @@ func (s *Store) SetCareRunInvoiceDate(ctx context.Context, organizationID, runID
 // CareRunExclusions reads the invoices of a run left out of its release:
 // per invoice (contract and service, #6346) the last exclusion, unless a
 // later return took it back. An entry names its services; one from before
-// #6346 names both since migration 1.15.865, so it still covers both
+// #6346 names both since migration 1.15.866, so it still covers both
 // invoices of its contract. The trail is read by ID, allocated after the run
 // lock. Transaction-start timestamps do not establish write order when
 // transactions overlap.
