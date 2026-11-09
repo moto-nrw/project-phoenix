@@ -658,7 +658,7 @@ func (s *OperatorAuthentication) rotateOperatorRefresh(txCtx context.Context, op
 	// takes, so a rotation either commits before such a command reads the
 	// sessions or reads the operator after it committed (#6289).
 	if _, err := s.operators.findOperatorForUpdate(txCtx, operatorID); err != nil && !errors.Is(err, identityaccess.ErrOperatorNotFound) {
-		return accessToken, refreshToken, recovered, rejectAfterCommit, fmt.Errorf("failed to lock operator: %w", err)
+		return accessToken, refreshToken, recovered, rejectAfterCommit, fmt.Errorf("failed to find operator: %w", err)
 	}
 	session, err := s.operators.findOperatorSessionForUpdate(txCtx, refreshTokenValue)
 	if errors.Is(err, identityaccess.ErrOperatorSessionNotFound) {

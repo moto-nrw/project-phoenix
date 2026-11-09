@@ -40,6 +40,7 @@ const (
 type AccountAdministration struct {
 	auth      *AccountAuthentication
 	store     ports.AccountAdministrationStore
+	devices   ports.AccountTrustedDevices
 	verifier  ports.PasswordVerifier
 	passwords ports.PasswordPolicy
 	runtime   ports.Runtime
@@ -49,6 +50,7 @@ type AccountAdministration struct {
 // AccountAdministrationDependencies are the ports the flows consume.
 type AccountAdministrationDependencies struct {
 	Store     ports.AccountAdministrationStore
+	Devices   ports.AccountTrustedDevices
 	Verifier  ports.PasswordVerifier
 	Passwords ports.PasswordPolicy
 	Runtime   ports.Runtime
@@ -62,8 +64,8 @@ func NewAccountAdministration(auth *AccountAuthentication, deps AccountAdministr
 	switch {
 	case auth == nil:
 		return nil, fmt.Errorf("identity access account administration: account authentication is required")
-	case deps.Store == nil:
-		return nil, fmt.Errorf("identity access account administration: the account store is required")
+	case deps.Store == nil, deps.Devices == nil:
+		return nil, fmt.Errorf("identity access account administration: the account store and the trusted devices are required")
 	case deps.Verifier == nil, deps.Passwords == nil, deps.Runtime == nil:
 		return nil, fmt.Errorf("identity access account administration: password verifier, password policy and tenant runtime are required")
 	}
@@ -72,7 +74,7 @@ func NewAccountAdministration(auth *AccountAuthentication, deps AccountAdministr
 		logger = slog.Default()
 	}
 	return &AccountAdministration{
-		auth: auth, store: deps.Store, verifier: deps.Verifier,
+		auth: auth, store: deps.Store, devices: deps.Devices, verifier: deps.Verifier,
 		passwords: deps.Passwords, runtime: deps.Runtime, logger: logger,
 	}, nil
 }
@@ -280,7 +282,7 @@ func (a *AccountAdministration) revokeAfterPasswordChange(ctx context.Context, c
 	if _, err := a.store.RevokePasswordResetTokens(ctx, change.AccountID); err != nil {
 		return failed(opRevokeAfterPasswordChange, err)
 	}
-	if _, err := a.store.RevokeAccountTrustedDevices(ctx, change.AccountID, time.Now()); err != nil {
+	if err := a.devices.RevokeAllTrustedDevices(ctx, change.AccountID, time.Now()); err != nil {
 		return failed(opRevokeAfterPasswordChange, err)
 	}
 	if err := a.auth.revokeOtherSessionsWithAudit(ctx, change.AccountID, change.SessionFamilyID, ownPasswordChangeReason, change.IPAddress, change.UserAgent); err != nil {
