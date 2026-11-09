@@ -522,10 +522,13 @@ var runLocks = map[string]func(order demoOrder) step{
 
 // visitorData is the snapshot without the school row: hiding the school is
 // no visitor data, and its deleted_at may stay set while the erasure waits.
-func visitorData(snapshot visitorSnapshot) visitorSnapshot {
+// Hiding also ends the school's sessions (#6305), so the sessions of a
+// school the run hid are left out as well; the caller checks that none is
+// left.
+func visitorData(snapshot visitorSnapshot, hiddenByRun bool) visitorSnapshot {
 	data := make(visitorSnapshot, len(snapshot))
 	for table, rows := range snapshot {
-		if table != "platform.schools" {
+		if table != "platform.schools" && (!hiddenByRun || table != "auth.tokens") {
 			data[table] = rows
 		}
 	}
@@ -562,7 +565,8 @@ func TestDemoRunErasesEveryOpenOrderOnceItsLockIsGone(t *testing.T) {
 					_, err := order.db.NewRaw(statement, order.slug, order.schoolID).Exec(ctx)
 					require.NoError(t, err, statement)
 				}
-				before := visitorData(order.snapshot(t))
+				before := order.snapshot(t)
+				hiddenBefore := schoolHidden(t, order.db, order.schoolID)
 				holder, err := order.db.BeginTx(ctx, &sql.TxOptions{})
 				require.NoError(t, err)
 				defer func() { _ = holder.Rollback() }()
@@ -570,7 +574,12 @@ func TestDemoRunErasesEveryOpenOrderOnceItsLockIsGone(t *testing.T) {
 				_, erased := retireNow(t, order.queue, []string{order.slug})
 				require.NoError(t, holder.Rollback())
 				if erased == 0 {
-					assert.Equal(t, before, visitorData(order.snapshot(t)), "a deferred order keeps the visitor's data as it was")
+					after := order.snapshot(t)
+					hiddenByRun := !hiddenBefore && schoolHidden(t, order.db, order.schoolID)
+					assert.Equal(t, visitorData(before, hiddenByRun), visitorData(after, hiddenByRun), "a deferred order keeps the visitor's data as it was")
+					if hiddenByRun {
+						assert.Equal(t, "[]", after["auth.tokens"], "a school the run hid keeps no session while the erasure waits")
+					}
 				}
 				for run := 0; run < 3 && slices.Contains(demoOrderNames(t, order.db), order.slug); run++ {
 					retireNow(t, order.queue, nil)

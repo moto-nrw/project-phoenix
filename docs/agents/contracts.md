@@ -1080,7 +1080,9 @@ address lead there too, and the old school's `account_id` and
 `parent_account_id` are forgotten. Expiry runs in the demo process once an
 hour on an injected clock (`cmd/devtools/demo_expiry.go`): accesses past `expires_at`
 are deleted, and a demo school no remaining access enters is soft-deleted
-through its owner. The standing school is never hidden. A hidden school
+through its owner. Its sessions, of every account and portal, end in the same
+unit (`auth.revoke_school_sessions`, #6305): every request checks only the
+session family, not the school. The standing school is never hidden. A hidden school
 holds no place against the capacity, gets no ticker, and cannot be entered:
 its subdomain resolves no tenant. An expired or deleted link answers `410` or
 `404`, and both entry pages show „Dieser Link funktioniert nicht mehr" with

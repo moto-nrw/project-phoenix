@@ -53,3 +53,24 @@ runtime authorization.
 - The database function remains the only caller-facing capability for this
   cleanup. Its migration tests verify execution rights and its queue test
   verifies both repeated seeds and equal visitor names.
+
+## Addendum 2026-11-09: the retirement ends the school's sessions (#6305)
+
+Every request checks the session family its access token names, not the
+school (#5194). A session the hourly run left behind therefore kept a hidden
+Demo-Schule open until its access token expired, and a school switch could
+start from it; the erasure removes only the visitor's own sessions, and a lock
+can defer it to a later run.
+
+`platform.retire_expired_demo_schools` now ends every session of a school in
+the subtransaction that hides it, of every account and portal, through
+`auth.revoke_school_sessions`. That function belongs to Identity & Access and
+is the database side of its `RevokeTokensByTenantID`: it locks the accounts of
+the sessions first, as refresh, switch and logout do, then deletes them. It
+runs with its caller's rights, and no role may execute it; the demo role
+reaches it only through the retirement and gets no grant on `auth.tokens`. A
+session lock in use defers the whole order under the retirement's
+`lock_timeout`, school and sessions unchanged. This is no new cross-owner
+workflow: it is a step of this one, limited to the school the run hides. It
+writes no `token_revoked` audit event, because that evidence carries a keyed
+family fingerprint only the application can compute.
