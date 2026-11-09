@@ -93,6 +93,7 @@ function supervisionStudentDay(
     sick: presentStudent.sick,
     classTrip: presentStudent.class_trip,
     excused: presentStudent.excused,
+    currentLocation: presentStudent.current_location,
   });
   if (absence) return { ...result, absence: { label: absence.label } };
   const notComing = getDayPlanningNotComingLabel(presentStudent);
@@ -340,6 +341,7 @@ export function SupervisionStudentGrid({
                       sick: presentStudent.sick,
                       classTrip: presentStudent.class_trip,
                       excused: presentStudent.excused,
+                      currentLocation: presentStudent.current_location,
                     });
                     if (absence && !presentStudent.actual_pickup_time) {
                       return <StudentAbsenceRow label={absence.label} />;

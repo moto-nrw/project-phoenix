@@ -56,7 +56,16 @@ type DayPlanningDecision struct {
 // (#1939) and the timetable's care-day derivation (#1747) arrived at this same
 // precedence independently; both paths must keep resolving through this
 // function so they never disagree.
+//
+// Place before status (#6371, #6407): HasActualAttendance is the open check-in
+// the location rule studentpresence.IsCheckedInLocation reads. With it, a sick,
+// excused or class-trip status is only a hint at the child; the plan of the day
+// keeps its planned arrival, pickup and timetable, so the pickup still counts
+// and its overrun is still marked. Without an open check-in the status wins.
 func ResolveDayPlanning(in DayPlanningInputs) DayPlanningDecision {
+	if in.HasActualAttendance {
+		in.Sick, in.ClassTrip, in.Excused = false, false, false
+	}
 	planned := resolvePlannedDay(in)
 	if in.HasActualAttendance && !planned.ComesToday {
 		return DayPlanningDecision{ComesToday: true, Reason: DayPlanningReasonUnplanned}
