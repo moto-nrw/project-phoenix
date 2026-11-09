@@ -1208,19 +1208,45 @@ describe("SickNoteModal — Teil-Abwesenheit der Schule", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  it("erklärt die Ablehnung und lädt die Einträge der OGS neu", async () => {
+  it("erklärt die Ablehnung und nennt den Tag nach dem Nachladen", async () => {
+    // The day lies beyond the window the page loaded: the dialog reads the
+    // school's entries for exactly the chosen days.
+    const listSpy = vi
+      .spyOn(parentApi, "listCareExceptions")
+      .mockResolvedValue([schoolPartial("2026-09-10")]);
     const onSubmit = vi.fn().mockRejectedValue(
       new ApiError("conflict", 409, {
         code: "care.care_exception_conflict",
       }),
     );
-    const onConflict = vi.fn();
     render(
-      <SickNoteModal
-        onClose={vi.fn()}
-        onSubmit={onSubmit}
-        onSchoolEntryConflict={onConflict}
-      />,
+      <SickNoteModal studentId="7" onClose={vi.fn()} onSubmit={onSubmit} />,
+    );
+    chooseRange("2026-09-10", "2026-09-11");
+    fillReason();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Krankmeldung an die OGS senden" }),
+    );
+
+    expect(
+      await screen.findByText(/10\.09\.2026: entschuldigt ab 13:00 Uhr/),
+    ).toBeInTheDocument();
+    expect(listSpy).toHaveBeenCalledWith("7", {
+      from: "2026-09-10",
+      to: "2026-09-11",
+    });
+    expect(screen.getByText(/von 2 Tagen wird gemeldet\./)).toBeInTheDocument();
+  });
+
+  it("nennt die Ablehnung, wenn das Nachladen nichts findet", async () => {
+    vi.spyOn(parentApi, "listCareExceptions").mockResolvedValue([]);
+    const onSubmit = vi.fn().mockRejectedValue(
+      new ApiError("conflict", 409, {
+        code: "care.care_exception_conflict",
+      }),
+    );
+    render(
+      <SickNoteModal studentId="7" onClose={vi.fn()} onSubmit={onSubmit} />,
     );
     fillReason();
     fireEvent.click(
@@ -1230,7 +1256,6 @@ describe("SickNoteModal — Teil-Abwesenheit der Schule", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Für einen der Tage hat die OGS schon eine Abwesenheit ab einer Uhrzeit eingetragen.",
     );
-    expect(onConflict).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -1950,11 +1950,19 @@ export async function inviteRelatedAccount(
  * Fetches the child's pickup/arrival overrides (today .. +2 months by default),
  * staff- and parent-set alike, so the modal can show what is already in place.
  */
+/**
+ * Without a range the server answers today to two months ahead; the absence
+ * dialog passes its chosen days, which may lie further out (#5698).
+ */
 export async function listCareExceptions(
   studentId: string,
+  range?: { readonly from: string; readonly to: string },
 ): Promise<CareException[]> {
+  const query = range
+    ? `?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`
+    : "";
   return getJson<CareException[]>(
-    `/api/parent/me/children/${encodeURIComponent(studentId)}/care-exception`,
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/care-exception${query}`,
   );
 }
 

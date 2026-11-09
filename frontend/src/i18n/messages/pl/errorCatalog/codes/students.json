@@ -66,7 +66,7 @@
   "offering_change_capacity_full": "W jednej z ofert nie ma już wolnych miejsc. Sprawdź obłożenie.",
   "offering_change_date_out_of_range": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "offering_changes_no_enrollment": "Dziecko nie ma już ważnego zapisu. Odrzuć: {object}.",
-  "partial_absence_conflict": "Dziecko jest już zwolnione od określonej godziny w jednym z tych dni. Najpierw usuń to częściowe zwolnienie albo wybierz inne dni.",
+  "partial_absence_conflict": "Dziecko jest już zwolnione od określonej godziny w jednym z wybranych dni. Najpierw usuń to częściowe zwolnienie w „Entschuldigen” i „Ab Uhrzeit”.",
   "partial_absence_requires_dedicated_action": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "photo_consent_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "photo_consent_withdrawn": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",

@@ -379,7 +379,6 @@ function ChildSections({
           reasonRequired={requiresGuardianReason(care.features)}
           excusedRequiresApproval={care.features.excused_requires_approval}
           careExceptions={care.careExceptions}
-          onSchoolEntryConflict={care.refresh}
         />
       )}
       {modal === "pickup" && (

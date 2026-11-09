@@ -765,7 +765,6 @@ export function SickNoteModal({
   excusedEnabled = true,
   reasonRequired = true,
   careExceptions = NO_CARE_EXCEPTIONS,
-  onSchoolEntryConflict,
 }: Readonly<{
   studentId?: string;
   onClose: () => void;
@@ -787,8 +786,6 @@ export function SickNoteModal({
    * eine Abmeldung über den ganzen Tag ablehnt (#5698).
    */
   careExceptions?: readonly CareException[];
-  /** Lädt die Einträge der OGS neu, wenn der Server einen Tag abgelehnt hat. */
-  onSchoolEntryConflict?: () => void;
 }>) {
   const t = useCareTermTranslations("parentChildCare");
   const locale = useLocale();
@@ -814,26 +811,28 @@ export function SickNoteModal({
   const errorId = useId();
   const reasonError = form.fieldError(SICK_REASON_FIELD);
   const dates = useMemo(() => enumerateDates(from, to), [from, to]);
+  // Entries read for exactly the chosen days after the server refused one:
+  // the school may have entered it after the page loaded, or beyond the
+  // window the page reads.
+  const [reloadedExceptions, setReloadedExceptions] =
+    useState<readonly CareException[]>(NO_CARE_EXCEPTIONS);
   // Only a manual partial absence blocks a full-day report; the backend
   // ignores automatic excusals from a pulled-forward pickup time, and so does
   // the read that fills excused_from.
   const schoolExcusedFrom = useMemo(
     () =>
       new Map(
-        careExceptions.flatMap((day) =>
+        [...careExceptions, ...reloadedExceptions].flatMap((day) =>
           day.excused_from ? [[day.date, day.excused_from] as const] : [],
         ),
       ),
-    [careExceptions],
+    [careExceptions, reloadedExceptions],
   );
   const blockedDays = dates.flatMap((date) => {
     const time = schoolExcusedFrom.get(date);
     return time ? [{ date, time }] : [];
   });
-  const freeDates =
-    blockedDays.length === 0
-      ? dates
-      : dates.filter((date) => !schoolExcusedFrom.has(date));
+  const freeDates = dates.filter((date) => !schoolExcusedFrom.has(date));
   const allDaysBlocked = dates.length > 0 && freeDates.length === 0;
   const noteMissing = reason.trim() === "";
   const requiresApproval =
@@ -881,11 +880,21 @@ export function SickNoteModal({
       else onClose();
     } catch (err) {
       const known = knownSickErrorKey(err);
-      if (known) {
+      if (known === "sick.schoolPartialConflict" && studentId) {
         form.invalid(t(known));
-        // The school entered the day after this dialog loaded, or it lies
-        // beyond the loaded range: reload so the notice can name the day.
-        if (known === "sick.schoolPartialConflict") onSchoolEntryConflict?.();
+        // Name the day: once the notice lists it, it explains the refusal
+        // and the next send reports only the free days.
+        const reloaded = await listCareExceptions(studentId, {
+          from: dates[0]!,
+          to: dates[dates.length - 1]!,
+        }).catch(() => NO_CARE_EXCEPTIONS);
+        setReloadedExceptions(reloaded);
+        if (
+          reloaded.some((day) => day.excused_from && dates.includes(day.date))
+        )
+          form.clear();
+      } else if (known) {
+        form.invalid(t(known));
       } else {
         // Wiederholen sendet die Angaben, die jetzt im Dialog stehen.
         void form.show(err, {

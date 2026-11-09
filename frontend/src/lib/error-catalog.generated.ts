@@ -1275,7 +1275,7 @@ export const ERROR_CATALOG = {
       "students.offering_changes_no_enrollment":
         "Für das Kind gibt es keine gültige Anmeldung mehr. Bitte lehnen Sie {object} ab.",
       "students.partial_absence_conflict":
-        "Das Kind ist an einem der Tage schon ab einer Uhrzeit entschuldigt. Entfernen Sie zuerst diese Teilentschuldigung oder wählen Sie andere Tage.",
+        "Das Kind ist an einem gewählten Tag schon ab einer Uhrzeit entschuldigt. Entfernen Sie zuerst die Teilentschuldigung unter „Entschuldigen“ und „Ab Uhrzeit“.",
       "students.photo_consent_required":
         "Für ein Foto fehlt die Einwilligung der Eltern. Bitte bestätigen Sie zuerst die Einwilligung.",
       "students.photo_consent_withdrawn":
@@ -2340,7 +2340,7 @@ export const ERROR_CATALOG = {
       "students.offering_changes_no_enrollment":
         "The child no longer has a valid enrollment. Please decline {object}.",
       "students.partial_absence_conflict":
-        "The child is already excused from a certain time on one of these days. Remove that partial excusal first or choose other days.",
+        "The child is already excused from a certain time on a chosen day. First remove that partial excusal under “Entschuldigen” and “Ab Uhrzeit”.",
       "students.pickup_permission_contact_gone":
         "{object} could not be changed. Please check the current state.",
       "students.pickup_proof_not_found":
@@ -2887,7 +2887,7 @@ export const ERROR_CATALOG = {
       "students.offering_changes_no_enrollment":
         "У ребёнка больше нет действующей записи. Отклоните: {object}.",
       "students.partial_absence_conflict":
-        "В один из этих дней ребёнок уже освобождён с определённого времени. Сначала удалите это частичное освобождение или выберите другие дни.",
+        "В один из выбранных дней ребёнок уже освобождён с определённого времени. Сначала удалите это частичное освобождение в «Entschuldigen» и «Ab Uhrzeit».",
       "students.pickup_permission_contact_gone":
         "{object}: изменить не удалось. Пожалуйста, проверьте текущее состояние.",
       "students.pickup_proof_not_found":
@@ -3406,7 +3406,7 @@ export const ERROR_CATALOG = {
       "students.offering_changes_no_enrollment":
         "Fëmija nuk ka më një regjistrim të vlefshëm. Refuzoni: {object}.",
       "students.partial_absence_conflict":
-        "Fëmija është tashmë i justifikuar nga një orë e caktuar në një nga këto ditë. Fillimisht hiqni këtë justifikim të pjesshëm ose zgjidhni ditë të tjera.",
+        "Fëmija është tashmë i justifikuar nga një orë e caktuar në një ditë të zgjedhur. Fillimisht hiqni justifikimin e pjesshëm te „Entschuldigen” dhe „Ab Uhrzeit”.",
       "students.pickup_permission_contact_gone":
         "{object} nuk mund të ndryshohej. Ju lutemi kontrolloni gjendjen aktuale.",
       "students.pickup_proof_not_found":
@@ -3914,7 +3914,7 @@ export const ERROR_CATALOG = {
       "students.offering_changes_no_enrollment":
         "Dziecko nie ma już ważnego zapisu. Odrzuć: {object}.",
       "students.partial_absence_conflict":
-        "Dziecko jest już zwolnione od określonej godziny w jednym z tych dni. Najpierw usuń to częściowe zwolnienie albo wybierz inne dni.",
+        "Dziecko jest już zwolnione od określonej godziny w jednym z wybranych dni. Najpierw usuń to częściowe zwolnienie w „Entschuldigen” i „Ab Uhrzeit”.",
       "students.pickup_permission_contact_gone":
         "{object} nie udało się zmienić. Proszę sprawdzić aktualny stan.",
       "students.pickup_proof_not_found":
@@ -4426,7 +4426,7 @@ export const ERROR_CATALOG = {
       "students.offering_changes_no_enrollment":
         "Çocuğun artık geçerli bir kaydı yok. Lütfen şunu reddedin: {object}.",
       "students.partial_absence_conflict":
-        "Çocuk bu günlerden birinde belirli bir saatten itibaren zaten mazeretli. Önce bu kısmi mazereti kaldırın veya başka günler seçin.",
+        "Çocuk seçilen bir günde belirli bir saatten itibaren zaten mazeretli. Önce bu kısmi mazereti „Entschuldigen” ve „Ab Uhrzeit” altında kaldırın.",
       "students.pickup_permission_contact_gone":
         "{object} değiştirilemedi. Lütfen güncel durumu kontrol edin.",
       "students.pickup_proof_not_found":
@@ -4931,7 +4931,7 @@ export const ERROR_CATALOG = {
       "students.offering_changes_no_enrollment":
         "Дитина більше не має чинного запису. Відхиліть: {object}.",
       "students.partial_absence_conflict":
-        "В один із цих днів дитину вже звільнено з певного часу. Спочатку видаліть це часткове звільнення або виберіть інші дні.",
+        "В один із вибраних днів дитину вже звільнено з певного часу. Спочатку видаліть це часткове звільнення в «Entschuldigen» і «Ab Uhrzeit».",
       "students.pickup_permission_contact_gone":
         "{object}: змінити не вдалося. Будь ласка, перевірте поточний стан.",
       "students.pickup_proof_not_found":
