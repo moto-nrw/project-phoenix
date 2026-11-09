@@ -31,7 +31,10 @@ func (s seedFeedbackHistoryStep) Run(_ context.Context, rt *Runtime) error {
 		fmt.Println("  Feedback ist für diese Schule aus, der Feedbackverlauf wird übersprungen")
 		return nil
 	}
-	today := calendar.TodayDate()
+	today, err := rt.historyToday()
+	if err != nil {
+		return err
+	}
 	from, until := feedbackHistoryRange(today)
 	if !from.Before(today) {
 		return nil
