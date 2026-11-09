@@ -8,7 +8,6 @@ import (
 	"os"
 	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/testdb"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -268,9 +267,6 @@ func StrPtr(s string) *string { return &s }
 
 // Int64Ptr returns a pointer to the given int64 value.
 func Int64Ptr(i int64) *int64 { return &i }
-
-// TimePtr returns a pointer to the given time value.
-func TimePtr(t time.Time) *time.Time { return &t }
 
 // IsNotFoundError reports whether err is a repository not-found error. Every
 // legacy repository — including the ones that are now compositions over an

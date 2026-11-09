@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/ports"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // StaffAdmin administers the personnel record of a staff member (#1417,
@@ -27,6 +28,9 @@ type StaffAdmin struct {
 	authority   domain.DocumentAuthority
 	clock       ports.Clock
 	warn        func(message string, args ...any)
+	// bank seals and opens IBAN, tax ID and social security number with the
+	// bank ring (#6332, ADR 0183).
+	bank workforce.BankDataCipher
 }
 
 // NewStaffAdmin composes the administration over the Workforce-owned record
@@ -39,12 +43,13 @@ func NewStaffAdmin(
 	authority domain.DocumentAuthority,
 	clock ports.Clock,
 	warn func(message string, args ...any),
+	bank workforce.BankDataCipher,
 ) *StaffAdmin {
-	if records == nil || transaction == nil || subjects == nil || audit == nil || clock == nil || warn == nil ||
+	if records == nil || transaction == nil || subjects == nil || audit == nil || clock == nil || warn == nil || bank == nil ||
 		authority.Allows == nil || authority.Health == "" || authority.Financial == "" || authority.General == "" {
 		panic("workforce staff admin: all dependencies are required")
 	}
-	return &StaffAdmin{records: records, transaction: transaction, subjects: subjects, audit: audit, authority: authority, clock: clock, warn: warn}
+	return &StaffAdmin{records: records, transaction: transaction, subjects: subjects, audit: audit, authority: authority, clock: clock, warn: warn, bank: bank}
 }
 
 // --- personnel number -------------------------------------------------------
@@ -238,6 +243,11 @@ func (a *StaffAdmin) RevealStaffFinancial(ctx context.Context, staffID, actorAcc
 	if data == nil {
 		return domain.StaffFinancialData{StaffID: staffID}, nil
 	}
+	// Opening follows the committed access log row, so a value that fails to open
+	// still leaves the attempt in the trail.
+	if err := openStaffFinancial(a.bank, data); err != nil {
+		return domain.StaffFinancialData{}, err
+	}
 	return *data, nil
 }
 
@@ -253,15 +263,24 @@ func (a *StaffAdmin) UpdateStaffFinancial(ctx context.Context, staffID int64, in
 		if err != nil {
 			return nil, nil, err
 		}
+		// The diff compares plaintext; opening also proves the stored values
+		// belong to this staff member before they are replaced.
+		if err := openStaffFinancial(a.bank, data); err != nil {
+			return nil, nil, err
+		}
 		apply := func() error {
 			if data == nil {
-				_, err := a.records.CreateStaffFinancialData(ctx, workforce.StaffFinancialData{
-					StaffID: staffID, IBAN: section.IBAN, TaxID: section.TaxID, SocialSecurityNumber: section.SocialSecurityNumber,
-				})
+				fresh := domain.StaffFinancialData{StaffID: staffID}
+				if err := sealStaffFinancial(a.bank, &fresh, tenant.FromContext(ctx), section); err != nil {
+					return err
+				}
+				_, err := a.records.CreateStaffFinancialData(ctx, financialToPublic(fresh))
 				return err
 			}
 			row := *data
-			row.IBAN, row.TaxID, row.SocialSecurityNumber = section.IBAN, section.TaxID, section.SocialSecurityNumber
+			if err := sealStaffFinancial(a.bank, &row, row.TenantID, section); err != nil {
+				return err
+			}
 			_, err := a.records.UpdateStaffFinancialData(ctx, financialToPublic(row))
 			return err
 		}
@@ -331,6 +350,22 @@ func (a *StaffAdmin) upsertMasterData(ctx context.Context, staffID int64, existi
 // when none exists) and writes the data-access log entry. Callers must not
 // serve any value when the returned error is non-nil.
 func (a *StaffAdmin) loadFinancialAudited(ctx context.Context, staffID, actorAccountID int64, actorRole, resource string) (*domain.StaffFinancialData, error) {
+	// Own the audited read through the same RLS query boundary as the record
+	// reads. A later decryption failure must not roll back its access trail.
+	auditCtx := tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTransaction(ctx))
+	var data *domain.StaffFinancialData
+	err := a.records.run(auditCtx, "load_financial_audited", func(txCtx context.Context, _ *domain.OperationStats) error {
+		var err error
+		data, err = a.loadFinancialAuditedInTx(txCtx, staffID, actorAccountID, actorRole, resource)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+func (a *StaffAdmin) loadFinancialAuditedInTx(ctx context.Context, staffID, actorAccountID int64, actorRole, resource string) (*domain.StaffFinancialData, error) {
 	if actorAccountID <= 0 {
 		return nil, errors.New("actor account id is required for financial reads")
 	}
