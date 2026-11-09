@@ -111,14 +111,19 @@ type ImportRuntime struct {
 }
 
 // ChunkWriter is the batch form of an import config for the chunk executor
-// (#5827, ADR 0067 addendum of 2026-11-08, point 2). Rows whose keys repeat
+// (#5827, ADR 0067 addendum of 2026-11-08, point 2). Rows that share a key
 // within a chunk never share a segment.
 type ChunkWriter[T any] interface {
 	// ChunkWriterReady reports whether the batch commands are bound.
 	ChunkWriterReady() bool
-	// ChunkKey names the input key of a row; rows with equal keys depend on
-	// each other.
-	ChunkKey(T) string
+	// ChunkMinRows is the fewest rows a chunk and a segment need for the
+	// batch path to issue fewer statements than the row path; fewer take the
+	// row path. At least 2 (ADR 0067 addendum, point 2).
+	ChunkMinRows() int
+	// ChunkKeys names the input keys of a row; rows sharing a key depend on
+	// each other. Two keys are equal whenever the owners' matching would
+	// treat their inputs as equal.
+	ChunkKeys(T) []string
 	// ResolveChunk reads the existing records of a segment's rows in one
 	// protected read and returns a config whose FindExisting answers from it.
 	// On error the executor falls back to FindExisting per row.
@@ -137,8 +142,11 @@ type ChunkWriter[T any] interface {
 // Care Plan; PrivacyConsents is Student Presence; ConsentHistory is the
 // Audit platform recorder of the consent timestamps.
 type StudentImportDeps struct {
-	Transactions    importModels.Transactions
-	Persons         PersonDirectory
+	Transactions importModels.Transactions
+	Persons      PersonDirectory
+	// PersonBatches is the People Directory's batch slice; without it every
+	// chunk takes the row path.
+	PersonBatches   PersonBatches
 	Students        StudentDirectory
 	Guardians       GuardianDirectory
 	Schedules       StudentSchedules

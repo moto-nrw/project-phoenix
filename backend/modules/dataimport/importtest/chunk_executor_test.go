@@ -52,11 +52,11 @@ func (p probedClassList) FindExisting(ctx context.Context, row importModels.Clas
 	return p.ClassListImportConfig.FindExisting(ctx, row)
 }
 
-func (p probedClassList) ChunkKey(row importModels.ClassListEntryImportRow) string {
+func (p probedClassList) ChunkKeys(row importModels.ClassListEntryImportRow) []string {
 	if key, ok := p.chunkKeyByName[row.FirstName]; ok {
-		return key
+		return []string{key}
 	}
-	return p.ClassListImportConfig.ChunkKey(row)
+	return p.ClassListImportConfig.ChunkKeys(row)
 }
 
 func (p probedClassList) ResolveChunk(ctx context.Context, rows []importModels.ClassListEntryImportRow) (ports.ImportConfig[importModels.ClassListEntryImportRow], error) {

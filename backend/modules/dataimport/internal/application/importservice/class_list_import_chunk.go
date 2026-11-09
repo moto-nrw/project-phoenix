@@ -17,11 +17,19 @@ import (
 // ChunkWriterReady reports whether School Membership's batch slice is bound.
 func (c *ClassListImportConfig) ChunkWriterReady() bool { return c.deps.Batches != nil }
 
-// ChunkKey is the in-file duplicate key of ValidateBatch.
-func (c *ClassListImportConfig) ChunkKey(row importModels.ClassListEntryImportRow) string {
-	return strings.ToLower(strings.TrimSpace(row.FirstName)) + "\x00" +
-		strings.ToLower(strings.TrimSpace(row.LastName)) + "\x00" +
-		strings.ToLower(strings.TrimSpace(row.SchoolClass))
+// ChunkMinRows: a segment of two entries already saves statements.
+func (c *ClassListImportConfig) ChunkMinRows() int { return 2 }
+
+// ChunkKeys is the name and class an entry and a student are matched by, in
+// the folding of matchKey: the owners compare names after NFC normalization,
+// which a plain lower-case key misses (a composed and a decomposed "José" in
+// one segment would both be created; the row path reports already_exists).
+func (c *ClassListImportConfig) ChunkKeys(row importModels.ClassListEntryImportRow) []string {
+	return []string{c.classListKey(row)}
+}
+
+func (c *ClassListImportConfig) classListKey(row importModels.ClassListEntryImportRow) string {
+	return matchKey(row.FirstName) + "\x00" + matchKey(row.LastName) + "\x00" + matchKey(row.SchoolClass)
 }
 
 // ResolveChunk reads, inside its own savepoint, the entries carrying each
@@ -32,7 +40,7 @@ func (c *ClassListImportConfig) ResolveChunk(ctx context.Context, rows []importM
 	index := make(map[string]int, len(rows))
 	for i, row := range rows {
 		keys[i] = ports.ClassListEntryFields{FirstName: row.FirstName, LastName: row.LastName, SchoolClass: row.SchoolClass}
-		index[c.ChunkKey(row)] = i
+		index[c.classListKey(row)] = i
 	}
 	resolved := &resolvedClassList{ClassListImportConfig: c, index: index, persons: c.deps.Persons, students: c.deps.Students}
 	err := c.deps.Transactions.Savepoint(ctx, func(ctx context.Context) error {
@@ -115,19 +123,27 @@ func (c *ClassListImportConfig) studentNameView(ctx context.Context, rows []impo
 	for i, row := range rows {
 		pairs[i] = ports.PersonName{FirstName: row.FirstName, LastName: row.LastName}
 	}
+	return nameMatchView(ctx, c.deps.Persons, c.deps.Students, pairs)
+}
+
+// nameMatchView reads the persons carrying the names and their students in
+// one go and answers the exact-name searches of those names from that read;
+// for names it cannot match like the owner predicate it keeps the owner
+// directories, which answer per call.
+func nameMatchView(ctx context.Context, persons ports.PersonDirectory, students ports.StudentDirectory, pairs []ports.PersonName) (ports.PersonDirectory, ports.StudentDirectory, error) {
 	filter, names := previewNameFilter(pairs)
 	if len(filter.Names) == 0 {
-		return c.deps.Persons, c.deps.Students, nil
+		return persons, students, nil
 	}
-	found, students, err := readNameMatches(ctx, c.deps.Persons, c.deps.Students, filter)
+	found, rows, err := readNameMatches(ctx, persons, students, filter)
 	if err != nil {
 		return nil, nil, err
 	}
-	persons, studentView, ok := nameMatchDirectories(found, students, filter, names, c.deps.Persons, c.deps.Students)
+	viewPersons, viewStudents, ok := nameMatchDirectories(found, rows, filter, names, persons, students)
 	if !ok {
-		return c.deps.Persons, c.deps.Students, nil
+		return persons, students, nil
 	}
-	return persons, studentView, nil
+	return viewPersons, viewStudents, nil
 }
 
 // resolvedClassList answers FindExisting for the rows of one segment from
@@ -141,7 +157,7 @@ type resolvedClassList struct {
 }
 
 func (r *resolvedClassList) FindExisting(ctx context.Context, row importModels.ClassListEntryImportRow) (*int64, error) {
-	i, ok := r.index[r.ChunkKey(row)]
+	i, ok := r.index[r.classListKey(row)]
 	if !ok || i >= len(r.entries) {
 		return r.ClassListImportConfig.FindExisting(ctx, row)
 	}

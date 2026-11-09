@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -62,8 +63,8 @@ func newImportRuntime(audit auditModels.Command, observe func(importModels.Impor
 // failure mid-batch.
 func newStudentImport(
 	runtime importPorts.ImportRuntime, identity importIdentity, groups schoolstructure.GroupListing, rooms facilities.Query,
-	persons peopledirectory.Capability, guardians importPorts.GuardianDirectory, carePlan careplan.Capability,
-	presence studentpresence.Capability, consentHistory consents.ConsentTransitions,
+	persons peopledirectory.Capability, personBatches importPorts.PersonBatches, guardians importPorts.GuardianDirectory,
+	carePlan careplan.Capability, presence studentpresence.Capability, consentHistory consents.ConsentTransitions,
 ) importModels.RowImporter[importModels.StudentImportRow] {
 	references := owners.NewReferences(groups, rooms)
 	resolver := dataImportRetained.NewRelationshipResolver(references.Groups, references.Rooms)
@@ -71,6 +72,7 @@ func newStudentImport(
 		importPorts.StudentImportDeps{
 			Transactions:    runtime.Transactions,
 			Persons:         persons,
+			PersonBatches:   personBatches,
 			Students:        persons,
 			Guardians:       guardians,
 			Schedules:       carePlan,
@@ -146,6 +148,21 @@ func classListBatches(membership schoolmembership.Capability) importPorts.ClassL
 	return nil
 }
 
+// personBatches binds People Directory's person batch slice, which stays
+// outside its capability (#5552); the owner's application asserts that the
+// service its composition holds implements it. Without it the student import
+// takes the row path.
+func personBatches(persons peopledirectory.Capability) importPorts.PersonBatches {
+	composed, ok := persons.(*peopleCompose.Directory)
+	if !ok {
+		return nil
+	}
+	if bound, ok := composed.Owner.(peopledirectory.PersonBatches); ok {
+		return bound
+	}
+	return nil
+}
+
 // newOpeningBalanceImport composes the opening-balance import over
 // Workforce's preview and booking capabilities in deps. Its config is
 // request-scoped (Stichtag, Begründung and acting staff member come from the
@@ -174,7 +191,7 @@ func newServeImports(
 	runtime := newImportRuntime(audit.Command, observeDataImport)
 	return imports{
 		Student: newStudentImport(
-			runtime, identity, groups, rooms, persons, persons, carePlan, presence.Presence,
+			runtime, identity, groups, rooms, persons, personBatches(persons), persons, carePlan, presence.Presence,
 			auditCompose.NewConsentRecorder(audit.Command),
 		),
 		Staff:     newStaffImport(runtime, identity, identity, organizations, persons, membership, workTime),

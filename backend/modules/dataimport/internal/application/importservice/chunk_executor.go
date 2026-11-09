@@ -57,7 +57,7 @@ func (a *batchImportAttempt[T]) applyChunk(ctx context.Context, batch *importMod
 	service := a.service()
 	writer, ok := service.config.(ports.ChunkWriter[T])
 	if !ok || !writer.ChunkWriterReady() || service.boundStatements == nil || a.rowPath ||
-		a.run.request.Mode != importModels.ImportModeCreate || len(a.acceptedRows()) < 2 {
+		a.run.request.Mode != importModels.ImportModeCreate || len(a.acceptedRows()) < chunkMinRows(writer) {
 		return batch, a.applyAcceptedRows(ctx, service, batch)
 	}
 	entered := false
@@ -153,16 +153,21 @@ func (a *batchImportAttempt[T]) acceptedRows() []int {
 	return accepted
 }
 
-// segmentEnd extends a segment until a row repeats a key already in it.
+// segmentEnd extends a segment until a row shares a key with a row already
+// in it.
 func segmentEnd[T any](writer ports.ChunkWriter[T], rows []T, indices []int, start int) int {
 	seen := make(map[string]bool)
 	end := start
 	for end < len(indices) {
-		key := writer.ChunkKey(rows[indices[end]])
-		if seen[key] {
-			break
+		keys := writer.ChunkKeys(rows[indices[end]])
+		for _, key := range keys {
+			if seen[key] {
+				return end
+			}
 		}
-		seen[key] = true
+		for _, key := range keys {
+			seen[key] = true
+		}
 		end++
 	}
 	return end
@@ -173,8 +178,8 @@ func segmentEnd[T any](writer ports.ChunkWriter[T], rows []T, indices []int, sta
 // the remaining rows through one bounded batch command.
 func (a *batchImportAttempt[T]) applySegment(ctx context.Context, writer ports.ChunkWriter[T], batch *importModels.ImportResult[T], segment []int) error {
 	service, request := a.service(), a.run.request
-	if len(segment) < 2 {
-		return service.applyBatchRow(ctx, request, batch, &request.Rows[segment[0]], segment[0]+2)
+	if len(segment) < chunkMinRows(writer) {
+		return a.applySegmentRows(ctx, batch, segment)
 	}
 	rows := make([]T, len(segment))
 	for i, index := range segment {
@@ -212,6 +217,18 @@ func (a *batchImportAttempt[T]) applySegment(ctx context.Context, writer ports.C
 	return nil
 }
 
+// applySegmentRows writes a segment too small for the batch command on the
+// row path.
+func (a *batchImportAttempt[T]) applySegmentRows(ctx context.Context, batch *importModels.ImportResult[T], segment []int) error {
+	service, request := a.service(), a.run.request
+	for _, index := range segment {
+		if err := service.applyBatchRow(ctx, request, batch, &request.Rows[index], index+2); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // writeSegment reads the student guard, then runs the batch command under
 // its bound. Only the batch command's own failure and the guard's refusal
 // carry errBatchCommand (fault table in the PR).
@@ -232,6 +249,10 @@ func writeSegment[T any](ctx context.Context, service *ImportService[T], writer 
 		return nil
 	})
 }
+
+// chunkMinRows is the writer's minimum, never below the two rows of the
+// addendum.
+func chunkMinRows[T any](writer ports.ChunkWriter[T]) int { return max(2, writer.ChunkMinRows()) }
 
 // boundExceeded reports a batch statement the bound cancelled (57014).
 func boundExceeded(err error) bool {
