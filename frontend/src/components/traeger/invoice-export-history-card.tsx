@@ -92,7 +92,11 @@ function StepRow({ step }: Readonly<{ step: InvoiceStep }>) {
           ) : null}
         </p>
         {detail ? (
-          <p className="truncate font-mono text-sm text-gray-600">{detail}</p>
+          <p
+            className={`truncate text-sm text-gray-600 ${step.kind === "exported" ? "font-mono" : ""}`}
+          >
+            {detail}
+          </p>
         ) : null}
         <p className="text-sm text-gray-500">
           {exportedAtLabel(step.at)} · {byLabel(step.byYou, step.byAccount)}

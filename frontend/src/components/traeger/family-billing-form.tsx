@@ -426,6 +426,7 @@ export function FamilyBillingForm({
         onChange={(dueDay) => set({ dueDay })}
       />
       <Input
+        controlSize="compact"
         id={id("debtor-number")}
         name="debtor_number"
         label="Debitorennummer"

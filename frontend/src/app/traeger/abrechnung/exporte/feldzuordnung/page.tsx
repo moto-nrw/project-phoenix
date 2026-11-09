@@ -121,6 +121,7 @@ export default function TraegerSollMappingPage() {
     >
       {settings ? (
         <>
+          <ExportFileNumberCard settings={settings} onChanged={setSettings} />
           <SollMappingEditor
             key={version}
             settings={settings}
@@ -130,7 +131,6 @@ export default function TraegerSollMappingPage() {
               setVersion((current) => current + 1);
             }}
           />
-          <ExportFileNumberCard settings={settings} onChanged={setSettings} />
           <ConfirmationModal
             isOpen={confirmReset}
             onClose={() => setConfirmReset(false)}

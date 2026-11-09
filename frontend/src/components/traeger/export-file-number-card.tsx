@@ -74,6 +74,7 @@ export function ExportFileNumberCard({
         <div className="flex flex-col gap-2">
           <FormRow className="sm:max-w-md">
             <Input
+              controlSize="compact"
               label="Erste Nummer"
               name="start"
               inputMode="numeric"

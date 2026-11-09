@@ -117,7 +117,10 @@ export default function TraegerFinanceExportsPage() {
                 label: data.runs.length === 1 ? "Lauf" : "Läufe",
               },
               { value: open, label: "noch nicht exportiert" },
-              { value: data.nextFileNumber, label: "nächste Dateinummer" },
+              {
+                value: `Nr. ${data.nextFileNumber}`,
+                label: "ist die nächste Datei",
+              },
             ]}
           />
         ) : null

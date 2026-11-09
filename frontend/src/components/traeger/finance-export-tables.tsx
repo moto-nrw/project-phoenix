@@ -97,6 +97,7 @@ function runColumns(
       header: "Datei",
       headerSrOnly: true,
       align: "right",
+      stackedLabel: false,
       render: (run) => (
         <Button
           type="button"
@@ -132,7 +133,6 @@ export function ExportRunsTable({
       rows={[...runs]}
       getRowKey={(run) => `${run.pathKind}/${run.runId}`}
       stackedOnMobile
-      stackedLayout="row"
       emptyState={
         <EmptyState
           title="Noch kein ausgestellter Lauf."
@@ -185,6 +185,9 @@ const PROTOCOL_COLUMNS: DataTableColumn<ExportProtocolEntry>[] = [
           {entry.fileName}
         </span>
         <span className="block text-sm text-gray-500">{entry.runLabel}</span>
+        {entryNotes(entry) ? (
+          <span className="mt-1.5 block">{entryNotes(entry)}</span>
+        ) : null}
       </span>
     ),
     stacked: "title",
@@ -220,7 +223,7 @@ const PROTOCOL_COLUMNS: DataTableColumn<ExportProtocolEntry>[] = [
     sortValue: (entry) => entry.exportedAt,
     render: (entry) => (
       <span className="min-w-0">
-        <span className="block tabular-nums">
+        <span className="block whitespace-nowrap tabular-nums">
           {exportedAtLabel(entry.exportedAt)}
         </span>
         <span className="block text-sm text-gray-500">
@@ -228,11 +231,6 @@ const PROTOCOL_COLUMNS: DataTableColumn<ExportProtocolEntry>[] = [
         </span>
       </span>
     ),
-  },
-  {
-    key: "notes",
-    header: "Hinweis",
-    render: (entry) => entryNotes(entry),
   },
 ];
 
@@ -248,7 +246,6 @@ export function ExportProtocolTable({
       defaultSortKey="number"
       defaultSortDirection="desc"
       stackedOnMobile
-      stackedLayout="row"
       emptyState={
         <EmptyState
           title="Noch keine Datei heruntergeladen."

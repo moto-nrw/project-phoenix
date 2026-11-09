@@ -126,6 +126,7 @@ function ColumnRow({
           }
         />
         <Input
+          controlSize="compact"
           label="Spaltenname"
           name={`columns.${index}.header`}
           value={column.header}
@@ -139,6 +140,7 @@ function ColumnRow({
         />
         {column.field === "constant" ? (
           <Input
+            controlSize="compact"
             label="Fester Wert"
             name={`columns.${index}.value`}
             value={column.value}
@@ -334,6 +336,7 @@ export function SollMappingEditor({
               }
             />
             <Input
+              controlSize="compact"
               label="Dateiname"
               name="file_name_pattern"
               value={draft.fileNamePattern}
