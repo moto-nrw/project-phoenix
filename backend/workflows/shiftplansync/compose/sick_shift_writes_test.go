@@ -205,7 +205,7 @@ func TestSickReport_EditedShiftTakesSickStateOfItsNewDay(t *testing.T) {
 	e := buildSickCascadeEnv(t)
 	sickBefore := e.mustPlanShift(t, e.subject.ID, stampWeekTwo, "08:00", "10:00")
 	sameDay := e.mustPlanShift(t, e.subject.ID, stampWeekTwo, "13:00", "14:00")
-	withOwnReason := e.mustPlanShift(t, e.subject.ID, stampWeekTwo, "16:00", "17:00")
+	withOwnReason := e.mustPlanShift(t, e.subject.ID, stampWeekTwo, "18:00", "19:00")
 	absenceID := e.createSickAbsence(t, stampWeekTwo, stampWeekTwo)
 	healthy := e.mustPlanShift(t, e.subject.ID, stampWeekOne, "16:00", "17:00")
 	reason := "Fortbildung"
@@ -221,7 +221,7 @@ func TestSickReport_EditedShiftTakesSickStateOfItsNewDay(t *testing.T) {
 	assert.Nil(t, toHealthy.ChangeReason, "no sick label on the healthy day")
 
 	swap := "Tausch"
-	ownReason := e.editShiftWith(t, e.reloadShift(t, withOwnReason.ID), stampWeekThree, "16:00", "17:00", &swap)
+	ownReason := e.editShiftWith(t, e.reloadShift(t, withOwnReason.ID), stampWeekThree, "18:00", "19:00", &swap)
 	assertPlanned(t, ownReason, "edited away with a reason of its own")
 	if assert.NotNil(t, ownReason.ChangeReason, "the edit's own reason stays") {
 		assert.Equal(t, swap, *ownReason.ChangeReason)
