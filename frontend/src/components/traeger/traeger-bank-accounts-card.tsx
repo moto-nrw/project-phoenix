@@ -187,6 +187,8 @@ export function TraegerBankAccountsCard({
         getRowKey={(account) => account.id}
         rowHasInteractiveControls={canEdit}
         stackedOnMobile
+        // Label above value on a phone: the whole IBAN gets the full row.
+        stackedLayout="form"
         emptyState={
           <EmptyState
             icon={<Landmark className="h-12 w-12" aria-hidden="true" />}

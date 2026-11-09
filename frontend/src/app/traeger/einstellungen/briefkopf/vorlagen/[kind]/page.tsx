@@ -352,7 +352,9 @@ function TemplateEditorPage({
                     error={formErrors.fieldError("body")}
                     maxLength={10000}
                     disabled={!canEdit || saving}
-                    className="font-mono"
+                    // The whole letter in view, no box cut mid-line: the
+                    // field grows with its text, at least 14 lines high.
+                    className="[field-sizing:content] min-h-72 font-mono"
                   />
                   <Textarea
                     id="template-closing"
@@ -443,7 +445,7 @@ function TemplateEditorPage({
             <div className="order-last min-w-0 xl:sticky xl:top-6 xl:order-none xl:row-span-3">
               <SectionCard
                 title="Vorschau"
-                description="So sieht der ganze Brief aus. Familie, Kinder und Beträge sind Beispiele; Logo, Absender und Fußzeile kommen aus dem Briefkopf."
+                description="So sieht der ganze Brief aus. Familie, Kinder, Beträge und die Ansprechperson im Gruß sind Beispiele. Logo, Absender und Fußzeile kommen aus dem Briefkopf."
               >
                 {previewStale ? (
                   <Alert

@@ -1,5 +1,5 @@
 import Image from "next/image";
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import type { TraegerBankAccount, TraegerContact } from "~/lib/traeger-api";
 import { formatIBAN } from "./traeger-bank-account-format";
 
@@ -59,9 +59,12 @@ export function TraegerLetterheadPreview({
   const accent = COLOR_PATTERN.test(color) ? color : undefined;
   const sender = lines(letterheadText);
   const footer = lines(footerText);
-  const contactLine = [contact.name, contact.phone, contact.email]
-    .filter((value) => value !== "")
-    .join(" · ");
+  // A phone number stays on one line: split, it is misdialled.
+  const contactParts = [
+    { key: "name", value: contact.name, whole: false },
+    { key: "phone", value: contact.phone, whole: true },
+    { key: "email", value: contact.email, whole: false },
+  ].filter((part) => part.value !== "");
   const letterFacts = facts
     ? [
         ...facts,
@@ -157,7 +160,13 @@ export function TraegerLetterheadPreview({
                   className="flex flex-wrap justify-between gap-x-4"
                 >
                   <span className="shrink-0 text-gray-500">{fact.label}</span>
-                  <span className="ml-auto min-w-0 text-right wrap-anywhere text-gray-900 tabular-nums">
+                  <span
+                    className={`ml-auto min-w-0 text-right text-gray-900 tabular-nums ${
+                      fact.label === "Telefon"
+                        ? "whitespace-nowrap"
+                        : "wrap-anywhere"
+                    }`}
+                  >
                     {fact.value}
                   </span>
                 </p>
@@ -171,9 +180,18 @@ export function TraegerLetterheadPreview({
             className="font-medium text-gray-900"
             style={accent ? { color: accent } : undefined}
           >
-            Ansprechpartner:
+            Ansprechperson:
           </span>{" "}
-          {contactLine || (
+          {contactParts.length > 0 ? (
+            contactParts.map((part, index) => (
+              <Fragment key={part.key}>
+                {index > 0 ? " · " : null}
+                <span className={part.whole ? "whitespace-nowrap" : undefined}>
+                  {part.value}
+                </span>
+              </Fragment>
+            ))
+          ) : (
             <span className="text-gray-400">noch nicht eingetragen</span>
           )}
         </p>
