@@ -68,6 +68,7 @@ const schoolDateTestFiles = [
   "src/components/staff/admin-session-edit-modal.timezone.test.tsx",
   "src/components/staff/staff-session-table.timezone.test.tsx",
   "src/components/time-tracking/edit-history-accordion.timezone.test.tsx",
+  "src/components/staff/staff-audit-log.timezone.test.tsx",
 ];
 
 // Shared desktop viewport and resource isolation for every DOM project.
