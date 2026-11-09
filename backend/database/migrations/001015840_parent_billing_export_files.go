@@ -16,7 +16,7 @@ func init() {
 		DependsOn: []string{
 			accountCredentialGenerationBindingVersion, // the newest migration on development
 			parentBillingSEPADebitsVersion,            // the PAIN.008 file the protocol records too
-			parentBillingCareNoticesVersion,           // the Jahresbescheide and the demo erasure of 1.15.823 this one extends
+			parentBillingCareNoticesVersion,           // the Jahresbescheide whose installments a PAIN.008 file collects
 		},
 	})
 	Migrations.MustRegister(parentBillingExportFilesUp, parentBillingExportFilesDown)
@@ -213,15 +213,13 @@ func parentBillingExportFilesUp(ctx context.Context, db *bun.DB) error {
 	if _, err := db.ExecContext(ctx, parentBillingExportFilesUpSQL); err != nil {
 		return fmt.Errorf("add the export files of the parent billing: %w", err)
 	}
-	// The protocol names who downloaded a file; the demo erasure takes the
-	// files of a retired demo school along (#6015).
-	return installExportFileErasure(ctx, db)
+	// The demo erasure takes the files of a retired demo school along
+	// (#6015): platform.erase_closed_demo_visitors of 1.15.843 deletes them
+	// once this table exists, whichever of the two migrations runs first.
+	return nil
 }
 
 func parentBillingExportFilesDown(ctx context.Context, db *bun.DB) error {
-	if err := installCareNoticeErasure(ctx, db); err != nil {
-		return err
-	}
 	if _, err := db.ExecContext(ctx, parentBillingExportFilesDownSQL); err != nil {
 		return fmt.Errorf("drop the export files of the parent billing: %w", err)
 	}

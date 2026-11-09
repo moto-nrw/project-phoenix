@@ -34,6 +34,15 @@ const quickly = time.Second
 // the test when it does not return quickly.
 func retireNow(t *testing.T, queue *organizationtenancy.DemoSchoolQueue, slugs []string) (hidden, erased int) {
 	t.Helper()
+	hidden, erased, took := runDemo(t, queue, slugs)
+	assert.Less(t, took, quickly, "the run returns quickly")
+	return hidden, erased
+}
+
+// runDemo runs the demo run and fails the test when it waits for the holder:
+// the holder keeps its locks until the run has returned.
+func runDemo(t *testing.T, queue *organizationtenancy.DemoSchoolQueue, slugs []string) (hidden, erased int, took time.Duration) {
+	t.Helper()
 	type outcome struct {
 		hidden, erased int
 		err            error
@@ -47,12 +56,53 @@ func retireNow(t *testing.T, queue *organizationtenancy.DemoSchoolQueue, slugs [
 	select {
 	case result := <-done:
 		require.NoError(t, result.err)
-		assert.Less(t, time.Since(started), quickly, "the run returns quickly")
-		return result.hidden, result.erased
+		return result.hidden, result.erased, time.Since(started)
 	case <-time.After(5 * time.Second):
 		t.Fatal("the run waited for a lock another transaction holds")
-		return 0, 0
+		return 0, 0, 0
 	}
+}
+
+// waitsPerBudget is the most lock waits one budget of the run allows: a wait
+// lasts lock_timeout (100 ms) before the order is deferred, and neither the
+// retirement (200 ms) nor the erasure (250 ms) starts an order after its
+// budget, so a fourth wait would start at 300 ms at the earliest.
+const waitsPerBudget = 3
+
+// retireCounted runs the demo run like retireNow, for runs that meet many
+// locked orders. It bounds the run's lock waits by their number instead of
+// the wall-clock time of the run, which on a loaded machine also counts the
+// work of the run and every stall of the database (#6338): every order that
+// waits for a lock is deferred once and counted in its state row, so the run
+// deferred at most waitsPerBudget orders per budget, each once. It returns
+// the deferrals of every order still open.
+func retireCounted(t *testing.T, db *bun.DB, queue *organizationtenancy.DemoSchoolQueue, slugs []string) (erased int, deferrals map[string]int) {
+	t.Helper()
+	before := orderDeferrals(t, db)
+	_, erased, took := runDemo(t, queue, slugs)
+	deferrals = orderDeferrals(t, db)
+	deferred := 0
+	for name, count := range deferrals {
+		assert.LessOrEqual(t, count-before[name], 1, "the run defers order %s at most once", name)
+		deferred += count - before[name]
+	}
+	assert.LessOrEqual(t, deferred, 2*waitsPerBudget, "the run waits for at most %d locks per budget (took %s)", waitsPerBudget, took)
+	return erased, deferrals
+}
+
+// orderDeferrals is the deferral counter of every order still open.
+func orderDeferrals(t *testing.T, db *bun.DB) map[string]int {
+	t.Helper()
+	var rows []struct {
+		Name      string `bun:"name"`
+		Deferrals int    `bun:"erasure_deferrals"`
+	}
+	require.NoError(t, db.NewRaw(`SELECT name, erasure_deferrals FROM platform.demo_school_states`).Scan(t.Context(), &rows))
+	deferrals := make(map[string]int, len(rows))
+	for _, row := range rows {
+		deferrals[row.Name] = row.Deferrals
+	}
+	return deferrals
 }
 
 // lockWaits reports whether another session runs a statement containing
@@ -91,6 +141,7 @@ var snapshotRows = map[string]string{
 	"audit.guardian_changes":           `FROM audit.guardian_changes AS r WHERE r.tenant_id = ?1`,
 	"platform.email_outbox":            `FROM platform.email_outbox AS r WHERE r.tenant_id = ?1`,
 	"platform.email_delivery":          `FROM platform.email_delivery AS r WHERE r.tenant_id = ?1`,
+	"platform.push_outbox":             `FROM platform.push_outbox AS r WHERE r.tenant_id = ?1 OR r.organization_id = (SELECT organization_id FROM platform.schools WHERE id = ?1)`,
 	"platform.realtime_notifications":  `FROM platform.realtime_notifications AS r WHERE r.tenant_id = ?1`,
 	"iot.push_subscriptions":           `FROM iot.push_subscriptions AS r WHERE r.account_id IN (?0) OR r.tenant_id = ?1`,
 	"auth.account_avatar_file_cleanup": `FROM auth.account_avatar_file_cleanup AS r`,
@@ -542,7 +593,7 @@ func (o demoOrder) requireFullyErased(t *testing.T) {
 	}
 	snapshot := o.snapshot(t)
 	for _, table := range []string{"users.profiles", "auth.tokens", "auth.account_roles", "auth.account_tenants",
-		"iot.push_subscriptions", "platform.email_outbox", "platform.realtime_notifications", "enrollment.request_reads"} {
+		"iot.push_subscriptions", "platform.email_outbox", "platform.push_outbox", "platform.realtime_notifications", "enrollment.request_reads"} {
 		assert.Equal(t, "[]", snapshot[table], "%s keeps nothing of the visitor", table)
 	}
 }
@@ -639,7 +690,7 @@ func TestDemoRunKeepsItsBudgetWhenManyOrdersWait(t *testing.T) {
 		require.NoError(t, seedLock(slug)(ctx, holder))
 	}
 
-	_, erased := retireNow(t, queue, slugs)
+	erased, _ := retireCounted(t, db, queue, slugs)
 	assert.Zero(t, erased)
 	require.NoError(t, holder.Rollback())
 	for run := 0; run < 3 && len(demoOrderNames(t, db)) > 0; run++ {
@@ -670,7 +721,11 @@ func hiddenOrders(t *testing.T, db *bun.DB, queue *organizationtenancy.DemoSchoo
 
 // Orders that stay locked run after run do not starve the others behind
 // them: a deferral puts an order behind the orders not deferred as often,
-// so the run's budget reaches the unlocked orders (#5540).
+// so the run's budget reaches the unlocked orders (#5540). How many orders a
+// budget covers depends on the machine; the order does not (#6338): no
+// locked order is deferred a second time while an order behind it is open.
+// Each run starts an order, so the free orders are gone after at most one
+// run per order.
 func TestDemoRunReachesTheOrdersBehindLockedOnes(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
@@ -688,14 +743,27 @@ func TestDemoRunReachesTheOrdersBehindLockedOnes(t *testing.T) {
 		require.NoError(t, seedLock(slug)(ctx, holder))
 	}
 
-	for run := 0; run < 4; run++ {
-		retireNow(t, queue, nil)
+	for run := 1; run <= len(locked)+len(free) && freeOpen(t, db, free); run++ {
+		_, deferrals := retireCounted(t, db, queue, nil)
+		if !freeOpen(t, db, free) {
+			break
+		}
+		for _, slug := range locked {
+			assert.LessOrEqual(t, deferrals[slug], 1, "run %d defers %s again while an order behind it is open", run, slug)
+		}
 	}
 	remaining := demoOrderNames(t, db)
 	for _, slug := range free {
 		assert.NotContains(t, remaining, slug, "an order behind locked ones is erased while they stay locked")
 	}
-	assert.Len(t, remaining, len(locked))
+	assert.ElementsMatch(t, locked, remaining, "the locked orders stay open")
+}
+
+// freeOpen reports whether one of the orders is still open.
+func freeOpen(t *testing.T, db *bun.DB, slugs []string) bool {
+	t.Helper()
+	remaining := demoOrderNames(t, db)
+	return slices.ContainsFunc(slugs, func(slug string) bool { return slices.Contains(remaining, slug) })
 }
 
 // openOrders orders and seeds one demo school per name that no access
@@ -730,7 +798,7 @@ func TestDemoRunErasesWhileTheRetirementWaits(t *testing.T) {
 	}
 
 	for run := 0; run < 3; run++ {
-		retireNow(t, queue, nil)
+		retireCounted(t, db, queue, nil)
 	}
 	assert.NotContains(t, demoOrderNames(t, db), hidden[0], "the hidden order is erased while the open ones stay locked")
 }

@@ -1,13 +1,16 @@
 package application
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/ports"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -278,8 +281,26 @@ func newAdminFixture() *adminFixture {
 			}
 			return false
 		},
-	}, clock, func(message string, _ ...any) { fixture.warnings = append(fixture.warnings, message) })
+	}, clock, func(message string, _ ...any) { fixture.warnings = append(fixture.warnings, message) }, fakeBankCipher{})
 	return fixture
+}
+
+// fakeBankCipher binds a value to its context like the bank cipher: a value
+// opens only under the context it was sealed with.
+type fakeBankCipher struct{}
+
+func (fakeBankCipher) BankDataRing() {}
+
+func (fakeBankCipher) Seal(plaintext, aad []byte) ([]byte, error) {
+	return append(append(append([]byte{}, aad...), 0), plaintext...), nil
+}
+
+func (fakeBankCipher) Open(sealed, aad []byte) ([]byte, error) {
+	prefix := append(append([]byte{}, aad...), 0)
+	if !bytes.HasPrefix(sealed, prefix) {
+		return nil, errors.New("fake bank cipher: wrong context")
+	}
+	return sealed[len(prefix):], nil
 }
 
 func ptr[T any](value T) *T { return &value }
@@ -393,12 +414,17 @@ func TestFinancialUpdateAuditsMaskedValuesOnly(t *testing.T) {
 	t.Parallel()
 
 	f := newAdminFixture()
-	err := f.admin.UpdateStaffFinancial(t.Context(), 7, domain.FinancialSection{IBAN: ptr("DE89 3704 0044 0532 0130 00")}, 3, "")
+	err := f.admin.UpdateStaffFinancial(tenant.WithTenantID(t.Context(), 5), 7, domain.FinancialSection{IBAN: ptr("DE89 3704 0044 0532 0130 00")}, 3, "")
 	require.NoError(t, err)
 	require.Len(t, f.audit.masterData, 1)
 	assert.Equal(t, domain.AuditSectionBankSteuer, f.audit.masterData[0].Section)
 	assert.Equal(t, "•••• 3000", f.audit.masterData[0].NewValue)
-	assert.Equal(t, "DE89370400440532013000", *f.store.financial.IBAN, "the store keeps the normalized plaintext")
+	// #6332: the store receives the normalized value sealed to its field,
+	// school and staff member, and the mask.
+	opened, err := fakeBankCipher{}.Open(f.store.financial.IBANSealed, []byte("users.staff_financial_data.iban|5|7"))
+	require.NoError(t, err)
+	assert.Equal(t, "DE89370400440532013000", string(opened), "the store keeps the normalized value sealed")
+	assert.Equal(t, "•••• 3000", *f.store.financial.IBANMasked)
 	assert.Contains(t, f.log.events, "create financial data")
 }
 
@@ -622,4 +648,46 @@ func TestStammdatenReadsThroughTheSubjectPort(t *testing.T) {
 
 func (fakeTransaction) RunRead(ctx context.Context, run func(context.Context) error) error {
 	return run(ctx)
+}
+
+// #6332: the masked read serves the stored mask and the presence of sealed
+// values without opening any of them; the reveal opens them only under the
+// context of their own row.
+func TestFinancialMaskedReadOpensNothingAndRevealOpensOnlyItsOwnRow(t *testing.T) {
+	t.Parallel()
+
+	cipher := fakeBankCipher{}
+	seal := func(field string, staffID int64, value string) []byte {
+		sealed, err := cipher.Seal([]byte(value), []byte(fmt.Sprintf("users.staff_financial_data.%s|5|%d", field, staffID)))
+		require.NoError(t, err)
+		return sealed
+	}
+	f := newAdminFixture()
+	f.store.financial = &domain.StaffFinancialData{TenantID: 5, StaffID: 7, IBANMasked: ptr("•••• 3000"),
+		IBANSealed: []byte("not a sealed value"), TaxIDSealed: []byte("not a sealed value"), SocialSecurityNumberSealed: []byte("not a sealed value")}
+	masked, err := f.admin.StaffFinancialMasked(t.Context(), 7, 9, "admin")
+	require.NoError(t, err, "the masked read must not open a sealed value")
+	assert.Equal(t, "•••• 3000", *masked.IBANMasked)
+	assert.Equal(t, "••••••••", *masked.TaxIDMasked)
+	assert.Equal(t, "••••••••", *masked.SocialSecurityNumberMasked)
+
+	f.store.financial = &domain.StaffFinancialData{TenantID: 5, StaffID: 7, IBANSealed: seal("iban", 7, "DE89370400440532013000"),
+		TaxIDSealed: seal("tax_id", 7, "12345678901"), SocialSecurityNumberSealed: seal("social_security_number", 7, "65170839J003")}
+	plain, err := f.admin.RevealStaffFinancial(t.Context(), 7, 9, "admin")
+	require.NoError(t, err)
+	assert.Equal(t, "DE89370400440532013000", *plain.IBAN)
+	assert.Equal(t, "12345678901", *plain.TaxID)
+	assert.Equal(t, "65170839J003", *plain.SocialSecurityNumber)
+
+	for name, copied := range map[string]domain.StaffFinancialData{
+		"other staff member": {TenantID: 5, StaffID: 7, IBANSealed: seal("iban", 8, "DE89370400440532013000")},
+		"other school":       {TenantID: 6, StaffID: 7, IBANSealed: seal("iban", 7, "DE89370400440532013000")},
+		"other field":        {TenantID: 5, StaffID: 7, TaxIDSealed: seal("iban", 7, "DE89370400440532013000")},
+	} {
+		f.store.financial = &copied
+		plain, err = f.admin.RevealStaffFinancial(t.Context(), 7, 9, "admin")
+		require.Error(t, err, name)
+		assert.Nil(t, plain.IBAN, name)
+		assert.NotContains(t, err.Error(), "DE89370400440532013000", name)
+	}
 }

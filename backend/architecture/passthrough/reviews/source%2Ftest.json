@@ -1,6 +1,16 @@
 {
   "sites": [
     {
+      "decision": "0161",
+      "id": "test/BeginFault.Arm",
+      "reason": "ADR 0161 step 4 test support: the one-shot BEGIN fault pool proves that the admin-to-tenant handoff neither retries nor swallows a failed start; testhooks only, no ADR 0075 floor claimed."
+    },
+    {
+      "decision": "0161",
+      "id": "test/BeginFault.Begins",
+      "reason": "ADR 0161 step 4 test support: the one-shot BEGIN fault pool proves that the admin-to-tenant handoff neither retries nor swallows a failed start; testhooks only, no ADR 0075 floor claimed."
+    },
+    {
       "decision": "0090",
       "id": "test/GroupSupervisorCreator.CreateGroupSupervisor",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
@@ -19,6 +29,16 @@
       "decision": "0090",
       "id": "test/TransactionProbe.Committed",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0161",
+      "id": "test/beginFaultConnector.Connect",
+      "reason": "ADR 0161 step 4 test support: the one-shot BEGIN fault pool proves that the admin-to-tenant handoff neither retries nor swallows a failed start; testhooks only, no ADR 0075 floor claimed."
+    },
+    {
+      "decision": "0161",
+      "id": "test/beginFaultConnector.Driver",
+      "reason": "ADR 0161 step 4 test support: the one-shot BEGIN fault pool proves that the admin-to-tenant handoff neither retries nor swallows a failed start; testhooks only, no ADR 0075 floor claimed."
     },
     {
       "decision": "0090",

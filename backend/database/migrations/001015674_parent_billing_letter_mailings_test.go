@@ -77,8 +77,7 @@ func TestLetterMailingsStayWithTheirTraeger(t *testing.T) {
 		"fk_document_mailings_letter", "a send needs a stored letter")
 	assert.ErrorContains(t, asRequestRole("app.current_org_id", fmt.Sprint(own), insertSend, own, run, document, 104, " "),
 		"chk_document_mailings_recipient", "a send needs an address")
-	assert.ErrorContains(t, asRequestRole("app.current_org_id", fmt.Sprint(foreign), insertSend, own, run, document, 105, "eva@example.org"),
-		"row-level security", "another Träger adds no send to this Träger")
+	assert.Equal(t, "42501", testpkg.PostgresSQLState(asRequestRole("app.current_org_id", fmt.Sprint(foreign), insertSend, own, run, document, 105, "eva@example.org")), "another Träger adds no send to this Träger")
 
 	count := func(setting, value string) int {
 		var visible int
@@ -101,7 +100,7 @@ func TestLetterMailingsStayWithTheirTraeger(t *testing.T) {
 		`UPDATE parent_billing.document_mailings SET recipient_email = 'anders@example.org' WHERE organization_id = ?`,
 		`DELETE FROM parent_billing.document_mailings WHERE organization_id = ?`,
 	} {
-		assert.ErrorContains(t, asRequestRole("app.current_org_id", fmt.Sprint(own), statement, own), "permission denied",
+		assert.Equal(t, "42501", testpkg.PostgresSQLState(asRequestRole("app.current_org_id", fmt.Sprint(own), statement, own)),
 			"the request role neither changes nor deletes a send: %s", statement)
 	}
 

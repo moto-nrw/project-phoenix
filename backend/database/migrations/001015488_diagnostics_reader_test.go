@@ -55,6 +55,14 @@ func TestDiagnosticsReaderDeniesSensitiveColumnsAndWrites(t *testing.T) {
 		`SELECT social_security_number FROM users.staff_financial_data LIMIT 0`,
 		`SELECT iban FROM users.guardian_financial_data LIMIT 0`,
 		`SELECT account_holder FROM users.guardian_financial_data LIMIT 0`,
+		// The sealed and masked bank columns of #6332.
+		`SELECT iban_sealed FROM users.guardian_financial_data LIMIT 0`,
+		`SELECT iban_masked FROM users.guardian_financial_data LIMIT 0`,
+		`SELECT account_holder_sealed FROM users.guardian_financial_data LIMIT 0`,
+		`SELECT iban_sealed FROM users.staff_financial_data LIMIT 0`,
+		`SELECT iban_masked FROM users.staff_financial_data LIMIT 0`,
+		`SELECT tax_id_sealed FROM users.staff_financial_data LIMIT 0`,
+		`SELECT social_security_number_sealed FROM users.staff_financial_data LIMIT 0`,
 		`SELECT health_data FROM users.student_care_profiles LIMIT 0`,
 		`SELECT old_value FROM audit.staff_master_data_changes LIMIT 0`,
 		`SELECT new_value FROM audit.staff_master_data_changes LIMIT 0`,
@@ -92,8 +100,7 @@ func TestDiagnosticsReaderDeniesSensitiveColumnsAndWrites(t *testing.T) {
 			_, err = tx.ExecContext(t.Context(), `SET LOCAL ROLE phoenix_diagnostics`)
 			require.NoError(t, err)
 			_, err = tx.ExecContext(t.Context(), query)
-			require.ErrorContains(t, err, "permission denied")
-			require.ErrorContains(t, err, "SQLSTATE=42501")
+			require.Equal(t, "42501", testpkg.PostgresSQLState(err))
 		})
 	}
 }

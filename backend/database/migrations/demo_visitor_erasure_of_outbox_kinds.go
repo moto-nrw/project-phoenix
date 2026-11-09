@@ -7,36 +7,24 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// exportFileErasureAnchor is where 1.15.840 adds to the erasure of 1.15.823:
-// right before the monthly invoices of the demo school go.
-const exportFileErasureAnchor = `					DELETE FROM parent_billing.care_invoices
-					WHERE school_id = ANY (hidden_schools);
-`
-
-// exportFileErasureStatement is what 1.15.840 adds (#4693). A file of the
-// export protocol names who downloaded it and the invoices it held; a file
-// that held a monthly invoice or a Jahresbescheid of the school goes with
-// it, before the invoices and their links. The demo Träger keeps no books
-// (#6015).
-const exportFileErasureStatement = `					-- A file of the export protocol that held an invoice or a
-					-- Jahresbescheid of the school goes with it (#4693).
-					DELETE FROM parent_billing.export_files AS file
-					USING parent_billing.export_file_invoices AS held
-					WHERE held.organization_id = file.organization_id
-						AND held.export_file_id = file.id
-						AND (held.care_invoice_id IN (
-								SELECT invoice.id FROM parent_billing.care_invoices AS invoice
-								WHERE invoice.school_id = ANY (hidden_schools))
-							OR held.care_notice_id IN (
-								SELECT notice.id FROM parent_billing.care_notices AS notice
-								WHERE notice.school_id = ANY (hidden_schools)));
-`
-
-// demoVisitorErasureExportFilesSQL is platform.erase_closed_demo_visitors of
-// 1.15.823 with exportFileErasureStatement before exportFileErasureAnchor;
-// the rest is unchanged, TestExportFileErasureExtendsTheErasureOf823 keeps it
-// that way.
-const demoVisitorErasureExportFilesSQL = `
+// demoVisitorErasureOutboxKindsSQL is platform.erase_closed_demo_visitors
+// of 1.15.823 with every kind of Delivery's outbox covered (#6342):
+//   - every push of a retired demo school goes, like its mail: a push copies
+//     the endpoint and keys of a device of the school;
+//   - the release of a Träger document for the parents of the school and
+//     the entries it fans out to (#5941) go with the school, and the entry
+//     of an erased visitor account goes wherever the release was for;
+//   - the receipt mail of a holiday registration (#4662) goes with the
+//     registration it names;
+//   - each statement on a row of the Träger names the kinds it erases, so the
+//     guard of #6342 can tell a kind that no statement erases;
+//   - the export files of 1.15.840 (#6361, not yet merged) go before the
+//     invoices they held, once their table exists: 840 replaces the function
+//     with 823 plus that statement, so the later of 840 and 843 has to keep
+//     the statements of the other one.
+//
+// The rest of the function is unchanged.
+const demoVisitorErasureOutboxKindsSQL = `
 		CREATE OR REPLACE FUNCTION platform.erase_closed_demo_visitors()
 		RETURNS INTEGER
 		LANGUAGE plpgsql
@@ -198,6 +186,22 @@ const demoVisitorErasureExportFilesSQL = `
 					WHERE tenant_id = ANY (hidden_schools);
 					DELETE FROM platform.email_outbox
 					WHERE tenant_id = ANY (hidden_schools);
+					-- A push of the school copies the endpoint and keys of the
+					-- device it goes to and can name the visitor in its text; like
+					-- the mail, every push of the school goes, whatever its kind.
+					DELETE FROM platform.push_outbox
+					WHERE tenant_id = ANY (hidden_schools);
+					-- A release of a Träger document for the parents of the
+					-- school (#5941) is a push of the Träger: it fans out to one
+					-- entry per parent account of the school when it runs, and each
+					-- entry names its account. Both go with the school.
+					DELETE FROM platform.push_outbox AS push
+					USING platform.traeger_document_releases AS release
+					WHERE release.school_id = ANY (hidden_schools)
+						AND push.organization_id = release.organization_id
+						AND push.kind IN ('traeger_document_release', 'traeger_document_release_account')
+						AND push.related_entity_type = 'traeger_document_release'
+						AND push.related_entity_id = release.id;
 					-- The short-lived copies of in-app notifications can name the
 					-- visitor in their title or text (#5504); the school is the
 					-- visitor's alone, so all of them go (#5540).
@@ -264,6 +268,7 @@ const demoVisitorErasureExportFilesSQL = `
 						AND mailing.organization_id = letter.organization_id
 						AND mailing.letter_id = letter.id
 						AND outbox.organization_id = mailing.organization_id
+						AND outbox.kind = 'parent_billing_letter'
 						AND outbox.id = mailing.delivery_id;
 					DELETE FROM platform.push_outbox AS push
 					USING parent_billing.care_letters AS letter, parent_billing.care_invoices AS invoice
@@ -271,20 +276,26 @@ const demoVisitorErasureExportFilesSQL = `
 						AND letter.organization_id = invoice.organization_id
 						AND letter.invoice_id = invoice.id
 						AND push.organization_id = letter.organization_id
+						AND push.kind = 'parent_billing_document'
 						AND push.related_entity_type = 'parent_billing_document'
 						AND push.related_entity_id = letter.id;
 					-- A file of the export protocol that held an invoice or a
-					-- Jahresbescheid of the school goes with it (#4693).
-					DELETE FROM parent_billing.export_files AS file
-					USING parent_billing.export_file_invoices AS held
-					WHERE held.organization_id = file.organization_id
-						AND held.export_file_id = file.id
-						AND (held.care_invoice_id IN (
-								SELECT invoice.id FROM parent_billing.care_invoices AS invoice
-								WHERE invoice.school_id = ANY (hidden_schools))
-							OR held.care_notice_id IN (
-								SELECT notice.id FROM parent_billing.care_notices AS notice
-								WHERE notice.school_id = ANY (hidden_schools)));
+					-- Jahresbescheid of the school goes with it (#4693). The
+					-- protocol comes with 1.15.840 (#6361); whichever of the two
+					-- migrations installs this function last, the statement is
+					-- here, and it runs once the table exists.
+					IF to_regclass('parent_billing.export_files') IS NOT NULL THEN
+						DELETE FROM parent_billing.export_files AS file
+						USING parent_billing.export_file_invoices AS held
+						WHERE held.organization_id = file.organization_id
+							AND held.export_file_id = file.id
+							AND (held.care_invoice_id IN (
+									SELECT invoice.id FROM parent_billing.care_invoices AS invoice
+									WHERE invoice.school_id = ANY (hidden_schools))
+								OR held.care_notice_id IN (
+									SELECT notice.id FROM parent_billing.care_notices AS notice
+									WHERE notice.school_id = ANY (hidden_schools)));
+					END IF;
 					DELETE FROM parent_billing.care_invoices
 					WHERE school_id = ANY (hidden_schools);
 					-- A child a release held back keeps its name in the run's
@@ -317,6 +328,7 @@ const demoVisitorErasureExportFilesSQL = `
 					USING care_contract.contracts AS contract
 					WHERE contract.school_id = ANY (hidden_schools)
 						AND outbox.organization_id = contract.organization_id
+						AND outbox.kind IN ('care_contract', 'care_contract_notice')
 						AND outbox.related_entity_type = 'care_contract'
 						AND outbox.related_entity_id = contract.id;
 					-- The push of a sent contract keeps the recipient's address
@@ -325,6 +337,7 @@ const demoVisitorErasureExportFilesSQL = `
 					USING care_contract.contracts AS contract
 					WHERE contract.school_id = ANY (hidden_schools)
 						AND push.organization_id = contract.organization_id
+						AND push.kind = 'care_contract_document'
 						AND push.related_entity_type = 'care_contract_document'
 						AND push.related_entity_id = contract.id;
 					-- A change of an invoice in the review (#6197) names the
@@ -422,6 +435,7 @@ const demoVisitorErasureExportFilesSQL = `
 						AND mailing.organization_id = document.organization_id
 						AND mailing.document_id = document.id
 						AND outbox.organization_id = mailing.organization_id
+						AND outbox.kind = 'parent_billing_letter'
 						AND outbox.id = mailing.delivery_id;
 					-- The push that announced the letter in the parents inbox names
 					-- the invoice by ID and the recipient.
@@ -431,6 +445,7 @@ const demoVisitorErasureExportFilesSQL = `
 						AND document.organization_id = child.organization_id
 						AND document.holiday_registration_id = child.holiday_registration_id
 						AND push.organization_id = document.organization_id
+						AND push.kind = 'parent_billing_document'
 						AND push.related_entity_type = 'parent_billing_document'
 						AND push.related_entity_id = document.id;
 					DELETE FROM parent_billing.documents AS document
@@ -438,6 +453,16 @@ const demoVisitorErasureExportFilesSQL = `
 					WHERE child.home_school_id = ANY (hidden_schools)
 						AND document.organization_id = child.organization_id
 						AND document.holiday_registration_id = child.holiday_registration_id;
+					-- The receipt of the registration went to the guardian's
+					-- address with the children and their weeks (#4662); it is a
+					-- mail of the Träger, named by the registration alone.
+					DELETE FROM platform.email_outbox AS outbox
+					USING enrollment.holiday_registration_children AS child
+					WHERE child.home_school_id = ANY (hidden_schools)
+						AND outbox.organization_id = child.organization_id
+						AND outbox.kind = 'holiday_registration_received'
+						AND outbox.related_entity_type = 'holiday_registration'
+						AND outbox.related_entity_id = child.holiday_registration_id;
 					DELETE FROM enrollment.holiday_registrations AS registration
 					WHERE EXISTS (
 						SELECT 1 FROM enrollment.holiday_registration_children AS child
@@ -548,6 +573,12 @@ const demoVisitorErasureExportFilesSQL = `
 						DELETE FROM users.parent_request_rss_feeds WHERE account_id = ANY (erased_account_ids);
 						DELETE FROM users.parent_message_count_preferences WHERE account_id = ANY (erased_account_ids);
 						DELETE FROM iot.push_subscriptions WHERE account_id = ANY (erased_account_ids);
+						-- A release for every school of the Träger fans out to the
+						-- visitor's parent account as well; that entry names it.
+						DELETE FROM platform.push_outbox
+						WHERE organization_id IS NOT NULL
+							AND kind = 'traeger_document_release_account'
+							AND payload->>'account_id' = ANY (erased_account_ids::TEXT[]);
 						DELETE FROM iot.pwa_standalone_usage WHERE account_id = ANY (erased_account_ids);
 						DELETE FROM config.home_layouts WHERE account_id = ANY (erased_account_ids);
 						DELETE FROM config.school_setup_dismissals WHERE account_id = ANY (erased_account_ids);
@@ -606,10 +637,10 @@ const demoVisitorErasureExportFilesSQL = `
 		$$;
 `
 
-// installExportFileErasure installs the erasure of 1.15.840.
-func installExportFileErasure(ctx context.Context, db *bun.DB) error {
-	if _, err := db.ExecContext(ctx, demoVisitorErasureExportFilesSQL); err != nil {
-		return fmt.Errorf("erase the export files of retired demo schools: %w", err)
+// installOutboxKindErasure installs the erasure of demoVisitorErasureOutboxKindsVersion.
+func installOutboxKindErasure(ctx context.Context, db *bun.DB) error {
+	if _, err := db.ExecContext(ctx, demoVisitorErasureOutboxKindsSQL); err != nil {
+		return fmt.Errorf("erase every outbox kind of retired demo schools: %w", err)
 	}
 	return nil
 }
