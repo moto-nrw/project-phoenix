@@ -243,7 +243,7 @@ func (a *StaffAdmin) RevealStaffFinancial(ctx context.Context, staffID, actorAcc
 	if data == nil {
 		return domain.StaffFinancialData{StaffID: staffID}, nil
 	}
-	// Opening follows the access log row, so a value that fails to open
+	// Opening follows the committed access log row, so a value that fails to open
 	// still leaves the attempt in the trail.
 	if err := openStaffFinancial(a.bank, data); err != nil {
 		return domain.StaffFinancialData{}, err
@@ -350,6 +350,22 @@ func (a *StaffAdmin) upsertMasterData(ctx context.Context, staffID int64, existi
 // when none exists) and writes the data-access log entry. Callers must not
 // serve any value when the returned error is non-nil.
 func (a *StaffAdmin) loadFinancialAudited(ctx context.Context, staffID, actorAccountID int64, actorRole, resource string) (*domain.StaffFinancialData, error) {
+	// Own the audited read through the same RLS query boundary as the record
+	// reads. A later decryption failure must not roll back its access trail.
+	auditCtx := tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTransaction(ctx))
+	var data *domain.StaffFinancialData
+	err := a.records.run(auditCtx, "load_financial_audited", func(txCtx context.Context, _ *domain.OperationStats) error {
+		var err error
+		data, err = a.loadFinancialAuditedInTx(txCtx, staffID, actorAccountID, actorRole, resource)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+func (a *StaffAdmin) loadFinancialAuditedInTx(ctx context.Context, staffID, actorAccountID int64, actorRole, resource string) (*domain.StaffFinancialData, error) {
 	if actorAccountID <= 0 {
 		return nil, errors.New("actor account id is required for financial reads")
 	}
