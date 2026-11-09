@@ -163,8 +163,8 @@ It alerts once per school and nightly cleanup job whose latest
 repeatedly` and `nightly cleanup recovered` in the last 30 hours is 3 or more
 (#6327). The Worker backs off a failing job from 1 to at most 24 hours and a
 run takes at most 2 hours, so a lasting failure always has a line in that
-window; the first success writes 0 and ends the alert. Deploy the backend with migration 1.15.832 first, then this
-file alone with `scripts/deploy-grafana-provisioning.sh`. Backoff, query,
+window; the first success writes 0 and ends the alert. Deploy the backend
+with migration 1.15.834 first, then this file alone with `scripts/deploy-grafana-provisioning.sh`. Backoff, query,
 response and the staging delivery check:
 [`runbooks/nightly-cleanup.md`](runbooks/nightly-cleanup.md).
 

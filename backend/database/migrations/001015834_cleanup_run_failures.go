@@ -7,15 +7,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const cleanupRunFailuresVersion = "1.15.832"
+const cleanupRunFailuresVersion = "1.15.834"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     cleanupRunFailuresVersion,
 		Description: "Nächtliche Löschung: Fehlschläge in Folge je Schule und Job speichern (#6327)",
 		DependsOn: []string{
-			parentBillingSEPAMandateImportsVersion, // the last migration before this one
-			cleanupRunsVersion,                     // the table this one extends
+			accountCredentialGenerationBindingVersion, // the last migration before this one
+			cleanupRunsVersion,                        // the table this one extends
 		},
 	})
 	Migrations.MustRegister(cleanupRunFailuresUp, cleanupRunFailuresDown)

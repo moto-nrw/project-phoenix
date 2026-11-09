@@ -91,7 +91,7 @@ Alarm endet dann nach 30 Stunden ohne Zeile (`noDataState: OK`). Die Serie in
 
 ## Nach dem Deployment prüfen
 
-1. Zuerst das Backend mit Migration 1.15.832 deployen, dann die Regel mit
+1. Zuerst das Backend mit Migration 1.15.834 deployen, dann die Regel mit
    `scripts/deploy-grafana-provisioning.sh <ssh-host> alerting/nightly-cleanup.yml`.
 2. Im Grafana-Log keinen Provisioning-Fehler sehen; die Regel steht im Ordner
    `Phoenix Alerts`.
