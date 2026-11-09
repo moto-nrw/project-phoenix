@@ -74,7 +74,11 @@ export function ListboxTriggerContent({
         className={cn(
           "min-w-0 flex-1",
           wrap ? "wrap-anywhere whitespace-normal" : "truncate",
-          placeholderShown ? "text-gray-500" : "text-gray-900",
+          // On the red tint of an invalid trigger gray-500 falls just below
+          // 4.5:1; the placeholder darkens there only.
+          placeholderShown
+            ? "text-gray-500 [[aria-invalid=true]_&]:text-gray-600"
+            : "text-gray-900",
         )}
       >
         {label}

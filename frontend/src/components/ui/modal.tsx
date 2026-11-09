@@ -51,6 +51,11 @@ interface ModalProps {
   /** Resets the dialog animation without remounting its children. */
   readonly animationKey?: string;
   readonly title: string;
+  /**
+   * Name of the dialog when it shows no `title` and draws its own heading
+   * (the password-reset dialog of the login pages). A dialog needs a name.
+   */
+  readonly ariaLabel?: string;
   /** Leading icon in the header, left of the title (e.g. a `ConceptIconTile`). */
   readonly icon?: React.ReactNode;
   /** One line under the title; becomes the dialog's accessible description. */
@@ -107,6 +112,7 @@ export function Modal({
   onDismissStart,
   animationKey,
   title,
+  ariaLabel,
   icon,
   description,
   children,
@@ -137,6 +143,22 @@ export function Modal({
 
   // Use scroll lock hook
   useScrollLock(visible);
+
+  // A body that scrolls must be reachable by keyboard, also when it holds
+  // nothing focusable (a read-only list): it then joins the tab order.
+  const bodyRef = React.useRef<HTMLDivElement>(null);
+  const [bodyScrolls, setBodyScrolls] = React.useState(false);
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!visible || !body || typeof ResizeObserver === "undefined") return;
+    const measure = () =>
+      setBodyScrolls(body.scrollHeight > body.clientHeight + 1);
+    const observer = new ResizeObserver(measure);
+    observer.observe(body);
+    if (body.firstElementChild) observer.observe(body.firstElementChild);
+    measure();
+    return () => observer.disconnect();
+  }, [visible]);
 
   // Store onClose in a ref so handleClose never changes identity
   const onCloseRef = useLatest(onClose);
@@ -329,6 +351,7 @@ export function Modal({
           } ${getModalAnimationClass(isAnimating, isExiting)}`}
           {...dialogAriaProps}
           aria-labelledby={title ? titleId : undefined}
+          aria-label={title ? undefined : ariaLabel}
           aria-describedby={title && description ? descriptionId : undefined}
           style={{ ...OVERLAY_PANEL_STYLE, pointerEvents: "auto" }}
         >
@@ -379,9 +402,15 @@ export function Modal({
           )}
 
           {/* Content area with hidden scrollbar and reveal animation */}
+          {/* oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrolling body without focusable content must be reachable by keyboard (axe scrollable-region-focusable); it is a labelled region only while it scrolls */}
           <div
-            className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto overscroll-contain"
+            ref={bodyRef}
+            className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto overscroll-contain focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-gray-400"
             data-modal-content="true"
+            tabIndex={bodyScrolls ? 0 : undefined}
+            role={bodyScrolls ? "region" : undefined}
+            aria-labelledby={bodyScrolls && title ? titleId : undefined}
+            aria-label={bodyScrolls && !title ? ariaLabel : undefined}
           >
             <div
               className={`p-4 leading-relaxed text-gray-700 md:p-6 ${

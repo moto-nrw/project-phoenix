@@ -115,26 +115,31 @@ export const ProfileTrigger = forwardRef<
   }: ProfileTriggerProps,
   ref,
 ) {
+  // The name comes from screen-reader text, not aria-label: the decorative
+  // avatar initial is visible text too, so no aria-label could contain all
+  // of it (WCAG 2.5.3). The visible lines repeat the name for sight only and
+  // the name stays the same on every width, also where only the avatar shows.
   return (
     <button
       ref={ref}
       type="button"
       onClick={onClick}
-      aria-label={ariaLabel}
       aria-haspopup="dialog"
       aria-expanded={isOpen}
       aria-controls={menuId}
       className="flex touch-manipulation items-center space-x-2 rounded-lg px-1.5 py-1 transition-colors duration-200 hover:bg-gray-100 active:bg-gray-200"
     >
+      <span className="sr-only">{ariaLabel}</span>
       <UserAvatar avatarUrl={displayAvatar} userName={displayName} size="sm" />
 
       <div
+        aria-hidden="true"
         className={`hidden text-left ${compactOnTablet ? "lg:block" : "md:block"}`}
       >
         <div className="text-sm leading-tight font-medium text-gray-900">
           {displayName}
         </div>
-        <div className="text-xs leading-tight text-gray-500">{userRole}</div>
+        <div className="text-xs leading-tight text-gray-600">{userRole}</div>
       </div>
 
       <ChevronDownIcon isOpen={isOpen} />

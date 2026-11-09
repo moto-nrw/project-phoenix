@@ -537,9 +537,11 @@ export function OverflowMenu({
                           : "menuitemcheckbox"
                       }
                       aria-checked={entry.checked}
+                      // Name from content (the title), the second line as
+                      // description: it is aria-hidden so it stays out of
+                      // the name, and aria-describedby still reads it.
                       {...(entry.kind === "radio" && entry.description
                         ? {
-                            "aria-labelledby": `${menuId}-${index}-label`,
                             "aria-describedby": `${menuId}-${index}-description`,
                           }
                         : {})}
@@ -565,6 +567,7 @@ export function OverflowMenu({
                           </span>
                           <span
                             id={`${menuId}-${index}-description`}
+                            aria-hidden="true"
                             className="text-xs font-normal text-gray-500"
                           >
                             {entry.description}
@@ -598,11 +601,11 @@ export function OverflowMenu({
                   ? "cursor-not-allowed opacity-50"
                   : "hover:bg-gray-50 active:bg-gray-100";
                 const itemClassName = `flex w-full ${item.description ? "items-start" : "items-center"} gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${colorClass} ${interactive}`;
+                // Name from content (the title), the second line as
+                // description: aria-hidden keeps it out of the name and
+                // aria-describedby still reads it (WCAG 2.5.3, label in name).
                 const describedProps = item.description
-                  ? {
-                      "aria-labelledby": `${menuId}-${index}-label`,
-                      "aria-describedby": `${menuId}-${index}-description`,
-                    }
+                  ? { "aria-describedby": `${menuId}-${index}-description` }
                   : {};
 
                 const inner = (
@@ -621,6 +624,7 @@ export function OverflowMenu({
                         </span>
                         <span
                           id={`${menuId}-${index}-description`}
+                          aria-hidden="true"
                           className="text-xs font-normal text-gray-500"
                         >
                           {item.description}

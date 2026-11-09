@@ -11,7 +11,6 @@ interface WizardStepperProps {
 const ACTIVE = LOCATION_COLORS.GROUP_ROOM;
 const INACTIVE = "#E5E7EB";
 const ACTIVE_TEXT = "#1F2937";
-const INACTIVE_TEXT = "#9CA3AF";
 
 export function WizardStepper({
   steps,
@@ -49,7 +48,9 @@ export function WizardStepper({
         <span className="font-medium" style={{ color: ACTIVE_TEXT }}>
           Schritt {clampedCurrent + 1} von {total}
         </span>
-        <span style={{ color: INACTIVE_TEXT }}>{steps[clampedCurrent]}</span>
+        {/* The name of the current step is read, not decoration: it keeps
+            the contrast of body text (WCAG 1.4.3). */}
+        <span className="text-gray-600">{steps[clampedCurrent]}</span>
       </div>
     </div>
   );

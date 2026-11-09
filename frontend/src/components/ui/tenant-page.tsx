@@ -995,7 +995,11 @@ function TenantPageTabs({
   const moreTrigger = (measuring = false) => (
     <OverflowMenu
       key="__mehr__"
-      ariaLabel={MORE_LABEL}
+      // Steht der aktive Reiter unter „Mehr", zeigt der Auslöser dessen
+      // Namen; der Name für die Vorlesehilfe enthält ihn dann auch.
+      ariaLabel={
+        hiddenActive ? `${MORE_LABEL}: ${hiddenActive.label}` : MORE_LABEL
+      }
       triggerRole="tab"
       triggerAriaSelected={Boolean(hiddenActive)}
       triggerTabIndex={measuring ? -1 : rovingValue === "__mehr__" ? 0 : -1}

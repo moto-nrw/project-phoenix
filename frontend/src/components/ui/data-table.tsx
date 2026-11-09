@@ -613,11 +613,13 @@ function StackedRows<T>({
           {rows.map((row) => {
             const active =
               activeRowKey != null && getRowKey(row) === activeRowKey;
+            // The <li> stays a list item and keeps the handlers; a row that
+            // is a button itself puts its role and tab stop on the wrapper
+            // inside, or the list would lose its items (axe "list").
             return (
               <li
                 key={getRowKey(row)}
                 aria-current={active ? "true" : undefined}
-                className={`${STACKED_ROW_PADDING[layout]} ${clickable ? "cursor-pointer" : ""} ${active ? ACTIVE_ROW_CLASS : ""} ${rowClassName ? rowClassName(row) : ""}`}
                 onClick={
                   onRowClick
                     ? (event) => {
@@ -634,7 +636,12 @@ function StackedRows<T>({
                 onKeyDown={
                   keyboardClickable
                     ? (event) => {
-                        if (event.target !== event.currentTarget) return;
+                        // Only the row's own focus stop, not a control in it.
+                        if (
+                          event.target !== event.currentTarget.firstElementChild
+                        ) {
+                          return;
+                        }
                         if (event.key === "Enter" || event.key === " ") {
                           event.preventDefault();
                           onRowClick?.(row);
@@ -642,73 +649,77 @@ function StackedRows<T>({
                       }
                     : undefined
                 }
-                tabIndex={keyboardClickable ? 0 : undefined}
-                role={keyboardClickable ? "button" : undefined}
               >
-                {layout === "form" ? (
-                  <FormStackedRow
-                    row={row}
-                    headline={
-                      stackedTitle ? stackedTitle(row) : title?.render(row)
-                    }
-                    meta={meta}
-                    fields={fields}
-                  />
-                ) : layout === "row" ? (
-                  <RowStackedRow
-                    row={row}
-                    rowKey={String(getRowKey(row))}
-                    title={title}
-                    meta={meta}
-                    detail={detail}
-                    selection={selection}
-                  />
-                ) : (
-                  <>
-                    <div className="flex items-baseline justify-between gap-3">
-                      {selection ? (
-                        <StackedRowCheckbox
-                          row={row}
-                          rowKey={String(getRowKey(row))}
-                          selection={selection}
-                        />
-                      ) : null}
-                      <span className="min-w-0 flex-1">
-                        {title?.render(row)}
-                      </span>
-                      {meta ? (
-                        <span className="shrink-0 text-xs text-gray-500">
-                          {meta.render(row)}
+                <div
+                  className={`${STACKED_ROW_PADDING[layout]} ${clickable ? "cursor-pointer" : ""} ${active ? ACTIVE_ROW_CLASS : ""} ${rowClassName ? rowClassName(row) : ""}`}
+                  tabIndex={keyboardClickable ? 0 : undefined}
+                  role={keyboardClickable ? "button" : undefined}
+                >
+                  {layout === "form" ? (
+                    <FormStackedRow
+                      row={row}
+                      headline={
+                        stackedTitle ? stackedTitle(row) : title?.render(row)
+                      }
+                      meta={meta}
+                      fields={fields}
+                    />
+                  ) : layout === "row" ? (
+                    <RowStackedRow
+                      row={row}
+                      rowKey={String(getRowKey(row))}
+                      title={title}
+                      meta={meta}
+                      detail={detail}
+                      selection={selection}
+                    />
+                  ) : (
+                    <>
+                      <div className="flex items-baseline justify-between gap-3">
+                        {selection ? (
+                          <StackedRowCheckbox
+                            row={row}
+                            rowKey={String(getRowKey(row))}
+                            selection={selection}
+                          />
+                        ) : null}
+                        <span className="min-w-0 flex-1">
+                          {title?.render(row)}
                         </span>
-                      ) : null}
-                    </div>
-                    {fields.length > 0 && (
-                      <dl className="mt-2 space-y-1 text-sm">
-                        {fields.map((col) => {
-                          // A cell without a value for this row (null) drops
-                          // its line instead of showing a bare label.
-                          const value = col.render(row);
-                          if (value === null) return null;
-                          // Without its label a field takes the full width
-                          // (an invoice's positions with their amounts).
-                          if (col.stackedLabel === false) {
+                        {meta ? (
+                          <span className="shrink-0 text-xs text-gray-500">
+                            {meta.render(row)}
+                          </span>
+                        ) : null}
+                      </div>
+                      {fields.length > 0 && (
+                        <dl className="mt-2 space-y-1 text-sm">
+                          {fields.map((col) => {
+                            // A cell without a value for this row (null) drops
+                            // its line instead of showing a bare label.
+                            const value = col.render(row);
+                            if (value === null) return null;
+                            // Without its label a field takes the full width
+                            // (an invoice's positions with their amounts).
+                            if (col.stackedLabel === false) {
+                              return (
+                                <div key={col.key}>
+                                  <dt className="sr-only">{col.header}</dt>
+                                  <dd className="min-w-0">{value}</dd>
+                                </div>
+                              );
+                            }
                             return (
-                              <div key={col.key}>
-                                <dt className="sr-only">{col.header}</dt>
-                                <dd className="min-w-0">{value}</dd>
-                              </div>
+                              <StackedField key={col.key} label={col.header}>
+                                {value}
+                              </StackedField>
                             );
-                          }
-                          return (
-                            <StackedField key={col.key} label={col.header}>
-                              {value}
-                            </StackedField>
-                          );
-                        })}
-                      </dl>
-                    )}
-                  </>
-                )}
+                          })}
+                        </dl>
+                      )}
+                    </>
+                  )}
+                </div>
               </li>
             );
           })}
@@ -745,7 +756,7 @@ export function DataTableSkeleton({
     <div className="w-full" aria-hidden="true">
       {caption && <Skeleton className="mb-3 h-4 w-56" />}
       <div className={surfaceClass}>
-        <div className="overflow-x-auto">
+        <div className="relative overflow-x-auto">
           <table className={tableClass}>
             <thead>
               <tr className={headRowClass}>
@@ -962,7 +973,10 @@ export function DataTable<T>({
           data-testid={stackedOnMobile ? "data-table-table" : undefined}
         >
           {heading ? <SurfaceHeading heading={heading} /> : null}
-          <div className="overflow-x-auto">
+          {/* relative: absolutely positioned descendants (the sr-only text of
+              the sort buttons) must scroll with the table; without a
+              containing block here they escape it and widen the page. */}
+          <div className="relative overflow-x-auto">
             <table className={tableClass}>
               <thead>
                 <tr className={headRowClass}>

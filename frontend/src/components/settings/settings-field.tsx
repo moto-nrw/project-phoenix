@@ -1134,7 +1134,7 @@ export function SettingsField({
         <div className="flex flex-wrap items-center gap-2">
           <h4 className="text-sm font-medium text-gray-900">{setting.label}</h4>
           {showsStandardBadge(setting, audience) && (
-            <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500">
+            <span className="rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600">
               Standard
             </span>
           )}
