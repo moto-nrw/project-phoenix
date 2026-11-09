@@ -131,7 +131,7 @@ func (rt *Runtime) reloginAdmin() error {
 		return fmt.Errorf("admin login after clock move: %w", err)
 	}
 	rt.Client = client
-	rt.adminLoginAt = rt.Options.now()
+	rt.adminLoginAt = rt.Options.now().Round(0)
 	return nil
 }
 

@@ -77,7 +77,8 @@ type Runtime struct {
 	// staffLogins are the signed-in clients of the caregivers who run the
 	// started blocks (fullday_blocks.go).
 	staffLogins map[int64]staffLogin
-	// adminLoginAt is when the admin last signed in, on the shared clock.
+	// adminLoginAt is the wall-only login time, so token age follows system
+	// clock jumps instead of monotonic elapsed time.
 	adminLoginAt time.Time
 	Counts       RuntimeCounts
 }

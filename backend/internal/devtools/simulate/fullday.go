@@ -107,7 +107,7 @@ func (loginAdminAction) Run(_ context.Context, rt *Runtime) error {
 	if err := rt.Client.Login(admin.Email, admin.Password, rt.State.Bootstrap.TenantSlug); err != nil {
 		return fmt.Errorf("admin login: %w", err)
 	}
-	rt.adminLoginAt = rt.Options.now()
+	rt.adminLoginAt = rt.Options.now().Round(0)
 	fmt.Printf("  Logged in as %s\n", admin.Email)
 	return nil
 }

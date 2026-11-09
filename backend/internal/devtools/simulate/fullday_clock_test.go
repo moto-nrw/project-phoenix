@@ -117,6 +117,52 @@ func TestAdvanceClock_WithoutSetterRunsAtOnce(t *testing.T) {
 	require.NoError(t, rt.advanceClock(context.Background(), at(23, 59)))
 }
 
+func TestLoginTimesUseWallClock(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		login func(*Runtime) (time.Time, error)
+	}{
+		{"initial admin", func(rt *Runtime) (time.Time, error) {
+			err := (loginAdminAction{}).Run(context.Background(), rt)
+			return rt.adminLoginAt, err
+		}},
+		{"renewed admin", func(rt *Runtime) (time.Time, error) {
+			err := rt.reloginAdmin()
+			return rt.adminLoginAt, err
+		}},
+		{"caregiver", func(rt *Runtime) (time.Time, error) {
+			block := dayBlock{}
+			block.Staff = append(block.Staff, struct {
+				StaffID  int64 `json:"staff_id"`
+				IsAbsent bool  `json:"is_absent"`
+			}{StaffID: 10})
+			_, err := rt.blockClient(block)
+			return rt.staffLogins[10].at, err
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			now := time.Now()
+			require.NotEqual(t, now.Round(0), now, "the input must carry a monotonic reading")
+			clock := &fakeClock{now: now}
+			srv, _ := clockedDayServer(t, clock)
+			rt := newRuntime(clockedDayState(srv.URL), newClient(srv.URL, false), FullDayOptions{
+				Client: newTestClientFactory, Now: clock.Now,
+			})
+
+			loggedInAt, err := tt.login(rt)
+			require.NoError(t, err)
+			// A wall-only login forces Sub to use wall time even when the next
+			// time.Now carries a monotonic reading after a system clock jump.
+			assert.Equal(t, now.Round(0), loggedInAt, "token age must follow system clock jumps")
+		})
+	}
+}
+
 func TestCommandClock_PassesTheTargetAsUnixSeconds(t *testing.T) {
 	t.Parallel()
 
