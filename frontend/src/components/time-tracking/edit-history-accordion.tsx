@@ -7,6 +7,7 @@ import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import type { WorkSessionEdit } from "~/lib/time-tracking-helpers";
 import { formatTime } from "~/lib/time-tracking-helpers";
+import { berlinClockFromISO, formatBerlinDate } from "~/lib/date-helpers";
 import { SpinnerIcon } from "~/components/ui/icons";
 import { InsetPanel } from "~/components/ui/inset-panel";
 
@@ -163,8 +164,8 @@ export function EditHistoryAccordion({
   }
 
   const rows = Array.from(grouped.entries()).map(([timestamp, group]) => {
-    const date = new Date(timestamp);
-    const dateStr = `${date.getDate().toString().padStart(2, "0")}.${(date.getMonth() + 1).toString().padStart(2, "0")}.${date.getFullYear()}, ${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
+    // When the change was saved, as school time (#6293).
+    const dateStr = `${formatBerlinDate(timestamp)}, ${berlinClockFromISO(timestamp)}`;
     const fieldEdits = group.filter((e) => e.fieldName !== "notes");
     const notes = group[0]?.notes;
     // All edits in a group share the same author — they came from one save
