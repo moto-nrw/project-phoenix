@@ -182,6 +182,7 @@ export function FormPreviewFrame({
   intro = "Bitte füllen Sie das Formular vollständig aus.",
   submitLabel = "Anmeldung absenden",
   sticky = true,
+  headerInside = false,
   children,
 }: Readonly<{
   header: ReactNode;
@@ -189,12 +190,20 @@ export function FormPreviewFrame({
   intro?: string;
   submitLabel?: string;
   sticky?: boolean;
+  /**
+   * The heading of the preview inside its card instead of above it, where
+   * the page background would carry it.
+   */
+  headerInside?: boolean;
   children: ReactNode;
 }>) {
   return (
     <div className={sticky ? "sticky top-6 space-y-4" : "space-y-4"}>
-      {header}
+      {headerInside ? null : header}
       <SectionCard padding="none">
+        {headerInside ? (
+          <div className="border-b border-gray-100 px-4 py-4">{header}</div>
+        ) : null}
         <div className="border-b border-gray-100 px-4 py-4">
           <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
           <p className="mt-1 text-sm leading-6 text-gray-500">{intro}</p>

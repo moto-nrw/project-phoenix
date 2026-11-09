@@ -56,6 +56,12 @@ interface ModalProps {
    * (the password-reset dialog of the login pages). A dialog needs a name.
    */
   readonly ariaLabel?: string;
+  /**
+   * Heading level of the title: 3 (default) for a dialog opened from a
+   * section, 2 for one opened from the page head, so the outline skips no
+   * level after the page title.
+   */
+  readonly titleLevel?: 2 | 3;
   /** Leading icon in the header, left of the title (e.g. a `ConceptIconTile`). */
   readonly icon?: React.ReactNode;
   /** One line under the title; becomes the dialog's accessible description. */
@@ -113,6 +119,7 @@ export function Modal({
   animationKey,
   title,
   ariaLabel,
+  titleLevel = 3,
   icon,
   description,
   children,
@@ -270,15 +277,16 @@ export function Modal({
 
   // Kept a direct child of the header row unless a description needs a
   // column, so a long title still shares the row with the close X.
+  const TitleHeading = titleLevel === 2 ? "h2" : "h3";
   const heading = (
-    <h3
+    <TitleHeading
       id={titleId}
       ref={titleRef}
       tabIndex={focusTitleOnOpen ? -1 : undefined}
       className="min-w-0 flex-1 py-0.5 text-lg font-semibold wrap-anywhere text-gray-900 outline-none sm:text-xl pointer-coarse:py-2"
     >
       {title}
-    </h3>
+    </TitleHeading>
   );
 
   const modalContent = (

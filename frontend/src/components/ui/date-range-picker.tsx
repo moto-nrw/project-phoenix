@@ -4,7 +4,14 @@ import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { parseISODate } from "~/lib/date-helpers";
 import { cn } from "~/lib/utils";
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import {
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useId,
+} from "react";
 import { createPortal } from "react-dom";
 import type { DateRange, Matcher } from "react-day-picker";
 import { addDays } from "date-fns/addDays";
@@ -83,6 +90,13 @@ export function DateRangePicker({
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const panelId = useId();
+  // Closing from inside the panel (Escape, a finished range, a preset) hands
+  // focus back to the trigger; the panel would otherwise take it along.
+  const closeToTrigger = useCallback(() => {
+    setIsOpen(false);
+    triggerRef.current?.focus();
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -106,6 +120,9 @@ export function DateRangePicker({
       <button
         ref={triggerRef}
         type="button"
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
+        aria-controls={isOpen ? panelId : undefined}
         onClick={() => setIsOpen((v) => !v)}
         // Fetch the calendar module before the click, so opening does not
         // wait for it.
@@ -154,6 +171,8 @@ export function DateRangePicker({
         <RangeCalendar
           triggerRef={triggerRef}
           panelRef={panelRef}
+          panelId={panelId}
+          onEscape={closeToTrigger}
           value={value}
           presets={presets}
           fromMin={fromMin}
@@ -162,7 +181,7 @@ export function DateRangePicker({
             onChange(range);
             // Close only when both bounds are picked (or when a preset fires).
             if (range?.from && range.to) {
-              setIsOpen(false);
+              closeToTrigger();
             }
           }}
         />
@@ -206,10 +225,14 @@ function formatRangeLabel(range: DateRange | undefined): string {
 function RangeCalendar({
   triggerRef,
   panelRef,
+  panelId,
+  onEscape,
   ...props
 }: RangeCalendarProps & {
   readonly triggerRef: React.RefObject<HTMLElement | null>;
   readonly panelRef: React.RefObject<HTMLDivElement | null>;
+  readonly panelId: string;
+  readonly onEscape: () => void;
 }) {
   const [geometry, setGeometry] = useState<PanelGeometry | null>(null);
   const [isNarrowViewport, setIsNarrowViewport] = useState<boolean | null>(
@@ -248,6 +271,24 @@ function RangeCalendar({
     setMounted(true);
   }, []);
 
+  // Opening moves focus into the panel: onto the chosen start day when there
+  // is one, else onto the first control. The panel is portaled after the
+  // page, so keyboard users would otherwise not reach it.
+  useEffect(() => {
+    if (!mounted) return;
+    const frame = requestAnimationFrame(() => {
+      const panel = panelRef.current;
+      if (!panel || panel.contains(document.activeElement)) return;
+      const target =
+        panel.querySelector<HTMLElement>('[aria-selected="true"] button') ??
+        panel.querySelector<HTMLElement>(
+          "button:not([disabled]), [tabindex='0']",
+        );
+      target?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [mounted, panelRef]);
+
   useEffect(() => {
     sync();
     window.addEventListener("resize", sync);
@@ -271,7 +312,16 @@ function RangeCalendar({
   return createPortal(
     <div
       ref={panelRef}
+      id={panelId}
+      role="dialog"
+      aria-label="Zeitraum wählen"
       data-range-panel
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.stopPropagation();
+          onEscape();
+        }
+      }}
       className={`fixed ${Z_LAYER.popover} moto-popover-surface max-h-[calc(100vh-6rem)] w-max max-w-[calc(100vw-1rem)] overflow-y-auto rounded-xl border sm:max-h-none sm:overflow-visible`}
       style={
         isNarrowViewport || !geometry

@@ -441,7 +441,7 @@ function StackedRowCheckbox<T>({
   return (
     <label
       data-row-control=""
-      className="-m-2 flex shrink-0 cursor-pointer items-center p-2"
+      className="-m-2 flex shrink-0 cursor-pointer items-center p-2 pointer-coarse:-m-3 pointer-coarse:p-3"
     >
       <Checkbox
         checked={selected}
@@ -991,7 +991,7 @@ export function DataTable<T>({
                     <th scope="col" className={`${headCell} w-12 pr-0!`}>
                       <label
                         htmlFor={selectAllId}
-                        className="flex cursor-pointer items-center"
+                        className="-m-2 flex cursor-pointer items-center p-2 pointer-coarse:-m-3 pointer-coarse:p-3"
                       >
                         <Checkbox
                           id={selectAllId}
@@ -1073,7 +1073,9 @@ export function DataTable<T>({
                         <button
                           type="button"
                           onClick={() => toggleSort(col.key)}
-                          className={`inline-flex items-center gap-1 font-medium transition-colors select-none hover:text-gray-700 focus:rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-600 ${align}`}
+                          // By finger the button reaches 44 px in height; the
+                          // negative margin keeps the header row as it is.
+                          className={`inline-flex items-center gap-1 font-medium transition-colors select-none hover:text-gray-700 focus:rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-600 pointer-coarse:-my-3 pointer-coarse:py-3 ${align}`}
                         >
                           <span>{col.header}</span>
                           <span
@@ -1184,7 +1186,7 @@ export function DataTable<T>({
                               // open the row.
                               onClick={(event) => event.stopPropagation()}
                             >
-                              <label className="flex cursor-pointer items-center">
+                              <label className="-m-2 flex cursor-pointer items-center p-2 pointer-coarse:-m-3 pointer-coarse:p-3">
                                 <Checkbox
                                   checked={selected}
                                   disabled={selection.disabled}
