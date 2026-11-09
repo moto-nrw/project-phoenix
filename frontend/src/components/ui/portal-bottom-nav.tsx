@@ -306,7 +306,7 @@ export function PortalBottomNavLink({
         data-active={active ? "true" : "false"}
         aria-current={active ? "page" : undefined}
         {...(newTab ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-        aria-label={label}
+        aria-label={accessibleBottomNavName(label, shortLabel, active)}
         className={bottomNavItemClassName({
           active,
           paddingClassName,
@@ -448,4 +448,23 @@ export function PortalNavSheetButton({
       {label}
     </button>
   );
+}
+
+/**
+ * Der zugängliche Name eines Felds: der volle Name. Zeigt das aktive Feld ein
+ * Kurzwort, das kein ganzes Wort des Namens ist („Ferien“ zu
+ * „Ferienbetreuung“), beginnt der Name mit dem sichtbaren Wort
+ * (WCAG 2.5.3 „Label in Name“), danach folgt der volle Name.
+ */
+export function accessibleBottomNavName(
+  label: string,
+  shortLabel: string | undefined,
+  active: boolean,
+): string {
+  if (!active || !shortLabel || shortLabel === label) return label;
+  const words = label.toLocaleLowerCase("de-DE").split(/[^\p{L}\p{N}]+/u);
+  const shown = shortLabel.toLocaleLowerCase("de-DE").split(/[^\p{L}\p{N}]+/u);
+  return shown.every((word) => words.includes(word))
+    ? label
+    : `${shortLabel}, ${label}`;
 }
