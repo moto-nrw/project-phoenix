@@ -137,6 +137,10 @@ type ChunkWriter[T any] interface {
 	// each other. Two keys are equal whenever the owners' matching would
 	// treat their inputs as equal.
 	ChunkKeys(T) []string
+	// ChunkRowPath reports a row the batch command must not write: it forms
+	// a segment of its own and takes the row path (ADR 0067 addendum, note
+	// on unique entries of new rows).
+	ChunkRowPath(T) bool
 	// ResolveChunk reads the existing records of a segment's rows in one
 	// protected read and returns a config whose FindExisting answers from it.
 	// When the read fails and its savepoint rolled back, the executor falls

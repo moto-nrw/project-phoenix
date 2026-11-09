@@ -38,6 +38,17 @@ func (c *StudentImportConfig) ChunkKeys(row importModels.StudentImportRow) []str
 	return keys
 }
 
+// ChunkRowPath keeps a row with a card on the row path. A new card is a
+// unique entry the row path claims in processing order, with the exclusive
+// child quota between two children; claiming the cards of a segment in one
+// statement before the first child would pair a deadlock with a parallel
+// upload of the same school that the row path never forms (ADR 0067
+// addendum, note on unique entries of new rows). The person batch thus
+// writes persons without card and account only.
+func (c *StudentImportConfig) ChunkRowPath(row importModels.StudentImportRow) bool {
+	return importModels.OptionalCell(row.TagID) != nil
+}
+
 // ResolveChunk reads, inside its own savepoint, the persons carrying the
 // segment's names and their students, and returns a config whose
 // FindExisting answers the name match from that read; a card is still looked

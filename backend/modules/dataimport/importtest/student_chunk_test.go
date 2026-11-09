@@ -108,12 +108,14 @@ func studentOutcomeOf(t *testing.T, db *bun.DB, result *importModels.ImportResul
 	return outcome
 }
 
-// mixedStudentFile has eleven rows. Rows 1 to 8 form one batch segment: a
+// mixedStudentFile has eleven rows. Rows 1 to 7 form one batch segment: a
 // seeded namesake (already exists, with a capped retention warning), a
-// card, a shared guardian, consent dates, arrival and pickup times. Rows 9 to
-// 11 spell earlier children differently (decomposed accents, capitals, the
-// Kelvin sign), so the owners' NFC- and case-folded match finds them: each
-// starts a new segment and already exists.
+// shared guardian, consent dates, arrival and pickup times. Row 8 carries a
+// card and takes the row path as a segment of its own (ADR 0067 addendum,
+// unique entries of new rows). Rows 9 to 11 spell earlier children
+// differently (decomposed accents, capitals, the Kelvin sign), so the
+// owners' NFC- and case-folded match finds them: each starts a new segment
+// and already exists.
 func mixedStudentFile(t *testing.T, db *bun.DB) []importModels.StudentImportRow {
 	card := testpkg.CreateTestRFIDCard(t, db, "CHUNK")
 	guardian := func(name, email, phone string) []importModels.GuardianImportData {
@@ -124,8 +126,6 @@ func mixedStudentFile(t *testing.T, db *bun.DB) []importModels.StudentImportRow 
 		{FirstName: "José", LastName: "Gómez", SchoolClass: "4A", Birthday: "2017-04-05", DataRetentionDays: 30, PrivacyAccepted: true,
 			Guardians: guardian("Gómez", "gomez@example.test", "0151 7000001"), AGBAcceptedAt: "2026-09-01", DataProcessingAcceptedAt: "2026-09-02"},
 		{FirstName: "Schon", LastName: "Kind", SchoolClass: "4A", DataRetentionDays: 40},
-		{FirstName: "Lena", LastName: "Neu", SchoolClass: "4A", DataRetentionDays: 40, TagID: card.ID,
-			PickupSchedules: []importModels.PickupScheduleImportData{{Weekday: 2, PickupTime: "15:30"}}},
 		{FirstName: "Mia", LastName: "Geschwister", SchoolClass: "4B", DataRetentionDays: 30, Guardians: guardian("Geschwister", "familie@example.test", "0151 7000002"),
 			ArrivalSchedules: []importModels.ArrivalScheduleImportData{{Weekday: 1, ExpectedArrival: "07:45"}}},
 		{FirstName: "Ben", LastName: "Geschwister", SchoolClass: "4B", DataRetentionDays: 30, Guardians: guardian("Geschwister", "familie@example.test", "0151 7000003"),
@@ -133,6 +133,8 @@ func mixedStudentFile(t *testing.T, db *bun.DB) []importModels.StudentImportRow 
 		{FirstName: "Ella", LastName: "Ohne", SchoolClass: "4B", DataRetentionDays: 30, PrivacyAccepted: true},
 		{FirstName: "Kai", LastName: "Kelvin", SchoolClass: "4B", DataRetentionDays: 30},
 		{FirstName: "Tom", LastName: "Acht", SchoolClass: "4B", DataRetentionDays: 30, Birthday: "2016-12-24"},
+		{FirstName: "Lena", LastName: "Neu", SchoolClass: "4A", DataRetentionDays: 40, TagID: card.ID,
+			PickupSchedules: []importModels.PickupScheduleImportData{{Weekday: 2, PickupTime: "15:30"}}},
 		{FirstName: "Jose\u0301", LastName: "Go\u0301mez", SchoolClass: "4A", DataRetentionDays: 30},
 		{FirstName: "JOSÉ", LastName: "GÓMEZ", SchoolClass: "4a", DataRetentionDays: 30},
 		{FirstName: "\u212Aai", LastName: "Kelvin", SchoolClass: "4B", DataRetentionDays: 30},

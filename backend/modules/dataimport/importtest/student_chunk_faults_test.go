@@ -6,7 +6,6 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
-	"net"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -206,19 +205,20 @@ func holdStudentTag(t *testing.T, db *bun.DB, tag string) bun.Tx {
 	return tx
 }
 
-// TestStudentBatchWaitsAreBoundedAndReplayed is test (a) of E13 for the
-// person statement: it waits for every uncommitted holder of one of its
-// cards in one read. Unbounded, two holders of 0.7 s each outlast the 1 s
-// read timeout (i/o timeout, a 500). Bounded at 0.8 s, the attempt is
-// cancelled, the chunk replays row by row in a new transaction, each row
-// waits for one holder within the read timeout, and the import succeeds.
-func TestStudentBatchWaitsAreBoundedAndReplayed(t *testing.T) {
+// TestStudentCardWaitsStayOnePerStatement is test (a) of E13 for the person
+// statement, after rows with a card moved to the row path (ADR 0067
+// addendum, unique entries of new rows). On 41f3e4f9f4 the person statement
+// waited for every uncommitted holder of one of its cards in one read:
+// unbounded, two holders of 0.7 s each outlasted the 1 s read timeout (i/o
+// timeout, a 500); bounded, the attempt was cancelled and replayed. Now each
+// card row waits for its holder in a statement of its own, as on the row
+// path, so neither variant times out, nothing is cancelled and nothing
+// replays.
+func TestStudentCardWaitsStayOnePerStatement(t *testing.T) {
 	t.Parallel()
 	const readTimeout, hold, limit = time.Second, 700 * time.Millisecond, 800 * time.Millisecond
 	db := testpkg.SetupIsolatedTestDB(t)
 	pool := shortReadTimeoutPool(t, readTimeout)
-	// Two connections: a connection the bound's 57014 discarded must be
-	// replaced, or the second upload below would starve.
 	pool.SetMaxOpenConns(2)
 	for _, bounded := range []bool{true, false} {
 		t.Run(fmt.Sprintf("bounded=%t", bounded), func(t *testing.T) {
@@ -244,25 +244,14 @@ func TestStudentBatchWaitsAreBoundedAndReplayed(t *testing.T) {
 			upload := awaitStudents(t, done)
 			require.Greater(t, time.Since(started), readTimeout, "the waits together exceed the read timeout")
 
-			students := countIn(t, db, studentCount)
-			if !bounded {
-				require.Error(t, upload.err)
-				var netErr net.Error
-				require.True(t, errors.As(upload.err, &netErr) || strings.Contains(upload.err.Error(), "timeout"), "%v", upload.err)
-				require.Zero(t, students, "the cut connection committed nothing")
-				return
-			}
-			require.NoError(t, upload.err)
+			require.NoError(t, upload.err, "no read waited for both holders")
 			require.Equal(t, studentChunkRows, upload.result.CreatedCount)
 			require.Zero(t, upload.result.ErrorCount)
-			require.Equal(t, studentChunkRows, students)
-			require.Equal(t, 1, (*module.Observations)[0].BatchFallbacks, "the bound cancelled the attempt and the chunk replayed")
-			require.Zero(t, (*module.Observations)[0].BatchesRetried, "the replay in a new transaction consumes no retry")
-
-			more := awaitStudents(t, uploadStudents(t, module, pool, actor, namedStudentBatch("Danach", studentChunkRows), "after.csv"))
-			require.NoError(t, more.err)
-			require.Equal(t, studentChunkRows, more.result.CreatedCount)
-			require.LessOrEqual(t, pool.Stats().OpenConnections, 2)
+			require.Equal(t, studentChunkRows, countIn(t, db, studentCount))
+			observation := (*module.Observations)[0]
+			require.Zero(t, observation.BatchFallbacks, "the bound cancelled nothing")
+			require.Zero(t, observation.BatchesRetried)
+			require.Positive(t, commandCount(observation, "create_persons"), "the rows without a card took the batch path")
 		})
 	}
 }
@@ -356,4 +345,71 @@ func TestParallelStudentImportsOfOneSchool(t *testing.T) {
 	}
 	require.Equal(t, 80, countIn(t, db, studentCount), "every child once")
 	require.Equal(t, before, deadlocks(), "no deadlock")
+}
+
+// childQuotaLock is School Membership's advisory lock of the counting
+// writes (student_counts.go:54): a parallel upload holds it from its first
+// child until it commits.
+const childQuotaLock = `SELECT pg_advisory_xact_lock(1802464884, ?::int)`
+
+// TestStudentCardRowsFormNoNewDeadlockPair (Befundklasse 6, #5552 step 5a):
+// a parallel row-path upload of the same school holds the child quota after
+// its first child and then creates a child with the card of a later row of
+// this upload. On the row path of development this upload has not claimed
+// that card yet when it waits for the quota, so the other upload proceeds.
+// The batch path must end the same: the card row is not in the person
+// batch, which claims nothing before the quota but cardless persons. With
+// the card in the batch (41f3e4f9f4) the other upload waited for this one
+// while this one waited for the quota: a deadlock the row path never forms.
+func TestStudentCardRowsFormNoNewDeadlockPair(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	for _, run := range []struct {
+		name    string
+		options api.ImportTestOptions
+	}{
+		{"batch path", api.ImportTestOptions{}},
+		{"row path as on development", api.ImportTestOptions{RowPathOnly: true}},
+	} {
+		t.Run(run.name, func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			module, err := api.NewImportTestModuleWithOptions(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), run.options)
+			require.NoError(t, err)
+			actor := newImporter(t, db)
+			rows := namedStudentBatch("Paar", studentChunkRows)
+			card := testpkg.CreateTestRFIDCard(t, db, "PAAR").ID
+			rows[6].TagID = card // after six cardless rows, so the batch path runs
+
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			other, err := db.BeginTx(ctx, nil)
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = other.Rollback() })
+			_, err = other.ExecContext(ctx, childQuotaLock, testpkg.Tenant(t))
+			require.NoError(t, err)
+
+			done := uploadStudents(t, module, db, actor, rows, "pair.csv")
+			waitForLockWaiters(t, db) // this upload waits for the quota
+
+			// The other upload's next child wears the card of row 8.
+			insertCtx, insertCancel := context.WithTimeout(ctx, 3*time.Second)
+			defer insertCancel()
+			started := time.Now()
+			_, err = other.ExecContext(insertCtx, `INSERT INTO users.persons (tenant_id, first_name, last_name, tag_id) VALUES (?, 'Andere', 'Anlage', ?)`, testpkg.Tenant(t), card)
+			require.NoError(t, err, "the other upload claims the card without waiting for this one")
+			require.Less(t, time.Since(started), time.Second, "no wait, so no deadlock to detect")
+			require.NoError(t, other.Rollback())
+
+			upload := awaitStudents(t, done)
+			require.NoError(t, upload.err)
+			require.Equal(t, studentChunkRows, upload.result.CreatedCount)
+			require.Zero(t, (*module.Observations)[0].Deadlocks)
+			require.Zero(t, (*module.Observations)[0].BatchesRetried)
+			if run.options.RowPathOnly {
+				require.Zero(t, commandCount((*module.Observations)[0], "create_persons"))
+			} else {
+				require.Positive(t, commandCount((*module.Observations)[0], "create_persons"), "the batch path ran")
+			}
+		})
+	}
 }

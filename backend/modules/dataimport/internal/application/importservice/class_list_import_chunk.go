@@ -32,6 +32,11 @@ func (c *ClassListImportConfig) classListKey(row importModels.ClassListEntryImpo
 	return matchKey(row.FirstName) + "\x00" + matchKey(row.LastName) + "\x00" + matchKey(row.SchoolClass)
 }
 
+// ChunkRowPath is false: the row path claims the unique entries of a chunk's
+// entries back to back with no lock in between, so claiming them in one
+// statement forms no deadlock pair the row path lacks.
+func (c *ClassListImportConfig) ChunkRowPath(importModels.ClassListEntryImportRow) bool { return false }
+
 // ResolveChunk reads, inside its own savepoint, the entries carrying each
 // row's name and class and the students carrying its name, and answers
 // FindExisting from that read like the row path answers it.

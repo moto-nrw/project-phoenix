@@ -169,11 +169,17 @@ func (a *batchImportAttempt[T]) acceptedRows() []int {
 }
 
 // segmentEnd extends a segment until a row shares a key with a row already
-// in it.
+// in it. A row the writer keeps on the row path is a segment of its own.
 func segmentEnd[T any](writer ports.ChunkWriter[T], rows []T, indices []int, start int) int {
 	seen := make(map[string]bool)
 	end := start
 	for end < len(indices) {
+		if writer.ChunkRowPath(rows[indices[end]]) {
+			if end == start {
+				return start + 1
+			}
+			return end
+		}
 		keys := writer.ChunkKeys(rows[indices[end]])
 		for _, key := range keys {
 			if seen[key] {
