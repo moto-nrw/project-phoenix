@@ -486,7 +486,7 @@ func classifyAdminEditError(err error) render.Renderer {
 		workforce.ErrAdminSessionNoteRequired, workforce.ErrAdminSessionCreateNoteRequired,
 		workforce.ErrTargetStaffRequired, workforce.ErrSessionCheckinRequired, workforce.ErrSessionStaffRequired,
 		workforce.ErrSessionCreatorRequired, workforce.ErrSessionStatusInvalid, workforce.ErrSessionTimeOrder,
-		workforce.ErrSessionCheckoutOrder, workforce.ErrAdminBreakMinutesNegative)(err):
+		workforce.ErrSessionCheckoutOrder, workforce.ErrAdminBreakMinutesNegative, workforce.ErrSessionCheckInAfterDate)(err):
 		return common.ErrorInvalidRequest(err)
 	case isAny(workforce.ErrSessionNotFound, workforce.ErrAdminSessionNotOwned, workforce.ErrBreakNotOwned)(err):
 		return common.ErrorNotFound(err)

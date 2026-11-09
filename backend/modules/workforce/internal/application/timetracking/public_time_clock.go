@@ -236,7 +236,8 @@ func MapTimeTrackingError(err error) error {
 	case matchesTimeTrackingError(err, workforce.ErrSessionStatusInvalid, workforce.ErrSessionSourceInvalid,
 		workforce.ErrSessionStatusNoteRequired, workforce.ErrSessionTimesNoteRequired, workforce.ErrBreakMinutesNegative,
 		workforce.ErrBreakDurationNegative, workforce.ErrSessionTimeOrder, workforce.ErrSessionCheckoutOrder,
-		workforce.ErrPlannedBreakDurationInvalid, workforce.ErrBreakNotOwned, workforce.ErrActiveBreakDurationEdit):
+		workforce.ErrPlannedBreakDurationInvalid, workforce.ErrBreakNotOwned, workforce.ErrActiveBreakDurationEdit,
+		workforce.ErrSessionCheckInInFuture, workforce.ErrSessionCheckInAfterDate):
 		return &workforce.TimeTrackingError{Kind: workforce.ErrTimeTrackingInvalid, Cause: err}
 	default:
 		return err

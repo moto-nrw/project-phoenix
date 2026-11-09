@@ -203,31 +203,83 @@ func (s *CareLifecycle) reconcileBookingEvaluations(ctx context.Context, evaluat
 
 func (s *CareLifecycle) reconcileBookingEvaluation(
 	ctx context.Context, evaluation domain.CareBookingEvaluation, change careplan.CareWithdrawalBookingChange,
-	obsoleteFrom calendar.Date, pending *careplan.WithdrawalCompletion,
+	_ calendar.Date, pending *careplan.WithdrawalCompletion,
 ) (bool, error) {
-	if evaluation.FirstBookinglessDay == nil {
-		if pending == nil || !evaluation.HasCareDays {
+	if pending == nil {
+		if evaluation.FirstBookinglessDay == nil {
 			return false, nil
 		}
-		return s.records.MarkWithdrawalObsoleteForRebooking(ctx, evaluation.StudentID, careplan.Date(obsoleteFrom), time.Now())
+		return true, s.upsertBookingCompletion(ctx, evaluation, change)
 	}
-	if pending != nil {
-		if *evaluation.FirstBookinglessDay != calendar.Date(pending.FirstBookinglessDay) {
-			changed, err := s.records.MarkWithdrawalObsoleteForRebooking(ctx, evaluation.StudentID, careplan.Date(obsoleteFrom), time.Now())
-			if err != nil {
-				return false, err
-			}
-			if !changed {
-				return false, errors.New("care lifecycle: pending booking completion changed during reconciliation")
-			}
-		} else if !change.WasCompleteWithdrawal {
+	pendingDay := calendar.Date(pending.FirstBookinglessDay)
+	if evaluation.FirstBookinglessDay != nil && *evaluation.FirstBookinglessDay == pendingDay {
+		if !change.WasCompleteWithdrawal {
 			return false, nil
 		}
+		return true, s.upsertBookingCompletion(ctx, evaluation, change)
 	}
-	if err := s.upsertBookingCompletion(ctx, evaluation, change); err != nil {
+	if evaluation.FirstBookinglessDay == nil && !evaluation.HasCareDays {
+		return false, nil
+	}
+	target, keep, err := s.firstGapFromPendingDay(ctx, evaluation, pendingDay, change.WasCompleteWithdrawal)
+	if err != nil || keep {
 		return false, err
 	}
-	return true, nil
+	if err := s.closeMovedPendingTask(ctx, evaluation.StudentID, pendingDay); err != nil {
+		return false, err
+	}
+	if target.FirstBookinglessDay == nil {
+		return true, nil
+	}
+	return true, s.upsertBookingCompletion(ctx, target, change)
+}
+
+// closeMovedPendingTask closes the open task whose gap the booking moved or
+// filled. Its own day always satisfies the no-gap predicate, so false means
+// the task changed concurrently.
+func (s *CareLifecycle) closeMovedPendingTask(ctx context.Context, studentID int64, pendingDay calendar.Date) error {
+	changed, err := s.records.MarkWithdrawalObsoleteForRebooking(ctx, studentID, careplan.Date(pendingDay), time.Now())
+	if err != nil {
+		return err
+	}
+	if !changed {
+		return errors.New("care lifecycle: pending booking completion changed during reconciliation")
+	}
+	return nil
+}
+
+// firstGapFromPendingDay decides what an open task becomes when the bookings
+// moved its boundary (#6288). The task stands for the first bookingless day
+// on or after its own day:
+//   - nothing booked on its day: the gap still starts there, keep the task;
+//   - booked on its day: the gap now starts where that booked stretch ends.
+//     That can be before the end of the stretch evaluated for today, when a
+//     booking fills only part of the gap; no end means there is no gap left.
+//
+// A boundary that moved earlier, or one the school confirmed, replaces the
+// task as evaluated.
+func (s *CareLifecycle) firstGapFromPendingDay(
+	ctx context.Context, evaluation domain.CareBookingEvaluation, pendingDay calendar.Date, confirmed bool,
+) (domain.CareBookingEvaluation, bool, error) {
+	if confirmed || (evaluation.FirstBookinglessDay != nil && !evaluation.FirstBookinglessDay.After(pendingDay)) {
+		return evaluation, false, nil
+	}
+	facts, err := s.listCareBookingFacts(ctx, pendingDay, []int64{evaluation.StudentID})
+	if err != nil {
+		return evaluation, false, err
+	}
+	if len(facts) != 1 {
+		return evaluation, true, nil
+	}
+	fromPendingDay := domain.EvaluateCareBookingStates(facts, pendingDay)[0]
+	if !fromPendingDay.HasCareDays {
+		return evaluation, true, nil
+	}
+	gap := fromPendingDay.FirstBookinglessDay
+	if gap == nil || evaluation.FirstBookinglessDay == nil || gap.Before(*evaluation.FirstBookinglessDay) {
+		return fromPendingDay, false, nil
+	}
+	return evaluation, false, nil
 }
 
 func (s *CareLifecycle) upsertBookingCompletion(ctx context.Context, evaluation domain.CareBookingEvaluation, change careplan.CareWithdrawalBookingChange) error {

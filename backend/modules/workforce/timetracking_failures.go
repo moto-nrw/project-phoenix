@@ -17,6 +17,8 @@ var (
 	ErrBreakMinutesNegative           = errors.New("break minutes cannot be negative")
 	ErrSessionCheckoutOrder           = errors.New("check_out_time must be after check_in_time")
 	ErrBreakDurationNegative          = errors.New("break duration cannot be negative")
+	ErrSessionCheckInAfterDate        = errors.New("check-in time must not lie after the session date")
+	ErrSessionCheckInInFuture         = errors.New("check-in time must not lie in the future")
 	ErrSessionStatusNoteRequired      = errors.New("notes required when changing status")
 	ErrSessionTimesNoteRequired       = errors.New("notes required when changing recorded times")
 	ErrSessionStatusInvalid           = errors.New("status must be 'present' or 'home_office'")
