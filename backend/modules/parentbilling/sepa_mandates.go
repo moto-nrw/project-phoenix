@@ -283,6 +283,10 @@ func ResolveDebit(payment InvoicePayment, terms ServiceTerms, run RunDueDates, f
 		gap = DebitGapCreditor
 	case mandate == nil || !mandate.InForce() || mandate.SignedOn.After(issuedOn):
 		gap = DebitGapMandate
+	case mandate.Kind == MandateOneOff && mandate.LastCollectedOn != nil:
+		// A one-off mandate authorizes one collection; once collected it is
+		// no mandate for another invoice (#4697).
+		gap = DebitGapMandate
 	case mandate.CreditorID != creditor.CreditorID:
 		// A mandate binds the creditor it was given to; after a change of
 		// the creditor identifier it is no proof for the new one.

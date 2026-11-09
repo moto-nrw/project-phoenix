@@ -82,7 +82,6 @@ func (d *SEPADebits) plan(runKind string, runID int64, debits []parentbilling.Se
 		Left: []parentbilling.SEPADebit{}}}
 	earliest := day.AddDays(1)
 	groups := map[[2]string]*parentbilling.SEPADebitGroup{}
-	duplicates := duplicateOneOffMandates(debits, earliest)
 	for _, entry := range debits {
 		debit := entry.Debit
 		if debit.Status == parentbilling.DebitSubmitted {
@@ -94,7 +93,7 @@ func (d *SEPADebits) plan(runKind string, runID int64, debits []parentbilling.Se
 		}
 		debit.AmountCents += entry.CreditedCents
 		collectOn := max(debit.DueOn, earliest)
-		debit.Left = pendingDebitLeft(entry, debit.AmountCents, collectOn, duplicates)
+		debit.Left = pendingDebitLeft(entry, debit.AmountCents, collectOn)
 		if debit.Left != "" {
 			plan.run.Left = append(plan.run.Left, debit)
 			continue

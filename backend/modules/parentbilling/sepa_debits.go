@@ -200,6 +200,9 @@ type SealedSEPADebit struct {
 	// (negative) a holiday invoice got since.
 	Cancelled     bool
 	CreditedCents int64
-	Holder        []byte
-	IBAN          []byte
+	// OneOffShared is a one-off mandate another uncancelled debit of any
+	// run also claims: the authorization covers one collection only.
+	OneOffShared bool
+	Holder       []byte
+	IBAN         []byte
 }

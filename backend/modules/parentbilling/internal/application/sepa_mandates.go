@@ -567,14 +567,13 @@ func (m *SEPAMandates) SEPAMandateCollections(ctx context.Context, reviewer pare
 		return nil, err
 	}
 	earliest := m.today().AddDays(1)
-	duplicates := duplicateOneOffMandates(stored, earliest)
 	debits := make([]parentbilling.SEPADebit, len(stored))
 	for i, entry := range stored {
 		debit := entry.Debit
 		if debit.Status == parentbilling.DebitPending {
 			debit.AmountCents += entry.CreditedCents
 			debit.CollectOn = max(debit.DueOn, earliest)
-			debit.Left = pendingDebitLeft(entry, debit.AmountCents, debit.CollectOn, duplicates)
+			debit.Left = pendingDebitLeft(entry, debit.AmountCents, debit.CollectOn)
 		}
 		debits[i] = debit
 	}

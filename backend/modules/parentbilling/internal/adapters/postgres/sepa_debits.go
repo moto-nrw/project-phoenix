@@ -106,6 +106,7 @@ type sepaDebitRow struct {
 	IBANMasked             string         `bun:"iban_masked"`
 	Cancelled              bool           `bun:"cancelled"`
 	CreditedCents          int64          `bun:"credited_cents"`
+	OneOffShared           bool           `bun:"one_off_shared"`
 	HolderSealed           []byte         `bun:"account_holder_sealed"`
 	IBANSealed             []byte         `bun:"iban_sealed"`
 }
@@ -134,7 +135,7 @@ func (r sepaDebitRow) sealed() parentbilling.SealedSEPADebit {
 		CreditorID: r.CreditorID, MandateSignedOn: r.MandateSignedOn, BIC: r.BIC, MandateRevoked: r.MandateRevoked,
 		MandateKind: r.MandateKind, MandateSigned: r.MandateSigned, MandateSequence: r.MandateSequence,
 		MandateLastCollectedOn: r.MandateLastCollectedOn, MandateCreatedOn: r.MandateCreatedOn,
-		CreditorNow: r.CreditorNow, Cancelled: r.Cancelled, CreditedCents: r.CreditedCents,
+		CreditorNow: r.CreditorNow, Cancelled: r.Cancelled, CreditedCents: r.CreditedCents, OneOffShared: r.OneOffShared,
 		Holder: r.HolderSealed, IBAN: r.IBANSealed,
 	}
 }
@@ -162,7 +163,15 @@ const (
 				AND correction.kind = 'cancellation')) AS cancelled,
 	COALESCE((SELECT SUM(correction.total_cents) FROM parent_billing.documents AS correction
 		WHERE correction.organization_id = ?0 AND correction.reference_document_id = debit.document_id
-			AND correction.kind = 'credit'), 0) AS credited_cents
+			AND correction.kind = 'credit'), 0) AS credited_cents,
+	(mandate.kind = 'one_off' AND EXISTS (SELECT 1 FROM parent_billing.sepa_debits AS other
+		WHERE other.organization_id = ?0 AND other.mandate_id = debit.mandate_id AND other.id <> debit.id
+			AND (other.status = 'submitted' OR NOT (
+				EXISTS (SELECT 1 FROM parent_billing.care_invoice_cancellations AS cancellation
+					WHERE cancellation.organization_id = ?0 AND cancellation.invoice_id = other.care_invoice_id)
+				OR EXISTS (SELECT 1 FROM parent_billing.documents AS correction
+					WHERE correction.organization_id = ?0 AND correction.reference_document_id = other.document_id
+						AND correction.kind = 'cancellation'))))) AS one_off_shared
 FROM parent_billing.sepa_debits AS debit
 JOIN parent_billing.sepa_mandates AS mandate ON mandate.organization_id = ?0 AND mandate.id = debit.mandate_id
 LEFT JOIN parent_billing.care_invoices AS care ON care.organization_id = ?0 AND care.id = debit.care_invoice_id

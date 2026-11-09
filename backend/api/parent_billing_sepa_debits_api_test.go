@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -165,7 +166,11 @@ func TestSEPADebitFileOfAReleasedRun(t *testing.T) {
 	assert.Contains(t, file, "<IBAN>"+sepaTraegerIBAN+"</IBAN>")
 	assert.Contains(t, file, "<MsgId>"+overview.MessageID+"</MsgId>")
 	assert.Contains(t, mandateEvents(t, f, noahMandate.ID), "reveal:office", "the download is in the trail")
-	assert.Equal(t, file, debitFile(t, f, run), "a second download gives the same file")
+	// The creation time names the second the file was written; the rest is
+	// the same file.
+	withoutTime := regexp.MustCompile(`<CreDtTm>[^<]*</CreDtTm>`)
+	assert.Equal(t, withoutTime.ReplaceAllString(file, ""), withoutTime.ReplaceAllString(debitFile(t, f, run), ""),
+		"a second download gives the same file")
 	var state string
 	const mandateState = `SELECT sequence || '|' || COALESCE(last_collected_on::text, '-') FROM parent_billing.sepa_mandates WHERE id = ?`
 	require.NoError(t, f.db.NewRaw(mandateState, liaMandate.ID).Scan(context.Background(), &state))
@@ -331,7 +336,10 @@ func TestSEPADebitsQueryBudgetsAreFlat(t *testing.T) {
 func TestSEPADebitConfirmationsShareMandatesSafely(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
-	for _, kind := range []string{"recurring", "one_off"} {
+	// A one-off mandate claimed by two runs goes into neither file
+	// (TestSEPADebitOneOffMandateGoesIntoOneFileAcrossRuns); the race is the
+	// FRST hand-over of a recurring mandate.
+	for _, kind := range []string{"recurring"} {
 		t.Run(kind, func(t *testing.T) {
 			f := sepaDebitFixture(t, "Träger gleichzeitige Bestätigung "+kind)
 			contract := careContract(t, f.db, f.office.organization, f.office.schools[0], "Lia", sepaDebitMonth, sjrServices()...)
@@ -378,10 +386,39 @@ func TestSEPADebitConfirmationsShareMandatesSafely(t *testing.T) {
 					t.Fatal("confirmations did not finish")
 				}
 			}
-			assert.ElementsMatch(t, []int{http.StatusOK, http.StatusConflict}, codes)
 			var submitted int
 			require.NoError(t, f.db.NewRaw(`SELECT COUNT(*) FROM parent_billing.sepa_debits WHERE organization_id = ? AND mandate_id = ? AND status = 'submitted'`, f.office.organization, mandate.ID).Scan(ctx, &submitted))
-			assert.Equal(t, 1, submitted, "only one FRST or one-off file may be confirmed")
+			assert.ElementsMatch(t, []int{http.StatusOK, http.StatusConflict}, codes)
+			assert.Equal(t, 1, submitted, "only one FRST file may be confirmed")
 		})
 	}
+}
+
+// A one-off mandate authorizes one collection. Two released runs that both
+// carry an invoice of it leave both out of their files, with the reason,
+// instead of exporting the mandate twice; a cancelled one frees the other.
+func TestSEPADebitOneOffMandateGoesIntoOneFileAcrossRuns(t *testing.T) {
+	t.Parallel()
+	f := sepaDebitFixture(t, "Träger Einzelmandat zwei Läufe")
+	contract := careContract(t, f.db, f.office.organization, f.office.schools[0], "Ada", sepaDebitMonth, sjrServices()...)
+	input := mandateBody(contract, "SJR-OOFF-1")
+	input["kind"], input["sequence"] = "one_off", "first"
+	createMandate(t, f, input)
+	first := releaseDebitRun(t, f, sepaDebitMonth)
+	assert.Equal(t, 1, debitRun(t, f, first).Count, "one run alone may collect the one-off mandate")
+	second := releaseDebitRun(t, f, sepaDebitNextMonth)
+	for _, run := range []int64{first, second} {
+		overview := debitRun(t, f, run)
+		assert.Zero(t, overview.Count, "run %d: the one-off mandate is claimed by two runs", run)
+		require.Len(t, overview.Left, 1)
+		assert.Equal(t, "one_off_multiple", overview.Left[0].Left)
+	}
+	var invoice int64
+	require.NoError(t, f.db.NewRaw(`SELECT id FROM parent_billing.care_invoices WHERE run_id = ? AND care_contract_id = ?`,
+		second, contract).Scan(context.Background(), &invoice))
+	_, err := f.db.ExecContext(context.Background(), `INSERT INTO parent_billing.care_invoice_cancellations (organization_id, run_id,
+		invoice_id, number, number_year, number_sequence, issued_on, reason, total_cents)
+		VALUES (?, ?, ?, 'ST-OOFF', 2029, 9, DATE '2029-07-10', 'Doppelt', -7750)`, f.office.organization, second, invoice)
+	require.NoError(t, err)
+	assert.Equal(t, 1, debitRun(t, f, first).Count, "the cancelled invoice frees the authorization for the other run")
 }

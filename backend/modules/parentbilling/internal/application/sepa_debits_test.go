@@ -67,6 +67,14 @@ func (s *debitStoreFake) SEPADebitsOfRun(context.Context, int64, string, int64, 
 	copy(out, s.debits)
 	for i := range out {
 		out[i].CreditorNow = s.creditor
+		// As the store's statement: another uncancelled debit of the same
+		// one-off mandate claims its single authorization too.
+		for j, other := range s.debits {
+			if i != j && out[i].MandateKind == parentbilling.MandateOneOff && other.Debit.MandateID == out[i].Debit.MandateID &&
+				(other.Debit.Status == parentbilling.DebitSubmitted || !other.Cancelled) {
+				out[i].OneOffShared = true
+			}
+		}
 	}
 	return out, nil
 }

@@ -43,34 +43,14 @@ func debitFileDay(messageID string) (calendar.Date, error) {
 	return day.AddDays(-1), nil
 }
 
-// Ambiguous one-off authorizations stay out entirely; never choose an
-// invoice on the family's behalf. Cancelled and otherwise excluded entries
-// do not consume an authorization.
-func duplicateOneOffMandates(debits []parentbilling.SealedSEPADebit, earliest calendar.Date) map[int64]bool {
-	type authorization struct {
-		kind             string
-		runID, mandateID int64
-	}
-	seen, duplicate := map[authorization]int64{}, map[int64]bool{}
-	for _, entry := range debits {
-		if entry.Debit.Status != parentbilling.DebitPending || (entry.MandateKind != parentbilling.MandateOneOff && entry.Debit.SequenceType != parentbilling.SequenceTypeOneOff) ||
-			leftReason(entry, entry.Debit.AmountCents+entry.CreditedCents, max(entry.Debit.DueOn, earliest)) != "" {
-			continue
-		}
-		key := authorization{entry.Debit.RunKind, entry.Debit.RunID, entry.Debit.MandateID}
-		if first, ok := seen[key]; ok {
-			duplicate[first], duplicate[entry.Debit.ID] = true, true
-		}
-		seen[key] = entry.Debit.ID
-	}
-	return duplicate
-}
-
-func pendingDebitLeft(entry parentbilling.SealedSEPADebit, amount int64, collectOn calendar.Date, duplicates map[int64]bool) string {
+// pendingDebitLeft tells why a pending debit stays out of the file. A
+// one-off mandate another uncancelled debit of any run also claims leaves
+// all of them out: moto never chooses an invoice on the family's behalf.
+func pendingDebitLeft(entry parentbilling.SealedSEPADebit, amount int64, collectOn calendar.Date) string {
 	if reason := leftReason(entry, amount, collectOn); reason != "" {
 		return reason
 	}
-	if duplicates[entry.Debit.ID] {
+	if entry.OneOffShared {
 		return parentbilling.DebitLeftOneOffMultiple
 	}
 	return ""

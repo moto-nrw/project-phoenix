@@ -61,3 +61,18 @@ func TestTakenOverMandateRunsFromTheTakeOver(t *testing.T) {
 	collected := calendar.NewDate(2027, 2, 1)
 	assert.Equal(t, &collected, parentbilling.MandateUsedOn(parentbilling.SequenceRecurring, &collected, takenOver))
 }
+
+// A one-off mandate collects once; afterwards an invoice falls back like
+// one without a mandate (#4697).
+func TestResolveDebitRefusesAConsumedOneOffMandate(t *testing.T) {
+	t.Parallel()
+	oneOff := *sjrMandate
+	oneOff.Kind, oneOff.Sequence = parentbilling.MandateOneOff, parentbilling.SequenceFirst
+	assert.NotNil(t, debitOf(sjrCreditor, &oneOff, sjrIssued).Mandate, "an unused one-off mandate collects")
+	collected := calendar.NewDate(2026, 10, 1)
+	oneOff.LastCollectedOn = &collected
+	got := debitOf(sjrCreditor, &oneOff, sjrIssued)
+	assert.Nil(t, got.Mandate)
+	assert.Equal(t, parentbilling.DebitGapMandate, got.DebitGap)
+	assert.Equal(t, parentbilling.PaymentTransfer, got.Method)
+}
