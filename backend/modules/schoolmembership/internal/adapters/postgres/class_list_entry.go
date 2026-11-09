@@ -64,10 +64,10 @@ func (s *Store) ListClassListEntries(ctx context.Context, filter schoolmembershi
 		query = query.Where(`"class_list_entry".id IN (?)`, bun.List(filter.IDs))
 	}
 	if filter.FirstName != "" {
-		query = query.Where(`LOWER(NORMALIZE(BTRIM("class_list_entry".first_name), NFC)) = LOWER(NORMALIZE(BTRIM(?), NFC))`, filter.FirstName)
+		query = query.Where(`LOWER(NORMALIZE(BTRIM("class_list_entry".first_name), NFC) COLLATE public.german_name) = LOWER(NORMALIZE(BTRIM(?), NFC) COLLATE public.german_name)`, filter.FirstName)
 	}
 	if filter.LastName != "" {
-		query = query.Where(`LOWER(NORMALIZE(BTRIM("class_list_entry".last_name), NFC)) = LOWER(NORMALIZE(BTRIM(?), NFC))`, filter.LastName)
+		query = query.Where(`LOWER(NORMALIZE(BTRIM("class_list_entry".last_name), NFC) COLLATE public.german_name) = LOWER(NORMALIZE(BTRIM(?), NFC) COLLATE public.german_name)`, filter.LastName)
 	}
 	if filter.SchoolClass != "" {
 		query = query.Where(`LOWER(BTRIM("class_list_entry".school_class)) = LOWER(BTRIM(?))`, filter.SchoolClass)

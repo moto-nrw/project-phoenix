@@ -27,7 +27,7 @@ var careCostShareColumns = []ExportColumn{
 	{ID: "school", Label: "Schule"},
 	{ID: "child", Label: "Kind"},
 	{ID: "kind", Label: "Art"},
-	{ID: "contribution", Label: "Monatsbeitrag in Euro"},
+	{ID: "contribution", Label: "Berechnungsgrundlage in Euro"},
 	{ID: "share", Label: "Anteil"},
 	{ID: "amount", Label: "Übernommener Betrag in Euro"},
 	{ID: "status", Label: "Status"},

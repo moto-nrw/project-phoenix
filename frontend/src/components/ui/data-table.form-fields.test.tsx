@@ -4,6 +4,7 @@
  * in the document, or a named control exists twice — duplicate ids break its
  * label, and the API error path focuses the hidden copy.
  */
+import { AT_LEAST_MD, BELOW_MD } from "~/lib/hooks/use-media-query";
 import {
   act,
   fireEvent,
@@ -227,9 +228,9 @@ describe("DataTable form cells across a width change (#6220)", () => {
         .mockImplementation((query) => ({
           media: query,
           matches:
-            query === "(min-width: 48rem)"
+            query === AT_LEAST_MD
               ? width >= 48 * fontSize
-              : query === "(max-width: 767px)" && width <= 767,
+              : query === BELOW_MD && width < 48 * fontSize,
           onchange: null,
           addEventListener: vi.fn(),
           removeEventListener: vi.fn(),
@@ -249,7 +250,7 @@ describe("DataTable form cells across a width change (#6220)", () => {
             desktop ? "data-table-stacked" : "data-table-table",
           ),
         ).not.toBeInTheDocument();
-        expect(matchMedia).toHaveBeenCalledWith("(min-width: 48rem)");
+        expect(matchMedia).toHaveBeenCalledWith(AT_LEAST_MD);
       } finally {
         matchMedia.mockRestore();
       }

@@ -437,3 +437,49 @@ func absences(children []todayChild) []bool {
 	}
 	return absent
 }
+
+// CI run 42422930038 crossed Berlin midnight between a child's choice of the
+// Sporthalle and the early pickups (#5511). The server keeps attendance per
+// Berlin day, so the pickup of a child who came the day before failed with
+// iot.no_attendance_record_today. The run simulates one fixed day: once the
+// shared clock left it, no action of that day reaches the server; the run
+// names the day change and only ends the sessions it started.
+func TestRunFullDay_StopsOnceItsBerlinDayEnded(t *testing.T) {
+	t.Parallel()
+
+	clock := &fakeClock{now: berlinTime(t, "2026-10-20 23:50"), midnightAfter: "/api/iot/move-to-room"}
+	srv, recorded := clockedDayServer(t, clock)
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	require.NoError(t, WriteSeedState(clockedDayState(srv.URL), statePath))
+
+	err := RunFullDay(context.Background(), FullDayOptions{Client: newTestClientFactory, StatePath: statePath, Now: clock.Now})
+
+	require.ErrorIs(t, err, errSimulatedDayEnded)
+	assert.ErrorContains(t, err, "2026-10-20")
+	assert.ErrorContains(t, err, "2026-10-21")
+	assert.ErrorContains(t, err, "move the clock to 12:45", "the error names the first step the day change stopped, the one before the pickups")
+	require.NotEmpty(t, callsTo(recorded(), "/api/iot/move-to-room"), "the clock crossed midnight inside the run")
+	for _, call := range recorded() {
+		if call.Day != "2026-10-20" {
+			assert.Equal(t, "/api/iot/session/end", call.Path, "after its day the run only ends its sessions")
+		}
+	}
+}
+
+// Midnight can also pass inside an action: the pickup query still reached
+// the old day, the checkout the new one. The failure names the day change
+// beside the server's answer.
+func TestRunFullDay_NamesTheDayChangeInsideAnAction(t *testing.T) {
+	t.Parallel()
+
+	clock := &fakeClock{now: berlinTime(t, "2026-10-20 23:50"), midnightAfter: "/api/iot/pickup-query"}
+	srv, _ := clockedDayServer(t, clock)
+	statePath := filepath.Join(t.TempDir(), "state.json")
+	require.NoError(t, WriteSeedState(clockedDayState(srv.URL), statePath))
+
+	err := RunFullDay(context.Background(), FullDayOptions{Client: newTestClientFactory, StatePath: statePath, Now: clock.Now})
+
+	require.ErrorIs(t, err, errSimulatedDayEnded)
+	assert.ErrorContains(t, err, "iot.no_attendance_record_today")
+	assert.ErrorContains(t, err, "pick up children early")
+}

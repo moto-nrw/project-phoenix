@@ -41,3 +41,27 @@ const (
 	KeyParentBillingCareReviewAddress   = "parent_billing.care_review_address"
 	KeyParentBillingCareReviewPositions = "parent_billing.care_review_positions"
 )
+
+// The DATEV booking batch of the Elternabrechnung (#4694): the
+// Beraternummer and Mandantennummer of the Träger's DATEV client, its
+// Sachkontenlänge and Sachkontenrahmen, the revenue account the
+// contributions are booked on, the month its fiscal year starts and whether
+// the batch is locked (Festschreibung). The customer has not delivered its
+// values (SJR, "wartet auf Ute"): the numbers and accounts stay empty until
+// the Träger enters them, and the export refuses a batch without them.
+// Only the Träger sets them (LevelTraeger).
+const (
+	KeyParentBillingDatevConsultantNumber = "parent_billing.datev_consultant_number"
+	KeyParentBillingDatevClientNumber     = "parent_billing.datev_client_number"
+	KeyParentBillingDatevAccountLength    = "parent_billing.datev_account_length"
+	KeyParentBillingDatevChartOfAccounts  = "parent_billing.datev_chart_of_accounts"
+	KeyParentBillingDatevRevenueAccount   = "parent_billing.datev_revenue_account"
+	KeyParentBillingDatevFiscalYearStart  = "parent_billing.datev_fiscal_year_start"
+	KeyParentBillingDatevLocked           = "parent_billing.datev_locked"
+)
+
+// KeyParentBillingOnlineMandate lets the parents give the SEPA mandate of
+// their family in the parents portal (#4696). Whether a mandate confirmed
+// online holds is agreed between the Träger and its bank, so it is off
+// until the Träger turns it on. Only the Träger sets it (LevelTraeger).
+const KeyParentBillingOnlineMandate = "parent_billing.online_mandate"

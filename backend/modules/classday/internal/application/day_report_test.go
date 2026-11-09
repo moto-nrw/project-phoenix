@@ -48,7 +48,7 @@ type fakeClassDayStatusDays struct {
 	entries []StatusDayEntry
 }
 
-func (f fakeClassDayStatusDays) ActiveStatusDays(context.Context, []int64, calendar.Date) ([]StatusDayEntry, error) {
+func (f fakeClassDayStatusDays) StandingStatusDays(context.Context, []int64, calendar.Date) ([]StatusDayEntry, error) {
 	return f.entries, nil
 }
 

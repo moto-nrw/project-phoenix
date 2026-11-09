@@ -71,6 +71,9 @@ type TemplateUpdateInput struct {
 	// without this flag a newly mirrored supervisor row would stamp that lead
 	// onto the predecessor and outrank its own.
 	SeriesRosterPrimaryChanged bool
+	// PropagateNotesToPredecessors keeps the durable Wochennotiz uniform on a
+	// split chain without changing predecessor recurrence or roster rows.
+	PropagateNotesToPredecessors bool
 	// StartDate pulls a not-yet-started series forward (#2226): the schedule
 	// envelope's inclusive valid_from and the series-managed roster move to
 	// this earlier date. Only earlier-than-stored, not-in-the-past dates that
@@ -169,6 +172,9 @@ func (s *TemplateService) updateTemplateLocked(
 		return err
 	}
 	if err := s.writeTemplateFields(ctx, in, state, targetsProvided); err != nil {
+		return err
+	}
+	if err := s.propagateNotesToPredecessors(ctx, in); err != nil {
 		return err
 	}
 	return s.writeTemplateRecurrenceAndRoster(ctx, in, tenantID, state)

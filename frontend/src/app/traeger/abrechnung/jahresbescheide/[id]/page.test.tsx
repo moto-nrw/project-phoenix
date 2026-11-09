@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import type {
@@ -130,6 +136,28 @@ describe("TraegerCareNoticeRunPage", () => {
     expect(push).toHaveBeenCalledWith(
       "/traeger/abrechnung/jahresbescheide/4/bescheid/71",
     );
+  });
+
+  it("names the issued total a claim before payment, not the preview", async () => {
+    // #6348: moto sees no incoming payment, so an issued total is a claim.
+    const hint = "Forderung vor Zahlungseingang. Zahlungen sieht moto nicht.";
+    api.fetchCareNoticeRun.mockResolvedValue(
+      run({
+        status: "released",
+        issuedOn: "2025-09-24",
+        notices: [{ ...NOTICE, number: "1.2025.000041.1" }],
+      }),
+    );
+    renderPage();
+    expect(await screen.findByText(hint)).toBeInTheDocument();
+    cleanup();
+
+    api.fetchCareNoticeRun.mockResolvedValue(run());
+    renderPage();
+    expect(
+      await screen.findByText("Gesamtbetrag aller Bescheide"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(hint)).not.toBeInTheDocument();
   });
 
   it("holds the release back while the legal remedy is missing", async () => {

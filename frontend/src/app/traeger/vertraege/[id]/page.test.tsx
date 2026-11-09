@@ -290,6 +290,12 @@ describe("TraegerVertragPage", () => {
       screen.getByText("mit 1 Monat Frist zum Monatsende"),
     ).toBeInTheDocument();
     expect(screen.getByText("95,00 €")).toBeInTheDocument();
+    // A special termination always ends at the half year (#6349); the
+    // note of the terms only names the cases.
+    expect(
+      screen.getByText("Zum Halbjahr: 31. Januar oder 31. Juli"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Bei Umzug")).toBeInTheDocument();
     expect(
       screen.getByText(/Die Eltern sehen den Vertrag erst/),
     ).toBeInTheDocument();

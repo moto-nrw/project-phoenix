@@ -43,7 +43,7 @@ func TestInboxMarksTheSentVersionReplacedByAChangeOnItsFirstDay(t *testing.T) {
 		var found []carecontract.InboxContract
 		require.NoError(t, tenant.WithinTraeger(f.ctx, f.organization, func(txCtx context.Context) error {
 			var err error
-			found, err = compose.NewInbox().InboxContracts(txCtx, f.organization, reader)
+			found, err = compose.NewInbox(holidaysDouble{}).InboxContracts(txCtx, f.organization, reader)
 			return err
 		}))
 		require.Len(t, found, 1)
@@ -59,7 +59,7 @@ func TestInboxMarksTheSentVersionReplacedByAChangeOnItsFirstDay(t *testing.T) {
 	assert.Equal(t, aug, sent.EffectiveOn, "the changed version holds from the same day")
 	download := func() {
 		require.NoError(t, tenant.WithinTraeger(f.ctx, f.organization, func(ctx context.Context) error {
-			file, err := compose.NewInbox().InboxContractDocument(ctx, f.organization, f.contract, reader)
+			file, err := compose.NewInbox(holidaysDouble{}).InboxContractDocument(ctx, f.organization, f.contract, reader)
 			require.NoError(t, err)
 			assert.Equal(t, []byte("%PDF-1.4"), file.Data)
 			return nil

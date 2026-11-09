@@ -12,7 +12,7 @@ import (
 
 // DeleteDueBelege deletes the Belege of parent-billing whose instructed
 // period ended on today, and the released runs left without one, through
-// parent_billing.delete_due_belege (migration 1.15.828, ADR 0184). The
+// parent_billing.delete_due_belege (migration 1.15.862, ADR 0184). The
 // function deletes a Beleg only when nothing its cascade would take is
 // still kept, drops the records of what went and logs the counts.
 func (s *Store) DeleteDueBelege(ctx context.Context, today calendar.Date) (int, error) {

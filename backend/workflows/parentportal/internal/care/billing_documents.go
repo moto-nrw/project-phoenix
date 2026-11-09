@@ -74,6 +74,7 @@ type BillingDocument struct {
 	// period may still run; the inbox then offers „Vertrag widerrufen“, the
 	// withdrawal function of § 356a BGB (#6105).
 	CanWithdrawContract bool
+	SEPAMandate         *SEPAMandateStatus
 }
 
 // BillingDocumentFile is the PDF of one document.
@@ -175,7 +176,7 @@ func (s *Service) ListBillingDocuments(ctx context.Context, accountID int64, inb
 	case DocumentInboxLetters:
 		return s.listInbox(ctx, accountID, s.BillingDocuments.ListBillingDocuments)
 	case DocumentInboxContracts:
-		return s.listInbox(ctx, accountID, s.ContractDocuments.ListContractDocuments)
+		return s.listInbox(ctx, accountID, s.contractsWithMandateStatus)
 	default:
 		return nil, fmt.Errorf("parent: unknown document inbox %q", inbox)
 	}
@@ -451,4 +452,27 @@ func (s *Service) guardianLocale(ctx context.Context, guardianProfileID int64) (
 		return "", err
 	}
 	return *profile.PortalLocale, nil
+}
+
+// contractsWithMandateStatus reads the inbox once and batches its SEPA hints
+// in the same authorized Träger transaction, without detail reads per contract.
+func (s *Service) contractsWithMandateStatus(ctx context.Context, organizationID int64, reader BillingDocumentReader) ([]BillingDocument, error) {
+	documents, err := s.ContractDocuments.ListContractDocuments(ctx, organizationID, reader)
+	if err != nil || len(documents) == 0 || s.SEPAMandates == nil {
+		return documents, err
+	}
+	ids := make([]int64, len(documents))
+	for i, document := range documents {
+		ids[i] = document.ID
+	}
+	statuses, err := s.SEPAMandates.SEPAMandateStatuses(ctx, organizationID, SEPAMandateReader{AccountID: reader.AccountID, Email: reader.Email}, ids)
+	if err != nil {
+		return nil, err
+	}
+	for i := range documents {
+		if status, ok := statuses[documents[i].ID]; ok {
+			documents[i].SEPAMandate = &status
+		}
+	}
+	return documents, nil
 }

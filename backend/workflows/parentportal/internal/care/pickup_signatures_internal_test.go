@@ -17,6 +17,15 @@ func (pickupSignatureRuntimeStub) WithinAdmin(ctx context.Context, fn func(conte
 	return fn(ctx)
 }
 
+func (pickupSignatureRuntimeStub) WithinAdminThenTenant(ctx context.Context, discover func(context.Context) (int64, error), fn func(context.Context) error) error {
+	if _, err := discover(ctx); err != nil {
+		return err
+	}
+	return fn(ctx)
+}
+
+func (pickupSignatureRuntimeStub) AmbientScope(context.Context) (bool, int64) { return false, 0 }
+
 func (pickupSignatureRuntimeStub) RegisterAfterCommit(context.Context, func()) {}
 
 func (pickupSignatureRuntimeStub) WithTenantID(ctx context.Context, _ int64) context.Context {

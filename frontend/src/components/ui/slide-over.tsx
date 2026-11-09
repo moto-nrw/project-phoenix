@@ -49,6 +49,7 @@ import { cn } from "~/lib/utils";
 import { buttonClassName } from "./button";
 import { CloseIcon } from "./close-icon";
 import { FormErrorAlert } from "./form-error-alert";
+import { useSheetAboveKeyboard } from "./hooks/useSheetAboveKeyboard";
 import type { FormErrorInput } from "./form-error";
 import {
   OVERLAY_BACKDROP_CLASS,
@@ -243,11 +244,17 @@ const SlideOverContent = React.forwardRef<
   ) => {
     const direction = React.useContext(SlideOverDirectionContext);
     const isSheet = direction === "bottom";
+    const sheetRef = React.useRef<HTMLDivElement | null>(null);
+    useSheetAboveKeyboard(sheetRef, isSheet);
     return (
       <SlideOverPortal>
         <SlideOverOverlay />
         <DrawerPrimitive.Content
-          ref={ref}
+          ref={(node) => {
+            sheetRef.current = node;
+            if (typeof ref === "function") ref(node);
+            else if (ref) ref.current = node;
+          }}
           data-date-picker-focus-trap="true"
           className={cn(
             `fixed ${Z_LAYER.sheet} flex flex-col bg-white shadow-2xl outline-none`,

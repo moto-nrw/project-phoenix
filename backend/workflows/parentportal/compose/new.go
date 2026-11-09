@@ -77,6 +77,7 @@ type Dependencies struct {
 	ContractDocuments   care.ContractDocuments
 	ContractNotices     care.ContractNotices
 	SharedDocuments     care.TraegerSharedDocuments
+	SEPAMandates        care.SEPAMandates
 	TraegerRuntime      care.TraegerRuntime
 	SchoolTraeger       care.SchoolTraeger
 	ParentAccounts      care.ParentAccounts
@@ -133,9 +134,8 @@ func careConfig(deps Dependencies, bound owners, messagingFlows *messaging.Servi
 		ExcusedRequests: deps.ExcusedRequests, CarePlanPolicy: deps.CarePlanPolicy,
 		CarePeriods: deps.CarePeriods, OfferingHistory: deps.OfferingHistory,
 		CareOfferingRepo: deps.CareOfferingRepo, OfferingChanges: deps.OfferingChanges,
-		StudentAudit: deps.StudentAudit, StudentConsents: deps.StudentConsents, StudentPhotos: deps.StudentPhotos, ChildDataAccess: deps.ChildDataAccess,
-		ParentRequestEvents: deps.ParentRequestEvents,
-		BillingDocuments:    deps.BillingDocuments, ContractDocuments: deps.ContractDocuments, ContractNotices: deps.ContractNotices, SharedDocuments: deps.SharedDocuments, TraegerRuntime: deps.TraegerRuntime, SchoolTraeger: deps.SchoolTraeger,
+		StudentAudit: deps.StudentAudit, StudentConsents: deps.StudentConsents, StudentPhotos: deps.StudentPhotos, ChildDataAccess: deps.ChildDataAccess, ParentRequestEvents: deps.ParentRequestEvents,
+		BillingDocuments: deps.BillingDocuments, ContractDocuments: deps.ContractDocuments, ContractNotices: deps.ContractNotices, SharedDocuments: deps.SharedDocuments, SEPAMandates: deps.SEPAMandates, TraegerRuntime: deps.TraegerRuntime, SchoolTraeger: deps.SchoolTraeger,
 		ParentAccounts: deps.ParentAccounts, DocumentNotifier: deps.DocumentNotifier,
 		GuardianChanges: newGuardianChanges(deps.GuardianChanges), PickupSignatures: deps.Signatures,
 		GuardianInvites: deps.GuardianInvites, GuardianInvitations: deps.GuardianInvitations,

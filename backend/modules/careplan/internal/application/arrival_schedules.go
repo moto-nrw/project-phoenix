@@ -482,13 +482,6 @@ func (s *arrivalScheduleService) DeleteStudentArrivalException(
 	return s.deleteException(ctx, exceptionID, studentID)
 }
 
-func (s *arrivalScheduleService) DeleteAllStudentArrivalExceptions(
-	ctx context.Context,
-	studentID int64,
-) error {
-	return s.deleteAllExceptions(ctx, studentID)
-}
-
 func (s *arrivalScheduleService) GetStudentArrivalNoteByID(
 	ctx context.Context,
 	noteID int64,

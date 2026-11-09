@@ -29,13 +29,15 @@ type StaffAdminDependencies struct {
 	// against; nil means the wall clock. Tests pin it.
 	Now    func() time.Time
 	Logger *slog.Logger
+	// BankData seals and opens the bank and tax section (BANK_DATA_KEYS, #6332).
+	BankData workforce.BankDataCipher
 }
 
 // NewStaffAdmin composes the personnel-record administration over the
 // Workforce-owned record rows.
 func NewStaffAdmin(dependencies StaffAdminDependencies) (*workforce.StaffAdmin, error) {
-	if dependencies.DB == nil || dependencies.Subjects == nil || dependencies.Audit == nil || dependencies.Allows == nil {
-		return nil, errors.New("staff admin: database, staff subjects, audit trail and permission matcher are required")
+	if dependencies.DB == nil || dependencies.Subjects == nil || dependencies.Audit == nil || dependencies.Allows == nil || dependencies.BankData == nil {
+		return nil, errors.New("staff admin: database, staff subjects, audit trail, permission matcher and bank data cipher are required")
 	}
 	store := postgres.New(postgres.DatabaseRuntime(dependencies.DB))
 	now := dependencies.Now
@@ -54,8 +56,13 @@ func NewStaffAdmin(dependencies StaffAdminDependencies) (*workforce.StaffAdmin, 
 			Health: permissions.StaffDocumentsHealth, Financial: permissions.StaffFinancial, General: permissions.StaffDocuments,
 			Allows: dependencies.Allows,
 		},
-		application.Clock{Time: now}, logger.Warn,
+		application.Clock{Time: now}, logger.Warn, dependencies.BankData,
 	), records)), nil
 }
 
 // --- documents --------------------------------------------------------------
+
+// NewStaffBankDataRekey is the maintenance-only bank backfill/rekey (#6332), never HTTP.
+func NewStaffBankDataRekey(cipher workforce.BankDataRekeyCipher) workforce.StaffBankDataRekey {
+	return application.NewStaffBankDataRekey(postgres.NewStaffBankRekeyStore(), cipher)
+}

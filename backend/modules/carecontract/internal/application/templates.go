@@ -13,8 +13,43 @@ import (
 // The parent submission must have checksummed and accepted this exact text,
 // not a generic reference to terms. Explicit labels and indented values keep
 // multiline notes from masquerading as another condition. A missing partner
-// cannot bind the eventual fallback from the mutable letterhead.
+// cannot bind the eventual fallback from the mutable letterhead. Since #6349
+// a special termination names its date and notice period; the text before
+// that stays valid proof (acceptanceTexts).
 func acceptanceText(terms carecontract.TemplateInput) string {
+	special := ""
+	if terms.SpecialTermination {
+		special = "Ja, " + specialTerminationText(terms) + "\n" + terms.SpecialTerminationNote
+	}
+	return acceptanceTextWith(terms, special)
+}
+
+// acceptanceTexts are every wording a parent may have accepted for the same
+// conditions, the current first. Up to #6349 the special termination named
+// only the free text; schools copied that text into their forms, and parents
+// ticked it before their application was accepted. Both wordings bind the
+// same conditions (moto has always offered the half year), so either proves
+// consent to them. A change of any condition changes both texts.
+func acceptanceTexts(terms carecontract.TemplateInput) []string {
+	current := acceptanceText(terms)
+	if current == "" {
+		return nil
+	}
+	if !terms.SpecialTermination {
+		return []string{current}
+	}
+	return []string{current, acceptanceTextWith(terms, "Ja\n"+terms.SpecialTerminationNote)}
+}
+
+// specialTerminationText is the date and notice period of a special
+// termination: the half year with the notice months of the terms, as
+// noticeDates offers it (#4682, #6349).
+func specialTerminationText(terms carecontract.TemplateInput) string {
+	terms.NoticeTo = carecontract.NoticeHalfYear
+	return NoticeText(terms)
+}
+
+func acceptanceTextWith(terms carecontract.TemplateInput, special string) string {
 	if strings.TrimSpace(terms.ContractPartner) == "" {
 		return ""
 	}
@@ -25,8 +60,8 @@ func acceptanceText(terms carecontract.TemplateInput) string {
 		{"Sonderkündigung", "Nein"},
 		{"Satzung", "Nein"},
 	}
-	if terms.SpecialTermination {
-		values[3][1] = "Ja\n" + terms.SpecialTerminationNote
+	if special != "" {
+		values[3][1] = special
 	}
 	if terms.StatuteRequired {
 		values[4][1] = "Ja\n" + terms.StatuteTitle

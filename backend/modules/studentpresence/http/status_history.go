@@ -61,6 +61,14 @@ type statusTransition struct {
 }
 
 func (rs *Resource) persistSingleStatusHistory(ctx context.Context, studentID int64, status string, transition statusTransition, reportedAt time.Time, date calendar.Date, now time.Time, note *string) error {
+	if transition.isActive && transition.wasActive && note == nil {
+		// The status stands unchanged: a day that already shows it keeps the
+		// report that set it, with its source and report time (#6291).
+		standing, err := rs.statusStandsOn(ctx, studentID, status, date)
+		if err != nil || standing {
+			return err
+		}
+	}
 	if transition.isActive {
 		return rs.StudentStatusDayService.UpsertReported(ctx, &absencerecords.StudentStatusDay{
 			StudentID:  studentID,
@@ -92,6 +100,20 @@ func (rs *Resource) persistSingleStatusHistory(ctx context.Context, studentID in
 		return rs.StudentStatusDayService.MarkCleared(ctx, studentID, status, date, now, absencerecords.StudentStatusSourceManual)
 	}
 	return nil
+}
+
+// statusStandsOn reports whether a row of the status stands for the day.
+func (rs *Resource) statusStandsOn(ctx context.Context, studentID int64, status string, date calendar.Date) (bool, error) {
+	rows, err := rs.StudentStatusDayService.FindSignedOffByStudentIDsAndDate(ctx, []int64{studentID}, date)
+	if err != nil {
+		return false, err
+	}
+	for _, row := range rows {
+		if row.Status == status {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (rs *Resource) NotifyAbsenceReported(ctx context.Context, tenantID int64, studentIDs []int64, status string, dates []calendar.Date, fromParent bool, actorAccountID int64) error {

@@ -115,7 +115,9 @@ function modeOf(target: BillingCorrectionTarget): {
         title: `Gutschrift für ${target.child.firstName}`,
         saveLabel: "Gutschreiben",
         object: "die Gutschrift",
-        intro: `Noch offen für ${target.child.firstName}: ${formatEuro(target.leftCents)}. Die Gutschrift bekommt eine eigene Nummer und ein eigenes Schreiben.`,
+        // The rest the invoice still asks for, before any payment: moto sees
+        // no incoming money (#6348).
+        intro: `Offene Forderung für ${target.child.firstName}: ${formatEuro(target.leftCents)}. Das ist der Stand vor Zahlungseingang. Die Gutschrift bekommt eine eigene Nummer und ein eigenes Schreiben.`,
         amount: {
           id: "billing-credit-amount",
           name: "amount_cents",

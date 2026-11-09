@@ -42,6 +42,7 @@
   "rebooking_sick_report": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "rebooking_too_many": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "replacement_outside_origin": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "replacement_staff_absent": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "session_note_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "session_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "session_not_owned": "{object} için erişim izniniz yok. Okulla iletişime geçin.",

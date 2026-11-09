@@ -50,7 +50,7 @@ type belegFactRow struct {
 // documents and invoices of released runs, an invoice with the later issue
 // of itself and its cancellation, the released notices, every mandate with
 // the submission of its last debit and the submitted debits. The function
-// reads no bank data (migration 1.15.828).
+// reads no bank data (migration 1.15.862).
 func (s *Store) BelegFacts(ctx context.Context, organizationID int64) ([]parentbilling.BelegFact, error) {
 	db, err := adminDB(ctx)
 	if err != nil {
@@ -274,7 +274,7 @@ func (s *Store) LiftSuspension(ctx context.Context, organizationID, suspensionID
 }
 
 // LockTraeger takes the retention lock of each Träger in ascending order
-// (parent_billing.lock_beleg_retention, migration 1.15.828).
+// (parent_billing.lock_beleg_retention, migration 1.15.862).
 func (s *Store) LockTraeger(ctx context.Context, organizationIDs []int64) error {
 	db, err := adminDB(ctx)
 	if err != nil {
@@ -297,7 +297,7 @@ func lockTraeger(ctx context.Context, db bun.IDB, organizationIDs ...int64) erro
 	return nil
 }
 
-// citesStatuteConstraint is the citation heuristic of migration 1.15.828,
+// citesStatuteConstraint is the citation heuristic of migration 1.15.862,
 // the only place that reads the text of a basis.
 const citesStatuteConstraint = "chk_beleg_retention_instructions_basis_cites_statute"
 

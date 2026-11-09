@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"errors"
 	"sort"
 	"time"
 
@@ -212,38 +211,10 @@ func (s *pickupScheduleService) detachExceptionForStudent(ctx context.Context, i
 	return s.autoExcusal.DetachRow(ctx, fresh)
 }
 
-func (s *pickupScheduleService) DeleteAllStudentPickupExceptions(
-	ctx context.Context,
-	studentID int64,
-) error {
-	if s.autoExcusal == nil {
-		return s.deleteAllExceptions(ctx, studentID)
-	}
-	return s.tx.WithinTenant(ctx, func(txCtx context.Context) error {
-		// Student lock FIRST: every care-day writer takes it before its day
-		// lock, so once held no concurrent exception write can commit between
-		// the snapshot below and the delete — an auto excusal created in that
-		// window would otherwise be deleted without release, stranding its
-		// blocks as absent once the FK clears their provenance (#2360 review).
-		// A missing student cannot race those writers (they fail on the same
-		// lock), so the plain delete-all suffices then.
-		if err := s.tx.LockStudent(txCtx, studentID); err != nil {
-			if s.tx.IsNotFound(err) {
-				return s.deleteAllExceptions(txCtx, studentID)
-			}
-			return err
-		}
-		if err := s.detachStudentAutoExceptions(txCtx, studentID); err != nil {
-			return err
-		}
-		return s.deleteAllExceptions(txCtx, studentID)
-	})
-}
-
 func (s *pickupScheduleService) lockPickupUpdateDays(ctx context.Context, exceptionID, studentID int64, date calendar.Date) error {
 	// The row's stored date may differ from the submitted one; both days'
-	// block absences can be affected, so lock them in ascending order (the
-	// same convention DeleteAllExceptions uses) before detaching.
+	// block absences can be affected, so lock them in ascending order
+	// before detaching.
 	existing, err := s.exceptionByID(ctx, exceptionID)
 	if err != nil && !s.tx.IsNotFound(err) {
 		return err
@@ -259,45 +230,4 @@ func (s *pickupScheduleService) lockPickupUpdateDays(ctx context.Context, except
 		}
 	}
 	return nil
-}
-
-func (s *pickupScheduleService) detachStudentAutoExceptions(ctx context.Context, studentID int64) error {
-	rows, err := s.loadExceptions(ctx, studentID)
-	if err != nil {
-		return err
-	}
-	autoRows := make([]*careplan.PickupException, 0, len(rows))
-	for _, row := range rows {
-		if row != nil && row.ExcusedAuto {
-			autoRows = append(autoRows, row)
-		}
-	}
-	sort.Slice(autoRows, func(i, j int) bool {
-		if autoRows[i].ExceptionDate == autoRows[j].ExceptionDate {
-			return autoRows[i].ID < autoRows[j].ID
-		}
-		return autoRows[i].ExceptionDate.Before(autoRows[j].ExceptionDate)
-	})
-	for _, row := range autoRows {
-		if err := s.detachAutoException(ctx, studentID, row); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// detachAutoException skips a row a concurrent delete already removed: the
-// bulk delete that follows has nothing left to detach for it.
-func (s *pickupScheduleService) detachAutoException(ctx context.Context, studentID int64, row *careplan.PickupException) error {
-	if err := s.tx.LockStudentAndExceptionDay(ctx, studentID, row.ExceptionDate.String()); err != nil {
-		return err
-	}
-	fresh, err := s.lockedExceptionByID(ctx, row.ID)
-	if errors.Is(err, careplan.ErrCareExceptionNotFound) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	return s.autoExcusal.DetachRow(ctx, fresh)
 }

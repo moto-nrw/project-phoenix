@@ -1108,8 +1108,9 @@ describe("SickNoteModal — Abmeldegrund", () => {
   });
 });
 
-// #5698: a day the school already excused from a time is refused for a
-// full-day report. The dialog names it and reports only the free days.
+// #5698: families never overwrite a school entry. A day the school already
+// excused from a time goes to the school as a request; free days in the same
+// report are written directly.
 describe("SickNoteModal — Teil-Abwesenheit der Schule", () => {
   const schoolPartial = (
     date: string,
@@ -1139,8 +1140,14 @@ describe("SickNoteModal — Teil-Abwesenheit der Schule", () => {
     );
   }
 
-  it("nennt den eingetragenen Tag und meldet nur die freien Tage", async () => {
-    const onSubmit = vi.fn().mockResolvedValue(undefined);
+  function send() {
+    fireEvent.click(
+      screen.getByRole("button", { name: "Krankmeldung an die OGS senden" }),
+    );
+  }
+
+  it("nennt den Tag, für den eine Anfrage an die OGS geht, und sendet alle Tage", async () => {
+    const onSubmit = vi.fn().mockResolvedValue("partly_pending");
     render(
       <SickNoteModal
         onClose={vi.fn()}
@@ -1151,37 +1158,97 @@ describe("SickNoteModal — Teil-Abwesenheit der Schule", () => {
     );
     chooseRange("2026-09-10", "2026-09-11");
 
-    const notice = screen.getByRole("alert");
+    const notice = screen.getByRole("status");
     expect(notice).toHaveTextContent(
-      "Ein Tag ist schon von der OGS eingetragen",
+      "Für einen Tag geht eine Anfrage an die OGS",
     );
     expect(notice).toHaveTextContent(/10\.09\.2026.*ab 13:00 Uhr/);
+    expect(notice).toHaveTextContent("Bis dahin gilt ihr Eintrag.");
     // The test translator skips ICU plurals; the interpolated total is enough.
-    expect(screen.getByText(/von 2 Tagen wird gemeldet\./)).toBeInTheDocument();
+    expect(
+      screen.getByText(/von 2 Tagen wird direkt gemeldet\./),
+    ).toBeInTheDocument();
 
     fillReason();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Krankmeldung an die OGS senden" }),
-    );
+    send();
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
-    expect(onSubmit).toHaveBeenCalledWith(["2026-09-11"], "Fieber", "sick", []);
+    expect(onSubmit).toHaveBeenCalledWith(
+      ["2026-09-10", "2026-09-11"],
+      "Fieber",
+      "sick",
+      [],
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Gemeldet und angefragt" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Die freien Tage sind gemeldet. Für die anderen Tage prüft die OGS Ihre Meldung. Bis dahin gilt ihr Eintrag.",
+      ),
+    ).toBeInTheDocument();
   });
 
-  it("sperrt das Senden, wenn alle Tage schon eingetragen sind", () => {
+  it("sendet auch, wenn jeder Tag schon eingetragen ist, und sagt, wer entscheidet", async () => {
+    const onSubmit = vi.fn().mockResolvedValue("pending");
     render(
       <SickNoteModal
         onClose={vi.fn()}
-        onSubmit={vi.fn()}
+        onSubmit={onSubmit}
+        sickRequiresApproval={false}
         careExceptions={[schoolPartial("2026-09-09", "11:30")]}
       />,
     );
 
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Bitte wählen Sie andere Tage.",
-    );
     expect(
       screen.getByRole("button", { name: "Krankmeldung an die OGS senden" }),
-    ).toBeDisabled();
+    ).toBeEnabled();
+    fillReason();
+    send();
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith(
+        ["2026-09-09"],
+        "Fieber",
+        "sick",
+        [],
+      ),
+    );
+    expect(
+      await screen.findByText(
+        "Die OGS hat für diese Tage schon etwas eingetragen. Sie prüft Ihre Meldung. Bis dahin gilt ihr Eintrag.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("zählt eine Krankmeldung der OGS als Schuleintrag", () => {
+    render(
+      <SickNoteModal
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        sickRequiresApproval={false}
+        sickDays={[
+          {
+            id: "1",
+            student_id: "7",
+            date: "2026-09-10",
+            status: "sick",
+            reported_at: "2026-09-08T10:00:00Z",
+            source: "planned",
+          },
+        ]}
+      />,
+    );
+    chooseRange("2026-09-10", "2026-09-11");
+
+    const notice = screen.getByRole("status");
+    expect(notice).toHaveTextContent(
+      "Für einen Tag geht eine Anfrage an die OGS",
+    );
+    expect(notice).toHaveTextContent(
+      /10\.09\.2026: von der OGS krank gemeldet/,
+    );
+    expect(
+      screen.getByText(/von 2 Tagen wird direkt gemeldet\./),
+    ).toBeInTheDocument();
   });
 
   it("übersieht Abholzeiten ohne Teil-Abwesenheit", () => {
@@ -1205,12 +1272,12 @@ describe("SickNoteModal — Teil-Abwesenheit der Schule", () => {
     expect(
       screen.getByText(/Ihr Kind wird für diesen Tag abgemeldet\./),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Anfrage an die OGS/)).not.toBeInTheDocument();
   });
 
-  it("erklärt die Ablehnung und nennt den Tag nach dem Nachladen", async () => {
-    // The day lies beyond the window the page loaded: the dialog reads the
-    // school's entries for exactly the chosen days.
+  it("nennt den Tag nach dem Nachladen, wenn die OGS ihn gerade eingetragen hat", async () => {
+    // The school entered the day after the dialog opened: the dialog reads
+    // the school's entries for exactly the chosen days.
     const listSpy = vi
       .spyOn(parentApi, "listCareExceptions")
       .mockResolvedValue([schoolPartial("2026-09-10")]);
@@ -1220,13 +1287,16 @@ describe("SickNoteModal — Teil-Abwesenheit der Schule", () => {
       }),
     );
     render(
-      <SickNoteModal studentId="7" onClose={vi.fn()} onSubmit={onSubmit} />,
+      <SickNoteModal
+        studentId="7"
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        sickRequiresApproval={false}
+      />,
     );
     chooseRange("2026-09-10", "2026-09-11");
     fillReason();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Krankmeldung an die OGS senden" }),
-    );
+    send();
 
     expect(
       await screen.findByText(/10\.09\.2026: entschuldigt ab 13:00 Uhr/),
@@ -1235,10 +1305,9 @@ describe("SickNoteModal — Teil-Abwesenheit der Schule", () => {
       from: "2026-09-10",
       to: "2026-09-11",
     });
-    expect(screen.getByText(/von 2 Tagen wird gemeldet\./)).toBeInTheDocument();
   });
 
-  it("nennt die Ablehnung, wenn das Nachladen nichts findet", async () => {
+  it("bittet um erneutes Senden, wenn das Nachladen nichts findet", async () => {
     vi.spyOn(parentApi, "listCareExceptions").mockResolvedValue([]);
     const onSubmit = vi.fn().mockRejectedValue(
       new ApiError("conflict", 409, {
@@ -1249,12 +1318,10 @@ describe("SickNoteModal — Teil-Abwesenheit der Schule", () => {
       <SickNoteModal studentId="7" onClose={vi.fn()} onSubmit={onSubmit} />,
     );
     fillReason();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Krankmeldung an die OGS senden" }),
-    );
+    send();
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Für einen der Tage hat die OGS schon eine Abwesenheit ab einer Uhrzeit eingetragen.",
+      "Die OGS hat gerade etwas für einen der Tage eingetragen. Bitte senden Sie die Meldung noch einmal.",
     );
   });
 });
