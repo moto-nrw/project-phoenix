@@ -40,7 +40,10 @@ func withMovedUpBookings(frozen, current []parentbilling.HolidayChild) []parentb
 }
 
 // movedUpBookings are the moved-up bookings of current that no frozen
-// booking prices, first by their own week, then by a week they replaced.
+// booking prices. Bookings placed directly claim their frozen booking first,
+// by their own week, then by a week they replaced; moved-up bookings claim
+// what is left the same way. A moved-up week whose frozen booking a direct
+// replacement holds is therefore priced anew.
 func movedUpBookings(frozen, current []parentbilling.HolidayBooking) []parentbilling.HolidayBooking {
 	used := make([]bool, len(frozen))
 	claim := func(weekID int64, startsOn, endsOn calendar.Date) bool {
@@ -52,21 +55,24 @@ func movedUpBookings(frozen, current []parentbilling.HolidayBooking) []parentbil
 		}
 		return false
 	}
-	var unpriced []parentbilling.HolidayBooking
-	for _, booking := range current {
-		if booking.Waitlisted || claim(booking.WeekID, booking.WeekStartsOn, booking.WeekEndsOn) {
-			continue
-		}
-		if booking.Promoted {
-			unpriced = append(unpriced, booking)
-		}
-	}
+	claimed := make([]bool, len(current))
 	var added []parentbilling.HolidayBooking
-	for _, booking := range unpriced {
-		if !slices.ContainsFunc(booking.ReplacedWeeks, func(previous parentbilling.HolidayBookingReplacement) bool {
-			return claim(previous.WeekID, previous.WeekStartsOn, previous.WeekEndsOn)
-		}) {
-			added = append(added, booking)
+	for _, promoted := range []bool{false, true} {
+		for j, booking := range current {
+			if !booking.Waitlisted && booking.Promoted == promoted {
+				claimed[j] = claim(booking.WeekID, booking.WeekStartsOn, booking.WeekEndsOn)
+			}
+		}
+		for j, booking := range current {
+			if booking.Waitlisted || booking.Promoted != promoted || claimed[j] ||
+				slices.ContainsFunc(booking.ReplacedWeeks, func(previous parentbilling.HolidayBookingReplacement) bool {
+					return claim(previous.WeekID, previous.WeekStartsOn, previous.WeekEndsOn)
+				}) {
+				continue
+			}
+			if promoted {
+				added = append(added, booking)
+			}
 		}
 	}
 	return added
