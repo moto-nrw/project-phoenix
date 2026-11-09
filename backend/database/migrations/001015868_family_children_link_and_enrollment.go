@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const familyChildrenLinkAndEnrollmentVersion = "1.15.866"
+const familyChildrenLinkAndEnrollmentVersion = "1.15.868"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
