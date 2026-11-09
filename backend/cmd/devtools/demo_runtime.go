@@ -55,6 +55,12 @@ type demoSchoolFiles interface {
 	EraseRetiredDemoSchoolFiles(ctx context.Context) (schools int, files int64, err error)
 }
 
+// demoSchoolDatabases is the owner's database erasure of retired demo
+// schools (#5559).
+type demoSchoolDatabases interface {
+	EraseRetiredDemoSchoolDatabases(ctx context.Context) (schools int, err error)
+}
+
 // DemoRuntime composes only the owner capabilities needed by the sidecar.
 // It deliberately does not construct the retained API/service factory graph.
 // The calls whose signatures carry owner types are bound as functions in
@@ -63,6 +69,8 @@ type demoSchoolFiles interface {
 type DemoRuntime struct {
 	// demoSchoolFiles removes the uploads of retired demo schools (#5544).
 	demoSchoolFiles
+	// demoSchoolDatabases erases retired demo schools from the database (#5559).
+	demoSchoolDatabases
 	seedAdapter  func(string, bool) seedCommandAdapter
 	schools      demoSchoolStore
 	queue        demoSchoolQueue
@@ -89,6 +97,10 @@ func NewDemoRuntime(db transactionruntime.Database, now func() time.Time, seedAd
 	if err != nil {
 		return nil, err
 	}
+	databases, err := organizationcompose.NewDemoSchoolDatabases(db.Pool())
+	if err != nil {
+		return nil, err
+	}
 	presence, err := presencecompose.New(presencecompose.Dependencies{DB: db.Pool(), Observe: func(presencecompose.Observation) {}})
 	if err != nil {
 		return nil, err
@@ -98,9 +110,10 @@ func NewDemoRuntime(db transactionruntime.Database, now func() time.Time, seedAd
 		return nil, err
 	}
 	return &DemoRuntime{
-		seedAdapter:     seedAdapter,
-		demoSchoolFiles: files,
-		schools:         schools, queue: queue, expiry: expiry, transactions: db.UnitOfWork(),
+		seedAdapter:         seedAdapter,
+		demoSchoolFiles:     files,
+		demoSchoolDatabases: databases,
+		schools:             schools, queue: queue, expiry: expiry, transactions: db.UnitOfWork(),
 		loadSchool: func(ctx context.Context, name string) (*DemoSchoolRecord, error) {
 			state, err := schools.LoadDemoSchool(ctx, name)
 			if state == nil || err != nil {

@@ -17,12 +17,15 @@ type demoExpiryRuntime interface {
 	ExpireDemoAccesses(ctx context.Context) (deleted int, orphanedSlugs []string, err error)
 	RetireDemoSchools(ctx context.Context, slugs []string) (hidden, erased int, err error)
 	EraseRetiredDemoSchoolFiles(ctx context.Context) (schools int, files int64, err error)
+	EraseRetiredDemoSchoolDatabases(ctx context.Context) (schools int, err error)
 }
 
 // demoExpiry deletes demo accesses 14 days after their last use and hides
 // the demo schools left without any access (#3470). Then it erases the
 // visitors of the schools out of use, those it just hid included (#4048),
-// and last the uploads of the schools hidden for at least an hour (#5544).
+// then the uploads of the schools hidden for at least an hour (#5544), and
+// last, from the database, the schools retired at least 90 days ago whose
+// uploads are gone (#5559).
 // It runs once per interval on the injected clock; the first run is due at
 // once. The standing school is shared by every visitor and is never hidden.
 type demoExpiry struct {
@@ -76,6 +79,17 @@ func (e *demoExpiry) run(ctx context.Context) error {
 		slog.Info("demo school files erased",
 			"schools", schools,
 			"files", files,
+		)
+	}
+	if err != nil {
+		return err
+	}
+	// The same rule: a school that failed keeps every row and the run stays
+	// due. Only a school whose uploads are erased is ever selected.
+	erasedSchools, err := e.runtime.EraseRetiredDemoSchoolDatabases(ctx)
+	if erasedSchools > 0 {
+		slog.Info("demo schools erased from the database",
+			"schools", erasedSchools,
 		)
 	}
 	if err != nil {

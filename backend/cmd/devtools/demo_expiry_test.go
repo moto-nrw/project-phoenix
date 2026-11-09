@@ -14,7 +14,7 @@ import (
 // once, then once per hour, hides the schools left without a link, never the
 // standing school, tries a failed hiding again, erases the visitors of the
 // schools out of use with every run (#4048) and last the uploads of the
-// retired schools (#5544).
+// retired schools (#5544), then their database rows (#5559).
 
 type fakeDemoExpiryRuntime struct {
 	expired []struct {
@@ -24,10 +24,11 @@ type fakeDemoExpiryRuntime struct {
 	expiries int
 	retired  [][]string
 	retire   error
-	// calls is the order of the steps: "expire", "retire", "files".
-	calls  []string
-	erased int
-	files  error
+	// calls is the order of the steps: "expire", "retire", "files", "databases".
+	calls     []string
+	erased    int
+	files     error
+	databases error
 }
 
 func (r *fakeDemoExpiryRuntime) ExpireDemoAccesses(context.Context) (int, []string, error) {
@@ -58,6 +59,14 @@ func (r *fakeDemoExpiryRuntime) EraseRetiredDemoSchoolFiles(context.Context) (in
 		return 0, 0, r.files
 	}
 	return 1, 3, nil
+}
+
+func (r *fakeDemoExpiryRuntime) EraseRetiredDemoSchoolDatabases(context.Context) (int, error) {
+	r.calls = append(r.calls, "databases")
+	if r.databases != nil {
+		return 0, r.databases
+	}
+	return 1, nil
 }
 
 func TestDemoExpiryRunsAtOnceAndThenHourly(t *testing.T) {
@@ -136,7 +145,7 @@ func TestDemoExpiryRetiresEveryRunToEraseTheVisitors(t *testing.T) {
 	clock = clock.Add(time.Hour)
 	require.NoError(t, expiry.run(t.Context()))
 
-	assert.Equal(t, []string{"expire", "retire", "files", "expire", "retire", "files"}, runtime.calls)
+	assert.Equal(t, []string{"expire", "retire", "files", "databases", "expire", "retire", "files", "databases"}, runtime.calls)
 	assert.Equal(t, [][]string{{"ogs-nord-k3m9xp"}}, runtime.retired)
 }
 
@@ -153,7 +162,7 @@ func TestDemoExpiryErasesTheFilesAfterTheRetirement(t *testing.T) {
 	runtime.retire = nil
 	runtime.calls = nil
 	require.NoError(t, expiry.run(t.Context()))
-	assert.Equal(t, []string{"expire", "retire", "files"}, runtime.calls)
+	assert.Equal(t, []string{"expire", "retire", "files", "databases"}, runtime.calls, "the database erasure comes after the files")
 }
 
 // A school whose files could not be erased keeps the run due: the next poll
@@ -171,6 +180,24 @@ func TestDemoExpiryRunsAgainAfterAFailedFileErasure(t *testing.T) {
 	clock = clock.Add(time.Second)
 	require.NoError(t, expiry.run(t.Context()))
 
-	assert.Equal(t, []string{"expire", "retire", "files", "expire", "retire", "files"}, runtime.calls,
+	assert.Equal(t, []string{"expire", "retire", "files", "expire", "retire", "files", "databases"}, runtime.calls,
 		"the failed run is due again at the next poll, the successful one waits an hour")
+}
+
+// A school the database erasure left behind fails the run, which stays due
+// and tries again at the next poll; a later success waits an hour (#5559).
+func TestDemoExpiryRunsAgainAfterAFailedDatabaseErasure(t *testing.T) {
+	t.Parallel()
+	clock := time.Date(2026, 9, 22, 8, 0, 0, 0, time.UTC)
+	runtime := &fakeDemoExpiryRuntime{databases: errors.New("demo school 7: database erasure failed")}
+	expiry := newDemoExpiry(runtime, func() time.Time { return clock })
+
+	require.Error(t, expiry.run(t.Context()))
+	runtime.databases = nil
+	clock = clock.Add(time.Second)
+	require.NoError(t, expiry.run(t.Context()))
+	clock = clock.Add(time.Second)
+	require.NoError(t, expiry.run(t.Context()))
+
+	assert.Equal(t, []string{"expire", "retire", "files", "databases", "expire", "retire", "files", "databases"}, runtime.calls)
 }

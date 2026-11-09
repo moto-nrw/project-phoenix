@@ -98,8 +98,21 @@ the marker with the removed counts only when nothing is left. A school that
 fails (for example a symlinked namespace, which is never followed) keeps no
 marker and logs its school ID; the run stays due, the next poll retries it
 and the sidecar turns `unhealthy` until it succeeds. The log line
-`demo school files erased` carries the number of schools and files. The
-database rows of a hidden school stay until the demo database is rebuilt.
+`demo school files erased` carries the number of schools and files.
+
+Last, the same run erases from the database every hidden demo school whose
+uploads are erased, that was hidden at least 90 days ago and that no order
+names any more (#5559, ADR 0189). It calls
+`platform.erase_retired_demo_school` once per school, at most 10 per run,
+which runs the school erasure's preflight and deletion and records the time
+and the deleted rows per table on the file marker. Each erasure briefly locks
+every school table of the demo database. A school that fails keeps every
+row, the run stays due and the sidecar turns `unhealthy`; the log line
+`demo schools erased from the database` carries the number of schools.
+
+Hidden demo schools without a demo origin (orders erased before 1.15.735)
+are left alone by both steps. To remove them, rebuild the demo database and
+its uploads volume once; that is a manual operation.
 
 ### Capacity
 

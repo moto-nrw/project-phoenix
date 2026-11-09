@@ -24,3 +24,12 @@ func NewDemoSchoolFiles(db *bun.DB, files organizationtenancy.ErasureFiles) (org
 	}
 	return application.NewDemoSchoolFiles(postgres.NewDemoSchoolFileStore(db), files)
 }
+
+// NewDemoSchoolDatabases composes the database erasure of retired demo
+// schools (#5559) on the demo process's restricted connection.
+func NewDemoSchoolDatabases(db *bun.DB) (organizationtenancy.DemoSchoolDatabases, error) {
+	if db == nil {
+		return nil, errors.New("demo school databases require a database")
+	}
+	return application.NewDemoSchoolDatabases(postgres.NewDemoSchoolDatabaseStore(db))
+}
