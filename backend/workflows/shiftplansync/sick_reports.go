@@ -26,52 +26,56 @@ func NewSickReports(absences workforce.SickReportWrites, cascade SickCascade, ru
 	if absences == nil || cascade == nil || runInTx == nil {
 		return nil, errors.New("shift plan sync: sick reports need the absence writes, the cascade and the unit of work")
 	}
-	return &SickReports{absences: lockingSickReportWrites{writes: absences, cascade: cascade}, cascade: cascade, runInTx: runInTx}, nil
+	return &SickReports{absences: absences, cascade: cascade, runInTx: runInTx}, nil
 }
 
-// lockingSickReportWrites takes each write's day locks before Workforce runs
-// it (#6292): days → Workforce's absence and staff locks → the cascade, the
-// order a materialization (days → staff key share) shares, so the two cannot
-// deadlock. The write and its plan run in the entry's unit of work, so the
-// locks hold until it commits.
-type lockingSickReportWrites struct {
-	writes  workforce.SickReportWrites
-	cascade SickCascade
+// CreateOwnAbsence files the staff member's own absence.
+func (r *SickReports) CreateOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, request workforce.CreateAbsenceRequest) (*workforce.StaffAbsenceResponse, error) {
+	return r.absence(ctx, r.lockFor(staffID, 0, request.DateStart, request.DateEnd), func(ctx context.Context) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error) {
+		return r.absences.CreateOwnAbsence(ctx, staffID, actorAccountID, request)
+	})
 }
 
-func (w lockingSickReportWrites) CreateOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, request workforce.CreateAbsenceRequest) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error) {
-	if err := w.cascade.LockSickReportWrite(ctx, staffID, 0, request.DateStart, request.DateEnd); err != nil {
-		return nil, nil, err
+// CreateAbsenceFor files an absence for subjectStaffID on createdByStaffID's
+// behalf; the merge path cascades over the merged range of the primary row,
+// which the cascade's idempotency guards make safe to re-run.
+func (r *SickReports) CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, request workforce.CreateAbsenceRequest) (*workforce.StaffAbsenceResponse, error) {
+	return r.absence(ctx, r.lockFor(subjectStaffID, 0, request.DateStart, request.DateEnd), func(ctx context.Context) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error) {
+		return r.absences.CreateAbsenceFor(ctx, subjectStaffID, createdByStaffID, actorAccountID, request)
+	})
+}
+
+// UpdateAbsence edits the staff member's absence; a sick report's range edit
+// reconciles its plan-day difference.
+func (r *SickReports) UpdateAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, request workforce.UpdateAbsenceRequest) (*workforce.StaffAbsenceResponse, error) {
+	return r.absence(ctx, r.lockFor(staffID, absenceID, optionalDate(request.DateStart), optionalDate(request.DateEnd)), func(ctx context.Context) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error) {
+		return r.absences.UpdateAbsence(ctx, staffID, actorAccountID, absenceID, request)
+	})
+}
+
+// DeleteOwnAbsence deletes the staff member's own absence and reverses its
+// plan cascade.
+func (r *SickReports) DeleteOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64) error {
+	return r.deletion(ctx, r.lockFor(staffID, absenceID, "", ""), func(ctx context.Context) (workforce.SickCascadePlan, error) {
+		return r.absences.DeleteOwnAbsence(ctx, staffID, actorAccountID, absenceID)
+	})
+}
+
+// DeleteAbsenceFor deletes subjectStaffID's absence on actorStaffID's behalf
+// and reverses its plan cascade.
+func (r *SickReports) DeleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64) error {
+	return r.deletion(ctx, r.lockFor(subjectStaffID, absenceID, "", ""), func(ctx context.Context) (workforce.SickCascadePlan, error) {
+		return r.absences.DeleteAbsenceFor(ctx, subjectStaffID, actorStaffID, actorAccountID, absenceID)
+	})
+}
+
+// lockFor takes the write's day locks first (#6292): days → Workforce's
+// absence and staff locks → the cascade, the order a materialization
+// (days → staff key share) shares.
+func (r *SickReports) lockFor(subjectStaffID, absenceID int64, dateStart, dateEnd string) func(context.Context) error {
+	return func(ctx context.Context) error {
+		return r.cascade.LockSickReportWrite(ctx, subjectStaffID, absenceID, dateStart, dateEnd)
 	}
-	return w.writes.CreateOwnAbsence(ctx, staffID, actorAccountID, request)
-}
-
-func (w lockingSickReportWrites) CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, request workforce.CreateAbsenceRequest) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error) {
-	if err := w.cascade.LockSickReportWrite(ctx, subjectStaffID, 0, request.DateStart, request.DateEnd); err != nil {
-		return nil, nil, err
-	}
-	return w.writes.CreateAbsenceFor(ctx, subjectStaffID, createdByStaffID, actorAccountID, request)
-}
-
-func (w lockingSickReportWrites) UpdateAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, request workforce.UpdateAbsenceRequest) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error) {
-	if err := w.cascade.LockSickReportWrite(ctx, staffID, absenceID, optionalDate(request.DateStart), optionalDate(request.DateEnd)); err != nil {
-		return nil, nil, err
-	}
-	return w.writes.UpdateAbsence(ctx, staffID, actorAccountID, absenceID, request)
-}
-
-func (w lockingSickReportWrites) DeleteOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64) (workforce.SickCascadePlan, error) {
-	if err := w.cascade.LockSickReportWrite(ctx, staffID, absenceID, "", ""); err != nil {
-		return nil, err
-	}
-	return w.writes.DeleteOwnAbsence(ctx, staffID, actorAccountID, absenceID)
-}
-
-func (w lockingSickReportWrites) DeleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64) (workforce.SickCascadePlan, error) {
-	if err := w.cascade.LockSickReportWrite(ctx, subjectStaffID, absenceID, "", ""); err != nil {
-		return nil, err
-	}
-	return w.writes.DeleteAbsenceFor(ctx, subjectStaffID, actorStaffID, actorAccountID, absenceID)
 }
 
 func optionalDate(value *string) string {
@@ -81,49 +85,12 @@ func optionalDate(value *string) string {
 	return *value
 }
 
-// CreateOwnAbsence files the staff member's own absence.
-func (r *SickReports) CreateOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, request workforce.CreateAbsenceRequest) (*workforce.StaffAbsenceResponse, error) {
-	return r.absence(ctx, func(ctx context.Context) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error) {
-		return r.absences.CreateOwnAbsence(ctx, staffID, actorAccountID, request)
-	})
-}
-
-// CreateAbsenceFor files an absence for subjectStaffID on createdByStaffID's
-// behalf; the merge path cascades over the merged range of the primary row,
-// which the cascade's idempotency guards make safe to re-run.
-func (r *SickReports) CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, request workforce.CreateAbsenceRequest) (*workforce.StaffAbsenceResponse, error) {
-	return r.absence(ctx, func(ctx context.Context) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error) {
-		return r.absences.CreateAbsenceFor(ctx, subjectStaffID, createdByStaffID, actorAccountID, request)
-	})
-}
-
-// UpdateAbsence edits the staff member's absence; a sick report's range edit
-// reconciles its plan-day difference.
-func (r *SickReports) UpdateAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, request workforce.UpdateAbsenceRequest) (*workforce.StaffAbsenceResponse, error) {
-	return r.absence(ctx, func(ctx context.Context) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error) {
-		return r.absences.UpdateAbsence(ctx, staffID, actorAccountID, absenceID, request)
-	})
-}
-
-// DeleteOwnAbsence deletes the staff member's own absence and reverses its
-// plan cascade.
-func (r *SickReports) DeleteOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64) error {
-	return r.deletion(ctx, func(ctx context.Context) (workforce.SickCascadePlan, error) {
-		return r.absences.DeleteOwnAbsence(ctx, staffID, actorAccountID, absenceID)
-	})
-}
-
-// DeleteAbsenceFor deletes subjectStaffID's absence on actorStaffID's behalf
-// and reverses its plan cascade.
-func (r *SickReports) DeleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64) error {
-	return r.deletion(ctx, func(ctx context.Context) (workforce.SickCascadePlan, error) {
-		return r.absences.DeleteAbsenceFor(ctx, subjectStaffID, actorStaffID, actorAccountID, absenceID)
-	})
-}
-
-func (r *SickReports) absence(ctx context.Context, write func(context.Context) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error)) (*workforce.StaffAbsenceResponse, error) {
+func (r *SickReports) absence(ctx context.Context, lock func(context.Context) error, write func(context.Context) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error)) (*workforce.StaffAbsenceResponse, error) {
 	var result *workforce.StaffAbsenceResponse
 	err := r.runInTx(ctx, func(ctx context.Context) error {
+		if err := lock(ctx); err != nil {
+			return err
+		}
 		value, plan, err := write(ctx)
 		if err != nil {
 			return err
@@ -140,8 +107,11 @@ func (r *SickReports) absence(ctx context.Context, write func(context.Context) (
 	return result, nil
 }
 
-func (r *SickReports) deletion(ctx context.Context, write func(context.Context) (workforce.SickCascadePlan, error)) error {
+func (r *SickReports) deletion(ctx context.Context, lock func(context.Context) error, write func(context.Context) (workforce.SickCascadePlan, error)) error {
 	return r.runInTx(ctx, func(ctx context.Context) error {
+		if err := lock(ctx); err != nil {
+			return err
+		}
 		plan, err := write(ctx)
 		if err != nil {
 			return err
