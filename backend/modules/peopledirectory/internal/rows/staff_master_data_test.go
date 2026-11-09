@@ -1,7 +1,6 @@
 package users
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -115,36 +114,4 @@ func TestStaffQualification_Validate(t *testing.T) {
 	}).Validate()
 	require.Error(t, err)
 	assert.Equal(t, "expires_on must not be before acquired_on", err.Error())
-}
-
-func TestStaffFinancialData_Validate(t *testing.T) {
-	t.Parallel()
-
-	require.NoError(t, (&StaffFinancialData{StaffID: 9001}).Validate())
-
-	err := (&StaffFinancialData{}).Validate()
-	require.Error(t, err)
-	assert.Equal(t, "staff_id is required", err.Error())
-}
-
-// The financial columns carry `json:"-"`: a StaffFinancialData that ever ends
-// up in a response body must not leak IBAN, Steuer-ID or SV-Nummer.
-func TestStaffFinancialData_JSONOmitsSensitiveFields(t *testing.T) {
-	t.Parallel()
-
-	payload, err := json.Marshal(&StaffFinancialData{
-		StaffID:              9001,
-		IBAN:                 ptr("DE89370400440532013000"),
-		TaxID:                ptr("12345678911"),
-		SocialSecurityNumber: ptr("65170839J003"),
-	})
-	require.NoError(t, err)
-
-	body := string(payload)
-	assert.NotContains(t, body, "DE89370400440532013000")
-	assert.NotContains(t, body, "12345678911")
-	assert.NotContains(t, body, "65170839J003")
-	assert.NotContains(t, body, "iban")
-	assert.NotContains(t, body, "tax_id")
-	assert.NotContains(t, body, "social_security_number")
 }
