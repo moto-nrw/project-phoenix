@@ -14,8 +14,8 @@ func init() {
 		Version:     holidayWeekCapacityVersion,
 		Description: "Ferien: Kapazität je Woche, Platz oder Warteliste je Buchung, Teilnehmerliste nur mit Platz, Nachrück-Mail (#4699)",
 		DependsOn: []string{
-			parentBillingBelegRetentionVersion,   // the newest migration on development
-			demoVisitorErasureOutboxKindsVersion, // the outbox CHECK and erasure this one extends
+			guardianInvitationAddressBindingVersion, // the newest migration on development
+			demoVisitorErasureOutboxKindsVersion,    // the outbox CHECK and erasure this one extends
 		},
 	})
 	Migrations.MustRegister(holidayWeekCapacityUp, holidayWeekCapacityDown)
