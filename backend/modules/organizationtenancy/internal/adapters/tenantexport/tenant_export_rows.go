@@ -36,6 +36,13 @@ func (r *exportRun) tableModel(ctx context.Context, table organizationtenancy.Li
 			model.Columns = append(model.Columns, organizationtenancy.ExportColumn{Name: col.Name, Type: col.Type, UDT: col.UDT, Nullable: col.Nullable == "YES"})
 		}
 	}
+	for _, sealed := range sealedColumnsOf(table) {
+		col, ok := schemaColumn(columns, sealed)
+		if !ok {
+			return model, exportTableError(table.Name)
+		}
+		model.Columns = append(model.Columns, organizationtenancy.ExportColumn{Name: table.OpenSealedColumns[sealed], Type: "text", UDT: "text", Nullable: col.Nullable == "YES"})
+	}
 	relations := r.schema.relations[table.Name]
 	for _, rel := range relations {
 		if _, excluded := table.ExcludeSecretColumns[rel.Column]; !excluded {
@@ -50,9 +57,19 @@ func (r *exportRun) exportTable(ctx context.Context, table organizationtenancy.L
 	if err != nil {
 		return 0, err
 	}
+	opened := make(map[string]bool, len(table.OpenSealedColumns))
+	for _, plain := range table.OpenSealedColumns {
+		opened[plain] = true
+	}
 	columns := make([]string, 0, len(model.Columns))
 	for _, col := range model.Columns {
-		columns = append(columns, "t."+quoteExportIdentifier(col.Name))
+		if !opened[col.Name] {
+			columns = append(columns, "t."+quoteExportIdentifier(col.Name))
+		}
+	}
+	for _, sealed := range sealedColumnsOf(table) {
+		// Hex, independent of the session's bytea_output.
+		columns = append(columns, "encode(t."+quoteExportIdentifier(sealed)+"::bytea, 'hex') AS "+quoteExportIdentifier(sealed))
 	}
 	if len(columns) == 0 {
 		return 0, exportTableError(table.Name)
@@ -69,7 +86,7 @@ func (r *exportRun) exportTable(ctx context.Context, table organizationtenancy.L
 		return 0, errors.New("tenant export: cannot create table artifact")
 	}
 	defer func() { _ = f.Close() }()
-	count, err := r.streamExportRows(rows, f, table.Name)
+	count, err := r.streamExportRows(rows, f, table)
 	if err != nil {
 		return 0, err
 	}
@@ -82,18 +99,22 @@ func (r *exportRun) exportTable(ctx context.Context, table organizationtenancy.L
 	return count, nil
 }
 
-func (r *exportRun) streamExportRows(rows *sql.Rows, w io.Writer, table string) (int64, error) {
+func (r *exportRun) streamExportRows(rows *sql.Rows, w io.Writer, entry organizationtenancy.LifecycleTable) (int64, error) {
+	table := entry.Name
 	var count int64
 	for rows.Next() {
 		var data []byte
 		if err := rows.Scan(&data); err != nil {
 			return 0, exportTableError(table)
 		}
+		data, err := r.openSealedColumns(entry, data)
+		if err != nil {
+			return 0, err
+		}
 		if err := r.collectReferences(table, data); err != nil {
 			return 0, err
 		}
-		_, err := w.Write(append(data, '\n'))
-		if err != nil {
+		if _, err := w.Write(append(data, '\n')); err != nil {
 			return 0, errors.New("tenant export: cannot write table artifact")
 		}
 		count++

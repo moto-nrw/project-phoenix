@@ -154,6 +154,11 @@ reguläre Löschfrist dort, Mandantenzuordnung und Rückgabeumfang hier.
 Tabellenausschlüsse gelten für alle Spalten. Bei `include` gelten zusätzlich
 `excludeSecretColumns`; `allowedSensitiveColumns` begründet bewusst
 freigegebene verdächtige Namen, etwa Postleitzahl oder Inhaltsprüfsumme.
+`openSealedColumns` ordnet einer feldverschlüsselten, in
+`excludeSecretColumns` ausgeschlossenen Spalte einen neuen Klartext-Spaltennamen
+zu: Die Rückgabe enthält den geöffneten Wert statt des Chiffrats, das ohne den
+Schlüssel der Installation nutzlos ist. Der Besitzer der Tabelle öffnet ihn
+über `TenantExportSealedFields` (#3838, derzeit SEPA-Mandate und -Lastschriften).
 `include` ist **keine Freigabe für Rohdaten, andere Mandanten oder andere
 Personen**. Ein späterer Export muss Feldprojektionen und den Auftragszweck
 anwenden. Interne Protokolle können erforderlichen Auskunftskontext enthalten;

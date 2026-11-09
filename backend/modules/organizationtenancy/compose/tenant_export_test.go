@@ -157,7 +157,7 @@ func TestTenantExportEveryCatalogTableAndKindIsIsolated(t *testing.T) {
 	_, err := db.NewRaw("UPDATE auth.accounts SET username = ? WHERE id = ?", "/uploads/avatars/global/"+strconv.FormatInt(b, 10)+".bin", a).Exec(t.Context())
 	require.NoError(t, err)
 	out := filepath.Join(t.TempDir(), "export")
-	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint})
+	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{})
 	require.NoError(t, err)
 	require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: a, Output: out, Uploads: uploads}))
 	manifest := readExportManifest(t, out)
@@ -225,6 +225,13 @@ func assertExportTables(t *testing.T, out string, catalog organizationtenancy.Da
 			require.NotContains(t, row, name, table.Name)
 			require.NotContains(t, string(data), "excluded-"+table.Name+"-"+name, table.Name)
 		}
+		for sealed, plain := range table.OpenSealedColumns {
+			require.JSONEq(t, `"opened-`+table.Name+`-`+sealed+`"`, string(row[plain]), table.Name)
+			index := slices.IndexFunc(model, func(entry organizationtenancy.ExportModelTable) bool { return entry.Name == table.Name })
+			require.True(t, slices.ContainsFunc(model[index].Columns, func(column organizationtenancy.ExportColumn) bool {
+				return column.Name == plain && column.Type == "text"
+			}), table.Name+"."+plain)
+		}
 	}
 }
 
@@ -269,7 +276,7 @@ func TestTenantExportMigratedSchema(t *testing.T) {
 	b, _ := testpkg.CreateTestTenant(t, db)
 	testpkg.CreateTestStudentForTenant(t, db, a, "Synthetic A", "Fixture", "A")
 	testpkg.CreateTestStudentForTenant(t, db, b, "Synthetic B", "Fixture", "B")
-	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint})
+	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{})
 	require.NoError(t, err)
 	out := filepath.Join(t.TempDir(), "export")
 	counter := testpkg.CaptureQueriesForContext(t, db)

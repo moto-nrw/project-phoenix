@@ -10,9 +10,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/erasureledger"
+	parentBillingCompose "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	securityRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/securityruntime/compose"
 	transactionCompose "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 func init() { RootCmd.AddCommand(newTenantCommand()) }
@@ -116,9 +119,15 @@ func runTenantExport(cmd *cobra.Command, options organizationtenancy.TenantExpor
 		return errors.New("tenant export: database unavailable")
 	}
 	defer func() { _ = db.Close() }()
+	// The return carries the IBAN and account holder of SEPA mandates, not
+	// their ciphertext (#3838); without the bank ring the export refuses.
+	bankData, err := securityRuntimeCompose.NewBankDataCipher(viper.GetString("bank_data_keys"), viper.GetString("bank_data_legacy_keys"))
+	if err != nil {
+		return errors.New("tenant export: BANK_DATA_KEYS / BANK_DATA_LEGACY_KEYS configuration invalid")
+	}
 	exporter, err := organizationCompose.NewTenantExporter(db.Pool(), organizationtenancy.ExportFingerprints{
 		Bytes: securityruntime.Fingerprint, Reader: securityruntime.ReaderFingerprint,
-	})
+	}, parentBillingCompose.NewSEPAExportFields(bankData))
 	if err != nil {
 		return err
 	}

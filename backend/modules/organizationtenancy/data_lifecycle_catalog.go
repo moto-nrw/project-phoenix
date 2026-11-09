@@ -34,6 +34,11 @@ type LifecycleTable struct {
 	ExportReason            string            `json:"exportReason,omitempty"`
 	ExcludeSecretColumns    map[string]string `json:"excludeSecretColumns,omitempty"`
 	AllowedSensitiveColumns map[string]string `json:"allowedSensitiveColumns,omitempty"`
+	// OpenSealedColumns maps a field-sealed column to the plaintext column the
+	// return export writes instead (#3838). The sealed column stays in
+	// ExcludeSecretColumns: its ciphertext never leaves; the owner of the table
+	// opens the value through TenantExportSealedFields.
+	OpenSealedColumns map[string]string `json:"openSealedColumns,omitempty"`
 	// PersonKeys lists direct FK evidence only. It is not a complete person
 	// disclosure selector: historical snapshots, JSON and indirect links remain.
 	PersonKeys map[string]string `json:"personKeys,omitempty"`

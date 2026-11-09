@@ -245,7 +245,9 @@ var moduleLegacyFileBudgets = map[string]int{
 // modules/parentbilling/compose adds exactly 7 LOC.
 // ADR 0181: the SEPA debit constructor (+5).
 // ADR 0183: bank cipher (+6), rekey (+5).
-const moduleComposeBudgetTotal = 13158
+// ADR 0184: the export opener of the sealed bank data of
+// modules/parentbilling/compose adds exactly 5 LOC.
+const moduleComposeBudgetTotal = 13163
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -327,7 +329,8 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0182: the constructor of the Jahresbescheide (+7);
 	// ADR 0181: the constructor of the SEPA direct debit file (+5);
 	// ADR 0183: rekey constructor (+5).
-	"modules/parentbilling/compose":               96,
+	// ADR 0184: the export opener of the sealed bank data (+5).
+	"modules/parentbilling/compose":               101,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	"modules/peopledirectory/compose":    973,

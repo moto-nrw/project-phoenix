@@ -3,7 +3,11 @@
 Stand: 24.10.2026, Slices 3838-a/b/c, Refs #3838, Teil von #3846.
 Grundlage: [ADR 0092](../adr/0092-mandanten-datenlebenszyklus-nutzt-einen-gemeinsamen-katalog.md),
 [ADR 0097](../adr/0097-mandantenrueckgabe-hat-einen-eigenen-leseadapter.md)
-und [Datenkatalog](../reference/datenkatalog.md).
+und [Datenkatalog](../reference/datenkatalog.md). Öffentliche Beschreibung für
+Kunden: [Datenexport und Anbieterwechsel](https://moto-ogs.de/rechtliches/datenexport)
+und [Infrastruktur und technische Anbieter](https://moto-ogs.de/rechtliches/infrastruktur)
+(Website-Repo, `src/app/(de)/rechtliches/`). Wer Format, Ablauf oder Grenzen
+hier ändert, gleicht diese Seiten im selben Zug an.
 
 ## Stand und Grenzen
 
@@ -24,7 +28,8 @@ automatisch vollständige oder freigegebene Art.-15-Antwort. Die zuständige
 Person muss die Ergänzungs- und Drittpersonenprüfung in Abschnitt 6 abschließen.
 Weder Gesamtexport noch internes Prüfpaket unverändert an Betroffene geben.
 
-**Weiter offen:** geprüfte Projektionen nicht geheimer Werte aus den bewusst
+**Weiter offen:** geöffnete Gesundheitsangaben (`health_data`, Gesundheitsring)
+statt ihres Chiffrats, geprüfte Projektionen nicht geheimer Werte aus den bewusst
 ausgeschlossenen Settings-/Zustellcontainern, erforderlicher Kontext aus
 internen Protokollen sowie der gesonderte Data-Act-Schnittstellen- und
 Wechselabgleich. Das Verfahren belegt die technische Rückgabe des aktuell
@@ -91,7 +96,16 @@ Sicherungen sind nicht Bestandteil dieses PostgreSQL-/Upload-Exports.
    ein fehlendes referenziertes Original oder ein Symlink ist ein Fehler.
    Bereits abgeschlossene Dateilöschungen erfordern kein Original;
    Cleanup-Intents können auch nie geschriebene Dateien beschreiben.
-5. Privates, lokal verschlüsseltes Arbeitsmedium mit genug freiem Platz
+5. Bankring der Herkunftsinstallation bereitstellen: `BANK_DATA_KEYS` und,
+   solange deren Rekey nicht abgeschlossen ist, `BANK_DATA_LEGACY_KEYS`
+   ([ADR 0183](../adr/0183-bankdaten-haben-einen-eigenen-schluesselring-und-einen-wiederholbaren-rekey.md)).
+   Der Export öffnet damit IBAN und Kontoinhaber der SEPA-Mandate und
+   -Lastschriften (#3838); ohne passenden Ring bricht er ab, statt Chiffrat
+   oder eine Lücke zu übergeben. Die Werte nur per SOPS in die Umgebung des
+   Exportprozesses geben, nie als Datei, Shell-Literal oder CLI-Argument.
+   Gesundheitsangaben (`health_data`) bleiben vorerst Chiffrat (#6328); siehe
+   „Weiter offen“.
+6. Privates, lokal verschlüsseltes Arbeitsmedium mit genug freiem Platz
    und einem vorhandenen privaten Elternverzeichnis verwenden. Ziel und
    Uploads dürfen nicht ineinander liegen. Dateinamen und Inhalte nicht
    in Tickets, Shell-Traces, Bildschirmaufnahmen oder Logs ausgeben.
@@ -118,6 +132,9 @@ Exportformat, Version 1:
 
 - `schema.tabelle.jsonl`: eine JSON-Zeile je freigegebenem Datensatz,
   einschließlich vorhandener Soft-Delete-Daten; keine Roh-Geheimnisspalten.
+  Feldverschlüsselte Werte, die der Katalog unter `openSealedColumns` führt,
+  stehen geöffnet in eigenen Spalten (`iban`, `account_holder` bei SEPA-
+  Mandaten und -Lastschriften), ihr Chiffrat nicht.
   PostgreSQL-JSON stellt Zahlen numerisch dar. Empfänger müssen `bigint`
   ohne Rundung lesen; Zeit-/Datumsbedeutungen ergeben sich aus `model.json`.
 - `model.json`: exportierte Spalten mit `information_schema`-Typen,

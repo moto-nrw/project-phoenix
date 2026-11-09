@@ -49,6 +49,14 @@
       "target_owner": "operator-dashboard-view"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.SEPAExportFields.OpenExportField",
+      "binding_digest": "b1693a98a9cdcb61faeb50e3a9be5772",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportSealedFields.OpenExportField",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/parentbilling.SEPAExportFields.OpenExportField",
+      "target_owner": "parent-billing"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/tenantexport.tenantExporter.Export",
       "binding_digest": "7dbccdbb893f52d8bfb9fc07c8f4fdb4",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExporter.Export",

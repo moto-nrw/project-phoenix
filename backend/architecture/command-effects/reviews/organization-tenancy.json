@@ -61,6 +61,16 @@
       "target_owner": "operator-dashboard-view"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.SEPAExportFields.OpenExportField",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportSealedFields.OpenExportField",
+      "reason": "#3838: the administrative tenant-export CLI opens the sealed IBAN and account holder of an exported SEPA mandate or debit row in memory, bound to the row's Träger and mandate reference. Pure value decryption; no database access, write, locking read or audit mutation. Never bound to HTTP.",
+      "source_owner": "organization-tenancy",
+      "target": "github.com/moto-nrw/project-phoenix/modules/parentbilling.SEPAExportFields.OpenExportField",
+      "target_owner": "parent-billing"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/tenantexport.tenantExporter.Export",
       "classification": "query",
       "effect": "query",

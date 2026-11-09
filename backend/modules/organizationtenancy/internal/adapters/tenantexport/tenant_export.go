@@ -18,10 +18,11 @@ import (
 type tenantExporter struct {
 	db           *bun.DB
 	fingerprints organizationtenancy.ExportFingerprints
+	sealed       organizationtenancy.TenantExportSealedFields
 }
 
-func NewTenantExporter(db *bun.DB, fingerprints organizationtenancy.ExportFingerprints) organizationtenancy.TenantExporter {
-	return &tenantExporter{db: db, fingerprints: fingerprints}
+func NewTenantExporter(db *bun.DB, fingerprints organizationtenancy.ExportFingerprints, sealed organizationtenancy.TenantExportSealedFields) organizationtenancy.TenantExporter {
+	return &tenantExporter{db: db, fingerprints: fingerprints, sealed: sealed}
 }
 
 type exportRun struct {
@@ -33,6 +34,7 @@ type exportRun struct {
 	models       []organizationtenancy.ExportModelTable
 	references   map[string]bool
 	fingerprints organizationtenancy.ExportFingerprints
+	sealed       organizationtenancy.TenantExportSealedFields
 	person       *personSelection
 }
 
@@ -116,7 +118,7 @@ func (e *tenantExporter) start(ctx context.Context, options organizationtenancy.
 	if err != nil {
 		return nil, errors.New("tenant export: catalog unavailable")
 	}
-	r := &exportRun{options: options, references: make(map[string]bool), fingerprints: e.fingerprints}
+	r := &exportRun{options: options, references: make(map[string]bool), fingerprints: e.fingerprints, sealed: e.sealed}
 	if err = json.Unmarshal(source, &r.catalog); err != nil {
 		return nil, errors.New("tenant export: invalid catalog")
 	}

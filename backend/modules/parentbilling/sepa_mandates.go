@@ -2,6 +2,7 @@ package parentbilling
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -319,6 +320,13 @@ func ResolveDebit(payment InvoicePayment, terms ServiceTerms, run RunDueDates, f
 	fallback := ResolvePayment(transfer, run, asTransfer, issuedOn)
 	fallback.DebitGap = gap
 	return fallback
+}
+
+// SEPAExportFields opens the sealed IBAN and account holder of an exported
+// mandate or debit row for the return export of a Träger (#3838). Only the
+// administrative export CLI binds it, never an HTTP route.
+type SEPAExportFields interface {
+	OpenExportField(table, column string, row map[string]json.RawMessage, sealed []byte) (string, error)
 }
 
 // BankDataCipher seals and opens single database values bound to their

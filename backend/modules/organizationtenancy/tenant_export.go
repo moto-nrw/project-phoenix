@@ -2,6 +2,7 @@ package organizationtenancy
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 )
 
@@ -15,6 +16,14 @@ type ExportFingerprints struct {
 // It is deliberately not exposed through an HTTP capability.
 type TenantExporter interface {
 	Export(context.Context, TenantExportOptions) error
+}
+
+// TenantExportSealedFields opens a field-sealed value of an exported row
+// (#3838). The owner of the table binds each value to its row, so it gets the
+// row as exported and the raw sealed bytes; it answers the plaintext or an
+// error that names no value. Only the administrative export CLI binds it.
+type TenantExportSealedFields interface {
+	OpenExportField(table, column string, row map[string]json.RawMessage, sealed []byte) (string, error)
 }
 
 type TenantExportOptions struct {

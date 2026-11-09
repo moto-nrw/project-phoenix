@@ -20,7 +20,7 @@ func TestTenantExportRejectsPartialFilesAndForeignReferences(t *testing.T) {
 	t.Parallel()
 	db, catalog, a, b := exportFixture(t)
 	uploads := fixtureUploads(t, db, catalog, a, b)
-	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint})
+	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{})
 	require.NoError(t, err)
 	avatar := "avatars/global/" + strconv.FormatInt(a, 10) + ".bin"
 	require.NoError(t, os.Remove(filepath.Join(uploads, avatar)))
@@ -63,7 +63,7 @@ func TestTenantExportDatabaseFailureCannotComplete(t *testing.T) {
 	a := testpkg.Tenant(t)
 	_, err := db.ExecContext(t.Context(), "DROP TABLE users.teachers CASCADE")
 	require.NoError(t, err)
-	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint})
+	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{})
 	require.NoError(t, err)
 	assertFailedExport(t, exporter, a, t.TempDir())
 }
@@ -102,7 +102,7 @@ func TestTenantExportSnapshotIgnoresConcurrentWrites(t *testing.T) {
 		return err
 	}}
 	db.AddQueryHook(hook) //nolint:staticcheck // observe the pool the export already holds
-	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint})
+	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{})
 	require.NoError(t, err)
 	out := filepath.Join(t.TempDir(), "export")
 	require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: a, Output: out, Uploads: t.TempDir()}))
@@ -120,7 +120,7 @@ func TestTenantExportWriteFailureCannotComplete(t *testing.T) {
 	out := filepath.Join(t.TempDir(), "partial")
 	hook := &snapshotExportHook{QueryCounter: testpkg.NewQueryCounter(), action: func() error { return os.Mkdir(filepath.Join(out, "active.activity_session_attendance.jsonl"), 0o700) }}
 	db.AddQueryHook(hook) //nolint:staticcheck // inject a disk failure on the pool the export holds
-	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint})
+	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{})
 	require.NoError(t, err)
 	err = exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: a, Output: out, Uploads: t.TempDir()})
 	require.NoError(t, hook.err)
