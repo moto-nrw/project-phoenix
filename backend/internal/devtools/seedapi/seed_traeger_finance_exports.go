@@ -1,4 +1,4 @@
-package seedapi
+package api
 
 import (
 	"fmt"
