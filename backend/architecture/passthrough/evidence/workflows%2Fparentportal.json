@@ -898,6 +898,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (a *AnnouncementAttachments[A, C]) OpenGuardianAttachment(ctx context.Context, accountID, announcementID, attachmentID int64) (C, error) {\n\tvar none C\n\ttenantID, err := a.withinAnnouncementTenant(ctx, accountID, announcementID, func(txCtx context.Context, tenantID int64) error {\n\t\t_, findErr := a.files.FindAnnouncementAttachmentInTenant(txCtx, tenantID, announcementID, attachmentID)\n\t\treturn findErr\n\t})\n\tif err != nil {\n\t\treturn none, err\n\t}\n\treturn a.handOut(ctx, func(ctx context.Context) (int64, error) {\n\t\treturn a.announcementTenant(ctx, accountID, announcementID)\n\t}, tenantID, announcementID, attachmentID)\n}",
+      "form": "unclassified-evidence",
+      "id": "workflows/parentportal/internal/messaging/AnnouncementAttachments[A, C].OpenGuardianAttachment",
+      "owner": "workflows/parentportal"
+    },
+    {
+      "build": "production",
       "evidence": "func (a *AnnouncementAttachments[A, C]) OpenGuardianDeclarationProofAttachment(ctx context.Context, accountID, announcementID, studentID, attachmentID int64) (C, error) {\n\treturn a.open(ctx, func(ctx context.Context) (int64, error) {\n\t\tif accountID \u003c= 0 || announcementID \u003c= 0 || studentID \u003c= 0 || attachmentID \u003c= 0 {\n\t\t\treturn 0, ErrAttachmentNotFound\n\t\t}\n\t\treturn visibleTenant(a.audience.GuardianDeclarationProofAttachmentTenant(ctx, accountID, announcementID, studentID, attachmentID))\n\t}, announcementID, attachmentID)\n}",
       "form": "unclassified-evidence",
       "id": "workflows/parentportal/internal/messaging/AnnouncementAttachments[A, C].OpenGuardianDeclarationProofAttachment",

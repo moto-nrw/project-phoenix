@@ -474,3 +474,27 @@ die den Aufruf wie `ParentPortalRuntime.WithinAdmin` nur weiterreicht und
 keinen eigenen Rahmen öffnet. Schritt 4 bringt damit +4 Admin statt +3, das
 Register wächst insgesamt um sechs Admin-Stellen und eine Kommando-Stelle.
 Den dafür nötigen Composition-Etat hebt [ADR 0185](0185-transaktionslaufzeit-bindet-die-uebergabe-von-admin-an-tenant.md).
+
+## Nachtrag 09.11.2026: Schritte 3 und 5 (#5894)
+
+Schritt 3 verlagert die Admin-Startstelle der Zielgruppe
+`workflows/parentportal/internal/messaging/parent_announcement_attachments.go:*Service.GuardianAnnouncementTenant:s.Runtime.WithinAdmin#1`
+nach `…:*Service.guardianAnnouncementAudience:s.Runtime.WithinAdmin#1`, damit
+die erneute Prüfung und der gebündelte Weg dieselbe Admin-Einheit nutzen. Der
+Grund bleibt wörtlich gleich; der neue Schlüssel steht in
+`transactionFrameBundleSites`. Startfehler, Rollenwechsel-, COMMIT- und
+ROLLBACK-Fehler des gebündelten Rahmens antworten 500 statt 404 (E9/E15:
+Infrafehler des Rahmens, unabhängig von der Existenz der Zeile), ohne Retry
+und ohne zweiten Weg. Ein Aufruf in einer offenen Einheit oder aus einem an
+eine andere Schule gebundenen Kontext wählt vor dem Start den Einzelweg
+(Punkt 7); dafür fragt der Workflow `Runtime.AmbientScope` ab.
+
+Schritt 5 ersetzt Zielgruppe und Schul-Rahmen durch die Übergabe
+`…/parent_announcement_attachments.go:*Service.WithinGuardianAnnouncementTenant:s.Runtime.WithinAdminThenTenant#1`
+(Admin-Register und `transactionFrameBundleSites`, Grund mit ADR 0161). Eine
+abgelehnte Zielgruppe endet als 404 am Ende von `discover`, ohne
+Rollenwechsel; ebendort steht die Prüfung, ob ein an eine Schule gebundener
+Kontext zur Schule der Ankündigung passt. Passt er nicht, antwortet der
+Einzelweg wie bisher, ohne dass ein weiterer Rahmen startet. Ein
+Kontextabbruch nach abgelehnter Zielgruppe antwortet 404 statt 500 (E4).
+Invariantentabelle und Belege: #6388.

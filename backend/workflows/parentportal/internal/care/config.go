@@ -193,10 +193,15 @@ func (s *Service) todayDate() calendar.Date {
 // transaction, tenant validation and callback lifecycle semantics.
 // WithinAdminThenTenant is the one-way handoff of ADR 0161: one transaction,
 // discovery as admin, then the discovered school's tenant scope.
+// AmbientScope reports whether a unit of any scope is open in ctx and the
+// school ctx is bound to (0 for none). A bundled read decides from it, before
+// it starts the bundled unit, whether to take the unbundled way (ADR 0161
+// point 7); it never decides from a start error.
 type Runtime interface {
 	WithinTenant(context.Context, int64, func(context.Context) error) error
 	WithinAdmin(context.Context, func(context.Context) error) error
 	WithinAdminThenTenant(ctx context.Context, discover func(context.Context) (int64, error), fn func(context.Context) error) error
+	AmbientScope(ctx context.Context) (unitOpen bool, boundSchool int64)
 	RegisterAfterCommit(context.Context, func())
 	WithTenantID(context.Context, int64) context.Context
 }
