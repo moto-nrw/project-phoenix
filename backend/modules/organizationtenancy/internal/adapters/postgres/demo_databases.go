@@ -9,7 +9,7 @@ import (
 )
 
 // DemoSchoolDatabaseStore calls the database erasure of retired demo schools
-// (#5559, migration 1.15.869) on the demo process's phoenix_demo connection.
+// (#5559, migration 1.15.863) on the demo process's phoenix_demo connection.
 // The functions check due-ness themselves; the store adds no SQL of its own.
 type DemoSchoolDatabaseStore struct{ db *bun.DB }
 

@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const demoSchoolDatabaseErasureVersion = "1.15.869"
+const demoSchoolDatabaseErasureVersion = "1.15.863"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
