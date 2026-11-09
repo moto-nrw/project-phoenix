@@ -98,10 +98,12 @@ func (e *sickCascadeEnv) shortenSickAbsence(t *testing.T, absenceID int64, start
 func assertSickStamp(t *testing.T, row *timetable.InstanceStaff, absenceID int64, msg string) {
 	t.Helper()
 	assert.True(t, row.IsAbsent, msg+": absent")
-	require.NotNil(t, row.SickAbsenceID, msg+": stamp")
-	assert.Equal(t, absenceID, *row.SickAbsenceID, msg+": stamp names the report")
-	require.NotNil(t, row.AbsenceReason, msg+": reason")
-	assert.Equal(t, timetable.SickBlockAbsenceReason, *row.AbsenceReason, msg+": neutral reason")
+	if assert.NotNil(t, row.SickAbsenceID, msg+": stamp") {
+		assert.Equal(t, absenceID, *row.SickAbsenceID, msg+": stamp names the report")
+	}
+	if assert.NotNil(t, row.AbsenceReason, msg+": reason") {
+		assert.Equal(t, timetable.SickBlockAbsenceReason, *row.AbsenceReason, msg+": neutral reason")
+	}
 }
 
 func assertPresent(t *testing.T, row *timetable.InstanceStaff, msg string) {
