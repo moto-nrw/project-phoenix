@@ -67,6 +67,11 @@ func guardianFinancialDataSealedUp(ctx context.Context, db *bun.DB) error {
 // is granted, so its sealed value is counted and never dropped unseen.
 func guardianFinancialDataSealedDown(ctx context.Context, db *bun.DB) error {
 	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		// Bounded like bankDataLockTimeout of 1.15.839: a rollback must not
+		// queue an exclusive lock behind a foreign transaction without end.
+		if _, err := tx.ExecContext(ctx, `SET LOCAL lock_timeout = '30s'`); err != nil {
+			return fmt.Errorf("bound the guardian bank data lock wait: %w", err)
+		}
 		if _, err := tx.ExecContext(ctx, `LOCK TABLE users.guardian_financial_data IN ACCESS EXCLUSIVE MODE`); err != nil {
 			return fmt.Errorf("lock the guardian bank data: %w", err)
 		}

@@ -111,6 +111,19 @@ Wert existiert: Nach einem Schreiben oder dem Backfill halten die versiegelten
 Spalten die einzige Kopie. Ein Rollback nach dem ersten Chiffrat braucht eine
 Version mit dieser Änderung oder das Release-Backup (ADR 0183).
 
+## Sperren und Wartezeit
+
+1.15.839 (`Up`) und das `Down` von 1.15.836/837 sperren zuerst mit
+`ACCESS EXCLUSIVE`, prüfen danach und droppen erst dann, alles in einer
+Transaktion. Diese Sperre blockiert auch Leser. Bei 100.000 Zeilen dauert das
+lokal etwa 15 ms, und das Deploy stoppt die Anwendung vorher. Eine
+Fremdtransaktion, etwa eine Diagnose-Sitzung, könnte die Sperre aber
+unbegrenzt verzögern, und die wartende Anforderung blockiert alle späteren
+Leser. Deshalb gilt transaktionslokal `lock_timeout = 30s`. Danach bricht die
+Migration mit klarer Meldung ab, `deploy-remote.sh` stellt das Backup wieder
+her (Exit 10), und das Release lässt sich nach dem Beenden der Transaktion
+wiederholen.
+
 ## Mutationsbelege
 
 - Health-Cipher statt Bank-Cipher an die neuen Ports:

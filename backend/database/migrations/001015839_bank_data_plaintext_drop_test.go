@@ -129,3 +129,22 @@ func TestBankDataPlaintextDropWaitsForAnOpenStaffWriter(t *testing.T) {
 	require.ErrorIs(t, err, errBankDataPlaintextRemains)
 	require.True(t, bankColumnExists(t, db, "staff_financial_data", "social_security_number"), "the plaintext waits for the backfill")
 }
+
+// A transaction that never ends must not stall the release: the drop gives
+// up after its lock timeout with a clear error and keeps every column.
+func TestBankDataPlaintextDropGivesUpOnAStuckTransaction(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := context.Background()
+	require.NoError(t, bankDataPlaintextDropDown(ctx, db))
+	stuck, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, stuck.Rollback()) }()
+	_, err = stuck.ExecContext(ctx, `SELECT count(*) FROM users.staff_financial_data`)
+	require.NoError(t, err)
+
+	err = bankDataPlaintextDropUpWithin(ctx, db, "200ms")
+	require.ErrorIs(t, err, errBankDataLockTimeout)
+	require.True(t, bankColumnExists(t, db, "staff_financial_data", "tax_id"))
+	require.True(t, bankColumnExists(t, db, "guardian_financial_data", "iban"))
+}

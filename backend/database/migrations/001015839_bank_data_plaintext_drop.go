@@ -65,13 +65,33 @@ func bankDataPlaintextDropPrecondition(ctx context.Context, db *bun.DB) error {
 	return nil
 }
 
+// bankDataLockTimeout bounds the wait for the exclusive lock. The deployment
+// stops the application before it migrates, so only a foreign transaction (a
+// diagnostics session, a manual query) can hold the tables. A queued
+// ACCESS EXCLUSIVE request also blocks every later reader, so the migration
+// gives up after this time instead of waiting without bound; the deployment
+// then restores its backup and the release can be repeated.
+const bankDataLockTimeout = "30s"
+
+var errBankDataLockTimeout = errors.New("bank data tables stayed locked by another transaction; end it and repeat the release")
+
 // bankDataPlaintextDropUp locks both tables against every writer first, then
 // rechecks and drops in the same transaction: a writer of an old release
 // still open at the check commits before the lock is granted, so its
 // plaintext is counted and the drop refused instead of losing the value.
 func bankDataPlaintextDropUp(ctx context.Context, db *bun.DB) error {
+	return bankDataPlaintextDropUpWithin(ctx, db, bankDataLockTimeout)
+}
+
+func bankDataPlaintextDropUpWithin(ctx context.Context, db *bun.DB, lockTimeout string) error {
 	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		if _, err := tx.ExecContext(ctx, `SELECT set_config('lock_timeout', ?, true)`, lockTimeout); err != nil {
+			return fmt.Errorf("bound the bank data lock wait: %w", err)
+		}
 		if _, err := tx.ExecContext(ctx, `LOCK TABLE users.guardian_financial_data, users.staff_financial_data IN ACCESS EXCLUSIVE MODE`); err != nil {
+			if isLockNotAvailable(err) {
+				return fmt.Errorf("%w (waited %s)", errBankDataLockTimeout, lockTimeout)
+			}
 			return fmt.Errorf("lock the bank data tables: %w", err)
 		}
 		rows, err := bankDataPlaintextRows(ctx, tx, true, true)
@@ -108,4 +128,11 @@ ALTER TABLE users.staff_financial_data
 		return fmt.Errorf("restore the plaintext bank columns: %w", err)
 	}
 	return nil
+}
+
+// isLockNotAvailable reports PostgreSQL's lock_not_available (55P03), the
+// error lock_timeout raises.
+func isLockNotAvailable(err error) bool {
+	var state interface{ Field(byte) string }
+	return errors.As(err, &state) && state.Field('C') == "55P03"
 }
