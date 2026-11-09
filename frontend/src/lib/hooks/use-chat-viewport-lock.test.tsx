@@ -1,7 +1,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, render, act } from "@testing-library/react";
 import React from "react";
-import { useChatViewportLock } from "./use-chat-viewport-lock";
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
+import {
+  MIN_MESSAGE_LIST_PX,
+  useChatViewportLock,
+} from "./use-chat-viewport-lock";
 
 // Minimal wrapper component that actually attaches the ref to a DOM element,
 // which is required for the fit effect (it early-returns when ref.current is null).
@@ -406,5 +411,200 @@ describe("useChatViewportLock — soft keyboard", () => {
     unmount();
 
     expect(keyboardFlag()).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Fit effect — readable message list, compact mode (small phones)
+// ---------------------------------------------------------------------------
+
+// Chat with a header, the marked message list and the shell's <main>, as the
+// three chats render it.
+function ChatWithList({ ready = true }: { ready?: boolean }) {
+  const ref = useChatViewportLock<HTMLDivElement>(ready);
+  return React.createElement(
+    "main",
+    { style: { paddingBottom: "112px", paddingTop: "16px" } },
+    React.createElement(
+      "div",
+      { ref, "data-testid": "chat" },
+      React.createElement("div", {
+        "data-chat-scroll": "",
+        "data-testid": "list",
+      }),
+    ),
+  );
+}
+
+describe("useChatViewportLock — message list and compact mode", () => {
+  const originalViewport = window.visualViewport;
+  const originalInnerHeight = window.innerHeight;
+
+  // `content` is what header, composer and the list at its minimum need
+  // (scrollHeight); clientHeight follows the height the hook set.
+  const mockLayout = (innerHeight: number, top: number, content: number) => {
+    window.innerHeight = innerHeight;
+    Object.defineProperty(window, "visualViewport", {
+      value: undefined,
+      configurable: true,
+    });
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, top, 360, 0),
+    );
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(
+      function (this: HTMLElement) {
+        return this.dataset.testid === "chat" ? content : 0;
+      },
+    );
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockImplementation(
+      function (this: HTMLElement) {
+        return parseFloat(this.style.height) || 0;
+      },
+    );
+  };
+
+  const chat = () =>
+    document.querySelector<HTMLDivElement>('[data-testid="chat"]');
+  const list = () =>
+    document.querySelector<HTMLDivElement>('[data-testid="list"]');
+  const compactFlag = () =>
+    document.documentElement.hasAttribute("data-chat-compact");
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    window.innerHeight = originalInnerHeight;
+    Object.defineProperty(window, "visualViewport", {
+      value: originalViewport,
+      configurable: true,
+    });
+  });
+
+  it("keeps the message list at a readable minimum height", () => {
+    mockLayout(900, 80, 400);
+    render(React.createElement(ChatWithList));
+
+    expect(list()?.style.minHeight).toBe(`${MIN_MESSAGE_LIST_PX}px`);
+  });
+
+  it("keeps the page locked while the chat fits", () => {
+    // 900 - 80 top - 112 nav = 708 px, the chat needs 400.
+    mockLayout(900, 80, 400);
+    render(React.createElement(ChatWithList));
+
+    expect(chat()?.style.height).toBe("708px");
+    expect(document.documentElement.style.overflow).toBe("hidden");
+    expect(document.body.style.overflow).toBe("hidden");
+  });
+
+  it("lets the page scroll instead of clipping the chat when it does not fit", () => {
+    // 360 × 640 phone with group messages above the chat: 640 - 525 - 112
+    // leaves 3 px, the chat needs 380 (header, composer, 160 px list). The
+    // locked layout shrank the list to 24 px and clipped the composer.
+    mockLayout(640, 525, 380);
+    render(React.createElement(ChatWithList));
+
+    expect(document.documentElement.style.overflow).toBe("");
+    expect(document.body.style.overflow).toBe("");
+    // Scrolled down, the chat fills the screen from the content top (16 px
+    // main padding) to the bottom nav: 640 - 112 - 16.
+    expect(chat()?.style.height).toBe("512px");
+  });
+
+  it("never makes the chat shorter than its content when the page scrolls", () => {
+    mockLayout(640, 525, 600);
+    render(React.createElement(ChatWithList));
+
+    expect(chat()?.style.height).toBe("600px");
+  });
+
+  it("keeps the person's own scroll position while the page scrolls", () => {
+    const scrollToSpy = vi
+      .spyOn(window, "scrollTo")
+      .mockImplementation(() => undefined);
+    mockLayout(640, 525, 380);
+    render(React.createElement(ChatWithList));
+    Object.defineProperty(window, "scrollY", {
+      value: 200,
+      configurable: true,
+      writable: true,
+    });
+
+    act(() => {
+      window.dispatchEvent(new Event("resize"));
+    });
+
+    expect(scrollToSpy).not.toHaveBeenCalled();
+    Object.defineProperty(window, "scrollY", {
+      value: 0,
+      configurable: true,
+      writable: true,
+    });
+  });
+
+  it("restores the page overflow on unmount after releasing the lock", () => {
+    document.documentElement.style.overflow = "auto";
+    mockLayout(640, 525, 380);
+    const { unmount } = render(React.createElement(ChatWithList));
+
+    expect(document.documentElement.style.overflow).toBe("auto");
+    unmount();
+    expect(document.documentElement.style.overflow).toBe("auto");
+    expect(document.body.style.overflow).toBe("");
+  });
+
+  it("flags a compact chat on small screens", () => {
+    // 640 - 112 nav = 528 px usable height.
+    mockLayout(640, 80, 300);
+    render(React.createElement(ChatWithList));
+
+    expect(compactFlag()).toBe(true);
+  });
+
+  it("does not flag a compact chat on tall screens", () => {
+    // 844 - 112 = 732 px usable height (iPhone 14, Android 390 × 844).
+    mockLayout(844, 80, 300);
+    render(React.createElement(ChatWithList));
+
+    expect(compactFlag()).toBe(false);
+  });
+
+  it("clears the compact flag when the chat unmounts", () => {
+    mockLayout(640, 80, 300);
+    const { unmount } = render(React.createElement(ChatWithList));
+    unmount();
+
+    expect(compactFlag()).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Every chat marks its message list
+// ---------------------------------------------------------------------------
+
+describe("useChatViewportLock — consumers", () => {
+  it("is only used by chats that mark their message list", () => {
+    // Without `data-chat-scroll` the hook cannot keep the list readable, and
+    // a small phone shows the 24 px list from the parents' chat again.
+    const srcDir = path.resolve(__dirname, "../..");
+    const consumers: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) walk(full);
+        else if (
+          /\.tsx$/.test(entry.name) &&
+          !/\.test\.tsx$/.test(entry.name) &&
+          readFileSync(full, "utf8").includes("useChatViewportLock<")
+        )
+          consumers.push(full);
+      }
+    };
+    walk(srcDir);
+
+    expect(consumers.length).toBeGreaterThanOrEqual(3);
+    const unmarked = consumers.filter(
+      (file) => !readFileSync(file, "utf8").includes('data-chat-scroll=""'),
+    );
+    expect(unmarked).toEqual([]);
   });
 });
