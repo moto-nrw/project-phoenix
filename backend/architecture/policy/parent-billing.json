@@ -117,6 +117,14 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.care_notice_letter_mailings",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_notice_letters",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.care_notice_months",
       "write_owner": "parent-billing"
     },

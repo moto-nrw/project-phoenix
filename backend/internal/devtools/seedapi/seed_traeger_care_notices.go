@@ -29,6 +29,8 @@ var seedTraegerNoticeTemplate = map[string]any{
 const (
 	seedCareNoticeRunOpen = "parent_billing.care_notice_run_open"
 	seedBillingRunEmpty   = "parent_billing.billing_run_empty"
+	// The originals of the run are stored already (#6347).
+	seedBillingLettersExist = "parent_billing.billing_letters_exist"
 )
 
 type seedCareNoticeRun struct {
@@ -77,7 +79,23 @@ func seedCareNotices(client *Client, auth AuthRef, current calendar.Date) (int, 
 	if err != nil {
 		return 0, fmt.Errorf("release the notice run: %w", err)
 	}
+	if err := seedCareNoticeLetters(client, auth, runID); err != nil {
+		return 0, err
+	}
 	return run.PreviewCount, nil
+}
+
+// seedCareNoticeLetters stores the originals of the issued notices and sends
+// them by mail and to the parents inbox, as the office does (#6347).
+func seedCareNoticeLetters(client *Client, auth AuthRef, runID int64) error {
+	_, err := client.PostWithAuth(auth, fmt.Sprintf("/traeger/care-notice-runs/%d/letters", runID), nil)
+	if err != nil && !seedConflictCode(err, seedBillingLettersExist) {
+		return fmt.Errorf("store the originals of the notice run: %w", err)
+	}
+	if _, err := client.PostWithAuth(auth, fmt.Sprintf("/traeger/care-notice-runs/%d/letters/mail", runID), nil); err != nil {
+		return fmt.Errorf("send the notices of the run: %w", err)
+	}
+	return nil
 }
 
 func monthAfter(month calendar.Date) calendar.Date {

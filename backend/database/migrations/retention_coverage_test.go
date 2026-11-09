@@ -305,6 +305,8 @@ var tableRetentions = map[string]tableRetention{
 	"parent_billing.care_notice_runs":                       notPersonal("run of the Jahresbescheide of a Träger (#6219, ADR 0182): year, period, schools, status and sums, no person"),
 	"parent_billing.care_notices":                           own("an issued Jahresbescheid never changes and stays when its contract goes (§ 147 AO, ADR 0119, ADR 0182); it goes with platform.organizations when the Träger is erased after its export (#4657) and with a retired demo school (1.15.823); the period of a single notice follows with #4720"),
 	"parent_billing.care_notice_months":                     parent("parent_billing.care_notices"),
+	"parent_billing.care_notice_letters":                    parent("parent_billing.care_notices"),
+	"parent_billing.care_notice_letter_mailings":            parent("parent_billing.care_notice_letters"),
 	"parent_billing.care_notice_run_events":                 own("the trail of a run of Jahresbescheide stays with the notices it documents (ADR 0182); it goes with platform.organizations when the Träger is erased (#4657) and, for a retired demo school, with the contracts it names (1.15.823); actor_account_id SET NULL on account delete"),
 	"parent_billing.care_run_schools":                       notPersonal("schools a monthly run bills (#5916): school, month and whether the run is open, no person"),
 	"parent_billing.care_tariffs":                           notPersonal("monthly price of a care module per school and weekday (#4684), no person"),

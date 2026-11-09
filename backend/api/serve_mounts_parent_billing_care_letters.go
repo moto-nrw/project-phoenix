@@ -32,8 +32,38 @@ func (p parentBillingLetterPost) EnqueueCareLetterMail(ctx context.Context, mail
 
 // CareLetterMailStates reads the mails of a monthly run Delivery still keeps.
 func (p parentBillingLetterPost) CareLetterMailStates(ctx context.Context, organizationID, runID int64) ([]parentbilling.BillingLetterMailState, error) {
-	statuses, err := p.delivery.TraegerEmailStatuses(ctx, organizationID,
-		deliveryContract.RelatedEntity{Type: parentbilling.MailRelatedCareRun, ID: runID})
+	return p.relatedMailStates(ctx, organizationID, deliveryContract.RelatedEntity{Type: parentbilling.MailRelatedCareRun, ID: runID})
+}
+
+// EnqueueCareNoticeLetterMail puts the mail of a Jahresbescheid on Delivery's
+// outbox as a mail of the Träger with the stored PDF in its payload, in the
+// caller's Träger transaction (#6347). It is the mail kind of every letter
+// of the Träger; only the related entity names the notice run.
+func (p parentBillingLetterPost) EnqueueCareNoticeLetterMail(ctx context.Context, mail parentbilling.BillingLetterMail) (int64, error) {
+	payload, err := json.Marshal(mail)
+	if err != nil {
+		return 0, fmt.Errorf("care notice letter mail payload: %w", err)
+	}
+	enqueued, err := p.delivery.EnqueueEmail(ctx, deliveryContract.EmailIntent{
+		OrganizationID: mail.OrganizationID, Template: parentbilling.MailKindBillingLetter,
+		Recipient: deliveryContract.EmailRecipient{Address: mail.Recipient, Name: mail.GuardianName},
+		Payload:   payload, IdempotencyKey: mail.IdempotencyKey,
+		Related: deliveryContract.RelatedEntity{Type: parentbilling.MailRelatedCareNoticeRun, ID: mail.RunID},
+	})
+	if err != nil {
+		return 0, err
+	}
+	return enqueued.ID, nil
+}
+
+// CareNoticeLetterMailStates reads the mails of a notice run Delivery still keeps.
+func (p parentBillingLetterPost) CareNoticeLetterMailStates(ctx context.Context, organizationID, runID int64) ([]parentbilling.BillingLetterMailState, error) {
+	return p.relatedMailStates(ctx, organizationID, deliveryContract.RelatedEntity{Type: parentbilling.MailRelatedCareNoticeRun, ID: runID})
+}
+
+// relatedMailStates reads the mails of the Träger about one entity.
+func (p parentBillingLetterPost) relatedMailStates(ctx context.Context, organizationID int64, related deliveryContract.RelatedEntity) ([]parentbilling.BillingLetterMailState, error) {
+	statuses, err := p.delivery.TraegerEmailStatuses(ctx, organizationID, related)
 	if err != nil {
 		return nil, err
 	}

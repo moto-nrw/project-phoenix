@@ -20,16 +20,18 @@ import (
 // transaction of the session's Träger.
 type CareNoticeResource struct {
 	notices        capability.CareFeeNotices
+	letters        capability.CareNoticeLetterService
 	requireBilling common.Middleware
 }
 
-// NewCareNoticeResource builds the resource; requireBilling admits only a
-// session with the Träger right "Abrechnung".
-func NewCareNoticeResource(notices capability.CareFeeNotices, requireBilling common.Middleware) *CareNoticeResource {
-	if notices == nil || requireBilling == nil {
-		panic("parent billing http: the fee notices and the right check are required")
+// NewCareNoticeResource builds the resource over the notices and their
+// stored originals (#6347); requireBilling admits only a session with the
+// Träger right "Abrechnung".
+func NewCareNoticeResource(notices capability.CareFeeNotices, letters capability.CareNoticeLetterService, requireBilling common.Middleware) *CareNoticeResource {
+	if notices == nil || letters == nil || requireBilling == nil {
+		panic("parent billing http: the fee notices, their letters and the right check are required")
 	}
-	return &CareNoticeResource{notices: notices, requireBilling: requireBilling}
+	return &CareNoticeResource{notices: notices, letters: letters, requireBilling: requireBilling}
 }
 
 // Router returns the routes mounted at /traeger/care-notice-runs.
@@ -43,6 +45,7 @@ func (rs *CareNoticeResource) Router(protectedTraegerRoutes func(chi.Router, fun
 		billing.Get("/{id}", rs.detail)
 		billing.Post("/{id}/release", rs.release)
 		billing.Get("/{id}/notices/{contractID}/letter", rs.letter)
+		rs.mountLetters(billing)
 	})
 	return r
 }
@@ -160,6 +163,10 @@ func renderNoticeError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeParentBillingCareNoticeNotFound))
 	case errors.Is(err, capability.ErrCareNoticeRunOpen):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingCareNoticeRunOpen))
+	case errors.Is(err, capability.ErrBillingLetterNotFound):
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeParentBillingBillingLetterNotFound))
+	case errors.Is(err, capability.ErrCareRecipientChanged):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingCareRecipientChanged))
 	case errors.Is(err, capability.ErrCareVersionsOverlap):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingCareVersionsOverlap))
 	default:
