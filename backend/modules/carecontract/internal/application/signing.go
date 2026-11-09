@@ -38,6 +38,8 @@ type SignaturePorts struct {
 	Sender  carecontract.TraegerSigningSender
 	Post    carecontract.Post
 	Runtime carecontract.Runtime
+	// Holidays dates the withdrawal period the signature names (#6350).
+	Holidays carecontract.SchoolHolidays
 }
 
 // Signatures serves carecontract.Signing, carecontract.InboxSigning and
@@ -58,8 +60,9 @@ var (
 )
 
 func NewSignatures(store ContractStore, ports SignaturePorts, clock Clock, contracts *Contracts) *Signatures {
-	if store == nil || ports.Ledger == nil || ports.Links.Tokens == nil || ports.Links.Fingerprint == nil || ports.Sender == nil || ports.Post == nil || ports.Runtime == nil {
-		panic("care contract: the store, the ledger, the tokens, the sender, the post and the runtime are required")
+	if store == nil || ports.Ledger == nil || ports.Links.Tokens == nil || ports.Links.Fingerprint == nil || ports.Sender == nil || ports.Post == nil || ports.Runtime == nil ||
+		ports.Holidays == nil {
+		panic("care contract: the store, the ledger, the tokens, the sender, the post, the runtime and the school holidays are required")
 	}
 	return &Signatures{store: store, ports: ports, clock: clock, contracts: contracts}
 }
@@ -178,6 +181,11 @@ func (s *Signatures) SignByLink(ctx context.Context, link string, input carecont
 	return view, err
 }
 
+// periods dates withdrawal periods over the school holidays port.
+func (s *Signatures) periods() withdrawalPeriods {
+	return withdrawalPeriods{holidays: s.ports.Holidays}
+}
+
 // withinLink opens the Träger transaction without reclassifying operational failures.
 func (s *Signatures) withinLink(ctx context.Context, organizationID int64, fn func(context.Context) error) error {
 	if err := s.ports.Runtime.WithinTraeger(ctx, organizationID, fn); err != nil {
@@ -212,7 +220,10 @@ func (s *Signatures) InboxSigningView(ctx context.Context, organizationID, contr
 			EarlyStartRequested: stored.EarlyStartRequested,
 		}
 		if stored.Method != carecontract.SignaturePaper {
-			ends := withdrawalEnd(stored.SignedAt)
+			ends, err := s.periods().withdrawalEnd(ctx, record.Summary.SchoolID, stored.SignedAt)
+			if err != nil {
+				return carecontract.SigningView{}, err
+			}
 			view.Signature.WithdrawalEndsOn = &ends
 		}
 	}
@@ -357,16 +368,31 @@ func (s *Signatures) sign(ctx context.Context, organizationID int64, record Cont
 	}); err != nil {
 		return carecontract.SigningView{}, err
 	}
+	view, err := s.signedView(ctx, organizationID, record, document, carecontract.SigningSignature{
+		Method: input.Method, SignerName: signerName, SignedAt: now, EarlyStartRequested: input.EarlyStart,
+	})
+	if err != nil {
+		return carecontract.SigningView{}, err
+	}
+	view.Status = status
+	return view, s.confirm(ctx, organizationID, record, document, view, party)
+}
+
+// signedView is the page after the signature, with the last day of the
+// withdrawal period at the contract's school (#6350).
+func (s *Signatures) signedView(ctx context.Context, organizationID int64, record ContractRecord, document StoredDocument,
+	signature carecontract.SigningSignature) (carecontract.SigningView, error) {
 	view, err := s.view(ctx, organizationID, record, document)
 	if err != nil {
 		return carecontract.SigningView{}, err
 	}
-	ends := withdrawalEnd(now)
-	view.Status = status
-	view.Signature = &carecontract.SigningSignature{
-		Method: input.Method, SignerName: signerName, SignedAt: now, EarlyStartRequested: input.EarlyStart, WithdrawalEndsOn: &ends,
+	ends, err := s.periods().withdrawalEnd(ctx, record.Summary.SchoolID, signature.SignedAt)
+	if err != nil {
+		return carecontract.SigningView{}, err
 	}
-	return view, s.confirm(ctx, organizationID, record, document, view, party)
+	signature.WithdrawalEndsOn = &ends
+	view.Signature = &signature
+	return view, nil
 }
 
 // confirm enqueues the confirmation mail: the signed PDF, when and by whom
