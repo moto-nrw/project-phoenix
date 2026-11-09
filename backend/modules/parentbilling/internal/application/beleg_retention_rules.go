@@ -22,12 +22,6 @@ type BelegDecision struct {
 	SuspensionID  int64
 }
 
-// Due reports whether the Beleg may be deleted on today: only with an
-// instruction, without a suspension and from its first deletable day on.
-func (d BelegDecision) Due(today calendar.Date) bool {
-	return d.State == parentbilling.RetentionScheduled && d.DeletableOn != nil && !today.Before(*d.DeletableOn)
-}
-
 // triggersByType lists the events an instruction may name per type.
 var triggersByType = map[string][]string{
 	parentbilling.BelegHolidayDocument: {parentbilling.TriggerIssued},

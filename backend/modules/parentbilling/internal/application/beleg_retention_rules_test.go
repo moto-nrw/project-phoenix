@@ -29,8 +29,8 @@ func TestBookingBelegEndsEightYearsAfterTheEndOfItsIssueYear(t *testing.T) {
 		assert.Equal(t, datePtr(2035, 1, 1), decision.DeletableOn, issued.String())
 		assert.Equal(t, &issued, decision.TriggerDate)
 		assert.Equal(t, eightYears("").ID, decision.InstructionID)
-		assert.False(t, decision.Due(date(2034, 12, 31)), "the last day of 2034 still keeps it")
-		assert.True(t, decision.Due(date(2035, 1, 1)), "the first day of 2035 deletes it")
+		assert.False(t, due(decision, date(2034, 12, 31)), "the last day of 2034 still keeps it")
+		assert.True(t, due(decision, date(2035, 1, 1)), "the first day of 2035 deletes it")
 	}
 	issued := date(2027, 1, 1)
 	decision := DecideBelegRetention(parentbilling.BelegFact{BelegType: parentbilling.BelegHolidayDocument, Issued: &issued},
@@ -49,7 +49,7 @@ func TestBelegWithoutInstructionWaitsOnTheClarificationList(t *testing.T) {
 	assert.Equal(t, parentbilling.ClarifyNoInstruction, decision.Reason)
 	assert.Nil(t, decision.DeletableOn)
 	assert.Equal(t, datePtr(2035, 1, 1), decision.ProposedOn)
-	assert.False(t, decision.Due(date(2040, 1, 1)), "no instruction, no deletion, however late")
+	assert.False(t, due(decision, date(2040, 1, 1)), "no instruction, no deletion, however late")
 
 	notice := DecideBelegRetention(parentbilling.BelegFact{BelegType: parentbilling.BelegCareNotice, Issued: &issued}, nil, nil, date(2026, 4, 1))
 	assert.Equal(t, parentbilling.RetentionClarification, notice.State)
@@ -121,7 +121,7 @@ func TestSuspensionHoldsTheDeletion(t *testing.T) {
 	assert.Equal(t, parentbilling.RetentionSuspended, decision.State)
 	assert.Equal(t, hold.ID, decision.SuspensionID)
 	assert.Equal(t, datePtr(2035, 1, 1), decision.DeletableOn)
-	assert.False(t, decision.Due(date(2036, 1, 1)))
+	assert.False(t, due(decision, date(2036, 1, 1)))
 }
 
 func TestInstructionValidationFollowsTheType(t *testing.T) {
@@ -311,4 +311,12 @@ func TestClarificationReviewEscalatesBeforeTheReviewMoves(t *testing.T) {
 		review.NextReviewOn = next
 		assert.NoError(t, ValidateClarificationEscalation(review, entryReviewOn), name)
 	}
+}
+
+// due reports whether the decision lets the Beleg go on today: only with an
+// instruction, without a suspension and from its first deletable day on. The
+// deletion itself decides this in SQL (beleg_retention_ended); the helper
+// reads the same rule off the decision.
+func due(d BelegDecision, today calendar.Date) bool {
+	return d.State == parentbilling.RetentionScheduled && d.DeletableOn != nil && !today.Before(*d.DeletableOn)
 }
