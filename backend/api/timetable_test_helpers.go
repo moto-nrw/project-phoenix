@@ -143,21 +143,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 		return TimetableTestModule{}, nil, nil, err
 	}
 	rows := r.TimetableTemplateRows()
-	materializationDeps := owners.TimetableMaterializationDependencies(rows, members.Student, calendar, recurrenceLock, hub, logger)
-	materializationDeps.Transactions = arrivalTimetable.NewTenantTransactions(db.Pool())
-	// Open sick reports mark newly planned supervisors absent, as the
-	// composition root binds them (#6292).
-	membership, err := owners.NewSchoolMembership(db)
-	if err != nil {
-		return TimetableTestModule{}, nil, nil, err
-	}
-	workTime, err := owners.NewWorkforce(db, membership)
-	if err != nil {
-		return TimetableTestModule{}, nil, nil, err
-	}
-	materializationDeps.SickReports = owners.NewTimetableSickReports(workTime)
-	materializationDeps.DayLocks = arrivalTimetable.NewTenantDatabase(db.Pool())
-	materialization, err := arrivalTimetable.NewMaterialization(materializationDeps)
+	materialization, err := newTimetableTestMaterialization(db, owners.TimetableMaterializationDependencies(rows, members.Student, calendar, recurrenceLock, hub, logger))
 	if err != nil {
 		return TimetableTestModule{}, nil, nil, err
 	}
@@ -224,4 +210,14 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 		AttendanceCorrections: corrections, Deviations: deviations,
 	}
 	return TimetableTestModule{Instance: instance, TimetableData: planning, ConflictDetection: conflicts, Materialization: materialization}, calendar, hub, nil
+}
+
+// newTimetableTestMaterialization binds the recurrence engine to db the way
+// the composition root does: its tenant transactions, and Workforce's open
+// sick reports with the day locks they need (#6292).
+func newTimetableTestMaterialization(db transactionruntime.Database, deps timetablePorts.MaterializationDependencies) (timetable.MaterializationCapability, error) {
+	deps.Transactions = arrivalTimetable.NewTenantTransactions(db.Pool())
+	deps.SickReports = owners.NewTimetableSickReports(owners.MustNewWorkforce(db))
+	deps.DayLocks = arrivalTimetable.NewTenantDatabase(db.Pool())
+	return arrivalTimetable.NewMaterialization(deps)
 }

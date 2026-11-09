@@ -167,24 +167,6 @@ func (s *materializationService) MaterializeForTenant(
 	return s.materializeForTenantLocked(ctx, tenantID, from, to, source, start)
 }
 
-// lockWindowDays takes the substitute day lock of every window day, ascending,
-// after the recurrence gate: the order the instance lifecycle documents
-// (LockDeviationDays) and the replan and template split already hold. The sick
-// cascade marks a day's rows under the same lock, so a report committing
-// while this run reads the reports either is visible to it or sees the rows
-// it inserts (#6292). Without sick reports there is nothing to serialize.
-func (s *materializationService) lockWindowDays(ctx context.Context, tenantID int64, from, to calendar.Date) error {
-	if s.sickReports == nil {
-		return nil
-	}
-	for day := from; !day.After(to); day = day.AddDays(1) {
-		if err := s.dayLocks.AcquireTransactionLock(ctx, timetable.SubstituteDayLockKey(tenantID, day)); err != nil {
-			return &ports.ScheduleError{Op: "materialize for tenant: lock day " + day.String(), Err: err}
-		}
-	}
-	return nil
-}
-
 func validateMaterializationWindow(from, to calendar.Date) error {
 	if to.Before(from) {
 		return &ports.ScheduleError{Op: materializeForTenantOp, Err: errors.New("to_date must not be before from_date")}
@@ -375,12 +357,9 @@ func (s *materializationService) loadMaterializationWorld(
 		return nil, &ports.ScheduleError{Op: "materialize for tenant: load existing instances", Err: err}
 	}
 	world.existingIdx = buildExistingIndex(existing)
-	if s.sickReports != nil {
-		reports, err := s.sickReports.OpenSickReports(ctx, from, to)
-		if err != nil {
-			return nil, &ports.ScheduleError{Op: "materialize for tenant: load sick reports", Err: err}
-		}
-		world.sickDays = sickDayIndex(reports, from, to)
+	world.sickDays, err = s.loadSickDays(ctx, from, to)
+	if err != nil {
+		return nil, err
 	}
 	return world, nil
 }

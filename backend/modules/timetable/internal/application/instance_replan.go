@@ -241,24 +241,33 @@ func (s *InstanceLifecycleService) reapplyDeviations(
 	staffByInstance := IndexInstanceStaffRows(staffRows)
 	reapplied := 0
 	for i, snap := range snapshots {
-		inst := matches[i]
-		if inst == nil {
-			if !snap.overridden() {
-				continue
-			}
-			if err := s.logSnapshotDropped(ctx, snap, targetActivityGroupID, actorAccountID); err != nil {
-				return reapplied, err
-			}
-			continue
+		var rows []*scheduleModel.InstanceStaff
+		if matches[i] != nil {
+			rows = staffByInstance[matches[i].ID]
 		}
-		if err := s.reapplySnapshot(ctx, snap, inst, staffByInstance[inst.ID]); err != nil {
+		if err := s.reapplyMatchedSnapshot(ctx, snap, matches[i], rows, targetActivityGroupID, actorAccountID); err != nil {
 			return reapplied, err
 		}
-		if snap.overridden() {
+		if matches[i] != nil && snap.overridden() {
 			reapplied++
 		}
 	}
 	return reapplied, nil
+}
+
+// reapplyMatchedSnapshot reapplies one snapshot onto its regenerated
+// occurrence. Without one, a snapshot carrying a deviation is recorded as
+// dropped; one holding only present rows has nothing to lose.
+func (s *InstanceLifecycleService) reapplyMatchedSnapshot(
+	ctx context.Context, snap deviationSnapshot, inst *scheduleModel.ActivityInstance, rows []*scheduleModel.InstanceStaff, targetActivityGroupID, actorAccountID *int64,
+) error {
+	if inst != nil {
+		return s.reapplySnapshot(ctx, snap, inst, rows)
+	}
+	if !snap.overridden() {
+		return nil
+	}
+	return s.logSnapshotDropped(ctx, snap, targetActivityGroupID, actorAccountID)
 }
 
 // reapplySnapshot writes one snapshot onto its regenerated occurrence: the
