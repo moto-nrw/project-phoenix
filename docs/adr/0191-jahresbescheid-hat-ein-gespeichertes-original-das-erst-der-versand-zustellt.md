@@ -80,7 +80,7 @@ Eintrag im Elternpostfach fehlten (#6243, „Risiken“).
 
 ## Register
 
-- Migration `1.15.869`: zwei Tabellen mit RLS, Triggern gegen Änderungen und
+- Migration `1.15.872`: zwei Tabellen mit RLS, Triggern gegen Änderungen und
   Rechten nur zum Lesen und Anlegen; Aktionen `letters` und `mail` der Spur; die
   Demo-Löschung `platform.erase_closed_demo_visitors` löscht Mail, Zustellergebnis
   und Push der Originale einer ausgemusterten Demo-Schule vor den Bescheiden

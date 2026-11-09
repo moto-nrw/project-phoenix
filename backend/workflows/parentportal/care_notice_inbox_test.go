@@ -9,8 +9,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
 )
 
 // inboxNotice stores an issued Jahresbescheid of the Träger for a child at a
@@ -45,6 +47,13 @@ func inboxNotice(t *testing.T, db *bun.DB, organization, school, student int64, 
 	return letter
 }
 
+// noticeInbox is the parents portal over the real Elternabrechnung, as
+// documentInbox builds it, on db.
+func noticeInbox(t *testing.T, db *bun.DB) *parentService.Portal {
+	t.Helper()
+	return parentportalcompose.New(documentInboxDependencies(t, db, &owners.CareContractTestMails{}))
+}
+
 func inboxDocumentIDs(documents []parentService.BillingDocument) []int64 {
 	ids := make([]int64, len(documents))
 	for i, document := range documents {
@@ -62,7 +71,8 @@ func inboxDocumentIDs(documents []parentService.BillingDocument) []int64 {
 // open nothing.
 func TestCareNoticeInboxNeedsTheRelationshipOfTheChild(t *testing.T) {
 	t.Parallel()
-	portal, _, _, db := documentInbox(t)
+	db := testpkg.SetupTestDB(t)
+	portal := noticeInbox(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	var organization int64
@@ -123,7 +133,8 @@ func TestCareNoticeInboxNeedsTheRelationshipOfTheChild(t *testing.T) {
 // child keeps its own, and a deleted account reads nothing (#6347).
 func TestCareNoticeInboxEndsWithTheRightOfTheChildAndTheAccount(t *testing.T) {
 	t.Parallel()
-	portal, _, _, db := documentInbox(t)
+	db := testpkg.SetupTestDB(t)
+	portal := noticeInbox(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	sibling := testpkg.CreateTestStudent(t, db, "Mia", "Schneider", "1a")
