@@ -1132,7 +1132,7 @@
     },
     {
       "decision": "0090",
-      "id": "modules/identityaccess/internal/application/Service.FindRolePermissions",
+      "id": "modules/identityaccess/internal/application/Service.FindRolePermissionsByRoleIDs",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
