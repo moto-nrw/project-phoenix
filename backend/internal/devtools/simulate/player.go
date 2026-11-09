@@ -2,8 +2,11 @@ package simulate
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type Client interface {
@@ -46,6 +49,9 @@ type Runtime struct {
 	OpenRoomBlockInstanceID int64
 	// SupervisorStaffIDs supervise the running kiosk sessions.
 	SupervisorStaffIDs []int64
+	// Day is the Berlin day the run simulates, fixed at its start
+	// (fullday_day.go).
+	Day calendar.Date
 	// Today is what the school plans for the simulated day (fullday_today.go).
 	Today todayPlan
 	// Blocks are the planned blocks the run started, in start order.
@@ -71,7 +77,8 @@ type Runtime struct {
 	// staffLogins are the signed-in clients of the caregivers who run the
 	// started blocks (fullday_blocks.go).
 	staffLogins map[int64]staffLogin
-	// adminLoginAt is when the admin last signed in, on the shared clock.
+	// adminLoginAt is the wall-only login time, so token age follows system
+	// clock jumps instead of monotonic elapsed time.
 	adminLoginAt time.Time
 	Counts       RuntimeCounts
 }
@@ -135,9 +142,19 @@ func (e *ActionError) Unwrap() error {
 	return e.Err
 }
 
+// Run runs the actions in order on the simulated day. An action that would
+// start after the day ended does not run; a failure while the day ended
+// names that cause too.
 func (s Scenario) Run(ctx context.Context, rt *Runtime) error {
 	for _, action := range s.Actions {
-		if err := action.Run(ctx, rt); err != nil {
+		err := rt.checkDay()
+		if err == nil {
+			err = action.Run(ctx, rt)
+			if dayErr := rt.checkDay(); err != nil && dayErr != nil {
+				err = errors.Join(err, dayErr)
+			}
+		}
+		if err != nil {
 			return &ActionError{
 				Action: action.Name(),
 				Err:    err,
@@ -149,6 +166,7 @@ func (s Scenario) Run(ctx context.Context, rt *Runtime) error {
 
 func newRuntime(state *SeedState, client Client, opts FullDayOptions) *Runtime {
 	return &Runtime{
+		Day:            calendar.DateFromTime(opts.now()),
 		State:          state,
 		Client:         client,
 		Options:        opts,

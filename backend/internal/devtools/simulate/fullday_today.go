@@ -129,7 +129,7 @@ func (loadTodayAction) Name() string { return "read today's plan" }
 // status, so the waves follow the plan the screens show next to them.
 func (loadTodayAction) Run(_ context.Context, rt *Runtime) error {
 	fmt.Println("\nPhase 1b: Reading today's plan...")
-	today := rt.Options.now().In(simulationBerlin).Format(isoDate)
+	today := rt.Day.String()
 	shifts, err := todaysShifts(rt, today)
 	if err != nil {
 		return err

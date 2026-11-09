@@ -841,7 +841,11 @@ cd frontend && pnpm run test:screenshots        # pipeline test against the runn
   12:50. Every stamp lies before the browser's 13:30, and `set-clock` keeps the
   shift to the real time in `clock-shift` for the restore. Without
   `--clock-command` (a local run) all waves run at once on the plan's times
-  and carry the real time.
+  and carry the real time. A run simulates the Berlin day it started on; if
+  the clock crosses midnight, it stops before its next action, because the
+  server keeps attendance per day (#5511). The seed smoke in `test.yml`
+  therefore also moves its runner clock forward to the next 07:20 Berlin
+  before migrating and drives the waves with `--clock-command`.
   Text that depends on the time of day must therefore not be rendered on the
   server: the home greeting uses `useTimeBasedGreeting` (`src/lib/greeting.ts`).
 - Adding a shot: the list follows the help flows and PostHog usage (#3764),
