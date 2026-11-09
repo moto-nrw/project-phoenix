@@ -420,9 +420,9 @@ describe("BillingRunOverviewCard letter preview (#5692)", () => {
     expect(api.downloadBillingLetter).toHaveBeenCalledTimes(2);
   });
 
-  // Before the release a row opens its breakdown in place: checking the
-  // run needs no menu per row.
-  it("opens a row's breakdown in place before the release", () => {
+  // Before the release one switch shows every breakdown in place: checking
+  // the run needs no menu per row.
+  it("shows the breakdowns in place before the release", () => {
     renderCard({
       ...RUN,
       status: "calculated",
@@ -446,12 +446,13 @@ describe("BillingRunOverviewCard letter preview (#5692)", () => {
       ],
     });
 
-    const documentRow = screen.getByRole("row", {
-      name: "Eva Muster: Aufschlüsselung öffnen",
+    const toggle = screen.getByRole("button", {
+      name: "Aufschlüsselung zeigen",
     });
-    fireEvent.click(documentRow);
+    fireEvent.click(toggle);
 
-    expect(documentRow).toHaveAttribute("aria-expanded", "true");
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(toggle).toHaveTextContent("Aufschlüsselung ausblenden");
     expect(screen.getByText("Lia Muster")).toBeInTheDocument();
     // One child: its sum is the invoice amount, no second total line.
     expect(screen.getByText("Summe")).toBeInTheDocument();

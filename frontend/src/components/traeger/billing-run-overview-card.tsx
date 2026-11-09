@@ -15,6 +15,7 @@
 import { FileText } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ContributionBreakdown } from "~/components/holiday-contribution/contribution-breakdown";
+import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import {
@@ -90,7 +91,7 @@ function leftForChild(
 
 function invoicesDescription(released: boolean, canPreview: boolean) {
   if (!released) {
-    return "Je Familie eine Rechnung. Eine Zeile öffnet ihre Aufschlüsselung je Kind; auf dem Handy steht sie im Menü der Zeile.";
+    return "Je Familie eine Rechnung. „Aufschlüsselung zeigen“ blendet die Beträge je Kind unter jeder Rechnung ein; auf dem Handy stehen sie im Menü der Zeile.";
   }
   const overview =
     "Die Übersicht für die Kämmerei enthält jede Position, die Summe je Rechnung und die Gesamtsumme. Storno und Gutschrift stehen als eigene Zeilen mit Minusbetrag.";
@@ -163,6 +164,7 @@ export function BillingRunOverviewCard({
   // Gemerkt wird die Zeile, nicht die Rechnung: nach einer Korrektur zeigt das
   // Panel die neuen Beträge.
   const [shownKey, setShownKey] = useState<string | null>(null);
+  const [breakdownShown, setBreakdownShown] = useState(false);
   // The issued document whose letter shows beside the list (#5692).
   const [previewId, setPreviewId] = useState<string | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
@@ -405,22 +407,13 @@ export function BillingRunOverviewCard({
       rows={[...run.documents]}
       getRowKey={rowKey}
       onRowClick={canPreview ? openPreview : undefined}
-      // Before the release a row opens its breakdown in place, so checking
-      // the run needs no menu per row; afterwards a row opens its letter.
-      expandable={
-        canPreview
-          ? undefined
-          : {
-              rowLabel: (document, expanded) =>
-                `${recipientName(document)}: Aufschlüsselung ${expanded ? "schließen" : "öffnen"}`,
-              canExpand: (document) => document.children.length > 0,
-            }
-      }
+      // Before the release one switch shows every row's breakdown in place,
+      // so checking the run needs no menu per row; afterwards a row opens
+      // its letter.
       renderSubRows={
-        canPreview
-          ? undefined
-          : (document, expanded) =>
-              expanded
+        breakdownShown && !canPreview
+          ? (document) =>
+              document.children.length > 0
                 ? [
                     {
                       key: `${rowKey(document)}-breakdown`,
@@ -428,6 +421,7 @@ export function BillingRunOverviewCard({
                     },
                   ]
                 : []
+          : undefined
       }
       activeRowKey={previewed ? rowKey(previewed) : null}
       rowHasInteractiveControls
@@ -465,6 +459,20 @@ export function BillingRunOverviewCard({
               },
             })}
           />
+        ) : !canPreview && run.documents.length > 0 ? (
+          // Table only: the phone rows keep the breakdown in their menu.
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            className="max-md:hidden"
+            aria-expanded={breakdownShown}
+            onClick={() => setBreakdownShown((shown) => !shown)}
+          >
+            {breakdownShown
+              ? "Aufschlüsselung ausblenden"
+              : "Aufschlüsselung zeigen"}
+          </Button>
         ) : null
       }
     >
