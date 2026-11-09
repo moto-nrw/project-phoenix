@@ -757,3 +757,71 @@ describe("earlyCheckoutMinutes (#3324)", () => {
     ).toBe(80);
   });
 });
+
+// Ort hat Vorrang (#6371, #6407): Ein eingechecktes Kind behält trotz
+// Krankmeldung seine geplante Gehzeit und deren Verspätungsmarkierung.
+describe("getStudentTimeStatus for a checked-in reported child", () => {
+  const now = new Date("2026-11-09T16:15:00");
+  const day = getStudentDayTimes({
+    arrival_time: "11:45",
+    actual_arrival_time: "11:50",
+    pickup_time: "15:30",
+    actual_pickup_time: null,
+    current_location: "Anwesend - Raum 101",
+  });
+
+  it.each([
+    ["sick", { sick: true }],
+    ["excused", { excused: true }],
+    ["class trip", { classTrip: true }],
+  ])("marks the overdue pickup of a checked-in %s child", (_name, report) => {
+    const status = getStudentTimeStatus({
+      plannedTime: "15:30",
+      now,
+      kind: "pickup",
+      day,
+      ...report,
+    });
+
+    expect(status.state).toBe("very-overdue");
+    expect(status.displayTime).toBe("15:30");
+    expect(status.detailAnnotation).toBe("Überfällig seit 45 min");
+  });
+
+  it("uses an explicit checkedIn without a day", () => {
+    const status = getStudentTimeStatus({
+      plannedTime: "15:30",
+      now,
+      sick: true,
+      checkedIn: true,
+    });
+
+    expect(status.state).toBe("very-overdue");
+  });
+
+  it("keeps a sick child without check-in out of the overdue band (#1458)", () => {
+    const status = getStudentTimeStatus({
+      plannedTime: "15:30",
+      now,
+      kind: "pickup",
+      day: { ...day, actualArrival: null, checkedIn: false },
+      sick: true,
+    });
+
+    expect(status.state).toBe("absent-excused");
+    expect(status.displayTime).toBeUndefined();
+  });
+});
+
+describe("getStudentAbsence with a check-in", () => {
+  it("is no absence while the child is checked in", () => {
+    expect(getStudentAbsence({ sick: true, checkedIn: true })).toBeNull();
+    expect(getStudentAbsence({ excused: true, checkedIn: true })).toBeNull();
+  });
+
+  it("stays an absence without a check-in", () => {
+    expect(getStudentAbsence({ sick: true, checkedIn: false })?.label).toBe(
+      "krank gemeldet",
+    );
+  });
+});

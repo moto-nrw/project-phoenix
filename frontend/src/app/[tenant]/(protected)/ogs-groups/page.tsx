@@ -40,6 +40,7 @@ import type { Student } from "~/lib/student-helpers";
 import { teacherHintKey, teacherHintText } from "~/lib/student-helpers";
 import {
   countedDayStatus,
+  isCheckedInLocation,
   isNotCheckedInLocation,
 } from "~/lib/location-helper";
 import {
@@ -760,6 +761,7 @@ function OGSGroupPageContent() {
           sick: a.sick,
           classTrip: a.class_trip,
           excused: a.excused,
+          checkedIn: isCheckedInLocation(a.current_location),
         });
         const statusB = getStudentTimeStatus({
           plannedTime: timeB,
@@ -768,6 +770,7 @@ function OGSGroupPageContent() {
           sick: b.sick,
           classTrip: b.class_trip,
           excused: b.excused,
+          checkedIn: isCheckedInLocation(b.current_location),
         });
         const rankA = getTimeStatusSortRank(statusA);
         const rankB = getTimeStatusSortRank(statusB);
@@ -993,6 +996,7 @@ function OGSGroupPageContent() {
           sick: student.sick,
           classTrip: student.class_trip,
           excused: student.excused,
+          checkedIn: isCheckedInLocation(student.current_location),
         })?.label ?? getDayPlanningNotComingLabel(student);
       return absenceLabel
         ? { ...result, absence: { label: absenceLabel, note: pickupNote } }
@@ -1168,6 +1172,7 @@ function OGSGroupPageContent() {
                 sick: student.sick,
                 classTrip: student.class_trip,
                 excused: student.excused,
+                checkedIn: isCheckedInLocation(student.current_location),
               });
 
               const checkinState = deriveCheckinState(student.current_location);

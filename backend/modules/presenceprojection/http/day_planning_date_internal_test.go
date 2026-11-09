@@ -346,3 +346,27 @@ func TestResolveExportPlanningDate(t *testing.T) {
 		assert.NotNil(t, errResp)
 	})
 }
+
+// Ort hat Vorrang (#6407): Ein eingechecktes, krank gemeldetes Kind behält
+// heute seinen Abholplan statt „ungeplant anwesend“; ohne Check-in bleibt es
+// „krank gemeldet“.
+func TestResolveDayPlanningForDateTodayCheckedInSickChildKeepsPickupPlan(t *testing.T) {
+	t.Parallel()
+
+	day := calendar.NewDate(2026, time.November, 9)
+	checkInTime := day.BerlinMidnight().Add(8 * time.Hour)
+	attendance := &studentpresence.DailyAttendanceStatus{Status: "checked_in", CheckInTime: &checkInTime}
+	pickupTime := time.Date(2026, time.November, 9, 15, 30, 0, 0, time.UTC)
+	pickup := &careplan.EffectivePickupTime{Date: day, PickupTime: &pickupTime}
+	sick := StudentResponse{ID: 91, Sick: true}
+
+	status, reason, label := resolveDayPlanningForDate(sick, nil, pickup, attendance, map[int64]struct{}{}, true)
+	assert.Equal(t, DayPlanningStatusComesToday, status)
+	assert.Equal(t, dayPlanningReasonPickupSchedule, reason)
+	assert.Equal(t, "Abholplan heute", label)
+
+	status, reason, label = resolveDayPlanningForDate(sick, nil, pickup, nil, map[int64]struct{}{}, true)
+	assert.Equal(t, DayPlanningStatusNotComingToday, status)
+	assert.Equal(t, dayPlanningReasonSick, reason)
+	assert.Equal(t, "krank gemeldet", label)
+}

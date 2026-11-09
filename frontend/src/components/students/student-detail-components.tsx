@@ -11,7 +11,10 @@ import { useSWRAuth } from "~/lib/swr";
 import { AlertTriangle, Check, Clock, Info } from "lucide-react";
 import { LocationBadge } from "@/components/ui/location-badge";
 import type { Student } from "~/lib/student-helpers";
-import { isNotCheckedInLocation } from "~/lib/location-helper";
+import {
+  isCheckedInLocation,
+  isNotCheckedInLocation,
+} from "~/lib/location-helper";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import {
   getStudentAbsence,
@@ -433,14 +436,14 @@ export function StudentHeaderStats({
 }: Readonly<
   Omit<StudentHeaderProps, "myGroups" | "myGroupRooms" | "mySupervisedRooms">
 >) {
-  // Variant B: a sick/excused child without a completed pickup should not
-  // accrue overdue pickup urgency, even if they already checked in before the
-  // absence flag was set. Once pickup is recorded, the actual resolved times
-  // can render normally.
+  // A sick/excused child without a completed pickup accrues no overdue pickup
+  // urgency. Once checked in, the child is here (Ort hat Vorrang, #6407): the
+  // planned times apply and the report stays a hint at the location badge.
   const absence = getStudentAbsence({
     sick: student.sick,
     classTrip: student.class_trip,
     excused: student.excused,
+    checkedIn: isCheckedInLocation(student.current_location),
   });
   const dayPlanningNotComingLabel = getDayPlanningNotComingLabel(student);
   const notComingLabel = absence?.label ?? dayPlanningNotComingLabel;

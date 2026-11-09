@@ -518,11 +518,29 @@ describe("Kopf der Kindakte", () => {
       expect(arrival.getByText("(Krank)")).toBeInTheDocument();
     });
 
-    it("keeps a sick checked-in student out of the overdue pickup row", () => {
+    // Ort hat Vorrang (#6407, Entscheidung A): Ein eingechecktes Kind behält
+    // trotz Krankmeldung seine geplante Gehzeit; die Meldung ist nur Hinweis.
+    it("keeps the planned pickup of a sick checked-in student", () => {
       renderHeaderWithTimes({
-        student: { ...mockStudent, sick: true },
+        student: {
+          ...mockStudent,
+          current_location: "Anwesend - Raum 101",
+          sick: true,
+        },
         todayArrivalPlannedTime: "08:00",
         todayArrivalActualTime: "08:05",
+        todayPickupPlannedTime: "15:30",
+        todayPickupActualTime: undefined,
+      });
+
+      expect(rowFor("pickup").getByText(/15:30/)).toBeInTheDocument();
+      expect(screen.queryByTestId("today-absence-row")).toBeNull();
+    });
+
+    it("keeps a sick student without check-in out of the pickup row", () => {
+      renderHeaderWithTimes({
+        student: { ...mockStudent, current_location: "Zuhause", sick: true },
+        todayArrivalPlannedTime: "08:00",
         todayPickupPlannedTime: "15:30",
         todayPickupActualTime: undefined,
       });

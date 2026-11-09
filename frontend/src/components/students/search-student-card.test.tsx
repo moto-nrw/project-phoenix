@@ -80,6 +80,7 @@ describe("SearchStudentCard", () => {
       renderCard({
         student: {
           ...student,
+          current_location: "Zuhause",
           sick: true,
           pickup_notes: "Heute beim Arzt",
         },
@@ -170,6 +171,7 @@ describe("SearchStudentCard", () => {
       renderCard({
         student: {
           ...student,
+          current_location: "Zuhause",
           pickup_is_exception: true,
           sick: true,
         } as Student,

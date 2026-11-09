@@ -76,6 +76,7 @@ import {
   countedDayStatus,
   parseLocation,
   isAtSchoolLocation,
+  isCheckedInLocation,
   isInClassLocation,
   isNotCheckedInLocation,
   isPresentLocation,
@@ -3726,6 +3727,9 @@ function SearchPageContent() {
                                 sick: student.sick,
                                 classTrip: student.class_trip,
                                 excused: student.excused,
+                                checkedIn:
+                                  isToday &&
+                                  isCheckedInLocation(student.current_location),
                               });
                               const absenceWording = isToday
                                 ? undefined

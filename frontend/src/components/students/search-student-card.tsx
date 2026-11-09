@@ -45,6 +45,7 @@ import {
   getDayPlanningNotComingLabel,
   getStudentPresenceBadgePlanning,
 } from "~/lib/day-planning-helper";
+import { isCheckedInLocation } from "~/lib/location-helper";
 import { deriveCheckinState } from "~/lib/hooks/use-school-checkin-mode";
 import {
   dayHomeChange,
@@ -157,6 +158,7 @@ export function searchStudentDay(
     sick: student.sick,
     classTrip: student.class_trip,
     excused: student.excused,
+    checkedIn: isToday && isCheckedInLocation(student.current_location),
   });
   const absenceLabel =
     absence?.label ??
@@ -294,6 +296,8 @@ function SearchStudentCardImpl({
                 sick: student.sick,
                 classTrip: student.class_trip,
                 excused: student.excused,
+                checkedIn:
+                  isToday && isCheckedInLocation(student.current_location),
               });
               const absenceWording = isToday ? undefined : "Kommt nicht";
               // Absence rows fill the arrival slot; a neutral "Gehzeit: –" row

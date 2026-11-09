@@ -105,6 +105,11 @@ interface StudentTimeStatusInput {
   excused?: boolean;
   /** Student is on a class trip today — suppresses overdue urgency. */
   classTrip?: boolean;
+  /**
+   * Open check-in right now. Defaults to `day.checkedIn`. A checked-in child
+   * keeps its planned time and overdue marking despite a report (#6407).
+   */
+  checkedIn?: boolean;
 }
 
 /** Why a student is not expected today. Drives the neutral "absent" rendering. */
@@ -118,6 +123,11 @@ interface StudentAbsenceInput {
   sick?: boolean;
   classTrip?: boolean;
   excused?: boolean;
+  /**
+   * The child has an open check-in today. Ort hat Vorrang (#6371, #6407): it is
+   * here, so the report is only a hint at the location badge, not an absence.
+   */
+  checkedIn?: boolean;
 }
 
 /**
@@ -129,6 +139,9 @@ interface StudentAbsenceInput {
  * The label is intentionally date-free: a "seit <weekday>" qualifier reads
  * wrong once an absence spans more than a week. We only state the status.
  *
+ * A checked-in child is never absent (Ort hat Vorrang, #6371, #6407): the
+ * report stays a hint at the location badge, and the planned times apply.
+ *
  * Note: resolved actual times may still win at the row level. Callers that
  * collapse a whole day into one absence line should only do so while pickup is
  * unresolved, otherwise an already-arrived sick/excused child can still fall
@@ -138,7 +151,12 @@ export function getStudentAbsence({
   sick,
   classTrip,
   excused,
+  checkedIn,
 }: StudentAbsenceInput): StudentAbsence | null {
+  if (checkedIn) {
+    return null;
+  }
+
   if (sick) {
     return { reason: "sick", label: "krank gemeldet" };
   }
@@ -274,6 +292,7 @@ export function getStudentTimeStatus({
   sick,
   classTrip,
   excused,
+  checkedIn,
 }: StudentTimeStatusInput): StudentTimeStatus {
   const displayActualTime = formatTimeDisplay(actualTime);
   const displayPlannedTime = formatTimeDisplay(plannedTime);
@@ -306,7 +325,12 @@ export function getStudentTimeStatus({
   // Absence wins over the temporal (overdue) path but never over a recorded
   // actual time above — a sick/excused child is not "overdue", they are simply
   // not expected today. Neutral coloring, sorted out of the urgency band.
-  const absence = getStudentAbsence({ sick, classTrip, excused });
+  const absence = getStudentAbsence({
+    sick,
+    classTrip,
+    excused,
+    checkedIn: checkedIn ?? day?.checkedIn,
+  });
   if (absence) {
     return {
       state: "absent-excused",

@@ -56,7 +56,15 @@ type DayPlanningDecision struct {
 // (#1939) and the timetable's care-day derivation (#1747) arrived at this same
 // precedence independently; both paths must keep resolving through this
 // function so they never disagree.
+//
+// Ort hat Vorrang (#6371, #6407): for a checked-in child a sick, excused or
+// class-trip report no longer cancels the day's plan. It stays a hint at the
+// location badge, and the planned pickup keeps its time and its overdue
+// marking like for any other child on site.
 func ResolveDayPlanning(in DayPlanningInputs) DayPlanningDecision {
+	if in.HasActualAttendance {
+		in.Sick, in.ClassTrip, in.Excused = false, false, false
+	}
 	planned := resolvePlannedDay(in)
 	if in.HasActualAttendance && !planned.ComesToday {
 		return DayPlanningDecision{ComesToday: true, Reason: DayPlanningReasonUnplanned}
