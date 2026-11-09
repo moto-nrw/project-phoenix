@@ -273,7 +273,7 @@ export function StatCard(
           ) : null}
         </div>
         {hint !== undefined && hint !== "" ? (
-          <p className="mt-1 text-xs text-gray-500">{hint}</p>
+          <p className="mt-1 text-sm text-gray-500">{hint}</p>
         ) : null}
         {progressPct !== undefined ? (
           <ProgressBar

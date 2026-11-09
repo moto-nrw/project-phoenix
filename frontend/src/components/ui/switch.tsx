@@ -120,7 +120,7 @@ export function SwitchRow({
           {label}
         </FieldLabel>
         {description ? (
-          <p id={descriptionId} className="mt-0.5 text-xs text-gray-500">
+          <p id={descriptionId} className="mt-0.5 text-sm text-gray-500">
             {description}
           </p>
         ) : null}

@@ -67,7 +67,7 @@ export function WeekdayToggleGroup<T extends string | number>({
   return (
     <div>
       {group}
-      <p id={hintId} className="mt-1 text-xs text-gray-600">
+      <p id={hintId} className="mt-1 text-sm text-gray-600">
         {hint}
       </p>
     </div>

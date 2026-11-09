@@ -547,7 +547,7 @@ export function DatePicker({
         )}
       </div>
       {hint && (
-        <p id={hintId} className="mt-1 text-xs text-gray-600">
+        <p id={hintId} className="mt-1 text-sm text-gray-600">
           {hint}
         </p>
       )}
@@ -825,12 +825,12 @@ export function ISODatePicker({
       )}
       {picker}
       {hint && (
-        <p id={hintId} className="mt-1 text-xs text-gray-600">
+        <p id={hintId} className="mt-1 text-sm text-gray-600">
           {hint}
         </p>
       )}
       {error && (
-        <p id={errorId} role="alert" className="text-moto-red mt-1 text-xs">
+        <p id={errorId} role="alert" className="text-moto-red mt-1 text-sm">
           {error}
         </p>
       )}
@@ -1000,11 +1000,11 @@ export function ISODateInput({
         />
       </div>
       {inputError ? (
-        <p id={errorId} role="alert" className="text-moto-red mt-1 text-xs">
+        <p id={errorId} role="alert" className="text-moto-red mt-1 text-sm">
           {inputError}
         </p>
       ) : error ? (
-        <p id={errorId} className="text-moto-red mt-1 text-xs">
+        <p id={errorId} className="text-moto-red mt-1 text-sm">
           {error}
         </p>
       ) : null}

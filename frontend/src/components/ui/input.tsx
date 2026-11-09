@@ -131,7 +131,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
         control
       )}
       {hint && (
-        <p id={hintId} className="mt-1 text-xs text-gray-600">
+        <p id={hintId} className="mt-1 text-sm text-gray-600">
           {hint}
         </p>
       )}
@@ -139,7 +139,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
         <p
           id={errorId}
           role={errorLive ? "alert" : undefined}
-          className="text-moto-red-strong mt-1 text-xs"
+          className="text-moto-red-strong mt-1 text-sm"
         >
           {error}
         </p>

@@ -253,7 +253,7 @@ export function CustomSelect({
       ) : null}
       {field}
       {hint && hintId ? (
-        <p id={hintId} className="mt-1 text-xs text-gray-600">
+        <p id={hintId} className="mt-1 text-sm text-gray-600">
           {hint}
         </p>
       ) : null}

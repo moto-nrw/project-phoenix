@@ -158,7 +158,7 @@ export function Dropzone({
       >
         {buttonLabel}
       </Button>
-      {hint ? <p className="text-xs text-gray-500">{hint}</p> : null}
+      {hint ? <p className="text-sm text-gray-500">{hint}</p> : null}
       <input
         ref={inputRef}
         type="file"
