@@ -125,13 +125,14 @@ func (rt *Runtime) blockClient(block dayBlock) (Client, error) {
 		if err != nil {
 			return nil, err
 		}
-		rt.staffLogins[staffID] = staffLogin{client: client, at: rt.Options.now()}
+		rt.staffLogins[staffID] = staffLogin{client: client, at: rt.Options.now().Round(0)}
 		return client, nil
 	}
 	return rt.Client, nil
 }
 
-// staffLogin is a caregiver's signed-in client and when it signed in.
+// staffLogin is a caregiver's signed-in client and its wall-only login time,
+// so token age follows system clock jumps instead of monotonic elapsed time.
 type staffLogin struct {
 	client Client
 	at     time.Time

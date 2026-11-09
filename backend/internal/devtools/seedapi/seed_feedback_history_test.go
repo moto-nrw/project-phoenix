@@ -118,8 +118,9 @@ func TestSeedFeedbackHistoryStepWritesOneBatchOnce(t *testing.T) {
 			}
 		})
 		runtime := &Runtime{
-			Client:     newTestClient(srv.URL, false),
-			TenantAuth: AuthRef{Kind: AuthBearer, Token: "tenant-token"},
+			Client:      newTestClient(srv.URL, false),
+			TenantAuth:  AuthRef{Kind: AuthBearer, Token: "tenant-token"},
+			FixedSeeder: &FixedSeeder{seedDay: todaySeedDate()},
 		}
 		step := seedFeedbackHistoryStep{seeder: &Seeder{definition: fullOperationProfileDefinition()}}
 

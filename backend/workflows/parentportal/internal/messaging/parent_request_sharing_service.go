@@ -51,22 +51,21 @@ func (s *Service) GetRequestSharingOptions(
 	if !s.requestSharingConfigured() {
 		return nil, errors.New("parent: request sharing service is not configured")
 	}
-	child, err := s.resolveOwnedChild(ctx, accountID, studentID)
-	if err != nil {
-		return nil, err
-	}
 	var state *RequestSharingState
-	err = s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	err := s.withOwnedChild(ctx, accountID, studentID, nil, func(txCtx context.Context, _ *Child) error {
 		protected, _, loadErr := s.ledger().currentFamilyProtection(txCtx, studentID)
-		if loadErr != nil {
-			return loadErr
+		if loadErr == nil {
+			var recipients []RequestSharingRecipient
+			recipients, _, loadErr = s.shareRecipients(txCtx, accountID, studentID, nil, false)
+			state = &RequestSharingState{FamilyProtected: protected, Recipients: recipients}
 		}
-		recipients, _, loadErr := s.shareRecipients(txCtx, accountID, studentID, nil, false)
-		state = &RequestSharingState{FamilyProtected: protected, Recipients: recipients}
-		return loadErr
+		if loadErr != nil {
+			return fmt.Errorf("parent: get request sharing options: %w", loadErr)
+		}
+		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("parent: get request sharing options: %w", err)
+		return nil, err
 	}
 	return state, nil
 }
@@ -79,7 +78,22 @@ type requestShareKey struct {
 func (s *Service) GetRequestSharing(
 	ctx context.Context, accountID, studentID int64, requestType string, requestID int64,
 ) (*RequestSharingState, error) {
-	return s.changeRequestSharing(ctx, accountID, studentID, requestType, requestID, nil, false)
+	if !s.requestSharingConfigured() {
+		return nil, errors.New("parent: request sharing service is not configured")
+	}
+	var state *RequestSharingState
+	err := s.withOwnedChild(ctx, accountID, studentID, nil, func(txCtx context.Context, _ *Child) error {
+		var readErr error
+		state, readErr = s.changeRequestSharingInTx(txCtx, accountID, studentID, requestType, requestID, nil, false)
+		if readErr != nil {
+			return fmt.Errorf("parent: change request sharing: %w", readErr)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return state, nil
 }
 
 func (s *Service) SetRequestSharing(
@@ -418,15 +432,13 @@ type ParentRequestEventView struct {
 func (s *Service) ListRequestEvents(
 	ctx context.Context, accountID, studentID int64, requestType string, requestID int64,
 ) ([]ParentRequestEventView, error) {
-	child, err := s.resolveOwnedChild(ctx, accountID, studentID)
-	if err != nil {
-		return nil, err
-	}
-	if s.ParentRequestEvents == nil {
-		return nil, errors.New("parent: request event ledger is not configured")
-	}
 	var out []ParentRequestEventView
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.withOwnedChild(ctx, accountID, studentID, func(*Child) error {
+		if s.ParentRequestEvents == nil {
+			return errors.New("parent: request event ledger is not configured")
+		}
+		return nil
+	}, func(txCtx context.Context, _ *Child) error {
 		if err := s.requireOwnedShareableRequest(txCtx, accountID, studentID, requestType, requestID); err != nil {
 			return err
 		}

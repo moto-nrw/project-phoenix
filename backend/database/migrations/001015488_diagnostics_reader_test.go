@@ -100,8 +100,7 @@ func TestDiagnosticsReaderDeniesSensitiveColumnsAndWrites(t *testing.T) {
 			_, err = tx.ExecContext(t.Context(), `SET LOCAL ROLE phoenix_diagnostics`)
 			require.NoError(t, err)
 			_, err = tx.ExecContext(t.Context(), query)
-			require.ErrorContains(t, err, "permission denied")
-			require.ErrorContains(t, err, "SQLSTATE=42501")
+			require.Equal(t, "42501", testpkg.PostgresSQLState(err))
 		})
 	}
 }
