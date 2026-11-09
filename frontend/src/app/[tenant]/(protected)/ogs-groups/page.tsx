@@ -104,7 +104,11 @@ import {
   phoneDetailMenuEntries,
 } from "~/components/ui/collection-view-switch";
 import { useCollectionView } from "~/lib/hooks/use-collection-view";
-import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
+import {
+  AT_LEAST_LG,
+  BELOW_MD,
+  useMediaQuery,
+} from "~/lib/hooks/use-media-query";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { HOLIDAY_GUEST_SCHOOL_CLASS } from "~/lib/holiday-host-api";
 import { useHolidayGuestLabels } from "~/lib/hooks/use-holiday-guest-labels";
@@ -415,7 +419,8 @@ function OGSGroupPageContent() {
   >({});
 
   // State for desktop detection (die Gruppenreiter gibt es nur unterhalb lg)
-  const [isDesktop, setIsDesktop] = useState(false);
+  // Dieselbe Grenze wie die Seitenleiste (`lg:` in rem, folgt der Browserschrift).
+  const isDesktop = useMediaQuery(AT_LEAST_LG);
 
   // State for pickup times (part of the aggregated live response)
   const [pickupTimes, setPickupTimes] = useState<Map<string, OgsPickupInfo>>(
@@ -699,16 +704,6 @@ function OGSGroupPageContent() {
   // SSE is handled globally by TenantAuthWrapper - no page-level setup needed.
   // When student_checkin/checkout events occur, global SSE invalidates "student*" caches,
   // which triggers SWR refetch for ogs-students-* keys automatically.
-
-  // Handle desktop detection
-  useEffect(() => {
-    const checkViewport = () => {
-      setIsDesktop(window.innerWidth >= 1024);
-    };
-    checkViewport();
-    window.addEventListener("resize", checkViewport);
-    return () => window.removeEventListener("resize", checkViewport);
-  }, []);
 
   // Function to switch between groups (by ID — stable across re-sorts).
   // Changing the selection changes the SWR key; the aggregated fetcher then

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
+import { BELOW_MD } from "~/lib/hooks/use-media-query";
 import { render, screen, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
@@ -361,7 +362,7 @@ describe("SchoolCheckinModeMobile", () => {
         />,
       );
 
-      expect(window.matchMedia).toHaveBeenCalledWith("(max-width: 767px)");
+      expect(window.matchMedia).toHaveBeenCalledWith(BELOW_MD);
       expect(
         document.documentElement.style.getPropertyValue(
           "--moto-checkin-bar-offset",

@@ -5,6 +5,7 @@
  * indicators. Kept apart from page.test.tsx because those stubs change what
  * the other tests render.
  */
+import { setViewportWidth } from "~/test/helpers/viewport";
 import {
   render as rtlRender,
   screen,
@@ -823,11 +824,7 @@ describe("open-room tab onTabChange callback", () => {
     navigationMockState.sessionParam = null;
     global.fetch = vi.fn();
     // Simulate mobile viewport for tabs to appear
-    Object.defineProperty(window, "innerWidth", {
-      writable: true,
-      configurable: true,
-      value: 500,
-    });
+    setViewportWidth(500);
 
     // Override PageHeaderSearchLayout to render tabs with onTabChange
     const mod =
@@ -868,11 +865,7 @@ describe("open-room tab onTabChange callback", () => {
 
   afterEach(() => {
     cleanup();
-    Object.defineProperty(window, "innerWidth", {
-      writable: true,
-      configurable: true,
-      value: originalInnerWidth,
-    });
+    setViewportWidth(originalInnerWidth);
   });
 
   it("keeps the last own supervision when selecting a shared room tab", async () => {
