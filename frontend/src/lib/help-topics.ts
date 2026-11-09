@@ -229,6 +229,7 @@ export const HELP_TOPICS = {
   traegerHolidayContribution: "traeger-ferienbeitrag",
   traegerBillingRun: "ferien-abrechnen",
   traegerCareMonths: "monatsbeitraege-abrechnen",
+  traegerCareNotices: "jahresbescheide-ausstellen",
   traegerCareReductions: "ermaessigungen-im-monatsbeitrag",
   traegerCareMeals: "mensa-abrechnen",
   traegerCareCostShares: "kostentraeger-im-monatsbeitrag",

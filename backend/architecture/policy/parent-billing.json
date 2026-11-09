@@ -117,6 +117,22 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.care_notice_months",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_notice_run_events",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_notice_runs",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_notices",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.care_run_holds",
       "write_owner": "parent-billing"
     },

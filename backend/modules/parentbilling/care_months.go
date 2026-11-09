@@ -383,12 +383,18 @@ type CareRunDetail struct {
 	// UncountedFamilies counts the families a sibling rule that counts the
 	// family ranked without a confirmed number for the month (#5918): the
 	// rule counts their children with a contract alone.
-	UncountedFamilies int    `json:"uncounted_families"`
-	Billed            int    `json:"billed"`
-	PreviewCount      int    `json:"preview_count"`
-	PreviewCents      int64  `json:"preview_cents"`
-	NumberPattern     string `json:"number_pattern"`
-	NumberRangeSet    bool   `json:"number_range_set"`
+	UncountedFamilies int `json:"uncounted_families"`
+	Billed            int `json:"billed"`
+	// FeeNoticeContracts counts the contracts of Billed a Jahresbescheid
+	// assesses for the month (#6219); no monthly invoice bills them.
+	FeeNoticeContracts int `json:"fee_notice_contracts"`
+	// FeeNoticeHeld are the contracts of FeeNoticeContracts an amended
+	// Jahresbescheid set to nothing for the month (ADR 0182).
+	FeeNoticeHeld  []CareFeeNoticeHold `json:"fee_notice_held"`
+	PreviewCount   int                 `json:"preview_count"`
+	PreviewCents   int64               `json:"preview_cents"`
+	NumberPattern  string              `json:"number_pattern"`
+	NumberRangeSet bool                `json:"number_range_set"`
 	// MealGaps and MealUnbilled are the Mensa of a calculated run (#4686):
 	// the ended months a school has not released and the released months
 	// of children the run does not bill.

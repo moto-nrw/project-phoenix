@@ -30,6 +30,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (n *CareFeeNotices) EffectiveNoticeDues(ctx context.Context, organizationID int64, month calendar.Date) ([]parentbilling.CareNoticeDue, error) {\n\tif organizationID \u003c= 0 {\n\t\treturn nil, errTraegerRequired\n\t}\n\tif !isMonthStart(month) {\n\t\treturn nil, validation.Errors{\"month\": errors.New(\"must be the first day of a month\")}\n\t}\n\tread, err := n.store.EffectiveNoticeDues(ctx, organizationID, month)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn effectiveDues(read), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/parentbilling/internal/application/CareFeeNotices.EffectiveNoticeDues",
+      "owner": "modules/parentbilling"
+    },
+    {
+      "build": "production",
       "evidence": "func (h *HolidayContributions) ResolveHolidayLink(ctx context.Context, token string) (parentbilling.HolidayLink, error) {\n\ttoken = strings.TrimSpace(token)\n\tif token == \"\" {\n\t\treturn parentbilling.HolidayLink{}, parentbilling.ErrHolidayLinkNotFound\n\t}\n\tlink, err := h.registrations.ResolveHolidayLink(ctx, token)\n\tif err != nil {\n\t\treturn parentbilling.HolidayLink{}, err\n\t}\n\tif link.OrganizationID \u003c= 0 || link.PeriodID \u003c= 0 {\n\t\treturn parentbilling.HolidayLink{}, parentbilling.ErrHolidayLinkNotFound\n\t}\n\treturn link, nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/parentbilling/internal/application/HolidayContributions.ResolveHolidayLink",

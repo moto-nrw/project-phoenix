@@ -423,57 +423,16 @@ func (s *Store) InvoicedContracts(ctx context.Context, organizationID int64, mon
 	if err != nil {
 		return nil, err
 	}
-	var rows []struct {
-		ContractID     int64
-		SchoolID       int64
-		RecipientEmail string
-		FamilyEmail    string
-		TotalCents     int64
-		CareOfferingID int64
-		AmountCents    int64
-		PayableCents   int64
-		Reductions     []parentbilling.CareReduction `bun:",type:jsonb"`
-	}
+	var rows []invoicedContractRow
 	// A Mensa-only invoice (#4686) has no module position; it still bills
 	// its contract, so the positions join from the left for an invoice with
-	// Mensa months.
-	if err := db.NewRaw(`SELECT i.care_contract_id AS contract_id, i.school_id, i.recipient_email,
-		COALESCE(i.family_email, '') AS family_email, i.total_cents,
-		COALESCE(p.care_offering_id, 0) AS care_offering_id, COALESCE(p.amount_cents, 0) AS amount_cents,
-		COALESCE(p.payable_cents, p.amount_cents, 0) AS payable_cents,
-		COALESCE((SELECT jsonb_agg(to_jsonb(r) ORDER BY r.position)
-			FROM parent_billing.care_invoice_reductions r
-			WHERE r.invoice_id = i.id), '[]'::jsonb) AS reductions
-		FROM parent_billing.care_invoices i
-		LEFT JOIN parent_billing.care_invoice_positions p ON p.invoice_id = i.id
-		WHERE i.organization_id = ? AND i.billing_month = ?
-			-- The care's invoice; a Mensa invoice of its own (#4686) does not
-			-- bill the contract's care.
-			AND i.service = 'care'
-			AND (p.id IS NOT NULL OR EXISTS (SELECT 1 FROM parent_billing.care_meal_positions AS m
-				WHERE m.organization_id = i.organization_id AND m.invoice_id = i.id))
-			-- A cancelled invoice bills nothing any more (#4684, ADR 0165):
-			-- a later run of the month bills its contract again.
-			AND NOT EXISTS (SELECT 1 FROM parent_billing.care_invoice_cancellations AS cancellation
-				WHERE cancellation.organization_id = i.organization_id AND cancellation.invoice_id = i.id)
-		ORDER BY i.care_contract_id, p.position`, organizationID, month).Scan(ctx, &rows); err != nil {
+	// Mensa months. A month a Jahresbescheid nobody amended assesses bills
+	// its contract too (#6219, ADR 0182): it comes from the snapshot of the
+	// month with the cents the rule chain allocated, and names the notice.
+	if err := db.NewRaw(invoicedContractsSQL, organizationID, month, organizationID, month).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("read invoiced contracts: %w", err)
 	}
-	invoiced := make(map[int64]parentbilling.CareInvoice)
-	for _, row := range rows {
-		invoice := invoiced[row.ContractID]
-		invoice.ContractID, invoice.SchoolID = row.ContractID, row.SchoolID
-		invoice.Recipient.Email, invoice.TotalCents = row.RecipientEmail, row.TotalCents
-		invoice.FamilyEmail = row.FamilyEmail
-		invoice.Reductions = row.Reductions
-		if row.CareOfferingID != 0 {
-			invoice.Positions = append(invoice.Positions, parentbilling.CarePosition{
-				CareOfferingID: row.CareOfferingID, AmountCents: row.AmountCents, PayableCents: row.PayableCents,
-			})
-		}
-		invoiced[row.ContractID] = invoice
-	}
-	return invoiced, nil
+	return invoicedFromRows(rows), nil
 }
 
 // InsertCareRunEvent records an action of the run's trail.
@@ -512,7 +471,7 @@ func claimInvoiceNumbers(ctx context.Context, db bun.IDB, organizationID int64, 
 		organizationID).Exec(ctx); err != nil {
 		return fmt.Errorf("hold the invoice numbers: %w", err)
 	}
-	for _, table := range []string{otherTable, careCancellationNumbersTable} {
+	for _, table := range []string{otherTable, careCancellationNumbersTable, careNoticeNumbersTable} {
 		var taken bool
 		if err := db.NewRaw(`SELECT EXISTS (SELECT 1 FROM ? WHERE organization_id = ? AND number = ANY(?))`,
 			bun.Safe(table), organizationID, pgdialect.Array(numbers)).Scan(ctx, &taken); err != nil {

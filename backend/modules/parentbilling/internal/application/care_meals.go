@@ -482,8 +482,10 @@ func mealInvoiceIssued(in careMealInput, contractID int64) bool {
 	if in.ownInvoice {
 		return in.mealInvoiced[contractID]
 	}
-	_, issued := in.invoiced[contractID]
-	return issued
+	invoice, issued := in.invoiced[contractID]
+	// A notice assesses care only. A coexisting monthly invoice still
+	// closes the invoice that carries this month's meals.
+	return issued && (invoice.DocumentKind != parentbilling.DocumentKindFeeNotice || invoice.ID != 0)
 }
 
 // mealChildContracts names the contracts at the school in the month of the run
