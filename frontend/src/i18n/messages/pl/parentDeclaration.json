@@ -7,7 +7,7 @@
   "deadline": "Termin do {date}",
   "closed": "Termin minął",
   "ended": "Zgoda zakończona",
-  "endedNote": "Szkoła zakończyła tę prośbę o zgodę. Nie możesz już udzielić nowej odpowiedzi.",
+  "endedNote": "Szkoła nie zbiera już tutaj odpowiedzi. Nie możesz już udzielić nowej odpowiedzi.",
   "passwordNote": "Zanim odpowiesz, moto poprosi o Twoje hasło.",
   "signatureNote": "Aby wyrazić zgodę, podpisz się palcem lub myszą.",
   "state": {

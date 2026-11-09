@@ -839,7 +839,7 @@ describe("an Einverständnis the school ended (#6290)", () => {
 
     expect(
       screen.getByText(
-        "Die Schule hat dieses Einverständnis beendet. Sie können nicht mehr neu antworten.",
+        "Die Schule fragt hier nicht mehr nach. Sie können nicht mehr neu antworten.",
       ),
     ).toBeInTheDocument();
     expect(

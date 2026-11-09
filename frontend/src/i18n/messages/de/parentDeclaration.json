@@ -7,7 +7,7 @@
   "deadline": "Frist bis {date}",
   "closed": "Frist abgelaufen",
   "ended": "Einverständnis beendet",
-  "endedNote": "Die Schule hat dieses Einverständnis beendet. Sie können nicht mehr neu antworten.",
+  "endedNote": "Die Schule fragt hier nicht mehr nach. Sie können nicht mehr neu antworten.",
   "passwordNote": "Bevor Sie antworten, fragt moto Ihr Passwort ab.",
   "signatureNote": "Zum Zustimmen unterschreiben Sie mit dem Finger oder der Maus.",
   "state": {

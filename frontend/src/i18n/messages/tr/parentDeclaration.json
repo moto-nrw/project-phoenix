@@ -7,7 +7,7 @@
   "deadline": "Son tarih {date}",
   "closed": "Süre doldu",
   "ended": "Onay talebi sona erdi",
-  "endedNote": "Okul bu onay talebini sonlandırdı. Artık yeni yanıt veremezsiniz.",
+  "endedNote": "Okul burada artık yanıt istemiyor. Artık yeni yanıt veremezsiniz.",
   "passwordNote": "Yanıtlamadan önce moto şifrenizi sorar.",
   "signatureNote": "Onay vermek için parmağınızla veya fareyle imzalarsınız.",
   "state": {
