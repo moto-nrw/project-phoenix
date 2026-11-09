@@ -139,7 +139,9 @@ type ChunkWriter[T any] interface {
 	ChunkKeys(T) []string
 	// ResolveChunk reads the existing records of a segment's rows in one
 	// protected read and returns a config whose FindExisting answers from it.
-	// On error the executor falls back to FindExisting per row.
+	// When the read fails and its savepoint rolled back, the executor falls
+	// back to FindExisting per row; a failed savepoint statement of the read
+	// ends the upload (E19).
 	ResolveChunk(context.Context, []T) (ImportConfig[T], error)
 	// RefusesChunk reads, before the batch command, whether the row path
 	// would refuse one of the rows (a fachliche refusal, ADR F5); a read

@@ -2,6 +2,7 @@ package importpkg
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"unicode/utf8"
 
@@ -15,24 +16,39 @@ import (
 // Failed bulk reads roll back before the original row-by-row path runs, so an
 // optimization cannot turn one lookup failure into errors on unrelated rows.
 func (c *StudentImportConfig) PreviewConfig(ctx context.Context, rows []importModels.StudentImportRow) ports.ImportConfig[importModels.StudentImportRow] {
-	if c.Transactions == nil || len(rows) < 2 {
+	view, err := c.previewConfig(ctx, rows)
+	if err != nil {
+		// The preview keeps its fallback (its contract is unchanged).
 		return c
+	}
+	return view
+}
+
+// previewConfig is PreviewConfig that returns a failed savepoint statement of
+// the bulk read instead of falling back (E19); a failed read whose savepoint
+// rolled back still falls back to the row-by-row path.
+func (c *StudentImportConfig) previewConfig(ctx context.Context, rows []importModels.StudentImportRow) (ports.ImportConfig[importModels.StudentImportRow], error) {
+	if c.Transactions == nil || len(rows) < 2 {
+		return c, nil
 	}
 	filter, names := studentPreviewNames(rows)
 	if len(filter.Names) == 0 {
-		return c
+		return c, nil
 	}
 	persons, students, err := c.readPreviewMatches(ctx, filter)
+	if errors.Is(err, importModels.ErrSavepointControl) {
+		return nil, err
+	}
 	if err != nil {
-		return c
+		return c, nil
 	}
 	viewPersons, viewStudents, ok := nameMatchDirectories(persons, students, filter, names, c.Persons, c.Students)
 	if !ok {
-		return c
+		return c, nil
 	}
 	clone := *c
 	clone.Persons, clone.Students = viewPersons, viewStudents
-	return &clone
+	return &clone, nil
 }
 
 // nameMatchDirectories answers the exact-name searches of filter's names, and

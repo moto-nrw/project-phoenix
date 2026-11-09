@@ -360,6 +360,9 @@ type faultConnector struct {
 	// decide, when set, replaces both rules: it sees every statement and
 	// returns the error to inject, or nil.
 	decide func(query string) error
+	// rollback, when set, sees every transaction ROLLBACK after the real one
+	// ran and returns the error to report instead, or nil.
+	rollback func() error
 }
 
 func (c faultConnector) Connect(ctx context.Context) (driver.Conn, error) {
@@ -412,7 +415,26 @@ func (c *faultConn) QueryContext(ctx context.Context, query string, args []drive
 }
 
 func (c *faultConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, error) {
-	return c.Conn.(driver.ConnBeginTx).BeginTx(ctx, opts)
+	tx, err := c.Conn.(driver.ConnBeginTx).BeginTx(ctx, opts)
+	if err != nil || c.connector.rollback == nil {
+		return tx, err
+	}
+	return faultTx{Tx: tx, rollback: c.connector.rollback}, nil
+}
+
+// faultTx reports an injected failure of ROLLBACK after it really rolled
+// back, so the connection never returns to the pool inside a transaction.
+type faultTx struct {
+	driver.Tx
+	rollback func() error
+}
+
+func (t faultTx) Rollback() error {
+	err := t.Tx.Rollback()
+	if injected := t.rollback(); injected != nil {
+		return injected
+	}
+	return err
 }
 
 func (c *faultConn) Ping(ctx context.Context) error {

@@ -97,7 +97,7 @@ func (a *batchImportAttempt[T]) applyChunk(ctx context.Context, batch *importMod
 		// E13′: pgdriver closes the connection on 57014, so the chunk's
 		// transaction is lost, its rollback included; writeBatches replays the
 		// chunk row by row in a new one. The cause stays in the text only.
-		a.rowPath = true
+		a.rowPath, a.boundExceeded = true, true
 		a.run.observation.BatchFallbacks++
 		return batch, fmt.Errorf("%w: %v", errBatchBoundExceeded, errors.Join(attemptErr, err))
 	}
@@ -201,7 +201,14 @@ func (a *batchImportAttempt[T]) applySegment(ctx context.Context, writer ports.C
 		rows[i] = request.Rows[index]
 	}
 	resolved, err := writer.ResolveChunk(ctx, rows)
-	if err != nil {
+	switch {
+	case err == nil:
+	case service.lostTransaction(err):
+		// A savepoint statement of the protected read failed, its rollback
+		// included: the transaction can no longer be trusted, so no read
+		// falls back onto it (E19, ADR 0067 addendum).
+		return fmt.Errorf("%w: resolve chunk: %v", errSavepointLost, err)
+	default:
 		resolved = service.config
 	}
 	creates := make([]T, 0, len(segment))

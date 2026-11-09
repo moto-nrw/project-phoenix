@@ -108,6 +108,11 @@ func (s *ImportService[T]) importBatches(ctx context.Context, request importMode
 	return run.writeBatches(ctx)
 }
 
+// validationAborter is a config whose validation can end the upload: a failed
+// savepoint statement of a protected read leaves the validation transaction
+// untrusted, so no row error stands in for it (E19).
+type validationAborter interface{ ValidationAbort() error }
+
 // batchImportRun holds the receipt-bound progress of one upload, never shared configuration.
 type batchImportRun[T any] struct {
 	service        *ImportService[T]
@@ -211,6 +216,11 @@ func (r *batchImportRun[T]) validateUpload(ctx context.Context) ([]auditModels.I
 	for index := range r.request.Rows {
 		r.accepted[index], _ = r.service.validateRow(ctx, r.request, r.validated, &r.request.Rows[index], index+2, batchErrors[index])
 	}
+	if aborter, ok := r.service.config.(validationAborter); ok {
+		if err := aborter.ValidationAbort(); err != nil {
+			return nil, err
+		}
+	}
 	if orderer, ok := r.service.config.(ports.ProcessingOrderer[T]); ok {
 		if candidate := orderer.ProcessingOrder(r.request.Rows); validProcessingOrder(candidate, len(r.order)) {
 			r.order = candidate
@@ -246,7 +256,7 @@ func (r *batchImportRun[T]) writeBatches(ctx context.Context) (*importModels.Imp
 	for r.position < len(r.order) {
 		attempt := &batchImportAttempt[T]{run: r, next: r.position}
 		err := r.service.transactions.WithinRetry(ctx, attempt.execute)
-		if errors.Is(err, errBatchBoundExceeded) {
+		if err != nil && attempt.boundExceeded {
 			// E13′: the chunk's transaction died with its connection and
 			// committed nothing, not even its checkpoint. The chunk replays
 			// row by row in a new transaction with the whole retry budget,
@@ -292,6 +302,10 @@ type batchImportAttempt[T any] struct {
 	// batchFailure is the failed batch command of the current chunk attempt,
 	// kept where it fails (chunk_executor.go).
 	batchFailure *batchFailure
+	// boundExceeded: the attempt ended because the bound cancelled its
+	// bundled statements (E13′), set where that is decided; writeBatches
+	// replays on it instead of searching the returned error.
+	boundExceeded bool
 }
 
 // service is the import service this attempt writes through.
@@ -303,10 +317,11 @@ func (a *batchImportAttempt[T]) service() *ImportService[T] {
 }
 
 func (a *batchImportAttempt[T]) execute(ctx context.Context) (attemptErr error) {
-	a.appended = nil
+	a.appended, a.boundExceeded = nil, false
 	defer func() {
-		var state interface{ Field(byte) string }
-		if errors.As(attemptErr, &state) && state.Field('C') == "40P01" {
+		// Only the attempt's own deadlock counts, never one a failed cleanup
+		// joined to it (#6316).
+		if directSQLState(attemptErr) == "40P01" {
 			a.run.observation.Deadlocks++
 		}
 	}()
@@ -358,7 +373,7 @@ func (a *batchImportAttempt[T]) readCheckpoint(ctx context.Context) (*importMode
 
 func (a *batchImportAttempt[T]) applyAcceptedRows(ctx context.Context, service *ImportService[T], batch *importModels.ImportResult[T]) error {
 	if config, ok := service.config.(interface {
-		BatchWriteConfig(context.Context, []T) ports.ImportConfig[T]
+		BatchWriteConfig(context.Context, []T) (ports.ImportConfig[T], error)
 	}); ok {
 		rows := make([]T, 0, a.next-a.run.position)
 		for _, index := range a.run.order[a.run.position:a.next] {
@@ -366,7 +381,11 @@ func (a *batchImportAttempt[T]) applyAcceptedRows(ctx context.Context, service *
 				rows = append(rows, a.run.request.Rows[index])
 			}
 		}
-		service = &ImportService[T]{config: config.BatchWriteConfig(ctx, rows), savepointLost: service.savepointLost}
+		prepared, err := config.BatchWriteConfig(ctx, rows)
+		if err != nil {
+			return err
+		}
+		service = &ImportService[T]{config: prepared, savepointLost: service.savepointLost}
 	}
 	for _, index := range a.run.order[a.run.position:a.next] {
 		if a.run.accepted[index] {
