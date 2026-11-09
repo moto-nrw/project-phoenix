@@ -364,6 +364,68 @@ describe("TraegerBelegRetentionSection", () => {
     });
   });
 
+  it("starts every new Weisung without the previous confirmation", async () => {
+    const user = userEvent.setup();
+    mockGetOverview.mockResolvedValue(overview);
+    mockRecordInstruction.mockResolvedValue(undefined);
+
+    renderSection();
+
+    const open = await screen.findByRole("button", {
+      name: "Weisung erfassen",
+    });
+    await user.click(open);
+    let dialog = await screen.findByRole("dialog");
+    await user.click(
+      within(dialog).getByRole("combobox", { name: /Einordnung/ }),
+    );
+    await user.click(
+      screen.getByRole("option", { name: "Vorschriften nicht anwendbar" }),
+    );
+    const period = within(dialog).getByLabelText(/Frist in Jahren/);
+    await user.clear(period);
+    await user.type(period, "1");
+    await user.type(within(dialog).getByLabelText(/Fundstelle/), "Satzung");
+    await user.type(
+      within(dialog).getByLabelText(/Warum die Vorschriften nicht gelten/),
+      "Träger ist nicht buchführungspflichtig",
+    );
+    await user.type(
+      within(dialog).getByLabelText(/Weisungsberechtigte Person/),
+      "Frau Beispiel, Kämmerei",
+    );
+    fireEvent.change(within(dialog).getByLabelText(/Weisung vom/), {
+      target: { value: "2026-09-01" },
+    });
+    await user.type(
+      within(dialog).getByLabelText(/Nachweis der schriftlichen Weisung/),
+      "Mail der Kämmerei vom 01.09.2026",
+    );
+    await user.click(
+      within(dialog).getByLabelText(/Der Träger hat schriftlich bestätigt/),
+    );
+    await user.click(
+      within(dialog).getByRole("button", { name: "Weisung erfassen" }),
+    );
+    expect(mockRecordInstruction).toHaveBeenCalledTimes(1);
+
+    await user.click(open);
+    dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByLabelText(/Frist in Jahren/)).toHaveValue(8);
+    expect(
+      within(dialog).queryByLabelText(/Der Träger hat schriftlich bestätigt/),
+    ).not.toBeInTheDocument();
+    await user.click(
+      within(dialog).getByRole("combobox", { name: /Einordnung/ }),
+    );
+    await user.click(
+      screen.getByRole("option", { name: "Vorschriften nicht anwendbar" }),
+    );
+    expect(
+      within(dialog).getByLabelText(/Der Träger hat schriftlich bestätigt/),
+    ).not.toBeChecked();
+  });
+
   it("drops the confirmation when the basis changes back", async () => {
     const user = userEvent.setup();
     mockGetOverview.mockResolvedValue(overview);

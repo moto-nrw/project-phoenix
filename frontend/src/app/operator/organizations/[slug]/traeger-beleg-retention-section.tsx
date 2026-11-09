@@ -78,6 +78,9 @@ export function TraegerBelegRetentionSection({
   );
   const [instructionOpen, setInstructionOpen] = useState(false);
   const [suspensionOpen, setSuspensionOpen] = useState(false);
+  // Each opening is a new form: a Weisung never inherits the confirmation
+  // or the fields of the previous one.
+  const [formSession, setFormSession] = useState(0);
   const [reviewing, setReviewing] = useState<BelegClarification | null>(null);
   const reload = useCallback(() => mutate(), [mutate]);
 
@@ -120,7 +123,10 @@ export function TraegerBelegRetentionSection({
             type="button"
             variant="primary"
             size="md"
-            onClick={() => setInstructionOpen(true)}
+            onClick={() => {
+              setFormSession((session) => session + 1);
+              setInstructionOpen(true);
+            }}
           >
             Weisung erfassen
           </Button>
@@ -146,7 +152,10 @@ export function TraegerBelegRetentionSection({
         organizationId={organizationId}
         suspensions={data?.suspensions ?? []}
         loading={loading}
-        onAdd={() => setSuspensionOpen(true)}
+        onAdd={() => {
+          setFormSession((session) => session + 1);
+          setSuspensionOpen(true);
+        }}
         onChanged={reload}
       />
 
@@ -183,12 +192,14 @@ export function TraegerBelegRetentionSection({
       </SectionCard>
 
       <InstructionModal
+        key={`instruction-${formSession}`}
         isOpen={instructionOpen}
         organizationId={organizationId}
         onClose={() => setInstructionOpen(false)}
         onSaved={reload}
       />
       <SuspensionModal
+        key={`suspension-${formSession}`}
         isOpen={suspensionOpen}
         organizationId={organizationId}
         onClose={() => setSuspensionOpen(false)}
