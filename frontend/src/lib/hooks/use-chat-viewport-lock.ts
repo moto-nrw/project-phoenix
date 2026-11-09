@@ -18,7 +18,7 @@ const CHAT_COMPACT_ATTRIBUTE = "data-chat-compact";
  * hook carries it on the element that scrolls its messages; the hook keeps
  * that list readable (see `MIN_MESSAGE_LIST_PX`).
  */
-export const CHAT_SCROLL_ATTRIBUTE = "data-chat-scroll";
+const CHAT_SCROLL_ATTRIBUTE = "data-chat-scroll";
 
 /**
  * Set on <html> while the chat locks page scrolling; `globals.css` turns it
@@ -27,7 +27,7 @@ export const CHAT_SCROLL_ATTRIBUTE = "data-chat-scroll";
  * their saved value on close. Sharing that style, a chat that released its
  * lock under an open modal got it back from the modal and stayed stuck.
  */
-export const CHAT_PAGE_LOCK_ATTRIBUTE = "data-chat-page-lock";
+const CHAT_PAGE_LOCK_ATTRIBUTE = "data-chat-page-lock";
 
 /**
  * The message list never gets less height than this. Below it a chat shows
@@ -42,7 +42,7 @@ export const MIN_MESSAGE_LIST_PX = 160;
  * counts as compact. 360 × 640 phones and iPhones in Safari land below it;
  * tall phones, tablets and desktops do not.
  */
-export const CHAT_COMPACT_BELOW_PX = 640;
+const CHAT_COMPACT_BELOW_PX = 640;
 
 /** Gap above the chat when the page scrolls it fully into view, without a shell. */
 const SCROLLED_TOP_GAP_PX = 16;
