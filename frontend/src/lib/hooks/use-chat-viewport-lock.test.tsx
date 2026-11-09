@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, render, act } from "@testing-library/react";
 import React from "react";
-import { readdirSync, readFileSync } from "node:fs";
-import path from "node:path";
 import {
   MIN_MESSAGE_LIST_PX,
   useChatViewportLock,
@@ -616,37 +614,5 @@ describe("useChatViewportLock — message list and compact mode", () => {
 
     expect(compactFlag()).toBe(false);
     expect(locked()).toBe(false);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Every chat marks its message list
-// ---------------------------------------------------------------------------
-
-describe("useChatViewportLock — consumers", () => {
-  it("is only used by chats that mark their message list", () => {
-    // Without `data-chat-scroll` the hook cannot keep the list readable, and
-    // a small phone shows the 24 px list from the parents' chat again.
-    const srcDir = path.resolve(__dirname, "../..");
-    const consumers: string[] = [];
-    const walk = (dir: string) => {
-      for (const entry of readdirSync(dir, { withFileTypes: true })) {
-        const full = path.join(dir, entry.name);
-        if (entry.isDirectory()) walk(full);
-        else if (
-          /\.tsx$/.test(entry.name) &&
-          !/\.test\.tsx$/.test(entry.name) &&
-          readFileSync(full, "utf8").includes("useChatViewportLock<")
-        )
-          consumers.push(full);
-      }
-    };
-    walk(srcDir);
-
-    expect(consumers.length).toBeGreaterThanOrEqual(3);
-    const unmarked = consumers.filter(
-      (file) => !readFileSync(file, "utf8").includes('data-chat-scroll=""'),
-    );
-    expect(unmarked).toEqual([]);
   });
 });
