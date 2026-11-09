@@ -42,7 +42,8 @@
     "rclone@latest",
     "python3@latest",
     "lsof@latest",
-    "time@latest"
+    "time@latest",
+    "libxml2@2.15.4"
   ],
   "env": {
     "CGO_ENABLED": "0",

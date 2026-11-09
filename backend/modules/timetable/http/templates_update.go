@@ -83,6 +83,9 @@ type updateTemplateRequest struct {
 	// edit. primary_staff_id always names THIS segment's lead, so it may only
 	// travel to a predecessor row when the user actually moved it.
 	SeriesRosterPrimaryChanged bool `json:"series_roster_primary_changed,omitempty"`
+	// PropagateNotesToPredecessors carries a Wochennotiz-only "Alle Termine"
+	// edit from the living segment to its capped predecessors (#6141).
+	PropagateNotesToPredecessors bool `json:"propagate_notes_to_predecessors,omitempty"`
 	// StartDate (#2226, YYYY-MM-DD) pulls a not-yet-started series forward:
 	// schedule envelope and series-managed roster move to this earlier date.
 	// Must lie within the pinned calendar period, not in the past, before the
@@ -584,10 +587,11 @@ func buildUpdateTemplateInput(
 		SeriesRosterFrom:   parsed.seriesRosterFrom,
 		StartDate:          parsed.startDate,
 
-		SeriesRosterScopeStudentIDs: req.SeriesRosterScopeStudentIDs,
-		SeriesRosterScopeStaffIDs:   req.SeriesRosterScopeStaffIDs,
-		SeriesRosterScopeWeekdays:   req.SeriesRosterScopeWeekdays,
-		SeriesRosterPrimaryChanged:  req.SeriesRosterPrimaryChanged,
+		SeriesRosterScopeStudentIDs:  req.SeriesRosterScopeStudentIDs,
+		SeriesRosterScopeStaffIDs:    req.SeriesRosterScopeStaffIDs,
+		SeriesRosterScopeWeekdays:    req.SeriesRosterScopeWeekdays,
+		SeriesRosterPrimaryChanged:   req.SeriesRosterPrimaryChanged,
+		PropagateNotesToPredecessors: req.PropagateNotesToPredecessors,
 	}
 }
 
