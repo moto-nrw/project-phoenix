@@ -462,17 +462,21 @@ func attachExistingChildCandidates(children []AdminRequestChild, summaryChildren
 		_, children[i].ExistingChildChoiceRequired = candidates[summaryChildren[i].ID]
 		children[i].ExistingChildOnly = existingOnly && children[i].ExistingChildChoiceRequired
 		for _, candidate := range candidates[summaryChildren[i].ID] {
-			out := AdminExistingChildCandidate{
-				StudentID: strconv.FormatInt(candidate.StudentID, 10),
-				FirstName: candidate.FirstName, LastName: candidate.LastName, SchoolClass: candidate.SchoolClass,
-			}
-			if candidate.DateOfBirth != nil {
-				dob := string(*candidate.DateOfBirth)
-				out.DateOfBirth = &dob
-			}
-			children[i].PossibleExistingChildren = append(children[i].PossibleExistingChildren, out)
+			children[i].PossibleExistingChildren = append(children[i].PossibleExistingChildren, newAdminExistingChildCandidate(candidate))
 		}
 	}
+}
+
+func newAdminExistingChildCandidate(candidate capability.ExistingChildCandidate) AdminExistingChildCandidate {
+	out := AdminExistingChildCandidate{
+		StudentID: strconv.FormatInt(candidate.StudentID, 10),
+		FirstName: candidate.FirstName, LastName: candidate.LastName, SchoolClass: candidate.SchoolClass,
+	}
+	if candidate.DateOfBirth != nil {
+		dob := string(*candidate.DateOfBirth)
+		out.DateOfBirth = &dob
+	}
+	return out
 }
 
 // attachChildOfferings fills the per-child Offerings slices in place from
@@ -551,7 +555,13 @@ func (req *AdminDecideRequest) Bind(_ *http.Request) error { return nil }
 
 // existingStudentID parses the chosen enrolled child, nil when none is chosen.
 func (req *AdminDecideRequest) existingStudentID() (*int64, error) {
-	raw := strings.TrimSpace(req.ExistingStudentID)
+	return parseExistingStudentID(req.ExistingStudentID)
+}
+
+// parseExistingStudentID reads the office's chosen enrolled child of a
+// decision or a manual enrollment, nil when none is chosen.
+func parseExistingStudentID(value string) (*int64, error) {
+	raw := strings.TrimSpace(value)
 	if raw == "" {
 		return nil, nil
 	}

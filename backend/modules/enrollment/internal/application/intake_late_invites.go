@@ -137,6 +137,7 @@ func (s *Intake) createManualApprovedEnrollment(ctx context.Context, input enrol
 		RequestID: submitted.Request.ID, ChildID: submitted.Children[0].ID, Status: enrollment.DecisionApproved,
 		Reason: input.Reason, ReviewedBy: input.ActorID,
 		SuppressParentEmail: !input.SendNotification, SuppressGuardianInvitation: !input.SendNotification,
+		ExistingStudentID: input.ExistingStudentID, CreateNewStudent: input.CreateNewStudent,
 	})
 	if err != nil {
 		return nil, err

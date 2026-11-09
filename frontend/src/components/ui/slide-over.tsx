@@ -218,6 +218,14 @@ function isSlideOverWidth(
   return typeof size === "string" && Object.hasOwn(SLIDE_OVER_WIDTH, size);
 }
 
+/** Whether the target lies in a kit `Modal` opened above the panel. */
+function isInsideKitModal(target: EventTarget | null): boolean {
+  return (
+    target instanceof Element &&
+    target.closest('[data-modal-focus-scope="true"]') !== null
+  );
+}
+
 const SlideOverContent = React.forwardRef<
   React.ComponentRef<typeof DrawerPrimitive.Content>,
   SlideOverContentProps
@@ -259,19 +267,19 @@ const SlideOverContent = React.forwardRef<
           // `dismissible={false}` an der Wurzel wäre für einen reinen
           // Hintergrundschutz zu breit: Es sperrt auch X und Escape. Radix
           // schließt bei einem Außenklick nur, solange dieses Ereignis nicht
-          // abgewiesen wurde.
-          onInteractOutside={
-            isBackdropDismissDisabled
-              ? (
-                  event: Parameters<
-                    NonNullable<SlideOverContentProps["onInteractOutside"]>
-                  >[0],
-                ) => {
-                  onInteractOutside?.(event);
-                  event.preventDefault();
-                }
-              : onInteractOutside
-          }
+          // abgewiesen wurde. Ein Kit-Modal über dem Panel liegt im Portal
+          // außerhalb davon; ein Klick oder Fokus dort schließt das Panel
+          // darunter nicht (#6148).
+          onInteractOutside={(
+            event: Parameters<
+              NonNullable<SlideOverContentProps["onInteractOutside"]>
+            >[0],
+          ) => {
+            onInteractOutside?.(event);
+            if (isBackdropDismissDisabled || isInsideKitModal(event.target)) {
+              event.preventDefault();
+            }
+          }}
           {...props}
         >
           {isSheet && (

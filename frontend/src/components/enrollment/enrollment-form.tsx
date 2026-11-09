@@ -1,6 +1,9 @@
 "use client";
 
-import { DocumentAttachmentList } from "~/components/enrollment/attachment-list";
+import {
+  DocumentAttachmentList,
+  type AttachmentLabels,
+} from "~/components/enrollment/attachment-list";
 import { InsetPanel } from "~/components/ui/inset-panel";
 import {
   EnrollmentUploadScope,
@@ -261,6 +264,23 @@ export function EnrollmentForm({
   const tr = useMemo(
     () => makeEnrollmentFormTranslator(intl, localizedCopy, careTerm),
     [intl, localizedCopy, careTerm],
+  );
+  // The staff portal loads no parent messages: the attachment buttons take
+  // their German labels from the form's own translator.
+  const attachmentLabels = useMemo<AttachmentLabels | undefined>(
+    () =>
+      localizedCopy
+        ? undefined
+        : {
+            open: tr("attachments.open"),
+            download: tr("attachments.download"),
+            openLabel: (label) => tr("attachments.openLabel", { label }),
+            downloadLabel: (label) =>
+              tr("attachments.downloadLabel", { label }),
+            popupBlocked: tr("attachments.popupBlocked"),
+            errorObject: tr("attachments.errorObject"),
+          },
+    [localizedCopy, tr],
   );
   const loadErrorObject = tr("errorObject");
   // A template preview without phase offerings shows every weekday; with the
@@ -1127,7 +1147,11 @@ export function EnrollmentForm({
               />
               {visibleGuardianFields.map((f) =>
                 f.type === "information" ? (
-                  <InfoBlock key={f.key} field={f} />
+                  <InfoBlock
+                    key={f.key}
+                    field={f}
+                    attachmentLabels={attachmentLabels}
+                  />
                 ) : (
                   <CustomFieldInput
                     key={f.key}
@@ -1631,7 +1655,13 @@ export function EnrollmentForm({
                     )
                     .map((f) => {
                       if (f.type === "information") {
-                        return <InfoBlock key={f.key} field={f} />;
+                        return (
+                          <InfoBlock
+                            key={f.key}
+                            field={f}
+                            attachmentLabels={attachmentLabels}
+                          />
+                        );
                       }
                       const departure =
                         f.target === "student.allowed_departure_modes";
@@ -1735,7 +1765,10 @@ export function EnrollmentForm({
                     tr={tr}
                   />
                 )}
-                <DocumentAttachmentList attachments={block.attachments} />
+                <DocumentAttachmentList
+                  attachments={block.attachments}
+                  labels={attachmentLabels}
+                />
               </div>
             ))}
           </section>
