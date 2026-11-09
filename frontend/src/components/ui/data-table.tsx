@@ -474,6 +474,9 @@ function RowStackedRow<T>({
   detail: DataTableColumn<T> | undefined;
   selection?: DataTableSelection<T>;
 }>) {
+  const detailValue = detail
+    ? (detail.stackedRender ?? detail.render)(row)
+    : null;
   return (
     <div className="flex min-h-8 items-center gap-3">
       {selection ? (
@@ -485,14 +488,14 @@ function RowStackedRow<T>({
           rather than being cut. */}
       <div className="min-w-20 flex-1">
         <span className="line-clamp-2 break-words">{title?.render(row)}</span>
-        {detail ? (
+        {/* A detail without a value for this row (null) drops its line, as
+            a field does in the "lines" layout, instead of a bare label. */}
+        {detail && detailValue !== null ? (
           <div className="mt-0.5 flex min-w-0 items-center gap-1 text-sm">
             {detail.stackedLabel === false ? null : (
               <span className="shrink-0 text-gray-500">{detail.header}</span>
             )}
-            <span className="min-w-0">
-              {(detail.stackedRender ?? detail.render)(row)}
-            </span>
+            <span className="min-w-0">{detailValue}</span>
           </div>
         ) : null}
       </div>
