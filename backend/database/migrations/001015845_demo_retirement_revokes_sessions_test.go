@@ -10,7 +10,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.838 adds to the retirement of 1.15.734 only the end of the school's
+// 1.15.845 adds to the retirement of 1.15.734 only the end of the school's
 // sessions before it is hidden (#6305). Without that addition the function
 // is that of 1.15.734, so every lock rule of #5540 stays as
 // TestDemoVisitorErasureNeverWaitsForALock pins it, and it writes no log
@@ -66,7 +66,7 @@ func schoolSessionCount(t *testing.T, db bun.IDB, schoolID int64) int {
 	return count
 }
 
-// The demo schools hidden before 1.15.838 lose their sessions with it. A
+// The demo schools hidden before 1.15.845 lose their sessions with it. A
 // school without a recorded demo origin, or one still open, keeps them.
 func TestDemoRetiredSchoolSessionsBackfill(t *testing.T) {
 	t.Parallel()

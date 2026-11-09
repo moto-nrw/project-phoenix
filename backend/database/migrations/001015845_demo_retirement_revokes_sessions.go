@@ -7,15 +7,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const demoRetirementRevokesSessionsVersion = "1.15.838"
+const demoRetirementRevokesSessionsVersion = "1.15.845"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     demoRetirementRevokesSessionsVersion,
 		Description: "Demo-Abbau beendet die Sitzungen der versteckten Demo-Schule im selben Schritt (#6305)",
 		DependsOn: []string{
-			accountCredentialGenerationBindingVersion, // the last migration before this one
-			demoVisitorAccountErasureVersion,          // the retirement this one replaces
+			demoVisitorErasureOutboxKindsVersion, // the last migration before this one
+			demoVisitorAccountErasureVersion,     // the retirement this one replaces
 		},
 	})
 	Migrations.MustRegister(demoRetirementRevokesSessionsUp, demoRetirementRevokesSessionsDown)
