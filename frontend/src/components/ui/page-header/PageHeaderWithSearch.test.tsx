@@ -2,6 +2,7 @@
  * Tests for PageHeaderWithSearch Component
  * Tests rendering and functionality of the main page header with search and filters
  */
+import { setViewportWidth as resizeViewport } from "~/test/helpers/viewport";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import type React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -665,6 +666,10 @@ describe("PageHeaderWithSearch", () => {
       render(
         <PageHeaderWithSearch {...propsWithFilters} filterVariant="quiet" />,
       );
+      // Happy DOM startet einen `change`-Listener bei `matches === false`;
+      // ein Resize auf der Desktop-Seite gleicht ihn an den echten Wert an,
+      // damit das Verlassen der Grenze wie im Browser ein `change` meldet.
+      setViewportWidth(1199);
 
       fireEvent.click(screen.getByTestId("desktop-filter-button"));
       expect(screen.getByTestId("desktop-filter-panel")).toBeInTheDocument();
@@ -729,10 +734,6 @@ function setScrollY(y: number) {
 }
 
 function setViewportWidth(width: number) {
-  Object.defineProperty(window, "innerWidth", {
-    value: width,
-    configurable: true,
-    writable: true,
-  });
+  resizeViewport(width);
   fireEvent.resize(window);
 }

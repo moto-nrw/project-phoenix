@@ -50,7 +50,7 @@ func (r StudentStatusDayRepository) CountEffectiveDashboardAbsences(ctx context.
 	if err != nil {
 		return nil, err
 	}
-	return &absencerecords.StudentStatusCounts{Sick: value.Sick, Excused: value.Excused, Total: value.Total, UnaccountedIDs: value.UnaccountedIDs}, nil
+	return &absencerecords.StudentStatusCounts{SickIDs: value.SickIDs, ExcusedIDs: value.ExcusedIDs, Total: value.Total, UnaccountedIDs: value.UnaccountedIDs}, nil
 }
 
 func (r StudentStatusDayRepository) MarkCleared(ctx context.Context, studentID int64, status string, date absencerecords.Date, at time.Time, source string) error {

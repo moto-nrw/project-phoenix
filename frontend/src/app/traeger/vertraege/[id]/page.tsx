@@ -433,9 +433,16 @@ export default function TraegerVertragPage() {
                       "Der Träger selbst"}
                   </DataField>
                   <DataField label="Sonderkündigung" fullWidth>
-                    {contract.version.terms.specialTermination
-                      ? contract.version.terms.specialTerminationNote
-                      : "Nicht vorgesehen"}
+                    {contract.version.terms.specialTermination ? (
+                      <>
+                        Zum Halbjahr: 31. Januar oder 31. Juli
+                        <span className="block text-sm font-normal text-gray-500">
+                          {contract.version.terms.specialTerminationNote}
+                        </span>
+                      </>
+                    ) : (
+                      "Nicht vorgesehen"
+                    )}
                   </DataField>
                   <DataField label="Satzung" fullWidth>
                     {contract.version.terms.statuteRequired ? (

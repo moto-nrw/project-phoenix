@@ -3530,7 +3530,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (r StudentStatusDayRepository) CountEffectiveDashboardAbsences(ctx context.Context, date absencerecords.Date) (*absencerecords.StudentStatusCounts, error) {\n\tvalue, err := r.Capability.CountEffectiveStudentAbsences(ctx, careplan.Date(date))\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn \u0026absencerecords.StudentStatusCounts{Sick: value.Sick, Excused: value.Excused, Total: value.Total, UnaccountedIDs: value.UnaccountedIDs}, nil\n}",
+      "evidence": "func (r StudentStatusDayRepository) CountEffectiveDashboardAbsences(ctx context.Context, date absencerecords.Date) (*absencerecords.StudentStatusCounts, error) {\n\tvalue, err := r.Capability.CountEffectiveStudentAbsences(ctx, careplan.Date(date))\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn \u0026absencerecords.StudentStatusCounts{SickIDs: value.SickIDs, ExcusedIDs: value.ExcusedIDs, Total: value.Total, UnaccountedIDs: value.UnaccountedIDs}, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/StudentStatusDayRepository.CountEffectiveDashboardAbsences",
       "owner": "roots"

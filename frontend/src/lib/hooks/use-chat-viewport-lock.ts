@@ -246,6 +246,18 @@ export function useChatViewportLock<T extends HTMLElement>(ready: boolean) {
         fit();
       });
     };
+    // In der auf dem iPhone installierten App meldet visualViewport das Öffnen
+    // der Tastatur nicht verlässlich: Das Schreibfeld blieb hinter der
+    // Tastatur, bis der erste Buchstabe getippt war. Wechselt der Fokus im
+    // Chat, misst der Hook deshalb nach, solange die Tastatur einfährt.
+    const refitDelays = [100, 300, 600, 1000];
+    let refitTimers: number[] = [];
+    const refitWhileKeyboardMoves = () => {
+      refitTimers.forEach((timer) => window.clearTimeout(timer));
+      refitTimers = refitDelays.map((delay) => window.setTimeout(fit, delay));
+    };
+    el.addEventListener("focusin", refitWhileKeyboardMoves);
+    el.addEventListener("focusout", refitWhileKeyboardMoves);
     fit();
     window.addEventListener("resize", fit);
     // The iOS keyboard only nudges visualViewport, so listen there too.
@@ -265,6 +277,9 @@ export function useChatViewportLock<T extends HTMLElement>(ready: boolean) {
       characterData: true,
     });
     return () => {
+      el.removeEventListener("focusin", refitWhileKeyboardMoves);
+      el.removeEventListener("focusout", refitWhileKeyboardMoves);
+      refitTimers.forEach((timer) => window.clearTimeout(timer));
       window.removeEventListener("resize", fit);
       vv?.removeEventListener("resize", fit);
       vv?.removeEventListener("scroll", fit);

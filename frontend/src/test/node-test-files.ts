@@ -282,6 +282,7 @@ export const nodeLogicTestFiles = [
   "src/server/auth/tenant-portal.test.ts",
   "src/server/node-header-limit.test.ts",
   "src/styles/moto-token-drift.test.ts",
+  "src/lib/hooks/tailwind-breakpoints.test.ts",
   "src/test/helpers/handle-api-error.test.ts",
   "src/test/phosphor-imports-plugin.test.ts",
   "src/test/proxy-routes.table.test.ts",

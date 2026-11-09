@@ -38,6 +38,19 @@ describe("isLeftOutOfSelectAll (#4762)", () => {
     expect(isLeftOutOfSelectAll(student("1", fields))).toBe(true);
   });
 
+  // Ort vor Status (#6371): Ein eingechecktes Kind ist da, auch mit Status.
+  it.each([
+    ["sick", { sick: true }],
+    ["excused", { excused: true }],
+    ["on a class trip", { class_trip: true }],
+  ])("keeps a checked-in child who is %s", (_, fields) => {
+    expect(
+      isLeftOutOfSelectAll(
+        student("1", { ...fields, current_location: "Anwesend - Raum 1" }),
+      ),
+    ).toBe(false);
+  });
+
   it("keeps an expected child", () => {
     expect(
       isLeftOutOfSelectAll(

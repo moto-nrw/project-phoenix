@@ -74,10 +74,14 @@ Ergänzung in #4682. Keine Rechtsberatung.
 ## Folgen
 
 - Fällt das Ende der Widerrufsfrist auf einen Samstag, Sonntag oder einen
-  bundesweiten Feiertag, endet sie am nächsten Werktag (§ 193 BGB). Regionale
-  Feiertage kennt nur School Calendar; dort endet die Frist einen Tag früher,
-  als sie könnte. Eine späte Belehrung verlängert die Frist nie über 12 Monate
-  und 14 Tage nach dem Abschluss hinaus.
+  gesetzlichen Feiertag des Bundeslands der Schule, endet sie am nächsten
+  Werktag (§ 193 BGB, seit #6390 aus School Calendar). Kommunale Feiertage
+  (etwa das Augsburger Friedensfest, Art. 1 Abs. 2 BayFTG) kennt School
+  Calendar nicht; fällt das Fristende auf einen, endet die Frist einen Tag zu
+  früh. NRW hat keine kommunalen Feiertage. Diese Grenze bleibt bewusst
+  bestehen, bis ein Träger außerhalb NRW startet (#6398); die Hilfe zu den
+  Betreuungsverträgen nennt sie. Eine späte Belehrung verlängert die Frist
+  nie über 12 Monate und 14 Tage nach dem Abschluss hinaus.
 
 - Die Komposition von `modules/carecontract/compose` wächst um die
   Konstruktoren der Erklärungen (+35 LOC) und `workflows/parentportal/compose`
