@@ -54,6 +54,7 @@
   "othersTitle": "Inne osoby sprawujące opiekę prawną",
   "otherOpen": "jeszcze brak odpowiedzi",
   "revokeHint": "Możesz wycofać swoją zgodę. Szkoła od razu to zobaczy.",
+  "revokeAnytime": "Możesz w każdej chwili wycofać swoją zgodę.",
   "closedNoAction": "Termin minął. Nie możesz już odpowiedzieć.",
   "confirmTitle": "Sprawdź swoją odpowiedź",
   "confirmBody": "Twoja odpowiedź dla {name}: {action}.",

@@ -37,7 +37,7 @@ export function parentDeclarationTopic(): HelpTopic {
     result:
       "Die Eltern sehen die Anfrage im Eltern-Portal. Den Stand je Kind sehen Sie beim Öffnen unter `Stand der Antworten`.",
     notes: [
-      "Mit `Widerruf erlauben` können Eltern eine Zustimmung später zurücknehmen. Das geht auch nach der Frist und nach dem Zurückziehen.",
+      "Eltern können eine Zustimmung jederzeit widerrufen. Das geht auch nach der Frist, nach dem Zurückziehen und wenn `Elternmitteilungen (Neuigkeiten)` aus ist.",
       "Mit `Mit Unterschrift` unterschreiben Eltern ihre Zustimmung mit dem Finger oder der Maus. Ablehnen geht ohne Unterschrift. Die Unterschrift steht im Nachweis der Eltern und in `Bericht als PDF`.",
       "Mit `Passwort vor dem Antworten abfragen` geben Eltern vor jeder Antwort ihr Passwort ein.",
       "`Offene erinnern` schickt eine Erinnerung an alle, die noch nicht geantwortet haben.",

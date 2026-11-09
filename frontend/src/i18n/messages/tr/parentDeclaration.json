@@ -54,6 +54,7 @@
   "othersTitle": "Velayet sahibi diğer kişiler",
   "otherOpen": "henüz yanıt yok",
   "revokeHint": "Onayınızı geri alabilirsiniz. Okul bunu hemen görür.",
+  "revokeAnytime": "Onayınızı istediğiniz zaman geri alabilirsiniz.",
   "closedNoAction": "Süre doldu. Artık yanıt veremezsiniz.",
   "confirmTitle": "Yanıtınızı kontrol edin",
   "confirmBody": "{name} için cevabınız: {action}.",

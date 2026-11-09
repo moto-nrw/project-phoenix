@@ -50,7 +50,6 @@ type declarationChildResponse struct {
 type AnnouncementDeclarationResponse struct {
 	Kind              string     `json:"kind"`
 	Signers           string     `json:"signers"`
-	Revocable         bool       `json:"revocable"`
 	RequiresPassword  bool       `json:"requires_password"`
 	RequiresSignature bool       `json:"requires_signature"`
 	Deadline          *time.Time `json:"deadline"`
@@ -68,7 +67,7 @@ func toDeclarationResponse(d *parentService.AnnouncementFeedDeclaration) *Announ
 		return nil
 	}
 	out := &AnnouncementDeclarationResponse{
-		Kind: d.Kind, Signers: d.Signers, Revocable: d.Revocable, RequiresPassword: d.RequiresPassword,
+		Kind: d.Kind, Signers: d.Signers, RequiresPassword: d.RequiresPassword,
 		RequiresSignature: d.RequiresSignature, Deadline: d.Deadline, Closed: d.Closed, Ended: d.Ended, Children: make([]declarationChildResponse, 0, len(d.Children)),
 	}
 	if d.Version != nil {

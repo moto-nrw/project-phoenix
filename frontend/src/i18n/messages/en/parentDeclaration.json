@@ -54,6 +54,7 @@
   "othersTitle": "Other guardians with custody",
   "otherOpen": "no answer yet",
   "revokeHint": "You can withdraw your consent. The school sees this right away.",
+  "revokeAnytime": "You can withdraw your consent at any time.",
   "closedNoAction": "The deadline has passed. You can no longer answer.",
   "confirmTitle": "Check your answer",
   "confirmBody": "Your answer for {name}: {action}.",

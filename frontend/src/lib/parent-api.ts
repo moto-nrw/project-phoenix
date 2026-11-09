@@ -1234,7 +1234,6 @@ export interface ParentDeclarationChild {
 export interface ParentDeclaration {
   readonly kind: "consent";
   readonly signers: "any" | "all";
-  readonly revocable: boolean;
   readonly requires_password: boolean;
   /** Agreeing needs a signature with finger, pen or mouse (#4785). */
   readonly requires_signature: boolean;

@@ -3,6 +3,7 @@ package messaging
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
@@ -58,6 +59,39 @@ func withoutEmptyEndedDeclarations(items []*AnnouncementFeedItem) []*Announcemen
 		out = append(out, item)
 	}
 	return out
+}
+
+// endNewsOffDeclarations treats a declaration of a school with parent news
+// off as ended: it takes no new answers and shows the wording the guardian
+// answered, but a given consent keeps its revocation (#6303).
+func endNewsOffDeclarations(items []*AnnouncementFeedItem, scope AnnouncementFeedScope) []*AnnouncementFeedItem {
+	for _, item := range items {
+		if item.DeliveryMode == ParentAnnouncementDeliveryDeclaration && !slices.Contains(scope.TenantIDs, item.TenantID) {
+			item.Ended = true
+		}
+	}
+	return items
+}
+
+// onlyGivenConsentsWithNewsOff keeps, for a school with parent news off, only
+// the children whose guardian gave their consent: switching the module off
+// shows nothing else of that school, not a refusal, a revocation or another
+// child (data minimization, #6303). withoutEmptyEndedDeclarations then drops
+// the declarations left without a child.
+func onlyGivenConsentsWithNewsOff(items []*AnnouncementFeedItem, scope AnnouncementFeedScope) []*AnnouncementFeedItem {
+	for _, item := range items {
+		if item.Declaration == nil || slices.Contains(scope.TenantIDs, item.TenantID) {
+			continue
+		}
+		given := item.Declaration.Children[:0]
+		for _, child := range item.Declaration.Children {
+			if child.MyAction != nil && *child.MyAction == DeclarationActionAgreed {
+				given = append(given, child)
+			}
+		}
+		item.Declaration.Children = given
+	}
+	return items
 }
 
 // showEndedDeclarationAsAnswered shows an ended declaration with the frozen
@@ -132,7 +166,7 @@ func buildFeedDeclaration(policy DeclarationPolicy, accountID int64, item *Annou
 	settings := facts.settings[item.ID]
 	rules := feedDeclarationRules(settings, item.ResponseDeadline)
 	out := &AnnouncementFeedDeclaration{
-		Kind: settings.Kind, Signers: settings.Signers, Revocable: settings.Revocable,
+		Kind: settings.Kind, Signers: settings.Signers,
 		RequiresPassword: settings.RequiresPassword, RequiresSignature: settings.RequiresSignature, Deadline: item.ResponseDeadline,
 		Closed: item.Ended || policy.Closed(rules.Deadline, now), Ended: item.Ended, Version: facts.versions[item.ID],
 		Children: []*AnnouncementFeedDeclarationChild{},
@@ -198,7 +232,7 @@ func buildFeedDeclarationChild(policy DeclarationPolicy, accountID int64, c *Dec
 // revocation of an own consent: withdrawing must stay as easy as giving it
 // (Art. 7 Abs. 3 DSGVO, #6290).
 func declarationActionsFor(policy DeclarationPolicy, rules declarationRules, mayDeclare bool, myLatest string, now time.Time) []string {
-	actions := policy.AllowedActions(rules.Revocable, rules.Deadline, true, myLatest, now)
+	actions := policy.AllowedActions(rules.Deadline, true, myLatest, now)
 	if mayDeclare {
 		return actions
 	}

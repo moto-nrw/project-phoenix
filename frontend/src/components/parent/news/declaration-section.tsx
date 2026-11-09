@@ -280,10 +280,8 @@ export function DeclarationSection({
                   my_action: action,
                   my_submitted_at: submittedAt,
                   state: stateAfter(declaration, candidate, action),
-                  allowed_actions:
-                    action === "agreed" && declaration.revocable
-                      ? ["revoked"]
-                      : [],
+                  // A consent can always be withdrawn (#6303).
+                  allowed_actions: action === "agreed" ? ["revoked"] : [],
                 }
               : candidate,
           ),
@@ -604,6 +602,9 @@ function DeclarationChildCard({
                 {t(`explain.${action}`, { name: child.first_name })}
               </p>
             ))}
+            {/* Art. 7 Abs. 3 DSGVO: say before the consent that it can be
+                withdrawn (#6303). */}
+            {decisions.includes("agreed") && <p>{t("revokeAnytime")}</p>}
           </div>
           <div className="mt-3 flex flex-col gap-2 sm:flex-row">
             {decisions.map((action) => (

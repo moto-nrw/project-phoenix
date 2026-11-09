@@ -113,12 +113,13 @@ func (s *Service) SubmitDeclaration(ctx context.Context, accountID, announcement
 // useful child error.
 func (s *Service) resolveDeclarationTarget(ctx context.Context, accountID, announcementID, studentID int64, action string) (*declarationTarget, error) {
 	var target *declarationTarget
+	ownLatest := ""
 	if err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		a, err := s.AnnouncementRepo.FindByID(adminCtx, announcementID)
 		if err != nil {
 			return fmt.Errorf("parent: load declaration: %w", err)
 		}
-		if err := s.requireDeclarationOpenFor(adminCtx, a, accountID, studentID, action); err != nil {
+		if ownLatest, err = s.requireDeclarationOpenFor(adminCtx, a, accountID, studentID, action); err != nil {
 			return err
 		}
 		children, err := s.AnnouncementRepo.DeclarationChildrenForAccount(adminCtx, accountID, []int64{announcementID})
@@ -139,10 +140,21 @@ func (s *Service) resolveDeclarationTarget(ctx context.Context, accountID, annou
 	}); err != nil {
 		return nil, err
 	}
-	if !s.announcementVisibleForTenant(ctx, target.tenantID, announcementID, nil) {
+	if !s.announcementVisibleForTenant(ctx, target.tenantID, announcementID, nil) && !revokesOwnConsent(action, ownLatest) {
 		return nil, ErrAnnouncementNotFound
 	}
 	return target, nil
+}
+
+// revokesOwnConsent is the one action a school with parent news switched off
+// still takes: the guardian withdraws the consent they gave for their child
+// (Art. 7 Abs. 3 DSGVO, #6303), and a repeated revocation yields the same
+// proof. Every other request about that school's declarations stays a 404, so
+// switching the module off shows nothing else. The write re-checks the
+// consent under the child lock (checkDeclarationAction).
+func revokesOwnConsent(action, ownLatest string) bool {
+	return action == DeclarationActionRevoked &&
+		(ownLatest == DeclarationActionAgreed || ownLatest == DeclarationActionRevoked)
 }
 
 // declarationAdmitsAction reports whether the announcement, as the school
@@ -163,37 +175,38 @@ func declarationAdmitsAction(a *ParentAnnouncement, action string) bool {
 // action. A live declaration takes every action; one the school no longer
 // shows takes only a revocation, and only from a guardian who answered for
 // the child before. Anybody else learns nothing about it, not even that it
-// exists.
-func (s *Service) requireDeclarationOpenFor(ctx context.Context, a *ParentAnnouncement, accountID, studentID int64, action string) error {
+// exists. For a revocation it returns the guardian's own latest action for
+// the child, which the parent news gate needs.
+func (s *Service) requireDeclarationOpenFor(ctx context.Context, a *ParentAnnouncement, accountID, studentID int64, action string) (string, error) {
 	if !declarationAdmitsAction(a, action) {
-		return ErrAnnouncementNotFound
+		return "", ErrAnnouncementNotFound
 	}
-	if announcementIsLive(a) {
-		return nil
+	if action != DeclarationActionRevoked {
+		return "", nil
 	}
-	answered, err := s.answeredDeclarationBefore(ctx, accountID, a.ID, studentID)
+	latest, err := s.ownLatestDeclarationAction(ctx, accountID, a.ID, studentID)
 	if err != nil {
-		return err
+		return "", err
 	}
-	if !answered {
-		return ErrAnnouncementNotFound
+	if latest == "" && !announcementIsLive(a) {
+		return "", ErrAnnouncementNotFound
 	}
-	return nil
+	return latest, nil
 }
 
-// answeredDeclarationBefore reports whether the account has declared for the
-// child on this announcement before.
-func (s *Service) answeredDeclarationBefore(ctx context.Context, accountID, announcementID, studentID int64) (bool, error) {
+// ownLatestDeclarationAction returns the account's newest action for the
+// child on this announcement, or "" when it never declared.
+func (s *Service) ownLatestDeclarationAction(ctx context.Context, accountID, announcementID, studentID int64) (string, error) {
 	history, err := s.AnnouncementRepo.ListDeclarationSubmissionsForStudents(ctx, []int64{announcementID}, []int64{studentID})
 	if err != nil {
-		return false, fmt.Errorf("parent: load declaration history: %w", err)
+		return "", fmt.Errorf("parent: load declaration history: %w", err)
 	}
-	for _, sub := range history {
+	for _, sub := range history { // newest first
 		if sub.AccountID != nil && *sub.AccountID == accountID {
-			return true, nil
+			return sub.Action, nil
 		}
 	}
-	return false, nil
+	return "", nil
 }
 
 // authorizeDeclarationChild applies the project's guardian gate with the
@@ -412,6 +425,6 @@ func containsDeclarationChild(children []*DeclarationChild, studentID int64) boo
 
 func feedDeclarationRules(settings AnnouncementDeclarationSettings, deadline *time.Time) declarationRules {
 	return declarationRules{
-		Signers: settings.Signers, Revocable: settings.Revocable, Deadline: deadline,
+		Signers: settings.Signers, Deadline: deadline,
 	}
 }

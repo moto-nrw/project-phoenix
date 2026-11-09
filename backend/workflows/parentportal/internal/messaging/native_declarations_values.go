@@ -6,21 +6,19 @@ import (
 type AnnouncementDeclarationSettings struct {
 	Kind              string
 	Signers           string
-	Revocable         bool
 	RequiresPassword  bool
 	RequiresSignature bool
 }
 type AnnouncementFeedDeclaration struct {
 	Kind              string
 	Signers           string
-	Revocable         bool
 	RequiresPassword  bool
 	RequiresSignature bool
 	Deadline          *time.Time
 	Closed            bool
 	// Ended: the school no longer shows the declaration (withdrawn,
-	// deactivated or expired). It takes no new answers; an own consent stays
-	// revocable (#6290).
+	// deactivated or expired, #6290) or switched parent news off (#6303). It
+	// takes no new answers; an own consent stays revocable.
 	Ended    bool
 	Version  *DeclarationVersion
 	Children []*AnnouncementFeedDeclarationChild

@@ -54,6 +54,7 @@
   "othersTitle": "Persona të tjerë me kujdestari",
   "otherOpen": "ende pa përgjigje",
   "revokeHint": "Mund ta tërhiqni pëlqimin tuaj. Shkolla e sheh menjëherë.",
+  "revokeAnytime": "Mund ta tërhiqni pëlqimin tuaj në çdo kohë.",
   "closedNoAction": "Afati ka kaluar. Nuk mund të përgjigjeni më.",
   "confirmTitle": "Kontrolloni përgjigjen tuaj",
   "confirmBody": "Përgjigjja juaj për {name}: {action}.",

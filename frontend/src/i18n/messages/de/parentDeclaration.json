@@ -54,6 +54,7 @@
   "othersTitle": "Andere sorgeberechtigte Personen",
   "otherOpen": "noch keine Antwort",
   "revokeHint": "Sie können Ihre Zustimmung zurücknehmen. Die Schule sieht das sofort.",
+  "revokeAnytime": "Sie können Ihre Zustimmung jederzeit widerrufen.",
   "closedNoAction": "Die Frist ist abgelaufen. Sie können nicht mehr antworten.",
   "confirmTitle": "Ihre Antwort prüfen",
   "confirmBody": "Ihre Antwort für {name}: {action}.",
