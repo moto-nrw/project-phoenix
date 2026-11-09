@@ -194,7 +194,7 @@ function PendingRequestPanel({
   return (
     <ParentSubsection
       title={t("requestTitle")}
-      actions={<StatusBadge label={t("pendingBadge")} tone="orange" />}
+      actions={<StatusBadge label={t("pendingBadge")} tone="warning" />}
     >
       <p className="text-sm text-gray-500">
         {t("requestedAt", {

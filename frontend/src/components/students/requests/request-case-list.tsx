@@ -80,7 +80,7 @@ function CaseRow({
         </span>
         <span className="flex flex-wrap items-center gap-1">
           {childCase.urgentToday && !childCase.past ? (
-            <StatusBadge tone="orange" label="Heute betroffen" />
+            <StatusBadge tone="warning" label="Heute betroffen" />
           ) : null}
           {childCase.conflicts.length > 0 ? (
             <StatusBadge tone="red" label="Diese Anfragen widersprechen sich" />

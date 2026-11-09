@@ -243,9 +243,9 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0175: the school-read context guard adds exactly 5 LOC in settings/compose.
 // ADR 0182: the constructor of the Jahresbescheide of
 // modules/parentbilling/compose adds exactly 7 LOC.
-// ADR 0181: the constructor of the SEPA direct debit file of
-// modules/parentbilling/compose adds exactly 5 LOC.
-const moduleComposeBudgetTotal = 13147
+// ADR 0181: the SEPA debit constructor (+5).
+// ADR 0183: bank cipher (+6), rekey (+5).
+const moduleComposeBudgetTotal = 13158
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -325,8 +325,9 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0168: the Mensa of the monthly run (+7);
 	// ADR 0171: the constructor of the SEPA mandates (+5);
 	// ADR 0182: the constructor of the Jahresbescheide (+7);
-	// ADR 0181: the constructor of the SEPA direct debit file (+5).
-	"modules/parentbilling/compose":               91,
+	// ADR 0181: the constructor of the SEPA direct debit file (+5);
+	// ADR 0183: rekey constructor (+5).
+	"modules/parentbilling/compose":               96,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	"modules/peopledirectory/compose":    973,
@@ -343,7 +344,8 @@ var moduleComposeBudgets = map[string]int{
 	"modules/schoolsetup/compose":      56,
 	// #4722: the field cipher of the health information, construction only;
 	// the 7 LOC come out of modules/enrollment/compose, the total stays.
-	"modules/securityruntime/compose": 7,
+	// ADR 0183: bank cipher constructor (+6).
+	"modules/securityruntime/compose": 13,
 	// ADR 0154: the group names constructor (+13).
 	"modules/schoolstructure/compose": 606,
 	// Raised by ADR 0107 and ADR 0175: the Träger settings and school-read context guard.

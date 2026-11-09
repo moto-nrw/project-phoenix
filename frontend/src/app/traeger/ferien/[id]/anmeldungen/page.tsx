@@ -220,7 +220,7 @@ function columns(
                 </span>
                 {child.duplicateRegistrationIds.length > 0 ? (
                   <StatusBadge
-                    tone="orange"
+                    tone="warning"
                     label="Mögliche Doppelanmeldung"
                     title={`Auch in Anmeldung Nr. ${child.duplicateRegistrationIds.join(", ")}`}
                   />

@@ -42,3 +42,7 @@ func NewTestHealthDataKeys() string {
 // TestHealthDataKeys is the key ring of the test binary; the test
 // configuration serves it as HEALTH_DATA_KEYS.
 var TestHealthDataKeys = NewTestHealthDataKeys()
+
+// TestBankDataKeys is generated independently of TestHealthDataKeys. Typed
+// roots require both rings, also in tests that do not themselves use bank data.
+var TestBankDataKeys = NewTestHealthDataKeys()

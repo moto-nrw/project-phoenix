@@ -558,7 +558,7 @@ export function SepaMandatesCard({
               label={mandateState(inForce, today).label}
             />
           ) : (
-            <StatusBadge tone="orange" label="Kein gültiges Mandat" />
+            <StatusBadge tone="warning" label="Kein gültiges Mandat" />
           )
         ) : null
       }

@@ -134,7 +134,7 @@ export function PhaseResponseOverview({
             {isChildStatus(child.childStatus) ? (
               <ChildStatusBadge status={child.childStatus} />
             ) : (
-              <StatusBadge label="Fehlt noch" tone="orange" />
+              <StatusBadge label="Fehlt noch" tone="warning" />
             )}
             {requestId ? (
               <NavigationLink

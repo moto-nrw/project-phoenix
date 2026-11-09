@@ -84,7 +84,7 @@ export function TodayNoticeList({
             {notice.title}
           </h3>
           {notice.priority === "important" && (
-            <StatusBadge label="Wichtig" tone="orange" />
+            <StatusBadge label="Wichtig" tone="warning" />
           )}
           <span className="text-xs text-gray-500">
             {describeRecurrence(notice)}

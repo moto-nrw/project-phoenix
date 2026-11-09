@@ -193,10 +193,13 @@ export const staffQualificationService = new StaffQualificationService();
 /** Text und Ton des Status, gleich in Liste, Profil und eigener Ansicht. */
 export const QUALIFICATION_STATUS_LABELS: Record<
   QualificationStatus,
-  { readonly label: string; readonly tone: "green" | "orange" | "red" | "gray" }
+  {
+    readonly label: string;
+    readonly tone: "green" | "warning" | "red" | "gray";
+  }
 > = {
   valid: { label: "Gültig", tone: "green" },
-  expiring_soon: { label: "Läuft bald ab", tone: "orange" },
+  expiring_soon: { label: "Läuft bald ab", tone: "warning" },
   expired: { label: "Abgelaufen", tone: "red" },
   missing: { label: "Fehlt", tone: "gray" },
 };

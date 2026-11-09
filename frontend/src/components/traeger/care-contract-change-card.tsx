@@ -120,7 +120,7 @@ export function CareContractChangeCard({
       title="Änderungswunsch der Eltern"
       titleBadge={
         request ? (
-          <StatusBadge tone="orange" label="Wartet auf Entscheidung" />
+          <StatusBadge tone="warning" label="Wartet auf Entscheidung" />
         ) : undefined
       }
       description={

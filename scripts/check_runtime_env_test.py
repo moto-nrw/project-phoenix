@@ -45,5 +45,32 @@ class DemoRuntimeVolumesTest(unittest.TestCase):
             CHECK.check_demo_runtime_volumes({"volumes": [uploads(source="demo-postgres")]}, SERVER, True)
 
 
+class BankRekeyServiceTest(unittest.TestCase):
+    def service(self, **changes):
+        job = {
+            "image": "backend:immutable-test-sha",
+            "profiles": ["maintenance"],
+            "command": ["./main", "bank-data-rekey"],
+            "environment": {"DB_DSN": "${DB_DSN:?DB_DSN is required}"},
+        }
+        job.update(changes)
+        return {"bank-data-rekey": job, "server": {"image": "backend:immutable-test-sha"}}
+
+    def test_accepts_explicit_pinned_maintenance_job(self):
+        CHECK.check_bank_rekey_service(self.service())
+
+    def test_rejects_wrong_authority_or_lifecycle(self):
+        for change in (
+            {"profiles": []},
+            {"command": ["./main", "serve"]},
+            {"image": "backend:different-release"},
+            {"environment": {"DB_DSN": "postgres://phoenix_auth@postgres/postgres"}},
+            {"ports": ["8080:8080"]},
+            {"volumes": [{"source": ".env", "target": "/app/.env"}]},
+        ):
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                CHECK.check_bank_rekey_service(self.service(**change))
+
+
 if __name__ == "__main__":
     unittest.main()

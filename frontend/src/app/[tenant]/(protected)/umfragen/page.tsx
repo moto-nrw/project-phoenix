@@ -365,7 +365,7 @@ function SurveysContent() {
                   {survey.participated ? (
                     <StatusBadge label="Teilgenommen" tone="green" />
                   ) : (
-                    <StatusBadge label="Antwort offen" tone="orange" />
+                    <StatusBadge label="Antwort offen" tone="warning" />
                   )}
                   <SurveyAnonymityBadge anonymous={survey.anonymous} />
                   <span>

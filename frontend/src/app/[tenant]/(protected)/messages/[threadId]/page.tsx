@@ -594,6 +594,7 @@ function MessageThreadContent() {
           ) : (
             <div
               ref={scrollRef}
+              data-chat-scroll=""
               className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1"
             >
               {messagesLoading ? (

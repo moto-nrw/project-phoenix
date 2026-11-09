@@ -291,7 +291,7 @@ export function CareContractCreateModal({
                           tone={
                             candidate.templateIssue === "conclusion_automatic"
                               ? "green"
-                              : "orange"
+                              : "warning"
                           }
                           label={TEMPLATE_ISSUE_LABELS[candidate.templateIssue]}
                         />

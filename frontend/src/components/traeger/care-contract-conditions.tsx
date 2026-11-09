@@ -423,10 +423,10 @@ function ConditionsForm({
 }
 
 function conditionBadge(offering: OfferingTemplate): {
-  tone: "green" | "gray" | "orange";
+  tone: "green" | "gray" | "warning";
   label: string;
 } {
   if (offering.template) return { tone: "green", label: "Festgelegt" };
   if (!offering.active) return { tone: "gray", label: "Nicht aktiv" };
-  return { tone: "orange", label: "Fehlt" };
+  return { tone: "warning", label: "Fehlt" };
 }

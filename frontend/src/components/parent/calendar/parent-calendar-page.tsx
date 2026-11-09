@@ -828,7 +828,7 @@ function CalendarEventPopover({
     state === "cancelled"
       ? { label: t("cancelledByOgs"), tone: "red" }
       : state === "needsResponse"
-        ? { label: t("responseRequired"), tone: "orange" }
+        ? { label: t("responseRequired"), tone: "warning" }
         : state === "accepted"
           ? { label: t("answeredAccepted"), tone: "green" }
           : state === "declined"

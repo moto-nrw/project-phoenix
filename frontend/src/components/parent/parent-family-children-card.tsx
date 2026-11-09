@@ -132,7 +132,7 @@ export function ParentFamilyChildrenCard({
               ) : null}
               {waitsForTraeger(family) ? (
                 <p className="flex flex-wrap items-center gap-2 text-sm text-gray-900">
-                  <StatusBadge tone="orange" label={t("pendingBadge")} />
+                  <StatusBadge tone="warning" label={t("pendingBadge")} />
                   {t("pending", {
                     count: family.statedChildren ?? 0,
                     date: date(family.statedAt),

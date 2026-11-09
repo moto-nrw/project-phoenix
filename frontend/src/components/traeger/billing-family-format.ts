@@ -108,7 +108,7 @@ export const INVOICE_STATUS_TONES: Record<
   BillingInvoiceStatus,
   StatusBadgeTone
 > = {
-  open: "orange",
+  open: "warning",
   partly_credited: "blue",
   credited: "gray",
   cancelled: "red",

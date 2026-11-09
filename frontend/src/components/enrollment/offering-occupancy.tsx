@@ -48,7 +48,7 @@ export function OfferingOccupancyCell({
           {isActive ? (
             occupancy.full ? (
               <StatusBadge
-                tone="orange"
+                tone="warning"
                 size="xs"
                 label={
                   occupancy.booked > occupancy.capacity ? "Überbelegt" : "Voll"
@@ -137,7 +137,7 @@ export function offeringStatusColumn(
         {offering.is_active && offeringOccupancy(stats[offering.id])?.full ? (
           <StatusBadge
             label="Voll"
-            tone="orange"
+            tone="warning"
             title="Alle Plätze sind belegt."
           />
         ) : null}

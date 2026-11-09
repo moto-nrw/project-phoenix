@@ -133,7 +133,7 @@ export function WeekdayRosterSection({
             {deviatingWeekdays.includes(activeWeekday) ? (
               <StatusBadge
                 label="abweichend"
-                tone="orange"
+                tone="warning"
                 title={`Die Zuordnung am ${WEEKDAY_LABELS[activeWeekday]} unterscheidet sich von ${WEEKDAY_LABELS[weekdays[0] ?? 1]}`}
               />
             ) : (

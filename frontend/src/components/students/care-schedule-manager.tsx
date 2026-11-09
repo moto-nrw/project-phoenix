@@ -1583,7 +1583,7 @@ function CareBoundaryRow({
             <span className="min-w-0 break-words">{boundary.value}</span>
             {boundary.marker && boundary.markerTone === "warning" ? (
               <StatusBadge
-                tone="orange"
+                tone="warning"
                 compact
                 label={boundary.marker}
                 title={boundary.markerTitle}

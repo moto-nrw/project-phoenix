@@ -262,7 +262,7 @@ function PastBlockCard({
         completed ? (
           <StatusBadge label="Beendet" tone="gray" />
         ) : (
-          <StatusBadge label="Nicht gestartet" tone="orange" />
+          <StatusBadge label="Nicht gestartet" tone="warning" />
         )
       }
       bodyClassName="mt-2"

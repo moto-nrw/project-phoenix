@@ -131,6 +131,11 @@ export const MOTO_COLOR_PALETTE = {
     light: "#FACC15",
     base: "#EAB308",
     strong: "#92400E",
+    // The "Achtung" pill (#5617). soft/strong read almost exactly like the
+    // orange Schulhof pill (#FFF3E5 / #9B5609), so the pill takes a clearly
+    // yellow tint and a darker label instead: 8.1:1.
+    pill: "#FEF9C3",
+    pillText: "#713F12",
   },
   purple: {
     soft: "#F3E8FF",
@@ -254,8 +259,8 @@ const LOCATION_BADGE_TONES: Record<string, LocationBadgeTone> = {
     textColor: MOTO_COLOR_PALETTE.stone.strong,
   },
   [MOTO_COLOR_PALETTE.amber.base]: {
-    backgroundColor: MOTO_COLOR_PALETTE.amber.soft,
-    textColor: MOTO_COLOR_PALETTE.amber.strong,
+    backgroundColor: MOTO_COLOR_PALETTE.amber.pill,
+    textColor: MOTO_COLOR_PALETTE.amber.pillText,
   },
   [MOTO_COLOR_PALETTE.purple.base]: {
     backgroundColor: MOTO_COLOR_PALETTE.purple.soft,
