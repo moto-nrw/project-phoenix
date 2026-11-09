@@ -33,9 +33,7 @@ func TestCategoryShiftTypeFKEnforcesTenantIsolation(t *testing.T) {
 	tenantA := testpkg.UniqueTestTenantID(t)
 	tenantB := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantA)
-	testpkg.OwnTenantRows(t, db, tenantA)
 	testpkg.EnsureTestTenant(t, db, tenantB)
-	testpkg.OwnTenantRows(t, db, tenantB)
 
 	stA := insertShiftTypeRaw(t, db, tenantA, fmt.Sprintf("A-%d", tenantA))
 	catB := testpkg.CreateTestActivityCategoryForTenant(t, db, tenantB, "FK-CatB")

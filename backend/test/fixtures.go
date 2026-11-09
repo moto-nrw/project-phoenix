@@ -536,34 +536,6 @@ type (
 	GroupSupervisorRow = sessionrecordstest.GroupSupervisorRow
 )
 
-// CreateTestActiveGroup creates a real active group (session) in the database.
-// This requires an ActivityGroup (activities.groups) and Room to exist.
-// Use this for testing session management and visit tracking.
-func CreateTestActiveGroup(tb testing.TB, db *bun.DB, activityGroupID, roomID int64) *ActiveGroupRow {
-	tb.Helper()
-
-	now := fixtureInstant()
-	activeGroup := &ActiveGroupRow{
-		GroupID:        &activityGroupID,
-		RoomID:         roomID,
-		StartTime:      now,
-		LastActivity:   now,
-		TimeoutMinutes: 30,
-	}
-	activeGroup.TenantID = fixtureTenantID(tb)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	err := db.NewInsert().
-		Model(activeGroup).
-		ModelTableExpr(`active.groups`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test active group")
-
-	return activeGroup
-}
-
 // CreateTestGroupSupervisor creates a real group supervisor record in the database.
 // This requires a Staff and ActiveGroup to already exist.
 func CreateTestGroupSupervisor(tb testing.TB, db *bun.DB, staffID, activeGroupID int64, role string) *GroupSupervisorRow {

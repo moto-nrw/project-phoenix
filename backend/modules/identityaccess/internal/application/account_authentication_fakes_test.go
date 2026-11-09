@@ -361,7 +361,7 @@ func (s *fakeStore) ListSchoolRoles(context.Context, int64) ([]*domain.SchoolRol
 func (s *fakeStore) FindSchoolRoleByName(context.Context, string, int64) (*domain.SchoolRole, domain.OperationStats, error) {
 	panic("not used")
 }
-func (s *fakeStore) FindRolePermissions(context.Context, int64, int64) ([]string, domain.OperationStats, error) {
+func (s *fakeStore) FindRolePermissionsByRoleIDs(context.Context, []int64, int64) (map[int64][]string, domain.OperationStats, error) {
 	panic("not used")
 }
 func (s *fakeStore) FindInvitedPersonIDs(context.Context, string, int64) ([]int64, domain.OperationStats, error) {

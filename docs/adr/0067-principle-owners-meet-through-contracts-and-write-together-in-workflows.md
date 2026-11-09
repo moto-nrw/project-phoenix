@@ -928,6 +928,8 @@ aus der Messung abgeleitet, nicht gemessen.
 | 7 | #5552 | Ausnahme E3: Kinderanlage und Student-Update gebündelt, Kontingent nach Punkt 8 | Student-Create N110 auf etwa 60 | hoch |
 | 8 | #5552 | Anfangssalden: eigener Workforce-Entwurf (Sperren je Staff sortiert, Guards nach dem Lock mengenbasiert, Einstellungen einmal je Transaktion), danach Umsetzung | etwa −40 je Zeile | mittel |
 
+Der Rechte-Read läuft einmal je Validierung, spätestens bei der ersten Zeile mit Rollenprüfung (lazy), damit Pfade ohne Rollenprüfung keinen Read zahlen.
+
 2, 3 und 4 sind unabhängig. 5 und 6 brauchen 4; 7 braucht 5.
 
 Jeder Schritt prüft:

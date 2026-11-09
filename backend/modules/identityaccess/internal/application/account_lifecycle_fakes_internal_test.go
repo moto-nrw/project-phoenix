@@ -455,7 +455,16 @@ type lifecycleAdmin struct {
 	deactivated []int64
 }
 
-func (a *lifecycleAdmin) RemoveRoleFromAccount(_ context.Context, accountID, roleID int64) error {
+func (a *lifecycleAdmin) RemoveRolesFromAccount(ctx context.Context, accountID int64, roleIDs []int64) error {
+	for _, roleID := range roleIDs {
+		if err := a.removeRole(ctx, accountID, roleID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (a *lifecycleAdmin) removeRole(_ context.Context, accountID, roleID int64) error {
 	a.removed = append(a.removed, roleID)
 	for key, roles := range a.store.roles {
 		if key.accountID != accountID {

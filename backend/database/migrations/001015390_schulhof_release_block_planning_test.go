@@ -31,7 +31,6 @@ func newBlockPlanningTenant(t *testing.T, db *testpkg.DB) int64 {
 	t.Helper()
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	testpkg.OwnTenantRows(t, db, tenantID)
 	return tenantID
 }
 
