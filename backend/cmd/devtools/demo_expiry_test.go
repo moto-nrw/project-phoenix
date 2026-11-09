@@ -180,8 +180,8 @@ func TestDemoExpiryRunsAgainAfterAFailedFileErasure(t *testing.T) {
 	clock = clock.Add(time.Second)
 	require.NoError(t, expiry.run(t.Context()))
 
-	assert.Equal(t, []string{"expire", "retire", "files", "expire", "retire", "files", "databases"}, runtime.calls,
-		"the failed run is due again at the next poll, the successful one waits an hour")
+	assert.Equal(t, []string{"expire", "retire", "files", "databases", "expire", "retire", "files", "databases"}, runtime.calls,
+		"a failed file erasure still erases due database rows (#5559); the failed run is due again at the next poll, the successful one waits an hour")
 }
 
 // A school the database erasure left behind fails the run, which stays due

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"slices"
 	"time"
@@ -74,27 +75,24 @@ func (e *demoExpiry) run(ctx context.Context) error {
 	}
 	// A school that failed keeps no marker; the run stays due, so the next
 	// poll tries again, and the poll failure turns the sidecar unhealthy.
-	schools, files, err := e.runtime.EraseRetiredDemoSchoolFiles(ctx)
+	schools, files, filesErr := e.runtime.EraseRetiredDemoSchoolFiles(ctx)
 	if schools > 0 {
 		slog.Info("demo school files erased",
 			"schools", schools,
 			"files", files,
 		)
 	}
-	if err != nil {
-		return err
-	}
-	// The same rule: a school that failed keeps every row and the run stays
-	// due. Only a school whose uploads are erased is ever selected.
-	// A busy school waits for the next run and does not fail this one.
-	erasedSchools, busySchools, err := e.runtime.EraseRetiredDemoSchoolDatabases(ctx)
+	// The same rule for the database rows. Only a school whose uploads are
+	// erased is selected, so a failed file erasure of another school does not
+	// hold them up. A busy school waits for the next run and fails nothing.
+	erasedSchools, busySchools, databasesErr := e.runtime.EraseRetiredDemoSchoolDatabases(ctx)
 	if erasedSchools > 0 || busySchools > 0 {
 		slog.Info("demo schools erased from the database",
 			"schools", erasedSchools,
 			"busy", busySchools,
 		)
 	}
-	if err != nil {
+	if err := errors.Join(filesErr, databasesErr); err != nil {
 		return err
 	}
 	e.next = at.Add(e.interval)

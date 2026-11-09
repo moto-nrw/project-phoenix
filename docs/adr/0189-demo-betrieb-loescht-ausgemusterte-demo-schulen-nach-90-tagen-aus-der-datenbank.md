@@ -71,7 +71,8 @@ Organisation & Tenancy mit Operator-Auftrag zu.
    nicht. Der Vermerk hat keinen Fremdschlüssel und überdauert die Schule
    (ADR 0148).
 6. **Aufruf im Demo-Prozess.** `demoExpiry.run` ruft den Schritt
-   `EraseRetiredDemoSchoolDatabases` nach erfolgreicher Dateiphase auf.
+   `EraseRetiredDemoSchoolDatabases` nach der Dateiphase auf, auch wenn
+   diese für eine andere Schule scheitert; beide Fehler melden den Lauf.
    Organisation & Tenancy bietet beide Schritte als eine Fähigkeit
    `DemoSchoolErasure` an (vorher `DemoSchoolFiles`); nur `cmd/devtools`
    verdrahtet sie, und dieses Binary liegt nur im Demo-Image (ADR 0060).

@@ -127,6 +127,11 @@ const demoSchoolDatabaseErasureUpSQL = `
 				RETURN jsonb_build_object('status', 'not_due');
 			END IF;
 			PERFORM platform.school_erasure_preflight(p_school_id, v_organization_id);
+			-- The preflight now holds every school table, demo orders included:
+			-- check again that no order named the school in the meantime.
+			IF NOT platform.retired_demo_school_database_due(p_school_id) THEN
+				RETURN jsonb_build_object('status', 'not_due');
+			END IF;
 			v_counts := platform.school_erasure_delete(p_school_id);
 			UPDATE platform.demo_school_file_erasures
 			SET db_erased_at = clock_timestamp(), db_row_counts = v_counts
