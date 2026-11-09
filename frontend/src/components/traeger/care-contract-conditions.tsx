@@ -130,7 +130,7 @@ export function CareContractConditions({
                         <span className="block font-medium text-gray-900">
                           {offering.offeringName}
                         </span>
-                        <span className="block text-sm text-gray-500">
+                        <span className="block text-sm text-gray-600">
                           {[
                             offering.phaseName,
                             offering.priceCents === null

@@ -172,7 +172,7 @@ export function TraegerLetterheadPreview({
       {body ? (
         <div className="mt-8">{body}</div>
       ) : (
-        <p className="mt-8 text-gray-400">Hier steht der Text des Briefs.</p>
+        <p className="mt-8 text-gray-500">Hier steht der Text des Briefs.</p>
       )}
       <figcaption className="mt-10 border-t border-gray-200 pt-3 text-sm wrap-anywhere text-gray-600">
         {footer.map((line, index) => (

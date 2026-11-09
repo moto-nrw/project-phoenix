@@ -378,10 +378,12 @@ describe("HolidayPeriodForm", () => {
     );
 
     expect(
-      screen.queryByRole("button", { name: "Zeitmodell bis 13 Uhr entfernen" }),
+      screen.queryByRole("button", {
+        name: "Zeitmodell entfernen: bis 13 Uhr",
+      }),
     ).not.toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Zeitmodell bis 16 Uhr entfernen" }),
+      screen.getByRole("button", { name: "Zeitmodell entfernen: bis 16 Uhr" }),
     ).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", { name: "Zeitmodell bis 13 Uhr archivieren" }),

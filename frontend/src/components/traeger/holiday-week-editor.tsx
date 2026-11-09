@@ -130,12 +130,13 @@ function TimeModelRow({
           </Button>
         ) : (
           // Icon only next to the row on wide screens; on a phone the row
-          // stacks, so the button names what it removes.
+          // stacks, so the button names what it removes. The name starts
+          // with that visible text, so voice control finds it (WCAG 2.5.3).
           <Button
             type="button"
             variant="ghost"
             size="compact"
-            aria-label={`Zeitmodell ${model.name || "ohne Namen"} entfernen`}
+            aria-label={`Zeitmodell entfernen: ${model.name || "ohne Namen"}`}
             onClick={onRemove}
           >
             <X className="h-4 w-4" aria-hidden="true" />

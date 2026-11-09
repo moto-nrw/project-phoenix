@@ -53,7 +53,7 @@ const OPEN_FILTER_LABELS: Record<Exclude<OpenFilter, "">, string> = {
 
 function euroCell(cents: number) {
   return cents === 0 ? (
-    <span className="text-gray-400 tabular-nums">{formatEuro(0)}</span>
+    <span className="text-gray-500 tabular-nums">{formatEuro(0)}</span>
   ) : (
     <span className="tabular-nums">{formatEuro(cents)}</span>
   );
@@ -155,7 +155,7 @@ const COLUMNS: DataTableColumn<BillingFamily>[] = [
           {formatEuro(family.openCents)}
         </span>
       ) : (
-        <span className="text-gray-400 tabular-nums">{formatEuro(0)}</span>
+        <span className="text-gray-500 tabular-nums">{formatEuro(0)}</span>
       ),
     stacked: "meta",
   },

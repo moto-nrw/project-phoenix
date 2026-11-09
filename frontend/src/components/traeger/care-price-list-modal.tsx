@@ -292,13 +292,15 @@ export function CarePriceListModal({
         >
           <div className="flex flex-wrap gap-2">
             {MONTHS.map((value) => (
+              // The name comes from content: the full month for the
+              // screen reader, the short form for the eye.
               <ToggleChip
                 key={value}
                 pressed={freeMonths.includes(value)}
                 onPressedChange={(pressed) => toggleFreeMonth(value, pressed)}
-                ariaLabel={`${monthName(value)} beitragsfrei`}
               >
-                {monthShort(value)}
+                <span aria-hidden="true">{monthShort(value)}</span>
+                <span className="sr-only">{`${monthName(value)} beitragsfrei`}</span>
               </ToggleChip>
             ))}
           </div>

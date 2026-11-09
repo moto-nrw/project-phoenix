@@ -161,7 +161,7 @@ const COLUMNS: DataTableColumn<BillingFamilyDocument>[] = [
           className={
             document.openCents > 0
               ? "font-semibold text-gray-900 tabular-nums"
-              : "text-gray-400 tabular-nums"
+              : "text-gray-500 tabular-nums"
           }
         >
           {formatEuro(document.openCents)}

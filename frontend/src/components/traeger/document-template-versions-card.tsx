@@ -56,7 +56,7 @@ export function DocumentTemplateVersionsCard({
                     type="button"
                     variant="surface"
                     size="compact"
-                    aria-label={`Text von Version ${version.version} übernehmen`}
+                    aria-label={`Text übernehmen: Version ${version.version}`}
                     disabled={disabled}
                     onClick={() => onLoad(version)}
                   >

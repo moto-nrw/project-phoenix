@@ -328,7 +328,7 @@ describe("TraegerVorlagePage", () => {
         screen.getByRole("button", { name: "Standardtext laden" }),
       ).toBeDisabled();
       expect(
-        screen.getByRole("button", { name: "Text von Version 1 übernehmen" }),
+        screen.getByRole("button", { name: "Text übernehmen: Version 1" }),
       ).toBeDisabled();
       expect(
         screen.getByRole("button", { name: "Vorschau zeigen" }),
@@ -428,7 +428,7 @@ describe("TraegerVorlagePage", () => {
     renderPage();
     expect(await screen.findByLabelText(/Betreff/)).toHaveValue("Neu");
     fireEvent.click(
-      screen.getByRole("button", { name: "Text von Version 1 übernehmen" }),
+      screen.getByRole("button", { name: "Text übernehmen: Version 1" }),
     );
     expect(screen.getByLabelText(/Betreff/)).toHaveValue("Alt");
     expect(screen.getByRole("button", { name: "Speichern" })).toBeEnabled();
