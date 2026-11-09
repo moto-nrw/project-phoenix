@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import test from 'node:test';
-import { checkMigrationVersions } from './check-migration-versions.mjs';
+import { checkLocalMigrationVersions, checkMigrationVersions } from './check-migration-versions.mjs';
 import { gitTestEnvironment, initGitFixture } from './test-helpers/git-fixture.mjs';
 
 const script = resolve('scripts/check-migration-versions.mjs');
@@ -96,4 +96,45 @@ test('missing remote base fails closed', t => {
   const result = f.run('origin/missing');
   assert.equal(result.status, 2);
   assert.match(result.stderr, /Migration versions:/);
+});
+
+
+test('local branch and commit comparisons remain usable without a published parent', t => {
+  const f = fixture(t);
+  f.add(migration('001015820'));
+  f.commit();
+  f.git('branch', 'unpublished-parent');
+  const parent = f.git('rev-parse', 'HEAD');
+  f.add(migration('001015844'));
+  for (const base of ['unpublished-parent', parent]) {
+    assert.deepEqual(checkLocalMigrationVersions({ cwd: f.cwd, base }), []);
+  }
+});
+
+test('local stack refs check the current published parent as well as development', t => {
+  const f = fixture(t);
+  f.git('branch', 'parent');
+  f.add(migration('001015840'));
+  f.commit();
+  f.git('checkout', '-q', 'parent');
+  f.add(migration('001015850'));
+  f.commit();
+  f.git('checkout', '-q', 'feature');
+  f.git('fetch', '-q', 'origin');
+  const errors = checkLocalMigrationVersions({ cwd: f.cwd, base: 'parent' });
+  assert.equal(errors.length, 1);
+  assert.match(errors[0], /001015850.*origin\/parent/);
+});
+
+test('local development release accepts promoted migrations but rejects stale local additions', t => {
+  const f = fixture(t);
+  f.git('branch', 'main', 'development');
+  f.git('checkout', '-q', 'development');
+  f.add(migration('001015843'));
+  f.commit();
+  assert.deepEqual(checkLocalMigrationVersions({ cwd: f.cwd, base: 'origin/main' }), []);
+  f.add(migration('001015840'));
+  const errors = checkLocalMigrationVersions({ cwd: f.cwd, base: 'origin/main' });
+  assert.equal(errors.length, 1);
+  assert.match(errors[0], /001015840.*001015843.*origin\/development/);
 });

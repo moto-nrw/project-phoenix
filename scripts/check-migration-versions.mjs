@@ -25,8 +25,8 @@ export function fetchMigrationBases(cwd, base) {
   git(cwd, ['fetch', '--quiet', '--no-tags', 'origin', ...refs]);
 }
 
-export function checkMigrationVersions({ cwd, base = 'origin/development', head = 'HEAD', worktree = false }) {
-  const mergeBase = git(cwd, ['merge-base', base, head]);
+export function checkMigrationVersions({ cwd, base = 'origin/development', head = 'HEAD', worktree = false, comparisonBase = base }) {
+  const mergeBase = git(cwd, ['merge-base', comparisonBase, head]);
   // Disable rename detection: a renumbered migration is a new migration too.
   const added = git(cwd, ['diff', '--no-renames', '--diff-filter=A', '--name-only', '-z', mergeBase,
     ...(worktree ? [] : [head]), '--', directory]).split('\0');
@@ -45,12 +45,32 @@ export function checkMigrationVersions({ cwd, base = 'origin/development', head 
   return errors;
 }
 
+// Keep check-changed's local branch/SHA comparison contract independent of the
+// remote tips used as version ceilings. Unpublished parents have no remote tip.
+export function checkLocalMigrationVersions({ cwd, base = 'origin/development' }) {
+  let remoteBase = base.startsWith('origin/') ? base : 'origin/development';
+  if (!base.startsWith('origin/')) {
+    try {
+      git(cwd, ['show-ref', '--verify', `refs/remotes/origin/${base}`]);
+      remoteBase = `origin/${base}`;
+    } catch { /* A commit SHA or unpublished branch still compares with development. */ }
+  }
+  fetchMigrationBases(cwd, remoteBase);
+  // Release additions already in development were checked there. Still inspect
+  // local additions against development, so a dirty release cannot bypass it.
+  const release = remoteBase === 'origin/main' && git(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']) === 'development';
+  return checkMigrationVersions({ cwd, base: remoteBase, comparisonBase: release ? 'origin/development' : base, worktree: true });
+}
+
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     if (process.argv.length > 4) throw new Error('Usage: node scripts/check-migration-versions.mjs [origin/<base>] [head]');
     const base = process.argv[2] ?? `origin/${process.env.GITHUB_BASE_REF || 'development'}`;
-    fetchMigrationBases(process.cwd(), base);
-    const errors = checkMigrationVersions({ cwd: process.cwd(), base, head: process.argv[3] ?? 'HEAD', worktree: !process.argv[3] });
+    let errors;
+    if (process.argv[3]) {
+      fetchMigrationBases(process.cwd(), base);
+      errors = checkMigrationVersions({ cwd: process.cwd(), base, head: process.argv[3] });
+    } else errors = checkLocalMigrationVersions({ cwd: process.cwd(), base });
     if (errors.length) {
       console.error(errors.join('\n'));
       process.exitCode = 1;
