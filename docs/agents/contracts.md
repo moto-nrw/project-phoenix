@@ -1081,8 +1081,12 @@ address lead there too, and the old school's `account_id` and
 hour on an injected clock (`cmd/devtools/demo_expiry.go`): accesses past `expires_at`
 are deleted, and a demo school no remaining access enters is soft-deleted
 through its owner. Its sessions, of every account and portal, end in the same
-unit (`auth.revoke_school_sessions`, #6305): every request checks only the
-session family, not the school. The standing school is never hidden. A hidden school
+unit, before the school is hidden (`auth.revoke_school_sessions`, #6305; the
+operator soft delete and the demo restart end them the same way through
+`RevokeTokensByTenantID`): every request checks only the session family, not
+the school. Tenant and parent sign-ins and refreshes read their school under a
+share lock after the account lock, so none mints a session at a school whose
+sessions are ending. The standing school is never hidden. A hidden school
 holds no place against the capacity, gets no ticker, and cannot be entered:
 its subdomain resolves no tenant. An expired or deleted link answers `410` or
 `404`, and both entry pages show „Dieser Link funktioniert nicht mehr" with

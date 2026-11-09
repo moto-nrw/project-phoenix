@@ -244,6 +244,9 @@ var sessionPolicies = map[domain.SessionKind]sessionPolicy{
 	domain.SessionKind(domain.PortalParent.Name): {
 		before: requireLiveSchool,
 		facts: func(ctx context.Context, s *AccountAuthentication, b sessionBinding, r factReads) (heldFacts, error) {
+			if err := liveSchoolUnderLock(ctx, s, b, r); err != nil {
+				return heldFacts{}, err
+			}
 			guardianSchools, err := s.guardianSchoolsInTx(ctx, b.accountID, r.locked)
 			return heldFacts{guardianSchools: guardianSchools}, err
 		},
@@ -335,6 +338,9 @@ func requireLiveSchool(ctx context.Context, s *AccountAuthentication, b sessionB
 // the scope claim renews it as a parent session. The guard always read the
 // roles without a lock.
 func tenantFacts(ctx context.Context, s *AccountAuthentication, b sessionBinding, r factReads) (heldFacts, error) {
+	if err := liveSchoolUnderLock(ctx, s, b, r); err != nil {
+		return heldFacts{}, err
+	}
 	if b.tenantID > 0 {
 		mapped, err := r.mapping(ctx, s, b.accountID, b.tenantID)
 		if err != nil {
@@ -353,6 +359,26 @@ func tenantFacts(ctx context.Context, s *AccountAuthentication, b sessionBinding
 		return heldFacts{}, failed(b.op, refusal)
 	}
 	return heldFacts{roles: roles}, nil
+}
+
+// liveSchoolUnderLock re-reads, in a mint or refresh, the school the session
+// is kept at under a share lock, after the account lock (#6305). Ending a
+// school's sessions holds the school until its deletion commits
+// (auth.revoke_school_sessions): a mint or refresh that comes later waits and
+// finds the school gone, so no session survives the end of its school. The
+// validation writes nothing and reads the school before its facts.
+func liveSchoolUnderLock(ctx context.Context, s *AccountAuthentication, b sessionBinding, r factReads) error {
+	if !r.locked || b.tenantID <= 0 {
+		return nil
+	}
+	school, found, err := r.school(ctx, s, b.tenantID)
+	if err != nil {
+		return fmt.Errorf("re-check school %d of a session: %w", b.tenantID, err)
+	}
+	if !found || !school.Live() {
+		return b.refuse(s, "tenant_deleted", failed(b.op, identityaccess.ErrTenantNotFound))
+	}
+	return nil
 }
 
 // schoolFacts: the school is alive and active, the mapping is active and

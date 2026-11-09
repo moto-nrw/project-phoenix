@@ -21,44 +21,48 @@ func init() {
 	Migrations.MustRegister(demoRetirementRevokesSessionsUp, demoRetirementRevokesSessionsDown)
 }
 
-// schoolSessionRevocationSQL is the database side of Identity & Access's
-// RevokeTokensByTenantID (#6305): it ends every session a school holds, of
-// every account and portal. Every request checks the family its access token
-// names (#5194), so a deleted family ends the session at once.
+// schoolSessionRevocationSQL ends every session a school holds, of every
+// account and portal (#6305), and returns the ended rows. It belongs to
+// Identity & Access: RevokeTokensByTenantID (operator soft delete, demo
+// restart) and the demo retirement both call it. Every request checks the
+// family its access token names (#5194), so a deleted family ends the
+// session at once.
 //
-// It locks the accounts of those sessions first, the lock refresh, switch
-// and logout take before they touch a session, and deletes in a statement of
-// its own afterwards: a rotation that committed while the lock was awaited
-// has its successor deleted too, one that starts later finds no session.
-// The caller's lock_timeout bounds each wait. It writes no audit event: the
-// audit evidence of a revocation carries a keyed fingerprint of the family,
-// which only the application can compute, and a retired demo school is
-// erased with its visitor.
+// Its locks follow the order of every sign-in, switch, refresh and logout:
+// the account first, then the school.
+//   - It locks the accounts of the school's sessions. A rotation that commits
+//     while that lock is awaited has its successor deleted too, because the
+//     delete is a statement of its own afterwards.
+//   - It then holds the school row until the caller commits. A sign-in or
+//     refresh takes a share lock on the school under its account lock and
+//     reads it there: one that came first is waited for and its session
+//     deleted, one that comes later waits and finds the school gone.
 //
-// It belongs to the auth schema and runs with the rights of its caller;
-// nobody but the owner may execute it.
+// Callers hide or delete the school after the call, in the same
+// transaction, so none holds the school before an account. The caller's
+// lock_timeout bounds each wait. It runs with its caller's rights; only
+// phoenix_admin, the role of the administrative transaction, may call it,
+// and the demo retirement runs as its owner.
 const schoolSessionRevocationSQL = `
 		CREATE FUNCTION auth.revoke_school_sessions(school_id BIGINT)
-		RETURNS INTEGER
+		RETURNS SETOF auth.tokens
 		LANGUAGE plpgsql
 		VOLATILE
 		SET search_path = pg_catalog
 		AS $$
-		DECLARE
-			revoked INTEGER;
 		BEGIN
 			PERFORM 1 FROM auth.accounts AS account
 			WHERE account.id IN (SELECT token.account_id FROM auth.tokens AS token WHERE token.tenant_id = school_id)
 			ORDER BY account.id
 			FOR NO KEY UPDATE;
-			DELETE FROM auth.tokens AS token WHERE token.tenant_id = school_id;
-			GET DIAGNOSTICS revoked = ROW_COUNT;
-			RETURN revoked;
+			PERFORM 1 FROM platform.schools AS school WHERE school.id = school_id FOR NO KEY UPDATE;
+			RETURN QUERY DELETE FROM auth.tokens AS token WHERE token.tenant_id = school_id RETURNING token.*;
 		END;
 		$$;
 		REVOKE ALL ON FUNCTION auth.revoke_school_sessions(BIGINT) FROM PUBLIC;
+		GRANT EXECUTE ON FUNCTION auth.revoke_school_sessions(BIGINT) TO phoenix_admin;
 		COMMENT ON FUNCTION auth.revoke_school_sessions(BIGINT) IS
-			'Identity & Access (#6305): ends every session of the school, accounts locked first. Called by the demo retirement in the unit that hides the school.';
+			'Identity & Access (#6305): ends every session of the school, accounts locked first, then the school until commit. Called before the school is hidden or deleted.';
 `
 
 // demoRetirementRevokesSessionsSQL is platform.retire_expired_demo_schools
@@ -70,10 +74,13 @@ const schoolSessionRevocationSQL = `
 // family an access token names, so the school stayed open to its access
 // tokens, and a switch could start from it.
 //
-// A session lock in use defers the order like every other lock of the unit:
-// school and sessions stay as they were, one log line notes the deferral,
-// and the next run finds the order again. The rest of the function is
-// unchanged. CREATE OR REPLACE keeps its grants (phoenix_demo only).
+// The sessions end before the school is hidden, in the lock order of a
+// sign-in (account, then school). A session lock in use defers the order
+// like every other lock of the unit: school and sessions stay as they were,
+// one log line notes the deferral, and the next run finds the order again.
+// A retired school writes one log line with the number of ended sessions.
+// The rest of the function is unchanged. CREATE OR REPLACE keeps its grants
+// (phoenix_demo only).
 const demoRetirementRevokesSessionsSQL = `
 		CREATE OR REPLACE FUNCTION platform.retire_expired_demo_schools(names TEXT[])
 		RETURNS TABLE(hidden INTEGER, erased INTEGER)
@@ -90,6 +97,7 @@ const demoRetirementRevokesSessionsSQL = `
 			changed INTEGER;
 			tried INTEGER := 0;
 			hidden_school BIGINT;
+			ended INTEGER;
 		BEGIN
 			hidden := 0;
 			erased := 0;
@@ -147,24 +155,34 @@ const demoRetirementRevokesSessionsSQL = `
 					IF EXISTS (SELECT 1 FROM auth.demo_accesses AS access WHERE access.school_slug = target_name) THEN
 						CONTINUE;
 					END IF;
+					-- The school's sessions end with it, in this subtransaction
+					-- (#6305): every request checks the family an access token
+					-- names, not the school. They end first, in the lock order of
+					-- a sign-in; a session lock in use defers the order, its
+					-- hiding included.
+					SELECT school.id INTO hidden_school
+						FROM platform.demo_school_states AS state
+						JOIN platform.schools AS school ON school.id = state.tenant_id
+						WHERE state.name = target_name
+							AND (state.status = 'ready' OR (state.status = 'preparing' AND state.claimed_at IS NULL))
+							AND school.deleted_at IS NULL;
+					ended := 0;
+					IF hidden_school IS NOT NULL THEN
+						SELECT count(*) INTO ended FROM auth.revoke_school_sessions(hidden_school);
+					END IF;
 					UPDATE platform.schools AS school SET deleted_at = NOW()
 						FROM platform.demo_school_states AS state
 						WHERE state.name = target_name
 							AND (state.status = 'ready' OR (state.status = 'preparing' AND state.claimed_at IS NULL))
-							AND school.id = state.tenant_id AND school.deleted_at IS NULL
-						RETURNING school.id INTO hidden_school;
+							AND school.id = state.tenant_id AND school.deleted_at IS NULL;
 					GET DIAGNOSTICS changed = ROW_COUNT;
-					-- The school's sessions end with it, in this subtransaction
-					-- (#6305): every request checks the family an access token
-					-- names, not the school. A session lock in use defers the
-					-- order, its hiding included.
-					IF changed > 0 THEN
-						PERFORM auth.revoke_school_sessions(hidden_school);
-					END IF;
 					UPDATE platform.demo_school_states AS state SET status = 'failed'
 						WHERE state.name = target_name AND state.status = 'preparing' AND state.claimed_at IS NULL
 							AND NOT EXISTS (SELECT 1 FROM auth.demo_accesses AS access WHERE access.school_slug = state.name);
 					hidden_count := hidden_count + changed;
+					IF changed > 0 THEN
+						RAISE LOG 'demo school % of order % retired: % sessions ended', hidden_school, target_name, ended;
+					END IF;
 				EXCEPTION WHEN lock_not_available OR deadlock_detected THEN
 					PERFORM platform.defer_demo_order(target_name, 'retirement', SQLSTATE);
 				END;
@@ -180,11 +198,11 @@ const demoRetirementRevokesSessionsSQL = `
 // hidden before this migration. Only a school with a recorded demo origin
 // (platform.demo_school_origins, #5544) is touched.
 const demoRetiredSchoolSessionsBackfillSQL = `
-		SELECT auth.revoke_school_sessions(school.id)
+		SELECT count(*)
 		FROM platform.schools AS school
-		JOIN platform.demo_school_origins AS origin ON origin.school_id = school.id
-		WHERE school.deleted_at IS NOT NULL
-		ORDER BY school.id;
+		JOIN platform.demo_school_origins AS origin ON origin.school_id = school.id,
+			LATERAL auth.revoke_school_sessions(school.id) AS ended
+		WHERE school.deleted_at IS NOT NULL;
 `
 
 func demoRetirementRevokesSessionsUp(ctx context.Context, db *bun.DB) error {

@@ -10,45 +10,46 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.833 changes only the hiding step of the retirement of 1.15.734: the
-// hidden school's id is kept and its sessions end in the same unit (#6305).
-// Every lock rule of #5540 stays as TestDemoVisitorErasureNeverWaitsForALock
+// 1.15.833 adds to the retirement of 1.15.734 only the end of the school's
+// sessions before it is hidden, and one log line per retired school
+// (#6305). Without these additions the function is that of 1.15.734, so
+// every lock rule of #5540 stays as TestDemoVisitorErasureNeverWaitsForALock
 // pins it.
-func TestDemoRetirementRevokesSessionsChangesOnlyTheHiding(t *testing.T) {
+func TestDemoRetirementRevokesSessionsAddsOnlyTheRevocation(t *testing.T) {
 	t.Parallel()
-	declared := "\t\t\ttried INTEGER := 0;\n"
-	hiding := "\t\t\t\t\t\t\tAND school.id = state.tenant_id AND school.deleted_at IS NULL;\n\t\t\t\t\tGET DIAGNOSTICS changed = ROW_COUNT;\n"
 	of734 := demoSchoolRetirementWithoutWaitSQL[strings.Index(demoSchoolRetirementWithoutWaitSQL,
 		"CREATE OR REPLACE FUNCTION platform.retire_expired_demo_schools"):]
 	assert.Equal(t, of734, strings.TrimLeft(demoRetirementOf734SQL, "\n\t"), "the down restores the retirement of 1.15.734")
-	require.Equal(t, 1, strings.Count(of734, declared))
-	require.Equal(t, 1, strings.Count(of734, hiding))
-	expected := strings.Replace(of734, declared, declared+"\t\t\thidden_school BIGINT;\n", 1)
-	expected = strings.Replace(expected, hiding, strings.TrimSuffix(hiding, ";\n\t\t\t\t\tGET DIAGNOSTICS changed = ROW_COUNT;\n")+`
-						RETURNING school.id INTO hidden_school;
-					GET DIAGNOSTICS changed = ROW_COUNT;
-					-- The school's sessions end with it, in this subtransaction
-					-- (#6305): every request checks the family an access token
-					-- names, not the school. A session lock in use defers the
-					-- order, its hiding included.
-					IF changed > 0 THEN
-						PERFORM auth.revoke_school_sessions(hidden_school);
-					END IF;
-`, 1)
-	assert.Equal(t, expected, strings.TrimLeft(demoRetirementRevokesSessionsSQL, "\n\t"))
+	added := []string{
+		"\t\t\thidden_school BIGINT;\n\t\t\tended INTEGER;\n",
+		"\t\t\t\t\t-- The school's sessions end with it, in this subtransaction\n\t\t\t\t\t-- (#6305): every request checks the family an access token\n\t\t\t\t\t-- names, not the school. They end first, in the lock order of\n\t\t\t\t\t-- a sign-in; a session lock in use defers the order, its\n\t\t\t\t\t-- hiding included.\n\t\t\t\t\tSELECT school.id INTO hidden_school\n\t\t\t\t\t\tFROM platform.demo_school_states AS state\n\t\t\t\t\t\tJOIN platform.schools AS school ON school.id = state.tenant_id\n\t\t\t\t\t\tWHERE state.name = target_name\n\t\t\t\t\t\t\tAND (state.status = 'ready' OR (state.status = 'preparing' AND state.claimed_at IS NULL))\n\t\t\t\t\t\t\tAND school.deleted_at IS NULL;\n\t\t\t\t\tended := 0;\n\t\t\t\t\tIF hidden_school IS NOT NULL THEN\n\t\t\t\t\t\tSELECT count(*) INTO ended FROM auth.revoke_school_sessions(hidden_school);\n\t\t\t\t\tEND IF;\n",
+		"\t\t\t\t\tIF changed > 0 THEN\n\t\t\t\t\t\tRAISE LOG 'demo school % of order % retired: % sessions ended', hidden_school, target_name, ended;\n\t\t\t\t\tEND IF;\n",
+	}
+	without := strings.TrimLeft(demoRetirementRevokesSessionsSQL, "\n\t")
+	for _, addition := range added {
+		require.Equal(t, 1, strings.Count(without, addition), addition)
+		without = strings.Replace(without, addition, "", 1)
+	}
+	assert.Equal(t, of734, without)
+	assert.Less(t, strings.Index(demoRetirementRevokesSessionsSQL, "auth.revoke_school_sessions(hidden_school)"),
+		strings.Index(demoRetirementRevokesSessionsSQL, "UPDATE platform.schools AS school SET deleted_at = NOW()"),
+		"the sessions end before the school is hidden: account before school")
 }
 
-// The revocation belongs to Identity & Access and no role may call it: the
-// demo role reaches it only through the retirement, which runs as its owner,
-// and gets no grant on auth.tokens for it.
-func TestSchoolSessionRevocationIsNoRolesToCall(t *testing.T) {
+// The revocation belongs to Identity & Access. Only the administrative
+// transaction's role may call it (RevokeTokensByTenantID); the demo role
+// reaches it only through the retirement, which runs as its owner, and gets
+// no grant on auth.tokens for it.
+func TestSchoolSessionRevocationIsTheAdministrativeRolesAlone(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := t.Context()
-	for _, role := range []string{"phoenix_demo", "phoenix_admin", "phoenix_tenant", "phoenix_auth"} {
+	for role, allowed := range map[string]bool{
+		"phoenix_admin": true, "phoenix_demo": false, "phoenix_tenant": false, "phoenix_auth": false,
+	} {
 		var canCall bool
 		require.NoError(t, db.NewRaw(`SELECT has_function_privilege(?, 'auth.revoke_school_sessions(bigint)', 'EXECUTE')`, role).Scan(ctx, &canCall))
-		assert.False(t, canCall, role)
+		assert.Equal(t, allowed, canCall, role)
 	}
 	var canWrite bool
 	require.NoError(t, db.NewRaw(`SELECT has_table_privilege('phoenix_demo', 'auth.tokens', 'DELETE')

@@ -56,21 +56,32 @@ runtime authorization.
 
 ## Addendum 2026-11-09: the retirement ends the school's sessions (#6305)
 
+Vorgeschlagen am 09.11.2026 für
+[#6305](https://github.com/moto-nrw/project-phoenix/issues/6305).
+
 Every request checks the session family its access token names, not the
 school (#5194). A session the hourly run left behind therefore kept a hidden
 Demo-Schule open until its access token expired, and a school switch could
 start from it; the erasure removes only the visitor's own sessions, and a lock
 can defer it to a later run.
 
-`platform.retire_expired_demo_schools` now ends every session of a school in
-the subtransaction that hides it, of every account and portal, through
-`auth.revoke_school_sessions`. That function belongs to Identity & Access and
-is the database side of its `RevokeTokensByTenantID`: it locks the accounts of
-the sessions first, as refresh, switch and logout do, then deletes them. It
-runs with its caller's rights, and no role may execute it; the demo role
-reaches it only through the retirement and gets no grant on `auth.tokens`. A
-session lock in use defers the whole order under the retirement's
+`platform.retire_expired_demo_schools` now ends every session of a school, of
+every account and portal, in the subtransaction that hides it, through
+`auth.revoke_school_sessions`, and writes one log line per retired school.
+That function belongs to Identity & Access; its `RevokeTokensByTenantID`
+(operator soft delete, demo restart) calls the same function, so the database
+holds one revocation. It takes its locks in the order of a sign-in: the
+accounts of the sessions first, as refresh, switch and logout do, then the
+school row, which it holds until the caller commits; only then does it delete.
+Every caller ends the sessions before it hides or deletes the school. Tenant
+and parent sign-ins and refreshes read the school under a share lock after the
+account lock, so none mints a session at a school whose sessions are ending.
+
+The function runs with its caller's rights. Only `phoenix_admin` may execute
+it; the demo role reaches it only through the retirement and gets no grant on
+`auth.tokens`. A lock in use defers the whole order under the retirement's
 `lock_timeout`, school and sessions unchanged. This is no new cross-owner
-workflow: it is a step of this one, limited to the school the run hides. It
-writes no `token_revoked` audit event, because that evidence carries a keyed
-family fingerprint only the application can compute.
+workflow: it is a step of this one, limited to the school the run hides. The
+retirement writes no `token_revoked` audit event, because that evidence
+carries a keyed family fingerprint only the application can compute; its log
+line names the school, the order and the number of ended sessions.
