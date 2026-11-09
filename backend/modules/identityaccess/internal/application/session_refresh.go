@@ -154,6 +154,7 @@ type refreshRotation struct {
 	plan              refreshPlan
 	account           domain.LoginAccount
 	payload           *domain.AccountClaimsPayload
+	catererSchoolID   int64
 	newSession        domain.AccountSession
 	recovered         bool
 	rejectAfterCommit error
@@ -215,7 +216,10 @@ func (r *refreshRotation) lockAccount(ctx context.Context) error {
 		return err
 	}
 	r.payload, err = r.service.eligibleClaims(ctx, r.plan.eligible, r.account)
-	return err
+	if err != nil || r.plan.portal.Name != domain.PortalCaterer.Name {
+		return err
+	}
+	return r.lockCatererSessionSchool(ctx, unlocked)
 }
 
 func (r *refreshRotation) presentedSession(ctx context.Context) (domain.AccountSession, error) {
@@ -270,9 +274,13 @@ func (r *refreshRotation) reject(ctx context.Context, session domain.AccountSess
 }
 
 func (r *refreshRotation) persist(ctx context.Context, current domain.AccountSession, wasRecovered bool, now time.Time) error {
-	effectiveTenantID, err := r.plan.successor(ctx, r.account.ID, current)
-	if err != nil {
-		return err
+	effectiveTenantID := r.catererSchoolID
+	if effectiveTenantID == 0 {
+		var err error
+		effectiveTenantID, err = r.plan.successor(ctx, r.account.ID, current)
+		if err != nil {
+			return err
+		}
 	}
 	capped := capLegacyLineage(&current)
 	r.recovered = wasRecovered
@@ -292,7 +300,7 @@ func (r *refreshRotation) persist(ctx context.Context, current domain.AccountSes
 			return err
 		}
 	}
-	_, err = r.service.stampLiveAccount(ctx, r.account.ID)
+	_, err := r.service.stampLiveAccount(ctx, r.account.ID)
 	return err
 }
 

@@ -10,6 +10,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -216,4 +217,72 @@ func TestCatererLoginWhileItsSchoolEndsMintsNoSession(t *testing.T) {
 
 	assert.Error(t, loginErr, "the sign-in finds its school gone")
 	assert.Zero(t, sessionsAtSchool(t, db, schoolID), "no session is kept at the deleted school")
+}
+
+// A caterer's first login can commit after revocation enumerates accounts.
+// The remaining revocation holds the school and deletes its sessions without
+// that account lock. Refresh must wait for the school before locking its token.
+func TestCatererRefreshAndSchoolDeletionShareLockOrder(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	module := setupAuthFactory(t, db)
+	caterers := module.Caterers()
+	schoolID := testpkg.Tenant(t)
+	staff := testpkg.CreateTestAccount(t, db, "caterer-refresh-deletion-staff")
+	email := fmt.Sprintf("caterer-refresh-deletion-%d@example.com", time.Now().UnixNano())
+	_, err := accept(t, db, caterers, schoolID, invite(t, db, caterers, schoolID, staff.ID, email),
+		identityaccess.CatererRegistration{Password: catererPassword, ConfirmPassword: catererPassword})
+	require.NoError(t, err)
+	_, refresh, err := loginCaterer(caterers, email, catererPassword, "", "")
+	require.NoError(t, err)
+	require.Equal(t, 1, sessionsAtSchool(t, db, schoolID))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	deletion, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	var workers sync.WaitGroup
+	defer func() {
+		_ = deletion.Rollback()
+		cancel()
+		workers.Wait()
+	}()
+	var deletionPID int
+	require.NoError(t, deletion.NewRaw(`SELECT pg_backend_pid()`).Scan(ctx, &deletionPID))
+	_, err = deletion.NewRaw(`SELECT id FROM platform.schools WHERE id = ? FOR NO KEY UPDATE`, schoolID).Exec(ctx)
+	require.NoError(t, err)
+
+	refreshed := make(chan error, 1)
+	workers.Add(1)
+	go func() {
+		defer workers.Done()
+		_, _, err := module.RefreshTokenWithAudit(ctx, refresh, "", "", "")
+		refreshed <- err
+	}()
+	require.Eventually(t, func() bool {
+		var waiting int
+		err := db.NewRaw(`SELECT count(*) FROM pg_stat_activity
+			WHERE datname = current_database() AND ? = ANY(pg_blocking_pids(pid))`, deletionPID).Scan(ctx, &waiting)
+		return err == nil && waiting > 0
+	}, 5*time.Second, 10*time.Millisecond, "refresh waits for the school held by deletion")
+
+	// These are the remaining statements of revoke_school_sessions and its
+	// caller after the school lock, with the new account absent from its snapshot.
+	_, revokeErr := deletion.NewRaw(`DELETE FROM auth.tokens WHERE tenant_id = ?`, schoolID).Exec(ctx)
+	if revokeErr == nil {
+		_, revokeErr = deletion.NewRaw(`UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, schoolID).Exec(ctx)
+	}
+	if revokeErr == nil {
+		revokeErr = deletion.Commit()
+	} else {
+		require.NoError(t, deletion.Rollback())
+	}
+	assert.NoError(t, revokeErr, "school deletion must not deadlock with refresh")
+	select {
+	case refreshErr := <-refreshed:
+		assert.ErrorIs(t, refreshErr, identityaccess.ErrTenantNotFound, "refresh sees the committed deletion")
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	assert.Zero(t, sessionsAtSchool(t, db, schoolID), "no successor survives deletion")
 }
