@@ -58,9 +58,24 @@ func staffFinancialDataSealedUp(ctx context.Context, db *bun.DB) error {
 	return nil
 }
 
-// staffFinancialDataSealedDown refuses while a sealed value exists, like
-// guardianFinancialDataSealedDown.
+// staffFinancialDataSealedDown refuses while a sealed value exists, locked
+// before the check like guardianFinancialDataSealedDown.
 func staffFinancialDataSealedDown(ctx context.Context, db *bun.DB) error {
-	return dropSealedBankColumns(ctx, db, "users.staff_financial_data",
-		`iban_sealed IS NOT NULL OR tax_id_sealed IS NOT NULL OR social_security_number_sealed IS NOT NULL`, staffFinancialDataSealedDownSQL, "staff")
+	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		if _, err := tx.ExecContext(ctx, `LOCK TABLE users.staff_financial_data IN ACCESS EXCLUSIVE MODE`); err != nil {
+			return fmt.Errorf("lock the staff bank data: %w", err)
+		}
+		var sealed int
+		if err := tx.NewRaw(`SELECT count(*) FROM users.staff_financial_data
+   WHERE iban_sealed IS NOT NULL OR tax_id_sealed IS NOT NULL OR social_security_number_sealed IS NOT NULL`).Scan(ctx, &sealed); err != nil {
+			return fmt.Errorf("count sealed staff bank values: %w", err)
+		}
+		if sealed > 0 {
+			return fmt.Errorf("%w: %d staff rows", errSealedBankDataRollback, sealed)
+		}
+		if _, err := tx.ExecContext(ctx, staffFinancialDataSealedDownSQL); err != nil {
+			return fmt.Errorf("drop the sealed staff bank columns: %w", err)
+		}
+		return nil
+	})
 }
