@@ -55,7 +55,9 @@ func (s *TemplateService) reconcilePredecessorInstanceStaff(
 	if err != nil {
 		return err
 	}
-	if pass.sickDays, err = s.sickDaysOfOccurrences(ctx, instances); err != nil {
+	// recurrence (held by the caller) → occurrence days ascending → reports
+	// (I-2).
+	if pass.sickDays, err = lockedSickDays(ctx, s.deps.DayLocks, s.deps.SickReports, occurrenceDays(instances)...); err != nil {
 		return err
 	}
 	for _, inst := range instances {
@@ -157,10 +159,7 @@ func (s *TemplateService) addOccurrenceStaff(ctx context.Context, key instanceSt
 	}
 	// A person the series change plans on a full sick day is planned
 	// absent, as the materializer plans them (#6292).
-	if absenceID, sick := pass.sickDays[staffDay{staffID: key.studentID, date: date}]; sick {
-		stampSickAbsence(fresh, absenceID)
-	}
-	if err := createLegacyInstanceStaff(ctx, s.deps.InstanceStaffRepo, fresh); err != nil {
+	if err := writeStaffAssignment(ctx, s.deps.InstanceStaffRepo, fresh, date, pass.sickDays, false); err != nil {
 		return &ports.ScheduleError{Op: "reconcile predecessor staff: add staff", Err: err}
 	}
 	pass.existing[key] = fresh
@@ -333,4 +332,13 @@ func sortedInt64Keys(set map[int64]bool) []int64 {
 	}
 	slices.Sort(out)
 	return out
+}
+
+// occurrenceDays lists the occurrence dates.
+func occurrenceDays(instances []*scheduleModel.ActivityInstance) []calendar.Date {
+	days := make([]calendar.Date, 0, len(instances))
+	for _, inst := range instances {
+		days = append(days, calendar.Date(inst.Date))
+	}
+	return days
 }

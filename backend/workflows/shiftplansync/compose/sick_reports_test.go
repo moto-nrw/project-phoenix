@@ -82,7 +82,7 @@ func (c *sickReportCalls) ReconcileSickRange(_ context.Context, before, after wo
 	return c.cascadeErr
 }
 
-func (c *sickReportCalls) ReassignSickStamps(context.Context, int64, int64) error {
+func (c *sickReportCalls) ReassignSickStamps(context.Context, int64, workforce.SickCascadeInput) error {
 	c.calls = append(c.calls, "reassign")
 	return c.cascadeErr
 }

@@ -52,8 +52,9 @@ type SickCascade interface {
 	// history stay stable. Both inputs refer to the same absence and subject.
 	ReconcileSickRange(ctx context.Context, before, after workforce.SickCascadeInput) error
 	// ReassignSickStamps re-points every provenance stamp from one absence id
-	// to another. Merging sick reports deletes the secondary absence rows,
-	// and their stamps must transfer to the surviving primary or the
-	// eventual reversal will miss those rows.
-	ReassignSickStamps(ctx context.Context, fromAbsenceID, toAbsenceID int64) error
+	// to the surviving report. Merging sick reports deletes the secondary
+	// absence rows, and their stamps must transfer to the surviving primary
+	// or the eventual reversal will miss those rows. The survivor's range
+	// names the days it locks first.
+	ReassignSickStamps(ctx context.Context, fromAbsenceID int64, survivor workforce.SickCascadeInput) error
 }

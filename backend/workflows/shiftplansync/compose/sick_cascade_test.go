@@ -913,7 +913,9 @@ func TestSickCascade_ReassignSickStamps(t *testing.T) {
 
 	newOwner := absenceID + 1000
 	e.inTx(t, func(ctx context.Context) error {
-		return e.cascade.ReassignSickStamps(ctx, absenceID, newOwner)
+		return e.cascade.ReassignSickStamps(ctx, absenceID, workforce.SickCascadeInput{
+			SubjectStaffID: e.subject.ID, AbsenceID: newOwner, DateStart: tomorrow.String(), DateEnd: tomorrow.String(),
+		})
 	})
 
 	reloadedShift := e.reloadShift(t, shift.ID)

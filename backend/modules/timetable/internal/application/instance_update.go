@@ -208,7 +208,7 @@ func (s *InstanceLifecycleService) replaceInstanceAssignments(ctx context.Contex
 			return err
 		}
 	}
-	sickDays, err := s.sickDaysOn(ctx, calendar.Date(instance.Date))
+	sickDays, err := lockedSickDays(ctx, s.deps.Database, s.deps.SickReports, calendar.Date(instance.Date))
 	if err != nil {
 		return err
 	}
@@ -224,11 +224,9 @@ func (s *InstanceLifecycleService) replaceInstanceAssignments(ctx context.Contex
 	tenantID := tenant.FromContext(ctx)
 	for _, staffID := range newStaffIDs {
 		row := recreatedStaffRow(instance.ID, staffID, priorByStaff[staffID], rosterUnchanged)
-		if priorByStaff[staffID] == nil || moved {
-			applySickReportOfDay(row, sickDays[staffDay{staffID: staffID, date: calendar.Date(instance.Date)}])
-		}
 		row.SetTenantID(tenantID)
-		if err := createLegacyInstanceStaff(ctx, s.deps.InstanceStaffRepo, row); err != nil {
+		carried := priorByStaff[staffID] != nil && !moved
+		if err := writeStaffAssignment(ctx, s.deps.InstanceStaffRepo, row, calendar.Date(instance.Date), sickDays, carried); err != nil {
 			return &ports.ScheduleError{Op: "update instance: assign staff", Err: err}
 		}
 	}

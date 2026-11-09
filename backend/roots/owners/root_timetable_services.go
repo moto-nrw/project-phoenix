@@ -101,7 +101,7 @@ func BuildTimetableLifecycle(
 	if err != nil {
 		return TimetableLifecycle{}, fmt.Errorf("compose timetable instance lifecycle: %w", err)
 	}
-	deviations, err := buildTimetableDeviations(db, env, hub, rows, people, supervisions, instances)
+	deviations, err := buildTimetableDeviations(db, env, hub, rows, people, supervisions, instances, sickReports)
 	if err != nil {
 		return TimetableLifecycle{}, err
 	}
@@ -113,13 +113,13 @@ func BuildTimetableLifecycle(
 
 // buildTimetableDeviations binds the deviation writes: the cancel branch and
 // the understaffed acknowledgement hand over to the lifecycle.
-func buildTimetableDeviations(db transactionruntime.Database, env RootEnvironment, hub *realtime.Hub, rows arrivalTimetable.OwnerRows, people PeopleRows, supervisions studentpresence.SupervisionRecords, instances timetablePorts.InstanceLifecycle) (timetable.StaffDeviations, error) {
+func buildTimetableDeviations(db transactionruntime.Database, env RootEnvironment, hub *realtime.Hub, rows arrivalTimetable.OwnerRows, people PeopleRows, supervisions studentpresence.SupervisionRecords, instances timetablePorts.InstanceLifecycle, sickReports timetablePorts.SickReportReader) (timetable.StaffDeviations, error) {
 	deps, err := TimetableStaffDeviationDependencies(rows, NewTimetableStaff(people.Staff), supervisions,
 		instances.DeviationLifecycle(), hub, env.Logger.With("service", "timetable-deviations"), env.Now)
 	if err != nil {
 		return nil, fmt.Errorf("compose timetable deviations: %w", err)
 	}
-	deps.Locks = arrivalTimetable.NewTenantDatabase(db.Pool())
+	deps.Locks, deps.SickReports = arrivalTimetable.NewTenantDatabase(db.Pool()), sickReports
 	deviations, err := arrivalTimetable.NewStaffDeviations(deps)
 	if err != nil {
 		return nil, fmt.Errorf("compose timetable deviations: %w", err)

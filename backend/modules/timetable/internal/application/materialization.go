@@ -52,8 +52,8 @@ import (
 //   - Sick reports apply to new rows (#6292). A supervisor planned on a full
 //     day of an open sick report is inserted absent with the report's stamp,
 //     like the rows the sick cascade marked when the report came in. The run
-//     holds every window day lock (recurrence → days ascending) while it
-//     reads the reports, so it serializes against the cascade.
+//     takes every window day lock (recurrence → days ascending) before it
+//     reads the reports, so it serializes against the cascade (I-2).
 
 const materializeForTenantOp = "materialize for tenant"
 
@@ -158,9 +158,6 @@ func (s *materializationService) MaterializeForTenant(
 		// upcoming roster with nothing left to remove them (#405 review).
 		if err := s.lock.LockRecurrenceWritesThenGradeTransitions(ctx); err != nil {
 			return nil, &ports.ScheduleError{Op: "materialize for tenant: lock recurrence", Err: err}
-		}
-		if err := s.lockWindowDays(ctx, tenantID, from, to); err != nil {
-			return nil, err
 		}
 	}
 
@@ -357,7 +354,9 @@ func (s *materializationService) loadMaterializationWorld(
 		return nil, &ports.ScheduleError{Op: "materialize for tenant: load existing instances", Err: err}
 	}
 	world.existingIdx = buildExistingIndex(existing)
-	world.sickDays, err = s.loadSickDays(ctx, from, to)
+	// Every window day is locked before the sick reports are read (I-2),
+	// past days included: the run stamps those as well.
+	world.sickDays, err = lockedSickDays(ctx, s.dayLocks, s.sickReports, daysBetween(from, to)...)
 	if err != nil {
 		return nil, err
 	}
@@ -786,10 +785,7 @@ func (s *materializationService) copySupervisors(
 		}
 		// A supervisor on a full sick day is planned absent, exactly as the
 		// sick cascade marks rows that existed when the report came in.
-		if absenceID, sick := sickDays[staffDay{staffID: sup.StaffID, date: date}]; sick {
-			stampSickAbsence(row, absenceID)
-		}
-		if err := createLegacyInstanceStaff(ctx, s.staffRepo, row); err != nil {
+		if err := writeStaffAssignment(ctx, s.staffRepo, row, date, sickDays, false); err != nil {
 			return &ports.ScheduleError{Op: "materialize template: copy supervisor", Err: err}
 		}
 		result.InstanceStaffCreated++

@@ -123,7 +123,7 @@ func (r *SickReports) applyStep(ctx context.Context, step workforce.SickCascadeS
 			return fmt.Errorf("absence update saved nothing — plan cascade reconciliation failed: %w", err)
 		}
 	case workforce.SickCascadeReassign:
-		if err := r.cascade.ReassignSickStamps(ctx, step.FromAbsenceID, step.ToAbsenceID); err != nil {
+		if err := r.cascade.ReassignSickStamps(ctx, step.FromAbsenceID, step.Report); err != nil {
 			return fmt.Errorf("failed to merge absence — plan stamp reassignment failed: %w", err)
 		}
 	default:

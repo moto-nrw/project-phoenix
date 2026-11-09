@@ -273,9 +273,16 @@ func (s *InstanceLifecycleService) executeStaffMove(ctx context.Context, plan *s
 // creates the pool row. On the target the person is an ordinary planned
 // assignment, so the deviation state and the source room split reset.
 func (s *InstanceLifecycleService) placeMovedStaff(ctx context.Context, plan *staffMovePlan, activeTouched map[int64]*scheduleModel.ActivityInstance) error {
+	// The move holds the target's day lock; the sick report of that day is
+	// read under it (I-2) and decides the moved person's absence (I-1).
+	day := calendar.Date(plan.target.Date)
+	sickDays, err := lockedSickDays(ctx, s.deps.Database, s.deps.SickReports, day)
+	if err != nil {
+		return timetable.DeviationInternal("load sick reports failed", err)
+	}
 	if plan.action != timetable.MoveStaffActionMoved {
 		newRow := &scheduleModel.InstanceStaff{InstanceID: plan.target.ID, StaffID: plan.staffID}
-		if err := createLegacyInstanceStaff(ctx, s.deps.InstanceStaffRepo, newRow); err != nil {
+		if err := writeStaffAssignment(ctx, s.deps.InstanceStaffRepo, newRow, day, sickDays, false); err != nil {
 			return timetable.DeviationInternal("assign staff row failed", err)
 		}
 		return nil
@@ -288,7 +295,7 @@ func (s *InstanceLifecycleService) placeMovedStaff(ctx context.Context, plan *st
 	row.IsAbsent = false
 	row.AbsenceReason = nil
 	row.SickAbsenceID = nil
-	if err := updateLegacyInstanceStaff(ctx, s.deps.InstanceStaffRepo, row); err != nil {
+	if err := writeStaffAssignment(ctx, s.deps.InstanceStaffRepo, row, day, sickDays, false); err != nil {
 		return timetable.DeviationInternal("move staff row failed", err)
 	}
 	if plan.source.Status == scheduleModel.InstanceStatusActive && plan.source.ActiveGroupID != nil {

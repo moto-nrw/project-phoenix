@@ -195,7 +195,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return TimetableTestModule{}, nil, nil, err
 	}
-	deviationDeps.Locks = arrivalTimetable.NewTenantDatabase(db.Pool())
+	deviationDeps.Locks, deviationDeps.SickReports = arrivalTimetable.NewTenantDatabase(db.Pool()), owners.NewTimetableSickReports(owners.MustNewWorkforce(db))
 	deviations, err := arrivalTimetable.NewStaffDeviations(deviationDeps)
 	if err != nil {
 		return TimetableTestModule{}, nil, nil, err

@@ -733,7 +733,9 @@ func (noopShiftPlanSyncer) ClearSickForRange(context.Context, SickCascadeInput) 
 func (noopShiftPlanSyncer) ReconcileSickRange(context.Context, SickCascadeInput, SickCascadeInput) error {
 	return nil
 }
-func (noopShiftPlanSyncer) ReassignSickStamps(context.Context, int64, int64) error { return nil }
+func (noopShiftPlanSyncer) ReassignSickStamps(context.Context, int64, SickCascadeInput) error {
+	return nil
+}
 
 // compTimeToday is the day the comp-time tests run on. Without a configured
 // account start the Stundenkonto begins on 1 January of today's year, so the
@@ -2499,8 +2501,8 @@ func TestAbsUpdateAbsence_RejectsSickHalfDayFlip(t *testing.T) {
 	assert.Contains(t, err.Error(), "half and full days")
 }
 
-func (m *absShiftPlanSyncerMock) ReassignSickStamps(_ context.Context, fromAbsenceID, toAbsenceID int64) error {
-	m.reassignCalls = append(m.reassignCalls, [2]int64{fromAbsenceID, toAbsenceID})
+func (m *absShiftPlanSyncerMock) ReassignSickStamps(_ context.Context, fromAbsenceID int64, survivor SickCascadeInput) error {
+	m.reassignCalls = append(m.reassignCalls, [2]int64{fromAbsenceID, survivor.AbsenceID})
 	return m.reassignErr
 }
 

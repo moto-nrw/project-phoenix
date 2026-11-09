@@ -12,28 +12,31 @@ import (
 
 // The calendar days a sick report reaches and the day locks it takes on them.
 
-// lockReportedDays takes, once and ascending, the day locks of the report's
-// future sick days and of every day it already stamped, before the reversal
-// reads its stamps. A materialization or edit holding such a day stamps its
-// new rows for this report and commits first; one waiting for the day reads
-// the reports after the deletion and stamps nothing (#6292). New stamps land
-// only on the report's sick days, so the set is complete; taking it in one
-// ascending pass keeps the per-day clears below from locking out of order.
-// The reversal itself is keyed by the stamps: a malformed range adds no days
-// rather than blocking it.
-func (s *sickCascade) lockReportedDays(ctx context.Context, in workforce.SickCascadeInput) error {
+// lockReportedDays takes, once and ascending, the day locks of every day of
+// the report's range, past and half days included, and of every day the
+// absence stampedBy already stamped, before the caller reads those stamps
+// (I-2). A materialization or edit holding such a day stamps its rows and
+// commits first; one waiting for the day reads the reports after this write
+// and stamps accordingly. New stamps land only on the report's days, so the
+// set is complete; taking it in one ascending pass keeps the per-day clears
+// and the marks that follow from locking out of order. The reversal itself
+// is keyed by the stamps: a malformed range adds no days rather than
+// blocking it.
+func (s *sickCascade) lockReportedDays(ctx context.Context, in workforce.SickCascadeInput, stampedBy int64) error {
 	days := make(map[calendar.Date]bool)
 	if report, err := parseSickReport(in); err == nil {
-		days = dateSet(sickCascadeDays(report))
+		for day := report.dateStart; !day.After(report.dateEnd); day = day.AddDays(1) {
+			days[day] = true
+		}
 	}
-	rows, err := s.loadStampedBlockRows(ctx, in.AbsenceID)
+	rows, err := s.loadStampedBlockRows(ctx, stampedBy)
 	if err != nil {
 		return err
 	}
 	if len(rows) > 0 {
 		instances, err := s.timetableData.GetActivityInstancesByID(ctx, instanceStaffInstanceIDs(rows))
 		if err != nil {
-			return fmt.Errorf("sick clear: load stamped instances: %w", err)
+			return fmt.Errorf("sick cascade: load stamped instances: %w", err)
 		}
 		for _, instance := range instances {
 			days[instance.Date] = true

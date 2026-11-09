@@ -285,14 +285,15 @@ func (s *InstanceLifecycleService) reapplySnapshot(ctx context.Context, snap dev
 	for _, row := range rows {
 		byStaff[row.StaffID] = row
 	}
-	if err := s.keepRestoredPresence(ctx, snap.presentPlanned, byStaff); err != nil {
+	day := calendar.Date(inst.Date)
+	if err := s.keepRestoredPresence(ctx, day, snap.presentPlanned, byStaff); err != nil {
 		return err
 	}
-	absencesReapplied, err := s.reapplyAbsences(ctx, snap.absentPlanned, byStaff)
+	absencesReapplied, err := s.reapplyAbsences(ctx, day, snap.absentPlanned, byStaff)
 	if err != nil {
 		return err
 	}
-	if err := s.recreateSubstitutes(ctx, inst.ID, snap.substitutes, byStaff, absencesReapplied); err != nil {
+	if err := s.recreateSubstitutes(ctx, inst.ID, day, snap.substitutes, byStaff, absencesReapplied); err != nil {
 		return err
 	}
 	// SetUnderstaffedAck re-reads the roster just written and refuses the
@@ -311,14 +312,14 @@ func (s *InstanceLifecycleService) reapplySnapshot(ctx context.Context, snap dev
 // present before the re-plan: a planner had restored the person on a sick
 // day (applyPresence releases the stamp), and a re-plan regenerates the
 // template, it does not revisit that decision (#6292).
-func (s *InstanceLifecycleService) keepRestoredPresence(ctx context.Context, staffIDs []int64, byStaff map[int64]*scheduleModel.InstanceStaff) error {
+func (s *InstanceLifecycleService) keepRestoredPresence(ctx context.Context, day calendar.Date, staffIDs []int64, byStaff map[int64]*scheduleModel.InstanceStaff) error {
 	for _, staffID := range staffIDs {
 		row, ok := byStaff[staffID]
 		if !ok || row.IsSubstitute || row.SickAbsenceID == nil {
 			continue
 		}
 		copyAbsenceState(row, &scheduleModel.InstanceStaff{})
-		if err := updateLegacyInstanceStaff(ctx, s.deps.InstanceStaffRepo, row); err != nil {
+		if err := writeStaffAssignment(ctx, s.deps.InstanceStaffRepo, row, day, nil, true); err != nil {
 			return err
 		}
 	}
@@ -330,7 +331,7 @@ func (s *InstanceLifecycleService) keepRestoredPresence(ctx context.Context, sta
 // marked for a sick report takes the snapshot's state, so a manual absence
 // stays manual. A person no longer planned on the template has no row; the
 // absence is moot.
-func (s *InstanceLifecycleService) reapplyAbsences(ctx context.Context, absences []snapshotAbsence, byStaff map[int64]*scheduleModel.InstanceStaff) (int, error) {
+func (s *InstanceLifecycleService) reapplyAbsences(ctx context.Context, day calendar.Date, absences []snapshotAbsence, byStaff map[int64]*scheduleModel.InstanceStaff) (int, error) {
 	reapplied := 0
 	for _, ab := range absences {
 		row, ok := byStaff[ab.staffID]
@@ -340,7 +341,7 @@ func (s *InstanceLifecycleService) reapplyAbsences(ctx context.Context, absences
 		want := scheduleModel.InstanceStaff{IsAbsent: true, AbsenceReason: ab.reason, SickAbsenceID: ab.sickAbsenceID}
 		if !sameAbsenceState(row, &want) {
 			copyAbsenceState(row, &want)
-			if err := updateLegacyInstanceStaff(ctx, s.deps.InstanceStaffRepo, row); err != nil {
+			if err := writeStaffAssignment(ctx, s.deps.InstanceStaffRepo, row, day, nil, true); err != nil {
 				return reapplied, err
 			}
 		}
@@ -358,7 +359,7 @@ func (s *InstanceLifecycleService) reapplyAbsences(ctx context.Context, absences
 // history crowd out a live replacement (#1840). A person already on the
 // regenerated block is skipped (UNIQUE(instance_id, staff_id)).
 func (s *InstanceLifecycleService) recreateSubstitutes(
-	ctx context.Context, instanceID int64, substitutes []snapshotSubstitute, byStaff map[int64]*scheduleModel.InstanceStaff, budget int,
+	ctx context.Context, instanceID int64, day calendar.Date, substitutes []snapshotSubstitute, byStaff map[int64]*scheduleModel.InstanceStaff, budget int,
 ) error {
 	recreated := 0
 	for _, sub := range substitutes {
@@ -381,7 +382,9 @@ func (s *InstanceLifecycleService) recreateSubstitutes(
 			AbsenceReason: sub.reason,
 			SickAbsenceID: sub.sickAbsenceID,
 		}
-		if err := createLegacyInstanceStaff(ctx, s.deps.InstanceStaffRepo, newRow); err != nil {
+		// The snapshot is the substitute's state of the same day: its absence
+		// and sick stamp carry over (I-1).
+		if err := writeStaffAssignment(ctx, s.deps.InstanceStaffRepo, newRow, day, nil, true); err != nil {
 			return err
 		}
 		byStaff[sub.staffID] = newRow

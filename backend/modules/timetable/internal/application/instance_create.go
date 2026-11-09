@@ -209,11 +209,18 @@ func (s *InstanceLifecycleService) findCreateByIdempotencyKey(ctx context.Contex
 }
 
 func (s *InstanceLifecycleService) assignCreatedInstanceRoster(ctx context.Context, inst *scheduleModel.ActivityInstance, req timetable.CreateInstanceInput, tenantID int64) error {
+	// recurrence (held) → the block's day → reports (I-2), before the
+	// care-day locks of the children.
+	day := calendar.Date(inst.Date)
+	sickDays, err := lockedSickDays(ctx, s.deps.Database, s.deps.SickReports, day)
+	if err != nil {
+		return err
+	}
 	for _, staffID := range domain.UniquePositiveIDs(req.StaffIDs) {
 		// A nil RoomID falls back to the block's room at runtime.
 		row := &scheduleModel.InstanceStaff{InstanceID: inst.ID, StaffID: staffID, IsPrimary: false}
 		row.SetTenantID(tenantID)
-		if err := createLegacyInstanceStaff(ctx, s.deps.InstanceStaffRepo, row); err != nil {
+		if err := writeStaffAssignment(ctx, s.deps.InstanceStaffRepo, row, day, sickDays, false); err != nil {
 			return &ports.ScheduleError{Op: "create instance: assign staff", Err: err}
 		}
 	}

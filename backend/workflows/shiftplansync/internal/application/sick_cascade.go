@@ -94,7 +94,7 @@ type SickCascade interface {
 	MarkSickForRange(ctx context.Context, in workforce.SickCascadeInput) error
 	ClearSickForRange(ctx context.Context, in workforce.SickCascadeInput) error
 	ReconcileSickRange(ctx context.Context, before, after workforce.SickCascadeInput) error
-	ReassignSickStamps(ctx context.Context, fromAbsenceID, toAbsenceID int64) error
+	ReassignSickStamps(ctx context.Context, fromAbsenceID int64, survivor workforce.SickCascadeInput) error
 }
 
 // NewSickCascade wires the #1843 cascade. Compose checks the dependencies and
@@ -296,7 +296,7 @@ func (s *sickCascade) ClearSickForRange(ctx context.Context, in workforce.SickCa
 	if err := s.lockSickReversalStaffWrites(ctx, report); err != nil {
 		return err
 	}
-	if err := s.lockReportedDays(ctx, in); err != nil {
+	if err := s.lockReportedDays(ctx, in, in.AbsenceID); err != nil {
 		return err
 	}
 	if err := s.reactivateStampedShifts(ctx, report, nil); err != nil {
@@ -435,12 +435,11 @@ func (s *sickCascade) reconcileAddedSickDays(ctx context.Context, after sickRepo
 	return s.markBlocksForSickDays(ctx, after, days, activeTouched)
 }
 
+// acquireCascadeDayLocks takes the day locks ascending, past days included:
+// the materializer stamps past blocks too, so a reversal reading the stamps
+// of a past day must hold that day as well (I-2).
 func (s *sickCascade) acquireCascadeDayLocks(ctx context.Context, days map[calendar.Date]bool) error {
-	today := s.todayDate()
 	for _, day := range sortedDateSet(days) {
-		if day.Before(today) {
-			continue
-		}
 		if err := s.timetableData.AcquireSubstituteDayLock(ctx, day); err != nil {
 			return fmt.Errorf("sick cascade: day lock %s: %w", day.String(), err)
 		}
@@ -643,10 +642,21 @@ func (s *sickCascade) clearStampedBlocksForDay(ctx context.Context, report sickR
 	return nil
 }
 
-// ReassignSickStamps re-points every stamp from one absence id to another
-// (overlap merge: the secondary absence row is deleted, the surviving primary
-// takes over its plan effects, #1843).
-func (s *sickCascade) ReassignSickStamps(ctx context.Context, fromAbsenceID, toAbsenceID int64) error {
+// ReassignSickStamps re-points every stamp from one absence id to the
+// surviving report (overlap merge: the secondary absence row is deleted, the
+// survivor takes over its plan effects, #1843). It takes the subject's staff
+// lock and the day locks of the survivor's whole range and of the merged
+// report's stamps, ascending, before it reads the stamps (I-2): a
+// materialization stamping the merged report meanwhile commits first, and
+// the survivor's mark that follows needs no further day.
+func (s *sickCascade) ReassignSickStamps(ctx context.Context, fromAbsenceID int64, survivor workforce.SickCascadeInput) error {
+	toAbsenceID := survivor.AbsenceID
+	if err := s.lockStaffWrites(ctx, survivor.SubjectStaffID); err != nil {
+		return err
+	}
+	if err := s.lockReportedDays(ctx, survivor, fromAbsenceID); err != nil {
+		return err
+	}
 	shifts, err := s.stampedShifts(ctx, fromAbsenceID)
 	if err != nil {
 		return fmt.Errorf("sick reassign: load stamped shifts: %w", err)
