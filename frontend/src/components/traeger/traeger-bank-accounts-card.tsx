@@ -109,7 +109,9 @@ export function TraegerBankAccountsCard({
       key: "iban",
       header: "IBAN",
       render: (account) => (
-        <span className="tabular-nums md:whitespace-nowrap">
+        // One unit on every width: an IBAN split in its last group is
+        // misread (it fits a phone row).
+        <span className="whitespace-nowrap tabular-nums">
           {formatIBAN(account.iban)}
         </span>
       ),

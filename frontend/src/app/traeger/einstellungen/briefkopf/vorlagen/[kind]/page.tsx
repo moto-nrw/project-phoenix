@@ -443,7 +443,7 @@ function TemplateEditorPage({
             <div className="order-last min-w-0 xl:sticky xl:top-6 xl:order-none xl:row-span-3">
               <SectionCard
                 title="Vorschau"
-                description="So sieht der ganze Brief mit erfundenen Beispieldaten aus. Logo, Absender, Ansprechperson und Fußzeile kommen aus dem Briefkopf."
+                description="So sieht der ganze Brief aus. Familie, Kinder und Beträge sind Beispiele; Logo, Absender und Fußzeile kommen aus dem Briefkopf."
               >
                 {previewStale ? (
                   <Alert

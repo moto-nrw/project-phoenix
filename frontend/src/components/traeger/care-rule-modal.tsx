@@ -401,7 +401,11 @@ export function CareRuleModal({
             onChange={(values) => set({ moduleIds: values })}
           />
           <p className="mt-1 text-sm text-gray-600">
-            Leer lassen, dann gilt die Regel für alle Module.
+            {draft.schoolIds.length === 0
+              ? "Wählen Sie zuerst die Schulen. Danach stehen hier ihre Module."
+              : moduleOptions.length === 0
+                ? "Die gewählten Schulen haben noch keine Module."
+                : "Leer lassen, dann gilt die Regel für alle Module."}
           </p>
         </div>
         {kind === "sibling" ? (

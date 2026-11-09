@@ -105,7 +105,16 @@ export function SettingsCategory({
           <>
             {tabLabel && <StatusBadge tone="blue" label={tabLabel} />}
             {changed > 0 && (
-              <StatusBadge tone="gray" label={`${changed} geändert`} />
+              // For the Träger a value of its own is „festgelegt“, as its
+              // fields say; „geändert“ read like an unsaved change there.
+              <StatusBadge
+                tone="gray"
+                label={
+                  audience === "traeger"
+                    ? `${changed} festgelegt`
+                    : `${changed} geändert`
+                }
+              />
             )}
           </>
         ) : undefined

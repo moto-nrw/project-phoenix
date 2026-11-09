@@ -10285,7 +10285,7 @@ export const traegerBillingTermsTopic =
             "Wählen Sie bei `Rechnung an`: `Person im Vertrag`, `Beide Eltern` oder `Andere Person`.",
             "Bei `Beide Eltern` tragen Sie den Namen des zweiten Elternteils ein. Beide Namen stehen dann auf der Rechnung.",
             "Bei `Andere Person` tragen Sie Name, E-Mail-Adresse und Anschrift ein. Die Rechnung geht dann an diese Person.",
-            "Wählen Sie bei Bedarf einen eigenen `Zahlungsweg`. `Wie die Leistung` nimmt den Zahlungsweg aus den Abrechnungsvorgaben.",
+            "Wählen Sie bei Bedarf einen eigenen `Zahlungsweg`. `Wie in den Abrechnungsvorgaben` nimmt den dort eingestellten Zahlungsweg.",
             "Wählen Sie bei Bedarf einen `Eigenen Zahltag`, zum Beispiel den 15. des Monats.",
             "Wählen Sie `Speichern`.",
           ],
@@ -10453,7 +10453,7 @@ export const traegerCareContractsTopic =
           title: "Später verschicken: Entwürfe erstellen",
           steps: [
             "Wählen Sie den Reiter `Verträge`.",
-            "Wählen Sie `Verträge erstellen`. Die Zahl dahinter nennt die Kinder ohne Vertrag.",
+            "Wählen Sie `Verträge erstellen`. Die Zahl dahinter nennt die Kinder ohne Vertrag; sie steht nur, wenn mindestens ein Kind einen Entwurf bekommen kann.",
             "Prüfen Sie die Liste. moto übernimmt Kind, Eltern, Beginn und je Wochentag die gebuchten Module mit ihrer Endzeit, zum Beispiel `Mo bis 14:00 · Di bis 16:30`.",
             "Wählen Sie die Kinder aus. Ein Vertrag umfasst alle Module eines Kindes. Fehlen bei einem Modul die Bedingungen, oder weichen sie zwischen den Modulen ab, legen Sie sie zuerst fest.",
             "Wählen Sie `Entwürfe erstellen`.",

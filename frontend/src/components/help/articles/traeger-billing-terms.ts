@@ -49,7 +49,7 @@ export function traegerBillingTermsTopic(): HelpTopic {
           "Wählen Sie bei `Rechnung an`: `Person im Vertrag`, `Beide Eltern` oder `Andere Person`.",
           "Bei `Beide Eltern` tragen Sie den Namen des zweiten Elternteils ein. Beide Namen stehen dann auf der Rechnung.",
           "Bei `Andere Person` tragen Sie Name, E-Mail-Adresse und Anschrift ein. Die Rechnung geht dann an diese Person.",
-          "Wählen Sie bei Bedarf einen eigenen `Zahlungsweg`. `Wie die Leistung` nimmt den Zahlungsweg aus den Abrechnungsvorgaben.",
+          "Wählen Sie bei Bedarf einen eigenen `Zahlungsweg`. `Wie in den Abrechnungsvorgaben` nimmt den dort eingestellten Zahlungsweg.",
           "Wählen Sie bei Bedarf einen `Eigenen Zahltag`, zum Beispiel den 15. des Monats.",
           "Wählen Sie `Speichern`.",
         ],

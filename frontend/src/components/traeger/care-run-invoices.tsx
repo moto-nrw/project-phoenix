@@ -282,7 +282,9 @@ function invoiceColumns(month: string): DataTableColumn<CareInvoiceRow>[] {
                 Mensa-Rechnung
               </p>
             ) : null}
-            <p className="mt-0.5 truncate text-sm text-gray-600">
+            {/* Who gets the invoice is checked before release: the line
+                wraps instead of being cut. */}
+            <p className="mt-0.5 text-sm break-words text-gray-600">
               {recipientLine(invoice.recipient)}
             </p>
             {kind ? (

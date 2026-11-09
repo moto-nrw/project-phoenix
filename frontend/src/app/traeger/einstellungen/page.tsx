@@ -145,11 +145,9 @@ function TraegerSettingsContent() {
       stats={
         tabs.length > 0 ? (
           <TenantPageStats
-            items={[
-              // Die Bereiche der Einstellungen und „Kontakt“.
-              { value: tabs.length + 1, label: "Bereiche" },
-              { value: fromTraeger, label: "vom Träger festgelegt" },
-            ]}
+            // The tabs count themselves; the line names the values the
+            // Träger set.
+            items={[{ value: fromTraeger, label: "vom Träger festgelegt" }]}
           />
         ) : null
       }

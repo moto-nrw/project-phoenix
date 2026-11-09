@@ -132,16 +132,17 @@ export function HolidayFormEditor({
     JSON.stringify(legalBlocks) !== JSON.stringify(form.legalBlocks ?? []) ||
     address !== form.addressRequirement;
   const missingTemplateFields = templateFieldsMissing(fields, form.template);
-  // On a phone a question folds to its head, so the long form stays
-  // walkable; with a mouse every question starts open. A new question opens,
-  // and so does one the check marks.
+  // On a phone or tablet a question folds to its head, so the long form
+  // stays walkable; on a wide screen every question starts open. A new
+  // question opens, and so does one the check marks.
   const isPhone = useMediaQuery("(max-width: 639px)");
+  const foldByDefault = useMediaQuery("(max-width: 1279px)");
   const [foldChoice, setFoldChoice] = useState<ReadonlyMap<string, boolean>>(
     () => new Map(),
   );
   const fieldKey = (field: HolidayFormField) =>
     getStableObjectKey(field, "holiday-field");
-  const isOpen = (key: string) => foldChoice.get(key) ?? !isPhone;
+  const isOpen = (key: string) => foldChoice.get(key) ?? !foldByDefault;
   const setOpen = (keys: readonly string[], open: boolean) =>
     setFoldChoice((current) => {
       const next = new Map(current);

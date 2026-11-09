@@ -190,9 +190,19 @@ export function TraegerLetterheadPreview({
         ))}
         {defaultAccount ? (
           <p className={footer.length > 0 ? "mt-1" : undefined}>
-            Bankverbindung: {defaultAccount.accountHolder} · IBAN{" "}
-            {formatIBAN(defaultAccount.iban)}
-            {defaultAccount.bic ? ` · BIC ${defaultAccount.bic}` : ""}
+            {/* IBAN and BIC stay whole, each with its label. */}
+            Bankverbindung: {defaultAccount.accountHolder} ·{" "}
+            <span className="whitespace-nowrap">
+              IBAN {formatIBAN(defaultAccount.iban)}
+            </span>
+            {defaultAccount.bic ? (
+              <>
+                {" · "}
+                <span className="whitespace-nowrap">
+                  BIC {defaultAccount.bic}
+                </span>
+              </>
+            ) : null}
             {defaultAccount.bankName ? ` · ${defaultAccount.bankName}` : ""}
           </p>
         ) : null}

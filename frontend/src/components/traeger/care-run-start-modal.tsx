@@ -108,6 +108,7 @@ export function CareRunStartModal({
     ),
   ];
   const allSelected = free.length > 0 && selected.length === free.length;
+  const noneFree = schools !== null && schools.length > 0 && free.length === 0;
   // Every school of the month is in one open run: the dialog leads there
   // instead of offering a start that cannot run.
   const blockedRunId =
@@ -179,7 +180,7 @@ export function CareRunStartModal({
               variant="primary"
               size="md"
             >
-              Offenen Lauf öffnen
+              Lauf {formatMonth(month)} öffnen
             </ButtonLink>
           </div>
         ) : (
@@ -211,71 +212,79 @@ export function CareRunStartModal({
           options={months}
           onChange={setMonth}
         />
-        <FormFieldset
-          legend="Schulen"
-          required
-          error={formErrors.fieldError("school_ids")}
-          hint="Jede Schule ist in einem Monat nur in einem offenen Lauf."
-        >
-          {schools === null ? (
-            <Loading />
-          ) : free.length === 0 && schools.length > 0 ? (
-            <Alert
-              type="info"
-              message={
-                blockedRunId
-                  ? `Für ${formatMonth(month)} ist jede Schule schon in einem offenen Lauf. Öffnen Sie diesen Lauf unten oder wählen Sie einen anderen Monat.`
-                  : `Für ${formatMonth(month)} ist jede Schule schon in einem offenen Lauf. Wählen Sie einen anderen Monat.`
-              }
-            />
-          ) : (
-            <div className="space-y-2">
-              {free.length > 1 ? (
-                <Button
-                  type="button"
-                  variant="link"
-                  size="md"
-                  onClick={() => setSelected(allSelected ? [] : free)}
-                >
-                  {allSelected ? "Keine wählen" : "Alle wählen"}
-                </Button>
-              ) : null}
-              <div className="grid gap-2 sm:grid-cols-2">
-                {schools.map((school) => (
-                  <CheckboxCard
-                    key={school.id}
-                    checked={selected.includes(school.id)}
-                    disabled={school.openRunId !== null}
-                    onChange={(checked) => toggle(school.id, checked)}
-                    label={school.name}
-                    hint={
-                      school.openRunId !== null
-                        ? `Schon in einem offenen Lauf für ${formatMonth(month)}`
-                        : undefined
-                    }
-                  />
-                ))}
+        {noneFree ? (
+          // Nothing to choose or date: the dialog says where the month's
+          // run is and leads there.
+          <Alert
+            type="info"
+            message={
+              blockedRunId
+                ? `Für ${formatMonth(month)} gibt es schon einen offenen Lauf mit allen Schulen. Öffnen Sie ihn oder wählen Sie einen anderen Monat.`
+                : `Für ${formatMonth(month)} ist jede Schule schon in einem offenen Lauf. Wählen Sie einen anderen Monat.`
+            }
+          />
+        ) : (
+          <FormFieldset
+            legend="Schulen"
+            required
+            error={formErrors.fieldError("school_ids")}
+            hint="Jede Schule ist in einem Monat nur in einem offenen Lauf."
+          >
+            {schools === null ? (
+              <Loading />
+            ) : (
+              <div className="space-y-2">
+                {free.length > 1 ? (
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="md"
+                    onClick={() => setSelected(allSelected ? [] : free)}
+                  >
+                    {allSelected ? "Keine wählen" : "Alle wählen"}
+                  </Button>
+                ) : null}
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {schools.map((school) => (
+                    <CheckboxCard
+                      key={school.id}
+                      checked={selected.includes(school.id)}
+                      disabled={school.openRunId !== null}
+                      onChange={(checked) => toggle(school.id, checked)}
+                      label={school.name}
+                      hint={
+                        school.openRunId !== null
+                          ? `Schon in einem offenen Lauf für ${formatMonth(month)}`
+                          : undefined
+                      }
+                    />
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
-        </FormFieldset>
-        <ISODatePicker
-          id="care-run-invoice-date"
-          name="invoice_date"
-          label="Rechnungsdatum"
-          value={invoiceDate}
-          min={bounds.min}
-          max={bounds.max}
-          defaultMonth={month}
-          placeholder="Tag der Freigabe"
-          error={formErrors.fieldError("invoice_date")}
-          onChange={setInvoiceDate}
-        />
-        <p className="text-sm text-gray-600">
-          Der Lauf rechnet jedes Kind mit gültigem Vertrag nach den gebuchten
-          Tagen ab. Sie prüfen zuerst die Vorschau. Die Rechnungen bekommen ihre
-          Nummer erst bei der Freigabe.
-        </p>
+            )}
+          </FormFieldset>
+        )}
+        {noneFree ? null : (
+          <>
+            <ISODatePicker
+              id="care-run-invoice-date"
+              name="invoice_date"
+              label="Rechnungsdatum"
+              value={invoiceDate}
+              min={bounds.min}
+              max={bounds.max}
+              defaultMonth={month}
+              placeholder="Tag der Freigabe"
+              error={formErrors.fieldError("invoice_date")}
+              onChange={setInvoiceDate}
+            />
+            <p className="text-sm text-gray-600">
+              Der Lauf rechnet jedes Kind mit gültigem Vertrag nach den
+              gebuchten Tagen ab. Sie prüfen zuerst die Vorschau. Die Rechnungen
+              bekommen ihre Nummer erst bei der Freigabe.
+            </p>
+          </>
+        )}
       </form>
     </FormModal>
   );

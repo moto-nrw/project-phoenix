@@ -107,7 +107,7 @@ export default function TraegerFamilyBillingPage() {
       loading={!pageLoad.error && !loaded}
     >
       {loaded ? (
-        <SectionCard title="Rechnung an und Zahlung">
+        <SectionCard title="Empfänger und Zahlung">
           <FamilyBillingForm
             target={{
               contractId,

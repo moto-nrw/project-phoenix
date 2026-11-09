@@ -178,7 +178,11 @@ export function HolidayRegistrationChildCard({
         {child.duplicateRegistrationIds.length > 0 ? (
           <Alert
             type="warning"
-            message="Vielleicht doppelt angemeldet. Ein Kind mit gleichem Namen und Geburtsdatum steht auch in einer anderen Anmeldung."
+            message={
+              child.duplicateRegistrationIds.length === 1
+                ? "Vielleicht doppelt angemeldet. Ein Kind mit gleichem Namen und Geburtsdatum steht auch in einer anderen Anmeldung."
+                : `Vielleicht doppelt angemeldet. Ein Kind mit gleichem Namen und Geburtsdatum steht auch in ${child.duplicateRegistrationIds.length} anderen Anmeldungen.`
+            }
             actionLayout="stacked"
             action={
               <span className="flex flex-wrap gap-3">

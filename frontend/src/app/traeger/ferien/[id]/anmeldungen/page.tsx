@@ -242,11 +242,10 @@ function columns(
                     )}
                     ,{" "}
                     {/* The week first, school and time below: a narrow
-                        column breaks there, not inside the school name. */}
+                        column breaks there or between school and time,
+                        never inside the school name or the time. */}
                     <br />
-                    {names.get(booking.hostSchoolId) ??
-                      "Schule nicht mehr vorhanden"}
-                    : {booking.timeModelName}
+                    {`${unbroken(names.get(booking.hostSchoolId) ?? "Schule nicht mehr vorhanden")}: ${unbroken(booking.timeModelName)}`}
                   </li>
                 ))}
               </ul>
@@ -313,6 +312,11 @@ function StatusLine({ list }: Readonly<{ list: HolidayRegistrationList }>) {
 }
 
 /** Whether a registration matches the typed search: parent, children, number or debtor number. */
+/** Spaces of a name that must not break, as no-break spaces. */
+function unbroken(text: string): string {
+  return text.replaceAll(" ", "\u00A0");
+}
+
 function matchesRegistration(
   registration: HolidayRegistrationList["registrations"][number],
   needle: string,

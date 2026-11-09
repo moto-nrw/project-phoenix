@@ -174,7 +174,7 @@ const RECIPIENT_ITEMS: readonly { value: RecipientKind; label: string }[] = [
 ];
 
 const DUE_DAY_OPTIONS = [
-  { value: "", label: "Wie der Lauf" },
+  { value: "", label: "Fälligkeit des Laufs" },
   ...Array.from({ length: MAX_DUE_DAY }, (_, index) => ({
     value: String(index + 1),
     label: `Am ${index + 1}. des Monats`,
@@ -398,7 +398,7 @@ export function FamilyBillingForm({
           className="grid gap-2 sm:grid-cols-3"
         >
           {[
-            { value: "" as const, label: "Wie die Leistung" },
+            { value: "" as const, label: "Wie in den Abrechnungsvorgaben" },
             ...PAYMENT_METHODS.map((method) => ({
               value: method,
               label: PAYMENT_METHOD_LABELS[method],
@@ -425,7 +425,7 @@ export function FamilyBillingForm({
         label="Eigener Zahltag"
         value={draft.dueDay}
         options={DUE_DAY_OPTIONS}
-        hint="Die Rechnung ist am nächsten dieser Tage fällig. „Wie der Lauf“ nimmt das Datum des Laufs."
+        hint="Fällig ist der nächste gewählte Tag nach dem Rechnungsdatum. „Fälligkeit des Laufs“ nimmt das Datum des Laufs."
         error={fieldError("due_day")}
         onChange={(dueDay) => set({ dueDay })}
       />
