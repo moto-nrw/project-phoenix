@@ -78,12 +78,9 @@ export function SepaImportLogCard({
     <SectionCard
       title="Bisherige Importe"
       description="Nur zur Information. Jedes übernommene Mandat zeigt in seinem Verlauf die Datei und die Zeile."
-      padding="none"
     >
       {entries.length === 0 ? (
-        <p className="px-5 pb-5 text-sm text-gray-600 max-sm:px-4">
-          Noch keine Mandate importiert.
-        </p>
+        <p className="text-sm text-gray-600">Noch keine Mandate importiert.</p>
       ) : (
         <DataTable
           columns={columns}
@@ -91,7 +88,6 @@ export function SepaImportLogCard({
           getRowKey={(entry) =>
             `${entry.file}|${entry.importedAt}|${entry.accountId ?? ""}`
           }
-          caption="Bisherige Importe"
           stackedOnMobile
           stackedLayout="lines"
           dense

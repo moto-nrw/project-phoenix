@@ -167,7 +167,7 @@ var importHeaderNames = map[string][]string{
 	parentbilling.ImportFieldReference: {"mandatsreferenz", "mandatreferenz", "referenz", "mandatsref", "mandatsnummer",
 		"mandatsid", "mandatereference", "mandateid", "reference"},
 	parentbilling.ImportFieldSignedOn: {"mandatsdatum", "datumdermandatserteilung", "unterschriftsdatum", "unterschriebenam",
-		"erteiltam", "unterzeichnetam", "mandatdatum", "signaturdatum", "dateofsignature", "signedon", "mandatedate"},
+		"erteiltam", "unterzeichnetam", "datumderunterschrift", "mandatdatum", "signaturdatum", "dateofsignature", "signedon", "mandatedate"},
 	parentbilling.ImportFieldIBAN:          {"iban", "kontoiban"},
 	parentbilling.ImportFieldBIC:           {"bic", "swift", "swiftbic"},
 	parentbilling.ImportFieldAccountHolder: {"kontoinhaber", "kontoinhaberin", "inhaber", "namedeskontoinhabers", "accountholder", "debtorname"},

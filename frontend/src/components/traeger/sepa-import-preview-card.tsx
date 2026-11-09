@@ -82,7 +82,8 @@ function SequenceCell({
 function NotesCell({ row }: Readonly<{ row: ImportRow }>) {
   const lines = [
     ...row.problems.map(importProblemText),
-    ...row.hints.map(importHintText),
+    // A hint matters only for a row the import can take over.
+    ...(row.problems.length === 0 ? row.hints.map(importHintText) : []),
   ];
   if (row.status === "duplicate") lines.unshift("Dieses Mandat gibt es schon.");
   if (lines.length === 0) return <span className="text-gray-400">–</span>;
@@ -172,7 +173,7 @@ export function SepaImportPreviewCard({
       header: "Konto",
       render: (row) => (
         <span className="block">
-          <span className="block font-mono text-sm text-gray-900">
+          <span className="block font-mono text-sm whitespace-nowrap text-gray-900">
             {row.ibanMasked || "–"}
           </span>
           <span className="block text-xs text-gray-500">
@@ -203,7 +204,6 @@ export function SepaImportPreviewCard({
     <SectionCard
       title="Prüfen und übernehmen"
       description="So würde moto jede Zeile übernehmen. Geändert wird erst, wenn Sie übernehmen."
-      padding="none"
       footer={
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-gray-600">
@@ -227,7 +227,7 @@ export function SepaImportPreviewCard({
         </div>
       }
     >
-      <div className="border-b border-gray-100 px-5 py-3 max-sm:px-4">
+      <div className="mb-4 overflow-x-auto">
         <SegmentedControl
           ariaLabel="Zeilen zeigen"
           items={filters}
@@ -246,7 +246,6 @@ export function SepaImportPreviewCard({
           columns={columns}
           rows={[...shown]}
           getRowKey={(row) => row.line}
-          caption="Zeilen der Datei"
           stackedOnMobile
           stackedLayout="lines"
           dense
