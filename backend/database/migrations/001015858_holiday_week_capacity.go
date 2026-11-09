@@ -3,12 +3,11 @@ package migrations
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/uptrace/bun"
 )
 
-const holidayWeekCapacityVersion = "1.15.855"
+const holidayWeekCapacityVersion = "1.15.858"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
@@ -419,12 +418,10 @@ const deleteHolidayPlaceMailsSQL = `DELETE FROM platform.email_outbox
 // holidayPlaceErasureSQL is the erasure of 1.15.843 whose statement for the
 // receipt also deletes the mail of a booking that moved up: both name the
 // registration.
-const (
-	holidayReceiptErasureKind = "AND outbox.kind = 'holiday_registration_received'"
-	holidayPlaceErasureKinds  = "AND outbox.kind IN ('holiday_registration_received', 'holiday_place_granted')"
-)
+// The erasure itself is assembled from the constants of 1.15.843 in
+// demo_visitor_erasure_of_outbox_kinds.go (installHolidayPlaceErasure).
 
-var holidayPlaceErasureSQL = strings.Replace(demoVisitorErasureOutboxKindsSQL, holidayReceiptErasureKind, holidayPlaceErasureKinds, 1)
+const validateHolidayPlaceEmailOutboxTraegerKindSQL = `ALTER TABLE platform.email_outbox VALIDATE CONSTRAINT chk_email_outbox_traeger_kind`
 
 func holidayWeekCapacityUp(ctx context.Context, db *bun.DB) error {
 	if err := db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
@@ -446,13 +443,10 @@ func holidayWeekCapacityUp(ctx context.Context, db *bun.DB) error {
 	if _, err := db.ExecContext(ctx, holidayPlaceEmailOutboxTraegerKindCheckSQL); err != nil {
 		return fmt.Errorf("declare the holiday place mail of a Träger: %w", err)
 	}
-	if _, err := db.ExecContext(ctx, validateEmailOutboxTraegerKindSQL); err != nil {
+	if _, err := db.ExecContext(ctx, validateHolidayPlaceEmailOutboxTraegerKindSQL); err != nil {
 		return fmt.Errorf("validate the mail kinds of a Träger: %w", err)
 	}
-	if _, err := db.ExecContext(ctx, holidayPlaceErasureSQL); err != nil {
-		return fmt.Errorf("erase the holiday place mails of retired demo schools: %w", err)
-	}
-	return nil
+	return installHolidayPlaceErasure(ctx, db)
 }
 
 func holidayWeekCapacityDown(ctx context.Context, db *bun.DB) error {
@@ -462,11 +456,8 @@ func holidayWeekCapacityDown(ctx context.Context, db *bun.DB) error {
 	if _, err := db.ExecContext(ctx, deleteHolidayPlaceMailsSQL); err != nil {
 		return fmt.Errorf("delete the holiday place mails: %w", err)
 	}
-	if _, err := db.ExecContext(ctx, emailOutboxTraegerKindCheckSQL); err != nil {
-		return fmt.Errorf("restore the mail kinds of a Träger: %w", err)
-	}
-	if _, err := db.ExecContext(ctx, validateEmailOutboxTraegerKindSQL); err != nil {
-		return fmt.Errorf("validate the mail kinds of a Träger: %w", err)
+	if err := restoreEmailOutboxTraegerKinds(ctx, db); err != nil {
+		return err
 	}
 	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		if _, err := tx.ExecContext(ctx, holidayHostUnplacedSQL); err != nil {

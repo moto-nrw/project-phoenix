@@ -24,7 +24,14 @@ import (
 //     the statements of the other one.
 //
 // The rest of the function is unchanged.
-const demoVisitorErasureOutboxKindsSQL = `
+// demoVisitorErasureOutboxKindsSQL is assembled from constants, so a later
+// migration (1.15.858) can name one more kind next to the receipt and stay
+// statically resolvable for the architecture check. Its value is unchanged.
+const demoVisitorErasureOutboxKindsSQL = demoVisitorErasureBeforeReceiptKindSQL + holidayReceiptErasureKind + demoVisitorErasureAfterReceiptKindSQL
+
+const holidayReceiptErasureKind = "AND outbox.kind = 'holiday_registration_received'"
+
+const demoVisitorErasureBeforeReceiptKindSQL = `
 		CREATE OR REPLACE FUNCTION platform.erase_closed_demo_visitors()
 		RETURNS INTEGER
 		LANGUAGE plpgsql
@@ -460,7 +467,9 @@ const demoVisitorErasureOutboxKindsSQL = `
 					USING enrollment.holiday_registration_children AS child
 					WHERE child.home_school_id = ANY (hidden_schools)
 						AND outbox.organization_id = child.organization_id
-						AND outbox.kind = 'holiday_registration_received'
+						`
+
+const demoVisitorErasureAfterReceiptKindSQL = `
 						AND outbox.related_entity_type = 'holiday_registration'
 						AND outbox.related_entity_id = child.holiday_registration_id;
 					DELETE FROM enrollment.holiday_registrations AS registration
@@ -641,6 +650,33 @@ const demoVisitorErasureOutboxKindsSQL = `
 func installOutboxKindErasure(ctx context.Context, db *bun.DB) error {
 	if _, err := db.ExecContext(ctx, demoVisitorErasureOutboxKindsSQL); err != nil {
 		return fmt.Errorf("erase every outbox kind of retired demo schools: %w", err)
+	}
+	return nil
+}
+
+// The erasure of 1.15.858 (#4699): the receipt statement also deletes the
+// mail of a booking that moved up from the waiting list; both name the
+// registration.
+const (
+	holidayPlaceErasureKinds = "AND outbox.kind IN ('holiday_registration_received', 'holiday_place_granted')"
+	holidayPlaceErasureSQL   = demoVisitorErasureBeforeReceiptKindSQL + holidayPlaceErasureKinds + demoVisitorErasureAfterReceiptKindSQL
+)
+
+// installHolidayPlaceErasure installs the erasure of holidayWeekCapacityVersion.
+func installHolidayPlaceErasure(ctx context.Context, db *bun.DB) error {
+	if _, err := db.ExecContext(ctx, holidayPlaceErasureSQL); err != nil {
+		return fmt.Errorf("erase the holiday place mails of retired demo schools: %w", err)
+	}
+	return nil
+}
+
+// restoreEmailOutboxTraegerKinds puts back the mail kinds of 1.15.843.
+func restoreEmailOutboxTraegerKinds(ctx context.Context, db *bun.DB) error {
+	if _, err := db.ExecContext(ctx, emailOutboxTraegerKindCheckSQL); err != nil {
+		return fmt.Errorf("restore the mail kinds of a Träger: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, validateEmailOutboxTraegerKindSQL); err != nil {
+		return fmt.Errorf("validate the mail kinds of a Träger: %w", err)
 	}
 	return nil
 }
