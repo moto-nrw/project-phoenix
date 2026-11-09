@@ -97,6 +97,13 @@ func effectiveTemplateCalendarPeriodID(template templateResponse) *int64 {
 	return template.CalendarPeriodID
 }
 
+func effectiveScheduleCalendarPeriodID(schedule templateScheduleResponse, template templateResponse) *int64 {
+	if schedule.CalendarPeriodID != nil {
+		return schedule.CalendarPeriodID
+	}
+	return template.CalendarPeriodID
+}
+
 func templateHasDynamicTargets(template templateResponse) bool {
 	if len(template.Targets) > 0 {
 		return true

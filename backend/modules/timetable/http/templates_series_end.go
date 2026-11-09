@@ -196,7 +196,7 @@ func sameTemplateRecurrence(req *updateTemplateRequest, parsed *parsedUpdateTemp
 		schedule, ok := byWeekday[weekday]
 		if !ok || schedule.StartTime != startTime || schedule.EndTime != endTime ||
 			schedule.WeekPattern != parsed.weekPattern ||
-			!sameOptionalInt64(schedule.CalendarPeriodID, req.CalendarPeriodID) {
+			!sameOptionalInt64(effectiveScheduleCalendarPeriodID(schedule, stored), req.CalendarPeriodID) {
 			return false
 		}
 	}

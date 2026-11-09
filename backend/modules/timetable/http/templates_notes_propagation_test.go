@@ -108,6 +108,16 @@ func TestNotesOnlyTemplateUpdateUsesSchedulePeriod(t *testing.T) {
 	assert.True(t, notesOnlyTemplateUpdate(parsed, stored))
 }
 
+func TestNotesOnlyTemplateUpdateUsesTemplatePeriodFallbackForSchedule(t *testing.T) {
+	t.Parallel()
+
+	stored := notesPropagationStoredTemplate()
+	stored.Schedules[0].CalendarPeriodID = nil
+	parsed := notesPropagationParsedUpdate(stored)
+
+	assert.True(t, notesOnlyTemplateUpdate(parsed, stored))
+}
+
 func notesPropagationStoredTemplate() templateResponse {
 	return templateResponse{
 		Name:                  "Frühbetreuung",
