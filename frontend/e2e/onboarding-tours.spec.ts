@@ -1,6 +1,7 @@
 import {
   expect,
   test,
+  type Frame,
   type Locator,
   type Page,
   type Request,
@@ -125,9 +126,14 @@ async function warmTourPages(
   // offen und zählt nicht, ebenso Anfragen an andere Hosts und der Versand
   // der Browser-Logs (`/api/logs`), dessen Ende Playwright nicht meldet.
   // Nur Anfragen der aufgerufenen Seite: Der Seitenwechsel bricht die der
-  // vorigen ab, oft ohne Ereignis.
+  // vorigen ab, oft ohne Ereignis. Ihr Pfad gilt ab dem Wechsel des
+  // Dokuments, auch nach einer Weiterleitung (/ogs-groups →
+  // /ogs-groups/overview), und vor dem ersten Datenabruf beim Hydrieren.
   const origin = new URL(tenantBase).origin;
   let current = "";
+  const onNavigated = (frame: Frame) => {
+    if (frame === page.mainFrame()) current = new URL(frame.url()).pathname;
+  };
   const fromCurrentPage = (request: Request) => {
     try {
       return new URL(request.frame().url()).pathname === current;
@@ -156,6 +162,7 @@ async function warmTourPages(
     pending.delete(request);
     lastActivity = Date.now();
   };
+  page.on("framenavigated", onNavigated);
   page.on("request", onRequest);
   page.on("requestfinished", onDone);
   page.on("requestfailed", onDone);
@@ -167,9 +174,6 @@ async function warmTourPages(
         waitUntil: "domcontentloaded",
         timeout: NAVIGATION_TIMEOUT,
       });
-      // Die Seite darf weiterleiten (/ogs-groups → /ogs-groups/overview).
-      // Ihre Daten lädt sie erst nach dem Hydrieren, also nach diesem Punkt.
-      current = new URL(page.url()).pathname;
       // Die Checkliste (offen oder als Knopf) erscheint erst, wenn die Seite
       // geladen und ihr Stand gelesen ist.
       await expect(
@@ -177,22 +181,28 @@ async function warmTourPages(
           .getByRole("region", { name: "Erste Schritte mit moto" })
           .or(page.getByRole("button", { name: /^Erste Schritte öffnen/ })),
       ).toBeVisible({ timeout: NAVIGATION_TIMEOUT });
+      // Fertig ist die Seite, wenn keine Anfrage offen ist und seit einer
+      // halben Sekunde keine neue begann (eine Antwort löst oft die nächste
+      // aus).
       await expect
         .poll(
-          () =>
-            pending.size === 0 && Date.now() - lastActivity >= 500
-              ? []
-              : [...pending].map((request) => new URL(request.url()).pathname),
+          () => ({
+            open: [...pending].map(
+              (request) => new URL(request.url()).pathname,
+            ),
+            quiet: Date.now() - lastActivity >= 500,
+          }),
           {
             message: `${path}: Die Seite lädt nicht zu Ende (offene Anfragen).`,
             intervals: [250],
             timeout: NAVIGATION_TIMEOUT,
           },
         )
-        .toEqual([]);
+        .toEqual({ open: [], quiet: true });
       warmedPages.add(path);
     }
   } finally {
+    page.off("framenavigated", onNavigated);
     page.off("request", onRequest);
     page.off("requestfinished", onDone);
     page.off("requestfailed", onDone);
