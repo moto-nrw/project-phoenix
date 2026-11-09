@@ -119,3 +119,13 @@ Ein dauerhafter gemeinsamer Ring koppelt Kompromittierung und Rotation.
 Ein stiller Konfigurationsfallback verletzt Fail-fast. Eine Datenmigration
 würde Deploy-Zeit und Rekey-Dauer koppeln. Ein dauerhaft gelockerter
 Unveränderlichkeits-Trigger würde HTTP-Schreibern einen unnötigen Weg eröffnen.
+
+## Exakte Methoden-Evidenz
+
+`BankCipher.Rewrap` ist als einzelne neue Methoden-Evidenz unter ADR 0183
+registriert. Die Methode authentifiziert aktive bzw. ausdrücklich zugelassene
+Legacy-Werte unter dem ursprünglichen AAD, erhält bereits aktuelle Bytes und
+versiegelt sonst mit dem Bankring. Der Scanner zählt den nativen, eingebetteten
+`Seal`-Aufruf; das ist keine ungeschützte Repository-Durchreiche. Die Evidenz
+benennt genau diesen Quelltext. Selektoren, Ausnahmen und die bisherigen
+Owner-Pass-through-Floors werden nicht erhöht oder gelockert.

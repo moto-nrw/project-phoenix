@@ -10,8 +10,8 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// BankDataRekeyStore has a dedicated administrative pool, never the serving
-// pool. It registers no query logger: ciphertext and errors are not diagnostics.
+// BankDataRekeyStore joins the CLI maintenance Träger transaction, never HTTP.
+// It registers no query logger: ciphertext and errors are not diagnostics.
 type BankDataRekeyStore struct{}
 
 func NewBankDataRekeyStore() *BankDataRekeyStore { return &BankDataRekeyStore{} }

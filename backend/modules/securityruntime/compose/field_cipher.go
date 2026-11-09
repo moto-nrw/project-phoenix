@@ -1,4 +1,4 @@
-// Package compose builds the field cipher of the health information (#4722).
+// Package compose builds the independent health and bank field ciphers.
 package compose
 
 import "github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher"
