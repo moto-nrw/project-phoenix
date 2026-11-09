@@ -28,6 +28,7 @@ package compose_test
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -601,7 +602,7 @@ func TestSickReport_MergeMovesStampsOfConcurrentMaterialization(t *testing.T) {
 			return err
 		})
 	}()
-	if returned, err := e.awaitLockWaiter(t, "users.staff", "transactionid", mergeDone); returned {
+	if returned, err := e.awaitLockWaiter(t, strconv.FormatInt(e.tenantID, 10), "transactionid", mergeDone); returned {
 		close(release)
 		require.NoError(t, <-materializationDone)
 		require.FailNow(t, "merge did not wait for the materialization", "returned early: %v", err)
