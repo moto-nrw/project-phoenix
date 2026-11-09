@@ -11,6 +11,11 @@ import (
 // writes instead of committing half of them.
 var ErrTransactionUnusable = errors.New("transaction state is unusable")
 
+// ErrGuardianInvitationAddressChanged refuses a guardian link whose address
+// is no longer the guardian's (#6294): the profile address changed after the
+// link was mailed. Only a new link to the address on file creates an account.
+var ErrGuardianInvitationAddressChanged = errors.New("the guardian's address changed after the invitation was issued")
+
 // Guardian invitation approval states reported by the owner capability.
 const (
 	GuardianInvitationApprovalNotRequired = "not_required"
@@ -56,6 +61,9 @@ type GuardianInvitation struct {
 	ProfileCreatedForInvitation bool
 	RoleUpgrade                 bool
 	CreatedAt                   time.Time
+	// Email is the address the current link was issued for, normalized
+	// (#6294).
+	Email string
 }
 
 // ApprovalAllowsRedemption reports whether the invitation's approval state

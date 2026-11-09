@@ -115,6 +115,12 @@
       "legacy": "identity.email_change_same_email"
     },
     {
+      "code": "identity.guardian_invitation_address_changed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.guardian_invitation_address_changed"
+    },
+    {
       "code": "identity.guardian_invitation_email_not_queued",
       "class": "unavailable",
       "parameters": [],

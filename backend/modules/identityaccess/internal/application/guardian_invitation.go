@@ -78,14 +78,15 @@ func (l *AccountLifecycle) issueGuardianInvitation(ctx context.Context, request 
 			return domain.GuardianInvitation{}, failed(opGuardianInviteCreate, err)
 		}
 	}
-	invitation, err := l.invitations.InsertGuardianInvitation(ctx, domain.GuardianInvitation{
+	draft := domain.GuardianInvitation{
 		TenantID:          l.runtime.TenantID(ctx),
-		Token:             uuid.Must(uuid.NewV4()).String(),
 		GuardianProfileID: profile.ID,
 		CreatedBy:         request.CreatedBy,
 		ExpiresAt:         expiresAt,
 		ApprovalStatus:    domain.GuardianInvitationApprovalNotRequired,
-	})
+	}
+	issueGuardianInvitationLink(&draft, profile)
+	invitation, err := l.invitations.InsertGuardianInvitation(ctx, draft)
 	if err != nil {
 		return domain.GuardianInvitation{}, failed(opGuardianInviteCreate, err)
 	}
@@ -98,6 +99,15 @@ func (l *AccountLifecycle) issueGuardianInvitation(ctx context.Context, request 
 		return domain.GuardianInvitation{}, failed(opGuardianInviteCreate, err)
 	}
 	return invitation, nil
+}
+
+// issueGuardianInvitationLink gives the invitation a new link for the address
+// the guardian has now (#6294). Only the hash of the token is stored (#4902),
+// so the previous link stops working; the address travels with the token, and
+// accepting requires the guardian to still have it.
+func issueGuardianInvitationLink(invitation *domain.GuardianInvitation, profile domain.GuardianProfile) {
+	invitation.Token = uuid.Must(uuid.NewV4()).String()
+	invitation.Email = domain.GuardianInvitationAddress(profile.Email)
 }
 
 func (l *AccountLifecycle) lockInvitationProfile(ctx context.Context, profileID int64) (domain.GuardianProfile, error) {
@@ -207,6 +217,11 @@ func (l *AccountLifecycle) ValidateGuardianInvitation(ctx context.Context, token
 		}
 		if !found {
 			return failed(opGuardianInviteValidate, fmt.Errorf("guardian profile not found"))
+		}
+		// A link issued for an earlier address shows nothing of the profile:
+		// its holder may not be the guardian (#6294).
+		if !invitation.AddressedTo(profile.Email) {
+			return failed(opGuardianInviteValidate, domain.ErrGuardianInvitationAddressChanged)
 		}
 		result = identityaccess.GuardianInvitationPreview{
 			Email:     strings.TrimSpace(profile.Email),
@@ -388,10 +403,9 @@ func (l *AccountLifecycle) ResendGuardianInvitation(ctx context.Context, invitat
 			return failed(opGuardianInviteResend, err)
 		}
 		// The delivery bookkeeping starts over; the previous attempt's outcome
-		// says nothing about the send that follows. Only the hash of a token
-		// is stored (#4902), so the mail carries a new link and the previous
-		// one stops working.
-		invitation.Token = uuid.Must(uuid.NewV4()).String()
+		// says nothing about the send that follows. The mail carries a new
+		// link for the address on file, and the previous one stops working.
+		issueGuardianInvitationLink(&invitation, profile)
 		invitation.EmailSentAt = nil
 		invitation.EmailError = nil
 		if err := l.invitations.UpdateGuardianInvitation(ctx, invitation, invitation.ApprovalStatus); err != nil {
@@ -471,18 +485,23 @@ func (l *AccountLifecycle) requireInvitationSchool(txCtx context.Context, invita
 	return nil
 }
 
+// acceptGuardianAtSchool creates or reuses the account for the address the
+// link was issued for (#6294). The profile stays locked until commit, the
+// lock both contact edit paths take before they change the address: an
+// address change either commits first, and the link is refused, or waits for
+// the acceptance.
 func (l *AccountLifecycle) acceptGuardianAtSchool(invitationCtx context.Context, invitation domain.GuardianInvitation, registration identityaccess.GuardianRegistration) (domain.LoginAccount, error) {
-	profile, found, profileErr := l.guardians.FindGuardianProfile(invitationCtx, invitation.GuardianProfileID)
+	profile, found, profileErr := l.guardians.LockGuardianProfile(invitationCtx, invitation.GuardianProfileID)
 	if profileErr != nil {
 		return domain.LoginAccount{}, failed(opGuardianInviteAccept, profileErr)
 	}
 	if !found {
 		return domain.LoginAccount{}, failed(opGuardianInviteAccept, fmt.Errorf("guardian profile not found"))
 	}
-	email := strings.ToLower(strings.TrimSpace(profile.Email))
-	if email == "" {
-		return domain.LoginAccount{}, failed(opGuardianInviteAccept, fmt.Errorf("guardian profile missing email"))
+	if !invitation.AddressedTo(profile.Email) {
+		return domain.LoginAccount{}, failed(opGuardianInviteAccept, domain.ErrGuardianInvitationAddressChanged)
 	}
+	email := invitation.Email
 	account, accountErr := l.provisionGuardianAccount(invitationCtx, email, registration)
 	if accountErr != nil {
 		return domain.LoginAccount{}, accountErr

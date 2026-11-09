@@ -661,6 +661,8 @@ export const ERROR_CATALOG = {
         "Die neue E-Mail-Adresse ist dieselbe wie die bisherige. Bitte geben Sie eine andere ein.",
       "identity.guardian_email_address_blocked":
         "Die Einladung wurde nicht gesendet, weil an diese Person keine Mails gehen. Den Grund und den nächsten Schritt sehen Sie bei der Person.",
+      "identity.guardian_invitation_address_changed":
+        "Dieser Link gilt nicht mehr. Bitte fragen Sie die Schule nach einer neuen Einladung.",
       "identity.guardian_invitation_email_not_queued":
         "Die Einladung konnte gerade nicht verschickt werden. Bitte versuchen Sie es noch einmal.",
       "identity.invalid_credentials":
@@ -2223,6 +2225,8 @@ export const ERROR_CATALOG = {
         "There is already an account for this email address. Please use a different address.",
       "identity.guardian_email_address_blocked":
         "The invitation could not be sent right now. Please try again.",
+      "identity.guardian_invitation_address_changed":
+        "This link is no longer valid. Please ask the school for a new invitation.",
       "identity.guardian_invitation_email_not_queued":
         "The invitation could not be sent right now. Please try again.",
       "identity.invalid_credentials":
@@ -2788,6 +2792,8 @@ export const ERROR_CATALOG = {
         "Для этого адреса электронной почты уже есть учётная запись. Укажите другой адрес.",
       "identity.guardian_email_address_blocked":
         "Сейчас не удалось отправить приглашение. Повторите попытку.",
+      "identity.guardian_invitation_address_changed":
+        "Эта ссылка больше не действует. Попросите школу прислать новое приглашение.",
       "identity.guardian_invitation_email_not_queued":
         "Сейчас не удалось отправить приглашение. Повторите попытку.",
       "identity.invalid_credentials":
@@ -3306,6 +3312,8 @@ export const ERROR_CATALOG = {
         "Për këtë adresë email ka tashmë një llogari. Ju lutemi përdorni një adresë tjetër.",
       "identity.guardian_email_address_blocked":
         "Ftesa nuk mund të dërgohej tani. Provoni përsëri.",
+      "identity.guardian_invitation_address_changed":
+        "Kjo lidhje nuk është më e vlefshme. Kërkojini shkollës një ftesë të re.",
       "identity.guardian_invitation_email_not_queued":
         "Ftesa nuk mund të dërgohej tani. Provoni përsëri.",
       "identity.invalid_credentials":
@@ -3814,6 +3822,8 @@ export const ERROR_CATALOG = {
         "Dla tego adresu e-mail istnieje już konto. Użyj innego adresu.",
       "identity.guardian_email_address_blocked":
         "Nie udało się teraz wysłać zaproszenia. Spróbuj ponownie.",
+      "identity.guardian_invitation_address_changed":
+        "Ten link jest już nieważny. Poproś szkołę o nowe zaproszenie.",
       "identity.guardian_invitation_email_not_queued":
         "Nie udało się teraz wysłać zaproszenia. Spróbuj ponownie.",
       "identity.invalid_credentials":
@@ -4327,6 +4337,8 @@ export const ERROR_CATALOG = {
         "Bu e-posta adresi için zaten bir hesap var. Lütfen başka bir adres kullanın.",
       "identity.guardian_email_address_blocked":
         "Davet şu anda gönderilemedi. Yeniden deneyin.",
+      "identity.guardian_invitation_address_changed":
+        "Bu bağlantı artık geçerli değil. Lütfen okuldan yeni bir davet isteyin.",
       "identity.guardian_invitation_email_not_queued":
         "Davet şu anda gönderilemedi. Yeniden deneyin.",
       "identity.invalid_credentials":
@@ -4832,6 +4844,8 @@ export const ERROR_CATALOG = {
         "Для цієї адреси електронної пошти вже є обліковий запис. Укажіть іншу адресу.",
       "identity.guardian_email_address_blocked":
         "Зараз не вдалося надіслати запрошення. Спробуйте ще раз.",
+      "identity.guardian_invitation_address_changed":
+        "Це посилання більше не дійсне. Попросіть школу надіслати нове запрошення.",
       "identity.guardian_invitation_email_not_queued":
         "Зараз не вдалося надіслати запрошення. Спробуйте ще раз.",
       "identity.invalid_credentials":

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
@@ -29,10 +28,8 @@ func (l *AccountLifecycle) insertStudentInvitation(ctx context.Context, req doma
 		if err != nil {
 			return failed(opGuardianInviteToStudent, err)
 		}
-		var insertErr error
-		invitation, insertErr = l.invitations.InsertGuardianInvitation(txCtx, domain.GuardianInvitation{
+		draft := domain.GuardianInvitation{
 			TenantID:                    tenantID,
-			Token:                       uuid.Must(uuid.NewV4()).String(),
 			GuardianProfileID:           profile.ID,
 			CreatedBy:                   req.CreatedBy,
 			ExpiresAt:                   time.Now().Add(expiry),
@@ -41,7 +38,10 @@ func (l *AccountLifecycle) insertStudentInvitation(ctx context.Context, req doma
 			ApprovalStatus:              approvalStatus,
 			ProfileCreatedForInvitation: profileCreated,
 			RoleUpgrade:                 roleUpgrade,
-		})
+		}
+		issueGuardianInvitationLink(&draft, profile)
+		var insertErr error
+		invitation, insertErr = l.invitations.InsertGuardianInvitation(txCtx, draft)
 		if insertErr != nil {
 			return failed(opGuardianInviteToStudent, insertErr)
 		}
