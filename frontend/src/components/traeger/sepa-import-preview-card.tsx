@@ -5,7 +5,7 @@
 // denen die Datei nicht sagt, ob schon abgebucht wurde, beantwortet das Büro
 // hier; moto rät das nie. Übernommen werden nur die bereiten Zeilen.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -95,16 +95,45 @@ export function SepaImportPreviewCard({
   result,
   answers,
   applying,
+  disabled = false,
   onAnswer,
   onApply,
 }: Readonly<{
   result: ImportResult;
   answers: Answers;
   applying: boolean;
+  disabled?: boolean;
   onAnswer: (line: number, sequence: MandateSequence) => void;
   onApply: () => void;
 }>) {
   const [filter, setFilter] = useState<ImportFilter>("all");
+  const filtersRef = useRef<HTMLDivElement>(null);
+  const answerFocus = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (disabled || !answerFocus.current) return;
+    const previous = answerFocus.current;
+    answerFocus.current = null;
+    // Do not steal focus if the person moved elsewhere during the check.
+    if (
+      document.activeElement !== document.body &&
+      document.activeElement !== previous
+    )
+      return;
+    // An answered row may have left the current filter.
+    const target = previous.isConnected
+      ? previous
+      : filtersRef.current?.querySelector<HTMLElement>('[aria-pressed="true"]');
+    target?.focus({ preventScroll: true });
+  }, [disabled]);
+
+  const answer = (line: number, sequence: MandateSequence) => {
+    answerFocus.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    onAnswer(line, sequence);
+  };
   const counts = result.counts;
   const importable = importableCount(result);
   const openQuestions = counts.clarify;
@@ -184,8 +213,8 @@ export function SepaImportPreviewCard({
         <SequenceCell
           row={row}
           answer={answers[row.line]}
-          disabled={applying}
-          onAnswer={onAnswer}
+          disabled={applying || disabled}
+          onAnswer={answer}
         />
       ),
     },
@@ -199,7 +228,11 @@ export function SepaImportPreviewCard({
   return (
     <SectionCard
       title="Prüfen und übernehmen"
-      description="So würde moto jede Zeile übernehmen. Geändert wird erst, wenn Sie übernehmen."
+      description={
+        disabled
+          ? "Die Vorschau zeigt den letzten geprüften Stand. Übernehmen ist erst nach der Prüfung möglich."
+          : "So würde moto jede Zeile übernehmen. Geändert wird erst, wenn Sie übernehmen."
+      }
       footer={
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-gray-600">
@@ -212,7 +245,7 @@ export function SepaImportPreviewCard({
             variant="success"
             size="md"
             onClick={onApply}
-            disabled={importable === 0}
+            disabled={disabled || importable === 0}
             isLoading={applying}
             loadingText="Wird übernommen …"
           >
@@ -223,7 +256,7 @@ export function SepaImportPreviewCard({
         </div>
       }
     >
-      <div className="mb-4">
+      <div ref={filtersRef} className="mb-4">
         <SegmentedControl
           ariaLabel="Zeilen zeigen"
           fullWidth
@@ -233,22 +266,21 @@ export function SepaImportPreviewCard({
           onChange={setFilter}
         />
       </div>
-      {shown.length === 0 ? (
-        <EmptyState
-          variant="compact"
-          title="Keine Zeilen"
-          description="In dieser Auswahl gibt es keine Zeile."
-        />
-      ) : (
-        <DataTable
-          columns={columns}
-          rows={[...shown]}
-          getRowKey={(row) => row.line}
-          stackedOnMobile
-          stackedLayout="lines"
-          dense
-        />
-      )}
+      <DataTable
+        columns={columns}
+        rows={[...shown]}
+        getRowKey={(row) => row.line}
+        stackedOnMobile
+        stackedLayout="lines"
+        dense
+        emptyState={
+          <EmptyState
+            variant="compact"
+            title="Keine Zeilen"
+            description="In dieser Auswahl gibt es keine Zeile."
+          />
+        }
+      />
     </SectionCard>
   );
 }

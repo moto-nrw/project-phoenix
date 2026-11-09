@@ -85,6 +85,7 @@ export function traegerSepaMandatesTopic(): HelpTopic {
       "`Mandat erfassen` fehlt? Die Familie hat schon ein gültiges Mandat. Widerrufen Sie es zuerst.",
     ],
     troubleshootingDetails: [
+      "Die Mandate sind übernommen, aber die Liste der Importe fehlt? Wählen Sie dort `Erneut laden`. Die Mandate müssen Sie nicht noch einmal übernehmen.",
       "Die IBAN wird nicht angenommen? Prüfen Sie jedes Zeichen. moto prüft die Prüfziffer.",
       "Beim Import steht `Konflikt`? Das Mandat passt nicht zu dem, was moto schon hat: eine andere Gläubiger-ID, eine schon vergebene Mandatsreferenz oder eine Familie mit einem anderen gültigen Mandat. moto überschreibt nichts. Klären Sie das Mandat und erfassen Sie es bei Bedarf von Hand.",
       "Beim Import steht `Zu diesem Zahler gibt es bei Ihnen keinen Vertrag`? Prüfen Sie die E-Mail-Adresse oder Vertragsnummer in der Datei. Sie muss zu einem Vertrag Ihres Trägers passen.",

@@ -17,6 +17,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { Dropzone } from "~/components/ui/dropzone";
 import { EmptyState } from "~/components/ui/empty-state";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { WizardStepper } from "~/components/ui/wizard-stepper";
@@ -68,11 +69,26 @@ export default function TraegerSepaImportPage() {
   const [applying, setApplying] = useState(false);
   const [done, setDone] = useState<ImportResult | null>(null);
   const pageLoad = useApiLoadError();
+  const logLoad = useApiLoadError();
+  const { show: showLogError, clear: clearLogError } = logLoad;
   const { show: showLoadError, clear: clearLoadError } = pageLoad;
   const { show, showMessage } = useApiErrorDisplay();
   const { success } = useToast();
   // Only the answer to the newest look at the file counts.
   const request = useRef(0);
+
+  const loadLog = useCallback(async () => {
+    try {
+      setLog(await fetchSepaImportLog());
+      clearLogError();
+    } catch (err) {
+      logger.error("sepa_import_log_load_failed", { error: errorText(err) });
+      await showLogError(err, {
+        object: "die Liste der Importe",
+        action: { label: "Erneut laden", onClick: () => void loadLog() },
+      });
+    }
+  }, [clearLogError, showLogError]);
 
   const load = useCallback(async () => {
     if (!canBill) return;
@@ -171,13 +187,14 @@ export default function TraegerSepaImportPage() {
           ? "1 Mandat ist übernommen."
           : `${applied.counts.imported} Mandate sind übernommen.`,
       );
-      setLog(await fetchSepaImportLog());
     } catch (err) {
       logger.error("sepa_import_apply_failed", { error: errorText(err) });
       void show(err, { object: "die Mandate" });
+      return;
     } finally {
       setApplying(false);
     }
+    await loadLog();
   };
 
   const restart = () => {
@@ -333,11 +350,12 @@ export default function TraegerSepaImportPage() {
                 }
               />
             ) : null}
-            {result && verified && result.unmapped.length === 0 ? (
+            {result && result.unmapped.length === 0 ? (
               <SepaImportPreviewCard
                 result={result}
                 answers={answers}
                 applying={applying}
+                disabled={!verified}
                 onAnswer={answer}
                 onApply={() => void apply()}
               />
@@ -355,7 +373,11 @@ export default function TraegerSepaImportPage() {
             ) : null}
           </>
         )}
-        {log ? <SepaImportLogCard entries={log} /> : null}
+        {logLoad.error ? (
+          <LoadErrorAlert error={logLoad.error} />
+        ) : log ? (
+          <SepaImportLogCard entries={log} />
+        ) : null}
       </div>
     </TenantPage>
   );
