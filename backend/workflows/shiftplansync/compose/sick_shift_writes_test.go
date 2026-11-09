@@ -216,6 +216,11 @@ func TestSickReport_EditedShiftTakesSickStateOfItsNewDay(t *testing.T) {
 
 	assertSickCancelled(t, e.editShift(t, healthy, stampWeekTwo, "16:00", "17:00"), absenceID, "edited onto the sick day")
 	assertSickCancelled(t, e.editShift(t, healthy, stampWeekTwo, "16:00", "17:00"), absenceID, "identical retry keeps the stamp")
+	empty := ""
+	dialog := e.mustPlanShift(t, e.subject.ID, stampWeekOne, "19:00", "20:00")
+	assertSickCancelled(t, e.editShiftWith(t, dialog, stampWeekTwo, "19:00", "20:00", &empty), absenceID, "dialog edit with an empty reason")
+	assertSickCancelled(t, e.editShiftWith(t, dialog, stampWeekTwo, "19:00", "20:00", &empty), absenceID, "dialog retry keeps stamp and label")
+	assertSickCancelled(t, e.editShiftWith(t, dialog, stampWeekTwo, "19:00", "20:00", nil), absenceID, "retry without a reason keeps stamp and label")
 
 	toHealthy := e.editShift(t, e.reloadShift(t, sickBefore.ID), stampWeekThree, "08:00", "10:00")
 	assertPlanned(t, toHealthy, "edited away from the sick day")

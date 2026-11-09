@@ -64,6 +64,7 @@ func (s *staffShiftService) applyEditedSickState(ctx context.Context, shift, exi
 	if shift.Date == existing.Date {
 		if existing.SickAbsenceID != nil && editChangesNothing(shift, existing) {
 			shift.SickAbsenceID = existing.SickAbsenceID
+			shift.ChangeReason = existing.ChangeReason
 		}
 		return nil
 	}
@@ -73,12 +74,18 @@ func (s *staffShiftService) applyEditedSickState(ctx context.Context, shift, exi
 	return s.applySickStateOfDay(ctx, shift)
 }
 
-// editChangesNothing reports whether an edit writes the stored values again.
+// editChangesNothing reports whether an edit of a sick-stamped shift writes
+// the stored values again. Such a shift carries the server's sick label, so a
+// request that leaves the reason empty, as the edit dialog does, matches it.
 func editChangesNothing(shift, existing *workforce.ShiftRecord) bool {
 	return !staffShiftMoveChanged(existing, shift) &&
 		shift.Notes == existing.Notes &&
 		shift.Cancelled == existing.Cancelled &&
-		sameOptionalText(shift.ChangeReason, existing.ChangeReason)
+		(sameOptionalText(shift.ChangeReason, existing.ChangeReason) || requestsNoReason(shift.ChangeReason))
+}
+
+func requestsNoReason(requested *string) bool {
+	return requested == nil || *requested == ""
 }
 
 func sameOptionalText(a, b *string) bool {
