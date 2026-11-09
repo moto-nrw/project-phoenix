@@ -282,9 +282,9 @@ func applyExemption(child *parentbilling.HolidayChildContribution, rule *parentb
 // contribution and copies its ID and name into the line, even when nothing
 // is left (#5627).
 func applyCostTakeover(child *parentbilling.HolidayChildContribution, bearer *parentbilling.CostBearer) {
-	if len(child.Lines) == 0 {
-		return
-	}
+	// A zero line persists the confirmed cost bearer even while every week
+	// waits (#4699): the stored contribution names it only in its lines, and
+	// a later move up would otherwise bill the family.
 	id := bearer.ID
 	child.Lines = append(child.Lines, parentbilling.HolidayContributionLine{
 		Kind: parentbilling.LineCostTakeover, AmountCents: -child.TotalCents, CostBearerID: &id, CostBearerName: bearer.Name,
