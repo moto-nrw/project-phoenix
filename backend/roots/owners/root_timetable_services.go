@@ -44,11 +44,13 @@ type TimetableLifecycle struct {
 // activity templates into concrete instances with their staff and students
 // for a date window, for the scheduler task and the manual admin endpoint.
 // Holidays and closing days carry no series occurrences unless the series
-// opts into closing days (#3594); the School Calendar answers.
-func BuildTimetableMaterialization(db transactionruntime.Database, env RootEnvironment, hub *realtime.Hub, owner TimetableOwner, people PeopleRows, calendar schoolcalendar.Days) (timetable.MaterializationCapability, error) {
+// opts into closing days (#3594); the School Calendar answers. Workforce's
+// open sick reports mark newly planned supervisors absent (#6292).
+func BuildTimetableMaterialization(db transactionruntime.Database, env RootEnvironment, hub *realtime.Hub, owner TimetableOwner, people PeopleRows, calendar schoolcalendar.Days, absences SickReportAbsences) (timetable.MaterializationCapability, error) {
 	deps := TimetableMaterializationDependencies(owner.TemplateRows, people.Students, calendar,
 		owner.RecurrenceLock, hub, env.Logger.With("service", "materialization"))
 	deps.Transactions = arrivalTimetable.NewTenantTransactions(db.Pool())
+	deps.SickReports = NewTimetableSickReports(absences)
 	materialization, err := arrivalTimetable.NewMaterialization(deps)
 	if err != nil {
 		return nil, fmt.Errorf("compose timetable materialization: %w", err)
@@ -64,6 +66,7 @@ func BuildTimetableLifecycle(
 	people PeopleRows, careRows TimetableCareRows, presence PresenceOwner, supervisions studentpresence.SupervisionRecords,
 	shifts timetablePorts.ConflictShifts, schedules CarePlanSchedules, carePlan careplan.Capability, active studentpresence.Presence,
 	materialization timetable.MaterializationCapability, notices communication.CareCancellationPublisher, settings settingsCompose.BatchSettingsService,
+	sickReports timetablePorts.SickReportReader,
 ) (TimetableLifecycle, error) {
 	repos := owner.Repositories
 	rows := days.Rows
@@ -87,7 +90,7 @@ func BuildTimetableLifecycle(
 		CalendarPeriodRepo: owner.TemplateRows.CalendarPeriods, Database: arrivalTimetable.NewTenantDatabase(db.Pool()),
 		StaffRepo: NewTimetableStaff(people.Staff), ActiveGroupRepo: presence.SessionRecords, SupervisorRepo: supervisions,
 		Presence: presence.Presence, ActiveService: active, CareDayLocks: carePlan,
-		Materialization: materialization, RecurrenceLock: owner.RecurrenceLock,
+		Materialization: materialization, SickReports: sickReports, RecurrenceLock: owner.RecurrenceLock,
 		StartConflicts: conflicts, SubstituteConflicts: substituteConflicts,
 		Logger: env.Logger.With("service", "instance-lifecycle"), Now: env.Now,
 		// Development and test seed profiles create completed instances at
@@ -97,7 +100,7 @@ func BuildTimetableLifecycle(
 	if err != nil {
 		return TimetableLifecycle{}, fmt.Errorf("compose timetable instance lifecycle: %w", err)
 	}
-	deviations, err := buildTimetableDeviations(db, env, hub, rows, people, supervisions, instances)
+	deviations, err := buildTimetableDeviations(db, env, hub, rows, people, supervisions, instances, sickReports)
 	if err != nil {
 		return TimetableLifecycle{}, err
 	}
@@ -109,13 +112,13 @@ func BuildTimetableLifecycle(
 
 // buildTimetableDeviations binds the deviation writes: the cancel branch and
 // the understaffed acknowledgement hand over to the lifecycle.
-func buildTimetableDeviations(db transactionruntime.Database, env RootEnvironment, hub *realtime.Hub, rows arrivalTimetable.OwnerRows, people PeopleRows, supervisions studentpresence.SupervisionRecords, instances timetablePorts.InstanceLifecycle) (timetable.StaffDeviations, error) {
+func buildTimetableDeviations(db transactionruntime.Database, env RootEnvironment, hub *realtime.Hub, rows arrivalTimetable.OwnerRows, people PeopleRows, supervisions studentpresence.SupervisionRecords, instances timetablePorts.InstanceLifecycle, sickReports timetablePorts.SickReportReader) (timetable.StaffDeviations, error) {
 	deps, err := TimetableStaffDeviationDependencies(rows, NewTimetableStaff(people.Staff), supervisions,
 		instances.DeviationLifecycle(), hub, env.Logger.With("service", "timetable-deviations"), env.Now)
 	if err != nil {
 		return nil, fmt.Errorf("compose timetable deviations: %w", err)
 	}
-	deps.Locks = arrivalTimetable.NewTenantDatabase(db.Pool())
+	deps.Locks, deps.SickReports = arrivalTimetable.NewTenantDatabase(db.Pool()), sickReports
 	deviations, err := arrivalTimetable.NewStaffDeviations(deps)
 	if err != nil {
 		return nil, fmt.Errorf("compose timetable deviations: %w", err)
