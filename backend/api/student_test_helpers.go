@@ -146,7 +146,7 @@ func newStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	liveEducation := NewActiveTestEducation(db, unit, clocks...)
 	livePresence := NewActiveTestPresence(db, unit, clocks...)
 	liveTimetable, _ := NewActiveTestTimetable(db, unit, clocks...)
-	care, careAudit, err := NewCareLifecycleTestModule(db, unit)
+	care, careAudit, err := NewCareLifecycleTestModule(db, unit, clocks...)
 	if err != nil {
 		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
