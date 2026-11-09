@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const declarationAlwaysRevocableVersion = "1.15.855"
+const declarationAlwaysRevocableVersion = "1.15.856"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
