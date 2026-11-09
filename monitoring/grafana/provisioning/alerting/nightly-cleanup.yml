@@ -5,9 +5,10 @@ apiVersion: 1
 # fehlgeschlagenen Lauf ab dem dritten Fehlschlag genau eine Zeile
 # "nightly cleanup failing repeatedly" und beim ersten Erfolg danach
 # "nightly cleanup recovered" mit consecutive_failures=0. Die Regel liest den
-# letzten Wert je Schule und Job. Die Wartezeit zwischen zwei Läufen ist höchstens
-# 24 Stunden, deshalb deckt das Fenster von 26 Stunden einen laufenden Dauerfehler
-# immer ab. Runbook: monitoring/runbooks/nightly-cleanup.md.
+# letzten Wert je Schule und Job. Zwischen zwei Fehlerzeilen liegen höchstens
+# 24 Stunden Wartezeit plus die Laufzeit eines Laufs (höchstens 2 Stunden),
+# deshalb deckt das Fenster von 30 Stunden einen laufenden Dauerfehler ab.
+# Runbook: monitoring/runbooks/nightly-cleanup.md.
 groups:
   - orgId: 1
     name: Phoenix Nightly Cleanup
@@ -21,11 +22,11 @@ groups:
           - refId: A
             queryType: ""
             relativeTimeRange:
-              from: 93600
+              from: 108000
               to: 0
             datasourceUid: P8E80F9AEF21F6940
             model:
-              expr: 'max by (tenant_id, job_id) (last_over_time({env="prod",service="server"} |= "nightly cleanup" | json | msg=~"nightly cleanup (failing repeatedly|recovered)" | keep tenant_id, job_id, consecutive_failures | unwrap consecutive_failures [26h]))'
+              expr: 'max by (tenant_id, job_id) (last_over_time({env="prod",service="server"} |= "nightly cleanup" | json | msg=~"nightly cleanup (failing repeatedly|recovered)" | keep tenant_id, job_id, consecutive_failures | unwrap consecutive_failures [30h]))'
               instant: true
               intervalMs: 1000
               maxDataPoints: 43200

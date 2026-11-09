@@ -131,3 +131,26 @@ func TestNightlyCleanupFailureStreakIsPerSchool(t *testing.T) {
 	require.Len(t, alerts("nightly cleanup recovered"), 1)
 	assert.Len(t, alerts("nightly cleanup failing repeatedly"), 1, "a success raises no alert")
 }
+
+// TestNightlyCleanupStoresTheStreakOfAnUnreadableSwitch: a school whose
+// cleanup switch cannot be read fails every due run, and each tick of it
+// used to roll back. Its streak must reach the database anyway, across
+// restarts.
+func TestNightlyCleanupStoresTheStreakOfAnUnreadableSwitch(t *testing.T) {
+	t.Parallel()
+	start := time.Date(2026, time.October, 14, 2, 0, 0, 0, calendar.Berlin)
+	now := start
+	admin, deps := cleanupTestDependencies(t, func() time.Time { return now })
+	school := seedCleanupSchool(t, admin, false, false, 10)
+	_, err := admin.ExecContext(context.Background(), `INSERT INTO config.setting_values (tenant_id, setting_key, value)
+		VALUES (?, 'gdpr.data_cleanup_enabled', '"unreadable"'::jsonb)`, school.id)
+	require.NoError(t, err)
+
+	for _, after := range []time.Duration{0, time.Hour, 3 * time.Hour} {
+		now = start.Add(after)
+		scheduler.NewCleanupTestRunner(deps)()
+	}
+
+	assert.Equal(t, storedCleanupRun{Failures: 3}, storedRun(t, admin, school.id))
+	assert.True(t, visitExists(t, admin, school.expired), "nothing runs while the switch cannot be read")
+}

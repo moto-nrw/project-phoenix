@@ -48,14 +48,13 @@ func (f *fakeCleanupRuns) RecordCleanupSucceeded(_ context.Context, jobID string
 	return nil
 }
 
-func (f *fakeCleanupRuns) RecordCleanupFailed(_ context.Context, jobID string, at time.Time) (int, error) {
+func (f *fakeCleanupRuns) RecordCleanupFailed(_ context.Context, jobID string, failures int, at time.Time) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	state := f.failures[jobID]
-	state.Failures++
-	state.LastFailure = at
-	f.failures[jobID] = state
-	return state.Failures, nil
+	if at.After(f.failures[jobID].LastFailure) && at.After(f.runs[jobID]) {
+		f.failures[jobID] = cleanupRunState{Failures: failures, LastFailure: at}
+	}
+	return nil
 }
 
 func (f *fakeCleanupRuns) failureCount(jobID string) int {

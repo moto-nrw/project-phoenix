@@ -17,11 +17,13 @@ import (
 // platform.cleanup_runs: a restart keeps it, a new day does not reset it, and
 // only a success ends it. Schools and jobs keep separate streaks.
 //
-// The streak is written in the school's transaction. A run that commits its
-// successful steps (errCleanupIncomplete) writes it at once. A run that rolls
-// its transaction back cannot: the process keeps the streak and writes it in
-// the school's transaction of the job's next minute tick, before the due
-// check. A restart within that minute loses that one failure from the count.
+// The streak is written in the school's transaction, as a whole rather than
+// one more, so a later write makes good a write that rolled back. A run that
+// commits its successful steps (errCleanupIncomplete) or that could not read
+// the cleanup switch writes it at once. A run that rolls its transaction back
+// cannot: the process keeps the streak and writes it in the school's
+// transaction of the job's next minute tick, before the due check. A restart
+// before that write loses that one failure from the count.
 //
 // From cleanupAlertThreshold failures in a row on, every failed run logs
 // exactly one cleanupFailingMessage line at ERROR. The first success after
@@ -57,11 +59,11 @@ func cleanupRetryDelay(failures int) time.Duration {
 }
 
 // cleanupFailureStreak is the failure streak this process last saw for a
-// school and job. stored is false while the ledger lacks its last failure.
+// school and job. written is false while the ledger may lack it.
 type cleanupFailureStreak struct {
 	failures int
 	last     time.Time
-	stored   bool
+	written  bool
 }
 
 // cleanupIncompleteError reports the steps of the nightly data cleanup that
@@ -93,9 +95,8 @@ type cleanupAttempt struct {
 	previous int
 	// failure is the reported failure; nil while the run reported none.
 	failure error
-	// stored is the streak written in the run's transaction; 0 when none
-	// was written.
-	stored int
+	// written reports that the run's transaction holds the streak.
+	written bool
 }
 
 // cleanupAttempts collects the due runs of one job run per school. Tenant
@@ -123,11 +124,11 @@ func (a *cleanupAttempts) fail(tenantID int64, err error) {
 	}
 }
 
-func (a *cleanupAttempts) store(tenantID int64, failures int) {
+func (a *cleanupAttempts) markWritten(tenantID int64) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if attempt, ok := a.byTenant[tenantID]; ok {
-		attempt.stored = failures
+		attempt.written = true
 	}
 }
 
@@ -145,14 +146,15 @@ func (a *cleanupAttempts) snapshot() map[int64]cleanupAttempt {
 // anyway. It runs in a savepoint, so a failed write keeps the committed
 // steps; the process then keeps the streak until the next tick writes it.
 // It returns an error only when the transaction itself is lost.
-func (s *Scheduler) storeCleanupFailure(ctx context.Context, tenantID int64, jobID string, at time.Time, attempts *cleanupAttempts) error {
-	if s.cleanupRuns == nil {
+func (s *Scheduler) storeCleanupFailure(ctx context.Context, tenantID int64, jobID string, attempts *cleanupAttempts) error {
+	attempt, ok := attempts.snapshot()[tenantID]
+	if s.cleanupRuns == nil || !ok {
 		return nil
 	}
 	usable, err := s.inCleanupSavepoint(ctx, func(recordCtx context.Context) error {
-		failures, err := s.cleanupRuns.RecordCleanupFailed(recordCtx, jobID, at)
+		err := s.cleanupRuns.RecordCleanupFailed(recordCtx, jobID, attempt.previous+1, attempt.at)
 		if err == nil {
-			attempts.store(tenantID, failures)
+			attempts.markWritten(tenantID)
 		}
 		return err
 	})
@@ -179,16 +181,16 @@ func (s *Scheduler) storePendingCleanupFailure(ctx context.Context, jobID string
 		return nil
 	}
 	pending, ok := value.(cleanupFailureStreak)
-	if !ok || pending.stored {
+	if !ok || pending.written {
 		return nil
 	}
-	if _, err := s.cleanupRuns.RecordCleanupFailed(ctx, jobID, pending.last); err != nil {
+	if err := s.cleanupRuns.RecordCleanupFailed(ctx, jobID, pending.failures, pending.last); err != nil {
 		return fmt.Errorf("record failed cleanup run of %s: %w", jobID, err)
 	}
-	stored := pending
-	stored.stored = true
+	written := pending
+	written.written = true
 	s.afterCommit(ctx, func() {
-		s.cleanupFailures.CompareAndSwap(key, pending, stored)
+		s.cleanupFailures.CompareAndSwap(key, pending, written)
 	})
 	return nil
 }
@@ -211,10 +213,7 @@ func (s *Scheduler) settleCleanupAttempts(jobID string, attempts *cleanupAttempt
 		if attempt.failure == nil {
 			attempt.failure = errCleanupNotCommitted
 		}
-		streak := cleanupFailureStreak{failures: attempt.previous + 1, last: attempt.at}
-		if attempt.stored > 0 && committed[tenantID] {
-			streak.failures, streak.stored = attempt.stored, true
-		}
+		streak := cleanupFailureStreak{failures: attempt.previous + 1, last: attempt.at, written: attempt.written && committed[tenantID]}
 		s.cleanupFailures.Store(cleanupAttemptKey{jobID: jobID, tenantID: tenantID}, streak)
 		s.alertCleanupFailure(jobID, tenantID, attempt, streak.failures)
 	}

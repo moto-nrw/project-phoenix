@@ -38,12 +38,16 @@ SET succeeded_at = GREATEST(run.succeeded_at, EXCLUDED.succeeded_at),
     consecutive_failures = 0,
     last_failed_at = NULL`
 
+// recordFailedSQL stores the whole streak rather than adding one: a write
+// that rolled back is made good by the next one. A failure older than the
+// stored failure or success changes nothing.
 const recordFailedSQL = `INSERT INTO platform.cleanup_runs AS run (tenant_id, job_id, consecutive_failures, last_failed_at)
-VALUES (NULLIF(current_setting('app.current_tenant_id', true), '')::bigint, ?, 1, ?)
+VALUES (NULLIF(current_setting('app.current_tenant_id', true), '')::bigint, ?, ?, ?)
 ON CONFLICT (tenant_id, job_id) DO UPDATE
-SET consecutive_failures = run.consecutive_failures + 1,
-    last_failed_at = GREATEST(run.last_failed_at, EXCLUDED.last_failed_at)
-RETURNING consecutive_failures`
+SET consecutive_failures = EXCLUDED.consecutive_failures,
+    last_failed_at = EXCLUDED.last_failed_at
+WHERE (run.last_failed_at IS NULL OR run.last_failed_at < EXCLUDED.last_failed_at)
+  AND (run.succeeded_at IS NULL OR run.succeeded_at < EXCLUDED.last_failed_at)`
 
 // CleanupRun returns the last success of jobID for the school of the
 // transaction in ctx, the failed runs in a row since and the last of them.
@@ -84,22 +88,21 @@ func (s *Store) RecordCleanupSucceeded(ctx context.Context, jobID string, at tim
 	return nil
 }
 
-// RecordCleanupFailed adds a failed run at at to the streak of jobID for the
-// school of the transaction in ctx and returns the streak's new length. The
-// last success stays as it is.
-func (s *Store) RecordCleanupFailed(ctx context.Context, jobID string, at time.Time) (int, error) {
-	if jobID == "" || at.IsZero() {
-		return 0, errors.New("cleanup run: job and time are required")
+// RecordCleanupFailed stores failures as the streak of jobID for the school
+// of the transaction in ctx, ending with the failed run at at. The last
+// success stays as it is.
+func (s *Store) RecordCleanupFailed(ctx context.Context, jobID string, failures int, at time.Time) error {
+	if jobID == "" || failures < 1 || at.IsZero() {
+		return errors.New("cleanup run: job, failures and time are required")
 	}
 	db, err := tenantTransaction(ctx)
 	if err != nil {
-		return 0, err
+		return err
 	}
-	var failures int
-	if err := db.NewRaw(recordFailedSQL, jobID, at).Scan(ctx, &failures); err != nil {
-		return 0, fmt.Errorf("record failed cleanup run %s: %w", jobID, err)
+	if _, err := db.NewRaw(recordFailedSQL, jobID, failures, at).Exec(ctx); err != nil {
+		return fmt.Errorf("record failed cleanup run %s: %w", jobID, err)
 	}
-	return failures, nil
+	return nil
 }
 
 // tenantTransaction returns the transaction open in ctx. Outside a tenant

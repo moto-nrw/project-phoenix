@@ -265,3 +265,33 @@ func TestNightlyCleanupFailureStreakIsPerJob(t *testing.T) {
 	last, _ := runs.last("visit-cleanup")
 	assert.Equal(t, berlin(14, 3, 0), last, "the other job runs although the timetable cleanup keeps failing")
 }
+
+// A school whose cleanup switch cannot be read fails every due run without
+// running anything. Its streak is stored all the same, so a restart keeps
+// the wait and the alert count.
+func TestNightlyCleanupStoresTheStreakOfAnUnreadableSwitch(t *testing.T) {
+	t.Parallel()
+
+	runs := newFakeCleanupRuns()
+	runs.runs["timetable-cleanup"] = berlin(13, 2, 0)
+	clock := &cleanupClock{now: berlin(14, 2, 0)}
+	cleanup := &fakeTimetableCleanup{}
+	settings := &stubSettingsResolver{boolErr: errors.New("settings unavailable"), stringVal: "02:00", intVal: 30}
+	newWorker := func() *Scheduler {
+		return unitScheduler(&unitSchedulerDependencies{
+			logger: slog.Default(), timetableCleanup: cleanup, cleanupRuns: runs,
+			cleanupClock: clock.Now, settings: settings,
+		})
+	}
+	s := newWorker()
+	for _, at := range []time.Time{berlin(14, 2, 0), berlin(14, 3, 0), berlin(14, 5, 0)} {
+		clock.Set(at)
+		runTimetableTick(s)
+	}
+	require.Equal(t, 3, runs.failureCount("timetable-cleanup"), "every failed run is stored in its own tick")
+
+	settings.boolErr = nil
+	settings.boolVal = true
+	restarted := newWorker()
+	expectRetryAt(t, restarted, clock, cleanup, berlin(14, 9, 0))
+}

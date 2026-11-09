@@ -101,8 +101,7 @@ func TestCleanupRunRequiresATransaction(t *testing.T) {
 	_, _, _, err := NewStore().CleanupRun(context.Background(), jobID)
 	require.Error(t, err)
 	require.Error(t, NewStore().RecordCleanupSucceeded(context.Background(), jobID, time.Now()))
-	_, err = NewStore().RecordCleanupFailed(context.Background(), jobID, time.Now())
-	require.Error(t, err)
+	require.Error(t, NewStore().RecordCleanupFailed(context.Background(), jobID, 1, time.Now()))
 }
 
 type storedRun struct {
@@ -122,20 +121,17 @@ func runState(t *testing.T, db *bun.DB, tenantID int64) storedRun {
 	return state
 }
 
-func recordFailure(t *testing.T, db *bun.DB, tenantID int64, at time.Time) int {
+func recordFailure(t *testing.T, db *bun.DB, tenantID int64, failures int, at time.Time) {
 	t.Helper()
-	var failures int
 	require.NoError(t, testpkg.WithinTenantContext(t, context.Background(), db, tenantID, func(ctx context.Context) error {
-		var err error
-		failures, err = NewStore().RecordCleanupFailed(ctx, jobID, at)
-		return err
+		return NewStore().RecordCleanupFailed(ctx, jobID, failures, at)
 	}))
-	return failures
 }
 
-// TestCleanupRunKeepsTheFailureStreakUntilASuccess covers #6327: failures
-// count up per school, also before the first success, and a success ends
-// the streak without losing its own time.
+// TestCleanupRunKeepsTheFailureStreakUntilASuccess covers #6327: the streak
+// is stored per school, also before the first success; an older failure
+// never replaces a later failure or success; a success ends the streak
+// without losing its own time.
 func TestCleanupRunKeepsTheFailureStreakUntilASuccess(t *testing.T) {
 	t.Parallel()
 	db := serveDB(t)
@@ -143,10 +139,15 @@ func TestCleanupRunKeepsTheFailureStreakUntilASuccess(t *testing.T) {
 	otherSchool, _ := testpkg.CreateTestTenant(t, testpkg.SetupTestDB(t))
 	first := time.Date(2026, time.October, 14, 2, 0, 0, 0, time.UTC)
 
-	assert.Equal(t, 1, recordFailure(t, db, school, first), "a first run that fails starts the streak")
-	assert.Equal(t, 2, recordFailure(t, db, school, first.Add(time.Hour)))
+	recordFailure(t, db, school, 1, first)
+	assert.Equal(t, 1, runState(t, db, school).Failures, "a first run that fails starts the streak")
+	recordFailure(t, db, school, 3, first.Add(time.Hour))
+	recordFailure(t, db, school, 2, first.Add(30*time.Minute))
 	state := runState(t, db, school)
-	assert.Equal(t, 2, state.Failures)
+	assert.Equal(t, 3, state.Failures, "a lost write is made good, an older failure changes nothing")
+	recordFailure(t, db, school, 2, first.Add(time.Hour))
+	state = runState(t, db, school)
+	assert.Equal(t, 3, state.Failures, "the same failure written again changes nothing")
 	assert.True(t, state.LastFailedAt.Equal(first.Add(time.Hour)))
 	assert.True(t, state.SucceededAt.IsZero(), "a failure is no success")
 	assert.Zero(t, runState(t, db, otherSchool).Failures, "the streak of one school is invisible to another")
@@ -158,6 +159,9 @@ func TestCleanupRunKeepsTheFailureStreakUntilASuccess(t *testing.T) {
 	assert.Zero(t, state.Failures, "a success ends the streak")
 	assert.True(t, state.LastFailedAt.IsZero())
 
-	assert.Equal(t, 1, recordFailure(t, db, school, succeeded.Add(24*time.Hour)), "the next failure starts a new streak")
+	recordFailure(t, db, school, 4, succeeded.Add(-time.Minute))
+	assert.Zero(t, runState(t, db, school).Failures, "a failure before the last success changes nothing")
+	recordFailure(t, db, school, 1, succeeded.Add(24*time.Hour))
+	assert.Equal(t, 1, runState(t, db, school).Failures, "the next failure starts a new streak")
 	assert.True(t, runState(t, db, school).SucceededAt.Equal(succeeded), "a failure keeps the last success")
 }

@@ -281,7 +281,7 @@ func (s *Scheduler) runDailyGDPRCleanupForTenant(tenantCtx context.Context, tena
 			)
 			recordStandingJobFailure(tenantCtx, tenantID, "tenant cleanup incomplete", err, nil)
 			addJobCommandFailure(tenantCtx, err)
-			return s.storeCleanupFailure(tenantCtx, tenantID, taskName, now, attempts)
+			return s.storeCleanupFailure(tenantCtx, tenantID, taskName, attempts)
 		}
 		return err
 	}
@@ -294,7 +294,8 @@ func (s *Scheduler) runDailyGDPRCleanupForTenant(tenantCtx context.Context, tena
 
 // failUnreadableCleanupSwitch fails the school's run when the cleanup switch
 // cannot be read. A due run counts as failed and is retried after its wait.
-// The returned error rolls the transaction back.
+// Nothing ran, so the transaction commits the failure streak and the job run
+// still reports the failure.
 func (s *Scheduler) failUnreadableCleanupSwitch(tenantCtx context.Context, tenantID int64, dayCache *sync.Map, taskName string, attempts *cleanupAttempts, err error) error {
 	cleanupTime, timeErr := s.settings.ResolveString(tenantCtx, settingDataCleanupTime)
 	if timeErr != nil {
@@ -308,8 +309,18 @@ func (s *Scheduler) failUnreadableCleanupSwitch(tenantCtx context.Context, tenan
 	if due {
 		attempts.start(tenantID, now, state.Failures)
 		attempts.fail(tenantID, err)
+		if storeErr := s.storeCleanupFailure(tenantCtx, tenantID, taskName, attempts); storeErr != nil {
+			return errors.Join(err, storeErr)
+		}
 	}
-	return err
+	s.getLogger().Error("data cleanup switch unreadable",
+		slog.Int64("tenant_id", tenantID),
+		slog.String("job_id", taskName),
+		slog.String("error", err.Error()),
+	)
+	recordStandingJobFailure(tenantCtx, tenantID, "tenant cleanup switch unreadable", err, nil)
+	addJobCommandFailure(tenantCtx, err)
+	return nil
 }
 
 func (s *Scheduler) cleanupStaleSupervisors(ctx context.Context, tenantID int64) error {

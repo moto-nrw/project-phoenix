@@ -79,7 +79,7 @@ type cleanupAttemptKey struct {
 // decides whether it runs now. After failed runs it waits the backoff of the
 // failure streak (#6327), also at the configured minute and across days.
 func (s *Scheduler) dailyCleanupDue(ctx context.Context, dayCache *sync.Map, jobID string, tenantID int64, cleanupTime string, now time.Time) (cleanupRunState, bool, error) {
-	state, err := s.cleanupRunState(ctx, dayCache, jobID, tenantID)
+	state, err := s.readCleanupRunState(ctx, dayCache, jobID, tenantID)
 	if err != nil {
 		return state, false, err
 	}
@@ -108,12 +108,12 @@ func (s *Scheduler) dailyCleanupDue(ctx context.Context, dayCache *sync.Map, job
 	return state, true, nil
 }
 
-// cleanupRunState reads the last success and the failure streak of the job
+// readCleanupRunState reads the last success and the failure streak of the job
 // for the school, after writing a failure the process still keeps. Without a
 // ledger the day cache holds the last success and the process the streak. A
 // streak the process saw later than the ledger wins, so a failure whose
 // write is still pending or was lost spaces the next retry all the same.
-func (s *Scheduler) cleanupRunState(ctx context.Context, dayCache *sync.Map, jobID string, tenantID int64) (cleanupRunState, error) {
+func (s *Scheduler) readCleanupRunState(ctx context.Context, dayCache *sync.Map, jobID string, tenantID int64) (cleanupRunState, error) {
 	var state cleanupRunState
 	if s.cleanupRuns == nil {
 		if value, ok := dayCache.Load(tenantID); ok {

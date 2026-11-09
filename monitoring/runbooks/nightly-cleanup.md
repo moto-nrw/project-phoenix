@@ -48,11 +48,12 @@ enthalten nur IDs, keine Namen.
 ## Prüfabfrage
 
 Die Alarmregel nimmt je Schule und Job den letzten Wert von
-`consecutive_failures` der beiden ersten Zeilen aus den letzten 26 Stunden. Sie
-alarmiert ab 3. In Grafana Explore (Loki):
+`consecutive_failures` der beiden ersten Zeilen aus den letzten 30 Stunden: höchstens
+24 Stunden Wartezeit plus bis zu 2 Stunden Laufzeit liegen zwischen zwei
+Fehlerzeilen. Sie alarmiert ab 3. In Grafana Explore (Loki):
 
 ```logql
-max by (tenant_id, job_id) (last_over_time({env="prod",service="server"} |= "nightly cleanup" | json | msg=~"nightly cleanup (failing repeatedly|recovered)" | keep tenant_id, job_id, consecutive_failures | unwrap consecutive_failures [26h]))
+max by (tenant_id, job_id) (last_over_time({env="prod",service="server"} |= "nightly cleanup" | json | msg=~"nightly cleanup (failing repeatedly|recovered)" | keep tenant_id, job_id, consecutive_failures | unwrap consecutive_failures [30h]))
 ```
 
 Read-only in der Datenbank, nur mit dem Admin-Zugang des Betriebs:
@@ -85,7 +86,7 @@ bei der nächsten Auswertung (alle 5 Minuten).
 
 Wird der Job für die Schule nicht mehr ausgeführt (Schalter
 `gdpr.data_cleanup_enabled` aus, Modul abbestellt), kommt keine neue Zeile. Der
-Alarm endet dann nach 26 Stunden ohne Zeile (`noDataState: OK`). Die Serie in
+Alarm endet dann nach 30 Stunden ohne Zeile (`noDataState: OK`). Die Serie in
 `platform.cleanup_runs` bleibt bis zum nächsten Erfolg stehen.
 
 ## Nach dem Deployment prüfen
@@ -103,6 +104,6 @@ Alarm endet dann nach 26 Stunden ohne Zeile (`noDataState: OK`). Die Serie in
 
 Die LogQL-Abfrage prüft
 [`scripts/nightly-cleanup-alerts.integration.test.mjs`](../../scripts/nightly-cleanup-alerts.integration.test.mjs)
-gegen ein isoliertes Loki: ein Alarm je Schule und Job, auch 23 Stunden nach dem
+gegen ein isoliertes Loki: ein Alarm je Schule und Job, auch 27 Stunden nach dem
 letzten Fehlschlag, Ende durch die Erholungszeile, keine Wirkung von
-Schrittfehlern, Staging-Zeilen und Zeilen älter als 26 Stunden.
+Schrittfehlern, Staging-Zeilen und Zeilen älter als 30 Stunden.

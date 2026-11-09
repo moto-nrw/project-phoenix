@@ -18,7 +18,7 @@ test('nightly cleanup LogQL alerts per school and job and ends with the recovery
     'grafana/loki:3.4.3', '-config.file=/etc/loki/local-config.yaml',
     '-ingester.min-ready-duration=0s', '-querier.query-ingesters-within=0',
     '-querier.split-queries-by-interval=0', '-querier.cache-results=false',
-    // The default 2 h chunk age drops older samples silently; the rule reads 26 h.
+    // The default 2 h chunk age drops older samples silently; the rule reads 30 h.
     '-ingester.max-chunk-age=60h');
   assert.equal(started.status, 0, started.stderr);
   const request = (path, payload) => docker('exec', name, '/busybox/wget', '-qO-',
@@ -62,14 +62,14 @@ test('nightly cleanup LogQL alerts per school and job and ends with the recovery
 
   // Lines of one stream go in in time order; Loki refuses older ones.
   assert.deepEqual(firing(), [], 'no lines, no alert');
-  push(now - 27 * hour, failing(7, 'visit-cleanup', 9));
-  assert.deepEqual(firing(), [], 'a line older than 26 hours does not alert');
+  push(now - 31 * hour, failing(7, 'visit-cleanup', 9));
+  assert.deepEqual(firing(), [], 'a line older than 30 hours does not alert');
 
-  push(now - 23 * hour, failing(7, 'visit-cleanup', 6));
+  push(now - 27 * hour, failing(7, 'visit-cleanup', 6));
   push(now - 5 * hour, failing(8, 'visit-cleanup', 3));
   push(now - 4 * hour, failing(7, 'timetable-cleanup', 4));
   assert.deepEqual(firing(), ['7/timetable-cleanup', '7/visit-cleanup', '8/visit-cleanup'],
-    'one alert per school and job, also 23 hours after the last failed run');
+    'one alert per school and job, also 27 hours after the last failed run');
 
   push(now - hour, recovered(7, 'visit-cleanup', 6));
   assert.deepEqual(firing(), ['7/timetable-cleanup', '8/visit-cleanup'], 'the recovery ends only its own alert');
