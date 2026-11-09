@@ -105,5 +105,7 @@
   "export_run_empty": "This run has no invoice. There is no file to download.",
   "export_file_number_start_locked": "The file numbers have already started. The first number can no longer be changed.",
   "export_invoice_not_found": "This invoice does not exist. Please reload the page.",
-  "export_mapping_invalid": "The field mapping is incomplete. Please check the marked fields."
+  "export_mapping_invalid": "The field mapping is incomplete. Please check the marked fields.",
+  "online_mandate_disabled": "Your provider does not accept the direct debit mandate in the app right now.",
+  "sepa_mandate_text_changed": "The mandate text has changed. Please read and confirm it again."
 }

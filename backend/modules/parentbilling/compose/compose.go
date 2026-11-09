@@ -32,9 +32,7 @@ func NewBillingLetterMail(post parentbilling.BillingLetterPost) parentbilling.Bi
 // NewLetterMailRenderer renders the mail of a letter for the Delivery worker.
 func NewLetterMailRenderer() parentbilling.LetterMailRenderer { return application.RenderLetterMail }
 
-// NewBillingLetters builds the confirmation letters of the released runs
-// (#4669, ADR 0121) over the letterhead of the Träger, which the root
-// binds, and the letter layout of Document Rendering.
+// NewBillingLetters builds the confirmation letters of the released runs (#4669, ADR 0121) over the letterhead of the Träger, which the root binds, and the letter layout of Document Rendering.
 func NewBillingLetters(letterheads parentbilling.BillingLetterheads) parentbilling.BillingLetterService {
 	return application.NewBillingLetters(postgres.NewStore(), letterheads, rendering.NewRenderer(), calendar.TodayDate)
 }
@@ -57,15 +55,13 @@ type MonthlyBilling interface {
 
 // NewCareBilling builds the monthly contribution of the care contract (#4684), its rule chain (#4685) and its Mensa (#4686) over the contracts, schools, settings and released Mensa months the root binds, and the document templates (#4688).
 func NewCareBilling(contracts parentbilling.CareContracts, schools parentbilling.CareSchools, settings parentbilling.CareBillingSettings, meals parentbilling.CareMeals, templates parentbilling.BillingDocumentTemplates) (MonthlyBilling, parentbilling.CareReductions) {
-	store := postgres.NewStore()
-	return application.NewCareBilling(store, contracts, schools, settings, rendering.NewRenderer(), store, meals, templates, calendar.TodayDate), application.NewCareReductions(postgres.NewStore(), contracts, schools, calendar.TodayDate)
+	return application.NewCareBilling(postgres.NewStore(), contracts, schools, settings, rendering.NewRenderer(), postgres.NewStore(), meals, templates, calendar.TodayDate), application.NewCareReductions(postgres.NewStore(), contracts, schools, calendar.TodayDate)
 }
 
 // NewCareLetters builds the letters, mail, print and Storno of the monthly runs (#4684, ADR 0165) over the ports the root binds.
 func NewCareLetters(letterheads parentbilling.BillingLetterheads, contracts parentbilling.CareContracts, post parentbilling.BillingLetterPost, carePost parentbilling.CareLetterPost) parentbilling.CareLetterService {
-	return application.NewCareLetters(postgres.NewStore(), application.CareLetterPorts{
-		Letterheads: letterheads, Recipients: contracts, Post: post, CarePost: carePost,
-	}, rendering.NewRenderer(), rendering.NewRenderer(), calendar.TodayDate)
+	ports := application.CareLetterPorts{Letterheads: letterheads, Recipients: contracts, Post: post, CarePost: carePost}
+	return application.NewCareLetters(postgres.NewStore(), ports, rendering.NewRenderer(), rendering.NewRenderer(), calendar.TodayDate)
 }
 
 // NewBillingTerms builds the payment terms, the bundling, the family deviations and the due dates of the runs (#4689) over the contracts the root binds, and the DATEV booking batch of both payment methods (#4694) over the DATEV settings of the Träger.
@@ -75,9 +71,8 @@ func NewBillingTerms(contracts parentbilling.CareContracts, datev parentbilling.
 
 // NewCareFeeNotices builds the Jahresbescheide of the monthly care (#6219, ADR 0182) over the monthly computation and the letterhead of the Träger, which carries the template of the fee notice; the root binds the ports.
 func NewCareFeeNotices(contracts parentbilling.CareContracts, schools parentbilling.CareSchools, settings parentbilling.CareBillingSettings, meals parentbilling.CareMeals, letterheads parentbilling.BillingLetterheads) parentbilling.CareFeeNotices {
-	store := postgres.NewStore()
-	billing := application.NewCareBilling(store, contracts, schools, settings, rendering.NewRenderer(), store, meals, letterheads, calendar.TodayDate)
-	return application.NewCareFeeNotices(billing, store, letterheads)
+	billing := application.NewCareBilling(postgres.NewStore(), contracts, schools, settings, rendering.NewRenderer(), postgres.NewStore(), meals, letterheads, calendar.TodayDate)
+	return application.NewCareFeeNotices(billing, postgres.NewStore(), letterheads)
 }
 
 // NewSEPAMandates builds the SEPA mandates and the creditor of the Träger (#4695, ADR 0171) over the contracts and the field cipher the root binds.
@@ -93,4 +88,9 @@ func NewBankDataRekey(cipher parentbilling.BankDataRewrapper) parentbilling.Bank
 // NewSEPADebits builds the SEPA direct debit file of the issued runs (#4697, ADR 0181) over the letterhead with the bank account of the Träger and the field cipher the root binds.
 func NewSEPADebits(letterheads parentbilling.BillingLetterheads, cipher parentbilling.BankDataCipher) parentbilling.SEPADebits {
 	return application.NewSEPADebits(postgres.NewStore(), letterheads, cipher, calendar.TodayDate, calendar.Now)
+}
+
+// NewParentSEPAMandates builds the SEPA mandate the parents give in the parents portal (#4696) over the contract parties, the bank-data cipher and the Träger's online mandate setting the root binds.
+func NewParentSEPAMandates(contracts parentbilling.ContractParties, cipher parentbilling.BankDataCipher, terms parentbilling.OnlineMandateSettings, sums parentbilling.ContentFingerprints) parentbilling.ParentSEPAMandates {
+	return application.NewParentMandates(postgres.NewStore(), contracts, cipher, terms, sums, calendar.TodayDate)
 }

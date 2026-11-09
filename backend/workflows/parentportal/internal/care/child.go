@@ -77,7 +77,7 @@ func (s *Service) ResolvePermittedChild(ctx context.Context, accountID, studentI
 // switch: it holds a check a read route runs today between the child lookup
 // and its school unit; its error ends the transaction without a switch.
 // read runs under the child's school's RLS. It is for read routes only;
-// parent writes keep ResolvePermittedChild and their own school unit.
+// parent writes use WithPermittedChildForWrite.
 func (s *Service) WithPermittedChild(
 	ctx context.Context,
 	accountID, studentID int64,
@@ -109,6 +109,81 @@ func (s *Service) WithPermittedChild(
 		return child.TenantID, nil
 	}, func(txCtx context.Context) error {
 		return read(txCtx, resolved)
+	})
+}
+
+// WithPermittedChildForWrite is the write counterpart of WithPermittedChild
+// (ADR 0161 Nachtrag zu Schreibrouten, #5862): the guardian link and
+// requiredPermission are checked as admin, between runs the route's Go checks
+// that sit today between the child check and its school unit, and write runs
+// under the child's school's RLS, all in ONE transaction. Nothing of the
+// administrative part locks a row, so write takes the same locks in the same
+// order as in its own school unit.
+//
+// A caller inside an open unit, or with a context already bound to a school,
+// takes the way before ADR 0161, chosen from the context before anything
+// starts: ResolvePermittedChild, between, then write in its own school unit.
+// The handoff would refuse such a context before the child check (ADR 0161
+// point 7). A unit that cannot start, switch roles or commit fails with its
+// error once: no retry and no second way after a failure.
+func (s *Service) WithPermittedChildForWrite(
+	ctx context.Context,
+	accountID, studentID int64,
+	requiredPermission string,
+	between func(*Child) error,
+	write func(ctx context.Context, child *Child) error,
+) error {
+	if write == nil {
+		return fmt.Errorf("parent: child write is required")
+	}
+	if unitOpen, bound := s.Runtime.AmbientScope(ctx); unitOpen || bound != 0 {
+		return s.permittedChildWriteUnbundled(ctx, accountID, studentID, requiredPermission, between, write)
+	}
+	if accountID <= 0 {
+		return fmt.Errorf("parent: account_id must be positive")
+	}
+	if studentID <= 0 {
+		return fmt.Errorf("parent: student_id must be positive")
+	}
+	var resolved *Child
+	return s.Runtime.WithinAdminThenTenant(ctx, func(adminCtx context.Context) (int64, error) {
+		child, err := s.permittedChild(adminCtx, accountID, studentID, requiredPermission)
+		if err != nil {
+			return 0, err
+		}
+		if between != nil {
+			if err := between(child); err != nil {
+				return 0, err
+			}
+		}
+		resolved = child
+		return child.TenantID, nil
+	}, func(txCtx context.Context) error {
+		return write(txCtx, resolved)
+	})
+}
+
+// permittedChildWriteUnbundled is the way before ADR 0161 for an ambient
+// caller: the child check in its administrative unit, between, then write in
+// the child's own school unit.
+func (s *Service) permittedChildWriteUnbundled(
+	ctx context.Context,
+	accountID, studentID int64,
+	requiredPermission string,
+	between func(*Child) error,
+	write func(ctx context.Context, child *Child) error,
+) error {
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, requiredPermission)
+	if err != nil {
+		return err
+	}
+	if between != nil {
+		if err := between(child); err != nil {
+			return err
+		}
+	}
+	return s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+		return write(txCtx, child)
 	})
 }
 

@@ -105,5 +105,7 @@
   "export_run_empty": "This run has no invoice. There is no file to download.",
   "export_file_number_start_locked": "The file numbers have already started. The first number can no longer be changed.",
   "export_invoice_not_found": "This invoice does not exist. Please reload the page.",
-  "export_mapping_invalid": "The field mapping is incomplete. Please check the marked fields."
+  "export_mapping_invalid": "The field mapping is incomplete. Please check the marked fields.",
+  "online_mandate_disabled": "Twój organ prowadzący nie przyjmuje teraz upoważnienia do polecenia zapłaty w aplikacji.",
+  "sepa_mandate_text_changed": "Treść upoważnienia zmieniła się. Przeczytaj ją i potwierdź ponownie."
 }

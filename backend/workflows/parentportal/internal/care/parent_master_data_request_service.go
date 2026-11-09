@@ -255,15 +255,8 @@ func (s *Service) ListMyMasterDataRequests(ctx context.Context, accountID, stude
 func (s *Service) EditMasterDataRequest(
 	ctx context.Context, accountID, studentID, requestID int64, newValue json.RawMessage, expectedVersion string,
 ) (*StudentDataChangeRequest, error) {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionMasterDataRequest)
-	if err != nil {
-		return nil, err
-	}
-	if err := child.RequireCareRunning(); err != nil {
-		return nil, err
-	}
 	var out *StudentDataChangeRequest
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.WithPermittedChildForWrite(ctx, accountID, studentID, GuardianPermissionMasterDataRequest, (*Child).RequireCareRunning, func(txCtx context.Context, _ *Child) error {
 		row, editErr := s.editMasterDataRequestInTx(txCtx, accountID, studentID, requestID, newValue, expectedVersion)
 		if editErr != nil {
 			return editErr

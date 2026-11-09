@@ -105,5 +105,7 @@
   "export_run_empty": "In diesem Lauf gibt es keine Rechnung. Es gibt keine Datei zum Herunterladen.",
   "export_file_number_start_locked": "Die Dateinummern laufen schon. Die erste Nummer lässt sich nicht mehr ändern.",
   "export_invoice_not_found": "Diese Rechnung gibt es nicht. Laden Sie die Seite neu.",
-  "export_mapping_invalid": "Die Feldzuordnung ist nicht vollständig. Bitte prüfen Sie die markierten Felder."
+  "export_mapping_invalid": "Die Feldzuordnung ist nicht vollständig. Bitte prüfen Sie die markierten Felder.",
+  "online_mandate_disabled": "Ihr Träger nimmt das Lastschrift-Mandat gerade nicht in der App an.",
+  "sepa_mandate_text_changed": "Der Text des Mandats hat sich geändert. Bitte lesen und bestätigen Sie ihn noch einmal."
 }

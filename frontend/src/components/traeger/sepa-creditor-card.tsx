@@ -7,7 +7,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EditActions } from "~/components/ui/edit-actions";
@@ -18,6 +18,7 @@ import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
+import { traegerPath } from "~/lib/traeger-url";
 import {
   MAX_PRENOTIFICATION_DAYS,
   MIN_PRENOTIFICATION_DAYS,
@@ -203,11 +204,18 @@ function SepaCreditorModal({
   );
 }
 
+/** The settings area with the switch of the online mandate (#4696). */
+const ONLINE_MANDATE_SETTINGS_PATH =
+  "/traeger/einstellungen?bereich=monatsbeitrag";
+
 export function SepaCreditorCard({
   creditor,
+  onlineMandate,
   onChanged,
 }: Readonly<{
   creditor: SepaCreditor;
+  /** The Träger's switch of the mandate in the parents portal; null while unknown. */
+  onlineMandate?: boolean | null;
   onChanged: () => Promise<unknown>;
 }>) {
   const [editing, setEditing] = useState(false);
@@ -251,6 +259,28 @@ export function SepaCreditorCard({
         <DataField label="Ohne gültiges Mandat" fullWidth>
           {MISSING_MANDATE_LABELS[creditor.missingMandate]}
         </DataField>
+        {onlineMandate === undefined || onlineMandate === null ? null : (
+          <DataField label="Mandat in der Eltern-App" fullWidth>
+            <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <StatusBadge
+                tone={onlineMandate ? "green" : "outline"}
+                label={onlineMandate ? "Eingeschaltet" : "Ausgeschaltet"}
+              />
+              <ButtonLink
+                href={traegerPath(ONLINE_MANDATE_SETTINGS_PATH)}
+                variant="link"
+                size="md"
+              >
+                In den Einstellungen ändern
+              </ButtonLink>
+            </span>
+            <span className="mt-1 block text-sm font-normal text-gray-600">
+              {onlineMandate
+                ? "Eltern erteilen und widerrufen das Mandat selbst, bei ihrem Vertrag."
+                : "Eltern geben das Mandat auf Papier ab. Sie erfassen es beim Vertrag der Familie."}
+            </span>
+          </DataField>
+        )}
       </DataGrid>
       <SepaCreditorModal
         open={editing}
