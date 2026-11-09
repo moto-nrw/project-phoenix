@@ -41,7 +41,7 @@ den Standardantworten weiter unmaskiert angezeigt.
    zusätzliche HTTP-Transaktion; ihr SQL-Budget bleibt unverändert.
 5. Schreiber speichern nie Klartext. Der Adapter setzt die Klartextspalten bei
    jedem Schreiben auf NULL. Bis zum Backfill liest der Adapter Zeilen ohne
-   Chiffrat aus den Klartextspalten. Das ist nur der Übergang bis Migration 1.15.839.
+   Chiffrat aus den Klartextspalten. Das ist nur der Übergang bis Migration 1.15.861.
 6. Backfill und Rekey sind ein Wartungsbefehl:
    `bank-data-rekey --school ID --batch-size 100`, gleiche Garantien wie ADR 0183
    Punkt 4 bis 6. Je Batch gibt es eine Schultransaktion. Die Rolle wird auf den
@@ -95,7 +95,7 @@ das erste Deploy mit Bestandsdaten im Preflight ab.
    `SELECT count(*) FROM users.guardian_financial_data WHERE iban IS NOT NULL OR account_holder IS NOT NULL`
    und dasselbe für `users.staff_financial_data` mit `iban`, `tax_id` und
    `social_security_number`.
-3. **Release B** (Migration 1.15.839, gestapelter PR): entfernt die
+3. **Release B** (Migration 1.15.861, gestapelter PR): entfernt die
    Klartextspalten und den Übergangslesepfad. Ihr `Precondition` bricht den
    Preflight ab, solange eine Zeile noch Klartext trägt. Dann wird nichts
    gestoppt und nichts zurückgespielt.
@@ -113,7 +113,7 @@ Version mit dieser Änderung oder das Release-Backup (ADR 0183).
 
 ## Sperren und Wartezeit
 
-1.15.839 (`Up`) und das `Down` von 1.15.836/837 sperren zuerst mit
+1.15.861 (`Up`) und das `Down` von 1.15.836/837 sperren zuerst mit
 `ACCESS EXCLUSIVE`, prüfen danach und droppen erst dann, alles in einer
 Transaktion. Diese Sperre blockiert auch Leser. Bei 100.000 Zeilen dauert das
 lokal etwa 15 ms, und das Deploy stoppt die Anwendung vorher. Eine
