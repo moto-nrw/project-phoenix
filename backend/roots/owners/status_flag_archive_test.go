@@ -209,6 +209,41 @@ func TestStatusFlagCarryStandsForTheNewDay(t *testing.T) {
 	assert.Equal(t, 1, rows, "a second run writes no second day")
 }
 
+// A run after an outage carries the flags into each missed day in order
+// (#6291). Each day takes only the flags reported before it: a report during
+// the outage starts with the next day, on Berlin days across the October
+// change (00:30 on 26 October, winter time, is still 25 October in UTC).
+func TestStatusFlagCarryCoversEachMissedDayOnItsBerlinDay(t *testing.T) {
+	t.Parallel()
+	s := newStatusFlagSuite(t)
+	lastRun := calendar.NewDate(2026, time.October, 24)
+	before := testpkg.CreateTestStudent(t, s.db, "Ben", "Vorher", "3c")
+	during := testpkg.CreateTestStudent(t, s.db, "Dora", "Waehrend", "3c")
+	s.flag(t, before.ID, "sick", berlinAt(lastRun, 7, 0))
+	duringSince := berlinAt(lastRun.AddDays(2), 0, 30)
+	require.Equal(t, 25, duringSince.UTC().Day())
+	s.flag(t, during.ID, "sick", duringSince)
+
+	at := berlinAt(lastRun.AddDays(3), 7, 0)
+	for day := lastRun.AddDays(1); !day.After(lastRun.AddDays(3)); day = day.AddDays(1) {
+		s.inTenant(t, func(ctx context.Context) error {
+			_, err := s.days.CarryStatusFlag(ctx, "sick", "sick_since", day, at)
+			return err
+		})
+	}
+
+	for offset := 1; offset <= 3; offset++ {
+		day := lastRun.AddDays(offset)
+		standing := s.standing(t, day, before.ID, during.ID)
+		assert.Equal(t, [2]string{"sick", "manual"}, standing[before.ID], "reported before the outage: %s", day)
+		if offset < 3 {
+			assert.NotContains(t, standing, during.ID, "reported on 26 October, not carried into %s", day)
+		} else {
+			assert.Equal(t, [2]string{"sick", "manual"}, standing[during.ID], "carried from the day after its report")
+		}
+	}
+}
+
 // A flag without a since timestamp has no day of its own. A run before the
 // end of the day leaves it standing instead of dating it onto yesterday; the
 // run after the end of the day archives it onto that day.
