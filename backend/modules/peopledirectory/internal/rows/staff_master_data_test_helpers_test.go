@@ -40,12 +40,3 @@ func (q *StaffQualification) Validate() error {
 	}
 	return nil
 }
-
-// Validate ensures the financial row is storable. Field syntax is validated
-// in the service layer (the rules carry business meaning, not storage rules).
-func (f *StaffFinancialData) Validate() error {
-	if f.StaffID <= 0 {
-		return errors.New("staff_id is required")
-	}
-	return nil
-}

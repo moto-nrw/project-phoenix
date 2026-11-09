@@ -219,7 +219,7 @@ func composeServeRoot(
 			people, peopleIdentity = owners.BuildPeopleRows(db, env.Observe.IdentityAccess, groups, rooms, membership, workTime)
 			return nil
 		},
-		func() (err error) { guardian, err = owners.BuildGuardianService(db, people, audit); return },
+		func() (err error) { guardian, err = owners.BuildGuardianService(db, people, audit, env); return },
 		func() error {
 			photoRuntime = buildServeStudentPhotoRuntime(db, env, settings.Service, hub, audit)
 			return nil

@@ -19,13 +19,18 @@ func nativeGuardianPayment(value *models.GuardianFinancialData) *directory.Guard
 	if value == nil {
 		return nil
 	}
-	return &directory.GuardianPayment{ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt, GuardianProfileID: value.GuardianProfileID, IBAN: value.IBAN, AccountHolder: value.AccountHolder}
+	return &directory.GuardianPayment{ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt, GuardianProfileID: value.GuardianProfileID,
+		IBAN: value.IBAN, AccountHolder: value.AccountHolder,
+		IBANSealed: value.IBANSealed, IBANMasked: value.IBANMasked, AccountHolderSealed: value.AccountHolderSealed}
 }
 func guardianPaymentRow(value *directory.GuardianPayment) *models.GuardianFinancialData {
 	if value == nil {
 		return nil
 	}
-	row := &models.GuardianFinancialData{GuardianProfileID: value.GuardianProfileID, IBAN: value.IBAN, AccountHolder: value.AccountHolder}
+	// Only sealed values and the mask are written; the plaintext columns are
+	// always cleared, so a backfilled or newly written row never keeps one.
+	row := &models.GuardianFinancialData{GuardianProfileID: value.GuardianProfileID,
+		IBANSealed: value.IBANSealed, IBANMasked: value.IBANMasked, AccountHolderSealed: value.AccountHolderSealed}
 	row.ID, row.TenantID, row.CreatedAt, row.UpdatedAt = value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt
 	return row
 }

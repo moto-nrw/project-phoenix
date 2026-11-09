@@ -25,7 +25,9 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 
 api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api/common.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > modules/identityaccess/sessiontoken.ParseVerified > modules/identityaccess/sessiontoken.RequireLiveSession.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.TenantScopeMiddleware > api.SecurityPrincipalMiddleware > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > api/common.requirePermissions.#
 	GET /api/staff/{id}/documents/{documentId}/download
+	GET /api/staff/{id}/stammdaten/bank-steuer
 	POST /api/staff/{id}/documents
+	POST /api/staff/{id}/stammdaten/bank-steuer/reveal
 
 api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api/common.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > modules/identityaccess/sessiontoken.ParseVerified > modules/identityaccess/sessiontoken.RequireLiveSession.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.TenantScopeMiddleware > api.SecurityPrincipalMiddleware > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > api/common.requirePermissions.# > api/common.TenantTxMiddleware
 	DELETE /api/staff/{id}
@@ -58,7 +60,6 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	GET /api/staff/{id}/schedule
 	GET /api/staff/{id}/school-classes
 	GET /api/staff/{id}/stammdaten
-	GET /api/staff/{id}/stammdaten/bank-steuer
 	GET /api/staff/{id}/target-overrides
 	GET /api/staff/{id}/time-tracking/adjustments
 	GET /api/staff/{id}/time-tracking/comp-time-preview
@@ -77,7 +78,6 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	POST /api/staff/time-tracking/month-close
 	POST /api/staff/{id}/absences
 	POST /api/staff/{id}/absences/rebook
-	POST /api/staff/{id}/stammdaten/bank-steuer/reveal
 	POST /api/staff/{id}/target-overrides
 	POST /api/staff/{id}/time-tracking/adjustments
 	POST /api/staff/{id}/time-tracking/month-close/reopen

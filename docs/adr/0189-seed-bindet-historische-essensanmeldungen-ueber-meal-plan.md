@@ -38,4 +38,4 @@ noch einen weiteren Scope. Das Register wächst nicht (1 → 1).
 
 Die gebundenen Settings-Resolver und ihre Validierung gehören der Anwendung;
 die Komposition behält Alias und Konstruktor. Damit bleibt die Komposition
-mit dem History-Konstruktor unterhalb ihres bisherigen LOC-Budgets (105 → 102; Gesamtsumme 13160 → 13157).
+mit dem History-Konstruktor unterhalb ihres bisherigen LOC-Budgets (105 → 102; Gesamtsumme 13173 → 13170).
