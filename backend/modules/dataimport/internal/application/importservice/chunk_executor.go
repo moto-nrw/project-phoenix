@@ -182,6 +182,9 @@ func (a *batchImportAttempt[T]) applySegment(ctx context.Context, writer ports.C
 	}
 	resolved, err := writer.ResolveChunk(ctx, rows)
 	if err != nil {
+		if errors.Is(err, importModels.ErrSavepointControl) {
+			return err
+		}
 		resolved = service.config
 	}
 	creates := make([]T, 0, len(segment))

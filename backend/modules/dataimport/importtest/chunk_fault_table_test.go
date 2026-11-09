@@ -163,6 +163,25 @@ func TestChunkFaultsOutsideTheBatchCommandBehaveLikeTheRowPath(t *testing.T) {
 	})
 }
 
+// A failed resolver savepoint must reach the transaction runtime unchanged,
+// rather than falling back to scalar reads in an unsafe transaction.
+func TestChunkResolverSavepointControlFailuresPropagate(t *testing.T) {
+	t.Parallel()
+	retried := faultOutcome{retries: 1, entries: 5}
+	runFaultTable(t, []faultCase{
+		// The second SAVEPOINT and first RELEASE belong to ResolveChunk.
+		{point: "resolver savepoint", prefix: savepoint, nth: 2, err: injectedSQLState("23514"), want: faultOutcome{failsWith: "23514"}},
+		{point: "resolver savepoint", prefix: savepoint, nth: 2, err: injectedSQLState("40P01"), want: retried},
+		{point: "resolver release", prefix: release, err: injectedSQLState("23514"), want: faultOutcome{failsWith: "23514"}},
+		{point: "resolver release", prefix: release, err: injectedSQLState("40P01"), want: retried},
+		// Failed cleanup preserves the read error and its retry classification.
+		{point: "resolver read, rollback", prefix: matchRead, err: injectedSQLState("23514"), prefix2: rollbackTo, err2: injectedSQLState("55P03"), want: faultOutcome{failsWith: "23514"}},
+		{point: "resolver read, rollback", prefix: matchRead, err: injectedSQLState("40P01"), prefix2: rollbackTo, err2: injectedSQLState("23514"), want: retried},
+		{point: "resolver read, release after rollback", prefix: matchRead, err: injectedSQLState("23514"), prefix2: release, err2: injectedSQLState("55P03"), want: faultOutcome{failsWith: "23514"}},
+		{point: "resolver read, release after rollback", prefix: matchRead, err: injectedSQLState("40P01"), prefix2: release, err2: injectedSQLState("23514"), want: retried},
+	})
+}
+
 // TestChunkFaultsInTheBatchCommandReplay: a failure of the batch command
 // itself replays the chunk in the same transaction (57014: in a new one,
 // E13′), consuming no retry; a broken connection is returned.
