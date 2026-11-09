@@ -82,7 +82,10 @@ type Config struct {
 	ContractNotices ContractNotices
 	// SharedDocuments are the documents a Träger released for parents in
 	// the same inbox (#4692).
-	SharedDocuments  TraegerSharedDocuments
+	SharedDocuments TraegerSharedDocuments
+	// SEPAMandates are the mandates of the families on those contracts
+	// (#4696).
+	SEPAMandates     SEPAMandates
 	TraegerRuntime   TraegerRuntime
 	SchoolTraeger    SchoolTraeger
 	ParentAccounts   ParentAccounts

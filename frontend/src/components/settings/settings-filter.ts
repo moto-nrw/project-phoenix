@@ -74,6 +74,7 @@ export const categoryLabels: Record<string, string> = {
   "ferien-schreiben": "Schreiben an die Familien",
   "monatsbeitrag-lauf": "Monatslauf",
   "monatsbeitrag-pruefung": "Rechnungen vor dem Ausstellen ändern",
+  "monatsbeitrag-lastschrift": "Lastschrift",
   "vertraege-unterschrift": "Unterschrift der Eltern",
   formular: "Anmeldeformular",
   "fristen-essen": "Fristen",

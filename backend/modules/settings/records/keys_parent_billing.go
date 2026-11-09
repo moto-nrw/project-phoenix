@@ -41,3 +41,10 @@ const (
 	KeyParentBillingCareReviewAddress   = "parent_billing.care_review_address"
 	KeyParentBillingCareReviewPositions = "parent_billing.care_review_positions"
 )
+
+// KeyParentBillingOnlineMandate lets the parents give the SEPA mandate of
+// their family in the parents portal (#4696). Whether a mandate confirmed
+// online holds is agreed between the Träger and its bank, so it is off
+// until the Träger turns it on. Only the Träger sets it (LevelTraeger),
+// with the right "Abrechnung".
+const KeyParentBillingOnlineMandate = "parent_billing.online_mandate"

@@ -128,3 +128,29 @@ ersetzt die gemeinsame Schlüsselverwendung aus Punkt 4 und dem entsprechenden
 Folgepunkt: Bankdaten nutzen einen eigenen Pflichtring mit explizitem,
 vorübergehendem Legacy-Lesepfad und wiederholbarem Rekey. Fachliche Mandats-
 Unveränderlichkeit und Audit bleiben erhalten.
+
+## Ergänzung 2026-11-09 (#4696): Eltern erteilen das Mandat in der Eltern-App
+
+Entscheidung Yannick vom 09.11.2026 zu
+[#4696](https://github.com/moto-nrw/project-phoenix/issues/4696) (Option B der Recherche):
+
+1. **Nur in der Eltern-App, kein Link mit Token.** Erteilen, Lesen und Widerrufen
+   prüfen dasselbe wie das Unterschreiben im Postfach: Beziehung mit
+   `parent_portal.enrollments.view` zum Lesen, `parent_portal.enrollment.submit`
+   zum Erteilen und Widerrufen; der Vertrag ging an die Adresse des Kontos, und
+   die Familie des Mandats (Rechnungsempfänger des Vertrags) ist diese Adresse.
+2. **Schalter des Trägers** `parent_billing.online_mandate`, Standard aus. Ob die
+   Bank ein online bestätigtes Mandat (Textform) annimmt, klärt der Träger mit
+   seiner Bank. Aus heißt: Lesen antwortet nur „aus“, Schreiben wird abgelehnt.
+3. **Nachweis.** moto rendert den Mandatstext (Version `sepa-core-de-1`, Pflicht-
+   angaben nach EPC SDD Core Rulebook DS-01 4.7.2), die Eltern bestätigen dessen
+   SHA-256. Beim Erteilen rendert moto den Text erneut und speichert nur bei
+   gleicher Prüfsumme. `parent_billing.sepa_mandate_consents` hält Version,
+   Prüfsumme, Kanal `parent_account`, Konto, Zeitpunkt, die Bestätigung als
+   Kontoinhaber und was der Text außer dem Mandat nennt. Die Zeile ändert sich nie
+   (Trigger; die Anfragerolle darf nur lesen und einfügen). Der Text nennt die
+   IBAN maskiert; die volle IBAN bleibt versiegelt am Mandat.
+4. **Vorläufig** nur für ein Konto, dessen Inhaber der Elternteil bestätigt. Ein
+   Widerruf endet am Tag des Widerrufs; der nächste Lauf zieht nicht mehr ein,
+   Lastschriften ohne eingereichte Datei bleiben draußen (`DebitLeftRevoked`).
+5. **Keine Kopplung an `guardian_financial_data`** (siehe Verworfene Optionen).

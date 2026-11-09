@@ -16,6 +16,8 @@ import (
 // (#4684); the default bills the full month by the version on the first.
 // Which changes of a single invoice the review of a monthly run allows is
 // open with the customer too (#6197, SJR item 2); all four are on by
+// default. Whether the parents give the SEPA mandate in the parents portal
+// is the Träger's choice after it agreed it with its bank (#4696); off by
 // default. The values are
 // the constants of the Elternabrechnung, which refuses any other.
 func init() {
@@ -111,6 +113,20 @@ var parentBillingDefinitions = []config.Definition{
 				{Label: "Anteilig nach Kalendertagen", Value: "pro_rata"},
 			},
 		},
+	},
+	{
+		Key:               config.KeyParentBillingOnlineMandate,
+		Levels:            config.LevelTraeger,
+		TraegerWriteRight: config.TraegerRightBilling,
+		Label:             "Lastschrift-Mandat in der Eltern-App",
+		Description:       "Ist das an, können Eltern das SEPA-Lastschrift-Mandat in der Eltern-App erteilen und widerrufen. Schalten Sie das erst ein, wenn Ihre Bank Mandate annimmt, die online bestätigt wurden.",
+		Type:              config.FieldBoolean,
+		Default:           false,
+		ReadPermission:    "config:read",
+		WritePermission:   "config:manage",
+		Tab:               "monatsbeitrag",
+		Category:          "monatsbeitrag-lastschrift",
+		SortOrder:         100,
 	},
 	careReviewSwitch(config.KeyParentBillingCareReviewAmount, 60, "Betrag einer Rechnung ändern",
 		"Ist das an, können Sie vor dem Ausstellen den Betrag einer einzelnen Rechnung ändern. Die Rechnung bekommt dann eine Korrektur-Zeile mit Ihrem Grund."),
