@@ -632,7 +632,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (g CapabilityGate) StartChallenge(ctx context.Context, accountID, tenantID int64, scope, ipAddress string) (string, error) {\n\tif g.Capability == nil {\n\t\treturn \"\", errMFANotComposed\n\t}\n\tportal, ok := domain.PortalNamed(scope)\n\tif !ok || !portal.Challenge {\n\t\treturn \"\", identityaccess.ErrMFAUnsupportedScope\n\t}\n\treturn g.Capability.StartMFAChallenge(ctx, accountID, tenantID, portal.Name, parseGateIP(ipAddress))\n}",
+      "evidence": "func (g CapabilityGate) StartChallenge(ctx context.Context, accountID, tenantID int64, scope, ipAddress string, credentialGeneration int64) (string, error) {\n\tif g.Capability == nil {\n\t\treturn \"\", errMFANotComposed\n\t}\n\tportal, ok := domain.PortalNamed(scope)\n\tif !ok || !portal.Challenge {\n\t\treturn \"\", identityaccess.ErrMFAUnsupportedScope\n\t}\n\treturn g.Capability.StartMFAChallenge(ctx, accountID, tenantID, portal.Name, parseGateIP(ipAddress), credentialGeneration)\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/application/CapabilityGate.StartChallenge",
       "owner": "modules/identityaccess"
@@ -807,7 +807,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (c ComposedAccountMFA) StartMFAChallenge(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP) (string, error) {\n\ttoken, err := c.Flows.StartChallenge(c.ctx(ctx), accountID, tenantID, scope, ip)\n\treturn token, MFAError(err)\n}",
+      "evidence": "func (c ComposedAccountMFA) StartMFAChallenge(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP, credentialGeneration int64) (string, error) {\n\ttoken, err := c.Flows.StartBoundChallenge(c.ctx(ctx), accountID, tenantID, scope, ip, credentialGeneration)\n\treturn token, MFAError(err)\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/application/ComposedAccountMFA.StartMFAChallenge",
       "owner": "modules/identityaccess"

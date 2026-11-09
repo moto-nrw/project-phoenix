@@ -48,8 +48,9 @@ type MFARuntime struct {
 	VerifyChallengeForOwner func(ctx context.Context, challengeToken, code string, accountID, tenantID int64) (VerifiedChallenge, error)
 	// ResendChallenge re-issues the code and answers with the renewed JWT.
 	ResendChallenge func(ctx context.Context, challengeToken string, ip net.IP) (string, error)
-	// StartChallenge mails the enrollment code and names its row.
-	StartChallenge       func(ctx context.Context, accountID, tenantID int64, ip net.IP) (string, error)
+	// StartChallenge mails the enrollment code and names its row; it is bound
+	// to the credential generation the enrollment token names (#6289).
+	StartChallenge       func(ctx context.Context, accountID, tenantID int64, ip net.IP, credentialGeneration int64) (string, error)
 	Enroll               func(ctx context.Context, accountID int64) error
 	PrepareTrustedDevice func(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (identityaccess.TrustedDeviceIssue, error)
 }

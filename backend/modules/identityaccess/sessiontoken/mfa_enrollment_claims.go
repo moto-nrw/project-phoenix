@@ -27,6 +27,10 @@ type MFAEnrollmentClaims struct {
 	// platform tokens.
 	TenantID int64 `json:"tenant_id,omitempty"`
 
+	// CredentialGeneration is the account's credential generation the
+	// password sign-in checked; the enrollment start is bound to it (#6289).
+	CredentialGeneration int64 `json:"credential_generation"`
+
 	// MFAEnrollmentPending must be true on every enrollment token —
 	// middleware (a) accepts the token only when it is set on the
 	// MFA-enrollment authenticator and (b) rejects the token everywhere
@@ -38,7 +42,7 @@ type MFAEnrollmentClaims struct {
 
 func enrollmentClaimsOf(c tokenprimitives.EnrollmentClaims) MFAEnrollmentClaims {
 	return MFAEnrollmentClaims{
-		AccountID: c.AccountID, Scope: c.Scope, TenantID: c.TenantID, MFAEnrollmentPending: true,
+		AccountID: c.AccountID, Scope: c.Scope, TenantID: c.TenantID, CredentialGeneration: c.CredentialGeneration, MFAEnrollmentPending: true,
 		CommonClaims: CommonClaims{ExpiresAt: c.ExpiresAt},
 	}
 }

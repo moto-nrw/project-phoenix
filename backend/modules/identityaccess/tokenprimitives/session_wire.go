@@ -55,19 +55,25 @@ type RefreshClaims struct {
 }
 
 // ChallengeClaims is the content of an MFA challenge token.
+// CredentialGeneration is the account's credential generation its code was
+// issued under; a resend is bound to it (#6289).
 type ChallengeClaims struct {
-	AccountID   int64
-	Scope       string
-	TenantID    int64
-	ChallengeID int64
+	AccountID            int64
+	Scope                string
+	TenantID             int64
+	ChallengeID          int64
+	CredentialGeneration int64
 }
 
 // EnrollmentClaims is the content of an MFA enrollment token.
+// CredentialGeneration is the account's credential generation the password
+// sign-in checked; the enrollment start is bound to it (#6289).
 type EnrollmentClaims struct {
-	AccountID int64
-	Scope     string
-	TenantID  int64
-	ExpiresAt int64
+	AccountID            int64
+	Scope                string
+	TenantID             int64
+	ExpiresAt            int64
+	CredentialGeneration int64
 }
 
 // AccessWire is the signed form of an access token. Roles, system flags and
@@ -113,9 +119,12 @@ type ChallengeWire struct {
 	Scope       string `json:"scope,omitempty"`
 	TenantID    int64  `json:"tenant_id,omitempty"`
 	ChallengeID int64  `json:"challenge_id,omitempty"`
-	MFAPending  bool   `json:"mfa_pending"`
-	IssuedAt    int64  `json:"iat"`
-	ExpiresAt   int64  `json:"exp"`
+	// Generation is written even when zero: a missing claim reads as zero,
+	// which binds a token from before the claim existed to generation 0.
+	Generation int64 `json:"credential_generation"`
+	MFAPending bool  `json:"mfa_pending"`
+	IssuedAt   int64 `json:"iat"`
+	ExpiresAt  int64 `json:"exp"`
 }
 
 // EnrollmentWire is the signed form of an MFA enrollment token.
@@ -123,6 +132,7 @@ type EnrollmentWire struct {
 	AccountID            int64  `json:"account_id"`
 	Scope                string `json:"scope"`
 	TenantID             int64  `json:"tenant_id,omitempty"`
+	Generation           int64  `json:"credential_generation"`
 	MFAEnrollmentPending bool   `json:"mfa_enrollment_pending"`
 	IssuedAt             int64  `json:"iat"`
 	ExpiresAt            int64  `json:"exp"`
@@ -160,7 +170,7 @@ func EncodeRefresh(c RefreshClaims, issuedAt, defaultExpiry time.Time) RefreshWi
 func EncodeChallenge(c ChallengeClaims, issuedAt time.Time, ttl time.Duration) ChallengeWire {
 	return ChallengeWire{
 		AccountID: c.AccountID, Scope: c.Scope, TenantID: c.TenantID, ChallengeID: c.ChallengeID,
-		MFAPending: true, IssuedAt: issuedAt.Unix(), ExpiresAt: issuedAt.Add(ttl).Unix(),
+		Generation: c.CredentialGeneration, MFAPending: true, IssuedAt: issuedAt.Unix(), ExpiresAt: issuedAt.Add(ttl).Unix(),
 	}
 }
 
@@ -171,7 +181,7 @@ func EncodeEnrollment(c EnrollmentClaims, issuedAt time.Time, ttl time.Duration)
 		return EnrollmentWire{}, fmt.Errorf("portal %q has no mfa enrollment", c.Scope)
 	}
 	return EnrollmentWire{
-		AccountID: c.AccountID, Scope: c.Scope, TenantID: c.TenantID,
+		AccountID: c.AccountID, Scope: c.Scope, TenantID: c.TenantID, Generation: c.CredentialGeneration,
 		MFAEnrollmentPending: true, IssuedAt: issuedAt.Unix(), ExpiresAt: issuedAt.Add(ttl).Unix(),
 	}, nil
 }
@@ -306,7 +316,10 @@ func decodeChallenge(wire map[string]any, now time.Time) (ChallengeClaims, error
 	if err != nil {
 		return ChallengeClaims{}, err
 	}
-	return ChallengeClaims{AccountID: accountID, Scope: scope, TenantID: number(wire, "tenant_id"), ChallengeID: number(wire, "challenge_id")}, nil
+	return ChallengeClaims{
+		AccountID: accountID, Scope: scope, TenantID: number(wire, "tenant_id"), ChallengeID: number(wire, "challenge_id"),
+		CredentialGeneration: number(wire, "credential_generation"),
+	}, nil
 }
 
 func decodeEnrollment(wire map[string]any, now time.Time) (EnrollmentClaims, error) {
@@ -318,7 +331,10 @@ func decodeEnrollment(wire map[string]any, now time.Time) (EnrollmentClaims, err
 	if err != nil {
 		return EnrollmentClaims{}, err
 	}
-	return EnrollmentClaims{AccountID: accountID, Scope: scope, TenantID: number(wire, "tenant_id"), ExpiresAt: number(wire, "exp")}, nil
+	return EnrollmentClaims{
+		AccountID: accountID, Scope: scope, TenantID: number(wire, "tenant_id"), ExpiresAt: number(wire, "exp"),
+		CredentialGeneration: number(wire, "credential_generation"),
+	}, nil
 }
 
 // pendingSpec holds what differs between challenge and enrollment tokens.

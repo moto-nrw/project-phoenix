@@ -863,7 +863,7 @@ func (c fakeCodec) IssueTokenPair(access domain.SessionClaims, refresh domain.Re
 	return c.encode("access:", access), c.encode("refresh:", refresh), nil
 }
 
-func (c fakeCodec) IssueMFAEnrollmentToken(accountID, tenantID int64, scope string, _ time.Duration) (string, error) {
+func (c fakeCodec) IssueMFAEnrollmentToken(accountID, tenantID int64, scope string, _ time.Duration, _ int64) (string, error) {
 	return fmt.Sprintf("enroll:%d:%d:%s", accountID, tenantID, scope), nil
 }
 
@@ -956,7 +956,7 @@ func (m *fakeMFA) HasEnrollment(context.Context, int64) (bool, error) {
 func (m *fakeMFA) VerifyTrustedDevice(context.Context, int64, int64, string) (bool, error) {
 	return m.trusted, nil
 }
-func (m *fakeMFA) StartChallenge(_ context.Context, _, _ int64, scope, _ string) (string, error) {
+func (m *fakeMFA) StartChallenge(_ context.Context, _, _ int64, scope, _ string, _ int64) (string, error) {
 	m.challenges = append(m.challenges, scope)
 	if m.challengeErr != nil {
 		return "", m.challengeErr

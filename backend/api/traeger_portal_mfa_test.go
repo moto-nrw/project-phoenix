@@ -92,7 +92,7 @@ func TestTraegerSecondFactorRefusesForeignChallengesAndCodes(t *testing.T) {
 	require.NoError(t, identity.EnrollMFA(t.Context(), account.ID))
 	school := testpkg.CreateTestSchoolInOrganization(t, db, organization, "OGS Fremdcode")
 
-	schoolChallenge, err := identity.StartMFAChallenge(t.Context(), account.ID, school, identityaccess.MFAChallengeScopeSchool, nil)
+	schoolChallenge, err := identity.StartMFAChallenge(t.Context(), account.ID, school, identityaccess.MFAChallengeScopeSchool, nil, 0)
 	require.NoError(t, err)
 	code, answer := traegerPost(t, portal, "/traeger/auth/mfa/verify", "", map[string]any{
 		"challenge_token": schoolChallenge, "code": lastTraegerCode(t, portal, account.Email),

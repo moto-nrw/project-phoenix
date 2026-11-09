@@ -420,7 +420,7 @@ func TestSchoolMFAStatusUnavailable_Returns503(t *testing.T) {
 		ResendChallenge: func(context.Context, string, net.IP) (string, error) {
 			return "", identityaccess.ErrMFAStatusUnavailable
 		},
-		StartChallenge: func(context.Context, int64, int64, net.IP) (string, error) {
+		StartChallenge: func(context.Context, int64, int64, net.IP, int64) (string, error) {
 			return "", identityaccess.ErrMFAStatusUnavailable
 		},
 	})
@@ -482,7 +482,7 @@ func TestSchoolMFAEnroll_BoundToItsOwnChallenge(t *testing.T) {
 		startedChallengeID = "school-enroll-challenge"
 	)
 	mfa := stubSchoolMFA(schoolportal.MFARuntime{
-		StartChallenge: func(context.Context, int64, int64, net.IP) (string, error) {
+		StartChallenge: func(context.Context, int64, int64, net.IP, int64) (string, error) {
 			startedChallenge = true
 			return startedChallengeID, nil
 		},

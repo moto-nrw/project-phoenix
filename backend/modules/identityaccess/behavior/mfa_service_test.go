@@ -82,7 +82,7 @@ func TestMFAService_StartAndVerifyChallenge(t *testing.T) {
 
 	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
 
-	tokenString, err := svc.StartMFAChallenge(ctx, acc.ID, 0, identityaccess.MFAChallengeScopeTenant, net.ParseIP("203.0.113.42"))
+	tokenString, err := svc.StartMFAChallenge(ctx, acc.ID, 0, identityaccess.MFAChallengeScopeTenant, net.ParseIP("203.0.113.42"), 0)
 	require.NoError(t, err)
 	require.NotEmpty(t, tokenString)
 

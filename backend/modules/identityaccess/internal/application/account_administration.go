@@ -264,14 +264,19 @@ func (a *AccountAdministration) changeAccountPassword(ctx context.Context, chang
 	if hashErr != nil {
 		return failed(opHashPassword, hashErr)
 	}
-	// The update locks the account row that refresh, logout and every mint
-	// take first, so no rotation commits between it and the revocation.
-	written, _, err := a.store.UpdateAccountPasswordHash(ctx, change.AccountID, hash)
+	// A compare-and-swap on the hash the current password was checked
+	// against: a change that committed meanwhile leaves this one without a
+	// valid proof (#6289). The update locks the account row that refresh,
+	// logout and every mint take first, so no rotation commits between it
+	// and the revocation; it also moves the credential generation on, which
+	// ends every code, enrollment token and remembered device still bound to
+	// the old password.
+	written, _, err := a.store.UpdateAccountPasswordHash(ctx, change.AccountID, account.PasswordHash, hash)
 	if err != nil {
 		return failed(opUpdateAccount, err)
 	}
 	if !written {
-		return failed(opUpdateAccount, domain.ErrAccountNotFound)
+		return failed(opVerifyPassword, identityaccess.ErrInvalidCredentials)
 	}
 	return a.revokeAfterPasswordChange(ctx, change)
 }

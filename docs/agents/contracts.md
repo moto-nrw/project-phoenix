@@ -895,9 +895,21 @@ at every school and portal ends, its reset links are spent and its remembered
 devices revoked; only the family of the access token the change is made with
 stays signed in. The caterer's own change ends its current session too.
 A redeemed reset link and an operator's password change revoke the remembered
-devices as well. A password sign-in that checked the old password before a
-change committed gets no session: the mint compares the checked hash with the
-stored one under the account (operator) lock.
+devices as well. The account's credential generation
+(`auth.accounts.mfa_reset_generation`) binds every artifact a password check
+hands out: every password write (own change, caterer change, reset,
+invitation) and every MFA reset moves it on. A sign-in records the generation
+its password check read; the session mint, the code a sign-in or an
+enrollment start mails (the enrollment token carries `credential_generation`),
+a resend (the challenge token carries it too) and the remembered device of an
+MFA exchange are issued only while it still holds, compared under the account
+lock, and a code redeems only at its own generation. A refused resend or
+enrollment start answers 401 `identity.invalid_credentials`; tokens issued
+before this claim existed read as generation 0. The own change writes by
+compare-and-swap on the hash the current password was checked against, so of
+two changes on one proof only the first wins. Operators have no credential
+generation yet: their direct sign-in compares the checked hash under the
+operator lock, their MFA artifacts are not bound (#6289 follow-up).
 
 Refresh-session, invitation, password-reset and e-mail-change tokens are
 stored only as hex SHA-256; migration 1.15.521 hashed existing rows and its

@@ -35,19 +35,20 @@ const MaxActiveSessionsPerPortal = 5
 const RefreshTokenIdentifier = "Service login"
 
 // LoginAccount is the platform account a login authenticates. PasswordHash is
-// empty for accounts without a password. CheckedPasswordHash is no column:
-// a password sign-in sets it to the hash the password was verified against,
-// and the session mint refuses when the stored hash has changed since
-// (#6289).
+// empty for accounts without a password. MFAResetGeneration is the account's
+// credential generation: every password write and every MFA reset moves it
+// on, and the artifacts of a sign-in are bound to it (#6289).
+// PasswordChecked is no column: a password sign-in sets it, and the session
+// mint then refuses when the generation moved on since the check.
 type LoginAccount struct {
-	MFAResetGeneration  int64
-	ID                  int64
-	Email               string
-	Username            string
-	PasswordHash        string
-	CheckedPasswordHash string
-	Active              bool
-	UpdatedAt           time.Time
+	MFAResetGeneration int64
+	ID                 int64
+	Email              string
+	Username           string
+	PasswordHash       string
+	PasswordChecked    bool
+	Active             bool
+	UpdatedAt          time.Time
 }
 
 // RoleAssignment is one role an account holds at a school, with the facts the

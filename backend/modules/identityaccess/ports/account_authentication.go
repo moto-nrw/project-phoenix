@@ -42,7 +42,7 @@ type PortalModules interface {
 // TokenCodec signs and parses the session JWTs.
 type TokenCodec interface {
 	IssueTokenPair(access identityaccess.SessionClaims, refresh identityaccess.RefreshClaims) (accessToken, refreshToken string, err error)
-	IssueMFAEnrollmentToken(accountID, tenantID int64, scope string, ttl time.Duration) (string, error)
+	IssueMFAEnrollmentToken(accountID, tenantID int64, scope string, ttl time.Duration, credentialGeneration int64) (string, error)
 	ParseAccessToken(token string) (identityaccess.SessionClaims, error)
 	ParseRefreshToken(token string) (identityaccess.RefreshClaims, error)
 	RefreshExpiry() time.Duration

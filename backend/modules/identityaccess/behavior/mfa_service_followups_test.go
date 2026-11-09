@@ -481,12 +481,12 @@ func TestMFAService_StartChallenge_RateLimitAfter3Codes(t *testing.T) {
 
 	// 3 codes within the 15-minute window are allowed.
 	for i := 0; i < 3; i++ {
-		_, err := svc.StartMFAChallenge(ctx, acc.ID, 0, identityaccess.MFAChallengeScopeTenant, ip)
+		_, err := svc.StartMFAChallenge(ctx, acc.ID, 0, identityaccess.MFAChallengeScopeTenant, ip, 0)
 		require.NoErrorf(t, err, "code %d should still be permitted", i+1)
 	}
 
 	// 4th must trip the rate-limit guard.
-	_, err := svc.StartMFAChallenge(ctx, acc.ID, 0, identityaccess.MFAChallengeScopeTenant, ip)
+	_, err := svc.StartMFAChallenge(ctx, acc.ID, 0, identityaccess.MFAChallengeScopeTenant, ip, 0)
 	assert.ErrorIs(t, err, identityaccess.ErrMFARateLimited)
 }
 
@@ -499,7 +499,7 @@ func TestMFAService_VerifyChallenge_LocksAccountAfter5Failures(t *testing.T) {
 	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-lockout")
 
 	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
-	challenge, err := svc.StartMFAChallenge(ctx, acc.ID, 0, identityaccess.MFAChallengeScopeTenant, net.ParseIP("203.0.113.40"))
+	challenge, err := svc.StartMFAChallenge(ctx, acc.ID, 0, identityaccess.MFAChallengeScopeTenant, net.ParseIP("203.0.113.40"), 0)
 	require.NoError(t, err)
 
 	// Five wrong codes — none should lock until the 5th hits the threshold.
@@ -522,7 +522,7 @@ func TestMFAService_VerifyChallenge_ExpiredChallengeRejected(t *testing.T) {
 	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-expired")
 
 	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
-	challenge, err := svc.StartMFAChallenge(ctx, acc.ID, 0, identityaccess.MFAChallengeScopeTenant, net.ParseIP("203.0.113.50"))
+	challenge, err := svc.StartMFAChallenge(ctx, acc.ID, 0, identityaccess.MFAChallengeScopeTenant, net.ParseIP("203.0.113.50"), 0)
 	require.NoError(t, err)
 
 	// Consume the active challenge so the next VerifyChallenge has no row

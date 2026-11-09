@@ -195,8 +195,22 @@ func (f *AccountMFAFlows) HasEnrollment(ctx context.Context, accountID int64) (b
 // StartChallenge mails a fresh code for one portal and returns the challenge
 // JWT that names its row. The row is stored consumed and only activated once
 // the transport accepted the message, so a failed send leaves no redeemable
-// code behind.
+// code behind. It serves the in-session flows (passkey registration, the
+// caterer's factor), which no password check precedes.
 func (f *AccountMFAFlows) StartChallenge(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP) (string, error) {
+	return f.startChallenge(ctx, accountID, tenantID, scope, ip, nil)
+}
+
+// StartBoundChallenge is StartChallenge for a code a password check led to:
+// the sign-in, the enrollment token it handed out, or the challenge a resend
+// renews. Under the account lock it issues nothing unless the account still
+// holds credentialGeneration, so no code goes out for a password a change
+// replaced in the meantime (#6289).
+func (f *AccountMFAFlows) StartBoundChallenge(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP, credentialGeneration int64) (string, error) {
+	return f.startChallenge(ctx, accountID, tenantID, scope, ip, &credentialGeneration)
+}
+
+func (f *AccountMFAFlows) startChallenge(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP, credentialGeneration *int64) (string, error) {
 	if !domain.AccountMFAChallengeScope(scope) {
 		return "", identityaccess.ErrMFAUnsupportedScope
 	}
@@ -229,7 +243,7 @@ func (f *AccountMFAFlows) StartChallenge(ctx context.Context, accountID, tenantI
 		CreatedAt: createdAt, UpdatedAt: createdAt,
 	}, domain.MFACodeMailFor(
 		account.Email, "", account.ID, false, plainCode, domain.MFAChallengeTTL, ip, enabled, days,
-	))
+	), credentialGeneration)
 	if err != nil {
 		return "", fmt.Errorf("prepare email challenge: %w", err)
 	}
@@ -250,6 +264,7 @@ func (f *AccountMFAFlows) StartChallenge(ctx context.Context, accountID, tenantI
 
 	token, err := f.codec.IssueChallengeToken(domain.MFAChallengeClaims{
 		AccountID: accountID, Scope: scope, TenantID: tenantID, ChallengeID: challenge.ID,
+		CredentialGeneration: challenge.MFAResetGeneration,
 	}, domain.MFAChallengeTTL)
 	if err != nil {
 		return "", fmt.Errorf("mint challenge jwt: %w", err)
@@ -281,8 +296,11 @@ func (f *AccountMFAFlows) ResendChallengeForScope(ctx context.Context, challenge
 // remains the abuse defense. It returns the renewed JWT so the frontend can
 // replace its in-flight token — otherwise the fresh code becomes
 // unverifiable the moment the original token expires.
+//
+// The renewed code is bound to the credential generation of the challenge it
+// renews: a code mailed before a password change renews into nothing (#6289).
 func (f *AccountMFAFlows) resend(ctx context.Context, claims domain.MFAChallengeClaims, ip net.IP) (string, error) {
-	return f.StartChallenge(ctx, claims.AccountID, claims.TenantID, claims.Scope, ip)
+	return f.StartBoundChallenge(ctx, claims.AccountID, claims.TenantID, claims.Scope, ip, claims.CredentialGeneration)
 }
 
 // securitySettingsFailure keeps diagnostics in logs and the established MFA
@@ -622,11 +640,14 @@ func withoutSchoolLedger(ctx context.Context) bool {
 	return marked
 }
 
-func (f *AccountMFAFlows) enqueueChallenge(ctx context.Context, input domain.AccountMFAChallenge, message domain.MFACodeMail) (domain.AccountMFAChallenge, func(context.Context) error, error) {
+func (f *AccountMFAFlows) enqueueChallenge(ctx context.Context, input domain.AccountMFAChallenge, message domain.MFACodeMail, credentialGeneration *int64) (domain.AccountMFAChallenge, func(context.Context) error, error) {
 	var challenge domain.AccountMFAChallenge
 	var send func(context.Context) error
 	err := f.runtime.WithAdminTx(f.runtime.Detach(ctx), func(txCtx context.Context) error {
 		if err := f.records.LockAccountForOverrideWrite(txCtx, input.AccountID); err != nil {
+			return err
+		}
+		if err := f.requireCredentialGeneration(txCtx, input.AccountID, credentialGeneration); err != nil {
 			return err
 		}
 		if err := f.requireChallengeRateLimit(txCtx, input.AccountID); err != nil {
@@ -641,6 +662,25 @@ func (f *AccountMFAFlows) enqueueChallenge(ctx context.Context, input domain.Acc
 		return err
 	})
 	return challenge, send, err
+}
+
+// requireCredentialGeneration refuses, under the account lock the caller
+// holds, a code bound to a credential generation the account no longer
+// holds: a password write or an MFA reset committed since the password check
+// it stems from (#6289). The row then takes the generation it was checked
+// against, so the code redeems only while that still holds.
+func (f *AccountMFAFlows) requireCredentialGeneration(ctx context.Context, accountID int64, credentialGeneration *int64) error {
+	if credentialGeneration == nil {
+		return nil
+	}
+	account, found, err := f.records.FindAccountIdentity(ctx, accountID)
+	if err != nil || !found {
+		return identityaccess.ErrMFAStatusUnavailable
+	}
+	if account.MFAResetGeneration != *credentialGeneration {
+		return identityaccess.ErrInvalidCredentials
+	}
+	return nil
 }
 
 func (f *AccountMFAFlows) activateDeliveredChallenge(ctx context.Context, challenge domain.AccountMFAChallenge) error {

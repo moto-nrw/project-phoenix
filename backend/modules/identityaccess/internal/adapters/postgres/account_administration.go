@@ -201,7 +201,7 @@ func (s *Store) SetManageableAccountActive(ctx context.Context, id int64, active
 	return execManageableAccountWrite(ctx, scopeAccounts(query, visibility), "set manageable account active")
 }
 
-func (s *Store) UpdateAccountPasswordHash(ctx context.Context, id int64, hash string) (bool, domain.OperationStats, error) {
+func (s *Store) UpdateAccountPasswordHash(ctx context.Context, id int64, verifiedHash, hash string) (bool, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
 		return false, domain.OperationStats{}, err
@@ -210,8 +210,10 @@ func (s *Store) UpdateAccountPasswordHash(ctx context.Context, id int64, hash st
 		Model((*administeredAccountRow)(nil)).
 		ModelTableExpr(`auth.accounts AS "account"`).
 		Set(`password_hash = ?`, hash).
+		Set(`mfa_reset_generation = "account".mfa_reset_generation + 1`).
 		Set(`updated_at = NOW()`).
 		Where(`"account".id = ?`, id).
+		Where(`"account".password_hash = ?`, verifiedHash).
 		Where(liveAccountSQL)
 	return execManageableAccountWrite(ctx, query, "update account password hash")
 }

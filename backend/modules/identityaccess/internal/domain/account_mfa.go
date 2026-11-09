@@ -102,4 +102,7 @@ type MFAChallengeClaims struct {
 	Scope       string
 	TenantID    int64
 	ChallengeID int64
+	// CredentialGeneration is the credential generation the code was issued
+	// under (#6289).
+	CredentialGeneration int64
 }

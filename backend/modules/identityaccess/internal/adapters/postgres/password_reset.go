@@ -176,6 +176,8 @@ func (s *Store) SetAccountPassword(ctx context.Context, accountID int64, hash st
 		return db.NewUpdate().TableExpr(`auth.accounts AS "account"`).
 			Set("password_hash = ?", hash).
 			Set("is_password_otp = FALSE").
+			// A password write moves the credential generation on (#6289).
+			Set(`mfa_reset_generation = "account".mfa_reset_generation + 1`).
 			Where(`"account".id = ?`, accountID).
 			Where(`"account".personal_data_erased_at IS NULL`)
 	})

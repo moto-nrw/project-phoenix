@@ -100,7 +100,7 @@ func (s *OperatorAuthentication) loginWithMFAGate(ctx context.Context, email, pa
 		return nil, err
 	}
 	if !enrolled {
-		token, err := s.codec.IssueMFAEnrollmentToken(operator.ID, 0, domain.PortalPlatform.Name, domain.MFAEnrollmentTokenTTL)
+		token, err := s.codec.IssueMFAEnrollmentToken(operator.ID, 0, domain.PortalPlatform.Name, domain.MFAEnrollmentTokenTTL, 0)
 		if err != nil {
 			return nil, fmt.Errorf("issue operator mfa enrollment token: %w", err)
 		}

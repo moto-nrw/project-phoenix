@@ -68,6 +68,7 @@ func TestMFAStartChallengeFailsClosedAndInvalidatesCodeAfterCancellation(t *test
 		0,
 		identityaccess.MFAChallengeScopeTenant,
 		net.ParseIP("203.0.113.71"),
+		0,
 	)
 
 	require.ErrorIs(t, err, identityaccess.ErrMFAStatusUnavailable)
