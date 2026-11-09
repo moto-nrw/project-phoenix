@@ -626,6 +626,7 @@ describe("CustomSelect", () => {
     afterEach(() => {
       Element.prototype.scrollIntoView = vi.fn();
       vi.unstubAllGlobals();
+      vi.restoreAllMocks();
     });
 
     it("brings the trigger and its open menu back when content above grows", async () => {
@@ -667,6 +668,44 @@ describe("CustomSelect", () => {
       expect(screen.getByRole("listbox")).toBeInTheDocument();
       expect(watching()).toHaveLength(1);
       expect(scrollIntoViewMock.mock.contexts).not.toContain(trigger);
+    });
+
+    it("stops watching once the menu closes", async () => {
+      render(renderInDrawer(options));
+      const trigger = screen.getByRole("combobox", { name: "Wiederholung" });
+      fireEvent.click(trigger);
+      expect(screen.getByRole("listbox")).toBeInTheDocument();
+      expect(watching()).toHaveLength(1);
+      await act(async () => {});
+
+      fireEvent.keyDown(trigger, { key: "Escape" });
+      expect(trigger).toHaveAttribute("aria-expanded", "false");
+
+      // Content grows after the menu closed: a closed select scrolls nothing.
+      triggerTop = 1060;
+      reportResize();
+
+      expect(watching()).toHaveLength(0);
+      expect(scrollIntoViewMock.mock.contexts).not.toContain(trigger);
+    });
+
+    it("stops watching when the select unmounts with its menu open", async () => {
+      const consoleError = vi.spyOn(console, "error");
+      const view = render(renderInDrawer(options));
+      const trigger = screen.getByRole("combobox", { name: "Wiederholung" });
+      fireEvent.click(trigger);
+      expect(screen.getByRole("listbox")).toBeInTheDocument();
+      expect(watching()).toHaveLength(1);
+      await act(async () => {});
+
+      // The drawer closes with the menu still open.
+      view.unmount();
+      triggerTop = 1060;
+      reportResize();
+
+      expect(watching()).toHaveLength(0);
+      expect(scrollIntoViewMock.mock.contexts).not.toContain(trigger);
+      expect(consoleError).not.toHaveBeenCalled();
     });
   });
 
