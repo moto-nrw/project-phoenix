@@ -83,3 +83,54 @@ func TestInstructionTableRequiresTheTraegersConfirmation(t *testing.T) {
 		VALUES (?, 'care_invoice', 'issued', 1, 'not_applicable', 'Satzung', ?, 'Frau Beispiel', '2026-11-09', '  ', TRUE, ?, ?)`,
 		organization, reason, operator, now), "a confirmation without the reference to the written instruction")
 }
+
+// TestConfirmationKeepsItsOperatorUntilTheOperatorGoes: the operator who
+// recorded the confirmation can only disappear with the operator account
+// (ON DELETE SET NULL, ADR 0184). A direct update cannot clear or change it
+// (#4720, fifth review: clearing it left a one-year Weisung without
+// attribution, and the job deleted under it).
+func TestConfirmationKeepsItsOperatorUntilTheOperatorGoes(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := context.Background()
+	organization := testpkg.CreateTestOrganization(t, db, &testpkg.Organization{
+		Name: "Träger Bestätiger", Slug: "beleg-bestaetiger-" + time.Now().Format("150405.000000"),
+	}).ID
+	recorder := testpkg.CreateTestOperator(t, db).ID
+	other := testpkg.CreateTestOperator(t, db).ID
+	refused := func(err error, name string) {
+		t.Helper()
+		var pgErr interface{ Field(byte) string }
+		require.ErrorAs(t, err, &pgErr, name)
+		assert.Equal(t, "23514", pgErr.Field('C'), name)
+	}
+	err := db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		var instruction int64
+		require.NoError(t, tx.NewRaw(`INSERT INTO parent_billing.beleg_retention_instructions (organization_id, beleg_type, trigger_event,
+				period, basis, legal_basis, basis_justification, instructed_by, instructed_on, instruction_reference,
+				statutes_not_applicable_confirmed, confirmed_by_operator_id, confirmed_at)
+			VALUES (?, 'care_invoice', 'issued', 1, 'not_applicable', 'Satzung', 'Träger ist nicht buchführungspflichtig',
+				'Frau Beispiel', '2026-11-09', 'Mail vom 09.11.2026', TRUE, ?, NOW()) RETURNING id`,
+			organization, recorder).Scan(ctx, &instruction))
+		update := func(operatorID *int64) error {
+			_, err := tx.ExecContext(ctx, `SAVEPOINT confirmation_update`)
+			require.NoError(t, err)
+			_, err = tx.ExecContext(ctx, `UPDATE parent_billing.beleg_retention_instructions SET confirmed_by_operator_id = ?
+				WHERE id = ?`, operatorID, instruction)
+			_, rollbackErr := tx.ExecContext(ctx, `ROLLBACK TO SAVEPOINT confirmation_update`)
+			require.NoError(t, rollbackErr)
+			return err
+		}
+		refused(update(nil), "clearing the operator while the account exists")
+		refused(update(&other), "naming another operator")
+
+		_, err := tx.ExecContext(ctx, `DELETE FROM platform.operators WHERE id = ?`, recorder)
+		require.NoError(t, err, "the operator account can go")
+		var operatorID *int64
+		require.NoError(t, tx.NewRaw(`SELECT confirmed_by_operator_id FROM parent_billing.beleg_retention_instructions WHERE id = ?`,
+			instruction).Scan(ctx, &operatorID))
+		assert.Nil(t, operatorID, "the reference goes with the operator account")
+		return errRollbackSpelling
+	})
+	require.ErrorIs(t, err, errRollbackSpelling)
+}
