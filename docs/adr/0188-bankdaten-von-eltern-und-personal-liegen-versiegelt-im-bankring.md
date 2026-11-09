@@ -104,6 +104,13 @@ Solange der Legacy-Ring aus ADR 0183 aktiv ist, verarbeitet derselbe Lauf auch
 Chiffrate mit dem Legacy-Ring. Schritt 5 aus ADR 0183 (Legacy-Ring leeren,
 Abschlusslauf ohne Legacy) gilt für beide Befehlsformen.
 
+## Rollback
+
+Das Down von 1.15.836 und 1.15.837 verweigert sich, solange ein versiegelter
+Wert existiert: Nach einem Schreiben oder dem Backfill halten die versiegelten
+Spalten die einzige Kopie. Ein Rollback nach dem ersten Chiffrat braucht eine
+Version mit dieser Änderung oder das Release-Backup (ADR 0183).
+
 ## Mutationsbelege
 
 - Health-Cipher statt Bank-Cipher an die neuen Ports:
