@@ -42,9 +42,10 @@ func newDecideProbe(t *testing.T) *decideProbe {
 // classifier (roots/owners/root_enrollment_services.go).
 func (p *decideProbe) decisions() *enrollmentCompose.Decisions {
 	return enrollmentCompose.NewDecisions(enrollmentCompose.DecisionDependencies{
-		IsTransient: transactionFailures.IsTransientDatabaseError,
-		Settings:    unreadDecisionSettings{},
-		Logger:      slog.Default(),
+		IsTransient:         transactionFailures.IsTransientDatabaseError,
+		IsSavepointRollback: func(err error) bool { return errors.Is(err, tenant.ErrSavepointRollback) },
+		Settings:            unreadDecisionSettings{},
+		Logger:              slog.Default(),
 	})
 }
 
@@ -139,7 +140,7 @@ func TestDecideAndInviteRetriesOnTheOperationErrorOnly(t *testing.T) {
 			require.Equal(t, c.failed, err != nil, "error: %v", err)
 			require.Equal(t, c.calls, calls, "decision bodies run")
 			require.Equal(t, c.rows, rows, "committed rows")
-			require.Equal(t, c.savepointLost, errors.Is(err, tenant.ErrSavepointControl))
+			require.Equal(t, c.savepointLost, errors.Is(err, tenant.ErrSavepointRollback))
 		})
 	}
 }

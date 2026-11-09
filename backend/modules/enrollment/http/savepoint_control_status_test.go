@@ -83,9 +83,9 @@ func raiseMain(kind string) txStep {
 
 func statusFailures() DatabaseFailures {
 	return DatabaseFailures{
-		Transient:        transactionFailures.IsTransientDatabaseError,
-		Constraint:       transactionFailures.IsConstraintViolation,
-		SavepointControl: func(err error) bool { return errors.Is(err, tenant.ErrSavepointControl) },
+		Transient:         transactionFailures.IsTransientDatabaseError,
+		Constraint:        transactionFailures.IsConstraintViolation,
+		SavepointRollback: func(err error) bool { return errors.Is(err, tenant.ErrSavepointRollback) },
 	}
 }
 
@@ -191,7 +191,7 @@ func TestSavepointControlStatusAtTheEdges(t *testing.T) {
 		target error
 		rows   int
 	}{
-		{name: "B1_connection_lost_in_savepoint", script: func(context.CancelFunc) txStep { return inSavepoint(terminate) }, want: all(http.StatusInternalServerError), target: tenant.ErrSavepointControl},
+		{name: "B1_connection_lost_in_savepoint", script: func(context.CancelFunc) txStep { return inSavepoint(terminate) }, want: all(http.StatusInternalServerError), target: tenant.ErrSavepointRollback},
 		{name: "B2b_backend_terminated_outside_savepoint", script: func(context.CancelFunc) txStep { return terminate }, want: all(http.StatusInternalServerError)},
 		{name: "B3_request_cancelled_in_savepoint", script: func(cancel context.CancelFunc) txStep {
 			return inSavepoint(func(ctx context.Context, tx bun.Tx) error {

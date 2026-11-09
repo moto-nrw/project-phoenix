@@ -228,16 +228,16 @@ func (s *Store) AssignRolePermissions(ctx context.Context, roleID int64, permiss
 	}
 	for attempt := 1; ; attempt++ {
 		err = copyCatalogPermissions(ctx, db, roleID, permissionIDs)
-		if err == nil || attempt == copyRolePermissionsAttempts || errors.Is(err, tenant.ErrSavepointControl) || !isDeletedPermission(err) {
+		if err == nil || attempt == copyRolePermissionsAttempts || errors.Is(err, tenant.ErrSavepointRollback) || !isDeletedPermission(err) {
 			return err
 		}
 	}
 }
 
 func copyCatalogPermissions(ctx context.Context, db bun.IDB, roleID int64, permissionIDs []int64) error {
-	// A failed savepoint control leaves the transaction untrusted: it is
-	// marked fatal, so neither the loop above nor the runtime replays it
-	// (E19, #6316).
+	// Savepoint failures carry the tenant runtime's markers. A failed
+	// rollback leaves the transaction untrusted: neither the loop above nor
+	// the runtime replays it (E19, #6316).
 	if _, err := db.ExecContext(ctx, "SAVEPOINT copy_role_permissions"); err != nil {
 		return fmt.Errorf("copy permissions to role: %w: create: %w", tenant.ErrSavepointControl, err)
 	}
@@ -246,7 +246,7 @@ func copyCatalogPermissions(ctx context.Context, db bun.IDB, roleID int64, permi
 		ON CONFLICT (role_id, permission_id) DO NOTHING`, roleID, bun.List(permissionIDs)).Exec(ctx)
 	if err != nil {
 		if _, rollbackErr := db.ExecContext(ctx, "ROLLBACK TO SAVEPOINT copy_role_permissions"); rollbackErr != nil {
-			return fmt.Errorf("copy permissions to role: %w", errors.Join(err, fmt.Errorf("%w: rollback: %w", tenant.ErrSavepointControl, rollbackErr)))
+			return fmt.Errorf("copy permissions to role: %w", errors.Join(err, tenant.SavepointRollbackFailure(fmt.Errorf("%w: rollback: %w", tenant.ErrSavepointControl, rollbackErr))))
 		}
 		return fmt.Errorf("copy permissions to role: %w", err)
 	}

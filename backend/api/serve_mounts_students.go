@@ -324,7 +324,7 @@ func newEnrollmentResource(
 		enrollmentSchoolDirectory{schools: organizations},
 		nativeUploads.UploadFiles{},
 		enrollmentAPI.DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation,
-			SavepointControl: func(err error) bool { return errors.Is(err, tenant.ErrSavepointControl) }},
+			SavepointRollback: func(err error) bool { return errors.Is(err, tenant.ErrSavepointRollback) }},
 		owners.NewEnrollmentBookings(),
 	)
 	resource.ListExportService = renderer

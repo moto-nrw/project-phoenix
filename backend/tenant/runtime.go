@@ -334,12 +334,11 @@ func (uow UnitOfWork) execute(ctx context.Context, retry bool, run func(context.
 }
 
 // replayable lets the adapter's classifier decide only for an attempt that
-// started and whose savepoints stayed under control (#6316). A failed
-// savepoint control leaves the transaction untrusted (E19), and a failed
-// start never reached the callback; neither replays, whatever SQLSTATE the
-// chain carries.
+// started and whose savepoint rollbacks succeeded (#6316). A failed savepoint
+// rollback leaves the transaction untrusted (E19), and a failed start never
+// reached the callback; neither replays, whatever SQLSTATE the chain carries.
 func (uow UnitOfWork) replayable(err error) bool {
-	if errors.Is(err, ErrSavepointControl) || transactionResult(err) == UnitOfWorkNotStarted {
+	if errors.Is(err, ErrSavepointRollback) || transactionResult(err) == UnitOfWorkNotStarted {
 		return false
 	}
 	return uow.retryable(err)

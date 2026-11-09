@@ -15,18 +15,18 @@ import (
 type DatabaseFailures struct {
 	Transient  func(error) bool
 	Constraint func(error) bool
-	// SavepointControl reports a failed savepoint control in the unit of
-	// work. Nil matches nothing.
-	SavepointControl func(error) bool
+	// SavepointRollback reports a savepoint whose rollback failed in the unit
+	// of work (E19). Nil matches nothing.
+	SavepointRollback func(error) bool
 }
 
-// savepointControlFailed reports a savepoint control the database failed
+// savepointControlFailed reports a savepoint rollback the database failed
 // while the request was still alive. Such a transaction was untrusted, so
 // the answer is 500 ahead of any business, constraint or transient rule
 // (E19, #6316). A cancelled or expired request keeps its existing answer:
 // the savepoint failed because the request ended.
 func (f DatabaseFailures) savepointControlFailed(r *http.Request, err error) bool {
-	if f.SavepointControl == nil || !f.SavepointControl(err) || r.Context().Err() != nil {
+	if f.SavepointRollback == nil || !f.SavepointRollback(err) || r.Context().Err() != nil {
 		return false
 	}
 	return !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded)
@@ -51,5 +51,5 @@ func (f DatabaseFailures) requestEnded(r *http.Request, err error) render.Render
 
 func (f DatabaseFailures) infrastructure(err error) bool {
 	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) ||
-		(f.Transient != nil && f.Transient(err)) || (f.SavepointControl != nil && f.SavepointControl(err))
+		(f.Transient != nil && f.Transient(err)) || (f.SavepointRollback != nil && f.SavepointRollback(err))
 }

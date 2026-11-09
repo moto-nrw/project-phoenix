@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -14,11 +15,12 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// A failed savepoint control of the permission copy is fatal (E19, #6316,
-// PR #6380 table F): the copy neither repeats itself in the untrusted
-// transaction nor offers the runtime a SQLSTATE to replay, and nothing of it
-// commits. With an intact rollback the copy still repeats after a deleted
-// permission (#4574, unchanged).
+// A failed savepoint rollback of the permission copy is fatal (E19, #6316,
+// PR #6380 table F): the copy does not repeat itself in the untrusted
+// transaction, the runtime does not replay it, and nothing of it commits. A
+// failed RELEASE after success is a savepoint-control failure the runtime may
+// replay as a whole, as for tenant.WithSavepoint. With an intact rollback the
+// copy still repeats after a deleted permission (#4574, unchanged).
 func TestAssignRolePermissionsTreatsAFailedSavepointAsFatal(t *testing.T) {
 	t.Parallel()
 	probe := testpkg.NewFaultProbe(t)
@@ -30,20 +32,21 @@ func TestAssignRolePermissionsTreatsAFailedSavepointAsFatal(t *testing.T) {
 	cases := []struct {
 		name      string
 		arm       func()
-		fatal     bool
+		fatal     bool // failed rollback: never replayed
+		control   bool // failed savepoint control
 		committed int
 	}{
-		{name: "F-a_rollback_fails_40P01", fatal: true, arm: func() {
+		{name: "F-a_rollback_fails_40P01", fatal: true, control: true, arm: func() {
 			probe.Faults.Arm(testpkg.FaultNone, nil)
 			probe.Faults.AlsoFailStatement("INSERT INTO auth.role_permissions", deletedPermission)
 			probe.Faults.AlsoFail(testpkg.FaultSavepointRestore, testpkg.InjectedFailure("40P01"))
 		}},
-		{name: "F-a_rollback_fails_bad_conn", fatal: true, arm: func() {
+		{name: "F-a_rollback_fails_bad_conn", fatal: true, control: true, arm: func() {
 			probe.Faults.Arm(testpkg.FaultNone, nil)
 			probe.Faults.AlsoFailStatement("INSERT INTO auth.role_permissions", deletedPermission)
 			probe.Faults.AlsoFail(testpkg.FaultSavepointRestore, testpkg.InjectedFailure("bad_conn"))
 		}},
-		{name: "F-b_release_fails_40001", fatal: true, arm: func() {
+		{name: "F-b_release_fails_40001", control: true, arm: func() {
 			probe.Faults.Arm(testpkg.FaultSavepointRelease, testpkg.InjectedFailure("40001"))
 		}},
 		{name: "F-c_deleted_permission_rollback_ok", committed: 1, arm: func() {
@@ -68,11 +71,12 @@ func TestAssignRolePermissionsTreatsAFailedSavepointAsFatal(t *testing.T) {
 			require.NoError(t, probe.Super.NewRaw(`SELECT count(*) FROM auth.role_permissions WHERE role_id = ?`, role.ID).Scan(ctx, &committed))
 			t.Logf("CELL %s err=%v committed=%d", c.name, err, committed)
 			require.Equal(t, c.committed, committed)
-			if !c.fatal {
+			if !c.control {
 				require.NoError(t, err)
 				return
 			}
-			require.ErrorIs(t, err, tenant.ErrSavepointControl, "the runtime does not replay a failed savepoint control")
+			require.ErrorIs(t, err, tenant.ErrSavepointControl)
+			require.Equal(t, c.fatal, errors.Is(err, tenant.ErrSavepointRollback), "only a failed rollback is never replayed")
 		})
 	}
 }

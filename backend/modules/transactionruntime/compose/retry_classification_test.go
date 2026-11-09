@@ -231,7 +231,7 @@ func TestRetryAfterConnectionLossOrContextEnd(t *testing.T) {
 			got, err := rig.run(t, deadline(t, rig.ctx), unit.admin, rig.terminateOnce())
 			t.Logf("CELL B1 %s %s", unit.name, got)
 			require.Equal(t, failedOnce, got, "error: %v", err)
-			require.ErrorIs(t, err, tenant.ErrSavepointControl, "ROLLBACK TO failed on the dead connection")
+			require.ErrorIs(t, err, tenant.ErrSavepointRollback, "ROLLBACK TO failed on the dead connection")
 		})
 		t.Run(unit.name+"/B3_request_cancelled_in_savepoint", func(t *testing.T) {
 			ctx, cancel := context.WithCancel(deadline(t, rig.ctx))
@@ -358,6 +358,33 @@ func TestRetryNeverReplaysAFailedStart(t *testing.T) {
 				require.Equal(t, neverRan, got, "error: %v", err)
 				var notStarted interface{ TransactionNotStarted() }
 				require.ErrorAs(t, err, &notStarted)
+			})
+		}
+	}
+}
+
+// A failure to create a savepoint or to release it after success is a
+// savepoint-control failure, not a failed rollback: the runtime still replays
+// the whole transaction after a deadlock or serialization failure there
+// (#5827 fault table, unchanged by #6316).
+func TestRetryReplaysAFailedSavepointCreateOrRelease(t *testing.T) {
+	t.Parallel()
+	rig := newRetryRig(t)
+	ok := func(context.Context, bun.Tx, int) error { return nil }
+	for _, unit := range units {
+		for _, kind := range []string{"40P01", "40001"} {
+			t.Run(unit.name+"/create_"+kind, func(t *testing.T) {
+				rig.faults.Arm(testpkg.FaultNone, nil)
+				rig.faults.AlsoFailStatement("SAVEPOINT phoenix_operation", testpkg.InjectedFailure(kind))
+				got, err := rig.run(t, deadline(t, rig.ctx), unit.admin, ok)
+				require.True(t, rig.faults.Fired())
+				require.Equal(t, retriedOnce, got, "error: %v", err)
+			})
+			t.Run(unit.name+"/release_after_success_"+kind, func(t *testing.T) {
+				rig.faults.Arm(testpkg.FaultSavepointRelease, testpkg.InjectedFailure(kind))
+				got, err := rig.run(t, deadline(t, rig.ctx), unit.admin, ok)
+				require.True(t, rig.faults.Fired())
+				require.Equal(t, retriedOnce, got, "error: %v", err)
 			})
 		}
 	}
