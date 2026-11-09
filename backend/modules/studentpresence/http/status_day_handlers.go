@@ -46,7 +46,15 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if err := rs.StudentStatusDayService.CreateForDates(r.Context(), rs.newStatusDayCreateWriteContext(r, userPermissions, req.Status, dates), student.ID, req.Status, req.Reason, dates); err != nil {
+	writeContext := rs.newStatusDayCreateWriteContext(r, userPermissions, req.Status, dates)
+	replace, refusal := rs.partialAbsenceReplacement(r.Context(), userPermissions, student, req.ReplacePartialAbsenceDates, dates)
+	if refusal != nil {
+		renderError(w, r, refusal)
+		return
+	}
+	writeContext.ReplacePartialAbsences = replace
+
+	if err := rs.StudentStatusDayService.CreateForDates(r.Context(), writeContext, student.ID, req.Status, req.Reason, dates); err != nil {
 		rs.renderStatusDayCreateError(w, r, err, false, "failed to create student status days")
 		return
 	}

@@ -102,9 +102,9 @@ func (facts absenceReviewFacts) statusView(ctx context.Context, w *ExcusedReques
 	return w.currentStatusView(ctx, req)
 }
 
-func (facts absenceReviewFacts) manualPartialAbsence(ctx context.Context, w *ExcusedRequests, studentID int64, dates []careplan.Date) (bool, error) {
+func (facts absenceReviewFacts) manualPartialAbsences(ctx context.Context, w *ExcusedRequests, studentID int64, dates []careplan.Date) (map[string]string, error) {
 	if pickups, loaded := facts.pickups[studentID]; loaded {
-		return manualPartialAbsenceInRows(dates, pickups), nil
+		return manualPartialAbsenceFrom(dates, pickups), nil
 	}
-	return w.hasManualPartialAbsence(ctx, studentID, dates)
+	return w.manualPartialAbsences(ctx, studentID, dates)
 }

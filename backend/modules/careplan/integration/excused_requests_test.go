@@ -369,17 +369,21 @@ func TestExcusedRequestPartialAbsenceConflicts(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, items, 1)
 		assert.Equal(t, careplan.BulkIneligibleConflict, items[0].BulkIneligibleReason)
+		assert.Equal(t, map[string]string{excusedIn3Days.String(): "13:30"}, items[0].PartialAbsenceFromByDate,
+			"the queue names the partial absence it would replace")
 		return nil
 	}))
 	_, err := f.decide(t, careplan.ExcusedRequestDecideInput{RequestID: pending.ID, Approve: true, ReviewedBy: f.chain.AccountID})
 	assert.ErrorIs(t, err, careplan.ErrExcusedRequestStatusConflict)
 	assert.Empty(t, f.activeStatusDays(t))
 
+	// Since #5698 a family may ask for a day the school holds with a partial
+	// absence: the school decides it. Only the approval needs a confirmation.
 	err = f.inTenant(t, func(ctx context.Context) error {
 		_, err := f.requests.CreateRequest(ctx, f.chain.StudentID, f.chain.AccountID, []careplan.Date{excusedIn4Days}, "Arzttermin")
 		return err
 	})
-	assert.ErrorIs(t, err, careplan.ErrExcusedRequestStatusConflict, "a partial absence blocks the creation too")
+	assert.NoError(t, err, "a partial absence no longer blocks the request")
 }
 
 func TestExcusedRequestPastRequestsMarkDoneInsteadOfApprove(t *testing.T) {
