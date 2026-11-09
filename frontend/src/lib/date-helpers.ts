@@ -244,6 +244,22 @@ export function endOfBerlinDayISO(date: Date): string {
   return new Date(nominalUtc.getTime() - berlinOffsetMs).toISOString();
 }
 
+/** Europe/Berlin's UTC offset in milliseconds at an instant. */
+function berlinOffsetMsAt(at: Date): number {
+  const parts = BERLIN_DATE_TIME_PARTS_FORMATTER.formatToParts(at);
+  const get = (type: string) =>
+    Number(parts.find((part) => part.type === type)?.value ?? "0");
+  const berlinWallClockAsUtc = Date.UTC(
+    get("year"),
+    get("month") - 1,
+    get("day"),
+    get("hour"),
+    get("minute"),
+    get("second"),
+  );
+  return berlinWallClockAsUtc - at.getTime();
+}
+
 /**
  * Serializes a calendar day plus a wall-clock time ("08:00") as that moment in
  * the school's Europe/Berlin timezone. Same construction as
@@ -275,19 +291,16 @@ export function berlinDateTimeISO(date: Date, time: string): string {
       0,
     ),
   );
-  const parts = BERLIN_DATE_TIME_PARTS_FORMATTER.formatToParts(nominalUtc);
-  const get = (type: string) =>
-    Number(parts.find((part) => part.type === type)?.value ?? "0");
-  const berlinWallClockAsUtc = Date.UTC(
-    get("year"),
-    get("month") - 1,
-    get("day"),
-    get("hour"),
-    get("minute"),
-    get("second"),
-  );
-  const berlinOffsetMs = berlinWallClockAsUtc - nominalUtc.getTime();
-  const instant = new Date(nominalUtc.getTime() - berlinOffsetMs);
+  // The offset at the nominal moment can belong to the other side of a
+  // clock change (01:00–01:59 on both switch days, #6293). Take the offset
+  // again at the first guess; where they differ, the second one is the
+  // offset in force at the wanted wall-clock time.
+  const guessOffsetMs = berlinOffsetMsAt(nominalUtc);
+  let instant = new Date(nominalUtc.getTime() - guessOffsetMs);
+  const settledOffsetMs = berlinOffsetMsAt(instant);
+  if (settledOffsetMs !== guessOffsetMs) {
+    instant = new Date(nominalUtc.getTime() - settledOffsetMs);
+  }
   const resolved = BERLIN_DATE_TIME_PARTS_FORMATTER.formatToParts(instant);
   const resolvedPart = (type: string) =>
     Number(resolved.find((part) => part.type === type)?.value ?? "0");
@@ -321,6 +334,33 @@ export function berlinDateTimeISO(date: Date, time: string): string {
     throw new RangeError("ambiguous Berlin wall-clock time");
   }
   return instant.toISOString();
+}
+
+/**
+ * The autumn clock change: the morning of this Berlin day is 13 hours long,
+ * so 02:00–02:59 happens twice. On the spring day it is 11 hours and that
+ * hour does not exist.
+ */
+function berlinDayRepeatsAnHour(day: Date): boolean {
+  const midnight = Date.parse(berlinDateTimeISO(day, "00:00"));
+  const noon = Date.parse(berlinDateTimeISO(day, "12:00"));
+  return noon - midnight > 12 * 60 * 60 * 1000;
+}
+
+/**
+ * Why a valid "HH:MM" time has no single Berlin instant on this day (daylight
+ * saving switch), worded for the person who typed it; null when it has one.
+ */
+export function berlinWallClockProblem(day: Date, time: string): string | null {
+  try {
+    berlinDateTimeISO(day, time);
+    return null;
+  } catch (error) {
+    if (!(error instanceof RangeError)) throw error;
+    return berlinDayRepeatsAnHour(day)
+      ? "Diese Uhrzeit kommt an diesem Tag in Berlin zweimal vor. Bitte eine andere Uhrzeit wählen."
+      : "Diese Uhrzeit gibt es an diesem Tag in Berlin nicht. Bitte eine andere Uhrzeit wählen.";
+  }
 }
 
 /**

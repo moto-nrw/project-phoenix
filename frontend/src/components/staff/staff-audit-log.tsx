@@ -34,7 +34,11 @@ import {
   type AuditLogEvent,
   type AuditLogSource,
 } from "~/lib/staff-audit-log-api";
-import { formatDate } from "~/lib/date-helpers";
+import {
+  berlinClockFromISO,
+  formatBerlinDate,
+  formatDate,
+} from "~/lib/date-helpers";
 import { formatSignedDuration } from "~/components/staff/staff-time-views";
 import {
   absenceTypeLabels,
@@ -335,14 +339,9 @@ export function StaffAuditLog({ staffOptions }: StaffAuditLogProps) {
       {
         key: "occurredAt",
         header: "Zeitpunkt",
+        // School time, whatever the viewer's zone (#6293).
         render: (row) =>
-          new Date(row.occurredAt).toLocaleString("de-DE", {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-          }),
+          `${formatBerlinDate(row.occurredAt)}, ${berlinClockFromISO(row.occurredAt)}`,
         className: "whitespace-nowrap text-gray-600",
       },
       {

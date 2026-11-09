@@ -21,6 +21,7 @@ import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { ABSENCE_TYPE_HEX, ABSENCE_TYPE_LABEL } from "~/lib/absence-helpers";
 import {
+  berlinClockFromISO,
   berlinTodayISO,
   endOfBerlinDayISO,
   isoWeekNumber,
@@ -1679,9 +1680,7 @@ function formatShortDate(d: Date): string {
   return `${dd}.${mm}.`;
 }
 
+// School time, whatever the viewer's zone (#6293).
 function formatTimeOnly(iso: string): string {
-  const date = new Date(iso);
-  const hh = String(date.getHours()).padStart(2, "0");
-  const mm = String(date.getMinutes()).padStart(2, "0");
-  return `${hh}:${mm}`;
+  return berlinClockFromISO(iso);
 }

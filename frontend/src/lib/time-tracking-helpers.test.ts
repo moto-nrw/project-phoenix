@@ -638,8 +638,8 @@ describe("formatTime", () => {
     expect(formatTime("2026-13-45T99:99:99Z")).toBe("--:--");
   });
 
-  it("formats valid ISO timestamp to HH:MM in local time", () => {
-    // formatTime converts UTC to local time using getHours()/getMinutes()
+  it("formats valid ISO timestamp to HH:MM in Berlin time", () => {
+    // formatTime shows the school's wall clock (#6293)
     const result1 = formatTime("2026-01-15T08:00:00Z");
     const result2 = formatTime("2026-01-15T14:30:00Z");
     const result3 = formatTime("2026-01-15T23:59:00Z");
