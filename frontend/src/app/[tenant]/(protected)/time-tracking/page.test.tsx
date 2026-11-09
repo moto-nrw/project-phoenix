@@ -32,6 +32,8 @@ const mockTimeTrackingService = vi.hoisted(() => ({
   requestVacation: vi.fn(),
   cancelAbsence: vi.fn(),
   getVacationQuota: vi.fn(),
+  getQuestionedAbsences: vi.fn(),
+  getOwnAbsenceAllowances: vi.fn(),
   exportSessions: vi.fn(),
 }));
 
@@ -842,6 +844,8 @@ function setupDefaultMocks(overrides?: {
     remaining_days: 30,
   });
   vi.mocked(timeTrackingService.getAbsences).mockResolvedValue(absences);
+  vi.mocked(timeTrackingService.getQuestionedAbsences).mockResolvedValue([]);
+  vi.mocked(timeTrackingService.getOwnAbsenceAllowances).mockResolvedValue([]);
   vi.mocked(timeTrackingService.requestVacation).mockResolvedValue(
     mockVacationAbsence,
   );
@@ -3137,6 +3141,90 @@ describe("TimeTrackingPage", () => {
         expect(timeTrackingService.updateSession).not.toHaveBeenCalled();
       },
     );
+
+    it("explains instead of silently keeping a cleared end", async () => {
+      setTestClock("2026-11-09T12:00:00+01:00");
+      await openEdit(summerSession());
+      clickQuickEditReason("Zeitkorrektur");
+      fireEvent.change(screen.getByLabelText("Ende"), {
+        target: { value: "" },
+      });
+
+      expect(
+        screen.getByText(
+          "Ein gespeichertes Ende lässt sich nicht löschen. Bitte eine Uhrzeit eintragen.",
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText("Ende")).toHaveAttribute(
+        "aria-invalid",
+        "true",
+      );
+      const saveButtons = screen.getAllByText("Speichern");
+      const saveBtn = saveButtons[saveButtons.length - 1]!;
+      expect(saveBtn).toBeDisabled();
+      await act(async () => {
+        fireEvent.click(saveBtn);
+      });
+      expect(timeTrackingService.updateSession).not.toHaveBeenCalled();
+    });
+
+    it("shows break starts in Berlin time from a browser in another timezone", async () => {
+      zoneVi.stubEnv("TZ", "UTC");
+      setTestClock("2026-11-09T12:00:00+01:00");
+      expect(new Date("2026-10-20T08:00:00Z").getHours()).toBe(8);
+      await openEdit({
+        ...summerSession(),
+        breaks: [
+          {
+            id: "b1",
+            sessionId: "100",
+            // 10:00 Berlin summer time
+            startedAt: "2026-10-20T08:00:00Z",
+            endedAt: "2026-10-20T08:30:00Z",
+            durationMinutes: 30,
+            plannedEndTime: null,
+          },
+        ],
+      });
+
+      const modal = screen.getByTestId("modal");
+      expect(within(modal).getByText("10:00")).toBeInTheDocument();
+      expect(
+        within(modal).getByRole("combobox", { name: "Pausendauer ab 10:00" }),
+      ).toBeInTheDocument();
+    });
+
+    it("shows today's break start in Berlin time from a browser in another timezone", async () => {
+      zoneVi.stubEnv("TZ", "UTC");
+      setTestClock("2026-11-09T12:00:00+01:00");
+      expect(new Date("2026-11-09T09:15:00Z").getHours()).toBe(9);
+      setupDefaultMocks({
+        currentSession: {
+          ...mockActiveSession,
+          date: "2026-11-09",
+          // 08:00 Berlin winter time
+          checkInTime: "2026-11-09T07:00:00Z",
+          checkOutTime: null,
+        },
+      });
+      vi.mocked(timeTrackingService.getSessionBreaks).mockResolvedValue([
+        {
+          id: "51",
+          sessionId: "100",
+          // 10:15–10:45 Berlin
+          startedAt: "2026-11-09T09:15:00Z",
+          endedAt: "2026-11-09T09:45:00Z",
+          durationMinutes: 30,
+          plannedEndTime: null,
+        },
+      ]);
+      render(<TimeTrackingPage />);
+
+      // Work 08:00–10:15, break 10:15–10:45, work from 10:45.
+      expect(await screen.findAllByText("10:15")).toHaveLength(2);
+      expect(screen.getAllByText("10:45")).toHaveLength(2);
+      expect(screen.queryByText("09:15")).not.toBeInTheDocument();
+    });
   });
 
   // ── Additional edge cases ───────────────────────────────────────────────

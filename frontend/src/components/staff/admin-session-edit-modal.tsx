@@ -11,6 +11,11 @@ import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError } from "~/contexts/ToastContext";
+import {
+  berlinClockFromISO,
+  berlinDateTimeISO,
+  berlinWallClockProblem,
+} from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import type { StaffHistorySession } from "~/lib/staff-api";
 import { staffSessionService } from "~/lib/staff-api";
@@ -97,8 +102,21 @@ export function AdminSessionEditModal({
     clearErrors();
   }, [isOpen, initial, clearErrors]);
 
+  // A time is sent only when it differs from the stored one, so saving a
+  // reason does not rewrite the stamps or cut off their seconds (#6293). A
+  // default shown for a missing value counts as a change: it is saved as seen.
+  const storedCheckIn = extractTime(session?.check_in_time ?? null);
+  const storedCheckOut = extractTime(session?.check_out_time ?? null);
+  const checkInChanged = mode !== "edit" || checkIn !== storedCheckIn;
+  const checkOutChanged = mode !== "edit" || checkOut !== storedCheckOut;
+  const checkInProblem =
+    checkInChanged && checkIn ? berlinWallClockProblem(date, checkIn) : null;
+  const checkOutProblem =
+    checkOutChanged && checkOut ? berlinWallClockProblem(date, checkOut) : null;
+
   const notesValid = notes.trim().length > 0;
-  const timesValid = checkIn < checkOut;
+  const timesValid =
+    checkIn < checkOut && checkInProblem === null && checkOutProblem === null;
   const breakMinutes = parseBreakMinutes(breakMinutesStr);
   const breakValid = breakMinutes !== null;
 
@@ -112,7 +130,9 @@ export function AdminSessionEditModal({
     }
     if (!timesValid) {
       formErrors.invalid("Bitte prüfen Sie die Uhrzeiten.", {
-        check_out_time: "Das Ende muss nach dem Beginn liegen.",
+        ...(checkInProblem ? { check_in_time: checkInProblem } : {}),
+        check_out_time:
+          checkOutProblem ?? "Das Ende muss nach dem Beginn liegen.",
       });
       return;
     }
@@ -125,29 +145,31 @@ export function AdminSessionEditModal({
 
     setIsSaving(true);
     try {
-      // The backend decodes all three time fields with the same time.Time
-      // unmarshaller (RFC3339). For `date` we MUST send UTC midnight rather
-      // than local midnight — otherwise Berlin→UTC shifts a day earlier
-      // (14.05 00:00 Berlin = 13.05 22:00 UTC) and the DATE column ends up
-      // on the wrong calendar day. Check-in/out are TIMESTAMPTZ so the
-      // local-time conversion is fine for those.
-      const dateISO = toUTCDateISO(date);
-      const checkInISO = combineDateAndTime(date, checkIn);
-      const checkOutISO = combineDateAndTime(date, checkOut);
+      // Check-in/out are school times on this day: Berlin wall clock with
+      // that day's offset, whatever the browser's zone (#6293). An unchanged
+      // stored time is not converted, so a stamp inside the repeated hour of
+      // the autumn switch still saves.
       if (mode === "edit" && session?.id != null) {
+        // The update ignores `date`; a block keeps its day.
         await staffSessionService.updateSession(staffId, session.id, {
-          date: dateISO,
-          check_in_time: checkInISO,
-          check_out_time: checkOutISO,
+          check_in_time: checkInChanged
+            ? berlinDateTimeISO(date, checkIn)
+            : undefined,
+          check_out_time: checkOutChanged
+            ? berlinDateTimeISO(date, checkOut)
+            : undefined,
           break_minutes: breakMinutes,
           status,
           notes: notes.trim(),
         });
       } else {
+        // The backend decodes `date` as an RFC3339 time and takes its
+        // calendar day; UTC midnight keeps that day from shifting (14.05
+        // 00:00 Berlin would be 13.05 22:00 UTC).
         await staffSessionService.createSession(staffId, {
-          date: dateISO,
-          check_in_time: checkInISO,
-          check_out_time: checkOutISO,
+          date: toUTCDateISO(date),
+          check_in_time: berlinDateTimeISO(date, checkIn),
+          check_out_time: berlinDateTimeISO(date, checkOut),
           break_minutes: breakMinutes,
           status,
           notes: notes.trim(),
@@ -225,17 +247,19 @@ export function AdminSessionEditModal({
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field
             label="Check-in"
-            error={formErrors.fieldError("check_in_time")}
+            error={checkInProblem ?? formErrors.fieldError("check_in_time")}
           >
             <Input
               controlSize="compact"
               type="time"
               name="check_in_time"
               aria-invalid={
-                formErrors.fieldError("check_in_time") ? true : undefined
+                (checkInProblem ?? formErrors.fieldError("check_in_time"))
+                  ? true
+                  : undefined
               }
               aria-describedby={describedBy(
-                formErrors.fieldError("check_in_time"),
+                checkInProblem ?? formErrors.fieldError("check_in_time"),
                 "check_in_time",
               )}
               value={checkIn}
@@ -245,17 +269,19 @@ export function AdminSessionEditModal({
           </Field>
           <Field
             label="Check-out"
-            error={formErrors.fieldError("check_out_time")}
+            error={checkOutProblem ?? formErrors.fieldError("check_out_time")}
           >
             <Input
               controlSize="compact"
               type="time"
               name="check_out_time"
               aria-invalid={
-                formErrors.fieldError("check_out_time") ? true : undefined
+                (checkOutProblem ?? formErrors.fieldError("check_out_time"))
+                  ? true
+                  : undefined
               }
               aria-describedby={describedBy(
-                formErrors.fieldError("check_out_time"),
+                checkOutProblem ?? formErrors.fieldError("check_out_time"),
                 "check_out_time",
               )}
               value={checkOut}
@@ -364,11 +390,10 @@ function formatLongDate(date: Date): string {
   });
 }
 
+// The stored instant as the Berlin wall clock the field shows (#6293).
 function extractTime(iso: string | null): string | null {
   if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  return berlinClockFromISO(iso) || null;
 }
 
 // Empty string is intentionally rejected (the field is required); a string
@@ -393,14 +418,4 @@ function toUTCDateISO(date: Date): string {
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}T00:00:00.000Z`;
-}
-
-// Build an RFC3339 timestamp for the given calendar day + HH:MM (local time).
-// We deliberately use local time so the admin types "08:00" and the backend
-// receives a wall-clock 08:00, not 09:00 because of timezone drift.
-function combineDateAndTime(date: Date, time: string): string {
-  const [hh, mm] = time.split(":").map(Number);
-  const result = new Date(date);
-  result.setHours(hh ?? 0, mm ?? 0, 0, 0);
-  return result.toISOString();
 }

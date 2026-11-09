@@ -250,7 +250,7 @@ function PlannedShiftsInfo({
 }
 
 function formatTimeFromDate(date: Date): string {
-  return `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
+  return berlinClockFromISO(date.toISOString());
 }
 
 const DEFAULT_BREAK_MINUTES = 30;
@@ -2322,7 +2322,14 @@ function EditSessionModal({
     sessionDay && endChanged && endTime
       ? berlinWallClockProblem(sessionDay, endTime)
       : null;
-  const hasUnresolvableTime = startProblem !== null || endProblem !== null;
+  // The backend keeps a stored end when the field is left out and has no way
+  // to remove it, so a cleared end would silently stay (#6293).
+  const endClearedProblem =
+    endChanged && !endTime && initialEnd
+      ? "Ein gespeichertes Ende lässt sich nicht löschen. Bitte eine Uhrzeit eintragen."
+      : null;
+  const hasUnresolvableTime =
+    startProblem !== null || endProblem !== null || endClearedProblem !== null;
 
   const handleBreakDurationChange = (breakId: string, minutes: number) => {
     setBreakDurations((prev) => {
@@ -2559,7 +2566,9 @@ function EditSessionModal({
                   error={
                     hasInvalidTimeRange
                       ? "Das Ende muss nach dem Beginn liegen."
-                      : (endProblem ?? formErrors.fieldError("check_out_time"))
+                      : (endProblem ??
+                        endClearedProblem ??
+                        formErrors.fieldError("check_out_time"))
                   }
                 />
               </div>

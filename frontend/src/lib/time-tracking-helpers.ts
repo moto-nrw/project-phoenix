@@ -2,6 +2,7 @@
 
 import { expandClosingDaysToMap } from "~/lib/closing-day-helpers";
 import {
+  berlinClockFromISO,
   berlinTodayISO,
   endOfBerlinDayISO,
   parseISODate,
@@ -631,7 +632,7 @@ export function formatDuration(minutes: number | null | undefined): string {
 }
 
 /**
- * Formats ISO timestamp to time string
+ * Formats ISO timestamp as Berlin wall-clock time, whatever the browser's zone
  * @param isoString - ISO 8601 timestamp
  * @returns Formatted time like "08:15" or "--:--"
  */
@@ -639,19 +640,8 @@ export function formatTime(isoString: string | null | undefined): string {
   if (!isoString) {
     return "--:--";
   }
-
-  try {
-    const date = new Date(isoString);
-    if (Number.isNaN(date.getTime())) {
-      return "--:--";
-    }
-
-    const hours = date.getHours().toString().padStart(2, "0");
-    const minutes = date.getMinutes().toString().padStart(2, "0");
-    return `${hours}:${minutes}`;
-  } catch {
-    return "--:--";
-  }
+  // School time, not the browser's zone (#6293).
+  return berlinClockFromISO(isoString) || "--:--";
 }
 
 /**
