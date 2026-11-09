@@ -81,6 +81,9 @@ type HolidayRegistrationWeek struct {
 	EndsOn         calendar.Date                  `json:"ends_on"`
 	HostSchoolName string                         `json:"host_school_name"`
 	TimeModels     []HolidayRegistrationTimeModel `json:"time_models"`
+	// NoCareDays are the days the host school gives no care (#4702); such
+	// a week takes no booking.
+	NoCareDays []capability.HolidayNoCareDay `json:"no_care_days"`
 }
 
 // HolidayRegistrationOfferResponse is the body of GET
@@ -287,6 +290,7 @@ func holidayOfferResponse(link capability.HolidayRegistrationLink, offer capabil
 		}
 		weeks = append(weeks, HolidayRegistrationWeek{
 			ID: week.ID, StartsOn: week.StartsOn, EndsOn: week.EndsOn, HostSchoolName: names[week.HostSchoolID], TimeModels: models,
+			NoCareDays: noCareDaysOrEmpty(week.NoCareDays),
 		})
 	}
 	return HolidayRegistrationOfferResponse{

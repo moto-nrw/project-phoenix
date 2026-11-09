@@ -24,13 +24,13 @@ import (
 var (
 	// ErrClosingDayNotFound reports a closing day that does not exist
 	// for the Träger of the session.
-	ErrClosingDayNotFound = errors.New("Träger closing day not found")
+	ErrClosingDayNotFound = errors.New("closing day of the Träger not found")
 	// ErrSchoolOutside reports a named school that is not
 	// an undeleted school of the Träger.
 	ErrSchoolOutside = errors.New("the school is not a school of the Träger")
 	// ErrInvalidClosingDay reports a closing day without dates,
 	// reason or schools, or with its end before its start.
-	ErrInvalidClosingDay = errors.New("invalid Träger closing day")
+	ErrInvalidClosingDay = errors.New("invalid closing day of the Träger")
 )
 
 // ClosingDay is one closing day range of a Träger with the schools it

@@ -143,6 +143,7 @@ function WeekChoice({
         ariaLabelledBy={labelId}
         value={value}
         invalid={invalid}
+        disabled={bookable.length === 0 && !value}
         ariaDescribedBy={invalid ? `${prefix}-bookings-error` : undefined}
         options={[
           { value: "", label: t("notBooked") },

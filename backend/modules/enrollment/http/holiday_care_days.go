@@ -23,3 +23,11 @@ func renderHolidayWeekWithoutCare(w http.ResponseWriter, r *http.Request, err er
 	}))
 	return true
 }
+
+// noCareDaysOrEmpty answers an empty list for an unmarked week.
+func noCareDaysOrEmpty(days []capability.HolidayNoCareDay) []capability.HolidayNoCareDay {
+	if days == nil {
+		return []capability.HolidayNoCareDay{}
+	}
+	return days
+}

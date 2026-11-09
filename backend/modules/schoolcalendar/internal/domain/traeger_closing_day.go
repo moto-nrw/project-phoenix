@@ -11,7 +11,7 @@ import (
 // refusals of the Träger closing day store (#4702); the application names
 // them in the Träger calendar contract.
 var (
-	ErrTraegerClosingDayNotFound      = errors.New("Träger closing day not found")
+	ErrTraegerClosingDayNotFound      = errors.New("closing day of the Träger not found")
 	ErrTraegerClosingDaySchoolOutside = errors.New("the school is not a school of the Träger")
 )
 

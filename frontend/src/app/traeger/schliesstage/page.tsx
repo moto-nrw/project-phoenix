@@ -342,7 +342,13 @@ export default function TraegerClosingDaysPage() {
           description="Nur zur Information. Stimmt das Bundesland einer Schule nicht, schreiben Sie dem moto-Team."
           loading={isLoading && !data}
         >
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div
+            className={
+              regions.length > 1
+                ? "grid grid-cols-1 gap-6 lg:grid-cols-2"
+                : "grid grid-cols-1 gap-6"
+            }
+          >
             {regions.map((region) => (
               <section key={region.code} aria-label={region.name}>
                 <div className="mb-3 flex flex-wrap items-center gap-2">
