@@ -247,7 +247,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0183: bank cipher (+6), rekey (+5).
 // ADR 0185: the admin-to-tenant handoff binding of
 // modules/transactionruntime/compose adds exactly 2 LOC.
-// ADR 0186: the guardian bank backfill/rekey constructor of
+// ADR 0188: the guardian bank backfill/rekey constructor of
 // modules/peopledirectory/compose (+6), the staff bank cipher dependency and
 // backfill/rekey constructor of modules/workforce/compose (+7).
 const moduleComposeBudgetTotal = 13173
@@ -335,7 +335,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/parentbilling/compose":               96,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
-	// ADR 0186: the guardian bank backfill/rekey constructor (+6).
+	// ADR 0188: the guardian bank backfill/rekey constructor (+6).
 	"modules/peopledirectory/compose":    979,
 	"modules/presenceprojection/compose": 7,
 	"modules/requestreview/compose":      12,
@@ -374,7 +374,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/transactionruntime/compose": 139,
 	// Raised by ADR 0141: the payroll dispatch constructor (+9).
 	// ADR 0151: the school figure constructor (+13).
-	// ADR 0186: the bank cipher dependency and backfill/rekey constructor (+7).
+	// ADR 0188: the bank cipher dependency and backfill/rekey constructor (+7).
 	"modules/workforce/compose":         916,
 	"workflows/catererportal/compose":   37, // added by ADR 0077
 	"workflows/gradetransition/compose": 49,

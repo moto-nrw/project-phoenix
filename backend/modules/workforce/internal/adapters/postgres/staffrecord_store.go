@@ -70,7 +70,7 @@ type staffFinancialDataRow struct {
 	StaffID       int64 `bun:"staff_id,notnull"`
 	// The plaintext columns before #6332: writers always store NULL, only
 	// rows the maintenance backfill has not sealed yet still carry a value.
-	// Migration 1.15.838 drops them.
+	// Migration 1.15.839 drops them.
 	IBAN                       *string   `bun:"iban"`
 	TaxID                      *string   `bun:"tax_id"`
 	SocialSecurityNumber       *string   `bun:"social_security_number"`
