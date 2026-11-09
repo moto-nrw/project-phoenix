@@ -77,7 +77,7 @@ func (m siblingMember) chainMember() holidayMember {
 				continue
 			}
 			children[i].Bookings = append(children[i].Bookings, parentbilling.HolidayBooking{
-				WeekStartsOn: *line.WeekStartsOn, WeekEndsOn: *line.WeekEndsOn, TimeModelName: line.TimeModelName, PriceCents: line.AmountCents,
+				WeekID: line.WeekID, WeekStartsOn: *line.WeekStartsOn, WeekEndsOn: *line.WeekEndsOn, TimeModelName: line.TimeModelName, PriceCents: line.AmountCents,
 			})
 		}
 	}

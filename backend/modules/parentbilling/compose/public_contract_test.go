@@ -139,7 +139,7 @@ func TestPublicParentBillingContractFreezesTheHolidayContribution(t *testing.T) 
 	require.True(t, confirmation.Contribution.Frozen)
 	require.Equal(t, int64(0), confirmation.Contribution.TotalCents)
 	require.Equal(t, []parentbilling.HolidayContributionLine{
-		{Kind: parentbilling.LineBase, AmountCents: 6750, WeekStartsOn: &week, WeekEndsOn: new(week.AddDays(4)), TimeModelName: "bis 16 Uhr"},
+		{Kind: parentbilling.LineBase, AmountCents: 6750, WeekStartsOn: &week, WeekEndsOn: new(week.AddDays(4)), TimeModelName: "bis 16 Uhr", WeekID: 1},
 		{Kind: parentbilling.LineBenefitsExemption, AmountCents: -6750, Note: "Beitragsfrei wegen Leistungsbezug"},
 	}, later.Children[0].Lines, "the frozen contribution keeps its exemption after the rule is gone")
 	require.Equal(t, child, later.Children[0].ChildID)

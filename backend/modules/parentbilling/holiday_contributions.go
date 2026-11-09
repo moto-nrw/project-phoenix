@@ -111,6 +111,10 @@ type HolidayContributionLine struct {
 	Note                string         `json:"note"`
 	CostBearerID        *int64         `json:"cost_bearer_id"`
 	CostBearerName      string         `json:"cost_bearer_name"`
+	// WeekID names the week a base line prices (#4699), so a booking is
+	// priced at most once even after its week moved; zero for a line frozen
+	// before whose week has moved since, which is matched by its dates.
+	WeekID int64 `json:"-"`
 }
 
 // HolidayChildContribution is the contribution of one child. ChildID names
@@ -186,6 +190,7 @@ type HolidayConfirmation struct {
 
 // HolidayBookingReplacement is a week whose frozen charge a rebooking retains.
 type HolidayBookingReplacement struct {
+	WeekID       int64
 	WeekStartsOn calendar.Date
 	WeekEndsOn   calendar.Date
 }

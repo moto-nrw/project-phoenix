@@ -721,7 +721,7 @@ func parentBillingRegistration(detail enrollmentOwner.HolidayRegistrationDetail)
 		for j, booking := range child.Bookings {
 			replacements := make([]parentbilling.HolidayBookingReplacement, len(booking.ReplacedWeeks))
 			for k, previous := range booking.ReplacedWeeks {
-				replacements[k] = parentbilling.HolidayBookingReplacement{WeekStartsOn: previous.WeekStartsOn, WeekEndsOn: previous.WeekEndsOn}
+				replacements[k] = parentbilling.HolidayBookingReplacement{WeekID: previous.WeekID, WeekStartsOn: previous.WeekStartsOn, WeekEndsOn: previous.WeekEndsOn}
 			}
 			bookings[j] = parentbilling.HolidayBooking{
 				WeekID: booking.WeekID, WeekStartsOn: booking.WeekStartsOn, WeekEndsOn: booking.WeekEndsOn,

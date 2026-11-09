@@ -100,6 +100,7 @@ type HolidayRegistrationFilter struct {
 // HolidayBookingReplacement identifies a week replaced by a rebooking.
 // The review reconstructs these ranges from its durable audit trail.
 type HolidayBookingReplacement struct {
+	WeekID       int64
 	WeekStartsOn calendar.Date
 	WeekEndsOn   calendar.Date
 }

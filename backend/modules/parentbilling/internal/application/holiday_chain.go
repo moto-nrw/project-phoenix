@@ -197,7 +197,7 @@ func holidayBaseLines(child parentbilling.HolidayChild) parentbilling.HolidayChi
 		startsOn, endsOn := booking.WeekStartsOn, booking.WeekEndsOn
 		contribution.Lines = append(contribution.Lines, parentbilling.HolidayContributionLine{
 			Kind: parentbilling.LineBase, AmountCents: booking.PriceCents,
-			WeekStartsOn: &startsOn, WeekEndsOn: &endsOn, TimeModelName: booking.TimeModelName,
+			WeekStartsOn: &startsOn, WeekEndsOn: &endsOn, TimeModelName: booking.TimeModelName, WeekID: booking.WeekID,
 		})
 		contribution.TotalCents += booking.PriceCents
 	}

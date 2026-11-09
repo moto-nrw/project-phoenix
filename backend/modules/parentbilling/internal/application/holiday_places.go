@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Places of the holiday weeks (#4699, decision E-e). A booking on the
@@ -35,9 +36,9 @@ func withMovedUpBookings(frozen, current []parentbilling.HolidayChild) []parentb
 		}
 		for _, booking := range child.Bookings {
 			if !booking.Promoted || booking.Waitlisted || slices.ContainsFunc(frozen[i].Bookings, func(priced parentbilling.HolidayBooking) bool {
-				return priced.WeekStartsOn == booking.WeekStartsOn && priced.WeekEndsOn == booking.WeekEndsOn ||
+				return pricesHolidayWeek(priced, booking.WeekID, booking.WeekStartsOn, booking.WeekEndsOn) ||
 					slices.ContainsFunc(booking.ReplacedWeeks, func(previous parentbilling.HolidayBookingReplacement) bool {
-						return previous.WeekStartsOn == priced.WeekStartsOn && previous.WeekEndsOn == priced.WeekEndsOn
+						return pricesHolidayWeek(priced, previous.WeekID, previous.WeekStartsOn, previous.WeekEndsOn)
 					})
 			}) {
 				continue
@@ -46,6 +47,16 @@ func withMovedUpBookings(frozen, current []parentbilling.HolidayChild) []parentb
 		}
 	}
 	return frozen
+}
+
+// pricesHolidayWeek tells whether a frozen booking prices the week: by its id
+// when the frozen line names one, so a later change of the week's dates
+// cannot make it look unpriced; by its dates for a line frozen without one.
+func pricesHolidayWeek(priced parentbilling.HolidayBooking, weekID int64, startsOn, endsOn calendar.Date) bool {
+	if priced.WeekID != 0 && weekID != 0 {
+		return priced.WeekID == weekID
+	}
+	return priced.WeekStartsOn == startsOn && priced.WeekEndsOn == endsOn
 }
 
 // refreezeMovedUp computes the contribution of every registration that moved

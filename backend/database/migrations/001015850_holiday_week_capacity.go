@@ -3,18 +3,19 @@ package migrations
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/uptrace/bun"
 )
 
-const holidayWeekCapacityVersion = "1.15.841"
+const holidayWeekCapacityVersion = "1.15.850"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     holidayWeekCapacityVersion,
-		Description: "Ferien: Kapazität je Woche, Platz oder Warteliste je Buchung, Teilnehmerliste nur mit Platz (#4699)",
+		Description: "Ferien: Kapazität je Woche, Platz oder Warteliste je Buchung, Teilnehmerliste nur mit Platz, Nachrück-Mail (#4699)",
 		DependsOn: []string{
-			staffFinancialDataSealedVersion, // the last migration before this one
+			demoVisitorErasureOutboxKindsVersion, // the last migration before this one, whose outbox CHECK and erasure this one extends
 		},
 	})
 	Migrations.MustRegister(holidayWeekCapacityUp, holidayWeekCapacityDown)
@@ -66,9 +67,27 @@ ALTER TABLE enrollment.holiday_registration_audit
 		'promote', 'capacity', 'places')),
 	ADD CONSTRAINT chk_holiday_registration_audit_subject CHECK (
 		(action IN ('list', 'export', 'capacity', 'places')) = (holiday_registration_id IS NULL));
+
+-- A base line of a frozen contribution names the week it prices by its id,
+-- so a booking is priced at most once even when the Büro later moves the
+-- dates of its week (#4699). Lines frozen before take the id of the week
+-- with their dates; a line whose week has moved since keeps NULL and is
+-- matched by its dates as before.
+ALTER TABLE parent_billing.holiday_contribution_lines ADD COLUMN IF NOT EXISTS holiday_period_week_id BIGINT;
+COMMENT ON COLUMN parent_billing.holiday_contribution_lines.holiday_period_week_id IS
+	'The week a base line prices (#4699), without a foreign key: the line keeps its price when the week goes.';
+UPDATE parent_billing.holiday_contribution_lines AS line
+SET holiday_period_week_id = week.id
+FROM parent_billing.holiday_contributions AS contribution
+JOIN enrollment.holiday_period_weeks AS week
+	ON week.organization_id = contribution.organization_id AND week.holiday_period_id = contribution.holiday_period_id
+WHERE line.kind = 'base' AND line.holiday_period_week_id IS NULL
+	AND contribution.organization_id = line.organization_id AND contribution.id = line.holiday_contribution_id
+	AND week.starts_on = line.week_starts_on AND week.ends_on = line.week_ends_on;
 `
 
 const holidayWeekCapacityDownSQL = `
+ALTER TABLE parent_billing.holiday_contribution_lines DROP COLUMN IF EXISTS holiday_period_week_id;
 DELETE FROM enrollment.holiday_registration_audit WHERE action IN ('promote', 'capacity', 'places');
 ALTER TABLE enrollment.holiday_registration_audit
 	DROP CONSTRAINT IF EXISTS chk_holiday_registration_audit_action,
@@ -367,8 +386,37 @@ const (
 		holidayHostSQL5
 )
 
+// The parents of a registration get a mail when a booking moves up from the
+// waiting list (#4699). It is a mail of the Träger, so the CHECK of 1.15.843
+// declares its kind and the demo erasure deletes it with the registration it
+// names, like the receipt.
+var holidayPlaceEmailOutboxTraegerKinds = []string{"care_contract", "care_contract_notice", "holiday_place_granted", "holiday_registration_received", "parent_billing_letter"}
+
+const holidayPlaceEmailOutboxTraegerKindCheckSQL = `
+ALTER TABLE platform.email_outbox DROP CONSTRAINT IF EXISTS chk_email_outbox_traeger_kind;
+ALTER TABLE platform.email_outbox ADD CONSTRAINT chk_email_outbox_traeger_kind CHECK (
+	organization_id IS NULL OR kind IN (
+		'care_contract', 'care_contract_notice', 'holiday_place_granted', 'holiday_registration_received', 'parent_billing_letter')) NOT VALID;
+COMMENT ON CONSTRAINT chk_email_outbox_traeger_kind ON platform.email_outbox IS
+	'The mail kinds of a Träger. A new kind needs its demo erasure in platform.erase_closed_demo_visitors (#6342).';
+`
+
+// A rollback deletes the mails the CHECK of 1.15.843 would refuse.
+const deleteHolidayPlaceMailsSQL = `DELETE FROM platform.email_outbox
+	WHERE organization_id IS NOT NULL AND kind = 'holiday_place_granted'`
+
+// holidayPlaceErasureSQL is the erasure of 1.15.843 whose statement for the
+// receipt also deletes the mail of a booking that moved up: both name the
+// registration.
+const (
+	holidayReceiptErasureKind = "AND outbox.kind = 'holiday_registration_received'"
+	holidayPlaceErasureKinds  = "AND outbox.kind IN ('holiday_registration_received', 'holiday_place_granted')"
+)
+
+var holidayPlaceErasureSQL = strings.Replace(demoVisitorErasureOutboxKindsSQL, holidayReceiptErasureKind, holidayPlaceErasureKinds, 1)
+
 func holidayWeekCapacityUp(ctx context.Context, db *bun.DB) error {
-	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+	if err := db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		if _, err := tx.ExecContext(ctx, holidayWeekCapacityUpSQL); err != nil {
 			return fmt.Errorf("add holiday week capacity and booking placement: %w", err)
 		}
@@ -376,10 +424,36 @@ func holidayWeekCapacityUp(ctx context.Context, db *bun.DB) error {
 			return fmt.Errorf("let the host school read only placed holiday bookings: %w", err)
 		}
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+	// As in 1.15.843: the ADD holds the table only for the catalog change,
+	// the VALIDATE scans it in a statement of its own.
+	if _, err := db.ExecContext(ctx, holidayPlaceEmailOutboxTraegerKindCheckSQL); err != nil {
+		return fmt.Errorf("declare the holiday place mail of a Träger: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, validateEmailOutboxTraegerKindSQL); err != nil {
+		return fmt.Errorf("validate the mail kinds of a Träger: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, holidayPlaceErasureSQL); err != nil {
+		return fmt.Errorf("erase the holiday place mails of retired demo schools: %w", err)
+	}
+	return nil
 }
 
 func holidayWeekCapacityDown(ctx context.Context, db *bun.DB) error {
+	if err := installOutboxKindErasure(ctx, db); err != nil {
+		return err
+	}
+	if _, err := db.ExecContext(ctx, deleteHolidayPlaceMailsSQL); err != nil {
+		return fmt.Errorf("delete the holiday place mails: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, emailOutboxTraegerKindCheckSQL); err != nil {
+		return fmt.Errorf("restore the mail kinds of a Träger: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, validateEmailOutboxTraegerKindSQL); err != nil {
+		return fmt.Errorf("validate the mail kinds of a Träger: %w", err)
+	}
 	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		if _, err := tx.ExecContext(ctx, holidayHostUnplacedSQL); err != nil {
 			return fmt.Errorf("restore the host school's holiday booking reads: %w", err)

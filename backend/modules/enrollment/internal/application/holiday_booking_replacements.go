@@ -84,7 +84,7 @@ func holidayReplacementRanges(ids []int64, weeks map[int64]enrollment.HolidayWee
 	var ranges []enrollment.HolidayBookingReplacement
 	for _, id := range ids {
 		if week, ok := weeks[id]; ok {
-			ranges = append(ranges, enrollment.HolidayBookingReplacement{WeekStartsOn: week.StartsOn, WeekEndsOn: week.EndsOn})
+			ranges = append(ranges, enrollment.HolidayBookingReplacement{WeekID: id, WeekStartsOn: week.StartsOn, WeekEndsOn: week.EndsOn})
 		}
 	}
 	return ranges
