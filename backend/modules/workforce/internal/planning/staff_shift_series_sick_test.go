@@ -30,17 +30,21 @@ func TestSickDayIndexPicksTheLowerReportIDWithinTheWindow(t *testing.T) {
 	t.Parallel()
 
 	monday := calendar.NewDate(2026, time.August, 31)
-	days, err := sickDayIndex([]workforce.StaffAbsence{
-		sickAbsence(9, monday.AddDays(-3), monday.AddDays(1), nil),
-		sickAbsence(4, monday.AddDays(1), monday.AddDays(9), nil),
-	}, monday, monday.AddDays(2))
-	require.NoError(t, err)
+	higher := sickAbsence(9, monday.AddDays(-3), monday.AddDays(1), nil)
+	lower := sickAbsence(4, monday.AddDays(1), monday.AddDays(9), nil)
+	for name, absences := range map[string][]workforce.StaffAbsence{
+		"higher first": {higher, lower},
+		"lower first":  {lower, higher},
+	} {
+		days, err := sickDayIndex(absences, monday, monday.AddDays(2))
+		require.NoError(t, err)
 
-	assert.Equal(t, map[calendar.Date]int64{
-		monday:            9,
-		monday.AddDays(1): 4,
-		monday.AddDays(2): 4,
-	}, days, "only window days, the lower ID on the shared day")
+		assert.Equal(t, map[calendar.Date]int64{
+			monday:            9,
+			monday.AddDays(1): 4,
+			monday.AddDays(2): 4,
+		}, days, "%s: only window days, the lower ID on the shared day", name)
+	}
 }
 
 func TestSickDayIndexSkipsHalfDaysAndOtherTypes(t *testing.T) {
