@@ -32,16 +32,27 @@ var errBatchBoundExceeded = errors.New("data import: batch attempt exceeded its 
 // update in a create batch) to the row path.
 var errChunkNeedsRowPath = errors.New("data import: chunk needs the row path")
 
+// errBatchCommand marks a failure of a batch command. Only such a failure
+// replays the chunk: an error of a row the attempt wrote on the row path (a
+// one-row segment) is that row's error, with the row path's retry budget and
+// no further attempt (#5827 review).
+var errBatchCommand = errors.New("data import: batch command failed")
+
+func batchCommandFailed(err error) bool { return errors.Is(err, errBatchCommand) }
+
 // applyChunk writes one chunk (ADR 0067 addendum, point 2). A config with
-// batch commands runs as a batch attempt inside SAVEPOINT chunk; any failure
-// in it, including 40P01/40001 and a cancelled bounded statement, rolls back
-// to the savepoint and replays the chunk row by row in the same transaction
-// attempt, so the replay keeps the whole retry budget. A failure of the
-// savepoint itself is returned as it is: the transaction is not usable.
+// batch commands runs as a batch attempt inside SAVEPOINT chunk. A failed
+// batch command, including 40P01/40001, rolls back to the savepoint and
+// replays the chunk row by row in the same transaction attempt, so the replay
+// keeps the whole retry budget; a cancelled bounded command replays in a new
+// transaction (E13′). Any other failure is returned as the row path returns
+// it: a failure of the savepoint itself, a broken connection, and the error
+// of a row written on the row path. A chunk with fewer than two accepted
+// rows is the row path from the start.
 func (a *batchImportAttempt[T]) applyChunk(ctx context.Context, batch *importModels.ImportResult[T]) (*importModels.ImportResult[T], error) {
 	service := a.service()
 	writer, ok := service.config.(ports.ChunkWriter[T])
-	if !ok || !writer.ChunkWriterReady() || service.boundStatements == nil || a.rowPath {
+	if !ok || !writer.ChunkWriterReady() || service.boundStatements == nil || a.rowPath || len(a.acceptedRows()) < 2 {
 		return batch, a.applyAcceptedRows(ctx, service, batch)
 	}
 	entered := false
@@ -55,7 +66,7 @@ func (a *batchImportAttempt[T]) applyChunk(ctx context.Context, batch *importMod
 	if !entered {
 		return batch, err
 	}
-	if boundExceeded(err) {
+	if batchCommandFailed(err) && boundExceeded(err) {
 		// E13′: pgdriver closes the connection on 57014, so the chunk's
 		// transaction is lost; writeBatches replays the chunk row by row in
 		// a new one.
@@ -67,6 +78,9 @@ func (a *batchImportAttempt[T]) applyChunk(ctx context.Context, batch *importMod
 		// The savepoint itself failed or the connection broke: nothing can
 		// replay in this transaction, and the failure is neither replayed nor
 		// retried (#5827, lesson of Q6).
+		return batch, err
+	}
+	if !batchCommandFailed(err) && !errors.Is(err, errChunkNeedsRowPath) {
 		return batch, err
 	}
 	a.rowPath = true
@@ -95,12 +109,7 @@ func (a *batchImportAttempt[T]) applyChunk(ctx context.Context, batch *importMod
 // independent rows and writes them one after the other; each segment is
 // resolved against the state its predecessors left.
 func (a *batchImportAttempt[T]) applySegments(ctx context.Context, writer ports.ChunkWriter[T], batch *importModels.ImportResult[T]) error {
-	var accepted []int
-	for _, index := range a.run.order[a.run.position:a.next] {
-		if a.run.accepted[index] {
-			accepted = append(accepted, index)
-		}
-	}
+	accepted := a.acceptedRows()
 	for start := 0; start < len(accepted); {
 		end := segmentEnd(writer, a.run.request.Rows, accepted, start)
 		if err := a.applySegment(ctx, writer, batch, accepted[start:end]); err != nil {
@@ -109,6 +118,17 @@ func (a *batchImportAttempt[T]) applySegments(ctx context.Context, writer ports.
 		start = end
 	}
 	return nil
+}
+
+// acceptedRows lists the chunk's accepted rows in processing order.
+func (a *batchImportAttempt[T]) acceptedRows() []int {
+	var accepted []int
+	for _, index := range a.run.order[a.run.position:a.next] {
+		if a.run.accepted[index] {
+			accepted = append(accepted, index)
+		}
+	}
+	return accepted
 }
 
 // segmentEnd extends a segment until a row repeats a key already in it.
@@ -165,7 +185,7 @@ func (a *batchImportAttempt[T]) applySegment(ctx context.Context, writer ports.C
 	if err := service.boundStatements(ctx, service.batchLimit, func(ctx context.Context) error {
 		return writer.CreateChunk(ctx, creates)
 	}); err != nil {
-		return err
+		return fmt.Errorf("%w: %w", errBatchCommand, err)
 	}
 	batch.CreatedCount += len(creates)
 	return nil

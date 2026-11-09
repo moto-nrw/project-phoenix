@@ -89,6 +89,12 @@ func probeImport(t *testing.T, db *bun.DB, probe probedClassList, rowPath bool, 
 	t.Helper()
 	runtime, _, err := api.NewImportTestRuntime(testpkg.NewDatabase(t, db), api.ImportTestOptions{RowPathOnly: rowPath})
 	require.NoError(t, err)
+	return probeImportOver(t, db, runtime, probe, batchFailures)
+}
+
+// probeImportOver composes the probe over a given import runtime.
+func probeImportOver(t *testing.T, db *bun.DB, runtime ports.ImportRuntime, probe probedClassList, batchFailures int32) importModels.RowImporter[importModels.ClassListEntryImportRow] {
+	t.Helper()
 	_, persons, membership, err := api.NewImportTestModuleWithOwners(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), api.ImportTestOptions{})
 	require.NoError(t, err)
 	batches, ok := membership.(ports.ClassListEntryBatches)
