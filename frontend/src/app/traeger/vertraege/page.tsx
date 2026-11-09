@@ -448,8 +448,14 @@ export default function TraegerVertraegePage() {
       : []),
   ];
 
+  // The count promises drafts: it stands only while at least one child can
+  // get one. Children who cannot are counted in the status line and listed
+  // with their reason in the dialog.
+  const creatable = candidates.some(
+    (candidate) => candidate.templateIssue === null,
+  );
   const createLabel =
-    candidates.length > 0
+    candidates.length > 0 && creatable
       ? `Verträge erstellen (${candidates.length})`
       : "Verträge erstellen";
 

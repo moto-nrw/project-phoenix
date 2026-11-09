@@ -753,11 +753,16 @@ function StatusNotice({
     return (
       <Alert
         type="success"
-        // The app shows the contract only with a linked parent account.
+        // The app shows the contract only with a linked parent account. Once
+        // the mail is out, „Versand“ names it: the banner says only the app.
         message={`Der Vertrag gilt seit der Annahme der Anmeldung am ${formatBerlinDate(contract.concluded.at)}. ${
-          contract.parties.some((party) => party.hasAccount)
-            ? "Die Eltern bekommen ihn per E-Mail und in der Eltern-App."
-            : "Die Eltern bekommen ihn per E-Mail. In der Eltern-App sehen sie ihn, sobald sie ein Konto verknüpft haben."
+          last?.state === "sent"
+            ? contract.parties.some((party) => party.hasAccount)
+              ? "Die Eltern sehen ihn auch in der Eltern-App."
+              : "In der Eltern-App sehen die Eltern ihn, sobald sie ein Konto verknüpft haben."
+            : contract.parties.some((party) => party.hasAccount)
+              ? "Die Eltern bekommen ihn per E-Mail und in der Eltern-App."
+              : "Die Eltern bekommen ihn per E-Mail. In der Eltern-App sehen sie ihn, sobald sie ein Konto verknüpft haben."
         }`}
       />
     );

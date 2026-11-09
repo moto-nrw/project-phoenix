@@ -211,11 +211,11 @@ export function CareContractCreateModal({
         }}
       >
         <p className="text-sm text-gray-600">
-          Diese Kinder sind angenommen und haben Betreuung gebucht. moto
-          übernimmt Kind, Eltern, Beginn und die Module je Wochentag aus der
-          Anmeldung. Ein Vertrag umfasst alle Module eines Kindes. Sie prüfen
-          jeden Entwurf, bevor Sie ihn senden. Für „Bei der Annahme“ sind hier
-          keine Entwürfe nötig.
+          Diese angenommenen Kinder haben noch keinen Vertrag. moto übernimmt
+          Kind, Eltern, Beginn und die Module je Wochentag aus der Anmeldung;
+          Sie prüfen jeden Entwurf vor dem Senden. Für „Bei der Annahme“ sind
+          hier keine Entwürfe nötig, wenn die Eltern im Anmeldeformular
+          zugestimmt haben.
         </p>
         {candidates.length === 0 ? (
           <EmptyState
