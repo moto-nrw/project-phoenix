@@ -422,6 +422,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (v parentMessagingValues) CareFacilityTerm(ctx context.Context) (string, error) {\n\treturn v.source.ResolveString(ctx, configModel.KeyEnrollmentCareFacilityTerm)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/parentMessagingValues.CareFacilityTerm",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
       "evidence": "func (v parentMessagingValues) ParentMessageLeadershipEnabled(ctx context.Context) (bool, error) {\n\treturn v.source.ResolveBool(ctx, configModel.KeyParentMessageLeadershipEnabled)\n}",
       "form": "unclassified-evidence",
       "id": "modules/settings/parentMessagingValues.ParentMessageLeadershipEnabled",

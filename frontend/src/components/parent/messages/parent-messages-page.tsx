@@ -34,6 +34,8 @@ import { parentPath } from "~/lib/parent-url";
 import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
 import { ListSkeleton } from "~/components/ui/page-skeletons";
 import { messagesConcept } from "~/lib/concepts/messages";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
+import { ParentChildCareTermScope } from "~/lib/parent-care-term";
 
 /**
  * Nachrichten mit der OGS.
@@ -123,8 +125,8 @@ function buildRows(
 }
 
 export function ParentMessagesPage() {
-  const t = useTranslations("parentMessages");
-  const tGroupThreads = useTranslations("parentGroupThreads");
+  const t = useCareTermTranslations("parentMessages");
+  const tGroupThreads = useCareTermTranslations("parentGroupThreads");
   const childResource = useParentChildren();
   const children = childResource.data ?? EMPTY_CHILDREN;
   const threads = useSWRAuth(
@@ -221,7 +223,9 @@ export function ParentMessagesPage() {
         <ul className="divide-y divide-gray-200">
           {rows.map((row) => (
             <li key={`${row.studentId}:${row.audience}`}>
-              <ConversationRow row={row} />
+              <ParentChildCareTermScope studentId={row.studentId}>
+                <ConversationRow row={row} />
+              </ParentChildCareTermScope>
             </li>
           ))}
         </ul>
@@ -232,7 +236,7 @@ export function ParentMessagesPage() {
 }
 
 function ConversationRow({ row }: Readonly<{ row: ChildConversation }>) {
-  const t = useTranslations("parentMessages");
+  const t = useCareTermTranslations("parentMessages");
   const tMsg = useTranslations("parentOgsMessaging");
   const locale = useLocale();
   const timestamp = formatChatDateTime(row.lastMessageAt, locale);

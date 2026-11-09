@@ -27,11 +27,11 @@
     },
     "messagesNews": {
       "title": "Nachrichten und Elternbriefe finden",
-      "description": "Lesen Sie Nachrichten und finden Sie Elternbriefe der OGS."
+      "description": "Lesen Sie Nachrichten und finden Sie Elternbriefe der {careTerm}."
     },
     "messages": {
       "title": "Nachrichten finden",
-      "description": "Hier lesen und schreiben Sie Nachrichten an die OGS."
+      "description": "Hier lesen und schreiben Sie Nachrichten an die {careTerm}."
     },
     "installApp": {
       "title": "moto als App auf dem Handy hinzufügen",
@@ -80,10 +80,10 @@
     "messagesNews": {
       "messagesNavigation": "Öffnen Sie die Nachrichten.",
       "messagesTitle": "Nachrichten",
-      "messages": "Hier lesen Sie Nachrichten der OGS und können antworten.",
+      "messages": "Hier lesen Sie Nachrichten der {careTerm} und können antworten.",
       "newsNavigation": "Öffnen Sie die Elternbriefe.",
       "newsTitle": "Elternbriefe",
-      "news": "Hier finden Sie Elternbriefe und wichtige Informationen der OGS."
+      "news": "Hier finden Sie Elternbriefe und wichtige Informationen der {careTerm}."
     },
     "installApp": {
       "guideTitle": "moto zum Handy hinzufügen",

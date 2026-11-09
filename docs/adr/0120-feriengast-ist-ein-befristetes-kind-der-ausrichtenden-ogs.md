@@ -354,9 +354,10 @@ zurückkehrendes oder unbekanntes Kind behält seine vergangenen Tage. Echte
 Betreuung verschwindet nie: Die Fehlzeitenliste zählt ein zurückgehaltenes
 Kind an einem Tag mit, an dem Student Presence eine Anwesenheit oder einen
 Raumbesuch gespeichert hat, wie die laufenden Listen ein tatsächlich
-anwesendes Kind behalten. Offen bleibt die Lücke zwischen früherem Ende und
-Wiederaufnahme eines zurückkehrenden Kindes
-([#6073](https://github.com/moto-nrw/project-phoenix/issues/6073)).
+anwesendes Kind behalten. Die Lücke zwischen früherem Ende und
+Wiederaufnahme eines zurückkehrenden Kindes hält Care Plan seit
+[#6073](https://github.com/moto-nrw/project-phoenix/issues/6073) ebenso
+zurück ([ADR 0180](0180-mitgliedschaft-merkt-sich-die-betreuungsluecke-eines-zurueckkehrenden-kindes.md)).
 
 ## Nachtrag 2026-11-08: Live-Listen des People Directory behalten vorgemerkte eigene Kinder (#6050)
 

@@ -22,7 +22,7 @@
   "declined": "Ви відмовилися від участі.",
   "answeredAccepted": "Підтверджено",
   "answeredDeclined": "Відхилено",
-  "cancelledByOgs": "Скасовано OGS",
+  "cancelledByOgs": "Скасовано {careTerm}",
   "previousMonth": "Попередній місяць",
   "nextMonth": "Наступний місяць",
   "close": "Закрити",

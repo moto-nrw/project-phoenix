@@ -142,6 +142,11 @@ type ChildFeatureFlags struct {
 	// "both", #2267). The portal marks the note field as required instead of
 	// letting the server reject the submission afterwards.
 	ReasonRequired bool
+	// CareFacilityTerm is the school's term for its care („OGS“, „GTS“;
+	// enrollment.care_facility_term, #6082). It is a label, not a capability:
+	// the portal names each child's care with its own school's term, also for
+	// a child whose care has ended.
+	CareFacilityTerm string
 }
 
 // CareException is the parent-facing projection of a single day's pickup and/or

@@ -1,7 +1,7 @@
 {
-  "kicker": "Postë nga OGS",
+  "kicker": "Postë nga {careTerm}",
   "title": "Letra për prindërit",
-  "description": "Njoftime, anketa dhe informacione të rëndësishme nga OGS-ja juaj.",
+  "description": "Njoftime, anketa dhe informacione të rëndësishme nga {careTerm}-ja juaj.",
   "empty": "Për momentin nuk ka letra të reja për prindërit.",
   "open": "Të hapura",
   "openLabel": "Të hapura, {count}",

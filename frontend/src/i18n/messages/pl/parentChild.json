@@ -2,16 +2,16 @@
   "switcherLabel": "Wybierz dziecko",
   "overviewKicker": "Przegląd dzieci",
   "overviewDescription": "Proszę wybrać dziecko, aby zobaczyć opiekę, dane i kontakty.",
-  "ogsLabel": "OGS",
+  "ogsLabel": "{careTerm}",
   "careEnded": {
     "title": "Opieka zakończona",
-    "body": "Państwa dziecko nie jest już objęte opieką w tej OGS. Wszystko, co było do tej pory, mogą Państwo nadal przeglądać. Nowe zgłoszenia nie są już możliwe."
+    "body": "Państwa dziecko nie jest już objęte opieką w tej {careTerm}. Wszystko, co było do tej pory, mogą Państwo nadal przeglądać. Nowe zgłoszenia nie są już możliwe."
   },
   "notFound": "Pod tym adresem nie ma dziecka powiązanego z Państwa kontem. Proszę wybrać dziecko w przeglądzie.",
-  "noChildren": "Z Państwa kontem nie jest jeszcze powiązane żadne dziecko. OGS Państwa szkoły może to ustawić.",
+  "noChildren": "Z Państwa kontem nie jest jeszcze powiązane żadne dziecko. {careTerm} Państwa szkoły może to ustawić.",
   "sections": {
     "today": "Dziś",
-    "care": "Opieka w OGS",
+    "care": "Opieka w {careTerm}",
     "data": "Dane dziecka",
     "people": "Rodzice i osoby upoważnione do odbioru"
   },
@@ -45,7 +45,7 @@
     "pickupUnknown": "Godzina odbioru jest teraz niedostępna"
   },
   "care": {
-    "weekTitle": "Plan tygodnia w OGS",
+    "weekTitle": "Plan tygodnia w {careTerm}",
     "absenceTitle": "Nieobecności"
   },
   "consents": {
@@ -81,7 +81,7 @@
     "grantButton": "Udziel ponownie zgody na zdjęcia",
     "grantButtonShort": "Udziel ponownie",
     "grantConfirmTitle": "Udzielić ponownie zgody na zdjęcia?",
-    "grantConfirmBody": "OGS będzie mogła potem znów zapisać zdjęcie.",
+    "grantConfirmBody": "{careTerm} będzie mogła potem znów zapisać zdjęcie.",
     "grantConfirmButton": "Udziel zgody",
     "granting": "Zapisywanie",
     "grantSuccess": "Zgoda na zdjęcia została ponownie udzielona.",

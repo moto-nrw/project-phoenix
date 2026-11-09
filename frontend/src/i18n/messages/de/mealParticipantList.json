@@ -2,7 +2,7 @@
   "title": "Tagesliste für die Küche",
   "description": "Die Liste zeigt alle Kinder, die an diesem Tag zum Mittagessen angemeldet sind.",
   "cutoff": "Bestellfrist für diesen Tag: {date}.",
-  "closedDay": "An diesem Tag ist die OGS geschlossen. Es gibt kein Essen.",
+  "closedDay": "An diesem Tag ist die {careTerm} geschlossen. Es gibt kein Essen.",
   "child": "Kind",
   "class": "Klasse",
   "dateAria": "Datum: {date}",

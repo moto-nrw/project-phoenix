@@ -3,10 +3,10 @@
   "sectionTitle": "Dziś",
   "sectionDescription": "Status dnia i ważne działania w jednym miejscu.",
   "statusLabel": "Aktualny status",
-  "atOgs": "W OGS",
-  "notAtOgs": "Poza OGS",
+  "atOgs": "W {careTerm}",
+  "notAtOgs": "Poza {careTerm}",
   "state": {
-    "present": "W OGS od {time}",
+    "present": "Na miejscu od {time}",
     "presentNoTime": "Dziś obecne",
     "left": "Poszło do domu o {time}",
     "leftNoTime": "Dziś poszło do domu",
@@ -30,7 +30,7 @@
     "pickupHint": "Zmień godzinę odbioru na jeden dzień",
     "message": "Napisz wiadomość",
     "messageCompact": "Napisz wiadomość",
-    "messageHint": "Napisz do OGS w sprawie: {name}",
+    "messageHint": "Napisz do {careTerm} w sprawie: {name}",
     "pickupWithMode": "Zmień odbiór: {name}",
     "pickupCompactWithMode": "Zmień odbiór",
     "pickupHintWithMode": "Zmień godzinę lub sposób odbioru na jeden dzień"

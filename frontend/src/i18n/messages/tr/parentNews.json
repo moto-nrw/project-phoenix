@@ -1,7 +1,7 @@
 {
-  "kicker": "OGS'den haberler",
+  "kicker": "{careTerm}'den haberler",
   "title": "Veli mektupları",
-  "description": "OGS'nizden duyurular, anketler ve önemli bilgiler.",
+  "description": "{careTerm}'nizden duyurular, anketler ve önemli bilgiler.",
   "empty": "Şu anda yeni veli mektubu yok.",
   "open": "Açık",
   "openLabel": "Açık, {count}",

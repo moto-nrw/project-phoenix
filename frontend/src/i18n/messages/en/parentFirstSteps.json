@@ -27,11 +27,11 @@
     },
     "messagesNews": {
       "title": "Find messages and parent letters",
-      "description": "Read messages and find parent letters from the care team."
+      "description": "Read messages and find parent letters from the {careTerm}."
     },
     "messages": {
       "title": "Find messages",
-      "description": "Read and write messages to the care team."
+      "description": "Read and write messages to the {careTerm}."
     },
     "installApp": {
       "title": "Add moto to my phone",
@@ -80,10 +80,10 @@
     "messagesNews": {
       "messagesNavigation": "Open Messages.",
       "messagesTitle": "Messages",
-      "messages": "Read messages from the care team and reply here.",
+      "messages": "Read messages from the {careTerm} and reply here.",
       "newsNavigation": "Open Parent letters.",
       "newsTitle": "Parent letters",
-      "news": "Find parent letters and important information from the care team here."
+      "news": "Find parent letters and important information from the {careTerm} here."
     },
     "installApp": {
       "guideTitle": "Add moto to your phone",

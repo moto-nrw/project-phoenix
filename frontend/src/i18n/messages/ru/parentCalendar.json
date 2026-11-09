@@ -22,7 +22,7 @@
   "declined": "Участие отклонено.",
   "answeredAccepted": "Подтверждено",
   "answeredDeclined": "Отклонено",
-  "cancelledByOgs": "Отменено продлёнкой",
+  "cancelledByOgs": "Отменено {careTerm}",
   "previousMonth": "Предыдущий месяц",
   "nextMonth": "Следующий месяц",
   "close": "Закрыть",

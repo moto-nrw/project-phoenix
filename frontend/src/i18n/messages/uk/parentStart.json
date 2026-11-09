@@ -20,7 +20,7 @@
     "emptyDescription": "Зараз нічого робити не потрібно.",
     "messageTitleOne": "Нове повідомлення",
     "messageTitleMany": "Нові повідомлення: {count}",
-    "messageContext": "OGS · Про {name}",
+    "messageContext": "{careTerm} · Про {name}",
     "pollContext": "Опитування · {school}",
     "declarationContext": "Згода · {school}",
     "newsContext": "Лист батькам · {school}",
@@ -34,6 +34,6 @@
     "errorObject": "повний список справ"
   },
   "childrenLoading": "Завантаження дітей",
-  "noChildren": "З вашим обліковим записом ще не пов'язано жодної дитини. Це може зробити OGS вашої школи.",
+  "noChildren": "З вашим обліковим записом ще не пов'язано жодної дитини. Це може зробити {careTerm} вашої школи.",
   "errorObject": "огляд ваших дітей"
 }

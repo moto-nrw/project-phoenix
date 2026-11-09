@@ -1,6 +1,6 @@
 {
   "title": "Talebi düzenle",
-  "intro": "OGS henüz karar vermediyse talebinizi değiştirebilirsiniz.",
+  "intro": "{careTerm} henüz karar vermediyse talebinizi değiştirebilirsiniz.",
   "editedAt": "{date} tarihinde değiştirildi",
   "firstDay": "İlk gün",
   "lastDay": "Son gün",
@@ -8,8 +8,8 @@
   "pickupTime": "Teslim alma saati",
   "timeFormatHint": "Saat, 15:30 biçiminde",
   "timeExample": "örn. 15:30",
-  "reasonLabel": "Neden / OGS'ye not",
-  "reasonRequired": "Lütfen OGS için kısa bir not yazın.",
+  "reasonLabel": "Neden / {careTerm}'ye not",
+  "reasonRequired": "Lütfen {careTerm} için kısa bir not yazın.",
   "valueRequired": "Lütfen bir değer girin.",
   "submit": "Değişikliği kaydet",
   "saving": "Kaydediliyor …",

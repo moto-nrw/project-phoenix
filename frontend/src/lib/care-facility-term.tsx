@@ -68,6 +68,7 @@ export function useCareFacilityTerm(): string {
 }
 
 type Translator = ReturnType<typeof useTranslations>;
+type Namespace = NonNullable<Parameters<typeof useTranslations>[0]>;
 type TranslationValues = Record<string, unknown> | undefined;
 
 /**
@@ -76,10 +77,23 @@ type TranslationValues = Record<string, unknown> | undefined;
  * without the placeholder ignore it. Each render keeps its own term, so
  * suspended or discarded renders cannot change committed translations.
  */
-export function useCareTermTranslations(namespace: string): Translator {
+export function useCareTermTranslations<N extends Namespace>(
+  namespace: N,
+  /** A term the caller knows better than the scope, such as the school of one loaded record. */
+  term?: string,
+): ReturnType<typeof useTranslations<N>> {
   const t = useTranslations(namespace);
-  const careTerm = useCareFacilityTerm();
-  return useMemo(() => withCareTerm(t, careTerm), [t, careTerm]);
+  const scopeTerm = useCareFacilityTerm();
+  const careTerm =
+    term === undefined ? scopeTerm : normalizeCareFacilityTerm(term);
+  return useMemo(
+    () =>
+      withCareTerm(
+        t as unknown as Translator,
+        careTerm,
+      ) as unknown as ReturnType<typeof useTranslations<N>>,
+    [t, careTerm],
+  );
 }
 
 function withCareTerm(t: Translator, careTerm: string): Translator {

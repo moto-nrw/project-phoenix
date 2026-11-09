@@ -8,7 +8,6 @@ import {
   useState,
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useTranslations } from "next-intl";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { ListSkeleton } from "~/components/ui/page-skeletons";
 import {
@@ -19,12 +18,13 @@ import {
 import { createLogger } from "~/lib/logger";
 import { type ParentAnnouncement, listAnnouncements } from "~/lib/parent-api";
 import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 const logger = createLogger({ component: "ParentNewsPage" });
 
 /** Elternbriefe buendeln Mitteilungen, Umfragen und Elterninformationen. */
 export function ParentNewsPage() {
-  const t = useTranslations("parentNews");
+  const t = useCareTermTranslations("parentNews");
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();

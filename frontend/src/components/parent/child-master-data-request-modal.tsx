@@ -15,6 +15,7 @@ import { useApiFormError } from "~/contexts/ToastContext";
 import { todayISO } from "~/lib/date-helpers";
 import { useLocalizedDatePicker } from "~/lib/hooks/use-localized-date-picker";
 import type { ChildMasterData, MasterDataChangeInput } from "~/lib/parent-api";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 type IdentityField = "first_name" | "last_name" | "birthday" | "school_class";
 
@@ -34,7 +35,7 @@ export function ChildMasterDataRequestModal({
     recipientIds: string[],
   ) => Promise<void>;
 }>) {
-  const t = useTranslations("parentMasterData");
+  const t = useCareTermTranslations("parentMasterData");
   const tError = useTranslations("errorCatalog");
   const datePicker = useLocalizedDatePicker();
   const [firstName, setFirstName] = useState(data.first_name);

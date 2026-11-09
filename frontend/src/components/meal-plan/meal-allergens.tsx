@@ -1,7 +1,5 @@
 "use client";
 
-import { useTranslations } from "next-intl";
-
 import { MultiSelect } from "~/components/ui/multi-select";
 import {
   MEAL_ALLERGENS,
@@ -9,6 +7,7 @@ import {
   type MealAllergen,
 } from "~/lib/meal-allergens";
 import { cn } from "~/lib/utils";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 /**
  * The allergen marks of one dish: the letters for the eye, the full names
@@ -22,7 +21,7 @@ export function MealAllergenMarks({
   readonly allergens: readonly MealAllergen[] | undefined;
   readonly className?: string;
 }) {
-  const t = useTranslations("mealAllergens");
+  const t = useCareTermTranslations("mealAllergens");
   if (!allergens?.length) return null;
   const names = allergens.map((code) => t(`names.${code}`)).join(", ");
   return (
@@ -51,7 +50,7 @@ export function MealAllergenLegend({
   readonly showSource?: boolean;
   readonly className?: string;
 }) {
-  const t = useTranslations("mealAllergens");
+  const t = useCareTermTranslations("mealAllergens");
   return (
     <div className={cn("text-sm leading-relaxed text-gray-600", className)}>
       {allergens.length > 0 ? (
@@ -94,7 +93,7 @@ export function MealAllergenSelect({
   readonly menuAlign?: "start" | "end";
   readonly className?: string;
 }) {
-  const t = useTranslations("mealAllergens");
+  const t = useCareTermTranslations("mealAllergens");
   const options = MEAL_ALLERGENS.map(({ code, letter }) => ({
     value: code,
     label: `${t(`names.${code}`)} (${letter})`,

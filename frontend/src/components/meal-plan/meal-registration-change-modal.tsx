@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
 
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
@@ -28,6 +28,7 @@ import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useLocalizedDatePicker } from "~/lib/hooks/use-localized-date-picker";
 import { createLogger } from "~/lib/logger";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 import {
   clearChildMealDay,
   getChildMealSchedule,
@@ -70,7 +71,7 @@ export function MealRegistrationChangeModal({
   others: readonly DailyMealParticipant[];
   initialStudentId?: string;
 }>) {
-  const t = useTranslations("mealParticipantList");
+  const t = useCareTermTranslations("mealParticipantList");
   const locale = useLocale();
   const today = useBerlinToday();
   const datePicker = useLocalizedDatePicker();

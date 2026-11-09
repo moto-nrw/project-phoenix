@@ -76,6 +76,7 @@ import { pickupConcept } from "~/lib/concepts/pickup";
 import { sickConcept } from "~/lib/concepts/sick";
 import { InsetPanel } from "~/components/ui/inset-panel";
 import { SectionLabel } from "~/components/ui/section-label";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 const logger = createLogger({ component: "ChildCare" });
 
@@ -320,7 +321,7 @@ export function useChildCare(studentId: string): ChildCare {
     (sharedFeatures && !sharedFeatures.data?.[studentId]
       ? sharedFeatures.error
       : undefined);
-  const tChild = useTranslations("parentChild");
+  const tChild = useCareTermTranslations("parentChild");
   const { failure: sharedFeatureError } = useSwrResourceLoadError(
     [{ data: sharedFeatures?.data?.[studentId], error: sharedFailure }],
     tChild("errorObjectCare"),
@@ -762,7 +763,7 @@ export function SickNoteModal({
   /** Ob die OGS einen Grund verlangt (requiresGuardianReason). */
   reasonRequired?: boolean;
 }>) {
-  const t = useTranslations("parentChildCare");
+  const t = useCareTermTranslations("parentChildCare");
   const datePicker = useLocalizedDatePicker();
   const initial = berlinTodayISO();
   const [from, setFrom] = useState(initial);
@@ -1047,8 +1048,8 @@ export function PickupTimeModal({
   /** Der Server hat die Frist gemeldet: Daten neu laden. */
   onCutoffPassed?: () => void;
 }>) {
-  const t = useTranslations("parentChildCare");
-  const tModes = useTranslations("parentMasterData");
+  const t = useCareTermTranslations("parentChildCare");
+  const tModes = useCareTermTranslations("parentMasterData");
   const tTimePicker = useTranslations("datePicker.timePicker");
   const locale = useLocale();
   const datePicker = useLocalizedDatePicker();
@@ -1087,7 +1088,7 @@ export function PickupTimeModal({
   const [pickupPersonId, setPickupPersonId] = useState("");
   const [signature, setSignature] = useState<SignatureValue | null>(null);
   const contacts = useDayPickupContacts(studentId);
-  const tPermission = useTranslations("parentPickupPermission");
+  const tPermission = useCareTermTranslations("parentPickupPermission");
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   // Fehler aus dem offenen Dialog stehen im Dialog: ein Toast läge
@@ -1782,7 +1783,7 @@ function PickupProofButton({
   /** Der Fehler steht im offenen Dialog, nicht in einem Toast darunter. */
   onError: (err: unknown) => void;
 }>) {
-  const tPermission = useTranslations("parentPickupPermission");
+  const tPermission = useCareTermTranslations("parentPickupPermission");
   const [busy, setBusy] = useState(false);
   return (
     <Button
@@ -1832,7 +1833,7 @@ export function SickStatusSummary({
   /** Nach einer geänderten Anfrage: die Liste neu laden. */
   onEdited?: () => void;
 }>) {
-  const t = useTranslations("parentChildCare");
+  const t = useCareTermTranslations("parentChildCare");
   const locale = useLocale();
   const [editing, setEditing] = useState<ExcusedRequest | null>(null);
 

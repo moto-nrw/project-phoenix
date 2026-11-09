@@ -1,6 +1,6 @@
 "use client";
 
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
 import type { FormErrorInput } from "~/components/ui/form-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { ListRowLink } from "~/components/ui/list-row-link";
@@ -11,6 +11,8 @@ import type { GroupThreadSummary } from "~/lib/parent-api";
 import { formatChatClockTime, formatChatDateTime } from "~/lib/date-helpers";
 import { parentPath } from "~/lib/parent-url";
 import { groupsConcept } from "~/lib/concepts/groups";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
+import { useParentCareTerms } from "~/lib/parent-care-term";
 
 /**
  * Gruppennachrichten der OGS (#4784): what the OGS wrote to the group, class
@@ -30,7 +32,7 @@ export function GroupThreadsSection({
   compact?: boolean;
   error?: FormErrorInput;
 }>) {
-  const t = useTranslations("parentGroupThreads");
+  const t = useCareTermTranslations("parentGroupThreads");
   if (threads.length === 0 && !error) return null;
   return (
     <ParentSection
@@ -56,8 +58,9 @@ export function GroupThreadsSection({
 }
 
 function GroupThreadRow({ thread }: Readonly<{ thread: GroupThreadSummary }>) {
-  const t = useTranslations("parentGroupThreads");
-  const tm = useTranslations("parentMessages");
+  const t = useCareTermTranslations("parentGroupThreads");
+  const tm = useCareTermTranslations("parentMessages");
+  const { termOfSchool } = useParentCareTerms();
   const locale = useLocale();
   const timestamp = formatChatDateTime(thread.last_message_at, locale);
   const compactTimestamp = thread.last_message_at
@@ -65,7 +68,10 @@ function GroupThreadRow({ thread }: Readonly<{ thread: GroupThreadSummary }>) {
     : "";
   const unread = thread.unread > 0;
   const counterpart = thread.school_name
-    ? tm("ogsTeam", { school: thread.school_name })
+    ? tm("ogsTeam", {
+        school: thread.school_name,
+        careTerm: termOfSchool(thread.school_name),
+      })
     : thread.counterpart_name;
 
   return (

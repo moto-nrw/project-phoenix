@@ -1,4 +1,4 @@
 {
-  "ogs": "Visible to the OGS",
-  "ogsDescription": "Your OGS can see this information."
+  "ogs": "Visible to the {careTerm}",
+  "ogsDescription": "Your {careTerm} can see this information."
 }
