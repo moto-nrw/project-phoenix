@@ -584,7 +584,7 @@ function StackedRows<T>({
 
   if (isLoading) {
     return (
-      <div className={surfaceClass} aria-hidden="true">
+      <div className={`${surfaceClass} grow`} aria-hidden="true">
         <ul className="divide-y divide-gray-100">
           {Array.from({ length: loadingRowCount }, (_, i) => (
             <li key={i} className="space-y-2 p-4">
@@ -600,7 +600,7 @@ function StackedRows<T>({
 
   if (rows.length === 0) {
     return (
-      <div className={`${surfaceClass} p-6`}>
+      <div className={`${surfaceClass} grow p-6`}>
         {emptyState ?? (
           <p className="text-center text-sm text-gray-500">
             Keine Einträge vorhanden.
@@ -611,10 +611,12 @@ function StackedRows<T>({
   }
 
   return (
-    <div className="space-y-3">
+    // A flex column that grows: as the last surface of a page the phone list
+    // reaches the bottom edge like the desktop table (`.moto-tenant-body`).
+    <div className="flex grow flex-col gap-3">
       {/* The form rows stand in the card that holds them, like its other
           fields; a second frame inside the card only costs width (#4807). */}
-      <div className={layout === "form" ? "" : surfaceClass}>
+      <div className={layout === "form" ? "" : `${surfaceClass} grow`}>
         {heading ? <SurfaceHeading heading={heading} /> : null}
         <ul className="divide-y divide-gray-100">
           {rows.map((row) => {
@@ -939,7 +941,10 @@ export function DataTable<T>({
       )}
 
       {showStacked && (
-        <div className="md:hidden" data-testid="data-table-stacked">
+        <div
+          className="flex grow flex-col md:hidden"
+          data-testid="data-table-stacked"
+        >
           <StackedRows
             // The phone layout has its own detail choice. Desktop column
             // visibility must therefore not remove the title or status that

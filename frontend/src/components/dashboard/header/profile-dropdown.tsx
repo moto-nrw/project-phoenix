@@ -166,7 +166,9 @@ export function ProfileDropdownHeader({
         <div className="truncate font-semibold text-gray-900">
           {displayName}
         </div>
-        {userEmail ? (
+        {/* An account without a name shows its address as the name; the
+            same address once more would say nothing new. */}
+        {userEmail && userEmail !== displayName ? (
           <div className="truncate text-xs text-gray-500" title={userEmail}>
             {userEmail}
           </div>
