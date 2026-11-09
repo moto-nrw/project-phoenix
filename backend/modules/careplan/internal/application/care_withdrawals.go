@@ -218,6 +218,12 @@ func (s *CareLifecycle) reconcileBookingEvaluation(
 				return false, err
 			}
 			if !changed {
+				// Care that starts again only after the open task's first
+				// bookingless day leaves a real gap: the school still has to
+				// decide on it, so the task stays as it is (#6288).
+				if obsoleteFrom.After(calendar.Date(pending.FirstBookinglessDay)) {
+					return false, nil
+				}
 				return false, errors.New("care lifecycle: pending booking completion changed during reconciliation")
 			}
 		} else if !change.WasCompleteWithdrawal {

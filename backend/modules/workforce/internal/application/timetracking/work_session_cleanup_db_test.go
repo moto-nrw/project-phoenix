@@ -95,3 +95,61 @@ func runCleanupWithStaleSessions(t *testing.T, stale int) cleanupStatements {
 	})
 	return counted
 }
+
+// TestCleanupOpenSessions_ClosesSessionsCheckedInAfterTheirDay pins #6288
+// (ZE-1): a session whose recorded check-in lies after the end of its date
+// (a self-edit moved the date back or the check-in forward before the save
+// validated it) used to be closed at the end of its date. That violates
+// chk_work_sessions_checkout_after_checkin, aborts the school's nightly
+// cleanup transaction and repeats every night. Such existing rows close one
+// second after their check-in, or at their running break's start, instead.
+func TestCleanupOpenSessions_ClosesSessionsCheckedInAfterTheirDay(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	workTime := owners.MustNewWorkforce(testpkg.NewDatabase(t, db))
+	poisoned := func(lastName string, checkIn time.Time) *timetracking.WorkSession {
+		t.Helper()
+		staff := testpkg.CreateTestStaff(t, db, "Vergiftet", lastName)
+		session := &timetracking.WorkSession{
+			StaffID: staff.ID, Date: cleanupStaleDay,
+			Status: workforce.WorkSessionStatusPresent, Source: workforce.WorkSessionSourceApp,
+			CheckInTime: checkIn, CreatedBy: staff.ID,
+		}
+		session.SetTenantID(testpkg.Tenant(t))
+		createSessionFixture(t, workTime, ctx, session)
+		return session
+	}
+	laterDay := poisoned("Datum", cleanupStaleDay.AddDays(3).BerlinMidnight().Add(8*time.Hour))
+	withBreak := poisoned("Pause", cleanupStaleDay.AddDays(2).BerlinMidnight().Add(9*time.Hour))
+	breakStart := withBreak.CheckInTime.Add(2 * time.Hour)
+	running := &timetracking.WorkSessionBreak{SessionID: withBreak.ID, StartedAt: breakStart}
+	running.SetTenantID(testpkg.Tenant(t))
+	createBreakFixture(t, workTime, ctx, running)
+
+	service := newAutoCheckoutService(t, db, workTime)
+	var closed int
+	err := testpkg.WithinTenantContext(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context) error {
+		var runErr error
+		closed, runErr = service.CleanupOpenSessions(txCtx)
+		return runErr
+	})
+	require.NoError(t, err, "an existing session checked in after its day must not fail the nightly cleanup")
+	assert.Equal(t, 2, closed)
+
+	stored, err := workTime.ListWorkSessions(ctx, workforce.WorkSessionFilter{IDs: []int64{laterDay.ID, withBreak.ID}})
+	require.NoError(t, err)
+	byID := make(map[int64]workforce.WorkSession, len(stored))
+	for _, session := range stored {
+		byID[session.ID] = session
+	}
+	require.NotNil(t, byID[laterDay.ID].CheckOutTime)
+	assert.True(t, byID[laterDay.ID].CheckOutTime.Equal(laterDay.CheckInTime.Add(time.Second)))
+	require.NotNil(t, byID[withBreak.ID].CheckOutTime)
+	assert.True(t, byID[withBreak.ID].CheckOutTime.Equal(breakStart), "the session cannot end before its running break began")
+	breaks, err := workTime.ListWorkSessionBreaks(ctx, workforce.WorkSessionBreakFilter{SessionID: withBreak.ID})
+	require.NoError(t, err)
+	require.Len(t, breaks, 1)
+	require.NotNil(t, breaks[0].EndedAt)
+	assert.True(t, breaks[0].EndedAt.Equal(breakStart), "the break never ends before it started")
+}

@@ -1335,8 +1335,32 @@ func TestExecuteCleanupForTenant_ReturnsFalseOnError(t *testing.T) {
 		},
 		logger: slog.Default()})
 
-	result := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
+	result, err := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
+	require.NoError(t, err)
 	assert.False(t, result)
+}
+
+type countingFeedbackCleaner struct{ calls int }
+
+func (f *countingFeedbackCleaner) DeleteExpired(context.Context) (int, error) {
+	f.calls++
+	return 0, nil
+}
+
+// TestExecuteCleanupForTenant_VisitFailureStillRunsLaterSteps pins AN-5 of
+// #6288: a failed visit retention used to skip the attendance cleanup and
+// every later step of the school. Each step now runs in its own savepoint.
+func TestExecuteCleanupForTenant_VisitFailureStillRunsLaterSteps(t *testing.T) {
+	t.Parallel()
+	cleanup := &mockCleanupService{cleanupErr: errors.New("db error")}
+	feedback := &countingFeedbackCleaner{}
+	s := unitScheduler(&unitSchedulerDependencies{cleanupService: cleanup, feedbackCleaner: feedback, logger: slog.Default()})
+
+	complete, err := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
+	require.NoError(t, err)
+	assert.False(t, complete, "a failed visit retention leaves the run due")
+	assert.Equal(t, 1, cleanup.attendanceCalls, "the attendance cleanup still runs")
+	assert.Equal(t, 1, feedback.calls, "the later required steps still run")
 }
 
 func TestExecuteCleanupForTenant_ReturnsTrueOnSuccess(t *testing.T) {
@@ -1348,7 +1372,8 @@ func TestExecuteCleanupForTenant_ReturnsTrueOnSuccess(t *testing.T) {
 		},
 		logger: slog.Default()})
 
-	result := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
+	result, err := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
+	require.NoError(t, err)
 	assert.True(t, result)
 }
 
@@ -1361,7 +1386,9 @@ func TestExecuteCleanupForTenant_ReturnsFalseOnFeedbackFailure(t *testing.T) {
 		logger:          slog.Default(),
 	})
 
-	assert.False(t, s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t)))
+	complete, err := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
+	require.NoError(t, err)
+	assert.False(t, complete)
 }
 
 func TestExecuteCleanupForTenant_AttendanceError(t *testing.T) {
@@ -1374,7 +1401,8 @@ func TestExecuteCleanupForTenant_AttendanceError(t *testing.T) {
 		},
 		logger: slog.Default()})
 
-	result := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
+	result, err := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
+	require.NoError(t, err)
 	// Returns true because primary cleanup (expired visits) succeeded
 	assert.True(t, result)
 }
@@ -1393,7 +1421,8 @@ func TestExecuteCleanupForTenant_AttendancePartialFailure(t *testing.T) {
 		},
 		logger: slog.Default()})
 
-	result := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
+	result, err := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
+	require.NoError(t, err)
 	assert.True(t, result)
 }
 
@@ -1411,7 +1440,8 @@ func TestExecuteCleanupForTenant_AttendanceSuccess(t *testing.T) {
 		},
 		logger: slog.Default()})
 
-	result := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
+	result, err := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
+	require.NoError(t, err)
 	assert.True(t, result)
 }
 
@@ -1428,7 +1458,8 @@ func TestExecuteCleanupForTenant_AttendanceNoRecords(t *testing.T) {
 		},
 		logger: slog.Default()})
 
-	result := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
+	result, err := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
+	require.NoError(t, err)
 	assert.True(t, result)
 }
 
@@ -1442,7 +1473,8 @@ func TestExecuteCleanupForTenant_AttendanceNilResult(t *testing.T) {
 		},
 		logger: slog.Default()})
 
-	result := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
+	result, err := s.executeCleanupForTenant(context.Background(), testpkg.Tenant(t))
+	require.NoError(t, err)
 	assert.True(t, result)
 }
 

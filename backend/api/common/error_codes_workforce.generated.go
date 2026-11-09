@@ -51,6 +51,7 @@ const CodeWorkforceRebookingSameType = "workforce.rebooking_same_type"
 const CodeWorkforceRebookingSickReport = "workforce.rebooking_sick_report"
 const CodeWorkforceRebookingTooMany = "workforce.rebooking_too_many"
 const CodeWorkforceReplacementOutsideOrigin = "workforce.replacement_outside_origin"
+const CodeWorkforceSessionCheckInInFuture = "workforce.session_check_in_in_future"
 const CodeWorkforceSessionNotFound = "workforce.session_not_found"
 const CodeWorkforceSessionNotOwned = "workforce.session_not_owned"
 const CodeWorkforceSessionNoteRequired = "workforce.session_note_required"
@@ -128,6 +129,7 @@ var errorCodeClassesWorkforce = []errorCodeClass{
 	{CodeWorkforceRebookingSickReport, "business_rejection"},
 	{CodeWorkforceRebookingTooMany, "input"},
 	{CodeWorkforceReplacementOutsideOrigin, "input"},
+	{CodeWorkforceSessionCheckInInFuture, "input"},
 	{CodeWorkforceSessionNotFound, "business_rejection"},
 	{CodeWorkforceSessionNotOwned, "permission"},
 	{CodeWorkforceSessionNoteRequired, "input"},

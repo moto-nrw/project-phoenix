@@ -44,18 +44,23 @@ func (s *workSessionService) CleanupOpenSessions(ctx context.Context) (int, erro
 
 	count := 0
 	for _, session := range openSessions {
-		// Set check-out time to 23:59:59 of the session date in Berlin timezone.
-		endOfDay := session.Date.EndOfDay()
+		closeAt := cleanupCloseAt(session, activeBreaks[session.ID])
+		if !closeAt.Equal(session.Date.EndOfDay()) {
+			s.getLogger().WarnContext(ctx, "closing open work session after the end of its day",
+				slog.Int64("session_id", session.ID),
+				slog.Time("check_in_time", session.CheckInTime),
+				slog.Time("closed_at", closeAt))
+		}
 
 		// End any active break before closing the session
-		if err := s.endCleanupBreak(ctx, session.ID, activeBreaks[session.ID], breakErr, endOfDay); err != nil {
+		if err := s.endCleanupBreak(ctx, session.ID, activeBreaks[session.ID], breakErr, closeAt); err != nil {
 			s.getLogger().WarnContext(ctx, "failed to end active break during cleanup",
 				slog.Int64("session_id", session.ID),
 				slog.String("error", err.Error()))
 			// Continue cleanup even if break ending fails
 		}
 
-		closed, err := s.repo.CloseWorkSession(ctx, session.ID, endOfDay, true)
+		closed, err := s.repo.CloseWorkSession(ctx, session.ID, closeAt, true)
 		err = workSessionWriteError("close session", err)
 		if err != nil {
 			return count, fmt.Errorf("failed to close session %d: %w", session.ID, err)
@@ -69,6 +74,23 @@ func (s *workSessionService) CleanupOpenSessions(ctx context.Context) (int, erro
 		s.broadcastTimeTrackingChanged(ctx)
 	}
 	return count, nil
+}
+
+// cleanupCloseAt is the instant the nightly cleanup closes a forgotten
+// session at: 23:59:59 Berlin of its date. A session whose check-in or
+// running break lies after that end (rows written before #6288 validated
+// self-edits) closes at the earliest instant the work_sessions check
+// constraint and its break allow instead, so one such row cannot fail the
+// school's whole nightly cleanup again and again.
+func cleanupCloseAt(session *WorkSession, activeBreak *WorkSessionBreak) time.Time {
+	closeAt := session.Date.EndOfDay()
+	if floor := session.CheckInTime.Add(time.Second); closeAt.Before(floor) {
+		closeAt = floor
+	}
+	if activeBreak != nil && closeAt.Before(activeBreak.StartedAt) {
+		closeAt = activeBreak.StartedAt
+	}
+	return closeAt
 }
 
 // firstActiveBreaksBySession returns each session's first running break, in
@@ -347,7 +369,9 @@ func (s *workSessionService) finishAutoCheckout(ctx context.Context, session *Wo
 	}
 
 	// End open supervisions, exactly like manual checkout does.
-	s.endActiveSupervisionsOnCheckout(ctx, session.StaffID)
+	if err := s.endActiveSupervisionsOnCheckout(ctx, session.StaffID); err != nil {
+		return err
+	}
 
 	newVal := closeAt.Format(time.RFC3339)
 	note := "Automatische Ausstempelung zum geplanten Schichtende"

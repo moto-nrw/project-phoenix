@@ -56,6 +56,11 @@ func (s *workSessionService) UpdateSession(ctx context.Context, staffID int64, s
 	if err := s.ensureSelfEditJustified(ctx, session, updates); err != nil {
 		return nil, err
 	}
+	// Work cannot have started yet in the future. An open session with such a
+	// check-in could not be closed by the nightly cleanup (#6288).
+	if updates.CheckInTime != nil && !session.CheckInTime.Equal(*updates.CheckInTime) && updates.CheckInTime.After(s.now()) {
+		return nil, workforce.ErrSessionCheckInInFuture
+	}
 
 	return s.applySessionUpdate(ctx, staffID, session, updates)
 }
@@ -155,6 +160,7 @@ func (s *workSessionService) applySessionUpdate(ctx context.Context, editorStaff
 		notes:     updates.Notes,
 	}
 
+	recordedDay, recordedCheckIn := session.Date, session.CheckInTime
 	s.applyTimeFieldUpdates(uc, updates)
 	s.applySimpleFieldUpdates(uc, updates)
 
@@ -163,6 +169,13 @@ func (s *workSessionService) applySessionUpdate(ctx context.Context, editorStaff
 
 	if err := session.Validate(); err != nil {
 		return nil, fmt.Errorf(errInvalidSessionData, err)
+	}
+	// Only an edit of the day or the check-in is checked, so a row an
+	// earlier edit already broke can still get its notes and be repaired.
+	if session.Date != recordedDay || !session.CheckInTime.Equal(recordedCheckIn) {
+		if err := checkInWithinSessionDay(session.Date, session.CheckInTime); err != nil {
+			return nil, err
+		}
 	}
 
 	// Edited times must not slide into a sibling block.
@@ -269,6 +282,16 @@ func validateAdminCreateSession(targetStaffID int64, req *AdminCreateSessionRequ
 	}
 	if req.BreakMinutes < 0 {
 		return workforce.ErrAdminBreakMinutesNegative
+	}
+	return checkInWithinSessionDay(calendar.DateFromTime(req.Date), req.CheckInTime)
+}
+
+// checkInWithinSessionDay rejects a session filed on a day before its
+// check-in. The nightly cleanup closes a forgotten session at the end of its
+// day; that close must lie after the check-in (#6288).
+func checkInWithinSessionDay(day calendar.Date, checkIn time.Time) error {
+	if checkIn.After(day.EndOfDay()) {
+		return workforce.ErrSessionCheckInAfterDate
 	}
 	return nil
 }

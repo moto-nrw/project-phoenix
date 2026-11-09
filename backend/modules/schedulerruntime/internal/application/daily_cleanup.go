@@ -43,7 +43,8 @@ func (s *Scheduler) runCleanupTaskPolling(task *ScheduledTask) {
 // was missed (#3950, see cleanupDue). The success is stored in the tenant
 // transaction, so a rollback leaves the run due. Returning an error through
 // forEachCleanupTenantSettings also rolls back cleanup audit rows and their
-// corresponding deletes atomically.
+// corresponding deletes atomically. A run that reports errCleanupIncomplete
+// commits the steps that succeeded and stays due (#6288).
 func (s *Scheduler) checkAndRunDailyGDPRCleanup(ctx context.Context, task *ScheduledTask, dayCache *sync.Map, opName string, runForTenant func(ctx context.Context, tenantID int64, cleanupTime string) error) {
 	task.mu.Lock()
 	if task.Running {
@@ -93,24 +94,72 @@ func (s *Scheduler) checkAndRunCleanup(ctx context.Context, task *ScheduledTask)
 		cleanupCtx, cleanupCancel := context.WithTimeout(tenantCtx, time.Duration(timeoutMinutes)*time.Minute)
 		defer cleanupCancel()
 
-		if !s.executeCleanupForTenant(cleanupCtx, tenantID) {
-			return fmt.Errorf("data cleanup failed for tenant %d", tenantID)
+		complete, err := s.executeCleanupForTenant(cleanupCtx, tenantID)
+		if err != nil {
+			return fmt.Errorf("data cleanup failed for tenant %d: %w", tenantID, err)
+		}
+		if !complete {
+			return fmt.Errorf("%w for tenant %d", errCleanupIncomplete, tenantID)
 		}
 		return nil
 	})
 }
 
-// executeCleanupForTenant runs the cleanup operations for a single tenant.
-// Returns true if the primary cleanup (expired visits) succeeded.
-func (s *Scheduler) executeCleanupForTenant(ctx context.Context, tenantID int64) bool {
-	// Cleanup expired visits
+// errCleanupIncomplete reports a nightly cleanup whose failed steps undid only
+// their own writes. The other steps commit and the run stays due.
+var errCleanupIncomplete = errors.New("data cleanup incomplete")
+
+// cleanupStep is one step of the nightly data cleanup. A required step that
+// fails leaves the run incomplete; the others are best effort and only log.
+type cleanupStep struct {
+	run      func(context.Context, int64) error
+	required bool
+}
+
+// executeCleanupForTenant runs the cleanup steps for a single tenant. Each
+// step runs in its own savepoint: a failed step undoes only its own writes
+// and every later step still runs (#6288). complete is false when a required
+// step failed; an error means the tenant transaction is unusable.
+func (s *Scheduler) executeCleanupForTenant(ctx context.Context, tenantID int64) (complete bool, err error) {
+	steps := []cleanupStep{
+		{run: s.cleanupExpiredVisits, required: true},
+		{run: s.cleanupStaleSupervisors},
+		{run: s.cleanupStaleAttendance},
+		{run: s.cleanupOpenWorkSessions},
+		{run: s.cleanupExpiredFeedback, required: true},
+		{run: s.cleanupRejectedEnrollments, required: true},
+		{run: s.runTenantRetention, required: true},
+	}
+	complete = true
+	for _, step := range steps {
+		usable, stepErr := s.inCleanupSavepoint(ctx, func(stepCtx context.Context) error { return step.run(stepCtx, tenantID) })
+		if !usable {
+			return false, stepErr
+		}
+		if stepErr != nil && step.required {
+			complete = false
+		}
+	}
+	return complete, nil
+}
+
+// inCleanupSavepoint runs one cleanup step in a savepoint of the tenant
+// transaction; without a tenant runtime it runs the step directly.
+func (s *Scheduler) inCleanupSavepoint(ctx context.Context, fn func(context.Context) error) (bool, error) {
+	if s.tenantRuntime == nil {
+		return true, fn(ctx)
+	}
+	return s.tenantRuntime.WithSavepoint(ctx, fn)
+}
+
+func (s *Scheduler) cleanupExpiredVisits(ctx context.Context, tenantID int64) error {
 	result, err := s.cleanupService.CleanupExpiredVisits(ctx)
 	if err != nil {
 		s.getLogger().Error("cleanup failed for tenant",
 			slog.Int64("tenant_id", tenantID),
 			slog.String("error", err.Error()),
 		)
-		return false
+		return err
 	}
 
 	s.getLogger().Info("cleanup completed for tenant",
@@ -118,25 +167,21 @@ func (s *Scheduler) executeCleanupForTenant(ctx context.Context, tenantID int64)
 		slog.Int("students_processed", result.StudentsProcessed),
 		slog.Int64("records_deleted", result.RecordsDeleted),
 	)
+	return nil
+}
 
-	s.cleanupStaleSupervisors(ctx, tenantID)
-	s.cleanupStaleAttendance(ctx, tenantID)
-	s.cleanupOpenWorkSessions(ctx, tenantID)
-	if !s.cleanupTenantOwnedData(ctx, tenantID) {
-		return false
+func (s *Scheduler) runTenantRetention(ctx context.Context, tenantID int64) error {
+	if s.retention == nil {
+		return nil
 	}
-
-	if s.retention != nil {
-		if err := s.retention(ctx, tenantID); err != nil {
-			s.getLogger().Error("retention run failed for tenant",
-				slog.Int64("tenant_id", tenantID),
-				slog.String("error", err.Error()),
-			)
-			return false
-		}
+	if err := s.retention(ctx, tenantID); err != nil {
+		s.getLogger().Error("retention run failed for tenant",
+			slog.Int64("tenant_id", tenantID),
+			slog.String("error", err.Error()),
+		)
+		return err
 	}
-
-	return true
+	return nil
 }
 
 // completeTimetableInstancesForEndedSessions closes the schedule-side rows
@@ -210,6 +255,13 @@ func (s *Scheduler) runDailyGDPRCleanupForTenant(tenantCtx context.Context, tena
 
 	if err := runForTenant(tenantCtx, tenantID, cleanupTime); err != nil {
 		s.noteCleanupFailure(taskName, tenantID, now)
+		if errors.Is(err, errCleanupIncomplete) {
+			// The failed steps undid their own writes: commit the others and
+			// still report the run as failed.
+			recordStandingJobFailure(tenantCtx, tenantID, "tenant cleanup incomplete", err, nil)
+			addJobCommandFailure(tenantCtx, err)
+			return nil
+		}
 		return err
 	}
 	if err := s.recordCleanupSuccess(tenantCtx, dayCache, taskName, tenantID, now); err != nil {
@@ -219,101 +271,114 @@ func (s *Scheduler) runDailyGDPRCleanupForTenant(tenantCtx context.Context, tena
 	return nil
 }
 
-func (s *Scheduler) cleanupStaleSupervisors(ctx context.Context, tenantID int64) {
-	// Cleanup stale supervisors
-	if supervisorResult, err := s.cleanupService.CleanupStaleSupervisors(ctx); err != nil {
+func (s *Scheduler) cleanupStaleSupervisors(ctx context.Context, tenantID int64) error {
+	supervisorResult, err := s.cleanupService.CleanupStaleSupervisors(ctx)
+	if err != nil {
 		s.getLogger().Error("supervisor cleanup failed",
 			slog.Int64("tenant_id", tenantID),
 			slog.String("error", err.Error()),
 		)
-	} else if supervisorResult.RecordsClosed > 0 {
+		return err
+	}
+	if supervisorResult.RecordsClosed > 0 {
 		s.getLogger().Info("supervisor cleanup completed",
 			slog.Int64("tenant_id", tenantID),
 			slog.Int("records_closed", supervisorResult.RecordsClosed),
 		)
 	}
-
+	return nil
 }
 
-func (s *Scheduler) cleanupStaleAttendance(ctx context.Context, tenantID int64) {
-	// Cleanup stale attendance records (open from previous days)
-	if attendanceResult, err := s.cleanupService.CleanupStaleAttendance(ctx); err != nil {
+// cleanupStaleAttendance closes attendance records still open from previous
+// days. A partial failure is only logged; its closed records stay.
+func (s *Scheduler) cleanupStaleAttendance(ctx context.Context, tenantID int64) error {
+	attendanceResult, err := s.cleanupService.CleanupStaleAttendance(ctx)
+	if err != nil {
 		s.getLogger().Error("attendance cleanup failed",
 			slog.Int64("tenant_id", tenantID),
 			slog.String("error", err.Error()),
 		)
-	} else if attendanceResult != nil {
-		if !attendanceResult.Success {
-			s.getLogger().Warn("attendance cleanup partial failure",
-				slog.Int64("tenant_id", tenantID),
-				slog.Int("records_closed", attendanceResult.RecordsClosed),
-				slog.Int("errors", len(attendanceResult.Errors)),
-			)
-		} else if attendanceResult.RecordsClosed > 0 {
-			s.getLogger().Info("attendance cleanup completed",
-				slog.Int64("tenant_id", tenantID),
-				slog.Int("records_closed", attendanceResult.RecordsClosed),
-				slog.Int("students_affected", attendanceResult.StudentsAffected),
-			)
-		}
+		return err
 	}
-
+	switch {
+	case attendanceResult == nil:
+	case !attendanceResult.Success:
+		s.getLogger().Warn("attendance cleanup partial failure",
+			slog.Int64("tenant_id", tenantID),
+			slog.Int("records_closed", attendanceResult.RecordsClosed),
+			slog.Int("errors", len(attendanceResult.Errors)),
+		)
+	case attendanceResult.RecordsClosed > 0:
+		s.getLogger().Info("attendance cleanup completed",
+			slog.Int64("tenant_id", tenantID),
+			slog.Int("records_closed", attendanceResult.RecordsClosed),
+			slog.Int("students_affected", attendanceResult.StudentsAffected),
+		)
+	}
+	return nil
 }
 
-func (s *Scheduler) cleanupOpenWorkSessions(ctx context.Context, tenantID int64) {
-	// Cleanup open work sessions
-	if s.workSessionCleanup != nil {
-		if closedCount, err := s.workSessionCleanup.CleanupOpenSessions(ctx); err != nil {
-			s.getLogger().Error("work session cleanup failed",
-				slog.Int64("tenant_id", tenantID),
-				slog.String("error", err.Error()),
-			)
-		} else if closedCount > 0 {
-			s.getLogger().Info("work session cleanup completed",
-				slog.Int64("tenant_id", tenantID),
-				slog.Int("sessions_closed", closedCount),
-			)
-		}
+func (s *Scheduler) cleanupOpenWorkSessions(ctx context.Context, tenantID int64) error {
+	if s.workSessionCleanup == nil {
+		return nil
 	}
-
+	closedCount, err := s.workSessionCleanup.CleanupOpenSessions(ctx)
+	if err != nil {
+		s.getLogger().Error("work session cleanup failed",
+			slog.Int64("tenant_id", tenantID),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+	if closedCount > 0 {
+		s.getLogger().Info("work session cleanup completed",
+			slog.Int64("tenant_id", tenantID),
+			slog.Int("sessions_closed", closedCount),
+		)
+	}
+	return nil
 }
 
-func (s *Scheduler) cleanupTenantOwnedData(ctx context.Context, tenantID int64) bool {
-	// The Feedback owner resolves and enforces its retention setting. A failed
-	// cleanup aborts the tenant transaction instead of being logged and ignored.
-	if s.feedbackCleaner != nil {
-		deleted, err := s.feedbackCleaner.DeleteExpired(ctx)
-		if err != nil {
-			s.getLogger().Error("feedback cleanup failed",
-				slog.Int64("tenant_id", tenantID),
-				slog.String("error", err.Error()),
-			)
-			return false
-		}
-		if deleted > 0 {
-			s.getLogger().Info("feedback cleanup completed",
-				slog.Int64("tenant_id", tenantID),
-				slog.Int("records_deleted", deleted),
-			)
-		}
+// cleanupExpiredFeedback lets the Feedback owner resolve and enforce its
+// retention setting. A failure leaves the nightly run due.
+func (s *Scheduler) cleanupExpiredFeedback(ctx context.Context, tenantID int64) error {
+	if s.feedbackCleaner == nil {
+		return nil
 	}
-
-	if s.enrollmentRejectedCleanup != nil {
-		requests, lateInvites, outboxRows, cleanupErr := s.enrollmentRejectedCleanup.CleanupRejectedEnrollments(ctx)
-		if cleanupErr != nil {
-			s.getLogger().Error("rejected enrollment cleanup failed",
-				slog.Int64("tenant_id", tenantID),
-				slog.String("error", cleanupErr.Error()))
-			return false
-		}
-		if requests > 0 {
-			s.getLogger().Info("rejected enrollment cleanup completed",
-				slog.Int64("tenant_id", tenantID),
-				slog.Int("requests_deleted", requests),
-				slog.Int64("late_invites_deleted", lateInvites),
-				slog.Int64("outbox_rows_deleted", outboxRows))
-		}
+	deleted, err := s.feedbackCleaner.DeleteExpired(ctx)
+	if err != nil {
+		s.getLogger().Error("feedback cleanup failed",
+			slog.Int64("tenant_id", tenantID),
+			slog.String("error", err.Error()),
+		)
+		return err
 	}
+	if deleted > 0 {
+		s.getLogger().Info("feedback cleanup completed",
+			slog.Int64("tenant_id", tenantID),
+			slog.Int("records_deleted", deleted),
+		)
+	}
+	return nil
+}
 
-	return true
+func (s *Scheduler) cleanupRejectedEnrollments(ctx context.Context, tenantID int64) error {
+	if s.enrollmentRejectedCleanup == nil {
+		return nil
+	}
+	requests, lateInvites, outboxRows, err := s.enrollmentRejectedCleanup.CleanupRejectedEnrollments(ctx)
+	if err != nil {
+		s.getLogger().Error("rejected enrollment cleanup failed",
+			slog.Int64("tenant_id", tenantID),
+			slog.String("error", err.Error()))
+		return err
+	}
+	if requests > 0 {
+		s.getLogger().Info("rejected enrollment cleanup completed",
+			slog.Int64("tenant_id", tenantID),
+			slog.Int("requests_deleted", requests),
+			slog.Int64("late_invites_deleted", lateInvites),
+			slog.Int64("outbox_rows_deleted", outboxRows))
+	}
+	return nil
 }

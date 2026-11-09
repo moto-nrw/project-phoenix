@@ -2,6 +2,7 @@ package timetracking
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -94,8 +95,10 @@ func (s *workSessionService) CheckOutOn(ctx context.Context, staffID int64, day 
 		}
 	}
 
-	// End all active supervisions for this staff member (fire-and-forget)
-	s.endActiveSupervisionsOnCheckout(ctx, staffID)
+	// End all active supervisions for this staff member (best effort)
+	if err := s.endActiveSupervisionsOnCheckout(ctx, staffID); err != nil {
+		return nil, err
+	}
 
 	// Re-fetch the updated session
 	updatedSessionRecords, err := s.repo.FindWorkSession(ctx, session.ID)
@@ -262,23 +265,42 @@ func (s *workSessionService) endFoundActiveBreak(ctx context.Context, sessionID 
 	return nil
 }
 
-// endActiveSupervisionsOnCheckout ends all active supervisions for a staff member (fire-and-forget).
-func (s *workSessionService) endActiveSupervisionsOnCheckout(ctx context.Context, staffID int64) {
+// endActiveSupervisionsOnCheckout ends all active supervisions for a staff
+// member. It is best effort: inside a transaction it runs in a savepoint, so a
+// failure only leaves the supervisions open and never rolls back the
+// checkout (#6288). Only a failed savepoint, which leaves the transaction
+// unusable, is returned.
+func (s *workSessionService) endActiveSupervisionsOnCheckout(ctx context.Context, staffID int64) error {
 	if s.GroupSupervisorRepository == nil {
-		return
+		return nil
 	}
-	ended, err := s.endActiveSupervisionsWithGroupLocks(ctx, staffID)
+	ended := 0
+	end := func(ctx context.Context) error {
+		var err error
+		ended, err = s.endActiveSupervisionsWithGroupLocks(ctx, staffID)
+		return err
+	}
+	var err error
+	if _, inTransaction := tenant.TransactionFromContext(ctx); inTransaction {
+		err = tenant.WithSavepoint(ctx, end)
+	} else {
+		err = end(ctx)
+	}
+	if errors.Is(err, tenant.ErrSavepointControl) {
+		return fmt.Errorf("failed to end active supervisions on checkout: %w", err)
+	}
 	if err != nil {
 		s.getLogger().WarnContext(ctx, "failed to end active supervisions on checkout",
 			slog.Int64("staff_id", staffID),
 			slog.String("error", err.Error()))
-		return
+		return nil
 	}
 	if ended > 0 {
 		s.getLogger().InfoContext(ctx, "ended active supervisions on checkout",
 			slog.Int("ended_count", ended),
 			slog.Int64("staff_id", staffID))
 	}
+	return nil
 }
 
 func (s *workSessionService) endActiveSupervisionsWithGroupLocks(ctx context.Context, staffID int64) (int, error) {
