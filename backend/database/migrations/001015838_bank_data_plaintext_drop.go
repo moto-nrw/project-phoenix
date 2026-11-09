@@ -27,24 +27,35 @@ func init() {
 // values and clears them in every school (ADR 0186); only then may they go.
 // A row that still carries one stops the release in the preflight, before
 // the application stops: no key reaches a migration, so it cannot seal.
-const bankDataPlaintextRowsSQL = `
-SELECT (SELECT count(*) FROM users.guardian_financial_data
-         WHERE iban IS NOT NULL OR account_holder IS NOT NULL)
-     + (SELECT count(*) FROM users.staff_financial_data
-         WHERE iban IS NOT NULL OR tax_id IS NOT NULL OR social_security_number IS NOT NULL)`
+const guardianBankDataPlaintextRowsSQL = `SELECT count(*) FROM users.guardian_financial_data
+         WHERE iban IS NOT NULL OR account_holder IS NOT NULL`
+
+const staffBankDataPlaintextRowsSQL = `SELECT count(*) FROM users.staff_financial_data
+         WHERE iban IS NOT NULL OR tax_id IS NOT NULL OR social_security_number IS NOT NULL`
 
 var errBankDataPlaintextRemains = errors.New("bank data plaintext remains; run bank-data-rekey --school for every school first (ADR 0186)")
 
-func bankDataPlaintextRows(ctx context.Context, db bun.IDB) (int, error) {
-	var rows int
-	if err := db.NewRaw(bankDataPlaintextRowsSQL).Scan(ctx, &rows); err != nil {
-		return 0, fmt.Errorf("count plaintext bank data: %w", err)
+func bankDataPlaintextRows(ctx context.Context, db bun.IDB, checkGuardians, checkStaff bool) (int, error) {
+	var guardians, staff int
+	if checkGuardians {
+		if err := db.NewRaw(guardianBankDataPlaintextRowsSQL).Scan(ctx, &guardians); err != nil {
+			return 0, fmt.Errorf("count plaintext guardian bank data: %w", err)
+		}
 	}
-	return rows, nil
+	if checkStaff {
+		if err := db.NewRaw(staffBankDataPlaintextRowsSQL).Scan(ctx, &staff); err != nil {
+			return 0, fmt.Errorf("count plaintext staff bank data: %w", err)
+		}
+	}
+	return guardians + staff, nil
 }
 
 func bankDataPlaintextDropPrecondition(ctx context.Context, db *bun.DB) error {
-	rows, err := bankDataPlaintextRows(ctx, db)
+	// Preflight runs before pending migrations create their tables. Check
+	// each existing table even when the other one's creation is pending.
+	rows, err := bankDataPlaintextRows(ctx, db,
+		!migrationPending(ctx, guardianPaymentDataVersion),
+		!migrationPending(ctx, staffStammdatenVersion))
 	if err != nil {
 		return err
 	}
@@ -61,7 +72,7 @@ func bankDataPlaintextDropUp(ctx context.Context, db *bun.DB) error {
 		if _, err := tx.ExecContext(ctx, `LOCK TABLE users.guardian_financial_data, users.staff_financial_data IN SHARE ROW EXCLUSIVE MODE`); err != nil {
 			return fmt.Errorf("lock the bank data tables: %w", err)
 		}
-		rows, err := bankDataPlaintextRows(ctx, tx)
+		rows, err := bankDataPlaintextRows(ctx, tx, true, true)
 		if err != nil {
 			return err
 		}

@@ -6,9 +6,41 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/migrate"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
+
+func TestBankDataPlaintextDropPreflightSkipsPendingTableCreation(t *testing.T) {
+	t.Parallel()
+	ctx := withPendingMigrations(t.Context(), migrate.MigrationSlice{
+		{Name: "001015336"}, // guardianPaymentDataVersion
+		{Name: "001015251"}, // staffStammdatenVersion
+	})
+	require.NoError(t, bankDataPlaintextDropPrecondition(ctx, nil), "a fresh database has neither financial table yet")
+}
+
+func TestBankDataPlaintextDropPreflightChecksExistingStaffTable(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := withPendingMigrations(t.Context(), migrate.MigrationSlice{
+		{Name: "001015336"}, // guardianPaymentDataVersion
+	})
+	require.NoError(t, bankDataPlaintextDropDown(ctx, db))
+	_, err := db.ExecContext(ctx, `ALTER TABLE users.guardian_financial_data RENAME TO pending_guardian_financial_data`)
+	require.NoError(t, err)
+	school := testpkg.NewTenantScope(t, db).TenantID
+	staff := testpkg.CreateTestStaffForTenant(t, db, school, "Pending", "Staff")
+	_, err = db.ExecContext(ctx, `INSERT INTO users.staff_financial_data (tenant_id, staff_id, tax_id) VALUES (?, ?, 'synthetic-tax-id')`, school, staff.ID)
+	require.NoError(t, err)
+
+	require.ErrorIs(t, bankDataPlaintextDropPrecondition(ctx, db), errBankDataPlaintextRemains,
+		"pending guardian table creation must not hide existing staff plaintext")
+	_, err = db.ExecContext(ctx, `UPDATE users.staff_financial_data SET tax_id = NULL WHERE staff_id = ?`, staff.ID)
+	require.NoError(t, err)
+	require.NoError(t, bankDataPlaintextDropPrecondition(ctx, db))
+	require.Error(t, bankDataPlaintextDropUp(ctx, db), "Up still requires both tables even with pending migrations in context")
+}
 
 func bankPlaintextColumns(t *testing.T, db *bun.DB) []string {
 	t.Helper()
