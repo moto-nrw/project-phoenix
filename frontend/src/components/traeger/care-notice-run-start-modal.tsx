@@ -21,7 +21,7 @@ import { formatMonth, monthRange } from "./care-billing-format";
 const logger = createLogger({ component: "CareNoticeRunStartModal" });
 
 /** The first months a run may start with: every month of this and next year. */
-export function noticeStartMonths(suggestedYear: number) {
+function noticeStartMonths(suggestedYear: number) {
   return monthRange(`${suggestedYear}-01-01`, 24).map((value) => ({
     value,
     label: formatMonth(value),
