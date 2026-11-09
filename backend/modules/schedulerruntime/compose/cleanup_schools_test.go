@@ -276,10 +276,13 @@ func (f *failingFeedbackCleanup) DeleteExpired(ctx context.Context) (int, error)
 	return 0, testpkg.FailInCurrentTransaction(ctx)
 }
 
+// cleanupRunCount counts the recorded successes of the school's nightly
+// cleanup. A failed run leaves a row with its failure streak only (#6327).
 func cleanupRunCount(t *testing.T, admin *bun.DB, school int64) int {
 	t.Helper()
 	var runs int
-	require.NoError(t, admin.NewRaw(`SELECT count(*) FROM platform.cleanup_runs WHERE tenant_id = ? AND job_id = 'visit-cleanup'`, school).
+	require.NoError(t, admin.NewRaw(`SELECT count(*) FROM platform.cleanup_runs
+		WHERE tenant_id = ? AND job_id = 'visit-cleanup' AND succeeded_at IS NOT NULL`, school).
 		Scan(context.Background(), &runs))
 	return runs
 }

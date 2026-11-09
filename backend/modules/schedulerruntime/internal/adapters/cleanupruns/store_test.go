@@ -31,7 +31,8 @@ func lastRun(t *testing.T, db *bun.DB, tenantID int64) (time.Time, bool) {
 	)
 	require.NoError(t, testpkg.WithinTenantContext(t, context.Background(), db, tenantID, func(ctx context.Context) error {
 		var err error
-		at, ok, err = NewStore().LastCleanupSucceeded(ctx, jobID)
+		at, _, _, err = NewStore().CleanupRun(ctx, jobID)
+		ok = !at.IsZero()
 		return err
 	}))
 	return at, ok
@@ -97,7 +98,66 @@ func TestCleanupRunRollsBackWithItsTransaction(t *testing.T) {
 func TestCleanupRunRequiresATransaction(t *testing.T) {
 	t.Parallel()
 
-	_, _, err := NewStore().LastCleanupSucceeded(context.Background(), jobID)
+	_, _, _, err := NewStore().CleanupRun(context.Background(), jobID)
 	require.Error(t, err)
 	require.Error(t, NewStore().RecordCleanupSucceeded(context.Background(), jobID, time.Now()))
+	_, err = NewStore().RecordCleanupFailed(context.Background(), jobID, time.Now())
+	require.Error(t, err)
+}
+
+type storedRun struct {
+	SucceededAt  time.Time
+	Failures     int
+	LastFailedAt time.Time
+}
+
+func runState(t *testing.T, db *bun.DB, tenantID int64) storedRun {
+	t.Helper()
+	var state storedRun
+	require.NoError(t, testpkg.WithinTenantContext(t, context.Background(), db, tenantID, func(ctx context.Context) error {
+		var err error
+		state.SucceededAt, state.Failures, state.LastFailedAt, err = NewStore().CleanupRun(ctx, jobID)
+		return err
+	}))
+	return state
+}
+
+func recordFailure(t *testing.T, db *bun.DB, tenantID int64, at time.Time) int {
+	t.Helper()
+	var failures int
+	require.NoError(t, testpkg.WithinTenantContext(t, context.Background(), db, tenantID, func(ctx context.Context) error {
+		var err error
+		failures, err = NewStore().RecordCleanupFailed(ctx, jobID, at)
+		return err
+	}))
+	return failures
+}
+
+// TestCleanupRunKeepsTheFailureStreakUntilASuccess covers #6327: failures
+// count up per school, also before the first success, and a success ends
+// the streak without losing its own time.
+func TestCleanupRunKeepsTheFailureStreakUntilASuccess(t *testing.T) {
+	t.Parallel()
+	db := serveDB(t)
+	school := testpkg.Tenant(t)
+	otherSchool, _ := testpkg.CreateTestTenant(t, testpkg.SetupTestDB(t))
+	first := time.Date(2026, time.October, 14, 2, 0, 0, 0, time.UTC)
+
+	assert.Equal(t, 1, recordFailure(t, db, school, first), "a first run that fails starts the streak")
+	assert.Equal(t, 2, recordFailure(t, db, school, first.Add(time.Hour)))
+	state := runState(t, db, school)
+	assert.Equal(t, 2, state.Failures)
+	assert.True(t, state.LastFailedAt.Equal(first.Add(time.Hour)))
+	assert.True(t, state.SucceededAt.IsZero(), "a failure is no success")
+	assert.Zero(t, runState(t, db, otherSchool).Failures, "the streak of one school is invisible to another")
+
+	succeeded := first.Add(3 * time.Hour)
+	record(t, db, school, succeeded)
+	state = runState(t, db, school)
+	assert.True(t, state.SucceededAt.Equal(succeeded))
+	assert.Zero(t, state.Failures, "a success ends the streak")
+	assert.True(t, state.LastFailedAt.IsZero())
+
+	assert.Equal(t, 1, recordFailure(t, db, school, succeeded.Add(24*time.Hour)), "the next failure starts a new streak")
+	assert.True(t, runState(t, db, school).SucceededAt.Equal(succeeded), "a failure keeps the last success")
 }

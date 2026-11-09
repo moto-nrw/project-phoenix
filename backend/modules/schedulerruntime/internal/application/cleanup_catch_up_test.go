@@ -15,24 +15,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// fakeCleanupRuns is the ledger of last successful runs, shared between
-// scheduler instances to stand in for a process restart.
+// fakeCleanupRuns is the ledger of last successful runs and failure streaks,
+// shared between scheduler instances to stand in for a process restart.
 type fakeCleanupRuns struct {
 	mu        sync.Mutex
 	runs      map[string]time.Time
+	failures  map[string]cleanupRunState
 	recorded  int
 	recordErr error
 }
 
 func newFakeCleanupRuns() *fakeCleanupRuns {
-	return &fakeCleanupRuns{runs: map[string]time.Time{}}
+	return &fakeCleanupRuns{runs: map[string]time.Time{}, failures: map[string]cleanupRunState{}}
 }
 
-func (f *fakeCleanupRuns) LastCleanupSucceeded(_ context.Context, jobID string) (time.Time, bool, error) {
+func (f *fakeCleanupRuns) CleanupRun(_ context.Context, jobID string) (time.Time, int, time.Time, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	at, ok := f.runs[jobID]
-	return at, ok, nil
+	state := f.failures[jobID]
+	return f.runs[jobID], state.Failures, state.LastFailure, nil
 }
 
 func (f *fakeCleanupRuns) RecordCleanupSucceeded(_ context.Context, jobID string, at time.Time) error {
@@ -42,8 +43,25 @@ func (f *fakeCleanupRuns) RecordCleanupSucceeded(_ context.Context, jobID string
 		return f.recordErr
 	}
 	f.runs[jobID] = at
+	delete(f.failures, jobID)
 	f.recorded++
 	return nil
+}
+
+func (f *fakeCleanupRuns) RecordCleanupFailed(_ context.Context, jobID string, at time.Time) (int, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	state := f.failures[jobID]
+	state.Failures++
+	state.LastFailure = at
+	f.failures[jobID] = state
+	return state.Failures, nil
+}
+
+func (f *fakeCleanupRuns) failureCount(jobID string) int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.failures[jobID].Failures
 }
 
 func (f *fakeCleanupRuns) last(jobID string) (time.Time, bool) {

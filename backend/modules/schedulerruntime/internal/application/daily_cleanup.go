@@ -44,7 +44,9 @@ func (s *Scheduler) runCleanupTaskPolling(task *ScheduledTask) {
 // transaction, so a rollback leaves the run due. Returning an error through
 // forEachCleanupTenantSettings also rolls back cleanup audit rows and their
 // corresponding deletes atomically. A run that reports errCleanupIncomplete
-// commits the steps that succeeded and stays due (#6288).
+// commits the steps that succeeded and stays due (#6288). Every failed run
+// extends the school's failure streak, which spaces the retries and raises
+// the alert (#6327, see cleanup_failures.go).
 func (s *Scheduler) checkAndRunDailyGDPRCleanup(ctx context.Context, task *ScheduledTask, dayCache *sync.Map, opName string, runForTenant func(ctx context.Context, tenantID int64, cleanupTime string) error) {
 	task.mu.Lock()
 	if task.Running {
@@ -62,9 +64,11 @@ func (s *Scheduler) checkAndRunDailyGDPRCleanup(ctx context.Context, task *Sched
 	ctx, cancel := s.taskContext(ctx, 2*time.Hour)
 	defer cancel()
 
-	s.forEachCleanupTenantSettings(ctx, opName, func(tenantCtx context.Context, tenantID int64) error {
-		return s.runDailyGDPRCleanupForTenant(tenantCtx, tenantID, dayCache, task.Name, runForTenant)
+	attempts := newCleanupAttempts()
+	completed := s.forEachCleanupTenantSettings(ctx, opName, func(tenantCtx context.Context, tenantID int64) error {
+		return s.runDailyGDPRCleanupForTenant(tenantCtx, tenantID, dayCache, task.Name, attempts, runForTenant)
 	})
+	s.settleCleanupAttempts(task.Name, attempts, completed)
 }
 
 func (s *Scheduler) dataCleanupEnabled(ctx context.Context) (bool, error) {
@@ -94,12 +98,12 @@ func (s *Scheduler) checkAndRunCleanup(ctx context.Context, task *ScheduledTask)
 		cleanupCtx, cleanupCancel := context.WithTimeout(tenantCtx, time.Duration(timeoutMinutes)*time.Minute)
 		defer cleanupCancel()
 
-		complete, err := s.executeCleanupForTenant(cleanupCtx, tenantID)
+		failed, err := s.runCleanupSteps(cleanupCtx, tenantID)
 		if err != nil {
 			return fmt.Errorf("data cleanup failed for tenant %d: %w", tenantID, err)
 		}
-		if !complete {
-			return fmt.Errorf("%w for tenant %d", errCleanupIncomplete, tenantID)
+		if len(failed) > 0 {
+			return &cleanupIncompleteError{tenantID: tenantID, steps: failed}
 		}
 		return nil
 	})
@@ -128,6 +132,13 @@ type cleanupStep struct {
 // complete is false when a step failed; an error means the tenant
 // transaction itself is unusable.
 func (s *Scheduler) executeCleanupForTenant(ctx context.Context, tenantID int64) (complete bool, err error) {
+	failed, err := s.runCleanupSteps(ctx, tenantID)
+	return err == nil && len(failed) == 0, err
+}
+
+// runCleanupSteps runs the steps of executeCleanupForTenant and names the
+// ones that failed.
+func (s *Scheduler) runCleanupSteps(ctx context.Context, tenantID int64) (failed []string, err error) {
 	steps := []cleanupStep{
 		{name: "visits", run: s.cleanupExpiredVisits},
 		{name: "supervisors", run: s.cleanupStaleSupervisors},
@@ -137,11 +148,10 @@ func (s *Scheduler) executeCleanupForTenant(ctx context.Context, tenantID int64)
 		{name: "rejected_enrollments", run: s.cleanupRejectedEnrollments},
 		{name: "retention", run: s.runTenantRetention},
 	}
-	complete = true
 	for _, step := range steps {
 		usable, stepErr := s.inCleanupSavepoint(ctx, func(stepCtx context.Context) error { return step.run(stepCtx, tenantID) })
 		if stepErr != nil {
-			complete = false
+			failed = append(failed, step.name)
 			s.getLogger().Error("cleanup step failed",
 				slog.Int64("tenant_id", tenantID),
 				slog.String("step", step.name),
@@ -149,10 +159,10 @@ func (s *Scheduler) executeCleanupForTenant(ctx context.Context, tenantID int64)
 			)
 		}
 		if !usable {
-			return false, stepErr
+			return failed, stepErr
 		}
 	}
-	return complete, nil
+	return failed, nil
 }
 
 // inCleanupSavepoint runs one cleanup step in a savepoint of the tenant
@@ -239,23 +249,10 @@ func (s *Scheduler) completeTimetableInstancesForEndedSessions(ctx context.Conte
 	return int(rows), nil
 }
 
-func (s *Scheduler) runDailyGDPRCleanupForTenant(tenantCtx context.Context, tenantID int64, dayCache *sync.Map, taskName string, runForTenant func(context.Context, int64, string) error) error {
-
+func (s *Scheduler) runDailyGDPRCleanupForTenant(tenantCtx context.Context, tenantID int64, dayCache *sync.Map, taskName string, attempts *cleanupAttempts, runForTenant func(context.Context, int64, string) error) error {
 	enabled, err := s.dataCleanupEnabled(tenantCtx)
 	if err != nil {
-		cleanupTime, timeErr := s.settings.ResolveString(tenantCtx, settingDataCleanupTime)
-		if timeErr != nil {
-			return fmt.Errorf("resolve %s: %w", settingDataCleanupTime, errors.Join(err, timeErr))
-		}
-		now := s.cleanupNow()
-		due, dueErr := s.dailyCleanupDue(tenantCtx, dayCache, taskName, tenantID, cleanupTime, now)
-		if dueErr != nil {
-			return errors.Join(err, dueErr)
-		}
-		if due {
-			s.noteCleanupFailure(taskName, tenantID, now)
-		}
-		return err
+		return s.failUnreadableCleanupSwitch(tenantCtx, tenantID, dayCache, taskName, attempts, err)
 	}
 	if !enabled {
 		return nil
@@ -266,13 +263,14 @@ func (s *Scheduler) runDailyGDPRCleanupForTenant(tenantCtx context.Context, tena
 		return fmt.Errorf("resolve %s: %w", settingDataCleanupTime, errors.Join(err, timeErr))
 	}
 	now := s.cleanupNow()
-	due, err := s.dailyCleanupDue(tenantCtx, dayCache, taskName, tenantID, cleanupTime, now)
+	state, due, err := s.dailyCleanupDue(tenantCtx, dayCache, taskName, tenantID, cleanupTime, now)
 	if err != nil || !due {
 		return err
 	}
+	attempts.start(tenantID, now, state.Failures)
 
 	if err := runForTenant(tenantCtx, tenantID, cleanupTime); err != nil {
-		s.noteCleanupFailure(taskName, tenantID, now)
+		attempts.fail(tenantID, err)
 		if errors.Is(err, errCleanupIncomplete) {
 			// The failed steps undid their own writes: commit the others and
 			// still report the run as failed.
@@ -283,15 +281,35 @@ func (s *Scheduler) runDailyGDPRCleanupForTenant(tenantCtx context.Context, tena
 			)
 			recordStandingJobFailure(tenantCtx, tenantID, "tenant cleanup incomplete", err, nil)
 			addJobCommandFailure(tenantCtx, err)
-			return nil
+			return s.storeCleanupFailure(tenantCtx, tenantID, taskName, now, attempts)
 		}
 		return err
 	}
 	if err := s.recordCleanupSuccess(tenantCtx, dayCache, taskName, tenantID, now); err != nil {
-		s.noteCleanupFailure(taskName, tenantID, now)
+		attempts.fail(tenantID, err)
 		return err
 	}
 	return nil
+}
+
+// failUnreadableCleanupSwitch fails the school's run when the cleanup switch
+// cannot be read. A due run counts as failed and is retried after its wait.
+// The returned error rolls the transaction back.
+func (s *Scheduler) failUnreadableCleanupSwitch(tenantCtx context.Context, tenantID int64, dayCache *sync.Map, taskName string, attempts *cleanupAttempts, err error) error {
+	cleanupTime, timeErr := s.settings.ResolveString(tenantCtx, settingDataCleanupTime)
+	if timeErr != nil {
+		return fmt.Errorf("resolve %s: %w", settingDataCleanupTime, errors.Join(err, timeErr))
+	}
+	now := s.cleanupNow()
+	state, due, dueErr := s.dailyCleanupDue(tenantCtx, dayCache, taskName, tenantID, cleanupTime, now)
+	if dueErr != nil {
+		return errors.Join(err, dueErr)
+	}
+	if due {
+		attempts.start(tenantID, now, state.Failures)
+		attempts.fail(tenantID, err)
+	}
+	return err
 }
 
 func (s *Scheduler) cleanupStaleSupervisors(ctx context.Context, tenantID int64) error {
