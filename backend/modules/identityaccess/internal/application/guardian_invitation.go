@@ -45,16 +45,9 @@ func (l *AccountLifecycle) CreateGuardianInvitation(ctx context.Context, request
 	var invitation domain.GuardianInvitation
 	err = l.runtime.RunInTx(ctx, func(txCtx context.Context) error {
 		txCtx = bindRuntime(l.auth.attach, txCtx)
-		var (
-			profile    domain.GuardianProfile
-			profileErr error
-		)
-		profile, profileErr = l.lockInvitationProfile(txCtx, request.GuardianProfileID)
+		profile, profileErr := l.lockInvitationAccountThenProfile(txCtx, request.GuardianProfileID)
 		if profileErr != nil {
 			return failed(opGuardianInviteCreate, profileErr)
-		}
-		if _, _, _, err := l.logins.LockLoginAccountByEmail(txCtx, profile.Email); err != nil {
-			return failed(opGuardianInviteCreate, err)
 		}
 		expiry, err := l.delivery.InvitationExpiry(txCtx)
 		if err != nil {
@@ -108,6 +101,35 @@ func (l *AccountLifecycle) issueGuardianInvitation(ctx context.Context, request 
 func issueGuardianInvitationLink(invitation *domain.GuardianInvitation, profile domain.GuardianProfile) {
 	invitation.Token = uuid.Must(uuid.NewV4()).String()
 	invitation.Email = domain.GuardianInvitationAddress(profile.Email)
+}
+
+// lockInvitationAccountThenProfile locks the account of the guardian's
+// address before the guardian's profile, the order acceptance takes:
+// holding the profile while waiting for the account would close a cycle with
+// an acceptance (40P01). The address is read again under the profile lock; a
+// change in between refuses the invitation instead of binding it to an
+// account that was not locked.
+func (l *AccountLifecycle) lockInvitationAccountThenProfile(ctx context.Context, profileID int64) (domain.GuardianProfile, error) {
+	unlocked, found, err := l.guardians.FindGuardianProfile(ctx, profileID)
+	if err != nil {
+		return domain.GuardianProfile{}, err
+	}
+	if !found {
+		return domain.GuardianProfile{}, fmt.Errorf("guardian profile not found")
+	}
+	if strings.TrimSpace(unlocked.Email) != "" {
+		if _, _, _, err := l.logins.LockLoginAccountByEmail(ctx, unlocked.Email); err != nil {
+			return domain.GuardianProfile{}, err
+		}
+	}
+	profile, err := l.lockInvitationProfile(ctx, profileID)
+	if err != nil {
+		return domain.GuardianProfile{}, err
+	}
+	if domain.GuardianInvitationAddress(profile.Email) != domain.GuardianInvitationAddress(unlocked.Email) {
+		return domain.GuardianProfile{}, domain.ErrGuardianInvitationAddressChanged
+	}
+	return profile, nil
 }
 
 func (l *AccountLifecycle) lockInvitationProfile(ctx context.Context, profileID int64) (domain.GuardianProfile, error) {

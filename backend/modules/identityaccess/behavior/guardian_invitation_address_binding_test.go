@@ -116,7 +116,15 @@ func TestGuardianInvitationAccept_KeepsLinkWhenOnlyTheCaseChanges(t *testing.T) 
 		GuardianProfileID: profile.ID, CreatedBy: creatorID,
 	})
 	require.NoError(t, err)
-	env.changeGuardianEmail(t, profile.ID, "  "+strings.ToUpper(*profile.Email)+" ")
+	// Written past the People Directory, which would normalize the address
+	// itself: legacy data or another writer may keep case and blanks, and
+	// only the comparison may treat them as the same address.
+	spelled := " \t" + strings.ToUpper(*profile.Email) + " "
+	_, err = env.db.NewRaw(`UPDATE users.guardian_profiles SET email = ? WHERE id = ?`, spelled, profile.ID).Exec(context.Background())
+	require.NoError(t, err)
+	var stored string
+	require.NoError(t, env.db.NewRaw(`SELECT email FROM users.guardian_profiles WHERE id = ?`, profile.ID).Scan(context.Background(), &stored))
+	require.Equal(t, spelled, stored, "the profile keeps the other spelling")
 
 	account, err := env.service.AcceptGuardianInvitation(context.Background(), invitation.Token, identityaccess.GuardianRegistration{
 		Password: strongTestPassword, ConfirmPassword: strongTestPassword,
@@ -365,4 +373,57 @@ func TestGuardianInvitationAccept_LocksAccountBeforeProfile(t *testing.T) {
 		t.Fatal(ctx.Err())
 	}
 	assert.NotNil(t, testpkg.GuardianInvitationByID(t, db, invitation.ID).AcceptedAt)
+}
+
+// Accept holds the account before it locks the profile. Creating an
+// invitation must take the same order: holding the profile while it waits
+// for the account would close a cycle with an acceptance and end one of
+// them with a deadlock (40P01). The other transaction stands in for the
+// acceptance: account first, then the profile.
+func TestCreateGuardianInvitation_LocksAccountBeforeProfile(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	service, err := api.NewGuardianInvitationServiceForTests(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), api.GuardianInvitationTestConfig{
+		Outbox: api.NewCapturingOutbox(),
+	})
+	require.NoError(t, err)
+	_, creator := testpkg.CreateTestPersonWithAccount(t, db, "Inviter", "CreateOrder")
+	profile := testpkg.CreateTestGuardianProfile(t, db, "create-account-before-profile")
+	account := testpkg.CreateTestAccountWithPassword(t, db, *profile.Email, strongTestPassword)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	acceptance, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = acceptance.Rollback() }()
+	_, err = acceptance.NewRaw(`SELECT id FROM auth.accounts WHERE id = ? FOR UPDATE`, account.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	created := make(chan error, 1)
+	go func() {
+		_, createErr := service.CreateGuardianInvitation(testpkg.TenantContext(testpkg.Tenant(t)), identityaccess.GuardianInvitationRequest{
+			GuardianProfileID: profile.ID, CreatedBy: creator.ID,
+		})
+		created <- createErr
+	}()
+	require.Eventually(t, func() bool {
+		var waiting int
+		if scanErr := db.NewRaw(`SELECT count(*) FROM pg_stat_activity
+			WHERE datname = current_database() AND wait_event_type = 'Lock' AND query ILIKE '%auth.accounts%'`).
+			Scan(ctx, &waiting); scanErr != nil {
+			return false
+		}
+		return waiting > 0
+	}, 10*time.Second, 10*time.Millisecond, "creating the invitation must wait for the account the acceptance holds")
+
+	_, err = acceptance.NewRaw(`SELECT id FROM users.guardian_profiles WHERE id = ? FOR UPDATE`, profile.ID).Exec(ctx)
+	require.NoError(t, err, "the acceptance must get the profile: creating may not hold it while it waits for the account")
+	require.NoError(t, acceptance.Rollback())
+
+	select {
+	case createErr := <-created:
+		require.NoError(t, createErr)
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
 }
