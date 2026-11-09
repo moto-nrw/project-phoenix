@@ -131,9 +131,11 @@ export function HolidayPeriodPublishCard({
 }
 
 function registrationCountText(count: number): string {
-  if (count === 0) return "Es ist noch keine Anmeldung eingegangen.";
-  if (count === 1) return "Bisher ist 1 Anmeldung eingegangen.";
-  return `Bisher sind ${count} Anmeldungen eingegangen.`;
+  // „eingegangen“ is a status of the registrations list; the count here
+  // includes every registration.
+  if (count === 0) return "Noch keine Anmeldung.";
+  if (count === 1) return "Bisher 1 Anmeldung.";
+  return `Bisher ${count} Anmeldungen.`;
 }
 
 /** Der eine Link des Zeitraums für alle seine Schulen, im Elternportal. */

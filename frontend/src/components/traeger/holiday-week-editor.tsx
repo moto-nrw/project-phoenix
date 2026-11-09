@@ -115,6 +115,12 @@ function TimeModelRow({
         inputMode="decimal"
         placeholder="45,00"
         value={model.price}
+        // A booked time model: confirmed registrations keep their amount.
+        hint={
+          model.protected
+            ? "Gilt für Anmeldungen, die Sie danach bestätigen. Bestätigte behalten ihren Betrag."
+            : undefined
+        }
         error={fieldError(`${field}.price_cents`) ?? undefined}
         onChange={(event) => onChange({ ...model, price: event.target.value })}
       />
@@ -263,14 +269,8 @@ export function HolidayWeekEditor({
         </div>
 
         <div className="space-y-3">
-          <div>
-            <h5 className="text-sm font-semibold text-gray-900">Zeitmodelle</h5>
-            <p className="text-sm text-gray-500">
-              Zum Beispiel „bis 13 Uhr“ und „bis 16 Uhr“, jedes mit eigenem
-              Preis. Ein gebuchtes Zeitmodell archivieren Sie: die Buchungen
-              bleiben. Ein ungebuchtes entfernen Sie mit „×“.
-            </p>
-          </div>
+          {/* What a time model is stands once above the weeks. */}
+          <h5 className="text-sm font-semibold text-gray-900">Zeitmodelle</h5>
           {week.timeModels.every((model) => model.archived) ? (
             <p className="text-sm text-gray-600">
               Diese Woche hat noch kein buchbares Zeitmodell. Zum

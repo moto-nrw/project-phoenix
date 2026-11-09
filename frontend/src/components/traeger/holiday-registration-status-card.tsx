@@ -104,7 +104,7 @@ function debtorNumberText(set: boolean, invoiced: boolean): string {
     return `Sie steht im Schreiben als Verwendungszweck. Ändern geht, bis die Rechnung ausgestellt ist.${missing}`;
   }
   return set
-    ? "Die Rechnung ist ausgestellt. Sie behält diese Nummer. Ändern geht nicht mehr."
+    ? "Die Rechnung ist ausgestellt und behält ihre Nummer. Ändern geht nicht mehr."
     : `Die Rechnung ist ohne Debitorennummer ausgestellt. Eintragen geht nicht mehr.${missing}`;
 }
 
@@ -715,8 +715,9 @@ export function HolidayRegistrationStatusCard({
           ) : null}
           {contribution?.siblings?.length && contribution.siblingsInvoiced ? (
             <li>
-              Die Rechnung der Geschwister ist schon ausgestellt und ändert sich
-              nicht. Bei den Geschwistern steht dann „Rechnung prüfen“.
+              Die schon ausgestellte Rechnung der Geschwister bleibt, wie sie
+              ist. Den neuen Betrag zeigt dann ihre Anmeldung unter „Rechnung
+              prüfen“.
             </li>
           ) : null}
           {invoiced ? (

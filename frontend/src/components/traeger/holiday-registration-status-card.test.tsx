@@ -725,7 +725,7 @@ describe("HolidayRegistrationStatusCard", () => {
 
       expect(
         screen.getByText(
-          "Die Rechnung ist ausgestellt. Sie behält diese Nummer. Ändern geht nicht mehr.",
+          "Die Rechnung ist ausgestellt und behält ihre Nummer. Ändern geht nicht mehr.",
         ),
       ).toBeInTheDocument();
       expect(screen.getByText("10 4711")).toBeInTheDocument();

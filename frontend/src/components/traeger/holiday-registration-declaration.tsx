@@ -14,8 +14,8 @@ type DeclarationRegistration = Pick<
 
 function versionText(version: number): string {
   return version > 0
-    ? `Fassung ${version}`
-    : "Vor Fassung 2, Wortlaut nicht gespeichert";
+    ? `Version ${version}`
+    : "Vor Version 2, Wortlaut nicht gespeichert";
 }
 
 /** The declaration beside the consents in the parents' card. */
@@ -29,10 +29,10 @@ export function HolidayDeclarationFields({
           ? `Ja, am ${formatBerlinDate(registration.custodyConfirmedAt)}`
           : "Nein"}
       </DataField>
-      <DataField label="Name als Erklärung">
+      <DataField label="Unterschrieben mit Namen">
         {registration.declarationName || "Nicht angegeben"}
       </DataField>
-      <DataField label="Fassung der Texte">
+      <DataField label="Version der Texte">
         {versionText(registration.consentVersion)}
       </DataField>
     </>
@@ -50,7 +50,7 @@ export function HolidayDeclarationTextsCard({
     { label: "Gesundheitsangaben", text: texts.healthConsent },
     { label: "Verbindliche Anmeldung", text: texts.bindingConfirmed },
     { label: "Sorgerecht", text: texts.custodyConfirmed },
-    { label: "Name als Erklärung", text: texts.declarationName },
+    { label: "Unterschrift mit Namen", text: texts.declarationName },
   ].filter((entry) => entry.text !== "");
   return (
     <SectionCard

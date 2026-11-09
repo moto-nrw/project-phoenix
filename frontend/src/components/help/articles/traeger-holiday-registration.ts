@@ -23,7 +23,7 @@ export function traegerHolidayRegistrationTopic(): HelpTopic {
       "Geben Sie den Link an die Eltern weiter, zum Beispiel in einem Elternbrief der Schulen.",
     ],
     result:
-      "Eltern melden ihre Kinder über den Link an. Unter dem Link steht, wie viele Anmeldungen eingegangen sind.",
+      "Eltern melden ihre Kinder über den Link an. Unter dem Link steht, wie viele Anmeldungen es bisher gibt.",
     notes: [
       "Unter `Hinweise und Einwilligungen` öffnen Sie die PDFs. Setzen Sie die nötigen Häkchen. Die Zusammenfassung zeigt Ihre Bestätigungen.",
       "Eltern brauchen kein Elternkonto.",

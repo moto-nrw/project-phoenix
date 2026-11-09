@@ -157,9 +157,7 @@ describe("HolidayPeriodPublishCard", () => {
     expect(
       screen.getByText("http://parents.localhost:3000/ferienanmeldung/abc123"),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText("Bisher sind 3 Anmeldungen eingegangen."),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Bisher 3 Anmeldungen.")).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Anmeldungen prüfen" }),
     ).toHaveAttribute("href", "/traeger/ferien/5/anmeldungen");

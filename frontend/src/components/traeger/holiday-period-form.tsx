@@ -273,6 +273,12 @@ export function HolidayPeriodForm({
                 Sie dieselben Tage an mehreren Schulen anbieten? Legen Sie dafür
                 je Schule eine Woche an. Eltern wählen dann eine Schule.
               </p>
+              <p className="mt-2 text-sm text-gray-600">
+                Jede Woche hat Zeitmodelle, zum Beispiel „bis 13 Uhr“ und „bis
+                16 Uhr“, jedes mit eigenem Preis. Ein gebuchtes Zeitmodell
+                archivieren Sie: die Buchungen bleiben. Ein ungebuchtes
+                entfernen Sie mit „×“.
+              </p>
             </div>
             <div className="space-y-4">
               {draft.weeks.length === 0 ? (

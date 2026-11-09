@@ -10918,7 +10918,7 @@ export const traegerCareReductionsTopic =
             "Wählen Sie die Monate und die Schulen, für die die Regel gilt.",
             "Soll die Regel nur für einzelne Module gelten, wählen Sie die Module. Sonst lassen Sie das Feld leer.",
             "Wählen Sie die Wirkung: `Anteil weniger`, `Betrag weniger` oder `Fester Preis`. Tragen Sie die Zahl ein. Bei Geschwistern gibt es auch `Preis laut Preisliste`.",
-            "Wählen Sie `Regel speichern`.",
+            "Wählen Sie `Speichern`.",
           ],
         },
         {
@@ -11248,7 +11248,7 @@ export const traegerHolidayContributionTopic =
           steps: [
             "Wählen Sie unten in der Navigation `Einstellungen`.",
             "Wählen Sie `Abrechnungsvorgaben`.",
-            "Wählen Sie bei `Geschwister` den Knopf `Geschwisterregel hinzufügen`.",
+            "Wählen Sie bei `Geschwister` den Knopf `Geschwisterregel anlegen`.",
             "Tragen Sie ein, ab wann die Regel gilt. `Gilt bis` können Sie frei lassen.",
             "Wählen Sie `ab dem 2. Kind` oder `ab dem 3. Kind`.",
             "Wählen Sie `Anteil in Prozent` oder `Betrag in Euro` und tragen Sie den Wert ein. Zum Beispiel 50 für die Hälfte.",
@@ -11260,7 +11260,7 @@ export const traegerHolidayContributionTopic =
           description:
             "Die Regel gilt für alle Familien mit Leistungsbezug. Sie legen damit keine einzelne Familie an. Welche Familie befreit ist, wählen Sie beim Bestätigen der Anmeldung.",
           steps: [
-            "Wählen Sie bei `Befreiung bei Leistungsbezug` den Knopf `Befreiungsregel hinzufügen`.",
+            "Wählen Sie bei `Befreiung bei Leistungsbezug` den Knopf `Befreiungsregel anlegen`.",
             "Tragen Sie ein, ab wann die Regel gilt. `Gilt bis` können Sie frei lassen.",
             "Schreiben Sie den `Vermerk auf dem Beitrag`. Er steht bei jeder befreiten Familie.",
             "Wählen Sie `Speichern`.",
@@ -11538,7 +11538,7 @@ export const traegerHolidayRegistrationReviewTopic =
           steps: [
             "Prüfen Sie die Angaben der Eltern und der Kinder. Antworten auf eigene Fragen stehen beim Kind unter `Weitere Angaben`, allgemeine Antworten unter `Allgemeine Angaben`.",
             "Unter `Hinweise und Einwilligungen` sehen Sie, was die Eltern bestätigt haben und wann. Dort stehen die damaligen Texte und PDFs.",
-            "Unter `Eltern` stehen `Sorgerecht bestätigt`, `Name als Erklärung` und `Fassung der Texte`. Den genauen Text öffnen Sie unter `Wortlaut der Erklärung`.",
+            "Unter `Eltern` stehen `Sorgerecht bestätigt`, `Unterschrieben mit Namen` und `Version der Texte`. Den genauen Text öffnen Sie unter `Wortlaut der Erklärung`.",
             "Prüfen Sie unter `Ferienbeitrag`, was die Familie zahlt.",
             "Geben die Eltern an, dass sie Leistungen beziehen? Prüfen Sie den Nachweis. Haben die Eltern ihn hochgeladen, wählen Sie unter `Nachweis für den Leistungsbezug` den Dateinamen. Die Datei öffnet sich in einem neuen Tab.",
             "Bringt die Familie den Nachweis auf Papier, scannen Sie ihn. Wählen Sie unter `Nachweis für den Leistungsbezug` den Knopf `Nachweis hochladen` und dann die Datei. Erlaubt sind PDF, JPEG und PNG bis 10 MB.",
@@ -11679,7 +11679,7 @@ export const traegerHolidayRegistrationTopic =
         "Geben Sie den Link an die Eltern weiter, zum Beispiel in einem Elternbrief der Schulen.",
       ],
       result:
-        "Eltern melden ihre Kinder über den Link an. Unter dem Link steht, wie viele Anmeldungen eingegangen sind.",
+        "Eltern melden ihre Kinder über den Link an. Unter dem Link steht, wie viele Anmeldungen es bisher gibt.",
       notes: [
         "Unter `Hinweise und Einwilligungen` öffnen Sie die PDFs. Setzen Sie die nötigen Häkchen. Die Zusammenfassung zeigt Ihre Bestätigungen.",
         "Eltern brauchen kein Elternkonto.",

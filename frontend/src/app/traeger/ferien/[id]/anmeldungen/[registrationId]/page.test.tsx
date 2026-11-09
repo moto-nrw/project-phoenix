@@ -429,8 +429,8 @@ describe("TraegerHolidayRegistrationPage", () => {
     expect(field("Sorgerecht bestätigt")).toHaveTextContent(
       "Ja, am 03.09.2026",
     );
-    expect(field("Name als Erklärung")).toHaveTextContent("Eva Muster");
-    expect(field("Fassung der Texte")).toHaveTextContent("Fassung 3");
+    expect(field("Unterschrieben mit Namen")).toHaveTextContent("Eva Muster");
+    expect(field("Version der Texte")).toHaveTextContent("Version 3");
 
     const wording = screen.getByRole("heading", {
       name: "Wortlaut der Erklärung",
@@ -471,7 +471,7 @@ describe("TraegerHolidayRegistrationPage", () => {
       )!,
     );
     expect(
-      parents.getByText("Vor Fassung 2, Wortlaut nicht gespeichert"),
+      parents.getByText("Vor Version 2, Wortlaut nicht gespeichert"),
     ).toBeInTheDocument();
     expect(parents.getByText("Nicht angegeben")).toBeInTheDocument();
     expect(
