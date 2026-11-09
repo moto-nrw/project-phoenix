@@ -84,7 +84,7 @@ var parentBillingDatevDefinitions = func() []config.Definition {
 	fiscal.Type, fiscal.Options, fiscal.Default = config.FieldSelect, datevMonthOptions, "1"
 
 	revenue := datevDefinition(datevBookingGroup, config.KeyParentBillingDatevRevenueAccount, 60, "Erlöskonto für Elternbeiträge",
-		"Auf dieses Sachkonto bucht moto die Elternbeiträge. Es hat so viele Ziffern wie Ihre Sachkonten.")
+		"Auf dieses Sachkonto bucht moto die Elternbeiträge. Es hat höchstens so viele Ziffern wie Ihre Sachkonten.")
 	revenue.Validation = &config.ValidationRules{Pattern: &datevAccountPattern, AllowEmpty: true}
 
 	locked := datevDefinition(datevBookingGroup, config.KeyParentBillingDatevLocked, 70, "Buchungen festschreiben",
