@@ -17634,7 +17634,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/roots/owners.StudentStatusDayRepository.CountEffectiveDashboardAbsences",
-      "binding_digest": "bc73ca6c9d2cee0590b8f5f64acc30e3",
+      "binding_digest": "d3cb18acdeab737b21578f2eb195242f",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayOverviewRepository.CountEffectiveDashboardAbsences",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.CountEffectiveStudentAbsences",
@@ -17642,7 +17642,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/roots/owners.StudentStatusDayRepository.CountEffectiveDashboardAbsences",
-      "binding_digest": "5747c45150826b2328b6bbb2ca91324a",
+      "binding_digest": "222d68bb5f4a9ecaa2f3ffbca6e6ef4e",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayOverviewRepository.CountEffectiveDashboardAbsences",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.CountEffectiveStudentAbsences",
@@ -17866,7 +17866,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/roots/owners.StudentStatusDayRepository.CountEffectiveDashboardAbsences",
-      "binding_digest": "bc73ca6c9d2cee0590b8f5f64acc30e3",
+      "binding_digest": "d3cb18acdeab737b21578f2eb195242f",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayRepository.CountEffectiveDashboardAbsences",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.CountEffectiveStudentAbsences",
@@ -17874,7 +17874,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/roots/owners.StudentStatusDayRepository.CountEffectiveDashboardAbsences",
-      "binding_digest": "5747c45150826b2328b6bbb2ca91324a",
+      "binding_digest": "222d68bb5f4a9ecaa2f3ffbca6e6ef4e",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayRepository.CountEffectiveDashboardAbsences",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.CountEffectiveStudentAbsences",
