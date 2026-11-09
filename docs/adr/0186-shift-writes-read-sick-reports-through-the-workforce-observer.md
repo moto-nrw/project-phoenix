@@ -6,18 +6,19 @@ status: proposed
 
 Decision of 2026-11-09 for
 [#6302](https://github.com/moto-nrw/project-phoenix/issues/6302). It approves
-eight new command-effect diagnostics. It adds no owner, no policy rule, no
+eleven new command-effect diagnostics. It adds no owner, no policy rule, no
 lock and no runtime exception.
 
 ## Context
 
 The sick cascade cancels the shifts that exist when a sick report comes in.
 Before #6302 every shift planned later stayed planned: occurrences a shift
-series materialized, a single shift created for the sick day and a shift moved
-onto it. A sick person could also cover a colleague's cancelled shift. These
+series materialized, a single shift created for the sick day, and a shift moved
+or edited onto it. An edit that took a sick-cancelled shift to a healthy day
+kept it cancelled. A sick person could also cover a colleague's cancelled shift. These
 writes now read the staff member's open sick reports under the shift lock they
-already hold. A new shift on a full sick day takes the cascade's state, and a
-sick cover is refused. Past days stay history, as the cascade leaves them, so
+already hold. A new shift on a full sick day takes the cascade's state, a shift edited away
+from one leaves it, and a sick cover is refused. Past days stay history, as the cascade leaves them, so
 the single shift writes compare against the calendar-day clock.
 
 Two function values in that flow are opaque to the binding-flow scan of
@@ -38,8 +39,8 @@ An ADR already in the base cannot approve new diagnostics.
 |---|---|---|
 | `planning.SickReportReader.ListStaffAbsences` | `planning.Records.ListStaffAbsences` | `observe` |
 | `planning.Records.ListStaffAbsences` | `compose.WorkTime.ListStaffAbsences` | `observe` |
-| `workforce.StaffShiftPlanning.CreateShift`, `.MoveShift`, `.ApplyCancellation` | `planning.staffShiftPlanning` | `api.now` |
-| `planning.StaffShiftService.CreateShift`, `.MoveShift`, `.ApplyCancellation` | `planning.staffShiftService` | `api.now` |
+| `workforce.StaffShiftPlanning.CreateShift`, `.MoveShift`, `.UpdateShift`, `.ApplyCancellation` | `planning.staffShiftPlanning` | `api.now` |
+| `planning.StaffShiftService.CreateShift`, `.MoveShift`, `.UpdateShift`, `.UpdateShiftWithOptions`, `.ApplyCancellation` | `planning.staffShiftService` | `api.now` |
 
 ## Decision
 

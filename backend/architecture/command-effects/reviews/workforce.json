@@ -11121,6 +11121,18 @@
       "target_owner": ""
     },
     {
+      "adr": "0083",
+      "approval_adr": "0186",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.staffShiftPlanning.UpdateShift",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffShiftPlanning.UpdateShift",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:api.now, the calendar-day clock the series service already reads (ADR 0176). Reached through modules/workforce/internal/planning.staffShiftPlanning.UpdateShift: the shift writes compare against it to leave past days as history when they take a day's sick state (#6302), approved by ADR 0186; a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "workforce",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce.Capability.ListStaffTargetOverrides",
       "classification": "query",
       "effect": "query",
@@ -23715,6 +23727,30 @@
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.StaffShiftService.MoveShift",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:api.now, the calendar-day clock the series service already reads (ADR 0176). Reached through modules/workforce/internal/planning.staffShiftService.MoveShift: the shift writes compare against it to leave past days as history when they take a day's sick state (#6302), approved by ADR 0186; a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "workforce",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0186",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.staffShiftService.UpdateShift",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.StaffShiftService.UpdateShift",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:api.now, the calendar-day clock the series service already reads (ADR 0176). Reached through modules/workforce/internal/planning.staffShiftService.UpdateShift: the shift writes compare against it to leave past days as history when they take a day's sick state (#6302), approved by ADR 0186; a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "workforce",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0186",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.staffShiftService.UpdateShiftWithOptions",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.StaffShiftService.UpdateShiftWithOptions",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:api.now, the calendar-day clock the series service already reads (ADR 0176). Reached through modules/workforce/internal/planning.staffShiftService.UpdateShiftWithOptions: the shift writes compare against it to leave past days as history when they take a day's sick state (#6302), approved by ADR 0186; a changed value or closure needs a fresh approval ADR.",
       "source_owner": "workforce",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
       "target_owner": ""

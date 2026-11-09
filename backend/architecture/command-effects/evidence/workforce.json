@@ -7937,6 +7937,14 @@
       "target_owner": ""
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.staffShiftPlanning.UpdateShift",
+      "binding_digest": "7242ccd2ed0a3b746a58fb126dc66341",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffShiftPlanning.UpdateShift",
+      "source_owner": "workforce",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce.Capability.ListStaffTargetOverrides",
       "binding_digest": "bc80b55c98e1a330462328240b5431e9",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffTargetOverrideQuery.ListStaffTargetOverrides",
@@ -16924,6 +16932,22 @@
       "binding": "*github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.staffShiftService.MoveShift",
       "binding_digest": "7242ccd2ed0a3b746a58fb126dc66341",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.StaffShiftService.MoveShift",
+      "source_owner": "workforce",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.staffShiftService.UpdateShift",
+      "binding_digest": "7242ccd2ed0a3b746a58fb126dc66341",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.StaffShiftService.UpdateShift",
+      "source_owner": "workforce",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.staffShiftService.UpdateShiftWithOptions",
+      "binding_digest": "7242ccd2ed0a3b746a58fb126dc66341",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.StaffShiftService.UpdateShiftWithOptions",
       "source_owner": "workforce",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
       "target_owner": ""
