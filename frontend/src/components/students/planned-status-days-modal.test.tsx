@@ -738,6 +738,76 @@ describe("PlannedStatusDaysModal", () => {
     });
   });
 
+  // #5698: staff with the right to change partial excusals may replace one
+  // with the full-day status, but only after choosing it explicitly.
+  it("replaces a partial excusal only after the explicit choice", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <PlannedStatusDaysModal
+        isOpen
+        status="sick"
+        studentName="Kevin Anders"
+        isSubmitting={false}
+        existingDays={[]}
+        onClose={vi.fn()}
+        loadExistingDays={loadNoExistingDays}
+        loadPartialAbsences={() => Promise.resolve([existingPartialAbsence])}
+        onSubmit={onSubmit}
+        onDeletePartialAbsence={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Auswahl mit Konflikt"));
+    const choice = await screen.findByRole("checkbox", {
+      name: /Durch Krankmeldung ersetzen/,
+    });
+    expect(choice).not.toBeChecked();
+    expect(
+      screen.getByText("1 von 2 Tagen werden gespeichert"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(choice);
+    expect(
+      screen.getByText(
+        /27\.05\.2026 ist bereits ab 13:30 Uhr entschuldigt\. Dieser Eintrag wird ersetzt\. 2 Tage werden gespeichert\./,
+      ),
+    ).toBeInTheDocument();
+    await clickEnabledButton("Krankmelden");
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith(
+        ["2026-05-26", "2026-05-27"],
+        undefined,
+        { replacePartialAbsenceDates: ["2026-05-27"] },
+      );
+    });
+  });
+
+  it("offers no replacement without the right to change partial excusals", async () => {
+    render(
+      <PlannedStatusDaysModal
+        isOpen
+        status="sick"
+        studentName="Kevin Anders"
+        isSubmitting={false}
+        existingDays={[]}
+        onClose={vi.fn()}
+        loadExistingDays={loadNoExistingDays}
+        loadPartialAbsences={() => Promise.resolve([existingPartialAbsence])}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Auswahl mit Konflikt"));
+    expect(
+      await screen.findByText(/Dieser Tag bleibt unverändert\./),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("checkbox", { name: /ersetzen/ }),
+    ).not.toBeInTheDocument();
+  });
+
   it("ignores an automatic excusal from a pulled-forward pickup time", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
 

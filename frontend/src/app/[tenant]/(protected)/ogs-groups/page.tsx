@@ -38,7 +38,10 @@ import type {
 } from "~/components/ui/page-header/types";
 import type { Student } from "~/lib/student-helpers";
 import { teacherHintKey, teacherHintText } from "~/lib/student-helpers";
-import { isNotCheckedInLocation } from "~/lib/location-helper";
+import {
+  countedDayStatus,
+  isNotCheckedInLocation,
+} from "~/lib/location-helper";
 import {
   countCheckedInStudents,
   formatGroupLabelWithAttendance,
@@ -839,9 +842,12 @@ function OGSGroupPageContent() {
 
   const groupAbsenceOverview = useMemo(() => {
     const groupStudents = Array.isArray(students) ? students : [];
-    const sickCount = groupStudents.filter((student) => student.sick).length;
-    const excusedCount = groupStudents.filter(
-      (student) => !student.sick && student.excused,
+    // Ort vor Status (#6371): Ein eingechecktes Kind ist „da“; seine
+    // Krankmeldung oder Entschuldigung erhöht keinen dieser Zähler.
+    const statuses = groupStudents.map(countedDayStatus);
+    const sickCount = statuses.filter((status) => status === "sick").length;
+    const excusedCount = statuses.filter(
+      (status) => status === "excused",
     ).length;
 
     return {

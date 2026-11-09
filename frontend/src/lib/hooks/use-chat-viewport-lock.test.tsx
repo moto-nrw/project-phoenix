@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, render, act } from "@testing-library/react";
 import React from "react";
+import { releaseFakeTimers } from "~/test/clock";
 import {
   MIN_MESSAGE_LIST_PX,
   useChatViewportLock,
@@ -399,6 +400,39 @@ describe("useChatViewportLock — soft keyboard", () => {
     mockLayout(640, 320, 80, 2);
     fittedChat();
     expect(keyboardFlag()).toBe(false);
+  });
+
+  it("measures again after focus when the keyboard opens without a viewport event", () => {
+    // Installed iPhone app: the keyboard shrinks the visual viewport, but no
+    // resize event reaches the page. The composer stayed behind the keyboard
+    // until the first typed letter.
+    let visualHeight = 640;
+    window.innerHeight = 640;
+    const viewport = new EventTarget();
+    Object.defineProperty(viewport, "height", { get: () => visualHeight });
+    Object.defineProperty(viewport, "scale", { value: 1 });
+    Object.defineProperty(window, "visualViewport", {
+      value: viewport,
+      configurable: true,
+    });
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
+      new DOMRect(0, 80, 360, 0),
+    );
+    vi.useFakeTimers();
+    try {
+      const chat = fittedChat();
+      expect(chat?.style.height).toBe("448px");
+
+      visualHeight = 300;
+      act(() => {
+        chat?.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+        vi.advanceTimersByTime(1000);
+      });
+
+      expect(chat?.style.height).toBe("220px");
+    } finally {
+      releaseFakeTimers();
+    }
   });
 
   it("clears the keyboard flag when the chat unmounts", () => {

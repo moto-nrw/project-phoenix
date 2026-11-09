@@ -33,6 +33,7 @@ func NewExcusedAbsenceRequestService(
 	scope carePlanCompose.ReviewScopeResolver, emitter eventContract.Emitter,
 	broadcaster realtime.Broadcaster, events peopledirectory.ParentRequestEvents, notifier deliveryCompose.AbsenceNotifier,
 	shares carePlanCompose.ShareVisibility, observe CarePlanObserver, logger *slog.Logger, today func() timezone.Date,
+	partialAbsences careplan.PartialAbsenceService,
 ) (*carePlanCompose.ExcusedAbsenceRequests, error) {
 	var messenger carePlanCompose.RequestMessenger
 	if emitter != nil {
@@ -58,7 +59,7 @@ func NewExcusedAbsenceRequestService(
 		CarePlan: carePlan, Students: students, Persons: persons,
 		Scope: scope, Today: day, Logger: logger, Observe: observe,
 		Messenger: messenger, Broadcaster: staff, Ledger: ledger,
-		Notifier: absences, Shares: shares,
+		Notifier: absences, Shares: shares, PartialAbsences: partialAbsences,
 	})
 }
 

@@ -820,6 +820,53 @@ describe("OGSGroupPage", () => {
     });
   });
 
+  // Ort vor Status (#6371): Ein eingechecktes Kind ist „da“, seine
+  // Krankmeldung oder Entschuldigung erhöht keinen Zähler.
+  it("does not count a checked-in child as sick or excused", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: liveData({
+        students: [
+          wireStudent({
+            id: 1,
+            first_name: "Max",
+            last_name: "Mustermann",
+            current_location: "Anwesend - Raum 101",
+            sick: true,
+          }),
+          wireStudent({
+            id: 2,
+            first_name: "Mia",
+            last_name: "Musterfrau",
+            current_location: "Schulhof",
+            excused: true,
+          }),
+          wireStudent({
+            id: 3,
+            first_name: "Ben",
+            last_name: "Beispiel",
+            current_location: "Zuhause",
+            sick: true,
+          }),
+        ],
+        roomStatus: {
+          "1": { in_group_room: true },
+          "2": { in_group_room: false },
+          "3": { in_group_room: false },
+        },
+      }),
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<OGSGroupPage />);
+
+    expect(
+      await screen.findByText(/von 3 da · 1 krank · 0 entschuldigt$/),
+    ).toBeInTheDocument();
+  });
+
   it("renders the student card with pickup time from the aggregated pickupTimes Map", async () => {
     // Array→Map wire conversion is tested in ogs-group-live-api.test.ts;
     // the page only ever sees the already-mapped Map.

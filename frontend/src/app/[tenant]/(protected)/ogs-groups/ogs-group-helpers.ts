@@ -1,6 +1,6 @@
 import type { Student } from "~/lib/student-helpers";
 import {
-  isPresentLocation,
+  isCheckedInLocation,
   isAtSchoolLocation,
   isInClassLocation,
   isHomeLocation,
@@ -29,11 +29,7 @@ type StudentLocationLike = {
 };
 
 export function isStudentCheckedIn(student: StudentLocationLike): boolean {
-  return (
-    isPresentLocation(student.current_location) ||
-    isSchoolyardLocation(student.current_location) ||
-    isTransitLocation(student.current_location)
-  );
+  return isCheckedInLocation(student.current_location);
 }
 
 export function countCheckedInStudents(
