@@ -1237,7 +1237,7 @@ export interface ParentDeclarationChild {
 }
 
 /** A standing consent to an older wording of an Einverständnis. */
-export interface ParentDeclarationEarlierConsent {
+interface ParentDeclarationEarlierConsent {
   readonly version: {
     readonly id: string;
     readonly version_no: number;
