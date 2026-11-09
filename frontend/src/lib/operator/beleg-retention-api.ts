@@ -123,7 +123,7 @@ export interface BelegClarification {
   readonly lastReview: BelegClarificationReview | null;
 }
 
-export interface BelegClarificationReview {
+interface BelegClarificationReview {
   readonly note: string;
   readonly escalated: boolean;
   readonly escalationReason: string;
