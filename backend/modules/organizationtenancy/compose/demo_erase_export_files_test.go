@@ -41,7 +41,7 @@ func leaveVisitorExportFiles(t *testing.T, db *bun.DB, schoolID int64) []int64 {
 }
 
 // The export files that held an invoice or a Jahresbescheid of a retired
-// demo school go with the visitor (erasure of 1.15.843, tables of 1.15.851, #6015); a file of a school of
+// demo school go with the visitor (erasure of 1.15.843, tables of 1.15.854, #6015); a file of a school of
 // the same Träger that is still open stays with its links.
 func TestDemoSchoolQueueErasesTheExportFilesOfTheRetiredSchool(t *testing.T) {
 	t.Parallel()

@@ -7,16 +7,17 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const parentBillingExportFilesVersion = "1.15.851"
+const parentBillingExportFilesVersion = "1.15.854"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     parentBillingExportFilesVersion,
 		Description: "Elternabrechnung: Exportprotokoll, Dateinummer je Träger, Sollstellung mit Feldzuordnung, Debitorennummer der Familie (#4693)",
 		DependsOn: []string{
-			demoVisitorErasureOutboxKindsVersion, // the newest migration on development; its erasure already removes these export files
-			parentBillingSEPADebitsVersion,       // the PAIN.008 file the protocol records too
-			parentBillingCareNoticesVersion,      // the Jahresbescheide whose installments a PAIN.008 file collects
+			parentBillingOnlineSEPAMandatesVersion, // the newest migration on development (1.15.852)
+			demoVisitorErasureOutboxKindsVersion,   // its erasure already removes these export files
+			parentBillingSEPADebitsVersion,         // the PAIN.008 file the protocol records too
+			parentBillingCareNoticesVersion,        // the Jahresbescheide whose installments a PAIN.008 file collects
 		},
 	})
 	Migrations.MustRegister(parentBillingExportFilesUp, parentBillingExportFilesDown)
