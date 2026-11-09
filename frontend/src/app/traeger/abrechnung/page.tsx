@@ -33,6 +33,7 @@ import type {
 } from "~/components/ui/page-header/types";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
+import { ListSkeleton } from "~/components/ui/page-skeletons";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
@@ -275,7 +276,14 @@ function BillingRunsPage() {
         </Button>
       }
       error={pageLoad.error}
-      loading={!pageLoad.error && !data}
+      // A list loads in the shape of its rows.
+      loading={
+        !pageLoad.error && !data ? (
+          <ListSkeleton rows={6} avatar={false} />
+        ) : (
+          false
+        )
+      }
       overlays={
         data ? (
           <BillingRunStartModal

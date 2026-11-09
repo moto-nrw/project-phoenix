@@ -45,6 +45,7 @@ import { hasPermission } from "~/lib/auth-utils";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { SelectionBar } from "~/components/ui/selection-bar";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
+import { ListSkeleton } from "~/components/ui/page-skeletons";
 import {
   useApiErrorDisplay,
   useApiLoadError,
@@ -495,7 +496,14 @@ export default function TraegerVertraegePage() {
         </Button>
       }
       error={pageLoad.error}
-      loading={!pageLoad.error && !data}
+      // A list loads in the shape of its rows.
+      loading={
+        !pageLoad.error && !data ? (
+          <ListSkeleton rows={6} avatar={false} />
+        ) : (
+          false
+        )
+      }
       overlays={
         data ? (
           <CareContractCreateModal

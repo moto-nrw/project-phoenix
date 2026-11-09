@@ -34,6 +34,7 @@ import type {
 } from "~/components/ui/page-header/types";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
+import { ListSkeleton } from "~/components/ui/page-skeletons";
 import { Button } from "~/components/ui/button";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { parentsConcept } from "~/lib/concepts/parents";
@@ -273,7 +274,14 @@ export default function TraegerBillingFamiliesPage() {
       activeFilters={activeFilters}
       onClearAllFilters={() => setOpenFilter("")}
       error={pageLoad.error}
-      loading={!pageLoad.error && !families}
+      // A list loads in the shape of its rows.
+      loading={
+        !pageLoad.error && !families ? (
+          <ListSkeleton rows={6} avatar={false} />
+        ) : (
+          false
+        )
+      }
     >
       {families ? (
         <>

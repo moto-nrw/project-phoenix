@@ -18,6 +18,7 @@ import {
 } from "~/components/traeger/sepa-mandates-card";
 import type { FilterConfig } from "~/components/ui/page-header/types";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
+import { ListSkeleton } from "~/components/ui/page-skeletons";
 import { hasPermission } from "~/lib/auth-utils";
 
 type Show = "in_force" | "revoked" | "all";
@@ -86,7 +87,14 @@ export default function TraegerLastschriftPage() {
       info={INFO}
       tabs={billingTabs("lastschrift")}
       error={error}
-      loading={canBill && !error && mandates === null}
+      // A list loads in the shape of its rows.
+      loading={
+        canBill && !error && mandates === null ? (
+          <ListSkeleton rows={6} avatar={false} />
+        ) : (
+          false
+        )
+      }
       stats={
         mandates ? (
           <TenantPageStats
