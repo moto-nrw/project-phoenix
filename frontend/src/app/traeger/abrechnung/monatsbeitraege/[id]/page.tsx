@@ -27,6 +27,8 @@ import {
 import {
   careDebitItems,
   debitHints,
+  debitOpenPoints,
+  debitsHaltRelease,
 } from "~/components/traeger/care-debit-hints";
 import { CareLettersSummaryCard } from "~/components/traeger/care-letters-summary-card";
 import {
@@ -258,9 +260,10 @@ export default function TraegerCareRunPage() {
   const excluded = run?.invoices.filter((invoice) => invoice.exclusion) ?? [];
   // What the preview still asks to check, repeated where the release is
   // decided: numbers are final afterwards.
-  const debitHintCount = preview
-    ? debitHints(careDebitItems(run.invoices)).length
-    : 0;
+  const runDebitHints = preview ? debitHints(careDebitItems(run.invoices)) : [];
+  const debitPoints = debitOpenPoints(runDebitHints);
+  // The release refuses a direct debit without mandate: no button for it.
+  const releaseHalted = debitsHaltRelease(runDebitHints);
   const uncounted = preview ? (run.uncountedFamilies ?? 0) : 0;
   const mealOpen = preview
     ? run.mealGaps.filter((gap) => !gap.expired).length
@@ -272,9 +275,7 @@ export default function TraegerCareRunPage() {
     0,
   );
   const releaseOpenPoints = [
-    debitHintCount > 0
-      ? `${familiesLabel(debitHintCount)}: Die Lastschrift klappt so nicht.`
-      : null,
+    ...debitPoints,
     uncounted > 0
       ? `${familiesLabel(uncounted)} ohne bestätigte Kinderzahl.`
       : null,
@@ -334,11 +335,16 @@ export default function TraegerCareRunPage() {
             isOpen={confirming}
             title="Monatslauf freigeben?"
             confirmText={
-              releaseOpenPoints.length > 0 ? "Trotzdem freigeben" : "Freigeben"
+              releaseOpenPoints.length > 0 && !releaseHalted
+                ? "Trotzdem freigeben"
+                : "Freigeben"
             }
             confirmVariant={
-              releaseOpenPoints.length > 0 ? "warning" : "primary"
+              releaseOpenPoints.length > 0 && !releaseHalted
+                ? "warning"
+                : "primary"
             }
+            isConfirmDisabled={releaseHalted}
             isConfirmLoading={releasing}
             loadingText="Wird freigegeben …"
             onClose={() => setConfirming(false)}

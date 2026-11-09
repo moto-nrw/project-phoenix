@@ -11,6 +11,7 @@ import { EditActions } from "~/components/ui/edit-actions";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
   PAYMENT_METHODS,
@@ -19,10 +20,18 @@ import {
   saveRunDueDates,
 } from "~/lib/traeger-billing-terms-api";
 import { PAYMENT_METHOD_LABELS } from "./billing-payment-format";
+import {
+  type DebitItem,
+  debitHints,
+  termDueDates,
+  tooEarlyHint,
+} from "./care-debit-hints";
 
 const logger = createLogger({ component: "RunDueDatesForm" });
 
 type Draft = Record<PaymentMethod, string>;
+
+const NO_DEBIT_ITEMS: readonly DebitItem[] = [];
 
 function draftOf(dates: readonly RunDueDate[]): Draft {
   const draft: Draft = { transfer: "", direct_debit: "" };
@@ -35,16 +44,41 @@ export function RunDueDatesForm({
   kind,
   runId,
   dueDates,
+  debitItems = NO_DEBIT_ITEMS,
+  prenotificationDays = null,
   onCancel,
   onSaved,
 }: Readonly<{
   kind: "care" | "holiday";
   runId: string;
   dueDates: readonly RunDueDate[];
+  /** The run's invoices: the date that applies without one, and debits
+   * that come too early (#4695). */
+  debitItems?: readonly DebitItem[];
+  /** The creditor's pre-notification days; null while unknown. */
+  prenotificationDays?: number | null;
   onCancel: () => void;
   onSaved: (dates: RunDueDate[]) => void;
 }>) {
   const [draft, setDraft] = useState<Draft>(() => draftOf(dueDates));
+  const saved = draftOf(dueDates);
+  const termDates = termDueDates(debitItems);
+  const earlyHint = tooEarlyHint(debitHints(debitItems), prenotificationDays);
+  // Under each field: the day that applies while it is empty, and for the
+  // direct debit the families it reaches too early, as long as the saved day
+  // stands (another day is checked once it is saved).
+  const hintFor = (method: PaymentMethod): string | undefined => {
+    const term = termDates[method];
+    const parts = [
+      draft[method] === "" && term
+        ? `Ohne Datum gilt der ${formatDate(term)}.`
+        : null,
+      method === "direct_debit" && draft[method] === saved[method]
+        ? earlyHint
+        : null,
+    ].filter(Boolean);
+    return parts.length > 0 ? parts.join(" ") : undefined;
+  };
   const [saving, setSaving] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
@@ -94,6 +128,7 @@ export function RunDueDatesForm({
             name={method}
             label={`${PAYMENT_METHOD_LABELS[method]} fällig am`}
             value={draft[method]}
+            hint={hintFor(method)}
             error={formErrors.fieldError(method) ?? undefined}
             onChange={(value) =>
               setDraft((current) => ({ ...current, [method]: value }))

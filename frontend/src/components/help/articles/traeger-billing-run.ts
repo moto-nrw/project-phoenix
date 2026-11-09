@@ -65,7 +65,7 @@ export function traegerBillingRunTopic(): HelpTopic {
         steps: [
           "Wählen Sie `Lauf freigeben`.",
           "Prüfen Sie Zahl und Summe der Rechnungen und wählen Sie `Freigeben`.",
-          "Steht im Dialog `Noch offen`, klären Sie diese Punkte zuerst. Oder Sie geben mit `Trotzdem freigeben` frei.",
+          "Steht im Dialog `Noch offen`, klären Sie diese Punkte zuerst. Oder Sie geben mit `Trotzdem freigeben` frei. Zahlt eine Familie per Lastschrift ohne gültiges Mandat, geben Sie erst frei, wenn das Mandat da ist oder die Familie überweist.",
         ],
       },
       {

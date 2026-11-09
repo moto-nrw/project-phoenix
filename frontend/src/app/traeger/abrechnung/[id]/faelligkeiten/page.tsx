@@ -7,6 +7,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { holidayDebitItems } from "~/components/traeger/care-debit-hints";
 import { RunDueDatesForm } from "~/components/traeger/run-due-dates-form";
 import { Alert } from "~/components/ui/alert";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -16,6 +17,7 @@ import {
   type BillingRunDetail,
   fetchBillingRun,
 } from "~/lib/traeger-billing-api";
+import { fetchSepaCreditor } from "~/lib/traeger-sepa-api";
 import { traegerPath } from "~/lib/traeger-url";
 
 const logger = createLogger({ component: "TraegerHolidayRunDueDatesPage" });
@@ -48,6 +50,28 @@ export default function TraegerHolidayRunDueDatesPage() {
     void load();
   }, [load]);
 
+  // The pre-notification days name the rule under the direct debit date.
+  const [prenotificationDays, setPrenotificationDays] = useState<number | null>(
+    null,
+  );
+  useEffect(() => {
+    let current = true;
+    fetchSepaCreditor()
+      .then((creditor) => {
+        if (current) setPrenotificationDays(creditor.prenotificationDays);
+      })
+      .catch((err: unknown) => {
+        // Silent on purpose: the hint then names the rule without its days,
+        // and the dates save as before.
+        logger.warn("traeger_run_due_dates_creditor_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+    return () => {
+      current = false;
+    };
+  }, []);
+
   return (
     <TenantPage
       title="Fälligkeiten"
@@ -70,6 +94,8 @@ export default function TraegerHolidayRunDueDatesPage() {
           kind="holiday"
           runId={run.id}
           dueDates={run.dueDates ?? []}
+          debitItems={holidayDebitItems(run.documents)}
+          prenotificationDays={prenotificationDays}
           onCancel={() => router.push(runHref)}
           onSaved={() => router.push(runHref)}
         />

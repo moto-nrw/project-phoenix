@@ -22,12 +22,11 @@ import {
 import { BillingCarriedCorrectionsCard } from "~/components/traeger/billing-carried-corrections-card";
 import {
   debitHints,
+  debitOpenPoints,
+  debitsHaltRelease,
   holidayDebitItems,
 } from "~/components/traeger/care-debit-hints";
-import {
-  ReleaseOpenPoints,
-  familiesLabel,
-} from "~/components/traeger/release-open-points";
+import { ReleaseOpenPoints } from "~/components/traeger/release-open-points";
 import {
   BillingCostTakeoverCard,
   runCostTakeovers,
@@ -214,9 +213,12 @@ export default function TraegerBillingRunPage() {
   const paymentTextGaps = preview ? run.paymentTextMissingDebtorNumbers : 0;
   // What the preview still asks to check, repeated where the release is
   // decided: numbers are final afterwards.
-  const debitHintCount = preview
-    ? debitHints(holidayDebitItems(run.documents)).length
-    : 0;
+  const runDebitHints = preview
+    ? debitHints(holidayDebitItems(run.documents))
+    : [];
+  const debitPoints = debitOpenPoints(runDebitHints);
+  // The release refuses a direct debit without mandate: no button for it.
+  const releaseHalted = debitsHaltRelease(runDebitHints);
   const carriedCount = preview
     ? run.documents.reduce(
         (sum, document) =>
@@ -229,9 +231,7 @@ export default function TraegerBillingRunPage() {
       )
     : 0;
   const openPoints = [
-    debitHintCount > 0
-      ? `${familiesLabel(debitHintCount)}: Die Lastschrift klappt so nicht.`
-      : null,
+    ...debitPoints,
     carriedCount > 0
       ? carriedCount === 1
         ? "1 übernommene Korrektur aus einer stornierten Rechnung."
@@ -314,8 +314,15 @@ export default function TraegerBillingRunPage() {
             <ConfirmationModal
               isOpen={confirmingRelease}
               title="Lauf freigeben?"
-              confirmText={releaseWarns ? "Trotzdem freigeben" : "Freigeben"}
-              confirmVariant={releaseWarns ? "warning" : "primary"}
+              confirmText={
+                releaseWarns && !releaseHalted
+                  ? "Trotzdem freigeben"
+                  : "Freigeben"
+              }
+              confirmVariant={
+                releaseWarns && !releaseHalted ? "warning" : "primary"
+              }
+              isConfirmDisabled={releaseHalted}
               isConfirmLoading={releasing}
               loadingText="Wird freigegeben …"
               onClose={() => setConfirmingRelease(false)}
