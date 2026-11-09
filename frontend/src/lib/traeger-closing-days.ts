@@ -31,12 +31,12 @@ export interface TraegerCalendarSchool {
   readonly federalStateName: string;
 }
 
-export interface TraegerHoliday {
+interface TraegerHoliday {
   readonly date: string;
   readonly name: string;
 }
 
-export interface TraegerRegionHolidays {
+interface TraegerRegionHolidays {
   readonly code: string;
   readonly name: string;
   readonly holidays: readonly TraegerHoliday[];
@@ -75,9 +75,7 @@ interface BackendCalendar {
 
 const basePath = "/api/traeger/closing-days";
 
-export function mapTraegerClosingDay(
-  day: BackendClosingDay,
-): TraegerClosingDay {
+function mapTraegerClosingDay(day: BackendClosingDay): TraegerClosingDay {
   return {
     id: String(day.id),
     startDate: day.start_date,
@@ -87,7 +85,7 @@ export function mapTraegerClosingDay(
   };
 }
 
-export function mapTraegerCalendar(
+function mapTraegerCalendar(
   data: BackendCalendar | null | undefined,
 ): TraegerCalendar {
   return {

@@ -213,7 +213,7 @@ export function TraegerClosingDayModal({
 }
 
 /** Prüfung vor dem Senden. Schlüssel sind die Feldnamen des Backends. */
-export function closingDayFieldErrors(
+function closingDayFieldErrors(
   reason: string,
   startDate: string,
   endDate: string,

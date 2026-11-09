@@ -61,7 +61,7 @@ export function closingDaySchoolsLabel(
   return names.length > 0 ? names.join(", ") : "–";
 }
 
-export type CalendarDayKind = "holiday" | "closing";
+type CalendarDayKind = "holiday" | "closing";
 
 export interface CalendarDayMark {
   readonly kind: CalendarDayKind;
