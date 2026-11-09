@@ -245,7 +245,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // modules/parentbilling/compose adds exactly 7 LOC.
 // ADR 0181: the SEPA debit constructor (+5).
 // ADR 0183: bank cipher (+6), rekey (+5).
-const moduleComposeBudgetTotal = 13158
+const moduleComposeBudgetTotal = 13155
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -367,7 +367,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/transactionruntime/compose": 137,
 	// Raised by ADR 0141: the payroll dispatch constructor (+9).
 	// ADR 0151: the school figure constructor (+13).
-	"modules/workforce/compose":         909,
+	"modules/workforce/compose":         906,
 	"workflows/catererportal/compose":   37, // added by ADR 0077
 	"workflows/gradetransition/compose": 49,
 	"workflows/openroommove/compose":    46,
