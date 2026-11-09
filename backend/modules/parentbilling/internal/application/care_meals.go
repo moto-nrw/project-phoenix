@@ -202,7 +202,7 @@ func (c *CareBilling) addMeals(ctx context.Context, organizationID int64, run pa
 		return err
 	}
 	from := calendar.NewDate(run.BillingMonth.Year(), run.BillingMonth.Month()-(careMealHorizon-1), 1)
-	releases, err := c.meals.ReleasedMealMonths(ctx, organizationID, monthEnd(run.BillingMonth))
+	releases, err := c.meals.ReleasedMealMonths(ctx, organizationID, from, monthEnd(run.BillingMonth))
 	if err != nil {
 		return fmt.Errorf("parent billing: read the released Mensa months: %w", err)
 	}
@@ -297,11 +297,16 @@ func mealTariffOn(tariffs []parentbilling.CareMealTariff, schoolID int64, month 
 // next month; a held or unpriced contract stays out with its reason
 // shown elsewhere. An ended month without a release is a gap.
 func billMeals(month *careMonth, in careMealInput) {
+	from := calendar.NewDate(in.month.Year(), in.month.Month()-(careMealHorizon-1), 1)
+	// Bound identity matching and billing to the same inclusive window,
+	// including when a caller supplies releases outside the store's range.
+	in.releases = slices.DeleteFunc(slices.Clone(in.releases), func(release parentbilling.CareMealRelease) bool {
+		return release.Month.Before(from) || release.Month.After(in.month)
+	})
 	in.childNames = mealChildNames(in)
 	in.contracts, in.contractOrder = versionsByContract(in.versions)
 	month.mealGaps, month.mealUnbilled = []parentbilling.CareMealGap{}, []parentbilling.CareMealUnbilled{}
 	month.mealChanged = []parentbilling.CareMealChanged{}
-	from := calendar.NewDate(in.month.Year(), in.month.Month()-(careMealHorizon-1), 1)
 	released := map[CareMealKey]parentbilling.CareMealRelease{}
 	for _, release := range in.releases {
 		released[CareMealKey{SchoolID: release.SchoolID, Month: release.Month}] = release

@@ -172,7 +172,7 @@ func TestDocumentPushChecksFindNothingOfAnotherTraegerBeneathRLS(t *testing.T) {
 	contract := pushContract(t, f.db, f.office.organization, f.office.schools[0], chain.StudentID, chain.Email)
 
 	documents := organizationtenancyCompose.NewSharedTraegerDocuments()
-	contracts := careContractCompose.NewInbox()
+	contracts := careContractCompose.NewInbox(nil)
 	parent := organizationtenancy.TraegerDocumentParent{AccountID: chain.AccountID, Schools: map[int64][]int64{f.office.schools[0]: {}}}
 	unit := tenant.WithUnitOfWork(context.Background(), testpkg.TenantRuntime(t, f.db))
 	check := func(organization int64) (releaseFound, isNew, contractFound bool) {

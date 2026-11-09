@@ -282,7 +282,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareMeals.ReleasedMealMonths",
-      "binding_digest": "9e605a32c6b997d7004019ae14044b8a",
+      "binding_digest": "49e0a1be23c0880db29468e9c269e064",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareMeals.ReleasedMealMonths",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/mealplan.TraegerMealMonths.ReleasedMealMonths",
@@ -311,6 +311,14 @@
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
       "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.parentMandateParties.Recipients",
+      "binding_digest": "b83bf6aa9a2504b2a0fef19f2b645a28",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.ContractParties.Recipients",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/carecontract.ContractBilling.BillingRecipients",
+      "target_owner": "care-contract"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.DatevSettings",
@@ -463,6 +471,22 @@
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayPlaces.SetHolidayWeekCapacity",
       "target_owner": "enrollment"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.parentOnlineMandateSettings.OnlineMandateTerms",
+      "binding_digest": "1c729a97a6c1e2e4f37466d64f290c77",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.OnlineMandateSettings.OnlineMandateTerms",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerBools",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.parentOnlineMandateSettings.OnlineMandateTerms",
+      "binding_digest": "2add2000f7292a285681f7f2c650a4d7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.OnlineMandateSettings.OnlineMandateTerms",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareContracts.Recipients",

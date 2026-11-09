@@ -2524,6 +2524,10 @@ export interface ParentDocument {
    * inbox shows „Vertrag widerrufen“ (§ 356a BGB, #6105).
    */
   readonly can_withdraw_contract?: boolean;
+  readonly sepa_mandate?: {
+    readonly enabled: boolean;
+    readonly collection_eligible: boolean;
+  };
 }
 
 /**

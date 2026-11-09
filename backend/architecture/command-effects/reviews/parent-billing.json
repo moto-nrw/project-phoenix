@@ -360,7 +360,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareMeals.ReleasedMealMonths",
-      "reason": "Reviewed read: the released Mensa months of the schools of the session's Träger with the meals per child only, read through schedule.traeger_meal_billing_children in its Träger transaction; the monthly run copies them onto the invoices and records the read in its own trail (#4686).",
+      "reason": "Reviewed read: the released Mensa months within the caller's inclusive calendar window, of the schools of the session's Träger with the meals per child only, read through schedule.traeger_meal_billing_children and its billing_month lower bound in its Träger transaction; the monthly run copies them onto the invoices and records the read in its own trail (#4686).",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/mealplan.TraegerMealMonths.ReleasedMealMonths",
       "target_owner": "meal-plan"
@@ -394,6 +394,16 @@
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
       "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.parentMandateParties.Recipients",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.ContractParties.Recipients",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/carecontract.ContractBilling.BillingRecipients: the name of the billing party of the one contract the parents portal checked, read in its Träger transaction to propose the account holder of a new online SEPA mandate (#4696).",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/carecontract.ContractBilling.BillingRecipients",
+      "target_owner": "care-contract"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingSettings.DatevSettings",
@@ -594,6 +604,26 @@
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayPlaces.SetHolidayWeekCapacity",
       "target_owner": "enrollment"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.parentOnlineMandateSettings.OnlineMandateTerms",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.OnlineMandateSettings.OnlineMandateTerms",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerBools: whether the Träger takes the SEPA mandate in the parents portal (its value of parent_billing.online_mandate or the registry default, off), read in its Träger transaction before every read and change of a parent's mandate (#4696).",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerBools",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.parentOnlineMandateSettings.OnlineMandateTerms",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.OnlineMandateSettings.OnlineMandateTerms",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerTexts: the letterhead text of the Träger, which names it with its postal address for the mandate text the parents confirm, read in its Träger transaction only while the online mandate is on (#4696).",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareContracts.Recipients",
