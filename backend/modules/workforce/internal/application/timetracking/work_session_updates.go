@@ -369,7 +369,13 @@ func (s *workSessionService) assertNoBlockOverlap(ctx context.Context, staffID i
 // clock entirely (#2402); an admin IS the person who repairs it, so there a
 // Nachtrag keeps being refused while an open block is unresolved.
 func (s *workSessionService) closeStaleOpenBlock(ctx context.Context, session *WorkSession, at time.Time) error {
-	if err := s.endActiveBreakIfExists(ctx, session.ID, at); err != nil {
+	usable, err := inBestEffortSavepoint(ctx, func(ctx context.Context) error {
+		return s.endActiveBreakIfExists(ctx, session.ID, at)
+	})
+	if !usable {
+		return fmt.Errorf("failed to end active break of stale work session %d: %w", session.ID, err)
+	}
+	if err != nil {
 		// Mirrors CleanupOpenSessions: a break that cannot be ended must not
 		// keep the block open — that would leave the staff member unable to
 		// stamp, which is the very lockout this repair exists to prevent.
@@ -377,7 +383,7 @@ func (s *workSessionService) closeStaleOpenBlock(ctx context.Context, session *W
 			slog.Int64("session_id", session.ID),
 			slog.String("error", err.Error()))
 	}
-	_, err := s.repo.CloseWorkSession(ctx, session.ID, at, true)
+	_, err = s.repo.CloseWorkSession(ctx, session.ID, at, true)
 	if err = workSessionWriteError("close session", err); err != nil {
 		return fmt.Errorf("failed to close stale work session %d: %w", session.ID, err)
 	}

@@ -103,5 +103,5 @@ func runAutoCheckoutWithNotDueSessions(t *testing.T, notDue int) autoCheckoutSta
 
 func newAutoCheckoutService(t *testing.T, db *testpkg.DB, workTime workforceCompose.WorkTime) timetracking.WorkSessionService {
 	t.Helper()
-	return newCheckoutServiceWithSupervisions(t, db, workTime, api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db)).GroupSupervisor)
+	return newWorkSessionTestService(t, db, workTime, workTime, api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db)).GroupSupervisor)
 }

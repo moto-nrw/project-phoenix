@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
@@ -152,4 +153,86 @@ func TestCleanupOpenSessions_ClosesSessionsCheckedInAfterTheirDay(t *testing.T) 
 	require.Len(t, breaks, 1)
 	require.NotNil(t, breaks[0].EndedAt)
 	assert.True(t, breaks[0].EndedAt.Equal(breakStart), "the break never ends before it started")
+}
+
+// failingBreakEnd refuses ending a break with a database error inside the
+// cleanup's transaction. In PostgreSQL such an error aborts the whole
+// transaction unless a savepoint contains it.
+type failingBreakEnd struct {
+	timetracking.WorkSessionBreakRecords
+}
+
+func (failingBreakEnd) EndWorkSessionBreak(ctx context.Context, _ int64, _ time.Time, _ int) (int64, error) {
+	return 0, testpkg.FailInCurrentTransaction(ctx)
+}
+
+// TestCleanupOpenSessions_BreakEndFailureStillClosesTheSession pins the
+// promise "continue cleanup even if break ending fails" against a real
+// transaction (#6288): a failed break end used to abort the cleanup's
+// transaction, so the session close and every later step failed with it.
+func TestCleanupOpenSessions_BreakEndFailureStillClosesTheSession(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	workTime := owners.MustNewWorkforce(testpkg.NewDatabase(t, db))
+	staff := testpkg.CreateTestStaff(t, db, "Pause", "Bleibt")
+	session := &timetracking.WorkSession{
+		StaffID: staff.ID, Date: cleanupStaleDay,
+		Status: workforce.WorkSessionStatusPresent, Source: workforce.WorkSessionSourceApp,
+		CheckInTime: cleanupStaleDay.BerlinMidnight().Add(8 * time.Hour), CreatedBy: staff.ID,
+	}
+	session.SetTenantID(testpkg.Tenant(t))
+	createSessionFixture(t, workTime, ctx, session)
+	running := &timetracking.WorkSessionBreak{SessionID: session.ID, StartedAt: session.CheckInTime.Add(4 * time.Hour)}
+	running.SetTenantID(testpkg.Tenant(t))
+	createBreakFixture(t, workTime, ctx, running)
+
+	service := newWorkSessionTestService(t, db, workTime, failingBreakEnd{WorkSessionBreakRecords: workTime},
+		api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db)).GroupSupervisor)
+	var closed int
+	err := testpkg.WithinTenantContext(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context) error {
+		var runErr error
+		closed, runErr = service.CleanupOpenSessions(txCtx)
+		return runErr
+	})
+	require.NoError(t, err, "a failed break end must not fail the nightly close")
+	assert.Equal(t, 1, closed)
+	stored, err := workTime.ListWorkSessions(ctx, workforce.WorkSessionFilter{StaffID: staff.ID})
+	require.NoError(t, err)
+	require.Len(t, stored, 1)
+	require.NotNil(t, stored[0].CheckOutTime, "the session closes")
+	assert.True(t, stored[0].CheckOutTime.Equal(cleanupStaleDay.EndOfDay()))
+}
+
+// TestCheckIn_StaleBlockBreakEndFailureStillChecksIn covers the same promise
+// on the check-in repair of a forgotten block (#6288): a break that cannot be
+// ended must not keep the person from stamping.
+func TestCheckIn_StaleBlockBreakEndFailureStillChecksIn(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	workTime := owners.MustNewWorkforce(testpkg.NewDatabase(t, db))
+	staff := testpkg.CreateTestStaff(t, db, "Vergessen", "Pause")
+	stale := &timetracking.WorkSession{
+		StaffID: staff.ID, Date: cleanupStaleDay,
+		Status: workforce.WorkSessionStatusPresent, Source: workforce.WorkSessionSourceApp,
+		CheckInTime: cleanupStaleDay.BerlinMidnight().Add(8 * time.Hour), CreatedBy: staff.ID,
+	}
+	stale.SetTenantID(testpkg.Tenant(t))
+	createSessionFixture(t, workTime, ctx, stale)
+	running := &timetracking.WorkSessionBreak{SessionID: stale.ID, StartedAt: stale.CheckInTime.Add(4 * time.Hour)}
+	running.SetTenantID(testpkg.Tenant(t))
+	createBreakFixture(t, workTime, ctx, running)
+
+	service := newWorkSessionTestService(t, db, workTime, failingBreakEnd{WorkSessionBreakRecords: workTime},
+		api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db)).GroupSupervisor)
+	err := testpkg.WithinTenantContext(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context) error {
+		_, checkInErr := service.CheckIn(txCtx, staff.ID, workforce.WorkSessionStatusPresent, workforce.WorkSessionSourceApp, "")
+		return checkInErr
+	})
+	require.NoError(t, err, "a failed break end must not lock the person out of the clock")
+	open, err := workTime.ListWorkSessions(ctx, workforce.WorkSessionFilter{StaffID: staff.ID, Open: new(true)})
+	require.NoError(t, err)
+	require.Len(t, open, 1)
+	assert.NotEqual(t, stale.ID, open[0].ID, "the forgotten block is closed and a new one runs")
 }

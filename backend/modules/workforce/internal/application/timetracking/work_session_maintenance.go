@@ -2,6 +2,7 @@ package timetracking
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -54,6 +55,9 @@ func (s *workSessionService) CleanupOpenSessions(ctx context.Context) (int, erro
 
 		// End any active break before closing the session
 		if err := s.endCleanupBreak(ctx, session.ID, activeBreaks[session.ID], breakErr, closeAt); err != nil {
+			if errors.Is(err, tenant.ErrSavepointControl) {
+				return count, err
+			}
 			s.getLogger().WarnContext(ctx, "failed to end active break during cleanup",
 				slog.Int64("session_id", session.ID),
 				slog.String("error", err.Error()))
@@ -129,7 +133,13 @@ func (s *workSessionService) endCleanupBreak(ctx context.Context, sessionID int6
 	if activeBreak == nil {
 		return nil
 	}
-	return s.endFoundActiveBreak(ctx, sessionID, activeBreak, endAt)
+	// The savepoint keeps a failed break end from aborting the session close
+	// and the rest of the nightly cleanup (#6288); only a failed savepoint
+	// itself comes back as tenant.ErrSavepointControl.
+	_, err := inBestEffortSavepoint(ctx, func(ctx context.Context) error {
+		return s.endFoundActiveBreak(ctx, sessionID, activeBreak, endAt)
+	})
+	return err
 }
 
 func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace time.Duration) (int, error) {

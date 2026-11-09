@@ -265,28 +265,32 @@ func (s *workSessionService) endFoundActiveBreak(ctx context.Context, sessionID 
 	return nil
 }
 
+// inBestEffortSavepoint runs a best-effort step in a savepoint when ctx
+// carries a transaction, so the step's database error cannot abort the
+// writes around it (#6288). It returns the step's error; usable is false only
+// when the savepoint itself failed and the transaction is lost.
+func inBestEffortSavepoint(ctx context.Context, fn func(context.Context) error) (usable bool, err error) {
+	if _, inTransaction := tenant.TransactionFromContext(ctx); !inTransaction {
+		return true, fn(ctx)
+	}
+	err = tenant.WithSavepoint(ctx, fn)
+	return !errors.Is(err, tenant.ErrSavepointControl), err
+}
+
 // endActiveSupervisionsOnCheckout ends all active supervisions for a staff
-// member. It is best effort: inside a transaction it runs in a savepoint, so a
-// failure only leaves the supervisions open and never rolls back the
-// checkout (#6288). Only a failed savepoint, which leaves the transaction
-// unusable, is returned.
+// member. It is best effort: a failure only leaves the supervisions open and
+// never rolls back the checkout. Only a failed savepoint is returned.
 func (s *workSessionService) endActiveSupervisionsOnCheckout(ctx context.Context, staffID int64) error {
 	if s.GroupSupervisorRepository == nil {
 		return nil
 	}
 	ended := 0
-	end := func(ctx context.Context) error {
-		var err error
-		ended, err = s.endActiveSupervisionsWithGroupLocks(ctx, staffID)
-		return err
-	}
-	var err error
-	if _, inTransaction := tenant.TransactionFromContext(ctx); inTransaction {
-		err = tenant.WithSavepoint(ctx, end)
-	} else {
-		err = end(ctx)
-	}
-	if errors.Is(err, tenant.ErrSavepointControl) {
+	usable, err := inBestEffortSavepoint(ctx, func(ctx context.Context) error {
+		var endErr error
+		ended, endErr = s.endActiveSupervisionsWithGroupLocks(ctx, staffID)
+		return endErr
+	})
+	if !usable {
 		return fmt.Errorf("failed to end active supervisions on checkout: %w", err)
 	}
 	if err != nil {

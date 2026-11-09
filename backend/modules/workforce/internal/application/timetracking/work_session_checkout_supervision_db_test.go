@@ -49,7 +49,7 @@ func TestAutoCheckout_SupervisionEndFailureKeepsTheCheckout(t *testing.T) {
 
 	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	supervisions := &failingSupervisions{GroupSupervisorRepository: reposPresence.GroupSupervisor}
-	service := newCheckoutServiceWithSupervisions(t, db, workTime, supervisions)
+	service := newWorkSessionTestService(t, db, workTime, workTime, supervisions)
 	var closed int
 	err := testpkg.WithinTenantContext(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context) error {
 		var runErr error
@@ -65,14 +65,16 @@ func TestAutoCheckout_SupervisionEndFailureKeepsTheCheckout(t *testing.T) {
 	assert.NotNil(t, stored[0].CheckOutTime, "the checkout commits")
 }
 
-func newCheckoutServiceWithSupervisions(t *testing.T, db *testpkg.DB, workTime workforceCompose.WorkTime, supervisions timetracking.GroupSupervisorRepository) timetracking.WorkSessionService {
+// newWorkSessionTestService composes the work-session service over the test
+// database with replaceable break records and supervisions.
+func newWorkSessionTestService(t *testing.T, db *testpkg.DB, workTime workforceCompose.WorkTime, breaks timetracking.WorkSessionBreakRecords, supervisions timetracking.GroupSupervisorRepository) timetracking.WorkSessionService {
 	t.Helper()
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	reposMembership := api.NewSchoolMembershipSuiteRepositories(testpkg.NewDatabase(t, db))
 	reposAbsences := api.NewStaffAbsenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
 	return timetracking.NewWorkSessionService(
-		workTime, workTime, owners.NewWorkSessionAudit(owners.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).WorkSessionEdit), reposAbsences.StaffAbsence,
+		workTime, breaks, owners.NewWorkSessionAudit(owners.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).WorkSessionEdit), reposAbsences.StaffAbsence,
 		supervisions, reposPresence.ActiveGroup, owners.WorkSessionStaff(reposPeople.Staff, api.MustNewStaffEmployment(testpkg.MustDatabase(db)), reposMembership.Membership), owners.NewWorkSessionSchedules(owners.NewStaffWorkScheduleRepository(workTime)), owners.NewWorkSessionTimeModels(owners.NewWorkTimeModelRepository(workTime)),
 		snapshotSessionSettings{}, nil, db, owners.RenderTimeTrackingPDF,
 		owners.RenderTimeTrackingWorkbook,
