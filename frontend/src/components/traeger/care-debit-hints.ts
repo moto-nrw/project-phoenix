@@ -9,7 +9,8 @@ import type {
 } from "~/lib/traeger-billing-terms-api";
 import type { CareInvoice } from "~/lib/traeger-care-billing-api";
 import { familiesLabel } from "~/components/traeger/release-open-points";
-import { formatDate } from "~/lib/date-helpers";
+import { addDays } from "date-fns/addDays";
+import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 
 function childName(invoice: CareInvoice): string {
   return `${invoice.childFirstName} ${invoice.childLastName}`.trim();
@@ -116,6 +117,20 @@ function haltingHints(hints: readonly DebitHint[]): DebitHint[] {
   );
 }
 
+/** The due day all given hints share, or "" when they differ. */
+function sharedDueDay(hints: readonly DebitHint[]): string {
+  const days = new Set(hints.map((hint) => hint.item.payment?.dueOn ?? ""));
+  return days.size === 1 ? ([...days][0] ?? "") : "";
+}
+
+/**
+ * The first day a debit may come: the pre-notification days after the
+ * invoice date (`notice_short` in the backend: due before issued + days).
+ */
+export function earliestDebitDay(issuedOn: string, days: number): string {
+  return toISODate(addDays(parseISODate(issuedOn), days));
+}
+
 /** Whether the release would be refused for a debit without mandate. */
 export function debitsHaltRelease(hints: readonly DebitHint[]): boolean {
   return haltingHints(hints).length > 0;
@@ -126,16 +141,24 @@ export function debitsHaltRelease(hints: readonly DebitHint[]): boolean {
  * a debit without mandate or creditor identifier, which the release refuses.
  * A family that falls back to a transfer pays all the same: no open point.
  */
-export function debitOpenPoints(hints: readonly DebitHint[]): string[] {
-  const tooEarly = hints.filter((hint) => hint.dueTooSoon).length;
+export function debitOpenPoints(
+  hints: readonly DebitHint[],
+  /** The first day the pre-notification allows, when the run knows it. */
+  earliest?: string | null,
+): string[] {
+  const early = hints.filter((hint) => hint.dueTooSoon);
+  const tooEarly = early.length;
   const halted = haltingHints(hints);
   const creditorMissing = halted.some(
     (hint) => hint.item.payment?.debitGap === "creditor_missing",
   );
+  const day = sharedDueDay(early);
   return [
-    tooEarly > 0
-      ? `${familiesLabel(tooEarly)}: Abbuchung früher als Ihre Vorabankündigung erlaubt.`
-      : null,
+    tooEarly === 0
+      ? null
+      : earliest
+        ? `${familiesLabel(tooEarly)}: ${day ? `Abbuchung am ${formatDate(day)} ist zu früh` : "Abbuchung zu früh"}, frühestens am ${formatDate(earliest)}.`
+        : `${familiesLabel(tooEarly)}: Abbuchung früher als Ihre Vorabankündigung erlaubt.`,
     halted.length === 0
       ? null
       : creditorMissing
@@ -175,15 +198,24 @@ export function termDueDates(
 export function tooEarlyHint(
   hints: readonly DebitHint[],
   prenotificationDays: number | null,
+  /** The run's invoice date, when it is set: the hint names the first day. */
+  issuedOn?: string | null,
 ): string | undefined {
   const early = hints.filter((hint) => hint.dueTooSoon);
   if (early.length === 0) return undefined;
-  const days = new Set(early.map((hint) => hint.item.payment?.dueOn ?? ""));
-  const day = days.size === 1 ? [...days][0] : "";
+  const day = sharedDueDay(early);
   const when = day ? `der ${formatDate(day)}` : "die Abbuchung";
+  const span =
+    prenotificationDays === null
+      ? ""
+      : prenotificationDays === 1
+        ? "1 Tag"
+        : `${prenotificationDays} Tage`;
   const rule =
     prenotificationDays === null
       ? "Ihre Vorabankündigung braucht mehr Vorlauf."
-      : `Abbuchung frühestens ${prenotificationDays === 1 ? "1 Tag" : `${prenotificationDays} Tage`} nach dem Rechnungsdatum.`;
+      : issuedOn
+        ? `Abbuchung frühestens am ${formatDate(earliestDebitDay(issuedOn, prenotificationDays))}, ${span} nach dem Rechnungsdatum.`
+        : `Abbuchung frühestens ${span} nach dem Rechnungsdatum.`;
   return `Für ${familiesLabel(early.length)} ist ${when} zu früh. ${rule}`;
 }

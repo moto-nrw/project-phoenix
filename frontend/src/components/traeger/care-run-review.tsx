@@ -38,6 +38,7 @@ import {
 } from "./care-debit-hints";
 export { careDebitItems, debitHints, holidayDebitItems };
 import { formatEuro } from "./contribution-format";
+import { familiesLabel } from "./release-open-points";
 
 const logger = createLogger({ component: "CareRunReview" });
 
@@ -206,15 +207,18 @@ const DEBIT_HINTS_SHOWN = 5;
 export function HolidayDebitHintsCard({
   documents,
   dueDatesHref,
+  earliest,
 }: Readonly<{
   documents: readonly BillingDocument[];
   /** The run's due-date page, for a debit that comes too early. */
   dueDatesHref?: string;
+  earliest?: string | null;
 }>) {
   return (
     <DebitHintsCard
       items={holidayDebitItems(documents)}
       dueDatesHref={dueDatesHref}
+      earliest={earliest}
     />
   );
 }
@@ -223,15 +227,19 @@ export function HolidayDebitHintsCard({
 export function CareDebitHintsCard({
   invoices,
   dueDatesHref,
+  earliest,
 }: Readonly<{
   invoices: readonly CareInvoice[];
   /** The run's due-date page, for a debit that comes too early. */
   dueDatesHref?: string;
+  /** The first day the pre-notification allows, when the run knows it. */
+  earliest?: string | null;
 }>) {
   return (
     <DebitHintsCard
       items={careDebitItems(invoices)}
       dueDatesHref={dueDatesHref}
+      earliest={earliest}
     />
   );
 }
@@ -239,7 +247,13 @@ export function CareDebitHintsCard({
 function DebitHintsCard({
   items,
   dueDatesHref,
-}: Readonly<{ items: readonly DebitItem[]; dueDatesHref?: string }>) {
+  earliest = null,
+}: Readonly<{
+  items: readonly DebitItem[];
+  dueDatesHref?: string;
+  /** The first day the pre-notification allows, when the run knows it. */
+  earliest?: string | null;
+}>) {
   const [expanded, setExpanded] = useState(false);
   const hints = debitHints(items);
   if (hints.length === 0) return null;
@@ -248,31 +262,47 @@ function DebitHintsCard({
   );
   const shown = expanded ? hints : hints.slice(0, DEBIT_HINTS_SHOWN);
   // A debit that comes too early is fixed once for the whole run, by a later
-  // date: the card says it once and carries the one way there.
-  const tooSoon = dueDatesHref
-    ? hints.filter((hint) => hint.dueTooSoon).length
-    : 0;
-  const tooSoonText =
-    tooSoon === 0
-      ? ""
-      : tooSoon === hints.length
-        ? "Bei diesen Familien kommt die Abbuchung früher als Ihre Vorabankündigung erlaubt. Legen Sie für den Lauf eine spätere Fälligkeit fest."
-        : `Bei ${tooSoon === 1 ? "1 Familie" : `${tooSoon} Familien`} kommt sie früher als Ihre Vorabankündigung erlaubt. Legen Sie für den Lauf eine spätere Fälligkeit fest.`;
+  // date: the card says it once and carries the one way there. A family
+  // that falls back to a transfer needs nothing before the release: it is
+  // named, but not counted as open.
+  const tooSoon = hints.filter((hint) => hint.dueTooSoon).length;
+  const transfers = hints.filter(
+    (hint) => !hint.dueTooSoon && hint.item.payment?.method === "transfer",
+  ).length;
+  const halted = hints.length - tooSoon - transfers;
+  const open = tooSoon + halted;
+  const subject = (count: number) =>
+    count === hints.length
+      ? "Bei diesen Familien"
+      : `Bei ${familiesLabel(count)}`;
+  const description = creditorMissing
+    ? "Ohne Gläubiger-ID buchen Sie bei keiner Familie ab. Tragen Sie sie unter Einstellungen → Abrechnungsvorgaben ein."
+    : [
+        tooSoon > 0
+          ? `${subject(tooSoon)} kommt die Abbuchung früher als Ihre Vorabankündigung erlaubt${earliest ? `, frühestens am ${formatDate(earliest)}` : ""}. Legen Sie für den Lauf eine spätere Fälligkeit fest.`
+          : null,
+        halted > 0
+          ? `${subject(halted)} fehlt ein gültiges Mandat. Klären Sie das vor der Freigabe.`
+          : null,
+        transfers > 0
+          ? transfers === hints.length
+            ? "Diese Familien zahlen per Überweisung, weil ein gültiges Mandat fehlt."
+            : `${familiesLabel(transfers)} ${transfers === 1 ? "zahlt" : "zahlen"} per Überweisung, weil ein gültiges Mandat fehlt.`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" ");
   return (
     <SectionCard
       title="Lastschrift"
       titleBadge={
         <span className="text-sm font-normal text-gray-600 tabular-nums">
-          {hints.length === 1 ? "1 Familie" : `${hints.length} Familien`}
+          {open > 0
+            ? `${familiesLabel(open)} offen`
+            : familiesLabel(hints.length)}
         </span>
       }
-      description={
-        creditorMissing
-          ? "Ohne Gläubiger-ID buchen Sie bei keiner Familie ab. Tragen Sie sie unter Einstellungen → Abrechnungsvorgaben ein."
-          : tooSoon === hints.length
-            ? tooSoonText
-            : `Bei diesen Familien klappt die Abbuchung so nicht. Klären Sie das vor der Freigabe.${tooSoonText ? ` ${tooSoonText}` : ""}`
-      }
+      description={description}
       actions={
         creditorMissing ? (
           <ButtonLink
@@ -311,7 +341,7 @@ function DebitHintsCard({
               </p>
               <p className="mt-0.5 text-sm text-gray-700">
                 {dueTooSoon && dueDatesHref && item.payment
-                  ? `Abbuchung am ${formatDate(item.payment.dueOn)}: zu früh.`
+                  ? `Abbuchung am ${formatDate(item.payment.dueOn)}: zu früh${earliest ? `, frühestens am ${formatDate(earliest)}` : ""}.`
                   : text}
               </p>
             </div>

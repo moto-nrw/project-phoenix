@@ -8,6 +8,7 @@ import {
 } from "./care-run-review";
 import {
   debitOpenPoints,
+  earliestDebitDay,
   termDueDates,
   tooEarlyHint,
 } from "./care-debit-hints";
@@ -248,6 +249,19 @@ describe("due date hints (#4695)", () => {
       "Für 2 Familien ist der 04.01.2027 zu früh. Ihre Vorabankündigung braucht mehr Vorlauf.",
     );
     expect(tooEarlyHint([], 5)).toBeUndefined();
+  });
+
+  // With the run's invoice date the first allowed day is a date, not a rule
+  // to compute: issued 31.12.2026 plus 5 days.
+  it("names the first allowed debit day once the invoice date is known", () => {
+    expect(earliestDebitDay("2026-11-30", 5)).toBe("2026-12-05");
+    const hints = debitHints(careDebitItems([early]));
+    expect(tooEarlyHint(hints, 5, "2026-12-31")).toBe(
+      "Für 1 Familie ist der 04.01.2027 zu früh. Abbuchung frühestens am 05.01.2027, 5 Tage nach dem Rechnungsdatum.",
+    );
+    expect(debitOpenPoints(hints, "2027-01-05")).toEqual([
+      "1 Familie: Abbuchung am 04.01.2027 ist zu früh, frühestens am 05.01.2027.",
+    ]);
   });
 });
 

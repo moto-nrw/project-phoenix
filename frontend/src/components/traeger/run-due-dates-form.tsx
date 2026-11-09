@@ -46,6 +46,7 @@ export function RunDueDatesForm({
   dueDates,
   debitItems = NO_DEBIT_ITEMS,
   prenotificationDays = null,
+  issuedOn = null,
   onCancel,
   onSaved,
 }: Readonly<{
@@ -57,13 +58,19 @@ export function RunDueDatesForm({
   debitItems?: readonly DebitItem[];
   /** The creditor's pre-notification days; null while unknown. */
   prenotificationDays?: number | null;
+  /** The run's invoice date, when set: the hint names the first day. */
+  issuedOn?: string | null;
   onCancel: () => void;
   onSaved: (dates: RunDueDate[]) => void;
 }>) {
   const [draft, setDraft] = useState<Draft>(() => draftOf(dueDates));
   const saved = draftOf(dueDates);
   const termDates = termDueDates(debitItems);
-  const earlyHint = tooEarlyHint(debitHints(debitItems), prenotificationDays);
+  const earlyHint = tooEarlyHint(
+    debitHints(debitItems),
+    prenotificationDays,
+    issuedOn,
+  );
   // Under each field: the day that applies while it is empty, and for the
   // direct debit the families it reaches too early, as long as the saved day
   // stands (another day is checked once it is saved).

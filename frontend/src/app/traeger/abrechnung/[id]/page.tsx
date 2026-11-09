@@ -264,33 +264,43 @@ export default function TraegerBillingRunPage() {
               label={BILLING_RUN_STATUS_LABELS[run.status]}
               tone={BILLING_RUN_STATUS_TONES[run.status]}
             />
-            {canOpenPeriod ? (
+          </HolidayHeadFacts>
+        ) : null
+      }
+      statsLoading={!run && !pageLoad.error}
+      // The cross-link stands with the actions, as „Zur Abrechnung“ does on
+      // the registrations; the status line carries only facts.
+      actions={
+        (run && canOpenPeriod) || preview ? (
+          <>
+            {run && canOpenPeriod ? (
               <ButtonLink
                 href={traegerPath(
                   `/traeger/ferien/${encodeURIComponent(run.holidayPeriodId)}`,
                 )}
                 variant="outline"
-                size="compact"
+                size="md"
               >
-                <MotoConceptIcon concept={holidayWeeksConcept} size={16} />
+                <MotoConceptIcon
+                  concept={holidayWeeksConcept}
+                  size={18}
+                  className="mr-2"
+                />
                 Zum Ferienzeitraum
               </ButtonLink>
             ) : null}
-          </HolidayHeadFacts>
-        ) : null
-      }
-      statsLoading={!run && !pageLoad.error}
-      actions={
-        preview ? (
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            disabled={!canRelease}
-            onClick={() => setConfirmingRelease(true)}
-          >
-            Lauf freigeben
-          </Button>
+            {preview ? (
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                disabled={!canRelease}
+                onClick={() => setConfirmingRelease(true)}
+              >
+                Lauf freigeben
+              </Button>
+            ) : null}
+          </>
         ) : undefined
       }
       error={pageLoad.error}
@@ -343,7 +353,22 @@ export default function TraegerBillingRunPage() {
                   message={`${invoicesWithoutDebtorNumber(paymentTextGaps)} Ihr Zahlungstext nennt aber die Debitorennummer. Nach dem Freigeben können Sie sie nicht mehr eintragen. Schreiben gehen dann nur ohne den Platzhalter im Zahlungstext.`}
                 />
               ) : null}
-              <ReleaseOpenPoints points={openPoints} />
+              <ReleaseOpenPoints
+                points={openPoints}
+                action={
+                  runDebitHints.some((hint) => hint.dueTooSoon) ? (
+                    <ButtonLink
+                      href={traegerPath(
+                        `/traeger/abrechnung/${run.id}/faelligkeiten`,
+                      )}
+                      variant="ghost_tone"
+                      size="compact"
+                    >
+                      Fälligkeiten ändern
+                    </ButtonLink>
+                  ) : undefined
+                }
+              />
             </ConfirmationModal>
           </>
         ) : null

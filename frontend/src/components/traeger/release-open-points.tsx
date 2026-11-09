@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Alert } from "~/components/ui/alert";
 
 /** „1 Familie“ / „3 Familien“. */
@@ -12,7 +13,12 @@ export function familiesLabel(count: number): string {
  */
 export function ReleaseOpenPoints({
   points,
-}: Readonly<{ points: readonly string[] }>) {
+  action,
+}: Readonly<{
+  points: readonly string[];
+  /** The way to fix a point before releasing, e.g. „Fälligkeiten ändern“. */
+  action?: ReactNode;
+}>) {
   if (points.length === 0) return null;
   return (
     <Alert
@@ -20,6 +26,7 @@ export function ReleaseOpenPoints({
       announce="off"
       className="mt-3"
       title="Noch offen"
+      action={action}
       message={
         <ul className="list-disc space-y-1 pl-4">
           {points.map((point) => (

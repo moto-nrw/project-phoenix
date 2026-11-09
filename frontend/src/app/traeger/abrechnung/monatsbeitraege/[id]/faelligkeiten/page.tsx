@@ -10,6 +10,7 @@ import { useCallback, useEffect, useState } from "react";
 import { formatMonth } from "~/components/traeger/care-billing-format";
 import { careDebitItems } from "~/components/traeger/care-debit-hints";
 import { RunDueDatesForm } from "~/components/traeger/run-due-dates-form";
+import { usePrenotificationDays } from "~/components/traeger/use-prenotification-days";
 import { Alert } from "~/components/ui/alert";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useApiLoadError } from "~/contexts/ToastContext";
@@ -18,7 +19,6 @@ import {
   type CareRunDetail,
   fetchCareRun,
 } from "~/lib/traeger-care-billing-api";
-import { fetchSepaCreditor } from "~/lib/traeger-sepa-api";
 import { traegerPath } from "~/lib/traeger-url";
 
 const logger = createLogger({ component: "TraegerCareRunDueDatesPage" });
@@ -52,26 +52,7 @@ export default function TraegerCareRunDueDatesPage() {
   }, [load]);
 
   // The pre-notification days name the rule under the direct debit date.
-  const [prenotificationDays, setPrenotificationDays] = useState<number | null>(
-    null,
-  );
-  useEffect(() => {
-    let current = true;
-    fetchSepaCreditor()
-      .then((creditor) => {
-        if (current) setPrenotificationDays(creditor.prenotificationDays);
-      })
-      .catch((err: unknown) => {
-        // Silent on purpose: the hint then names the rule without its days,
-        // and the dates save as before.
-        logger.warn("traeger_run_due_dates_creditor_load_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-      });
-    return () => {
-      current = false;
-    };
-  }, []);
+  const prenotificationDays = usePrenotificationDays();
 
   return (
     <TenantPage
@@ -97,6 +78,7 @@ export default function TraegerCareRunDueDatesPage() {
           dueDates={run.dueDates ?? []}
           debitItems={careDebitItems(run.invoices)}
           prenotificationDays={prenotificationDays}
+          issuedOn={run.invoiceDate}
           onCancel={() => router.push(runHref)}
           onSaved={() => router.push(runHref)}
         />

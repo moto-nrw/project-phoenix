@@ -29,7 +29,9 @@ import {
   debitHints,
   debitOpenPoints,
   debitsHaltRelease,
+  earliestDebitDay,
 } from "~/components/traeger/care-debit-hints";
+import { usePrenotificationDays } from "~/components/traeger/use-prenotification-days";
 import { CareLettersSummaryCard } from "~/components/traeger/care-letters-summary-card";
 import {
   ReleaseOpenPoints,
@@ -261,13 +263,26 @@ export default function TraegerCareRunPage() {
   // What the preview still asks to check, repeated where the release is
   // decided: numbers are final afterwards.
   const runDebitHints = preview ? debitHints(careDebitItems(run.invoices)) : [];
-  const debitPoints = debitOpenPoints(runDebitHints);
+  const tooEarly = runDebitHints.some((hint) => hint.dueTooSoon);
+  // With an invoice date the first allowed debit day is known and named.
+  const prenotificationDays = usePrenotificationDays(tooEarly);
+  const earliestDebit =
+    preview && run.invoiceDate && prenotificationDays !== null
+      ? earliestDebitDay(run.invoiceDate, prenotificationDays)
+      : null;
+  const dueDatesHref = run
+    ? `/traeger/abrechnung/monatsbeitraege/${run.id}/faelligkeiten`
+    : "";
+  const debitPoints = debitOpenPoints(runDebitHints, earliestDebit);
   // The release refuses a direct debit without mandate: no button for it.
   const releaseHalted = debitsHaltRelease(runDebitHints);
   const uncounted = preview ? (run.uncountedFamilies ?? 0) : 0;
-  const mealOpen = preview
-    ? run.mealGaps.filter((gap) => !gap.expired).length
-    : 0;
+  const openMealGaps = preview
+    ? run.mealGaps.filter((gap) => !gap.expired)
+    : [];
+  const mealOpen = openMealGaps.length;
+  // Gaps are school-months: across schools the count is no calendar span.
+  const mealSchools = new Set(openMealGaps.map((gap) => gap.schoolId)).size;
   const unpriced = preview ? run.unpriced.length : 0;
   // What cost bearers pay apart from the families, named in the release.
   const takeoverCents = (run?.costBearers ?? []).reduce(
@@ -282,7 +297,9 @@ export default function TraegerCareRunPage() {
     mealOpen > 0
       ? mealOpen === 1
         ? "1 Mensa-Monat ohne Freigabe der Schule. Ein späterer Lauf rechnet ihn ab."
-        : `${mealOpen} Mensa-Monate ohne Freigabe der Schule. Ein späterer Lauf rechnet sie ab.`
+        : mealSchools > 1
+          ? `Mensa: Freigabe fehlt an ${mealSchools} Schulen, zusammen ${mealOpen} Monate. Ein späterer Lauf rechnet sie ab.`
+          : `${mealOpen} Mensa-Monate ohne Freigabe der Schule. Ein späterer Lauf rechnet sie ab.`
       : null,
     unpriced > 0
       ? unpriced === 1
@@ -379,7 +396,20 @@ export default function TraegerCareRunPage() {
                 neuen Lauf nach, wenn ein Vertrag beendet ist.
               </p>
             ) : null}
-            <ReleaseOpenPoints points={releaseOpenPoints} />
+            <ReleaseOpenPoints
+              points={releaseOpenPoints}
+              action={
+                tooEarly ? (
+                  <ButtonLink
+                    href={traegerPath(dueDatesHref)}
+                    variant="ghost_tone"
+                    size="compact"
+                  >
+                    Fälligkeiten ändern
+                  </ButtonLink>
+                ) : undefined
+              }
+            />
           </ConfirmationModal>
         ) : null
       }
@@ -482,12 +512,8 @@ export default function TraegerCareRunPage() {
                   "Nach dem Zahlungsziel der Leistung")
                 )}
               </DataField>
-              <DataField label="Rechnungen">
-                <span className="tabular-nums">
-                  {invoiceCountLabel(run.previewCount)} ·{" "}
-                  {formatEuro(run.previewCents)}
-                </span>
-              </DataField>
+              {/* Count and sum stand in the head, the excluded invoices
+                  in their own card: no second time here. */}
               <DataField label="Abgerechnet wird">
                 Module nach Vertrag, Mensa nach Freigabe der Schule
               </DataField>
@@ -514,14 +540,6 @@ export default function TraegerCareRunPage() {
                   "Noch kein Muster"
                 )}
               </DataField>
-              {preview && run.excludedCount > 0 ? (
-                <DataField label="Ausgeschlossen">
-                  <span className="tabular-nums">
-                    {invoiceCountLabel(run.excludedCount)} ·{" "}
-                    {formatEuro(run.excludedCents)}
-                  </span>
-                </DataField>
-              ) : null}
               {(run.freeOfCharge ?? 0) > 0 ? (
                 <DataField label="Beitragsfreier Monat">
                   {run.freeOfCharge === 1
@@ -616,7 +634,8 @@ export default function TraegerCareRunPage() {
           {preview ? (
             <CareDebitHintsCard
               invoices={run.invoices}
-              dueDatesHref={`/traeger/abrechnung/monatsbeitraege/${run.id}/faelligkeiten`}
+              dueDatesHref={dueDatesHref}
+              earliest={earliestDebit}
             />
           ) : null}
           {preview ? (
