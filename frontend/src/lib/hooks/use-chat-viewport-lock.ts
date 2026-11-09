@@ -21,6 +21,15 @@ const CHAT_COMPACT_ATTRIBUTE = "data-chat-compact";
 export const CHAT_SCROLL_ATTRIBUTE = "data-chat-scroll";
 
 /**
+ * Set on <html> while the chat locks page scrolling; `globals.css` turns it
+ * into `overflow: hidden` on html and body. An attribute, not inline styles:
+ * modals lock the page with inline `overflow` (`useScrollLock`) and restore
+ * their saved value on close. Sharing that style, a chat that released its
+ * lock under an open modal got it back from the modal and stayed stuck.
+ */
+export const CHAT_PAGE_LOCK_ATTRIBUTE = "data-chat-page-lock";
+
+/**
  * The message list never gets less height than this. Below it a chat shows
  * one message or none (#5200 follow-up: on small phones the list shrank to
  * 24 px and could not be scrolled). When the chat chrome leaves less room, the
@@ -91,27 +100,28 @@ function stickyHeightAbove(main: HTMLElement): number {
   return height;
 }
 
+/**
+ * Height the chat container or a wrapper around the message list cuts off
+ * (`overflow: hidden` with more content than room).
+ */
+function clippedBelow(list: HTMLElement, container: HTMLElement): number {
+  let clipped = 0;
+  for (let node = list.parentElement; node; node = node.parentElement) {
+    clipped = Math.max(clipped, node.scrollHeight - node.clientHeight);
+    if (node === container) break;
+  }
+  return clipped;
+}
+
 export function useChatViewportLock<T extends HTMLElement>(ready: boolean) {
   const ref = useRef<T>(null);
-  // Page overflow before the chat mounted, restored on unmount and whenever
-  // the chat does not fit and the page has to scroll.
-  const previousOverflow = useRef<{ html: string; body: string } | null>(null);
-  const pageLocked = useRef(false);
 
-  // Lock the document scroll for the whole time the chat is mounted.
+  // Lock the document scroll for the whole time the chat is mounted; fit
+  // releases it while the chat does not fit on screen.
   useEffect(() => {
     const html = document.documentElement;
-    const body = document.body;
-    const previous = { html: html.style.overflow, body: body.style.overflow };
-    previousOverflow.current = previous;
-    html.style.overflow = "hidden";
-    body.style.overflow = "hidden";
-    pageLocked.current = true;
-    return () => {
-      html.style.overflow = previous.html;
-      body.style.overflow = previous.body;
-      pageLocked.current = false;
-    };
+    html.setAttribute(CHAT_PAGE_LOCK_ATTRIBUTE, "");
+    return () => html.removeAttribute(CHAT_PAGE_LOCK_ATTRIBUTE);
   }, []);
 
   // Fit the container to the space between its top and the viewport bottom.
@@ -119,16 +129,13 @@ export function useChatViewportLock<T extends HTMLElement>(ready: boolean) {
     const el = ref.current;
     if (!el) return;
     const vv = window.visualViewport;
-    const setPageLocked = (locked: boolean) => {
-      // Only on a change: a modal that locks the body meanwhile keeps its lock.
-      if (pageLocked.current === locked) return;
-      pageLocked.current = locked;
-      const previous = previousOverflow.current ?? { html: "", body: "" };
-      document.documentElement.style.overflow = locked
-        ? "hidden"
-        : previous.html;
-      document.body.style.overflow = locked ? "hidden" : previous.body;
-    };
+    const pageLocked = () =>
+      document.documentElement.hasAttribute(CHAT_PAGE_LOCK_ATTRIBUTE);
+    const setPageLocked = (locked: boolean) =>
+      document.documentElement.toggleAttribute(
+        CHAT_PAGE_LOCK_ATTRIBUTE,
+        locked,
+      );
     const fit = () => {
       // iOS Safari scrolls the layout viewport to reveal a focused input even
       // though html/body overflow is set to hidden, then leaves that offset
@@ -140,7 +147,7 @@ export function useChatViewportLock<T extends HTMLElement>(ready: boolean) {
       // via visualViewport). A no-op on platforms that honour overflow:hidden.
       // While the page scrolls on purpose (the chat did not fit) the offset is
       // the person's own and stays.
-      if (pageLocked.current && window.scrollY !== 0) window.scrollTo(0, 0);
+      if (pageLocked() && window.scrollY !== 0) window.scrollTo(0, 0);
       // Measure against the VISUAL viewport, not window.innerHeight: when the
       // iOS soft keyboard opens it shrinks visualViewport.height (and fires only
       // visualViewport's own resize/scroll, never window's resize) while leaving
@@ -193,26 +200,31 @@ export function useChatViewportLock<T extends HTMLElement>(ready: boolean) {
       // locked, so anything below it — the composer, the line being typed —
       // is out of reach on a small phone with the keyboard open.
       const height = Math.max(available, Math.min(240, visible), 0);
-      el.style.height = `${height}px`;
+      // What the chat needs besides its message list (header, quick actions,
+      // composer), read from the current layout before resizing: the list is
+      // the flexible part and takes whatever height is left. Content a
+      // wrapper clips (the staff chats' cards are `overflow-hidden`) counts
+      // too, otherwise a squeezed chat looks like it fits.
+      const list = el.querySelector<HTMLElement>(`[${CHAT_SCROLL_ATTRIBUTE}]`);
+      const needed = list
+        ? el.clientHeight -
+          list.clientHeight +
+          clippedBelow(list, el) +
+          MIN_MESSAGE_LIST_PX
+        : 0;
       // The hook owns the size: a consumer's CSS min-height (min-h-[20rem])
       // would otherwise push the composer back under the keyboard.
       el.style.minHeight = "0px";
-
-      const list = el.querySelector<HTMLElement>(`[${CHAT_SCROLL_ATTRIBUTE}]`);
-      if (!list) {
+      // With the keyboard open the line being typed has priority (#3664):
+      // the chat stays pinned to the keyboard edge, whatever the list keeps.
+      if (!list || keyboardOpen || needed <= height) {
+        el.style.height = `${height}px`;
         setPageLocked(true);
         return;
       }
-      // The list may not shrink below a readable height. If header, composer
-      // and the list then need more than the space up to the nav, the content
-      // overflows the container: let the page scroll and give the chat the
-      // whole visible height, so scrolling down shows the full chat.
-      list.style.minHeight = `${MIN_MESSAGE_LIST_PX}px`;
-      const needed = el.scrollHeight;
-      if (needed <= el.clientHeight + 1) {
-        setPageLocked(true);
-        return;
-      }
+      // The list would fall below a readable height: let the page scroll and
+      // give the chat the whole visible height, so scrolling down shows the
+      // full chat instead of a clipped one.
       setPageLocked(false);
       // Scrolled down, the chat starts where the shell's content starts: below
       // a sticky top bar and the main padding, like any page's first card.
