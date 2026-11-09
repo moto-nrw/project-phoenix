@@ -41,6 +41,8 @@ import {
   useOpenTraegerSchool,
 } from "~/components/traeger/use-open-traeger-school";
 import { useTraegerSchoolsAlerts } from "~/components/traeger/use-traeger-schools-alerts";
+import { SpinnerIcon } from "~/components/ui/icons";
+import { useMediaQuery } from "~/lib/hooks/use-media-query";
 import {
   ALERT_LABELS,
   alertSentence,
@@ -469,6 +471,12 @@ export default function TraegerDashboardPage() {
   );
   const canChangeThresholds = hasPermission(session, SETTINGS_RIGHT);
 
+  // Between md and xl the table has no room for the action's words: the
+  // figures would slide under the pinned column. The icon keeps its full
+  // name for screen readers and as a tooltip.
+  const iconAction = useMediaQuery(
+    "(min-width: 768px) and (max-width: 1279px)",
+  );
   const columns = useMemo<DataTableColumn<TraegerSchoolToday>[]>(() => {
     const figures = figureColumns(alertsBySchool, alerts !== null);
     return canOpen
@@ -476,7 +484,8 @@ export default function TraegerDashboardPage() {
           ...figures,
           {
             key: "actions",
-            header: "",
+            // Over the icons the header names what they open.
+            header: iconAction ? "Schul-App" : "",
             align: "right",
             stacked: "meta",
             stackedLabel: false,
@@ -484,11 +493,15 @@ export default function TraegerDashboardPage() {
               <Button
                 type="button"
                 variant="surface"
-                size="compact"
+                size={iconAction ? "icon" : "compact"}
                 // One line: the action keeps its word whole in the table.
                 className="whitespace-nowrap"
                 aria-label={`${TRAEGER_HANDOFF_OPEN}: ${school.name}, neuer Tab`}
-                title="Öffnet in einem neuen Tab"
+                title={
+                  iconAction
+                    ? `${TRAEGER_HANDOFF_OPEN} (neuer Tab)`
+                    : "Öffnet in einem neuen Tab"
+                }
                 disabled={opening !== null}
                 onClick={(event) => {
                   // Die Aktion öffnet die Schul-App, nicht die Schulansicht.
@@ -497,7 +510,13 @@ export default function TraegerDashboardPage() {
                 }}
               >
                 {opening === school.id ? (
-                  "Wird geöffnet …"
+                  iconAction ? (
+                    <SpinnerIcon />
+                  ) : (
+                    "Wird geöffnet …"
+                  )
+                ) : iconAction ? (
+                  <ExternalLink className="h-4 w-4" aria-hidden="true" />
                 ) : (
                   <>
                     {TRAEGER_HANDOFF_OPEN}
@@ -509,7 +528,7 @@ export default function TraegerDashboardPage() {
           },
         ]
       : figures;
-  }, [alerts, alertsBySchool, canOpen, open, opening]);
+  }, [alerts, alertsBySchool, canOpen, iconAction, open, opening]);
 
   return (
     <TenantPage
