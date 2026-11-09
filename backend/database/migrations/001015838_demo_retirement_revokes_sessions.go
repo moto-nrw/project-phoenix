@@ -44,7 +44,7 @@ func init() {
 // phoenix_admin, the role of the administrative transaction, may call it,
 // and the demo retirement runs as its owner.
 const schoolSessionRevocationSQL = `
-		CREATE FUNCTION auth.revoke_school_sessions(school_id BIGINT)
+		CREATE OR REPLACE FUNCTION auth.revoke_school_sessions(school_id BIGINT)
 		RETURNS SETOF auth.tokens
 		LANGUAGE plpgsql
 		VOLATILE

@@ -298,8 +298,8 @@ var sessionPolicies = map[domain.SessionKind]sessionPolicy{
 			}
 			return nil
 		},
-		facts: func(ctx context.Context, s *AccountAuthentication, b sessionBinding, _ factReads) (heldFacts, error) {
-			return heldFacts{}, s.traegerGrantsSchool(ctx, b.accountID, b.orgID, b.tenantID)
+		facts: func(ctx context.Context, s *AccountAuthentication, b sessionBinding, r factReads) (heldFacts, error) {
+			return heldFacts{}, s.traegerGrantsSchool(ctx, b.accountID, b.orgID, b.tenantID, r)
 		},
 		claims: func(ctx context.Context, s *AccountAuthentication, b sessionBinding, account domain.LoginAccount, _ heldFacts) (*domain.AccountClaimsPayload, error) {
 			return s.traegerSchoolClaims(ctx, account, b.tenantID, b.orgID)

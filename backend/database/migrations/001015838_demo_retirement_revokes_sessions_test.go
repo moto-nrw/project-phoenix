@@ -120,3 +120,33 @@ func TestDemoRetirementRevokesSessionsRoundTrip(t *testing.T) {
 	assert.True(t, revocationExists())
 	assert.True(t, retirementRevokes())
 }
+
+// A backfill failure leaves the migration unapplied. Retrying must work
+// even though function installation already committed before the failure.
+func TestDemoRetirementRevokesSessionsRetriesAfterBackfillFailure(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := t.Context()
+	require.NoError(t, demoRetirementRevokesSessionsDown(ctx, db))
+	school, _ := testpkg.CreateTestTenant(t, db)
+	_, err := db.NewRaw(`INSERT INTO platform.demo_school_states (name, tenant_id, seed_state, status)
+		VALUES ('ogs-retry-a1b2c3', ?, '{}'::jsonb, 'ready')`, school).Exec(ctx)
+	require.NoError(t, err)
+	testpkg.CreateTestSessionFamily(t, db, testpkg.CreateTestAccount(t, db, "backfill-retry").ID, school, "")
+	_, err = db.NewRaw(`UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, school).Exec(ctx)
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `CREATE FUNCTION auth.reject_session_backfill() RETURNS trigger LANGUAGE plpgsql AS $$
+		BEGIN RAISE EXCEPTION 'backfill unavailable'; END; $$;
+		CREATE TRIGGER reject_session_backfill BEFORE DELETE ON auth.tokens
+		FOR EACH ROW EXECUTE FUNCTION auth.reject_session_backfill();`)
+	require.NoError(t, err)
+
+	err = demoRetirementRevokesSessionsUp(ctx, db)
+	require.ErrorContains(t, err, "backfill unavailable")
+	assert.Equal(t, 1, schoolSessionCount(t, db, school))
+	_, err = db.ExecContext(ctx, `DROP TRIGGER reject_session_backfill ON auth.tokens; DROP FUNCTION auth.reject_session_backfill()`)
+	require.NoError(t, err)
+
+	require.NoError(t, demoRetirementRevokesSessionsUp(ctx, db), "startup can retry the unapplied migration")
+	assert.Zero(t, schoolSessionCount(t, db, school))
+}
