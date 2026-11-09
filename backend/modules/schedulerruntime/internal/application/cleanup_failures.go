@@ -175,6 +175,8 @@ func (s *Scheduler) storeCleanupFailure(ctx context.Context, tenantID int64, job
 // storePendingCleanupFailure writes the last failure the process kept for
 // the school and job into the transaction in ctx, before the due check reads
 // the ledger. The process marks it written once that transaction committed.
+// The write has a savepoint of its own: a failed write leaves the streak with
+// the process and does not keep the job from running.
 func (s *Scheduler) storePendingCleanupFailure(ctx context.Context, jobID string, tenantID int64) error {
 	key := cleanupAttemptKey{jobID: jobID, tenantID: tenantID}
 	value, ok := s.cleanupFailures.Load(key)
@@ -185,8 +187,21 @@ func (s *Scheduler) storePendingCleanupFailure(ctx context.Context, jobID string
 	if !ok || pending.written {
 		return nil
 	}
-	if err := s.cleanupRuns.RecordCleanupFailed(ctx, jobID, pending.failures, pending.last); err != nil {
+	usable, err := s.inCleanupSavepoint(ctx, func(recordCtx context.Context) error {
+		return s.cleanupRuns.RecordCleanupFailed(recordCtx, jobID, pending.failures, pending.last)
+	})
+	if !usable {
 		return fmt.Errorf("record failed cleanup run of %s: %w", jobID, err)
+	}
+	if err != nil {
+		// The process keeps the streak and tries again next tick; the run
+		// itself goes on with it.
+		s.getLogger().Error("record failed cleanup run failed",
+			slog.String("job_id", jobID),
+			slog.Int64("tenant_id", tenantID),
+			slog.String("error", err.Error()),
+		)
+		return nil
 	}
 	written := pending
 	written.written = true

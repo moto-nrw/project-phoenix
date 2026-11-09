@@ -23,6 +23,8 @@ type fakeCleanupRuns struct {
 	failures  map[string]cleanupRunState
 	recorded  int
 	recordErr error
+	// failureErr makes every failure write fail.
+	failureErr error
 }
 
 func newFakeCleanupRuns() *fakeCleanupRuns {
@@ -51,6 +53,9 @@ func (f *fakeCleanupRuns) RecordCleanupSucceeded(_ context.Context, jobID string
 func (f *fakeCleanupRuns) RecordCleanupFailed(_ context.Context, jobID string, failures int, at time.Time) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.failureErr != nil {
+		return f.failureErr
+	}
 	if at.After(f.failures[jobID].LastFailure) && at.After(f.runs[jobID]) {
 		f.failures[jobID] = cleanupRunState{Failures: failures, LastFailure: at}
 	}

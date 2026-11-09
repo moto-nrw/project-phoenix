@@ -378,3 +378,23 @@ func TestNightlyCleanupCountsAnUnreadableCleanupTimeAsFailure(t *testing.T) {
 	require.Len(t, alerts, 1, "the third failure alerts once")
 	assert.Equal(t, "run", alerts[0]["failed_steps"])
 }
+
+// A failure write that keeps failing must not stop the cleanup: the process
+// keeps the streak, retries after the wait and still raises the alert.
+func TestNightlyCleanupKeepsRunningWhenTheFailureWriteFails(t *testing.T) {
+	t.Parallel()
+
+	runs := newFakeCleanupRuns()
+	runs.runs["timetable-cleanup"] = berlin(13, 2, 0)
+	runs.failureErr = errors.New("ledger refuses the failure")
+	clock := &cleanupClock{now: berlin(14, 2, 0)}
+	cleanup := &fakeTimetableCleanup{err: errors.New("poisoned row")}
+	logs := &cleanupLogs{}
+	s := failingTimetableScheduler(runs, clock, cleanup, logs)
+
+	runTimetableTick(s)
+	expectRetryAt(t, s, clock, cleanup, berlin(14, 3, 0))
+	expectRetryAt(t, s, clock, cleanup, berlin(14, 5, 0))
+	require.Len(t, logs.take(t, alertMessage), 1, "the third failure alerts from the streak the process keeps")
+	assert.Zero(t, runs.failureCount("timetable-cleanup"))
+}
