@@ -368,19 +368,31 @@ func (s *Signatures) sign(ctx context.Context, organizationID int64, record Cont
 	}); err != nil {
 		return carecontract.SigningView{}, err
 	}
-	view, err := s.view(ctx, organizationID, record, document)
-	if err != nil {
-		return carecontract.SigningView{}, err
-	}
-	ends, err := s.periods().withdrawalEnd(ctx, record.Summary.SchoolID, now)
+	view, err := s.signedView(ctx, organizationID, record, document, carecontract.SigningSignature{
+		Method: input.Method, SignerName: signerName, SignedAt: now, EarlyStartRequested: input.EarlyStart,
+	})
 	if err != nil {
 		return carecontract.SigningView{}, err
 	}
 	view.Status = status
-	view.Signature = &carecontract.SigningSignature{
-		Method: input.Method, SignerName: signerName, SignedAt: now, EarlyStartRequested: input.EarlyStart, WithdrawalEndsOn: &ends,
-	}
 	return view, s.confirm(ctx, organizationID, record, document, view, party)
+}
+
+// signedView is the page after the signature, with the last day of the
+// withdrawal period at the contract's school (#6350).
+func (s *Signatures) signedView(ctx context.Context, organizationID int64, record ContractRecord, document StoredDocument,
+	signature carecontract.SigningSignature) (carecontract.SigningView, error) {
+	view, err := s.view(ctx, organizationID, record, document)
+	if err != nil {
+		return carecontract.SigningView{}, err
+	}
+	ends, err := s.periods().withdrawalEnd(ctx, record.Summary.SchoolID, signature.SignedAt)
+	if err != nil {
+		return carecontract.SigningView{}, err
+	}
+	signature.WithdrawalEndsOn = &ends
+	view.Signature = &signature
+	return view, nil
 }
 
 // confirm enqueues the confirmation mail: the signed PDF, when and by whom

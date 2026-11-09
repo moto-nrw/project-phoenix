@@ -246,17 +246,8 @@ func (n *Notices) newNotice(ctx context.Context, record ContractRecord, state po
 			return ports.NewNotice{}, err
 		}
 	case carecontract.NoticeWithdrawal:
-		dispatched, err := withdrawalDispatch(d.input.DispatchedOn, received, calendar.DateFromTime(record.Concluded.At))
-		if err != nil {
+		if err := n.dateWithdrawal(ctx, &notice, record, state, d.input, received); err != nil {
 			return ports.NewNotice{}, err
-		}
-		notice.DispatchedOn = &dispatched
-		until, err := n.periods.until(ctx, record.Summary.SchoolID, record.Concluded, state.InformedAt)
-		if err != nil {
-			return ports.NewNotice{}, err
-		}
-		if until == nil || dispatched.After(*until) {
-			return ports.NewNotice{}, carecontract.ErrWithdrawalClosed
 		}
 	default:
 		return ports.NewNotice{}, &carecontract.ValidationError{Fields: map[string]string{"kind": "unknown"}}
@@ -265,6 +256,25 @@ func (n *Notices) newNotice(ctx context.Context, record ContractRecord, state po
 		return ports.NewNotice{}, &carecontract.ValidationError{Fields: map[string]string{"expected_ends_on": "changed"}}
 	}
 	return notice, nil
+}
+
+// dateWithdrawal dates a withdrawal by its dispatch, which must lie within
+// the period at the contract's school (§ 355 Abs. 1 BGB, #6350).
+func (n *Notices) dateWithdrawal(ctx context.Context, notice *ports.NewNotice, record ContractRecord, state ports.NoticeState,
+	input carecontract.NoticeInput, received calendar.Date) error {
+	dispatched, err := withdrawalDispatch(input.DispatchedOn, received, calendar.DateFromTime(record.Concluded.At))
+	if err != nil {
+		return err
+	}
+	notice.DispatchedOn = &dispatched
+	until, err := n.periods.until(ctx, record.Summary.SchoolID, record.Concluded, state.InformedAt)
+	if err != nil {
+		return err
+	}
+	if until == nil || dispatched.After(*until) {
+		return carecontract.ErrWithdrawalClosed
+	}
+	return nil
 }
 
 // dateTermination dates a termination: to the next date the terms allow, to the

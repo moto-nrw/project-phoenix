@@ -37,25 +37,7 @@ func (w withdrawalPeriods) until(ctx context.Context, schoolID int64, concluded 
 // holidays of their schools; a contract without a period reads none.
 func (w withdrawalPeriods) untilEach(ctx context.Context, subjects []withdrawalSubject) ([]*calendar.Date, error) {
 	result := make([]*calendar.Date, len(subjects))
-	var from, to calendar.Date
-	var schoolIDs []int64
-	seen := map[int64]bool{}
-	for _, subject := range subjects {
-		if !hasWithdrawalPeriod(subject.concluded, subject.informedAt) {
-			continue
-		}
-		first, last := withdrawalWindow(subject.concluded.At)
-		if from.IsZero() || first.Before(from) {
-			from = first
-		}
-		if to.IsZero() || last.After(to) {
-			to = last
-		}
-		if !seen[subject.schoolID] {
-			seen[subject.schoolID] = true
-			schoolIDs = append(schoolIDs, subject.schoolID)
-		}
-	}
+	schoolIDs, from, to := withdrawalReads(subjects)
 	if len(schoolIDs) == 0 {
 		return result, nil
 	}
@@ -77,6 +59,31 @@ func (w withdrawalPeriods) untilEach(ctx context.Context, subjects []withdrawalS
 		result[i] = withdrawalUntil(subject.concluded, subject.informedAt, days)
 	}
 	return result, nil
+}
+
+// withdrawalReads names the schools of the subjects with a period and the
+// window that spans all their periods.
+func withdrawalReads(subjects []withdrawalSubject) ([]int64, calendar.Date, calendar.Date) {
+	var from, to calendar.Date
+	var schoolIDs []int64
+	seen := map[int64]bool{}
+	for _, subject := range subjects {
+		if !hasWithdrawalPeriod(subject.concluded, subject.informedAt) {
+			continue
+		}
+		first, last := withdrawalWindow(subject.concluded.At)
+		if from.IsZero() || first.Before(from) {
+			from = first
+		}
+		if to.IsZero() || last.After(to) {
+			to = last
+		}
+		if !seen[subject.schoolID] {
+			seen[subject.schoolID] = true
+			schoolIDs = append(schoolIDs, subject.schoolID)
+		}
+	}
+	return schoolIDs, from, to
 }
 
 // withdrawalEnd is the last day of the 14-day withdrawal period that starts
