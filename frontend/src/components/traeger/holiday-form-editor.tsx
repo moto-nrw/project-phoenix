@@ -365,6 +365,7 @@ export function HolidayFormEditor({
           <aside aria-label="Vorschau für Eltern">
             <FormPreview
               title="Ferienanmeldung"
+              headerInside
               header={
                 <FormPreviewHeading
                   title="Vorschau für Eltern"

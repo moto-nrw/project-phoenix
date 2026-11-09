@@ -6,11 +6,12 @@
 // moto nicht ab; deshalb heißt die Summe nicht „offen“: das läse sich wie
 // „noch nicht gezahlt“.
 
+import { SectionCard } from "~/components/ui/section-card";
 import { StatCard } from "~/components/ui/stat-card";
 import type { BillingAmounts } from "~/lib/traeger-billing-families-api";
 import { formatEuro } from "./contribution-format";
 
-const OPEN_AMOUNT_HINT =
+export const OPEN_AMOUNT_HINT =
   "Ausgestellt minus Storno und Gutschrift. Ob gezahlt wurde, sieht moto nicht.";
 
 export function BillingAmountCards({
@@ -68,5 +69,42 @@ export function sumAmounts(
       openCents: sum.openCents + family.openCents,
     }),
     { issuedCents: 0, cancelledCents: 0, creditedCents: 0, openCents: 0 },
+  );
+}
+
+/**
+ * The four sums inside one card whose title says whom they cover (all or the
+ * found families): the scope belongs on the surface with the figures.
+ */
+export function BillingAmountsSection({
+  title,
+  amounts,
+}: Readonly<{ title: string; amounts: BillingAmounts }>) {
+  const value = (cents: number) => formatEuro(cents);
+  return (
+    <SectionCard title={title} description={`Berechnet: ${OPEN_AMOUNT_HINT}`}>
+      <div className="grid grid-cols-1 gap-3 min-[375px]:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          variant="inline"
+          label="Ausgestellt"
+          value={value(amounts.issuedCents)}
+        />
+        <StatCard
+          variant="inline"
+          label="Storniert"
+          value={value(amounts.cancelledCents)}
+        />
+        <StatCard
+          variant="inline"
+          label="Gutgeschrieben"
+          value={value(amounts.creditedCents)}
+        />
+        <StatCard
+          variant="inline"
+          label="Berechnet"
+          value={value(amounts.openCents)}
+        />
+      </div>
+    </SectionCard>
   );
 }

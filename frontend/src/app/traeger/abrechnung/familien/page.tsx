@@ -10,7 +10,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import {
-  BillingAmountCards,
+  BillingAmountsSection,
   sumAmounts,
 } from "~/components/traeger/billing-amount-cards";
 import {
@@ -31,7 +31,6 @@ import type {
   ActiveFilter,
   FilterConfig,
 } from "~/components/ui/page-header/types";
-import { SectionLabel } from "~/components/ui/section-label";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import { Button } from "~/components/ui/button";
@@ -263,14 +262,14 @@ export default function TraegerBillingFamiliesPage() {
         <>
           {/* Die Summen folgen Suche und Filter; die Zeile sagt, für wen. */}
           {filtered && shown.length === 0 ? null : (
-            <div className="space-y-2">
-              <SectionLabel as="p">
-                {filtered
+            <BillingAmountsSection
+              title={
+                filtered
                   ? `Summen der ${shown.length} gefundenen ${shown.length === 1 ? "Familie" : "Familien"}`
-                  : "Summen aller Familien"}
-              </SectionLabel>
-              <BillingAmountCards amounts={sumAmounts(shown)} />
-            </div>
+                  : "Summen aller Familien"
+              }
+              amounts={sumAmounts(shown)}
+            />
           )}
           <DataTable
             columns={COLUMNS}

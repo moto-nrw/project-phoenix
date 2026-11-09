@@ -121,6 +121,7 @@ export function TraegerDocumentUploadModal({
       closeDisabled={saving}
       isBackdropDismissDisabled
       title="Dokument hochladen"
+      titleLevel={2}
       size="md"
       error={formErrors.error}
       footer={

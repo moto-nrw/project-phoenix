@@ -211,12 +211,16 @@ export function CarePriceListCard({
     groupRows: PriceRow[],
     columns: DataTableColumn<PriceRow>[],
     label: string,
+    basis: string,
   ) =>
     groupRows.length === 0 ? null : (
       <div className="space-y-2">
         {weekdayRows.length > 0 && scaleRows.length > 0 ? (
           <SectionLabel as="h3">{label}</SectionLabel>
         ) : null}
+        {/* What the amounts are stays right above them, whatever the card
+            says about free months or billing. */}
+        <p className="text-sm text-gray-600">{basis}</p>
         <DataTable
           columns={columns}
           rows={groupRows}
@@ -229,12 +233,7 @@ export function CarePriceListCard({
   return (
     <SectionCard
       title={school.name}
-      description={
-        description ||
-        (scaleRows.length > 0 && weekdayRows.length === 0
-          ? "Monatspreis nach Zahl der gebuchten Tage je Woche."
-          : "Monatspreis je gebuchtem Wochentag.")
-      }
+      description={description || undefined}
       actions={
         <div className="flex items-center gap-2">
           <Button type="button" variant="outline" size="md" onClick={onEdit}>
@@ -285,8 +284,14 @@ export function CarePriceListCard({
               weekdayRows,
               weekdayColumns(weekdays),
               PRICE_FORM_LABELS.weekday,
+              "Jeder Betrag ist der Monatspreis für einen gebuchten Wochentag.",
             )}
-            {table(scaleRows, scaleColumns(), PRICE_FORM_LABELS.days_per_week)}
+            {table(
+              scaleRows,
+              scaleColumns(),
+              PRICE_FORM_LABELS.days_per_week,
+              "Jeder Betrag ist der Monatspreis bei so vielen gebuchten Tagen je Woche.",
+            )}
           </>
         )}
         {gaps.length > 0 ? (

@@ -221,6 +221,15 @@ export function CareContractCreateModal({
             description="Neue Anmeldungen erscheinen hier, sobald die Schule sie annimmt."
           />
         ) : null}
+        {candidates.length > 0 && ready.length === 0 ? (
+          // Says first that this dialog cannot create anything yet, so the
+          // greyed-out children read as a to-do list, not as a choice.
+          <Alert
+            type="info"
+            title="Gerade lässt sich kein Entwurf erstellen."
+            message="Bei jedem Kind steht, was noch fehlt. Ist das erledigt, erstellen Sie die Entwürfe hier."
+          />
+        ) : null}
         {missing + differing > 0 ? (
           <Alert
             type="warning"

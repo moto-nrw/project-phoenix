@@ -96,9 +96,12 @@ export function CareContractConditions({
   // The open form reports unsaved changes; switching the offer then asks
   // first, because the form of another offer starts from its saved terms.
   const [dirty, setDirty] = useState(false);
+  // While the open form saves, the offers stay put: the answer belongs to
+  // this form, and switching would drop it or its error.
+  const [formSaving, setFormSaving] = useState(false);
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const choose = (key: string) => {
-    if (key === selectedKey) return;
+    if (key === selectedKey || formSaving) return;
     if (dirty) setPendingKey(key);
     else setSelectedKey(key);
   };
@@ -141,6 +144,7 @@ export function CareContractConditions({
                       tone="blue"
                       className="flex w-full items-start justify-between gap-3 px-4 py-3 text-left"
                       aria-pressed={key === selectedKey}
+                      disabled={formSaving && key !== selectedKey}
                       onClick={() => choose(key)}
                     >
                       <span className="min-w-0">
@@ -178,6 +182,7 @@ export function CareContractConditions({
           offering={selected}
           onSaved={onSaved}
           onDirtyChange={setDirty}
+          onSavingChange={setFormSaving}
         />
       ) : null}
       <ConfirmationModal
@@ -207,10 +212,12 @@ function ConditionsForm({
   offering,
   onSaved,
   onDirtyChange,
+  onSavingChange,
 }: Readonly<{
   offering: OfferingTemplate;
   onSaved: (offering: OfferingTemplate) => void;
   onDirtyChange: (dirty: boolean) => void;
+  onSavingChange: (saving: boolean) => void;
 }>) {
   const selected = offering;
   const [draft, setDraft] = useState<ContractTerms>(() => termsOf(offering));
@@ -219,6 +226,9 @@ function ConditionsForm({
     onDirtyChange(dirty);
   }, [dirty, onDirtyChange]);
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    onSavingChange(saving);
+  }, [saving, onSavingChange]);
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { clear: clearErrors } = formErrors;

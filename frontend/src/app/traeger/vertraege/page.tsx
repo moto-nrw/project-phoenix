@@ -145,8 +145,9 @@ const COLUMNS: DataTableColumn<CareContractSummary>[] = [
     render: (contract) => contract.schoolName,
     sortValue: (contract) => contract.schoolName,
     stackedLabel: false,
+    // The parents stay findable on a phone too: the search covers them.
     stackedRender: (contract) =>
-      [contract.schoolName, statusDateNote(contract)]
+      [contract.schoolName, contract.partyName, statusDateNote(contract)]
         .filter(Boolean)
         .join(" · "),
   },

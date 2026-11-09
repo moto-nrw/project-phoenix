@@ -106,6 +106,8 @@ function RunStartModal({
       closeDisabled={saving}
       isBackdropDismissDisabled
       title={title}
+      // Opened from the page head: the title follows the page's h1.
+      titleLevel={2}
       size="md"
       error={formErrors.error}
       footer={

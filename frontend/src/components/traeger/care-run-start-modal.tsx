@@ -154,6 +154,7 @@ export function CareRunStartModal({
       closeDisabled={saving}
       isBackdropDismissDisabled
       title="Monatslauf starten"
+      titleLevel={2}
       size="md"
       error={formErrors.error}
       footer={
