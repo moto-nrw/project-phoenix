@@ -53,7 +53,6 @@ function declaration(
   return {
     kind: "consent",
     signers: "any",
-    revocable: true,
     requires_password: false,
     requires_signature: false,
     deadline: null,
@@ -271,6 +270,39 @@ describe("Einverständnis in the detail view", () => {
       screen.getByText("Nichts ist vorausgewählt.", { exact: false }),
     ).toBeInTheDocument();
     expect(screen.getByText("Fassung 2")).toBeInTheDocument();
+  });
+
+  it("says before the consent that it can be withdrawn at any time (#6303)", () => {
+    render(
+      <NewsDetailModal item={item()} onClose={vi.fn()} onUpdated={vi.fn()} />,
+    );
+
+    expect(screen.getByRole("button", { name: "Zustimmen" })).toBeEnabled();
+    expect(
+      screen.getByText("Sie können Ihre Zustimmung jederzeit widerrufen."),
+    ).toBeInTheDocument();
+  });
+
+  it("drops the hint once only a refusal is left to give", () => {
+    render(
+      <NewsDetailModal
+        item={item(
+          {},
+          {
+            children: [
+              child({ my_action: "revoked", allowed_actions: ["declined"] }),
+            ],
+          },
+        )}
+        onClose={vi.fn()}
+        onUpdated={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Ablehnen" })).toBeEnabled();
+    expect(
+      screen.queryByText("Sie können Ihre Zustimmung jederzeit widerrufen."),
+    ).not.toBeInTheDocument();
   });
 
   it("confirms child, action and version before it submits", async () => {
