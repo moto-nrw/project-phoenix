@@ -1,7 +1,7 @@
 {
   "scenario": "api.iot.checkin.request_memo.check_in",
-  "max": 30,
+  "max": 32,
   "exact": true,
-  "description": "Real kiosk scan request transaction with the production request settings memo enabled; N3 and N8 children present. Excludes pre-request device authentication. Restored unoptimized admission after rejected cancellation-precedence change.",
+  "description": "Real kiosk scan request transaction with the production request settings memo enabled; N3 and N8 children present. Excludes pre-request device authentication. Restored unoptimized admission after rejected cancellation-precedence change. Restores the measured pre-7e1548adb7 bound: that commit lowered the budget without removing any statements; normalized SQL is unchanged across it.",
   "route": "POST /api/iot/checkin"
 }
