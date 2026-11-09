@@ -7,13 +7,14 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const parentBillingSEPADebitsVersion = "1.15.825"
+const parentBillingSEPADebitsVersion = "1.15.826"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     parentBillingSEPADebitsVersion,
 		Description: "Elternabrechnung: SEPA-Lastschriftdatei PAIN.008 je Lauf und Einzugshistorie (#4697)",
 		DependsOn: []string{
+			studentMembershipCareGapVersion,  // the newest migration on development
 			parentBillingSEPAMandatesVersion, // the mandates and the mandate copied onto the invoices
 		},
 	})
