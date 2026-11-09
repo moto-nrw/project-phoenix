@@ -34,27 +34,31 @@ func (s *Store) DeleteDueBelege(ctx context.Context, today calendar.Date) (int, 
 	return deleted, nil
 }
 
-// DueContracts lists the contracts whose period ended on today and to which
-// no mandate or debit of parent-billing hangs any more; their deletion
-// would take those by cascade.
-func (s *Store) DueContracts(ctx context.Context, today calendar.Date) ([]parentbilling.BelegRef, error) {
+// DueContracts locks the contracts whose period ended on today against new
+// mandates and debits and lists those to which none hangs and no
+// suspension applies, with the event and the last day it may lie on under
+// the current Weisung; their deletion would take mandates and debits by
+// cascade.
+func (s *Store) DueContracts(ctx context.Context, today calendar.Date) ([]parentbilling.DueContract, error) {
 	db, err := adminDB(ctx)
 	if err != nil {
 		return nil, err
 	}
 	var rows []struct {
-		OrganizationID int64 `bun:"organization_id"`
-		ContractID     int64 `bun:"contract_id"`
+		OrganizationID int64         `bun:"organization_id"`
+		ContractID     int64         `bun:"contract_id"`
+		TriggerEvent   string        `bun:"trigger_event"`
+		LastEventOn    calendar.Date `bun:"last_event_on,type:date"`
 	}
-	if err := db.NewRaw(`SELECT organization_id, contract_id FROM parent_billing.due_retained_contracts(?::date)`, today).
+	if err := db.NewRaw(`SELECT organization_id, contract_id, trigger_event, last_event_on FROM parent_billing.due_retained_contracts(?::date)`, today).
 		Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("parent billing postgres: list due contracts: %w", err)
 	}
-	refs := make([]parentbilling.BelegRef, len(rows))
+	contracts := make([]parentbilling.DueContract, len(rows))
 	for i, row := range rows {
-		refs[i] = parentbilling.BelegRef{OrganizationID: row.OrganizationID, BelegID: row.ContractID}
+		contracts[i] = parentbilling.DueContract(row)
 	}
-	return refs, nil
+	return contracts, nil
 }
 
 // LogContractDeletions drops the records of the contracts Care Contract

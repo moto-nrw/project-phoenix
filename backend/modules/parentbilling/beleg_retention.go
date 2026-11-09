@@ -66,6 +66,33 @@ const (
 	ClarificationReviewDays = 30
 	// MaxInstructionTextLength bounds the text fields of an instruction.
 	MaxInstructionTextLength = 500
+	// MaxJustificationLength bounds a written justification, the note of a
+	// review and the reason of an escalation.
+	MaxJustificationLength = 1000
+	// MinBookingVoucherYears is the least period of a booking voucher under
+	// § 147 AO, § 257 HGB and § 14b UStG; MinBusinessLetterYears the least
+	// of a business letter (Löschkonzept section 2).
+	MinBookingVoucherYears = 8
+	MinBusinessLetterYears = 6
+	// MaxClarificationReviewDays bounds the next review of a clarification
+	// entry: an open entry is reviewed at least once a year.
+	MaxClarificationReviewDays = 365
+)
+
+// Bases a Weisung names (Löschkonzept section 2).
+const (
+	// BasisBookingVoucher: a booking voucher under § 147 AO, § 257 HGB or
+	// § 14b UStG, kept at least eight years after the end of its year.
+	BasisBookingVoucher = "booking_voucher"
+	// BasisBusinessLetter: a contract or notice the Träger classifies as a
+	// business letter, kept at least six years.
+	BasisBusinessLetter = "business_letter"
+	// BasisCollectionAgreement: a SEPA mandate under the Inkassovereinbarung,
+	// kept at least 14 months after its last collection.
+	BasisCollectionAgreement = "collection_agreement"
+	// BasisNotApplicable: the Träger states in writing why the statutes do
+	// not apply; only then may a Beleg go before their periods.
+	BasisNotApplicable = "not_applicable"
 )
 
 // ClarificationOwner is responsible at moto for clarifying a Beleg with its
@@ -106,6 +133,9 @@ var (
 	ErrBelegSuspensionNotFound = errors.New("beleg retention suspension not found")
 	// ErrBelegTraegerNotFound reports a Träger that does not exist.
 	ErrBelegTraegerNotFound = errors.New("traeger not found")
+	// ErrBelegClarificationNotFound reports a type and reason with no Beleg
+	// on the clarification list of the Träger.
+	ErrBelegClarificationNotFound = errors.New("beleg clarification entry not found")
 )
 
 // RetentionInstruction is the documented instruction of a Träger for one
@@ -117,7 +147,9 @@ type RetentionInstruction struct {
 	BelegType            string        `json:"beleg_type"`
 	TriggerEvent         string        `json:"trigger_event"`
 	Period               int           `json:"period"`
+	Basis                string        `json:"basis"`
 	LegalBasis           string        `json:"legal_basis"`
+	BasisJustification   string        `json:"basis_justification,omitempty"`
 	InstructedBy         string        `json:"instructed_by"`
 	InstructedOn         calendar.Date `json:"instructed_on"`
 	InstructionReference string        `json:"instruction_reference"`
@@ -150,15 +182,43 @@ type BelegRetentionSummary struct {
 }
 
 // BelegClarification is one entry of the clarification list: the Belege of
-// a type listed for the same reason, with the earliest listing and review.
+// a type listed for the same reason, with the earliest listing and review
+// and the latest review the moto team recorded.
 type BelegClarification struct {
-	BelegType   string        `json:"beleg_type"`
-	Reason      string        `json:"reason"`
-	Count       int           `json:"count"`
-	Overdue     int           `json:"overdue"`
-	ListedOn    calendar.Date `json:"listed_on"`
-	ReviewOn    calendar.Date `json:"review_on"`
-	Responsible string        `json:"responsible"`
+	BelegType   string                    `json:"beleg_type"`
+	Reason      string                    `json:"reason"`
+	Count       int                       `json:"count"`
+	Overdue     int                       `json:"overdue"`
+	ListedOn    calendar.Date             `json:"listed_on"`
+	ReviewOn    calendar.Date             `json:"review_on"`
+	Responsible string                    `json:"responsible"`
+	LastReview  *BelegClarificationReview `json:"last_review,omitempty"`
+}
+
+// BelegClarificationReview is a review of a clarification entry
+// (Löschkonzept section 3): what was clarified with the Träger, whether it
+// went to Florian and why, and the next review.
+type BelegClarificationReview struct {
+	ID               int64         `json:"id"`
+	BelegType        string        `json:"beleg_type"`
+	Reason           string        `json:"reason"`
+	Note             string        `json:"note"`
+	Escalated        bool          `json:"escalated"`
+	EscalationReason string        `json:"escalation_reason,omitempty"`
+	ReviewedOn       calendar.Date `json:"reviewed_on"`
+	NextReviewOn     calendar.Date `json:"next_review_on"`
+	ReviewedAt       time.Time     `json:"reviewed_at"`
+}
+
+// NewBelegClarificationReview is a review the moto team records for the
+// entry of a type and reason.
+type NewBelegClarificationReview struct {
+	BelegType        string
+	Reason           string
+	Note             string
+	Escalated        bool
+	EscalationReason string
+	NextReviewOn     calendar.Date
 }
 
 // BelegDeletion is one entry of the deletion log: how many Belege of a type
@@ -185,7 +245,9 @@ type NewRetentionInstruction struct {
 	BelegType            string
 	TriggerEvent         string
 	Period               int
+	Basis                string
 	LegalBasis           string
+	BasisJustification   string
 	InstructedBy         string
 	InstructedOn         calendar.Date
 	InstructionReference string
@@ -211,6 +273,9 @@ type BelegRetention interface {
 	RecordInstruction(ctx context.Context, organizationID, operatorID int64, instruction NewRetentionInstruction) (RetentionInstruction, error)
 	RecordSuspension(ctx context.Context, organizationID, operatorID int64, suspension NewRetentionSuspension) (RetentionSuspension, error)
 	LiftSuspension(ctx context.Context, organizationID, suspensionID, operatorID int64) error
+	// RecordClarificationReview records the review of the clarification
+	// entry of a type and reason and moves its next review.
+	RecordClarificationReview(ctx context.Context, organizationID, operatorID int64, review NewBelegClarificationReview) (BelegClarificationReview, error)
 	// ApplyBelegRetention evaluates every Beleg of every Träger once per
 	// day and deletes the Belege whose instructed period ended. It answers
 	// the number of deleted Belege.
@@ -226,9 +291,10 @@ type RetainedContracts interface {
 	// Träger or, for organizationID 0, of every Träger.
 	ContractRetentionFacts(ctx context.Context, organizationID int64) ([]ContractRetentionFact, error)
 	// DeleteEndedContracts deletes the given contracts of the Träger that
-	// ended by today with everything that goes with them and answers the
-	// IDs that went.
-	DeleteEndedContracts(ctx context.Context, organizationID int64, contractIDs []int64, today calendar.Date) ([]int64, error)
+	// ended by today and whose event (TriggerContractEnded or
+	// TriggerContractConcluded) lies on or before lastEventOn, with
+	// everything that goes with them, and answers the IDs that went.
+	DeleteEndedContracts(ctx context.Context, organizationID int64, contractIDs []int64, today calendar.Date, event string, lastEventOn calendar.Date) ([]int64, error)
 }
 
 // ContractRetentionFact is one contract past its draft: when it was
@@ -247,38 +313,44 @@ type ContractRetentionFact struct {
 // credit note or notice and the submission of a debit; a contract has
 // ConcludedOn and, once Ended (terminated, withdrawn or ended), the day
 // EndedOn it ended; a mandate has SignedOn, RevokedOn and the submission
-// day of its last collected debit.
+// day of its last collected debit. CollectionTrigger is that day as far as
+// a debit recorded it; the record keeps it once known.
 type BelegFact struct {
-	OrganizationID int64
-	BelegType      string
-	BelegID        int64
-	Issued         *calendar.Date
-	ConcludedOn    *calendar.Date
-	EndedOn        *calendar.Date
-	Ended          bool
-	SignedOn       *calendar.Date
-	RevokedOn      *calendar.Date
-	LastCollection *calendar.Date
+	OrganizationID    int64
+	BelegType         string
+	BelegID           int64
+	Issued            *calendar.Date
+	ConcludedOn       *calendar.Date
+	EndedOn           *calendar.Date
+	Ended             bool
+	SignedOn          *calendar.Date
+	RevokedOn         *calendar.Date
+	LastCollection    *calendar.Date
+	CollectionTrigger *calendar.Date
 }
 
 // BelegRecord is the retention record of one Beleg on the day of its
 // evaluation.
 type BelegRecord struct {
-	OrganizationID int64
-	BelegType      string
-	BelegID        int64
-	State          string
-	Reason         string
-	TriggerEvent   string
-	TriggerDate    *calendar.Date
-	DeletableOn    *calendar.Date
-	ProposedOn     *calendar.Date
-	InstructionID  int64
-	SuspensionID   int64
+	OrganizationID    int64
+	BelegType         string
+	BelegID           int64
+	State             string
+	Reason            string
+	TriggerEvent      string
+	TriggerDate       *calendar.Date
+	DeletableOn       *calendar.Date
+	ProposedOn        *calendar.Date
+	InstructionID     int64
+	SuspensionID      int64
+	CollectionTrigger *calendar.Date
 }
 
-// BelegRef names one Beleg of a Träger.
-type BelegRef struct {
+// DueContract is a contract whose instructed period ended: Care Contract
+// deletes it when its event still lies on or before LastEventOn.
+type DueContract struct {
 	OrganizationID int64
-	BelegID        int64
+	ContractID     int64
+	TriggerEvent   string
+	LastEventOn    calendar.Date
 }

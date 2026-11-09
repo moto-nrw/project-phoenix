@@ -78,11 +78,11 @@ func newBelegFixture(t *testing.T, db *bun.DB, name string) belegFixture {
 func instruct(t *testing.T, retention parentbilling.BelegRetention, ctx context.Context, organization int64) {
 	t.Helper()
 	for _, instruction := range []parentbilling.NewRetentionInstruction{
-		{BelegType: parentbilling.BelegHolidayDocument, TriggerEvent: parentbilling.TriggerIssued, Period: 8},
-		{BelegType: parentbilling.BelegCareInvoice, TriggerEvent: parentbilling.TriggerIssued, Period: 8},
-		{BelegType: parentbilling.BelegSEPADebit, TriggerEvent: parentbilling.TriggerIssued, Period: 8},
-		{BelegType: parentbilling.BelegSEPAMandate, TriggerEvent: parentbilling.TriggerLastCollection, Period: 14},
-		{BelegType: parentbilling.BelegCareContract, TriggerEvent: parentbilling.TriggerContractEnded, Period: 6},
+		{BelegType: parentbilling.BelegHolidayDocument, TriggerEvent: parentbilling.TriggerIssued, Period: 8, Basis: parentbilling.BasisBookingVoucher},
+		{BelegType: parentbilling.BelegCareInvoice, TriggerEvent: parentbilling.TriggerIssued, Period: 8, Basis: parentbilling.BasisBookingVoucher},
+		{BelegType: parentbilling.BelegSEPADebit, TriggerEvent: parentbilling.TriggerIssued, Period: 8, Basis: parentbilling.BasisBookingVoucher},
+		{BelegType: parentbilling.BelegSEPAMandate, TriggerEvent: parentbilling.TriggerLastCollection, Period: 14, Basis: parentbilling.BasisCollectionAgreement},
+		{BelegType: parentbilling.BelegCareContract, TriggerEvent: parentbilling.TriggerContractEnded, Period: 6, Basis: parentbilling.BasisBusinessLetter},
 	} {
 		instruction.LegalBasis, instruction.InstructedBy = "§ 147 AO", "Kämmerei des Trägers"
 		instruction.InstructedOn, instruction.InstructionReference = calendar.NewDate(2026, time.November, 9), "AVV-Nachtrag 2026-11"

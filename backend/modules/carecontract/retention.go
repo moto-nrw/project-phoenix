@@ -18,6 +18,13 @@ type RetentionFact struct {
 	EndedOn        *calendar.Date
 }
 
+// Events a contract's retention period counts from; the Elternabrechnung
+// names them alike.
+const (
+	RetentionEventConcluded = "contract_concluded"
+	RetentionEventEnded     = "contract_ended"
+)
+
 // ContractRetention lets the Elternabrechnung keep the retention record of
 // each contract and delete a contract after the period the Träger
 // instructed (ADR 0184). Both calls join the caller's administrative
@@ -27,8 +34,12 @@ type ContractRetention interface {
 	// or, for organizationID 0, of every Träger.
 	RetentionFacts(ctx context.Context, organizationID int64) ([]RetentionFact, error)
 	// DeleteEndedContracts deletes the given contracts of the Träger that
-	// ended by today, with versions, parties, PDFs, mailings, signatures,
-	// links, reminders, notices and their trail, and answers the IDs that
-	// went. A draft or a contract in force on today is never deleted.
-	DeleteEndedContracts(ctx context.Context, organizationID int64, contractIDs []int64, today calendar.Date) ([]int64, error)
+	// ended by today and whose event lies on or before lastEventOn, with
+	// versions, parties, PDFs, mailings, signatures, links, reminders,
+	// notices and their trail, and answers the IDs that went. The event is
+	// RetentionEventEnded (the last day of the contract) or
+	// RetentionEventConcluded (its conclusion); it is read as it stands at
+	// the delete. A draft, a contract in force on today and a contract
+	// without a day of its event are never deleted.
+	DeleteEndedContracts(ctx context.Context, organizationID int64, contractIDs []int64, today calendar.Date, event string, lastEventOn calendar.Date) ([]int64, error)
 }

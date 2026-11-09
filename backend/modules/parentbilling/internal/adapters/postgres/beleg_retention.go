@@ -35,21 +35,22 @@ func adminDB(ctx context.Context) (bun.IDB, error) {
 
 // belegFactRow is one Beleg of parent-billing with the days of its events.
 type belegFactRow struct {
-	OrganizationID int64          `bun:"organization_id"`
-	BelegType      string         `bun:"beleg_type"`
-	BelegID        int64          `bun:"beleg_id"`
-	Issued         *calendar.Date `bun:"issued,type:date"`
-	SignedOn       *calendar.Date `bun:"signed_on,type:date"`
-	RevokedOn      *calendar.Date `bun:"revoked_on,type:date"`
-	LastCollection *calendar.Date `bun:"last_collection,type:date"`
+	OrganizationID    int64          `bun:"organization_id"`
+	BelegType         string         `bun:"beleg_type"`
+	BelegID           int64          `bun:"beleg_id"`
+	Issued            *calendar.Date `bun:"issued,type:date"`
+	SignedOn          *calendar.Date `bun:"signed_on,type:date"`
+	RevokedOn         *calendar.Date `bun:"revoked_on,type:date"`
+	LastCollection    *calendar.Date `bun:"last_collection,type:date"`
+	CollectionTrigger *calendar.Date `bun:"collection_trigger,type:date"`
 }
 
 // BelegFacts lists every Beleg of parent-billing of one Träger or, for
 // organizationID 0, of every Träger, with the days of its events: the
 // documents and invoices of released runs, an invoice with the later issue
 // of itself and its cancellation, the released notices, every mandate with
-// its last collection and the submitted debits. The function reads no
-// bank data (migration 1.15.828).
+// the submission of its last debit and the submitted debits. The function
+// reads no bank data (migration 1.15.828).
 func (s *Store) BelegFacts(ctx context.Context, organizationID int64) ([]parentbilling.BelegFact, error) {
 	db, err := adminDB(ctx)
 	if err != nil {
@@ -62,7 +63,8 @@ func (s *Store) BelegFacts(ctx context.Context, organizationID int64) ([]parentb
 	facts := make([]parentbilling.BelegFact, len(rows))
 	for i, row := range rows {
 		facts[i] = parentbilling.BelegFact{OrganizationID: row.OrganizationID, BelegType: row.BelegType, BelegID: row.BelegID,
-			Issued: row.Issued, SignedOn: row.SignedOn, RevokedOn: row.RevokedOn, LastCollection: row.LastCollection}
+			Issued: row.Issued, SignedOn: row.SignedOn, RevokedOn: row.RevokedOn, LastCollection: row.LastCollection,
+			CollectionTrigger: row.CollectionTrigger}
 	}
 	return facts, nil
 }
@@ -89,7 +91,9 @@ type instructionRow struct {
 	BelegType            string        `bun:"beleg_type"`
 	TriggerEvent         string        `bun:"trigger_event"`
 	Period               int           `bun:"period"`
+	Basis                string        `bun:"basis"`
 	LegalBasis           string        `bun:"legal_basis"`
+	BasisJustification   *string       `bun:"basis_justification"`
 	InstructedBy         string        `bun:"instructed_by"`
 	InstructedOn         calendar.Date `bun:"instructed_on,type:date"`
 	InstructionReference string        `bun:"instruction_reference"`
@@ -98,11 +102,15 @@ type instructionRow struct {
 }
 
 func (r instructionRow) instruction() parentbilling.RetentionInstruction {
-	return parentbilling.RetentionInstruction{
+	instruction := parentbilling.RetentionInstruction{
 		ID: r.ID, OrganizationID: r.OrganizationID, BelegType: r.BelegType, TriggerEvent: r.TriggerEvent, Period: r.Period,
-		LegalBasis: r.LegalBasis, InstructedBy: r.InstructedBy, InstructedOn: r.InstructedOn,
+		Basis: r.Basis, LegalBasis: r.LegalBasis, InstructedBy: r.InstructedBy, InstructedOn: r.InstructedOn,
 		InstructionReference: r.InstructionReference, RecordedAt: r.RecordedAt,
 	}
+	if r.BasisJustification != nil {
+		instruction.BasisJustification = *r.BasisJustification
+	}
+	return instruction
 }
 
 type suspensionRow struct {
@@ -192,8 +200,11 @@ func (s *Store) InsertInstruction(ctx context.Context, organizationID, operatorI
 	}
 	row := &instructionRow{
 		OrganizationID: organizationID, BelegType: input.BelegType, TriggerEvent: input.TriggerEvent, Period: input.Period,
-		LegalBasis: input.LegalBasis, InstructedBy: input.InstructedBy, InstructedOn: input.InstructedOn,
+		Basis: input.Basis, LegalBasis: input.LegalBasis, InstructedBy: input.InstructedBy, InstructedOn: input.InstructedOn,
 		InstructionReference: input.InstructionReference, RecordedByOperatorID: optionalOperator(operatorID),
+	}
+	if input.BasisJustification != "" {
+		row.BasisJustification = &input.BasisJustification
 	}
 	if _, err := db.NewInsert().Model(row).Returning("id, recorded_at").Exec(ctx); err != nil {
 		return parentbilling.RetentionInstruction{}, fmt.Errorf("parent billing postgres: insert retention instruction: %w", writeError(err))
@@ -231,6 +242,9 @@ func (s *Store) LiftSuspension(ctx context.Context, organizationID, suspensionID
 	if err != nil {
 		return err
 	}
+	if err := lockTraeger(ctx, db, organizationID); err != nil {
+		return err
+	}
 	result, err := db.NewRaw(`UPDATE parent_billing.beleg_retention_suspensions
 		SET lifted_at = CURRENT_TIMESTAMP, lifted_by_operator_id = ?
 		WHERE organization_id = ? AND id = ? AND lifted_at IS NULL`, optionalOperator(operatorID), organizationID, suspensionID).Exec(ctx)
@@ -247,19 +261,41 @@ func (s *Store) LiftSuspension(ctx context.Context, organizationID, suspensionID
 	return nil
 }
 
-// lockTraeger serializes the instructions and suspensions of one Träger,
-// so two operators cannot both leave an active instruction of a type.
-func lockTraeger(ctx context.Context, db bun.IDB, organizationID int64) error {
-	_, err := db.NewRaw(`SELECT pg_advisory_xact_lock(hashtext('parent_billing.beleg_retention:' || ?::text))`, organizationID).Exec(ctx)
-	return err
+// LockTraeger takes the retention lock of each Träger in ascending order
+// (parent_billing.lock_beleg_retention, migration 1.15.828).
+func (s *Store) LockTraeger(ctx context.Context, organizationIDs []int64) error {
+	db, err := adminDB(ctx)
+	if err != nil {
+		return err
+	}
+	return lockTraeger(ctx, db, organizationIDs...)
 }
 
-// writeError names a Träger that does not exist: the foreign key of the
-// new row refuses it.
+// lockTraeger serializes the instructions, suspensions, reviews, the
+// evaluation and the deletion of the Träger: two operators cannot both
+// leave an active instruction of a type, and the hourly job decides on
+// what an operator committed, never on what it is still recording.
+func lockTraeger(ctx context.Context, db bun.IDB, organizationIDs ...int64) error {
+	if len(organizationIDs) == 0 {
+		return nil
+	}
+	if _, err := db.NewRaw(`SELECT parent_billing.lock_beleg_retention(?::bigint[])`, pgdialect.Array(organizationIDs)).Exec(ctx); err != nil {
+		return fmt.Errorf("parent billing postgres: lock beleg retention: %w", err)
+	}
+	return nil
+}
+
+// writeError names a Träger that does not exist, which the foreign key of
+// the new row refuses, and a row a check constraint refuses.
 func writeError(err error) error {
 	var pgErr pgdriver.Error
-	if errors.As(err, &pgErr) && pgErr.Field('C') == "23503" {
-		return parentbilling.ErrBelegTraegerNotFound
+	if errors.As(err, &pgErr) {
+		switch pgErr.Field('C') {
+		case "23503":
+			return parentbilling.ErrBelegTraegerNotFound
+		case "23514":
+			return fmt.Errorf("%w: %s", parentbilling.ErrBelegRetentionInvalid, pgErr.Field('n'))
+		}
 	}
 	return err
 }
@@ -274,9 +310,10 @@ func optionalOperator(operatorID int64) *int64 {
 // saveBelegRecordsSQL upserts the records of one batch. A Beleg that stays
 // on the clarification list for the same reason keeps its listing day and
 // review; a new or changed reason lists it today with a review 30 days on.
+// The collection trigger of a mandate only moves forward.
 const saveBelegRecordsSQL = `
 INSERT INTO parent_billing.beleg_retentions (organization_id, beleg_type, beleg_id, state, reason, trigger_event,
-	trigger_date, deletable_on, proposed_on, instruction_id, suspension_id, listed_on, review_on, responsible, evaluated_on)
+	trigger_date, deletable_on, proposed_on, instruction_id, suspension_id, listed_on, review_on, responsible, collection_trigger_on, evaluated_on)
 SELECT b.organization_id, b.beleg_type, b.beleg_id, b.state, NULLIF(b.reason, ''), NULLIF(b.trigger_event, ''),
 	NULLIF(b.trigger_date, '')::date, NULLIF(b.deletable_on, '')::date, NULLIF(b.proposed_on, '')::date,
 	NULLIF(b.instruction_id, 0), NULLIF(b.suspension_id, 0),
@@ -287,16 +324,18 @@ SELECT b.organization_id, b.beleg_type, b.beleg_id, b.state, NULLIF(b.reason, ''
 		WHEN old.state = 'clarification' AND COALESCE(old.reason, '') = b.reason THEN old.review_on
 		ELSE ?0::date + ?1::int END,
 	CASE WHEN b.state = 'clarification' THEN ?2 END,
+	CASE WHEN b.beleg_type = 'sepa_mandate' THEN NULLIF(b.collection_trigger, '')::date END,
 	?0::date
-FROM unnest(?3::bigint[], ?4::text[], ?5::bigint[], ?6::text[], ?7::text[], ?8::text[], ?9::text[], ?10::text[], ?11::text[], ?12::bigint[], ?13::bigint[])
-	AS b(organization_id, beleg_type, beleg_id, state, reason, trigger_event, trigger_date, deletable_on, proposed_on, instruction_id, suspension_id)
+FROM unnest(?3::bigint[], ?4::text[], ?5::bigint[], ?6::text[], ?7::text[], ?8::text[], ?9::text[], ?10::text[], ?11::text[], ?12::bigint[], ?13::bigint[], ?14::text[])
+	AS b(organization_id, beleg_type, beleg_id, state, reason, trigger_event, trigger_date, deletable_on, proposed_on, instruction_id, suspension_id, collection_trigger)
 LEFT JOIN parent_billing.beleg_retentions AS old
 	ON old.organization_id = b.organization_id AND old.beleg_type = b.beleg_type AND old.beleg_id = b.beleg_id
 ON CONFLICT (organization_id, beleg_type, beleg_id) DO UPDATE SET
 	state = EXCLUDED.state, reason = EXCLUDED.reason, trigger_event = EXCLUDED.trigger_event, trigger_date = EXCLUDED.trigger_date,
 	deletable_on = EXCLUDED.deletable_on, proposed_on = EXCLUDED.proposed_on, instruction_id = EXCLUDED.instruction_id,
 	suspension_id = EXCLUDED.suspension_id, listed_on = EXCLUDED.listed_on, review_on = EXCLUDED.review_on,
-	responsible = EXCLUDED.responsible, evaluated_on = EXCLUDED.evaluated_on`
+	responsible = EXCLUDED.responsible, evaluated_on = EXCLUDED.evaluated_on,
+	collection_trigger_on = GREATEST(parent_billing.beleg_retentions.collection_trigger_on, EXCLUDED.collection_trigger_on)`
 
 // belegRecordBatch bounds one upsert statement.
 const belegRecordBatch = 5000
@@ -326,17 +365,17 @@ func saveBelegRecordBatch(ctx context.Context, db bun.IDB, today calendar.Date, 
 	organizations, types, ids := make([]int64, n), make([]string, n), make([]int64, n)
 	states, reasons, triggers := make([]string, n), make([]string, n), make([]string, n)
 	triggerDates, deletable, proposed := make([]string, n), make([]string, n), make([]string, n)
-	instructions, suspensions := make([]int64, n), make([]int64, n)
+	instructions, suspensions, collections := make([]int64, n), make([]int64, n), make([]string, n)
 	for i, record := range records {
 		organizations[i], types[i], ids[i] = record.OrganizationID, record.BelegType, record.BelegID
 		states[i], reasons[i], triggers[i] = record.State, record.Reason, record.TriggerEvent
 		triggerDates[i], deletable[i], proposed[i] = dateText(record.TriggerDate), dateText(record.DeletableOn), dateText(record.ProposedOn)
-		instructions[i], suspensions[i] = record.InstructionID, record.SuspensionID
+		instructions[i], suspensions[i], collections[i] = record.InstructionID, record.SuspensionID, dateText(record.CollectionTrigger)
 	}
 	_, err := db.NewRaw(saveBelegRecordsSQL, today, parentbilling.ClarificationReviewDays, parentbilling.ClarificationOwner,
 		pgdialect.Array(organizations), pgdialect.Array(types), pgdialect.Array(ids), pgdialect.Array(states),
 		pgdialect.Array(reasons), pgdialect.Array(triggers), pgdialect.Array(triggerDates), pgdialect.Array(deletable),
-		pgdialect.Array(proposed), pgdialect.Array(instructions), pgdialect.Array(suspensions)).Exec(ctx)
+		pgdialect.Array(proposed), pgdialect.Array(instructions), pgdialect.Array(suspensions), pgdialect.Array(collections)).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("parent billing postgres: save beleg records: %w", err)
 	}

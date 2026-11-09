@@ -7,6 +7,11 @@
     },
     {
       "decision": "0184",
+      "id": "modules/parentbilling/http/BelegRetentionResource.RecordClarificationReview",
+      "reason": "ADR 0184 (#4720): decodes the review of a clarification entry of the Träger in the route and records it with its operator audit entry in one administrative transaction."
+    },
+    {
+      "decision": "0184",
       "id": "modules/parentbilling/http/BelegRetentionResource.RecordInstruction",
       "reason": "ADR 0184 (#4720): decodes the instruction of the Träger in the route and records it with its operator audit entry in one administrative transaction."
     },
@@ -24,6 +29,11 @@
       "decision": "0184",
       "id": "modules/parentbilling/internal/application/BelegRetention.LiftSuspension",
       "reason": "ADR 0184 (#4720): ends the suspension and evaluates the Träger again at once, so the Operator portal shows the effect; the deletion stays with the hourly job."
+    },
+    {
+      "decision": "0184",
+      "id": "modules/parentbilling/internal/application/BelegRetention.RecordClarificationReview",
+      "reason": "ADR 0184 (#4720, Löschkonzept section 3): trims and validates the review (type, reason, note, escalation reason, next review within a year) on the Berlin day before the store records it under the lock of the Träger."
     },
     {
       "decision": "0184",

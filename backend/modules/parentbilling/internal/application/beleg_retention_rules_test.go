@@ -128,9 +128,9 @@ func TestInstructionValidationFollowsTheType(t *testing.T) {
 	t.Parallel()
 	base := parentbilling.NewRetentionInstruction{LegalBasis: "§ 147 AO", InstructedBy: "Kämmerei", InstructedOn: date(2026, 11, 9), InstructionReference: "Nachtrag 2026-11"}
 	valid := []parentbilling.NewRetentionInstruction{
-		withType(base, parentbilling.BelegCareInvoice, parentbilling.TriggerIssued, 8),
-		withType(base, parentbilling.BelegCareContract, parentbilling.TriggerContractEnded, 6),
-		withType(base, parentbilling.BelegSEPAMandate, parentbilling.TriggerLastCollection, 14),
+		withBasis(withType(base, parentbilling.BelegCareInvoice, parentbilling.TriggerIssued, 8), parentbilling.BasisBookingVoucher),
+		withBasis(withType(base, parentbilling.BelegCareContract, parentbilling.TriggerContractEnded, 6), parentbilling.BasisBusinessLetter),
+		withBasis(withType(base, parentbilling.BelegSEPAMandate, parentbilling.TriggerLastCollection, 14), parentbilling.BasisCollectionAgreement),
 	}
 	for _, instruction := range valid {
 		assert.NoError(t, ValidateRetentionInstruction(instruction), instruction.BelegType)
@@ -147,7 +147,104 @@ func TestInstructionValidationFollowsTheType(t *testing.T) {
 	}
 }
 
+func withBasis(instruction parentbilling.NewRetentionInstruction, basis string) parentbilling.NewRetentionInstruction {
+	instruction.Basis = basis
+	return instruction
+}
+
 func withType(base parentbilling.NewRetentionInstruction, belegType, trigger string, period int) parentbilling.NewRetentionInstruction {
 	base.BelegType, base.TriggerEvent, base.Period = belegType, trigger, period
 	return base
+}
+
+// An invoice, credit or cancellation note and a submitted debit are booking
+// vouchers: a Weisung citing § 147 AO, § 257 HGB or § 14b UStG cannot keep
+// them shorter than eight years after the end of their issue year
+// (Löschkonzept section 2).
+func TestBookingInstructionCitingTheStatutesKeepsEightYears(t *testing.T) {
+	t.Parallel()
+	for _, belegType := range []string{parentbilling.BelegHolidayDocument, parentbilling.BelegCareInvoice, parentbilling.BelegSEPADebit} {
+		for _, basis := range []string{"§ 147 AO", "§ 257 HGB", "§ 14b UStG"} {
+			short := parentbilling.NewRetentionInstruction{BelegType: belegType, TriggerEvent: parentbilling.TriggerIssued, Period: 1,
+				LegalBasis: basis, InstructedBy: "Kämmerei", InstructedOn: date(2026, 11, 9), InstructionReference: "Nachtrag 2026-11"}
+			for _, kind := range []string{"", parentbilling.BasisBookingVoucher, parentbilling.BasisNotApplicable} {
+				short.Basis, short.BasisJustification = kind, ""
+				if kind == parentbilling.BasisNotApplicable {
+					short.BasisJustification = "nur ein Jahr gewünscht"
+				}
+				assert.ErrorIs(t, ValidateRetentionInstruction(short), parentbilling.ErrBelegRetentionInvalid, "%s with %s as %q", belegType, basis, kind)
+			}
+		}
+	}
+}
+
+// The basis decides the least period: a booking voucher eight years, a
+// business letter six; only the written statement that the statutes do not
+// apply allows less, and it cites none of them. A business letter is a
+// classification of contracts and notices, not of an invoice.
+func TestInstructionBasisSetsTheLeastPeriod(t *testing.T) {
+	t.Parallel()
+	base := parentbilling.NewRetentionInstruction{LegalBasis: "Satzung des Trägers", InstructedBy: "Frau Beispiel, Kämmerei",
+		InstructedOn: date(2026, 11, 9), InstructionReference: "Nachtrag 2026-11"}
+	notApplicable := func(instruction parentbilling.NewRetentionInstruction, justification string) parentbilling.NewRetentionInstruction {
+		instruction.Basis, instruction.BasisJustification = parentbilling.BasisNotApplicable, justification
+		return instruction
+	}
+	valid := []parentbilling.NewRetentionInstruction{
+		withBasis(withType(base, parentbilling.BelegCareInvoice, parentbilling.TriggerIssued, 8), parentbilling.BasisBookingVoucher),
+		withBasis(withType(base, parentbilling.BelegCareNotice, parentbilling.TriggerIssued, 8), parentbilling.BasisBookingVoucher),
+		withBasis(withType(base, parentbilling.BelegCareNotice, parentbilling.TriggerIssued, 6), parentbilling.BasisBusinessLetter),
+		notApplicable(withType(base, parentbilling.BelegCareInvoice, parentbilling.TriggerIssued, 1), "Träger ist nicht buchführungspflichtig, Bescheid des Finanzamts vom 01.02.2026"),
+		notApplicable(withType(base, parentbilling.BelegCareContract, parentbilling.TriggerContractEnded, 3), "Verträge sind weder Buchungsbeleg noch Geschäftsbrief des Trägers"),
+	}
+	for _, instruction := range valid {
+		assert.NoError(t, ValidateRetentionInstruction(instruction), "%+v", instruction)
+	}
+	cited := withType(base, parentbilling.BelegCareInvoice, parentbilling.TriggerIssued, 1)
+	cited.LegalBasis = "§ 147 AO"
+	invalid := map[string]parentbilling.NewRetentionInstruction{
+		"booking voucher below eight years":   withBasis(withType(base, parentbilling.BelegSEPADebit, parentbilling.TriggerIssued, 7), parentbilling.BasisBookingVoucher),
+		"business letter below six years":     withBasis(withType(base, parentbilling.BelegCareContract, parentbilling.TriggerContractEnded, 5), parentbilling.BasisBusinessLetter),
+		"contract as booking voucher below 8": withBasis(withType(base, parentbilling.BelegCareContract, parentbilling.TriggerContractEnded, 6), parentbilling.BasisBookingVoucher),
+		"invoice as business letter":          withBasis(withType(base, parentbilling.BelegCareInvoice, parentbilling.TriggerIssued, 6), parentbilling.BasisBusinessLetter),
+		"no basis":                            withType(base, parentbilling.BelegCareInvoice, parentbilling.TriggerIssued, 8),
+		"mandate without the agreement":       withBasis(withType(base, parentbilling.BelegSEPAMandate, parentbilling.TriggerLastCollection, 14), parentbilling.BasisNotApplicable),
+		"not applicable without a reason":     notApplicable(withType(base, parentbilling.BelegCareInvoice, parentbilling.TriggerIssued, 1), "  "),
+		"not applicable citing § 147 AO":      notApplicable(cited, "Träger ist nicht buchführungspflichtig"),
+		"justification on a statutory basis": func() parentbilling.NewRetentionInstruction {
+			instruction := withBasis(withType(base, parentbilling.BelegCareInvoice, parentbilling.TriggerIssued, 8), parentbilling.BasisBookingVoucher)
+			instruction.BasisJustification = "überflüssig"
+			return instruction
+		}(),
+	}
+	for name, instruction := range invalid {
+		assert.ErrorIs(t, ValidateRetentionInstruction(instruction), parentbilling.ErrBelegRetentionInvalid, name)
+	}
+}
+
+// A review notes what was clarified, names the reason of an escalation and
+// sets the next review after today, within a year.
+func TestClarificationReviewNeedsANoteAndANextReview(t *testing.T) {
+	t.Parallel()
+	today := date(2026, 12, 10)
+	base := parentbilling.NewBelegClarificationReview{BelegType: parentbilling.BelegCareContract, Reason: parentbilling.ClarifyNoInstruction,
+		Note: "Träger prüft Einordnung der Verträge", NextReviewOn: date(2027, 1, 10)}
+	assert.NoError(t, ValidateClarificationReview(base, today))
+	escalated := base
+	escalated.Escalated, escalated.EscalationReason = true, "Träger antwortet seit 30 Tagen nicht"
+	assert.NoError(t, ValidateClarificationReview(escalated, today))
+
+	for name, change := range map[string]func(*parentbilling.NewBelegClarificationReview){
+		"no note":                      func(r *parentbilling.NewBelegClarificationReview) { r.Note = " " },
+		"escalation without a reason":  func(r *parentbilling.NewBelegClarificationReview) { r.Escalated = true },
+		"reason without an escalation": func(r *parentbilling.NewBelegClarificationReview) { r.EscalationReason = "dringend" },
+		"next review today":            func(r *parentbilling.NewBelegClarificationReview) { r.NextReviewOn = today },
+		"next review beyond a year":    func(r *parentbilling.NewBelegClarificationReview) { r.NextReviewOn = today.AddDays(366) },
+		"unknown reason":               func(r *parentbilling.NewBelegClarificationReview) { r.Reason = "other" },
+		"unknown type":                 func(r *parentbilling.NewBelegClarificationReview) { r.BelegType = "receipt" },
+	} {
+		review := base
+		change(&review)
+		assert.ErrorIs(t, ValidateClarificationReview(review, today), parentbilling.ErrBelegRetentionInvalid, name)
+	}
 }

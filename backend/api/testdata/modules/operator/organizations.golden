@@ -17,6 +17,7 @@ GET /operator/organizations/{id}/traeger-members/invitations -> basis
 GET /operator/organizations/{id}/traeger-settings/schema -> basis
 POST /operator/organizations/ -> basis
 POST /operator/organizations/test-traeger -> basis
+POST /operator/organizations/{id}/beleg-retention/clarification-reviews -> basis
 POST /operator/organizations/{id}/beleg-retention/instructions -> basis
 POST /operator/organizations/{id}/beleg-retention/suspensions -> basis
 POST /operator/organizations/{id}/erasure-order -> basis

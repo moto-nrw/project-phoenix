@@ -13,6 +13,7 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	GET /operator/organizations/{id}/traeger-members/invitations
 	GET /operator/organizations/{id}/traeger-settings/schema
 	POST /operator/organizations/test-traeger
+	POST /operator/organizations/{id}/beleg-retention/clarification-reviews
 	POST /operator/organizations/{id}/beleg-retention/instructions
 	POST /operator/organizations/{id}/beleg-retention/suspensions
 	POST /operator/organizations/{id}/erasure-order

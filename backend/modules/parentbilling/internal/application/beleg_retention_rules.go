@@ -2,6 +2,7 @@ package application
 
 import (
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -37,6 +38,29 @@ var triggersByType = map[string][]string{
 	parentbilling.BelegSEPAMandate:     {parentbilling.TriggerLastCollection},
 	parentbilling.BelegSEPADebit:       {parentbilling.TriggerIssued},
 }
+
+// basesByType lists the bases a Weisung may name per type: invoices,
+// credit and cancellation notes and debits are booking vouchers, contracts
+// and notices are classified, a mandate follows the Inkassovereinbarung
+// (Löschkonzept section 2).
+var basesByType = map[string][]string{
+	parentbilling.BelegHolidayDocument: {parentbilling.BasisBookingVoucher, parentbilling.BasisNotApplicable},
+	parentbilling.BelegCareInvoice:     {parentbilling.BasisBookingVoucher, parentbilling.BasisNotApplicable},
+	parentbilling.BelegSEPADebit:       {parentbilling.BasisBookingVoucher, parentbilling.BasisNotApplicable},
+	parentbilling.BelegCareNotice:      {parentbilling.BasisBookingVoucher, parentbilling.BasisBusinessLetter, parentbilling.BasisNotApplicable},
+	parentbilling.BelegCareContract:    {parentbilling.BasisBookingVoucher, parentbilling.BasisBusinessLetter, parentbilling.BasisNotApplicable},
+	parentbilling.BelegSEPAMandate:     {parentbilling.BasisCollectionAgreement},
+}
+
+// statutoryYears is the least period a basis allows.
+var statutoryYears = map[string]int{
+	parentbilling.BasisBookingVoucher: parentbilling.MinBookingVoucherYears,
+	parentbilling.BasisBusinessLetter: parentbilling.MinBusinessLetterYears,
+}
+
+// statuteCitation finds § 147 AO, § 257 HGB or § 14b UStG in a basis; the
+// migration 1.15.828 checks the same in chk_beleg_retention_instructions_not_applicable.
+var statuteCitation = regexp.MustCompile(`(?i)(\bAO\b|\bHGB\b|\bUStG\b|§\s*(147|257|14b)\b|abgabenordnung|handelsgesetzbuch|umsatzsteuergesetz)`)
 
 // bookingTypes have the period the Löschkonzept proposes; contracts and
 // notices have none, the Träger classifies them.
@@ -160,8 +184,62 @@ func ValidateRetentionInstruction(instruction parentbilling.NewRetentionInstruct
 	if instruction.InstructedOn.IsZero() {
 		return fmt.Errorf("%w: the day of the instruction is required", parentbilling.ErrBelegRetentionInvalid)
 	}
+	if err := validateBasis(instruction); err != nil {
+		return err
+	}
 	return requireTexts(map[string]string{"legal basis": instruction.LegalBasis, "instructed by": instruction.InstructedBy, "instruction reference": instruction.InstructionReference})
 }
+
+// validateBasis holds a Weisung to the statutes it names: a booking voucher
+// keeps eight years, a business letter six. Only the stated basis that the
+// statutes do not apply, with its written justification, allows a shorter
+// period, and such a Weisung cites none of them.
+func validateBasis(instruction parentbilling.NewRetentionInstruction) error {
+	if !slices.Contains(basesByType[instruction.BelegType], instruction.Basis) {
+		return fmt.Errorf("%w: basis %q does not fit %s", parentbilling.ErrBelegRetentionInvalid, instruction.Basis, instruction.BelegType)
+	}
+	if minimum, statutory := statutoryYears[instruction.Basis]; statutory && instruction.Period < minimum {
+		return fmt.Errorf("%w: a %s is kept at least %d years", parentbilling.ErrBelegRetentionInvalid, instruction.Basis, minimum)
+	}
+	justification := strings.TrimSpace(instruction.BasisJustification)
+	if instruction.Basis != parentbilling.BasisNotApplicable {
+		if justification != "" {
+			return fmt.Errorf("%w: a justification belongs only to a basis without statutes", parentbilling.ErrBelegRetentionInvalid)
+		}
+		return nil
+	}
+	if justification == "" || len([]rune(justification)) > parentbilling.MaxJustificationLength {
+		return fmt.Errorf("%w: why the statutes do not apply is required and at most %d characters", parentbilling.ErrBelegRetentionInvalid, parentbilling.MaxJustificationLength)
+	}
+	if statuteCitation.MatchString(instruction.LegalBasis) {
+		return fmt.Errorf("%w: a basis citing § 147 AO, § 257 HGB or § 14b UStG keeps their periods", parentbilling.ErrBelegRetentionInvalid)
+	}
+	return nil
+}
+
+// ValidateClarificationReview checks a review: a known type and reason, a
+// note, the reason of an escalation and a next review after today, within
+// a year.
+func ValidateClarificationReview(review parentbilling.NewBelegClarificationReview, today calendar.Date) error {
+	if _, known := triggersByType[review.BelegType]; !known {
+		return fmt.Errorf("%w: unknown beleg type %q", parentbilling.ErrBelegRetentionInvalid, review.BelegType)
+	}
+	if !slices.Contains(clarificationReasons, review.Reason) {
+		return fmt.Errorf("%w: unknown clarification reason %q", parentbilling.ErrBelegRetentionInvalid, review.Reason)
+	}
+	if !review.NextReviewOn.After(today) || review.NextReviewOn.After(today.AddDays(parentbilling.MaxClarificationReviewDays)) {
+		return fmt.Errorf("%w: the next review lies after today and within %d days", parentbilling.ErrBelegRetentionInvalid, parentbilling.MaxClarificationReviewDays)
+	}
+	fields := map[string]string{"note": review.Note}
+	if review.Escalated {
+		fields["escalation reason"] = review.EscalationReason
+	} else if strings.TrimSpace(review.EscalationReason) != "" {
+		return fmt.Errorf("%w: an escalation reason needs the escalation", parentbilling.ErrBelegRetentionInvalid)
+	}
+	return requireLength(fields, parentbilling.MaxJustificationLength)
+}
+
+var clarificationReasons = []string{parentbilling.ClarifyNoInstruction, parentbilling.ClarifyNoCollection, parentbilling.ClarifyNoTriggerDate}
 
 // ValidateRetentionSuspension checks a suspension: a known type, a reason,
 // a scope, a responsible person and the next review.
@@ -179,6 +257,10 @@ func ValidateRetentionSuspension(suspension parentbilling.NewRetentionSuspension
 }
 
 func requireTexts(fields map[string]string) error {
+	return requireLength(fields, parentbilling.MaxInstructionTextLength)
+}
+
+func requireLength(fields map[string]string, limit int) error {
 	names := make([]string, 0, len(fields))
 	for name := range fields {
 		names = append(names, name)
@@ -186,8 +268,8 @@ func requireTexts(fields map[string]string) error {
 	slices.Sort(names)
 	for _, name := range names {
 		value := strings.TrimSpace(fields[name])
-		if value == "" || len([]rune(value)) > parentbilling.MaxInstructionTextLength {
-			return fmt.Errorf("%w: %s is required and at most %d characters", parentbilling.ErrBelegRetentionInvalid, name, parentbilling.MaxInstructionTextLength)
+		if value == "" || len([]rune(value)) > limit {
+			return fmt.Errorf("%w: %s is required and at most %d characters", parentbilling.ErrBelegRetentionInvalid, name, limit)
 		}
 	}
 	return nil

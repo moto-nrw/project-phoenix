@@ -25,6 +25,7 @@ const (
 	BelegRetentionInstruction    = "instruction"
 	BelegRetentionSuspension     = "suspension"
 	BelegRetentionSuspensionLift = "suspension_lift"
+	BelegClarificationReview     = "clarification_review"
 )
 
 // BelegRetentionResource serves the Beleg retention of a Träger to the moto
@@ -71,7 +72,9 @@ type instructionRequest struct {
 	BelegType            string        `json:"beleg_type"`
 	TriggerEvent         string        `json:"trigger_event"`
 	Period               int           `json:"period"`
+	Basis                string        `json:"basis"`
 	LegalBasis           string        `json:"legal_basis"`
+	BasisJustification   string        `json:"basis_justification"`
 	InstructedBy         string        `json:"instructed_by"`
 	InstructedOn         calendar.Date `json:"instructed_on"`
 	InstructionReference string        `json:"instruction_reference"`
@@ -84,6 +87,15 @@ type suspensionRequest struct {
 	Scope       string        `json:"scope"`
 	Responsible string        `json:"responsible"`
 	ReviewOn    calendar.Date `json:"review_on"`
+}
+
+type clarificationReviewRequest struct {
+	BelegType        string        `json:"beleg_type"`
+	Reason           string        `json:"reason"`
+	Note             string        `json:"note"`
+	Escalated        bool          `json:"escalated"`
+	EscalationReason string        `json:"escalation_reason"`
+	NextReviewOn     calendar.Date `json:"next_review_on"`
 }
 
 // RecordInstruction answers POST .../beleg-retention/instructions.
@@ -114,6 +126,23 @@ func (rs *BelegRetentionResource) RecordSuspension(w http.ResponseWriter, r *htt
 		suspension, err = rs.retention.RecordSuspension(ctx, organizationID, operatorID, capability.NewRetentionSuspension(req))
 		return err
 	}, func() { common.Respond(w, r, http.StatusCreated, suspension, "Suspension recorded") })
+}
+
+// RecordClarificationReview answers POST
+// .../beleg-retention/clarification-reviews: the review of a clarification
+// entry with its note, an escalation to Florian and the next review.
+func (rs *BelegRetentionResource) RecordClarificationReview(w http.ResponseWriter, r *http.Request) {
+	var req clarificationReviewRequest
+	organizationID, ok := decodeBelegRetention(w, r, &req)
+	if !ok {
+		return
+	}
+	var review capability.BelegClarificationReview
+	rs.write(w, r, BelegClarificationReview, req.BelegType, func(ctx context.Context, operatorID int64) error {
+		var err error
+		review, err = rs.retention.RecordClarificationReview(ctx, organizationID, operatorID, capability.NewBelegClarificationReview(req))
+		return err
+	}, func() { common.Respond(w, r, http.StatusCreated, review, "Clarification review recorded") })
 }
 
 // LiftSuspension answers DELETE .../beleg-retention/suspensions/{suspensionId}:
@@ -174,7 +203,8 @@ func belegRetentionError(err error) render.Renderer {
 	switch {
 	case errors.Is(err, capability.ErrBelegRetentionInvalid):
 		return common.OperatorInvalidRequestWithCode(err, common.CodeGeneralInput)
-	case errors.Is(err, capability.ErrBelegSuspensionNotFound), errors.Is(err, capability.ErrBelegTraegerNotFound):
+	case errors.Is(err, capability.ErrBelegSuspensionNotFound), errors.Is(err, capability.ErrBelegTraegerNotFound),
+		errors.Is(err, capability.ErrBelegClarificationNotFound):
 		return common.OperatorRejection(http.StatusNotFound, common.CodeGeneralBusinessRejection, err.Error())
 	default:
 		return common.OperatorInternal("beleg retention failed")

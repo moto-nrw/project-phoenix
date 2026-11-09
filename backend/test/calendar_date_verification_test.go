@@ -43,13 +43,14 @@ var unmappedDateColumns = map[string]string{
 	// INSERT ... SELECT FROM unnest with calendar.Date text cast to DATE and
 	// reads them back with calendar.Date fields of ad-hoc scan structs; no
 	// time.Time reaches the columns.
-	"parent_billing.beleg_retentions.trigger_date": "Beleg retention binds calendar.Date text in raw SQL, never time.Time",
-	"parent_billing.beleg_retentions.deletable_on": "Beleg retention binds calendar.Date text in raw SQL, never time.Time",
-	"parent_billing.beleg_retentions.proposed_on":  "Beleg retention binds calendar.Date text in raw SQL, never time.Time",
-	"parent_billing.beleg_retentions.listed_on":    "Beleg retention binds calendar.Date text in raw SQL, never time.Time",
-	"parent_billing.beleg_retentions.review_on":    "Beleg retention binds calendar.Date text in raw SQL, never time.Time",
-	"parent_billing.beleg_retentions.evaluated_on": "Beleg retention binds calendar.Date text in raw SQL, never time.Time",
-	"parent_billing.beleg_deletions.deleted_on":    "Beleg deletion log binds calendar.Date in raw SQL and SQL functions, never time.Time",
+	"parent_billing.beleg_retentions.trigger_date":          "Beleg retention binds calendar.Date text in raw SQL, never time.Time",
+	"parent_billing.beleg_retentions.deletable_on":          "Beleg retention binds calendar.Date text in raw SQL, never time.Time",
+	"parent_billing.beleg_retentions.proposed_on":           "Beleg retention binds calendar.Date text in raw SQL, never time.Time",
+	"parent_billing.beleg_retentions.listed_on":             "Beleg retention binds calendar.Date text in raw SQL, never time.Time",
+	"parent_billing.beleg_retentions.review_on":             "Beleg retention binds calendar.Date text in raw SQL, never time.Time",
+	"parent_billing.beleg_retentions.evaluated_on":          "Beleg retention binds calendar.Date text in raw SQL, never time.Time",
+	"parent_billing.beleg_retentions.collection_trigger_on": "Beleg retention binds calendar.Date text in raw SQL and SQL functions, never time.Time",
+	"parent_billing.beleg_deletions.deleted_on":             "Beleg deletion log binds calendar.Date in raw SQL and SQL functions, never time.Time",
 	// #4686: the attendance retention binds its cutoff and scans the mark
 	// through raw SQL in Student Presence as calendar.Date (ports.Date); no
 	// time.Time ever reaches the column.

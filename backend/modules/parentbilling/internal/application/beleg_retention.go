@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
@@ -18,17 +19,24 @@ const BelegDeletionLogRetentionYears = 3
 type BelegRetentionStore interface {
 	BelegFacts(ctx context.Context, organizationID int64) ([]parentbilling.BelegFact, error)
 	BelegEvaluationDue(ctx context.Context, today calendar.Date) (bool, error)
+	// LockTraeger takes the lock of each Träger that its instructions,
+	// suspensions, reviews, evaluation and deletion share, until the
+	// transaction ends.
+	LockTraeger(ctx context.Context, organizationIDs []int64) error
 	ActiveInstructions(ctx context.Context, organizationID int64) ([]parentbilling.RetentionInstruction, error)
 	ActiveSuspensions(ctx context.Context, organizationID int64) ([]parentbilling.RetentionSuspension, error)
 	InsertInstruction(ctx context.Context, organizationID, operatorID int64, instruction parentbilling.NewRetentionInstruction) (parentbilling.RetentionInstruction, error)
 	InsertSuspension(ctx context.Context, organizationID, operatorID int64, suspension parentbilling.NewRetentionSuspension) (parentbilling.RetentionSuspension, error)
 	LiftSuspension(ctx context.Context, organizationID, suspensionID, operatorID int64) error
+	InsertClarificationReview(ctx context.Context, organizationID, operatorID int64, today calendar.Date, review parentbilling.NewBelegClarificationReview) (parentbilling.BelegClarificationReview, error)
 	SaveBelegRecords(ctx context.Context, organizationID int64, today calendar.Date, records []parentbilling.BelegRecord) error
 	// DeleteDueBelege deletes the due Belege of parent-billing in the order
 	// their cascades need: debits first, mandates last, then the runs left
 	// without a Beleg.
 	DeleteDueBelege(ctx context.Context, today calendar.Date) (int, error)
-	DueContracts(ctx context.Context, today calendar.Date) ([]parentbilling.BelegRef, error)
+	// DueContracts locks the due contracts against new mandates and debits
+	// and lists those to which none hangs and no suspension applies.
+	DueContracts(ctx context.Context, today calendar.Date) ([]parentbilling.DueContract, error)
 	LogContractDeletions(ctx context.Context, organizationID int64, today calendar.Date, contractIDs []int64) error
 	DeleteExpiredBelegDeletions(ctx context.Context, years int) (int, error)
 	BelegRetentionOverview(ctx context.Context, organizationID int64, today calendar.Date) (parentbilling.BelegRetentionOverview, error)
@@ -74,6 +82,7 @@ func (r *BelegRetention) Overview(ctx context.Context, organizationID int64) (pa
 func (r *BelegRetention) RecordInstruction(ctx context.Context, organizationID, operatorID int64, input parentbilling.NewRetentionInstruction) (parentbilling.RetentionInstruction, error) {
 	input.LegalBasis, input.InstructedBy = strings.TrimSpace(input.LegalBasis), strings.TrimSpace(input.InstructedBy)
 	input.InstructionReference = strings.TrimSpace(input.InstructionReference)
+	input.BasisJustification = strings.TrimSpace(input.BasisJustification)
 	if err := ValidateRetentionInstruction(input); err != nil {
 		return parentbilling.RetentionInstruction{}, err
 	}
@@ -108,6 +117,19 @@ func (r *BelegRetention) LiftSuspension(ctx context.Context, organizationID, sus
 	return r.evaluate(ctx, organizationID, r.today())
 }
 
+// RecordClarificationReview records what the moto team clarified with the
+// Träger for an entry of the clarification list, an escalation to Florian
+// with its reason, and moves the next review of the entry (Löschkonzept
+// section 3). It deletes nothing.
+func (r *BelegRetention) RecordClarificationReview(ctx context.Context, organizationID, operatorID int64, input parentbilling.NewBelegClarificationReview) (parentbilling.BelegClarificationReview, error) {
+	input.Note, input.EscalationReason = strings.TrimSpace(input.Note), strings.TrimSpace(input.EscalationReason)
+	today := r.today()
+	if err := ValidateClarificationReview(input, today); err != nil {
+		return parentbilling.BelegClarificationReview{}, err
+	}
+	return r.store.InsertClarificationReview(ctx, organizationID, operatorID, today, input)
+}
+
 // ApplyBelegRetention evaluates every Beleg once per day, then deletes the
 // Belege whose instructed period ended and nothing of which is still kept.
 // Without an instruction nothing is due, so the job deletes nothing.
@@ -138,6 +160,8 @@ func (r *BelegRetention) ApplyBelegRetention(ctx context.Context) (int, error) {
 }
 
 // evaluate writes today's record of every Beleg of one Träger or of all.
+// It holds the lock of each Träger before it reads the instructions and
+// suspensions, so a change an operator is recording is either in or waits.
 func (r *BelegRetention) evaluate(ctx context.Context, organizationID int64, today calendar.Date) error {
 	facts, err := r.store.BelegFacts(ctx, organizationID)
 	if err != nil {
@@ -153,6 +177,9 @@ func (r *BelegRetention) evaluate(ctx context.Context, organizationID int64, tod
 			ConcludedOn: contract.ConcludedOn, Ended: contract.Ended, EndedOn: contract.EndedOn,
 		})
 	}
+	if err := r.store.LockTraeger(ctx, traegerOf(organizationID, facts)); err != nil {
+		return err
+	}
 	instructions, err := r.store.ActiveInstructions(ctx, organizationID)
 	if err != nil {
 		return err
@@ -163,6 +190,23 @@ func (r *BelegRetention) evaluate(ctx context.Context, organizationID int64, tod
 	}
 	records := decideBelegRecords(facts, instructions, suspensions, today)
 	return r.store.SaveBelegRecords(ctx, organizationID, today, records)
+}
+
+// traegerOf lists the Träger of the facts, or the one Träger evaluated.
+func traegerOf(organizationID int64, facts []parentbilling.BelegFact) []int64 {
+	if organizationID > 0 {
+		return []int64{organizationID}
+	}
+	seen := map[int64]bool{}
+	traeger := []int64{}
+	for _, fact := range facts {
+		if !seen[fact.OrganizationID] {
+			seen[fact.OrganizationID] = true
+			traeger = append(traeger, fact.OrganizationID)
+		}
+	}
+	slices.Sort(traeger)
+	return traeger
 }
 
 type belegKey struct {
@@ -207,7 +251,7 @@ func decideBelegRecords(facts []parentbilling.BelegFact, instructions []parentbi
 			OrganizationID: fact.OrganizationID, BelegType: fact.BelegType, BelegID: fact.BelegID,
 			State: decision.State, Reason: decision.Reason, TriggerEvent: decision.TriggerEvent, TriggerDate: decision.TriggerDate,
 			DeletableOn: decision.DeletableOn, ProposedOn: decision.ProposedOn,
-			InstructionID: decision.InstructionID, SuspensionID: decision.SuspensionID,
+			InstructionID: decision.InstructionID, SuspensionID: decision.SuspensionID, CollectionTrigger: fact.CollectionTrigger,
 		})
 	}
 	return records
@@ -220,18 +264,21 @@ func (r *BelegRetention) deleteDueContracts(ctx context.Context, today calendar.
 	if err != nil {
 		return 0, err
 	}
+	// One Weisung per Träger names the event and the last day it may lie on.
 	byTraeger := map[int64][]int64{}
+	cutoff := map[int64]parentbilling.DueContract{}
 	order := []int64{}
-	for _, ref := range due {
-		if _, seen := byTraeger[ref.OrganizationID]; !seen {
-			order = append(order, ref.OrganizationID)
+	for _, contract := range due {
+		if _, seen := byTraeger[contract.OrganizationID]; !seen {
+			order = append(order, contract.OrganizationID)
+			cutoff[contract.OrganizationID] = contract
 		}
-		byTraeger[ref.OrganizationID] = append(byTraeger[ref.OrganizationID], ref.BelegID)
+		byTraeger[contract.OrganizationID] = append(byTraeger[contract.OrganizationID], contract.ContractID)
 	}
 	total := 0
 	for _, organizationID := range order {
-		ids := byTraeger[organizationID]
-		deleted, err := r.contracts.DeleteEndedContracts(ctx, organizationID, ids, today)
+		ids, rule := byTraeger[organizationID], cutoff[organizationID]
+		deleted, err := r.contracts.DeleteEndedContracts(ctx, organizationID, ids, today, rule.TriggerEvent, rule.LastEventOn)
 		if err != nil {
 			return 0, fmt.Errorf("parent billing: delete retained contracts: %w", err)
 		}

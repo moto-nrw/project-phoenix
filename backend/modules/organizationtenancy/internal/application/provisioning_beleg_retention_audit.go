@@ -17,6 +17,7 @@ var belegRetentionActions = map[string]string{
 	organizationtenancy.BelegRetentionInstruction:    domain.AuditActionCreate,
 	organizationtenancy.BelegRetentionSuspension:     domain.AuditActionCreate,
 	organizationtenancy.BelegRetentionSuspensionLift: domain.AuditActionDelete,
+	organizationtenancy.BelegClarificationReview:     domain.AuditActionCreate,
 }
 
 // RecordBelegRetentionChange records the operator audit entry of a change of

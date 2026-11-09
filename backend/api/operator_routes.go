@@ -335,13 +335,15 @@ func mountOperatorTraegerSettingsRoutes(r chi.Router, provisioning *provisioning
 // mountOperatorBelegRetentionRoutes serves the retention of the Belege of a
 // Träger to the moto team (#4720, ADR 0184): the instructions, suspensions,
 // clarification list and deletion log under the operator read audit, and
-// the writes with their operator audit entry.
+// the writes (Weisung, suspension and its lift, review of a clarification
+// entry) with their operator audit entry.
 func mountOperatorBelegRetentionRoutes(r chi.Router, provisioning *provisioningOperatorAPI.ProvisioningResource) {
 	retention := parentBillingHTTP.NewBelegRetentionResource(owners.NewBelegRetention(nil), provisioning.RecordBelegRetentionChange, operatorIDFromSession)
 	r.Get("/organizations/{id}/beleg-retention", provisioning.AuditReadAccess(organizationtenancy.ReadBelegRetention, retention.Overview))
 	r.Post("/organizations/{id}/beleg-retention/instructions", retention.RecordInstruction)
 	r.Post("/organizations/{id}/beleg-retention/suspensions", retention.RecordSuspension)
 	r.Delete("/organizations/{id}/beleg-retention/suspensions/{suspensionId}", retention.LiftSuspension)
+	r.Post("/organizations/{id}/beleg-retention/clarification-reviews", retention.RecordClarificationReview)
 }
 
 // mountOperatorSchoolRoutes registers the /schools subtree, including the

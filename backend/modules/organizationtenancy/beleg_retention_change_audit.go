@@ -10,10 +10,12 @@ const (
 	BelegRetentionInstruction    = "instruction"
 	BelegRetentionSuspension     = "suspension"
 	BelegRetentionSuspensionLift = "suspension_lift"
+	BelegClarificationReview     = "clarification_review"
 )
 
 // BelegRetentionChange is an operator's record of an instruction of a
-// Träger, of a suspension or of its lift in the operator dashboard (#4720,
+// Träger, of a suspension or of its lift, or of the review of a
+// clarification entry in the operator dashboard (#4720,
 // ADR 0184). Kind is one of the BelegRetention* constants and BelegType the
 // type it concerns; no text of the instruction belongs here, the Beleg
 // retention keeps it itself.

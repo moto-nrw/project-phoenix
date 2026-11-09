@@ -9,6 +9,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (rs *BelegRetentionResource) RecordClarificationReview(w http.ResponseWriter, r *http.Request) {\n\tvar req clarificationReviewRequest\n\torganizationID, ok := decodeBelegRetention(w, r, \u0026req)\n\tif !ok {\n\t\treturn\n\t}\n\tvar review capability.BelegClarificationReview\n\trs.write(w, r, BelegClarificationReview, req.BelegType, func(ctx context.Context, operatorID int64) error {\n\t\tvar err error\n\t\treview, err = rs.retention.RecordClarificationReview(ctx, organizationID, operatorID, capability.NewBelegClarificationReview(req))\n\t\treturn err\n\t}, func() {\n\t\tcommon.Respond(w, r, http.StatusCreated, review, \"Clarification review recorded\")\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/parentbilling/http/BelegRetentionResource.RecordClarificationReview",
+      "owner": "modules/parentbilling"
+    },
+    {
+      "build": "production",
       "evidence": "func (rs *BelegRetentionResource) RecordInstruction(w http.ResponseWriter, r *http.Request) {\n\tvar req instructionRequest\n\torganizationID, ok := decodeBelegRetention(w, r, \u0026req)\n\tif !ok {\n\t\treturn\n\t}\n\tvar instruction capability.RetentionInstruction\n\trs.write(w, r, BelegRetentionInstruction, req.BelegType, func(ctx context.Context, operatorID int64) error {\n\t\tvar err error\n\t\tinstruction, err = rs.retention.RecordInstruction(ctx, organizationID, operatorID, capability.NewRetentionInstruction(req))\n\t\treturn err\n\t}, func() {\n\t\tcommon.Respond(w, r, http.StatusCreated, instruction, \"Instruction recorded\")\n\t})\n}",
       "form": "unclassified-evidence",
       "id": "modules/parentbilling/http/BelegRetentionResource.RecordInstruction",
@@ -33,6 +40,13 @@
       "evidence": "func (r *BelegRetention) LiftSuspension(ctx context.Context, organizationID, suspensionID, operatorID int64) error {\n\tif err := r.store.LiftSuspension(ctx, organizationID, suspensionID, operatorID); err != nil {\n\t\treturn err\n\t}\n\treturn r.evaluate(ctx, organizationID, r.today())\n}",
       "form": "unclassified-evidence",
       "id": "modules/parentbilling/internal/application/BelegRetention.LiftSuspension",
+      "owner": "modules/parentbilling"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *BelegRetention) RecordClarificationReview(ctx context.Context, organizationID, operatorID int64, input parentbilling.NewBelegClarificationReview) (parentbilling.BelegClarificationReview, error) {\n\tinput.Note, input.EscalationReason = strings.TrimSpace(input.Note), strings.TrimSpace(input.EscalationReason)\n\ttoday := r.today()\n\tif err := ValidateClarificationReview(input, today); err != nil {\n\t\treturn parentbilling.BelegClarificationReview{}, err\n\t}\n\treturn r.store.InsertClarificationReview(ctx, organizationID, operatorID, today, input)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/parentbilling/internal/application/BelegRetention.RecordClarificationReview",
       "owner": "modules/parentbilling"
     },
     {

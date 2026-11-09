@@ -41,7 +41,9 @@ Weisung vor.
    und meldet die gelöschten IDs. Das ist eine Befehlsbeteiligung nach
    ADR 0067 (Nachtrag #4538): eigene Prüfung beim Owner, keine Sperrfolge,
    kein Nachlesen unter fremden Sperren, nichts nach dem Commit. Die Root
-   bindet den Port `parentbilling.RetainedContracts`.
+   bindet den Port `parentbilling.RetainedContracts`. Der Befehl erhält das
+   Ereignis der Weisung (Ende oder Abschluss) und den letzten Tag, auf den es
+   fallen darf, und liest das Ereignis beim Löschen selbst nach.
 3. **Fristen.** Rechnungen, Storno- und Gutschriftbelege, Monatsrechnungen
    (mit ihrem Storno: das spätere Ausstellungsdatum zählt) und Lastschriften
    (Einreichungstag): Jahre nach Ende des Ausstellungsjahres; vorgeschlagen
@@ -52,11 +54,36 @@ Weisung vor.
    36 Monate ohne Einzug) mindestens 14 Monate ab Einreichung der letzten
    eingezogenen Lastschrift. Ohne Einzug oder ohne Tag des Ereignisses gibt es
    kein berechnetes Datum.
+
+   **Grundlage.** Jede Weisung nennt ihre Grundlage (Löschkonzept Abschnitt 2):
+   Rechnungen, Gutschriften, Stornobelege und eingereichte Lastschriften sind
+   Buchungsbelege, mindestens 8 Jahre. Verträge und Bescheide ordnet der Träger
+   als Buchungsbeleg (mindestens 8) oder als Handels- oder Geschäftsbrief
+   (mindestens 6 Jahre) ein. Das Mandat folgt der Inkassovereinbarung
+   (mindestens 14 Monate). Kürzer geht es nur mit der ausdrücklichen Grundlage
+   „Vorschriften nicht anwendbar“, einer schriftlichen Begründung und der
+   weisungsberechtigten Person; eine solche Weisung zitiert weder § 147 AO
+   noch § 257 HGB noch § 14b UStG. Anwendung und Datenbank
+   (`chk_beleg_retention_instructions_*`) prüfen dasselbe.
+
+   **Auslöser des Mandats.** Der Einreichungstag der letzten eingereichten
+   Lastschrift steht im Datensatz des Mandats (`collection_trigger_on`),
+   bevor eine seiner Lastschriften gelöscht wird, und bewegt sich nur nach
+   vorn. Rücklastschriften und abgelehnte Lastschriften erfasst moto nicht;
+   deshalb zählt die letzte eingereichte, nicht die letzte tatsächlich
+   eingezogene Lastschrift. Das verkürzt die Frist nie. Nur ein Mandat ohne
+   jede erfasste Lastschrift, etwa ein übernommenes, rechnet vom letzten
+   Einzugstag am Mandat.
 4. **Klärungsliste.** Ohne Weisung der Belegart oder ohne berechenbares Datum
    steht der Beleg auf der Klärungsliste mit Aufnahmetag, Prüfdatum 30 Tage
    danach und Zuständigkeit (Florian, Abstimmung mit dem Träger). Ein
    überschrittenes Prüfdatum zeigt die Eskalation. Kein Beleg auf der Liste
-   wird gelöscht.
+   wird gelöscht. Das moto-Team hält je Eintrag (Belegart und Grund) eine
+   Prüfung fest: Notiz, gegebenenfalls Eskalation an Florian mit Grund und
+   ein neues Prüfdatum innerhalb eines Jahres
+   (`parent_billing.beleg_clarification_reviews`, Operator-Audit). Das neue
+   Prüfdatum gilt für die Belege des Eintrags, solange sie aus demselben
+   Grund gelistet bleiben.
 5. **Aussetzung.** Eine Aussetzung für einen Beleg oder eine ganze Belegart
    hält Grund, Umfang, Zuständigkeit und das nächste Prüfdatum fest und hält
    die Löschung an, bis sie aufgehoben ist.
@@ -69,6 +96,20 @@ Weisung vor.
    Bescheid; eine ersetzende Monatsrechnung hält die ersetzte; Mandat oder
    Lastschrift halten ihren Vertrag. Freigegebene Läufe ohne Beleg gehen mit
    ihren Briefangaben. Gelöscht wird, nicht ausgeblendet.
+
+   **Stand beim Löschen.** Weisungen, Aussetzungen, Prüfungen, Bewertung und
+   Löschung nehmen dieselbe Sperre je Träger
+   (`parent_billing.lock_beleg_retention`); die Bewertung liest Weisungen und
+   Aussetzungen erst unter dieser Sperre. Die Löschung sperrt danach die
+   Zeilen, die sie löschen würde (`FOR UPDATE`), sodass kein Storno, keine
+   Gutschrift, kein Änderungsbescheid, keine ersetzende Rechnung, kein Mandat
+   und keine Lastschrift mehr an sie gehängt werden kann. Erst dann prüft sie
+   im löschenden Statement jede Zeile, die sie entfernen würde, auch die per
+   Cascade mitgenommenen Belege, gegen die aktuelle Weisung ihrer Art,
+   aktive Aussetzungen und das Fristende aus den aktuellen Tagen. Was
+   inzwischen neu ist oder nicht mehr gilt, hält den Beleg bis zum nächsten
+   Lauf. Verträge sperrt `due_retained_contracts`, bevor Care Contract sie
+   löscht.
 7. **Bankdaten und Rechte.** Die SEPA-Tabellen bleiben für `phoenix_admin`
    geschlossen. Lesen und Löschen der Belege laufen über die SECURITY-DEFINER-
    Funktionen `parent_billing.beleg_retention_facts`, `delete_due_belege` und
@@ -97,13 +138,22 @@ Weisung vor.
 
 - Pass-through-Evidenz: `BelegRetention.RecordSuspension` und
   `.LiftSuspension` prüfen und bewerten den Träger sofort neu;
+  `BelegRetentionResource.RecordClarificationReview` und
+  `BelegRetention.RecordClarificationReview` entschlüsseln bzw. prüfen die
+  Prüfung eines Klärungseintrags, bevor der Store sie unter der Sperre des
+  Trägers speichert;
   `retainedContracts.ContractRetentionFacts` übersetzt den Vertrag von Care
   Contract in den Port. Die Löschung bindet die Root ohne Weiterleitung.
-- Budgets: Pass-throughs `modules/parentbilling` 9 → 11 (Gesamt 1404 →
-  1406) für die beiden Aussetzungsbefehle; Compose-LOC
+- Budgets: Pass-throughs `modules/parentbilling` 9 → 12 (Gesamt 1404 →
+  1407) für die beiden Aussetzungsbefehle und die Prüfung eines
+  Klärungseintrags; Compose-LOC
   `modules/parentbilling/compose` 96 → 102, `modules/carecontract/compose`
   178 → 182, `modules/organizationtenancy/compose` 309 → 320 (Gesamt
   13158 → 13179) für die drei Konstruktoren.
+- Schema-Wächter aus #6310: Die fünf Steuerungstabellen der Aufbewahrung
+  sind keine Belege und dürfen als einzige auf `platform.operators`
+  (`ON DELETE SET NULL`) verweisen; `parent_billing.delete_due_belege` ist
+  neben der Demo-Löschung die einzige Funktion, die Belege per Name löscht.
 - Operator-Audit: Lesen über die Lese-Audit-Sicht `beleg_retention`, jede
   Änderung über die eigene Capability `BelegRetentionChangeAudit` von
   Organisation & Tenancy in derselben Admin-Transaktion wie die Änderung. Sie

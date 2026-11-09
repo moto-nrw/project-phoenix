@@ -38,9 +38,17 @@ func retentionDB(ctx context.Context) (bun.IDB, error) {
 // endedContractStatuses are the states of a contract that ended.
 const endedContractStatuses = `('gekuendigt', 'widerrufen', 'beendet')`
 
-// RetentionFacts lists the contracts past their draft. A terminated
-// contract ends on its last day, a withdrawn one on the day the withdrawal
-// was received; an ended contract without such a day has none.
+// contractEndDay is the last day of a contract: a terminated one ends on
+// its last day, a withdrawn one on the day the withdrawal was received; an
+// ended contract without such a day has none.
+const contractEndDay = `CASE c.status
+				WHEN 'gekuendigt' THEN c.ends_on
+				WHEN 'widerrufen' THEN (SELECT max(n.received_on) FROM care_contract.contract_notices n
+					WHERE n.organization_id = c.organization_id AND n.contract_id = c.id AND n.kind = 'widerruf')
+			END`
+
+// RetentionFacts lists the contracts past their draft with the day they
+// were concluded and, once ended, their last day.
 func (ContractRetention) RetentionFacts(ctx context.Context, organizationID int64) ([]carecontract.RetentionFact, error) {
 	db, err := retentionDB(ctx)
 	if err != nil {
@@ -54,12 +62,7 @@ func (ContractRetention) RetentionFacts(ctx context.Context, organizationID int6
 		EndsOn         *calendar.Date `bun:"ends_on,type:date"`
 	}
 	if err := db.NewRaw(`SELECT c.organization_id, c.id, (c.concluded_at AT TIME ZONE 'Europe/Berlin')::date AS concluded_on,
-			c.status IN `+endedContractStatuses+` AS ended,
-			CASE c.status
-				WHEN 'gekuendigt' THEN c.ends_on
-				WHEN 'widerrufen' THEN (SELECT max(n.received_on) FROM care_contract.contract_notices n
-					WHERE n.organization_id = c.organization_id AND n.contract_id = c.id AND n.kind = 'widerruf')
-			END AS ends_on
+			c.status IN `+endedContractStatuses+` AS ended, `+contractEndDay+` AS ends_on
 		FROM care_contract.contracts c WHERE c.status <> 'entwurf' AND (?0 = 0 OR c.organization_id = ?0)
 		ORDER BY c.organization_id, c.id`, organizationID).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("care contract postgres: list contract retention facts: %w", err)
@@ -72,12 +75,18 @@ func (ContractRetention) RetentionFacts(ctx context.Context, organizationID int6
 	return facts, nil
 }
 
-// DeleteEndedContracts deletes the ended contracts among contractIDs; the
-// foreign keys cascade to everything of the contract. Its trail has no
-// foreign key and goes in the same statement.
-func (ContractRetention) DeleteEndedContracts(ctx context.Context, organizationID int64, contractIDs []int64, today calendar.Date) ([]int64, error) {
+// DeleteEndedContracts deletes the ended contracts among contractIDs whose
+// event, as it stands, lies on or before lastEventOn; the foreign keys
+// cascade to everything of the contract. Its trail has no foreign key and
+// goes in the same statement.
+func (ContractRetention) DeleteEndedContracts(ctx context.Context, organizationID int64, contractIDs []int64, today calendar.Date,
+	event string, lastEventOn calendar.Date,
+) ([]int64, error) {
 	if organizationID <= 0 || len(contractIDs) == 0 {
 		return nil, nil
+	}
+	if event != carecontract.RetentionEventEnded && event != carecontract.RetentionEventConcluded {
+		return nil, fmt.Errorf("care contract postgres: unknown retention event %q", event)
 	}
 	db, err := retentionDB(ctx)
 	if err != nil {
@@ -88,11 +97,13 @@ func (ContractRetention) DeleteEndedContracts(ctx context.Context, organizationI
 			DELETE FROM care_contract.contracts c
 			WHERE c.organization_id = ?0 AND c.id = ANY(?1) AND c.status IN `+endedContractStatuses+`
 				AND (c.status <> 'gekuendigt' OR c.ends_on <= ?2::date)
+				AND CASE ?4 WHEN 'contract_concluded' THEN (c.concluded_at AT TIME ZONE 'Europe/Berlin')::date
+					ELSE `+contractEndDay+` END <= ?3::date
 			RETURNING c.id),
 		trail AS (
 			DELETE FROM care_contract.contract_events e USING removed
 			WHERE e.organization_id = ?0 AND e.contract_id = removed.id)
-		SELECT id FROM removed ORDER BY id`, organizationID, pgdialect.Array(contractIDs), today).Scan(ctx, &deleted)
+		SELECT id FROM removed ORDER BY id`, organizationID, pgdialect.Array(contractIDs), today, lastEventOn, event).Scan(ctx, &deleted)
 	if err != nil {
 		return nil, fmt.Errorf("care contract postgres: delete ended contracts: %w", err)
 	}
