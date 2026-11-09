@@ -60,10 +60,13 @@ export function SepaImportLogCard({
     {
       key: "by",
       header: "Von",
-      render: (entry) =>
-        entry.accountId === null
-          ? "Gelöschtes Konto"
-          : (emails.get(entry.accountId) ?? `Konto ${entry.accountId}`),
+      render: (entry) => (
+        <span className="wrap-anywhere">
+          {entry.accountId === null
+            ? "Gelöschtes Konto"
+            : (emails.get(entry.accountId) ?? `Konto ${entry.accountId}`)}
+        </span>
+      ),
     },
     {
       key: "count",

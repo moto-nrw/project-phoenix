@@ -263,6 +263,7 @@ func TestImportFileNameKeepsOnlyTheBaseName(t *testing.T) {
 	assert.Equal(t, "ogs-export.csv", importFileName("../../ogs-export.csv"))
 	assert.Equal(t, "Mandate 2026.csv", importFileName(" Mandate\t 2026.csv\n"))
 	assert.Equal(t, "import.csv", importFileName(""))
+	assert.Equal(t, "import.csv", importFileName("DE89370400440532013000.csv"), "an IBAN in the name never reaches the trail")
 	assert.Len(t, []rune(importFileName(strings.Repeat("ä", 300))), parentbilling.MaxImportFileNameLength)
 }
 
@@ -311,7 +312,7 @@ func TestImportCheckNeverRepeatsAnIBANInATextField(t *testing.T) {
 func TestContainsIBANFindsAnIBANInsideText(t *testing.T) {
 	t.Parallel()
 	for _, value := range []string{"DE89 3704 0044 0532 0130 00", "Eva (DE89370400440532013000)", "M-DE89370400440532013000",
-		"Konto de89 3704 0044 0532 0130 00 Sparkasse"} {
+		"Konto de89 3704 0044 0532 0130 00 Sparkasse", "AB12ABCDEFGHIDE89370400440532013000"} {
 		assert.True(t, containsIBAN(value), value)
 	}
 	for _, value := range []string{"SJR-2026-0001", "Eva Beispiel", "DE89370400440532013001", "OGS-2024-0001"} {

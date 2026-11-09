@@ -27,8 +27,9 @@ import (
 // and no error repeats an IBAN.
 
 // importFormOverhead is the room the multipart envelope and the other
-// fields of the form get beside the file.
-const importFormOverhead = 64 << 10
+// fields of the form get beside the file: the mapping and an answer for
+// each of up to MaxImportRows lines.
+const importFormOverhead = 256 << 10
 
 // importFileExtensions are the names a CSV export of an office program has.
 var importFileExtensions = []string{".csv", ".txt"}

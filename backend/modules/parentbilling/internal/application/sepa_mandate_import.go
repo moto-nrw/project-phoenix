@@ -343,7 +343,8 @@ func importFileName(name string) string {
 	if runes := []rune(name); len(runes) > parentbilling.MaxImportFileNameLength {
 		name = string(runes[:parentbilling.MaxImportFileNameLength])
 	}
-	if name == "" {
+	if name == "" || containsIBAN(name) {
+		// A name that carries an IBAN would leave it readable in the trail.
 		return "import.csv"
 	}
 	return name

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"regexp"
 	"strconv"
 	"strings"
 	"unicode"
@@ -118,24 +117,33 @@ func headersRepeat(headers []string) bool {
 	return false
 }
 
-// ibanCandidate finds what could be an IBAN inside a compacted value.
-var ibanCandidate = regexp.MustCompile(`[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}`)
-
 // containsIBAN tells whether a value holds a valid IBAN anywhere, also
-// inside other text („Eva (DE89 3704 …)“).
+// inside other text („Eva (DE89 3704 …)“): every position where two letters
+// and two digits start is tried with every IBAN length.
 func containsIBAN(value string) bool {
 	compact := sepa.Compact(value)
-	for _, start := range ibanCandidate.FindAllStringIndex(compact, -1) {
-		for from := start[0]; from+15 <= start[1]; from++ {
-			for to := from + 15; to <= start[1] && to-from <= 34; to++ {
-				if sepa.ValidIBAN(compact[from:to]) {
-					return true
-				}
+	for from := 0; from+15 <= len(compact); from++ {
+		if !ibanStart(compact[from:]) {
+			continue
+		}
+		for to := from + 15; to <= len(compact) && to-from <= 34; to++ {
+			if sepa.ValidIBAN(compact[from:to]) {
+				return true
 			}
 		}
 	}
 	return false
 }
+
+// ibanStart tells whether a value starts like an IBAN: country letters and
+// check digits.
+func ibanStart(value string) bool {
+	return len(value) >= 4 && isUpperLetter(value[0]) && isUpperLetter(value[1]) && isDigit(value[2]) && isDigit(value[3])
+}
+
+func isUpperLetter(b byte) bool { return b >= 'A' && b <= 'Z' }
+
+func isDigit(b byte) bool { return b >= '0' && b <= '9' }
 
 // decodeImportText answers the file as text: UTF-8 when it is valid UTF-8,
 // else Windows-1252. Control characters other than tab and line breaks
