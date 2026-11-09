@@ -57,15 +57,17 @@ type DatevBatchHeader struct {
 	// in one fiscal year and every document date lies in them.
 	From, To calendar.Date
 	// Label is the Bezeichnung of the batch (field 17), at most 30
-	// characters; a longer one is cut.
+	// characters; a longer one is cut, one with a character outside
+	// Windows-1252 is refused.
 	Label string
 	// FileNumber is the number of the file from the export protocol; it
 	// names the file. The format has no header field for it.
 	FileNumber int
 	// CreatedAt is the time of the export (field 6, Berlin time).
 	CreatedAt time.Time
-	// Locked is the Festschreibung (field 21). Off leaves the bookings open
-	// for the tax office of the Träger to correct.
+	// Locked is the Festschreibung (header field 21 and field 114 of every
+	// booking). Off leaves the bookings open for the tax office of the
+	// Träger to correct.
 	Locked bool
 }
 
@@ -87,7 +89,8 @@ type DatevBooking struct {
 	// DATEV matches open items by; it is never cut.
 	DocumentNumber string
 	// Text is the Buchungstext (field 14), at most 60 characters; a longer
-	// one is cut.
+	// one is cut. Characters outside Windows-1252 are replaced or left out
+	// (datevTransliterate).
 	Text string
 	// CostCenter1 and CostCenter2 are KOST1 and KOST2 (fields 37 and 38),
 	// optional.
@@ -167,13 +170,14 @@ func FormatDatevBookingBatch(header DatevBatchHeader, bookings []DatevBooking) (
 	text.WriteString(strings.Join(datevColumns[:], ";"))
 	text.WriteString(datevLineEnd)
 	for _, booking := range bookings {
-		text.WriteString(datevBookingLine(booking))
+		text.WriteString(datevBookingLine(booking, header.Locked))
 		text.WriteString(datevLineEnd)
 	}
-	return DatevBatchFile{
-		FileName: "EXTF_Buchungsstapel_" + strconv.Itoa(header.FileNumber) + ".csv",
-		Content:  datevEncode(text.String()),
-	}, nil
+	content, err := datevEncode(text.String())
+	if err != nil {
+		return DatevBatchFile{}, err
+	}
+	return DatevBatchFile{FileName: "EXTF_Buchungsstapel_" + strconv.Itoa(header.FileNumber) + ".csv", Content: content}, nil
 }
 
 const datevLineEnd = "\r\n"
@@ -200,18 +204,27 @@ func datevHeaderLine(h DatevBatchHeader) string {
 }
 
 // datevBookingLine is the 125 fields of one booking; the unused text
-// fields carry an empty quoted value like the DATEV sample file.
-func datevBookingLine(b DatevBooking) string {
+// fields carry an empty quoted value like the DATEV sample file. Field 114
+// (Festschreibung) is always written: empty means "not defined; locked
+// automatically" (developer portal, Buchungsstapel field 114), so a batch
+// without Festschreibung needs 0 on every line, and 1 on one line locks the
+// whole batch.
+func datevBookingLine(b DatevBooking, locked bool) string {
+	festschreibung := "0"
+	if locked {
+		festschreibung = "1"
+	}
 	values := map[int]string{
-		1:  datevAmount(b.AmountCents),
-		2:  string(b.Side),
-		7:  b.Account,
-		8:  b.CounterAccount,
-		10: b.DocumentDate.Format("0201"),
-		11: b.DocumentNumber,
-		14: datevCut(b.Text, datevTextLength),
-		37: b.CostCenter1,
-		38: b.CostCenter2,
+		1:   datevAmount(b.AmountCents),
+		2:   string(b.Side),
+		7:   b.Account,
+		8:   b.CounterAccount,
+		10:  b.DocumentDate.Format("0201"),
+		11:  b.DocumentNumber,
+		14:  datevCut(datevTransliterate(b.Text), datevTextLength),
+		37:  b.CostCenter1,
+		38:  b.CostCenter2,
+		114: festschreibung,
 	}
 	fields := make([]string, len(datevColumns))
 	for i := range fields {

@@ -55,6 +55,9 @@ func datevTestBookings() []DatevBooking {
 		// Characters outside Windows-1252 lose their accent or become "?".
 		{AmountCents: 999999999999, Side: DatevDebit, Account: "10003", CounterAccount: "4400", DocumentDate: october(15),
 			DocumentNumber: "MB-2026/0003", Text: "Beitrag Ődön Wałęsa €"},
+		// A character without any form in Windows-1252 is left out, never "?".
+		{AmountCents: 1000, Side: DatevDebit, Account: "10004", CounterAccount: "4400", DocumentDate: october(15),
+			DocumentNumber: "MB-2026-0004", Text: "Beitrag 東京 Oktober"},
 	}
 }
 
@@ -127,7 +130,7 @@ func TestDatevBookingBatchFileShape(t *testing.T) {
 	assert.Equal(t, `"MB-2026-0001"`, first[10])
 	assert.Equal(t, `"Monatsbeitrag Oktober Jürgen Weiß"`, first[13])
 	assert.Equal(t, []string{`"Ispringen"`, `"Modul 2"`}, first[36:38])
-	assert.Empty(t, first[113], "Festschreibung per line stays with the header")
+	assert.Equal(t, "0", first[113], "field 114 Festschreibung: empty would lock automatically")
 
 	credit := strings.Split(lines[4], ";")
 	assert.Equal(t, `"H"`, credit[1])
@@ -136,7 +139,10 @@ func TestDatevBookingBatchFileShape(t *testing.T) {
 	assert.Equal(t, `"Storno MB-2026-0001 wegen falscher Anschrift der Familie Mül"`, cancellation[13])
 	foreign := strings.Split(lines[6], ";")
 	assert.Equal(t, "9999999999,99", foreign[0])
-	assert.Equal(t, `"Beitrag Odön Wa?esa €"`, foreign[13])
+	assert.Equal(t, `"Beitrag Odön Walesa €"`, foreign[13])
+	other := strings.Split(lines[7], ";")
+	assert.Equal(t, `"Beitrag Oktober"`, other[13])
+	assert.NotContains(t, string(decoded), "?", "no character is written as a silent question mark")
 }
 
 func TestDatevBookingBatchRefusesInvalidValues(t *testing.T) {
@@ -208,6 +214,8 @@ func TestDatevBookingBatchRefusesInvalidValues(t *testing.T) {
 				{Line: 1, Field: DatevFieldDocumentDate, Reason: DatevOutOfPeriod}}},
 		{name: "label with a colon", header: func(h *DatevBatchHeader) { h.Label = "Beiträge: Oktober" },
 			want: []DatevProblem{{Field: DatevFieldLabel, Reason: DatevInvalid}}},
+		{name: "label with characters outside Windows-1252", header: func(h *DatevBatchHeader) { h.Label = "Beiträge 東京" },
+			want: []DatevProblem{{Field: DatevFieldLabel, Reason: DatevInvalid}}},
 		{name: "no file number and no time", header: func(h *DatevBatchHeader) { h.FileNumber, h.CreatedAt = 0, time.Time{} },
 			want: []DatevProblem{{Field: DatevFieldFileNumber, Reason: DatevMissing}, {Field: DatevFieldCreatedAt, Reason: DatevMissing}}},
 	}
@@ -228,4 +236,29 @@ func TestDatevBookingBatchRefusesInvalidValues(t *testing.T) {
 			assert.Empty(t, file.Content, "a refused batch writes no file")
 		})
 	}
+}
+
+// A locked batch writes 1 into field 114 of every booking as well as into
+// header field 21; an open one writes 0 in both.
+func TestDatevBookingBatchFestschreibung(t *testing.T) {
+	t.Parallel()
+	for _, locked := range []bool{false, true} {
+		header := datevTestHeader()
+		header.Locked = locked
+		file, err := FormatDatevBookingBatch(header, datevTestBookings()[:1])
+		require.NoError(t, err)
+		lines := strings.Split(string(file.Content), "\r\n")
+		want := map[bool]string{false: "0", true: "1"}[locked]
+		assert.Equal(t, want, strings.Split(lines[0], ";")[20], "header field 21, locked %v", locked)
+		assert.Equal(t, want, strings.Split(lines[2], ";")[113], "booking field 114, locked %v", locked)
+	}
+}
+
+func TestDatevEncodeRefusesWhatItCannotWrite(t *testing.T) {
+	t.Parallel()
+	_, err := datevEncode("Beitrag 東京")
+	require.Error(t, err)
+	encoded, err := datevEncode("Weiß € ő ł")
+	require.NoError(t, err)
+	assert.Equal(t, []byte("Wei\xdf \x80 o l"), encoded)
 }

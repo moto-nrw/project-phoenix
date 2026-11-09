@@ -1,6 +1,7 @@
 package application
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 	"unicode"
@@ -62,7 +63,9 @@ func datevHeaderProblems(h DatevBatchHeader) []DatevProblem {
 		p.add(DatevFieldFiscalYearStart, DatevMissing)
 	}
 	datevPeriodProblems(p, h)
-	if !datevLabelPattern.MatchString(datevCut(h.Label, datevLabelLength)) {
+	// The label is the Träger's own text: a character Windows-1252 cannot
+	// write is refused, never replaced (see datevWritable).
+	if label := datevCut(h.Label, datevLabelLength); !datevLabelPattern.MatchString(label) || !datevWritableText(label) {
 		p.add(DatevFieldLabel, DatevInvalid)
 	}
 	if h.FileNumber < 1 {
@@ -183,35 +186,75 @@ func datevDigits(value string) bool {
 	return true
 }
 
-// datevEncode writes the text in Windows-1252. A character without a code
-// there loses its accents (ő becomes o); one without such a base letter
-// becomes "?". The keys are ASCII already (patterns above).
-func datevEncode(text string) []byte {
-	out := make([]byte, 0, len(text))
-	for _, r := range text {
-		if b, ok := charmap.Windows1252.EncodeRune(r); ok {
-			out = append(out, b)
+// Characters outside Windows-1252 (#4694). The file has no "?" for a
+// character it cannot write: the label of the batch is the Träger's own text
+// and is refused with such a character; the Buchungstext comes from names of
+// families and children and is written by a defined replacement instead, so
+// a name in another script does not block the export. A character without
+// a code loses its accents (ő becomes o); a few letters without such a base
+// letter have a fixed replacement (ł becomes l); any other is left out.
+var datevBaseLetters = map[rune]string{'ł': "l", 'Ł': "L", 'đ': "d", 'Đ': "D", 'ı': "i", 'ħ': "h", 'Ħ': "H"}
+
+// datevWritable is how a character is written in Windows-1252, and false
+// when it cannot be written.
+func datevWritable(r rune) (string, bool) {
+	if _, ok := charmap.Windows1252.EncodeRune(r); ok {
+		return string(r), true
+	}
+	if base, ok := datevBaseLetters[r]; ok {
+		return base, true
+	}
+	var out strings.Builder
+	for _, part := range norm.NFD.String(string(r)) {
+		if unicode.Is(unicode.Mn, part) {
 			continue
 		}
-		out = append(out, datevFallback(r)...)
+		if _, ok := charmap.Windows1252.EncodeRune(part); !ok {
+			return "", false
+		}
+		out.WriteRune(part)
 	}
-	return out
+	return out.String(), out.Len() > 0
 }
 
-func datevFallback(r rune) []byte {
-	var out []byte
-	for _, base := range norm.NFD.String(string(r)) {
-		if unicode.Is(unicode.Mn, base) {
-			continue
+// datevWritableText reports whether every character of text can be written.
+func datevWritableText(text string) bool {
+	for _, r := range text {
+		if _, ok := datevWritable(r); !ok {
+			return false
 		}
-		if b, ok := charmap.Windows1252.EncodeRune(base); ok {
+	}
+	return true
+}
+
+// datevTransliterate writes every character that can be written, leaves out
+// the others and joins the remaining words with single spaces.
+func datevTransliterate(text string) string {
+	var out strings.Builder
+	for _, r := range text {
+		if written, ok := datevWritable(r); ok {
+			out.WriteString(written)
+		}
+	}
+	return strings.Join(strings.Fields(out.String()), " ")
+}
+
+// datevEncode writes text in Windows-1252. Every free text passed the label
+// check or datevTransliterate before, so a character it cannot write is a
+// defect of the formatter, never a silent "?".
+func datevEncode(text string) ([]byte, error) {
+	out := make([]byte, 0, len(text))
+	for _, r := range text {
+		written, ok := datevWritable(r)
+		if !ok {
+			return nil, fmt.Errorf("datev booking batch: %U has no code in Windows-1252", r)
+		}
+		for _, part := range written {
+			b, _ := charmap.Windows1252.EncodeRune(part)
 			out = append(out, b)
 		}
 	}
-	if len(out) == 0 {
-		return []byte{'?'}
-	}
-	return out
+	return out, nil
 }
 
 // datevColumns is the column line of format version 13 as the DATEV sample
