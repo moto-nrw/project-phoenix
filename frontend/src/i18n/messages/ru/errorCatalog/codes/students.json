@@ -66,7 +66,7 @@
   "offering_change_capacity_full": "В одном из вариантов больше нет свободных мест. Проверьте заполненность.",
   "offering_change_date_out_of_range": "Не удалось сохранить: {object}. Проверьте введённые данные.",
   "offering_changes_no_enrollment": "У ребёнка больше нет действующей записи. Отклоните: {object}.",
-  "partial_absence_conflict": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+  "partial_absence_conflict": "В один из этих дней ребёнок уже освобождён с определённого времени. Сначала удалите это частичное освобождение или выберите другие дни.",
   "partial_absence_requires_dedicated_action": "Не удалось изменить: {object}. Проверьте текущее состояние.",
   "photo_consent_required": "Не удалось сохранить: {object}. Проверьте введённые данные.",
   "photo_consent_withdrawn": "Не удалось изменить: {object}. Проверьте текущее состояние.",

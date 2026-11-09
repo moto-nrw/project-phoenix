@@ -356,6 +356,10 @@ export interface CareException {
   // Die Abholart, die die OGS für diesen Tag eingetragen oder bestätigt hat
   // (#3945). Fehlt sie, gilt die Abholart aus dem Wochenplan.
   readonly departure_mode?: DayDepartureMode;
+  // „HH:MM“, ab der die OGS das Kind an diesem Tag entschuldigt hat (eine
+  // Teil-Abwesenheit). Eine Abmeldung für den ganzen Tag lehnt der Server an
+  // diesem Tag ab; der Dialog nennt ihn deshalb vorher (#5698).
+  readonly excused_from?: string;
 }
 
 // Abholarten, die Eltern für einen einzelnen Tag anfragen können (#3945).

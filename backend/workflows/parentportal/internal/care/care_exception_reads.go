@@ -147,6 +147,9 @@ func applyPickupException(ce *CareException, p PickupException, accountID int64)
 	if p.UpdatedAt.After(ce.UpdatedAt) {
 		ce.UpdatedAt = p.UpdatedAt
 	}
+	if p.HasManualPartialAbsence() {
+		ce.ExcusedFrom = p.ExcusedFrom
+	}
 	if p.Source == exceptionSourceStaff || p.HasManualPartialAbsence() {
 		ce.Source = exceptionSourceStaff
 	}

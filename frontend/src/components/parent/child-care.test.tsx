@@ -1108,6 +1108,132 @@ describe("SickNoteModal — Abmeldegrund", () => {
   });
 });
 
+// #5698: a day the school already excused from a time is refused for a
+// full-day report. The dialog names it and reports only the free days.
+describe("SickNoteModal — Teil-Abwesenheit der Schule", () => {
+  const schoolPartial = (
+    date: string,
+    excusedFrom = "13:00",
+  ): CareException => ({
+    date,
+    pickup_time: excusedFrom,
+    excused_from: excusedFrom,
+    source: "staff",
+    pickup_source: "staff",
+    updated_at: "2026-09-08T10:00:00Z",
+  });
+
+  function chooseRange(from: string, to: string) {
+    fireEvent.change(screen.getByLabelText("Erster Tag"), {
+      target: { value: from },
+    });
+    fireEvent.change(screen.getByLabelText("Letzter Tag"), {
+      target: { value: to },
+    });
+  }
+
+  function fillReason() {
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Grund / Hinweis an die OGS" }),
+      { target: { value: "Fieber" } },
+    );
+  }
+
+  it("nennt den eingetragenen Tag und meldet nur die freien Tage", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(
+      <SickNoteModal
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        sickRequiresApproval={false}
+        careExceptions={[schoolPartial("2026-09-10")]}
+      />,
+    );
+    chooseRange("2026-09-10", "2026-09-11");
+
+    const notice = screen.getByRole("alert");
+    expect(notice).toHaveTextContent(
+      "Ein Tag ist schon von der OGS eingetragen",
+    );
+    expect(notice).toHaveTextContent(/10\.09\.2026.*ab 13:00 Uhr/);
+    // The test translator skips ICU plurals; the interpolated total is enough.
+    expect(screen.getByText(/von 2 Tagen wird gemeldet\./)).toBeInTheDocument();
+
+    fillReason();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Krankmeldung an die OGS senden" }),
+    );
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit).toHaveBeenCalledWith(["2026-09-11"], "Fieber", "sick", []);
+  });
+
+  it("sperrt das Senden, wenn alle Tage schon eingetragen sind", () => {
+    render(
+      <SickNoteModal
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        careExceptions={[schoolPartial("2026-09-09", "11:30")]}
+      />,
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Bitte wählen Sie andere Tage.",
+    );
+    expect(
+      screen.getByRole("button", { name: "Krankmeldung an die OGS senden" }),
+    ).toBeDisabled();
+  });
+
+  it("übersieht Abholzeiten ohne Teil-Abwesenheit", () => {
+    render(
+      <SickNoteModal
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        sickRequiresApproval={false}
+        careExceptions={[
+          {
+            date: "2026-09-09",
+            pickup_time: "14:00",
+            source: "staff",
+            pickup_source: "staff",
+            updated_at: "2026-09-08T10:00:00Z",
+          },
+        ]}
+      />,
+    );
+
+    expect(
+      screen.getByText(/Ihr Kind wird für diesen Tag abgemeldet\./),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("erklärt die Ablehnung und lädt die Einträge der OGS neu", async () => {
+    const onSubmit = vi.fn().mockRejectedValue(
+      new ApiError("conflict", 409, {
+        code: "care.care_exception_conflict",
+      }),
+    );
+    const onConflict = vi.fn();
+    render(
+      <SickNoteModal
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        onSchoolEntryConflict={onConflict}
+      />,
+    );
+    fillReason();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Krankmeldung an die OGS senden" }),
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Für einen der Tage hat die OGS schon eine Abwesenheit ab einer Uhrzeit eingetragen.",
+    );
+    expect(onConflict).toHaveBeenCalledTimes(1);
+  });
+});
+
 // #1845 review: the parent summary must not misrepresent request dates.
 describe("SickStatusSummary — date rendering", () => {
   it("lists non-contiguous dates instead of a false continuous range", () => {

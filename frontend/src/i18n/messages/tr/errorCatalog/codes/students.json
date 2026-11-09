@@ -66,7 +66,7 @@
   "offering_change_capacity_full": "Tekliflerden birinde boş yer kalmadı. Lütfen doluluk durumunu kontrol edin.",
   "offering_change_date_out_of_range": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "offering_changes_no_enrollment": "Çocuğun artık geçerli bir kaydı yok. Lütfen şunu reddedin: {object}.",
-  "partial_absence_conflict": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "partial_absence_conflict": "Çocuk bu günlerden birinde belirli bir saatten itibaren zaten mazeretli. Önce bu kısmi mazereti kaldırın veya başka günler seçin.",
   "partial_absence_requires_dedicated_action": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "photo_consent_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "photo_consent_withdrawn": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
