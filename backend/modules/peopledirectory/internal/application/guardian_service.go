@@ -369,13 +369,14 @@ func (s *RetainedGuardianService) auditGuardianFinancialDataDeletion(ctx context
 		return fmt.Errorf("changed-by actor id is required")
 	}
 
+	// The trail carries masks only, so nothing here is opened: the stored
+	// IBAN mask, and the fixed mask for a stored account holder.
 	changes := []stammdatenChange{}
-	if data.IBAN != nil && *data.IBAN != "" {
-		changes = append(changes, maskedChange(peoplePorts.GuardianPaymentFieldIBAN, maskTailPtr(data.IBAN, 4), nil))
+	if iban := guardianIBANMask(data); iban != nil {
+		changes = append(changes, maskedChange(peoplePorts.GuardianPaymentFieldIBAN, iban, nil))
 	}
-	if data.AccountHolder != nil && *data.AccountHolder != "" {
-		changes = append(changes, maskedChange(peoplePorts.GuardianPaymentFieldAccountHolder,
-			maskAllPtr(data.AccountHolder), nil))
+	if holder := guardianHolderMask(data); holder != nil {
+		changes = append(changes, maskedChange(peoplePorts.GuardianPaymentFieldAccountHolder, holder, nil))
 	}
 	for _, change := range changes {
 		if err := s.GuardianFinancialAudit.RecordGuardianFinancialChange(ctx, peoplePorts.GuardianFinancialChange{
