@@ -312,6 +312,48 @@ describe("buildAnnouncementMenuItems: scheduled reminder (#3162)", () => {
   });
 });
 
+describe("withdrawing an Einverständnis (#6290)", () => {
+  it("says that guardians who answered keep it and can still revoke", () => {
+    render(
+      <UnpublishAnnouncementDialog
+        announcement={{
+          ...announcement,
+          status: "published",
+          delivery_mode: "declaration",
+        }}
+        onClose={vi.fn()}
+        onDone={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText(/Eltern können nicht mehr neu antworten\./),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Wer schon geantwortet hat, sieht das Einverständnis weiter und kann eine Zustimmung widerrufen\./,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/wird für die Eltern nicht mehr sichtbar/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the plain wording for a Mitteilung", () => {
+    render(
+      <UnpublishAnnouncementDialog
+        announcement={{ ...announcement, status: "published" }}
+        onClose={vi.fn()}
+        onDone={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText(/wird für die Eltern nicht mehr sichtbar/),
+    ).toBeInTheDocument();
+  });
+});
+
 describe("deleting an Einverständnis with answers (#3430)", () => {
   it("explains that it must stay and that withdrawing still works", async () => {
     deleteMock.mockRejectedValue(

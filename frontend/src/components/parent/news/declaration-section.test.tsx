@@ -768,6 +768,7 @@ describe("an Einverständnis the school ended (#6290)", () => {
     return item(overrides, {
       ended: true,
       closed: true,
+      requires_signature: true,
       children: [
         child({
           my_action: "agreed",
@@ -814,6 +815,12 @@ describe("an Einverständnis the school ended (#6290)", () => {
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Zustimmen" }),
+    ).not.toBeInTheDocument();
+    // Nobody signs a new consent here, so the signing note would only confuse.
+    expect(
+      screen.queryByText(
+        "Zum Zustimmen unterschreiben Sie mit dem Finger oder der Maus.",
+      ),
     ).not.toBeInTheDocument();
     // The backend no longer serves the message as live: no read mark and no
     // files, which would only fail and report the message as outdated.

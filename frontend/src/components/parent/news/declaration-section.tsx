@@ -360,9 +360,8 @@ export function DeclarationSection({
           <span>
             {t("version", { version: declaration.version.version_no })}
           </span>
-          {declaration.ended ? (
-            <span className="font-semibold text-gray-900">{t("ended")}</span>
-          ) : declaration.closed ? (
+          {/* An ended request says so in the line above. */}
+          {declaration.ended ? null : declaration.closed ? (
             <span className="text-moto-red-strong font-semibold">
               {t("closed")}
             </span>
@@ -373,7 +372,9 @@ export function DeclarationSection({
               })}
             </span>
           ) : null}
-          {declaration.requires_signature && <span>{t("signatureNote")}</span>}
+          {declaration.requires_signature && !declaration.ended && (
+            <span>{t("signatureNote")}</span>
+          )}
           {declaration.requires_password && <span>{t("passwordNote")}</span>}
         </p>
       </div>
