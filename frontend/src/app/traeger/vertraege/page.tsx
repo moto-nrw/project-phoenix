@@ -149,10 +149,24 @@ const COLUMNS: DataTableColumn<CareContractSummary>[] = [
     sortValue: (contract) => contract.schoolName,
     stackedLabel: false,
     // The parents stay findable on a phone too: the search covers them.
-    stackedRender: (contract) =>
-      [contract.schoolName, contract.partyName, statusDateNote(contract)]
+    // An open end is a task: on the phone it keeps its orange note.
+    stackedRender: (contract) => {
+      const facts = [contract.schoolName, contract.partyName]
         .filter(Boolean)
-        .join(" · "),
+        .join(" · ");
+      if (contract.status === "gekuendigt" && !contract.endsOn) {
+        return (
+          <>
+            {facts}
+            {facts ? " · " : null}
+            <span className="text-moto-orange-strong font-medium">
+              Ende festlegen
+            </span>
+          </>
+        );
+      }
+      return [facts, statusDateNote(contract)].filter(Boolean).join(" · ");
+    },
   },
   {
     key: "party",
@@ -590,7 +604,11 @@ export default function TraegerVertraegePage() {
           moreAction={
             data?.list.hasMore
               ? {
-                  label: "Weitere Verträge laden",
+                  // Without a filter the counts name the whole list.
+                  label:
+                    status === "all" && !schoolId && !search.trim()
+                      ? `Weitere Verträge laden (${contracts.length} von ${total})`
+                      : "Weitere Verträge laden",
                   onClick: () => void load(contracts.length),
                   loading: loadingMore,
                   loadingText: "Wird geladen …",

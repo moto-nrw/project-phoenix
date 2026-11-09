@@ -106,6 +106,7 @@ export default function TraegerDocumentKindsPage() {
             <DocumentKindCard
               key={service.service}
               service={service}
+              legalRemedyMissing={!overview.legalRemedySet}
               concept={
                 service.service === "holiday"
                   ? holidayWeeksConcept

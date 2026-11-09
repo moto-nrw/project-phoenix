@@ -167,7 +167,9 @@ describe("TraegerVertraegePage", () => {
       });
     renderPage();
     fireEvent.click(
-      await screen.findByRole("button", { name: "Weitere Verträge laden" }),
+      await screen.findByRole("button", {
+        name: "Weitere Verträge laden (1 von 1101)",
+      }),
     );
     expect((await screen.findAllByText("Lina Muster"))[0]).toBeInTheDocument();
     expect(screen.getAllByText("Ben Muster")[0]).toBeInTheDocument();

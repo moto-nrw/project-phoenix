@@ -49,7 +49,7 @@ export function DocumentTemplatePlaceholdersCard({
       title="Platzhalter"
       description={
         onInsert
-          ? "Tippen Sie auf einen Platzhalter. moto setzt ihn im Brieftext dort ein, wo Sie gerade schreiben. Für jede Familie füllt moto ihn aus."
+          ? "Wählen Sie einen Platzhalter. moto setzt ihn im Brieftext dort ein, wo Sie gerade schreiben. Für jede Familie füllt moto ihn aus."
           : "Schreiben Sie einen Platzhalter mit zwei geschweiften Klammern in den Text. moto füllt ihn für jede Familie aus. Andere Platzhalter nimmt moto nicht an."
       }
     >

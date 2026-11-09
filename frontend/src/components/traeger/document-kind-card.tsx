@@ -35,17 +35,21 @@ const KIND_HINT: Readonly<Record<DocumentKind, string>> = {
 };
 
 const SERVICE_DESCRIPTION = {
-  holiday: "Gilt für die Schreiben der Ferienläufe.",
-  care: "Gilt für die Schreiben der Monatsläufe.",
+  holiday:
+    "Gilt für die Schreiben der Ferienläufe. Nach der Wahl speichern Sie unten.",
+  care: "Gilt für die Schreiben der Monatsläufe. Nach der Wahl speichern Sie unten.",
 } as const;
 
 export function DocumentKindCard({
   service,
   concept,
+  legalRemedyMissing = false,
   onSaved,
 }: Readonly<{
   service: ServiceDocumentKind;
   concept: MotoConcept;
+  /** No Rechtsbehelfsbelehrung yet: the fee notice names its precondition. */
+  legalRemedyMissing?: boolean;
   onSaved: (overview: DocumentKindOverview) => void;
 }>) {
   const [draft, setDraft] = useState<DocumentKind>(service.documentKind);
@@ -128,6 +132,11 @@ export function DocumentKindCard({
                   ) : null}
                 </span>
                 <span className="text-sm text-gray-600">{KIND_HINT[kind]}</span>
+                {kind === "fee_notice" && legalRemedyMissing ? (
+                  <span className="text-moto-orange-strong text-sm font-medium">
+                    Braucht eine Rechtsbehelfsbelehrung. Noch keine eingetragen.
+                  </span>
+                ) : null}
               </span>
             </ChoiceTile>
           ))}

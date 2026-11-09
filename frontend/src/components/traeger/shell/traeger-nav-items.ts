@@ -114,6 +114,9 @@ const TRAEGER_NAV_GROUPS: readonly TraegerNavGroup[] = [
         key: "ferien",
         href: "/traeger/ferien",
         label: "Ferienbetreuung",
+        // The bottom bar shows the short word; the full name stays the
+        // link's name.
+        shortLabel: "Ferien",
         concept: holidayWeeksConcept,
         right: ENROLLMENT_RIGHT,
       },
@@ -154,6 +157,7 @@ const TRAEGER_NAV_GROUPS: readonly TraegerNavGroup[] = [
         key: "abrechnung",
         href: "/traeger/abrechnung",
         label: "Abrechnungsläufe",
+        shortLabel: "Abrechnung",
         concept: billingConcept,
         right: BILLING_RIGHT,
       },

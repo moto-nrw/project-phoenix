@@ -91,10 +91,13 @@ function ConfirmedCell({ family }: Readonly<{ family: FamilyChildren }>) {
   }
   return (
     <div className="min-w-0">
-      <p className="text-sm font-semibold text-gray-900 tabular-nums">
+      <p className="text-sm font-semibold whitespace-nowrap text-gray-900 tabular-nums">
         {childrenLabel(count.confirmedChildren)}
       </p>
-      <p className="mt-0.5 text-sm text-gray-600">{validityLabel(count)}</p>
+      {/* A date stays with its „ab“; a range may break at „bis“. */}
+      <p className="mt-0.5 text-sm text-gray-600 tabular-nums">
+        {validityLabel(count).replace(/(ab|bis) /g, "$1\u00a0")}
+      </p>
     </div>
   );
 }
@@ -262,7 +265,9 @@ export default function TraegerKinderzahlPage() {
       // own, and the gray pill belongs to „Abgelaufen“.
       render: (family) =>
         family.status === "missing" ? (
-          <span className="text-sm text-gray-600">{STATUS_LABELS.missing}</span>
+          <span className="text-sm whitespace-nowrap text-gray-600">
+            {STATUS_LABELS.missing}
+          </span>
         ) : (
           <StatusBadge
             tone={STATUS_TONES[family.status]}

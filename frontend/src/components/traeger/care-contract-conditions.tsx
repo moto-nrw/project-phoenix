@@ -456,13 +456,22 @@ function ConditionsForm({
           Vertragspartner hier ein. Für „Bei der Annahme“ tragen Sie ihn immer
           ein.
         </p>
+        {/* What all texts below share stands once (shared text once). */}
+        {selected.acceptanceText ||
+        selected.withdrawalText ||
+        selected.earlyStartText ? (
+          <p className="text-sm text-gray-600">
+            Die Texte unten sprechen die Eltern an. Die Schule übernimmt sie
+            unverändert ins Anmeldeformular.
+          </p>
+        ) : null}
         {selected.acceptanceText ? (
           <CopyableLegalText
             id="care-contract-acceptance-text"
             label="Gespeicherter Text für das Anmeldeformular"
             rows={8}
             value={selected.acceptanceText}
-            hint="Der Text spricht die Eltern an. So kommt er ins Anmeldeformular: 1. Sie speichern die Bedingungen. 2. Die Schule kopiert den Text unverändert in „Rechtstext / Erklärung“ und setzt „Muss bestätigt werden“. Bestehende Rechtstexte bleiben. Ändern Sie die Bedingungen später, ersetzt die Schule nur diesen Text."
+            hint="So kommt er ins Anmeldeformular: 1. Sie speichern die Bedingungen. 2. Die Schule kopiert den Text unverändert in „Rechtstext / Erklärung“ und setzt „Muss bestätigt werden“. Bestehende Rechtstexte bleiben. Ändern Sie die Bedingungen später, ersetzt die Schule nur diesen Text."
           />
         ) : null}
         {selected.withdrawalText ? (
@@ -471,7 +480,7 @@ function ConditionsForm({
             label="Widerrufsbelehrung für das Anmeldeformular"
             rows={6}
             value={selected.withdrawalText}
-            hint="Der Text spricht die Eltern an: Wer online anmeldet, hat 14 Tage Widerrufsrecht. Die Schule kopiert ihn als eigenen Rechtstext ins Anmeldeformular und setzt „Muss bestätigt werden“. Das Vertrags-PDF enthält ihn immer."
+            hint="Wer online anmeldet, hat 14 Tage Widerrufsrecht. Die Schule kopiert ihn als eigenen Rechtstext ins Anmeldeformular und setzt „Muss bestätigt werden“. Das Vertrags-PDF enthält ihn immer."
           />
         ) : null}
         {selected.earlyStartText ? (
@@ -480,7 +489,7 @@ function ConditionsForm({
             label="Häkchen „Betreuung vor Ende der Widerrufsfrist“"
             rows={4}
             value={selected.earlyStartText}
-            hint="Der Text spricht die Eltern an. Die Schule kopiert ihn als weiteren Rechtstext ins Anmeldeformular, ohne „Muss bestätigt werden“. Setzen die Eltern das Häkchen, steht es im Vertrag. Beginnt die Betreuung in der Frist, zahlen sie nach einem Widerruf die Tage bis dahin."
+            hint="Die Schule kopiert ihn als weiteren Rechtstext ins Anmeldeformular, ohne „Muss bestätigt werden“. Setzen die Eltern das Häkchen, steht es im Vertrag. Beginnt die Betreuung in der Frist, zahlen sie nach einem Widerruf die Tage bis dahin."
           />
         ) : null}
       </form>
