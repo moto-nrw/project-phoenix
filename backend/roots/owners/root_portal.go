@@ -49,6 +49,7 @@ func BuildParentPortal(
 	emitter eventContract.Emitter, notifications DeliveryNotifications, identity identityaccess.Owner,
 	enrollment EnrollmentRows, notices EnrollmentNotices, announcements communication.ParentAnnouncementCapability, audit AuditOwner,
 	organizations organizationtenancy.Query, contractNotices parentportal.ContractNoticesPort, contractSigning carecontract.InboxSigning,
+	contractHolidays carecontract.SchoolHolidays,
 ) (*parentportal.Portal, error) {
 	surveys, err := communication.SurveysOf(announcements)
 	if err != nil {
@@ -103,7 +104,7 @@ func BuildParentPortal(
 
 		CarePlanPolicy: NewParentCarePlanPolicy(),
 
-		BillingDocuments: NewParentBillingDocuments(), ContractDocuments: NewParentContractDocuments(contractSigning), ContractNotices: contractNotices, SharedDocuments: NewParentSharedDocuments(), TraegerRuntime: ParentPortalRuntime{},
+		BillingDocuments: NewParentBillingDocuments(), ContractDocuments: NewParentContractDocuments(contractSigning, contractHolidays), ContractNotices: contractNotices, SharedDocuments: NewParentSharedDocuments(), TraegerRuntime: ParentPortalRuntime{},
 		SchoolTraeger: NewParentSchoolTraeger(organizations), ParentAccounts: NewParentAccounts(identity),
 	}), nil
 }

@@ -177,18 +177,21 @@ func classDayRoster(roster *enrollmentOwner.ClassRosterDay) *classdayCompose.Day
 	return out
 }
 
-// classDayStatusDays reads the active scheduled day statuses.
+// classDayStatusDays reads the scheduled day statuses that stand for a day.
 type classDayStatusDays struct {
 	reader classDayStatusDayReader
 }
 
-// classDayStatusDayReader reads Care Plan's active scheduled day statuses.
+// classDayStatusDayReader reads Care Plan's status days that stand for a
+// day: active, or archived at the end of their day (#6291). The archive
+// keeps the day's status and source, so the class day reports a child sick
+// after 18:00 as before it.
 type classDayStatusDayReader interface {
-	FindActiveByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date absencerecords.Date) ([]*absencerecords.StudentStatusDay, error)
+	FindSignedOffByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date absencerecords.Date) ([]*absencerecords.StudentStatusDay, error)
 }
 
-func (b classDayStatusDays) ActiveStatusDays(ctx context.Context, studentIDs []int64, date timezone.Date) ([]classdayCompose.StatusDayEntry, error) {
-	entries, err := b.reader.FindActiveByStudentIDsAndDate(ctx, studentIDs, date)
+func (b classDayStatusDays) StandingStatusDays(ctx context.Context, studentIDs []int64, date timezone.Date) ([]classdayCompose.StatusDayEntry, error) {
+	entries, err := b.reader.FindSignedOffByStudentIDsAndDate(ctx, studentIDs, date)
 	if err != nil {
 		return nil, err
 	}

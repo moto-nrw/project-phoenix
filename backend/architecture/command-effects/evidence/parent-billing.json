@@ -282,7 +282,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingCareMeals.ReleasedMealMonths",
-      "binding_digest": "9e605a32c6b997d7004019ae14044b8a",
+      "binding_digest": "49e0a1be23c0880db29468e9c269e064",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareMeals.ReleasedMealMonths",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/mealplan.TraegerMealMonths.ReleasedMealMonths",

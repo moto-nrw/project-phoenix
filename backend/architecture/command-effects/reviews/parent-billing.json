@@ -360,7 +360,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareMeals.ReleasedMealMonths",
-      "reason": "Reviewed read: the released Mensa months of the schools of the session's Träger with the meals per child only, read through schedule.traeger_meal_billing_children in its Träger transaction; the monthly run copies them onto the invoices and records the read in its own trail (#4686).",
+      "reason": "Reviewed read: the released Mensa months within the caller's inclusive calendar window, of the schools of the session's Träger with the meals per child only, read through schedule.traeger_meal_billing_children and its billing_month lower bound in its Träger transaction; the monthly run copies them onto the invoices and records the read in its own trail (#4686).",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/mealplan.TraegerMealMonths.ReleasedMealMonths",
       "target_owner": "meal-plan"

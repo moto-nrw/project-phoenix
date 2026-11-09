@@ -25,7 +25,7 @@ type BillingMonthStore interface {
 	// mealplan.ErrBillingMonthReleased for the first, else
 	// mealplan.ErrBillingMonthChanged.
 	InsertRelease(ctx context.Context, organizationID, accountID int64, month domain.StoredBillingMonth) (time.Time, error)
-	// TraegerMonths reads the released months up to until of the Träger in
+	// TraegerMonths reads the released months within [from, until] of the Träger in
 	// its Träger transaction.
-	TraegerMonths(ctx context.Context, organizationID int64, until calendar.Date) ([]domain.ReleasedMealRow, error)
+	TraegerMonths(ctx context.Context, organizationID int64, from, until calendar.Date) ([]domain.ReleasedMealRow, error)
 }

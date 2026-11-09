@@ -2,6 +2,14 @@
   "entries": [
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.BillingMonth",
+      "binding_digest": "918b22b6852a83d740d7f02a38890f8c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.BillingMonth",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.BillingMonth",
       "binding_digest": "d0ad7be5b54d089ee77a02199bf8dbe2",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.BillingMonth",
       "source_owner": "meal-plan",
@@ -114,6 +122,14 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.ReleaseBillingMonth",
+      "binding_digest": "918b22b6852a83d740d7f02a38890f8c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.ReleaseBillingMonth",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.BillingMonths.ReleaseBillingMonth",
       "binding_digest": "d0ad7be5b54d089ee77a02199bf8dbe2",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.BillingMonths.ReleaseBillingMonth",
       "source_owner": "meal-plan",
@@ -201,6 +217,22 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.Available",
+      "binding_digest": "ebc6169b71644f36ed322c4f1df8c486",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.Available",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.CatererOrders",
+      "binding_digest": "ebc6169b71644f36ed322c4f1df8c486",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.CatererOrders",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.CatererOrders",
       "binding_digest": "e96cf34f273ffaa374a92e6176185174",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.CatererOrders",
@@ -266,10 +298,26 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ClearDay",
+      "binding_digest": "ebc6169b71644f36ed322c4f1df8c486",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearDay",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ClearDay",
       "binding_digest": "2efc3016e4387f5fb4f2e5a51522644f",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearDay",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ClearParticipationBySchool",
+      "binding_digest": "ebc6169b71644f36ed322c4f1df8c486",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationBySchool",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
       "target_owner": "tenant-runtime"
     },
     {
@@ -334,6 +382,14 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationBySchool",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ClearParticipationForDay",
+      "binding_digest": "ebc6169b71644f36ed322c4f1df8c486",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationForDay",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
       "target_owner": "tenant-runtime"
     },
     {
@@ -402,10 +458,26 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ConfirmOrder",
+      "binding_digest": "ebc6169b71644f36ed322c4f1df8c486",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ConfirmOrder",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ConfirmOrder",
       "binding_digest": "2efc3016e4387f5fb4f2e5a51522644f",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ConfirmOrder",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.DailyList",
+      "binding_digest": "ebc6169b71644f36ed322c4f1df8c486",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.DailyList",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
       "target_owner": "tenant-runtime"
     },
     {
@@ -446,6 +518,14 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.DailyList",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.Orders",
+      "binding_digest": "ebc6169b71644f36ed322c4f1df8c486",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.Orders",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
       "target_owner": "tenant-runtime"
     },
     {
@@ -514,6 +594,14 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.Participation",
+      "binding_digest": "ebc6169b71644f36ed322c4f1df8c486",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.Participation",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.Participation",
       "binding_digest": "7f4258b8f4d8ef173f2f5f41a770d292",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.Participation",
       "source_owner": "meal-plan",
@@ -546,6 +634,14 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ParticipationBySchool",
+      "binding_digest": "ebc6169b71644f36ed322c4f1df8c486",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ParticipationBySchool",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ParticipationBySchool",
       "binding_digest": "7f4258b8f4d8ef173f2f5f41a770d292",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ParticipationBySchool",
       "source_owner": "meal-plan",
@@ -574,6 +670,22 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ParticipationBySchool",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.RegistrationAvailable",
+      "binding_digest": "ebc6169b71644f36ed322c4f1df8c486",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.RegistrationAvailable",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ReplaceDay",
+      "binding_digest": "ebc6169b71644f36ed322c4f1df8c486",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceDay",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
       "target_owner": "tenant-runtime"
     },
     {
@@ -586,6 +698,14 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ReplaceParticipationSchedule",
+      "binding_digest": "ebc6169b71644f36ed322c4f1df8c486",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceParticipationSchedule",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ReplaceParticipationSchedule",
       "binding_digest": "e96cf34f273ffaa374a92e6176185174",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceParticipationSchedule",
       "source_owner": "meal-plan",
@@ -646,6 +766,14 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceParticipationSchedule",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.ReplaceScheduleBySchool",
+      "binding_digest": "ebc6169b71644f36ed322c4f1df8c486",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceScheduleBySchool",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
       "target_owner": "tenant-runtime"
     },
     {
@@ -714,6 +842,14 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SetParticipationBySchool",
+      "binding_digest": "ebc6169b71644f36ed322c4f1df8c486",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationBySchool",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SetParticipationBySchool",
       "binding_digest": "e96cf34f273ffaa374a92e6176185174",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationBySchool",
       "source_owner": "meal-plan",
@@ -774,6 +910,14 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationBySchool",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SetParticipationForDay",
+      "binding_digest": "ebc6169b71644f36ed322c4f1df8c486",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForDay",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
       "target_owner": "tenant-runtime"
     },
     {
@@ -842,6 +986,14 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SetParticipationForWeek",
+      "binding_digest": "ebc6169b71644f36ed322c4f1df8c486",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForWeek",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SetParticipationForWeek",
       "binding_digest": "a34b0bd73f1804918903ab4648d9278d",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForWeek",
       "source_owner": "meal-plan",
@@ -886,6 +1038,14 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForWeek",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.SettleOrders",
+      "binding_digest": "ebc6169b71644f36ed322c4f1df8c486",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SettleOrders",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
       "target_owner": "tenant-runtime"
     },
     {
@@ -938,6 +1098,14 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.Week",
+      "binding_digest": "ebc6169b71644f36ed322c4f1df8c486",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.Week",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.Week",
       "binding_digest": "2efc3016e4387f5fb4f2e5a51522644f",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.Week",
       "source_owner": "meal-plan",
@@ -946,6 +1114,14 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.WeeklyList",
+      "binding_digest": "ebc6169b71644f36ed322c4f1df8c486",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.WeeklyList",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.Service.WeeklyList",
       "binding_digest": "cb1f50d4e62e8f58fe55d0ea49f7a360",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.WeeklyList",
       "source_owner": "meal-plan",
@@ -982,6 +1158,22 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.WeeklyList",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.ParticipationHistory.RecordParticipationHistory",
+      "binding_digest": "2efc3016e4387f5fb4f2e5a51522644f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.ParticipationHistory.RecordParticipationHistory",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationBySchool",
+      "binding_digest": "ebc6169b71644f36ed322c4f1df8c486",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ClearParticipationBySchool",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
       "target_owner": "tenant-runtime"
     },
     {
@@ -1050,6 +1242,14 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationForDay",
+      "binding_digest": "ebc6169b71644f36ed322c4f1df8c486",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ClearParticipationForDay",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ClearParticipationForDay",
       "binding_digest": "e96cf34f273ffaa374a92e6176185174",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ClearParticipationForDay",
       "source_owner": "meal-plan",
@@ -1110,6 +1310,14 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ClearParticipationForDay",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.DailyList",
+      "binding_digest": "ebc6169b71644f36ed322c4f1df8c486",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.DailyList",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
       "target_owner": "tenant-runtime"
     },
     {
@@ -1154,6 +1362,14 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.Participation",
+      "binding_digest": "ebc6169b71644f36ed322c4f1df8c486",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.Participation",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.Participation",
       "binding_digest": "7f4258b8f4d8ef173f2f5f41a770d292",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.Participation",
       "source_owner": "meal-plan",
@@ -1186,6 +1402,14 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ParticipationBySchool",
+      "binding_digest": "ebc6169b71644f36ed322c4f1df8c486",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ParticipationBySchool",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ParticipationBySchool",
       "binding_digest": "7f4258b8f4d8ef173f2f5f41a770d292",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ParticipationBySchool",
       "source_owner": "meal-plan",
@@ -1217,6 +1441,22 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.RegistrationAvailable",
+      "binding_digest": "ebc6169b71644f36ed322c4f1df8c486",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.RegistrationAvailable",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceParticipationSchedule",
+      "binding_digest": "ebc6169b71644f36ed322c4f1df8c486",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ReplaceParticipationSchedule",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceParticipationSchedule",
       "binding_digest": "e96cf34f273ffaa374a92e6176185174",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ReplaceParticipationSchedule",
@@ -1282,6 +1522,14 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceScheduleBySchool",
+      "binding_digest": "ebc6169b71644f36ed322c4f1df8c486",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ReplaceScheduleBySchool",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.ReplaceScheduleBySchool",
       "binding_digest": "e96cf34f273ffaa374a92e6176185174",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.ReplaceScheduleBySchool",
       "source_owner": "meal-plan",
@@ -1346,6 +1594,14 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationBySchool",
+      "binding_digest": "ebc6169b71644f36ed322c4f1df8c486",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.SetParticipationBySchool",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationBySchool",
       "binding_digest": "e96cf34f273ffaa374a92e6176185174",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.SetParticipationBySchool",
       "source_owner": "meal-plan",
@@ -1410,6 +1666,14 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForDay",
+      "binding_digest": "ebc6169b71644f36ed322c4f1df8c486",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.SetParticipationForDay",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForDay",
       "binding_digest": "e96cf34f273ffaa374a92e6176185174",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.SetParticipationForDay",
       "source_owner": "meal-plan",
@@ -1474,6 +1738,14 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForWeek",
+      "binding_digest": "ebc6169b71644f36ed322c4f1df8c486",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.SetParticipationForWeek",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.SetParticipationForWeek",
       "binding_digest": "a34b0bd73f1804918903ab4648d9278d",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.SetParticipationForWeek",
       "source_owner": "meal-plan",
@@ -1522,6 +1794,14 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.WeeklyList",
+      "binding_digest": "ebc6169b71644f36ed322c4f1df8c486",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.WeeklyList",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.WeeklyList",
       "binding_digest": "cb1f50d4e62e8f58fe55d0ea49f7a360",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.WeeklyList",
       "source_owner": "meal-plan",
@@ -1556,6 +1836,14 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan.Capability.WeeklyList",
       "binding_digest": "2efc3016e4387f5fb4f2e5a51522644f",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan.Registration.WeeklyList",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/adapters/postgres.Store.InsertParticipationHistory",
+      "binding_digest": "2efc3016e4387f5fb4f2e5a51522644f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.ParticipationHistoryStore.InsertParticipationHistory",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
       "target_owner": "tenant-runtime"
@@ -1650,7 +1938,7 @@
     },
     {
       "binding": "interface{MealOrderingSettings(context.Context) (github.com/moto-nrw/project-phoenix/modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealOrderingSettings",
-      "binding_digest": "7458a83deaf5ebd898d6433c87be8980",
+      "binding_digest": "1d2ad80ba739afdf733b85f631682701",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Settings.MealOrderingSettings",
       "source_owner": "meal-plan",
       "target": "*github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsSnapshot.Bool",
@@ -1658,7 +1946,7 @@
     },
     {
       "binding": "interface{MealOrderingSettings(context.Context) (github.com/moto-nrw/project-phoenix/modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealOrderingSettings",
-      "binding_digest": "71bc6f8677e87b527e0a1d6fb8c99d0a",
+      "binding_digest": "3a2b4f1158208ad12aecfbe2c826684b",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Settings.MealOrderingSettings",
       "source_owner": "meal-plan",
       "target": "*github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsSnapshot.Int",
@@ -1666,7 +1954,7 @@
     },
     {
       "binding": "interface{MealOrderingSettings(context.Context) (github.com/moto-nrw/project-phoenix/modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealOrderingSettings",
-      "binding_digest": "d01e1dd473de362c8fb994349c706eb6",
+      "binding_digest": "9827cb53a67993499edb21d16f6fbeaf",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Settings.MealOrderingSettings",
       "source_owner": "meal-plan",
       "target": "*github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsSnapshot.String",
@@ -1674,7 +1962,7 @@
     },
     {
       "binding": "interface{MealOrderingSettings(context.Context) (github.com/moto-nrw/project-phoenix/modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealOrderingSettings",
-      "binding_digest": "b437449fc5111eef19557f0546e4813e",
+      "binding_digest": "ccf6f5211ef361b2c59d38744f24a1f9",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Settings.MealOrderingSettings",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveMany",
@@ -1682,7 +1970,7 @@
     },
     {
       "binding": "interface{MealOrderingSettings(context.Context) (github.com/moto-nrw/project-phoenix/modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealPlanEnabled",
-      "binding_digest": "07b0fd72beb6cda2d4b343ea453cf6a3",
+      "binding_digest": "f9e1e0846bef3d3e97bc3a94cfc7fbed",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Settings.MealPlanEnabled",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
@@ -1690,7 +1978,7 @@
     },
     {
       "binding": "interface{MealOrderingSettings(context.Context) (github.com/moto-nrw/project-phoenix/modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealRegistrationEnabled",
-      "binding_digest": "39feee8f96c9ab7c984ed210da2855df",
+      "binding_digest": "c48a1a5edcbfe562217cb6ee74e17b5f",
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Settings.MealRegistrationEnabled",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
@@ -1822,6 +2110,14 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Store.UpsertParticipationOverrides",
       "source_owner": "meal-plan",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan/compose.transaction.Run",
+      "binding_digest": "ebc6169b71644f36ed322c4f1df8c486",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Transaction.Run",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
       "target_owner": "tenant-runtime"
     }
   ]

@@ -226,7 +226,7 @@ func TestBillingPushObjectScopeWithoutRLS(t *testing.T) {
 	school := testpkg.CreateTestSchoolInOrganization(t, f.db, f.organization, "Another push school")
 	var otherGroup int64
 	require.NoError(t, f.db.NewRaw(`INSERT INTO education.groups (tenant_id,name) VALUES (?,'Other group') RETURNING id`, chain.TenantID).Scan(f.ctx, &otherGroup))
-	contractOwner := contractcompose.NewInbox()
+	contractOwner := contractcompose.NewInbox(nil)
 	releaseOwner := organizationcompose.NewSharedTraegerDocuments()
 	for _, organization := range []int64{f.organization, foreign} {
 		require.NoError(t, (ParentPortalRuntime{}).WithinTraeger(f.ctx, organization, func(ctx context.Context) error {

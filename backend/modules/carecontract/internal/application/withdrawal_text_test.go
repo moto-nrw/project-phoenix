@@ -117,17 +117,17 @@ func TestInboxShowsWithdrawalWhileThePeriodMayRun(t *testing.T) {
 	t.Parallel()
 	signed := time.Date(2026, 11, 2, 10, 0, 0, 0, calendar.Berlin) // Monday
 	online := &carecontract.Concluded{Method: carecontract.MethodElectronic, At: signed}
-	assert.True(t, withdrawalMayRun(online, &signed, calendar.NewDate(2026, 11, 16)), "the 14th day after signing")
-	assert.False(t, withdrawalMayRun(online, &signed, calendar.NewDate(2026, 11, 17)), "the period is over")
-	assert.False(t, withdrawalMayRun(nil, nil, calendar.NewDate(2026, 11, 3)), "no conclusion, no withdrawal")
+	assert.True(t, withdrawalMayRun(withdrawalUntil(online, &signed, nil), calendar.NewDate(2026, 11, 16)), "the 14th day after signing")
+	assert.False(t, withdrawalMayRun(withdrawalUntil(online, &signed, nil), calendar.NewDate(2026, 11, 17)), "the period is over")
+	assert.False(t, withdrawalMayRun(withdrawalUntil(nil, nil, nil), calendar.NewDate(2026, 11, 3)), "no conclusion, no withdrawal")
 
 	paper := &carecontract.Concluded{Method: carecontract.MethodPaper, At: signed}
-	assert.False(t, withdrawalMayRun(paper, nil, calendar.NewDate(2026, 11, 3)),
+	assert.False(t, withdrawalMayRun(withdrawalUntil(paper, nil, nil), calendar.NewDate(2026, 11, 3)),
 		"signed at the office without a notice: no distance contract, no withdrawal")
-	assert.True(t, withdrawalMayRun(paper, &signed, calendar.NewDate(2026, 11, 16)), "a paper contract with a provided notice")
+	assert.True(t, withdrawalMayRun(withdrawalUntil(paper, &signed, nil), calendar.NewDate(2026, 11, 16)), "a paper contract with a provided notice")
 
 	accepted := &carecontract.Concluded{Method: carecontract.MethodWithApplication, At: signed}
-	assert.True(t, withdrawalMayRun(accepted, nil, calendar.NewDate(2027, 11, 16)),
+	assert.True(t, withdrawalMayRun(withdrawalUntil(accepted, nil, nil), calendar.NewDate(2027, 11, 16)),
 		"without a proven notice the period runs until the right expires")
-	assert.False(t, withdrawalMayRun(accepted, nil, calendar.NewDate(2027, 11, 17)), "the right expired")
+	assert.False(t, withdrawalMayRun(withdrawalUntil(accepted, nil, nil), calendar.NewDate(2027, 11, 17)), "the right expired")
 }

@@ -41,6 +41,7 @@ var (
 // refusal with its own error code instead of reading the message (#2514).
 var (
 	ErrReplacementOutsideOrigin    = errors.New("replacement outside the shift it covers")
+	ErrReplacementStaffAbsent      = errors.New("replacement staff member is absent on the date")
 	ErrShiftHasReplacements        = errors.New("shift has replacements")
 	ErrShiftSeriesNoOccurrences    = errors.New("shift series has no occurrences left")
 	ErrShiftSeriesOutsidePeriod    = errors.New("shift series outside its calendar period")

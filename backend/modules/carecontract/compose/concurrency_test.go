@@ -107,7 +107,7 @@ func TestConcurrentSendsOfOneDraftLetExactlyOneTransitionWin(t *testing.T) {
 
 	letterhead := &holdingLetterhead{entered: make(chan struct{}), release: make(chan struct{})}
 	post := &waitingPost{next: testpkg.UniqueTestTenantID(t)}
-	contracts := compose.NewContracts(compose.ContractPorts{Letterheads: letterhead, Post: post, Runtime: runtimeDouble{}, Access: school,
+	contracts := compose.NewContracts(compose.ContractPorts{Holidays: holidaysDouble{}, Letterheads: letterhead, Post: post, Runtime: runtimeDouble{}, Access: school,
 		Ledger: ledgerDouble{}, Links: carecontract.SigningLinks{Tokens: &tokenDouble{}, ParentsURL: "http://parents.localhost", Fingerprint: sha256Hex}})
 	send := func(out chan<- sendOutcome) {
 		var outcome sendOutcome

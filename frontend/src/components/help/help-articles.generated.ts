@@ -10519,6 +10519,7 @@ export const traegerCareContractsTopic =
             "Die Eltern beantragen in der Eltern-App andere Tage oder Module. Sie oder die Schule entscheiden.",
             "Wählen Sie in der Liste das Kind. Rechts steht die Karte `Änderungswunsch der Eltern`.",
             "Je Modul sehen Sie die bisherige und die gewünschte Buchung. Bei festen Tagen steht dort `Gebucht (feste Tage)`.",
+            "Module, die gleich bleiben, stehen darunter bei `Bleibt gebucht`.",
             "Wählen Sie `Freigeben`. Prüfen Sie `Gilt ab` und die angezeigten Änderungen. Wählen Sie noch einmal `Freigeben`.",
             "Oder wählen Sie `Ablehnen`. Schreiben Sie eine Begründung für die Eltern und wählen Sie `Ablehnen`.",
             "Die Eltern bekommen eine Nachricht in der Eltern-App.",

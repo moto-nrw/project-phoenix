@@ -57,6 +57,7 @@ type Records interface {
 	shiftTypeOperations
 	StaffPlanningProfilesReader
 	TargetOverrideDaysReader
+	SickReportReader
 }
 
 // StaffShiftSource is the native shift listing consumed by the overview.
