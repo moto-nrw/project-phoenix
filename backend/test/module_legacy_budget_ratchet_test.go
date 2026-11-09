@@ -250,7 +250,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0188: the guardian bank backfill/rekey constructor of
 // modules/peopledirectory/compose (+6), the staff bank cipher dependency and
 // backfill/rekey constructor of modules/workforce/compose (+7).
-const moduleComposeBudgetTotal = 13173
+const moduleComposeBudgetTotal = 13170
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -305,7 +305,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/guardianlinkview/compose":             8,
 	// Raised by ADR 0106: the Träger-Büro account management (+24).
 	"modules/identityaccess/compose": 1365, // raised by ADR 0077
-	"modules/mealplan/compose":       105,  // raised by ADR 0078 and ADR 0168
+	"modules/mealplan/compose":       102,  // raised by ADR 0078 and ADR 0168
 	// ADR 0097: the isolated tenant return constructor, no retained logic moved.
 	// Raised by ADR 0112: the Träger master data constructor (+13).
 	// Raised by ADR 0148: the demo school file erasure constructor (+10).
