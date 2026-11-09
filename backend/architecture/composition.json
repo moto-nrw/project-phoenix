@@ -1,6 +1,7 @@
 {
   "commands": [
     "phoenix",
+    "phoenix bank-data-rekey",
     "phoenix cleanup",
     "phoenix cleanup attendance",
     "phoenix cleanup invitations",

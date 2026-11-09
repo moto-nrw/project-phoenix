@@ -30,6 +30,8 @@ const sjrDebitCreditor = "DE98ZZZ09999999999"
 // the context it was sealed with.
 type prefixCipher struct{}
 
+func (prefixCipher) BankDataRing() {}
+
 func (prefixCipher) Seal(plaintext, context []byte) ([]byte, error) {
 	return append(append(append([]byte{}, context...), '#'), plaintext...), nil
 }

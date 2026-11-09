@@ -85,6 +85,11 @@ func NewSEPAMandates(contracts parentbilling.CareContracts, cipher parentbilling
 	return application.NewSEPAMandates(postgres.NewStore(), contracts, cipher, calendar.TodayDate)
 }
 
+// NewBankDataRekey builds maintenance-only re-encryption; never bind it to HTTP.
+func NewBankDataRekey(cipher parentbilling.BankDataRewrapper) parentbilling.BankDataRekey {
+	return application.NewBankDataRekey(postgres.NewBankDataRekeyStore(), cipher)
+}
+
 // NewSEPADebits builds the SEPA direct debit file of the issued runs (#4697, ADR 0181) over the letterhead with the bank account of the Träger and the field cipher the root binds.
 func NewSEPADebits(letterheads parentbilling.BillingLetterheads, cipher parentbilling.BankDataCipher) parentbilling.SEPADebits {
 	return application.NewSEPADebits(postgres.NewStore(), letterheads, cipher, calendar.TodayDate, calendar.Now)
