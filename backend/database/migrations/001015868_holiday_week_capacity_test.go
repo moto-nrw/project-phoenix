@@ -62,13 +62,13 @@ func TestHolidayPromotedCareWindowsStartOnTheBerlinPromotionDay(t *testing.T) {
 	assert.Equal(t, []string{"2020-07-08..2020-07-09"}, retained, "source retention preserves the promotion boundary")
 }
 
-// The erasure of 1.15.868 is that of 1.15.843 with the place mail named
+// The erasure of 1.15.868 is that of 1.15.864 with the place mail named
 // next to the receipt, nothing else.
-func TestHolidayPlaceErasureExtendsTheErasureOf843(t *testing.T) {
+func TestHolidayPlaceErasureExtendsTheErasureOf864(t *testing.T) {
 	t.Parallel()
-	require.Equal(t, 1, strings.Count(demoVisitorErasureOutboxKindsSQL, holidayReceiptErasureKind))
-	require.NotEqual(t, demoVisitorErasureOutboxKindsSQL, holidayPlaceErasureSQL)
-	assert.Equal(t, demoVisitorErasureOutboxKindsSQL,
+	require.Equal(t, 1, strings.Count(demoVisitorErasureCareInvoiceExclusionsSQL, holidayReceiptErasureKind))
+	require.NotEqual(t, demoVisitorErasureCareInvoiceExclusionsSQL, holidayPlaceErasureSQL)
+	assert.Equal(t, demoVisitorErasureCareInvoiceExclusionsSQL,
 		strings.Replace(holidayPlaceErasureSQL, holidayPlaceErasureKinds, holidayReceiptErasureKind, 1))
 }
 

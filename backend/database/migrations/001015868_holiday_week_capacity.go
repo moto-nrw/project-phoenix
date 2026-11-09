@@ -14,8 +14,9 @@ func init() {
 		Version:     holidayWeekCapacityVersion,
 		Description: "Ferien: Kapazität je Woche, Platz oder Warteliste je Buchung, Teilnehmerliste nur mit Platz, Nachrück-Mail (#4699)",
 		DependsOn: []string{
-			guardianInvitationAddressBindingVersion, // the newest migration on development
-			demoVisitorErasureOutboxKindsVersion,    // the outbox CHECK and erasure this one extends
+			guardianInvitationAddressBindingVersion,   // the newest migration on development
+			demoVisitorErasureOutboxKindsVersion,      // the outbox CHECK this one extends
+			parentBillingCareInvoiceExclusionsVersion, // the erasure this one extends
 		},
 	})
 	Migrations.MustRegister(holidayWeekCapacityUp, holidayWeekCapacityDown)
@@ -415,11 +416,11 @@ COMMENT ON CONSTRAINT chk_email_outbox_traeger_kind ON platform.email_outbox IS
 const deleteHolidayPlaceMailsSQL = `DELETE FROM platform.email_outbox
 	WHERE organization_id IS NOT NULL AND kind = 'holiday_place_granted'`
 
-// holidayPlaceErasureSQL is the erasure of 1.15.843 whose statement for the
+// holidayPlaceErasureSQL is the erasure of 1.15.864 whose statement for the
 // receipt also deletes the mail of a booking that moved up: both name the
 // registration.
-// The erasure itself is assembled from the constants of 1.15.843 in
-// demo_visitor_erasure_of_outbox_kinds.go (installHolidayPlaceErasure).
+// The erasure itself is that of 1.15.864, assembled in
+// demo_visitor_erasure_of_care_invoice_exclusions.go (installHolidayPlaceErasure).
 
 const validateHolidayPlaceEmailOutboxTraegerKindSQL = `ALTER TABLE platform.email_outbox VALIDATE CONSTRAINT chk_email_outbox_traeger_kind`
 
@@ -450,7 +451,7 @@ func holidayWeekCapacityUp(ctx context.Context, db *bun.DB) error {
 }
 
 func holidayWeekCapacityDown(ctx context.Context, db *bun.DB) error {
-	if err := installOutboxKindErasure(ctx, db); err != nil {
+	if err := installCareInvoiceExclusionErasure(ctx, db); err != nil {
 		return err
 	}
 	if _, err := db.ExecContext(ctx, deleteHolidayPlaceMailsSQL); err != nil {
