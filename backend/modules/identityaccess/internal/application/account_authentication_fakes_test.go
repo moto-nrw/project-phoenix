@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -649,15 +650,16 @@ func (s *fakeStore) ListLiveAccountSessionsForCap(_ context.Context, accountID i
 	return result, stats(), nil
 }
 
-func (s *fakeStore) DeleteAccountSessionsByID(_ context.Context, ids []int64) ([]domain.AccountSession, domain.OperationStats, error) {
+func (s *fakeStore) EvictAccountSessions(_ context.Context, accountID int64, ids []int64, familyIDs []string) ([]domain.AccountSession, domain.OperationStats, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var deleted []domain.AccountSession
-	for _, id := range ids {
-		if session, ok := s.sessions[id]; ok {
-			deleted = append(deleted, session)
-			delete(s.sessions, id)
+	for id, session := range s.sessions {
+		if session.AccountID != accountID || (!slices.Contains(ids, id) && !slices.Contains(familyIDs, session.FamilyID)) {
+			continue
 		}
+		deleted = append(deleted, session)
+		delete(s.sessions, id)
 	}
 	return deleted, stats(), nil
 }

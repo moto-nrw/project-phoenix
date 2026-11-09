@@ -222,7 +222,10 @@ type AccountSessionStore interface {
 	// ListLiveAccountSessionsForCap returns the account's live, un-rotated
 	// sessions in the cap's portal group, newest expiry first.
 	ListLiveAccountSessionsForCap(ctx context.Context, accountID int64, portalScopes []string, now time.Time) ([]domain.AccountSession, domain.OperationStats, error)
-	DeleteAccountSessionsByID(ctx context.Context, ids []int64) ([]domain.AccountSession, domain.OperationStats, error)
+	// EvictAccountSessions deletes the account's sessions with the given IDs
+	// and every row of the given families, rotated predecessors included, so
+	// no earlier generation of an evicted family stays its latest one.
+	EvictAccountSessions(ctx context.Context, accountID int64, ids []int64, familyIDs []string) ([]domain.AccountSession, domain.OperationStats, error)
 	DeleteAccountSession(ctx context.Context, id int64) (domain.OperationStats, error)
 	DeleteAccountSessionsByFamily(ctx context.Context, familyID string) ([]domain.AccountSession, domain.OperationStats, error)
 	// DeleteAccountSessionsByAccount deletes the account's sessions: only the
