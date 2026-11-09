@@ -6,8 +6,24 @@
   "api/traeger/care-notice-runs/[id]": [
     "GET traeger /traeger/care-notice-runs/id%2F1"
   ],
+  "api/traeger/care-notice-runs/[id]/letters": [
+    "GET traeger /traeger/care-notice-runs/id%2F1/letters",
+    "POST traeger /traeger/care-notice-runs/id%2F1/letters"
+  ],
+  "api/traeger/care-notice-runs/[id]/letters/mail": [
+    "POST traeger /traeger/care-notice-runs/id%2F1/letters/mail"
+  ],
+  "api/traeger/care-notice-runs/[id]/letters/print": [
+    "GET traeger /traeger/care-notice-runs/id%2F1/letters/print"
+  ],
   "api/traeger/care-notice-runs/[id]/notices/[contractId]/letter": [
     "GET traeger /traeger/care-notice-runs/id%2F1/notices/contractId%2F1/letter"
+  ],
+  "api/traeger/care-notice-runs/[id]/notices/[contractId]/mail": [
+    "POST traeger /traeger/care-notice-runs/id%2F1/notices/contractId%2F1/mail"
+  ],
+  "api/traeger/care-notice-runs/[id]/notices/[contractId]/pdf": [
+    "GET traeger /traeger/care-notice-runs/id%2F1/notices/contractId%2F1/pdf"
   ],
   "api/traeger/care-notice-runs/[id]/release": [
     "POST traeger /traeger/care-notice-runs/id%2F1/release"
