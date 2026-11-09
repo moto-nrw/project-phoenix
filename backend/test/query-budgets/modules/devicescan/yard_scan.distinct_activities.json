@@ -1,6 +1,6 @@
 {
   "scenario": "modules.devicescan.yard_scan.distinct_activities",
-  "max": 38,
+  "max": 40,
   "exact": true,
-  "description": "Yard scan with eight distinct activities in the tenant transaction, including roster selection and visit writes. Reuses the existing child lock for membership admission, preserving cancellation before domain validation."
+  "description": "Yard scan with eight distinct activities in the tenant transaction, including roster selection and visit writes. Reuses the existing child lock for membership admission, preserving cancellation before domain validation. Restores the measured pre-7e1548adb7 bound: that commit lowered the budget without removing any statements; normalized SQL is unchanged across it."
 }

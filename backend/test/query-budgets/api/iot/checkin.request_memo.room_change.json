@@ -1,7 +1,7 @@
 {
   "scenario": "api.iot.checkin.request_memo.room_change",
-  "max": 33,
+  "max": 35,
   "exact": true,
-  "description": "Real kiosk scan request transaction with the production request settings memo enabled; N3 and N8 children present. Excludes pre-request device authentication. Restored unoptimized admission after rejected cancellation-precedence change. Source and destination room metadata are loaded together through Facilities.ListRoomsByID; capacity admission still rereads under its room lock.",
+  "description": "Real kiosk scan request transaction with the production request settings memo enabled; N3 and N8 children present. Excludes pre-request device authentication. Restored unoptimized admission after rejected cancellation-precedence change. Source and destination room metadata are loaded together through Facilities.ListRoomsByID; capacity admission still rereads under its room lock. Restores the measured pre-7e1548adb7 bound: that commit lowered the budget without removing any statements; normalized SQL is unchanged across it.",
   "route": "POST /api/iot/checkin"
 }

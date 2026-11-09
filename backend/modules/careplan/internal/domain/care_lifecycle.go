@@ -23,7 +23,13 @@ type CareStudent struct {
 	// 0166): the earliest day the child can have been cared for at this
 	// school, nil when unknown. It survives the activation.
 	FirstCareFrom *calendar.Date
-	UpdatedAt     time.Time
+	// CarePausedAfter and CareResumedFrom are School Membership's care gap
+	// of a returning child (#6073, ADR 0180): days strictly between the last
+	// care day before the restart and the earliest day of care again are no
+	// care days, in every status. Both nil when no gap is known.
+	CarePausedAfter *calendar.Date
+	CareResumedFrom *calendar.Date
+	UpdatedAt       time.Time
 }
 
 // CareEndedOn reports whether the care has already ended on day. The
@@ -38,10 +44,12 @@ func (s CareStudent) CareEndedOn(day calendar.Date) bool {
 //
 //   - day lies before the first-care bound, whatever the status: a new
 //     child approved for a later start, also after its activation;
+//   - day lies in the care gap of a returning child, between its last care
+//     day before the restart and the day its care resumes (#6073);
 //   - or the child is pending, its start lies after day, and day is today
 //     or later.
 //
-// Without a bound only today and later days wait. A resumption or a renewal
+// Without a bound or a gap only today and later days wait. A resumption or a renewal
 // stores a returning child exactly like a new one (pending, the new start,
 // the earlier start replaced), so holding back its past days would erase
 // real care from reports. An immediately activated child already takes part
@@ -51,8 +59,16 @@ func (s CareStudent) AwaitsCareStartOn(day, today calendar.Date) bool {
 	if s.FirstCareFrom != nil && *s.FirstCareFrom != "" && day.Before(*s.FirstCareFrom) {
 		return true
 	}
+	if s.inCareGap(day) {
+		return true
+	}
 	return s.Status == careplan.StudentStatusPending && s.EnrolledFrom != nil &&
 		*s.EnrolledFrom != "" && day.Before(*s.EnrolledFrom) && !day.Before(today)
+}
+
+func (s CareStudent) inCareGap(day calendar.Date) bool {
+	return s.CarePausedAfter != nil && *s.CarePausedAfter != "" && s.CareResumedFrom != nil && *s.CareResumedFrom != "" &&
+		day.After(*s.CarePausedAfter) && day.Before(*s.CareResumedFrom)
 }
 
 // IsAlumnus reports whether the child left with a grade transition.

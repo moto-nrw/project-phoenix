@@ -70,10 +70,12 @@ func (s *Store) RenewStudentEnrollment(ctx context.Context, input schoolmembersh
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	var id int64
+	restart := bun.SafeQuery(careRestart, day, until)
 	err = db.NewUpdate().TableExpr("users.student_school_memberships AS student").
 		Set("school_class = ?", input.SchoolClass).Set("status = ?", input.Status).
 		Set("enrolled_from = ?", from).Set("enrolled_until = ?", until).Set("updated_at = NOW()").
 		Set(firstCareFromNext, day, input.Status, from).
+		Set(carePausedAfterNext, restart).Set(careResumedFromNext, day, input.Status, from, restart).
 		Set("group_id = ?", input.GroupID).
 		Where("student.tenant_id = ?", scope.TenantID).Where("student.student_profile_id = ?", input.StudentID).
 		Where("student.deleted_at IS NULL").

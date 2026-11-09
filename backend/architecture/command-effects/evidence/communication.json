@@ -105,6 +105,22 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.PublishCareCancellation",
+      "binding_digest": "80e5663c017bce7be24b702bc633158e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.CareCancellationPublisher.PublishCareCancellation",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.PublishCareCancellation",
+      "binding_digest": "09aa0b15649556f630a1a159c2bcc813",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.CareCancellationPublisher.PublishCareCancellation",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CommunicationSignatures.DeclarationSignatures",
       "binding_digest": "7651bbe9f1c7870b5097a7ec75322280",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication.DeclarationSignatureReader.DeclarationSignatures",
@@ -153,6 +169,102 @@
       "target_owner": "delivery-platform"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.PublishCareCancellation",
+      "binding_digest": "80e5663c017bce7be24b702bc633158e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.PublishCareCancellation",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.PublishCareCancellation",
+      "binding_digest": "09aa0b15649556f630a1a159c2bcc813",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.PublishCareCancellation",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.announcementsWithSurveys.PublishCareCancellation",
+      "binding_digest": "80e5663c017bce7be24b702bc633158e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.PublishCareCancellation",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.announcementsWithSurveys.PublishCareCancellation",
+      "binding_digest": "09aa0b15649556f630a1a159c2bcc813",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.PublishCareCancellation",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.PublishParentAnnouncement",
+      "binding_digest": "80e5663c017bce7be24b702bc633158e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.PublishParentAnnouncement",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.PublishParentAnnouncement",
+      "binding_digest": "09aa0b15649556f630a1a159c2bcc813",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.PublishParentAnnouncement",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.announcementsWithSurveys.PublishParentAnnouncement",
+      "binding_digest": "80e5663c017bce7be24b702bc633158e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.PublishParentAnnouncement",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.announcementsWithSurveys.PublishParentAnnouncement",
+      "binding_digest": "09aa0b15649556f630a1a159c2bcc813",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.PublishParentAnnouncement",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.RemindParentAnnouncement",
+      "binding_digest": "80e5663c017bce7be24b702bc633158e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.RemindParentAnnouncement",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.RemindParentAnnouncement",
+      "binding_digest": "09aa0b15649556f630a1a159c2bcc813",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.RemindParentAnnouncement",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.announcementsWithSurveys.RemindParentAnnouncement",
+      "binding_digest": "80e5663c017bce7be24b702bc633158e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.RemindParentAnnouncement",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.announcementsWithSurveys.RemindParentAnnouncement",
+      "binding_digest": "09aa0b15649556f630a1a159c2bcc813",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.RemindParentAnnouncement",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.ResendParentAnnouncementEmails",
       "binding_digest": "b35c11cdb9e8eed9fcd437c8aa9939c3",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.ResendParentAnnouncementEmails",
@@ -182,6 +294,38 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.ResendParentAnnouncementEmails",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.ClaimFailedEmailDelivery",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.SendDueParentAnnouncementReminders",
+      "binding_digest": "e8eb4aa5ee96840a1568c641d2b70d24",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.SendDueParentAnnouncementReminders",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEventsDurably",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.parentAnnouncements.SendDueParentAnnouncementReminders",
+      "binding_digest": "12e469ddb4a3699f56cd060070fbd42b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.SendDueParentAnnouncementReminders",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEventsDurably",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.announcementsWithSurveys.SendDueParentAnnouncementReminders",
+      "binding_digest": "e8eb4aa5ee96840a1568c641d2b70d24",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.SendDueParentAnnouncementReminders",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEventsDurably",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.announcementsWithSurveys.SendDueParentAnnouncementReminders",
+      "binding_digest": "12e469ddb4a3699f56cd060070fbd42b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.SendDueParentAnnouncementReminders",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEventsDurably",
       "target_owner": "delivery-platform"
     },
     {
@@ -201,6 +345,22 @@
       "target_owner": "delivery-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.RemindParentAnnouncement",
+      "binding_digest": "80e5663c017bce7be24b702bc633158e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementReminders.RemindParentAnnouncement",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.RemindParentAnnouncement",
+      "binding_digest": "09aa0b15649556f630a1a159c2bcc813",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementReminders.RemindParentAnnouncement",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.ResendParentAnnouncementEmails",
       "binding_digest": "b35c11cdb9e8eed9fcd437c8aa9939c3",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementReminders.ResendParentAnnouncementEmails",
@@ -214,6 +374,22 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementReminders.ResendParentAnnouncementEmails",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.ClaimFailedEmailDelivery",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.SendDueParentAnnouncementReminders",
+      "binding_digest": "e8eb4aa5ee96840a1568c641d2b70d24",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementReminders.SendDueParentAnnouncementReminders",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEventsDurably",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementCapability.SendDueParentAnnouncementReminders",
+      "binding_digest": "12e469ddb4a3699f56cd060070fbd42b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentAnnouncementReminders.SendDueParentAnnouncementReminders",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEventsDurably",
       "target_owner": "delivery-platform"
     },
     {
@@ -590,6 +766,38 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/communication.SurveyCapability.DeleteSurvey",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.DeleteEmailDeliveries",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.surveyService.PublishSurvey",
+      "binding_digest": "80e5663c017bce7be24b702bc633158e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.SurveyCapability.PublishSurvey",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.surveyService.PublishSurvey",
+      "binding_digest": "09aa0b15649556f630a1a159c2bcc813",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.SurveyCapability.PublishSurvey",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.surveyService.RemindSurvey",
+      "binding_digest": "80e5663c017bce7be24b702bc633158e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.SurveyCapability.RemindSurvey",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.surveyService.RemindSurvey",
+      "binding_digest": "09aa0b15649556f630a1a159c2bcc813",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.SurveyCapability.RemindSurvey",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
       "target_owner": "delivery-platform"
     },
     {
@@ -1169,6 +1377,70 @@
       "target_owner": "delivery-platform"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.Publish",
+      "binding_digest": "80e5663c017bce7be24b702bc633158e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.Publish",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.Publish",
+      "binding_digest": "09aa0b15649556f630a1a159c2bcc813",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.Publish",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.PublishCareCancellation",
+      "binding_digest": "80e5663c017bce7be24b702bc633158e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.PublishCareCancellation",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.PublishCareCancellation",
+      "binding_digest": "09aa0b15649556f630a1a159c2bcc813",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.PublishCareCancellation",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.RemindOutstanding",
+      "binding_digest": "80e5663c017bce7be24b702bc633158e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.RemindOutstanding",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.RemindOutstanding",
+      "binding_digest": "09aa0b15649556f630a1a159c2bcc813",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.RemindOutstanding",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.RemindUnanswered",
+      "binding_digest": "80e5663c017bce7be24b702bc633158e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.RemindUnanswered",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.RemindUnanswered",
+      "binding_digest": "09aa0b15649556f630a1a159c2bcc813",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.RemindUnanswered",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEvents",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.ResendFailedEmails",
       "binding_digest": "b35c11cdb9e8eed9fcd437c8aa9939c3",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.ResendFailedEmails",
@@ -1182,6 +1454,22 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.ResendFailedEmails",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.ClaimFailedEmailDelivery",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.SendDueReminders",
+      "binding_digest": "e8eb4aa5ee96840a1568c641d2b70d24",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.SendDueReminders",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/devices.NotificationSeriesCommands.NotifyEventsDurably",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/application.service.SendDueReminders",
+      "binding_digest": "12e469ddb4a3699f56cd060070fbd42b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/application.StaffService.SendDueReminders",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifyEventsDurably",
       "target_owner": "delivery-platform"
     },
     {
