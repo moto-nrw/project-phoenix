@@ -89,10 +89,10 @@ type deviationReadSet struct {
 	sickStaff map[int64]bool
 }
 
-// markSickStaff reads the open sick reports of the dates under the day locks
-// the save already holds (I-2) and marks the sick staff in each read set.
+// markSickStaff reads the open sick reports of the dates, inside the day
+// locks the save already holds, and marks the sick staff in each read set.
 func (s *staffDeviations) markSickStaff(ctx context.Context, dates []calendar.Date, readSets []*deviationReadSet) error {
-	sickDays, err := lockedSickDays(ctx, s.deps.Locks, s.deps.SickReports, dates...)
+	sickDays, err := sickDaysIn(ctx, s.deps.SickReports, dates...)
 	if err != nil {
 		return timetable.DeviationInternal("load sick reports failed", err)
 	}

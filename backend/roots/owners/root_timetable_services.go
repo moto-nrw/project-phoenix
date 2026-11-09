@@ -51,7 +51,6 @@ func BuildTimetableMaterialization(db transactionruntime.Database, env RootEnvir
 		owner.RecurrenceLock, hub, env.Logger.With("service", "materialization"))
 	deps.Transactions = arrivalTimetable.NewTenantTransactions(db.Pool())
 	deps.SickReports = NewTimetableSickReports(absences)
-	deps.DayLocks = arrivalTimetable.NewTenantDatabase(db.Pool())
 	materialization, err := arrivalTimetable.NewMaterialization(deps)
 	if err != nil {
 		return nil, fmt.Errorf("compose timetable materialization: %w", err)

@@ -55,9 +55,7 @@ func (s *TemplateService) reconcilePredecessorInstanceStaff(
 	if err != nil {
 		return err
 	}
-	// recurrence (held by the caller) → occurrence days ascending → reports
-	// (I-2).
-	if pass.sickDays, err = lockedSickDays(ctx, s.deps.DayLocks, s.deps.SickReports, occurrenceDays(instances)...); err != nil {
+	if pass.sickDays, err = sickDaysIn(ctx, s.deps.SickReports, occurrenceDays(instances)...); err != nil {
 		return err
 	}
 	for _, inst := range instances {

@@ -37,7 +37,6 @@ type TemplateAdministrationDependencies struct {
 	ResyncOfferingRoster func(context.Context, timetable.OfferingRosterResyncInput) error
 	RecurrenceLock       timetable.RecurrenceWriteLock
 	SickReports          SickReportReader // nil: a series roster change marks nobody sick (#6292)
-	DayLocks             TransactionLocks // required with SickReports
 	SchoolClasses        SchoolClassRules
 	Staffing             StaffingAnnouncer
 	Logger               *slog.Logger

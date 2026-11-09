@@ -36,16 +36,15 @@ const (
 	// stored range Before and the edited range Report of one sick report.
 	SickCascadeReconcile SickCascadeStepKind = "reconcile"
 	// SickCascadeReassign re-points the stamps of the merged report
-	// FromAbsenceID to the surviving report ToAbsenceID, whose merged range
-	// Report carries.
+	// FromAbsenceID to the surviving report ToAbsenceID.
 	SickCascadeReassign SickCascadeStepKind = "reassign"
 )
 
 // SickCascadeStep is one plan change of a sick-report write.
 type SickCascadeStep struct {
 	Kind SickCascadeStepKind
-	// Report is the sick report of Mark and Clear, the edited report of
-	// Reconcile and the surviving report of Reassign.
+	// Report is the sick report of Mark and Clear and the edited report of
+	// Reconcile.
 	Report SickCascadeInput
 	// Before is the stored range of Reconcile.
 	Before SickCascadeInput

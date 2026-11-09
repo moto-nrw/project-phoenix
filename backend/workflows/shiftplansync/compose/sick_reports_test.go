@@ -82,15 +82,9 @@ func (c *sickReportCalls) ReconcileSickRange(_ context.Context, before, after wo
 	return c.cascadeErr
 }
 
-func (c *sickReportCalls) ReassignSickStamps(context.Context, int64, workforce.SickCascadeInput) error {
+func (c *sickReportCalls) ReassignSickStamps(context.Context, int64, int64) error {
 	c.calls = append(c.calls, "reassign")
 	return c.cascadeErr
-}
-
-// LockSickReportWrite takes no locks here; the plan order is what these
-// suites record.
-func (c *sickReportCalls) LockSickReportWrite(context.Context, int64, int64, string, string) error {
-	return nil
 }
 
 func inSickReportTx() context.Context { return context.Background() }

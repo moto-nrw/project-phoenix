@@ -52,14 +52,8 @@ type SickCascade interface {
 	// history stay stable. Both inputs refer to the same absence and subject.
 	ReconcileSickRange(ctx context.Context, before, after workforce.SickCascadeInput) error
 	// ReassignSickStamps re-points every provenance stamp from one absence id
-	// to the surviving report. Merging sick reports deletes the secondary
-	// absence rows, and their stamps must transfer to the surviving primary
-	// or the eventual reversal will miss those rows. The survivor's range
-	// names the days it locks first.
-	ReassignSickStamps(ctx context.Context, fromAbsenceID int64, survivor workforce.SickCascadeInput) error
-	// LockSickReportWrite takes the day locks of a pending sick-report write
-	// (absenceID 0 for a new report) before Workforce locks the staff row:
-	// the requested and the stored range, the reports a merge folds in and
-	// their stamps, ascending (#6292).
-	LockSickReportWrite(ctx context.Context, subjectStaffID, absenceID int64, dateStart, dateEnd string) error
+	// to another. Merging sick reports deletes the secondary absence rows,
+	// and their stamps must transfer to the surviving primary or the
+	// eventual reversal will miss those rows.
+	ReassignSickStamps(ctx context.Context, fromAbsenceID, toAbsenceID int64) error
 }

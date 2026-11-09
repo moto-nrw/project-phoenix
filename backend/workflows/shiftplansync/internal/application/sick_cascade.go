@@ -47,13 +47,6 @@ type TimetableRows interface {
 	FindByInstanceID(ctx context.Context, instanceID int64) ([]*timetable.InstanceStaff, error)
 }
 
-// SickReportAbsences reads the sick reports a pending write touches, so the
-// write can lock their days before Workforce locks the staff row.
-type SickReportAbsences interface {
-	FindStaffAbsence(ctx context.Context, id int64) (workforce.StaffAbsence, error)
-	ListStaffAbsences(ctx context.Context, filter workforce.StaffAbsenceFilter) ([]workforce.StaffAbsence, error)
-}
-
 // SickStamps are the sick-report provenance stamps on block assignments: the
 // rows one report stamped, and the single-column stamp write; nil clears it.
 type SickStamps interface {
@@ -75,7 +68,6 @@ type SickDeviations interface {
 // Timetable owner's deviation writes.
 type SickCascadeDependencies struct {
 	Shifts        ports.Shifts
-	Absences      SickReportAbsences
 	Deviations    SickDeviations
 	TimetableData TimetableRows
 	InstanceStaff SickStamps
@@ -88,7 +80,6 @@ type SickCascadeDependencies struct {
 
 type sickCascade struct {
 	shifts        ports.Shifts
-	absences      SickReportAbsences
 	deviations    SickDeviations
 	timetableData TimetableRows
 	sickStamps    SickStamps
@@ -103,8 +94,7 @@ type SickCascade interface {
 	MarkSickForRange(ctx context.Context, in workforce.SickCascadeInput) error
 	ClearSickForRange(ctx context.Context, in workforce.SickCascadeInput) error
 	ReconcileSickRange(ctx context.Context, before, after workforce.SickCascadeInput) error
-	ReassignSickStamps(ctx context.Context, fromAbsenceID int64, survivor workforce.SickCascadeInput) error
-	LockSickReportWrite(ctx context.Context, subjectStaffID, absenceID int64, dateStart, dateEnd string) error
+	ReassignSickStamps(ctx context.Context, fromAbsenceID, toAbsenceID int64) error
 }
 
 // NewSickCascade wires the #1843 cascade. Compose checks the dependencies and
@@ -112,7 +102,6 @@ type SickCascade interface {
 func NewSickCascade(deps SickCascadeDependencies) SickCascade {
 	return &sickCascade{
 		shifts:        deps.Shifts,
-		absences:      deps.Absences,
 		deviations:    deps.Deviations,
 		timetableData: deps.TimetableData,
 		sickStamps:    deps.InstanceStaff,
@@ -301,13 +290,10 @@ func (s *sickCascade) markBlocksForSickDay(ctx context.Context, report sickRepor
 // absent — in both cases only the provenance stamp is cleared so the deleted
 // report stops owning them, and the admin resolves the rest manually.
 func (s *sickCascade) ClearSickForRange(ctx context.Context, in workforce.SickCascadeInput) error {
-	// Keyed by the provenance stamps; the reported range only widens the day
-	// locks, so a malformed one must not block the reversal.
+	// Keyed purely by the provenance stamps, so the reported range is not read
+	// and a malformed one must not block the reversal.
 	report := stampScope(in)
 	if err := s.lockSickReversalStaffWrites(ctx, report); err != nil {
-		return err
-	}
-	if err := s.lockReportedDays(ctx, in, in.AbsenceID); err != nil {
 		return err
 	}
 	if err := s.reactivateStampedShifts(ctx, report, nil); err != nil {
@@ -446,13 +432,14 @@ func (s *sickCascade) reconcileAddedSickDays(ctx context.Context, after sickRepo
 	return s.markBlocksForSickDays(ctx, after, days, activeTouched)
 }
 
-// acquireCascadeDayLocks takes the day locks ascending, past days included:
-// the materializer stamps past blocks too, so a reversal reading the stamps
-// of a past day must hold that day as well (I-2).
 func (s *sickCascade) acquireCascadeDayLocks(ctx context.Context, days map[calendar.Date]bool) error {
+	today := s.todayDate()
 	for _, day := range sortedDateSet(days) {
+		if day.Before(today) {
+			continue
+		}
 		if err := s.timetableData.AcquireSubstituteDayLock(ctx, day); err != nil {
-			return fmt.Errorf("sick cascade: day lock %s: %w", day.String(), err)
+			return fmt.Errorf("sick reconcile: day lock %s: %w", day.String(), err)
 		}
 	}
 	return nil
@@ -653,21 +640,10 @@ func (s *sickCascade) clearStampedBlocksForDay(ctx context.Context, report sickR
 	return nil
 }
 
-// ReassignSickStamps re-points every stamp from one absence id to the
-// surviving report (overlap merge: the secondary absence row is deleted, the
-// survivor takes over its plan effects, #1843). It takes the subject's staff
-// lock and the day locks of the survivor's whole range and of the merged
-// report's stamps, ascending, before it reads the stamps (I-2): a
-// materialization stamping the merged report meanwhile commits first, and
-// the survivor's mark that follows needs no further day.
-func (s *sickCascade) ReassignSickStamps(ctx context.Context, fromAbsenceID int64, survivor workforce.SickCascadeInput) error {
-	toAbsenceID := survivor.AbsenceID
-	if err := s.lockStaffWrites(ctx, survivor.SubjectStaffID); err != nil {
-		return err
-	}
-	if err := s.lockReportedDays(ctx, survivor, fromAbsenceID); err != nil {
-		return err
-	}
+// ReassignSickStamps re-points every stamp from one absence id to another
+// (overlap merge: the secondary absence row is deleted, the surviving primary
+// takes over its plan effects, #1843).
+func (s *sickCascade) ReassignSickStamps(ctx context.Context, fromAbsenceID, toAbsenceID int64) error {
 	shifts, err := s.stampedShifts(ctx, fromAbsenceID)
 	if err != nil {
 		return fmt.Errorf("sick reassign: load stamped shifts: %w", err)
@@ -753,4 +729,69 @@ func shiftDate(shift workforce.StaffShift) (calendar.Date, error) {
 		return "", fmt.Errorf("sick cascade: shift %d has an invalid date %q: %w", shift.ID, shift.Date, err)
 	}
 	return date, nil
+}
+
+// sickCascadeDays expands the absence range into the full sick days, skipping
+// half boundary days — a half sick day never cascades (#1843 product rule).
+// The Timetable owner's SickReport decides each day, the rule the
+// materializer applies to blocks planned after the report (#6292).
+func sickCascadeDays(report sickReport) []calendar.Date {
+	plan := timetable.SickReport{
+		AbsenceID: report.absenceID, StaffID: report.subjectStaffID,
+		DateStart: report.dateStart, DateEnd: report.dateEnd,
+		SkipStartDay: report.skipStartDay, SkipEndDay: report.skipEndDay,
+	}
+	var days []calendar.Date
+	for d := report.dateStart; !d.After(report.dateEnd); d = d.AddDays(1) {
+		if plan.CoversFullDay(d) {
+			days = append(days, d)
+		}
+	}
+	return days
+}
+
+func sickCascadeDayDifference(before, after sickReport) (removed, added map[calendar.Date]bool) {
+	beforeDays := dateSet(sickCascadeDays(before))
+	afterDays := dateSet(sickCascadeDays(after))
+	removed = make(map[calendar.Date]bool)
+	added = make(map[calendar.Date]bool)
+	for day := range beforeDays {
+		if !afterDays[day] {
+			removed[day] = true
+		}
+	}
+	for day := range afterDays {
+		if !beforeDays[day] {
+			added[day] = true
+		}
+	}
+	return removed, added
+}
+
+func dateSet(days []calendar.Date) map[calendar.Date]bool {
+	set := make(map[calendar.Date]bool, len(days))
+	for _, day := range days {
+		set[day] = true
+	}
+	return set
+}
+
+func unionDateSets(left, right map[calendar.Date]bool) map[calendar.Date]bool {
+	union := make(map[calendar.Date]bool, len(left)+len(right))
+	for day := range left {
+		union[day] = true
+	}
+	for day := range right {
+		union[day] = true
+	}
+	return union
+}
+
+func sortedDateSet(set map[calendar.Date]bool) []calendar.Date {
+	days := make([]calendar.Date, 0, len(set))
+	for day := range set {
+		days = append(days, day)
+	}
+	sort.Slice(days, func(i, j int) bool { return days[i].Before(days[j]) })
+	return days
 }

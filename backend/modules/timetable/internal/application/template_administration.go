@@ -36,9 +36,6 @@ func NewTemplateAdministration(deps ports.TemplateAdministrationDependencies) (t
 		deps.Timeframes == nil || deps.EducationGroups == nil || deps.RecurrenceLock == nil || deps.Transactions == nil {
 		return nil, nil, errors.New("timetable template administration: required dependency is nil")
 	}
-	if deps.SickReports != nil && deps.DayLocks == nil {
-		return nil, nil, errors.New("timetable template administration: day locks are required to apply sick reports")
-	}
 	split, err := NewTemplateSplitService(TemplateSplitDependencies{
 		GroupRepo:            deps.Groups,
 		CategoryRepo:         deps.Categories,
@@ -315,7 +312,6 @@ func newTemplateAdministrationService(deps ports.TemplateAdministrationDependenc
 		ResyncOfferingRoster:   deps.ResyncOfferingRoster,
 		RecurrenceLock:         deps.RecurrenceLock,
 		SickReports:            deps.SickReports,
-		DayLocks:               deps.DayLocks,
 		SchoolClasses:          deps.SchoolClasses,
 		Staffing:               deps.Staffing,
 		Logger:                 deps.Logger,

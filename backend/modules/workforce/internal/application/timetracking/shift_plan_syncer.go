@@ -26,7 +26,7 @@ type ShiftPlanSyncer interface {
 	MarkSickForRange(ctx context.Context, in SickCascadeInput) error
 	ClearSickForRange(ctx context.Context, in SickCascadeInput) error
 	ReconcileSickRange(ctx context.Context, before, after SickCascadeInput) error
-	ReassignSickStamps(ctx context.Context, fromAbsenceID int64, survivor SickCascadeInput) error
+	ReassignSickStamps(ctx context.Context, fromAbsenceID, toAbsenceID int64) error
 }
 
 // errUnplannedSickCascade refuses a plan change outside a planned absence
@@ -48,7 +48,7 @@ func (unplannedSickCascade) ReconcileSickRange(context.Context, SickCascadeInput
 	return errUnplannedSickCascade
 }
 
-func (unplannedSickCascade) ReassignSickStamps(context.Context, int64, SickCascadeInput) error {
+func (unplannedSickCascade) ReassignSickStamps(context.Context, int64, int64) error {
 	return errUnplannedSickCascade
 }
 
@@ -72,8 +72,8 @@ func (p sickCascadePlanner) ReconcileSickRange(_ context.Context, before, after 
 	return nil
 }
 
-func (p sickCascadePlanner) ReassignSickStamps(_ context.Context, fromAbsenceID int64, survivor SickCascadeInput) error {
-	*p.plan = append(*p.plan, workforce.SickCascadeStep{Kind: workforce.SickCascadeReassign, FromAbsenceID: fromAbsenceID, ToAbsenceID: survivor.AbsenceID, Report: survivor})
+func (p sickCascadePlanner) ReassignSickStamps(_ context.Context, fromAbsenceID, toAbsenceID int64) error {
+	*p.plan = append(*p.plan, workforce.SickCascadeStep{Kind: workforce.SickCascadeReassign, FromAbsenceID: fromAbsenceID, ToAbsenceID: toAbsenceID})
 	return nil
 }
 

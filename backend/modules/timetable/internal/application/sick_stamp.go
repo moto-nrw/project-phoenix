@@ -8,22 +8,15 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // The sick stamp is the plan effect of a sick report on one block assignment:
 // absent, with the neutral reason and the report's provenance id (#1843). The
 // cascade finds the rows a shortened or deleted report must release only by
-// that id (#6292). The PR #6300 design binds every writer:
-//
-//   - I-1: every path that creates an assignment, or rewrites one from an
-//     earlier state, writes it through writeStaffAssignment, with the sick
-//     days lockedSickDays read after the day locks.
-//   - I-2: assignment writers take recurrence (when they write recurrence)
-//     and then the day locks ascending before they read the sick reports;
-//     sick-report writers take the day locks of the report and of its
-//     stamps ascending before they read the assignments. No committed stamp
-//     names a deleted report or a day outside its report.
+// that id (#6292). Invariant I-1: every path that creates an assignment, or
+// rewrites one from an earlier state, writes it through writeStaffAssignment
+// with the sick days sickDaysIn read. #6300 adds no lock and no lock order;
+// concurrent sick-report writes are #6232's.
 
 // writeStaffAssignment is the one write of a new or rebuilt assignment
 // (I-1). A row that carries the same person's state of the same day keeps
@@ -53,24 +46,14 @@ func applySickReportOfDay(row *scheduleModel.InstanceStaff, absenceID int64) {
 	}
 }
 
-// lockedSickDays takes the substitute day lock of every day, ascending, and
-// only then reads the open sick reports over them (I-2). Days the caller
-// already holds are taken again without waiting; a caller that holds a later
-// day must have taken these first. Without locks (repository doubles) it
-// locks nothing; without a reader nobody is sick.
-func lockedSickDays(ctx context.Context, locks ports.TransactionLocks, reports ports.SickReportReader, days ...calendar.Date) (map[staffDay]int64, error) {
+// sickDaysIn reads the open sick reports over the days (I-1). It takes no
+// lock: each caller reads them inside the locks its path already holds
+// (#6292 adds no lock and no lock order). Without a reader nobody is sick.
+func sickDaysIn(ctx context.Context, reports ports.SickReportReader, days ...calendar.Date) (map[staffDay]int64, error) {
 	if reports == nil || len(days) == 0 {
 		return nil, nil
 	}
 	days = ascendingDays(days)
-	if locks != nil {
-		tenantID := tenant.FromContext(ctx)
-		for _, day := range days {
-			if err := locks.AcquireTransactionLock(ctx, timetable.SubstituteDayLockKey(tenantID, day)); err != nil {
-				return nil, &ports.ScheduleError{Op: "sick stamp: lock day " + day.String(), Err: err}
-			}
-		}
-	}
 	from, to := days[0], days[len(days)-1]
 	open, err := reports.OpenSickReports(ctx, from, to)
 	if err != nil {
@@ -108,18 +91,6 @@ func copyAbsenceState(dst, src *scheduleModel.InstanceStaff) {
 	dst.IsAbsent = src.IsAbsent
 	dst.AbsenceReason = src.AbsenceReason
 	dst.SickAbsenceID = src.SickAbsenceID
-}
-
-// sameAbsenceState reports whether two rows carry the same absence.
-func sameAbsenceState(a, b *scheduleModel.InstanceStaff) bool {
-	return a.IsAbsent == b.IsAbsent && equalOptional(a.AbsenceReason, b.AbsenceReason) && equalOptional(a.SickAbsenceID, b.SickAbsenceID)
-}
-
-func equalOptional[T comparable](a, b *T) bool {
-	if a == nil || b == nil {
-		return a == b
-	}
-	return *a == *b
 }
 
 // stampSickAbsence marks a row absent for one sick report.

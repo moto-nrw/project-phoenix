@@ -208,7 +208,7 @@ func (s *InstanceLifecycleService) replaceInstanceAssignments(ctx context.Contex
 			return err
 		}
 	}
-	sickDays, err := lockedSickDays(ctx, s.deps.Database, s.deps.SickReports, calendar.Date(instance.Date))
+	sickDays, err := sickDaysIn(ctx, s.deps.SickReports, calendar.Date(instance.Date))
 	if err != nil {
 		return err
 	}

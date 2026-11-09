@@ -213,21 +213,19 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 }
 
 // newTimetableTestMaterialization binds the recurrence engine to db the way
-// the composition root does: its tenant transactions, and Workforce's open
-// sick reports with the day locks they need (#6292).
+// the composition root does: its tenant transactions and Workforce's open
+// sick reports (#6292).
 func newTimetableTestMaterialization(db transactionruntime.Database, deps timetablePorts.MaterializationDependencies) (timetable.MaterializationCapability, error) {
 	deps.Transactions = arrivalTimetable.NewTenantTransactions(db.Pool())
 	deps.SickReports = owners.NewTimetableSickReports(owners.MustNewWorkforce(db))
-	deps.DayLocks = arrivalTimetable.NewTenantDatabase(db.Pool())
 	return arrivalTimetable.NewMaterialization(deps)
 }
 
 // withTimetableTestTemplateRuntime binds the template writes to db the way
-// the composition root does: tenant transactions, and Workforce's open sick
-// reports with the day locks they need (#6292).
+// the composition root does: tenant transactions and Workforce's open sick
+// reports (#6292).
 func withTimetableTestTemplateRuntime(db transactionruntime.Database, deps timetablePorts.TemplateAdministrationDependencies) timetablePorts.TemplateAdministrationDependencies {
 	deps.Transactions = arrivalTimetable.NewTenantTransactions(db.Pool())
 	deps.SickReports = owners.NewTimetableSickReports(owners.MustNewWorkforce(db))
-	deps.DayLocks = arrivalTimetable.NewTenantDatabase(db.Pool())
 	return deps
 }

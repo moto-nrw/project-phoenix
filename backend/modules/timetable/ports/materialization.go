@@ -30,10 +30,7 @@ type SickReportReader interface {
 // NonWorkingDays answers holidays and closing days (#3594); nil skips none.
 // Staffing announces created instances to the staffing caches (#1844); nil
 // announces nothing. SickReports marks a newly planned supervisor absent on
-// the full days of an open sick report (#6292); nil applies none. With a
-// database it needs DayLocks: the run takes the substitute day lock of every
-// window day so a sick report committing meanwhile is either seen by the run
-// or sees the rows it inserted.
+// the full days of an open sick report (#6292); nil applies none.
 type MaterializationDependencies struct {
 	GroupRepo      timetable.ActivityGroupQuery
 	ScheduleRepo   timetable.ScheduleQuery
@@ -50,7 +47,6 @@ type MaterializationDependencies struct {
 	TimeframeRepo  timetable.TimeframeQuery
 	CareBounds     CareBoundReader
 	SickReports    SickReportReader
-	DayLocks       TransactionLocks
 	NonWorkingDays timetable.NonWorkingDayCalendar
 	RecurrenceLock timetable.RecurrenceWriteLock
 	Staffing       StaffingAnnouncer

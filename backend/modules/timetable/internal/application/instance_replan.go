@@ -83,7 +83,7 @@ func (s *InstanceLifecycleService) replanWeekLocked(ctx context.Context, tenantI
 		slog.String("to", to.String()),
 		slog.Int64("deleted_instances", deleted),
 		slog.Int("instances_created", mat.InstancesCreated),
-		slog.Int("deviations_snapshotted", len(snapshots)),
+		slog.Int("deviations_snapshotted", overriddenCount(snapshots)),
 		slog.Int("deviations_reapplied", reapplied),
 	)
 	return &timetable.ReplanWeekResult{From: from, To: to, DeletedInstances: int(deleted), Materialization: mat}, nil
@@ -208,6 +208,18 @@ func snapshotOccurrence(inst *scheduleModel.ActivityInstance, staffRows []*sched
 		}
 	}
 	return snap
+}
+
+// overriddenCount counts the snapshots that carry a deviation; snapshots of
+// present rows alone are no deviation.
+func overriddenCount(snapshots []deviationSnapshot) int {
+	count := 0
+	for _, snap := range snapshots {
+		if snap.overridden() {
+			count++
+		}
+	}
+	return count
 }
 
 // overridden reports whether the occurrence carries a deviation to reapply.
@@ -338,12 +350,9 @@ func (s *InstanceLifecycleService) reapplyAbsences(ctx context.Context, day cale
 		if !ok || row.IsSubstitute {
 			continue
 		}
-		want := scheduleModel.InstanceStaff{IsAbsent: true, AbsenceReason: ab.reason, SickAbsenceID: ab.sickAbsenceID}
-		if !sameAbsenceState(row, &want) {
-			copyAbsenceState(row, &want)
-			if err := writeStaffAssignment(ctx, s.deps.InstanceStaffRepo, row, day, nil, true); err != nil {
-				return reapplied, err
-			}
+		copyAbsenceState(row, &scheduleModel.InstanceStaff{IsAbsent: true, AbsenceReason: ab.reason, SickAbsenceID: ab.sickAbsenceID})
+		if err := writeStaffAssignment(ctx, s.deps.InstanceStaffRepo, row, day, nil, true); err != nil {
+			return reapplied, err
 		}
 		reapplied++
 	}

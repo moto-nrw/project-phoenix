@@ -52,8 +52,7 @@ import (
 //   - Sick reports apply to new rows (#6292). A supervisor planned on a full
 //     day of an open sick report is inserted absent with the report's stamp,
 //     like the rows the sick cascade marked when the report came in. The run
-//     takes every window day lock (recurrence → days ascending) before it
-//     reads the reports, so it serializes against the cascade (I-2).
+//     takes no lock beyond the recurrence gate it always held.
 
 const materializeForTenantOp = "materialize for tenant"
 
@@ -69,8 +68,7 @@ type materializationService struct {
 	staffRepo      timetable.InstanceStaffCapability
 	studentRepo    ports.ParticipantRows
 	careBounds     ports.CareBoundReader
-	sickReports    ports.SickReportReader // nil marks no supervisor sick (#6292)
-	dayLocks       ports.TransactionLocks
+	sickReports    ports.SickReportReader          // nil marks no supervisor sick (#6292)
 	nonWorkingDays timetable.NonWorkingDayCalendar // nil skips no holidays or closing days (#3594)
 	exceptionRepo  timetable.ActivityExceptionQuery
 	timeframeRepo  timetable.TimeframeQuery
@@ -90,9 +88,6 @@ func NewMaterialization(deps ports.MaterializationDependencies) (timetable.Mater
 	if deps.Transactions != nil && deps.RecurrenceLock == nil {
 		return nil, errors.New("timetable materialization: recurrence lock is required with a database")
 	}
-	if deps.Transactions != nil && deps.SickReports != nil && deps.DayLocks == nil {
-		return nil, errors.New("timetable materialization: day locks are required to apply sick reports with a database")
-	}
 	return &materializationService{
 		groupRepo:      deps.GroupRepo,
 		scheduleRepo:   deps.ScheduleRepo,
@@ -105,7 +100,6 @@ func NewMaterialization(deps ports.MaterializationDependencies) (timetable.Mater
 		studentRepo:    deps.StudentRepo,
 		careBounds:     deps.CareBounds,
 		sickReports:    deps.SickReports,
-		dayLocks:       deps.DayLocks,
 		nonWorkingDays: deps.NonWorkingDays,
 		exceptionRepo:  deps.ExceptionRepo,
 		timeframeRepo:  deps.TimeframeRepo,
@@ -354,9 +348,8 @@ func (s *materializationService) loadMaterializationWorld(
 		return nil, &ports.ScheduleError{Op: "materialize for tenant: load existing instances", Err: err}
 	}
 	world.existingIdx = buildExistingIndex(existing)
-	// Every window day is locked before the sick reports are read (I-2),
-	// past days included: the run stamps those as well.
-	world.sickDays, err = lockedSickDays(ctx, s.dayLocks, s.sickReports, daysBetween(from, to)...)
+	// Past days included: the run stamps every block it creates (I-1).
+	world.sickDays, err = sickDaysIn(ctx, s.sickReports, daysBetween(from, to)...)
 	if err != nil {
 		return nil, err
 	}

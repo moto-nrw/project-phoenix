@@ -51,7 +51,7 @@ func buildTimetablePlanning(
 		return TimetablePlanning{}, fmt.Errorf("compose timetable templates: %w", err)
 	}
 	templateDeps.Transactions = arrivalTimetable.NewTenantTransactions(db.Pool())
-	templateDeps.SickReports, templateDeps.DayLocks = sickReports, arrivalTimetable.NewTenantDatabase(db.Pool())
+	templateDeps.SickReports = sickReports
 	templates, rosterReview, err := arrivalTimetable.NewTemplateAdministration(templateDeps)
 	if err != nil {
 		return TimetablePlanning{}, fmt.Errorf("compose timetable templates: %w", err)

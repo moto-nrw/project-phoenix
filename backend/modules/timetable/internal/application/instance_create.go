@@ -209,10 +209,8 @@ func (s *InstanceLifecycleService) findCreateByIdempotencyKey(ctx context.Contex
 }
 
 func (s *InstanceLifecycleService) assignCreatedInstanceRoster(ctx context.Context, inst *scheduleModel.ActivityInstance, req timetable.CreateInstanceInput, tenantID int64) error {
-	// recurrence (held) → the block's day → reports (I-2), before the
-	// care-day locks of the children.
 	day := calendar.Date(inst.Date)
-	sickDays, err := lockedSickDays(ctx, s.deps.Database, s.deps.SickReports, day)
+	sickDays, err := sickDaysIn(ctx, s.deps.SickReports, day)
 	if err != nil {
 		return err
 	}

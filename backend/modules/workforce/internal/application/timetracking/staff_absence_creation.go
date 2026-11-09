@@ -197,7 +197,7 @@ func (s *staffAbsenceService) mergeOverlappingAbsences(
 	// The secondaries are about to be deleted; their plan stamps must move to
 	// the surviving primary or its eventual deletion would miss those rows
 	// (#1843). Fail closed — a dangling stamp breaks the reversal invariant.
-	if err := s.reassignMergedSickStamps(ctx, primary, existing[1:], actorStaffID); err != nil {
+	if err := s.reassignMergedSickStamps(ctx, primary, existing[1:]); err != nil {
 		return nil, err
 	}
 
@@ -210,12 +210,12 @@ func (s *staffAbsenceService) mergeOverlappingAbsences(
 	return s.withLabel(ctx, toAbsenceResponse(primary)), nil
 }
 
-func (s *staffAbsenceService) reassignMergedSickStamps(ctx context.Context, primary *StaffAbsence, secondaries []*StaffAbsence, actorStaffID int64) error {
+func (s *staffAbsenceService) reassignMergedSickStamps(ctx context.Context, primary *StaffAbsence, secondaries []*StaffAbsence) error {
 	if primary.AbsenceType != AbsenceTypeSick {
 		return nil
 	}
 	for _, secondary := range secondaries {
-		if err := s.shiftPlanSyncer.ReassignSickStamps(ctx, secondary.ID, sickCascadeInput(primary, actorStaffID, nil)); err != nil {
+		if err := s.shiftPlanSyncer.ReassignSickStamps(ctx, secondary.ID, primary.ID); err != nil {
 			return fmt.Errorf("failed to merge absence — plan stamp reassignment failed: %w", err)
 		}
 	}
