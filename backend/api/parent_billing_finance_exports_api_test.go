@@ -126,6 +126,9 @@ func TestFinanceExportsOfAReleasedRun(t *testing.T) {
 	var debtor string
 	require.NoError(t, f.db.NewRaw(`SELECT debtor_number FROM parent_billing.care_invoices WHERE id = ?`, invoice).Scan(context.Background(), &debtor))
 	assert.Equal(t, "10 4711", debtor, "the release copies the debtor number of the family")
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodGet, billingFamiliesPath, nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), "10 4711", "the families show the debtor number of a monthly invoice")
 
 	runs := exportRuns(t, f)
 	require.Len(t, runs, 1)

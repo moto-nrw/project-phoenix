@@ -83,3 +83,40 @@ func TestInvoiceHistorySeparatesRequestedMailFromSuccessfulSend(t *testing.T) {
 		})
 	}
 }
+
+// runPost answers the mail states of each run apart.
+type runPost struct {
+	byRun map[int64][]parentbilling.BillingLetterMailState
+}
+
+func (p runPost) CareLetterMailStates(_ context.Context, _, run int64) ([]parentbilling.BillingLetterMailState, error) {
+	return p.byRun[run], nil
+}
+func (p runPost) LetterMailStates(_ context.Context, _, run int64) ([]parentbilling.BillingLetterMailState, error) {
+	return p.byRun[run], nil
+}
+
+// A Storno mailed in another run than the invoice still shows its send
+// (review of d4eefbc966): the states of every run a mailing names are read.
+func TestInvoiceHistoryReadsTheMailStatesOfEveryRun(t *testing.T) {
+	t.Parallel()
+	requested := time.Date(2026, 11, 9, 10, 0, 0, 0, time.UTC)
+	accepted := requested.Add(time.Minute)
+	post := runPost{byRun: map[int64][]parentbilling.BillingLetterMailState{
+		7: {{DeliveryID: 21, Status: parentbilling.LetterMailSent, SentAt: &accepted}},
+		8: {{DeliveryID: 22, Status: parentbilling.LetterMailSent, SentAt: &accepted}},
+	}}
+	store := historyStore{steps: []parentbilling.InvoiceHistoryEntry{
+		{Kind: parentbilling.HistoryMailRequested, At: requested, RunID: 7, DeliveryID: 21, Note: "invoice"},
+		{Kind: parentbilling.HistoryMailRequested, At: requested, RunID: 8, DeliveryID: 22, Note: "cancellation"},
+	}}
+	history, err := NewFinanceExports(store, post).InvoiceHistory(context.Background(), sjrReviewer, parentbilling.HistoryHolidayDocument, 1)
+	require.NoError(t, err)
+	var sent []string
+	for _, entry := range history.Entries {
+		if entry.Kind == parentbilling.HistorySent {
+			sent = append(sent, entry.Note)
+		}
+	}
+	assert.ElementsMatch(t, []string{"invoice", "cancellation"}, sent)
+}

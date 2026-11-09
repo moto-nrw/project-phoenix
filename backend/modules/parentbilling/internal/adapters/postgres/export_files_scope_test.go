@@ -387,15 +387,24 @@ func TestHolidayInvoiceHistoryShowsTheMailOfItsCancellation(t *testing.T) {
 		_, err = tx.ExecContext(ctx, `INSERT INTO parent_billing.document_mailings (organization_id, run_id, document_id, delivery_id,
 			recipient_email) VALUES (?, ?, ?, 4242, 'eltern@example.org')`, scope.organization, run, cancellation)
 		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx, `INSERT INTO parent_billing.run_events (organization_id, run_id, action, actor_account_id, details)
+			VALUES (?, ?, 'cancel', 4243, jsonb_build_object('document_id', ?::bigint))`, scope.organization, run, cancellation)
+		require.NoError(t, err)
 		_, err = tx.ExecContext(ctx, `SET LOCAL session_replication_role = origin`)
 		require.NoError(t, err)
 
 		_, steps, _, err := store.InvoiceHistory(ctx, scope.organization, parentbilling.HistoryHolidayDocument, invoice)
 		require.NoError(t, err)
 		notes := map[string]string{}
+		var canceller *int64
 		for _, step := range steps {
 			notes[step.Kind] = step.Note
+			if step.Kind == parentbilling.HistoryCancelled {
+				canceller = step.AccountID
+			}
 		}
+		require.NotNil(t, canceller, "the Storno names the account that cancelled")
+		assert.EqualValues(t, 4243, *canceller)
 		assert.Equal(t, "cancellation", notes["mail_requested"], "the Storno's mail is in the invoice's history")
 		assert.Equal(t, "FE-2", notes[parentbilling.HistoryCancelled])
 		return rollback

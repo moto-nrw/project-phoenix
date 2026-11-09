@@ -338,22 +338,9 @@ func byAccount(account *int64, reviewer int64) bool {
 // A mailing records the request; only Delivery's successful send supplies
 // a separate sent event and its time.
 func (f *FinanceExports) invoiceMailHistory(ctx context.Context, organizationID int64, kind string, steps []parentbilling.InvoiceHistoryEntry) ([]parentbilling.InvoiceHistoryEntry, error) {
-	index := slices.IndexFunc(steps, func(step parentbilling.InvoiceHistoryEntry) bool {
-		return step.Kind == parentbilling.HistoryMailRequested
-	})
-	if index < 0 {
-		return steps, nil
-	}
-	runID := steps[index].RunID
-	var states []parentbilling.BillingLetterMailState
-	var err error
-	if kind == parentbilling.HistoryCareInvoice {
-		states, err = f.post.CareLetterMailStates(ctx, organizationID, runID)
-	} else {
-		states, err = f.post.LetterMailStates(ctx, organizationID, runID)
-	}
+	states, err := f.mailStatesOfRuns(ctx, organizationID, kind, steps)
 	if err != nil {
-		return nil, fmt.Errorf("parent billing: read invoice mail states: %w", err)
+		return nil, err
 	}
 	sent := make(map[int64]time.Time, len(states))
 	for _, state := range states {
@@ -367,4 +354,31 @@ func (f *FinanceExports) invoiceMailHistory(ctx context.Context, organizationID 
 		}
 	}
 	return steps, nil
+}
+
+// mailStatesOfRuns reads the mail states of every run a mailing of the
+// history names: a replacement can be mailed in another run than the invoice.
+func (f *FinanceExports) mailStatesOfRuns(ctx context.Context, organizationID int64, kind string, steps []parentbilling.InvoiceHistoryEntry,
+) ([]parentbilling.BillingLetterMailState, error) {
+	var runs []int64
+	for _, step := range steps {
+		if step.Kind == parentbilling.HistoryMailRequested && !slices.Contains(runs, step.RunID) {
+			runs = append(runs, step.RunID)
+		}
+	}
+	var states []parentbilling.BillingLetterMailState
+	for _, runID := range runs {
+		var read []parentbilling.BillingLetterMailState
+		var err error
+		if kind == parentbilling.HistoryCareInvoice {
+			read, err = f.post.CareLetterMailStates(ctx, organizationID, runID)
+		} else {
+			read, err = f.post.LetterMailStates(ctx, organizationID, runID)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("parent billing: read invoice mail states: %w", err)
+		}
+		states = append(states, read...)
+	}
+	return states, nil
 }

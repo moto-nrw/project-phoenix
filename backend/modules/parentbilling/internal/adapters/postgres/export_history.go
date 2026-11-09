@@ -70,7 +70,11 @@ FROM parent_billing.document_mailings AS mailing
 JOIN parent_billing.documents AS later ON later.organization_id = mailing.organization_id AND later.id = mailing.document_id
 WHERE mailing.organization_id = ?0 AND later.organization_id = ?0 AND later.reference_document_id = ?1
 UNION ALL
-SELECT 'cancelled', later.issued_at, NULL::bigint, 0, later.number, 0, 0
+SELECT 'cancelled', later.issued_at,
+	(SELECT event.actor_account_id FROM parent_billing.run_events AS event
+		WHERE event.organization_id = ?0 AND event.run_id = later.run_id AND event.action = 'cancel'
+			AND event.details->>'document_id' = later.id::text
+		ORDER BY event.occurred_at DESC LIMIT 1), 0, later.number, 0, 0
 FROM parent_billing.documents AS later
 WHERE later.organization_id = ?0 AND later.reference_document_id = ?1 AND later.kind = 'cancellation'
 UNION ALL
