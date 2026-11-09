@@ -1083,7 +1083,7 @@ export function DataTable<T>({
                           onClick={() => toggleSort(col.key)}
                           // By finger the button reaches 44 px in height; the
                           // negative margin keeps the header row as it is.
-                          className={`inline-flex items-center gap-1 font-medium transition-colors select-none hover:text-gray-700 focus:rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-600 pointer-coarse:-my-3 pointer-coarse:py-3 ${align}`}
+                          className={`inline-flex items-center gap-1 font-medium transition-colors select-none hover:text-gray-700 focus:rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-600 pointer-coarse:-my-3.5 pointer-coarse:min-h-11 ${align}`}
                         >
                           <span>{col.header}</span>
                           <span

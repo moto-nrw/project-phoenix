@@ -453,7 +453,8 @@ export function RangeCalendarInline({
             type="button"
             onClick={() => setMonth(subMonths(month, 1))}
             aria-label="Vorheriger Monat"
-            className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
+            // By finger the hit area grows to 44 px around the 28-px arrow.
+            className="relative rounded-lg p-1.5 text-gray-600 hover:bg-gray-100 pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']"
           >
             <svg
               className="h-4 w-4"
@@ -480,7 +481,8 @@ export function RangeCalendarInline({
             type="button"
             onClick={() => setMonth(addMonths(month, 1))}
             aria-label="Nächster Monat"
-            className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
+            // By finger the hit area grows to 44 px around the 28-px arrow.
+            className="relative rounded-lg p-1.5 text-gray-600 hover:bg-gray-100 pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']"
           >
             <svg
               className="h-4 w-4"

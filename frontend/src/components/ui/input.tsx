@@ -41,7 +41,9 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 const CONTROL_SIZE_CLASS = {
   default: "px-4 py-3 text-base",
   compact: "h-10 px-3 py-2 text-sm",
-  touch: "h-11 px-3 py-2 text-base lg:h-10 lg:text-sm",
+  // By finger 44 px and 16 px text (no zoom on focus), with a mouse the
+  // compact field: the pointer decides, not the window width.
+  touch: "h-10 px-3 py-2 text-sm pointer-coarse:h-11 pointer-coarse:text-base",
 } as const;
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(

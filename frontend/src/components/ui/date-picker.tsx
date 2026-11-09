@@ -70,7 +70,7 @@ type ControlSize = "sm" | "md" | "lg";
 // input next to it.
 const TRIGGER_SIZE_CLASS: Record<ControlSize, string> = {
   sm: "px-3 py-2 text-sm",
-  md: "h-10 px-3 py-2 text-sm",
+  md: "h-10 px-3 py-2 text-sm pointer-coarse:h-11 pointer-coarse:text-base",
   lg: "px-4 py-[11px] text-base",
 };
 
@@ -475,7 +475,7 @@ export function DatePicker({
           className={cn(
             "flex items-center rounded-lg border transition-all",
             iconOnly
-              ? "h-10 w-10 shrink-0 justify-center"
+              ? "h-10 w-10 shrink-0 justify-center pointer-coarse:size-11"
               : `min-w-0 flex-1 justify-between ${
                   TRIGGER_SIZE_CLASS[
                     (isMultiple ? undefined : props.controlSize) ?? "sm"
@@ -858,6 +858,11 @@ interface ISODateInputProps {
    * wins while the typed text is no valid date.
    */
   readonly error?: string | null;
+  /**
+   * The browser's autofill hint. Off by default: a due date or the start of
+   * a period is no birthday; a birth date field passes "bday".
+   */
+  readonly autoComplete?: string;
 }
 
 export function ISODateInput({
@@ -874,6 +879,7 @@ export function ISODateInput({
   disabled,
   required = false,
   error,
+  autoComplete = "off",
 }: ISODateInputProps) {
   const [inputValue, setInputValue] = useState(() =>
     formatISODateInputValue(value),
@@ -956,9 +962,9 @@ export function ISODateInput({
             name={id}
             aria-required={required || undefined}
             type="text"
-            controlSize="compact"
+            controlSize="touch"
             inputMode="numeric"
-            autoComplete="bday"
+            autoComplete={autoComplete}
             placeholder="TT.MM.JJJJ"
             maxLength={10}
             value={inputValue}
@@ -1125,7 +1131,8 @@ function CalendarNavHeader({
         type="button"
         aria-label={labels.previousMonth}
         onClick={() => onMonthChange(subMonths(month, 1))}
-        className="shrink-0 rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
+        // By finger the hit area grows to 44 px without moving the arrow.
+        className="relative shrink-0 rounded-lg p-1.5 text-gray-600 hover:bg-gray-100 pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 pointer-coarse:after:content-['']"
       >
         <svg
           className="h-5 w-5"
@@ -1193,7 +1200,8 @@ function CalendarNavHeader({
         type="button"
         aria-label={labels.nextMonth}
         onClick={() => onMonthChange(addMonths(month, 1))}
-        className="shrink-0 rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
+        // By finger the hit area grows to 44 px without moving the arrow.
+        className="relative shrink-0 rounded-lg p-1.5 text-gray-600 hover:bg-gray-100 pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 pointer-coarse:after:content-['']"
       >
         <svg
           className="h-5 w-5"

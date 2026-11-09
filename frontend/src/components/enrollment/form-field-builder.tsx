@@ -505,7 +505,7 @@ export function FieldEditorRow({
                   name={labelError.controlProps.name}
                   type="text"
                   label="Titel (optional)"
-                  controlSize="compact"
+                  controlSize="touch"
                   value={field.label}
                   onChange={(event) => onChange({ label: event.target.value })}
                   placeholder="z. B. Wichtiger Hinweis"
@@ -556,7 +556,7 @@ export function FieldEditorRow({
                     name={labelError.controlProps.name}
                     type="text"
                     label="Frage im Elternformular"
-                    controlSize="compact"
+                    controlSize="touch"
                     value={field.label}
                     onChange={(event) => {
                       const nextLabel = event.target.value;
@@ -617,7 +617,7 @@ export function FieldEditorRow({
                   id={`fields-${index}-help_text`}
                   type="text"
                   label="Hilfetext für Eltern"
-                  controlSize="compact"
+                  controlSize="touch"
                   value={field.help_text ?? ""}
                   onChange={(event) =>
                     onChange({ help_text: event.target.value })
@@ -690,7 +690,7 @@ export function FieldEditorRow({
                             <div className="min-w-0 flex-1">
                               <Input
                                 type="time"
-                                controlSize="compact"
+                                controlSize="touch"
                                 value={row.value}
                                 onChange={(event) =>
                                   updateAllowedTime(index, event.target.value)
@@ -746,7 +746,7 @@ export function FieldEditorRow({
                       id={`${allowedTimeIdPrefix}-single-mode-grades`}
                       type="text"
                       inputMode="numeric"
-                      controlSize="compact"
+                      controlSize="touch"
                       aria-describedby={`${allowedTimeIdPrefix}-single-mode-grades-hint`}
                       value={singleModeDraft}
                       onChange={(event) =>
@@ -1170,7 +1170,7 @@ function ConditionGradeControls({
         id={`${idPrefix}-value`}
         type="number"
         label="Klassenstufe"
-        controlSize="compact"
+        controlSize="touch"
         min={1}
         value={String(condition.value ?? "")}
         onChange={(event) =>
@@ -1201,7 +1201,7 @@ function ConditionOfferingControls({
         id={`${idPrefix}-value`}
         type="text"
         label="Angebotsname (enthält)"
-        controlSize="compact"
+        controlSize="touch"
         aria-describedby={`${idPrefix}-hint`}
         value={String(condition.value ?? "")}
         onChange={(event) => onPatch({ value: event.target.value })}
