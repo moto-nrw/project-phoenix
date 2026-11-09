@@ -5,6 +5,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import { BELOW_LG } from "~/lib/hooks/use-media-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setTestClock } from "~/test/clock";
 import {
@@ -282,7 +283,7 @@ describe("ParentCalendarPage", () => {
     vi.spyOn(window, "matchMedia").mockImplementation(
       (query) =>
         ({
-          matches: query === "(max-width: 1023px)",
+          matches: query === BELOW_LG,
           media: query,
           onchange: null,
           addEventListener: vi.fn(),

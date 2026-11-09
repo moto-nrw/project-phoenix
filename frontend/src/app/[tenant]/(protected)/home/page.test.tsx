@@ -95,7 +95,7 @@ vi.mock("~/lib/hooks/use-media-query", async (importOriginal) => {
     await importOriginal<typeof import("~/lib/hooks/use-media-query")>();
   return {
     ...actual,
-    useMediaQuery: (query: string) => query === "(min-width: 1280px)",
+    useMediaQuery: (query: string) => query === actual.AT_LEAST_XL,
   };
 });
 

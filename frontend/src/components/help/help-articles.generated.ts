@@ -530,6 +530,7 @@ export const absencesTopic = function absencesTopic(): HelpTopic {
       "Die Krankmeldung oder Entschuldigung ist gespeichert. Das Kind erscheint am gewählten Tag mit dem passenden Status.",
     notes: [
       "Die heutige Meldung aufheben ändert geplante Tage in der Zukunft nicht.",
+      "Ist das Kind trotzdem da, zählt es als anwesend. Die Meldung bleibt als Hinweis beim Kind sichtbar.",
     ],
     differences: [
       "Fehlen `Krank melden` und `Entschuldigen`? Fragen Sie Ihre Leitung, ob Ihre Rolle Abwesenheiten bearbeiten darf.",
@@ -965,7 +966,7 @@ export const appOverviewTopic = function appOverviewTopic(): HelpTopic {
       "Steht am Computer oben links unter dem Namen Ihrer Schule `Träger:` und ein Name? Das ist der Träger Ihrer Schule. Die Zeile gibt es nur, wenn Ihr Träger mehrere Schulen hat.",
     ],
     notes: [
-      "Die Karte `Kinder` zählt die Kinder nach `Anwesend`, `Schule`, `Im Unterricht`, `Zuhause`, `Krank` und `Entschuldigt`. Ein Klick auf eine Zahl öffnet `Alle Kinder` mit diesem Filter. `Entschuldigt` zeigt auch Kinder auf Klassenfahrt. `Zuhause` zeigt auch Kinder, die heute nicht kommen.",
+      "Die Karte `Kinder` zählt die Kinder nach `Anwesend`, `Schule`, `Im Unterricht`, `Zuhause`, `Krank` und `Entschuldigt`. Ein Klick auf eine Zahl öffnet `Alle Kinder` mit diesem Filter. `Entschuldigt` zeigt auch Kinder auf Klassenfahrt. `Zuhause` zeigt auch Kinder, die heute nicht kommen. Ein Kind, das da ist, zählt immer bei `Anwesend`, auch mit Krankmeldung.",
       "Zu viel verändert? Wählen Sie in `Anpassen` den Knopf `Standardansicht wiederherstellen`.",
     ],
     related: [
@@ -5789,7 +5790,7 @@ export const parentDeclarationTopic =
       result:
         "Die Eltern sehen die Anfrage im Eltern-Portal. Den Stand je Kind sehen Sie beim Öffnen unter `Stand der Antworten`.",
       notes: [
-        "Mit `Widerruf erlauben` können Eltern eine Zustimmung später zurücknehmen. Das geht auch nach der Frist und nach dem Zurückziehen.",
+        "Eltern können eine Zustimmung jederzeit widerrufen. Das geht auch nach der Frist, nach dem Zurückziehen und wenn `Elternmitteilungen (Neuigkeiten)` aus ist.",
         "Mit `Mit Unterschrift` unterschreiben Eltern ihre Zustimmung mit dem Finger oder der Maus. Ablehnen geht ohne Unterschrift. Die Unterschrift steht im Nachweis der Eltern und in `Bericht als PDF`.",
         "Mit `Passwort vor dem Antworten abfragen` geben Eltern vor jeder Antwort ihr Passwort ein.",
         "`Offene erinnern` schickt eine Erinnerung an alle, die noch nicht geantwortet haben.",
@@ -5798,7 +5799,7 @@ export const parentDeclarationTopic =
       ],
       differences: [
         "Nach dem Veröffentlichen stehen Text und Dateien fest.",
-        "Ziehen Sie ein Einverständnis zurück und ändern den Text, müssen die Eltern neu antworten. Die alten Antworten bleiben im Verlauf.",
+        "Ziehen Sie ein Einverständnis zurück und ändern den Text, müssen die Eltern neu antworten. Die alten Antworten bleiben im Verlauf. Eine Zustimmung zum alten Text können Eltern weiter widerrufen.",
         "Eltern, die schon geantwortet haben, sehen ein zurückgezogenes Einverständnis weiter. Dort steht `Einverständnis beendet`. Neu antworten können sie nicht mehr.",
       ],
       troubleshootingDetails: [
@@ -6800,7 +6801,7 @@ export const parentNewsTopic = function parentNewsTopic(): HelpTopic {
       {
         title: "Eine Zustimmung widerrufen",
         steps: [
-          "Öffnen Sie den Eintrag `Einverständnis` unter `Erledigt`.",
+          "Öffnen Sie den Eintrag `Einverständnis` unter `Erledigt`. Hat die Schule den Text geändert und fragt neu, steht er unter `Offen`.",
           "Tippen Sie beim Kind auf `Zustimmung widerrufen`.",
           "Bestätigen Sie im Fenster mit `Widerrufen`.",
         ],
@@ -6819,14 +6820,16 @@ export const parentNewsTopic = function parentNewsTopic(): HelpTopic {
       "Fragt moto nach Ihrem Passwort? Dann möchte die Schule das vor jeder Antwort.",
       "Bei einer Umfrage steht `Antwort bis` mit dem letzten Tag.",
       "Ist die Frist vorbei, steht dort `Umfrage geschlossen`.",
-      "Steht bei einem Einverständnis `Einverständnis beendet`? Dann fragt die Schule nicht mehr nach. Eine Zustimmung können Sie dort weiter widerrufen, wenn die Schule das erlaubt.",
+      "Steht bei einem Einverständnis `Einverständnis beendet`? Dann fragt die Schule nicht mehr nach. Ihre Zustimmung können Sie dort weiter widerrufen.",
+      "Hat die Schule die Elternbriefe ausgeschaltet? Dann stehen unter `Erledigt` nur noch Ihre Zustimmungen. Sie können sie dort weiter widerrufen.",
+      "Hat die Schule den Text geändert, nachdem Sie zugestimmt haben? Dann fragt sie neu. Darunter steht Ihre Zustimmung zum alten Text mit diesem Text. Sie gilt, bis Sie sie mit `Zustimmung widerrufen` zurücknehmen.",
       "Steht beim Kind, dass Sie nicht mehr neu antworten können? Dann hat die OGS das für Sie geändert. Ihre Zustimmung können Sie trotzdem widerrufen.",
     ],
     troubleshootingDetails: [
       "moto sagt, der Elternbrief sei nicht mehr aktuell? Laden Sie die Seite neu.",
       "moto sagt, die Schule habe den Text geändert? Lesen Sie ihn noch einmal und antworten Sie neu.",
       "Fehlt `Elternbriefe` ganz? Dann nutzt Ihre OGS diese Funktion nicht.",
-      "Fehlt `Zustimmung widerrufen`? Dann erlaubt die Schule keinen Widerruf im Eltern-Portal. Wenden Sie sich an die OGS.",
+      "Fehlt `Zustimmung widerrufen` oder das ganze Einverständnis? Dann haben Sie für das Kind vielleicht keinen Zugang mehr. Fragen Sie die OGS.",
     ],
     related: [
       HELP_TOPICS.parentSurveys,
@@ -10071,7 +10074,7 @@ export const traegerBillingRunTopic =
       title: "Ferien abrechnen",
       question: "Wie stelle ich die Rechnungen für die Ferien aus?",
       summary:
-        "Ein Abrechnungslauf erstellt die Rechnungen für einen Ferienzeitraum. Sie prüfen die Vorschau, korrigieren einzelne Beträge, geben den Lauf frei und erstellen die Schreiben an die Familien. Eine ausgestellte Rechnung stornieren Sie oder schreiben einen Betrag gut. Unter `Familien` sehen Sie je Familie alle Rechnungen und den offenen Betrag.",
+        "Ein Abrechnungslauf erstellt die Rechnungen für einen Ferienzeitraum. Sie prüfen die Vorschau, korrigieren einzelne Beträge, geben den Lauf frei und erstellen die Schreiben an die Familien. Eine ausgestellte Rechnung stornieren Sie oder schreiben einen Betrag gut. Unter `Familien` sehen Sie je Familie alle Rechnungen und die offene Forderung vor Zahlungseingang.",
       group: "anmeldeverwaltung",
       audience: "traeger",
       icon: "FileText",
@@ -10191,7 +10194,7 @@ export const traegerBillingRunTopic =
             "Mit einer Gutschrift wird ein Teil der Rechnung erlassen, zum Beispiel für einen Krankheitstag. Sie ist ein eigenes Dokument mit eigener Nummer und eigenem Schreiben.",
           steps: [
             "Wählen Sie bei der Rechnung das Menü mit den drei Punkten.",
-            "Wählen Sie `Gutschrift für …` beim Kind.",
+            "Wählen Sie `Gutschrift für …` beim Kind. Oben steht die offene Forderung für das Kind. Das ist der Stand vor Zahlungseingang.",
             "Tragen Sie den Betrag und eine Begründung ein.",
             "Wählen Sie `Gutschreiben`.",
           ],
@@ -10225,8 +10228,8 @@ export const traegerBillingRunTopic =
           steps: [
             "Wählen Sie in der Navigation `Abrechnung`.",
             "Wählen Sie oben den Reiter `Familien`.",
-            "Die Kacheln zeigen die Summen `Ausgestellt`, `Storniert`, `Gutgeschrieben` und `Offen`. Sie rechnen mit den Familien, die die Liste gerade zeigt.",
-            "Suchen Sie die Familie nach Name, E-Mail oder Debitorennummer. Mit dem Filter `Mit offenem Betrag` sehen Sie nur Familien, die noch etwas zahlen sollen.",
+            "Die Kacheln zeigen die Summen `Ausgestellt`, `Storniert`, `Gutgeschrieben` und `Offene Forderung`. Sie rechnen mit den Familien, die die Liste gerade zeigt.",
+            "Suchen Sie die Familie nach Name, E-Mail oder Debitorennummer. Mit dem Filter `Mit offener Forderung` sehen Sie nur Familien, deren Rechnungen noch Geld verlangen.",
             "Wählen Sie die Familie. Sie sehen ihre Summen, wer zahlt, den Zahlungsweg und jedes Dokument mit Ferienzeitraum, Kindern, Betrag und Stand.",
             "Wählen Sie ein Dokument, um seinen Abrechnungslauf zu öffnen. Dort stornieren Sie oder schreiben gut.",
           ],
@@ -10248,7 +10251,7 @@ export const traegerBillingRunTopic =
         "Gutschriften der alten Rechnung werden nicht übernommen. Sie sind eigene Dokumente. Die Vorschau nennt sie nur als Hinweis.",
         "Hat die Familie bei der Anmeldung ihre Anschrift angegeben, steht sie im Schreiben und in der Übersicht für die Kämmerei. Die Rechnung behält sie, auch wenn die Anmeldung später gelöscht wird.",
         "Den Text des Schreibens legen Sie in den Einstellungen unter `Briefkopf und Vorlagen` fest. Erstellte Schreiben behalten den Text, mit dem sie entstanden sind.",
-        "Offen heißt: Die Rechnung ist ausgestellt, nicht storniert und nicht gutgeschrieben. Ob die Familie schon gezahlt hat, prüft moto nicht. Das sehen Sie in Ihrer Buchhaltung.",
+        "`Offene Forderung` und `Forderung offen` heißen: Die Rechnung ist ausgestellt, nicht storniert und nicht gutgeschrieben. Das ist der Stand vor Zahlungseingang. Zahlungen sieht moto nicht. Eine offene Forderung heißt also nicht, dass die Familie im Rückstand ist. Ob sie gezahlt hat, prüfen Sie in Ihrer Buchhaltung.",
         "Bei `Wer zahlt` steht `Familie zahlt selbst`, `Kostenübernahme` mit dem Namen des Kostenträgers oder `Beitragsfrei`. Eine stornierte Rechnung zählt dabei nicht mit.",
       ],
       differences: [
@@ -10474,7 +10477,7 @@ export const traegerCareContractsTopic =
             "Wählen Sie oben den Reiter `Vertragsbedingungen`.",
             "Wählen Sie links ein Angebot. `Fehlt` heißt: Für dieses Angebot gibt es noch keine Bedingungen.",
             "Wählen Sie die `Laufzeit`, die `Frist in Monaten` und wann die `Kündigung wirkt`.",
-            "Erlauben Sie bei Bedarf eine `Sonderkündigung`. Schreiben Sie dazu, wann sie möglich ist.",
+            "Erlauben Sie bei Bedarf eine `Sonderkündigung`. Sie endet immer zum Halbjahr, also am 31. Januar oder 31. Juli. Es gilt dieselbe `Frist in Monaten`. Schreiben Sie bei `In welchen Fällen?`, wann sie möglich ist. Ein anderes Datum in diesem Text ändert den Termin nicht. Ausnahmen klären Sie wie bisher im Büro. Vertrag und Text für das Anmeldeformular nennen den Termin.",
             "Müssen die Eltern eine Satzung anerkennen? Setzen Sie den Haken bei `Satzung`. Tragen Sie den Namen und, wenn vorhanden, den Link ein.",
             "Tragen Sie den Namen des `Vertragspartners` ein, wenn er nicht im Briefkopf steht.",
             "Wählen Sie `Bedingungen speichern`.",
@@ -10588,7 +10591,9 @@ export const traegerCareContractsTopic =
         "Beide Entscheidungen lassen sich danach nicht mehr ändern. Die Eltern bekommen eine Mitteilung mit dem letzten Betreuungstag per Mail und in der Eltern-App. Die Texte legen Sie unter `Einstellungen` → `Allgemein` im Reiter `Betreuungsverträge` fest: `Mitteilung: Vertragsende festgelegt` und `Mitteilung: Grund nicht anerkannt`. Die Mitteilung steht danach in der Karte `Vertrag beenden`, so wie sie verschickt wurde.",
         "Nach einer Kündigung hat der Vertrag den Status `Gekündigt`. Er gilt bis zum Vertragsende und wird bis dahin abgerechnet. Nach einem Widerruf ist er `Widerrufen` und gilt an keinem Tag.",
         "Die Eltern bekommen sofort eine Bestätigung per Mail und in der Eltern-App. Den Text legen Sie unter `Einstellungen` → `Allgemein` im Reiter `Betreuungsverträge` fest. Die Bestätigung steht danach in der Karte `Vertrag beenden`, so wie sie verschickt wurde.",
+        "Ein früher kopierter Text für das Anmeldeformular gilt weiter, solange die Bedingungen gleich bleiben. Nur der neue Text nennt den Termin der Sonderkündigung. Kopieren Sie ihn beim nächsten Anmeldeformular neu.",
         "Den Kündigungstermin rechnet moto aus den Bedingungen im Vertrag, nicht aus den heutigen Vertragsbedingungen. Die Widerrufsfrist beginnt frühestens mit dem Erhalt der Belehrung. Ohne Nachweis gilt die längere Frist.",
+        "Endet die Widerrufsfrist an einem Samstag, Sonntag oder Feiertag, endet sie erst am nächsten Werktag. moto nimmt die Feiertage aus dem Bundesland der Schule. Feiertage, die nur in einer Stadt oder Gemeinde gelten, kennt moto nicht. Hat Ihre Gemeinde einen eigenen Feiertag, prüfen Sie die Frist an diesem Tag selbst.",
         "Eine neue Version gilt nie rückwirkend. Kommt eine Freigabe zu spät, gilt die Version ab dem Tag, an dem moto sie anlegt.",
         "Beginnt an einem Tag schon eine Version, und Sie oder die Schule geben für denselben Tag eine weitere Änderung frei, ersetzt moto diese Version. Die neue Version enthält beide Änderungen. Die alte steht unter `Versionen` als `Ersetzt` und gilt an keinem Tag.",
         "Ist schon eine spätere Version geplant, gilt eine frühere Änderung nur bis dahin. Die geplante Version übernimmt sie nicht von selbst.",
@@ -11004,6 +11009,7 @@ export const traegerCareNoticesTopic =
       notes: [
         "Fehlt ein Preis oder gibt es einen doppelten Vertrag, bleibt die bisherige Bewertung gültig. Prüfen Sie die Hinweise im Monatslauf.",
         "Das Essen steht nicht im Bescheid. Die Mensa rechnet es nach den Essen ab.",
+        "Der `Gesamtbetrag aller Bescheide` ist die Forderung vor Zahlungseingang. Zahlungen sieht moto nicht, auch nicht nach der Lastschrift. Ob eine Rate bezahlt ist, prüfen Sie in Ihrer Buchhaltung.",
         "Ermäßigungen und Anteile von Kostenträgern stehen als eigene Zeilen im Bescheid.",
       ],
       troubleshootingDetails: [
@@ -11195,6 +11201,7 @@ export const traegerDashboardTopic =
       notes: [
         "Die Zahlen aktualisieren sich jede Minute von selbst.",
         "Sie sehen nur Zahlen, keine Namen.",
+        "Ein Kind, das da ist, zählt nicht als krank. Das gilt auch mit Krankmeldung.",
         "Mit einem Klick auf eine Spaltenüberschrift sortieren Sie die Schulen, zum Beispiel nach `Heute krank`.",
         "Bei vielen Schulen finden Sie eine Schule schneller über das Suchfeld. Sie können nach dem Namen oder dem Ort suchen.",
         "`Betreuungsschlüssel` heißt: Eine anwesende Betreuungskraft kommt auf so viele anwesende Kinder. Oben gilt das für alle Schulen zusammen.",
