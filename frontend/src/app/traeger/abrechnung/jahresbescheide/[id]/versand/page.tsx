@@ -584,6 +584,14 @@ export default function TraegerCareNoticeDeliveryPage() {
               title="Keine förmliche Zustellung"
               message="E-Mail und Eltern-App sind kein Nachweis, dass die Familie den Bescheid bekommen hat. Brauchen Sie einen Nachweis? Dann stellen Sie den Bescheid zusätzlich auf anderem Weg zu."
             />
+            {summary.queued > 0 ? (
+              <p className="text-sm text-gray-600" role="status">
+                {summary.queued === 1
+                  ? "1 Bescheid wird noch gesendet."
+                  : `${summary.queued} Bescheide werden noch gesendet.`}{" "}
+                Die Seite zeigt den neuen Stand von selbst.
+              </p>
+            ) : null}
             {summary.failed > 0 ? (
               <p className="text-sm text-gray-600">
                 Einige Bescheide sind nicht angekommen. Senden Sie diese über

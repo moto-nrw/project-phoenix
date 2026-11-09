@@ -132,6 +132,11 @@ describe("TraegerCareNoticeDeliveryPage", () => {
     if ("failed" in counts) {
       expect(screen.getByText(/erneut.*oder drucken/i)).toBeInTheDocument();
     }
+    if ("queued" in counts) {
+      expect(
+        screen.getByText(/1 Bescheid wird noch gesendet/),
+      ).toBeInTheDocument();
+    }
   });
 
   it("reports completion when only families without email remain", async () => {
