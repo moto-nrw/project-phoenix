@@ -2,6 +2,7 @@ package migrations
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/uptrace/bun"
@@ -40,6 +41,10 @@ COMMENT ON COLUMN users.guardian_financial_data.account_holder_sealed IS
 	'Kontoinhaber sealed with BANK_DATA_KEYS when the account does not run on the guardian''s own name; NULL = the guardian is the holder (#6332)';
 `
 
+// errSealedBankDataRollback stops a rollback that would drop the only copy
+// of sealed bank data.
+var errSealedBankDataRollback = errors.New("sealed bank data exists; a rollback would destroy it, restore the release backup instead")
+
 const guardianFinancialDataSealedDownSQL = `
 ALTER TABLE users.guardian_financial_data
 	DROP COLUMN IF EXISTS account_holder_sealed,
@@ -54,7 +59,17 @@ func guardianFinancialDataSealedUp(ctx context.Context, db *bun.DB) error {
 	return nil
 }
 
+// guardianFinancialDataSealedDown refuses while a sealed value exists: after a write or the
+// backfill the sealed columns hold the only copy, so dropping them would
+// destroy bank data (#6332). Restore the release backup instead.
 func guardianFinancialDataSealedDown(ctx context.Context, db *bun.DB) error {
+	var sealed int
+	if err := db.NewRaw(`SELECT count(*) FROM users.guardian_financial_data WHERE iban_sealed IS NOT NULL OR account_holder_sealed IS NOT NULL`).Scan(ctx, &sealed); err != nil {
+		return fmt.Errorf("count sealed guardian bank values: %w", err)
+	}
+	if sealed > 0 {
+		return fmt.Errorf("%w: %d guardian rows", errSealedBankDataRollback, sealed)
+	}
 	if _, err := db.ExecContext(ctx, guardianFinancialDataSealedDownSQL); err != nil {
 		return fmt.Errorf("drop the sealed guardian bank columns: %w", err)
 	}
