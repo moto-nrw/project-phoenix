@@ -96,6 +96,7 @@ describe("StatusBadge", () => {
 
   it("keeps the orange tone without an icon", () => {
     render(<StatusBadge label="Feiertag" tone="orange" />);
+    // Anker: getByText findet die Pille selbst.
     expect(screen.getByText("Feiertag").querySelector("svg")).toBeNull();
   });
 

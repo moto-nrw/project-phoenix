@@ -105,7 +105,27 @@ describe("StatusColorBadge", () => {
     );
     expect(warning.style.color).not.toBe(schoolyard.style.color);
     expect(warning.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+    // Anker: getByText findet die Schulhof-Pille selbst.
     expect(schoolyard.querySelector("svg")).toBeNull();
+  });
+
+  it.each([
+    ["compact", { compact: true }],
+    ["xs", { size: "xs" as const }],
+  ])("hält die Achtung-Pille %s so dicht wie StatusBadge", (_, props) => {
+    render(
+      <>
+        <StatusColorBadge
+          label="Keine Daten"
+          color={LOCATION_COLORS.WARNING}
+          {...props}
+        />
+        <StatusBadge label="Offen" tone="warning" {...props} />
+      </>,
+    );
+    expect(screen.getByText("Keine Daten").className).toBe(
+      screen.getByText("Offen").className,
+    );
   });
 
   it("zeichnet die Achtung-Pille wie StatusBadge tone=warning", () => {

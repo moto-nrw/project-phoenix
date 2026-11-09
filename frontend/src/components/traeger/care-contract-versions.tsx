@@ -271,7 +271,7 @@ export function CareContractVersions({
                           {changed.has(day.weekday) ? (
                             <StatusBadge
                               label="Geändert"
-                              tone="warning"
+                              tone="orange"
                               size="xs"
                             />
                           ) : null}
