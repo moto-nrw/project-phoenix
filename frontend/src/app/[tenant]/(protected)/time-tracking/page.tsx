@@ -2206,12 +2206,17 @@ function EditSessionModal({
     }
   }, [isOpen, clearFormErrors]);
 
+  // The stored times as the fields show them: Berlin wall clock of the
+  // session (#6293). Prefill and the "unchanged" check below share them.
+  const initialStart = session ? berlinClockFromISO(session.checkInTime) : "";
+  const initialEnd = session?.checkOutTime
+    ? berlinClockFromISO(session.checkOutTime)
+    : "";
+
   useEffect(() => {
     if (session && isOpen) {
-      setStartTime(berlinClockFromISO(session.checkInTime));
-      setEndTime(
-        session.checkOutTime ? berlinClockFromISO(session.checkOutTime) : "",
-      );
+      setStartTime(initialStart);
+      setEndTime(initialEnd);
       setBreakMins(session.breakMinutes.toString());
       setStatus(session.status);
       setNotes("");
@@ -2227,7 +2232,7 @@ function EditSessionModal({
         setBreakDurations(new Map());
       }
     }
-  }, [session, isOpen]);
+  }, [session, isOpen, initialStart, initialEnd]);
 
   // Initialize absence state when modal opens
   useEffect(() => {
@@ -2307,12 +2312,8 @@ function EditSessionModal({
   // so a reason-only edit never rewrites the stored instants. The session's
   // own date, not the clicked day: they may differ.
   const sessionDay = session ? parseISODate(session.date) : null;
-  const startChanged =
-    session !== null && startTime !== berlinClockFromISO(session.checkInTime);
-  const endChanged =
-    session !== null &&
-    endTime !==
-      (session.checkOutTime ? berlinClockFromISO(session.checkOutTime) : "");
+  const startChanged = session !== null && startTime !== initialStart;
+  const endChanged = session !== null && endTime !== initialEnd;
   const startProblem =
     sessionDay && startChanged && startTime
       ? berlinWallClockProblem(sessionDay, startTime)
