@@ -260,9 +260,6 @@ func (l *AccountLifecycle) AcceptGuardianInvitation(ctx context.Context, token s
 		if fetchErr != nil {
 			return fetchErr
 		}
-		if err := l.requireInvitationSchool(txCtx, invitation); err != nil {
-			return err
-		}
 		invitationCtx := l.runtime.WithTenantID(txCtx, invitation.TenantID)
 		account, acceptErr := l.acceptGuardianAtSchool(invitationCtx, invitation, registration)
 		if acceptErr != nil {
@@ -459,6 +456,8 @@ func (l *AccountLifecycle) redeemableGuardianInvitation(ctx context.Context, tok
 func (l *AccountLifecycle) requireInvitationSchool(txCtx context.Context, invitation domain.GuardianInvitation) error {
 	// A shared lock on the school serializes with the exclusive lock a
 	// soft delete takes, so the school cannot vanish under the acceptance.
+	// Take it after provisioning locks the account, in the same order as
+	// school session revocation (#6305).
 	if invitation.TenantID > 0 {
 		school, found, schoolErr := l.schools.LockSchoolShared(txCtx, invitation.TenantID)
 		if schoolErr != nil {
@@ -486,6 +485,9 @@ func (l *AccountLifecycle) acceptGuardianAtSchool(invitationCtx context.Context,
 	account, accountErr := l.provisionGuardianAccount(invitationCtx, email, registration)
 	if accountErr != nil {
 		return domain.LoginAccount{}, accountErr
+	}
+	if err := l.requireInvitationSchool(invitationCtx, invitation); err != nil {
+		return domain.LoginAccount{}, err
 	}
 	if grantErr := l.grantGuardianAccess(invitationCtx, invitation, profile, account); grantErr != nil {
 		return domain.LoginAccount{}, grantErr

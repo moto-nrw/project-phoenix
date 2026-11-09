@@ -162,3 +162,97 @@ func TestGuardianInvitationService_Accept_RejectsCatererAccount(t *testing.T) {
 	requireNoSchool(t, env.db, acceptance.AccountID)
 	assert.Nil(t, testpkg.GuardianInvitationByID(t, env.db, invitation.ID).AcceptedAt)
 }
+
+// Revocation holds the existing parent's account before acceptance starts.
+// Acceptance must wait there without holding the school, so revocation can
+// take the school lock and commit without a deadlock (#6305).
+func TestGuardianInvitationAcceptanceAndSchoolDeletionShareLockOrder(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	service, err := api.NewGuardianInvitationServiceForTests(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), api.GuardianInvitationTestConfig{
+		Outbox: api.NewCapturingOutbox(),
+	})
+	require.NoError(t, err)
+	schoolID := testpkg.Tenant(t)
+	profile := testpkg.CreateTestGuardianProfile(t, db, "invitation-school-deletion")
+	account := testpkg.CreateTestAccountWithPassword(t, db, *profile.Email, strongTestPassword)
+	testpkg.MapAccountToTenant(t, db, account.ID, schoolID)
+	testpkg.CreateTestSessionFamily(t, db, account.ID, schoolID, "parent")
+	_, creator := testpkg.CreateTestPersonWithAccount(t, db, "Inviter", "Deletion")
+	invitation, err := service.CreateGuardianInvitation(testpkg.Ctx(t), identityaccess.GuardianInvitationRequest{
+		GuardianProfileID: profile.ID, CreatedBy: creator.ID,
+	})
+	require.NoError(t, err)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	deletion, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	var workers sync.WaitGroup
+	defer func() {
+		_ = deletion.Rollback()
+		cancel()
+		workers.Wait()
+	}()
+	var deletionPID int
+	require.NoError(t, deletion.NewRaw(`SELECT pg_backend_pid()`).Scan(ctx, &deletionPID))
+	_, err = deletion.NewRaw(`SELECT id FROM auth.accounts WHERE id = ? FOR NO KEY UPDATE`, account.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	accepted := make(chan error, 1)
+	workers.Add(1)
+	go func() {
+		defer workers.Done()
+		_, err := service.AcceptGuardianInvitation(ctx, invitation.Token, identityaccess.GuardianRegistration{
+			Password: strongTestPassword, ConfirmPassword: strongTestPassword,
+		})
+		accepted <- err
+	}()
+	require.Eventually(t, func() bool {
+		var waiting int
+		err := db.NewRaw(`SELECT count(*) FROM pg_stat_activity
+			WHERE datname = current_database() AND ? = ANY(pg_blocking_pids(pid))`, deletionPID).Scan(ctx, &waiting)
+		return err == nil && waiting > 0
+	}, 5*time.Second, 10*time.Millisecond, "acceptance waits for the account held by deletion")
+
+	_, revokeErr := deletion.NewRaw(`SELECT count(*) FROM auth.revoke_school_sessions(?)`, schoolID).Exec(ctx)
+	if revokeErr == nil {
+		_, revokeErr = deletion.NewRaw(`UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, schoolID).Exec(ctx)
+	}
+	if revokeErr == nil {
+		revokeErr = deletion.Commit()
+	} else {
+		require.NoError(t, deletion.Rollback())
+	}
+	assert.NoError(t, revokeErr, "school deletion must not deadlock with acceptance")
+	select {
+	case acceptErr := <-accepted:
+		assert.ErrorIs(t, acceptErr, identityaccess.ErrInvitationTenantDeleted, "acceptance sees the committed deletion")
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	assert.Zero(t, sessionsAtSchool(t, db, schoolID))
+	assert.Nil(t, testpkg.GuardianInvitationByID(t, db, invitation.ID).AcceptedAt, "the refused invitation remains unspent")
+}
+
+// Provisioning now precedes the school lock. A school refusal must roll
+// back a newly created account along with every invitation write.
+func TestGuardianInvitationAcceptanceAtDeletedSchoolCreatesNoAccount(t *testing.T) {
+	t.Parallel()
+	env := setupGuardianInvitationTest(t)
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "invitation-deleted-school")
+	invitation, err := env.service.CreateGuardianInvitation(testpkg.Ctx(t), identityaccess.GuardianInvitationRequest{
+		GuardianProfileID: profile.ID, CreatedBy: env.inviterAccountID(t),
+	})
+	require.NoError(t, err)
+	deletion := endSchool(t, env.db, testpkg.Tenant(t))
+	require.NoError(t, deletion.Commit())
+
+	_, err = env.service.AcceptGuardianInvitation(t.Context(), invitation.Token, identityaccess.GuardianRegistration{
+		Password: strongTestPassword, ConfirmPassword: strongTestPassword,
+	})
+	require.ErrorIs(t, err, identityaccess.ErrInvitationTenantDeleted)
+	var accounts int
+	require.NoError(t, env.db.NewRaw(`SELECT count(*) FROM auth.accounts WHERE LOWER(email) = LOWER(?)`, *profile.Email).Scan(t.Context(), &accounts))
+	assert.Zero(t, accounts, "the new account is rolled back")
+	assert.Nil(t, testpkg.GuardianInvitationByID(t, env.db, invitation.ID).AcceptedAt)
+}
