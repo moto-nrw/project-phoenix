@@ -98,18 +98,18 @@ func newStaffImport(
 ) importModels.RowImporter[importModels.StaffImportRow] {
 	return dataImportRetained.NewImportService(dataImportRetained.NewStaffImportConfig(
 		importPorts.StaffImportDeps{
-			Authorization:       NewImportAuthorization(),
-			Transactions:        runtime.Transactions,
-			Invitations:         NewStaffInviter(invitations),
-			FindInvitedPeople:   identity.FindInvitedPersonIDs,
-			FindSchoolAccount:   NewImportSchoolAccountLookup(identity),
-			Roles:               identity,
-			RolePolicy:          dataImportCompose.NewSchoolRolePolicy(),
-			FindRolePermissions: identity.FindRolePermissions,
-			SchoolName:          NewImportSchoolName(organizations),
-			Persons:             persons,
-			Membership:          membership,
-			Records:             workforce,
+			Authorization:                NewImportAuthorization(),
+			Transactions:                 runtime.Transactions,
+			Invitations:                  NewStaffInviter(invitations),
+			FindInvitedPeople:            identity.FindInvitedPersonIDs,
+			FindSchoolAccount:            NewImportSchoolAccountLookup(identity),
+			Roles:                        identity,
+			RolePolicy:                   dataImportCompose.NewSchoolRolePolicy(),
+			FindRolePermissionsByRoleIDs: identity.FindRolePermissionsByRoleIDs,
+			SchoolName:                   NewImportSchoolName(organizations),
+			Persons:                      persons,
+			Membership:                   membership,
+			Records:                      workforce,
 		},
 	), runtime)
 }

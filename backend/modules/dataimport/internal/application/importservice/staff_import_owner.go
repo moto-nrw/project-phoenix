@@ -29,6 +29,7 @@ func (c *StaffImportConfig) PreloadReferenceData(ctx context.Context) error {
 		c.roleDisplayNames = append(c.roleDisplayNames, roleDisplayName(role.Name))
 		c.rolesByID[role.ID] = role
 	}
+	c.roleIndex = buildRoleIndex(roles)
 
 	// School name is best-effort: a missing name only degrades the email text,
 	// it must not abort the import.

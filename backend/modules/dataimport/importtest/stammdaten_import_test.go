@@ -31,15 +31,15 @@ func newStammdatenStaffConfig(t *testing.T, db *bun.DB, invitations importModels
 	identity, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	config := importService.NewStaffImportConfig(ports.StaffImportDeps{RolePolicy: dataImportCompose.NewSchoolRolePolicy(), Authorization: api.NewImportAuthorization(), Transactions: dataImportCompose.NewTransactions(),
-		Invitations:         invitations,
-		FindInvitedPeople:   identity.FindInvitedPersonIDs,
-		FindSchoolAccount:   api.NewImportSchoolAccountLookup(identity),
-		Roles:               identity,
-		FindRolePermissions: identity.FindRolePermissions,
-		SchoolName:          api.NewImportSchoolName(organizations),
-		Persons:             owners.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
-		Membership:          owners.MustNewSchoolMembership(testpkg.NewDatabase(t, db)),
-		Records:             owners.MustNewWorkforce(testpkg.NewDatabase(t, db)),
+		Invitations:                  invitations,
+		FindInvitedPeople:            identity.FindInvitedPersonIDs,
+		FindSchoolAccount:            api.NewImportSchoolAccountLookup(identity),
+		Roles:                        identity,
+		FindRolePermissionsByRoleIDs: identity.FindRolePermissionsByRoleIDs,
+		SchoolName:                   api.NewImportSchoolName(organizations),
+		Persons:                      owners.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
+		Membership:                   owners.MustNewSchoolMembership(testpkg.NewDatabase(t, db)),
+		Records:                      owners.MustNewWorkforce(testpkg.NewDatabase(t, db)),
 	})
 	return config, reposPeople
 }
