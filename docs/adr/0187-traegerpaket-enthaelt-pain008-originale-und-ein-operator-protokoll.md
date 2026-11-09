@@ -2,7 +2,7 @@
 status: proposed
 ---
 
-# Trägerpaket enthält PAIN.008-Originale und ein Operator-Protokoll
+# Trägerpaket enthält Dokumente, PAIN.008-Originale und ein Operator-Protokoll
 
 **Status: Vorgeschlagen.** Vorschlag vom 09.11.2026 zu #6314, Teil von #4720
 (Slice 3) und #4611. Grundlage: Löschkonzept Träger-Finanzdaten, Abschnitt 5;
@@ -27,6 +27,11 @@ für die Rückgabe am Vertragsende:
   protokolliert).
 - Ein Löschauftrag eines Trägers lief ohne Hinweis auf die Rückgabe der
   Unterlagen und ohne Wahl des Kunden.
+- Schreiben, Bescheide, Vertragsfassungen, Papierverträge,
+  Unterschriftsbilder und Nachweise stehen nur als Hex-Wert in den Zeilen.
+  Das Löschkonzept (Abschnitt 5) verlangt, die relevanten Dokumente,
+  Fassungen und Nachweise vollständig zu übergeben; ein Hex-Wert in einer
+  JSON-Zeile ist kein übergebenes Dokument.
 
 ## Entscheidung und Invarianten
 
@@ -79,25 +84,45 @@ für die Rückgabe am Vertragsende:
    `file_sealed`. Die Mandate und Lastschriften mit IBAN und Kontoinhaber
    bleiben allein Sache von ADR 0184; dieser Dateisatz gibt keinen Wert ein
    zweites Mal als Feld aus.
-3. **Owner-Vertrag:** Parent Billing besitzt Schlüsselzugriff und Generator.
+3. **Gespeicherte Dokumente als Dateien.** Das Trägerpaket schreibt jedes
+   gespeicherte Dokument seiner Tabellen zusätzlich als Datei
+   `DOKUMENTE/<Tabelle>/<Zeilen-ID>-<Spalte>.<Endung>`. Welche Spalten
+   Dokumente sind, entscheidet der Katalog, keine Liste im Code: jede
+   Binärspalte (`bytea`), die der Katalog aus einer Tabelle des Trägers
+   exportiert. Eine Binärspalte, die kein Dokument ist, ist ein Geheimnis
+   und steht unter `excludeSecretColumns` (Passkeys); ein versiegelter Wert
+   steht geöffnet als Text (ADR 0184). Die Zeilen-ID ist der Primärschlüssel
+   aus dem Snapshot; die Endung folgt aus dem gespeicherten Medientyp der
+   Zeile (`content_type`, `<Spalte>_content_type`), sonst aus der Signatur
+   des Inhalts. `DOKUMENTE/index.jsonl` ordnet jede Datei Tabelle, Zeile,
+   Spalte, SHA-256 und Größe zu; `manifest.json` und das Operator-Protokoll
+   zählen sie unter `documentFiles` je Spalte, ohne Inhalt. Die Dateien
+   entstehen nach dem Snapshot aus den Tabellen-Dateien desselben Laufs,
+   also aus genau den Zeilen des Pakets; ein zweiter Träger kommt darin
+   nicht vor. Die Zeilen bleiben unverändert (Vertrag des Exportformats).
+   Lässt sich ein Dokument nicht schreiben, etwa ohne Primärschlüssel,
+   bricht der Lauf mit `document_files` ab und bekommt kein `COMPLETE`. Das
+   Schulpaket bleibt unverändert.
+4. **Owner-Vertrag:** Parent Billing besitzt Schlüsselzugriff und Generator.
    Sie veröffentlicht `parentbilling.SEPAReturn` (nur Lesen, keine Zeile wird
    geschrieben) und den consumer-owned Port `SEPACreditorAccounts` für das
    Standardkonto des Trägers. Organisation & Tenancy definiert den
    consumer-owned Port `TenantExportSEPADebitFiles` und öffnet nie einen
    versiegelten Wert. Nur die CLI-Root `cmd/tenant_return.go` bindet beide;
    keine HTTP-Route, kein Workflow-Owner, kein Lesen fremder Tabellen.
-4. **Transaktionen:** Erst der Read-only-Snapshot des Katalogs von ADR 0185,
+5. **Transaktionen:** Erst der Read-only-Snapshot des Katalogs von ADR 0185,
    nach dessen Commit eine Träger-Transaktion von Parent Billing für die
    Dateien. Nie beide gleichzeitig; ein gemeinsamer Snapshot hieße, die
    Transaktion eines Owners an den anderen zu reichen. Darum läuft das
    Trägerpaket offline mit gestoppten Schreibern (Runbook), nicht nur mit
    deaktiviertem Träger.
-5. **Operator-Protokoll:** Jeder Lauf von `tenant export --organization`
+6. **Operator-Protokoll:** Jeder Lauf von `tenant export --organization`
    verlangt `--operator` mit einem bestehenden, aktiven Operator (wie das
    Löschverfahren). Vor dem ersten Lesen steht der Versuch im
    Operator-Protokoll (Aktion `export`, Ressource `organization`,
    `outcome: started`), danach das Ergebnis: `completed` mit Prüfsumme aus
-   `COMPLETE`, Anzahlen und den Herkünften der PAIN.008-Dateien vor
+   `COMPLETE`, Anzahlen, den Dokumenten je Spalte und den Herkünften der
+   PAIN.008-Dateien vor
    `COMPLETE`, oder `failed` mit Fehlerklasse und ob die Teildateien
    gelöscht wurden. Keine Personendaten, kein lokaler Pfad. Ein Lauf, dessen
    Abschluss nicht protokolliert ist, bekommt kein `COMPLETE`. Ohne
@@ -105,7 +130,7 @@ für die Rückgabe am Vertragsende:
    Operator liest die Root über einen eigenen Konstruktor von Identity &
    Access (`NewOperatorDirectory`). Das Schulpaket bleibt ohne Protokoll
    (#6326).
-6. **Löschauftrag eines Trägers:** Er verlangt den Hinweis auf die Rückgabe
+7. **Löschauftrag eines Trägers:** Er verlangt den Hinweis auf die Rückgabe
    der Unterlagen und die Wahl des Kunden (Rückgabe oder Verzicht;
    Migration `1.15.832`). Ein Altauftrag ohne beides und ein bereits
    begonnener Auftrag laufen erst weiter, wenn beides nachgetragen ist
@@ -117,7 +142,7 @@ für die Rückgabe am Vertragsende:
    Befehl des Owners, die Route hängt nur an
    `TraegerErasureOrderRecordsProvisioning`
    (`NewTraegerErasureOrderRecordsResource`, ohne sie kein Router).
-7. **Konfiguration:** Das Trägerpaket verlangt `BANK_DATA_KEYS` wie
+8. **Konfiguration:** Das Trägerpaket verlangt `BANK_DATA_KEYS` wie
    `bank-data-rekey` und ADR 0184; ohne gültigen Ring bricht es ab. Kein
    Rückfall.
 
@@ -133,6 +158,7 @@ für die Rückgabe am Vertragsende:
   ihren Lastschriften (eine eingereichte mit der letzten), die mit den
   Verträgen des Demo-Besuchs gehen.
 - Das Trägerpaket enthält Bankdaten der Familien in den Tabellen-Dateien
-  (ADR 0184) und in `SEPA-LASTSCHRIFTDATEIEN/`. Die Übergabe bleibt ein
+  (ADR 0184) und in `SEPA-LASTSCHRIFTDATEIEN/`; `DOKUMENTE/` enthält
+  Personendaten der Familien (Schreiben, Verträge, Nachweise). Die Übergabe bleibt ein
   Mensch-Schritt: nur verschlüsselt, lokale Kopie nach bestätigtem Empfang
   löschen (Runbook Auskunft und Rückgabe).

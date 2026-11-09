@@ -144,7 +144,7 @@ für diese Tabellen maßgeblich. Wechselt nur eine Schule, enthält ihr Schulpak
 die Trägerdaten aller Schulen des Trägers: Umfang mit dem Träger abstimmen.
 
 Das Trägerpaket verlangt zusätzlich `--operator "$OPERATOR_ID"` und legt die
-PAIN.008-Dateien bei (ADR 0187):
+gespeicherten Dokumente und die PAIN.008-Dateien als Dateien bei (ADR 0187):
 
 ```bash
 umask 077
@@ -164,13 +164,29 @@ scripts/dev-native.sh backend go run . tenant export \
   nichts. Jeder Lauf steht zweimal in `platform.operator_audit_log` (Aktion
   `export`, Ressource `organization`), ohne Personendaten und ohne lokalen
   Pfad: vor dem ersten Lesen der Versuch (`outcome: started`), danach das
-  Ergebnis. `completed` nennt die Prüfsumme aus `COMPLETE`, die Anzahlen und
-  die Herkunft jeder PAIN.008-Datei; erst danach entsteht `COMPLETE`.
+  Ergebnis. `completed` nennt die Prüfsumme aus `COMPLETE`, die Anzahlen, die
+  Dokumente je Spalte und die Herkunft jeder PAIN.008-Datei; erst danach
+  entsteht `COMPLETE`.
   `failed` nennt die Fehlerklasse (`snapshot`, `filesystem`,
-  `sepa_debit_files`, `manifest`, `audit`, `complete_marker`) und
+  `document_files`, `sepa_debit_files`, `manifest`, `audit`,
+  `complete_marker`) und
   `partial_files_removed`: Der Lauf löscht sein unvollständiges Verzeichnis.
   Steht dort `false`, das Verzeichnis von Hand löschen. Ein Schulpaket
   schreibt (noch) keinen Eintrag (#6326).
+- **Dokumente:** `DOKUMENTE/<Tabelle>/<Zeilen-ID>-<Spalte>.<Endung>` je
+  gespeichertem Dokument der Trägertabellen: Schreiben und Bestätigungen,
+  Bescheide, alle Vertragsfassungen, Papierverträge, Unterschriftsbilder,
+  hochgeladene Nachweise, Dokumente und Formulare des Trägers, Logo. Welche
+  Spalten Dokumente sind, folgt aus dem Katalog: jede exportierte
+  Binärspalte einer Trägertabelle; eine neue kommt ohne Codeänderung mit.
+  Die Zeilen-ID ist der Primärschlüssel, die Endung folgt aus dem
+  gespeicherten Medientyp, sonst aus dem Inhalt (`.bin`, wenn unbekannt).
+  `DOKUMENTE/index.jsonl` nennt je Datei `table`, `row_id`, `row_key`,
+  `column`, `media_type`, `sha256` und `bytes`; `LIESMICH.txt` erklärt den
+  Ordner. `manifest.json` zählt sie unter `documentFiles` je Spalte und prüft
+  jede Datei mit Prüfsumme. Die Tabellen-Dateien behalten das Dokument als
+  Hex-Wert unverändert. Lässt sich ein Dokument nicht schreiben (etwa ohne
+  Primärschlüssel), scheitert der Lauf mit `document_files`.
 - **PAIN.008-Dateien:** `SEPA-LASTSCHRIFTDATEIEN/<Nachrichten-ID>.xml` je
   eingereichte Lastschriftnachricht, mit `LIESMICH.txt`; `manifest.json`
   nennt sie unter `sepaDebitFiles` mit Herkunft und prüft jede mit Prüfsumme.

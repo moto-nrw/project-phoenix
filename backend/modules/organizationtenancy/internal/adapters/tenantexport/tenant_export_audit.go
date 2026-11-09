@@ -123,12 +123,12 @@ func (r *exportRun) writeSEPADebitFiles(ctx context.Context, owner organizationt
 }
 
 // auditRecord names the completed run for the operator audit: counts, the
-// file origins and the manifest checksum, no contents, no local path.
+// file origins, the documents per column and the manifest checksum, no contents, no local path.
 func (r *exportRun) auditRecord(checksum string) organizationtenancy.TenantExportRecord {
 	return organizationtenancy.TenantExportRecord{
 		OperatorID: r.options.OperatorID, OrganizationID: r.options.OrganizationID,
 		Outcome: organizationtenancy.TenantExportCompleted, ManifestSHA256: checksum,
 		ExportedAt: r.manifest.ExportedAt, Tables: len(r.manifest.Tables), Artifacts: len(r.manifest.Artifacts),
-		SEPADebitFiles: r.manifest.SEPADebitFiles,
+		SEPADebitFiles: r.manifest.SEPADebitFiles, DocumentFiles: r.manifest.DocumentFiles,
 	}
 }

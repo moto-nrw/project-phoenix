@@ -78,6 +78,9 @@ func (e *tenantExporter) run(ctx context.Context, options organizationtenancy.Te
 		return "snapshot", true, err
 	}
 	if options.OrganizationID > 0 {
+		if err = run.writeDocumentFiles(ctx); err != nil {
+			return "document_files", true, err
+		}
 		if err = run.writeSEPADebitFiles(ctx, e.sepaFiles); err != nil {
 			return "sepa_debit_files", true, err
 		}

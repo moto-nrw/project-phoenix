@@ -109,6 +109,25 @@ type ExportSEPADebitFiles struct {
 	Files     []ExportSEPADebitFileOrigin `json:"files"`
 }
 
+// ExportDocumentFiles marks the stored documents of a Träger package in the
+// manifest and the audit (ADR 0187): every binary column the catalog exports
+// from a table of the Träger, written as one file per row under Directory and
+// listed in Index. Names and counts, never contents.
+type ExportDocumentFiles struct {
+	Directory string                 `json:"directory"`
+	Index     string                 `json:"index"`
+	Notice    string                 `json:"notice"`
+	Columns   []ExportDocumentColumn `json:"columns"`
+}
+
+// ExportDocumentColumn counts the files of one document column.
+type ExportDocumentColumn struct {
+	Table  string `json:"table"`
+	Column string `json:"column"`
+	Files  int    `json:"files"`
+	Bytes  int64  `json:"bytes"`
+}
+
 // TenantExportAudit records each run of a Träger package in the operator
 // audit (#4720: every access to personal data is audited).
 // BeginTenantExport runs before anything is read or written and refuses an
@@ -149,6 +168,7 @@ type TenantExportRecord struct {
 	Tables              int                   `json:"tables,omitempty"`
 	Artifacts           int                   `json:"artifacts,omitempty"`
 	SEPADebitFiles      *ExportSEPADebitFiles `json:"sepa_debit_files,omitempty"`
+	DocumentFiles       *ExportDocumentFiles  `json:"document_files,omitempty"`
 }
 
 type TenantExportOptions struct {
@@ -188,7 +208,9 @@ type ExportManifest struct {
 	Tables         []ExportTable `json:"tables"`
 	// SEPADebitFiles marks the PAIN.008 files of a Träger package (ADR 0187).
 	SEPADebitFiles *ExportSEPADebitFiles `json:"sepaDebitFiles,omitempty"`
-	Artifacts      []ExportArtifact      `json:"artifacts"`
+	// DocumentFiles marks the stored documents of a Träger package as files.
+	DocumentFiles *ExportDocumentFiles `json:"documentFiles,omitempty"`
+	Artifacts     []ExportArtifact     `json:"artifacts"`
 }
 
 type ExportTable struct {
