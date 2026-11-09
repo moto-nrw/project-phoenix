@@ -136,7 +136,6 @@ function letterColumns(
       render: (row) => (
         <OverflowMenu
           ariaLabel={`Aktionen für ${row.storno ? "den Storno" : "die Rechnung"} von ${row.invoice.childFirstName} ${row.invoice.childLastName}`}
-          triggerSize="sm"
           items={rowMenuItems(row, actions)}
         />
       ),

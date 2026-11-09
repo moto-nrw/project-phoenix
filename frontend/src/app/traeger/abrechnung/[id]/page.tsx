@@ -38,6 +38,7 @@ import { BillingMailCard } from "~/components/traeger/billing-mail-card";
 import {
   BILLING_RUN_STATUS_LABELS,
   BILLING_RUN_STATUS_TONES,
+  numberPatternPreview,
 } from "~/components/traeger/billing-format";
 import { runDueDatesText } from "~/components/traeger/billing-payment-format";
 import { HolidayDebitHintsCard } from "~/components/traeger/care-run-review-lazy";
@@ -60,7 +61,7 @@ import {
 } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
 import { holidayWeeksConcept } from "~/lib/concepts/holidayWeeks";
-import { formatDate } from "~/lib/date-helpers";
+import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import { downloadBlob } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
 import {
@@ -408,7 +409,17 @@ export default function TraegerBillingRunPage() {
                 {run.issuedOn ? (
                   `Ausgestellt am ${formatDate(run.issuedOn)}`
                 ) : run.numberRangeSet ? (
-                  <span className="font-mono">{run.numberPattern}</span>
+                  <>
+                    <span className="font-mono">
+                      {numberPatternPreview(
+                        run.numberPattern,
+                        berlinTodayISO(),
+                      )}
+                    </span>{" "}
+                    <span className="text-gray-600">
+                      (die Nummer vergibt die Freigabe)
+                    </span>
+                  </>
                 ) : (
                   "Noch kein Muster"
                 )}

@@ -149,7 +149,6 @@ export function CareAmendedInvoiceCard({
                 {editable && !gone && position.key ? (
                   <OverflowMenu
                     ariaLabel={`Aktionen für ${position.moduleName}`}
-                    triggerSize="sm"
                     items={[
                       {
                         label: "Position entfernen",
@@ -201,7 +200,6 @@ export function CareAmendedInvoiceCard({
                 {editable && !gone && key ? (
                   <OverflowMenu
                     ariaLabel={`Aktionen für ${label}`}
-                    triggerSize="sm"
                     items={[
                       {
                         label: "Position entfernen",

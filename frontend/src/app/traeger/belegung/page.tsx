@@ -386,7 +386,7 @@ function TotalFigures({
           hint={
             loading
               ? undefined
-              : "Alle Kinder, die moto heute an Ihren Schulen betreut."
+              : "Alle Kinder, die Ihre Schulen heute betreuen."
           }
           icon={<MotoConceptIcon concept={childrenConcept} />}
           loading={loading}

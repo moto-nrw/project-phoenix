@@ -11,6 +11,7 @@
 // fest.
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -481,6 +482,17 @@ export function HolidayRegistrationStatusCard({
   };
 
   const open = registration.status !== "cancelled";
+  const duplicateChildren = registration.children.filter(
+    (child) => child.duplicateRegistrationIds.length > 0,
+  );
+  const duplicateNames = duplicateChildren.map((child) =>
+    `${child.firstName} ${child.lastName}`.trim(),
+  );
+  const duplicateIds = [
+    ...new Set(
+      duplicateChildren.flatMap((child) => child.duplicateRegistrationIds),
+    ),
+  ];
   const choosesPayer =
     registration.status === "received" &&
     (exemptionAvailable || costBearers.length > 0);
@@ -563,6 +575,31 @@ export function HolidayRegistrationStatusCard({
     <SectionCard title="Status" footer={actions}>
       <div className="space-y-4 text-sm text-gray-700">
         <p>{statusText(registration)}</p>
+        {/* The children's cards sit far below on a phone: the status names a
+            possible double registration first, with the way to the other. */}
+        {duplicateIds.length > 0 ? (
+          <Alert
+            type="warning"
+            size="compact"
+            message={`Vielleicht doppelt angemeldet: ${duplicateNames.join(", ")}.`}
+            actionLayout="stacked"
+            action={
+              <span className="flex flex-wrap gap-3">
+                {duplicateIds.map((id) => (
+                  <NavigationLink
+                    key={id}
+                    href={traegerPath(
+                      `/traeger/ferien/${periodId}/anmeldungen/${id}`,
+                    )}
+                    className="font-medium underline"
+                  >
+                    Anmeldung Nr. {id} öffnen
+                  </NavigationLink>
+                ))}
+              </span>
+            }
+          />
+        ) : null}
         {registration.status === "received" ? (
           <p>Eltern bekommen beim Bestätigen noch keine Nachricht von moto.</p>
         ) : null}

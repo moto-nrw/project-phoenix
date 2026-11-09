@@ -46,6 +46,8 @@ const COLUMNS: DataTableColumn<HolidayPeriod>[] = [
     render: (period) => formatWeeks(period),
     stackedRender: (period) =>
       `${formatWeeks(period)} · Anmeldung ${formatDateRange(period.registrationOpensOn, period.registrationClosesOn)}`,
+    // The weeks name themselves; the label would only stand in front.
+    stackedLabel: false,
     sortValue: (period) => period.weeks[0]?.startsOn ?? null,
   },
   {

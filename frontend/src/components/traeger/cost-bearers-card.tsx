@@ -366,7 +366,6 @@ export function CostBearersCard({
                 </div>
                 <OverflowMenu
                   ariaLabel={`Aktionen für ${bearer.name}`}
-                  triggerSize="sm"
                   items={[
                     { label: "Ändern", onClick: () => setEditingId(bearer.id) },
                     {

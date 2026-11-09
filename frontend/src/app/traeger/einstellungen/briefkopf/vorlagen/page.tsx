@@ -30,16 +30,23 @@ const COLUMNS: DataTableColumn<DocumentTemplateSummary>[] = [
     key: "kind",
     header: "Dokument",
     render: (template) => (
-      <div className="min-w-0">
-        <p className="font-medium text-gray-900">
-          {DOCUMENT_TEMPLATE_KIND_LABELS[template.kind]}
-        </p>
-        <p className="text-sm text-gray-600">
-          {DOCUMENT_TEMPLATE_KIND_USE[template.kind]}
-        </p>
-      </div>
+      <span className="font-medium text-gray-900">
+        {DOCUMENT_TEMPLATE_KIND_LABELS[template.kind]}
+      </span>
     ),
     stacked: "title",
+  },
+  {
+    // Its own column, so a phone shows the whole sentence under the name
+    // instead of cutting it with the name's two lines.
+    key: "use",
+    header: "Wofür",
+    render: (template) => (
+      <span className="text-sm text-gray-600">
+        {DOCUMENT_TEMPLATE_KIND_USE[template.kind]}
+      </span>
+    ),
+    stackedLabel: false,
   },
   {
     key: "state",
@@ -124,6 +131,7 @@ export default function TraegerVorlagenPage() {
           getRowKey={(template) => template.kind}
           stackedOnMobile
           stackedLayout="row"
+          stackedDetailKey="use"
           onRowClick={(template) =>
             router.push(
               traegerPath(

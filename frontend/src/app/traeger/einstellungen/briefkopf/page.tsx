@@ -146,6 +146,7 @@ export default function TraegerBriefkopfPage() {
               headingLevel={2}
               autosaveNote
               confirmTextReset
+              plainTextareas
             />
           ))}
 

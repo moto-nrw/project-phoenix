@@ -93,7 +93,6 @@ export function CostBearerTotalsCard({
       render: (total) => (
         <OverflowMenu
           ariaLabel={list.ariaLabel(total)}
-          triggerSize="sm"
           items={exportMenuItems({
             header: list.header,
             options: FORMATS,

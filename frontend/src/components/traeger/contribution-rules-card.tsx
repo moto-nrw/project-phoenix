@@ -115,7 +115,6 @@ export function ContributionRulesCard({
       render: (rule) => (
         <OverflowMenu
           ariaLabel={`Aktionen für die Regel ${ruleValidity(rule)}`}
-          triggerSize="sm"
           items={[
             {
               label: "Ändern",

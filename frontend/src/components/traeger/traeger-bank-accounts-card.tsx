@@ -133,7 +133,6 @@ export function TraegerBankAccountsCard({
       render: (account) => (
         <OverflowMenu
           ariaLabel={`Aktionen für die Bankverbindung ${account.label}`}
-          triggerSize="sm"
           items={[
             {
               label: "Ändern",

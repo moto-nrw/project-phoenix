@@ -291,7 +291,7 @@ function MonthFigures({
           changeHint(
             keyDateChange(month.activeStudents, previous?.activeStudents),
             previous,
-          ) ?? "Kinder, die moto am Stichtag betreut hat."
+          ) ?? "Kinder, die Ihre Schulen am Stichtag betreut haben."
         }
         icon={<MotoConceptIcon concept={childrenConcept} />}
         tone="neutral"

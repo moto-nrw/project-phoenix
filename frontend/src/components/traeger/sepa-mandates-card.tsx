@@ -259,7 +259,6 @@ function MandateMenu({
   return (
     <OverflowMenu
       ariaLabel={`Aktionen für das Mandat ${mandate.reference}`}
-      triggerSize="sm"
       items={[
         { label: "Verlauf ansehen", onClick: () => onHistory(mandate) },
         ...(mandate.revokedOn
@@ -306,7 +305,7 @@ function FamilyMandates({
               </DataField>
               <DataField label="Konto">
                 <span
-                  className="block font-mono tabular-nums"
+                  className="block font-mono whitespace-nowrap tabular-nums"
                   data-analytics-block
                 >
                   {inForce.ibanMasked}
@@ -430,7 +429,8 @@ export function SepaMandatesCard({
       stacked: forFamily ? "title" : "field",
       render: (mandate) => (
         <span className="block min-w-0">
-          <span className="block font-mono wrap-anywhere text-gray-900">
+          {/* A reference is one ID: it stays whole from the tablet on. */}
+          <span className="block font-mono wrap-anywhere text-gray-900 md:whitespace-nowrap">
             {mandate.reference}
           </span>
           <span className="block text-sm text-gray-500">
@@ -475,6 +475,8 @@ export function SepaMandatesCard({
       key: "state",
       header: "Stand",
       stacked: "meta",
+      // The pill keeps its word whole („Gültig“) beside the row menu.
+      className: "min-w-28",
       render: (mandate) => {
         const state = mandateState(mandate);
         return (

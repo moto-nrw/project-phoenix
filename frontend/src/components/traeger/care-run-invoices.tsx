@@ -249,7 +249,6 @@ function familyColumn(
       storno ? null : (
         <OverflowMenu
           ariaLabel={`Aktionen für die Rechnung von ${invoice.childFirstName} ${invoice.childLastName}`}
-          triggerSize="sm"
           items={[
             {
               label: "Empfänger und Zahlung",

@@ -58,7 +58,8 @@ import {
   useApiLoadError,
   useToast,
 } from "~/contexts/ToastContext";
-import { formatDate } from "~/lib/date-helpers";
+import { numberPatternPreview } from "~/components/traeger/billing-format";
+import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
   type CareInvoice,
@@ -484,7 +485,17 @@ export default function TraegerCareRunPage() {
               </DataField>
               <DataField label="Rechnungsnummern">
                 {run.numberRangeSet ? (
-                  <span className="font-mono">{run.numberPattern}</span>
+                  <>
+                    <span className="font-mono">
+                      {numberPatternPreview(
+                        run.numberPattern,
+                        run.invoiceDate ?? berlinTodayISO(),
+                      )}
+                    </span>{" "}
+                    <span className="text-gray-600">
+                      (die Nummer vergibt die Freigabe)
+                    </span>
+                  </>
                 ) : (
                   "Noch kein Muster"
                 )}

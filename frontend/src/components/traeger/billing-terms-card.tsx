@@ -272,7 +272,6 @@ export function BillingTermsCard({
       render: (row) => (
         <OverflowMenu
           ariaLabel={`Aktionen für ${BILLING_SERVICE_LABELS[row.terms.service]}`}
-          triggerSize="sm"
           items={[{ label: "Ändern", onClick: () => setEditing(row) }]}
         />
       ),

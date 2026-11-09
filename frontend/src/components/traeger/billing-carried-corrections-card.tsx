@@ -122,7 +122,6 @@ export function BillingCarriedCorrectionsCard({
                 </div>
                 <OverflowMenu
                   ariaLabel={`Aktionen für die Korrektur von ${row.child.firstName} über ${formatEuro(row.carried.amountCents)}`}
-                  triggerSize="sm"
                   items={[
                     {
                       label: "Ändern",

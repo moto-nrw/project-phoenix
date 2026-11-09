@@ -102,8 +102,10 @@ const COLUMNS: DataTableColumn<BillingFamilyDocument>[] = [
     stacked: "title",
   },
   {
+    // Period and children share one column: seven columns no longer fit
+    // beside each other on a laptop.
     key: "period",
-    header: "Ferienzeitraum",
+    header: "Zeitraum und Kinder",
     render: (document) => (
       <span className="block min-w-0">
         <span className="block wrap-break-word text-gray-900">
@@ -112,14 +114,13 @@ const COLUMNS: DataTableColumn<BillingFamilyDocument>[] = [
         <span className="block text-sm text-gray-500 md:whitespace-nowrap">
           {formatDateRange(document.serviceFrom, document.serviceUntil)}
         </span>
+        {document.childNames.length > 0 ? (
+          <span className="block text-sm wrap-break-word text-gray-600">
+            {document.childNames.join(", ")}
+          </span>
+        ) : null}
       </span>
     ),
-  },
-  {
-    key: "children",
-    header: "Kinder",
-    render: (document) =>
-      document.childNames.length > 0 ? document.childNames.join(", ") : "–",
   },
   {
     key: "amount",
@@ -135,6 +136,8 @@ const COLUMNS: DataTableColumn<BillingFamilyDocument>[] = [
   {
     key: "status",
     header: "Stand",
+    // The pill keeps its word whole („Storniert“), also on a tablet.
+    className: "min-w-28",
     render: (document) =>
       document.status ? (
         <StatusBadge
@@ -245,8 +248,14 @@ export default function TraegerBillingFamilyPage() {
               </DataField>
               <DataField label="Debitorennummer">
                 {family.debtorNumbers.length > 0 ? (
+                  // Each number stays whole; only the list wraps.
                   <span className="font-mono">
-                    {family.debtorNumbers.join(", ")}
+                    {family.debtorNumbers.map((number, index) => (
+                      <span key={number} className="whitespace-nowrap">
+                        {number}
+                        {index < family.debtorNumbers.length - 1 ? ", " : ""}
+                      </span>
+                    ))}
                   </span>
                 ) : (
                   "Keine eingetragen"

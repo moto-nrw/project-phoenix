@@ -176,7 +176,6 @@ export default function TraegerAccountsPage() {
       render: (member) => (
         <OverflowMenu
           ariaLabel={`Aktionen für ${member.email}`}
-          triggerSize="sm"
           items={[
             { label: "Rollen ändern", onClick: () => setEditing(member) },
             ...(isLastLeader(member)
@@ -227,7 +226,6 @@ export default function TraegerAccountsPage() {
       render: (invitation) => (
         <OverflowMenu
           ariaLabel={`Aktionen für die Einladung an ${invitation.email}`}
-          triggerSize="sm"
           items={[
             {
               label: "Einladung zurücknehmen",

@@ -532,23 +532,22 @@ export default function TraegerVertragPage() {
                 {contract.mailings.length > 0 ? (
                   <ol className="space-y-3">
                     {contract.mailings.map((mailing) => (
-                      <li
-                        key={mailing.sentAt}
-                        className="flex items-start justify-between gap-3"
-                      >
-                        <span className="min-w-0 text-sm">
-                          <span className="block font-medium text-gray-900">
+                      // The state sits beside the time; the address gets
+                      // the full width of the card, so it rarely breaks.
+                      <li key={mailing.sentAt} className="min-w-0 text-sm">
+                        <span className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                          <span className="font-medium text-gray-900">
                             {formatBerlinDate(mailing.sentAt)},{" "}
                             {formatBerlinTime(mailing.sentAt)} Uhr
                           </span>
-                          <span className="block wrap-anywhere text-gray-500">
-                            an {mailing.recipient}
-                          </span>
+                          <StatusBadge
+                            label={contractMailBadge(mailing).label}
+                            tone={contractMailBadge(mailing).tone}
+                          />
                         </span>
-                        <StatusBadge
-                          label={contractMailBadge(mailing).label}
-                          tone={contractMailBadge(mailing).tone}
-                        />
+                        <span className="mt-0.5 block wrap-anywhere text-gray-500">
+                          an {mailing.recipient}
+                        </span>
                       </li>
                     ))}
                   </ol>

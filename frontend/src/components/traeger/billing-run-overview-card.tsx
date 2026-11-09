@@ -337,7 +337,6 @@ export function BillingRunOverviewCard({
         >
           <OverflowMenu
             ariaLabel={rowMenuLabel(document)}
-            triggerSize="sm"
             items={[
               {
                 label: "Aufschlüsselung ansehen",

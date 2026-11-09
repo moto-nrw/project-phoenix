@@ -114,7 +114,7 @@ const DEBTOR_NUMBER_COLUMN: DataTableColumn<HolidayRegistrationSummary> = {
       "–"
     ),
   sortValue: (registration) => registration.debtorNumber,
-  stacked: "meta",
+  stacked: "field",
 };
 
 /** What the list knows about the siblings of a registration (#5628). */
@@ -173,7 +173,9 @@ function columns(
       header: "Nr.",
       render: (registration) => registration.id,
       sortValue: (registration) => Number(registration.id),
-      stacked: "meta",
+      // On a phone the status is the one value beside the name; the number
+      // follows as a labelled line.
+      stacked: "field",
     },
     {
       key: "guardian",
@@ -254,7 +256,7 @@ function columns(
       header: "Eingegangen am",
       render: (registration) => formatBerlinDate(registration.submittedAt),
       sortValue: (registration) => registration.submittedAt,
-      stacked: "meta",
+      stacked: "field",
     },
     {
       key: "status",

@@ -56,3 +56,16 @@ export function billingReferenceText(document: BillingDocument): string {
     ? `Ersetzt ${document.referenceNumber}`
     : `Zu ${document.referenceNumber}`;
 }
+
+/**
+ * The invoice numbers a run will get, as far as they are known before the
+ * release: the year filled in, the running number open („FE-2026-…“). The
+ * pattern's tokens are the backend's: {JJJJ} or {JJ}, and {N} to {NNNNNNNN}.
+ */
+export function numberPatternPreview(pattern: string, issueOn: string): string {
+  const year = issueOn.slice(0, 4);
+  return pattern
+    .replaceAll("{JJJJ}", year)
+    .replaceAll("{JJ}", year.slice(2))
+    .replace(/\{N{1,8}\}/g, "…");
+}

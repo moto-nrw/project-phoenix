@@ -134,7 +134,7 @@ function rangePresets() {
     { label: "Letzte 7 Tage", range: () => ({ from: daysBack(6), to: today }) },
     { label: "Letzte 30 Tage", range: lastThirtyDays },
     {
-      label: "Letztes Jahr",
+      label: "Letzte 12 Monate",
       range: () => ({ from: daysBack(365), to: today }),
     },
   ];

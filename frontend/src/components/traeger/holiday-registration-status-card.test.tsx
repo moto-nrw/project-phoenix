@@ -86,6 +86,24 @@ describe("HolidayRegistrationStatusCard", () => {
     mockConfirm.mockReset();
     mockConfirmDebtorNumber.mockReset();
     mockChangeDebtorNumber.mockReset();
+    // The card links a possible double registration of the fixture's child.
+    vi.stubEnv("NEXT_PUBLIC_TRAEGER_HOSTNAME", "traeger.localhost:3000");
+    _resetTraegerHostCache();
+    onTestFinished(() => {
+      vi.unstubAllEnvs();
+      _resetTraegerHostCache();
+    });
+  });
+
+  it("names a possible double registration with the way to the other one", () => {
+    renderCard(HOLIDAY_REGISTRATION);
+
+    expect(
+      screen.getByText("Vielleicht doppelt angemeldet: Lia Muster."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Anmeldung Nr. 8 öffnen" }),
+    ).toHaveAttribute("href", "/traeger/ferien/5/anmeldungen/8");
   });
 
   it("confirms a received registration through the contribution and says parents get no message yet", async () => {

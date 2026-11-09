@@ -66,7 +66,6 @@ export function ExclusionMenu({
   return (
     <OverflowMenu
       ariaLabel={`Aktionen für die Rechnung von ${childName(invoice)}`}
-      triggerSize="sm"
       items={[
         ...(onAmend
           ? [
