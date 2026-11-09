@@ -295,6 +295,7 @@ func (r *RoleAdministration) replaceAccountRoleInTx(txCtx context.Context, accou
 	if err != nil {
 		return failed("replace account role", err)
 	}
+	others := make([]int64, 0, len(current))
 	for _, role := range current {
 		// Guardian is decided by tier, not by name: a school role labelled
 		// "Guardian" is not the parent-portal role, and the parent-portal
@@ -302,11 +303,9 @@ func (r *RoleAdministration) replaceAccountRoleInTx(txCtx context.Context, accou
 		if role.ID == roleID || r.policy.IsGuardianTierRole(role.Facts()) {
 			continue
 		}
-		if err := r.RemoveRoleFromAccount(txCtx, accountID, role.ID); err != nil {
-			return err
-		}
+		others = append(others, role.ID)
 	}
-	return nil
+	return r.RemoveRolesFromAccount(txCtx, accountID, others)
 }
 
 // ensureIdentityForAssignedRole completes the school identity chain for a
@@ -388,6 +387,49 @@ func (r *RoleAdministration) RemoveRoleFromAccount(ctx context.Context, accountI
 	})
 	if err != nil {
 		return err
+	}
+	r.sessions.QueuePushCleanup(ctx, accountID, revoked, "role_changed")
+	return nil
+}
+
+// errRoleSetNeedsTransaction refuses a role-set removal outside a unit of
+// work: it is one step of the caller's command and commits with it.
+var errRoleSetNeedsTransaction = errors.New("identity access role administration: a role-set removal joins the caller's transaction")
+
+// RemoveRolesFromAccount removes the roles the caller observed the account
+// holding after it took the account lock in its transaction (#5882). It takes
+// the lock once, as the first single removal did, and deletes each assignment
+// with its own statement in the caller's order, so every statement waits for
+// at most one row lock, as the single removals did. It then revokes the
+// account's sessions at this school with their audit once, for the observed
+// set, whether or not a concurrent role deletion removed an assignment first.
+// Every mint and renewal waits for the account lock, so a second revocation
+// inside this transaction would find no session; the push cleanup follows
+// the commit once. It opens no unit of work of its own: replacement and
+// offboarding call it inside theirs.
+func (r *RoleAdministration) RemoveRolesFromAccount(ctx context.Context, accountID int64, roleIDs []int64) (err error) {
+	if r == nil {
+		return errRoleAdministrationUnavailable
+	}
+	if len(roleIDs) == 0 {
+		return nil
+	}
+	defer func() { err = roleError(err) }()
+	ctx = bindRuntime(r.attach, ctx)
+	if !r.runtime.HasTransaction(ctx) {
+		return errRoleSetNeedsTransaction
+	}
+	if err := r.lockManageableAccount(ctx, accountID, "remove role"); err != nil {
+		return err
+	}
+	for _, roleID := range roleIDs {
+		if err := r.store.DeleteAccountRole(ctx, accountID, roleID); err != nil {
+			return failed("remove role from account", err)
+		}
+	}
+	revoked, err := r.sessions.DeleteAccountSessionsWithAudit(ctx, accountID, "role_changed", "", "")
+	if err != nil {
+		return failed("revoke tokens after role removal", err)
 	}
 	r.sessions.QueuePushCleanup(ctx, accountID, revoked, "role_changed")
 	return nil

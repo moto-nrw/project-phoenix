@@ -15305,33 +15305,33 @@
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.AccountAdministrationSeam.RemoveRoleFromAccount",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.AccountAdministrationSeam.RemoveRolesFromAccount",
       "binding_digest": "64501329b4b15868111edcfc1744f3d4",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.AccountAdministration.RemoveRoleFromAccount",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.AccountAdministration.RemoveRolesFromAccount",
       "source_owner": "identity-access",
       "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.AccountAdministrationSeam.RemoveRoleFromAccount",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.AccountAdministrationSeam.RemoveRolesFromAccount",
       "binding_digest": "902fe6b22561ad58b921d465b8be5686",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.AccountAdministration.RemoveRoleFromAccount",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.AccountAdministration.RemoveRolesFromAccount",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/tenant.RegisterAfterCommit",
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.AccountAdministrationSeam.RemoveRoleFromAccount",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.AccountAdministrationSeam.RemoveRolesFromAccount",
       "binding_digest": "ddf97440774f47102ff16978bef04d9e",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.AccountAdministration.RemoveRoleFromAccount",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.AccountAdministration.RemoveRolesFromAccount",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinAdmin",
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.AccountAdministrationSeam.RemoveRoleFromAccount",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application.AccountAdministrationSeam.RemoveRolesFromAccount",
       "binding_digest": "76d93c2d35d39941eeb7d0da0007d67c",
-      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.AccountAdministration.RemoveRoleFromAccount",
+      "port": "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports.AccountAdministration.RemoveRolesFromAccount",
       "source_owner": "identity-access",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime"
