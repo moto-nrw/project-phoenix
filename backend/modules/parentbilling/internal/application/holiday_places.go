@@ -45,37 +45,44 @@ func withMovedUpBookings(frozen, current []parentbilling.HolidayChild) []parentb
 // what is left the same way. A moved-up week whose frozen booking a direct
 // replacement holds is therefore priced anew.
 func movedUpBookings(frozen, current []parentbilling.HolidayBooking) []parentbilling.HolidayBooking {
-	used := make([]bool, len(frozen))
-	claim := func(weekID int64, startsOn, endsOn calendar.Date) bool {
-		for k, priced := range frozen {
-			if !used[k] && pricesHolidayWeek(priced, weekID, startsOn, endsOn) {
-				used[k] = true
-				return true
-			}
-		}
-		return false
-	}
-	claimed := make([]bool, len(current))
+	m := frozenClaims{frozen: frozen, used: make([]bool, len(frozen))}
 	var added []parentbilling.HolidayBooking
 	for _, promoted := range []bool{false, true} {
-		for j, booking := range current {
-			if !booking.Waitlisted && booking.Promoted == promoted {
-				claimed[j] = claim(booking.WeekID, booking.WeekStartsOn, booking.WeekEndsOn)
+		var open []parentbilling.HolidayBooking
+		for _, booking := range current {
+			if !booking.Waitlisted && booking.Promoted == promoted && !m.claim(booking.WeekID, booking.WeekStartsOn, booking.WeekEndsOn) {
+				open = append(open, booking)
 			}
 		}
-		for j, booking := range current {
-			if booking.Waitlisted || booking.Promoted != promoted || claimed[j] ||
-				slices.ContainsFunc(booking.ReplacedWeeks, func(previous parentbilling.HolidayBookingReplacement) bool {
-					return claim(previous.WeekID, previous.WeekStartsOn, previous.WeekEndsOn)
-				}) {
-				continue
-			}
-			if promoted {
+		for _, booking := range open {
+			if !m.claimReplaced(booking) && promoted {
 				added = append(added, booking)
 			}
 		}
 	}
 	return added
+}
+
+// frozenClaims hands out each frozen booking once.
+type frozenClaims struct {
+	frozen []parentbilling.HolidayBooking
+	used   []bool
+}
+
+func (m frozenClaims) claim(weekID int64, startsOn, endsOn calendar.Date) bool {
+	for k, priced := range m.frozen {
+		if !m.used[k] && pricesHolidayWeek(priced, weekID, startsOn, endsOn) {
+			m.used[k] = true
+			return true
+		}
+	}
+	return false
+}
+
+func (m frozenClaims) claimReplaced(booking parentbilling.HolidayBooking) bool {
+	return slices.ContainsFunc(booking.ReplacedWeeks, func(previous parentbilling.HolidayBookingReplacement) bool {
+		return m.claim(previous.WeekID, previous.WeekStartsOn, previous.WeekEndsOn)
+	})
 }
 
 // pricesHolidayWeek tells whether a frozen booking prices the week: by its id
