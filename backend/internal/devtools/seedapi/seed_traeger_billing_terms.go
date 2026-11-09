@@ -116,6 +116,17 @@ func seedSEPAMandates(client *Client, auth AuthRef, invoices []struct {
 			}
 		}
 	}
+	return seedImportedMandates(client, auth, invoices)
+}
+
+// seedImportedMandates imports the mandate of the first family, if any.
+func seedImportedMandates(client *Client, auth AuthRef, invoices []struct {
+	ContractID  int64  `json:"contract_id"`
+	FamilyEmail string `json:"family_email"`
+	Recipient   struct {
+		LastName string `json:"last_name"`
+	} `json:"recipient"`
+}) error {
 	if len(invoices) == 0 {
 		return nil
 	}

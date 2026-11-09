@@ -231,7 +231,7 @@ func TestImportCheckSkipsDuplicatesAndReportsConflicts(t *testing.T) {
 	check := newTestImportCheck(existing, nil)
 	same := check.row(importRow("SJR-1", "01.02.2024", importIBAN, "a@example.org", importCreditor, "RCUR", ""), 2)
 	assert.Equal(t, parentbilling.ImportRowDuplicate, same.row.Status)
-	assert.Equal(t, int64(1), same.row.MandateID)
+	assert.Equal(t, existing[0].ID, same.row.MandateID)
 
 	otherDate := check.row(importRow("SJR-2", "02.02.2024", importIBAN, "b@example.org", importCreditor, "RCUR", ""), 3)
 	assert.Equal(t, parentbilling.ImportRowConflict, otherDate.row.Status)

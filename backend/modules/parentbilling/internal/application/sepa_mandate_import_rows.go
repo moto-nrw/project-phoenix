@@ -90,8 +90,8 @@ func (c *importCheck) cell(cells []string, field string) string {
 	return cells[position]
 }
 
-func addProblem(row *parentbilling.SEPAMandateImportRow, field, code string) {
-	row.Problems = append(row.Problems, parentbilling.SEPAMandateImportProblem{Field: field, Code: code})
+func addProblem(row *parentbilling.SEPAMandateImportRow, field, problem string) {
+	row.Problems = append(row.Problems, parentbilling.SEPAMandateImportProblem{Field: field, Code: problem})
 }
 
 // row checks one row of the file.
