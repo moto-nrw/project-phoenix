@@ -35,6 +35,11 @@ export interface PortalOverflowNavItem {
   /** Die fertige Adresse des Ziels. */
   readonly href: string;
   readonly label: string;
+  /**
+   * A shorter name for the bar, where the active target's name has about
+   * 80 px; the „Mehr“ sheet keeps `label`.
+   */
+  readonly shortLabel?: string;
   readonly concept: MotoConcept;
   readonly active: boolean;
   /** Ziele außerhalb des Portals (die Hilfe) öffnen in einem neuen Tab. */
@@ -88,6 +93,7 @@ export function PortalOverflowBottomNav({
           <PortalBottomNavLink
             key={item.key}
             {...linkProps(item)}
+            shortLabel={item.shortLabel}
             paddingClassName={PADDING}
             labelClassName={LABEL}
             shrinkActive
