@@ -1568,6 +1568,106 @@
       "target_owner": ""
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.BankDataRing",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.BankDataCipher.BankDataRing",
+      "reason": "ADR 0188 (#6332): Security Runtime authenticates, seals or rewraps an in-memory field value on the independent bank ring. No database writes, locking reads or audit changes; the workforce owner keeps its writes, access log and the separately guarded maintenance batch.",
+      "source_owner": "workforce",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.BankDataRing",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.BankDataCipher.BankDataRing",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.BankDataCipher.BankDataRing",
+      "reason": "ADR 0188 (#6332): Security Runtime authenticates, seals or rewraps an in-memory field value on the independent bank ring. No database writes, locking reads or audit changes; the workforce owner keeps its writes, access log and the separately guarded maintenance batch.",
+      "source_owner": "workforce",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.BankDataRing",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Open",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.BankDataCipher.Open",
+      "reason": "ADR 0188 (#6332): Security Runtime authenticates, seals or rewraps an in-memory field value on the independent bank ring. No database writes, locking reads or audit changes; the workforce owner keeps its writes, access log and the separately guarded maintenance batch.",
+      "source_owner": "workforce",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Open",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.BankDataCipher.Open",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.BankDataCipher.Open",
+      "reason": "ADR 0188 (#6332): Security Runtime authenticates, seals or rewraps an in-memory field value on the independent bank ring. No database writes, locking reads or audit changes; the workforce owner keeps its writes, access log and the separately guarded maintenance batch.",
+      "source_owner": "workforce",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Open",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Seal",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.BankDataCipher.Seal",
+      "reason": "ADR 0188 (#6332): Security Runtime authenticates, seals or rewraps an in-memory field value on the independent bank ring. No database writes, locking reads or audit changes; the workforce owner keeps its writes, access log and the separately guarded maintenance batch.",
+      "source_owner": "workforce",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Seal",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.BankDataCipher.Seal",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.BankDataCipher.Seal",
+      "reason": "ADR 0188 (#6332): Security Runtime authenticates, seals or rewraps an in-memory field value on the independent bank ring. No database writes, locking reads or audit changes; the workforce owner keeps its writes, access log and the separately guarded maintenance batch.",
+      "source_owner": "workforce",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Seal",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.BankDataRing",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.BankDataRekeyCipher.BankDataRing",
+      "reason": "ADR 0188 (#6332): Security Runtime authenticates, seals or rewraps an in-memory field value on the independent bank ring. No database writes, locking reads or audit changes; the workforce owner keeps its writes, access log and the separately guarded maintenance batch.",
+      "source_owner": "workforce",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.BankDataRing",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Open",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.BankDataRekeyCipher.Open",
+      "reason": "ADR 0188 (#6332): Security Runtime authenticates, seals or rewraps an in-memory field value on the independent bank ring. No database writes, locking reads or audit changes; the workforce owner keeps its writes, access log and the separately guarded maintenance batch.",
+      "source_owner": "workforce",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Open",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Rewrap",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.BankDataRekeyCipher.Rewrap",
+      "reason": "ADR 0188 (#6332): Security Runtime authenticates, seals or rewraps an in-memory field value on the independent bank ring. No database writes, locking reads or audit changes; the workforce owner keeps its writes, access log and the separately guarded maintenance batch.",
+      "source_owner": "workforce",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Rewrap",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Seal",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.BankDataRekeyCipher.Seal",
+      "reason": "ADR 0188 (#6332): Security Runtime authenticates, seals or rewraps an in-memory field value on the independent bank ring. No database writes, locking reads or audit changes; the workforce owner keeps its writes, access log and the separately guarded maintenance batch.",
+      "source_owner": "workforce",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Seal",
+      "target_owner": "security-runtime"
+    },
+    {
       "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.WorkTime.ActivateStaffDocumentFileCleanup",
       "classification": "platform",
@@ -11019,12 +11119,36 @@
     },
     {
       "adr": "0083",
+      "approval_adr": "0186",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.staffShiftPlanning.ApplyCancellation",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffShiftPlanning.ApplyCancellation",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:api.now, the calendar-day clock the series service already reads (ADR 0176). Reached through modules/workforce/internal/planning.staffShiftPlanning.ApplyCancellation: the shift writes compare against it to leave past days as history when they take a day's sick state (#6302), approved by ADR 0186; a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "workforce",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
       "approval_adr": "0176",
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.staffShiftPlanning.CreateSeries",
       "classification": "unresolved",
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffShiftPlanning.CreateSeries",
       "reason": "Same effect as Decide, which DecideAndInvite runs inside its unit (#6093); reached here through modules/enrollment.Decisions.DecideAndInvite. Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.now. Reached through modules/workforce/internal/planning.staffShiftPlanning.CreateSeries; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "workforce",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0186",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.staffShiftPlanning.CreateShift",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffShiftPlanning.CreateShift",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:api.now, the calendar-day clock the series service already reads (ADR 0176). Reached through modules/workforce/internal/planning.staffShiftPlanning.CreateShift: the shift writes compare against it to leave past days as history when they take a day's sick state (#6302), approved by ADR 0186; a changed value or closure needs a fresh approval ADR.",
       "source_owner": "workforce",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
       "target_owner": ""
@@ -11051,6 +11175,18 @@
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.DeviationEventRepository.Create",
       "target_owner": "audit-platform"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0186",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.staffShiftPlanning.MoveShift",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffShiftPlanning.MoveShift",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:api.now, the calendar-day clock the series service already reads (ADR 0176). Reached through modules/workforce/internal/planning.staffShiftPlanning.MoveShift: the shift writes compare against it to leave past days as history when they take a day's sick state (#6302), approved by ADR 0186; a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "workforce",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
+      "target_owner": ""
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.staffShiftPlanning.Overview",
@@ -11080,6 +11216,18 @@
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffShiftPlanning.SplitSeries",
       "reason": "Same effect as Decide, which DecideAndInvite runs inside its unit (#6093); reached here through modules/enrollment.Decisions.DecideAndInvite. Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:api.now. Reached through modules/workforce/internal/planning.staffShiftPlanning.SplitSeries; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "workforce",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0186",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.staffShiftPlanning.UpdateShift",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.StaffShiftPlanning.UpdateShift",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:api.now, the calendar-day clock the series service already reads (ADR 0176). Reached through modules/workforce/internal/planning.staffShiftPlanning.UpdateShift: the shift writes compare against it to leave past days as history when they take a day's sick state (#6302), approved by ADR 0186; a changed value or closure needs a fresh approval ADR.",
       "source_owner": "workforce",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
       "target_owner": ""
@@ -22984,6 +23132,29 @@
     },
     {
       "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.WorkTime.ListStaffAbsences",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.Records.ListStaffAbsences",
+      "reason": "Platform protocol participation (scope): workforce reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/workforce/compose.WorkTime.ListStaffAbsences. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Reviewed read: the series materializer lists the staff member's open sick reports (modules/workforce/internal/application/absence.go:34), a plain filtered select under the per-staff shift lock it already holds; no owned-row mutation or locking read (#6302).",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0186",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.WorkTime.ListStaffAbsences",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.Records.ListStaffAbsences",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. The Workforce operation wrapper reports to the injected observer, a callable the scan cannot follow. Exact boundary: unresolved:callable:modules/workforce/internal/application.observe, the closure ADR 0098 approved for Records.ListStaffShifts. The series materializer's sick-report read (#6302) is approved by ADR 0186; a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "workforce",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.observe",
+      "target_owner": ""
+    },
+    {
+      "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.WorkTime.ListStaffShifts",
       "classification": "platform",
       "effect": "scope",
@@ -23332,6 +23503,29 @@
       "target_owner": "school-calendar"
     },
     {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.Records.ListStaffAbsences",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.SickReportReader.ListStaffAbsences",
+      "reason": "Platform protocol participation (scope): workforce reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/workforce/internal/planning.Records.ListStaffAbsences. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Reviewed read: the shift writes and the series materializer list the staff member's open sick reports (modules/workforce/internal/application/absence.go:34), a plain filtered select under the per-staff shift lock they already hold; no owned-row mutation or locking read (#6302).",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0186",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.Records.ListStaffAbsences",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.SickReportReader.ListStaffAbsences",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. The Workforce operation wrapper reports to the injected observer, a callable the scan cannot follow. Exact boundary: unresolved:callable:modules/workforce/internal/application.observe, the closure ADR 0098 approved for Records.ListStaffShifts. The sick-report read of the shift writes and the series materializer (#6302) is approved by ADR 0186; a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "workforce",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.observe",
+      "target_owner": ""
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.StaffOverviewReader.FindWithPersonByIDs",
       "classification": "query",
       "effect": "query",
@@ -23591,6 +23785,30 @@
       "target_owner": ""
     },
     {
+      "adr": "0083",
+      "approval_adr": "0186",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.staffShiftService.ApplyCancellation",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.StaffShiftService.ApplyCancellation",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:api.now, the calendar-day clock the series service already reads (ADR 0176). Reached through modules/workforce/internal/planning.staffShiftService.ApplyCancellation: the shift writes compare against it to leave past days as history when they take a day's sick state (#6302), approved by ADR 0186; a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "workforce",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0186",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.staffShiftService.CreateShift",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.StaffShiftService.CreateShift",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:api.now, the calendar-day clock the series service already reads (ADR 0176). Reached through modules/workforce/internal/planning.staffShiftService.CreateShift: the shift writes compare against it to leave past days as history when they take a day's sick state (#6302), approved by ADR 0186; a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "workforce",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
       "adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.staffShiftService.MoveShift",
       "classification": "platform",
@@ -23600,6 +23818,42 @@
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.DeviationEventRepository.Create",
       "target_owner": "audit-platform"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0186",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.staffShiftService.MoveShift",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.StaffShiftService.MoveShift",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:api.now, the calendar-day clock the series service already reads (ADR 0176). Reached through modules/workforce/internal/planning.staffShiftService.MoveShift: the shift writes compare against it to leave past days as history when they take a day's sick state (#6302), approved by ADR 0186; a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "workforce",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0186",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.staffShiftService.UpdateShift",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.StaffShiftService.UpdateShift",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:api.now, the calendar-day clock the series service already reads (ADR 0176). Reached through modules/workforce/internal/planning.staffShiftService.UpdateShift: the shift writes compare against it to leave past days as history when they take a day's sick state (#6302), approved by ADR 0186; a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "workforce",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0186",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.staffShiftService.UpdateShiftWithOptions",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning.StaffShiftService.UpdateShiftWithOptions",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow. Exact boundary: unresolved:callable:api.now, the calendar-day clock the series service already reads (ADR 0176). Reached through modules/workforce/internal/planning.staffShiftService.UpdateShiftWithOptions: the shift writes compare against it to leave past days as history when they take a day's sick state (#6302), approved by ADR 0186; a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "workforce",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.now",
+      "target_owner": ""
     },
     {
       "adr": "0098",

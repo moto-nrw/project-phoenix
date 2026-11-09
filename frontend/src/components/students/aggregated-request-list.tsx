@@ -72,8 +72,8 @@ import type { AggregatedRequestFilters } from "~/components/students/requests/fi
 
 const logger = createLogger({ component: "AggregatedRequestList" });
 
-/** Ab dieser Breite stehen Liste und Detailbereich nebeneinander. */
-const SPLIT_VIEW_MIN_WIDTH = 1024;
+/** Ab `lg` stehen Liste und Detailbereich nebeneinander (wie `lg:grid-cols-…`). */
+const SPLIT_VIEW_FROM = "lg";
 
 function bulkRef(item: AggregatedOpenRequest): BulkApproveRequestRef[] {
   if (!hasReviewMetadata(item)) return [];
@@ -142,7 +142,7 @@ export function AggregatedRequestList({
   const [bulkReason, setBulkReason] = useState("");
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const [bulkSaving, setBulkSaving] = useState(false);
-  const wide = useViewportAtLeast(SPLIT_VIEW_MIN_WIDTH);
+  const wide = useViewportAtLeast(SPLIT_VIEW_FROM);
   const returnFocus = useReturnFocus();
   // Set while THIS list announces a change, so its own listener doesn't
   // refetch: it already removed the decided row optimistically. The window

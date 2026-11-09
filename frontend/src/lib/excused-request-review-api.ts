@@ -74,6 +74,8 @@ export async function decideExcusedAbsenceRequest(
   approve: boolean,
   reason?: string,
   expectedVersion?: string,
+  /** Ersetzt die Teilentschuldigungen der Tage (#5698); nur nach Bestätigung. */
+  replacePartialAbsences = false,
 ): Promise<StaffExcusedRequest> {
   const response = await transportFetch(
     `/api/students/excused-absence-requests/${encodeURIComponent(requestId)}/decide`,
@@ -84,6 +86,7 @@ export async function decideExcusedAbsenceRequest(
         approve,
         reason: reason ?? "",
         ...(expectedVersion ? { expected_version: expectedVersion } : {}),
+        ...(replacePartialAbsences ? { replace_partial_absences: true } : {}),
       }),
     },
   );

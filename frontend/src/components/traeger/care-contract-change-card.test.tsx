@@ -12,6 +12,7 @@ import "@testing-library/jest-dom/vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import {
   contractChangeReview,
+  type ContractChangeRequest,
   type ContractChanges,
 } from "~/lib/care-contract-changes";
 
@@ -131,6 +132,67 @@ describe("CareContractChangeCard (#5979)", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Freigeben" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Ablehnen" })).toBeEnabled();
+  });
+
+  it("shows the module the parents keep next to the change (#6334)", async () => {
+    const kept: ContractChangeRequest["lines"][number] = {
+      careOfferingId: "8",
+      moduleName: "Mittagessen",
+      state: "unchanged",
+      beforeDays: ["mon", "tue"],
+      afterDays: ["mon", "tue"],
+    };
+    const withKept: ContractChanges = {
+      ...pending,
+      pending: [
+        {
+          ...pending.pending[0]!,
+          lines: [...pending.pending[0]!.lines, kept],
+        },
+      ],
+    };
+    mocks.fetchContractChanges.mockResolvedValueOnce(withKept);
+    render(<CareContractChangeCard contractId="25" onDecided={vi.fn()} />);
+
+    const keptList = await screen.findByRole("list", {
+      name: "Bleibt gebucht",
+    });
+    expect(within(keptList).getByText("Mittagessen:")).toBeInTheDocument();
+    expect(within(keptList).getByText("Mo, Di")).toBeInTheDocument();
+    expect(
+      within(keptList).queryByText("Offene Ganztagsschule:"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Offene Ganztagsschule:")).toBeInTheDocument();
+
+    // The preview of another day compares against that day's bookings.
+    mocks.fetchContractChanges.mockResolvedValue({
+      ...withKept,
+      pending: [
+        {
+          ...withKept.pending[0]!,
+          lines: [
+            pending.pending[0]!.lines[0]!,
+            { ...kept, beforeDays: ["mon"], afterDays: ["mon"] },
+          ],
+        },
+      ],
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText(/Gilt ab/), {
+      target: { value: "2026-11-02" },
+    });
+    await waitFor(() =>
+      expect(mocks.fetchContractChanges).toHaveBeenLastCalledWith(
+        "25",
+        "2026-11-02",
+      ),
+    );
+    const previewKept = await within(dialog).findByRole("list", {
+      name: "Bleibt gebucht",
+    });
+    expect(within(previewKept).getByText("Mittagessen:")).toBeInTheDocument();
+    expect(await within(previewKept).findByText("Mo")).toBeInTheDocument();
   });
 
   it("approves from the confirmed day and reads the contract again", async () => {

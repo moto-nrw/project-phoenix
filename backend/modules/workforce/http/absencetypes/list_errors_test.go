@@ -30,7 +30,7 @@ func TestAbsenceTypesListProtectedFailures(t *testing.T) {
 		{name: "permission before transaction", status: http.StatusForbidden, detail: "Forbidden", statements: 0},
 		{name: "cancel before transaction", permission: "time_tracking:own", cancel: true, status: http.StatusInternalServerError, detail: "Internal Server Error", statements: 0},
 		{name: "catalog read error rolls back", permission: "time_tracking:own", breakRead: true, status: http.StatusInternalServerError,
-			detail: `database error during list all staff absence types: workforce postgres: list staff absence types: ERROR: relation "active.staff_absence_types" does not exist (SQLSTATE=42P01)`, statements: 4},
+			detail: `database error during list all staff absence types: workforce postgres: list staff absence types: `, statements: 4},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
@@ -53,6 +53,14 @@ func TestAbsenceTypesListProtectedFailures(t *testing.T) {
 					require.NoError(t, restoreErr)
 				})
 			}
+			detail := test.detail
+			if test.breakRead {
+				// Probe the same missing relation before query capture. Its SQLSTATE
+				// and localized diagnostic keep the complete wire expectation exact.
+				_, probeErr := db.ExecContext(testpkg.Ctx(t), "SELECT 1 FROM active.staff_absence_types")
+				require.Equal(t, "42P01", testpkg.PostgresSQLState(probeErr))
+				detail += probeErr.Error()
+			}
 			counter := testpkg.CaptureQueries(t, db)
 			for _, suffix := range []string{"?include_usage=false", "?include_usage=true"} {
 				counter.Reset()
@@ -74,7 +82,7 @@ func TestAbsenceTypesListProtectedFailures(t *testing.T) {
 				}
 				want, encodeErr := json.Marshal(map[string]any{
 					"type": "https://moto-app.de/help/fehlermeldungen#" + anchor, "title": http.StatusText(test.status),
-					"status": test.status, "detail": test.detail, "instance": "", "code": code,
+					"status": test.status, "detail": detail, "instance": "", "code": code,
 				})
 				require.NoError(t, encodeErr)
 				require.JSONEq(t, string(want), response.Body.String())

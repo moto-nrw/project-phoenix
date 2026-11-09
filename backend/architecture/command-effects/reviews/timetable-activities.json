@@ -40300,7 +40300,17 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.SickReportReader.OpenSickReports",
-      "reason": "Reviewed read: the materializer lists the open sick reports of its window through modules/workforce/compose.WorkTime.ListStaffAbsences (modules/workforce/internal/application/absence.go:34), a plain filtered select in the caller's tenant transaction. No owned-row mutation or locking read (#6292).",
+      "reason": "Pure value helper: the sick-report binding takes the range-blocking absence statuses from modules/workforce.RangeBlockingAbsenceStatuses (modules/workforce/absence.go), a constant list shared with the Workforce absence lifecycle and the shift-series materializer (#6302). No database access, mutation or lock.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/workforce.RangeBlockingAbsenceStatuses",
+      "target_owner": "workforce"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.timetableSickReports.OpenSickReports",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.SickReportReader.OpenSickReports",
+      "reason": "Reviewed read: the materializer lists the open sick reports of its window through modules/workforce/compose.WorkTime.ListStaffAbsences (modules/workforce/internal/application/absence.go:34), a plain filtered select in the caller's tenant transaction. No owned-row mutation or locking read (#6292). #6302 takes the status filter from modules/workforce.RangeBlockingAbsenceStatuses instead of a local copy; the read is unchanged.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.WorkTime.ListStaffAbsences",
       "target_owner": "workforce"

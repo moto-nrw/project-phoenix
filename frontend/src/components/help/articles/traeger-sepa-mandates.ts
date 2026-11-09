@@ -46,6 +46,16 @@ export function traegerSepaMandatesTopic(): HelpTopic {
         ],
       },
       {
+        title: "Mandat in der Eltern-App erlauben",
+        description:
+          "Eltern können das Mandat dann selbst bei ihrem Vertrag erteilen und widerrufen. Sie bestätigen den Text als Kontoinhaber. Fragen Sie vorher Ihre Bank, ob sie Mandate annimmt, die online bestätigt wurden. Einschalten darf, wer im Träger-Büro das Recht `Einstellungen` hat.",
+        steps: [
+          "Wählen Sie unten in der Navigation `Einstellungen` und dann `Allgemein`.",
+          "Öffnen Sie den Bereich `Monatsbeitrag`.",
+          "Schalten Sie `Lastschrift-Mandat in der Eltern-App` ein.",
+        ],
+      },
+      {
         title: "Bestehende Mandate importieren",
         description:
           "Haben Sie die Mandate schon in einem anderen Programm, zum Beispiel OGS Connect? Dann übernehmen Sie alle auf einmal aus einer CSV-Datei. Referenz und Datum der Unterschrift bleiben gleich. moto bewahrt die Datei nicht auf.",
@@ -74,6 +84,8 @@ export function traegerSepaMandatesTopic(): HelpTopic {
       "Im nächsten Monatslauf steht auf jeder Rechnung mit Lastschrift die Vorabankündigung: Betrag, Tag der Abbuchung, Konto (verdeckt), Gläubiger-ID und Mandatsreferenz. Der Betrag ist das, was die Familie zahlt, also ohne den Anteil eines Kostenträgers.",
     notes: [
       "Alle Mandate sehen Sie unter `Abrechnung` im Reiter `Lastschrift`.",
+      "Ein Mandat aus der Eltern-App hat die Herkunft `von den Eltern`. moto speichert dazu den bestätigten Text mit Prüfsumme, das Konto der Eltern und die Uhrzeit. Widerrufen die Eltern in der App, gilt das ab dem nächsten Monatslauf.",
+      "Ob die App Mandate annimmt, sehen Sie unter `Abrechnungsvorgaben` in der Karte `Lastschrift` bei `Mandat in der Eltern-App`. Ohne Gläubiger-ID oder ohne Absender im Briefkopf nimmt die App kein Mandat an.",
       "Die IBAN sehen Sie nach dem Speichern nur verdeckt. So steht sie auch auf der Rechnung.",
       "`Verlauf ansehen` zeigt, wer das Mandat wann angesehen oder geändert hat. Bei importierten Mandaten stehen dort auch Dateiname und Zeile. Kontodaten stehen dort nicht.",
       "Beim Import übernimmt moto nur Zeilen mit dem Stand `Bereit`. Zeilen mit Fehlern oder Konflikten bleiben draußen. Korrigieren Sie die Datei und laden Sie sie noch einmal: Was schon da ist, zeigt moto als `Schon vorhanden`.",

@@ -1,5 +1,6 @@
 "use client";
 
+import { between } from "~/lib/hooks/use-media-query";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Check, CheckSquare } from "lucide-react";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
@@ -44,9 +45,10 @@ type SchoolCheckinFabProps = SchoolCheckinFabBaseProps &
  *
  * - `floating` variant: anchored bottom-right with `safe-area-inset` padding
  *   so it clears the iPhone home indicator. Used from `md` to the page's
- *   explicit `floatingUntil` breakpoint.
+ *   explicit `floatingUntil` breakpoint (exclusive), matching the wrapper's
+ *   `md:block lg:hidden` or `md:block xl:hidden` classes.
  * - `inline` variant: relative-flow pill that lives inside the page header's
- *   primaryAction slot. Default at ≥1024px so desktop reads as a native
+ *   primaryAction slot. Shown from the page's floating breakpoint so desktop reads as a native
  *   page-level action instead of a mobile-style floating button.
  *
  * Kit button (#5608): OFF is `surface` (opaque white) so it doesn't dominate
@@ -72,10 +74,9 @@ export function SchoolCheckinFab({
   // its parent wrapper displays it. The two pages intentionally stop at
   // different breakpoints (`lg` for OGS groups, `xl` for student search).
   const occupiesBottomSpace = attendanceWebEnabled && variant === "floating";
-  const maxFloatingWidth = floatingUntil === "lg" ? 1023 : 1279;
   useFloatingFabOffset({
     active: occupiesBottomSpace,
-    mediaQuery: `(min-width: 768px) and (max-width: ${maxFloatingWidth}px)`,
+    mediaQuery: between("md", floatingUntil ?? "xl"),
   });
 
   if (!attendanceWebEnabled) return null;

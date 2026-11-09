@@ -18318,6 +18318,17 @@
     },
     {
       "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.PartialAbsenceService.ReplaceManualPartialAbsences",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/http.PartialAbsenceReplacer.ReplaceManualPartialAbsences",
+      "reason": "Guarded leaf command (mutation): a staff status write the caller confirmed removes Care Plan's manual partial absences on the requested days (#5698). Care Plan takes the student and care-day locks itself in the canonical ascending order the status write already holds, joins the caller unit, and restores blocks and pickup time with its own delete path; the status write keeps its own partial-absence guard afterwards.",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.PartialAbsenceService.ReplaceManualPartialAbsences",
+      "target_owner": "care-plan"
+    },
+    {
+      "adr": "0067",
       "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentRoutePersons.AssignStudentTag",
       "classification": "leaf",
       "effect": "mutation",
@@ -23844,7 +23855,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayOverviewRepository.CountEffectiveDashboardAbsences",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.Capability.CountEffectiveStudentAbsences; modules/careplan.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.Capability.CountEffectiveStudentAbsences; modules/careplan.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim. Re-reviewed #6371: the binding now copies the sick and excused student IDs instead of their counts; still a read without mutation or locking.",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.CountEffectiveStudentAbsences",
       "target_owner": "care-plan"
@@ -23854,7 +23865,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayOverviewRepository.CountEffectiveDashboardAbsences",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.Owner.CountEffectiveStudentAbsences; modules/careplan.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.Owner.CountEffectiveStudentAbsences; modules/careplan.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Re-reviewed #6371: the binding now copies the sick and excused student IDs instead of their counts; still a read without mutation or locking.",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.CountEffectiveStudentAbsences",
       "target_owner": "care-plan"
@@ -24144,7 +24155,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayRepository.CountEffectiveDashboardAbsences",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.Capability.CountEffectiveStudentAbsences; modules/careplan.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.Capability.CountEffectiveStudentAbsences; modules/careplan.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim. Re-reviewed #6371: the binding now copies the sick and excused student IDs instead of their counts; still a read without mutation or locking.",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.CountEffectiveStudentAbsences",
       "target_owner": "care-plan"
@@ -24154,7 +24165,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.StudentStatusDayRepository.CountEffectiveDashboardAbsences",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.Owner.CountEffectiveStudentAbsences; modules/careplan.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.Owner.CountEffectiveStudentAbsences; modules/careplan.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Re-reviewed #6371: the binding now copies the sick and excused student IDs instead of their counts; still a read without mutation or locking.",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.CountEffectiveStudentAbsences",
       "target_owner": "care-plan"

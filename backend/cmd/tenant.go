@@ -150,7 +150,7 @@ func runTenantExport(cmd *cobra.Command, options organizationtenancy.TenantExpor
 // tenantExportSealedFields binds each field-sealed table to the owner that
 // sealed it (#3838): the return carries IBAN, account holder and health
 // information as entered, not their ciphertext. Without either key ring of
-// the source installation the export refuses (ADR 0184, ADR 0185).
+// the source installation the export refuses (ADR 0184, ADR 0191).
 func tenantExportSealedFields() (organizationtenancy.TenantExportSealedFieldsByTable, error) {
 	bankData, err := securityRuntimeCompose.NewBankDataCipher(viper.GetString("bank_data_keys"), viper.GetString("bank_data_legacy_keys"))
 	if err != nil {
@@ -177,7 +177,7 @@ func tenantExportSealedFields() (organizationtenancy.TenantExportSealedFieldsByT
 }
 
 // tenantExportProjectedFields binds each untyped container to the owner that
-// knows its secrets (#3838, ADR 0185): settings keep their non-secret values,
+// knows its secrets (#3838, ADR 0191): settings keep their non-secret values,
 // a school keeps its branding images; nothing of a container leaves raw.
 func tenantExportProjectedFields() organizationtenancy.TenantExportProjectedFieldsByTable {
 	settingValues := settingsCompose.NewExportFields()

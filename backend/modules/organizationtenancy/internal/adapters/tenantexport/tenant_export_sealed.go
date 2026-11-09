@@ -64,7 +64,7 @@ func schemaColumn(columns []exportSchemaColumn, name string) (exportSchemaColumn
 
 // applyOwnerColumns replaces each sealed column of one exported row with its
 // plaintext column (#3838, ADR 0184) and each container column with its
-// reviewed projection (ADR 0185). The ciphertext is useless without the key
+// reviewed projection (ADR 0191). The ciphertext is useless without the key
 // of the deployment, so the return carries the value as entered; a container
 // never leaves raw.
 func (r *exportRun) applyOwnerColumns(table organizationtenancy.LifecycleTable, data []byte) ([]byte, error) {

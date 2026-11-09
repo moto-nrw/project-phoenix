@@ -148,6 +148,46 @@ describe("ExcusedRequestReviewItem", () => {
     );
   });
 
+  // #5698: a day the OGS already excused from a time is named, and approving
+  // replaces that entry only after the explicit confirmation.
+  it("approves over a partial excusal only after confirming the replacement", async () => {
+    mockDecide.mockResolvedValue(row({ status: "approved" }));
+    render(
+      <ExcusedRequestReviewItem
+        row={row({ absence_status: "sick", dates: ["2026-07-01"] })}
+        onDecided={vi.fn()}
+        expectedVersion="v1"
+        currentStatusByDate={{ "2026-07-01": "present" }}
+        partialAbsenceFromByDate={{ "2026-07-01": "13:00" }}
+      />,
+    );
+
+    expand();
+    expect(
+      screen.getByText(/Aktuell ab 13:00 Uhr entschuldigt/),
+    ).toBeInTheDocument();
+    const approve = screen.getByRole("button", { name: "Freigeben" });
+    expect(approve).toBeDisabled();
+
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /Teilentschuldigung durch Krankmeldung ersetzen/,
+      }),
+    );
+    expect(approve).toBeEnabled();
+    fireEvent.click(approve);
+
+    await waitFor(() =>
+      expect(mockDecide).toHaveBeenCalledWith(
+        "300",
+        true,
+        undefined,
+        "v1",
+        true,
+      ),
+    );
+  });
+
   it("names a sickness request in the queue", () => {
     render(
       <ExcusedRequestReviewItem

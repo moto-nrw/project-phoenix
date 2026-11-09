@@ -36,8 +36,13 @@ import {
 // for the same values. The birthday switches (#3737) live on the hand-written
 // "Startseite für alle" tab next to the birthday card. The holiday settings
 // of the Träger (#5621) concern only the Träger-Büro and live in the
-// Träger-Portal. Search skips all three.
-const TABS_RENDERED_ELSEWHERE = new Set(["abrechnung", "startseite", "ferien"]);
+// Träger-Portal, and so do its DATEV values (#4694). Search skips all four.
+const TABS_RENDERED_ELSEWHERE = new Set([
+  "abrechnung",
+  "startseite",
+  "ferien",
+  "datev",
+]);
 
 // Every field on "Geräte" configures the NFC tablets (#3735). A school without
 // NFC does not see the tab at all instead of an empty one.

@@ -45,7 +45,14 @@ func TestTraegerLevelKeysOfVersionOne(t *testing.T) {
 		// The changes of a single invoice the review allows (#6197).
 		config.KeyParentBillingCareReviewAddress, config.KeyParentBillingCareReviewAmount,
 		config.KeyParentBillingCareReviewPositions, config.KeyParentBillingCareReviewRecipient,
-		config.KeyParentBillingCostTakeoverOrder, config.KeyParentBillingDebtorNumberOnConfirm,
+		config.KeyParentBillingCostTakeoverOrder,
+		// The DATEV booking batch (#4694).
+		config.KeyParentBillingDatevAccountLength, config.KeyParentBillingDatevChartOfAccounts,
+		config.KeyParentBillingDatevClientNumber, config.KeyParentBillingDatevConsultantNumber,
+		config.KeyParentBillingDatevFiscalYearStart, config.KeyParentBillingDatevLocked,
+		config.KeyParentBillingDatevRevenueAccount, config.KeyParentBillingDebtorNumberOnConfirm,
+		// The SEPA mandate in the parents portal (#4696).
+		config.KeyParentBillingOnlineMandate,
 		config.KeyParentBillingPaymentText, config.KeyParentBillingSiblingRank,
 		config.KeyTraegerAlertChildrenPerStaff, config.KeyTraegerAlertOpenEnrollments, config.KeyTraegerAlertSickPercent,
 	}

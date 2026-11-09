@@ -28,6 +28,17 @@ func (c *attachmentCalls) GuardianAnnouncementTenant(context.Context, int64, int
 	return c.tenant(), nil
 }
 
+// WithinGuardianAnnouncementTenant asks the audience once and runs read for
+// an admitted school, as the real gate does in its school unit.
+func (c *attachmentCalls) WithinGuardianAnnouncementTenant(ctx context.Context, _, _ int64, read func(context.Context, int64) error) (int64, error) {
+	c.calls = append(c.calls, "audience")
+	tenantID := c.tenant()
+	if tenantID <= 0 {
+		return 0, nil
+	}
+	return tenantID, read(ctx, tenantID)
+}
+
 func (c *attachmentCalls) GuardianDeclarationProofAttachmentTenant(context.Context, int64, int64, int64, int64) (int64, error) {
 	c.calls = append(c.calls, "proof")
 	return c.tenant(), nil

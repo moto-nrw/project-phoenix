@@ -1,25 +1,30 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { atLeast, type TailwindBreakpoint } from "~/lib/hooks/use-media-query";
 
 /**
- * Tracks whether the viewport is at least `minWidth` px wide, updating on
- * resize. Use for layout branches that switch at a breakpoint (e.g. the
- * filter popover's mobile↔desktop placement).
+ * Tracks whether Tailwind's `<breakpoint>:` variants apply, updating when the
+ * viewport crosses it. Use for layout branches that switch at a breakpoint
+ * (e.g. the filter popover's mobile↔desktop placement).
  *
- * SSR-safe: starts `false` on the server and reads the real width on mount.
+ * SSR-safe: starts `false` on the server and reads the real value on mount.
  */
-export function useViewportAtLeast(minWidth: number): boolean {
+export function useViewportAtLeast(breakpoint: TailwindBreakpoint): boolean {
+  const query = atLeast(breakpoint);
   const [matches, setMatches] = useState(() =>
-    typeof window === "undefined" ? false : window.innerWidth >= minWidth,
+    typeof window === "undefined" || typeof window.matchMedia !== "function"
+      ? false
+      : window.matchMedia(query).matches,
   );
 
   useEffect(() => {
-    const update = () => setMatches(window.innerWidth >= minWidth);
+    const mediaQuery = window.matchMedia(query);
+    const update = () => setMatches(mediaQuery.matches);
     update();
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
-  }, [minWidth]);
+    mediaQuery.addEventListener("change", update);
+    return () => mediaQuery.removeEventListener("change", update);
+  }, [query]);
 
   return matches;
 }

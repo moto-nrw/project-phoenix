@@ -267,6 +267,11 @@ func dailyStatusExportCell(student StudentResponse, isToday bool) string {
 		return dayLabel("Kommt heute nicht", "Wird nicht erwartet", isToday)
 	}
 
+	// Place before status (#6371): a checked-in child's status is a hint for
+	// staff, not a column of a printed list.
+	if studentpresence.IsCheckedInLocation(student.Location) {
+		return ""
+	}
 	if student.Sick {
 		return "Krank"
 	}
@@ -636,15 +641,21 @@ func schoolYear(schoolClass string) string {
 	return ""
 }
 
+// exportStatus is the one status bucket of a child for the export's status
+// filter. Place before status (#6371): a checked-in child falls under its
+// place; its sick, excused or class-trip status is a hint only and never puts
+// it into a status bucket.
 func exportStatus(student StudentResponse) string {
-	if student.ClassTrip {
-		return "klassenfahrt"
-	}
-	if student.Sick {
-		return "krank"
-	}
-	if student.Excused {
-		return "entschuldigt"
+	if !studentpresence.IsCheckedInLocation(student.Location) {
+		if student.ClassTrip {
+			return "klassenfahrt"
+		}
+		if student.Sick {
+			return "krank"
+		}
+		if student.Excused {
+			return "entschuldigt"
+		}
 	}
 	switch student.Location {
 	// The resolver emits "Abwesend"; "Zuhause" and "" cover dated exports and

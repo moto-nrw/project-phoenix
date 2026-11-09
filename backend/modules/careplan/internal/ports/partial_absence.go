@@ -20,3 +20,10 @@ type PartialAbsenceConflicts interface {
 type PartialAbsenceSyncer interface {
 	Sync(context.Context, int64) (bool, error)
 }
+
+// PartialAbsenceReplacer removes staff-entered partial absences so an
+// approved full-day request can take their place (#5698). It joins the
+// caller's unit of work.
+type PartialAbsenceReplacer interface {
+	ReplaceManualPartialAbsences(ctx context.Context, studentID int64, dates []calendar.Date) error
+}
