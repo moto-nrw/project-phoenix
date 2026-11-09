@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.dataimport.student_batch.update_110",
+  "max": 2989,
+  "exact": false,
+  "description": "110-row student update like student_batch.update in two write transactions. Measured by TestStudentImportUpdateAndUpsertBatchQueryBudget after two warmups (ADR 0067 addendum 2026-11-08, Messplan N10/N110)."
+}

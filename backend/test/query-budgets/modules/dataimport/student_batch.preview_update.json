@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.dataimport.student_batch.preview_update",
+  "max": 19,
+  "exact": true,
+  "description": "Preview of the ten-row student update of student_batch.update. Measured by TestStudentImportUpdateAndUpsertBatchQueryBudget after two warmups (ADR 0067 addendum 2026-11-08, Messplan N10/N110)."
+}
