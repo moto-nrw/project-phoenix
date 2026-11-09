@@ -218,6 +218,7 @@ func guardianListRecords(invitations []identityaccess.GuardianInvitation) []peop
 			ExpiresAt: invitation.ExpiresAt, AcceptedAt: invitation.AcceptedAt, EmailSentAt: invitation.EmailSentAt,
 			EmailError: invitation.EmailError, StudentID: invitation.StudentID,
 			ApprovalStatus: invitation.ApprovalStatus, CreatedAt: invitation.CreatedAt,
+			RecipientEmail: invitation.Email,
 		})
 	}
 	return result

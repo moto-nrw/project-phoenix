@@ -2,6 +2,8 @@
 
 import { useLayoutEffect, useRef, useState } from "react";
 
+import { ConsentCheckbox } from "~/components/ui/consent-checkbox";
+
 import {
   RequestReviewCard,
   ReviewDiffPanel,
@@ -49,6 +51,23 @@ function decisionSubject(row: StaffExcusedRequest): string {
     : "Die entschuldigte Abmeldung";
 }
 
+/**
+ * Was „Ersetzen“ an den Tagen mit Teilentschuldigung bewirkt. Wie beim
+ * Entfernen gelten geänderte Blöcke und Abholzeit danach wieder wie geplant.
+ */
+function partialReplaceDescription(
+  row: StaffExcusedRequest,
+  days: readonly string[],
+  fromByDate: Readonly<Record<string, string>>,
+): string {
+  const named = days
+    .map((date) => `${formatDate(date)} (ab ${fromByDate[date]} Uhr)`)
+    .join(", ");
+  const subject =
+    row.absence_status === "sick" ? "die Krankmeldung" : "die Entschuldigung";
+  return `Am ${named} gilt dann ${subject} den ganzen Tag. Ohne Bestätigung ist Freigeben nicht möglich.`;
+}
+
 function absenceLabel(row: StaffExcusedRequest): string {
   return row.absence_status === "sick"
     ? "Krankmeldung"
@@ -84,6 +103,7 @@ export function ExcusedRequestReviewItem({
   currentStatusByDate,
   decisionDisabledReason,
   approveReasonRequired = false,
+  partialAbsenceFromByDate,
 }: Readonly<{
   row: StaffExcusedRequest;
   onDecided: (notice: string) => void;
@@ -95,8 +115,16 @@ export function ExcusedRequestReviewItem({
   /** Warum hier gerade nicht einzeln entschieden werden kann (#2267). */
   decisionDisabledReason?: string;
   approveReasonRequired?: boolean;
+  /** Tage mit Teilentschuldigung der OGS, je Tag die Uhrzeit (#5698). */
+  partialAbsenceFromByDate?: Readonly<Record<string, string>>;
 }>) {
   const { show: showError } = useApiErrorDisplay();
+  const partialDays = Object.keys(partialAbsenceFromByDate ?? {})
+    .filter((date) => row.dates.includes(date))
+    .sort();
+  // Freigeben ersetzt eine Teilentschuldigung nur, wenn das Team es hier
+  // ausdrücklich bestätigt (#5698).
+  const [replaceConfirmed, setReplaceConfirmed] = useState(false);
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -115,13 +143,31 @@ export function ExcusedRequestReviewItem({
     }
     setBusy(true);
     try {
-      await decideExcusedAbsenceRequest(
-        row.id,
-        approve,
-        trimmed || undefined,
-        // Nur mitschicken, wenn die Liste eine Fassung kennt.
-        ...(expectedVersion ? ([expectedVersion] as const) : ([] as const)),
-      );
+      const replacing = approve && partialDays.length > 0 && replaceConfirmed;
+      // Nur mitschicken, was die Entscheidung trägt: die Fassung, wenn die
+      // Liste eine kennt, und das bestätigte Ersetzen (#5698).
+      if (replacing) {
+        await decideExcusedAbsenceRequest(
+          row.id,
+          approve,
+          trimmed || undefined,
+          expectedVersion,
+          true,
+        );
+      } else if (expectedVersion) {
+        await decideExcusedAbsenceRequest(
+          row.id,
+          approve,
+          trimmed || undefined,
+          expectedVersion,
+        );
+      } else {
+        await decideExcusedAbsenceRequest(
+          row.id,
+          approve,
+          trimmed || undefined,
+        );
+      }
       onDecided(
         approve
           ? `${decisionSubject(row)} ist bestätigt.`
@@ -166,6 +212,7 @@ export function ExcusedRequestReviewItem({
           : undefined
       }
       busy={busy}
+      approveDisabled={partialDays.length > 0 && !replaceConfirmed}
       approveReasonRequired={approveReasonRequired}
       decisionDisabledReason={decisionDisabledReason}
       onApprove={() => void decide(true)}
@@ -181,7 +228,10 @@ export function ExcusedRequestReviewItem({
                   {formatDate(date)}:{" "}
                 </span>
                 <span className="text-gray-500">
-                  Aktuell {currentStatusLabel(currentStatusByDate[date])}
+                  Aktuell{" "}
+                  {partialAbsenceFromByDate?.[date]
+                    ? `ab ${partialAbsenceFromByDate[date]} Uhr entschuldigt`
+                    : currentStatusLabel(currentStatusByDate[date])}
                 </span>
                 <span className="text-gray-400" aria-hidden="true">
                   {" → "}
@@ -208,6 +258,21 @@ export function ExcusedRequestReviewItem({
           )}
         </div>
       </ReviewDiffPanel>
+      {partialDays.length > 0 && !decisionDisabledReason ? (
+        <div className="mt-3">
+          <ConsentCheckbox
+            name={`replace-partial-${row.id}`}
+            checked={replaceConfirmed}
+            onChange={setReplaceConfirmed}
+            label={`Teilentschuldigung durch ${row.absence_status === "sick" ? "Krankmeldung" : "Entschuldigung"} ersetzen`}
+            description={partialReplaceDescription(
+              row,
+              partialDays,
+              partialAbsenceFromByDate ?? {},
+            )}
+          />
+        </div>
+      ) : null}
     </RequestReviewCard>
   );
 }

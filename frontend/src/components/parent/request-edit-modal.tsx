@@ -15,7 +15,6 @@ import { useLocalizedDatePicker } from "~/lib/hooks/use-localized-date-picker";
 import { createLogger } from "~/lib/logger";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { useCareTermTranslations } from "~/lib/care-facility-term";
-import { ApiError } from "~/lib/api-error";
 import {
   listParentRequestEvents,
   updateExcusedRequest,
@@ -184,7 +183,6 @@ export function RequestEditModal({
   onSaved: () => void;
 }>) {
   const t = useCareTermTranslations("parentRequestEdit");
-  const tCare = useCareTermTranslations("parentChildCare");
   const tError = useTranslations("errorCatalog");
   const tTimePicker = useTranslations("datePicker.timePicker");
   const locale = useLocale();
@@ -228,16 +226,6 @@ export function RequestEditModal({
         error: err instanceof Error ? err.message : String(err),
         request_type: request.type,
       });
-      // The school excused one of the days from a time (#5698): the shared
-      // text would only say the request changed, so name the cause.
-      if (
-        request.type === "excused" &&
-        err instanceof ApiError &&
-        err.code === "care.care_exception_conflict"
-      ) {
-        invalid(tCare("sick.schoolPartialConflict"));
-        return;
-      }
       // A stale version (students.change_request_stale) has its own catalog
       // text that asks to reload the page.
       void show(err, {

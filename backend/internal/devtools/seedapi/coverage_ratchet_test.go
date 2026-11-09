@@ -34,6 +34,7 @@ var seedCoverageExemptions = map[string]string{
 	"platform.school_erasures":                  "real administrative erasure orders only (#3837); a demo seed must never fabricate customer erasure evidence",
 	"platform.organization_erasure_orders":      "real erasure orders of a terminated Träger only (#4657); an order deactivates its Träger for good, so the demo Träger stay active and a seed fabricates no written confirmation",
 	"enrollment.holiday_registration_deletions": "real deletions only (#4667): the hourly retention logs a holiday period 92 days after its last week; the seed plans current holidays, so no period is old enough and a seed fabricates no deletion evidence",
+	"parent_billing.beleg_deletions":            "real deletions only (#4720, ADR 0184): a Beleg goes years after its issue year under an instruction; the seed's Belege are from this year, so none is due and a seed fabricates no deletion evidence",
 	// active.presence_backfill_checkpoints carries no exemption any more: the
 	// cutover #2762 writes the switch's own verdict into the checkpoint of
 	// every school it finds, and migration 1.14.002 always leaves the default
@@ -152,6 +153,7 @@ var seedCoverageTransient = map[string]string{
 	"parent_billing.family_billing_events":      "the trail of the deviations above (#4689); present exactly when a deviation is",
 	"parent_billing.sepa_mandates":              "SEPA mandates of the families (#4695); the seed gives them to the contracts the monthly run bills, so present exactly when the run has an invoice, see parent_billing.care_invoices",
 	"parent_billing.sepa_mandate_events":        "the trail of the mandates above (#4695); present exactly when a mandate is",
+	"parent_billing.sepa_mandate_consents":      "proofs of the mandates the parents give in the parents portal (#4696); the seed gives one on a demo parent's contract without a mandate in force after the monthly run set the creditor identifier, so present exactly when such a contract exists",
 	"parent_billing.sepa_debits":                "debits of the released monthly invoices by direct debit (#4697); the release writes them for the families with a mandate above, so present exactly when the released run has such an invoice",
 	"parent_billing.care_run_holds":             "children a release held back for a duplicate contract (#4684, ADR 0158 E5); present only after a release that found one, which the seed's contracts never are",
 	"parent_billing.care_invoice_positions":     "positions of the monthly invoices above (#4684); present exactly when an invoice is",
@@ -165,6 +167,7 @@ var seedCoverageTransient = map[string]string{
 	"parent_billing.care_invoice_corrections":   "changes a release copied onto an issued monthly invoice (#6197); the seed changes only the open run, so present only after a release of a changed run",
 	"parent_billing.care_invoice_cancellations": "the seed cancels a monthly invoice before its send once a run has more than two (#4684, ADR 0165); present only then",
 	"active.attendance_retention_marks":         "how far the nightly attendance retention deleted (#4686); written by that cleanup, so empty before it runs on a seeded stack",
+	"parent_billing.beleg_retentions":           "retention record per Beleg (#4720, ADR 0184); the Worker's hourly cleanup writes it once a day and the operator's instruction for the seeded Träger evaluates it at once, so present once a seeded Beleg exists",
 	"platform.cleanup_runs":                     "last successful nightly cleanup per school and job (#3950); empty before the Worker succeeds, populated if the seed smoke overlaps the school's cleanup time (02:00 by default) or a due catch-up run",
 	"platform.push_outbox":                      "transient delivery state that requires an honest browser/VAPID-bound push subscription, which the server-side seed cannot create",
 	"platform.email_suppressions":               "addresses that bounced for good or complained (#5932); the local mail catcher never refuses an address",

@@ -14,12 +14,15 @@ import (
 )
 
 type ResourceConfig struct {
-	AbsenceNotifier         studentpresence.AbsenceNotifier
-	ActiveService           StudentPresence
-	Broadcaster             realtime.Broadcaster
-	Logger                  *slog.Logger
-	Now                     func() time.Time
-	ParentEventEmitter      GuardianWake
+	AbsenceNotifier    studentpresence.AbsenceNotifier
+	ActiveService      StudentPresence
+	Broadcaster        realtime.Broadcaster
+	Logger             *slog.Logger
+	Now                func() time.Time
+	ParentEventEmitter GuardianWake
+	// PartialAbsences replaces confirmed partial absences inside the status
+	// write (#5698). Nil refuses every replacement request.
+	PartialAbsences         PartialAbsenceReplacer
 	PeopleDirectory         peopleModule.Capability
 	Persons                 PersonRecords
 	PrivacyConsents         PrivacyConsentCapability

@@ -72,7 +72,10 @@ func contractLetter(record ContractRecord, head carecontract.Letterhead) Letter 
 			germanDate(calendar.DateFromTime(concluded.At)) + " geschlossen. Sie müssen ihn nicht unterschreiben."})
 	}
 	if version.Terms.SpecialTermination {
-		blocks = append(blocks, LetterBlock{Heading: "Sonderkündigung", Text: strings.TrimSpace(version.Terms.SpecialTerminationNote)})
+		// The date and notice period first, then the cases of the terms
+		// (#6349). A sent or concluded version keeps its stored PDF.
+		blocks = append(blocks, LetterBlock{Heading: "Sonderkündigung", Text: "Möglich " + specialTerminationText(version.Terms) +
+			".\n\n" + strings.TrimSpace(version.Terms.SpecialTerminationNote)})
 	}
 	if version.Terms.StatuteRequired {
 		text := "Mit diesem Vertrag erkennen Sie die „" + strings.TrimSpace(version.Terms.StatuteTitle) + "“ an."

@@ -44,12 +44,12 @@ func (w *ExcusedRequests) loadAbsenceReviewFacts(ctx context.Context, rows []car
 			facts.statusDays[day.StudentID] = append(facts.statusDays[day.StudentID], day)
 		}
 	}
-	// Past days and days beyond care end short-circuit before the partial
-	// absence read. Do not include those requests in its batch either.
+	// Fully past requests and days beyond care end short-circuit before the
+	// partial absence read. Do not include those requests in its batch either.
 	partialRows := make([]careplan.ExcusedAbsenceRequest, 0, len(rows))
 	for _, row := range rows {
 		student := students[row.StudentID]
-		if absenceBulkEligible(row.Dates, today) && !requestExtendsBeyondCare(&row, &student) {
+		if !parentRequestIsPast(excusedScopeEnd(&row), today) && !requestExtendsBeyondCare(&row, &student) {
 			partialRows = append(partialRows, row)
 		}
 	}
@@ -102,9 +102,9 @@ func (facts absenceReviewFacts) statusView(ctx context.Context, w *ExcusedReques
 	return w.currentStatusView(ctx, req)
 }
 
-func (facts absenceReviewFacts) manualPartialAbsence(ctx context.Context, w *ExcusedRequests, studentID int64, dates []careplan.Date) (bool, error) {
+func (facts absenceReviewFacts) manualPartialAbsences(ctx context.Context, w *ExcusedRequests, studentID int64, dates []careplan.Date) (map[string]string, error) {
 	if pickups, loaded := facts.pickups[studentID]; loaded {
-		return manualPartialAbsenceInRows(dates, pickups), nil
+		return manualPartialAbsenceFrom(dates, pickups), nil
 	}
-	return w.hasManualPartialAbsence(ctx, studentID, dates)
+	return w.manualPartialAbsences(ctx, studentID, dates)
 }

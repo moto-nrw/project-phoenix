@@ -196,3 +196,50 @@ func isSavepointCleanup(query string) bool {
 	query = strings.TrimSpace(query)
 	return strings.HasPrefix(query, "ROLLBACK TO SAVEPOINT ") || strings.HasPrefix(query, "RELEASE SAVEPOINT ")
 }
+
+// TestStudentPreviewReadUnderE19: the bulk name read of the dry run. A read
+// that fails and rolls back falls back to the reads per row as before; a
+// failed savepoint statement of the read ends the preview with 500.
+func TestStudentPreviewReadUnderE19(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	dsn := testpkg.PackageTestDSN(t)
+	cases := []protectedReadCase{
+		{"preview read fails, rollback succeeds", readFault{match: prefixed(personRead), err: injectedSQLState("40P01")}, false},
+		{"preview read fails, rollback fails", readFault{match: prefixed(personRead), err: injectedSQLState("40P01"), cleanup: 1, err2: driver.ErrBadConn}, true},
+		{"preview read fails, rollback 40P01", readFault{match: prefixed(personRead), err: fmt.Errorf("injected read failure"), cleanup: 1, err2: injectedSQLState("40P01")}, true},
+		{"preview read fails, release after rollback fails", readFault{match: prefixed(personRead), err: injectedSQLState("40001"), cleanup: 2, err2: fmt.Errorf("injected release failure")}, true},
+		{"preview read savepoint fails", readFault{match: nth(savepoint, 1), err: injectedSQLState("40P01")}, true},
+		{"preview read release fails", readFault{match: nth(release, 1), err: injectedSQLState("57014")}, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			testpkg.OwnTenant(t)
+			armed := &atomic.Bool{}
+			pool, fired := faultPool(t, dsn, armed, c.fault)
+			module, err := api.NewImportTestModule(testpkg.NewDatabase(t, pool), testpkg.TenantRuntime(t, pool))
+			require.NoError(t, err)
+			actor := newImporter(t, db)
+			ctx := tenant.WithUnitOfWork(testpkg.Ctx(t), testpkg.TenantRuntime(t, pool))
+			armed.Store(true)
+			result, err := module.Import.ImportBatches(ctx, importModels.ImportRequest[importModels.StudentImportRow]{
+				Rows: namedStudentBatch("Vorschau", studentChunkRows), Mode: importModels.ImportModeCreate, UserID: actor.staffID,
+				SkipInvalidRows: true, DryRun: true,
+			}, importModels.BatchAudit{EntityType: "student", Filename: "preview.csv", AccountID: actor.accountID})
+			armed.Store(false)
+			primary, cleaned := fired()
+			require.True(t, primary, "the fault fired")
+			require.Equal(t, c.fault.cleanup > 0, cleaned, "the cleanup fault fired")
+			if c.lost {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), "a savepoint of the write failed")
+				require.Equal(t, "500", uploadStatus(err))
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, studentChunkRows, result.CreatedCount, "every row previews as a create")
+			require.Zero(t, result.ErrorCount)
+		})
+	}
+}

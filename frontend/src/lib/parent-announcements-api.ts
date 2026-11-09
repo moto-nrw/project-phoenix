@@ -109,7 +109,6 @@ export interface Announcement {
    */
   declaration_kind?: DeclarationKind;
   declaration_signers?: DeclarationSigners;
-  declaration_revocable?: boolean;
   declaration_requires_password?: boolean;
   /** Agreeing needs a signature with finger, pen or mouse (#4785). */
   declaration_requires_signature?: boolean;
@@ -206,7 +205,6 @@ export interface AnnouncementInput {
   /** Einverständnis settings (#3430), only with delivery_mode "declaration". */
   declaration_kind?: DeclarationKind;
   declaration_signers?: DeclarationSigners;
-  declaration_revocable?: boolean;
   declaration_requires_password?: boolean;
   declaration_requires_signature?: boolean;
 }
@@ -392,7 +390,6 @@ interface DeclarationSummary {
 export interface DeclarationStatus {
   kind: DeclarationKind;
   signers: DeclarationSigners;
-  revocable: boolean;
   requires_password: boolean;
   requires_signature: boolean;
   deadline: string | null;

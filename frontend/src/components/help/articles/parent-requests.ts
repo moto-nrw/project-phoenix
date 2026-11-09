@@ -37,6 +37,8 @@ export function parentRequestsTopic(groupMode: HelpGroupMode): HelpTopic {
       "Eine Anfrage für einen Tag kann auch eine Abholperson nennen. Nach dem Freigeben steht beim Kind für diesen Tag `Abholung durch ... (Erlaubnis der Eltern)`.",
       "Eine `Abholberechtigung` trägt eine Kontaktperson als abholberechtigt ein, an allen Tagen oder nur an bestimmten Tagen. Sie gilt erst nach dem Freigeben.",
       "Haben die Eltern unterschrieben, öffnen Sie mit `Nachweis (PDF)` die Erklärung und die Unterschrift.",
+      // #5698: Elternmeldung für einen Tag mit Teilentschuldigung.
+      "Hat die OGS einen beantragten Tag schon ab einer Uhrzeit entschuldigt? Dann steht dort `Aktuell ab ... Uhr entschuldigt`. Zum Freigeben bestätigen Sie zuerst `Teilentschuldigung durch Krankmeldung ersetzen` oder `Teilentschuldigung durch Entschuldigung ersetzen`.",
       // #3946: freigegebene Tagesänderung markiert die Kinderkarte.
       "Ist der Tag heute, zeigt die Kinderkarte nach dem Freigeben unten einen orangen Hinweis.",
       // #5102: von Hand gepflegte Regeltermine nach einer Angebotsanfrage.

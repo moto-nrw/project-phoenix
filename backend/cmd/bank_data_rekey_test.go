@@ -14,8 +14,8 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// Exercise the CLI's complete traversal, not two independently called sources:
-// omitting debits must leave legacy ciphertext that the bank-only reader rejects.
+// Exercise the CLI's complete traversal, including immutable consent text:
+// omitting a source leaves ciphertext the bank-only reader rejects.
 func TestBankDataRekeyJobOpensBothSourcesWithoutLegacy(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
@@ -34,6 +34,9 @@ func TestBankDataRekeyJobOpensBothSourcesWithoutLegacy(t *testing.T) {
 	require.NoError(t, err)
 	holder, err := legacy.Seal([]byte("Synthetic CLI holder"), aad("account_holder"))
 	require.NoError(t, err)
+	consentAAD := []byte(fmt.Sprintf("parent_billing.sepa_mandate_consents.text|%d|%s", org, reference))
+	consentText, err := legacy.Seal([]byte("Exactly the confirmed text"), consentAAD)
+	require.NoError(t, err)
 	require.NoError(t, db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		if _, err := tx.ExecContext(ctx, "SET LOCAL session_replication_role = replica"); err != nil {
 			return err
@@ -46,6 +49,13 @@ func TestBankDataRekeyJobOpensBothSourcesWithoutLegacy(t *testing.T) {
  VALUES (?, 'cli-rekey@example.invalid', ?, ?, '2026-09-01', 'recurring', 'first',
  'DE98ZZZ09999999999', ?, ?, 'masked', 'import') RETURNING id`,
 			org, contractID, reference, holder, iban).Scan(ctx, &mandateID); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO parent_billing.sepa_mandate_consents
+ (organization_id, mandate_id, care_contract_id, channel, text_version, text_sha256, text_sealed,
+ holder_confirmed, creditor_name, creditor_address, debtor_street, debtor_postal_code, debtor_city)
+ VALUES (?, ?, ?, 'parent_account', 'sepa-core-de-1', repeat('a', 64), ?, true,
+ 'Synthetic creditor', 'Creditor street 1', 'Debtor street 2', '75175', 'City')`, org, mandateID, contractID, consentText); err != nil {
 			return err
 		}
 		_, err := tx.ExecContext(ctx, `INSERT INTO parent_billing.sepa_debits
@@ -80,8 +90,14 @@ func TestBankDataRekeyJobOpensBothSourcesWithoutLegacy(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "Synthetic CLI holder", string(plain))
 	}
+	var sealedProof []byte
+	require.NoError(t, db.NewRaw(`SELECT text_sealed FROM parent_billing.sepa_mandate_consents WHERE organization_id = ?`, org).Scan(ctx, &sealedProof))
+	plain, err := bankOnly.Open(sealedProof, consentAAD)
+	require.NoError(t, err)
+	require.Equal(t, "Exactly the confirmed text", string(plain))
 	output.Reset()
 	require.NoError(t, runBankDataRekeyJob(ctx, parentBillingCompose.NewBankDataRekey(bankOnly), org, 1, &output))
 	require.Contains(t, output.String(), "source=mandates scanned_total=1 changed_total=0")
 	require.Contains(t, output.String(), "source=debits scanned_total=1 changed_total=0")
+	require.Contains(t, output.String(), "source=consents scanned_total=1 changed_total=0")
 }

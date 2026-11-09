@@ -130,10 +130,13 @@ func (s *Store) SetCareRunInvoiceDate(ctx context.Context, organizationID, runID
 }
 
 // CareRunExclusions reads the invoices of a run left out of its release:
-// per contract the last exclusion, unless a later return took it back. The
-// trail is read by ID, allocated after the run lock. Transaction-start
-// timestamps do not establish write order when transactions overlap.
-func (s *Store) CareRunExclusions(ctx context.Context, organizationID, runID int64) (map[int64]parentbilling.CareExclusion, error) {
+// per invoice (contract and service, #6346) the last exclusion, unless a
+// later return took it back. An entry names its services; one from before
+// #6346 names both since migration 1.15.864, so it still covers both
+// invoices of its contract. The trail is read by ID, allocated after the run
+// lock. Transaction-start timestamps do not establish write order when
+// transactions overlap.
+func (s *Store) CareRunExclusions(ctx context.Context, organizationID, runID int64) (map[parentbilling.CareInvoiceKey]parentbilling.CareExclusion, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return nil, err
@@ -150,20 +153,36 @@ func (s *Store) CareRunExclusions(ctx context.Context, organizationID, runID int
 		pgdialect.Array([]string{careRunEventExclude, careRunEventInclude})).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("read care run exclusions: %w", err)
 	}
-	exclusions := map[int64]parentbilling.CareExclusion{}
+	exclusions := map[parentbilling.CareInvoiceKey]parentbilling.CareExclusion{}
 	for _, row := range rows {
 		contractID, ok := eventContract(row.Details)
 		if !ok {
 			continue
 		}
-		if row.Action == careRunEventInclude {
-			delete(exclusions, contractID)
-			continue
-		}
 		reason, _ := row.Details["reason"].(string)
-		exclusions[contractID] = parentbilling.CareExclusion{Reason: reason, AccountID: row.ActorAccountID, ExcludedAt: row.OccurredAt}
+		for _, service := range eventServices(row.Details) {
+			key := parentbilling.CareInvoiceKey{ContractID: contractID, Service: service}
+			if row.Action == careRunEventInclude {
+				delete(exclusions, key)
+				continue
+			}
+			exclusions[key] = parentbilling.CareExclusion{Reason: reason, AccountID: row.ActorAccountID, ExcludedAt: row.OccurredAt}
+		}
 	}
 	return exclusions, nil
+}
+
+// eventServices are the services of the invoices an exclusion or return
+// names. An entry without a known service names no invoice.
+func eventServices(details map[string]any) []string {
+	values, _ := details["services"].([]any)
+	services := []string{}
+	for _, value := range values {
+		if service, ok := value.(string); ok && slices.Contains(parentbilling.ExcludableServices, service) && !slices.Contains(services, service) {
+			services = append(services, service)
+		}
+	}
+	return services
 }
 
 // eventContract is the one contract an exclusion or return names.

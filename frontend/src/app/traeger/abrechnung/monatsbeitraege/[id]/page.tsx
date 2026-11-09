@@ -27,7 +27,10 @@ import {
 import { CareLettersSummaryCard } from "~/components/traeger/care-letters-summary-card";
 import { CareRunMealsCard } from "~/components/traeger/care-run-meals";
 import { runDueDatesText } from "~/components/traeger/billing-payment-format";
-import { invoiceDateLabel } from "~/components/traeger/care-review-format";
+import {
+  invoiceDateLabel,
+  invoiceKindLabel,
+} from "~/components/traeger/care-review-format";
 import {
   CareDebitHintsCard,
   CareExcludedCard,
@@ -220,11 +223,11 @@ export default function TraegerCareRunPage() {
 
   const include = async (invoice: CareInvoice) => {
     if (!run) return;
-    setReturning(invoice.contractId);
+    setReturning(`${invoice.contractId}-${invoice.service}`);
     try {
-      setRun(await includeCareInvoice(run.id, invoice.contractId));
+      setRun(await includeCareInvoice(run.id, invoice));
       success(
-        `Die Rechnung von ${invoice.childFirstName} ${invoice.childLastName} ist wieder im Lauf.`,
+        `${invoiceKindLabel(invoice)} von ${invoice.childFirstName} ${invoice.childLastName} ist wieder im Lauf.`,
       );
     } catch (err) {
       logger.error("traeger_care_invoice_include_failed", {
@@ -361,11 +364,14 @@ export default function TraegerCareRunPage() {
               <CareExcludeModal
                 runId={run.id}
                 invoice={excluding}
+                invoices={run.invoices}
                 onClose={() => setExcluding(null)}
-                onExcluded={(next) => {
+                onExcluded={(next, invoice) => {
                   setRun(next);
                   setExcluding(null);
-                  success("Die Rechnung ist ausgeschlossen.");
+                  success(
+                    `${invoiceKindLabel(invoice)} von ${invoice.childFirstName} ${invoice.childLastName} ist ausgeschlossen.`,
+                  );
                 }}
               />
               <CareInvoiceDateModal

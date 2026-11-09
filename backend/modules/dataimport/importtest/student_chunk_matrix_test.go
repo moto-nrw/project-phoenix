@@ -35,11 +35,13 @@ import (
 // without it.
 //
 // Part 2: the whole cross of main error × cleanup point × cleanup error for
-// one statement of each equivalence class. The executor reads two things of
-// a failing statement only: whether it ran in the bounded call, and which
-// savepoints enclose it, which fixes the cleanup statements after it. Its
-// SQL enters no decision. The classes are those two properties; the first
-// statement of each class in the recording stands for it.
+// the first and the last statement of each equivalence class, and for every
+// other statement the main errors 40P01, 57014 and one without SQLSTATE ×
+// every cleanup point of its class × every cleanup error. The executor
+// reads two things of a failing statement only: whether it ran in the
+// bounded call, and which savepoints enclose it, which fixes the cleanup
+// statements after it. Its SQL enters no decision. The classes are those two
+// properties.
 
 const matrixRows = 6
 

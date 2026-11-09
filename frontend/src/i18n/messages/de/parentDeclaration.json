@@ -7,7 +7,7 @@
   "deadline": "Frist bis {date}",
   "closed": "Frist abgelaufen",
   "ended": "Einverständnis beendet",
-  "endedNote": "Die Schule hat dieses Einverständnis beendet. Sie können nicht mehr neu antworten.",
+  "endedNote": "Die Schule fragt hier nicht mehr nach. Sie können nicht mehr neu antworten.",
   "passwordNote": "Bevor Sie antworten, fragt moto Ihr Passwort ab.",
   "signatureNote": "Zum Zustimmen unterschreiben Sie mit dem Finger oder der Maus.",
   "state": {
@@ -54,6 +54,7 @@
   "othersTitle": "Andere sorgeberechtigte Personen",
   "otherOpen": "noch keine Antwort",
   "revokeHint": "Sie können Ihre Zustimmung zurücknehmen. Die Schule sieht das sofort.",
+  "revokeAnytime": "Sie können Ihre Zustimmung jederzeit widerrufen.",
   "closedNoAction": "Die Frist ist abgelaufen. Sie können nicht mehr antworten.",
   "confirmTitle": "Ihre Antwort prüfen",
   "confirmBody": "Ihre Antwort für {name}: {action}.",
@@ -89,5 +90,10 @@
     "uncertainReload": "Der Stand wird neu geladen. Bitte prüfen Sie ihn, bevor Sie noch einmal antworten.",
     "signatureRequired": "Bitte unterschreiben Sie und tippen Sie auf „Unterschrift bestätigen“."
   },
-  "errorObjectAnswer": "die Antwort"
+  "errorObjectAnswer": "die Antwort",
+  "earlierConsent": {
+    "title": "Sie haben Fassung {version} am {date} Uhr zugestimmt.",
+    "note": "Die Schule hat den Text danach geändert. Ihre Zustimmung zu diesem Text gilt, bis Sie sie widerrufen.",
+    "endsToo": "Damit endet auch Ihre Zustimmung zu Fassung {version}."
+  }
 }
