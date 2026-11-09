@@ -1572,7 +1572,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.BankDataCipher.BankDataRing",
-      "reason": "ADR 0186 (#6332): Security Runtime authenticates, seals or rewraps an in-memory field value on the independent bank ring. No database writes, locking reads or audit changes; the workforce owner keeps its writes, access log and the separately guarded maintenance batch.",
+      "reason": "ADR 0188 (#6332): Security Runtime authenticates, seals or rewraps an in-memory field value on the independent bank ring. No database writes, locking reads or audit changes; the workforce owner keeps its writes, access log and the separately guarded maintenance batch.",
       "source_owner": "workforce",
       "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.BankDataRing",
       "target_owner": "security-runtime"
@@ -1582,7 +1582,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.BankDataCipher.BankDataRing",
-      "reason": "ADR 0186 (#6332): Security Runtime authenticates, seals or rewraps an in-memory field value on the independent bank ring. No database writes, locking reads or audit changes; the workforce owner keeps its writes, access log and the separately guarded maintenance batch.",
+      "reason": "ADR 0188 (#6332): Security Runtime authenticates, seals or rewraps an in-memory field value on the independent bank ring. No database writes, locking reads or audit changes; the workforce owner keeps its writes, access log and the separately guarded maintenance batch.",
       "source_owner": "workforce",
       "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.BankDataRing",
       "target_owner": "security-runtime"
@@ -1592,7 +1592,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.BankDataCipher.Open",
-      "reason": "ADR 0186 (#6332): Security Runtime authenticates, seals or rewraps an in-memory field value on the independent bank ring. No database writes, locking reads or audit changes; the workforce owner keeps its writes, access log and the separately guarded maintenance batch.",
+      "reason": "ADR 0188 (#6332): Security Runtime authenticates, seals or rewraps an in-memory field value on the independent bank ring. No database writes, locking reads or audit changes; the workforce owner keeps its writes, access log and the separately guarded maintenance batch.",
       "source_owner": "workforce",
       "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Open",
       "target_owner": "security-runtime"
@@ -1602,7 +1602,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.BankDataCipher.Open",
-      "reason": "ADR 0186 (#6332): Security Runtime authenticates, seals or rewraps an in-memory field value on the independent bank ring. No database writes, locking reads or audit changes; the workforce owner keeps its writes, access log and the separately guarded maintenance batch.",
+      "reason": "ADR 0188 (#6332): Security Runtime authenticates, seals or rewraps an in-memory field value on the independent bank ring. No database writes, locking reads or audit changes; the workforce owner keeps its writes, access log and the separately guarded maintenance batch.",
       "source_owner": "workforce",
       "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Open",
       "target_owner": "security-runtime"
@@ -1612,7 +1612,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.BankDataCipher.Seal",
-      "reason": "ADR 0186 (#6332): Security Runtime authenticates, seals or rewraps an in-memory field value on the independent bank ring. No database writes, locking reads or audit changes; the workforce owner keeps its writes, access log and the separately guarded maintenance batch.",
+      "reason": "ADR 0188 (#6332): Security Runtime authenticates, seals or rewraps an in-memory field value on the independent bank ring. No database writes, locking reads or audit changes; the workforce owner keeps its writes, access log and the separately guarded maintenance batch.",
       "source_owner": "workforce",
       "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Seal",
       "target_owner": "security-runtime"
@@ -1622,7 +1622,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.BankDataCipher.Seal",
-      "reason": "ADR 0186 (#6332): Security Runtime authenticates, seals or rewraps an in-memory field value on the independent bank ring. No database writes, locking reads or audit changes; the workforce owner keeps its writes, access log and the separately guarded maintenance batch.",
+      "reason": "ADR 0188 (#6332): Security Runtime authenticates, seals or rewraps an in-memory field value on the independent bank ring. No database writes, locking reads or audit changes; the workforce owner keeps its writes, access log and the separately guarded maintenance batch.",
       "source_owner": "workforce",
       "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Seal",
       "target_owner": "security-runtime"
@@ -1632,7 +1632,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.BankDataRekeyCipher.BankDataRing",
-      "reason": "ADR 0186 (#6332): Security Runtime authenticates, seals or rewraps an in-memory field value on the independent bank ring. No database writes, locking reads or audit changes; the workforce owner keeps its writes, access log and the separately guarded maintenance batch.",
+      "reason": "ADR 0188 (#6332): Security Runtime authenticates, seals or rewraps an in-memory field value on the independent bank ring. No database writes, locking reads or audit changes; the workforce owner keeps its writes, access log and the separately guarded maintenance batch.",
       "source_owner": "workforce",
       "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.BankDataRing",
       "target_owner": "security-runtime"
@@ -1642,7 +1642,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.BankDataRekeyCipher.Open",
-      "reason": "ADR 0186 (#6332): Security Runtime authenticates, seals or rewraps an in-memory field value on the independent bank ring. No database writes, locking reads or audit changes; the workforce owner keeps its writes, access log and the separately guarded maintenance batch.",
+      "reason": "ADR 0188 (#6332): Security Runtime authenticates, seals or rewraps an in-memory field value on the independent bank ring. No database writes, locking reads or audit changes; the workforce owner keeps its writes, access log and the separately guarded maintenance batch.",
       "source_owner": "workforce",
       "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Open",
       "target_owner": "security-runtime"
@@ -1652,7 +1652,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.BankDataRekeyCipher.Rewrap",
-      "reason": "ADR 0186 (#6332): Security Runtime authenticates, seals or rewraps an in-memory field value on the independent bank ring. No database writes, locking reads or audit changes; the workforce owner keeps its writes, access log and the separately guarded maintenance batch.",
+      "reason": "ADR 0188 (#6332): Security Runtime authenticates, seals or rewraps an in-memory field value on the independent bank ring. No database writes, locking reads or audit changes; the workforce owner keeps its writes, access log and the separately guarded maintenance batch.",
       "source_owner": "workforce",
       "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Rewrap",
       "target_owner": "security-runtime"
@@ -1662,7 +1662,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.BankDataRekeyCipher.Seal",
-      "reason": "ADR 0186 (#6332): Security Runtime authenticates, seals or rewraps an in-memory field value on the independent bank ring. No database writes, locking reads or audit changes; the workforce owner keeps its writes, access log and the separately guarded maintenance batch.",
+      "reason": "ADR 0188 (#6332): Security Runtime authenticates, seals or rewraps an in-memory field value on the independent bank ring. No database writes, locking reads or audit changes; the workforce owner keeps its writes, access log and the separately guarded maintenance batch.",
       "source_owner": "workforce",
       "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Seal",
       "target_owner": "security-runtime"

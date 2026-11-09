@@ -8,7 +8,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const bankDataPlaintextDropVersion = "1.15.838"
+const bankDataPlaintextDropVersion = "1.15.839"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
@@ -24,7 +24,7 @@ func init() {
 }
 
 // The plaintext columns before #6332. bank-data-rekey --school seals their
-// values and clears them in every school (ADR 0186); only then may they go.
+// values and clears them in every school (ADR 0188); only then may they go.
 // A row that still carries one stops the release in the preflight, before
 // the application stops: no key reaches a migration, so it cannot seal.
 const guardianBankDataPlaintextRowsSQL = `SELECT count(*) FROM users.guardian_financial_data
@@ -33,7 +33,7 @@ const guardianBankDataPlaintextRowsSQL = `SELECT count(*) FROM users.guardian_fi
 const staffBankDataPlaintextRowsSQL = `SELECT count(*) FROM users.staff_financial_data
          WHERE iban IS NOT NULL OR tax_id IS NOT NULL OR social_security_number IS NOT NULL`
 
-var errBankDataPlaintextRemains = errors.New("bank data plaintext remains; run bank-data-rekey --school for every school first (ADR 0186)")
+var errBankDataPlaintextRemains = errors.New("bank data plaintext remains; run bank-data-rekey --school for every school first (ADR 0188)")
 
 func bankDataPlaintextRows(ctx context.Context, db bun.IDB, checkGuardians, checkStaff bool) (int, error) {
 	var guardians, staff int

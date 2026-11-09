@@ -34,7 +34,7 @@ type schoolBankFixture struct {
 }
 
 // #6332: the school traversal of the CLI rekeys the legacy-sealed rows of
-// both new sources (1.15.838 dropped the plaintext columns the backfill read). Afterwards the bank ring
+// both new sources (1.15.839 dropped the plaintext columns the backfill read). Afterwards the bank ring
 // alone opens every value of all four sources (the Träger sources are covered
 // by TestBankDataRekeyJobOpensBothSourcesWithoutLegacy), a second complete
 // pass changes nothing, and another school stays untouched although the

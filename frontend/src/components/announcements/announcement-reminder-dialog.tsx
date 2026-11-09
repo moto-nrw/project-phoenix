@@ -13,6 +13,7 @@ import {
   berlinClockFromISO,
   berlinDateTimeISO,
   berlinDayFromISO,
+  berlinWallClockProblem,
 } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { updateAnnouncementReminder } from "~/lib/parent-announcements-api";
@@ -28,17 +29,6 @@ export const DEFAULT_REMINDER_TIME = "08:00";
 export const MAX_REMINDER_TEXT_LENGTH = 500;
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 
-/**
- * The autumn clock change: the morning of this Berlin day is 13 hours long,
- * so 02:00–02:59 happens twice. On the spring day it is 11 hours and that
- * hour does not exist. Decides which of the two a rejected time hit.
- */
-function berlinDayRepeatsAnHour(day: Date): boolean {
-  const midnight = Date.parse(berlinDateTimeISO(day, "00:00"));
-  const noon = Date.parse(berlinDateTimeISO(day, "12:00"));
-  return noon - midnight > 12 * 60 * 60 * 1000;
-}
-
 export function reminderTimeError(
   day: Date | null,
   time: string,
@@ -47,18 +37,7 @@ export function reminderTimeError(
   if (!TIME_PATTERN.test(time)) {
     return "Bitte eine Uhrzeit für die Erinnerung eingeben, z. B. 08:00.";
   }
-  try {
-    berlinDateTimeISO(day, time);
-  } catch (error) {
-    if (error instanceof RangeError) {
-      if (berlinDayRepeatsAnHour(day)) {
-        return "Diese Uhrzeit kommt an diesem Tag in Berlin zweimal vor. Bitte eine andere Uhrzeit wählen.";
-      }
-      return "Diese Uhrzeit gibt es an diesem Tag in Berlin nicht. Bitte eine andere Uhrzeit wählen.";
-    }
-    throw error;
-  }
-  return null;
+  return berlinWallClockProblem(day, time);
 }
 
 /**

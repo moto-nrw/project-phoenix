@@ -70,7 +70,7 @@ func TestGuardianPaymentIsStoredSealedAndOpensOnlyInItsOwnRow(t *testing.T) {
 	owner := testpkg.CreateTestGuardianProfile(t, db, "sealed-owner")
 	write(t, owner.ID, iban, holder)
 	row := stored(t, owner.ID)
-	// 1.15.838: neither table keeps a plaintext bank or tax column.
+	// 1.15.839: neither table keeps a plaintext bank or tax column.
 	var plaintextColumns []string
 	require.NoError(t, db.NewRaw(`SELECT table_name || '.' || column_name FROM information_schema.columns
    WHERE table_schema = 'users' AND table_name IN ('guardian_financial_data', 'staff_financial_data')

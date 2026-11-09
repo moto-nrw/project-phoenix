@@ -89,7 +89,10 @@ func TestIssuedInvoicesNeverChange(t *testing.T) {
 			return err
 		})
 		require.Error(t, err, "the request role changes no issued invoice: %s", statement)
-		assert.Regexp(t, "permission denied|never changes", err.Error(), statement)
+		if testpkg.PostgresSQLState(err) != "42501" {
+			assert.Equal(t, "55000", testpkg.PostgresSQLState(err), statement)
+			assert.ErrorContains(t, err, "never changes", statement)
+		}
 		_, err = db.ExecContext(ctx, statement, own)
 		assert.ErrorContains(t, err, "never changes", "no role changes an issued invoice: %s", statement)
 	}
@@ -104,7 +107,7 @@ func TestIssuedInvoicesNeverChange(t *testing.T) {
 			_, err := tx.ExecContext(ctx, statement, own)
 			return err
 		})
-		assert.ErrorContains(t, err, "permission denied", "the request role deletes nothing of a run: %s", statement)
+		assert.Equal(t, "42501", testpkg.PostgresSQLState(err), "the request role deletes nothing of a run: %s", statement)
 	}
 	require.NoError(t, asRequestRole("app.current_org_id", fmt.Sprint(own), func(tx bun.Tx) error {
 		_, err := tx.ExecContext(ctx, `UPDATE parent_billing.runs SET period_name = 'Winterferien 2027' WHERE id = ?`, run)
@@ -114,5 +117,5 @@ func TestIssuedInvoicesNeverChange(t *testing.T) {
 		_, err := tx.ExecContext(ctx, `INSERT INTO parent_billing.number_ranges (organization_id, service, pattern) VALUES (?, 'holiday', 'FE-{NNNN}')`, own)
 		return err
 	})
-	assert.ErrorContains(t, err, "row-level security", "a Träger cannot set the number range of another Träger")
+	assert.Equal(t, "42501", testpkg.PostgresSQLState(err), "a Träger cannot set the number range of another Träger")
 }

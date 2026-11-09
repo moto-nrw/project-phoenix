@@ -52,7 +52,7 @@ func bankPlaintextColumns(t *testing.T, db *bun.DB) []string {
 	return columns
 }
 
-// #6332, ADR 0186: the plaintext columns go only once bank-data-rekey has
+// #6332, ADR 0188: the plaintext columns go only once bank-data-rekey has
 // sealed every value. A remaining plaintext value of either table stops the
 // preflight and the migration; without one the columns are dropped.
 func TestBankDataPlaintextDropWaitsForTheBackfill(t *testing.T) {

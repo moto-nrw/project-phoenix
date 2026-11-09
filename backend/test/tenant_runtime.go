@@ -437,6 +437,12 @@ func (TenantTransactionRuntime) WithinAdmin(ctx context.Context, fn func(context
 	return WithinAdminTransaction(ctx, fn)
 }
 
+// WithinAdminThenTenant forwards the one-way handoff of ADR 0161 like the
+// production binding.
+func (TenantTransactionRuntime) WithinAdminThenTenant(ctx context.Context, discover func(context.Context) (int64, error), fn func(context.Context) error) error {
+	return tenant.WithinAdminThenTenant(ctx, discover, fn)
+}
+
 func (TenantTransactionRuntime) RegisterAfterCommit(ctx context.Context, fn func()) {
 	tenant.RegisterAfterCommit(ctx, fn)
 }

@@ -274,7 +274,7 @@ func TestStaffQualificationsRetireInsteadOfDelete(t *testing.T) {
 		_, err := tx.NewDelete().TableExpr("users.staff_qualifications").Where("staff_id = ?", staff.ID).Exec(txCtx)
 		return err
 	})
-	require.ErrorContains(t, err, "permission denied", "the tenant role cannot hard-delete qualifications")
+	require.Equal(t, "42501", testpkg.PostgresSQLState(err), "the tenant role cannot hard-delete qualifications")
 }
 
 func TestStaffQualificationReplacementPersistsSubmittedOrder(t *testing.T) {
