@@ -27,10 +27,11 @@ import (
 // sickShiftChangeReason / sickBlockAbsenceReason are the neutral machine
 // labels the cascade writes. The absence note is deliberately NOT propagated:
 // plan surfaces (Dienstplan cells, block badges) are visible to the whole
-// team, while the note may carry private medical detail.
+// team, while the note may carry private medical detail. The block label is
+// the Timetable owner's, which the materializer writes as well (#6292).
 const (
 	sickShiftChangeReason  = "Krankheit"
-	sickBlockAbsenceReason = "Krankmeldung"
+	sickBlockAbsenceReason = timetable.SickBlockAbsenceReason
 )
 
 // TimetableRows are the Betreuungsplan rows the cascade selects for the
@@ -295,6 +296,9 @@ func (s *sickCascade) ClearSickForRange(ctx context.Context, in workforce.SickCa
 	if err := s.lockSickReversalStaffWrites(ctx, report); err != nil {
 		return err
 	}
+	if err := s.lockReportedDays(ctx, in); err != nil {
+		return err
+	}
 	if err := s.reactivateStampedShifts(ctx, report, nil); err != nil {
 		return err
 	}
@@ -429,6 +433,20 @@ func (s *sickCascade) reconcileAddedSickDays(ctx context.Context, after sickRepo
 		return err
 	}
 	return s.markBlocksForSickDays(ctx, after, days, activeTouched)
+}
+
+// lockReportedDays takes the day locks of the report's future sick days
+// before the reversal reads its stamps. A materialization holding a day has
+// stamped its new rows for this report and commits them first; one waiting
+// for the day reads the reports after the deletion and stamps nothing
+// (#6292). The reversal itself is keyed by the stamps: a malformed range
+// locks nothing rather than blocking it.
+func (s *sickCascade) lockReportedDays(ctx context.Context, in workforce.SickCascadeInput) error {
+	report, err := parseSickReport(in)
+	if err != nil {
+		return nil //nolint:nilerr // the stamps, not the range, drive the reversal
+	}
+	return s.acquireCascadeDayLocks(ctx, dateSet(sickCascadeDays(report)))
 }
 
 func (s *sickCascade) acquireCascadeDayLocks(ctx context.Context, days map[calendar.Date]bool) error {
@@ -732,16 +750,19 @@ func shiftDate(shift workforce.StaffShift) (calendar.Date, error) {
 
 // sickCascadeDays expands the absence range into the full sick days, skipping
 // half boundary days — a half sick day never cascades (#1843 product rule).
+// The Timetable owner's SickReport decides each day, the rule the
+// materializer applies to blocks planned after the report (#6292).
 func sickCascadeDays(report sickReport) []calendar.Date {
+	plan := timetable.SickReport{
+		AbsenceID: report.absenceID, StaffID: report.subjectStaffID,
+		DateStart: report.dateStart, DateEnd: report.dateEnd,
+		SkipStartDay: report.skipStartDay, SkipEndDay: report.skipEndDay,
+	}
 	var days []calendar.Date
 	for d := report.dateStart; !d.After(report.dateEnd); d = d.AddDays(1) {
-		if report.skipStartDay && d == report.dateStart {
-			continue
+		if plan.CoversFullDay(d) {
+			days = append(days, d)
 		}
-		if report.skipEndDay && d == report.dateEnd {
-			continue
-		}
-		days = append(days, d)
 	}
 	return days
 }

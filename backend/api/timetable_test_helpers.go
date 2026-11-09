@@ -145,6 +145,18 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	rows := r.TimetableTemplateRows()
 	materializationDeps := owners.TimetableMaterializationDependencies(rows, members.Student, calendar, recurrenceLock, hub, logger)
 	materializationDeps.Transactions = arrivalTimetable.NewTenantTransactions(db.Pool())
+	// Open sick reports mark newly planned supervisors absent, as the
+	// composition root binds them (#6292).
+	membership, err := owners.NewSchoolMembership(db)
+	if err != nil {
+		return TimetableTestModule{}, nil, nil, err
+	}
+	workTime, err := owners.NewWorkforce(db, membership)
+	if err != nil {
+		return TimetableTestModule{}, nil, nil, err
+	}
+	materializationDeps.SickReports = owners.NewTimetableSickReports(workTime)
+	materializationDeps.DayLocks = arrivalTimetable.NewTenantDatabase(db.Pool())
 	materialization, err := arrivalTimetable.NewMaterialization(materializationDeps)
 	if err != nil {
 		return TimetableTestModule{}, nil, nil, err

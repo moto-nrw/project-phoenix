@@ -48,6 +48,12 @@ import (
 //
 //   - Duplicate template-slot races are absorbed via INSERT ... ON CONFLICT DO
 //     NOTHING and counted as raced, not fatal.
+//
+//   - Sick reports apply to new rows (#6292). A supervisor planned on a full
+//     day of an open sick report is inserted absent with the report's stamp,
+//     like the rows the sick cascade marked when the report came in. The run
+//     holds every window day lock (recurrence → days ascending) while it
+//     reads the reports, so it serializes against the cascade.
 
 const materializeForTenantOp = "materialize for tenant"
 
@@ -63,6 +69,8 @@ type materializationService struct {
 	staffRepo      timetable.InstanceStaffCapability
 	studentRepo    ports.ParticipantRows
 	careBounds     ports.CareBoundReader
+	sickReports    ports.SickReportReader // nil marks no supervisor sick (#6292)
+	dayLocks       ports.TransactionLocks
 	nonWorkingDays timetable.NonWorkingDayCalendar // nil skips no holidays or closing days (#3594)
 	exceptionRepo  timetable.ActivityExceptionQuery
 	timeframeRepo  timetable.TimeframeQuery
@@ -82,6 +90,9 @@ func NewMaterialization(deps ports.MaterializationDependencies) (timetable.Mater
 	if deps.Transactions != nil && deps.RecurrenceLock == nil {
 		return nil, errors.New("timetable materialization: recurrence lock is required with a database")
 	}
+	if deps.Transactions != nil && deps.SickReports != nil && deps.DayLocks == nil {
+		return nil, errors.New("timetable materialization: day locks are required to apply sick reports with a database")
+	}
 	return &materializationService{
 		groupRepo:      deps.GroupRepo,
 		scheduleRepo:   deps.ScheduleRepo,
@@ -93,6 +104,8 @@ func NewMaterialization(deps ports.MaterializationDependencies) (timetable.Mater
 		staffRepo:      deps.StaffRepo,
 		studentRepo:    deps.StudentRepo,
 		careBounds:     deps.CareBounds,
+		sickReports:    deps.SickReports,
+		dayLocks:       deps.DayLocks,
 		nonWorkingDays: deps.NonWorkingDays,
 		exceptionRepo:  deps.ExceptionRepo,
 		timeframeRepo:  deps.TimeframeRepo,
@@ -146,9 +159,30 @@ func (s *materializationService) MaterializeForTenant(
 		if err := s.lock.LockRecurrenceWritesThenGradeTransitions(ctx); err != nil {
 			return nil, &ports.ScheduleError{Op: "materialize for tenant: lock recurrence", Err: err}
 		}
+		if err := s.lockWindowDays(ctx, tenantID, from, to); err != nil {
+			return nil, err
+		}
 	}
 
 	return s.materializeForTenantLocked(ctx, tenantID, from, to, source, start)
+}
+
+// lockWindowDays takes the substitute day lock of every window day, ascending,
+// after the recurrence gate: the order the instance lifecycle documents
+// (LockDeviationDays) and the replan and template split already hold. The sick
+// cascade marks a day's rows under the same lock, so a report committing
+// while this run reads the reports either is visible to it or sees the rows
+// it inserts (#6292). Without sick reports there is nothing to serialize.
+func (s *materializationService) lockWindowDays(ctx context.Context, tenantID int64, from, to calendar.Date) error {
+	if s.sickReports == nil {
+		return nil
+	}
+	for day := from; !day.After(to); day = day.AddDays(1) {
+		if err := s.dayLocks.AcquireTransactionLock(ctx, timetable.SubstituteDayLockKey(tenantID, day)); err != nil {
+			return &ports.ScheduleError{Op: "materialize for tenant: lock day " + day.String(), Err: err}
+		}
+	}
+	return nil
 }
 
 func validateMaterializationWindow(from, to calendar.Date) error {
@@ -190,6 +224,9 @@ type materializationWorld struct {
 	existingIdx   map[existingKey]struct{}
 	exceptionIdx  map[exceptionKey]*schedule.ActivityException
 	timeframeByID map[int64]*schedule.Timeframe
+	// sickDays names the report behind every full sick day of a staff member
+	// in the window (#6292).
+	sickDays map[staffDay]int64
 	// weekendFollowsFriday materializes Saturday and Sunday from Friday's
 	// schedules (#3921).
 	weekendFollowsFriday bool
@@ -338,6 +375,13 @@ func (s *materializationService) loadMaterializationWorld(
 		return nil, &ports.ScheduleError{Op: "materialize for tenant: load existing instances", Err: err}
 	}
 	world.existingIdx = buildExistingIndex(existing)
+	if s.sickReports != nil {
+		reports, err := s.sickReports.OpenSickReports(ctx, from, to)
+		if err != nil {
+			return nil, &ports.ScheduleError{Op: "materialize for tenant: load sick reports", Err: err}
+		}
+		world.sickDays = sickDayIndex(reports, from, to)
+	}
 	return world, nil
 }
 
@@ -628,7 +672,7 @@ func (s *materializationService) materializeCandidate(
 	); err != nil {
 		return err
 	}
-	return s.copySupervisors(ctx, instance.ID, roster.supervisors, date, period.ID, planWeekday(date, world.weekendFollowsFriday), result)
+	return s.copySupervisors(ctx, instance.ID, roster.supervisors, date, period.ID, planWeekday(date, world.weekendFollowsFriday), world.sickDays, result)
 }
 
 // createInstanceError names the candidate whose insert failed, so a
@@ -721,6 +765,8 @@ func (s *materializationService) copyExpectedStudents(
 	return nil
 }
 
+// copySupervisors inserts the occurrence's supervisor rows; sickDays names
+// the supervisors on a full sick day (#6292).
 func (s *materializationService) copySupervisors(
 	ctx context.Context,
 	instanceID int64,
@@ -728,6 +774,7 @@ func (s *materializationService) copySupervisors(
 	date calendar.Date,
 	periodID int64,
 	planWeekday int,
+	sickDays map[staffDay]int64,
 	result *timetable.MaterializationResult,
 ) error {
 	primaryStaffID, hasPrimary := effectivePrimarySupervisor(supervisors, date, periodID, planWeekday)
@@ -757,6 +804,11 @@ func (s *materializationService) copySupervisors(
 			IsPrimary:    hasPrimary && sup.StaffID == primaryStaffID,
 			IsSubstitute: false,
 			IsAbsent:     false,
+		}
+		// A supervisor on a full sick day is planned absent, exactly as the
+		// sick cascade marks rows that existed when the report came in.
+		if absenceID, sick := sickDays[staffDay{staffID: sup.StaffID, date: date}]; sick {
+			stampSickAbsence(row, absenceID)
 		}
 		if err := createLegacyInstanceStaff(ctx, s.staffRepo, row); err != nil {
 			return &ports.ScheduleError{Op: "materialize template: copy supervisor", Err: err}

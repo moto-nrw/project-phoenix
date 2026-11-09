@@ -105,19 +105,27 @@ type deviationSnapshot struct {
 	absentPlanned []snapshotAbsence
 	// substitutes: substitute rows to recreate.
 	substitutes []snapshotSubstitute
+	// presentPlanned: planned rows that were present. The materializer marks
+	// a person on a full sick day absent; a row that was present on such a
+	// day was restored by hand and stays present (#6292).
+	presentPlanned []int64
 }
 
+// snapshotAbsence keeps the sick provenance with the absence, so a
+// regenerated row still belongs to its sick report (#6292).
 type snapshotAbsence struct {
-	staffID int64
-	reason  *string
+	staffID       int64
+	reason        *string
+	sickAbsenceID *int64
 }
 
 type snapshotSubstitute struct {
-	staffID   int64
-	roomID    *int64
-	isPrimary bool
-	isAbsent  bool
-	reason    *string
+	staffID       int64
+	roomID        *int64
+	isPrimary     bool
+	isAbsent      bool
+	reason        *string
+	sickAbsenceID *int64
 }
 
 // groupDay keys occurrences by their (activity group, date).
@@ -158,7 +166,7 @@ func (s *InstanceLifecycleService) snapshotDeviations(ctx context.Context, from,
 	snapshots := make([]deviationSnapshot, 0)
 	for _, inst := range eligible {
 		snap := snapshotOccurrence(inst, staffByInstance[inst.ID])
-		if snap.overridden() {
+		if snap.overridden() || len(snap.presentPlanned) > 0 {
 			snapshots = append(snapshots, snap)
 		}
 	}
@@ -189,15 +197,22 @@ func snapshotOccurrence(inst *scheduleModel.ActivityInstance, staffRows []*sched
 		case row.IsSubstitute:
 			snap.substitutes = append(snap.substitutes, snapshotSubstitute{
 				staffID: row.StaffID, roomID: row.RoomID, isPrimary: row.IsPrimary, isAbsent: row.IsAbsent, reason: row.AbsenceReason,
+				sickAbsenceID: row.SickAbsenceID,
 			})
 		case row.IsAbsent:
-			snap.absentPlanned = append(snap.absentPlanned, snapshotAbsence{staffID: row.StaffID, reason: row.AbsenceReason})
+			snap.absentPlanned = append(snap.absentPlanned, snapshotAbsence{
+				staffID: row.StaffID, reason: row.AbsenceReason, sickAbsenceID: row.SickAbsenceID,
+			})
+		default:
+			snap.presentPlanned = append(snap.presentPlanned, row.StaffID)
 		}
 	}
 	return snap
 }
 
-// overridden reports whether the occurrence carries anything to reapply.
+// overridden reports whether the occurrence carries a deviation to reapply.
+// The present rows alone are no deviation: such a snapshot is neither
+// counted nor recorded as dropped when its occurrence no longer materializes.
 func (snap deviationSnapshot) overridden() bool {
 	return snap.understaffedAck || snap.requiredStaff != nil || len(snap.absentPlanned) > 0 || len(snap.substitutes) > 0
 }
@@ -228,6 +243,9 @@ func (s *InstanceLifecycleService) reapplyDeviations(
 	for i, snap := range snapshots {
 		inst := matches[i]
 		if inst == nil {
+			if !snap.overridden() {
+				continue
+			}
 			if err := s.logSnapshotDropped(ctx, snap, targetActivityGroupID, actorAccountID); err != nil {
 				return reapplied, err
 			}
@@ -236,7 +254,9 @@ func (s *InstanceLifecycleService) reapplyDeviations(
 		if err := s.reapplySnapshot(ctx, snap, inst, staffByInstance[inst.ID]); err != nil {
 			return reapplied, err
 		}
-		reapplied++
+		if snap.overridden() {
+			reapplied++
+		}
 	}
 	return reapplied, nil
 }
@@ -255,6 +275,9 @@ func (s *InstanceLifecycleService) reapplySnapshot(ctx context.Context, snap dev
 	byStaff := make(map[int64]*scheduleModel.InstanceStaff, len(rows))
 	for _, row := range rows {
 		byStaff[row.StaffID] = row
+	}
+	if err := s.keepRestoredPresence(ctx, snap.presentPlanned, byStaff); err != nil {
+		return err
 	}
 	absencesReapplied, err := s.reapplyAbsences(ctx, snap.absentPlanned, byStaff)
 	if err != nil {
@@ -275,19 +298,42 @@ func (s *InstanceLifecycleService) reapplySnapshot(ctx context.Context, snap dev
 	return nil
 }
 
-// reapplyAbsences marks the regenerated planned rows absent again. A person
-// no longer planned on the template has no row; the absence is moot.
+// keepRestoredPresence undoes the materializer's sick mark on a row that was
+// present before the re-plan: a planner had restored the person on a sick
+// day (applyPresence releases the stamp), and a re-plan regenerates the
+// template, it does not revisit that decision (#6292).
+func (s *InstanceLifecycleService) keepRestoredPresence(ctx context.Context, staffIDs []int64, byStaff map[int64]*scheduleModel.InstanceStaff) error {
+	for _, staffID := range staffIDs {
+		row, ok := byStaff[staffID]
+		if !ok || row.IsSubstitute || row.SickAbsenceID == nil {
+			continue
+		}
+		copyAbsenceState(row, &scheduleModel.InstanceStaff{})
+		if err := updateLegacyInstanceStaff(ctx, s.deps.InstanceStaffRepo, row); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// reapplyAbsences marks the regenerated planned rows absent again, with the
+// reason and the sick provenance they had. A row the materializer already
+// marked for a sick report takes the snapshot's state, so a manual absence
+// stays manual. A person no longer planned on the template has no row; the
+// absence is moot.
 func (s *InstanceLifecycleService) reapplyAbsences(ctx context.Context, absences []snapshotAbsence, byStaff map[int64]*scheduleModel.InstanceStaff) (int, error) {
 	reapplied := 0
 	for _, ab := range absences {
 		row, ok := byStaff[ab.staffID]
-		if !ok || row.IsSubstitute || row.IsAbsent {
+		if !ok || row.IsSubstitute {
 			continue
 		}
-		row.IsAbsent = true
-		row.AbsenceReason = ab.reason
-		if err := updateLegacyInstanceStaff(ctx, s.deps.InstanceStaffRepo, row); err != nil {
-			return reapplied, err
+		want := scheduleModel.InstanceStaff{IsAbsent: true, AbsenceReason: ab.reason, SickAbsenceID: ab.sickAbsenceID}
+		if !sameAbsenceState(row, &want) {
+			copyAbsenceState(row, &want)
+			if err := updateLegacyInstanceStaff(ctx, s.deps.InstanceStaffRepo, row); err != nil {
+				return reapplied, err
+			}
 		}
 		reapplied++
 	}
@@ -324,6 +370,7 @@ func (s *InstanceLifecycleService) recreateSubstitutes(
 			IsSubstitute:  true,
 			IsAbsent:      sub.isAbsent,
 			AbsenceReason: sub.reason,
+			SickAbsenceID: sub.sickAbsenceID,
 		}
 		if err := createLegacyInstanceStaff(ctx, s.deps.InstanceStaffRepo, newRow); err != nil {
 			return err

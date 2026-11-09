@@ -362,7 +362,7 @@ func composeServeRoot(
 			return
 		},
 		func() (err error) {
-			materialization, err = owners.BuildTimetableMaterialization(db, env, hub, timetableRows, people, calendar)
+			materialization, err = owners.BuildTimetableMaterialization(db, env, hub, timetableRows, people, calendar, workTime)
 			return
 		},
 		func() (err error) {

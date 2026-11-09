@@ -446,7 +446,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 			return
 		},
 		func() (err error) {
-			materialization, err = BuildTimetableMaterialization(db, env, hub, timetableRows, people, calendar)
+			materialization, err = BuildTimetableMaterialization(db, env, hub, timetableRows, people, calendar, workTime)
 			return
 		},
 		func() (err error) {
