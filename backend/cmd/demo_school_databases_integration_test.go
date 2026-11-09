@@ -82,7 +82,7 @@ func TestDemoProcessErasesRetiredDemoSchoolsFromTheDatabaseAfterTheirFiles(t *te
 // Only the dev tools binary, which ships in the demo image alone (ADR 0060),
 // reaches the database erasure of demo schools: the server binary of the
 // production image has no caller, and the database function is granted to
-// phoenix_demo only (migration 1.15.859).
+// phoenix_demo only (migration 1.15.869).
 func TestOnlyTheDevToolsReachTheDemoSchoolDatabaseErasure(t *testing.T) {
 	t.Parallel()
 	var callers []string
@@ -111,7 +111,7 @@ func TestOnlyTheDevToolsReachTheDemoSchoolDatabaseErasure(t *testing.T) {
 	sort.Strings(callers)
 	assert.Equal(t, []string{
 		"cmd/devtools/demo_runtime.go",
-		"database/migrations/001015859_demo_school_database_erasure.go",
+		"database/migrations/001015869_demo_school_database_erasure.go",
 		"modules/organizationtenancy/compose/erasure.go",
 		"modules/organizationtenancy/internal/adapters/postgres/demo_databases.go",
 		"modules/organizationtenancy/internal/application/demo_databases.go",
