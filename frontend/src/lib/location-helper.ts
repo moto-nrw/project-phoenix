@@ -866,6 +866,46 @@ export function isNotCheckedInLocation(location?: string | null): boolean {
   return NOT_CHECKED_IN_STATUSES.has(parseLocation(location).status);
 }
 
+const CHECKED_IN_STATUSES: ReadonlySet<string> = new Set([
+  LOCATION_STATUSES.PRESENT,
+  LOCATION_STATUSES.UNPLANNED_PRESENT,
+  LOCATION_STATUSES.SCHOOLYARD,
+  LOCATION_STATUSES.TRANSIT,
+]);
+
+/**
+ * Ob das Kind einen offenen Check-in hat: im Raum („Anwesend“), auf dem
+ * Schulhof oder unterwegs. Gegenstück im Backend:
+ * `studentpresence.IsCheckedInLocation`.
+ */
+export function isCheckedInLocation(location?: string | null): boolean {
+  return CHECKED_IN_STATUSES.has(parseLocation(location).status);
+}
+
+export type CountedDayStatus = "sick" | "class_trip" | "excused";
+
+/**
+ * Der Tagesstatus, nach dem Zahlen, Statusfilter und Statusgruppen ein Kind
+ * einordnen; krank vor Klassenfahrt vor entschuldigt.
+ *
+ * Ort vor Status (#6371): Ein eingechecktes Kind zählt in jeder Ansicht als
+ * anwesend, genau einmal. Seine Krankmeldung, Entschuldigung oder Klassenfahrt
+ * ist dann nur ein Hinweis am Ortsbadge und zählt nirgends mit. Ein Kind ohne
+ * Check-in behält seinen Status.
+ */
+export function countedDayStatus(student: {
+  readonly sick?: boolean | null;
+  readonly class_trip?: boolean | null;
+  readonly excused?: boolean | null;
+  readonly current_location?: string | null;
+}): CountedDayStatus | null {
+  if (isCheckedInLocation(student.current_location)) return null;
+  if (student.sick) return "sick";
+  if (student.class_trip) return "class_trip";
+  if (student.excused) return "excused";
+  return null;
+}
+
 /**
  * Indicates whether the student is currently on the school yard.
  */

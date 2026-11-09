@@ -80,9 +80,11 @@ type StudentStatusDay struct {
 }
 
 // StudentStatusCounts is the effective dashboard absence count of one day.
+// SickIDs and ExcusedIDs are the active students of each bucket, before the
+// dashboard drops the checked-in ones (place before status, #6371).
 type StudentStatusCounts struct {
-	Sick    int
-	Excused int
+	SickIDs    []int64
+	ExcusedIDs []int64
 	// Total is every active student of the tenant, absent or not.
 	Total int
 	// UnaccountedIDs are the active students counted in Total but in neither
