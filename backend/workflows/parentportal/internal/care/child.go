@@ -59,30 +59,80 @@ func (s *Service) ResolvePermittedChild(ctx context.Context, accountID, studentI
 
 	var resolved *Child
 	err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
-		child, findErr := s.ChildRepo.FindForAccount(adminCtx, accountID, studentID)
-		if findErr != nil {
-			return findErr
-		}
-		if child == nil {
-			return ErrChildNotLinked
-		}
-		if requiredPermission != "" && !childHasPermission(child, requiredPermission) {
-			return ErrGuardianPermissionDenied
-		}
-		resolved = &Child{
-			TenantID:            child.TenantID,
-			GuardianProfileID:   child.GuardianProfileID,
-			GuardianPermissions: child.GuardianPermissions,
-			StudentName:         strings.TrimSpace(child.FirstName + " " + child.LastName),
-			SchoolName:          child.SchoolName,
-			CareEnded:           child.CareEnded(s.todayDate()),
-		}
-		return nil
+		var findErr error
+		resolved, findErr = s.permittedChild(adminCtx, accountID, studentID, requiredPermission)
+		return findErr
 	})
 	if err != nil {
 		return nil, err
 	}
 	return resolved, nil
+}
+
+// WithPermittedChild is ResolvePermittedChild followed by a read of the
+// child's school in ONE transaction, the one-way handoff of ADR 0161 (#5862).
+// The guardian link and requiredPermission are checked exactly as in
+// ResolvePermittedChild, in the administrative part and before any statement
+// of the school. between then runs on the resolved child, still before the
+// switch: it holds a check a read route runs today between the child lookup
+// and its school unit; its error ends the transaction without a switch.
+// read runs under the child's school's RLS. It is for read routes only;
+// parent writes keep ResolvePermittedChild and their own school unit.
+func (s *Service) WithPermittedChild(
+	ctx context.Context,
+	accountID, studentID int64,
+	requiredPermission string,
+	between func(*Child) error,
+	read func(ctx context.Context, child *Child) error,
+) error {
+	if accountID <= 0 {
+		return fmt.Errorf("parent: account_id must be positive")
+	}
+	if studentID <= 0 {
+		return fmt.Errorf("parent: student_id must be positive")
+	}
+	if read == nil {
+		return fmt.Errorf("parent: child read is required")
+	}
+	var resolved *Child
+	return s.Runtime.WithinAdminThenTenant(ctx, func(adminCtx context.Context) (int64, error) {
+		child, err := s.permittedChild(adminCtx, accountID, studentID, requiredPermission)
+		if err != nil {
+			return 0, err
+		}
+		if between != nil {
+			if err := between(child); err != nil {
+				return 0, err
+			}
+		}
+		resolved = child
+		return child.TenantID, nil
+	}, func(txCtx context.Context) error {
+		return read(txCtx, resolved)
+	})
+}
+
+// permittedChild is the relationship check of ResolvePermittedChild inside
+// the caller's administrative transaction.
+func (s *Service) permittedChild(adminCtx context.Context, accountID, studentID int64, requiredPermission string) (*Child, error) {
+	child, err := s.ChildRepo.FindForAccount(adminCtx, accountID, studentID)
+	if err != nil {
+		return nil, err
+	}
+	if child == nil {
+		return nil, ErrChildNotLinked
+	}
+	if requiredPermission != "" && !childHasPermission(child, requiredPermission) {
+		return nil, ErrGuardianPermissionDenied
+	}
+	return &Child{
+		TenantID:            child.TenantID,
+		GuardianProfileID:   child.GuardianProfileID,
+		GuardianPermissions: child.GuardianPermissions,
+		StudentName:         strings.TrimSpace(child.FirstName + " " + child.LastName),
+		SchoolName:          child.SchoolName,
+		CareEnded:           child.CareEnded(s.todayDate()),
+	}, nil
 }
 
 func childHasPermission(child *ChildSummary, permission string) bool {

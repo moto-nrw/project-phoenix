@@ -191,9 +191,12 @@ func (s *Service) todayDate() calendar.Date {
 // Runtime is the workflow-owned transaction and after-commit boundary.
 // Implementations retain the caller's context and the platform's nested
 // transaction, tenant validation and callback lifecycle semantics.
+// WithinAdminThenTenant is the one-way handoff of ADR 0161: one transaction,
+// discovery as admin, then the discovered school's tenant scope.
 type Runtime interface {
 	WithinTenant(context.Context, int64, func(context.Context) error) error
 	WithinAdmin(context.Context, func(context.Context) error) error
+	WithinAdminThenTenant(ctx context.Context, discover func(context.Context) (int64, error), fn func(context.Context) error) error
 	RegisterAfterCommit(context.Context, func())
 	WithTenantID(context.Context, int64) context.Context
 }

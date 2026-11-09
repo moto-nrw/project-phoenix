@@ -91,7 +91,7 @@ path-scoped rules automatically.
 | Domain terminology or architecture decisions | [CONTEXT.md](CONTEXT.md), relevant `docs/adr/`, [docs/agents/domain.md](docs/agents/domain.md) |
 | Issues or labels | [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md), [docs/agents/triage-labels.md](docs/agents/triage-labels.md) |
 | PR screenshots or service/test-DB commands | [docs/agents/operations.md](docs/agents/operations.md) |
-| quorum review runs or its local test gate | [docs/agents/quorum-review-loop.md](docs/agents/quorum-review-loop.md) |
+| PR base updates, merge authorization, quorum runs or its local test gate | [docs/agents/quorum-review-loop.md](docs/agents/quorum-review-loop.md) |
 | Agent instructions, skills, hooks, or context maintenance | `writing-for-agents` skill and [.claude/README.md](.claude/README.md) |
 
 ## Completion and commands

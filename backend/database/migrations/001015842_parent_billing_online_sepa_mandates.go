@@ -14,8 +14,8 @@ func init() {
 		Version:     parentBillingOnlineSEPAMandatesVersion,
 		Description: "Elternabrechnung: Nachweis des SEPA-Mandats, das Eltern in der Eltern-App erteilen (#4696)",
 		DependsOn: []string{
-			accountCredentialGenerationBindingVersion, // the newest migration on development
-			parentBillingSEPAMandatesVersion,          // the mandates the proof belongs to
+			staffFinancialDataSealedVersion,  // the newest migration on development
+			parentBillingSEPAMandatesVersion, // the mandates the proof belongs to
 		},
 	})
 	Migrations.MustRegister(parentBillingOnlineSEPAMandatesUp, parentBillingOnlineSEPAMandatesDown)

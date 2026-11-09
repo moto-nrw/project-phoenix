@@ -14,7 +14,10 @@ die Tenant-Transaktion mit RLS und der dauerhafte Erfolgsvermerk in
 (`gdpr.data_cleanup_enabled = false`) bleibt wirksam. Ohne Erfolgsvermerk
 wartet eine Schule auf ihre eingestellte Minute; verpasste Läufe mit älterem
 Erfolgsvermerk werden beim nächsten Tick nachgeholt. Zurückgegebene Fehler
-setzen keinen Erfolgsvermerk und hindern andere Schulen nicht am Lauf.
+setzen keinen Erfolgsvermerk und hindern andere Schulen nicht am Lauf. Sie
+zählen in derselben Zeile als Fehlschläge in Folge; der nächste Versuch wartet
+dann 1 bis höchstens 24 Stunden, ab dem dritten Fehlschlag gibt es einen Alarm
+([Runbook](../../monitoring/runbooks/nightly-cleanup.md), #6327).
 
 Die drei Datei-Aufräumjobs erfassen ebenfalls alle vorhandenen Schulzeilen
 und entfernen offene Dateien weiter im Fünf-Minuten-Takt. Das umfasst
