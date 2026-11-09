@@ -62,6 +62,7 @@ export default function TraegerSepaImportPage() {
   const [log, setLog] = useState<ImportLogEntry[] | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
+  const [verified, setVerified] = useState(false);
   const [answers, setAnswers] = useState<Record<number, MandateSequence>>({});
   const [reading, setReading] = useState(false);
   const [applying, setApplying] = useState(false);
@@ -97,12 +98,24 @@ export default function TraegerSepaImportPage() {
   }, [load]);
 
   const read = useCallback(
-    async (chosen: File, mapping: ImportMapping | null) => {
+    async (
+      chosen: File,
+      mapping: ImportMapping | null,
+      sequences: Readonly<Record<number, MandateSequence>> = {},
+    ) => {
       const id = ++request.current;
+      setVerified(false);
       setReading(true);
       try {
-        const next = await previewSepaImport({ file: chosen, mapping });
-        if (id === request.current) setResult(next);
+        const next = await previewSepaImport({
+          file: chosen,
+          mapping,
+          sequences,
+        });
+        if (id === request.current) {
+          setResult(next);
+          setVerified(true);
+        }
       } catch (err) {
         logger.error("sepa_import_preview_failed", { error: errorText(err) });
         if (id === request.current) void show(err, { object: "die Datei" });
@@ -130,14 +143,21 @@ export default function TraegerSepaImportPage() {
   };
 
   const remap = (mapping: ImportMapping) => {
-    if (!file || !result) return;
+    if (!file || !result || applying) return;
     setResult({ ...result, mapping });
     setAnswers({});
     void read(file, mapping);
   };
 
+  const answer = (line: number, sequence: MandateSequence) => {
+    if (!file || !result || applying) return;
+    const next = { ...answers, [line]: sequence };
+    setAnswers(next);
+    void read(file, result.mapping, next);
+  };
+
   const apply = async () => {
-    if (!file || !result) return;
+    if (!file || !result || !verified || reading || applying) return;
     setApplying(true);
     try {
       const applied = await applySepaImport({
@@ -164,6 +184,7 @@ export default function TraegerSepaImportPage() {
     request.current++;
     setFile(null);
     setResult(null);
+    setVerified(false);
     setAnswers({});
     setDone(null);
     setReading(false);
@@ -210,6 +231,7 @@ export default function TraegerSepaImportPage() {
                     variant="outline"
                     size="md"
                     onClick={restart}
+                    disabled={applying}
                   >
                     Weitere Datei laden
                   </Button>
@@ -252,6 +274,7 @@ export default function TraegerSepaImportPage() {
                     variant="outline"
                     size="md"
                     onClick={restart}
+                    disabled={applying}
                   >
                     Andere Datei
                   </Button>
@@ -286,14 +309,36 @@ export default function TraegerSepaImportPage() {
                 onChange={remap}
               />
             ) : null}
-            {result && result.unmapped.length === 0 ? (
+            {file && !verified ? (
+              <Alert
+                type="info"
+                message={
+                  reading
+                    ? "Die Datei wird geprüft …"
+                    : "Die Datei ist noch nicht geprüft. Bitte prüfen Sie erneut."
+                }
+                action={
+                  !reading ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="md"
+                      onClick={() =>
+                        void read(file, result?.mapping ?? null, answers)
+                      }
+                    >
+                      Erneut prüfen
+                    </Button>
+                  ) : undefined
+                }
+              />
+            ) : null}
+            {result && verified && result.unmapped.length === 0 ? (
               <SepaImportPreviewCard
                 result={result}
                 answers={answers}
                 applying={applying}
-                onAnswer={(line, sequence) =>
-                  setAnswers((current) => ({ ...current, [line]: sequence }))
-                }
+                onAnswer={answer}
                 onApply={() => void apply()}
               />
             ) : null}

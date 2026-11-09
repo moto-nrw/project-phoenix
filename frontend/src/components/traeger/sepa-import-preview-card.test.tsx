@@ -76,9 +76,8 @@ const result: ImportResult = {
 };
 
 describe("SepaImportPreviewCard", () => {
-  it("counts only ready rows until the office answers the open one", () => {
-    expect(importableCount(result, {})).toBe(1);
-    expect(importableCount(result, { 3: "recurring" })).toBe(2);
+  it("counts only rows the backend has marked ready", () => {
+    expect(importableCount(result)).toBe(1);
   });
 
   it("asks the open row and names the problem without the value", () => {
@@ -121,7 +120,7 @@ describe("SepaImportPreviewCard", () => {
       />,
     );
     expect(
-      screen.getByRole("button", { name: "2 Mandate übernehmen" }),
+      screen.getByRole("button", { name: "1 Mandat übernehmen" }),
     ).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "Fehler 1" }));
     expect(screen.getAllByText("Fehlerhaft").length).toBeGreaterThan(0);

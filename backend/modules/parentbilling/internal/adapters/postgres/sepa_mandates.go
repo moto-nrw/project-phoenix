@@ -111,6 +111,8 @@ type sepaMandateEventRow struct {
 	Fields         []string  `bun:"fields,array"`
 	ActorAccountID *int64    `bun:"actor_account_id"`
 	OccurredAt     time.Time `bun:"occurred_at,nullzero,default:current_timestamp"`
+	ImportFile     string    `bun:"import_file,nullzero"`
+	ImportLine     int       `bun:"import_line,nullzero"`
 }
 
 // SEPACreditor reads the creditor of the Träger, nil without one.
@@ -305,7 +307,7 @@ func (s *Store) SEPAMandateEvents(ctx context.Context, organizationID, id int64)
 	events := make([]parentbilling.SEPAMandateEvent, len(rows))
 	for i, row := range rows {
 		events[i] = parentbilling.SEPAMandateEvent{ID: row.ID, Action: row.Action, Source: row.Source, Fields: row.Fields,
-			AccountID: row.ActorAccountID, OccurredAt: row.OccurredAt}
+			AccountID: row.ActorAccountID, OccurredAt: row.OccurredAt, ImportFile: row.ImportFile, ImportLine: row.ImportLine}
 		if events[i].Fields == nil {
 			events[i].Fields = []string{}
 		}

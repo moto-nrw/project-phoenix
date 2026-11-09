@@ -87,7 +87,7 @@ export function SepaImportMappingCard({
           </FieldLabel>
           <SegmentedControl
             ariaLabel="Die Spalte Zahler enthält"
-            items={PAYER_KEYS}
+            items={PAYER_KEYS.map((item) => ({ ...item, disabled }))}
             value={mapping.payerKey}
             onChange={(payerKey) => onChange({ ...mapping, payerKey })}
           />

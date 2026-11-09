@@ -76,6 +76,8 @@ export interface SepaMandateEvent {
   /** The account that acted; null once the account is deleted. */
   readonly accountId: string | null;
   readonly occurredAt: string;
+  readonly importFile: string | null;
+  readonly importLine: number | null;
 }
 
 interface BackendCreditor {
@@ -114,6 +116,8 @@ interface BackendEvent {
   fields: string[] | null;
   account_id: number | null;
   occurred_at: string;
+  import_file?: string;
+  import_line?: number;
 }
 
 function creditorFromBackend(creditor: BackendCreditor): SepaCreditor {
@@ -242,5 +246,7 @@ export async function fetchSepaMandateHistory(
     fields: event.fields ?? [],
     accountId: event.account_id === null ? null : String(event.account_id),
     occurredAt: event.occurred_at,
+    importFile: event.import_file ?? null,
+    importLine: event.import_line ?? null,
   }));
 }

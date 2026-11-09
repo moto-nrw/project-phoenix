@@ -194,6 +194,20 @@ func TestSEPAMandateImportTakesOverOldMandatesOnce(t *testing.T) {
 		FROM parent_billing.sepa_mandate_events WHERE mandate_id = ? AND import_file IS NOT NULL`,
 		byReference["OGS-0003"].ID).Scan(context.Background(), &origin))
 	assert.Equal(t, "create:import:4:ogs-connect.csv", origin, "the trail keeps the file and the line")
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodGet,
+		fmt.Sprintf("%s/%d/history", sepaMandatesPath, byReference["OGS-0003"].ID), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	events := decodeSchoolPortalData[[]struct {
+		ImportFile string `json:"import_file"`
+		ImportLine int    `json:"import_line"`
+	}](t, rec.Body.Bytes())
+	require.NotEmpty(t, events)
+	assert.Equal(t, "ogs-connect.csv", events[0].ImportFile)
+	assert.Equal(t, 4, events[0].ImportLine)
+	for _, event := range events[1:] {
+		assert.Empty(t, event.ImportFile, "only the creation records the import origin")
+		assert.Zero(t, event.ImportLine)
+	}
 
 	// The same file again: every taken-over row is a duplicate, nothing new.
 	rec = importForm(t, f.traeger, f.office.token, sepaImportPath, "ogs-connect.csv", content, answers)

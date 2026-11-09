@@ -217,7 +217,7 @@ type SEPAMandateChange struct {
 
 // SEPAMandateEvent is one entry of the trail of a mandate: what happened,
 // from where, which fields a change touched, who and when. It holds no
-// value.
+// bank value. An imported creation also names its file and line.
 type SEPAMandateEvent struct {
 	ID         int64     `json:"id"`
 	Action     string    `json:"action"`
@@ -225,6 +225,8 @@ type SEPAMandateEvent struct {
 	Fields     []string  `json:"fields"`
 	AccountID  *int64    `json:"account_id"`
 	OccurredAt time.Time `json:"occurred_at"`
+	ImportFile string    `json:"import_file,omitempty"`
+	ImportLine int       `json:"import_line,omitempty"`
 }
 
 // SEPAMandateDebit is a mandate with its open IBAN for the debit file

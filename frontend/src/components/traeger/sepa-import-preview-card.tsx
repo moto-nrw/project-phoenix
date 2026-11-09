@@ -31,32 +31,27 @@ const ANSWER_ITEMS: { value: MandateSequence; label: string }[] = [
   { value: "recurring", label: "Ja" },
 ];
 
-/** Wie viele Zeilen übernommen würden: bereit plus beantwortet. */
-export function importableCount(
-  result: ImportResult,
-  answers: Answers,
-): number {
-  return result.rows.filter(
-    (row) =>
-      row.status === "ready" ||
-      (row.status === "clarify" && answers[row.line] !== undefined),
-  ).length;
+/** Nur die vom Backend geprüften, bereiten Zeilen werden übernommen. */
+export function importableCount(result: ImportResult): number {
+  return result.rows.filter((row) => row.status === "ready").length;
 }
 
 function SequenceCell({
   row,
   answer,
+  disabled,
   onAnswer,
 }: Readonly<{
   row: ImportRow;
   answer: MandateSequence | undefined;
+  disabled: boolean;
   onAnswer: (line: number, sequence: MandateSequence) => void;
 }>) {
-  if (row.status === "clarify") {
+  if (row.status === "clarify" || answer !== undefined) {
     return (
       <SegmentedControl
         ariaLabel={`Zeile ${row.line}: Wurde schon abgebucht?`}
-        items={ANSWER_ITEMS}
+        items={ANSWER_ITEMS.map((item) => ({ ...item, disabled }))}
         value={answer ?? null}
         onChange={(sequence) => onAnswer(row.line, sequence)}
       />
@@ -111,8 +106,8 @@ export function SepaImportPreviewCard({
 }>) {
   const [filter, setFilter] = useState<ImportFilter>("all");
   const counts = result.counts;
-  const importable = importableCount(result, answers);
-  const openQuestions = counts.clarify - (importable - counts.ready);
+  const importable = importableCount(result);
+  const openQuestions = counts.clarify;
   const shown = useMemo(
     () => result.rows.filter((row) => matchesImportFilter(row, filter)),
     [result.rows, filter],
@@ -189,6 +184,7 @@ export function SepaImportPreviewCard({
         <SequenceCell
           row={row}
           answer={answers[row.line]}
+          disabled={applying}
           onAnswer={onAnswer}
         />
       ),
@@ -231,6 +227,7 @@ export function SepaImportPreviewCard({
         <SegmentedControl
           ariaLabel="Zeilen zeigen"
           fullWidth
+          wrap
           items={filters}
           value={filter}
           onChange={setFilter}
