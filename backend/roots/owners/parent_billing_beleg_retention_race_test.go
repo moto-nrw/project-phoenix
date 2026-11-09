@@ -2,6 +2,7 @@ package owners
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -327,4 +328,151 @@ func TestInstructionTableRefusesAShortStatutoryPeriod(t *testing.T) {
 		assert.Equal(t, "23514", pgErr.Field('C'), name)
 	}
 	require.NoError(t, insert("care_invoice", "issued", 1, "not_applicable", "Satzung des Trägers § 12", &reason))
+}
+
+// TestInstructionTableRefusesEverySpellingOfTheStatutes: the database holds
+// "Vorschriften nicht anwendbar" to the same normalized citation check as
+// the application (statuteSpellings in beleg_retention_rules_test.go), also
+// for a row written past it (#4720, third review).
+func TestInstructionTableRefusesEverySpellingOfTheStatutes(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := context.Background()
+	organization := testpkg.CreateTestOrganization(t, db, &testpkg.Organization{
+		Name: "Träger Zitate", Slug: "beleg-zitate-" + time.Now().Format("150405.000000"),
+	}).ID
+	insert := func(legalBasis string) error {
+		return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+			_, err := tx.ExecContext(ctx, `INSERT INTO parent_billing.beleg_retention_instructions (organization_id, beleg_type, trigger_event,
+					period, basis, legal_basis, basis_justification, instructed_by, instructed_on, instruction_reference)
+				VALUES (?, 'care_invoice', 'issued', 1, 'not_applicable', ?, 'Träger ist nicht buchführungspflichtig',
+					'Frau Beispiel, Kämmerei', '2026-11-09', 'Nachtrag 2026-11')`, organization, legalBasis)
+			if err == nil {
+				// Keep the active instruction free for the next spelling.
+				return errRollbackSpelling
+			}
+			return err
+		})
+	}
+	for _, spelling := range []string{
+		"§147AO", "§ 147 Abs. 1 AO", "147ao", "HGB§257", "UStG14b", "Abgabenordnung", "ABGABENORDNUNG", "aBgAbEnOrDnUnG",
+		"Handelsgesetzbuch", "Umsatzsteuergesetz", "§ 147 AO", "§ 257 HGB", "§ 14b UStG", "A.O.", "A-O",
+		"§ 14 b UStG", "§ 257 Abs. 4 Nr. 1 HGB", "Paragraph 147 der Abgaben-Ordnung", "ＡＯ", "A​O", "nach §147",
+	} {
+		var pgErr interface{ Field(byte) string }
+		err := insert(spelling)
+		require.ErrorAs(t, err, &pgErr, "%q", spelling)
+		assert.Equal(t, "23514", pgErr.Field('C'), "%q", spelling)
+	}
+	for _, basis := range []string{"Satzung des Trägers § 12", "Beschluss des Vorstands vom 01.02.2026", "Kommunalhaushaltsverordnung NRW § 58"} {
+		assert.ErrorIs(t, insert(basis), errRollbackSpelling, "%q", basis)
+	}
+}
+
+var errRollbackSpelling = errors.New("accepted, rolled back")
+
+// billingHoldsWhileRetentionRuns plays a billing transaction against the
+// hourly job (#4720, third review): first takes the lock billing takes
+// first, then the job runs, then next takes the lock billing takes second.
+// The billing transaction must complete and the job must neither fail nor
+// make billing fail; a busy Beleg waits for a later run.
+func billingHoldsWhileRetentionRuns(t *testing.T, db *bun.DB, job parentbilling.BelegRetention, first, next string, args ...any) {
+	t.Helper()
+	ctx := context.Background()
+	unit := tenant.WithUnitOfWork(ctx, testpkg.TenantRuntime(t, db))
+	tx, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	_, err = tx.ExecContext(ctx, first, args...)
+	require.NoError(t, err)
+
+	jobDone := make(chan error, 1)
+	go func() {
+		jobDone <- tenant.WithinAdmin(unit, func(adminCtx context.Context) error {
+			_, err := job.ApplyBelegRetention(adminCtx)
+			return err
+		})
+	}()
+	blocked, early := waitUntilBlockedOrDone(t, db, jobDone)
+	_, billingErr := tx.ExecContext(ctx, next, args...)
+	if billingErr == nil {
+		billingErr = tx.Commit()
+	} else {
+		_ = tx.Rollback()
+	}
+	jobErr := early
+	if blocked {
+		jobErr = <-jobDone
+	}
+	require.NoError(t, billingErr, "the billing transaction completes")
+	require.NoError(t, jobErr, "the job skips what billing holds instead of failing")
+	assert.False(t, blocked, "the job does not wait on billing")
+}
+
+// TestBelegRetentionSkipsAnInvoiceWhoseRunACancellationHolds mirrors the
+// probe of a monthly cancellation: billing locks the run, then adds the
+// cancellation to the invoice. The job used to lock the invoice and then
+// wait on the run, so Postgres aborted one side with 40P01.
+func TestBelegRetentionSkipsAnInvoiceWhoseRunACancellationHolds(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := context.Background()
+	f := newBelegFixture(t, db, "Träger mit Storno im Löschlauf")
+	today := calendar.NewDate(2026, time.November, 9)
+	retention := NewBelegRetention(func() calendar.Date { return today })
+	unit := tenant.WithUnitOfWork(ctx, testpkg.TenantRuntime(t, db))
+	require.NoError(t, tenant.WithinAdmin(unit, func(adminCtx context.Context) error {
+		instruct(t, retention, adminCtx, f.organization)
+		return nil
+	}))
+	today = calendar.NewDate(2035, time.January, 2)
+	billingHoldsWhileRetentionRuns(t, db, retention,
+		`SELECT r.id FROM parent_billing.care_runs r JOIN parent_billing.care_invoices i ON i.run_id = r.id WHERE i.id = ?0 FOR UPDATE OF r`,
+		`INSERT INTO parent_billing.care_invoice_cancellations (organization_id, run_id, invoice_id, number, number_year, number_sequence,
+			issued_on, reason, total_cents)
+		SELECT organization_id, run_id, id, 'MB-ST-1', 2026, 1, DATE '2026-12-01', 'Storno', -total_cents
+		FROM parent_billing.care_invoices WHERE id = ?0`, f.careInvoice)
+	assert.True(t, belegExists(t, db, "parent_billing.care_invoices", f.careInvoice), "the invoice billing holds waits for a later run")
+
+	today = calendar.NewDate(2035, time.January, 3)
+	require.NoError(t, tenant.WithinAdmin(unit, func(adminCtx context.Context) error {
+		_, err := retention.ApplyBelegRetention(adminCtx)
+		return err
+	}))
+	assert.False(t, belegExists(t, db, "parent_billing.care_invoices", f.careInvoice), "the next run deletes it with its cancellation of 2026")
+}
+
+// TestBelegRetentionSkipsADebitWhoseMandateAConfirmationHolds mirrors the
+// probe of a SEPA confirmation: billing locks the mandate, then the debit.
+// The job used to lock the debit and then wait on the mandate, so Postgres
+// aborted one side with 40P01.
+func TestBelegRetentionSkipsADebitWhoseMandateAConfirmationHolds(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := context.Background()
+	f := newBelegFixture(t, db, "Träger mit Bestätigung im Löschlauf")
+	today := calendar.NewDate(2026, time.November, 9)
+	retention := NewBelegRetention(func() calendar.Date { return today })
+	unit := tenant.WithUnitOfWork(ctx, testpkg.TenantRuntime(t, db))
+	require.NoError(t, tenant.WithinAdmin(unit, func(adminCtx context.Context) error {
+		instruct(t, retention, adminCtx, f.organization)
+		return nil
+	}))
+	today = calendar.NewDate(2035, time.January, 2)
+	billingHoldsWhileRetentionRuns(t, db, retention,
+		`SELECT id FROM parent_billing.sepa_mandates WHERE id = ?0 FOR UPDATE`,
+		`SELECT id FROM parent_billing.sepa_debits WHERE mandate_id = ?0 ORDER BY id FOR UPDATE`, f.mandate)
+	for table, id := range map[string]int64{"parent_billing.sepa_debits": f.debit, "parent_billing.care_invoices": f.careInvoice,
+		"parent_billing.sepa_mandates": f.mandate} {
+		assert.True(t, belegExists(t, db, table, id), "%s waits for a later run", table)
+	}
+
+	today = calendar.NewDate(2035, time.January, 3)
+	require.NoError(t, tenant.WithinAdmin(unit, func(adminCtx context.Context) error {
+		_, err := retention.ApplyBelegRetention(adminCtx)
+		return err
+	}))
+	for table, id := range map[string]int64{"parent_billing.sepa_debits": f.debit, "parent_billing.care_invoices": f.careInvoice,
+		"parent_billing.sepa_mandates": f.mandate} {
+		assert.False(t, belegExists(t, db, table, id), "the next run deletes %s", table)
+	}
 }

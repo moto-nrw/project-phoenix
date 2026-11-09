@@ -32,11 +32,6 @@
     },
     {
       "decision": "0184",
-      "id": "modules/parentbilling/internal/application/BelegRetention.RecordClarificationReview",
-      "reason": "ADR 0184 (#4720, Löschkonzept section 3): trims and validates the review (type, reason, note, escalation reason, next review within a year) on the Berlin day before the store records it under the lock of the Träger."
-    },
-    {
-      "decision": "0184",
       "id": "modules/parentbilling/internal/application/BelegRetention.RecordSuspension",
       "reason": "ADR 0184 (#4720): trims and validates the suspension (type, reason, scope, responsible, review not in the past), stores it and evaluates the Träger again at once."
     },

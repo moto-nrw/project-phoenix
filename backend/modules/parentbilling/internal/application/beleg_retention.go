@@ -28,6 +28,10 @@ type BelegRetentionStore interface {
 	InsertInstruction(ctx context.Context, organizationID, operatorID int64, instruction parentbilling.NewRetentionInstruction) (parentbilling.RetentionInstruction, error)
 	InsertSuspension(ctx context.Context, organizationID, operatorID int64, suspension parentbilling.NewRetentionSuspension) (parentbilling.RetentionSuspension, error)
 	LiftSuspension(ctx context.Context, organizationID, suspensionID, operatorID int64) error
+	// ClarificationReviewOn answers the review date of the clarification
+	// entry of a type and reason, the earliest of its Belege; an entry
+	// without a listed Beleg is ErrBelegClarificationNotFound.
+	ClarificationReviewOn(ctx context.Context, organizationID int64, belegType, reason string) (calendar.Date, error)
 	InsertClarificationReview(ctx context.Context, organizationID, operatorID int64, today calendar.Date, review parentbilling.NewBelegClarificationReview) (parentbilling.BelegClarificationReview, error)
 	SaveBelegRecords(ctx context.Context, organizationID int64, today calendar.Date, records []parentbilling.BelegRecord) error
 	// DeleteDueBelege deletes the due Belege of parent-billing in the order
@@ -120,11 +124,23 @@ func (r *BelegRetention) LiftSuspension(ctx context.Context, organizationID, sus
 // RecordClarificationReview records what the moto team clarified with the
 // Träger for an entry of the clarification list, an escalation to Florian
 // with its reason, and moves the next review of the entry (Löschkonzept
-// section 3). It deletes nothing.
+// section 3). Under the lock of the Träger it reads the entry's review date:
+// moving it past that date needs the escalation, so an overdue entry is
+// escalated, not just rescheduled. It deletes nothing.
 func (r *BelegRetention) RecordClarificationReview(ctx context.Context, organizationID, operatorID int64, input parentbilling.NewBelegClarificationReview) (parentbilling.BelegClarificationReview, error) {
 	input.Note, input.EscalationReason = strings.TrimSpace(input.Note), strings.TrimSpace(input.EscalationReason)
 	today := r.today()
 	if err := ValidateClarificationReview(input, today); err != nil {
+		return parentbilling.BelegClarificationReview{}, err
+	}
+	if err := r.store.LockTraeger(ctx, []int64{organizationID}); err != nil {
+		return parentbilling.BelegClarificationReview{}, err
+	}
+	reviewOn, err := r.store.ClarificationReviewOn(ctx, organizationID, input.BelegType, input.Reason)
+	if err != nil {
+		return parentbilling.BelegClarificationReview{}, err
+	}
+	if err := ValidateClarificationEscalation(input, reviewOn); err != nil {
 		return parentbilling.BelegClarificationReview{}, err
 	}
 	return r.store.InsertClarificationReview(ctx, organizationID, operatorID, today, input)

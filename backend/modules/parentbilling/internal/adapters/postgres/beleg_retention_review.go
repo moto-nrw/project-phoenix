@@ -38,6 +38,25 @@ func (r clarificationReviewRow) review() parentbilling.BelegClarificationReview 
 	return review
 }
 
+// ClarificationReviewOn answers the review date of the clarification entry
+// of a type and reason: the earliest of its listed Belege.
+func (s *Store) ClarificationReviewOn(ctx context.Context, organizationID int64, belegType, reason string) (calendar.Date, error) {
+	db, err := adminDB(ctx)
+	if err != nil {
+		return "", err
+	}
+	var reviewOn *calendar.Date
+	if err := db.NewRaw(`SELECT min(review_on) FROM parent_billing.beleg_retentions
+		WHERE organization_id = ? AND beleg_type = ? AND reason = ? AND state = 'clarification'`,
+		organizationID, belegType, reason).Scan(ctx, &reviewOn); err != nil {
+		return "", fmt.Errorf("parent billing postgres: read clarification review: %w", err)
+	}
+	if reviewOn == nil {
+		return "", parentbilling.ErrBelegClarificationNotFound
+	}
+	return *reviewOn, nil
+}
+
 // InsertClarificationReview stores the review of the clarification entry of
 // a type and reason and moves the review day of its Belege to the next
 // review; the evaluation keeps that day while they stay listed for the same

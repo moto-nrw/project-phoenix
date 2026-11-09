@@ -43,6 +43,19 @@ func init() {
 // Operator portal reads and writes them; the request role has no privilege.
 // Everything goes with the Träger.
 const parentBillingBelegRetentionUpSQL = `
+-- beleg_basis_cites_statute reports whether a basis names § 147 AO, § 257
+-- HGB or § 14b UStG in any spelling: the text folded to NFKC, ASCII letters
+-- lowercased and everything but a-z and 0-9 dropped contains one of the
+-- tokens, without word boundaries. The application folds the same way
+-- (citesStatute in parent-billing).
+CREATE OR REPLACE FUNCTION parent_billing.beleg_basis_cites_statute(p_basis TEXT)
+RETURNS BOOLEAN LANGUAGE sql IMMUTABLE SET search_path = pg_catalog AS $$
+	SELECT COALESCE(regexp_replace(
+		translate(normalize(p_basis, NFKC), 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'),
+		'[^abcdefghijklmnopqrstuvwxyz0123456789]', '', 'g')
+		~ '(ao|hgb|ustg|abgabenordnung|handelsgesetzbuch|umsatzsteuergesetz|147|257|14b)', FALSE)
+$$;
+
 CREATE TABLE parent_billing.beleg_retention_instructions (
 	id BIGSERIAL PRIMARY KEY,
 	organization_id BIGINT NOT NULL REFERENCES platform.organizations(id) ON DELETE CASCADE,
@@ -87,7 +100,7 @@ CREATE TABLE parent_billing.beleg_retention_instructions (
 	CONSTRAINT chk_beleg_retention_instructions_not_applicable CHECK (
 		(basis = 'not_applicable') = (basis_justification IS NOT NULL)
 		AND (basis_justification IS NULL OR (btrim(basis_justification) <> '' AND char_length(basis_justification) <= 1000))
-		AND (basis <> 'not_applicable' OR legal_basis !~* '` + belegStatuteCitationPattern + `'))
+		AND (basis <> 'not_applicable' OR NOT parent_billing.beleg_basis_cites_statute(legal_basis)))
 );
 CREATE UNIQUE INDEX uq_beleg_retention_instructions_active
 	ON parent_billing.beleg_retention_instructions (organization_id, beleg_type) WHERE replaced_at IS NULL;
@@ -272,6 +285,7 @@ DROP TABLE IF EXISTS parent_billing.beleg_deletions;
 DROP TABLE IF EXISTS parent_billing.beleg_retentions;
 DROP TABLE IF EXISTS parent_billing.beleg_retention_suspensions;
 DROP TABLE IF EXISTS parent_billing.beleg_retention_instructions;
+DROP FUNCTION IF EXISTS parent_billing.beleg_basis_cites_statute(TEXT);
 `
 
 func parentBillingBelegRetentionUp(ctx context.Context, db *bun.DB) error {
@@ -288,11 +302,6 @@ func parentBillingBelegRetentionDown(ctx context.Context, db *bun.DB) error {
 	return nil
 }
 
-// belegStatuteCitationPattern finds a citation of § 147 AO, § 257 HGB or
-// § 14b UStG in the basis of a Weisung (PostgreSQL regular expression, case
-// insensitive); a Weisung whose statutes do not apply cites none of them.
-const belegStatuteCitationPattern = `(\mAO\M|\mHGB\M|\mUStG\M|§\s*(147|257|14b)\M|abgabenordnung|handelsgesetzbuch|umsatzsteuergesetz)`
-
 // parentBillingBelegRetentionFunctionsSQL reads the facts of the Belege,
 // serializes the retention per Träger and deletes the due Belege.
 //
@@ -302,13 +311,17 @@ const belegStatuteCitationPattern = `(\mAO\M|\mHGB\M|\mUStG\M|§\s*(147|257|14b)
 // so no cancellation, credit note, change notice, replacing invoice or
 // debit can be added to them meanwhile, and then checks each row it would
 // remove, cascaded Belege included, against its own current Weisung, its
-// suspensions and the event days as they stand.
+// suspensions and the event days as they stand. It never waits on billing:
+// row locks are taken with SKIP LOCKED in billing's order and a busy row
+// waits for the next run.
 const parentBillingBelegRetentionFunctionsSQL = `
 -- lock_beleg_retention serializes the retention of the given Träger: the
 -- operator's Weisungen, suspensions and reviews, the evaluation and the
 -- deletion all take it, in ascending order, until the transaction ends.
+-- Billing never takes it, so it waits for an operator's change whatever
+-- lock_timeout its caller set.
 CREATE OR REPLACE FUNCTION parent_billing.lock_beleg_retention(p_organization_ids BIGINT[])
-RETURNS VOID LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog AS $$
+RETURNS VOID LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog SET lock_timeout = 0 AS $$
 DECLARE
 	traeger BIGINT;
 BEGIN
@@ -383,182 +396,291 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog AS $$
 $$;
 
 -- delete_due_belege deletes the Belege whose instructed period ended on
--- p_today (ADR 0184). Per type it locks the Träger, then the rows it would
--- delete, and deletes a row only when, as things stand, its own Weisung
--- period ended without a suspension and its record names it due; a Beleg
--- its cascade would take (a cancellation, credit note or change notice, a
--- debit, a replacing invoice) must pass the same check or keeps it. Debits
--- go first, after their mandate recorded the trigger they set; mandates go
--- last, then the released runs left without a Beleg. Each step drops the
--- records of what it deleted and logs the count per Träger and type.
+-- p_today (ADR 0184). It is a background job and never makes billing wait
+-- on it or fail: it takes the lock of the Träger, then locks every row it
+-- would delete with SKIP LOCKED in the order billing locks them (run, then
+-- its Beleg; mandate, then its debit), so a row billing holds is skipped to
+-- the next run instead of waited for. A lock the cascade of a step still
+-- has to wait for gives up after lock_timeout and skips that step. It then
+-- deletes a row only when, as things stand, its own Weisung period ended
+-- without a suspension and its record names it due; a Beleg its cascade
+-- would take (a cancellation, credit note or change notice, a submitted
+-- debit, a replacing invoice) must pass the same check or keeps it. A debit
+-- that was never submitted is no Beleg of its own and goes with its Beleg.
+-- Submitted debits go first, after their mandate recorded the trigger they
+-- set; mandates go last, then the released runs left without a Beleg. Each
+-- step drops the records of what it deleted and logs the count per Träger
+-- and type.
 CREATE OR REPLACE FUNCTION parent_billing.delete_due_belege(p_today DATE)
 RETURNS TABLE (beleg_type TEXT, deleted INT)
-LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog AS $$
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog SET lock_timeout = '100ms' AS $$
 #variable_conflict use_column
 DECLARE
 	removed_count INT;
 	removed_orgs BIGINT[];
 	removed_ids BIGINT[];
-	locked BIGINT[];
+	document_tree BIGINT[];
+	notice_tree BIGINT[];
+	held_runs BIGINT[];
+	held_care_runs BIGINT[];
+	held_notice_runs BIGINT[];
+	held_documents BIGINT[];
+	held_invoices BIGINT[];
+	held_notices BIGINT[];
+	held_mandates BIGINT[];
+	held_due_mandates BIGINT[];
+	held_debits BIGINT[];
 BEGIN
 	PERFORM parent_billing.authorize_beleg_retention_day(p_today);
 	PERFORM parent_billing.lock_beleg_retention(ARRAY(
 		SELECT DISTINCT r.organization_id FROM parent_billing.beleg_retentions r
 		WHERE r.state = 'scheduled' AND r.deletable_on <= p_today));
 
-	-- SEPA debits. Their mandate keeps the day of their submission first.
-	UPDATE parent_billing.beleg_retentions mr SET collection_trigger_on = GREATEST(mr.collection_trigger_on, s.submitted_on)
-	FROM (SELECT s.organization_id, s.mandate_id, max((s.submitted_at AT TIME ZONE 'Europe/Berlin')::date) AS submitted_on
-		FROM parent_billing.sepa_debits s JOIN parent_billing.beleg_retentions r
-			ON r.organization_id = s.organization_id AND r.beleg_type = 'sepa_debit' AND r.beleg_id = s.id
-		WHERE s.status = 'submitted' AND r.state = 'scheduled' AND r.deletable_on <= p_today
-		GROUP BY s.organization_id, s.mandate_id) s
-	WHERE mr.organization_id = s.organization_id AND mr.beleg_type = 'sepa_mandate' AND mr.beleg_id = s.mandate_id;
-	WITH removed AS (
-		DELETE FROM parent_billing.sepa_debits s USING parent_billing.beleg_retentions r
-		WHERE r.beleg_type = 'sepa_debit' AND r.state = 'scheduled' AND r.deletable_on <= p_today
-			AND s.organization_id = r.organization_id AND s.id = r.beleg_id AND s.status = 'submitted'
-			AND parent_billing.beleg_retention_ended(s.organization_id, 'sepa_debit', s.id, (s.submitted_at AT TIME ZONE 'Europe/Berlin')::date, p_today)
-			AND EXISTS (SELECT 1 FROM parent_billing.beleg_retentions mr
-				WHERE mr.organization_id = s.organization_id AND mr.beleg_type = 'sepa_mandate' AND mr.beleg_id = s.mandate_id
-					AND mr.collection_trigger_on >= (s.submitted_at AT TIME ZONE 'Europe/Berlin')::date)
-		RETURNING s.organization_id, s.id)
-	SELECT COALESCE(array_agg(removed.organization_id), '{}'), COALESCE(array_agg(removed.id), '{}') INTO removed_orgs, removed_ids FROM removed;
-	PERFORM parent_billing.log_removed_belege('sepa_debit', p_today, removed_orgs, removed_ids);
-	beleg_type := 'sepa_debit'; deleted := cardinality(removed_ids); RETURN NEXT;
-
-	-- Holiday documents: a document goes with its whole chain of references,
-	-- so every document of the chain is locked and must be due itself.
-	WITH RECURSIVE due AS (
-		SELECT r.organization_id, r.beleg_id FROM parent_billing.beleg_retentions r
-		WHERE r.beleg_type = 'holiday_document' AND r.state = 'scheduled' AND r.deletable_on <= p_today),
-	tree AS (
-		SELECT due.organization_id, due.beleg_id AS id FROM due
+	-- A holiday document or Jahresbescheid goes with its whole chain of
+	-- references, so every member of the chain is locked and must be due.
+	WITH RECURSIVE tree AS (
+		SELECT r.organization_id, r.beleg_id AS id FROM parent_billing.beleg_retentions r
+		WHERE r.beleg_type = 'holiday_document' AND r.state = 'scheduled' AND r.deletable_on <= p_today
 		UNION
 		SELECT c.organization_id, c.id FROM parent_billing.documents c
 		JOIN tree ON c.organization_id = tree.organization_id AND c.reference_document_id = tree.id)
-	SELECT COALESCE(array_agg(l.id), '{}') INTO locked FROM (
-		SELECT d.id FROM parent_billing.documents d JOIN tree ON d.organization_id = tree.organization_id AND d.id = tree.id
-		ORDER BY d.id FOR UPDATE OF d) l;
-	WITH RECURSIVE due AS (
-		SELECT r.organization_id, r.beleg_id FROM parent_billing.beleg_retentions r
-		WHERE r.beleg_type = 'holiday_document' AND r.state = 'scheduled' AND r.deletable_on <= p_today AND r.beleg_id = ANY(locked)),
-	tree AS (
-		SELECT due.organization_id, due.beleg_id AS root, due.beleg_id AS id FROM due
-		UNION
-		SELECT c.organization_id, tree.root, c.id FROM parent_billing.documents c
-		JOIN tree ON c.organization_id = tree.organization_id AND c.reference_document_id = tree.id),
-	blocked AS (
-		SELECT DISTINCT tree.organization_id, tree.root FROM tree
-		JOIN parent_billing.documents d ON d.organization_id = tree.organization_id AND d.id = tree.id
-		WHERE NOT (tree.id = ANY(locked))
-			OR NOT EXISTS (SELECT 1 FROM due WHERE due.organization_id = tree.organization_id AND due.beleg_id = tree.id)
-			OR NOT EXISTS (SELECT 1 FROM parent_billing.runs run WHERE run.organization_id = d.organization_id AND run.id = d.run_id AND run.status = 'released')
-			OR EXISTS (SELECT 1 FROM parent_billing.sepa_debits s WHERE s.organization_id = tree.organization_id AND s.document_id = tree.id)
-			OR NOT parent_billing.beleg_retention_ended(d.organization_id, 'holiday_document', d.id, d.issued_on, p_today)),
-	removed AS (
-		DELETE FROM parent_billing.documents d USING due
-		WHERE d.organization_id = due.organization_id AND d.id = due.beleg_id
-			AND NOT EXISTS (SELECT 1 FROM blocked WHERE blocked.organization_id = d.organization_id AND blocked.root = d.id)
-		RETURNING d.organization_id, d.id)
-	SELECT COALESCE(array_agg(removed.organization_id), '{}'), COALESCE(array_agg(removed.id), '{}') INTO removed_orgs, removed_ids FROM removed;
-	PERFORM parent_billing.log_removed_belege('holiday_document', p_today, removed_orgs, removed_ids);
-	beleg_type := 'holiday_document'; deleted := cardinality(removed_ids); RETURN NEXT;
-
-	-- Monthly invoices with their cancellation: the later issue of the two
-	-- counts, as it stands once the invoice is locked.
-	SELECT COALESCE(array_agg(l.id), '{}') INTO locked FROM (
-		SELECT i.id FROM parent_billing.care_invoices i JOIN parent_billing.beleg_retentions r
-			ON r.organization_id = i.organization_id AND r.beleg_type = 'care_invoice' AND r.beleg_id = i.id
-		WHERE r.state = 'scheduled' AND r.deletable_on <= p_today
-		ORDER BY i.id FOR UPDATE OF i) l;
-	WITH removed AS (
-		DELETE FROM parent_billing.care_invoices i USING parent_billing.beleg_retentions r
-		WHERE r.beleg_type = 'care_invoice' AND r.state = 'scheduled' AND r.deletable_on <= p_today
-			AND i.organization_id = r.organization_id AND i.id = r.beleg_id AND i.id = ANY(locked)
-			AND EXISTS (SELECT 1 FROM parent_billing.care_runs run WHERE run.organization_id = i.organization_id AND run.id = i.run_id AND run.status = 'released')
-			AND parent_billing.beleg_retention_ended(i.organization_id, 'care_invoice', i.id,
-				GREATEST(i.issued_on, (SELECT max(c.issued_on) FROM parent_billing.care_invoice_cancellations c
-					WHERE c.organization_id = i.organization_id AND c.invoice_id = i.id)), p_today)
-			AND NOT EXISTS (SELECT 1 FROM parent_billing.sepa_debits s WHERE s.organization_id = i.organization_id AND s.care_invoice_id = i.id)
-			AND NOT EXISTS (SELECT 1 FROM parent_billing.care_invoices n WHERE n.organization_id = i.organization_id AND n.replaces_invoice_id = i.id)
-		RETURNING i.organization_id, i.id)
-	SELECT COALESCE(array_agg(removed.organization_id), '{}'), COALESCE(array_agg(removed.id), '{}') INTO removed_orgs, removed_ids FROM removed;
-	PERFORM parent_billing.log_removed_belege('care_invoice', p_today, removed_orgs, removed_ids);
-	beleg_type := 'care_invoice'; deleted := cardinality(removed_ids); RETURN NEXT;
-
-	-- Jahresbescheide with their change notices, like the holiday documents.
-	WITH RECURSIVE due AS (
-		SELECT r.organization_id, r.beleg_id FROM parent_billing.beleg_retentions r
-		WHERE r.beleg_type = 'care_notice' AND r.state = 'scheduled' AND r.deletable_on <= p_today),
-	tree AS (
-		SELECT due.organization_id, due.beleg_id AS id FROM due
+	SELECT COALESCE(array_agg(DISTINCT tree.id), '{}') INTO document_tree FROM tree;
+	WITH RECURSIVE tree AS (
+		SELECT r.organization_id, r.beleg_id AS id FROM parent_billing.beleg_retentions r
+		WHERE r.beleg_type = 'care_notice' AND r.state = 'scheduled' AND r.deletable_on <= p_today
 		UNION
 		SELECT c.organization_id, c.id FROM parent_billing.care_notices c
 		JOIN tree ON c.organization_id = tree.organization_id AND c.amends_notice_id = tree.id)
-	SELECT COALESCE(array_agg(l.id), '{}') INTO locked FROM (
-		SELECT n.id FROM parent_billing.care_notices n JOIN tree ON n.organization_id = tree.organization_id AND n.id = tree.id
-		ORDER BY n.id FOR UPDATE OF n) l;
-	WITH RECURSIVE due AS (
-		SELECT r.organization_id, r.beleg_id FROM parent_billing.beleg_retentions r
-		WHERE r.beleg_type = 'care_notice' AND r.state = 'scheduled' AND r.deletable_on <= p_today AND r.beleg_id = ANY(locked)),
-	tree AS (
-		SELECT due.organization_id, due.beleg_id AS root, due.beleg_id AS id FROM due
-		UNION
-		SELECT c.organization_id, tree.root, c.id FROM parent_billing.care_notices c
-		JOIN tree ON c.organization_id = tree.organization_id AND c.amends_notice_id = tree.id),
-	blocked AS (
-		SELECT DISTINCT tree.organization_id, tree.root FROM tree
-		JOIN parent_billing.care_notices n ON n.organization_id = tree.organization_id AND n.id = tree.id
-		WHERE NOT (tree.id = ANY(locked))
-			OR NOT EXISTS (SELECT 1 FROM due WHERE due.organization_id = tree.organization_id AND due.beleg_id = tree.id)
-			OR NOT EXISTS (SELECT 1 FROM parent_billing.care_notice_runs run WHERE run.organization_id = n.organization_id AND run.id = n.run_id AND run.status = 'released')
-			OR EXISTS (SELECT 1 FROM parent_billing.sepa_debits s WHERE s.organization_id = tree.organization_id AND s.care_notice_id = tree.id)
-			OR NOT parent_billing.beleg_retention_ended(n.organization_id, 'care_notice', n.id, n.issued_on, p_today)),
-	removed AS (
-		DELETE FROM parent_billing.care_notices n USING due
-		WHERE n.organization_id = due.organization_id AND n.id = due.beleg_id
-			AND NOT EXISTS (SELECT 1 FROM blocked WHERE blocked.organization_id = n.organization_id AND blocked.root = n.id)
-		RETURNING n.organization_id, n.id)
-	SELECT COALESCE(array_agg(removed.organization_id), '{}'), COALESCE(array_agg(removed.id), '{}') INTO removed_orgs, removed_ids FROM removed;
-	PERFORM parent_billing.log_removed_belege('care_notice', p_today, removed_orgs, removed_ids);
+	SELECT COALESCE(array_agg(DISTINCT tree.id), '{}') INTO notice_tree FROM tree;
+
+	-- Runs first, like a cancellation, credit note or change notice takes
+	-- its run before its Beleg: a run billing holds keeps its Belege.
+	SELECT COALESCE(array_agg(l.id), '{}') INTO held_runs FROM (
+		SELECT run.id FROM parent_billing.runs run
+		WHERE run.id IN (SELECT d.run_id FROM parent_billing.documents d WHERE d.id = ANY(document_tree))
+		ORDER BY run.id FOR KEY SHARE SKIP LOCKED) l;
+	SELECT COALESCE(array_agg(l.id), '{}') INTO held_care_runs FROM (
+		SELECT run.id FROM parent_billing.care_runs run
+		WHERE run.id IN (SELECT i.run_id FROM parent_billing.care_invoices i JOIN parent_billing.beleg_retentions r
+			ON r.organization_id = i.organization_id AND r.beleg_type = 'care_invoice' AND r.beleg_id = i.id
+			WHERE r.state = 'scheduled' AND r.deletable_on <= p_today)
+		ORDER BY run.id FOR KEY SHARE SKIP LOCKED) l;
+	SELECT COALESCE(array_agg(l.id), '{}') INTO held_notice_runs FROM (
+		SELECT run.id FROM parent_billing.care_notice_runs run
+		WHERE run.id IN (SELECT n.run_id FROM parent_billing.care_notices n WHERE n.id = ANY(notice_tree))
+		ORDER BY run.id FOR KEY SHARE SKIP LOCKED) l;
+
+	-- Then the Belege of the held runs, against new cancellations, credit
+	-- notes, change notices, replacing invoices and debits.
+	SELECT COALESCE(array_agg(l.id), '{}') INTO held_documents FROM (
+		SELECT d.id FROM parent_billing.documents d WHERE d.id = ANY(document_tree) AND d.run_id = ANY(held_runs)
+		ORDER BY d.id FOR UPDATE SKIP LOCKED) l;
+	SELECT COALESCE(array_agg(l.id), '{}') INTO held_invoices FROM (
+		SELECT i.id FROM parent_billing.care_invoices i JOIN parent_billing.beleg_retentions r
+			ON r.organization_id = i.organization_id AND r.beleg_type = 'care_invoice' AND r.beleg_id = i.id
+		WHERE r.state = 'scheduled' AND r.deletable_on <= p_today AND i.run_id = ANY(held_care_runs)
+		ORDER BY i.id FOR UPDATE OF i SKIP LOCKED) l;
+	SELECT COALESCE(array_agg(l.id), '{}') INTO held_notices FROM (
+		SELECT n.id FROM parent_billing.care_notices n WHERE n.id = ANY(notice_tree) AND n.run_id = ANY(held_notice_runs)
+		ORDER BY n.id FOR UPDATE SKIP LOCKED) l;
+
+	-- Mandates before their debits, like a SEPA confirmation: a mandate
+	-- billing holds keeps its debits. The due mandates are locked for their
+	-- deletion, the mandates of due or pending debits only against change.
+	SELECT COALESCE(array_agg(l.id), '{}') INTO held_mandates FROM (
+		SELECT m.id FROM parent_billing.sepa_mandates m
+		WHERE m.id IN (
+			SELECT s.mandate_id FROM parent_billing.sepa_debits s JOIN parent_billing.beleg_retentions r
+				ON r.organization_id = s.organization_id AND r.beleg_type = 'sepa_debit' AND r.beleg_id = s.id
+			WHERE s.status = 'submitted' AND r.state = 'scheduled' AND r.deletable_on <= p_today
+			UNION
+			SELECT s.mandate_id FROM parent_billing.sepa_debits s
+			WHERE s.status = 'pending' AND (s.document_id = ANY(held_documents) OR s.care_invoice_id = ANY(held_invoices)
+				OR s.care_notice_id = ANY(held_notices))
+			UNION
+			SELECT r.beleg_id FROM parent_billing.beleg_retentions r
+			WHERE r.beleg_type = 'sepa_mandate' AND r.state = 'scheduled' AND r.deletable_on <= p_today)
+		ORDER BY m.id FOR KEY SHARE SKIP LOCKED) l;
+	SELECT COALESCE(array_agg(l.id), '{}') INTO held_due_mandates FROM (
+		SELECT m.id FROM parent_billing.sepa_mandates m JOIN parent_billing.beleg_retentions r
+			ON r.organization_id = m.organization_id AND r.beleg_type = 'sepa_mandate' AND r.beleg_id = m.id
+		WHERE r.state = 'scheduled' AND r.deletable_on <= p_today AND m.id = ANY(held_mandates)
+		ORDER BY m.id FOR UPDATE OF m SKIP LOCKED) l;
+	SELECT COALESCE(array_agg(l.id), '{}') INTO held_debits FROM (
+		SELECT s.id FROM parent_billing.sepa_debits s
+		WHERE s.mandate_id = ANY(held_mandates) AND (
+			(s.status = 'submitted' AND EXISTS (SELECT 1 FROM parent_billing.beleg_retentions r
+				WHERE r.organization_id = s.organization_id AND r.beleg_type = 'sepa_debit' AND r.beleg_id = s.id
+					AND r.state = 'scheduled' AND r.deletable_on <= p_today))
+			OR (s.status = 'pending' AND (s.document_id = ANY(held_documents) OR s.care_invoice_id = ANY(held_invoices)
+				OR s.care_notice_id = ANY(held_notices))))
+		ORDER BY s.id FOR UPDATE SKIP LOCKED) l;
+
+	-- Submitted SEPA debits. Their mandate keeps the day of their submission first.
+	BEGIN
+		UPDATE parent_billing.beleg_retentions mr SET collection_trigger_on = GREATEST(mr.collection_trigger_on, s.submitted_on)
+		FROM (SELECT s.organization_id, s.mandate_id, max((s.submitted_at AT TIME ZONE 'Europe/Berlin')::date) AS submitted_on
+			FROM parent_billing.sepa_debits s JOIN parent_billing.beleg_retentions r
+				ON r.organization_id = s.organization_id AND r.beleg_type = 'sepa_debit' AND r.beleg_id = s.id
+			WHERE s.status = 'submitted' AND s.id = ANY(held_debits) AND r.state = 'scheduled' AND r.deletable_on <= p_today
+			GROUP BY s.organization_id, s.mandate_id) s
+		WHERE mr.organization_id = s.organization_id AND mr.beleg_type = 'sepa_mandate' AND mr.beleg_id = s.mandate_id;
+		WITH removed AS (
+			DELETE FROM parent_billing.sepa_debits s USING parent_billing.beleg_retentions r
+			WHERE r.beleg_type = 'sepa_debit' AND r.state = 'scheduled' AND r.deletable_on <= p_today
+				AND s.organization_id = r.organization_id AND s.id = r.beleg_id AND s.status = 'submitted' AND s.id = ANY(held_debits)
+				AND parent_billing.beleg_retention_ended(s.organization_id, 'sepa_debit', s.id, (s.submitted_at AT TIME ZONE 'Europe/Berlin')::date, p_today)
+				AND EXISTS (SELECT 1 FROM parent_billing.beleg_retentions mr
+					WHERE mr.organization_id = s.organization_id AND mr.beleg_type = 'sepa_mandate' AND mr.beleg_id = s.mandate_id
+						AND mr.collection_trigger_on >= (s.submitted_at AT TIME ZONE 'Europe/Berlin')::date)
+			RETURNING s.organization_id, s.id)
+		SELECT COALESCE(array_agg(removed.organization_id), '{}'), COALESCE(array_agg(removed.id), '{}') INTO removed_orgs, removed_ids FROM removed;
+		PERFORM parent_billing.log_removed_belege('sepa_debit', p_today, removed_orgs, removed_ids);
+	EXCEPTION WHEN lock_not_available THEN
+		removed_ids := '{}';
+	END;
+	beleg_type := 'sepa_debit'; deleted := cardinality(removed_ids); RETURN NEXT;
+
+	-- Holiday documents with their chain; a pending debit goes with them.
+	BEGIN
+		WITH RECURSIVE due AS (
+			SELECT r.organization_id, r.beleg_id FROM parent_billing.beleg_retentions r
+			WHERE r.beleg_type = 'holiday_document' AND r.state = 'scheduled' AND r.deletable_on <= p_today AND r.beleg_id = ANY(held_documents)),
+		tree AS (
+			SELECT due.organization_id, due.beleg_id AS root, due.beleg_id AS id FROM due
+			UNION
+			SELECT c.organization_id, tree.root, c.id FROM parent_billing.documents c
+			JOIN tree ON c.organization_id = tree.organization_id AND c.reference_document_id = tree.id),
+		blocked AS (
+			SELECT DISTINCT tree.organization_id, tree.root FROM tree
+			JOIN parent_billing.documents d ON d.organization_id = tree.organization_id AND d.id = tree.id
+			WHERE NOT (tree.id = ANY(held_documents))
+				OR NOT EXISTS (SELECT 1 FROM due WHERE due.organization_id = tree.organization_id AND due.beleg_id = tree.id)
+				OR NOT EXISTS (SELECT 1 FROM parent_billing.runs run WHERE run.organization_id = d.organization_id AND run.id = d.run_id AND run.status = 'released')
+				OR EXISTS (SELECT 1 FROM parent_billing.sepa_debits s WHERE s.organization_id = tree.organization_id AND s.document_id = tree.id
+					AND (s.status = 'submitted' OR NOT (s.id = ANY(held_debits))))
+				OR NOT parent_billing.beleg_retention_ended(d.organization_id, 'holiday_document', d.id, d.issued_on, p_today)),
+		removed AS (
+			DELETE FROM parent_billing.documents d USING due
+			WHERE d.organization_id = due.organization_id AND d.id = due.beleg_id
+				AND NOT EXISTS (SELECT 1 FROM blocked WHERE blocked.organization_id = d.organization_id AND blocked.root = d.id)
+			RETURNING d.organization_id, d.id)
+		SELECT COALESCE(array_agg(removed.organization_id), '{}'), COALESCE(array_agg(removed.id), '{}') INTO removed_orgs, removed_ids FROM removed;
+		PERFORM parent_billing.log_removed_belege('holiday_document', p_today, removed_orgs, removed_ids);
+	EXCEPTION WHEN lock_not_available THEN
+		removed_ids := '{}';
+	END;
+	beleg_type := 'holiday_document'; deleted := cardinality(removed_ids); RETURN NEXT;
+
+	-- Monthly invoices with their cancellation: the later issue of the two
+	-- counts, as it stands once the invoice is locked. A pending debit goes
+	-- with its invoice.
+	BEGIN
+		WITH removed AS (
+			DELETE FROM parent_billing.care_invoices i USING parent_billing.beleg_retentions r
+			WHERE r.beleg_type = 'care_invoice' AND r.state = 'scheduled' AND r.deletable_on <= p_today
+				AND i.organization_id = r.organization_id AND i.id = r.beleg_id AND i.id = ANY(held_invoices)
+				AND EXISTS (SELECT 1 FROM parent_billing.care_runs run WHERE run.organization_id = i.organization_id AND run.id = i.run_id AND run.status = 'released')
+				AND parent_billing.beleg_retention_ended(i.organization_id, 'care_invoice', i.id,
+					GREATEST(i.issued_on, (SELECT max(c.issued_on) FROM parent_billing.care_invoice_cancellations c
+						WHERE c.organization_id = i.organization_id AND c.invoice_id = i.id)), p_today)
+				AND NOT EXISTS (SELECT 1 FROM parent_billing.sepa_debits s WHERE s.organization_id = i.organization_id AND s.care_invoice_id = i.id
+					AND (s.status = 'submitted' OR NOT (s.id = ANY(held_debits))))
+				AND NOT EXISTS (SELECT 1 FROM parent_billing.care_invoices n WHERE n.organization_id = i.organization_id AND n.replaces_invoice_id = i.id)
+			RETURNING i.organization_id, i.id)
+		SELECT COALESCE(array_agg(removed.organization_id), '{}'), COALESCE(array_agg(removed.id), '{}') INTO removed_orgs, removed_ids FROM removed;
+		PERFORM parent_billing.log_removed_belege('care_invoice', p_today, removed_orgs, removed_ids);
+	EXCEPTION WHEN lock_not_available THEN
+		removed_ids := '{}';
+	END;
+	beleg_type := 'care_invoice'; deleted := cardinality(removed_ids); RETURN NEXT;
+
+	-- Jahresbescheide with their change notices, like the holiday documents.
+	BEGIN
+		WITH RECURSIVE due AS (
+			SELECT r.organization_id, r.beleg_id FROM parent_billing.beleg_retentions r
+			WHERE r.beleg_type = 'care_notice' AND r.state = 'scheduled' AND r.deletable_on <= p_today AND r.beleg_id = ANY(held_notices)),
+		tree AS (
+			SELECT due.organization_id, due.beleg_id AS root, due.beleg_id AS id FROM due
+			UNION
+			SELECT c.organization_id, tree.root, c.id FROM parent_billing.care_notices c
+			JOIN tree ON c.organization_id = tree.organization_id AND c.amends_notice_id = tree.id),
+		blocked AS (
+			SELECT DISTINCT tree.organization_id, tree.root FROM tree
+			JOIN parent_billing.care_notices n ON n.organization_id = tree.organization_id AND n.id = tree.id
+			WHERE NOT (tree.id = ANY(held_notices))
+				OR NOT EXISTS (SELECT 1 FROM due WHERE due.organization_id = tree.organization_id AND due.beleg_id = tree.id)
+				OR NOT EXISTS (SELECT 1 FROM parent_billing.care_notice_runs run WHERE run.organization_id = n.organization_id AND run.id = n.run_id AND run.status = 'released')
+				OR EXISTS (SELECT 1 FROM parent_billing.sepa_debits s WHERE s.organization_id = tree.organization_id AND s.care_notice_id = tree.id
+					AND (s.status = 'submitted' OR NOT (s.id = ANY(held_debits))))
+				OR NOT parent_billing.beleg_retention_ended(n.organization_id, 'care_notice', n.id, n.issued_on, p_today)),
+		removed AS (
+			DELETE FROM parent_billing.care_notices n USING due
+			WHERE n.organization_id = due.organization_id AND n.id = due.beleg_id
+				AND NOT EXISTS (SELECT 1 FROM blocked WHERE blocked.organization_id = n.organization_id AND blocked.root = n.id)
+			RETURNING n.organization_id, n.id)
+		SELECT COALESCE(array_agg(removed.organization_id), '{}'), COALESCE(array_agg(removed.id), '{}') INTO removed_orgs, removed_ids FROM removed;
+		PERFORM parent_billing.log_removed_belege('care_notice', p_today, removed_orgs, removed_ids);
+	EXCEPTION WHEN lock_not_available THEN
+		removed_ids := '{}';
+	END;
 	beleg_type := 'care_notice'; deleted := cardinality(removed_ids); RETURN NEXT;
 
 	-- SEPA mandates, once no debit hangs on them and they expired: revoked,
 	-- or 36 months without a collection since the recorded trigger.
-	SELECT COALESCE(array_agg(l.id), '{}') INTO locked FROM (
-		SELECT m.id FROM parent_billing.sepa_mandates m JOIN parent_billing.beleg_retentions r
-			ON r.organization_id = m.organization_id AND r.beleg_type = 'sepa_mandate' AND r.beleg_id = m.id
-		WHERE r.state = 'scheduled' AND r.deletable_on <= p_today
-		ORDER BY m.id FOR UPDATE OF m) l;
-	WITH removed AS (
-		DELETE FROM parent_billing.sepa_mandates m USING parent_billing.beleg_retentions r
-		WHERE r.beleg_type = 'sepa_mandate' AND r.state = 'scheduled' AND r.deletable_on <= p_today
-			AND m.organization_id = r.organization_id AND m.id = r.beleg_id AND m.id = ANY(locked)
-			AND NOT EXISTS (SELECT 1 FROM parent_billing.sepa_debits s WHERE s.organization_id = m.organization_id AND s.mandate_id = m.id)
-			AND ((m.revoked_on IS NOT NULL AND m.revoked_on <= p_today)
-				OR parent_billing.beleg_add_months(COALESCE(r.collection_trigger_on, m.last_collected_on, m.signed_on), 36) <= p_today)
-			AND parent_billing.beleg_retention_ended(m.organization_id, 'sepa_mandate', m.id,
-				COALESCE(r.collection_trigger_on, m.last_collected_on), p_today)
-		RETURNING m.organization_id, m.id)
-	SELECT COALESCE(array_agg(removed.organization_id), '{}'), COALESCE(array_agg(removed.id), '{}') INTO removed_orgs, removed_ids FROM removed;
-	PERFORM parent_billing.log_removed_belege('sepa_mandate', p_today, removed_orgs, removed_ids);
+	BEGIN
+		WITH removed AS (
+			DELETE FROM parent_billing.sepa_mandates m USING parent_billing.beleg_retentions r
+			WHERE r.beleg_type = 'sepa_mandate' AND r.state = 'scheduled' AND r.deletable_on <= p_today
+				AND m.organization_id = r.organization_id AND m.id = r.beleg_id AND m.id = ANY(held_due_mandates)
+				AND NOT EXISTS (SELECT 1 FROM parent_billing.sepa_debits s WHERE s.organization_id = m.organization_id AND s.mandate_id = m.id)
+				AND ((m.revoked_on IS NOT NULL AND m.revoked_on <= p_today)
+					OR parent_billing.beleg_add_months(COALESCE(r.collection_trigger_on, m.last_collected_on, m.signed_on), 36) <= p_today)
+				AND parent_billing.beleg_retention_ended(m.organization_id, 'sepa_mandate', m.id,
+					COALESCE(r.collection_trigger_on, m.last_collected_on), p_today)
+			RETURNING m.organization_id, m.id)
+		SELECT COALESCE(array_agg(removed.organization_id), '{}'), COALESCE(array_agg(removed.id), '{}') INTO removed_orgs, removed_ids FROM removed;
+		PERFORM parent_billing.log_removed_belege('sepa_mandate', p_today, removed_orgs, removed_ids);
+	EXCEPTION WHEN lock_not_available THEN
+		removed_ids := '{}';
+	END;
 	beleg_type := 'sepa_mandate'; deleted := cardinality(removed_ids); RETURN NEXT;
 
 	-- Released runs whose every Beleg went, with the free text and
-	-- emergency numbers of their letters. A released run always had one.
-	DELETE FROM parent_billing.runs r WHERE r.status = 'released' AND r.document_count > 0
-		AND NOT EXISTS (SELECT 1 FROM parent_billing.documents d WHERE d.organization_id = r.organization_id AND d.run_id = r.id);
-	GET DIAGNOSTICS removed_count = ROW_COUNT;
-	deleted := removed_count;
-	DELETE FROM parent_billing.care_runs r WHERE r.status = 'released' AND r.document_count > 0
-		AND NOT EXISTS (SELECT 1 FROM parent_billing.care_invoices i WHERE i.organization_id = r.organization_id AND i.run_id = r.id);
-	GET DIAGNOSTICS removed_count = ROW_COUNT;
-	deleted := deleted + removed_count;
-	DELETE FROM parent_billing.care_notice_runs r WHERE r.status = 'released' AND r.notice_count > 0
-		AND NOT EXISTS (SELECT 1 FROM parent_billing.care_notices n WHERE n.organization_id = r.organization_id AND n.run_id = r.id);
-	GET DIAGNOSTICS removed_count = ROW_COUNT;
-	beleg_type := 'runs'; deleted := deleted + removed_count; RETURN NEXT;
+	-- emergency numbers of their letters. A released run always had one. A
+	-- run billing holds stays for a later run.
+	deleted := 0;
+	BEGIN
+		DELETE FROM parent_billing.runs r WHERE r.id IN (
+			SELECT run.id FROM parent_billing.runs run WHERE run.status = 'released' AND run.document_count > 0
+				AND NOT EXISTS (SELECT 1 FROM parent_billing.documents d WHERE d.organization_id = run.organization_id AND d.run_id = run.id)
+			ORDER BY run.id FOR UPDATE SKIP LOCKED);
+		GET DIAGNOSTICS removed_count = ROW_COUNT;
+		deleted := deleted + removed_count;
+	EXCEPTION WHEN lock_not_available THEN
+		NULL;
+	END;
+	BEGIN
+		DELETE FROM parent_billing.care_runs r WHERE r.id IN (
+			SELECT run.id FROM parent_billing.care_runs run WHERE run.status = 'released' AND run.document_count > 0
+				AND NOT EXISTS (SELECT 1 FROM parent_billing.care_invoices i WHERE i.organization_id = run.organization_id AND i.run_id = run.id)
+			ORDER BY run.id FOR UPDATE SKIP LOCKED);
+		GET DIAGNOSTICS removed_count = ROW_COUNT;
+		deleted := deleted + removed_count;
+	EXCEPTION WHEN lock_not_available THEN
+		NULL;
+	END;
+	BEGIN
+		DELETE FROM parent_billing.care_notice_runs r WHERE r.id IN (
+			SELECT run.id FROM parent_billing.care_notice_runs run WHERE run.status = 'released' AND run.notice_count > 0
+				AND NOT EXISTS (SELECT 1 FROM parent_billing.care_notices n WHERE n.organization_id = run.organization_id AND n.run_id = run.id)
+			ORDER BY run.id FOR UPDATE SKIP LOCKED);
+		GET DIAGNOSTICS removed_count = ROW_COUNT;
+		deleted := deleted + removed_count;
+	EXCEPTION WHEN lock_not_available THEN
+		NULL;
+	END;
+	beleg_type := 'runs'; RETURN NEXT;
 END;
 $$;
 
@@ -576,26 +698,30 @@ $$;
 -- with the last day their event may lie on under the current Weisung. It
 -- locks the Träger and the contracts, so no mandate or debit can be added
 -- to them before Care Contract deletes them in the same transaction, and
--- then lists only those without a mandate, a debit or a suspension.
+-- then lists only those without a mandate, a debit or a suspension. A
+-- contract another transaction holds is skipped to a later run.
 CREATE OR REPLACE FUNCTION parent_billing.due_retained_contracts(p_today DATE)
 RETURNS TABLE (organization_id BIGINT, contract_id BIGINT, trigger_event TEXT, last_event_on DATE)
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog AS $$
 #variable_conflict use_column
+DECLARE
+	held BIGINT[];
 BEGIN
 	PERFORM parent_billing.authorize_beleg_retention_day(p_today);
 	PERFORM parent_billing.lock_beleg_retention(ARRAY(
 		SELECT DISTINCT r.organization_id FROM parent_billing.beleg_retentions r
 		WHERE r.beleg_type = 'care_contract' AND r.state = 'scheduled' AND r.deletable_on <= p_today));
-	PERFORM 1 FROM care_contract.contracts c JOIN parent_billing.beleg_retentions r
-		ON r.organization_id = c.organization_id AND r.beleg_type = 'care_contract' AND r.beleg_id = c.id
-	WHERE r.state = 'scheduled' AND r.deletable_on <= p_today
-	ORDER BY c.id FOR UPDATE OF c;
+	SELECT COALESCE(array_agg(l.id), '{}') INTO held FROM (
+		SELECT c.id FROM care_contract.contracts c JOIN parent_billing.beleg_retentions r
+			ON r.organization_id = c.organization_id AND r.beleg_type = 'care_contract' AND r.beleg_id = c.id
+		WHERE r.state = 'scheduled' AND r.deletable_on <= p_today
+		ORDER BY c.id FOR UPDATE OF c SKIP LOCKED) l;
 	RETURN QUERY SELECT r.organization_id, r.beleg_id, i.trigger_event::text,
 			make_date(EXTRACT(YEAR FROM p_today)::int - i.period - 1, 12, 31)
 		FROM parent_billing.beleg_retentions r
 		JOIN parent_billing.beleg_retention_instructions i
 			ON i.organization_id = r.organization_id AND i.beleg_type = 'care_contract' AND i.replaced_at IS NULL
-		WHERE r.beleg_type = 'care_contract' AND r.state = 'scheduled' AND r.deletable_on <= p_today
+		WHERE r.beleg_type = 'care_contract' AND r.state = 'scheduled' AND r.deletable_on <= p_today AND r.beleg_id = ANY(held)
 			AND NOT EXISTS (SELECT 1 FROM parent_billing.beleg_retention_suspensions s
 				WHERE s.organization_id = r.organization_id AND s.beleg_type = 'care_contract' AND s.lifted_at IS NULL
 					AND (s.beleg_id IS NULL OR s.beleg_id = r.beleg_id))

@@ -34,15 +34,25 @@ func (s *Store) DeleteDueBelege(ctx context.Context, today calendar.Date) (int, 
 	return deleted, nil
 }
 
+// belegLockTimeout bounds a lock wait of the retention, like the
+// lock_timeout of parent_billing.delete_due_belege.
+const belegLockTimeout = "100ms"
+
 // DueContracts locks the contracts whose period ended on today against new
 // mandates and debits and lists those to which none hangs and no
 // suspension applies, with the event and the last day it may lie on under
 // the current Weisung; their deletion would take mandates and debits by
-// cascade.
+// cascade. A contract another transaction holds is skipped. The deletion
+// that follows in this transaction waits at most belegLockTimeout for a
+// row of its cascade, so the job fails and retries in the next hour rather
+// than holding up billing or deadlocking with it.
 func (s *Store) DueContracts(ctx context.Context, today calendar.Date) ([]parentbilling.DueContract, error) {
 	db, err := adminDB(ctx)
 	if err != nil {
 		return nil, err
+	}
+	if _, err := db.ExecContext(ctx, `SELECT set_config('lock_timeout', ?, true)`, belegLockTimeout); err != nil {
+		return nil, fmt.Errorf("parent billing postgres: bound the contract deletion's lock wait: %w", err)
 	}
 	var rows []struct {
 		OrganizationID int64         `bun:"organization_id"`

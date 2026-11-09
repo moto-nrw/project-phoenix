@@ -178,6 +178,41 @@ func TestBookingInstructionCitingTheStatutesKeepsEightYears(t *testing.T) {
 	}
 }
 
+// statuteSpellings cite § 147 AO, § 257 HGB or § 14b UStG without the
+// spaces and word boundaries the earlier pattern needed; the migration test
+// TestInstructionTableRefusesEverySpellingOfTheStatutes holds the database
+// to the same list.
+var statuteSpellings = []string{
+	"§147AO", "§ 147 Abs. 1 AO", "147ao", "HGB§257", "UStG14b", "Abgabenordnung", "ABGABENORDNUNG", "aBgAbEnOrDnUnG",
+	"Handelsgesetzbuch", "Umsatzsteuergesetz", "§ 147 AO", "§ 257 HGB", "§ 14b UStG", "A.O.", "A-O",
+	"§ 14 b UStG", "§ 257 Abs. 4 Nr. 1 HGB", "Paragraph 147 der Abgaben-Ordnung", "ＡＯ", "A​O", "nach §147",
+}
+
+// A Weisung whose statutes do not apply cites none of them, however it is
+// spelled (#4720, third review): a citation hidden by missing spaces,
+// unicode spaces or case kept a 2026 invoice for one year.
+func TestNotApplicableRefusesEverySpellingOfTheStatutes(t *testing.T) {
+	t.Parallel()
+	short := parentbilling.NewRetentionInstruction{BelegType: parentbilling.BelegCareInvoice, TriggerEvent: parentbilling.TriggerIssued,
+		Period: 1, Basis: parentbilling.BasisNotApplicable, BasisJustification: "Träger ist nicht buchführungspflichtig",
+		InstructedBy: "Kämmerei", InstructedOn: date(2026, 11, 9), InstructionReference: "Nachtrag 2026-11"}
+	for _, belegType := range []string{parentbilling.BelegHolidayDocument, parentbilling.BelegCareInvoice, parentbilling.BelegSEPADebit,
+		parentbilling.BelegCareNotice, parentbilling.BelegCareContract} {
+		short.BelegType, short.TriggerEvent = belegType, parentbilling.TriggerIssued
+		if belegType == parentbilling.BelegCareContract {
+			short.TriggerEvent = parentbilling.TriggerContractEnded
+		}
+		for _, spelling := range statuteSpellings {
+			short.LegalBasis = spelling
+			assert.ErrorIs(t, ValidateRetentionInstruction(short), parentbilling.ErrBelegRetentionInvalid, "%s: %q", belegType, spelling)
+		}
+		for _, basis := range []string{"Satzung des Trägers § 12", "Beschluss des Vorstands vom 01.02.2026", "Kommunalhaushaltsverordnung NRW § 58"} {
+			short.LegalBasis = basis
+			assert.NoError(t, ValidateRetentionInstruction(short), "%s: %q", belegType, basis)
+		}
+	}
+}
+
 // The basis decides the least period: a booking voucher eight years, a
 // business letter six; only the written statement that the statutes do not
 // apply allows less, and it cites none of them. A business letter is a
@@ -246,5 +281,29 @@ func TestClarificationReviewNeedsANoteAndANextReview(t *testing.T) {
 		review := base
 		change(&review)
 		assert.ErrorIs(t, ValidateClarificationReview(review, today), parentbilling.ErrBelegRetentionInvalid, name)
+	}
+}
+
+// An entry still open at its review goes to Florian with a reason before
+// its review moves (Löschkonzept section 3, #4720 third review): a new date
+// alone cannot clear an overdue entry, and a review before the deadline
+// cannot push it out without escalation. Keeping or advancing it can.
+func TestClarificationReviewEscalatesBeforeTheReviewMoves(t *testing.T) {
+	t.Parallel()
+	entryReviewOn := date(2026, 12, 9) // listed on 9 November, thirty days
+	open := parentbilling.NewBelegClarificationReview{BelegType: parentbilling.BelegCareContract, Reason: parentbilling.ClarifyNoInstruction,
+		Note: "Träger hat noch nicht geantwortet", NextReviewOn: date(2027, 1, 10)}
+	escalated := open
+	escalated.Escalated, escalated.EscalationReason = true, "Keine Antwort seit 30 Tagen"
+	assert.NoError(t, ValidateClarificationEscalation(escalated, entryReviewOn))
+	for name, next := range map[string]calendar.Date{"past the deadline": date(2027, 1, 10), "one day past it": date(2026, 12, 10)} {
+		review := open
+		review.NextReviewOn = next
+		assert.ErrorIs(t, ValidateClarificationEscalation(review, entryReviewOn), parentbilling.ErrBelegRetentionInvalid, name)
+	}
+	for name, next := range map[string]calendar.Date{"keeps the deadline": entryReviewOn, "advances it": date(2026, 11, 20)} {
+		review := open
+		review.NextReviewOn = next
+		assert.NoError(t, ValidateClarificationEscalation(review, entryReviewOn), name)
 	}
 }

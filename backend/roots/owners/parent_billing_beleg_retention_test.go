@@ -258,3 +258,51 @@ func TestBelegRetentionRefusesTheTraegerTransaction(t *testing.T) {
 	})
 	assert.ErrorContains(t, err, "administrative transaction")
 }
+
+// TestPendingDebitGoesWithItsInvoice: a debit that was never submitted is
+// no Beleg of its own and goes with its invoice once the invoice is due
+// (loeschfristen.md: "nicht eingereichte Lastschriften gehen mit ihrer
+// Rechnung"); it used to keep the invoice and its mandate forever. A
+// submitted debit still follows its own Weisung and suspension.
+func TestPendingDebitGoesWithItsInvoice(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := context.Background()
+	f := newBelegFixture(t, db, "Träger mit offener Lastschrift")
+	var pendingInvoice, pendingDebit int64
+	require.NoError(t, db.NewRaw(`INSERT INTO parent_billing.care_invoices (organization_id, run_id, number, number_year, number_sequence,
+			issued_on, billing_month, care_contract_id, school_id, school_name, child_first_name, child_last_name, recipient_first_name,
+			recipient_last_name, recipient_email, month_rule, total_cents)
+		SELECT organization_id, run_id, 'MB-2', 2026, 2, issued_on, DATE '2026-11-01', care_contract_id, school_id, school_name, child_first_name,
+			child_last_name, recipient_first_name, recipient_last_name, recipient_email, month_rule, total_cents
+		FROM parent_billing.care_invoices WHERE id = ? RETURNING id`, f.careInvoice).Scan(ctx, &pendingInvoice))
+	require.NoError(t, db.NewRaw(`INSERT INTO parent_billing.sepa_debits (organization_id, mandate_id, care_contract_id, run_kind, run_id,
+			care_invoice_id, invoice_number, amount_cents, due_on, sequence_type, creditor_id, mandate_reference, mandate_signed_on,
+			account_holder_sealed, iban_sealed)
+		SELECT organization_id, mandate_id, care_contract_id, 'care', run_id, ?, 'MB-2', 3700, '2026-12-13', 'RCUR', creditor_id,
+			mandate_reference, mandate_signed_on, account_holder_sealed, iban_sealed
+		FROM parent_billing.sepa_debits WHERE id = ? RETURNING id`, pendingInvoice, f.debit).Scan(ctx, &pendingDebit))
+
+	today := calendar.NewDate(2026, time.November, 9)
+	retention := NewBelegRetention(func() calendar.Date { return today })
+	admin := func(fn func(context.Context) error) {
+		t.Helper()
+		require.NoError(t, tenant.WithinAdmin(tenant.WithUnitOfWork(ctx, testpkg.TenantRuntime(t, db)), fn))
+	}
+	admin(func(adminCtx context.Context) error {
+		instruct(t, retention, adminCtx, f.organization)
+		_, err := retention.RecordSuspension(adminCtx, f.organization, 0, parentbilling.NewRetentionSuspension{
+			BelegType: parentbilling.BelegSEPADebit, BelegID: f.debit, Reason: "Rückfrage der Bank", Scope: "Lastschrift MB-1",
+			Responsible: "Kämmerei", ReviewOn: calendar.NewDate(2036, time.March, 1),
+		})
+		return err
+	})
+	today = calendar.NewDate(2035, time.January, 1)
+	admin(func(adminCtx context.Context) error { _, err := retention.ApplyBelegRetention(adminCtx); return err })
+
+	assert.False(t, belegExists(t, db, "parent_billing.care_invoices", pendingInvoice), "the invoice of 2026 goes in 2035")
+	assert.False(t, belegExists(t, db, "parent_billing.sepa_debits", pendingDebit), "with its debit that was never submitted")
+	assert.True(t, belegExists(t, db, "parent_billing.sepa_debits", f.debit), "the suspended submitted debit follows its own rule")
+	assert.True(t, belegExists(t, db, "parent_billing.care_invoices", f.careInvoice), "and keeps its invoice")
+	assert.True(t, belegExists(t, db, "parent_billing.sepa_mandates", f.mandate), "and its mandate")
+}

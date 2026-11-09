@@ -2,10 +2,11 @@ package application
 
 import (
 	"fmt"
-	"regexp"
 	"slices"
 	"strings"
 	"time"
+
+	"golang.org/x/text/unicode/norm"
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -58,9 +59,33 @@ var statutoryYears = map[string]int{
 	parentbilling.BasisBusinessLetter: parentbilling.MinBusinessLetterYears,
 }
 
-// statuteCitation finds § 147 AO, § 257 HGB or § 14b UStG in a basis; the
-// migration 1.15.828 checks the same in chk_beleg_retention_instructions_not_applicable.
-var statuteCitation = regexp.MustCompile(`(?i)(\bAO\b|\bHGB\b|\bUStG\b|§\s*(147|257|14b)\b|abgabenordnung|handelsgesetzbuch|umsatzsteuergesetz)`)
+// statuteTokens are the statutes and sections a Weisung whose statutes do
+// not apply must not name: § 147 AO, § 257 HGB, § 14b UStG. The migration
+// 1.15.828 checks the same tokens in parent_billing.beleg_basis_cites_statute.
+var statuteTokens = []string{"ao", "hgb", "ustg", "abgabenordnung", "handelsgesetzbuch", "umsatzsteuergesetz", "147", "257", "14b"}
+
+// citesStatute reports whether a basis names one of the statutes in any
+// spelling: it folds the text like the database does (NFKC, ASCII letters
+// lowercased, everything but a-z and 0-9 dropped) and refuses any
+// occurrence of a token, without word boundaries. A rare false refusal
+// ("Kakao") is the price of catching "§147AO".
+func citesStatute(basis string) bool {
+	var folded strings.Builder
+	for _, r := range norm.NFKC.String(basis) {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			folded.WriteRune(r)
+		case r >= 'A' && r <= 'Z':
+			folded.WriteRune(r + 'a' - 'A')
+		}
+	}
+	for _, token := range statuteTokens {
+		if strings.Contains(folded.String(), token) {
+			return true
+		}
+	}
+	return false
+}
 
 // bookingTypes have the period the Löschkonzept proposes; contracts and
 // notices have none, the Träger classifies them.
@@ -211,7 +236,7 @@ func validateBasis(instruction parentbilling.NewRetentionInstruction) error {
 	if justification == "" || len([]rune(justification)) > parentbilling.MaxJustificationLength {
 		return fmt.Errorf("%w: why the statutes do not apply is required and at most %d characters", parentbilling.ErrBelegRetentionInvalid, parentbilling.MaxJustificationLength)
 	}
-	if statuteCitation.MatchString(instruction.LegalBasis) {
+	if citesStatute(instruction.LegalBasis) {
 		return fmt.Errorf("%w: a basis citing § 147 AO, § 257 HGB or § 14b UStG keeps their periods", parentbilling.ErrBelegRetentionInvalid)
 	}
 	return nil
@@ -237,6 +262,20 @@ func ValidateClarificationReview(review parentbilling.NewBelegClarificationRevie
 		return fmt.Errorf("%w: an escalation reason needs the escalation", parentbilling.ErrBelegRetentionInvalid)
 	}
 	return requireLength(fields, parentbilling.MaxJustificationLength)
+}
+
+// ValidateClarificationEscalation holds a review to the deadline of its
+// entry (Löschkonzept section 3): an entry still open at its review goes to
+// Florian with a reason before its review date moves. Without escalation a
+// review keeps or advances the date; an overdue entry, whose next review
+// always lies after its review date, cannot drop its overdue status by a
+// new date alone.
+func ValidateClarificationEscalation(review parentbilling.NewBelegClarificationReview, entryReviewOn calendar.Date) error {
+	if !review.Escalated && review.NextReviewOn.After(entryReviewOn) {
+		return fmt.Errorf("%w: an entry still open at its review %s goes to Florian with a reason before its review moves",
+			parentbilling.ErrBelegRetentionInvalid, entryReviewOn)
+	}
+	return nil
 }
 
 var clarificationReasons = []string{parentbilling.ClarifyNoInstruction, parentbilling.ClarifyNoCollection, parentbilling.ClarifyNoTriggerDate}

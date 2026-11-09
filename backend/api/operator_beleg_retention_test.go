@@ -180,6 +180,79 @@ func TestOperatorRecordsTheReviewOfAClarificationEntry(t *testing.T) {
 	assert.Equal(t, recorded.ID, entry.LastReview.ID)
 }
 
+// TestClarificationReviewEscalatesBeforeTheReviewMoves: an entry still
+// open at its review goes to Florian with a reason before its review date
+// moves (Löschkonzept section 3, #4720 third review). An overdue entry used
+// to lose its overdue status by a new date alone; now that is 400, nothing
+// is stored or audited and the entry stays overdue. Before the deadline a
+// review without escalation may keep or advance the date, not push it out.
+func TestClarificationReviewEscalatesBeforeTheReviewMoves(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	service, _ := buildOperatorProvisioningWithIdentity(t, db)
+	operatorID := testpkg.CreateTestOperator(t, db).ID
+	organizationID, _ := provisionTestSchool(t, db, service, operatorID, "traeger-eskalation")
+	ctx := provisioningContext(t, db)
+	operator := chi.NewRouter()
+	mountOperatorBelegRetentionRoutes(operator, provisioningAPI.NewProvisioningResource(provisioningAPI.ProvisioningConfig{Service: service, BelegRetentionAudit: belegRetentionAuditOf(t, service)}))
+	call := func(body any) *httptest.ResponseRecorder {
+		t.Helper()
+		var payload bytes.Buffer
+		require.NoError(t, json.NewEncoder(&payload).Encode(body))
+		req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/organizations/%d/beleg-retention/clarification-reviews", organizationID), &payload)
+		req.Header.Set("Content-Type", "application/json")
+		req = req.WithContext(context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: int(operatorID), Scope: "platform"}))
+		rec := httptest.NewRecorder()
+		operator.ServeHTTP(rec, req)
+		return rec
+	}
+	today := calendar.TodayDate()
+	// Contracts listed 40 days ago are past their review; notices listed 20
+	// days ago are due in ten days.
+	_, err := db.ExecContext(ctx, `INSERT INTO parent_billing.beleg_retentions (organization_id, beleg_type, beleg_id, state, reason,
+			listed_on, review_on, responsible, evaluated_on)
+		VALUES (?0, 'care_contract', 1, 'clarification', 'no_instruction', ?1, ?2, ?5, ?6),
+			(?0, 'care_notice', 2, 'clarification', 'no_instruction', ?3, ?4, ?5, ?6)`,
+		organizationID, today.AddDays(-40), today.AddDays(-10), today.AddDays(-20), today.AddDays(10), parentbilling.ClarificationOwner, today)
+	require.NoError(t, err)
+	reviewOn := func(belegType string) calendar.Date {
+		t.Helper()
+		var day calendar.Date
+		require.NoError(t, db.NewRaw(`SELECT review_on FROM parent_billing.beleg_retentions WHERE organization_id = ? AND beleg_type = ?`,
+			organizationID, belegType).Scan(ctx, &day))
+		return day
+	}
+	reviews := func() int {
+		t.Helper()
+		var count int
+		require.NoError(t, db.NewRaw(`SELECT count(*) FROM parent_billing.beleg_clarification_reviews WHERE organization_id = ?`,
+			organizationID).Scan(ctx, &count))
+		return count
+	}
+	review := func(belegType string, next calendar.Date, escalation string) map[string]any {
+		return map[string]any{"beleg_type": belegType, "reason": "no_instruction", "note": "Träger hat noch nicht geantwortet",
+			"escalated": escalation != "", "escalation_reason": escalation, "next_review_on": next.String()}
+	}
+
+	rec := call(review("care_contract", today.AddDays(30), ""))
+	assert.Equal(t, http.StatusBadRequest, rec.Code, "an overdue entry still open goes to Florian: %s", rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"code":"general.input"`)
+	assert.Equal(t, today.AddDays(-10), reviewOn("care_contract"), "the entry stays overdue")
+	assert.Zero(t, reviews(), "a refused review is not stored")
+
+	rec = call(review("care_notice", today.AddDays(20), ""))
+	assert.Equal(t, http.StatusBadRequest, rec.Code, "a review before the deadline cannot push it out without escalation: %s", rec.Body.String())
+	assert.Equal(t, today.AddDays(10), reviewOn("care_notice"))
+	rec = call(review("care_notice", today.AddDays(5), ""))
+	require.Equal(t, http.StatusCreated, rec.Code, "a review may advance the deadline: %s", rec.Body.String())
+	assert.Equal(t, today.AddDays(5), reviewOn("care_notice"))
+
+	rec = call(review("care_contract", today.AddDays(30), "Keine Antwort des Trägers seit 40 Tagen"))
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	assert.Equal(t, today.AddDays(30), reviewOn("care_contract"), "with the escalation the review moves")
+	assert.Equal(t, 2, reviews())
+}
+
 // TestBelegRetentionRoutesRefuseASchoolSession: the routes sit in the
 // operator chain, so a tenant token gets 403 before any audit or read.
 func TestBelegRetentionRoutesRefuseASchoolSession(t *testing.T) {

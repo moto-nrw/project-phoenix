@@ -63,8 +63,17 @@ Weisung vor.
    (mindestens 14 Monate). Kürzer geht es nur mit der ausdrücklichen Grundlage
    „Vorschriften nicht anwendbar“, einer schriftlichen Begründung und der
    weisungsberechtigten Person; eine solche Weisung zitiert weder § 147 AO
-   noch § 257 HGB noch § 14b UStG. Anwendung und Datenbank
-   (`chk_beleg_retention_instructions_*`) prüfen dasselbe.
+   noch § 257 HGB noch § 14b UStG. Geprüft wird die Fundstelle in jeder
+   Schreibweise: Sie wird normalisiert (NFKC, nur ASCII-Buchstaben und
+   Ziffern, klein) und darf keines der Zeichen `ao`, `hgb`, `ustg`,
+   `abgabenordnung`, `handelsgesetzbuch`, `umsatzsteuergesetz`, `147`, `257`,
+   `14b` enthalten, auch ohne Leerzeichen („§147AO“). Selten trifft das eine
+   unbeteiligte Fundstelle; dann formuliert das moto-Team sie um. Anwendung
+   (`citesStatute`) und Datenbank (`parent_billing.beleg_basis_cites_statute`
+   in `chk_beleg_retention_instructions_not_applicable`) prüfen dasselbe. Ein
+   zusätzliches Bestätigungsfeld gibt es nicht: die ausdrücklich gewählte
+   Grundlage, ihre schriftliche Begründung und die weisungsberechtigte Person
+   sind die Bestätigung.
 
    **Auslöser des Mandats.** Der Einreichungstag der letzten eingereichten
    Lastschrift steht im Datensatz des Mandats (`collection_trigger_on`),
@@ -83,7 +92,12 @@ Weisung vor.
    ein neues Prüfdatum innerhalb eines Jahres
    (`parent_billing.beleg_clarification_reviews`, Operator-Audit). Das neue
    Prüfdatum gilt für die Belege des Eintrags, solange sie aus demselben
-   Grund gelistet bleiben.
+   Grund gelistet bleiben. Ist der Eintrag an seinem Prüfdatum noch offen,
+   geht er an Florian: Eine Prüfung, die das Prüfdatum über das bisherige
+   hinaus verschiebt, braucht die Eskalation mit Grund, sonst lehnt die
+   Anwendung sie ab (400). Ohne Eskalation bleibt das Prüfdatum oder rückt
+   vor. Ein überfälliger Eintrag verliert seine Überfälligkeit deshalb nie
+   durch ein neues Datum allein.
 5. **Aussetzung.** Eine Aussetzung für einen Beleg oder eine ganze Belegart
    hält Grund, Umfang, Zuständigkeit und das nächste Prüfdatum fest und hält
    die Löschung an, bis sie aufgehoben ist.
@@ -94,16 +108,26 @@ Weisung vor.
    Bescheid und ihr Mandat; ein Storno oder eine Gutschrift vor Fristende hält
    die Rechnung, auf die sie verweist; ein Änderungsbescheid hält seinen
    Bescheid; eine ersetzende Monatsrechnung hält die ersetzte; Mandat oder
-   Lastschrift halten ihren Vertrag. Freigegebene Läufe ohne Beleg gehen mit
-   ihren Briefangaben. Gelöscht wird, nicht ausgeblendet.
+   Lastschrift halten ihren Vertrag. Eine nie eingereichte Lastschrift ist
+   kein eigener Beleg und geht mit ihrer Rechnung oder ihrem Bescheid; nur
+   eine eingereichte hält sie. Freigegebene Läufe ohne Beleg gehen mit ihren
+   Briefangaben. Gelöscht wird, nicht ausgeblendet.
 
    **Stand beim Löschen.** Weisungen, Aussetzungen, Prüfungen, Bewertung und
    Löschung nehmen dieselbe Sperre je Träger
    (`parent_billing.lock_beleg_retention`); die Bewertung liest Weisungen und
    Aussetzungen erst unter dieser Sperre. Die Löschung sperrt danach die
-   Zeilen, die sie löschen würde (`FOR UPDATE`), sodass kein Storno, keine
-   Gutschrift, kein Änderungsbescheid, keine ersetzende Rechnung, kein Mandat
-   und keine Lastschrift mehr an sie gehängt werden kann. Erst dann prüft sie
+   Zeilen, die sie löschen würde, sodass kein Storno, keine Gutschrift, kein
+   Änderungsbescheid, keine ersetzende Rechnung, kein Mandat und keine
+   Lastschrift mehr an sie gehängt werden kann. Sie ist ein Hintergrundjob
+   und hält die Abrechnung weder auf noch bricht sie sie ab: Sie sperrt mit
+   `SKIP LOCKED` in der Reihenfolge der Abrechnung (Lauf vor Rechnung, Bescheid
+   oder Ferienbeleg; Mandat vor Lastschrift) und überspringt, was eine
+   Abrechnung gerade hält, bis zum nächsten Lauf. Wartet die Cascade eines
+   Schritts doch auf eine Zeile, gibt sie nach 100 ms auf
+   (`lock_timeout`) und lässt den Schritt aus; die Vertragslöschung von Care
+   Contract läuft mit derselben Grenze und bricht dann nur den Job ab, der es
+   in der nächsten Stunde erneut versucht. Erst dann prüft sie
    im löschenden Statement jede Zeile, die sie entfernen würde, auch die per
    Cascade mitgenommenen Belege, gegen die aktuelle Weisung ihrer Art,
    aktive Aussetzungen und das Fristende aus den aktuellen Tagen. Was
@@ -138,15 +162,14 @@ Weisung vor.
 
 - Pass-through-Evidenz: `BelegRetention.RecordSuspension` und
   `.LiftSuspension` prüfen und bewerten den Träger sofort neu;
-  `BelegRetentionResource.RecordClarificationReview` und
-  `BelegRetention.RecordClarificationReview` entschlüsseln bzw. prüfen die
-  Prüfung eines Klärungseintrags, bevor der Store sie unter der Sperre des
-  Trägers speichert;
+  `BelegRetentionResource.RecordClarificationReview` entschlüsselt die
+  Prüfung eines Klärungseintrags (`BelegRetention.RecordClarificationReview`
+  liest unter der Sperre des Trägers das Prüfdatum des Eintrags und ist
+  keine Weiterleitung mehr);
   `retainedContracts.ContractRetentionFacts` übersetzt den Vertrag von Care
   Contract in den Port. Die Löschung bindet die Root ohne Weiterleitung.
-- Budgets: Pass-throughs `modules/parentbilling` 9 → 12 (Gesamt 1404 →
-  1407) für die beiden Aussetzungsbefehle und die Prüfung eines
-  Klärungseintrags; Compose-LOC
+- Budgets: Pass-throughs `modules/parentbilling` 9 → 11 (Gesamt 1404 →
+  1406) für die beiden Aussetzungsbefehle; Compose-LOC
   `modules/parentbilling/compose` 96 → 102, `modules/carecontract/compose`
   178 → 182, `modules/organizationtenancy/compose` 309 → 320 (Gesamt
   13158 → 13179) für die drei Konstruktoren.
