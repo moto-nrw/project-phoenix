@@ -59,19 +59,33 @@ func guardianFinancialDataSealedUp(ctx context.Context, db *bun.DB) error {
 	return nil
 }
 
-// guardianFinancialDataSealedDown refuses while a sealed value exists: after a write or the
-// backfill the sealed columns hold the only copy, so dropping them would
-// destroy bank data (#6332). Restore the release backup instead.
+// guardianFinancialDataSealedDown refuses while a sealed value exists: after a
+// write or the backfill the sealed columns hold the only copy, so dropping
+// them would destroy bank data (#6332). Restore the release backup instead.
 func guardianFinancialDataSealedDown(ctx context.Context, db *bun.DB) error {
-	var sealed int
-	if err := db.NewRaw(`SELECT count(*) FROM users.guardian_financial_data WHERE iban_sealed IS NOT NULL OR account_holder_sealed IS NOT NULL`).Scan(ctx, &sealed); err != nil {
-		return fmt.Errorf("count sealed guardian bank values: %w", err)
-	}
-	if sealed > 0 {
-		return fmt.Errorf("%w: %d guardian rows", errSealedBankDataRollback, sealed)
-	}
-	if _, err := db.ExecContext(ctx, guardianFinancialDataSealedDownSQL); err != nil {
-		return fmt.Errorf("drop the sealed guardian bank columns: %w", err)
-	}
-	return nil
+	return dropSealedBankColumns(ctx, db, "users.guardian_financial_data",
+		`iban_sealed IS NOT NULL OR account_holder_sealed IS NOT NULL`, guardianFinancialDataSealedDownSQL, "guardian")
+}
+
+// dropSealedBankColumns locks the table against every writer first, then
+// counts and drops in the same transaction: a writer still open at the check
+// commits before the lock is granted, so its sealed value is counted and
+// never dropped unseen.
+func dropSealedBankColumns(ctx context.Context, db *bun.DB, table, sealedPredicate, dropSQL, label string) error {
+	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		if _, err := tx.ExecContext(ctx, `LOCK TABLE `+table+` IN ACCESS EXCLUSIVE MODE`); err != nil {
+			return fmt.Errorf("lock %s: %w", table, err)
+		}
+		var sealed int
+		if err := tx.NewRaw(`SELECT count(*) FROM `+table+` WHERE `+sealedPredicate).Scan(ctx, &sealed); err != nil {
+			return fmt.Errorf("count sealed %s bank values: %w", label, err)
+		}
+		if sealed > 0 {
+			return fmt.Errorf("%w: %d %s rows", errSealedBankDataRollback, sealed, label)
+		}
+		if _, err := tx.ExecContext(ctx, dropSQL); err != nil {
+			return fmt.Errorf("drop the sealed %s bank columns: %w", label, err)
+		}
+		return nil
+	})
 }
