@@ -79,13 +79,14 @@ func TestGuardianInvitationAddressBinding(t *testing.T) {
 
 		row = read(changed)
 		assert.False(t, row.Expires.After(now), "a link issued before the profile changed ends")
-		require.NotNil(t, row.Email)
-		assert.Equal(t, corrected, *row.Email)
+		assert.Nil(t, row.Email, "an ended link keeps no address")
 
 		row = read(pending)
 		assert.True(t, row.Expires.After(now), "a request awaiting staff keeps going")
 		require.NotNil(t, row.Email)
-		assert.True(t, read(accepted).Expires.After(now), "a spent link is left alone")
+		row = read(accepted)
+		assert.True(t, row.Expires.After(now), "a spent link is left alone")
+		assert.Nil(t, row.Email, "a spent link keeps no address")
 	}
 	assertBound()
 	require.NoError(t, guardianInvitationAddressBindingUp(ctx, db), "a rerun changes nothing")

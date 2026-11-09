@@ -30,13 +30,16 @@ func init() {
 // still open link went to is no longer known when the profile changed after
 // the link was issued (guardian_profiles.updated_at after
 // guardian_invitations.updated_at): those links end now, and a resend issues
-// a new one for the address on file. That is at most the 168 hours a link
-// lives. A request still waiting for a staff decision keeps going: its link
-// was never mailed, and the approval mails a new one. Every other open link
-// takes the address the profile has now, the one it was mailed to.
+// a new invitation goes to the address on file. That is at most the 168 hours
+// a link lives. A request still waiting for a staff decision keeps going: its
+// link was never mailed, and the approval mails a new one. Every other open
+// link takes the address the profile has now, the one it was mailed to. A
+// spent or expired link gets no address: nothing reads it any more.
 //
-// Both steps touch only rows without an address, so a second run changes
-// nothing. The ending runs first: the backfill moves updated_at on.
+// Addresses are compared like the application does (lower case, without
+// surrounding blanks, tabs or line breaks). Both steps touch only rows
+// without an address, so a second run changes nothing. The ending runs
+// first: the backfill moves updated_at on.
 const guardianInvitationAddressBindingUpSQL = `
 ALTER TABLE auth.guardian_invitations ADD COLUMN IF NOT EXISTS email TEXT;
 COMMENT ON COLUMN auth.guardian_invitations.email IS
@@ -50,14 +53,16 @@ UPDATE auth.guardian_invitations AS invitation
 		AND invitation.accepted_at IS NULL
 		AND invitation.expires_at > statement_timestamp()
 		AND invitation.approval_status IN ('not_required', 'approved')
-		AND (profile.updated_at > invitation.updated_at OR NULLIF(BTRIM(profile.email), '') IS NULL);
+		AND (profile.updated_at > invitation.updated_at OR NULLIF(BTRIM(profile.email, E' \t\r\n'), '') IS NULL);
 
 UPDATE auth.guardian_invitations AS invitation
-	SET email = LOWER(BTRIM(profile.email))
+	SET email = LOWER(BTRIM(profile.email, E' \t\r\n'))
 	FROM users.guardian_profiles AS profile
 	WHERE profile.id = invitation.guardian_profile_id
 		AND invitation.email IS NULL
-		AND NULLIF(BTRIM(profile.email), '') IS NOT NULL;
+		AND invitation.accepted_at IS NULL
+		AND invitation.expires_at > statement_timestamp()
+		AND NULLIF(BTRIM(profile.email, E' \t\r\n'), '') IS NOT NULL;
 `
 
 // guardianInvitationAddressBindingDownSQL ends what the binding had already
@@ -76,7 +81,7 @@ BEGIN
 				AND invitation.accepted_at IS NULL
 				AND invitation.expires_at > statement_timestamp()
 				AND invitation.approval_status IN ('not_required', 'approved')
-				AND invitation.email IS DISTINCT FROM LOWER(BTRIM(profile.email));
+				AND invitation.email IS DISTINCT FROM LOWER(BTRIM(profile.email, E' \t\r\n'));
 	END IF;
 END
 $down$;
