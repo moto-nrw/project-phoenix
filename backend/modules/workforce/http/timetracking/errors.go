@@ -45,6 +45,8 @@ var serviceErrorRules = []common.ErrorRule{
 	// staff ID or creator is a server fault and stays a 500.
 	{Match: isAny(workforce.ErrSessionTimeOrder, workforce.ErrBreakMinutesNegative, workforce.ErrSessionCheckoutOrder, workforce.ErrBreakDurationNegative), Render: invalidWithCode(common.CodeWorkforceSessionTimesInvalid)},
 	{Match: isAny(workforce.ErrSessionStatusNoteRequired, workforce.ErrSessionTimesNoteRequired), Render: invalidWithCode(common.CodeWorkforceSessionNoteRequired)},
+	{Target: workforce.ErrSessionCheckInInFuture, Render: invalidWithCode(common.CodeWorkforceSessionCheckInInFuture)},
+	{Target: workforce.ErrSessionCheckInAfterDate, Render: common.ErrorInvalidRequest},
 	{Target: workforce.ErrSessionStatusInvalid, Render: common.ErrorInvalidRequest},
 	{Target: workforce.ErrSessionSourceInvalid, Render: common.ErrorInvalidRequest},
 	{Target: workforce.ErrPlannedBreakDurationInvalid, Render: common.ErrorInvalidRequest},

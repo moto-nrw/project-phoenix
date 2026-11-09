@@ -1767,6 +1767,70 @@
         }
       }
     },
+    "time@latest": {
+      "last_modified": "2026-11-06T15:06:19Z",
+      "resolved": "github:NixOS/nixpkgs/4fe25e12eb9f4c744966dd3de5a05246cf098601#time",
+      "source": "devbox-search",
+      "version": "1.10",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/1iqvay71cy30wwvyg551dvxrgy7rdp1a-time-1.10",
+              "default": true
+            },
+            {
+              "name": "info",
+              "path": "/nix/store/020082qjjksdhkqawj6ifj0v7wdwirvd-time-1.10-info"
+            }
+          ],
+          "store_path": "/nix/store/1iqvay71cy30wwvyg551dvxrgy7rdp1a-time-1.10"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/myw2f4kjv4zl7iwgk3gf7bq3jg4n2r84-time-1.10",
+              "default": true
+            },
+            {
+              "name": "info",
+              "path": "/nix/store/6z69by007c6mp1ks6qs2crhqnhsn37b6-time-1.10-info"
+            }
+          ],
+          "store_path": "/nix/store/myw2f4kjv4zl7iwgk3gf7bq3jg4n2r84-time-1.10"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/qfgd42n46ncmqhllrfgwmfz20mp56sb9-time-1.10",
+              "default": true
+            },
+            {
+              "name": "info",
+              "path": "/nix/store/p4yl1872sj5zxwka8zzhqjd9n0nbmykl-time-1.10-info"
+            }
+          ],
+          "store_path": "/nix/store/qfgd42n46ncmqhllrfgwmfz20mp56sb9-time-1.10"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/b140qkky12n2fskhviv352sh9hphx0m9-time-1.10",
+              "default": true
+            },
+            {
+              "name": "info",
+              "path": "/nix/store/n52wfcff644p8a28lqgmvphh40rjg7sk-time-1.10-info"
+            }
+          ],
+          "store_path": "/nix/store/b140qkky12n2fskhviv352sh9hphx0m9-time-1.10"
+        }
+      }
+    },
     "tree@latest": {
       "last_modified": "2026-10-08T19:21:32Z",
       "resolved": "github:NixOS/nixpkgs/8edc0c72e3a38faf5434e40d1f19431125fe4b30#tree",
