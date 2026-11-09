@@ -212,11 +212,12 @@ export function FormPreviewFrame({
         <div className="space-y-5 p-4">
           {children}
           {/* Only a picture of the parents' send button: the preview sends
-              nothing, so it is neither focusable nor clickable. */}
+              nothing, so it is neither focusable nor clickable, and it is
+              drawn quiet so it does not read as the page's own action. */}
           <p
             aria-hidden="true"
             className={buttonClassName({
-              variant: "primary",
+              variant: "outline",
               size: "md",
               className: "pointer-events-none w-full select-none",
             })}
@@ -244,9 +245,11 @@ export function FormPreviewHeading({
         </div>
         <p className="mt-1 max-w-sm text-xs leading-5 text-gray-500">{hint}</p>
       </div>
-      <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-white text-gray-600 shadow-sm">
-        <Eye className="h-4 w-4" aria-hidden="true" />
-      </span>
+      {/* A plain mark, not a button: the heading has nothing to press. */}
+      <Eye
+        className="mt-0.5 h-5 w-5 shrink-0 text-gray-500"
+        aria-hidden="true"
+      />
     </div>
   );
 }

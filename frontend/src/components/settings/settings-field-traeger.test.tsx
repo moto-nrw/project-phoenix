@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { ToastProvider } from "~/contexts/ToastContext";
 import type { ResolvedSetting } from "~/lib/settings-api";
 import { SettingsField } from "./settings-field";
@@ -329,6 +335,48 @@ describe("SettingsField with colour presets", () => {
 
     await waitFor(() =>
       expect(onSave).toHaveBeenCalledWith("branding.primary_color", "#1F4E79"),
+    );
+  });
+});
+
+describe("SettingsField resetting an own letter text", () => {
+  it("asks first and quotes the text before the reset deletes it", async () => {
+    const onReset = vi.fn().mockResolvedValue(undefined);
+    render(
+      <ToastProvider>
+        <SettingsField
+          setting={makeSetting({
+            key: "branding.footer_text",
+            label: "Fußzeile",
+            type: "textarea",
+            default: "",
+            value: "Ganztag Nord e. V.\nAmtsgericht Musterstadt",
+            is_default: false,
+            levels: "traeger",
+            source: "traeger",
+          })}
+          audience="traeger"
+          onSave={vi.fn().mockResolvedValue(undefined)}
+          onReset={onReset}
+          confirmTextReset
+        />
+      </ToastProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Zurücksetzen" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "„Fußzeile“ zurücksetzen?",
+    });
+    expect(dialog).toHaveTextContent(
+      "Ihr Text beginnt mit: „Ganztag Nord e. V.“",
+    );
+    expect(onReset).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Zurücksetzen" }),
+    );
+    await waitFor(() =>
+      expect(onReset).toHaveBeenCalledWith("branding.footer_text"),
     );
   });
 });

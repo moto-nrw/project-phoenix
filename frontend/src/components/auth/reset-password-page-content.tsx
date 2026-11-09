@@ -23,7 +23,8 @@ import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
 import { useTenantSafe } from "~/lib/tenant-context";
 import { loginImageSrc } from "~/lib/tenant-api";
-import { Button } from "~/components/ui/button";
+import { Alert } from "~/components/ui/alert";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { InsetPanel } from "~/components/ui/inset-panel";
 
 const logger = createLogger({ component: "ResetPasswordPage" });
@@ -44,6 +45,11 @@ interface ResetPasswordPageContentProps {
   // translated copy here so the reset page doesn't fall back to the
   // German staff/moto testimonials next to a localized form.
   readonly testimonialPanelCopy?: AuthTestimonialPanelCopy;
+  /**
+   * Without a token the page shows only the notice and this way to a new
+   * link, instead of a form that cannot be sent.
+   */
+  readonly noTokenAction?: { readonly label: string; readonly href: string };
 }
 
 export interface ResetPasswordPageCopy {
@@ -170,6 +176,7 @@ export function ResetPasswordPageContent({
   backLabel = "Zurück zur Anmeldung",
   copy = DEFAULT_RESET_PASSWORD_PAGE_COPY,
   testimonialPanelCopy,
+  noTokenAction,
 }: ResetPasswordPageContentProps = {}) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -317,6 +324,39 @@ export function ResetPasswordPageContent({
           progress={<Loading />}
           className="py-0"
         />
+      </AuthShell>
+    );
+  }
+
+  if (noTokenAction && !searchParams.get("token")) {
+    return (
+      <AuthShell
+        eyebrow={copy.formEyebrow}
+        title={copy.formTitle}
+        subtitle={copy.formSubtitle}
+        variant="reset"
+        brand={brand}
+        testimonialPanelCopy={testimonialPanelCopy}
+      >
+        <div className="space-y-4">
+          <Alert type="warning" message={copy.missingToken} />
+          <ButtonLink
+            href={noTokenAction.href}
+            variant="primary"
+            size="field"
+            className="w-full"
+          >
+            {noTokenAction.label}
+          </ButtonLink>
+          <div className="pt-2 text-center">
+            <Link
+              href={backHref}
+              className="text-sm text-gray-600 transition-colors hover:text-gray-800 hover:underline"
+            >
+              {backLabel}
+            </Link>
+          </div>
+        </div>
       </AuthShell>
     );
   }

@@ -374,6 +374,17 @@ interface SettingsFieldProps {
   readonly revealFn?: (key: string) => Promise<string | null>;
   /** Heading level of the setting's name: one below its category card. */
   readonly labelLevel?: 3 | 4;
+  /**
+   * Asks before „Zurücksetzen“ throws away an own text (a letter's sender or
+   * footer): the reset saves at once and has no undo.
+   */
+  readonly confirmTextReset?: boolean;
+}
+
+/** The first line of a text, cut after 60 characters. */
+function firstLine(text: string): string {
+  const line = text.trim().split("\n")[0]?.trim() ?? "";
+  return line.length > 60 ? `${line.slice(0, 60).trimEnd()} …` : line;
 }
 
 interface PendingSettingSave {
@@ -394,8 +405,10 @@ export function SettingsField({
   audience = "admin",
   revealFn,
   labelLevel = 4,
+  confirmTextReset = false,
 }: SettingsFieldProps) {
   const LabelHeading = labelLevel === 3 ? "h3" : "h4";
+  const [confirmingTextReset, setConfirmingTextReset] = useState(false);
   const { success: toastSuccess } = useToast();
   const [localValue, setLocalValue] = useState<unknown>(setting.value);
   const [isDirty, setIsDirty] = useState(false);
@@ -1058,11 +1071,22 @@ export function SettingsField({
       setPendingShortening({ days, value: setting.default, reset: true });
       return;
     }
+    if (
+      confirmTextReset &&
+      (setting.type === "text" || setting.type === "textarea") &&
+      typeof localValue === "string" &&
+      localValue.trim() !== ""
+    ) {
+      setConfirmingTextReset(true);
+      return;
+    }
     await performReset();
   }, [
     audience,
+    confirmTextReset,
     deletesRoomHistory,
     historyDeletionErrors,
+    localValue,
     performReset,
     setting,
   ]);
@@ -1287,6 +1311,29 @@ export function SettingsField({
           <p className="text-sm text-gray-600">{activeConfirmConfig.body}</p>
         </ConfirmationModal>
       )}
+
+      <ConfirmationModal
+        isOpen={confirmingTextReset}
+        onClose={() => setConfirmingTextReset(false)}
+        onConfirm={() => {
+          setConfirmingTextReset(false);
+          void performReset();
+        }}
+        title={`„${setting.label}“ zurücksetzen?`}
+        confirmText="Zurücksetzen"
+        cancelText="Abbrechen"
+        confirmVariant="danger"
+      >
+        <p className="text-sm text-gray-600">
+          Ihr Text wird gelöscht und gleich gespeichert. Danach gilt wieder der
+          Standard.
+        </p>
+        {typeof localValue === "string" && localValue.trim() ? (
+          <p className="mt-2 text-sm text-gray-900">
+            Ihr Text beginnt mit: „{firstLine(localValue)}“
+          </p>
+        ) : null}
+      </ConfirmationModal>
 
       <ConfirmationModal
         isOpen={pendingShortening !== null}

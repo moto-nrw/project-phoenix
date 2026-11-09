@@ -49,6 +49,8 @@ interface SettingsCategoryProps {
    * page also holds forms with their own save button.
    */
   readonly autosaveNote?: boolean;
+  /** Asks before a reset throws away an own text (see SettingsField). */
+  readonly confirmTextReset?: boolean;
   /**
    * Lower-cased search query. When set, only matching settings are listed
    * (all of them when the category name itself matches). The category
@@ -77,6 +79,7 @@ export function SettingsCategory({
   onToggle,
   headingLevel = 3,
   autosaveNote = false,
+  confirmTextReset = false,
   filterQuery = "",
   tabLabel,
 }: SettingsCategoryProps) {
@@ -131,6 +134,7 @@ export function SettingsCategory({
             audience={audience}
             revealFn={revealFn}
             labelLevel={headingLevel === 2 ? 3 : 4}
+            confirmTextReset={confirmTextReset}
           />
         ))}
       </div>
