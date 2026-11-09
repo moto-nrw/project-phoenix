@@ -1471,6 +1471,16 @@
       "reason": "ADR 0126 (#5941): Consumer-port adapter of the Betreuungsvertrag onto Delivery; it encodes the push of a sent contract as a deferred push of the Träger with its own kind, related type and a key of the contract and the hashed address."
     },
     {
+      "decision": "0088",
+      "id": "roots/owners/CareContractFamilyNumbers.FamilyChildren",
+      "reason": "Consumer-port adapter of the Betreuungsvertrag (#6335): it reads the number of a checked contract's family at the Elternabrechnung in the caller's Träger transaction and maps channel, values and refusals into the Betreuungsvertrag's words."
+    },
+    {
+      "decision": "0088",
+      "id": "roots/owners/CareContractFamilyNumbers.StateFamilyChildren",
+      "reason": "Consumer-port adapter of the Betreuungsvertrag (#6335): it stores the parents' number of a checked contract's family at the Elternabrechnung in the caller's Träger transaction and maps channel, validation and missing-family refusals into the Betreuungsvertrag's errors."
+    },
+    {
       "decision": "0090",
       "id": "roots/owners/CareContractPost.ContractMailStates",
       "reason": "#5934: Consumer-port adapter of the contract's post; it names Delivery's outcome of each mail in the contract's words."

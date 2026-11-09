@@ -15,31 +15,30 @@ import (
 // LinkFamilyChildren reads the number of the family of an open link's
 // contract. Like the read of the contract it leaves the link open.
 func (s *Signatures) LinkFamilyChildren(ctx context.Context, link string) (carecontract.FamilyChildren, error) {
-	return s.linkFamily(ctx, link, func(txCtx context.Context, organizationID int64, family carecontract.FamilyContract) (carecontract.FamilyChildren, error) {
-		return s.ports.Families.FamilyChildren(txCtx, organizationID, family)
-	})
+	organizationID, token, err := parseLink(link)
+	if err != nil {
+		return carecontract.FamilyChildren{}, err
+	}
+	return s.linkFamily(ctx, organizationID, token, nil)
 }
 
 // StateLinkFamilyChildren stores the number the parents state on an open
 // link for the family of its contract; the link stays open, so they can
 // correct it until they sign.
 func (s *Signatures) StateLinkFamilyChildren(ctx context.Context, link string, children int) (carecontract.FamilyChildren, error) {
-	return s.linkFamily(ctx, link, func(txCtx context.Context, organizationID int64, family carecontract.FamilyContract) (carecontract.FamilyChildren, error) {
-		return s.ports.Families.StateFamilyChildren(txCtx, organizationID, family, children, nil)
-	})
-}
-
-type familyStep func(txCtx context.Context, organizationID int64, family carecontract.FamilyContract) (carecontract.FamilyChildren, error)
-
-// linkFamily runs step for the family of an open link's contract in the
-// link's Träger transaction. Every link openLink refuses is refused here.
-func (s *Signatures) linkFamily(ctx context.Context, link string, step familyStep) (carecontract.FamilyChildren, error) {
 	organizationID, token, err := parseLink(link)
 	if err != nil {
 		return carecontract.FamilyChildren{}, err
 	}
+	return s.linkFamily(ctx, organizationID, token, &children)
+}
+
+// linkFamily reads, or with children stores, the number of the family of an
+// open link's contract in the link's Träger transaction. Every link
+// openLink refuses is refused here.
+func (s *Signatures) linkFamily(ctx context.Context, organizationID int64, token string, children *int) (carecontract.FamilyChildren, error) {
 	var result carecontract.FamilyChildren
-	err = s.withinLink(ctx, organizationID, func(txCtx context.Context) error {
+	err := s.withinLink(ctx, organizationID, func(txCtx context.Context) error {
 		target, err := s.openLink(txCtx, organizationID, token, s.clock.now())
 		if err != nil {
 			return err
@@ -48,9 +47,12 @@ func (s *Signatures) linkFamily(ctx context.Context, link string, step familySte
 		if recipient.Email == "" {
 			return carecontract.ErrRecipientMissing
 		}
-		result, err = step(txCtx, organizationID, carecontract.FamilyContract{
-			ContractID: target.record.Summary.ID, Email: recipient.Email, Channel: carecontract.FamilyChannelLink,
-		})
+		family := carecontract.FamilyContract{ContractID: target.record.Summary.ID, Email: recipient.Email, Channel: carecontract.FamilyChannelLink}
+		if children == nil {
+			result, err = s.ports.Families.FamilyChildren(txCtx, organizationID, family)
+		} else {
+			result, err = s.ports.Families.StateFamilyChildren(txCtx, organizationID, family, *children, nil)
+		}
 		result.CanState = true
 		return err
 	})

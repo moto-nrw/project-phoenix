@@ -4593,6 +4593,14 @@
       "target_owner": "settings-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentIntakeSettings.FamilyChildrenAsked",
+      "binding_digest": "e45529bfb87e490463989373305f6d2c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.IntakeSettings.FamilyChildrenAsked",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.EnrollmentIntakeValues.FamilyChildrenAsked",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentIntakeSettings.GradeLevelMax",
       "binding_digest": "e375f6f70a10926186ba80f4532875c6",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.IntakeSettings.GradeLevelMax",

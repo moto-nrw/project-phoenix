@@ -32,7 +32,6 @@ type (
 	CareBookingChanges        = application.CareBookingChanges
 	CareBookingGates          = application.CareBookingGates
 	CompanionGraphCoordinator = application.CompanionGraphCoordinator
-	ReviewerNames             = application.ReviewerNames
 
 	CarePlanOfferings   = application.CarePlanOfferings
 	CareOfferingRecords = application.CareOfferingRecords
@@ -47,7 +46,7 @@ type Intake = application.Intake
 
 // NewIntake composes the intake in the tenant runtime.
 func NewIntake(deps IntakeDependencies) *Intake {
-	deps.Runtime = tenantRuntime()
+	deps.Runtime, deps.FamilyChildren = tenantRuntime(), newStore()
 	return application.NewIntake(deps)
 }
 
@@ -84,11 +83,4 @@ type (
 // NewOfferingChangeRecords binds the reads to Care Plan.
 func NewOfferingChangeRecords(carePlan CarePlanOfferingChanges) *OfferingChangeRecords {
 	return application.NewOfferingChangeRecords(carePlan, sql.ErrNoRows)
-}
-
-// NewRequestFamilyChildren stores the number of children the parents state
-// on the status page of their registration (#6335), in the school
-// transaction the intake opens.
-func NewRequestFamilyChildren() application.IntakeFamilyChildrenStore {
-	return newStore()
 }

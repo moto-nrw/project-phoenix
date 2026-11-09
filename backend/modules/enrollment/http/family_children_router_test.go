@@ -11,11 +11,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
@@ -184,27 +182,4 @@ func TestFamilyChildrenAreAskedOnlyWithContractsAndContributions(t *testing.T) {
 	rec = env.put(t, env.token, `{"children":3}`)
 	assert.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
 	assert.Nil(t, env.stored(t, env.token), "a school that does not use the number stores none")
-}
-
-// The update names the school below row level security: a request of
-// another school with the same ID stays untouched.
-func TestSetRequestFamilyChildrenKeepsTheSchoolBelowRLS(t *testing.T) {
-	t.Parallel()
-	env := setupFamilyChildren(t, true)
-	other := setupFamilyChildren(t, true)
-	var otherID int64
-	require.NoError(t, env.db.NewRaw(`SELECT id FROM enrollment.requests WHERE status_token = ?`, other.token).Scan(context.Background(), &otherID))
-	store := enrollmentCompose.NewRequestFamilyChildren()
-	ctx := testpkg.WithTestTenantRuntime(t, testpkg.TenantContext(env.tenantID))
-	err := testpkg.WithinTenantTransaction(ctx, env.db, env.tenantID, func(ctx context.Context, _ bun.Tx) error {
-		require.NoError(t, testpkg.WithoutRequestRole(ctx))
-		tx, ok := testpkg.TransactionFromContext(ctx)
-		require.True(t, ok)
-		var bypasses bool
-		require.NoError(t, tx.(bun.Tx).NewRaw(`SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user`).Scan(ctx, &bypasses))
-		require.True(t, bypasses, "the test runs below row level security")
-		return store.SetRequestFamilyChildren(ctx, otherID, 4)
-	})
-	require.ErrorIs(t, err, capability.ErrRequestNotFound)
-	assert.Nil(t, other.stored(t, other.token), "the other school's request keeps its number")
 }

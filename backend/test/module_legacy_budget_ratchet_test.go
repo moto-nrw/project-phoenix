@@ -250,7 +250,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0188: the guardian bank backfill/rekey constructor of
 // modules/peopledirectory/compose (+6), the staff bank cipher dependency and
 // backfill/rekey constructor of modules/workforce/compose (+7).
-const moduleComposeBudgetTotal = 13170
+const moduleComposeBudgetTotal = 13162
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -295,7 +295,7 @@ var moduleComposeBudgets = map[string]int{
 	// modules/securityruntime/compose.
 	// ADR 0153: the contract applications constructor (+5).
 	// ADR 0154: the booked children constructor (+6).
-	"modules/enrollment/compose":                   602,
+	"modules/enrollment/compose":                   601,
 	"modules/exporttransfer/compose":               149,
 	"modules/facilities/compose":                   184,
 	"modules/facilities/compose/repositoryadapter": 11,
@@ -323,7 +323,7 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0155: the signature, the paper contract and the reminders (+58),
 	// the test hook of the signing link (+17); ADR 0159: withdrawal and
 	// termination (+35); ADR 0163: the office's decision of the parents' changes (+5).
-	"modules/carecontract/compose": 178,
+	"modules/carecontract/compose": 171,
 	// Raised by ADR 0158: the monthly contribution constructor (+5);
 	// ADR 0165: the constructor of the monthly letters (+7);
 	// ADR 0167: the constructor of the payment terms (+5);

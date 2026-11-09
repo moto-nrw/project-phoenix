@@ -23,8 +23,7 @@ func NewEnrollmentIntake(src EnrollmentIntakeSources) *enrollmentCompose.Intake 
 		GuardianAuthorizer: src.GuardianAuthorizer, Outbox: src.OutboxEnqueuer,
 		Settings: intakeSettings(src.Settings), AdminSubscribers: src.AdminSubscribers, ManualDecider: src.ManualDecider,
 		ParentChanges: src.ParentChanges, Uploads: src.Uploads, Signatures: EnrollmentSignatures{Ledger: SignatureLedger()},
-		FamilyChildren: enrollmentCompose.NewRequestFamilyChildren(),
-		Random:         securityruntime.FillRandom, Fingerprint: securityruntime.Fingerprint,
+		Random: securityruntime.FillRandom, Fingerprint: securityruntime.Fingerprint,
 		FrontendURL: src.FrontendURL, ParentsURL: src.ParentsURL, Logger: src.Logger,
 	})
 }

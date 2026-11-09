@@ -25,7 +25,9 @@ type CareContractFamilyNumbers struct {
 
 // NewCareContractFamilyNumbers binds the port to the Elternabrechnung.
 func NewCareContractFamilyNumbers() CareContractFamilyNumbers {
-	return CareContractFamilyNumbers{Numbers: parentBillingCompose.NewContractFamilyChildren()}
+	// The parents' inbox of the Elternabrechnung keeps the numbers of the
+	// families (#5918); its statement serves the link and the takeover too.
+	return CareContractFamilyNumbers{Numbers: parentBillingCompose.NewParentDocuments()}
 }
 
 var _ carecontract.FamilyNumbers = CareContractFamilyNumbers{}

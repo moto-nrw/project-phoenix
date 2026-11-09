@@ -6139,6 +6139,16 @@
       "target_owner": "settings-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentIntakeSettings.FamilyChildrenAsked",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.IntakeSettings.FamilyChildrenAsked",
+      "reason": "Read-only newly exposed target: enrollment reaches modules/settings.EnrollmentIntakeValues.FamilyChildrenAsked (settings-platform) through roots/owners.enrollmentIntakeSettings.FamilyChildrenAsked to ask for the children of the family only where the school booked contracts and contributions (#6335). No persistent, lock or scope effect.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.EnrollmentIntakeValues.FamilyChildrenAsked",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentIntakeSettings.GradeLevelMax",
       "classification": "query",
       "effect": "query",

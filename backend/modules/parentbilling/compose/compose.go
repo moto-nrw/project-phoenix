@@ -94,11 +94,3 @@ func NewBankDataRekey(cipher parentbilling.BankDataRewrapper) parentbilling.Bank
 func NewSEPADebits(letterheads parentbilling.BillingLetterheads, cipher parentbilling.BankDataCipher) parentbilling.SEPADebits {
 	return application.NewSEPADebits(postgres.NewStore(), letterheads, cipher, calendar.TodayDate, calendar.Now)
 }
-
-// NewContractFamilyChildren builds the parents' number of children on a
-// contract the Betreuungsvertrag checked: its one-time link and the takeover
-// of a registration's number (#6335), in the Träger transaction the caller
-// holds.
-func NewContractFamilyChildren() parentbilling.ContractFamilyChildren {
-	return application.NewParentFamilyChildren(postgres.NewStore())
-}
