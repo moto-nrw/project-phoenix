@@ -26,11 +26,22 @@ type RootEnvironment struct {
 	// HealthData seals and opens the health information of the holiday
 	// registrations (#4722); the root builds it from HEALTH_DATA_KEYS.
 	HealthData HealthDataCipher
+	// BankData uses only BANK_DATA_KEYS and the explicit temporary legacy ring.
+	BankData BankDataCipher
 }
 
 // HealthDataCipher seals and opens single database values bound to their
 // context. The roots bind Security Runtime's field cipher (#4722).
 type HealthDataCipher interface {
+	Seal(plaintext, context []byte) ([]byte, error)
+	Open(sealed, context []byte) ([]byte, error)
+}
+
+// BankDataCipher is the root's owner-neutral bank-value port, kept nominally
+// separate from HealthDataCipher so their bindings cannot be conflated.
+type BankDataCipher interface {
+	// BankDataRing prevents health-only ciphers from satisfying this port.
+	BankDataRing()
 	Seal(plaintext, context []byte) ([]byte, error)
 	Open(sealed, context []byte) ([]byte, error)
 }
