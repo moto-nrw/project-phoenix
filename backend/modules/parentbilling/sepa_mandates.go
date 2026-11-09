@@ -279,25 +279,7 @@ func ResolveDebit(payment InvoicePayment, terms ServiceTerms, run RunDueDates, f
 	if payment.Method != PaymentDirectDebit {
 		return payment
 	}
-	gap := ""
-	switch {
-	case creditor.CreditorID == "":
-		gap = DebitGapCreditor
-	case mandate == nil || !mandate.InForce() || mandate.SignedOn.After(issuedOn):
-		gap = DebitGapMandate
-	case mandate.Kind == MandateOneOff && mandate.LastCollectedOn != nil:
-		// A one-off mandate authorizes one collection; once collected it is
-		// no mandate for another invoice (#4697).
-		gap = DebitGapMandate
-	case mandate.CreditorID != creditor.CreditorID:
-		// A mandate binds the creditor it was given to; after a change of
-		// the creditor identifier it is no proof for the new one.
-		gap = DebitGapCreditorChanged
-	case mandate.Expired(issuedOn):
-		// 36 months without a collection end the mandate (#4697); the file
-		// checks the day of the collection again.
-		gap = DebitGapExpired
-	}
+	gap := MandateCollectionGap(creditor, mandate, issuedOn)
 	if gap == "" {
 		payment.Mandate = &InvoiceMandate{MandateID: mandate.ID, Reference: mandate.Reference, SignedOn: mandate.SignedOn,
 			CreditorID: mandate.CreditorID, IBANMasked: mandate.IBANMasked, SequenceType: mandate.SequenceType(),
@@ -363,4 +345,30 @@ type SEPAMandates interface {
 	SEPAMandateCollections(ctx context.Context, reviewer HolidayReviewer, id int64) ([]SEPADebit, error)
 	// SEPAMandateImports takes over existing mandates from a file (#6198).
 	SEPAMandateImports
+}
+
+// MandateCollectionGap names why the mandate cannot authorize a collection
+// on the given day. An empty result means it is eligible, independently of
+// whether a particular contract or invoice selects direct debit.
+func MandateCollectionGap(creditor SEPACreditor, mandate *SEPAMandate, issuedOn calendar.Date) string {
+	gap := ""
+	switch {
+	case creditor.CreditorID == "":
+		gap = DebitGapCreditor
+	case mandate == nil || !mandate.InForce() || mandate.SignedOn.After(issuedOn):
+		gap = DebitGapMandate
+	case mandate.Kind == MandateOneOff && mandate.LastCollectedOn != nil:
+		// A one-off mandate authorizes one collection; once collected it is
+		// no mandate for another invoice (#4697).
+		gap = DebitGapMandate
+	case mandate.CreditorID != creditor.CreditorID:
+		// A mandate binds the creditor it was given to; after a change of
+		// the creditor identifier it is no proof for the new one.
+		gap = DebitGapCreditorChanged
+	case mandate.Expired(issuedOn):
+		// 36 months without a collection end the mandate (#4697); the file
+		// checks the day of the collection again.
+		gap = DebitGapExpired
+	}
+	return gap
 }

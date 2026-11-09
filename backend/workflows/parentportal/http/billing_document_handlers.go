@@ -44,7 +44,8 @@ type BillingDocumentResponse struct {
 	CanEndContract bool `json:"can_end_contract,omitempty"`
 	// CanWithdrawContract tells that the account may withdraw the contract
 	// and its withdrawal period may still run (#6105).
-	CanWithdrawContract bool `json:"can_withdraw_contract,omitempty"`
+	CanWithdrawContract bool                             `json:"can_withdraw_contract,omitempty"`
+	SEPAMandate         *parentService.SEPAMandateStatus `json:"sepa_mandate,omitempty"`
 }
 
 // listBillingDocuments answers the letters in the inbox of the account.
@@ -77,7 +78,7 @@ func (rs *Resource) respondInbox(w http.ResponseWriter, r *http.Request, inbox p
 			ServiceFrom: document.ServiceFrom, ServiceUntil: document.ServiceUntil, IssuedOn: document.IssuedOn,
 			TotalCents: document.TotalCents, ChildNames: document.ChildNames, SentAt: document.SentAt,
 			ContractStatus: document.ContractStatus, SignedAt: document.SignedAt, CanSign: document.CanSign, Replaced: document.Replaced,
-			EndsOn: document.EndsOn, CanEndContract: document.CanEndContract, CanWithdrawContract: document.CanWithdrawContract,
+			SEPAMandate: document.SEPAMandate, EndsOn: document.EndsOn, CanEndContract: document.CanEndContract, CanWithdrawContract: document.CanWithdrawContract,
 		}
 	}
 	common.Respond(w, r, http.StatusOK, out, "Documents retrieved")
