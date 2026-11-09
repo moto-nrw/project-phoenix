@@ -58,6 +58,7 @@ function declaration(
     requires_signature: false,
     deadline: null,
     closed: false,
+    ended: false,
     version: { id: "12", version_no: 2, content_hash: "ab".repeat(32) },
     children: [child()],
     ...overrides,
@@ -759,5 +760,126 @@ describe("unclear submit result (#3430)", () => {
       ),
     ).toBeInTheDocument();
     expect(onStale).not.toHaveBeenCalled();
+  });
+});
+
+describe("an Einverständnis the school ended (#6290)", () => {
+  function ended(overrides: Partial<ParentAnnouncement> = {}) {
+    return item(overrides, {
+      ended: true,
+      closed: true,
+      requires_signature: true,
+      children: [
+        child({
+          my_action: "agreed",
+          my_submitted_at: "2026-09-09T08:30:00Z",
+          state: "agreed",
+          allowed_actions: ["revoked"],
+        }),
+      ],
+    });
+  }
+
+  it("asks for nothing, even unread", () => {
+    expect(isOutstandingAnnouncement(item({ read: false }))).toBe(true);
+    expect(isOutstandingAnnouncement(ended({ read: false }))).toBe(false);
+  });
+
+  it("says on the card that the school ended it", () => {
+    render(<NewsCard item={ended()} onOpen={vi.fn()} />);
+    expect(screen.getByText("Zugestimmt")).toBeInTheDocument();
+    expect(screen.getByText("Einverständnis beendet")).toBeInTheDocument();
+  });
+
+  it("keeps the withdrawal and offers no new answer", async () => {
+    const markRead = vi.spyOn(parentApi, "markAnnouncementRead");
+    const attachments = vi.spyOn(parentApi, "listAnnouncementAttachments");
+    const submit = vi
+      .spyOn(parentApi, "submitDeclaration")
+      .mockResolvedValue(submission("revoked"));
+    render(
+      <NewsDetailModal
+        item={ended({ read: false })}
+        onClose={vi.fn()}
+        onUpdated={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "Die Schule hat dieses Einverständnis beendet. Sie können nicht mehr neu antworten.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Nachweis ansehen" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Zustimmen" }),
+    ).not.toBeInTheDocument();
+    // Nobody signs a new consent here, so the signing note would only confuse.
+    expect(
+      screen.queryByText(
+        "Zum Zustimmen unterschreiben Sie mit dem Finger oder der Maus.",
+      ),
+    ).not.toBeInTheDocument();
+    // The backend no longer serves the message as live: no read mark and no
+    // files, which would only fail and report the message as outdated.
+    expect(markRead).not.toHaveBeenCalled();
+    expect(attachments).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Zustimmung widerrufen" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Zustimmung widerrufen",
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Widerrufen" }));
+    await waitFor(() =>
+      expect(submit).toHaveBeenCalledWith(
+        "42",
+        expect.objectContaining({ action: "revoked", versionId: "12" }),
+      ),
+    );
+  });
+});
+
+describe("a guardian who may no longer declare (#6290)", () => {
+  it("keeps the own answer and its withdrawal", () => {
+    render(
+      <NewsDetailModal
+        item={item(
+          {},
+          {
+            children: [
+              child({
+                can_submit: false,
+                state: "no_signer",
+                my_action: "agreed",
+                my_submitted_at: "2026-09-09T08:30:00Z",
+                allowed_actions: ["revoked"],
+              }),
+            ],
+          },
+        )}
+        onClose={vi.fn()}
+        onUpdated={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText("Für Mia können Sie nicht mehr neu antworten."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Ihre Antwort: Zugestimmt am 09.09.2026, 10:30 Uhr"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Zustimmung widerrufen" }),
+    ).toBeEnabled();
+    expect(
+      screen.queryByRole("button", { name: "Zustimmen" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Das machen die sorgeberechtigten Personen/),
+    ).not.toBeInTheDocument();
   });
 });

@@ -35,6 +35,7 @@ func parentMessagingFromOwnerAnnouncementFeedItem(v communication.PortalAnnounce
 		}),
 		Declaration: ParentMessagingPointer(v.Declaration, parentMessagingFromOwnerAnnouncementFeedDeclaration),
 		Poll:        v.Poll,
+		Ended:       v.Ended,
 	}
 }
 
