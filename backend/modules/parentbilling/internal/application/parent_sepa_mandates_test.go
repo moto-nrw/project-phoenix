@@ -296,6 +296,53 @@ func TestParentMandateRefusesAnotherText(t *testing.T) {
 	assert.True(t, view.CreditorMissing)
 }
 
+// Readiness, preview and confirmation use the character limit of the
+// stored proof, after the address is normalized for the mandate text.
+func TestParentMandateCreditorAddressLimits(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		address string
+		ready   bool
+	}{
+		{"at limit", strings.Repeat("ü", 1000), true},
+		{"over limit", strings.Repeat("ü", 1001), false},
+		{"trimmed at limit", "  " + strings.Repeat("ü", 1000) + "\n\t", true},
+		{"line separators exceed limit", strings.Repeat("a", 998) + "\nb", false},
+		{"only whitespace", "\n\t ", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mandates, store, terms := newParentMandatesForTest()
+			ctx := context.Background()
+			input := parentInput()
+			text, err := mandates.PreviewParentSEPAMandate(ctx, 3, mandateReader, input)
+			require.NoError(t, err)
+			input.Reference, input.TextSHA256, input.AccountToken = text.Reference, text.TextSHA256, text.AccountToken
+			terms.terms.CreditorAddress = tc.address
+
+			view, err := mandates.ParentSEPAMandate(ctx, 3, mandateReader)
+			require.NoError(t, err)
+			assert.Equal(t, !tc.ready, view.CreditorMissing)
+			text, err = mandates.PreviewParentSEPAMandate(ctx, 3, mandateReader, input)
+			if !tc.ready {
+				require.ErrorIs(t, err, parentbilling.ErrSEPACreditorMissing)
+				_, err = mandates.GrantParentSEPAMandate(ctx, 3, mandateReader, input)
+				require.ErrorIs(t, err, parentbilling.ErrSEPACreditorMissing, "reject a configuration changed after preview")
+				assert.Empty(t, store.mandates)
+				assert.Empty(t, store.consents)
+				assert.Empty(t, store.events)
+				return
+			}
+			require.NoError(t, err)
+			input.Reference, input.TextSHA256, input.AccountToken = text.Reference, text.TextSHA256, text.AccountToken
+			_, err = mandates.GrantParentSEPAMandate(ctx, 3, mandateReader, input)
+			require.NoError(t, err)
+			require.Len(t, store.consents, 1)
+			assert.Len(t, []rune(store.consents[store.mandates[0].ID].CreditorAddress), 1000)
+		})
+	}
+}
+
 // Switched off, the read answers nothing but that and records nothing; the
 // writes are refused. Switched on, a read of a mandate lands in the trail
 // and the revocation ends it today.

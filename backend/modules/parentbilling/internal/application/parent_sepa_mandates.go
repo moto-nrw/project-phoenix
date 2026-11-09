@@ -69,9 +69,10 @@ type parentMandateContext struct {
 }
 
 // ready tells whether the Träger can take a mandate: a creditor identifier
-// and an address for the text.
+// and an address that fits the consent proof's database constraint.
 func (c parentMandateContext) ready() bool {
-	return c.creditor.CreditorID != "" && strings.TrimSpace(c.terms.CreditorAddress) != ""
+	address := oneLine(c.terms.CreditorAddress)
+	return c.creditor.CreditorID != "" && address != "" && len([]rune(address)) <= 1000
 }
 
 // open checks the reader and reads the terms; a Träger that does not take
