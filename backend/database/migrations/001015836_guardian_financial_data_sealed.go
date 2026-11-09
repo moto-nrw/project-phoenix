@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const guardianFinancialDataSealedVersion = "1.15.834"
+const guardianFinancialDataSealedVersion = "1.15.836"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
@@ -27,7 +27,7 @@ func init() {
 // reads serve without opening anything. Migrations hold no key, so the
 // maintenance command bank-data-rekey --school seals the existing plaintext
 // and clears it; writers store only the sealed form from this release on.
-// Migration 1.15.836 drops the plaintext columns once no row keeps one.
+// Migration 1.15.838 drops the plaintext columns once no row keeps one.
 const guardianFinancialDataSealedUpSQL = `
 ALTER TABLE users.guardian_financial_data
 	ADD COLUMN IF NOT EXISTS iban_sealed BYTEA,

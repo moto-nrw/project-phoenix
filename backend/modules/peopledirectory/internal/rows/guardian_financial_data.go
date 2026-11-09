@@ -22,7 +22,7 @@ type GuardianFinancialData struct {
 	GuardianProfileID int64 `bun:"guardian_profile_id,notnull" json:"guardian_profile_id"`
 	// IBAN and AccountHolder are the plaintext columns before #6332. Writers
 	// always store NULL there; only rows the maintenance backfill has not
-	// sealed yet still carry a value. Migration 1.15.836 drops them.
+	// sealed yet still carry a value. Migration 1.15.838 drops them.
 	IBAN          *string `bun:"iban" json:"-"`
 	AccountHolder *string `bun:"account_holder" json:"-"`
 	// IBANSealed and AccountHolderSealed are sealed with the bank ring and

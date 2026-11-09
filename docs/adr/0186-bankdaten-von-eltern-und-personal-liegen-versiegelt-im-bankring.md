@@ -36,7 +36,7 @@ den Standardantworten weiter unmaskiert angezeigt.
    Zugriffsprotokoll. Fehlermeldungen enthalten keine Werte.
 5. Schreiber speichern nie Klartext. Der Adapter setzt die Klartextspalten bei
    jedem Schreiben auf NULL. Bis zum Backfill liest der Adapter Zeilen ohne
-   Chiffrat aus den Klartextspalten. Das ist nur der Übergang bis Migration 1.15.836.
+   Chiffrat aus den Klartextspalten. Das ist nur der Übergang bis Migration 1.15.838.
 6. Backfill und Rekey sind ein Wartungsbefehl:
    `bank-data-rekey --school ID --batch-size 100`, gleiche Garantien wie ADR 0183
    Punkt 4 bis 6. Je Batch gibt es eine Schultransaktion. Die Rolle wird auf den
@@ -63,7 +63,7 @@ Migrationen eines Releases aus. Eine Drop-Migration, die bei Klartext
 scheitert, kann darum nicht im Release der neuen Spalten liegen. Sonst bricht
 das erste Deploy mit Bestandsdaten im Preflight ab.
 
-1. **Release A** (#6332, Migrationen 1.15.834 und 1.15.835): neue Spalten,
+1. **Release A** (#6332, Migrationen 1.15.836 und 1.15.837): neue Spalten,
    versiegelnde Schreiber, Übergangslesepfad, Wartungsbefehl. Voraussetzung ist
    der Bankring aus ADR 0183 Schritt 1 in allen Umgebungen.
 2. In jeder Umgebung (Staging, Produktion, Demo) nach vollständigem Rollout von A
@@ -90,7 +90,7 @@ das erste Deploy mit Bestandsdaten im Preflight ab.
    `SELECT count(*) FROM users.guardian_financial_data WHERE iban IS NOT NULL OR account_holder IS NOT NULL`
    und dasselbe für `users.staff_financial_data` mit `iban`, `tax_id` und
    `social_security_number`.
-3. **Release B** (Migration 1.15.836, gestapelter PR): entfernt die
+3. **Release B** (Migration 1.15.838, gestapelter PR): entfernt die
    Klartextspalten und den Übergangslesepfad. Ihr `Precondition` bricht den
    Preflight ab, solange eine Zeile noch Klartext trägt. Dann wird nichts
    gestoppt und nichts zurückgespielt.

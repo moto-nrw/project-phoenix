@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const staffFinancialDataSealedVersion = "1.15.835"
+const staffFinancialDataSealedVersion = "1.15.837"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
@@ -27,7 +27,7 @@ func init() {
 // plus the IBAN mask. Tax ID and social security number need no mask: the
 // default read shows only that a value exists. The maintenance command
 // bank-data-rekey --school seals the existing plaintext and clears it;
-// migration 1.15.836 drops the plaintext columns once no row keeps one.
+// migration 1.15.838 drops the plaintext columns once no row keeps one.
 const staffFinancialDataSealedUpSQL = `
 ALTER TABLE users.staff_financial_data
 	ADD COLUMN IF NOT EXISTS iban_sealed BYTEA,
