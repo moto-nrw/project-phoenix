@@ -56,7 +56,6 @@ func TestRoomsOpenRelease_ReleasesOnlyCanonicalSchulhof(t *testing.T) {
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	testpkg.OwnTenantRows(t, db, tenantID)
 
 	// The yard every existing school already uses as a permanent destination.
 	schulhof := insertOpenReleaseTestRoom(t, db, tenantID, "Schulhof", true)
@@ -77,7 +76,6 @@ func TestRoomsOpenRelease_ReleasesOnlyCanonicalSchulhof(t *testing.T) {
 	// and must not be released.
 	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
-	testpkg.OwnTenantRows(t, db, otherTenantID)
 	selfMadeSchulhof := insertOpenReleaseTestRoom(t, db, otherTenantID, "Schulhof", false)
 	toilette := insertOpenReleaseTestRoom(t, db, otherTenantID, "Toilette", true)
 
@@ -105,7 +103,6 @@ func TestRoomsOpenRelease_IsIdempotent(t *testing.T) {
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	testpkg.OwnTenantRows(t, db, tenantID)
 
 	schulhof := insertOpenReleaseTestRoom(t, db, tenantID, "Schulhof", true)
 	groupRoom := insertOpenReleaseTestRoom(t, db, tenantID, "Turnhalle", false)
@@ -126,7 +123,6 @@ func TestRoomsOpenRelease_DefaultsToUnreleased(t *testing.T) {
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	testpkg.OwnTenantRows(t, db, tenantID)
 
 	room := insertOpenReleaseTestRoom(t, db, tenantID, "Werkraum", false)
 
@@ -145,7 +141,6 @@ func TestRoomsOpenRelease_PreservesExistingRoomData(t *testing.T) {
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	testpkg.OwnTenantRows(t, db, tenantID)
 
 	schulhof := insertOpenReleaseTestRoom(t, db, tenantID, "Schulhof", true)
 	before := loadOpenReleaseRoomSnapshot(t, db, schulhof)

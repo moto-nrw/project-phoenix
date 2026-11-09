@@ -1,0 +1,3 @@
+GET /traeger/sepa-debits/{kind}/{id}
+GET /traeger/sepa-debits/{kind}/{id}/file
+POST /traeger/sepa-debits/{kind}/{id}/submission

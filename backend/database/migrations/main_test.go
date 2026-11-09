@@ -6,8 +6,9 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// TestMain gives every test in this binary its own tenant (#2419), so parallel
-// tests in the shared package clone cannot see or overwrite each other's rows.
+// TestMain gives every top-level test its own disposable database clone and
+// tenant (#2419). Dropping the clone replaces row-by-row tenant teardown;
+// migration tests never share a mutable schema or data with the next test.
 func TestMain(m *testing.M) {
 	testpkg.PerTestDatabases()
 	testpkg.PerTestTenants()

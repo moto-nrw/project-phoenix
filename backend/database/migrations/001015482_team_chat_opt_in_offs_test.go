@@ -16,7 +16,6 @@ func TestTeamChatMigrationResetsOnlyOptInOffs(t *testing.T) {
 	optInOff := testpkg.Tenant(t)
 	deliberateOff, _ := testpkg.CreateTestTenant(t, db)
 	optInOn, _ := testpkg.CreateTestTenant(t, db)
-	testpkg.OwnTenantRows(t, db, deliberateOff, optInOn)
 
 	// The updated_at trigger fires on UPDATE only, so an insert keeps the
 	// given time: two values from the opt-in time, one written after it.

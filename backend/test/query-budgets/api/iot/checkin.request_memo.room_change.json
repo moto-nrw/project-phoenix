@@ -2,6 +2,6 @@
   "scenario": "api.iot.checkin.request_memo.room_change",
   "max": 35,
   "exact": true,
-  "description": "Real kiosk scan request transaction with the production request settings memo enabled; N3 and N8 children present. Excludes pre-request device authentication. Restored unoptimized admission after rejected cancellation-precedence change. Source and destination room metadata are loaded together through Facilities.ListRoomsByID; capacity admission still rereads under its room lock. Restores the measured pre-7e1548adb7 bound: that commit lowered the budget without removing any statements; normalized SQL is unchanged across it.",
+  "description": "Real kiosk scan request transaction with the production request settings memo enabled; N3 and N8 children present. Excludes pre-request device authentication. Restored unoptimized admission after rejected cancellation-precedence change. Source and destination room metadata are loaded together through Facilities.ListRoomsByID; capacity admission still rereads under its room lock. Measured on a fixed school Monday (2026-08-24), the path of every care weekday: it includes the day's pickup exception and pickup note reads, which a weekend skips (2 statements fewer). 7e1548adb7 had measured a Saturday with the wall clock (#6266).",
   "route": "POST /api/iot/checkin"
 }

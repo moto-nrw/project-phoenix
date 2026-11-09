@@ -74,11 +74,11 @@ type AccessTokenCodec interface {
 }
 
 // AccountAdministration is the consumer-owned port over the retained role
-// and account management flows staff offboarding drives (#2721): a role
+// and account management flows staff offboarding drives (#2721): a role-set
 // removal revokes the sessions it must, a deactivation records the durable
 // account-wide revocation intent. Both join the caller's transaction.
 type AccountAdministration interface {
-	RemoveRoleFromAccount(ctx context.Context, accountID, roleID int64) error
+	RemoveRolesFromAccount(ctx context.Context, accountID int64, roleIDs []int64) error
 	DeactivateAccount(ctx context.Context, accountID int64) error
 }
 

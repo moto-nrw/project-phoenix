@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"sync"
@@ -58,6 +59,7 @@ type isolatedTestDatabase struct {
 	runtime     tenant.UnitOfWork
 	releaseSlot func()
 	err         error
+	dropErr     error
 }
 
 var isolatedTestDatabases sync.Map // top-level test name -> *isolatedTestDatabase
@@ -91,12 +93,11 @@ func (entry *isolatedTestDatabase) open(tb testing.TB, name string) (err error) 
 
 	entry.clone, err = testdb.CreateClone(ctx, packageCloneCfg, testdb.RunID()+"-"+name)
 	if err != nil {
-		entry.drop()
-		return err
+		return errors.Join(err, entry.drop())
 	}
 	defer func() {
 		if err != nil {
-			entry.drop()
+			err = errors.Join(err, entry.drop())
 		}
 	}()
 
@@ -123,12 +124,18 @@ func (entry *isolatedTestDatabase) open(tb testing.TB, name string) (err error) 
 		}
 	}
 
+	entry.registerCleanup(tb, name)
+	return nil
+}
+
+func (entry *isolatedTestDatabase) registerCleanup(tb testing.TB, name string) {
 	tb.Cleanup(func() {
-		entry.drop()
+		if err := entry.drop(); err != nil {
+			tb.Errorf("drop isolated test database: %v", err)
+		}
 		isolatedTestDatabases.Delete(name)
 		testTenants.Delete(name)
 	})
-	return nil
 }
 
 func setCloneSearchPath(ctx context.Context, clone *testdb.CloneHandle) error {
@@ -158,22 +165,23 @@ func openTestPool(ctx context.Context, dsn string) (*bun.DB, error) {
 	return db, nil
 }
 
-func (entry *isolatedTestDatabase) drop() {
+func (entry *isolatedTestDatabase) drop() error {
 	entry.dropOnce.Do(func() {
 		if entry.db != nil {
 			detachTestQueryHooks(entry.db)
-			_ = entry.db.Close()
+			entry.dropErr = errors.Join(entry.dropErr, entry.db.Close())
 		}
 		if entry.clone != nil {
-			_ = entry.clone.Close()
+			entry.dropErr = errors.Join(entry.dropErr, entry.clone.Close())
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
-			_ = testdb.DropClone(ctx, packageCloneCfg, entry.clone.Name)
+			entry.dropErr = errors.Join(entry.dropErr, testdb.DropClone(ctx, packageCloneCfg, entry.clone.Name))
 		}
 		if entry.releaseSlot != nil {
 			entry.releaseSlot()
 		}
 	})
+	return entry.dropErr
 }
 
 func isolatedTestDSN(tb testing.TB) (string, bool) {

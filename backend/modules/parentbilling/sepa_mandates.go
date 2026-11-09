@@ -148,13 +148,16 @@ type SEPAMandate struct {
 	CreditorID      string         `json:"creditor_id"`
 	CreditorCurrent bool           `json:"creditor_current"`
 	LastCollectedOn *calendar.Date `json:"last_collected_on"`
-	IBANMasked      string         `json:"iban_masked"`
-	BIC             string         `json:"bic"`
-	Source          string         `json:"source"`
-	RevokedOn       *calendar.Date `json:"revoked_on"`
-	RevokedAt       *time.Time     `json:"revoked_at"`
-	CreatedAt       time.Time      `json:"created_at"`
-	UpdatedAt       time.Time      `json:"updated_at"`
+	// ExpiresOn is the first day the mandate no longer holds without a
+	// further collection (#4697, 36 months).
+	ExpiresOn  calendar.Date  `json:"expires_on"`
+	IBANMasked string         `json:"iban_masked"`
+	BIC        string         `json:"bic"`
+	Source     string         `json:"source"`
+	RevokedOn  *calendar.Date `json:"revoked_on"`
+	RevokedAt  *time.Time     `json:"revoked_at"`
+	CreatedAt  time.Time      `json:"created_at"`
+	UpdatedAt  time.Time      `json:"updated_at"`
 	// HolderSealed is the sealed account holder as the store reads it; the
 	// owner opens it into AccountHolder and never answers it.
 	HolderSealed []byte `json:"-"`
@@ -162,6 +165,16 @@ type SEPAMandate struct {
 
 // InForce tells whether the mandate is not revoked.
 func (m SEPAMandate) InForce() bool { return m.RevokedOn == nil }
+
+// ExpiryDay is the first day the mandate no longer holds: 36 months after
+// its signature or its last use (#4697, MandateUsedOn).
+func (m SEPAMandate) ExpiryDay() calendar.Date {
+	return MandateExpiresOn(m.SignedOn, MandateUsedOn(m.Sequence, m.LastCollectedOn, calendar.DateFromTime(m.CreatedAt)))
+}
+
+// Expired tells whether the mandate no longer holds on the day: 36 months
+// passed without a collection (#4697).
+func (m SEPAMandate) Expired(on calendar.Date) bool { return !m.ExpiryDay().After(on) }
 
 // SequenceType is the SEPA sequence type of the next collection.
 func (m SEPAMandate) SequenceType() string {
@@ -270,10 +283,18 @@ func ResolveDebit(payment InvoicePayment, terms ServiceTerms, run RunDueDates, f
 		gap = DebitGapCreditor
 	case mandate == nil || !mandate.InForce() || mandate.SignedOn.After(issuedOn):
 		gap = DebitGapMandate
+	case mandate.Kind == MandateOneOff && mandate.LastCollectedOn != nil:
+		// A one-off mandate authorizes one collection; once collected it is
+		// no mandate for another invoice (#4697).
+		gap = DebitGapMandate
 	case mandate.CreditorID != creditor.CreditorID:
 		// A mandate binds the creditor it was given to; after a change of
 		// the creditor identifier it is no proof for the new one.
 		gap = DebitGapCreditorChanged
+	case mandate.Expired(issuedOn):
+		// 36 months without a collection end the mandate (#4697); the file
+		// checks the day of the collection again.
+		gap = DebitGapExpired
 	}
 	if gap == "" {
 		payment.Mandate = &InvoiceMandate{MandateID: mandate.ID, Reference: mandate.Reference, SignedOn: mandate.SignedOn,
@@ -332,4 +353,8 @@ type SEPAMandates interface {
 	// SEPAMandateDebits opens the IBAN of mandates for the debit file
 	// (#4697) and records the reveal of each.
 	SEPAMandateDebits(ctx context.Context, reviewer HolidayReviewer, ids []int64) ([]SEPAMandateDebit, error)
+	// SEPAMandateCollections lists the debits of a mandate, newest first:
+	// the collection history per mandate and invoice (#4697). It names no
+	// bank data.
+	SEPAMandateCollections(ctx context.Context, reviewer HolidayReviewer, id int64) ([]SEPADebit, error)
 }

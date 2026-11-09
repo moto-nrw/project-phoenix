@@ -68,14 +68,6 @@ func lockedBankRekeyRows(ctx context.Context, tx bun.IDB, organizationID int64, 
    FROM parent_billing.sepa_mandates WHERE organization_id = ? AND id > ? ORDER BY id LIMIT ? FOR UPDATE`, organizationID, afterID, limit).Scan(ctx, &rows)
 		return rows, err
 	case "debits":
-		// #6265 introduces these frozen copies. Earlier releases have none.
-		var exists bool
-		if err := tx.NewRaw("SELECT to_regclass('parent_billing.sepa_debits') IS NOT NULL").Scan(ctx, &exists); err != nil {
-			return nil, err
-		}
-		if !exists {
-			return nil, nil
-		}
 		err := tx.NewRaw(`SELECT id, mandate_reference AS reference, iban_sealed, account_holder_sealed
    FROM parent_billing.sepa_debits WHERE organization_id = ? AND id > ? ORDER BY id LIMIT ? FOR UPDATE`, organizationID, afterID, limit).Scan(ctx, &rows)
 		return rows, err

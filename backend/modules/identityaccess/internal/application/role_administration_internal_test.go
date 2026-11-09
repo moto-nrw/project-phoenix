@@ -599,6 +599,36 @@ func TestRoleAdministration_AccountLockOrder(t *testing.T) {
 	})
 }
 
+func TestRoleAdministration_RemoveRolesFromAccountJoinsTheCallersUnit(t *testing.T) {
+	t.Parallel()
+
+	f := newRAFixture(t)
+	account := f.account()
+	first := f.store.addRole(customRoleOf("betreuung", "user"))
+	second := f.store.addRole(customRoleOf("assistenz", "user"))
+	f.store.accountRoles[account] = []int64{first.ID, second.ID}
+
+	err := f.admin.RemoveRolesFromAccount(raContext(), account, []int64{first.ID, second.ID})
+	require.ErrorIs(t, err, errRoleSetNeedsTransaction, "the set removal opens no unit of its own")
+	assert.Equal(t, []int64{first.ID, second.ID}, f.store.accountRoles[account])
+	assert.Empty(t, f.sessions.deleted)
+
+	runtime := &fakeRuntime{}
+	require.NoError(t, runtime.RunInTx(raContext(), func(txCtx context.Context) error {
+		return f.admin.RemoveRolesFromAccount(txCtx, account, []int64{first.ID, second.ID})
+	}))
+	assert.Empty(t, f.store.accountRoles[account])
+	assert.Equal(t, []int64{account}, f.sessions.deleted, "one revocation for the whole set")
+	assert.Equal(t, []int64{account}, f.sessions.queued, "one push cleanup for the whole set")
+
+	// A concurrent role deletion may have removed an observed assignment
+	// first; the sessions of the observed set are revoked all the same.
+	require.NoError(t, runtime.RunInTx(raContext(), func(txCtx context.Context) error {
+		return f.admin.RemoveRolesFromAccount(txCtx, account, []int64{first.ID})
+	}))
+	assert.Equal(t, []int64{account, account}, f.sessions.deleted, "the observed set is revoked even when its assignment is already gone")
+}
+
 func TestRoleAdministration_AssignAndRemoveRoleRevokeSessions(t *testing.T) {
 	t.Parallel()
 

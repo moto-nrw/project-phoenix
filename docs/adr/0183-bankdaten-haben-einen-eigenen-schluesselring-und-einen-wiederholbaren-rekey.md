@@ -26,7 +26,7 @@ Er ersetzt für Bankdaten die gemeinsame Schlüsselverwendung aus ADR 0171.
    Die CLI `bank-data-rekey --organization ID --batch-size 100` läuft nur mit
    einer privilegierten Wartungsverbindung, niemals im HTTP-Prozess. Sie
    verarbeitet Mandate einschließlich widerrufener und die ungeöffneten Kopien
-   von IBAN/Kontoinhaber in `sepa_debits` (#6265), sobald dessen Tabelle besteht.
+   von IBAN/Kontoinhaber in `sepa_debits` (#6265, Migration 1.15.826).
    #6198 schreibt über dieselbe Mandats-Capability und erhält dadurch den neuen
    Cipher. Masken, BIC und Organisationsstammdaten sind keine Chiffrate aus dem
    Gesundheitsring und werden nicht verändert.
@@ -111,8 +111,8 @@ ADR 0066: Beide Tabellen gehören `parent-billing`; Security Runtime kennt
 keine Banktabellen. ADR 0067: Cipher und Rewrapper sind consumer-owned Ports.
 ADR 0068: Owner-Komposition baut Anwendung und Adapter, CLI und API binden nur.
 Kein Cross-Owner-Schreibzugriff. Keine Migration erforderlich. Der zusätzliche
-Rekey-Konstruktor erhöht die Compose-Fläche um 5 Zeilen (86 → 91), der Bank-Cipher-Konstruktor um weitere 6 (7 → 13);
-die Summe steigt 13142 → 13153;
+Rekey-Konstruktor erhöht die Compose-Fläche um 5 Zeilen (91 → 96), der Bank-Cipher-Konstruktor um weitere 6 (7 → 13);
+die Summe steigt 13147 → 13158;
 die Grenze bleibt auf die notwendige Bindung beschränkt.
 
 Ein dauerhafter gemeinsamer Ring koppelt Kompromittierung und Rotation.

@@ -34,6 +34,8 @@ const MANDATE: SepaMandate = {
   bic: "",
   source: "office",
   revokedOn: null,
+  lastCollectedOn: null,
+  expiresOn: "2029-09-01",
   createdAt: "2026-09-01T10:00:00+02:00",
 };
 

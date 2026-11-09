@@ -115,14 +115,57 @@ func CreateTestActivityGroupWithLimit(tb testing.TB, db *bun.DB, name string, ma
 	return group
 }
 
+// CreateTestActiveGroup creates a real active group (session) in the database.
+// This requires an ActivityGroup (activities.groups) and Room to exist.
+// Use this for testing session management and visit tracking.
+func CreateTestActiveGroup(tb testing.TB, db *bun.DB, activityGroupID, roomID int64) *ActiveGroupRow {
+	tb.Helper()
+	return CreateTestActiveGroupAt(tb, db, activityGroupID, roomID, fixtureInstant())
+}
+
+// CreateTestActiveGroupAt creates the session of CreateTestActiveGroup started
+// at a given instant, for tests that run the product on a fixed clock.
+func CreateTestActiveGroupAt(tb testing.TB, db *bun.DB, activityGroupID, roomID int64, start time.Time) *ActiveGroupRow {
+	tb.Helper()
+
+	now := start.Round(time.Microsecond)
+	activeGroup := &ActiveGroupRow{
+		GroupID:        &activityGroupID,
+		RoomID:         roomID,
+		StartTime:      now,
+		LastActivity:   now,
+		TimeoutMinutes: 30,
+	}
+	activeGroup.TenantID = fixtureTenantID(tb)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err := db.NewInsert().
+		Model(activeGroup).
+		ModelTableExpr(`active.groups`).
+		Scan(ctx)
+	require.NoError(tb, err, "Failed to create test active group")
+
+	return activeGroup
+}
+
 // CreateTestRunningBlock starts a timetable block in a room: an activity, its
 // open session, and today's active instance with the given children in its
 // day roster. Blocks created later have the later start.
 func CreateTestRunningBlock(tb testing.TB, db *bun.DB, roomID int64, name string, rosterStudentIDs ...int64) *ActiveGroupRow {
 	tb.Helper()
+	return CreateTestRunningBlockAt(tb, db, fixtureInstant(), roomID, name, rosterStudentIDs...)
+}
+
+// CreateTestRunningBlockAt starts the block of CreateTestRunningBlock at a
+// given instant: the session starts then and the instance is on its Berlin
+// day, for tests that run the product on a fixed clock.
+func CreateTestRunningBlockAt(tb testing.TB, db *bun.DB, start time.Time, roomID int64, name string, rosterStudentIDs ...int64) *ActiveGroupRow {
+	tb.Helper()
 	activity := CreateTestActivityGroup(tb, db, name)
-	session := CreateTestActiveGroup(tb, db, activity.ID, roomID)
-	instance := CreateTestActivityInstance(tb, db, calendar.TodayDate(), roomID, ActivityInstanceOpts{
+	session := CreateTestActiveGroupAt(tb, db, activity.ID, roomID, start)
+	instance := CreateTestActivityInstance(tb, db, calendar.DateFromTime(start), roomID, ActivityInstanceOpts{
 		Status: ScheduleInstanceStatusActive, ActivityGroupID: &activity.ID, ActiveGroupID: &session.ID, Title: name,
 	})
 	for _, studentID := range rosterStudentIDs {
