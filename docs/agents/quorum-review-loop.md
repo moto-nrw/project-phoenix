@@ -1,5 +1,43 @@
 # quorum Review Loop
 
+## Devbox bootstrap and temporary profiles
+
+Before its first Devbox call, `.envrc` sources
+[`scripts/devbox-tmpdir.sh`](../../scripts/devbox-tmpdir.sh). With no non-empty
+caller `TMPDIR`, this creates private (0700) `moto-nix-tmp` inside the
+repository's Git common directory (`.git` in the main checkout). All worktrees
+share this temp namespace, so new reviews also sweep older review leftovers. Keep checkouts on disk; Linux tmpfs/ramfs checkouts fail with an
+instruction to supply a disk-backed `TMPDIR`. macOS keeps its existing system
+`TMPDIR`; an unset value uses the same repo-local fallback. Explicit values,
+including `/tmp`, are respected. Local dotenv overrides are loaded afterwards;
+set a custom bootstrap `TMPDIR` in the invoking environment, before direnv.
+No shell profile or machine configuration is changed.
+
+This protects against [NixOS/nix#10404](https://github.com/NixOS/nix/issues/10404):
+a fresh Quorum worktree needs its own Devbox profile even when packages already
+exist in the shared Nix store. Keep automatic installation enabled. After
+bootstrap, Node from the installed profile runs [`scripts/cleanup-devbox-tmp.mjs`](../../scripts/cleanup-devbox-tmp.mjs).
+It only sweeps the repository's private default temp namespace, never
+`/tmp`, a caller's custom `TMPDIR`, symlinked directories or foreign-owned trees.
+Only `nix-<pid>-<number>` directories with a dead creator PID are candidates.
+Linux `/proc` or macOS `lsof` checks open descriptors, working directories and
+mapped files. Known references always retain a tree.
+
+When reference inspection is incomplete, trees are retained. The bounded Linux
+exception requires `/proc/<pid>` to be absent and **every entry** in the tree to
+have unchanged mtime and ctime for over 60 minutes. This covers hosts where
+`ptrace_scope` hides unrelated processes. It is a grace-period policy, not proof
+that inaccessible processes hold no references. Cleanup runs on the next
+successful bootstrap (or explicit `node scripts/cleanup-devbox-tmp.mjs` invocation), including after an earlier
+error or interruption; it is not a background service. Concurrent sweeps tolerate
+already removed trees. Persistent Nix-store and Devbox caches remain intact.
+
+`--no-direnv` bypasses Quorum's bootstrap entirely. Use it only with a separately
+prepared worktree profile and complete toolchain/environment. Changing only the
+local test command does not protect Quorum's earlier direnv prewarm. Quorum
+reads repo configuration from its base branch, so validate this bootstrap on
+the PR head explicitly before it merges.
+
 ## Local test gate and CI
 
 [`.quorum/testcmd`](../../.quorum/testcmd) sets the local gate to
