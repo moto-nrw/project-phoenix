@@ -46,7 +46,7 @@ function childName(invoice: CareInvoice): string {
 }
 
 /** Names one invoice of a run: its contract and what it bills (#6346). */
-export function invoiceKey(invoice: CareInvoice): string {
+function invoiceKey(invoice: CareInvoice): string {
   return `${invoice.contractId}-${invoice.service}`;
 }
 

@@ -56,7 +56,7 @@ export function invoiceKindLabel(invoice: ExclusionInvoice): string {
 
 /** The other invoice of the same contract in the run, if there is one: the
  * Mensa invoice of its own of a care invoice, or the other way round. */
-export function otherInvoiceOf<T extends ExclusionInvoice>(
+function otherInvoiceOf<T extends ExclusionInvoice>(
   invoice: T,
   invoices: readonly T[],
 ): T | undefined {
