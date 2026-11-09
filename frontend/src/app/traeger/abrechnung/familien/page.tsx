@@ -141,7 +141,7 @@ const COLUMNS: DataTableColumn<BillingFamily>[] = [
     render: (family) => {
       const breakdown = amountBreakdown(family);
       return (
-        <span className="block">
+        <span className="block text-right">
           <span
             className={`block tabular-nums ${family.openCents > 0 ? "font-semibold text-gray-900" : "text-gray-500"}`}
           >
@@ -155,6 +155,18 @@ const COLUMNS: DataTableColumn<BillingFamily>[] = [
         </span>
       );
     },
+    // On a phone the amount stands beside the name without its column
+    // header, so it names itself; the parts are on the family's page.
+    stackedRender: (family) => (
+      <span className="block text-right">
+        <span
+          className={`block tabular-nums ${family.openCents > 0 ? "font-semibold text-gray-900" : "text-gray-500"}`}
+        >
+          {formatEuro(family.openCents)}
+        </span>
+        <span className="block text-xs text-gray-500">berechnet</span>
+      </span>
+    ),
     stacked: "meta",
   },
 ];
