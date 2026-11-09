@@ -404,6 +404,11 @@ func TestSickCascade_ConcurrentOverlappingReportsSerializeBeforeOverlapRead(t *t
 	lockerDone := make(chan error, 1)
 	go func() {
 		lockerDone <- testpkg.WithTenantTx(t, context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
+			// A sick-report write in progress: its day locks first, then the
+			// absence lock (#6292), as the entry takes them.
+			if err := e.cascade.LockSickReportWrite(ctx, e.subject.ID, 0, day.String(), day.String()); err != nil {
+				return err
+			}
 			if err := e.shifts.LockStaffAbsenceWrites(ctx, e.subject.ID); err != nil {
 				return err
 			}

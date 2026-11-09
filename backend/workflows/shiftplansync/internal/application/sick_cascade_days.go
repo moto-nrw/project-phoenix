@@ -1,6 +1,7 @@
 package application
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"sort"
@@ -29,20 +30,82 @@ func (s *sickCascade) lockReportedDays(ctx context.Context, in workforce.SickCas
 			days[day] = true
 		}
 	}
-	rows, err := s.loadStampedBlockRows(ctx, stampedBy)
-	if err != nil {
+	if err := s.addStampedDays(ctx, days, stampedBy); err != nil {
 		return err
 	}
-	if len(rows) > 0 {
-		instances, err := s.timetableData.GetActivityInstancesByID(ctx, instanceStaffInstanceIDs(rows))
-		if err != nil {
-			return fmt.Errorf("sick cascade: load stamped instances: %w", err)
+	return s.acquireCascadeDayLocks(ctx, days)
+}
+
+// LockSickReportWrite takes the day locks of a pending sick-report write
+// before Workforce locks the staff row, once and ascending (I-2, #6292): every
+// day of the requested range, of the stored range of the edited or deleted
+// report (absenceID), of the reports a new report may merge, and of their
+// stamps. The cascade that follows needs no further day, so the order is
+// days → Workforce's absence and staff locks → the cascade, and a
+// materialization (days → staff key share) can no longer deadlock against
+// it. Malformed dates and unknown ids add nothing; the write itself rejects
+// them.
+func (s *sickCascade) LockSickReportWrite(ctx context.Context, subjectStaffID, absenceID int64, dateStart, dateEnd string) error {
+	if s.absences == nil {
+		return nil
+	}
+	days := make(map[calendar.Date]bool)
+	var stampedBy []int64
+	if absenceID > 0 {
+		stored, err := s.absences.FindStaffAbsence(ctx, absenceID)
+		if err != nil || stored.AbsenceType != workforce.AbsenceTypeSick {
+			return nil //nolint:nilerr // the write reports a missing absence itself
 		}
-		for _, instance := range instances {
-			days[instance.Date] = true
+		addDateRange(days, stored.DateStart, stored.DateEnd)
+		addDateRange(days, cmp.Or(dateStart, stored.DateStart), cmp.Or(dateEnd, stored.DateEnd))
+		stampedBy = append(stampedBy, absenceID)
+	} else {
+		addDateRange(days, dateStart, dateEnd)
+		merged, err := s.absences.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{
+			StaffID: subjectStaffID, Types: []string{workforce.AbsenceTypeSick}, OverlapFrom: dateStart, OverlapTo: dateEnd,
+		})
+		if err != nil {
+			return fmt.Errorf("sick report: load overlapping reports: %w", err)
+		}
+		for _, report := range merged {
+			addDateRange(days, report.DateStart, report.DateEnd)
+			stampedBy = append(stampedBy, report.ID)
+		}
+	}
+	for _, id := range stampedBy {
+		if err := s.addStampedDays(ctx, days, id); err != nil {
+			return err
 		}
 	}
 	return s.acquireCascadeDayLocks(ctx, days)
+}
+
+// addDateRange adds every day of [start, end]; a malformed range adds none.
+func addDateRange(days map[calendar.Date]bool, start, end string) {
+	from, errFrom := calendar.ParseDate(start)
+	to, errTo := calendar.ParseDate(end)
+	if errFrom != nil || errTo != nil {
+		return
+	}
+	for day := from; !day.After(to); day = day.AddDays(1) {
+		days[day] = true
+	}
+}
+
+// addStampedDays adds the days of every block row absenceID stamped.
+func (s *sickCascade) addStampedDays(ctx context.Context, days map[calendar.Date]bool, absenceID int64) error {
+	rows, err := s.loadStampedBlockRows(ctx, absenceID)
+	if err != nil || len(rows) == 0 {
+		return err
+	}
+	instances, err := s.timetableData.GetActivityInstancesByID(ctx, instanceStaffInstanceIDs(rows))
+	if err != nil {
+		return fmt.Errorf("sick cascade: load stamped instances: %w", err)
+	}
+	for _, instance := range instances {
+		days[instance.Date] = true
+	}
+	return nil
 }
 
 // sickCascadeDays expands the absence range into the full sick days, skipping

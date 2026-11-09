@@ -73,6 +73,7 @@ func NewSickCascade(deps SickCascadeDependencies) (shiftplansync.SickCascade, er
 	return application.NewSickCascade(application.SickCascadeDependencies{
 		Shifts: application.Shifts{StaffShiftPlanning: deps.Planning, Lock: deps.LockStaffShifts,
 			ShiftQuery: deps.Workforce, StaffShiftCommand: deps.Workforce},
+		Absences:      deps.Workforce,
 		Deviations:    deps.Deviations,
 		TimetableData: deps.TimetableData,
 		InstanceStaff: deps.InstanceStaff,

@@ -47,6 +47,13 @@ type TimetableRows interface {
 	FindByInstanceID(ctx context.Context, instanceID int64) ([]*timetable.InstanceStaff, error)
 }
 
+// SickReportAbsences reads the sick reports a pending write touches, so the
+// write can lock their days before Workforce locks the staff row.
+type SickReportAbsences interface {
+	FindStaffAbsence(ctx context.Context, id int64) (workforce.StaffAbsence, error)
+	ListStaffAbsences(ctx context.Context, filter workforce.StaffAbsenceFilter) ([]workforce.StaffAbsence, error)
+}
+
 // SickStamps are the sick-report provenance stamps on block assignments: the
 // rows one report stamped, and the single-column stamp write; nil clears it.
 type SickStamps interface {
@@ -68,6 +75,7 @@ type SickDeviations interface {
 // Timetable owner's deviation writes.
 type SickCascadeDependencies struct {
 	Shifts        ports.Shifts
+	Absences      SickReportAbsences
 	Deviations    SickDeviations
 	TimetableData TimetableRows
 	InstanceStaff SickStamps
@@ -80,6 +88,7 @@ type SickCascadeDependencies struct {
 
 type sickCascade struct {
 	shifts        ports.Shifts
+	absences      SickReportAbsences
 	deviations    SickDeviations
 	timetableData TimetableRows
 	sickStamps    SickStamps
@@ -95,6 +104,7 @@ type SickCascade interface {
 	ClearSickForRange(ctx context.Context, in workforce.SickCascadeInput) error
 	ReconcileSickRange(ctx context.Context, before, after workforce.SickCascadeInput) error
 	ReassignSickStamps(ctx context.Context, fromAbsenceID int64, survivor workforce.SickCascadeInput) error
+	LockSickReportWrite(ctx context.Context, subjectStaffID, absenceID int64, dateStart, dateEnd string) error
 }
 
 // NewSickCascade wires the #1843 cascade. Compose checks the dependencies and
@@ -102,6 +112,7 @@ type SickCascade interface {
 func NewSickCascade(deps SickCascadeDependencies) SickCascade {
 	return &sickCascade{
 		shifts:        deps.Shifts,
+		absences:      deps.Absences,
 		deviations:    deps.Deviations,
 		timetableData: deps.TimetableData,
 		sickStamps:    deps.InstanceStaff,

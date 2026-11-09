@@ -131,9 +131,10 @@ func (e *sickCascadeEnv) instanceRow(t *testing.T, instanceID, staffID int64) *t
 	return e.reloadRow(t, id)
 }
 
-// A substitute who is sick that day is recorded absent on the block they
-// were chosen for.
-func TestSickReport_SubstitutionRecordsSickSubstituteAbsent(t *testing.T) {
+// A sick report makes the person absent the whole day: like an absent
+// person, they are refused as a substitute, in the single save and in the
+// Sammel-Vertretung, with the existing "absent" codes.
+func TestSickReport_SickSubstituteIsRefused(t *testing.T) {
 	t.Parallel()
 
 	e := buildSickCascadeEnv(t)
@@ -142,20 +143,34 @@ func TestSickReport_SubstitutionRecordsSickSubstituteAbsent(t *testing.T) {
 	templateID := e.createSupervisedTemplate(t)
 	e.materialize(t, day, day)
 	planned := e.templateRow(t, templateID, e.subject.ID, day)
-	absenceID := e.createSickAbsenceFor(t, e.sub.ID, day, day)
+	e.createSickAbsenceFor(t, e.sub.ID, day, day)
 	scope := []int64{planned.InstanceID}
 
-	e.inTx(t, func(ctx context.Context) error {
+	err := testpkg.WithTenantTx(t, context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
 		_, err := e.timetable.TimetableData.Deviations.ApplyDeviations(ctx, planned.InstanceID, timetable.ApplyDeviationsInput{
 			Absences:      []timetable.DeviationAbsenceInput{{StaffID: e.subject.ID, InstanceIDs: &scope}},
 			Substitutions: []timetable.DeviationSubstitutionInput{{AbsentStaffID: e.subject.ID, SubstituteStaffID: e.sub.ID, InstanceIDs: &scope}},
 		})
 		return err
 	})
+	assertDeviationCode(t, err, timetable.CodeSubstituteAbsent)
 
-	substitute := e.templateRow(t, templateID, e.sub.ID, day)
-	assert.True(t, substitute.IsSubstitute)
-	assertSickStamp(t, substitute, absenceID, "sick substitute")
+	err = testpkg.WithTenantTx(t, context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
+		_, err := e.timetable.TimetableData.Deviations.ApplyBulkSubstitution(ctx, timetable.BulkSubstitutionInput{
+			AbsentStaffID: e.subject.ID, SubstituteStaffID: &e.sub.ID, Dates: []calendar.Date{day},
+		})
+		return err
+	})
+	assertDeviationCode(t, err, timetable.CodeSubstituteAbsentOnDate)
+
+	assertPresent(t, e.templateRow(t, templateID, e.subject.ID, day), "refused save changed nothing")
+}
+
+func assertDeviationCode(t *testing.T, err error, code string) {
+	t.Helper()
+	var refusal *timetable.DeviationError
+	require.ErrorAs(t, err, &refusal)
+	assert.Equal(t, code, refusal.Code)
 }
 
 // Moving a sick person onto another block of their sick day keeps them
@@ -269,4 +284,101 @@ func (e *sickCascadeEnv) releaseAfterDayLockWait(t *testing.T, day calendar.Date
 	close(release)
 	require.NoError(t, <-materialization)
 	require.NoError(t, <-write)
+}
+
+// I-2 for a new report on a past day: the report's write holds the day while
+// a materialization of that day runs. The run waits and stamps its rows.
+func TestSickReport_PastReportAgainstMaterialization(t *testing.T) {
+	t.Parallel()
+
+	e := buildSickCascadeEnv(t)
+	templateID := e.createSupervisedTemplate(t)
+	created := make(chan int64, 1)
+	release := make(chan struct{})
+	reportDone := make(chan error, 1)
+	go func() {
+		reportDone <- testpkg.WithTenantTx(t, context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
+			absence, err := e.absences.SickReports.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, workforce.CreateAbsenceRequest{
+				AbsenceType: "sick", DateStart: pastWeekTwo.String(), DateEnd: pastWeekTwo.String(),
+			})
+			if err != nil {
+				return err
+			}
+			created <- absence.ID
+			<-release
+			return nil
+		})
+	}()
+	var absenceID int64
+	select {
+	case absenceID = <-created:
+	case err := <-reportDone:
+		require.FailNow(t, "sick report failed before it held its day", "%v", err)
+	}
+
+	materialized := make(chan error, 1)
+	go func() {
+		_, err := e.timetable.Materialization.MaterializeForTenant(e.ctx, pastWeekTwo, pastWeekTwo, timetable.MaterializationSourceManual)
+		materialized <- err
+	}()
+	if returned, err := e.awaitDayLockWaiter(t, pastWeekTwo, materialized); returned {
+		close(release)
+		require.NoError(t, <-reportDone)
+		require.FailNow(t, "materialization did not wait for the past sick report", "returned early: %v", err)
+	}
+	close(release)
+	require.NoError(t, <-reportDone)
+	require.NoError(t, <-materialized)
+
+	assertSickStamp(t, e.templateRow(t, templateID, e.subject.ID, pastWeekTwo), absenceID, "past block materialized beside the report")
+}
+
+// The reproduced deadlock: a writer holding a day lock inserts an assignment
+// of the subject (the foreign key takes a key share on the staff row), the
+// way a materialization does, while a sick report for that day is filed.
+// The report takes its day locks before Workforce locks the staff row, so it
+// waits for the writer instead of deadlocking against it; both succeed and
+// the report marks the new row.
+func TestSickReport_DayLockWriterAndReportDoNotDeadlock(t *testing.T) {
+	t.Parallel()
+
+	e := buildSickCascadeEnv(t)
+	block, _ := e.createBlock(t, stampWeekOne, timetable.InstanceStatusPlanned, "10:00", e.admin.ID, testpkg.InstanceStaffOpts{})
+	holding := make(chan struct{})
+	proceed := make(chan struct{})
+	writerDone := make(chan error, 1)
+	go func() {
+		writerDone <- testpkg.WithTenantTx(t, context.Background(), e.db, e.tenantID, func(ctx context.Context, tx bun.Tx) error {
+			if err := lockDay(ctx, tx, e.tenantID, stampWeekOne); err != nil {
+				return err
+			}
+			close(holding)
+			<-proceed
+			_, err := tx.NewRaw(`INSERT INTO schedule.instance_staff (tenant_id, instance_id, staff_id) VALUES (?, ?, ?)`,
+				e.tenantID, block.ID, e.subject.ID).Exec(ctx)
+			return err
+		})
+	}()
+	<-holding
+	reportDone := make(chan error, 1)
+	go func() {
+		reportDone <- testpkg.WithTenantTx(t, context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
+			_, err := e.absences.SickReports.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, workforce.CreateAbsenceRequest{
+				AbsenceType: "sick", DateStart: stampWeekOne.String(), DateEnd: stampWeekOne.String(),
+			})
+			return err
+		})
+	}()
+	if returned, err := e.awaitDayLockWaiter(t, stampWeekOne, reportDone); returned {
+		close(proceed)
+		require.NoError(t, <-writerDone)
+		require.FailNow(t, "sick report did not wait for the day", "returned early: %v", err)
+	}
+	close(proceed)
+	require.NoError(t, <-writerDone, "the day-lock writer must not be a deadlock victim")
+	require.NoError(t, <-reportDone, "the sick report must not be a deadlock victim")
+
+	row := e.instanceRow(t, block.ID, e.subject.ID)
+	assert.True(t, row.IsAbsent, "the report marks the row the writer added")
+	assert.NotNil(t, row.SickAbsenceID)
 }

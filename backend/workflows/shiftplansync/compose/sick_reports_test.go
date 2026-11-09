@@ -87,6 +87,12 @@ func (c *sickReportCalls) ReassignSickStamps(context.Context, int64, workforce.S
 	return c.cascadeErr
 }
 
+// LockSickReportWrite takes no locks here; the plan order is what these
+// suites record.
+func (c *sickReportCalls) LockSickReportWrite(context.Context, int64, int64, string, string) error {
+	return nil
+}
+
 func inSickReportTx() context.Context { return context.Background() }
 
 func TestSickReportsApplyThePlanInOrderAfterTheWrite(t *testing.T) {

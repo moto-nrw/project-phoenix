@@ -57,4 +57,9 @@ type SickCascade interface {
 	// or the eventual reversal will miss those rows. The survivor's range
 	// names the days it locks first.
 	ReassignSickStamps(ctx context.Context, fromAbsenceID int64, survivor workforce.SickCascadeInput) error
+	// LockSickReportWrite takes the day locks of a pending sick-report write
+	// (absenceID 0 for a new report) before Workforce locks the staff row:
+	// the requested and the stored range, the reports a merge folds in and
+	// their stamps, ascending (#6292).
+	LockSickReportWrite(ctx context.Context, subjectStaffID, absenceID int64, dateStart, dateEnd string) error
 }

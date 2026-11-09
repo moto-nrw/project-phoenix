@@ -84,6 +84,27 @@ type deviationReadSet struct {
 	rowsByStaff    map[int64][]*scheduleModel.InstanceStaff
 	instances      map[int64]*scheduleModel.ActivityInstance
 	rowsByInstance map[int64][]*scheduleModel.InstanceStaff
+	// sickStaff marks the referenced staff a full-day sick report covers on
+	// the date: they are absent the whole day and never cover anyone (#6292).
+	sickStaff map[int64]bool
+}
+
+// markSickStaff reads the open sick reports of the dates under the day locks
+// the save already holds (I-2) and marks the sick staff in each read set.
+func (s *staffDeviations) markSickStaff(ctx context.Context, dates []calendar.Date, readSets []*deviationReadSet) error {
+	sickDays, err := lockedSickDays(ctx, s.deps.Locks, s.deps.SickReports, dates...)
+	if err != nil {
+		return timetable.DeviationInternal("load sick reports failed", err)
+	}
+	for i, readSet := range readSets {
+		readSet.sickStaff = make(map[int64]bool)
+		for key := range sickDays {
+			if key.date == dates[i] {
+				readSet.sickStaff[key.staffID] = true
+			}
+		}
+	}
+	return nil
 }
 
 func (s *staffDeviations) loadDeviationReadSet(
@@ -110,7 +131,11 @@ func (s *staffDeviations) loadDeviationReadSet(
 	if err != nil {
 		return nil, timetable.DeviationInternal("load instance staff failed", err)
 	}
-	return newDeviationReadSet(staff, staffIDs, rows, instances, allRows), nil
+	readSet := newDeviationReadSet(staff, staffIDs, rows, instances, allRows)
+	if err := s.markSickStaff(ctx, []calendar.Date{date}, []*deviationReadSet{readSet}); err != nil {
+		return nil, err
+	}
+	return readSet, nil
 }
 
 // newDeviationReadSet indexes the rows of one date's Phase A read.
