@@ -7,16 +7,16 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const demoSchoolDatabaseErasureVersion = "1.15.844"
+const demoSchoolDatabaseErasureVersion = "1.15.859"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     demoSchoolDatabaseErasureVersion,
 		Description: "Demo-Betrieb: ausgemusterte Demo-Schulen 90 Tage nach dem Stilllegen ganz aus der Datenbank löschen (#5559)",
 		DependsOn: []string{
-			cleanupRunFailuresVersion,     // the last migration before this one
-			demoSchoolFileErasuresVersion, // the marker and the demo origin this one reads
-			schoolErasureVersion,          // the preflight and deletion it reuses
+			parentBillingOnlineSEPAMandatesVersion, // the last migration before this one
+			demoSchoolFileErasuresVersion,          // the marker and the demo origin this one reads
+			schoolErasureVersion,                   // the preflight and deletion it reuses
 		},
 	})
 	Migrations.MustRegister(demoSchoolDatabaseErasureUp, demoSchoolDatabaseErasureDown)
