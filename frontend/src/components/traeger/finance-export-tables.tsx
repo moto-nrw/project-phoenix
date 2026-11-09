@@ -75,7 +75,7 @@ function runColumns(
       render: (run) =>
         run.lastSollstellung ? (
           <span className="min-w-0">
-            <span className="flex items-center gap-2">
+            <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
               <FileNumber value={run.lastSollstellung.fileNumber} />
               <span className="text-sm text-gray-500">
                 {exportedAtLabel(run.lastSollstellung.exportedAt)}

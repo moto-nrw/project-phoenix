@@ -153,20 +153,56 @@ func migrationCreateDataObjects(filename string, contents []byte) (map[string]st
 	return result, renamed, errors.Join(problems...)
 }
 
+// baseMigrationsMentionDataObject reports whether the base already holds the
+// object: a base migration file that names it counts, unless every such file
+// is a Go migration whose statically resolved SQL neither creates nor renames
+// it. A guarded forward reference of a base migration (a DELETE behind
+// to_regclass for a table a later migration creates, 1.15.843 for #6361)
+// therefore does not hold the table; a file the parser cannot classify, a test
+// or a non-Go file still does, so the guard fails closed.
 func baseMigrationsMentionDataObject(root, sha, migrationDir, object string) (bool, error) {
 	parts := strings.SplitN(object, ".", 2)
 	if len(parts) != 2 {
 		return false, fmt.Errorf("inspect base migrations: invalid data object %q", object)
 	}
 	pattern := fmt.Sprintf(`(^|[^[:alnum:]_$])"?%s"?[[:space:]]*\.[[:space:]]*"?%s"?([^[:alnum:]_$]|$)`, regexp.QuoteMeta(parts[0]), regexp.QuoteMeta(parts[1]))
-	command := exec.Command("git", "-C", root, "grep", "-E", "-i", "-q", pattern, sha, "--", filepath.ToSlash(migrationDir))
+	command := exec.Command("git", "-C", root, "grep", "-E", "-i", "-l", "-z", pattern, sha, "--", filepath.ToSlash(migrationDir))
 	output, err := command.CombinedOutput()
-	if err == nil {
+	if err != nil {
+		var exitErr *exec.ExitError
+		if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
+			return false, nil
+		}
+		return false, fmt.Errorf("inspect base migrations for %s: %w: %s", object, err, strings.TrimSpace(string(output)))
+	}
+	for _, blob := range strings.Split(string(output), "\x00") {
+		if blob == "" {
+			continue
+		}
+		held, err := baseMigrationHoldsDataObject(root, blob, object)
+		if err != nil || held {
+			return true, err
+		}
+	}
+	return false, nil
+}
+
+// baseMigrationHoldsDataObject reports whether one base migration file that
+// names the object creates or renames it, or cannot be classified.
+func baseMigrationHoldsDataObject(root, blob, object string) (bool, error) {
+	path := blob[strings.Index(blob, ":")+1:]
+	if filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
 		return true, nil
 	}
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
-		return false, nil
+	contents, err := gitOutput(root, "cat-file", "blob", blob)
+	if err != nil {
+		return false, fmt.Errorf("read base migration %s: %w", blob, err)
 	}
-	return false, fmt.Errorf("inspect base migrations for %s: %w: %s", object, err, strings.TrimSpace(string(output)))
+	created, renamed, err := migrationCreateDataObjects(path, []byte(contents))
+	if err != nil {
+		return true, nil //nolint:nilerr // an unclassifiable base file keeps holding the object
+	}
+	_, creates := created[object]
+	_, renames := renamed[object]
+	return creates || renames, nil
 }

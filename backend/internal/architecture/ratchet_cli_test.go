@@ -1231,3 +1231,35 @@ func writeFile(t *testing.T, path, contents string) {
 		t.Fatalf("write %s: %v", path, err)
 	}
 }
+
+// A base migration that only names a table a later migration creates, behind
+// to_regclass (1.15.843 for #6361), does not hold it: the candidate migration
+// that creates the table may assign its owner. A base migration that creates
+// it still holds it.
+func TestCheckSeparatesForwardReferencesFromBaseTables(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name, base, want string
+	}{
+		{name: "guarded forward reference", base: `IF to_regclass('ghost.records') IS NOT NULL THEN DELETE FROM ghost.records; END IF;`},
+		{name: "base creates the table", base: `CREATE TABLE ghost.records (id bigint)`, want: "data object ghost.records was newly assigned to owner module"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			repo, baseRef, policy := ratchetRepositoryWithMigrationPackage(t, fmt.Sprintf(`package migrations
+type rawDB struct{}
+func (rawDB) NewRaw(string) {}
+func base(db rawDB) { db.NewRaw(%q) }
+`, "DO $$ BEGIN "+tt.base+" END $$"))
+			writeFile(t, filepath.Join(repo, "architecture", "policy.json"), policyWithDataObject(t, policy, "ghost.records", "module"))
+			writeFile(t, filepath.Join(repo, "database", "migrations", "002_new.go"), "package migrations\nfunc create(db rawDB) { db.NewRaw(\"CREATE TABLE ghost.records (id bigint)\") }\n")
+			output, err := runRepositoryCheck(t, repo, baseRef)
+			if tt.want == "" && err != nil {
+				t.Fatalf("forward reference held the table: %v\n%s", err, output)
+			}
+			if tt.want != "" && (err == nil || !strings.Contains(output, tt.want)) {
+				t.Fatalf("table of the base was adopted: %v\n%s", err, output)
+			}
+		})
+	}
+}

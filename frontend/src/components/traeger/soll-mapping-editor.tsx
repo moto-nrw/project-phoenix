@@ -272,9 +272,9 @@ export function SollMappingEditor({
                   const moved = columns[index];
                   const other = columns[target];
                   if (!moved || !other) return columns;
-                  columns[index] = other;
-                  columns[target] = moved;
-                  return columns;
+                  return columns.map((current, at) =>
+                    at === index ? other : at === target ? moved : current,
+                  );
                 })
               }
               onRemove={() =>
