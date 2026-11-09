@@ -1,6 +1,7 @@
 "use client";
 
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useMemo } from "react";
+import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import {
   type ChartConfig,
@@ -49,14 +50,7 @@ interface WeekChartPoint {
 }
 
 function useMobileViewport(): boolean {
-  const [isMobile, setIsMobile] = useState(false);
-  useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768);
-    check();
-    window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
-  }, []);
-  return isMobile;
+  return useMediaQuery(BELOW_MD);
 }
 
 function useWeekChartData({

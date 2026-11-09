@@ -36,7 +36,6 @@ function item(): ParentAnnouncement {
     declaration: {
       kind: "consent",
       signers: "any",
-      revocable: true,
       requires_password: false,
       requires_signature: true,
       deadline: null,

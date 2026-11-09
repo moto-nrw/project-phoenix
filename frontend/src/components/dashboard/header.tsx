@@ -2,6 +2,7 @@
 // Refactored with extracted sub-components to reduce cognitive complexity
 "use client";
 
+import { AT_LEAST_LG } from "~/lib/hooks/use-media-query";
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -65,7 +66,7 @@ import {
 
 // Nur oberhalb von lg existiert die Desktop-Seitenleiste; darunter zeigt
 // die App die mobile Bottom-Nav und der Shortcut hätte nichts zu schalten.
-const SIDEBAR_VISIBLE_QUERY = "(min-width: 1024px)";
+const SIDEBAR_VISIBLE_QUERY = AT_LEAST_LG;
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;

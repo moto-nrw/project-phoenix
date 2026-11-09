@@ -7,15 +7,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const familyChildrenLinkAndEnrollmentVersion = "1.15.853"
+const familyChildrenLinkAndEnrollmentVersion = "1.15.866"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     familyChildrenLinkAndEnrollmentVersion,
 		Description: "Kinderzahl der Familie auch bei der Anmeldung und über den Unterschriftslink (#6335)",
 		DependsOn: []string{
-			parentBillingOnlineSEPAMandatesVersion, // the newest migration before this one
-			parentBillingFamilyChildrenVersion,     // the numbers and their trail this one extends
+			declarationAlwaysRevocableVersion,  // the newest migration before this one
+			parentBillingFamilyChildrenVersion, // the numbers and their trail this one extends
 		},
 	})
 	Migrations.MustRegister(familyChildrenLinkAndEnrollmentUp, familyChildrenLinkAndEnrollmentDown)

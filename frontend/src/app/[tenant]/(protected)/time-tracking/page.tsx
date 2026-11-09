@@ -13,6 +13,7 @@ import React, {
 } from "react";
 import dynamic from "next/dynamic";
 import { CalendarRange } from "lucide-react";
+import { BELOW_SM, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { dispatchAbsencesRefresh } from "~/lib/absence-helpers";
@@ -600,7 +601,7 @@ function ClockInCard({
   const [individualBreakMinutes, setIndividualBreakMinutes] = useState(
     DEFAULT_BREAK_MINUTES,
   );
-  const [isMobileViewport, setIsMobileViewport] = useState(false);
+  const isMobileViewport = useMediaQuery(BELOW_SM);
   // Mutex to prevent race condition in auto-end break effect
   const autoEndInFlightRef = useRef(false);
   const autoEndAttemptedBreakIdRef = useRef<string | null>(null);
@@ -729,15 +730,6 @@ function ClockInCard({
       setPlannedBreakMinutes(null);
     }
   }, [isOnBreak]);
-
-  useEffect(() => {
-    const updateViewport = () => {
-      setIsMobileViewport(window.innerWidth < 640);
-    };
-    updateViewport();
-    window.addEventListener("resize", updateViewport);
-    return () => window.removeEventListener("resize", updateViewport);
-  }, []);
 
   // Hinweise zu Pause und Tageslimit (nur während der Arbeit)
   const laborHints = getLiveLaborHints(

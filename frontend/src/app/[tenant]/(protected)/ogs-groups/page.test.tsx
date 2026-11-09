@@ -12,6 +12,7 @@ import {
   within,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { DESKTOP_WIDTH, setViewportWidth } from "~/test/helpers/viewport";
 
 function createLocalStorageMock() {
   const store: Record<string, string> = {};
@@ -409,6 +410,8 @@ vi.mock("~/components/students/student-card", () => ({
 
 // Mock lucide-react icons
 vi.mock("lucide-react", () => ({
+  // Die Gruppenreiter (TenantPage-Reiterleiste) zeichnen den Pfeil des Menüs.
+  ChevronDown: () => null,
   Clock: ({ className }: { className?: string }) => (
     <span data-testid="lucide-clock" className={className}>
       clock
@@ -3204,6 +3207,85 @@ describe("OGSGroupPage ID-based selection: tab change handler", () => {
         expect(localStorage.getItem(memoryKey("sidebar-last-group"))).toBe("2");
       });
     }
+  });
+});
+
+describe("OGSGroupPage group tabs follow the lg breakpoint (#6336)", () => {
+  const twoGroups = () =>
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: liveData({
+        groups: [
+          {
+            id: "1",
+            name: "Group A",
+            roomId: "10",
+            roomName: "Raum 101",
+            viaSubstitution: false,
+            isPersonal: true,
+          },
+          {
+            id: "2",
+            name: "Group B",
+            roomId: "20",
+            roomName: "Raum 202",
+            viaSubstitution: false,
+            isPersonal: true,
+          },
+        ],
+        students: [
+          wireStudent({
+            id: 1,
+            first_name: "Max",
+            last_name: "Mustermann",
+            current_location: "Raum 101",
+          }),
+        ],
+        roomStatus: { "1": { in_group_room: true } },
+      }),
+      isLoading: false,
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+    } as never);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSearchParamsGet.mockReturnValue(null);
+    global.fetch = vi.fn();
+  });
+
+  afterEach(() => {
+    cleanup();
+    document.documentElement.style.fontSize = "";
+    setViewportWidth(DESKTOP_WIDTH);
+  });
+
+  // 20 px Browserschrift: `lg` (64rem) beginnt erst bei 1280 px, bei 1100 px
+  // ist die Seitenleiste per CSS ausgeblendet. Ohne Reiter gäbe es dann
+  // keinen Gruppenwechsel.
+  it("shows the group tabs at 1100 px with a 20 px browser font", async () => {
+    document.documentElement.style.fontSize = "20px";
+    setViewportWidth(1100);
+    twoGroups();
+
+    render(<OGSGroupPage />);
+
+    expect(
+      await screen.findByRole("tab", { name: /Group B/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("leaves group switching to the sidebar at 1100 px with a 16 px browser font", async () => {
+    setViewportWidth(1100);
+    twoGroups();
+
+    render(<OGSGroupPage />);
+
+    // Anker: die Gruppenseite ist geladen.
+    expect(await screen.findByTestId("student-card")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("tab", { name: /Group B/ }),
+    ).not.toBeInTheDocument();
   });
 });
 
