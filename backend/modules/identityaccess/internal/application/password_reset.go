@@ -229,7 +229,8 @@ func (r *PasswordReset) ResetPassword(ctx context.Context, token, newPassword st
 }
 
 // redeemResetInAdmin sets the new password, spends the link and revokes the
-// account's sessions inside the administrative transaction.
+// account's remembered devices (#6289) and sessions inside the
+// administrative transaction.
 func (r *PasswordReset) redeemResetInAdmin(txCtx context.Context, link domain.PasswordResetToken, hash string) error {
 	updated, _, setErr := r.store.SetAccountPassword(txCtx, link.AccountID, hash)
 	if setErr != nil {
@@ -244,6 +245,9 @@ func (r *PasswordReset) redeemResetInAdmin(txCtx context.Context, link domain.Pa
 	}
 	if !redeemed {
 		return identityaccess.ErrInvalidToken
+	}
+	if _, revokeErr := r.store.RevokeAccountTrustedDevices(txCtx, link.AccountID, r.now()); revokeErr != nil {
+		return fmt.Errorf("revoke remembered devices during password reset: %w", revokeErr)
 	}
 	if _, revokeErr := r.auth.DeleteAccountSessionsWithAudit(txCtx, link.AccountID, "password_reset", "", ""); revokeErr != nil {
 		return fmt.Errorf("revoke tokens during password reset: %w", revokeErr)

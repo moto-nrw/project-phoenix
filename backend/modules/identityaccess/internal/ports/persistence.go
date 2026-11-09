@@ -141,6 +141,7 @@ type OperatorTokenStore interface {
 	// concurrent redemptions see exactly one winner.
 	RedeemOperatorEmailChange(ctx context.Context, token string, now time.Time) (domain.OperatorEmailChange, bool, domain.OperationStats, error)
 	RevokeOperatorEmailChanges(ctx context.Context, operatorID int64) (domain.OperationStats, error)
+	RevokeOperatorTrustedDevices(ctx context.Context, operatorID int64, revokedAt time.Time) (domain.OperationStats, error)
 	RecordOperatorEmailChangeDelivery(ctx context.Context, id int64, delivery domain.TokenDelivery) (domain.OperationStats, error)
 	// RevokeExpiredOperatorEmailChanges marks expired, unused rows used so
 	// they stop occupying the one-active-link-per-operator index.

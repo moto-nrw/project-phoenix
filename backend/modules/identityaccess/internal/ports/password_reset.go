@@ -23,6 +23,9 @@ type PasswordResetStore interface {
 
 	// RevokePasswordResetTokens spends every link of the account.
 	RevokePasswordResetTokens(ctx context.Context, accountID int64) (domain.OperationStats, error)
+	// RevokeAccountTrustedDevices ends the account's remembered devices
+	// with the redeemed link (#6289).
+	RevokeAccountTrustedDevices(ctx context.Context, accountID int64, revokedAt time.Time) (domain.OperationStats, error)
 	InsertPasswordResetToken(ctx context.Context, token domain.PasswordResetToken) (domain.PasswordResetToken, domain.OperationStats, error)
 	FindRedeemablePasswordResetToken(ctx context.Context, token string, now time.Time) (domain.PasswordResetToken, bool, domain.OperationStats, error)
 	// RedeemPasswordResetToken spends the link and reports whether it was

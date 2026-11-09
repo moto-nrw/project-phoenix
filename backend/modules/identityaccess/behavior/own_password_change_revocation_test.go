@@ -137,3 +137,54 @@ func TestCatererPasswordChangeRevokesRememberedDevices(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, trusted, "a remembered device no longer skips the second factor")
 }
+
+// TestPasswordResetRevokesRememberedDevices extends #6289 to the redeemed
+// reset link: it already ends every session, and a remembered device no
+// longer skips the second factor either.
+func TestPasswordResetRevokesRememberedDevices(t *testing.T) {
+	t.Parallel()
+	f := newSwitchLineageFixture(t, "password-reset-devices")
+	ctx := testpkg.Ctx(t)
+	var email string
+	require.NoError(t, f.db.NewRaw(`SELECT email FROM auth.accounts WHERE id = ?`, f.accountID).Scan(ctx, &email))
+	link, err := f.module.InitiatePasswordReset(context.Background(), email, identityaccess.PasswordResetScopeStaff)
+	require.NoError(t, err)
+	require.NotNil(t, link)
+	t.Cleanup(func() {
+		// The reset mail is global identity mail without a school.
+		_, cleanupErr := f.db.NewRaw(`DELETE FROM platform.email_outbox WHERE tenant_id IS NULL AND related_entity_type = 'password_reset' AND related_entity_id = ?`, link.ID).Exec(context.Background())
+		require.NoError(t, cleanupErr)
+	})
+	mfa, _, _ := newTestMFAService(t)
+	require.NoError(t, mfa.EnrollMFA(ctx, f.accountID))
+	device, _, err := mfa.IssueTrustedDevice(ctx, f.accountID, f.homeTenantID, "Mozilla/5.0 (Test)", net.ParseIP("203.0.113.7"))
+	require.NoError(t, err)
+	require.NotEmpty(t, device)
+
+	require.NoError(t, f.module.ResetPassword(context.Background(), link.Token, testpkg.NewTestPassword()))
+
+	trusted, err := mfa.VerifyTrustedDevice(ctx, f.accountID, f.homeTenantID, device)
+	require.NoError(t, err)
+	assert.False(t, trusted, "a remembered device no longer skips the second factor")
+}
+
+// TestOperatorPasswordChangeRevokesRememberedDevices extends #6289 to the
+// operator's own change: it already ends every operator session and e-mail
+// change link, and a remembered device no longer skips the second factor.
+func TestOperatorPasswordChangeRevokesRememberedDevices(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	mfa, _, db := newTestOperatorMFAService(t)
+	identity := buildOperatorIdentity(t, db)
+	operator := testpkg.CreateTestOperatorWithPassword(t, db, operatorLoginEmail("operator-password-devices"), testPassword)
+	require.NoError(t, mfa.EnrollOperatorMFA(ctx, operator.ID))
+	device, _, err := mfa.IssueOperatorTrustedDevice(ctx, operator.ID, "Mozilla/5.0 (Test)", net.ParseIP("203.0.113.7"))
+	require.NoError(t, err)
+	require.NotEmpty(t, device)
+
+	require.NoError(t, identity.ChangeOperatorPassword(ctx, operator.ID, testPassword, testpkg.NewTestPassword()))
+
+	trusted, err := mfa.VerifyOperatorTrustedDevice(ctx, operator.ID, device)
+	require.NoError(t, err)
+	assert.False(t, trusted, "a remembered device no longer skips the second factor")
+}

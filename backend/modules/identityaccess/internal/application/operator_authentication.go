@@ -378,7 +378,8 @@ func (s *OperatorAuthentication) ChangePassword(ctx context.Context, operatorID 
 }
 
 // storeRotatedPassword writes the new hash on the caller's transaction and
-// invalidates the e-mail change links and refresh sessions with it. The
+// invalidates the e-mail change links, remembered devices (#6289) and
+// refresh sessions with it. The
 // verification ran without a lock and the hash is slow, so the hash is set on
 // the row UpdateOperator locked: a deactivation committed meanwhile stays in
 // force, and a password rotated meanwhile (verifiedHash no longer stored)
@@ -397,8 +398,8 @@ func (s *OperatorAuthentication) storeRotatedPassword(ctx context.Context, opera
 	if err != nil {
 		return fmt.Errorf("failed to update password: %w", err)
 	}
-	if err := s.credentials.RevokeEmailChanges(ctx, operatorID); err != nil {
-		return fmt.Errorf("failed to invalidate email change tokens after password change: %w", err)
+	if err := s.credentials.RevokePasswordBoundCredentials(ctx, operatorID); err != nil {
+		return fmt.Errorf("failed to invalidate email change tokens and remembered devices after password change: %w", err)
 	}
 	if err := s.revokeAllWithAudit(ctx, operatorID, "password_change"); err != nil {
 		return fmt.Errorf("failed to revoke refresh tokens after password change: %w", err)
