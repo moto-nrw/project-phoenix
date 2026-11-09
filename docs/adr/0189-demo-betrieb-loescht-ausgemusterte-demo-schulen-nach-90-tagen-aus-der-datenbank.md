@@ -59,8 +59,11 @@ Organisation & Tenancy mit Operator-Auftrag zu.
    den SQLSTATE, nie eine Meldung mit möglichen Personenwerten. Die Schule
    bleibt fällig; der Lauf meldet einen Fehler, der Sidecar wird `unhealthy`
    und die nächste Abfrage versucht es erneut. `lock_timeout` begrenzt jede
-   Sperrwartezeit auf 100 ms wie im übrigen stündlichen Demo-Lauf. Pro Lauf
-   höchstens 10 Schulen.
+   Sperrwartezeit auf 100 ms wie im übrigen stündlichen Demo-Lauf. Ist eine
+   Tabelle länger gesperrt, ist die Schule „busy“: Nichts ändert sich, der
+   Lauf gilt nicht als fehlgeschlagen, und die Schule wartet auf den nächsten
+   Lauf. Pro Lauf höchstens 10 Schulen in zufälliger Reihenfolge, damit eine
+   dauerhaft scheiternde Schule die anderen nicht aufhält.
 5. **Nachweis am Datei-Vermerk.** Zwei neue Spalten `db_erased_at` und
    `db_row_counts` (Anzahl je Tabelle, keine Werte) setzt nur die Funktion.
    Ein Trigger verhindert, dass `phoenix_demo` beim Anlegen eines
@@ -68,9 +71,10 @@ Organisation & Tenancy mit Operator-Auftrag zu.
    nicht. Der Vermerk hat keinen Fremdschlüssel und überdauert die Schule
    (ADR 0148).
 6. **Aufruf im Demo-Prozess.** `demoExpiry.run` ruft den Schritt
-   `EraseRetiredDemoSchoolDatabases` nach der Dateiphase auf. Organisation &
-   Tenancy bietet ihn als `DemoSchoolDatabases` an; nur `cmd/devtools`
-   verdrahtet ihn, und dieses Binary liegt nur im Demo-Image (ADR 0060).
+   `EraseRetiredDemoSchoolDatabases` nach erfolgreicher Dateiphase auf.
+   Organisation & Tenancy bietet beide Schritte als eine Fähigkeit
+   `DemoSchoolErasure` an (vorher `DemoSchoolFiles`); nur `cmd/devtools`
+   verdrahtet sie, und dieses Binary liegt nur im Demo-Image (ADR 0060).
 7. **Keine Policy-Änderung.** Es entsteht kein neues Paket über eine
    Owner-Grenze, kein neues Datenobjekt und kein Import einer fremden
    Implementierung: Adapter, Anwendung und Compose liegen bei Organisation &

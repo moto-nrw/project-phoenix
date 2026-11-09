@@ -104,11 +104,14 @@ Last, the same run erases from the database every hidden demo school whose
 uploads are erased, that was hidden at least 90 days ago and that no order
 names any more (#5559, ADR 0189). It calls
 `platform.erase_retired_demo_school` once per school, at most 10 per run,
-which runs the school erasure's preflight and deletion and records the time
-and the deleted rows per table on the file marker. Each erasure briefly locks
-every school table of the demo database. A school that fails keeps every
-row, the run stays due and the sidecar turns `unhealthy`; the log line
-`demo schools erased from the database` carries the number of schools.
+in random order, which runs the school erasure's preflight and deletion and
+records the time and the deleted rows per table on the file marker. Each
+erasure briefly locks every school table of the demo database. A school
+whose table another transaction holds longer than 100 ms is busy: it keeps
+every row and waits for the next run, which does not fail. A school that
+fails keeps every row, the run stays due and the sidecar turns `unhealthy`;
+the log line `demo schools erased from the database` carries the number of
+erased and busy schools.
 
 Hidden demo schools without a demo origin (orders erased before 1.15.735)
 are left alone by both steps. To remove them, rebuild the demo database and

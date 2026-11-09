@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports"
 )
 
@@ -23,28 +24,50 @@ func NewDemoSchoolDatabases(store ports.DemoSchoolDatabaseStore) (*DemoSchoolDat
 }
 
 // EraseRetiredDemoSchoolDatabases erases each due school on its own. Only an
-// erased school counts; a failed or busy school is an error of the run, so
-// the run never reports success over a school it left behind.
-func (d *DemoSchoolDatabases) EraseRetiredDemoSchoolDatabases(ctx context.Context) (int, error) {
+// erased school counts. A busy school waits for the next run without failing
+// it; a failed school is an error of the run, so the run never reports
+// success over a school it could not erase.
+func (d *DemoSchoolDatabases) EraseRetiredDemoSchoolDatabases(ctx context.Context) (int, int, error) {
 	ids, err := d.store.DueDemoSchoolDatabases(ctx, demoSchoolDatabaseBatch)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 	var (
-		erased int
-		failed []error
+		erased, busy int
+		failed       []error
 	)
 	for _, id := range ids {
 		status, code, err := d.store.EraseDemoSchoolDatabase(ctx, id)
 		switch {
 		case err != nil:
 			failed = append(failed, fmt.Errorf("demo school %d: database not erased, retried next run: %w", id, err))
-		case status == "erased":
+		case status == ports.DemoSchoolErased:
 			erased++
-		case status == "not_due":
+		case status == ports.DemoSchoolBusy:
+			busy++
+		case status == ports.DemoSchoolNotDue:
 		default:
 			failed = append(failed, fmt.Errorf("demo school %d: database erasure %s (SQLSTATE %q), retried next run", id, status, code))
 		}
 	}
-	return erased, errors.Join(failed...)
+	return erased, busy, errors.Join(failed...)
+}
+
+// DemoSchoolErasure erases retired demo schools: their files first (#5544),
+// then their database rows (#5559).
+type DemoSchoolErasure struct {
+	*DemoSchoolFiles
+	*DemoSchoolDatabases
+}
+
+func NewDemoSchoolErasure(fileStore ports.DemoSchoolFileStore, databaseStore ports.DemoSchoolDatabaseStore, files organizationtenancy.ErasureFiles) (*DemoSchoolErasure, error) {
+	fileErasure, err := NewDemoSchoolFiles(fileStore, files)
+	if err != nil {
+		return nil, err
+	}
+	databases, err := NewDemoSchoolDatabases(databaseStore)
+	if err != nil {
+		return nil, err
+	}
+	return &DemoSchoolErasure{DemoSchoolFiles: fileErasure, DemoSchoolDatabases: databases}, nil
 }

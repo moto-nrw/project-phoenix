@@ -17,19 +17,10 @@ func NewErasure(db *bun.DB, files organizationtenancy.ErasureFiles, ledger organ
 	return application.NewErasure(store, files, ledger)
 }
 
-// NewDemoSchoolFiles composes the file erasure of retired demo schools (#5544).
-func NewDemoSchoolFiles(db *bun.DB, files organizationtenancy.ErasureFiles) (organizationtenancy.DemoSchoolFiles, error) {
+// NewDemoSchoolErasure composes the file (#5544) and database (#5559) erasure of retired demo schools.
+func NewDemoSchoolErasure(db *bun.DB, files organizationtenancy.ErasureFiles) (organizationtenancy.DemoSchoolErasure, error) {
 	if db == nil {
-		return nil, errors.New("demo school files require a database")
+		return nil, errors.New("demo school erasure requires a database")
 	}
-	return application.NewDemoSchoolFiles(postgres.NewDemoSchoolFileStore(db), files)
-}
-
-// NewDemoSchoolDatabases composes the database erasure of retired demo
-// schools (#5559) on the demo process's restricted connection.
-func NewDemoSchoolDatabases(db *bun.DB) (organizationtenancy.DemoSchoolDatabases, error) {
-	if db == nil {
-		return nil, errors.New("demo school databases require a database")
-	}
-	return application.NewDemoSchoolDatabases(postgres.NewDemoSchoolDatabaseStore(db))
+	return application.NewDemoSchoolErasure(postgres.NewDemoSchoolFileStore(db), postgres.NewDemoSchoolDatabaseStore(db), files)
 }

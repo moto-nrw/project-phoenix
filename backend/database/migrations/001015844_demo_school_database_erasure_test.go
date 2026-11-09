@@ -198,7 +198,7 @@ func TestRetiredDemoSchoolIsErasedFromTheDatabaseAfterNinetyDaysOnly(t *testing.
 
 	result := eraseRetiredDemoSchool(t, db, due)
 	require.Equal(t, "erased", result.Status, result.ErrorCode)
-	assert.Equal(t, int64(1), result.RowCounts["platform.schools"])
+	assert.EqualValues(t, 1, result.RowCounts["platform.schools"], "exactly the school root")
 
 	// Catalog: every table of the erasure plan holds no row of the school.
 	for table, rows := range erasureSnapshot(t, db, due) {
@@ -302,6 +302,30 @@ func TestRetiredDemoSchoolDatabaseErasureRollsBackAndResumes(t *testing.T) {
 	erasureExec(t, db, `DROP TRIGGER fail_demo_erasure_fixture ON users.persons; DROP FUNCTION platform.fail_demo_erasure_fixture()`)
 	assert.Equal(t, "erased", eraseRetiredDemoSchool(t, db, due).Status)
 	assert.Empty(t, dueRetiredDemoSchoolDatabases(t, db))
+}
+
+// A school table another transaction holds longer than the 100 ms lock
+// timeout makes the school busy: nothing changes and the school stays due.
+func TestRetiredDemoSchoolDatabaseErasureWaitsForALockedTable(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	due := testpkg.Tenant(t)
+	seedErasureSchool(t, db, due)
+	recordDemoOrigin(t, db, due)
+	retireSchool(t, db, due, 91, true)
+	before := erasureSnapshot(t, db, due)
+
+	holder, err := db.BeginTx(t.Context(), nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = holder.Rollback() })
+	_, err = holder.ExecContext(t.Context(), `LOCK TABLE users.persons IN ROW EXCLUSIVE MODE`)
+	require.NoError(t, err)
+
+	assert.Equal(t, "busy", eraseRetiredDemoSchool(t, db, due).Status)
+	assert.Equal(t, before, erasureSnapshot(t, db, due))
+	require.NoError(t, holder.Rollback())
+	assert.Equal(t, []int64{due}, dueRetiredDemoSchoolDatabases(t, db), "the school stays due")
+	assert.Equal(t, "erased", eraseRetiredDemoSchool(t, db, due).Status)
 }
 
 // Only the demo process may erase, and it cannot forge the evidence. No

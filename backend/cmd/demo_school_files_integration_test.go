@@ -232,7 +232,7 @@ func TestDemoProcessErasesTheUploadsOfRetiredDemoSchools(t *testing.T) {
 	before := demoUploadTree(t, uploads)
 	require.NotEmpty(t, schoolUploads(before, retired))
 
-	files, err := tenancyCompose.NewDemoSchoolFiles(testpkg.DemoRoleDatabase(t, db), objects.NewLocal(uploads))
+	files, err := tenancyCompose.NewDemoSchoolErasure(testpkg.DemoRoleDatabase(t, db), objects.NewLocal(uploads))
 	require.NoError(t, err)
 	schools, removed, err := files.EraseRetiredDemoSchoolFiles(ctx)
 	require.NoError(t, err)
@@ -290,7 +290,7 @@ func TestDemoSchoolFileErasureRetriesASchoolAfterAStorageFailure(t *testing.T) {
 	require.NoError(t, os.RemoveAll(filepath.Join(uploads, "files", id)))
 	require.NoError(t, os.Symlink(outside, filepath.Join(uploads, "files", id)))
 
-	files, err := tenancyCompose.NewDemoSchoolFiles(testpkg.DemoRoleDatabase(t, db), objects.NewLocal(uploads))
+	files, err := tenancyCompose.NewDemoSchoolErasure(testpkg.DemoRoleDatabase(t, db), objects.NewLocal(uploads))
 	require.NoError(t, err)
 	schools, _, err := files.EraseRetiredDemoSchoolFiles(ctx)
 	require.Error(t, err)
@@ -323,7 +323,7 @@ func TestDemoSchoolFileErasureCountsAgainAfterTheRemoval(t *testing.T) {
 	seedDemoUploads(t, uploads, demoFileKinds(t), retired)
 
 	seam := &storageSeam{Local: objects.NewLocal(uploads), writeLate: "files"}
-	files, err := tenancyCompose.NewDemoSchoolFiles(testpkg.DemoRoleDatabase(t, db), seam)
+	files, err := tenancyCompose.NewDemoSchoolErasure(testpkg.DemoRoleDatabase(t, db), seam)
 	require.NoError(t, err)
 	schools, _, err := files.EraseRetiredDemoSchoolFiles(ctx)
 	require.Error(t, err, "an object left after the removal fails the school")
@@ -354,7 +354,7 @@ func TestDemoSchoolFileErasureWritesNoMarkerWhenTheRemovalFails(t *testing.T) {
 	seedDemoUploads(t, uploads, demoFileKinds(t), retired)
 
 	seam := &storageSeam{Local: objects.NewLocal(uploads), failRemoval: "student-documents"}
-	files, err := tenancyCompose.NewDemoSchoolFiles(testpkg.DemoRoleDatabase(t, db), seam)
+	files, err := tenancyCompose.NewDemoSchoolErasure(testpkg.DemoRoleDatabase(t, db), seam)
 	require.NoError(t, err)
 	schools, _, err := files.EraseRetiredDemoSchoolFiles(ctx)
 	require.Error(t, err)

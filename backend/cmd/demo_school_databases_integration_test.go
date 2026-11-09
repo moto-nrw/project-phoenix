@@ -47,24 +47,22 @@ func TestDemoProcessErasesRetiredDemoSchoolsFromTheDatabaseAfterTheirFiles(t *te
 
 	demoDB := testpkg.DemoRoleDatabase(t, db)
 	seam := &storageSeam{Local: objects.NewLocal(uploads), failRemoval: kinds[0].Kind}
-	files, err := tenancyCompose.NewDemoSchoolFiles(demoDB, seam)
-	require.NoError(t, err)
-	databases, err := tenancyCompose.NewDemoSchoolDatabases(demoDB)
+	erasure, err := tenancyCompose.NewDemoSchoolErasure(demoDB, seam)
 	require.NoError(t, err)
 
 	// The file phase fails for both: no marker, so the database stays.
-	_, _, err = files.EraseRetiredDemoSchoolFiles(ctx)
+	_, _, err = erasure.EraseRetiredDemoSchoolFiles(ctx)
 	require.Error(t, err)
-	erased, err := databases.EraseRetiredDemoSchoolDatabases(ctx)
+	erased, _, err := erasure.EraseRetiredDemoSchoolDatabases(ctx)
 	require.NoError(t, err)
 	assert.Zero(t, erased)
 	assert.True(t, demoSchoolExists(t, db, retired), "the file phase still needs the school")
 
 	seam.failRemoval = ""
-	schools, _, err := files.EraseRetiredDemoSchoolFiles(ctx)
+	schools, _, err := erasure.EraseRetiredDemoSchoolFiles(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 2, schools)
-	erased, err = databases.EraseRetiredDemoSchoolDatabases(ctx)
+	erased, _, err = erasure.EraseRetiredDemoSchoolDatabases(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 1, erased)
 
@@ -76,7 +74,7 @@ func TestDemoProcessErasesRetiredDemoSchoolsFromTheDatabaseAfterTheirFiles(t *te
 	assert.Equal(t, 1, students)
 
 	// A second run finds nothing left to do.
-	erased, err = databases.EraseRetiredDemoSchoolDatabases(ctx)
+	erased, _, err = erasure.EraseRetiredDemoSchoolDatabases(ctx)
 	require.NoError(t, err)
 	assert.Zero(t, erased)
 }
@@ -103,7 +101,7 @@ func TestOnlyTheDevToolsReachTheDemoSchoolDatabaseErasure(t *testing.T) {
 			return err
 		}
 		text := string(source)
-		if strings.Contains(text, "NewDemoSchoolDatabases(") || strings.Contains(text, "erase_retired_demo_school(") {
+		if strings.Contains(text, "NewDemoSchoolErasure(") || strings.Contains(text, "erase_retired_demo_school(") {
 			rel, err := filepath.Rel("..", path)
 			callers = append(callers, filepath.ToSlash(rel))
 			return err

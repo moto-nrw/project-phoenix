@@ -17,7 +17,7 @@ type demoExpiryRuntime interface {
 	ExpireDemoAccesses(ctx context.Context) (deleted int, orphanedSlugs []string, err error)
 	RetireDemoSchools(ctx context.Context, slugs []string) (hidden, erased int, err error)
 	EraseRetiredDemoSchoolFiles(ctx context.Context) (schools int, files int64, err error)
-	EraseRetiredDemoSchoolDatabases(ctx context.Context) (schools int, err error)
+	EraseRetiredDemoSchoolDatabases(ctx context.Context) (erased, busy int, err error)
 }
 
 // demoExpiry deletes demo accesses 14 days after their last use and hides
@@ -86,10 +86,12 @@ func (e *demoExpiry) run(ctx context.Context) error {
 	}
 	// The same rule: a school that failed keeps every row and the run stays
 	// due. Only a school whose uploads are erased is ever selected.
-	erasedSchools, err := e.runtime.EraseRetiredDemoSchoolDatabases(ctx)
-	if erasedSchools > 0 {
+	// A busy school waits for the next run and does not fail this one.
+	erasedSchools, busySchools, err := e.runtime.EraseRetiredDemoSchoolDatabases(ctx)
+	if erasedSchools > 0 || busySchools > 0 {
 		slog.Info("demo schools erased from the database",
 			"schools", erasedSchools,
+			"busy", busySchools,
 		)
 	}
 	if err != nil {

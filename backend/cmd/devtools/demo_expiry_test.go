@@ -61,12 +61,12 @@ func (r *fakeDemoExpiryRuntime) EraseRetiredDemoSchoolFiles(context.Context) (in
 	return 1, 3, nil
 }
 
-func (r *fakeDemoExpiryRuntime) EraseRetiredDemoSchoolDatabases(context.Context) (int, error) {
+func (r *fakeDemoExpiryRuntime) EraseRetiredDemoSchoolDatabases(context.Context) (int, int, error) {
 	r.calls = append(r.calls, "databases")
 	if r.databases != nil {
-		return 0, r.databases
+		return 0, 0, r.databases
 	}
-	return 1, nil
+	return 1, 0, nil
 }
 
 func TestDemoExpiryRunsAtOnceAndThenHourly(t *testing.T) {

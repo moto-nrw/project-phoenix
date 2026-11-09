@@ -46,7 +46,8 @@ func init() {
 // transaction. Every deletion runs in a subtransaction; a failure rolls all
 // of it back and returns only the SQLSTATE, never a message that could carry
 // a personal value. The next run retries. lock_timeout bounds each lock wait
-// to 100 ms like the rest of the hourly demo run.
+// to 100 ms like the rest of the hourly demo run; a school whose locks are
+// not free in time is "busy" and simply waits for the next run.
 const demoSchoolDatabaseErasureUpSQL = `
 	ALTER TABLE platform.demo_school_file_erasures
 		ADD COLUMN db_erased_at TIMESTAMPTZ,
@@ -74,7 +75,7 @@ const demoSchoolDatabaseErasureUpSQL = `
 		FOR EACH ROW EXECUTE FUNCTION platform.demo_school_file_erasure_starts_without_db_evidence();
 
 	CREATE FUNCTION platform.retired_demo_school_database_due(p_school_id BIGINT)
-	RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY INVOKER SET search_path = pg_catalog
+	RETURNS BOOLEAN LANGUAGE sql VOLATILE SECURITY INVOKER SET search_path = pg_catalog
 	AS $body$
 		SELECT EXISTS (
 			SELECT 1
@@ -90,14 +91,13 @@ const demoSchoolDatabaseErasureUpSQL = `
 	REVOKE ALL ON FUNCTION platform.retired_demo_school_database_due(BIGINT) FROM PUBLIC;
 
 	CREATE FUNCTION platform.retired_demo_schools_due_for_database_erasure(p_limit INTEGER)
-	RETURNS SETOF BIGINT LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog
+	RETURNS SETOF BIGINT LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = pg_catalog
 	AS $body$
-		SELECT school.id
+		-- Random order: a school that keeps failing never holds up the others.
+		SELECT files.school_id
 		FROM platform.demo_school_file_erasures AS files
-		JOIN platform.schools AS school ON school.id = files.school_id
-		WHERE files.db_erased_at IS NULL
-			AND platform.retired_demo_school_database_due(school.id)
-		ORDER BY school.deleted_at, school.id
+		WHERE platform.retired_demo_school_database_due(files.school_id)
+		ORDER BY random()
 		LIMIT LEAST(GREATEST(p_limit, 0), 50)
 	$body$;
 
@@ -131,9 +131,13 @@ const demoSchoolDatabaseErasureUpSQL = `
 			UPDATE platform.demo_school_file_erasures
 			SET db_erased_at = clock_timestamp(), db_row_counts = v_counts
 			WHERE school_id = p_school_id;
-		EXCEPTION WHEN OTHERS OR query_canceled THEN
-			GET STACKED DIAGNOSTICS v_error = RETURNED_SQLSTATE;
-			RETURN jsonb_build_object('status', 'failed', 'error_code', v_error);
+		EXCEPTION
+			WHEN lock_not_available THEN
+				-- Another transaction holds a school table: try again next run.
+				RETURN jsonb_build_object('status', 'busy');
+			WHEN OTHERS OR query_canceled THEN
+				GET STACKED DIAGNOSTICS v_error = RETURNED_SQLSTATE;
+				RETURN jsonb_build_object('status', 'failed', 'error_code', v_error);
 		END;
 		RETURN jsonb_build_object('status', 'erased', 'row_counts', v_counts);
 	END $body$;
