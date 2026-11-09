@@ -269,4 +269,8 @@ type ContractFamilyChildren interface {
 	// StateContractFamilyChildren stores the parents' number. A statedAt
 	// before the family's newest statement changes nothing; nil is now.
 	StateContractFamilyChildren(ctx context.Context, organizationID int64, family ContractFamily, children int, statedAt *time.Time) (ParentFamilyChildren, error)
+	// CountsFamilyChildrenAt tells whether a care sibling rule of the Träger
+	// that applies to the school and has not ended by day counts the
+	// family's children, so a registration there asks for them.
+	CountsFamilyChildrenAt(ctx context.Context, organizationID, schoolID int64, day calendar.Date) (bool, error)
 }

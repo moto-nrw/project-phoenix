@@ -66,7 +66,7 @@ export function parentEnrollStatusTopic(): HelpTopic {
       "Bei einem Kind steht `Diese Anmeldung kann nicht mehr online geändert werden`? Dann wenden Sie sich an die OGS.",
       "Steht dort `Noch kein Zugang zur Eltern-App`? Dann öffnen Sie die E-Mail „Einladung zum Eltern-Portal“ und legen dort ein Passwort fest. Vorher klappt die Anmeldung nicht.",
       "Steht dort `Zugang zur Eltern-App nicht möglich`? Dann wenden Sie sich an die OGS.",
-      "Sie sehen keine Karte `Kinder in Ihrer Familie`? Dann braucht Ihre Schule die Zahl nicht.",
+      "Sie sehen keine Karte `Kinder in Ihrer Familie`? Dann braucht Ihr Träger die Zahl nicht.",
     ],
     troubleshootingDetails: [
       "moto sagt, der Status-Link sei ungültig? Prüfen Sie die Adresse aus der E-Mail oder fragen Sie bei der OGS nach.",

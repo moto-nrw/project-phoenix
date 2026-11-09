@@ -112,9 +112,19 @@ func (f *FamilyNumbers) FamilyChildren(ctx context.Context, reviewer parentbilli
 	if err := f.recordFamilyReads(ctx, reviewer, families); err != nil {
 		return parentbilling.FamilyChildrenSet{}, err
 	}
-	rules, err := f.store.ListContributionRules(ctx, reviewer.OrganizationID, parentbilling.ServiceCare)
+	counting, err := f.rulesCountingFamily(ctx, reviewer.OrganizationID)
 	if err != nil {
-		return parentbilling.FamilyChildrenSet{}, fmt.Errorf("parent billing: list care rules: %w", err)
+		return parentbilling.FamilyChildrenSet{}, err
+	}
+	return parentbilling.FamilyChildrenSet{Families: families, Rules: counting}, nil
+}
+
+// rulesCountingFamily lists the care sibling rules of the Träger that count
+// the family's number.
+func (f *FamilyNumbers) rulesCountingFamily(ctx context.Context, organizationID int64) ([]parentbilling.ContributionRule, error) {
+	rules, err := f.store.ListContributionRules(ctx, organizationID, parentbilling.ServiceCare)
+	if err != nil {
+		return nil, fmt.Errorf("parent billing: list care rules: %w", err)
 	}
 	counting := []parentbilling.ContributionRule{}
 	for _, rule := range rules {
@@ -122,7 +132,7 @@ func (f *FamilyNumbers) FamilyChildren(ctx context.Context, reviewer parentbilli
 			counting = append(counting, rule)
 		}
 	}
-	return parentbilling.FamilyChildrenSet{Families: families, Rules: counting}, nil
+	return counting, nil
 }
 
 // groupFamilies groups the contracts by the address of their invoice's
@@ -442,6 +452,28 @@ func (f *FamilyNumbers) StateContractFamilyChildren(ctx context.Context, organiz
 		return parentbilling.ParentFamilyChildren{}, err
 	}
 	return parentView(count), nil
+}
+
+// CountsFamilyChildrenAt tells whether a care sibling rule of the Träger
+// counts the family's children for a contract at the school (#6335): it
+// counts them, applies to the school and has not ended by day. A rule that
+// starts later still asks, since the contract may fall into it.
+func (f *FamilyNumbers) CountsFamilyChildrenAt(ctx context.Context, organizationID, schoolID int64, day calendar.Date) (bool, error) {
+	if organizationID <= 0 || schoolID <= 0 {
+		return false, nil
+	}
+	rules, err := f.rulesCountingFamily(ctx, organizationID)
+	if err != nil {
+		return false, err
+	}
+	return countsFamilyAt(rules, schoolID, day), nil
+}
+
+func countsFamilyAt(rules []parentbilling.ContributionRule, schoolID int64, day calendar.Date) bool {
+	return slices.ContainsFunc(rules, func(rule parentbilling.ContributionRule) bool {
+		return rule.Service == parentbilling.ServiceCare && rule.Kind == parentbilling.RuleSibling && rule.CountsFamilyChildren &&
+			(rule.ValidUntil == nil || !rule.ValidUntil.Before(day)) && slices.Contains(rule.SchoolIDs, schoolID)
+	})
 }
 
 // parentFamily keys the family of a checked contract. The parents portal

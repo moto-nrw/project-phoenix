@@ -3,11 +3,9 @@ package owners
 import (
 	"context"
 	"fmt"
-	"slices"
 
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	parentBillingCompose "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -32,23 +30,13 @@ func (p enrollmentFamilyChildrenPurpose) FamilyChildrenAsked(ctx context.Context
 	if err != nil || !found || school.OrganizationID <= 0 {
 		return false, err
 	}
-	var rules []parentbilling.ContributionRule
+	var asked bool
 	if err := (CareContractRuntime{}).WithinTraeger(ctx, school.OrganizationID, func(txCtx context.Context) error {
 		var err error
-		rules, err = parentBillingCompose.NewContributionRules().ListContributionRules(txCtx, school.OrganizationID)
+		asked, err = parentBillingCompose.NewParentDocuments().CountsFamilyChildrenAt(txCtx, school.OrganizationID, schoolID, calendar.TodayDate())
 		return err
 	}); err != nil {
 		return false, fmt.Errorf("enrollment: read the sibling rules of the Träger: %w", err)
 	}
-	return countsFamilyAt(rules, schoolID, calendar.TodayDate()), nil
-}
-
-// countsFamilyAt tells whether a current care sibling rule counts the
-// family's children for a contract at the school.
-func countsFamilyAt(rules []parentbilling.ContributionRule, schoolID int64, today calendar.Date) bool {
-	return slices.ContainsFunc(rules, func(rule parentbilling.ContributionRule) bool {
-		return rule.Service == parentbilling.ServiceCare && rule.Kind == parentbilling.RuleSibling && rule.CountsFamilyChildren &&
-			(rule.ValidUntil == nil || !rule.ValidUntil.Before(today)) &&
-			slices.Contains(rule.SchoolIDs, schoolID)
-	})
+	return asked, nil
 }

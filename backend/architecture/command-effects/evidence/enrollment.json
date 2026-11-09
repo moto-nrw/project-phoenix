@@ -1250,7 +1250,15 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked",
-      "binding_digest": "5e99a0c32a0b93e5d96391c05788d1d1",
+      "binding_digest": "91f97da446b662ba0bccaf9629ee68e0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.FamilyChildrenPurpose.FamilyChildrenAsked",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/parentbilling/internal/application.ParentDocuments.CountsFamilyChildrenAt",
+      "target_owner": "parent-billing"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked",
+      "binding_digest": "f8ac7d0fdd5cd02db480f67482fcd993",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.FamilyChildrenPurpose.FamilyChildrenAsked",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchool",
@@ -1258,7 +1266,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked",
-      "binding_digest": "9147df733ce42cb585a7e788e4ac2295",
+      "binding_digest": "900a7c0e2b8c9ae2ddd5a17171554687",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.FamilyChildrenPurpose.FamilyChildrenAsked",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchool",
@@ -1266,7 +1274,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked",
-      "binding_digest": "3da0f01fa5dc7103f999dec7dc59be49",
+      "binding_digest": "0144a26ad6f7fd4b13699e10a8ec18ab",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.FamilyChildrenPurpose.FamilyChildrenAsked",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.SchoolQuery.FindSchool",
@@ -1274,23 +1282,15 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked",
-      "binding_digest": "5ef7eacdcd721237208d9b69daac04e5",
+      "binding_digest": "6ec7cf3fd3035c4e582ac1d7c2000d8e",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.FamilyChildrenPurpose.FamilyChildrenAsked",
       "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/parentbilling.ContributionRules.ListContributionRules",
+      "target": "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose.NewParentDocuments",
       "target_owner": "parent-billing"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked",
-      "binding_digest": "07945b1422e6c5c8c1f27132deccb67f",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.FamilyChildrenPurpose.FamilyChildrenAsked",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose.NewContributionRules",
-      "target_owner": "parent-billing"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentFamilyChildrenPurpose.FamilyChildrenAsked",
-      "binding_digest": "e181bfd5dbd03dbe71b56c5ebc4936d8",
+      "binding_digest": "5ca724608082f54a7ae80aa57bfe6db2",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.FamilyChildrenPurpose.FamilyChildrenAsked",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTraeger",

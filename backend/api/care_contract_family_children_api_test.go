@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -157,4 +158,32 @@ func TestFamilyChildrenOfTheRegistrationComeWithTheContract(t *testing.T) {
 	sentCareContract(t, f, third)
 	_, _, found = familyNumber(t, f, f.office.organization, "pia.ohne@example.org")
 	assert.False(t, found)
+}
+
+// The registration asks for the children of the family through the root's
+// binding only where a care sibling rule of the school's Träger counts them
+// for that school (#6335): a rule that counts only contracts asks nothing,
+// and neither does a school the rule does not name.
+func TestRegistrationAsksWhereTheTraegersRuleCountsTheFamily(t *testing.T) {
+	t.Parallel()
+	f := newCareBillingFixture(t, "Träger Kinderzahl Anmeldung fragen")
+	school := f.office.schools[0]
+	purpose := owners.NewEnrollmentFamilyChildrenPurpose(NewOrganizationTestRows(testpkg.NewDatabase(t, f.db)).School)
+	ctx := testpkg.ContextWithTenantRuntime(context.Background(), testpkg.TenantRuntime(t, f.db))
+	asks := func(schoolID int64) bool {
+		t.Helper()
+		asked, err := purpose.FamilyChildrenAsked(ctx, schoolID)
+		require.NoError(t, err)
+		return asked
+	}
+
+	f.saveRule(t, careRule("sibling", "Geschwister nur Verträge", []int64{school},
+		map[string]any{"sibling_from_child": 2, "discount_basis_points": 5000}))
+	assert.False(t, asks(school), "a rule that counts only contracts")
+
+	other := testpkg.CreateTestSchoolInOrganization(t, f.db, f.office.organization, "OGS mit Familienregel")
+	f.saveRule(t, careRule("sibling", "Geschwister mit Familie", []int64{other},
+		map[string]any{"sibling_from_child": 2, "discount_basis_points": 5000, "counts_family_children": true}))
+	assert.True(t, asks(other), "a rule that counts the family at the school")
+	assert.False(t, asks(school), "a school the counting rule does not name")
 }
