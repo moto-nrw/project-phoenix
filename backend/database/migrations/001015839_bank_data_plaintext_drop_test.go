@@ -99,3 +99,33 @@ UPDATE users.staff_financial_data SET social_security_number = NULL WHERE staff_
    + (SELECT count(*) FROM users.staff_financial_data WHERE tax_id_sealed IS NOT NULL)`).Scan(ctx, &kept))
 	require.Equal(t, 2, kept, "the sealed values stay")
 }
+
+// #6332 invariant: the drop locks both tables before it rechecks, so a
+// writer of an old release still open at the check cannot lose its plaintext
+// to the drop after its commit. Red when the recheck runs before the lock.
+func TestBankDataPlaintextDropWaitsForAnOpenGuardianWriter(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	require.NoError(t, bankDataPlaintextDropDown(context.Background(), db))
+	school := testpkg.NewTenantScope(t, db).TenantID
+	guardian := testpkg.CreateTestGuardianProfileForTenant(t, db, school, "Racing", "Drop", "racing-drop@example.invalid")
+	err := runAgainstOpenWriter(t, db,
+		`INSERT INTO users.guardian_financial_data (tenant_id, guardian_profile_id, account_holder) VALUES (?, ?, 'Synthetic holder')`,
+		[]any{school, guardian.ID}, func(ctx context.Context) error { return bankDataPlaintextDropUp(ctx, db) })
+	require.ErrorIs(t, err, errBankDataPlaintextRemains)
+	require.True(t, bankColumnExists(t, db, "guardian_financial_data", "account_holder"), "the plaintext waits for the backfill")
+}
+
+// The same invariant for a staff writer.
+func TestBankDataPlaintextDropWaitsForAnOpenStaffWriter(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	require.NoError(t, bankDataPlaintextDropDown(context.Background(), db))
+	school := testpkg.NewTenantScope(t, db).TenantID
+	member := testpkg.CreateTestStaffForTenant(t, db, school, "Racing", "Drop")
+	err := runAgainstOpenWriter(t, db,
+		`INSERT INTO users.staff_financial_data (tenant_id, staff_id, social_security_number) VALUES (?, ?, '65170839J003')`,
+		[]any{school, member.ID}, func(ctx context.Context) error { return bankDataPlaintextDropUp(ctx, db) })
+	require.ErrorIs(t, err, errBankDataPlaintextRemains)
+	require.True(t, bankColumnExists(t, db, "staff_financial_data", "social_security_number"), "the plaintext waits for the backfill")
+}

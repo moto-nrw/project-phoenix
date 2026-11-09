@@ -65,11 +65,13 @@ func bankDataPlaintextDropPrecondition(ctx context.Context, db *bun.DB) error {
 	return nil
 }
 
-// bankDataPlaintextDropUp rechecks under table locks, so a writer of an old
-// release cannot add plaintext between the check and the drop.
+// bankDataPlaintextDropUp locks both tables against every writer first, then
+// rechecks and drops in the same transaction: a writer of an old release
+// still open at the check commits before the lock is granted, so its
+// plaintext is counted and the drop refused instead of losing the value.
 func bankDataPlaintextDropUp(ctx context.Context, db *bun.DB) error {
 	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		if _, err := tx.ExecContext(ctx, `LOCK TABLE users.guardian_financial_data, users.staff_financial_data IN SHARE ROW EXCLUSIVE MODE`); err != nil {
+		if _, err := tx.ExecContext(ctx, `LOCK TABLE users.guardian_financial_data, users.staff_financial_data IN ACCESS EXCLUSIVE MODE`); err != nil {
 			return fmt.Errorf("lock the bank data tables: %w", err)
 		}
 		rows, err := bankDataPlaintextRows(ctx, tx, true, true)
