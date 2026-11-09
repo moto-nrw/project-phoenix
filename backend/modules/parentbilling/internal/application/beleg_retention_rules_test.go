@@ -184,8 +184,8 @@ func TestBookingInstructionCitingTheStatutesKeepsEightYears(t *testing.T) {
 // to the same list.
 var statuteSpellings = []string{
 	"§147AO", "§ 147 Abs. 1 AO", "147ao", "HGB§257", "UStG14b", "Abgabenordnung", "ABGABENORDNUNG", "aBgAbEnOrDnUnG",
-	"Handelsgesetzbuch", "Umsatzsteuergesetz", "§ 147 AO", "§ 257 HGB", "§ 14b UStG", "A.O.", "A-O",
-	"§ 14 b UStG", "§ 257 Abs. 4 Nr. 1 HGB", "Paragraph 147 der Abgaben-Ordnung", "ＡＯ", "A​O", "nach §147",
+	"Handelsgesetzbuch", "Umsatzsteuergesetz", "§\u00a0147\u00a0AO", "§\u2009257\u2009HGB", "§\u202f14b\u202fUStG", "A.O.", "A-O",
+	"§ 14 b UStG", "§ 257 Abs. 4 Nr. 1 HGB", "Paragraph 147 der Abgaben-Ordnung", "\uff21\uff2f", "A\u200bO", "nach §147",
 }
 
 // A Weisung whose statutes do not apply cites none of them, however it is
