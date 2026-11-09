@@ -6,7 +6,10 @@ import "maps"
 // administrative read unit replaces consecutive same-scope units. The public
 // calendar feed also keeps the parent feed's school transaction under a new
 // key, unchanged, because the feed now renders it without a second token
-// lookup (ADR 0161, Nachtrag). A further site needs its own decision.
+// lookup (ADR 0161, Nachtrag). Step 4 adds the one-way admin-to-tenant
+// handoff: runtime, composition, caller and the parents portal's runtime
+// port, which only forwards (ADR 0161, Nachtrag zu Schritt 4). A further site
+// needs its own decision.
 var transactionFrameBundleSites = map[string]string{
 	// Admin, Schritt 1 (#5881)
 	"modules/schoolcalendar/portal/internal/application/feed.go:*service.calendarFeedOwnerByToken:s.cfg.Runtime.WithinAdmin#1": "ADR 0161: the public calendar feed discovers the token owner in one administrative read unit, parent token first and the staff membership token with its account only on a miss; it writes nothing and ends before the school's tenant projection.",
@@ -15,6 +18,13 @@ var transactionFrameBundleSites = map[string]string{
 	"modules/schoolcalendar/portal/internal/application/feed.go:*service.parentCalendarFeed:s.cfg.Runtime.WithinTenant#1": "Atomic owner command: ParentCalendarFeedByToken coordinates appointment visibility and school calendar projections through application ports. Its prerequisite reads/locks, mutations and commit hooks form one command and must roll back together. It joins a supplied workflow/root unit; SQL adapters below it require that unit and cannot open one.",
 	// Admin, Schritt 2 (#5795)
 	"modules/identityaccess/internal/application/operator.go:*Service.VerifyOperatorSession:s.tx.RunAdmin#1": "ADR 0161: the active-operator check reads the operator and the latest session of its family in one administrative read unit with unchanged order and guards; it writes nothing and the route keeps its own administrative unit.",
+	// Admin, Schritt 4 (#5862): Laufzeit, Komposition, Aufrufer, Port-Bindung
+	"tenant/runtime.go:WithinAdminThenTenant:runtime.withinAdminThenTenant#1":                                        "ADR 0161: the one-way handoff discovers as phoenix_admin and continues in the same transaction as phoenix_tenant for the discovered school only; no administrative context survives the switch.",
+	"modules/transactionruntime/compose/tenant_runtime.go:NewTenantRuntime:unitOfWork.WithinAdminThenTenant#1":       "ADR 0161: binds the one-way admin-to-tenant handoff of the unit of work.",
+	"workflows/parentportal/internal/care/child.go:*Service.WithPermittedChild:s.Runtime.WithinAdminThenTenant#1":    "ADR 0161: a parent child read discovers active schools and the relationship-level parent_portal permission before any tenant statement, then reads the child's school under RLS in the same transaction; it writes nothing.",
+	"roots/owners/parent_portal_runtime.go:ParentPortalRuntime.WithinAdminThenTenant:tenant.WithinAdminThenTenant#1": "ADR 0161: binds the one-way admin-to-tenant handoff to the parents portal workflow's runtime port; it only forwards and opens no unit of its own.",
+	// Kommando, Schritt 4 (#5862)
+	"modules/transactionruntime/internal/adapters/postgres/tenant_runtime.go:*PostgresUnitOfWork.WithinAdminThenTenant:r.runInTx#1": "ADR 0161: implements the one-way admin-to-tenant handoff; role and school are transaction-local.",
 }
 
 // withoutReviewedTransactionFrameBundles removes exactly the reviewed
