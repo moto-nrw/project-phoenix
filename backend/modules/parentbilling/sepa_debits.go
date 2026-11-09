@@ -55,6 +55,9 @@ const MandateExpiryMonths = 36
 const DebitGapExpired = "mandate_expired"
 
 var (
+	// ErrSEPAEndToEndDuplicate reports a file in which two debits would
+	// carry the same end-to-end ID; the bank could not tell them apart.
+	ErrSEPAEndToEndDuplicate = errors.New("two SEPA debits of the file would carry the same end-to-end ID")
 	// ErrSEPAAccountHolderUnsupported reports an empty name after DK conversion.
 	ErrSEPAAccountHolderUnsupported = errors.New("the account holder name needs Latin letters for the SEPA file")
 	// ErrSEPADebitRunNotFound reports a run of another Träger, none, or one

@@ -91,5 +91,6 @@
   "sepa_debits_empty": "This run has no open direct debit. There is no file to download or confirm.",
   "sepa_debits_changed": "The direct debit file has changed. Download it again and submit the new file to your bank.",
   "sepa_creditor_account_missing": "The account the direct debits are paid into is missing. Set a default bank account under Settings → Billing. This needs the right \"Settings\".",
-  "sepa_account_holder_unsupported": "The direct debit file needs account holder names in Latin letters. Check the mandate and creditor account names."
+  "sepa_account_holder_unsupported": "The direct debit file needs account holder names in Latin letters. Check the mandate and creditor account names.",
+  "sepa_end_to_end_duplicate": "Two direct debits would carry the same reference in the file, so the bank could not tell them apart. Please contact moto support."
 }

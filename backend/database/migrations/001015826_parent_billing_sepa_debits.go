@@ -179,6 +179,15 @@ WHERE document.kind = 'invoice' AND document.payment_method = 'direct_debit' AND
 `
 
 const parentBillingSEPADebitsDownSQL = `
+-- The older constraint does not know mandate_expired. An invoice issued
+-- with it falls back to the nearest older reason, no valid mandate; the
+-- issued invoices otherwise never change, so their guard pauses for this.
+ALTER TABLE parent_billing.care_invoices DISABLE TRIGGER refuse_parent_billing_care_invoice_change;
+UPDATE parent_billing.care_invoices SET debit_gap = 'mandate_missing' WHERE debit_gap = 'mandate_expired';
+ALTER TABLE parent_billing.care_invoices ENABLE TRIGGER refuse_parent_billing_care_invoice_change;
+ALTER TABLE parent_billing.documents DISABLE TRIGGER refuse_parent_billing_document_change;
+UPDATE parent_billing.documents SET debit_gap = 'mandate_missing' WHERE debit_gap = 'mandate_expired';
+ALTER TABLE parent_billing.documents ENABLE TRIGGER refuse_parent_billing_document_change;
 ALTER TABLE parent_billing.documents DROP CONSTRAINT IF EXISTS chk_documents_mandate,
 	ADD CONSTRAINT chk_documents_mandate CHECK (
 		num_nulls(mandate_id, mandate_reference, mandate_signed_on, creditor_id, debtor_iban_masked, sequence_type) IN (0, 6)

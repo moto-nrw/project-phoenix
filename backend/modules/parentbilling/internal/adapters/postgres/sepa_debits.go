@@ -23,30 +23,38 @@ const insertCareDebitsSQL = `INSERT INTO parent_billing.sepa_debits (organizatio
 	run_id, care_invoice_id, invoice_number, amount_cents, due_on, sequence_type, creditor_id, mandate_reference,
 	mandate_signed_on, account_holder_sealed, iban_sealed, bic)
 SELECT invoice.organization_id, mandate.id, mandate.care_contract_id, 'care', invoice.run_id, invoice.id, invoice.number,
-	invoice.total_cents, invoice.due_on, invoice.sequence_type, invoice.creditor_id, invoice.mandate_reference,
+	invoice.total_cents, invoice.due_on, CASE WHEN mandate.kind = 'one_off' THEN 'OOFF' WHEN mandate.sequence = 'recurring' THEN 'RCUR' ELSE 'FRST' END, invoice.creditor_id, invoice.mandate_reference,
 	invoice.mandate_signed_on, mandate.account_holder_sealed, mandate.iban_sealed, mandate.bic
 FROM parent_billing.care_invoices AS invoice
 JOIN parent_billing.sepa_mandates AS mandate
 	ON mandate.organization_id = invoice.organization_id AND mandate.id = invoice.mandate_id
 WHERE invoice.organization_id = ?0 AND invoice.id = ANY(?1) AND invoice.payment_method = 'direct_debit'
-	AND invoice.total_cents > 0 AND invoice.due_on IS NOT NULL`
+	AND invoice.total_cents > 0 AND invoice.due_on IS NOT NULL
+ORDER BY mandate.id, invoice.id
+FOR UPDATE OF mandate`
 
 // insertHolidayDebitsSQL writes the debits of holiday invoices just issued.
 const insertHolidayDebitsSQL = `INSERT INTO parent_billing.sepa_debits (organization_id, mandate_id, care_contract_id, run_kind,
 	run_id, document_id, invoice_number, amount_cents, due_on, sequence_type, creditor_id, mandate_reference,
 	mandate_signed_on, account_holder_sealed, iban_sealed, bic)
 SELECT document.organization_id, mandate.id, mandate.care_contract_id, 'holiday', document.run_id, document.id, document.number,
-	document.total_cents, document.due_on, document.sequence_type, document.creditor_id, document.mandate_reference,
+	document.total_cents, document.due_on, CASE WHEN mandate.kind = 'one_off' THEN 'OOFF' WHEN mandate.sequence = 'recurring' THEN 'RCUR' ELSE 'FRST' END, document.creditor_id, document.mandate_reference,
 	document.mandate_signed_on, mandate.account_holder_sealed, mandate.iban_sealed, mandate.bic
 FROM parent_billing.documents AS document
 JOIN parent_billing.sepa_mandates AS mandate
 	ON mandate.organization_id = document.organization_id AND mandate.id = document.mandate_id
 WHERE document.organization_id = ?0 AND document.id = ANY(?1) AND document.kind = 'invoice'
-	AND document.payment_method = 'direct_debit' AND document.total_cents > 0 AND document.due_on IS NOT NULL`
+	AND document.payment_method = 'direct_debit' AND document.total_cents > 0 AND document.due_on IS NOT NULL
+ORDER BY mandate.id, document.id
+FOR UPDATE OF mandate`
 
 // insertSEPADebits writes the debits of the invoices just issued, in the
 // statement after their insert, so they hold the account of the mandate at
-// the release (ADR 0181). holiday names holiday documents, else monthly
+// the release (ADR 0181). It locks the mandates like a confirmation does and
+// takes the sequence type from the mandate under that lock: a confirmation
+// that collected a mandate while the run was being released turns its
+// mandate to RCUR, and the new debit follows it instead of the FRST the
+// preview read. holiday names holiday documents, else monthly
 // invoices.
 func insertSEPADebits(ctx context.Context, db bun.IDB, organizationID int64, holiday bool, invoiceIDs []int64) error {
 	if len(invoiceIDs) == 0 {

@@ -559,6 +559,12 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "parent_billing.sepa_account_holder_unsupported"
+    },
+    {
+      "code": "parent_billing.sepa_end_to_end_duplicate",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.sepa_end_to_end_duplicate"
     }
   ]
 }

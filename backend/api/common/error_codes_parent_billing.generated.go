@@ -86,6 +86,7 @@ const CodeParentBillingSepaCreditorMissing = "parent_billing.sepa_creditor_missi
 const CodeParentBillingSepaDebitRunNotFound = "parent_billing.sepa_debit_run_not_found"
 const CodeParentBillingSepaDebitsChanged = "parent_billing.sepa_debits_changed"
 const CodeParentBillingSepaDebitsEmpty = "parent_billing.sepa_debits_empty"
+const CodeParentBillingSepaEndToEndDuplicate = "parent_billing.sepa_end_to_end_duplicate"
 const CodeParentBillingSepaMandateInForce = "parent_billing.sepa_mandate_in_force"
 const CodeParentBillingSepaMandateInvalid = "parent_billing.sepa_mandate_invalid"
 const CodeParentBillingSepaMandateNotFound = "parent_billing.sepa_mandate_not_found"
@@ -181,6 +182,7 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingSepaDebitRunNotFound, "business_rejection"},
 	{CodeParentBillingSepaDebitsChanged, "business_rejection"},
 	{CodeParentBillingSepaDebitsEmpty, "business_rejection"},
+	{CodeParentBillingSepaEndToEndDuplicate, "business_rejection"},
 	{CodeParentBillingSepaMandateInForce, "business_rejection"},
 	{CodeParentBillingSepaMandateInvalid, "input"},
 	{CodeParentBillingSepaMandateNotFound, "business_rejection"},

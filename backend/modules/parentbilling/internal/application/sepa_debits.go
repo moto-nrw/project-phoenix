@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -253,9 +254,17 @@ func berlin() *time.Location {
 func (d *SEPADebits) openBatches(organizationID int64, plan debitPlan) ([]debitFileBatch, []parentbilling.SEPAMandate, error) {
 	var batches []debitFileBatch
 	index := map[[2]string]int{}
+	endToEnd := map[string]bool{}
 	var revealed []parentbilling.SEPAMandate
 	for _, entry := range plan.included {
 		debit := entry.Debit
+		endToEndID := debitEndToEndID(debit)
+		if endToEnd[endToEndID] {
+			// A bank matches returns and refunds by this ID; a file with two
+			// equal IDs would mix up families. Refuse it instead.
+			return nil, nil, parentbilling.ErrSEPAEndToEndDuplicate
+		}
+		endToEnd[endToEndID] = true
 		iban, err := d.cipher.Open(entry.IBAN, ibanContext(organizationID, debit.MandateReference))
 		if err != nil {
 			return nil, nil, fmt.Errorf("parent billing: open the IBAN of debit %d: %w", debit.ID, err)
@@ -274,7 +283,7 @@ func (d *SEPADebits) openBatches(organizationID int64, plan debitPlan) ([]debitF
 				ID: sepaIdentifier(fmt.Sprintf("%s-%d", plan.run.MessageID[:min(len(plan.run.MessageID), 30)], at+1))})
 		}
 		batches[at].Entries = append(batches[at].Entries, debitFileEntry{
-			EndToEndID: sepaIdentifier(debit.InvoiceNumber), AmountCents: debit.AmountCents,
+			EndToEndID: endToEndID, AmountCents: debit.AmountCents,
 			MandateReference: debit.MandateReference, MandateSignedOn: entry.MandateSignedOn,
 			DebtorName: string(holder), DebtorIBAN: string(iban), DebtorBIC: entry.BIC,
 			Remittance: "Rechnung " + debit.InvoiceNumber,
@@ -287,6 +296,17 @@ func (d *SEPADebits) openBatches(organizationID int64, plan debitPlan) ([]debitF
 		return batchOrder(a.CollectOn, b.CollectOn, a.SequenceType, b.SequenceType)
 	})
 	return batches, revealed, nil
+}
+
+// debitEndToEndID is the ID the bank keeps for one debit: the invoice
+// number when it fits the SEPA characters and 35 characters unchanged, else
+// MOTO-D and the debit's own ID, which is unique. A cut-down number could
+// give two invoices the same ID; the remittance text keeps the full number.
+func debitEndToEndID(debit parentbilling.SEPADebit) string {
+	if sepaIdentifier(debit.InvoiceNumber) == debit.InvoiceNumber {
+		return debit.InvoiceNumber
+	}
+	return "MOTO-D" + strconv.FormatInt(debit.ID, 10)
 }
 
 // SubmitSEPADebits confirms that the office submitted the file messageID:

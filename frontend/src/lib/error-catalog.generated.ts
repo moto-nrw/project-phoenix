@@ -980,6 +980,8 @@ export const ERROR_CATALOG = {
         "Die Lastschriftdatei hat sich geändert. Laden Sie die Datei neu herunter und reichen Sie die neue Datei bei Ihrer Bank ein.",
       "parent_billing.sepa_debits_empty":
         "In diesem Lauf gibt es keine offene Lastschrift. Es gibt keine Datei zum Herunterladen oder Bestätigen.",
+      "parent_billing.sepa_end_to_end_duplicate":
+        "Zwei Lastschriften hätten in der Datei dieselbe Kennung. Die Bank könnte sie nicht unterscheiden. Bitte wenden Sie sich an den moto-Support.",
       "parent_billing.sepa_mandate_in_force":
         "Die Familie hat schon ein gültiges Mandat. Bitte widerrufen Sie es zuerst.",
       "parent_billing.sepa_mandate_invalid":
@@ -2289,6 +2291,8 @@ export const ERROR_CATALOG = {
         "The direct debit file has changed. Download it again and submit the new file to your bank.",
       "parent_billing.sepa_debits_empty":
         "This run has no open direct debit. There is no file to download or confirm.",
+      "parent_billing.sepa_end_to_end_duplicate":
+        "Two direct debits would carry the same reference in the file, so the bank could not tell them apart. Please contact moto support.",
       "school.parent_conference_change_closed":
         "You can book, change or cancel up to 24 hours before the meeting. After that, please contact the teacher directly.",
       "school.parent_conference_slot_taken":
@@ -2848,6 +2852,8 @@ export const ERROR_CATALOG = {
         "The direct debit file has changed. Download it again and submit the new file to your bank.",
       "parent_billing.sepa_debits_empty":
         "This run has no open direct debit. There is no file to download or confirm.",
+      "parent_billing.sepa_end_to_end_duplicate":
+        "Two direct debits would carry the same reference in the file, so the bank could not tell them apart. Please contact moto support.",
       "school.parent_conference_change_closed":
         "Записаться, перенести или отменить встречу можно не позднее чем за 24 часа. После этого обратитесь, пожалуйста, напрямую к учителю.",
       "school.parent_conference_slot_taken":
@@ -3363,6 +3369,8 @@ export const ERROR_CATALOG = {
         "The direct debit file has changed. Download it again and submit the new file to your bank.",
       "parent_billing.sepa_debits_empty":
         "This run has no open direct debit. There is no file to download or confirm.",
+      "parent_billing.sepa_end_to_end_duplicate":
+        "Two direct debits would carry the same reference in the file, so the bank could not tell them apart. Please contact moto support.",
       "school.parent_conference_change_closed":
         "Mund të rezervoni, ndryshoni ose anuloni deri 24 orë para takimit. Pas kësaj, ju lutemi kontaktoni drejtpërdrejt mësuesin.",
       "school.parent_conference_slot_taken":
@@ -3867,6 +3875,8 @@ export const ERROR_CATALOG = {
         "The direct debit file has changed. Download it again and submit the new file to your bank.",
       "parent_billing.sepa_debits_empty":
         "This run has no open direct debit. There is no file to download or confirm.",
+      "parent_billing.sepa_end_to_end_duplicate":
+        "Two direct debits would carry the same reference in the file, so the bank could not tell them apart. Please contact moto support.",
       "school.parent_conference_change_closed":
         "Rezerwację można dokonać, zmienić lub odwołać najpóźniej 24 godziny przed spotkaniem. Później prosimy o bezpośredni kontakt z nauczycielem.",
       "school.parent_conference_slot_taken":
@@ -4375,6 +4385,8 @@ export const ERROR_CATALOG = {
         "The direct debit file has changed. Download it again and submit the new file to your bank.",
       "parent_billing.sepa_debits_empty":
         "This run has no open direct debit. There is no file to download or confirm.",
+      "parent_billing.sepa_end_to_end_duplicate":
+        "Two direct debits would carry the same reference in the file, so the bank could not tell them apart. Please contact moto support.",
       "school.parent_conference_change_closed":
         "Görüşmeden 24 saat öncesine kadar randevu alabilir, değiştirebilir veya iptal edebilirsiniz. Sonrasında lütfen doğrudan öğretmenle iletişime geçin.",
       "school.parent_conference_slot_taken":
@@ -4876,6 +4888,8 @@ export const ERROR_CATALOG = {
         "The direct debit file has changed. Download it again and submit the new file to your bank.",
       "parent_billing.sepa_debits_empty":
         "This run has no open direct debit. There is no file to download or confirm.",
+      "parent_billing.sepa_end_to_end_duplicate":
+        "Two direct debits would carry the same reference in the file, so the bank could not tell them apart. Please contact moto support.",
       "school.parent_conference_change_closed":
         "Забронювати, перенести або скасувати зустріч можна не пізніше ніж за 24 години. Після цього зверніться, будь ласка, безпосередньо до вчителя.",
       "school.parent_conference_slot_taken":

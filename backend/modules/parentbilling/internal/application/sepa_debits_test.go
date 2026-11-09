@@ -396,3 +396,35 @@ func TestSEPADebitFutureDatesKeepTheirIdentityAcrossMidnight(t *testing.T) {
 	assert.Equal(t, before.MessageID, after.MessageID, "an unchanged collection date must retain the bank's duplicate detection ID")
 	assert.LessOrEqual(t, len(after.MessageID), maxSEPAIdentifier)
 }
+
+// A number pattern may carry a prefix of 35 characters before the running
+// number. Cut to 35 characters, two invoices would share one end-to-end ID
+// and the bank would mix up their returns; such an invoice gets the debit's
+// own ID, and the full number stays in the remittance text.
+func TestSEPADebitFileGivesEveryDebitItsOwnEndToEndID(t *testing.T) {
+	t.Parallel()
+	prefix := strings.Repeat("A", 35)
+	store := sjrDebits()
+	store.debits[0].Debit.InvoiceNumber = prefix + "-1"
+	store.debits[1].Debit.InvoiceNumber = prefix + "-2"
+	file, err := newSJRDebits(store).SEPADebitFile(context.Background(), sjrReviewer, parentbilling.DebitRunCare, 3)
+	require.NoError(t, err)
+	xml := string(file.Data)
+	assert.Contains(t, xml, "<EndToEndId>MOTO-D1</EndToEndId>")
+	assert.Contains(t, xml, "<EndToEndId>MOTO-D2</EndToEndId>")
+	assert.Contains(t, xml, "<EndToEndId>RE-2027-0003</EndToEndId>", "a number that fits stays the ID")
+	assert.NotContains(t, xml, "<EndToEndId>"+prefix+"</EndToEndId>")
+	assert.Contains(t, xml, "<Ustrd>Rechnung "+prefix+"-1</Ustrd>")
+	testpkg.AssertXMLMatchesSchema(t, file.Data, filepath.Join("testdata", "sepa", "pain.008.001.08.xsd"))
+}
+
+// Should two debits still end up with one end-to-end ID, the file is
+// refused rather than written.
+func TestSEPADebitFileRefusesTwoEqualEndToEndIDs(t *testing.T) {
+	t.Parallel()
+	store := sjrDebits()
+	store.debits[0].Debit.InvoiceNumber = strings.Repeat("B", 40)
+	store.debits[1].Debit.InvoiceNumber = "MOTO-D1"
+	_, err := newSJRDebits(store).SEPADebitFile(context.Background(), sjrReviewer, parentbilling.DebitRunCare, 3)
+	require.ErrorIs(t, err, parentbilling.ErrSEPAEndToEndDuplicate)
+}

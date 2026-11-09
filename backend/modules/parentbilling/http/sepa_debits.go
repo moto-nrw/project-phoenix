@@ -145,6 +145,8 @@ func renderDebitError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingSepaDebitsEmpty))
 	case errors.Is(err, capability.ErrSEPADebitsChanged):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingSepaDebitsChanged))
+	case errors.Is(err, capability.ErrSEPAEndToEndDuplicate):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingSepaEndToEndDuplicate))
 	case errors.Is(err, capability.ErrSEPACreditorAccountMissing):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeParentBillingSepaCreditorAccountMissing))
 	default:
