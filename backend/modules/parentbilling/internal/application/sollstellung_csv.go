@@ -75,7 +75,7 @@ func normalizeSollMapping(mapping parentbilling.SollstellungMapping) (parentbill
 		errs["delimiter"] = errors.New("must be ; , tab or |")
 	}
 	if !slices.Contains(sollDecimals, mapping.DecimalSeparator) {
-		errs["decimal_separator"] = errors.New("must be , or .")
+		errs["decimal_separator"] = errors.New("must be a comma or a point")
 	} else if mapping.DecimalSeparator == mapping.Delimiter {
 		errs["decimal_separator"] = errors.New("must differ from the delimiter")
 	}
