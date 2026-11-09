@@ -9,7 +9,7 @@ import (
 
 // seedCareContractChange lets the parents of the first active contract
 // whose party has a parents-app account ask to give up the last weekday of
-// the modules they choose the days of (#5979). The Träger-Büro then finds an open change on the contract
+// one module they choose the days of (#5979) and keep the others (#6334). The Träger-Büro then finds an open change on the contract
 // page that it can approve or reject itself. It answers whether it asked;
 // a seed without such a contract asks nothing.
 func seedCareContractChange(rt *Runtime, auth AuthRef) (bool, error) {
@@ -52,8 +52,9 @@ func seedParentByEmail(rt *Runtime, email string) (ParentCredentials, bool) {
 }
 
 // seedOneDayLess asks for the child's booked modules without the last
-// weekday of each module whose days the parents choose, from the earliest
-// day the school allows. Modules with fixed days stay as they are.
+// weekday of the first module whose days the parents choose, from the
+// earliest day the school allows. Every other module stays as it is, so the
+// office sees a change next to modules that stay booked.
 func seedOneDayLess(rt *Runtime, parentAuth AuthRef, studentID int64) (bool, error) {
 	raw, err := rt.Client.GetWithAuth(parentAuth, fmt.Sprintf("/parent/me/children/%d/care-offerings/catalog", studentID))
 	if err != nil {
@@ -81,7 +82,7 @@ func seedOneDayLess(rt *Runtime, parentAuth AuthRef, studentID int64) (bool, err
 			continue
 		}
 		days := slices.Clone(item.SelectedDays)
-		if item.DaysOfWeekMode == "parent_choice" && len(days) > 1 {
+		if !changed && item.DaysOfWeekMode == "parent_choice" && len(days) > 1 {
 			days, changed = days[:len(days)-1], true
 		}
 		selections = append(selections, map[string]any{"offering_id": item.ID, "selected_days": days})

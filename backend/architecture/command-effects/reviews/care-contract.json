@@ -392,7 +392,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolChangeRequests.PendingChanges",
-      "reason": "Reads the student’s pending request, comparison and recent decision inside the school transaction; the binding filters both outcomes to the contract enrollment before returning them (ADR 0163).",
+      "reason": "Reads the student’s pending request, comparison with the modules it keeps unchanged (#6334) and recent decision inside the school transaction; the binding filters both outcomes to the contract enrollment and lists each module once before returning them (ADR 0163).",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.GetForStudent",
       "target_owner": "care-plan"
@@ -402,7 +402,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolChangeRequests.PendingChanges",
-      "reason": "Read-only materialization for the selected effective date, after matching the request to the contract enrollment. Reuses Care Plan’s validation and full dated comparison; no booking or decision is written (ADR 0163).",
+      "reason": "Read-only materialization for the selected effective date, after matching the request to the contract enrollment. Reuses Care Plan’s validation and full dated comparison, including the modules kept unchanged at that date (#6334); no booking or decision is written (ADR 0163).",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.PreviewDecision",
       "target_owner": "care-plan"
@@ -412,7 +412,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolChangeRequests.PendingChanges",
-      "reason": "Pure timestamp-to-version value mapping used to reject obsolete request forms; no mutation or locking read (ADR 0163).",
+      "reason": "Pure timestamp-to-version value mapping used to reject obsolete request forms; listing the kept modules (#6334) adds no mutation or locking read (ADR 0163).",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.ParentRequestVersion",
       "target_owner": "care-plan"
@@ -422,7 +422,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolChangeRequests.PendingChanges",
-      "reason": "Pure reason-policy value check, retaining the same staff-side policy for the school and the office (ADR 0163).",
+      "reason": "Pure reason-policy value check, retaining the same staff-side policy for the school and the office; listing the kept modules (#6334) leaves it unchanged (ADR 0163).",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests.ReasonRequired",
       "target_owner": "care-plan"
@@ -432,7 +432,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolChangeRequests.PendingChanges",
-      "reason": "Reads the school’s parent-request reason policy in the existing school transaction, using tenant registry resolution without another write or scope switch (ADR 0163).",
+      "reason": "Reads the school’s parent-request reason policy in the existing school transaction, using tenant registry resolution without another write or scope switch; listing the kept modules (#6334) adds none (ADR 0163).",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
       "target_owner": "settings-platform"

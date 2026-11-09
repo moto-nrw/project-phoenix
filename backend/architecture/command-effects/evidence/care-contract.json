@@ -298,7 +298,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractChangeRequests.PendingChanges",
-      "binding_digest": "981229b9dc5a079b45d260ae27afe638",
+      "binding_digest": "0ff528281ef0bb6a8d6ed1fa3e6ff4b4",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolChangeRequests.PendingChanges",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.GetForStudent",
@@ -306,7 +306,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractChangeRequests.PendingChanges",
-      "binding_digest": "26797401fdf416d2bf5172a9e79753f3",
+      "binding_digest": "4f345b12e7f149fd677b286e39dfb73d",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolChangeRequests.PendingChanges",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.PreviewDecision",
@@ -314,7 +314,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractChangeRequests.PendingChanges",
-      "binding_digest": "39c1113f8b62285cf84a244476bf8b18",
+      "binding_digest": "b7b62e34e3495457a733325fe185ad7c",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolChangeRequests.PendingChanges",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.ParentRequestVersion",
@@ -322,7 +322,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractChangeRequests.PendingChanges",
-      "binding_digest": "0b3cec0b35784dc83ca23bf9388a145b",
+      "binding_digest": "0faf2ab78efa8fd1fd07ca104d5d4c77",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolChangeRequests.PendingChanges",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests.ReasonRequired",
@@ -330,7 +330,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CareContractChangeRequests.PendingChanges",
-      "binding_digest": "7677c08feb6d82b1e06903bd70f3827e",
+      "binding_digest": "aaac730af33c7dd4241a92f1d139ecd0",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolChangeRequests.PendingChanges",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
