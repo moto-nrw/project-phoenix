@@ -83,7 +83,7 @@ func (s *Service) ListAnnouncements(ctx context.Context, accountID int64) ([]*An
 	}); txErr != nil {
 		return nil, fmt.Errorf("parent: list announcements: %w", txErr)
 	}
-	return out, nil
+	return withoutEmptyEndedDeclarations(out), nil
 }
 
 // attachPollData loads the answer options and the guardian's answerable children

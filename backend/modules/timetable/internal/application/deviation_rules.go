@@ -89,6 +89,11 @@ func validateSubstituteAvailable(in timetable.ApplyDeviationsInput, sub timetabl
 	if sub.AbsentStaffID == sub.SubstituteStaffID {
 		return timetable.DeviationBadRequest("die abwesende Person kann sich nicht selbst vertreten").WithCode(timetable.CodeSubstituteSelf).OnField("substitute_staff_id")
 	}
+	// A sick report makes the person absent the whole day: like an absent
+	// person, they cannot cover anyone (#6292).
+	if readSet.sickStaff[sub.SubstituteStaffID] {
+		return timetable.DeviationBadRequest("die Ersatzperson ist an diesem Tag krankgemeldet").WithCode(timetable.CodeSubstituteAbsent).OnField("substitute_staff_id")
+	}
 	// A person cannot cover an appointment on which this same save marks them
 	// absent. Appointment-scoped absences elsewhere on the day are independent.
 	if inputMarksStaffAbsentInScope(in, sub.SubstituteStaffID, sub.InstanceIDs) {

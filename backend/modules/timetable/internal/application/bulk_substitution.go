@@ -211,6 +211,9 @@ func (s *staffDeviations) loadBulkDeviationReadSets(ctx context.Context, in time
 		dayRows := slices.DeleteFunc(slices.Clone(allRows), func(row *scheduleModel.InstanceStaff) bool { return !ids[row.InstanceID] })
 		readSets[i] = newDeviationReadSet(staff, staffIDs, rowsByDate[i], dayInstances, dayRows)
 	}
+	if err := s.markSickStaff(ctx, dates, readSets); err != nil {
+		return nil, err
+	}
 	return readSets, nil
 }
 
@@ -223,8 +226,12 @@ func planBulkDay(in timetable.BulkSubstitutionInput, deviations timetable.ApplyD
 		return bulkDayPlan{date: date, absencePlan: absencePlan}, nil
 	}
 
-	// The substitute must not already be absent in the DB on this date —
-	// the same day-wide rule validateDeviationStaff enforces (#1840).
+	// The substitute must not already be absent in the DB on this date, nor
+	// sick that day — the same day-wide rule validateDeviationStaff enforces
+	// (#1840, #6292).
+	if readSet.sickStaff[*in.SubstituteStaffID] {
+		return bulkDayPlan{}, substituteSickOnDate(date)
+	}
 	for _, row := range readSet.rowsByStaff[*in.SubstituteStaffID] {
 		if row.IsAbsent {
 			return bulkDayPlan{}, timetable.DeviationBadRequest(fmt.Sprintf(
@@ -361,4 +368,12 @@ func bulkDayError(date calendar.Date, err error) error {
 		}
 	}
 	return err
+}
+
+// substituteSickOnDate refuses a substitute a sick report covers on date with
+// the existing "absent on that day" code: a sick person is absent.
+func substituteSickOnDate(date calendar.Date) error {
+	return timetable.DeviationBadRequest(fmt.Sprintf(
+		"die Ersatzperson ist am %s krankgemeldet", date.Format("02.01.2006"))).
+		WithCode(timetable.CodeSubstituteAbsentOnDate).OnField("substitute_staff_id").WithValues(timetable.RefusalValues{Date: date.Format(timetable.RefusalDateLayout)})
 }

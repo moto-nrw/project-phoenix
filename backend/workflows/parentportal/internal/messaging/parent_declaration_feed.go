@@ -40,9 +40,37 @@ func (s *Service) attachDeclarationData(ctx context.Context, accountID int64, it
 	for _, item := range items {
 		if item.DeliveryMode == ParentAnnouncementDeliveryDeclaration {
 			item.Declaration = buildFeedDeclaration(s.Declarations, accountID, item, facts, now)
+			showEndedDeclarationAsAnswered(item)
 		}
 	}
 	return nil
+}
+
+// withoutEmptyEndedDeclarations drops an ended declaration that kept no child:
+// the guardian answered only an older version, or the child left the school.
+// It would be an empty card about wording the guardian never answered.
+func withoutEmptyEndedDeclarations(items []*AnnouncementFeedItem) []*AnnouncementFeedItem {
+	out := items[:0]
+	for _, item := range items {
+		if item.Ended && (item.Declaration == nil || len(item.Declaration.Children) == 0) {
+			continue
+		}
+		out = append(out, item)
+	}
+	return out
+}
+
+// showEndedDeclarationAsAnswered shows an ended declaration with the frozen
+// wording the guardian answered, never a draft the school edits after
+// withdrawing it, and drops what belonged to the live publication.
+func showEndedDeclarationAsAnswered(item *AnnouncementFeedItem) {
+	if !item.Ended || item.Declaration == nil {
+		return
+	}
+	if v := item.Declaration.Version; v != nil {
+		item.Title, item.Body = v.Title, v.Body
+	}
+	item.LinkURL, item.ReminderSentAt, item.ReminderText = nil, nil, nil
 }
 
 func (s *Service) loadDeclarationFeedFacts(ctx context.Context, accountID int64, ids []int64) (*declarationFeedFacts, error) {
@@ -106,7 +134,7 @@ func buildFeedDeclaration(policy DeclarationPolicy, accountID int64, item *Annou
 	out := &AnnouncementFeedDeclaration{
 		Kind: settings.Kind, Signers: settings.Signers, Revocable: settings.Revocable,
 		RequiresPassword: settings.RequiresPassword, RequiresSignature: settings.RequiresSignature, Deadline: item.ResponseDeadline,
-		Closed: policy.Closed(rules.Deadline, now), Version: facts.versions[item.ID],
+		Closed: item.Ended || policy.Closed(rules.Deadline, now), Ended: item.Ended, Version: facts.versions[item.ID],
 		Children: []*AnnouncementFeedDeclarationChild{},
 	}
 	latest := map[int64]map[int64]*DeclarationSubmission{}
@@ -114,12 +142,18 @@ func buildFeedDeclaration(policy DeclarationPolicy, accountID int64, item *Annou
 		latest = facts.latestOnVersion(item.ID, out.Version.ID)
 	}
 	for _, c := range facts.children[item.ID] {
-		out.Children = append(out.Children, buildFeedDeclarationChild(policy, accountID, c, rules, facts.signers[c.StudentID], latest[c.StudentID], now))
+		child := buildFeedDeclarationChild(policy, accountID, c, rules, facts.signers[c.StudentID], latest[c.StudentID], now, out.Ended)
+		// An ended declaration stays for the children the guardian answered
+		// for; for the others it asks nothing any more.
+		if out.Ended && child.MyAction == nil {
+			continue
+		}
+		out.Children = append(out.Children, child)
 	}
 	return out
 }
 
-func buildFeedDeclarationChild(policy DeclarationPolicy, accountID int64, c *DeclarationChild, rules declarationRules, signers []*DeclarationSigner, latest map[int64]*DeclarationSubmission, now time.Time) *AnnouncementFeedDeclarationChild {
+func buildFeedDeclarationChild(policy DeclarationPolicy, accountID int64, c *DeclarationChild, rules declarationRules, signers []*DeclarationSigner, latest map[int64]*DeclarationSubmission, now time.Time, ended bool) *AnnouncementFeedDeclarationChild {
 	child := &AnnouncementFeedDeclarationChild{
 		StudentID: c.StudentID, FirstName: c.FirstName, LastName: c.LastName,
 		OtherSigners: []DeclarationSignerState{},
@@ -142,8 +176,43 @@ func buildFeedDeclarationChild(policy DeclarationPolicy, accountID int64, c *Dec
 		child.OtherSigners = append(child.OtherSigners, state)
 	}
 	child.State = policy.ChildState(rules.Signers, rules.Deadline, eligible, actions, now)
-	child.AllowedActions = policy.AllowedActions(rules.Revocable, rules.Deadline, child.CanSubmit, actions[accountID], now)
+	myLatest := actions[accountID]
+	if mine, ok := latest[accountID]; ok && !child.CanSubmit {
+		// A guardian who may no longer declare still sees their own answer
+		// and keeps its revocation; it no longer counts for the child state.
+		action, at := mine.Action, mine.SubmittedAt
+		child.MyAction, child.MySubmittedAt, myLatest = &action, &at, action
+	}
+	if child.CanSubmit || child.MyAction != nil {
+		child.AllowedActions = declarationActionsFor(policy, rules, child.CanSubmit && !ended, myLatest, now)
+	} else {
+		child.AllowedActions = []string{}
+	}
 	return child
+}
+
+// declarationActionsFor is what a guardian may do next for a child: the one
+// rule the feed offers and the write path enforces. A guardian who may declare
+// gets the policy's actions. One who may not (the declaration ended, or the
+// relationship lost parent_portal.declarations.submit) keeps only the
+// revocation of an own consent: withdrawing must stay as easy as giving it
+// (Art. 7 Abs. 3 DSGVO, #6290).
+func declarationActionsFor(policy DeclarationPolicy, rules declarationRules, mayDeclare bool, myLatest string, now time.Time) []string {
+	actions := policy.AllowedActions(rules.Revocable, rules.Deadline, true, myLatest, now)
+	if mayDeclare {
+		return actions
+	}
+	return onlyRevocation(actions)
+}
+
+// onlyRevocation keeps the revocation from a list of next actions.
+func onlyRevocation(actions []string) []string {
+	for _, action := range actions {
+		if action == DeclarationActionRevoked {
+			return []string{DeclarationActionRevoked}
+		}
+	}
+	return []string{}
 }
 
 // DeclarationProof is what the guardian's proof document shows: the versions

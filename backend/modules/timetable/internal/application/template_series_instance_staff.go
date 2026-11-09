@@ -21,6 +21,7 @@ type instanceStaffReconciliation struct {
 	byStaff      map[int64][]*activityContract.SupervisorPlanned
 	priorByStaff map[int64][]*activityContract.SupervisorPlanned
 	existing     map[instanceStudentPair]*scheduleModel.InstanceStaff
+	sickDays     map[staffDay]int64
 	created      int
 	removed      int
 	repointed    int
@@ -52,6 +53,9 @@ func (s *TemplateService) reconcilePredecessorInstanceStaff(
 	}
 	pass, err := s.loadInstanceStaffReconciliation(ctx, templateID, instanceIDs, priorSupervisors)
 	if err != nil {
+		return err
+	}
+	if pass.sickDays, err = sickDaysIn(ctx, s.deps.SickReports, occurrenceDays(instances)...); err != nil {
 		return err
 	}
 	for _, inst := range instances {
@@ -131,7 +135,7 @@ func (s *TemplateService) reconcileOccurrenceStaff(
 			// The pre-edit rows already planned this occurrence and the row is
 			// gone regardless — a hand removal that stays.
 			if !supervisorsPlanStaffOn(pass.priorByStaff[staffID], instanceDate, periodID, planWeekday) {
-				err = s.addOccurrenceStaff(ctx, key, wantPrimary, pass)
+				err = s.addOccurrenceStaff(ctx, key, instanceDate, wantPrimary, pass)
 			}
 		case desired && exists && instanceStaffRowIsStillPlanned(row):
 			err = s.repointOccurrencePrimary(ctx, row, wantPrimary, pass)
@@ -145,13 +149,15 @@ func (s *TemplateService) reconcileOccurrenceStaff(
 	return nil
 }
 
-func (s *TemplateService) addOccurrenceStaff(ctx context.Context, key instanceStudentPair, isPrimary bool, pass *instanceStaffReconciliation) error {
+func (s *TemplateService) addOccurrenceStaff(ctx context.Context, key instanceStudentPair, date calendar.Date, isPrimary bool, pass *instanceStaffReconciliation) error {
 	fresh := &scheduleModel.InstanceStaff{
 		InstanceID: key.instanceID,
 		StaffID:    key.studentID,
 		IsPrimary:  isPrimary,
 	}
-	if err := createLegacyInstanceStaff(ctx, s.deps.InstanceStaffRepo, fresh); err != nil {
+	// A person the series change plans on a full sick day is planned
+	// absent, as the materializer plans them (#6292).
+	if err := writeStaffAssignment(ctx, s.deps.InstanceStaffRepo, fresh, date, pass.sickDays, false); err != nil {
 		return &ports.ScheduleError{Op: "reconcile predecessor staff: add staff", Err: err}
 	}
 	pass.existing[key] = fresh
@@ -324,4 +330,13 @@ func sortedInt64Keys(set map[int64]bool) []int64 {
 	}
 	slices.Sort(out)
 	return out
+}
+
+// occurrenceDays lists the occurrence dates.
+func occurrenceDays(instances []*scheduleModel.ActivityInstance) []calendar.Date {
+	days := make([]calendar.Date, 0, len(instances))
+	for _, inst := range instances {
+		days = append(days, calendar.Date(inst.Date))
+	}
+	return days
 }

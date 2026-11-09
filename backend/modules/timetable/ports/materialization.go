@@ -14,6 +14,14 @@ type CareBoundReader interface {
 	FindCareBoundsByIDs(ctx context.Context, ids []int64) (map[int64]calendar.Date, error)
 }
 
+// SickReportReader lists the sick reports in force that overlap [from, to]
+// (#6292). Reports that never take a plan effect (half-day reports, declined
+// or cancelled entries) are left out. Workforce owns them; the composition
+// root binds this port.
+type SickReportReader interface {
+	OpenSickReports(ctx context.Context, from, to calendar.Date) ([]timetable.SickReport, error)
+}
+
 // MaterializationDependencies wires the materializer. The repositories are
 // required. DB and RecurrenceLock go together: production wiring provides
 // both so direct calls get an RLS-aware transaction and the recurrence gate;
@@ -21,7 +29,8 @@ type CareBoundReader interface {
 // the per-date care filter (#2487); nil means no child has an end of care.
 // NonWorkingDays answers holidays and closing days (#3594); nil skips none.
 // Staffing announces created instances to the staffing caches (#1844); nil
-// announces nothing.
+// announces nothing. SickReports marks a newly planned supervisor absent on
+// the full days of an open sick report (#6292); nil applies none.
 type MaterializationDependencies struct {
 	GroupRepo      timetable.ActivityGroupQuery
 	ScheduleRepo   timetable.ScheduleQuery
@@ -37,6 +46,7 @@ type MaterializationDependencies struct {
 	ExceptionRepo  timetable.ActivityExceptionQuery
 	TimeframeRepo  timetable.TimeframeQuery
 	CareBounds     CareBoundReader
+	SickReports    SickReportReader
 	NonWorkingDays timetable.NonWorkingDayCalendar
 	RecurrenceLock timetable.RecurrenceWriteLock
 	Staffing       StaffingAnnouncer

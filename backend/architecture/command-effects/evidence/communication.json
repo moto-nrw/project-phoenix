@@ -1874,7 +1874,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.communicationAnnouncementAudience.HistoricalDeclarationFeed",
-      "binding_digest": "8bb456dbc77e7d6bcc0a524ffa1a553e",
+      "binding_digest": "d11e91c9a91773624287b97fc958544b",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.AnnouncementAudienceReads.HistoricalDeclarationFeed",
       "source_owner": "communication",
       "target": "*github.com/moto-nrw/project-phoenix/modules/parentannouncementaudience/internal/adapters/postgres.Projection.HistoricalDeclarationFeed",
@@ -1914,7 +1914,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.communicationAnnouncementAudience.ListFeedForAccount",
-      "binding_digest": "1dbe6f81112e21fdeb3d4ccf467e0be9",
+      "binding_digest": "6b2d32445a84b8ebf7db2b2101a27587",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.AnnouncementAudienceReads.ListFeedForAccount",
       "source_owner": "communication",
       "target": "*github.com/moto-nrw/project-phoenix/modules/parentannouncementaudience/internal/adapters/postgres.Projection.ListFeedForAccount",
