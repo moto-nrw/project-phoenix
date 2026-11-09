@@ -532,8 +532,10 @@ Commit und Arbeit nach dem Commit (Dateilöschung, Broadcasts) bleiben an
 ihrer Stelle.
 
 Fehler des Rahmens: Start- und Rollenwechselfehler antworten 500 ohne Retry
-und ohne zweiten Weg (E9/E15). Ein gescheitertes COMMIT bleibt wie bisher
-ein Fehler mit unbekanntem Ausgang (500). Ein gescheitertes normales
+und ohne zweiten Weg (E9/E15). Ein COMMIT, das mit Deadlock (40P01) oder
+Serialisierungsfehler (40001) scheitert, antwortet wie bisher 500 und hat
+nichts gespeichert; die Schreibrouten wiederholen nicht. Jedes andere
+gescheiterte COMMIT bleibt ein Fehler mit unbekanntem Ausgang (500). Ein gescheitertes normales
 ROLLBACK ändert den Status nicht: Der Adapter hängt es an den auslösenden
 Fehler, und die Route antwortet nach diesem Fehler wie bisher. Die Regel für
 gescheiterte Savepoint-Rollbacks (E19, immer 500) bleibt davon getrennt;

@@ -21,10 +21,12 @@ type Child = care.Child
 // ChildResolver is the port to the guardian-child resolution, which checks the
 // relationship's parent-portal permission. WithPermittedChild is the same
 // check followed by a read of the child's school in one transaction (ADR
-// 0161), for read routes only.
+// 0161), for read routes only; WithPermittedChildForWrite is its write
+// counterpart.
 type ChildResolver interface {
 	ResolvePermittedChild(ctx context.Context, accountID, studentID int64, permission string) (*Child, error)
 	WithPermittedChild(ctx context.Context, accountID, studentID int64, permission string, between func(*Child) error, read func(context.Context, *Child) error) error
+	WithPermittedChildForWrite(ctx context.Context, accountID, studentID int64, permission string, between func(*Child) error, write func(context.Context, *Child) error) error
 }
 
 // ConversationCore is the consumer-owned port for Communication's shared
