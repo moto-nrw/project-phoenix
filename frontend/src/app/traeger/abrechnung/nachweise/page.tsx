@@ -7,7 +7,10 @@
 
 import { FileCheck2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { billingTabs } from "~/components/traeger/billing-family-format";
+import {
+  billingAreaTitle,
+  billingTabs,
+} from "~/components/traeger/billing-family-format";
 import {
   CareEvidenceModal,
   EVIDENCE_KIND_LABELS,
@@ -105,7 +108,7 @@ export default function TraegerNachweisePage() {
         error: err instanceof Error ? err.message : String(err),
       });
       await showLoadError(err, {
-        object: "die Nachweise",
+        object: "die Liste der Nachweise",
         retry: () => void load(),
       });
     }
@@ -127,7 +130,7 @@ export default function TraegerNachweisePage() {
       logger.error("care_evidence_delete_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      void deleteErrors.show(err, { object: "den Nachweis" });
+      void deleteErrors.show(err, { object: "die Angabe zum Nachweis" });
     } finally {
       setBusy(false);
     }
@@ -247,7 +250,7 @@ export default function TraegerNachweisePage() {
 
   return (
     <TenantPage
-      title="Abrechnung"
+      title={billingAreaTitle("nachweise")}
       info="Hier tragen Sie ein, welche Einkommensstufe ein Kind hat und ob die Ermäßigung für Alleinerziehende gilt. moto speichert nur die Art des Nachweises und das Prüfdatum, kein Dokument und kein Einkommen. Jedes Öffnen dieser Seite steht im Zugriffsprotokoll."
       stats={
         data && data.contracts.length > 0 ? (

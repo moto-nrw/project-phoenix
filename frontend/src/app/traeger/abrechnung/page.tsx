@@ -12,7 +12,10 @@ import { Plus, Receipt } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { BillingRunStartModal } from "~/components/traeger/billing-run-start-modal";
-import { billingTabs } from "~/components/traeger/billing-family-format";
+import {
+  billingAreaTitle,
+  billingTabs,
+} from "~/components/traeger/billing-family-format";
 import {
   BILLING_RUN_STATUS_LABELS,
   BILLING_RUN_STATUS_TONES,
@@ -43,6 +46,9 @@ import { traegerPath } from "~/lib/traeger-url";
 
 const logger = createLogger({ component: "TraegerAbrechnungPage" });
 
+// On a phone a run is one line: its holiday period, the status beside it,
+// and below the care days with what the run issued. Only the first "meta"
+// column shows there, so the status is the one meta value.
 const COLUMNS: DataTableColumn<BillingRun>[] = [
   {
     key: "period",
@@ -56,7 +62,16 @@ const COLUMNS: DataTableColumn<BillingRun>[] = [
     key: "days",
     header: "Betreuung",
     render: (run) => formatDateRange(run.serviceFrom, run.serviceUntil),
-    stacked: "meta",
+    stackedRender: (run) =>
+      [
+        formatDateRange(run.serviceFrom, run.serviceUntil),
+        run.documentCount === null
+          ? null
+          : `${run.documentCount} ${run.documentCount === 1 ? "Rechnung" : "Rechnungen"} · ${formatEuro(run.totalCents ?? 0)}`,
+        run.issuedOn ? `ausgestellt am ${formatDate(run.issuedOn)}` : null,
+      ]
+        .filter(Boolean)
+        .join(" · "),
   },
   {
     key: "status",
@@ -76,13 +91,13 @@ const COLUMNS: DataTableColumn<BillingRun>[] = [
       run.documentCount === null
         ? "–"
         : `${run.documentCount} · ${formatEuro(run.totalCents ?? 0)}`,
-    stacked: "meta",
+    stacked: "hidden",
   },
   {
     key: "issued",
     header: "Ausgestellt am",
     render: (run) => (run.issuedOn ? formatDate(run.issuedOn) : "–"),
-    stacked: "meta",
+    stacked: "hidden",
   },
 ];
 
@@ -127,7 +142,9 @@ function filteredEmptyText(
 export default function TraegerAbrechnungPage() {
   // `useSearchParams` braucht eine Suspense-Grenze; bis dahin lädt die Seite.
   return (
-    <Suspense fallback={<TenantPage title="Abrechnung" loading />}>
+    <Suspense
+      fallback={<TenantPage title={billingAreaTitle("laeufe")} loading />}
+    >
       <BillingRunsPage />
     </Suspense>
   );
@@ -219,7 +236,7 @@ function BillingRunsPage() {
 
   return (
     <TenantPage
-      title="Abrechnung"
+      title={billingAreaTitle("laeufe")}
       info="Hier rechnen Sie die Ferienbetreuung im Voraus ab, nach den bestätigten Buchungen. Ein Lauf erstellt die Rechnungen für einen Ferienzeitraum. Sie prüfen die Vorschau und geben den Lauf dann frei."
       stats={
         shownRuns.length > 0 ? (
@@ -287,6 +304,7 @@ function BillingRunsPage() {
             getRowKey={(run) => run.id}
             stackedOnMobile
             stackedLayout="row"
+            stackedDetailKey="days"
             onRowClick={openRun}
             emptyState={
               <EmptyState

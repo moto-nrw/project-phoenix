@@ -12,7 +12,7 @@ export function traegerCareMonthsTopic(): HelpTopic {
     audience: "traeger",
     icon: "CalendarCheck",
     requirements: [
-      "Ihre Rolle im Träger-Büro ist Abrechnung. Nur diese Rolle sieht in der Navigation `Abrechnung`.",
+      "Ihre Rolle im Träger-Büro ist Abrechnung. Nur diese Rolle sieht in der Navigation die Bereiche unter `Finanzen`.",
       "Die Kinder haben einen gültigen Betreuungsvertrag. Module und gebuchte Wochentage kommen aus dem Vertrag.",
     ],
     steps: [],
@@ -22,7 +22,7 @@ export function traegerCareMonthsTopic(): HelpTopic {
         description:
           "Jede Schule hat eigene Preise. Jedes Modul hat eine Preisform. `Je Wochentag`: Jeder gebuchte Tag hat einen Monatspreis, der Beitrag ist die Summe. `Nach Tagen je Woche`: Der Beitrag hängt nur von der Zahl der gebuchten Tage ab, zum Beispiel 3 Tage = 60,00 €.",
         steps: [
-          "Wählen Sie `Abrechnung` und dann den Reiter `Preisliste`.",
+          "Wählen Sie `Preise und Ermäßigungen`. Der Reiter `Preisliste` ist schon offen.",
           "Wählen Sie bei der Schule `Neue Preise`.",
           "Wählen Sie bei `Gültig ab` den Monat, ab dem die Preise gelten.",
           "Wählen Sie bei `Beitragsfreie Monate` die Monate ohne Beitrag, zum Beispiel `Aug`. Dann stellt der Monatslauf für diese Schule im August keine Rechnung aus.",
@@ -48,7 +48,7 @@ export function traegerCareMonthsTopic(): HelpTopic {
       {
         title: "Monatslauf starten und prüfen",
         steps: [
-          "Wählen Sie `Abrechnung` und dann den Reiter `Monatsbeiträge`.",
+          "Wählen Sie `Abrechnungsläufe` und dann den Reiter `Monatsbeiträge`.",
           "Wählen Sie `Monatslauf starten` und dann den Monat.",
           "Wählen Sie bei `Schulen` die Schulen. Alle sind schon gewählt. Eine Schule, die schon in einem offenen Lauf dieses Monats ist, lässt sich nicht wählen.",
           "Wählen Sie bei `Rechnungsdatum` das Datum, das auf jeder Rechnung steht, zum Beispiel den 30.10. für Oktober. Lassen Sie das Feld leer, gilt der Tag der Freigabe.",

@@ -23,7 +23,7 @@ export function traegerCareReductionsTopic(): HelpTopic {
         description:
           "Es gibt vier Arten: Einkommensstufen, Geschwister, Alleinerziehende und Höchstbetrag. Der Monatslauf rechnet sie in dieser Reihenfolge.",
         steps: [
-          "Wählen Sie `Abrechnung` und dann den Reiter `Ermäßigungen`.",
+          "Wählen Sie `Preise und Ermäßigungen` und dann den Reiter `Ermäßigungen`.",
           "Wählen Sie bei der Art den Knopf `Regel anlegen`, `Stufe anlegen` oder `Höchstbetrag anlegen`.",
           "Geben Sie einen Namen ein. Er steht so auf der Rechnung.",
           "Wählen Sie die Monate und die Schulen, für die die Regel gilt.",
@@ -50,7 +50,7 @@ export function traegerCareReductionsTopic(): HelpTopic {
         description:
           "Eltern geben im Vertrag an, wie viele Kinder ihre Familie hat. Sie bestätigen die Zahl. Erst dann zählt sie.",
         steps: [
-          "Wählen Sie `Abrechnung` und dann den Reiter `Kinderzahl`.",
+          "Wählen Sie `Familien und Zahlung` und dann den Reiter `Kinderzahl`.",
           "Unter `Zu prüfen` stehen neue Angaben der Eltern und Zahlen, die bald ablaufen.",
           "Wählen Sie bei der Familie `Prüfen`. Im Menü einer Familie heißt es `Kinderzahl bestätigen` oder `Kinderzahl ändern`.",
           "Prüfen Sie die Zahl. Ändern Sie sie, wenn nötig.",
@@ -63,7 +63,7 @@ export function traegerCareReductionsTopic(): HelpTopic {
         description:
           "Einkommensstufe und Ermäßigung für Alleinerziehende brauchen einen Nachweis je Kind.",
         steps: [
-          "Wählen Sie `Abrechnung` und dann den Reiter `Nachweise`.",
+          "Wählen Sie `Familien und Zahlung` und dann den Reiter `Nachweise`.",
           "Wählen Sie beim Kind das Menü und dann `Einkommensstufe eintragen` oder `Alleinerziehend eintragen`.",
           "Wählen Sie die Stufe. Nennen Sie den geprüften Nachweis, zum Beispiel Einkommensteuerbescheid 2025.",
           "Tragen Sie ein, wann Sie ihn geprüft haben und ab wann er gilt.",

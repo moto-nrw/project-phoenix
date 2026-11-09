@@ -39,7 +39,7 @@ export function traegerSettingsTopic(): HelpTopic {
       "Unter `Ferienbetreuung` legen Sie bei `Ferienbeitrag` auch fest, welches Kind das erste Kind ist und was ein Kostenträger bezahlt. Mehr dazu steht im Artikel `Ferienbeitrag festlegen`.",
     ],
     differences: [
-      "Auf dem Handy steht `Einstellungen` in der Leiste unten. Der Pfeil führt zurück zur App.",
+      "Auf dem Handy steht `Einstellungen` in der Leiste unten, meist unter `Mehr`. Dort führt `Zurück zur App` wieder zurück.",
       "Sie können die Werte nur ansehen? Ihnen fehlt das Recht zum Ändern. Wenden Sie sich an das moto-Team.",
     ],
     related: [HELP_TOPICS.traegerLogin, HELP_TOPICS.errorMessages],

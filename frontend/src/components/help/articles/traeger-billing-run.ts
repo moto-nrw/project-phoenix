@@ -12,7 +12,7 @@ export function traegerBillingRunTopic(): HelpTopic {
     audience: "traeger",
     icon: "FileText",
     requirements: [
-      "Ihre Rolle im Träger-Büro ist Abrechnung. Nur diese Rolle sieht in der Navigation `Abrechnung`.",
+      "Ihre Rolle im Träger-Büro ist Abrechnung. Nur diese Rolle sieht in der Navigation die Bereiche unter `Finanzen`.",
       "Der Ferienzeitraum ist veröffentlicht, und die Anmeldungen sind bestätigt.",
     ],
     steps: [],
@@ -31,6 +31,7 @@ export function traegerBillingRunTopic(): HelpTopic {
       {
         title: "Lauf starten und prüfen",
         steps: [
+          "Wählen Sie in der Navigation `Abrechnungsläufe`. Der Reiter `Ferien` ist schon offen.",
           "Wählen Sie `Lauf starten`.",
           "Wählen Sie den Ferienzeitraum und dann `Lauf starten`.",
           "Prüfen Sie die Vorschau unter `Rechnungen`. Je Familie steht dort eine Rechnung.",
@@ -159,10 +160,9 @@ export function traegerBillingRunTopic(): HelpTopic {
         description:
           "Hier sehen Sie alle Rechnungen, Stornos und Gutschriften einer Familie über alle Läufe. Eine Familie sind alle Schreiben an dieselbe E-Mail-Adresse.",
         steps: [
-          "Wählen Sie in der Navigation `Abrechnung`.",
-          "Wählen Sie oben den Reiter `Familien`.",
-          "Die Kacheln zeigen die Summen `Ausgestellt`, `Storniert`, `Gutgeschrieben` und `Offen`. Sie rechnen mit den Familien, die die Liste gerade zeigt.",
-          "Suchen Sie die Familie nach Name, E-Mail oder Debitorennummer. Mit dem Filter `Mit offenem Betrag` sehen Sie nur Familien, die noch etwas zahlen sollen.",
+          "Wählen Sie in der Navigation `Familien und Zahlung`. Der Reiter `Familien` ist schon offen.",
+          "Die Kacheln zeigen die Summen `Ausgestellt`, `Storniert`, `Gutgeschrieben` und `Berechnet`. Sie rechnen mit den Familien, die die Liste gerade zeigt.",
+          "Suchen Sie die Familie nach Name, E-Mail oder Debitorennummer. Mit dem Filter `Mit berechnetem Betrag` sehen Sie nur Familien, deren Rechnungen nach Storno und Gutschrift noch einen Betrag verlangen. Ob gezahlt wurde, sieht moto nicht.",
           "Wählen Sie die Familie. Sie sehen ihre Summen, wer zahlt, den Zahlungsweg und jedes Dokument mit Ferienzeitraum, Kindern, Betrag und Stand.",
           "Wählen Sie ein Dokument, um seinen Abrechnungslauf zu öffnen. Dort stornieren Sie oder schreiben gut.",
         ],
@@ -188,7 +188,7 @@ export function traegerBillingRunTopic(): HelpTopic {
       "Bei `Wer zahlt` steht `Familie zahlt selbst`, `Kostenübernahme` mit dem Namen des Kostenträgers oder `Beitragsfrei`. Eine stornierte Rechnung zählt dabei nicht mit.",
     ],
     differences: [
-      "Sie sehen in der Navigation kein `Abrechnung`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
+      "Sie sehen in der Navigation kein `Abrechnungsläufe`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
       "Im Ferienzeitraum fehlt `Zur Abrechnung`? Der Zeitraum ist noch ein Entwurf, oder Ihre Rolle ist nicht Abrechnung.",
       "Im Lauf fehlt `Zum Ferienzeitraum`? Ihre Rolle darf die Ferienbetreuung nicht öffnen.",
       "`Lauf freigeben` lässt sich nicht wählen? Es fehlt das Muster der Rechnungsnummern, oder der Lauf hat keine Rechnung.",

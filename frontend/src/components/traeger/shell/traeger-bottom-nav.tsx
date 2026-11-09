@@ -34,6 +34,23 @@ const HELP_ITEM: BottomNavItem = {
 };
 
 /**
+ * Auf dem Telefon stehen die Bereiche der täglichen Arbeit in der Leiste:
+ * Dashboard, Verträge, Ferienbetreuung und Abrechnungsläufe. Alle anderen
+ * folgen in der Reihenfolge der Seitenleiste unter „Mehr“.
+ */
+const MOBILE_FIRST = ["dashboard", "vertraege", "ferien", "abrechnung"];
+
+function mobileOrder<T extends { readonly key: string }>(
+  items: readonly T[],
+): T[] {
+  const rank = (key: string) => {
+    const index = MOBILE_FIRST.indexOf(key);
+    return index === -1 ? MOBILE_FIRST.length : index;
+  };
+  return [...items].sort((a, b) => rank(a.key) - rank(b.key));
+}
+
+/**
  * Die mobile Hauptnavigation des Träger-Portals (#5145): die geteilte
  * `PortalBottomNav` des Schul-Portals mit den Zielen, die die Rechte der
  * Person öffnen. Sie folgt der Seitenleiste (#5685): erst die Hauptnavigation
@@ -53,7 +70,9 @@ export function TraegerBottomNav() {
         ...settingsItems,
       ]
     : [
-        ...traegerNavGroupsFor(session ?? null).flatMap((group) => group.items),
+        ...mobileOrder(
+          traegerNavGroupsFor(session ?? null).flatMap((group) => group.items),
+        ),
         HELP_ITEM,
         ...(settingsEntry
           ? [{ ...TRAEGER_SETTINGS_NAV, href: settingsEntry.href }]

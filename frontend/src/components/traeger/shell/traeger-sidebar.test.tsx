@@ -75,7 +75,9 @@ describe("TraegerSidebar", () => {
       ["Übersicht", "Schulen"],
       ["Übersicht", "Stichtagszahlen"],
       ["Betreuung", "Ferienbetreuung"],
-      ["Finanzen", "Abrechnung"],
+      ["Finanzen", "Abrechnungsläufe"],
+      ["Finanzen", "Familien und Zahlung"],
+      ["Finanzen", "Preise und Ermäßigungen"],
     ] as const) {
       expect(
         within(mainNav().getByRole("list", { name: group })).getByRole("link", {
@@ -90,7 +92,9 @@ describe("TraegerSidebar", () => {
       "Belegung",
       "Ferienbetreuung",
       "Dokumente",
-      "Abrechnung",
+      "Abrechnungsläufe",
+      "Familien und Zahlung",
+      "Preise und Ermäßigungen",
     ]);
     expect(
       mainNav().getByRole("link", { name: "Stichtagszahlen" }),

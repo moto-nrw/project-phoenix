@@ -24,7 +24,7 @@ export function traegerCareMealsTopic(): HelpTopic {
       {
         title: "Preis festlegen",
         steps: [
-          "Wählen Sie `Abrechnung` und dann den Reiter `Mensa`.",
+          "Wählen Sie `Preise und Ermäßigungen` und dann den Reiter `Mensa`.",
           "Wählen Sie bei der Schule `Preis festlegen`.",
           "Wählen Sie bei `Gültig ab` den ersten Monat.",
           "Wählen Sie die Abrechnungsart: `Je Essen` oder `Pauschale`.",
@@ -37,7 +37,7 @@ export function traegerCareMealsTopic(): HelpTopic {
         description:
           "Die Mensa steht im Monatslauf als eigene Zeile je Monat auf der Rechnung des Kindes, zum Beispiel „2 Mittagessen im Januar 2026“.",
         steps: [
-          "Wählen Sie `Abrechnung` und dann den Reiter `Monatsbeiträge`.",
+          "Wählen Sie `Abrechnungsläufe` und dann den Reiter `Monatsbeiträge`.",
           "Starten oder öffnen Sie den Lauf eines Monats.",
           "Die Karte `Mensa` nennt Monate, die eine Schule noch nicht freigegeben hat, und Kinder ohne Vertrag.",
           "`Nicht mehr abrechenbar` heißt: Die Anwesenheiten des Monats sind nach der Aufbewahrungsfrist der Schule gelöscht. Diesen Monat rechnet kein Lauf mehr ab.",

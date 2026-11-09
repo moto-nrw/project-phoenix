@@ -45,8 +45,9 @@ describe("TraegerBottomNav", () => {
     sessionUser.permissions = [];
   });
 
-  it("follows the sidebar: main navigation, then Hilfe and Einstellungen (#5685)", () => {
-    // Ohne Dashboard (#4674) passen alle Ziele in die Leiste.
+  it("puts the daily work first, then the sidebar order behind Mehr (#5685)", async () => {
+    // Ohne Dashboard (#4674): Ferienbetreuung und Abrechnungsläufe vorn,
+    // danach die Seitenleiste; ab sechs Zielen der Rest hinter „Mehr".
     sessionUser.permissions = [
       "traeger_enrollment:manage",
       "traeger_billing:manage",
@@ -59,17 +60,24 @@ describe("TraegerBottomNav", () => {
         .getAllByRole("link")
         .map((link) => link.getAttribute("aria-label")),
     ).toEqual([
-      "Schulen",
       "Ferienbetreuung",
-      "Abrechnung",
-      "Hilfe",
-      "Einstellungen",
+      "Abrechnungsläufe",
+      "Schulen",
+      "Familien und Zahlung",
     ]);
     expect(bar().getByRole("link", { name: "Schulen" })).toHaveAttribute(
       "aria-current",
       "page",
     );
-    expect(bar().queryByRole("button", { name: "Mehr" })).toBeNull();
+    fireEvent.click(bar().getByRole("button", { name: "Mehr" }));
+    const drawer = within(await screen.findByRole("dialog"));
+    expect(
+      drawer.getByRole("link", { name: "Preise und Ermäßigungen" }),
+    ).toHaveAttribute("href", "/abrechnung/preise");
+    expect(drawer.getByRole("link", { name: "Hilfe" })).toBeInTheDocument();
+    expect(
+      drawer.getByRole("link", { name: "Einstellungen" }),
+    ).toBeInTheDocument();
   });
 
   it("puts Hilfe and Einstellungen behind Mehr once the Dashboard fills the bar (#4674, #5685)", async () => {
@@ -80,18 +88,20 @@ describe("TraegerBottomNav", () => {
       bar()
         .getAllByRole("link")
         .map((link) => link.getAttribute("aria-label")),
-    ).toEqual(["Dashboard", "Schulen", "Stichtagszahlen", "Belegung"]);
+    ).toEqual(["Dashboard", "Ferienbetreuung", "Abrechnungsläufe", "Schulen"]);
     expect(bar().getByRole("link", { name: "Dashboard" })).toHaveAttribute(
       "href",
       "/uebersicht",
     );
+    expect(
+      bar().getByRole("link", { name: "Abrechnungsläufe" }),
+    ).toHaveAttribute("href", "/abrechnung");
 
     fireEvent.click(bar().getByRole("button", { name: "Mehr" }));
     const drawer = within(await screen.findByRole("dialog"));
-    expect(drawer.getByRole("link", { name: "Abrechnung" })).toHaveAttribute(
-      "href",
-      "/abrechnung",
-    );
+    expect(
+      drawer.getByRole("link", { name: "Familien und Zahlung" }),
+    ).toHaveAttribute("href", "/abrechnung/familien");
     expect(drawer.getByRole("link", { name: "Hilfe" })).toHaveAttribute(
       "href",
       "/help?role=traeger",

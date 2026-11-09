@@ -8,7 +8,10 @@
 
 import { useSession } from "next-auth/react";
 import { useMemo, useState } from "react";
-import { billingTabs } from "~/components/traeger/billing-family-format";
+import {
+  billingAreaTitle,
+  billingTabs,
+} from "~/components/traeger/billing-family-format";
 import {
   SepaMandatesCard,
   useSepaMandates,
@@ -72,7 +75,7 @@ export default function TraegerLastschriftPage() {
 
   return (
     <TenantPage
-      title="Lastschrift"
+      title={billingAreaTitle("lastschrift")}
       info={INFO}
       tabs={billingTabs("lastschrift")}
       error={error}

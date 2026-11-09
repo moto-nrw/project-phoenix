@@ -34,6 +34,10 @@ export function TraegerShell({
       topLayer={testSystem ? <TraegerTestSystemNotice /> : null}
       sidebar={<TraegerSidebar />}
       bottomNav={<TraegerBottomNav />}
+      // Eine Flex-Spalte bis zur Inhaltshülle, wie im Personal- und
+      // Schul-Portal: die letzte Fläche einer Seite reicht dann bis zur
+      // Unterkante (TENANT-PAGE-SPEC, Regel 6).
+      contentClassName="flex flex-1 flex-col"
     >
       <Suspense fallback={null}>
         <TraegerReturnPathMemory />

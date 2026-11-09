@@ -81,7 +81,7 @@ export default function TraegerVorlagenPage() {
         error: err instanceof Error ? err.message : String(err),
       });
       await showLoadError(err, {
-        object: "die Vorlagen",
+        object: "die Liste der Vorlagen",
         retry: () => void load(),
       });
     }
@@ -96,6 +96,9 @@ export default function TraegerVorlagenPage() {
   return (
     <TenantPage
       title="Vorlagen"
+      back
+      backHref={traegerPath("/traeger/einstellungen/briefkopf")}
+      backLabel="Zurück zu Briefkopf und Vorlagen"
       info="Hier legen Sie fest, was in den Briefen Ihres Trägers steht. Platzhalter wie {{familienname}} füllt moto für jede Familie aus. Logo, Absender und Fußzeile kommen aus dem Briefkopf."
       stats={
         templates ? (

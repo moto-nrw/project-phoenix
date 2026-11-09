@@ -21,6 +21,7 @@ import { dashboardConcept } from "~/lib/concepts/dashboard";
 import { documentsConcept } from "~/lib/concepts/documents";
 import { helpConcept } from "~/lib/concepts/help";
 import { holidayWeeksConcept } from "~/lib/concepts/holidayWeeks";
+import { parentsConcept } from "~/lib/concepts/parents";
 import { peopleConcept } from "~/lib/concepts/people";
 import { reportsConcept } from "~/lib/concepts/reports";
 import { schoolsConcept } from "~/lib/concepts/schools";
@@ -141,14 +142,31 @@ const TRAEGER_NAV_GROUPS: readonly TraegerNavGroup[] = [
     ],
   },
   {
+    // Drei Bereiche statt einer Seite mit zehn Reitern: die Läufe, die
+    // Familien mit dem, was sie zahlen, und die Preise mit ihren
+    // Ermäßigungen. Die Adressen bleiben; jeder Bereich zeigt nur seine Reiter.
     key: "finanzen",
     label: "Finanzen",
     items: [
       {
         key: "abrechnung",
         href: "/traeger/abrechnung",
-        label: "Abrechnung",
+        label: "Abrechnungsläufe",
         concept: billingConcept,
+        right: BILLING_RIGHT,
+      },
+      {
+        key: "familien",
+        href: "/traeger/abrechnung/familien",
+        label: "Familien und Zahlung",
+        concept: parentsConcept,
+        right: BILLING_RIGHT,
+      },
+      {
+        key: "preise",
+        href: "/traeger/abrechnung/preise",
+        label: "Preise und Ermäßigungen",
+        concept: contributionsConcept,
         right: BILLING_RIGHT,
       },
     ],

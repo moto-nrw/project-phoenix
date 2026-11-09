@@ -64,7 +64,7 @@ export function traegerBriefkopfTopic(): HelpTopic {
       "Jedes Ansehen und jede Änderung von Ansprechpartner und Bankverbindungen steht im Protokoll des Trägers.",
     ],
     differences: [
-      "Auf dem Handy öffnen Sie zuerst `Einstellungen` in der Leiste unten. `Abrechnungsvorgaben` steht dann unter `Mehr`.",
+      "Auf dem Handy öffnen Sie in der Leiste unten `Mehr` und dann `Einstellungen`. `Abrechnungsvorgaben` steht dort wieder unter `Mehr`.",
       "Sie können die Angaben nur ansehen? Ihnen fehlt das Recht `Einstellungen`. Wenden Sie sich an eine Person mit der Rolle `Verwaltung`.",
     ],
     troubleshootingDetails: [

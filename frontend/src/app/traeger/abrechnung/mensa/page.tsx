@@ -7,7 +7,10 @@
 
 import { ForkKnifeIcon } from "@phosphor-icons/react";
 import { useCallback, useEffect, useState } from "react";
-import { billingTabs } from "~/components/traeger/billing-family-format";
+import {
+  billingAreaTitle,
+  billingTabs,
+} from "~/components/traeger/billing-family-format";
 import { formatMonth, monthOf } from "~/components/traeger/care-billing-format";
 import { CareMealPriceModal } from "~/components/traeger/care-meal-price-modal";
 import { CareMealSchoolCard } from "~/components/traeger/care-meal-school-card";
@@ -58,7 +61,7 @@ export default function TraegerMensaPage() {
         error: err instanceof Error ? err.message : String(err),
       });
       await showLoadError(err, {
-        object: "die Mensa-Preise",
+        object: "die Übersicht der Mensa-Preise",
         retry: () => void load(),
       });
     }
@@ -84,7 +87,7 @@ export default function TraegerMensaPage() {
       logger.error("care_meal_tariff_delete_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      void deleteErrors.show(err, { object: "den Mensa-Preis" });
+      void deleteErrors.show(err, { object: "die Preisangabe für die Mensa" });
     } finally {
       setBusy(false);
     }
@@ -99,7 +102,7 @@ export default function TraegerMensaPage() {
 
   return (
     <TenantPage
-      title="Abrechnung"
+      title={billingAreaTitle("mensa")}
       info="Hier legen Sie fest, wie die Mensa jeder Schule abgerechnet wird: je Essen oder als feste Pauschale je Kind und Monat. Gezählt wird nur ein Monat, den die OGS-Leitung freigegeben hat. Der Monatslauf setzt die Mensa auf die Rechnung des Kindes."
       stats={
         data && schools.length > 0 ? (

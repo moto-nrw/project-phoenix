@@ -8,7 +8,10 @@
 // Lesen steht im Zugriffsprotokoll des Vertrags.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { billingTabs } from "~/components/traeger/billing-family-format";
+import {
+  billingAreaTitle,
+  billingTabs,
+} from "~/components/traeger/billing-family-format";
 import {
   checkReason,
   childrenLabel,
@@ -126,7 +129,7 @@ export default function TraegerKinderzahlPage() {
         error: err instanceof Error ? err.message : String(err),
       });
       await showLoadError(err, {
-        object: "die Kinderzahlen",
+        object: "die Übersicht der Kinderzahlen",
         retry: () => void load(),
       });
     }
@@ -261,7 +264,7 @@ export default function TraegerKinderzahlPage() {
 
   return (
     <TenantPage
-      title="Abrechnung"
+      title={billingAreaTitle("kinderzahl")}
       info="Hier steht, wie viele Kinder eine Familie hat, auch Geschwister ohne Betreuungsvertrag. Eltern geben die Zahl im Vertrag an. Sie bestätigen oder ändern sie. Eine Geschwisterregel nutzt die Zahl nur, wenn Sie das unter „Ermäßigungen“ einschalten. moto speichert nur die Zahl, keine Namen der Geschwister. Jedes Öffnen dieser Seite steht im Zugriffsprotokoll."
       stats={
         families.length > 0 ? (

@@ -10,7 +10,10 @@ import { CalendarRange, Plus } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { billingTabs } from "~/components/traeger/billing-family-format";
+import {
+  billingAreaTitle,
+  billingTabs,
+} from "~/components/traeger/billing-family-format";
 import {
   CARE_RUN_STATUS_LABELS,
   CARE_RUN_STATUS_TONES,
@@ -79,6 +82,8 @@ function runColumns(
       stacked: "meta",
     },
     {
+      // On a phone the line under the month: the schools, then what the run
+      // issued and when (only the status is meta there).
       key: "schools",
       header: "Schulen",
       render: (run) => (
@@ -86,7 +91,17 @@ function runColumns(
           {runSchoolsLabel(run.schoolIds, schools)}
         </span>
       ),
-      stacked: "meta",
+      stackedLabel: false,
+      stackedRender: (run) =>
+        [
+          runSchoolsLabel(run.schoolIds, schools),
+          run.documentCount === null
+            ? null
+            : `${invoiceCountLabel(run.documentCount)} · ${formatEuro(run.totalCents ?? 0)}`,
+          run.issuedOn ? `ausgestellt am ${formatDate(run.issuedOn)}` : null,
+        ]
+          .filter(Boolean)
+          .join(" · "),
     },
     {
       key: "invoices",
@@ -100,19 +115,19 @@ function runColumns(
             {formatEuro(run.totalCents ?? 0)}
           </span>
         ),
-      stacked: "meta",
+      stacked: "hidden",
     },
     {
       key: "issued",
       header: "Ausgestellt am",
       render: (run) => (run.issuedOn ? formatDate(run.issuedOn) : "–"),
-      stacked: "meta",
+      stacked: "hidden",
     },
     {
       key: "rule",
       header: "Monatswechsel",
       render: (run) => (run.monthRule ? MONTH_RULE_LABELS[run.monthRule] : "–"),
-      stacked: "meta",
+      stacked: "hidden",
     },
   ];
 }
@@ -149,7 +164,7 @@ export default function TraegerMonatsbeitraegePage() {
         error: err instanceof Error ? err.message : String(err),
       });
       await showLoadError(err, {
-        object: "die Monatsbeiträge",
+        object: "die Liste der Monatsbeiträge",
         retry: () => void load(),
       });
     }
@@ -172,7 +187,7 @@ export default function TraegerMonatsbeitraegePage() {
 
   return (
     <TenantPage
-      title="Abrechnung"
+      title={billingAreaTitle("monatsbeitraege")}
       info="Hier rechnen Sie die Betreuung Monat für Monat ab. Der Beitrag ist die Summe der gebuchten Wochentage im Vertrag, mit den Preisen aus der Preisliste. Sie wählen Monat und Schulen, prüfen die Vorschau und geben den Lauf dann frei."
       stats={
         runs.length > 0 ? (
@@ -243,6 +258,7 @@ export default function TraegerMonatsbeitraegePage() {
             getRowKey={(run) => run.id}
             stackedOnMobile
             stackedLayout="row"
+            stackedDetailKey="schools"
             onRowClick={openRun}
             emptyState={
               <EmptyState

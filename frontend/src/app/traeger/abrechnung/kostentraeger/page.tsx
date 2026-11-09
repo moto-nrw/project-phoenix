@@ -17,7 +17,10 @@ import {
   CareCostShareModal,
   type CostShareTarget,
 } from "~/components/traeger/care-cost-share-modal";
-import { billingTabs } from "~/components/traeger/billing-family-format";
+import {
+  billingAreaTitle,
+  billingTabs,
+} from "~/components/traeger/billing-family-format";
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -147,7 +150,7 @@ export default function TraegerKostentraegerPage() {
       logger.error("care_cost_share_delete_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      void deleteErrors.show(err, { object: "den Anteil" });
+      void deleteErrors.show(err, { object: "die Kostenübernahme" });
     } finally {
       setBusy(false);
     }
@@ -267,7 +270,7 @@ export default function TraegerKostentraegerPage() {
 
   return (
     <TenantPage
-      title="Abrechnung"
+      title={billingAreaTitle("kostentraeger")}
       info={`Hier tragen Sie ein, welcher Kostenträger einen Teil des Monatsbeitrags eines Kindes bezahlt, zum Beispiel Bildung und Teilhabe oder das Jugendamt. Die Familie bekommt dann nur den Rest in Rechnung. moto speichert nur Art, Anteil, Gültigkeit und das Aktenzeichen, keinen Bescheid. Jedes Öffnen dieser Seite steht im Zugriffsprotokoll. Die Stellen selbst legen Sie unter Einstellungen → Abrechnung an.`}
       stats={
         data && contracts.length > 0 ? (

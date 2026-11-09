@@ -10,9 +10,10 @@ import type {
 import { traegerPath } from "~/lib/traeger-url";
 
 /**
- * The registers of the page „Abrechnung“: the holiday runs, the monthly
- * contribution with its price list (#4684) and the families. Each register
- * is a page of its own, so the tab is a link.
+ * The registers of billing, in three areas with a sidebar entry each: the
+ * runs (holiday and monthly), the families with what they pay, and the prices
+ * with their reductions. Each register is a page of its own, so the tab is a
+ * link; a page shows the tabs of its own area only.
  */
 export type BillingTab =
   | "laeufe"
@@ -26,72 +27,111 @@ export type BillingTab =
   | "familien"
   | "lastschrift";
 
-export function billingTabs(
-  active: BillingTab,
-): NonNullable<TenantPageProps["tabs"]> {
-  return {
-    value: active,
-    // Die Reiter sind Links; die Navigation übernimmt der Link selbst.
-    onChange: () => undefined,
-    label: "Bereiche der Abrechnung",
-    items: [
-      {
-        value: "laeufe",
-        label: "Ferien",
-        href: traegerPath("/traeger/abrechnung"),
-      },
+type BillingArea = "laeufe" | "familien" | "preise";
+
+interface BillingRegister {
+  readonly value: BillingTab;
+  readonly label: string;
+  readonly path: string;
+}
+
+const BILLING_AREAS: Record<
+  BillingArea,
+  { readonly title: string; readonly registers: readonly BillingRegister[] }
+> = {
+  laeufe: {
+    title: "Abrechnungsläufe",
+    registers: [
+      { value: "laeufe", label: "Ferien", path: "/traeger/abrechnung" },
       {
         value: "monatsbeitraege",
         label: "Monatsbeiträge",
-        href: traegerPath("/traeger/abrechnung/monatsbeitraege"),
+        path: "/traeger/abrechnung/monatsbeitraege",
       },
-      {
-        value: "preise",
-        label: "Preisliste",
-        href: traegerPath("/traeger/abrechnung/preise"),
-      },
-      {
-        value: "mensa",
-        label: "Mensa",
-        href: traegerPath("/traeger/abrechnung/mensa"),
-      },
-      {
-        value: "ermaessigungen",
-        label: "Ermäßigungen",
-        href: traegerPath("/traeger/abrechnung/ermaessigungen"),
-      },
-      {
-        value: "nachweise",
-        label: "Nachweise",
-        href: traegerPath("/traeger/abrechnung/nachweise"),
-      },
-      {
-        value: "kinderzahl",
-        label: "Kinderzahl",
-        href: traegerPath("/traeger/abrechnung/kinderzahl"),
-      },
-      {
-        value: "kostentraeger",
-        label: "Kostenträger",
-        href: traegerPath("/traeger/abrechnung/kostentraeger"),
-      },
+    ],
+  },
+  familien: {
+    title: "Familien und Zahlung",
+    registers: [
       {
         value: "familien",
         label: "Familien",
-        href: traegerPath("/traeger/abrechnung/familien"),
+        path: "/traeger/abrechnung/familien",
       },
       {
         value: "lastschrift",
         label: "Lastschrift",
-        href: traegerPath("/traeger/abrechnung/lastschrift"),
+        path: "/traeger/abrechnung/lastschrift",
+      },
+      {
+        value: "kinderzahl",
+        label: "Kinderzahl",
+        path: "/traeger/abrechnung/kinderzahl",
+      },
+      {
+        value: "nachweise",
+        label: "Nachweise",
+        path: "/traeger/abrechnung/nachweise",
+      },
+      {
+        value: "kostentraeger",
+        label: "Kostenübernahmen",
+        path: "/traeger/abrechnung/kostentraeger",
       },
     ],
+  },
+  preise: {
+    title: "Preise und Ermäßigungen",
+    registers: [
+      {
+        value: "preise",
+        label: "Preisliste",
+        path: "/traeger/abrechnung/preise",
+      },
+      { value: "mensa", label: "Mensa", path: "/traeger/abrechnung/mensa" },
+      {
+        value: "ermaessigungen",
+        label: "Ermäßigungen",
+        path: "/traeger/abrechnung/ermaessigungen",
+      },
+    ],
+  },
+};
+
+function billingArea(tab: BillingTab): BillingArea {
+  const found = (Object.keys(BILLING_AREAS) as BillingArea[]).find((area) =>
+    BILLING_AREAS[area].registers.some((register) => register.value === tab),
+  );
+  return found ?? "laeufe";
+}
+
+/** The page title of a register: the name of its area in the sidebar. */
+export function billingAreaTitle(tab: BillingTab): string {
+  return BILLING_AREAS[billingArea(tab)].title;
+}
+
+export function billingTabs(
+  active: BillingTab,
+): NonNullable<TenantPageProps["tabs"]> {
+  const area = BILLING_AREAS[billingArea(active)];
+  return {
+    value: active,
+    onChange: () => undefined,
+    label: `Bereiche: ${area.title}`,
+    items: area.registers.map((register) => ({
+      value: register.value,
+      label: register.label,
+      href: traegerPath(register.path),
+    })),
   };
 }
 
-/** What an invoice still asks for, as a pill. */
+/**
+ * What an invoice still asks for, as a pill. An invoice without storno or
+ * credit is „Ausgestellt“, not „Offen“: moto does not see payments.
+ */
 export const INVOICE_STATUS_LABELS: Record<BillingInvoiceStatus, string> = {
-  open: "Offen",
+  open: "Ausgestellt",
   partly_credited: "Teilgutschrift",
   credited: "Gutgeschrieben",
   cancelled: "Storniert",
@@ -102,7 +142,7 @@ export const INVOICE_STATUS_TONES: Record<
   BillingInvoiceStatus,
   StatusBadgeTone
 > = {
-  open: "orange",
+  open: "gray",
   partly_credited: "blue",
   credited: "gray",
   cancelled: "red",
