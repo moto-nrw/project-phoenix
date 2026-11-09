@@ -580,9 +580,18 @@ function StackedRows<T>({
       ? undefined
       : (columns.find((c) => c.stacked === "title") ?? columns[0]);
   const meta = columns.find((c) => c.stacked === "meta");
+  // The row menu stands in the title row, top right, also beside a meta
+  // value: in the "lines" layout it never falls among the labelled fields.
+  const rowMenu =
+    layout === "lines"
+      ? columns.find(
+          (c) =>
+            c.key === PINNED_COLUMN_KEY && c !== meta && c.stacked !== "hidden",
+        )
+      : undefined;
 
   const fields = columns.filter(
-    (c) => c !== title && c !== meta && c.stacked !== "hidden",
+    (c) => c !== title && c !== meta && c !== rowMenu && c.stacked !== "hidden",
   );
   const clickable = Boolean(onRowClick);
   const keyboardClickable =
@@ -710,6 +719,11 @@ function StackedRows<T>({
                             }
                           >
                             {meta.render(row)}
+                          </span>
+                        ) : null}
+                        {rowMenu ? (
+                          <span className="shrink-0" data-row-control="">
+                            {rowMenu.render(row)}
                           </span>
                         ) : null}
                       </div>
