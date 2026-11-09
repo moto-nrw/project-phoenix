@@ -16,6 +16,8 @@
 //     of the block's date; a stamp never lands outside its report's days.
 //   - I7: deleting a report takes all its day locks once, ascending, so it
 //     cannot deadlock against an ascending day-lock writer.
+//   - I8: a series roster change that adds a person to already planned
+//     occurrences plans them absent on their full sick days.
 //
 // The sick reports run through the real Workforce absence writes and their
 // cascade; the blocks through the real materializer and instance lifecycle.
@@ -465,4 +467,86 @@ func TestSickReport_DeletionTakesItsDayLocksAscending(t *testing.T) {
 
 	assertPresent(t, e.templateRow(t, templateID, e.subject.ID, stampWeekOne), "stamp outside the range")
 	assertPresent(t, e.templateRow(t, templateID, e.subject.ID, stampWeekTwo), "sick day of the deleted report")
+}
+
+// I8: the series roster gains a supervisor who is sick in week two; aligning
+// the already planned occurrences adds them absent there, present elsewhere.
+func TestSickReport_SeriesRosterChangeAddsSickPersonAbsent(t *testing.T) {
+	t.Parallel()
+
+	e := buildSickCascadeEnv(t)
+	templateID := e.createSupervisedTemplate(t)
+	e.materialize(t, stampWeekOne, stampWeekTwo)
+	var absenceID int64
+	e.inTx(t, func(ctx context.Context) error {
+		created, err := e.absences.SickReports.CreateAbsenceFor(ctx, e.sub.ID, e.admin.ID, nil, workforce.CreateAbsenceRequest{
+			AbsenceType: "sick", DateStart: stampWeekTwo.String(), DateEnd: stampWeekTwo.String(),
+		})
+		if err == nil {
+			absenceID = created.ID
+		}
+		return err
+	})
+	_, err := e.db.NewRaw(`INSERT INTO activities.supervisors (tenant_id, staff_id, group_id, is_primary, valid_from) VALUES (?, ?, ?, FALSE, ?)`,
+		e.tenantID, e.sub.ID, templateID, calendar.NewDate(2026, time.August, 1)).Exec(e.ctx)
+	require.NoError(t, err)
+
+	e.inTx(t, func(ctx context.Context) error {
+		return e.timetable.TimetableData.Templates.AlignPlannedInstanceStaff(ctx, templateID, []int64{e.sub.ID}, stampWeekOne)
+	})
+
+	assertPresent(t, e.templateRow(t, templateID, e.sub.ID, stampWeekOne), "added on a healthy day")
+	assertSickStamp(t, e.templateRow(t, templateID, e.sub.ID, stampWeekTwo), absenceID, "added on a sick day")
+}
+
+// I8 + I5: the series change waits for a sick report that holds its day and
+// then adds the person absent.
+func TestSickReport_SeriesRosterChangeWaitsForConcurrentReport(t *testing.T) {
+	t.Parallel()
+
+	e := buildSickCascadeEnv(t)
+	templateID := e.createSupervisedTemplate(t)
+	e.materialize(t, stampWeekOne, stampWeekOne)
+	_, err := e.db.NewRaw(`INSERT INTO activities.supervisors (tenant_id, staff_id, group_id, is_primary, valid_from) VALUES (?, ?, ?, FALSE, ?)`,
+		e.tenantID, e.sub.ID, templateID, calendar.NewDate(2026, time.August, 1)).Exec(e.ctx)
+	require.NoError(t, err)
+	created := make(chan int64, 1)
+	release := make(chan struct{})
+	reportDone := make(chan error, 1)
+	go func() {
+		reportDone <- testpkg.WithTenantTx(t, context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
+			absence, err := e.absences.SickReports.CreateAbsenceFor(ctx, e.sub.ID, e.admin.ID, nil, workforce.CreateAbsenceRequest{
+				AbsenceType: "sick", DateStart: stampWeekOne.String(), DateEnd: stampWeekOne.String(),
+			})
+			if err != nil {
+				return err
+			}
+			created <- absence.ID
+			<-release
+			return nil
+		})
+	}()
+	var absenceID int64
+	select {
+	case absenceID = <-created:
+	case err := <-reportDone:
+		require.FailNow(t, "sick report failed before it held its day", "%v", err)
+	}
+
+	aligned := make(chan error, 1)
+	go func() {
+		aligned <- testpkg.WithTenantTx(t, context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
+			return e.timetable.TimetableData.Templates.AlignPlannedInstanceStaff(ctx, templateID, []int64{e.sub.ID}, stampWeekOne)
+		})
+	}()
+	if returned, err := e.awaitDayLockWaiter(t, stampWeekOne, aligned); returned {
+		close(release)
+		require.NoError(t, <-reportDone)
+		require.FailNow(t, "series change did not wait for the sick report's day lock", "returned early: %v", err)
+	}
+	close(release)
+	require.NoError(t, <-reportDone)
+	require.NoError(t, <-aligned)
+
+	assertSickStamp(t, e.templateRow(t, templateID, e.sub.ID, stampWeekOne), absenceID, "added beside the open report")
 }

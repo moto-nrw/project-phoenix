@@ -474,7 +474,7 @@ func composeServeRoot(
 		},
 		func() (err error) {
 			planning, err = buildTimetablePlanning(db, env, hub, timetableRows, lifecycle, schedules, presence, timetableOwner,
-				offerings, audit, people)
+				offerings, audit, people, owners.NewTimetableSickReports(workTime))
 			return
 		},
 		func() (err error) {

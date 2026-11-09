@@ -185,7 +185,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return TimetableTestModule{}, nil, nil, err
 	}
-	templateDeps.Transactions = arrivalTimetable.NewTenantTransactions(db.Pool())
+	templateDeps = withTimetableTestTemplateRuntime(db, templateDeps)
 	templates, _, err := arrivalTimetable.NewTemplateAdministration(templateDeps)
 	if err != nil {
 		return TimetableTestModule{}, nil, nil, err
@@ -220,4 +220,14 @@ func newTimetableTestMaterialization(db transactionruntime.Database, deps timeta
 	deps.SickReports = owners.NewTimetableSickReports(owners.MustNewWorkforce(db))
 	deps.DayLocks = arrivalTimetable.NewTenantDatabase(db.Pool())
 	return arrivalTimetable.NewMaterialization(deps)
+}
+
+// withTimetableTestTemplateRuntime binds the template writes to db the way
+// the composition root does: tenant transactions, and Workforce's open sick
+// reports with the day locks they need (#6292).
+func withTimetableTestTemplateRuntime(db transactionruntime.Database, deps timetablePorts.TemplateAdministrationDependencies) timetablePorts.TemplateAdministrationDependencies {
+	deps.Transactions = arrivalTimetable.NewTenantTransactions(db.Pool())
+	deps.SickReports = owners.NewTimetableSickReports(owners.MustNewWorkforce(db))
+	deps.DayLocks = arrivalTimetable.NewTenantDatabase(db.Pool())
+	return deps
 }

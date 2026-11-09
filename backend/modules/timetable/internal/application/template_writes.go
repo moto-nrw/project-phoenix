@@ -208,6 +208,8 @@ type TemplateServiceDependencies struct {
 	CareOfferings        ports.CareOfferingChecks
 	ResyncOfferingRoster func(context.Context, timetable.OfferingRosterResyncInput) error
 	RecurrenceLock       timetable.RecurrenceWriteLock
+	SickReports          ports.SickReportReader // nil: a series roster change marks nobody sick (#6292)
+	DayLocks             ports.TransactionLocks
 	SchoolClasses        ports.SchoolClassRules
 	Staffing             ports.StaffingAnnouncer
 	Logger               *slog.Logger
