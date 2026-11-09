@@ -46,7 +46,8 @@ func newChildReadRig(t *testing.T) childReadRig {
 }
 
 // newChildReadRigOn builds the rig on db, a pool on the test's isolated clone.
-func newChildReadRigOn(t *testing.T, db *bun.DB) childReadRig {
+// with adjusts the portal's dependencies before they are composed.
+func newChildReadRigOn(t *testing.T, db *bun.DB, with ...func(*portalCompose.Dependencies)) childReadRig {
 	t.Helper()
 	now := func() time.Time { return childReadToday.BerlinMidnight().Add(10 * time.Hour) }
 	database := testpkg.NewDatabase(t, db)
@@ -74,12 +75,16 @@ func newChildReadRigOn(t *testing.T, db *bun.DB) childReadRig {
 	meals, err := owners.BuildServeMealPlan(database, mealSettings, owners.NewStudentRootReads(people.Student), directory, schoolCalendar)
 	require.NoError(t, err)
 	childCheckDelay := &atomic.Int64{}
-	portal := portalCompose.New(WithParentEnrollmentBudgetReads(portalCompose.Dependencies{
+	deps := WithParentEnrollmentBudgetReads(portalCompose.Dependencies{
 		GuardianChanges: owners.ParentGuardianChanges(), DeparturePolicy: owners.ParentDeparturePolicy(), GuardianPolicy: owners.NewParentGuardianPolicy(), Fingerprints: owners.SecurityFingerprints{}, Declarations: owners.ParentDeclarationPolicy(), Locales: owners.ParentPortalLocales(), Runtime: owners.ParentPortalRuntime{}, Logger: slog.Default(), Now: now,
 		ChildRepo: owners.ParentChildReadsWithDelay(repos.ParentChildReads(), childCheckDelay), StudentRepo: owners.NewParentStudentReads(people.Student), PersonRepo: owners.NewParentPersonReads(people.Person), GuardianProfileRepo: owners.NewParentGuardianProfileReads(people.GuardianProfile), GuardianPhoneRepo: owners.NewParentGuardianPhoneReads(people.GuardianPhoneNumber), StudentGuardianRepo: owners.NewParentStudentGuardianReads(people.StudentGuardian),
 		Settings: settings.Settings, CareRequests: module.CareRequests, OfferingChanges: owners.NewParentOfferingChangeRequests(module.OfferingChanges), CareOfferingRepo: owners.NewParentCareOfferingReads(catalog), MealPlan: meals, CareProfiles: profiles, People: owners.MustNewPeopleDirectory(database), CarePlan: owners.NewParentCarePlanCommands(repos.CareExceptions, nil), CareExceptions: owners.NewParentCareExceptions(repos.CareExceptions), CarePlanPolicy: owners.NewParentCarePlanPolicy(), DataRequests: owners.NewParentDataRequestCommands(repos.CareExceptions), ChangeRequestRepo: owners.NewParentDataRequestReads(repos.CareExceptions), ExcusedRequests: owners.NewParentExcusedAbsenceRequests(repos.ExcusedRequests), StudentConsents: owners.NewParentStudentConsents(NewStudentConsents(database)),
 		FamilyProtectionEvents: owners.BindParentFamilyProtectionReads(sharing.FamilyProtection), ParentRequestShares: owners.BindParentRequestShareRecords(sharing.ParentRequestShare), ParentRequestEvents: owners.NewParentRequestEvents(sharing.ParentRequestEvent),
-	}, enrollment))
+	}, enrollment)
+	for _, adjust := range with {
+		adjust(&deps)
+	}
+	portal := portalCompose.New(deps)
 	enableChildReadSettings(t, settings.Settings, testpkg.Ctx(t))
 	router := chi.NewRouter()
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))

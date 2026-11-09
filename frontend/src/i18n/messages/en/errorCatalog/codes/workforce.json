@@ -42,6 +42,7 @@
   "rebooking_sick_report": "{object} could not be changed. Please check its current status.",
   "rebooking_too_many": "{object} could not be saved. Please check your entries.",
   "replacement_outside_origin": "{object} could not be saved. Please check your entries.",
+  "replacement_staff_absent": "{object} could not be saved. Please check your entries.",
   "session_note_required": "{object} could not be saved. Please check your entries.",
   "session_not_found": "{object} could not be changed. Please check its current status.",
   "session_not_owned": "You cannot access {object}. Please contact the school.",
