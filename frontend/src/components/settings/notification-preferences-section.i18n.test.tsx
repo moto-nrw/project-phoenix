@@ -56,8 +56,10 @@ describe("parent notification preference translations", () => {
   it("renders parent labels from the active catalog instead of backend German", async () => {
     renderWithToast(<NotificationPreferencesSection portal="parent" />);
 
+    // Der Titel steht schon im Ladezustand da, die Gruppen erst nach dem Laden.
+    // Deshalb auf die Gruppe selbst warten (#6320).
     expect(await screen.findByText("Notifications")).toBeVisible();
-    expect(screen.getByText("Messages")).toBeVisible();
+    expect(await screen.findByText("Messages")).toBeVisible();
     expect(
       screen.getByRole("switch", { name: "New message from the OGS" }),
     ).toBeVisible();
