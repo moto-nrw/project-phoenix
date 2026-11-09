@@ -81,22 +81,23 @@ func (s *Service) mealRegistrationAvailableForTenant(ctx context.Context, tenant
 }
 
 func (s *Service) MealParticipation(ctx context.Context, accountID, studentID int64, from, to calendar.Date) (MealParticipationPlan, error) {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionPortalAccess)
-	if err != nil {
-		return MealParticipationPlan{}, err
-	}
-	currentMonday := s.todayDate().StartOfISOWeek()
-	if from.Before(currentMonday) || to.After(lastMealParticipationDay(currentMonday)) || to.Before(from) {
-		return MealParticipationPlan{}, ErrMealParticipationOutOfRange
-	}
 	var plan MealParticipationPlan
-	err = s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	err := s.WithPermittedChild(ctx, accountID, studentID, GuardianPermissionPortalAccess, func(*Child) error {
+		currentMonday := s.todayDate().StartOfISOWeek()
+		if from.Before(currentMonday) || to.After(lastMealParticipationDay(currentMonday)) || to.Before(from) {
+			return ErrMealParticipationOutOfRange
+		}
+		return nil
+	}, func(txCtx context.Context, _ *Child) error {
 		var readErr error
 		plan, readErr = s.MealPlan.Participation(txCtx, studentID, from, to)
-		return readErr
+		if readErr != nil {
+			return mapMealParticipationError(readErr)
+		}
+		return nil
 	})
 	if err != nil {
-		return MealParticipationPlan{}, mapMealParticipationError(err)
+		return MealParticipationPlan{}, err
 	}
 	return plan, nil
 }
