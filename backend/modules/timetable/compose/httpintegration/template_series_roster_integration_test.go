@@ -204,6 +204,35 @@ func TestSeriesRoster_AddsChildAcrossCappedPredecessor(t *testing.T) {
 		"occurrences before the anchor stay untouched")
 }
 
+func TestSeriesNotes_PropagatesAcrossCappedPredecessors(t *testing.T) {
+	t.Parallel()
+
+	c := makeRosterChain(t, []int{activityContract.WeekdayMonday})
+	defer c.runCleanup(t)
+	for _, templateID := range []int64{c.rootID, c.middleID, c.livingID} {
+		_, err := c.db.NewUpdate().
+			Table("activities.groups").
+			Set("notes = ?", "Alt").
+			Where("tenant_id = ?", c.tenantID).
+			Where("id = ?", templateID).
+			Exec(c.ctx)
+		require.NoError(t, err)
+	}
+
+	newNotes := "Neu: Eingang über den Schulhof"
+	in := c.livingUpdateInput(t, []int64{c.students[0], c.students[1]}, []int64{c.staffID}, &c.staffID)
+	in.Fields.Notes = &newNotes
+	in.PropagateNotesToPredecessors = true
+	require.NoError(t, c.timetableData.Templates.UpdateTemplate(c.ctx, in))
+
+	for _, templateID := range []int64{c.rootID, c.middleID, c.livingID} {
+		group := reloadSplitGroup(t, c.scenarioSetup, templateID)
+		require.NotNil(t, group.Notes)
+		assert.Equal(t, newNotes, *group.Notes,
+			"the segment's occurrences read the Wochennotiz from this template")
+	}
+}
+
 func TestSeriesRoster_RemovesChildAcrossCappedPredecessor(t *testing.T) {
 	t.Parallel()
 
