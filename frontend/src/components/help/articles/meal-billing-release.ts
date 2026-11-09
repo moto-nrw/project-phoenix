@@ -29,7 +29,7 @@ export function mealBillingReleaseTopic(): HelpTopic {
       "Wählen Sie `Monat freigeben` und bestätigen Sie mit `Freigeben`.",
     ],
     result:
-      "Der Monat steht auf `Freigegeben`. Der Träger rechnet die Essen mit dem nächsten Monatslauf ab. Die Zahlen bleiben so.",
+      "Der Monat steht auf `Freigegeben`. Der Träger rechnet die Essen mit dem nächsten Monatslauf ab. Die Zahlen bleiben so. Zurücknehmen lässt sich die Freigabe nicht.",
     notes: [
       "Ein Essen zählt, wenn das Kind angemeldet und da war. Tage, an denen die Eltern abgemeldet haben, zählen nicht.",
       "Ferien, Feiertage und Schließtage zählen nie.",
@@ -39,6 +39,7 @@ export function mealBillingReleaseTopic(): HelpTopic {
       "`Nicht mehr abrechenbar`: Die Anwesenheiten dieses Monats sind nach der Aufbewahrungsfrist gelöscht. Eine Freigabe ist nicht mehr möglich. Geben Sie Monate deshalb bald nach dem Monatsende frei.",
       "`Seit dem Laden hat sich der Monat geändert`: Jemand hat eine Anwesenheit oder Anmeldung geändert. Prüfen Sie die Liste noch einmal und geben Sie dann frei.",
       "Haben Sie nach der Freigabe eine Anwesenheit nachgetragen, steht oben `Seit der Freigabe hat sich die Anwesenheit geändert`. Prüfen Sie die Liste, wählen Sie `Erneut freigeben` und nennen Sie den Grund. Schon gestellte Rechnungen ändert das nicht. Der Träger sieht die Änderung und korrigiert die Rechnung.",
+      "Sie haben einen Monat mit falschen Zahlen freigegeben: Zurücknehmen geht nicht. Die Karte `Zahlen korrigieren` zeigt den Weg. Tragen Sie die Anwesenheit nach. Dann wählen Sie `Erneut freigeben` und nennen den Grund. Hat der Träger schon abgerechnet, storniert er die Rechnung und stellt sie neu aus.",
     ],
     related: [HELP_TOPICS.leadMealPlan],
   };

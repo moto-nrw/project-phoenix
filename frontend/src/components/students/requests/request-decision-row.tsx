@@ -103,6 +103,7 @@ function OpenRequestContent({
           grouped
           expectedVersion={request.expected_version}
           currentStatusByDate={request.current_status_by_date}
+          partialAbsenceFromByDate={request.partial_absence_from_by_date}
           decisionDisabledReason={decisionDisabledReason}
           approveReasonRequired={approveReasonRequired}
         />

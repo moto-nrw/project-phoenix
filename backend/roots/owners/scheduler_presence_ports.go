@@ -88,12 +88,22 @@ func (c schedulerPresenceCleanup) CleanupStaleAttendance(ctx context.Context) (*
 
 // ArchiveEndOfDayStatusFlag archives the Worker's end-of-day status flag the
 // way Care Plan maps it to a status day.
-func (r StudentStatusDayRepository) ArchiveEndOfDayStatusFlag(ctx context.Context, flagColumn, sinceColumn string, date absencerecords.Date, fallback time.Time) (int64, error) {
-	archive, err := careplan.EndOfDayStatusFlagArchive(flagColumn, sinceColumn, careplan.Date(date), fallback)
+func (r StudentStatusDayRepository) ArchiveEndOfDayStatusFlag(ctx context.Context, flagColumn, sinceColumn string, before time.Time, date absencerecords.Date, at time.Time) (int64, error) {
+	archive, err := careplan.EndOfDayStatusFlagArchive(flagColumn, sinceColumn, before, careplan.Date(date), at)
 	if err != nil {
 		return 0, err
 	}
 	return r.Capability.ArchiveStudentStatusFlags(ctx, archive)
+}
+
+// CarryStatusFlag carries the Worker's status flag that outlasts its status
+// day into date the way Care Plan maps it to a status day.
+func (r StudentStatusDayRepository) CarryStatusFlag(ctx context.Context, flagColumn, sinceColumn string, date absencerecords.Date, at time.Time) (int64, error) {
+	carry, err := careplan.StatusFlagCarry(flagColumn, sinceColumn, careplan.Date(date), at)
+	if err != nil {
+		return 0, err
+	}
+	return r.Capability.ArchiveStudentStatusFlags(ctx, carry)
 }
 
 // pwaUsageCleanup hands the Delivery Platform's standalone usage sweep to the

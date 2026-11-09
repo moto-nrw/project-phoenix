@@ -228,6 +228,7 @@ var invitationSentinels = []struct {
 	{domain.ErrCatererAccountJoinsNoSchool, identityaccess.ErrEmailAlreadyExists},
 	{domain.ErrRoleNotFound, identityaccess.ErrRoleNotAssignable},
 	{domain.ErrTransactionUnusable, identityaccess.ErrTransactionUnusable},
+	{domain.ErrGuardianInvitationAddressChanged, identityaccess.ErrGuardianInvitationAddressChanged},
 }
 
 // invitationError translates a flow error to the public contract: the

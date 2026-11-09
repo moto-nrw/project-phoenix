@@ -118,7 +118,7 @@ func TestTenantExportOrganizationCarriesThePAIN008FilesAndIsAudited(t *testing.T
 	require.Equal(t, []int64{organization}, files.called, "the files of exactly this Träger")
 	manifest := readExportManifest(t, options.Output)
 	assertExportArtifacts(t, options.Output, manifest)
-	require.Equal(t, "organization", manifest.Package, "the Träger package of ADR 0185")
+	require.Equal(t, "organization", manifest.Package, "the Träger package of ADR 0193")
 	require.NotNil(t, manifest.SEPADebitFiles, "the manifest marks the PAIN.008 files")
 	require.Equal(t, "SEPA-LASTSCHRIFTDATEIEN", manifest.SEPADebitFiles.Directory)
 	require.Equal(t, []organizationtenancy.ExportSEPADebitFileOrigin{{Path: "SEPA-LASTSCHRIFTDATEIEN/MOTO-20290603-ABCDEFGHIJKLMNOPQRST.xml",

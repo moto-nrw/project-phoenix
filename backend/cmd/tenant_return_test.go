@@ -25,7 +25,7 @@ func TestTenantExportOrganizationReturnsOnlyItsPAIN008FilesAndIsAudited(t *testi
 	db := testpkg.SetupIsolatedTestDB(t)
 	database := testpkg.NewDatabase(t, db)
 	ctx := tenant.WithUnitOfWork(context.Background(), database.UnitOfWork())
-	keys := testpkg.TestBankDataKeys // the ring the root opens the catalog rows with (ADR 0184)
+	keys := testpkg.TestBankDataKeys // the ring the root opens the catalog rows with (ADR 0192)
 	cipher, err := securityRuntimeCompose.NewBankDataCipher(keys, "")
 	require.NoError(t, err)
 	operator := testpkg.CreateTestOperator(t, db)
@@ -149,7 +149,7 @@ func TestTenantExportOrganizationRefusesAnUnknownOrInactiveOperator(t *testing.T
 // does not rewrite its history. LIESMICH.txt and the manifest name it.
 
 // returnSealedFields opens the bank values of the catalog rows as the root
-// does (ADR 0184), with the key ring of the test.
+// does (ADR 0192), with the key ring of the test.
 func returnSealedFields(t *testing.T) organizationtenancy.TenantExportSealedFields {
 	t.Helper()
 	sealed, err := tenantExportSealedFields()

@@ -92,7 +92,10 @@ import { CarePlanView } from "~/components/students/care-plan-view";
 import { CareScheduleManager } from "~/components/students/care-schedule-manager";
 import { StudentCareTimesSection } from "~/components/students/care-times-section";
 import { CareExitModal } from "~/components/students/care-exit-modal";
-import { PlannedStatusDaysModal } from "~/components/students/planned-status-days-modal";
+import {
+  PlannedStatusDaysModal,
+  type PlannedStatusSubmitOptions,
+} from "~/components/students/planned-status-days-modal";
 import { fetchStudentPickupData } from "~/lib/pickup-schedule-api";
 import { getDayData, formatPickupTime } from "~/lib/pickup-schedule-helpers";
 import { fetchArrivalData } from "~/lib/student-arrival-api";
@@ -1292,6 +1295,7 @@ function StudentDetailPageContent() {
   const handleCreatePlannedStatus = async (
     dates: string[],
     reason?: string,
+    options?: PlannedStatusSubmitOptions,
   ) => {
     if (!plannedStatusModal || !student) return;
 
@@ -1302,8 +1306,13 @@ function StudentDetailPageContent() {
         plannedStatusModal,
         dates,
         reason,
+        options?.replacePartialAbsenceDates,
       );
       refreshData();
+      // A replaced partial excusal is gone; reload the list that names it.
+      if (options?.replacePartialAbsenceDates.length) {
+        void mutatePartialAbsences();
+      }
       setStatusDayRange((current) => extendStatusDayRange(current, dates));
       await mutateStatusDays(
         (current) => mergeStatusDays(current, createdStatusDays),

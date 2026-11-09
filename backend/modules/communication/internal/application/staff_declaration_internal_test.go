@@ -65,7 +65,7 @@ func TestNormalizeDeclarationCompletesAndRefuses(t *testing.T) {
 
 	standard := declarationTestInput()
 	standard.DeliveryMode = ""
-	standard.Declaration.Revocable = true
+	standard.Declaration.RequiresPassword = true
 	_, err = normalizeInput(&standard)
 	require.NoError(t, err)
 	assert.Equal(t, StaffAnnouncementDeclarationSettings{}, standard.Declaration,

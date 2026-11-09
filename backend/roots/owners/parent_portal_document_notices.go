@@ -24,9 +24,10 @@ type parentContractInboxNotices struct {
 	inbox carecontract.InboxNotices
 }
 
-// NewParentContractInboxNotices binds the contract check of the push.
+// NewParentContractInboxNotices binds the contract check of the push; it
+// lists no contracts, so it dates no withdrawal period.
 func NewParentContractInboxNotices() parentportal.ContractInboxNoticesPort {
-	return parentContractInboxNotices{inbox: careContractCompose.NewInbox()}
+	return parentContractInboxNotices{inbox: careContractCompose.NewInbox(nil)}
 }
 
 func (n parentContractInboxNotices) ContractNoticeTarget(ctx context.Context, organizationID, contractID int64, email string) (parentportal.ContractNoticeTarget, bool, error) {

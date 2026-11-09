@@ -7,16 +7,16 @@ status: proposed
 **Status: Vorgeschlagen.** Vorschlag vom 09.11.2026 zu #6314, Teil von #4720
 (Slice 3) und #4611. Grundlage: Löschkonzept Träger-Finanzdaten, Abschnitt 5;
 AVV Ziff. 8.2 und 8.4. Setzt auf
-[ADR 0184](0184-mandantenrueckgabe-oeffnet-feldverschluesselte-bankdaten.md)
+[ADR 0192](0192-mandantenrueckgabe-oeffnet-feldverschluesselte-bankdaten.md)
 (geöffnete IBAN und Kontoinhaber) und
-[ADR 0185](0185-mandantenrueckgabe-gibt-gesundheit-einstellungen-und-traegerpaket-zurueck.md)
+[ADR 0193](0193-mandantenrueckgabe-gibt-gesundheit-einstellungen-und-traegerpaket-zurueck.md)
 (Trägerpaket `tenant export --organization`) auf; ergänzt ADR 0181
 (PAIN.008-Datei) und ADR 0183 (Bank-Schlüsselring).
 
 ## Kontext
 
-Das Trägerpaket von ADR 0185 gibt die Zeilen der Mandate und Lastschriften
-mit geöffneter IBAN und Kontoinhaber zurück (ADR 0184). Drei Dinge fehlen
+Das Trägerpaket von ADR 0193 gibt die Zeilen der Mandate und Lastschriften
+mit geöffneter IBAN und Kontoinhaber zurück (ADR 0192). Drei Dinge fehlen
 für die Rückgabe am Vertragsende:
 
 - Nach der Deaktivierung kann das Träger-Büro seine PAIN.008-Dateien nicht
@@ -39,7 +39,7 @@ für die Rückgabe am Vertragsende:
    Download speichert die ausgegebene Datei bytegenau, mit dem
    Bank-Schlüssel versiegelt und an Träger und Nachrichten-ID gebunden, mit
    SHA-256 und Gläubigerkonto (`parent_billing.sepa_debit_files`, Migration
-   `1.15.833`). Ein späterer Download ersetzt sie bis zur Bestätigung der
+   `1.15.871`). Ein späterer Download ersetzt sie bis zur Bestätigung der
    Einreichung; danach ändert sie sich nicht mehr (nur `bank-data-rekey`
    versiegelt neu). Die Bestätigung hält ohne Download wenigstens das
    Gläubigerkonto fest. Jede gespeicherte Datei nennt ab dem Download ihre
@@ -87,7 +87,7 @@ für die Rückgabe am Vertragsende:
    nichts mehr, woraus eine Datei entstünde. Die Zeilen von
    `parent_billing.sepa_debit_files` stehen im Katalog-Export ohne
    `file_sealed`. Die Mandate und Lastschriften mit IBAN und Kontoinhaber
-   bleiben allein Sache von ADR 0184; dieser Dateisatz gibt keinen Wert ein
+   bleiben allein Sache von ADR 0192; dieser Dateisatz gibt keinen Wert ein
    zweites Mal als Feld aus.
 3. **Gespeicherte Dokumente als Dateien.** Das Trägerpaket schreibt jedes
    gespeicherte Dokument seiner Tabellen zusätzlich als Datei
@@ -96,7 +96,7 @@ für die Rückgabe am Vertragsende:
    Binärspalte (`bytea`), die der Katalog aus einer Tabelle des Trägers
    exportiert. Eine Binärspalte, die kein Dokument ist, ist ein Geheimnis
    und steht unter `excludeSecretColumns` (Passkeys); ein versiegelter Wert
-   steht geöffnet als Text (ADR 0184). Die Zeilen-ID ist der Primärschlüssel
+   steht geöffnet als Text (ADR 0192). Die Zeilen-ID ist der Primärschlüssel
    aus dem Snapshot; die Endung folgt aus dem gespeicherten Medientyp der
    Zeile (`content_type`, `<Spalte>_content_type`), sonst aus der Signatur
    des Inhalts. `DOKUMENTE/index.jsonl` ordnet jede Datei Tabelle, Zeile,
@@ -121,7 +121,7 @@ für die Rückgabe am Vertragsende:
    Schreiber als Parameter kann die Effekt-Analyse nicht auflösen; die
    Bindung steht darum als `unresolved` mit dieser ADR im Inventar. Nur die CLI-Root `cmd/tenant_return.go` bindet beide;
    keine HTTP-Route, kein Workflow-Owner, kein Lesen fremder Tabellen.
-5. **Transaktionen:** Erst der Read-only-Snapshot des Katalogs von ADR 0185,
+5. **Transaktionen:** Erst der Read-only-Snapshot des Katalogs von ADR 0193,
    nach dessen Commit eine Träger-Transaktion von Parent Billing für die
    Dateien. Nie beide gleichzeitig; ein gemeinsamer Snapshot hieße, die
    Transaktion eines Owners an den anderen zu reichen. Darum läuft das
@@ -143,7 +143,7 @@ für die Rückgabe am Vertragsende:
    (#6326).
 7. **Löschauftrag eines Trägers:** Er verlangt den Hinweis auf die Rückgabe
    der Unterlagen und die Wahl des Kunden (Rückgabe oder Verzicht;
-   Migration `1.15.832`). Ein Altauftrag ohne beides und ein bereits
+   Migration `1.15.870`). Ein Altauftrag ohne beides und ein bereits
    begonnener Auftrag laufen erst weiter, wenn beides nachgetragen ist
    (`PUT /operator/organizations/{id}/erasure-order/records`,
    Operator-Protokoll `record_erasure_order_records`); eine erfasste Wahl
@@ -154,7 +154,7 @@ für die Rückgabe am Vertragsende:
    `TraegerErasureOrderRecordsProvisioning`
    (`NewTraegerErasureOrderRecordsResource`, ohne sie kein Router).
 8. **Konfiguration:** Das Trägerpaket verlangt `BANK_DATA_KEYS` wie
-   `bank-data-rekey` und ADR 0184; ohne gültigen Ring bricht es ab. Kein
+   `bank-data-rekey` und ADR 0192; ohne gültigen Ring bricht es ab. Kein
    Rückfall.
 
 ## Folgen
@@ -169,7 +169,7 @@ für die Rückgabe am Vertragsende:
   ihren Lastschriften (eine eingereichte mit der letzten), die mit den
   Verträgen des Demo-Besuchs gehen.
 - Das Trägerpaket enthält Bankdaten der Familien in den Tabellen-Dateien
-  (ADR 0184) und in `SEPA-LASTSCHRIFTDATEIEN/`; `DOKUMENTE/` enthält
+  (ADR 0192) und in `SEPA-LASTSCHRIFTDATEIEN/`; `DOKUMENTE/` enthält
   Personendaten der Familien (Schreiben, Verträge, Nachweise). Die Übergabe bleibt ein
   Mensch-Schritt: nur verschlüsselt, lokale Kopie nach bestätigtem Empfang
   löschen (Runbook Auskunft und Rückgabe).

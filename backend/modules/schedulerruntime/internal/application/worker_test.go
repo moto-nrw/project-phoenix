@@ -43,6 +43,10 @@ func (fakeTraegerDocumentReadRetention) DeleteExpiredTraegerDocumentReads(contex
 	return 0, nil
 }
 
+type fakeBelegRetention struct{}
+
+func (fakeBelegRetention) ApplyBelegRetention(context.Context) (int, error) { return 0, nil }
+
 type fakeAccountRetention struct{}
 
 func (fakeAccountRetention) EraseUnusedAccounts(context.Context) (int, error) { return 0, nil }
@@ -71,6 +75,7 @@ func minimalWorkerDependencies(t *testing.T) ports.WorkerDependencies {
 		AccountRetention:             fakeAccountRetention{},
 		HolidayRegistrationRetention: fakeHolidayRegistrationRetention{},
 		TraegerDocumentReadRetention: fakeTraegerDocumentReadRetention{},
+		BelegRetention:               fakeBelegRetention{},
 		SEPADebitDownloadRetention:   fakeSEPADebitDownloadRetention{},
 		FeedbackCleaner:              &fakeFeedbackCleaner{},
 		CleanupRuns:                  newFakeCleanupRuns(),
@@ -111,6 +116,7 @@ func TestNewWorkerRejectsMissingTokenCleanupDependencies(t *testing.T) {
 		{name: "account retention", remove: func(deps *ports.WorkerDependencies) { deps.AccountRetention = nil }},
 		{name: "holiday registration retention", remove: func(deps *ports.WorkerDependencies) { deps.HolidayRegistrationRetention = nil }},
 		{name: "Träger document read retention", remove: func(deps *ports.WorkerDependencies) { deps.TraegerDocumentReadRetention = nil }},
+		{name: "beleg retention", remove: func(deps *ports.WorkerDependencies) { deps.BelegRetention = nil }},
 		{name: "SEPA debit download retention", remove: func(deps *ports.WorkerDependencies) { deps.SEPADebitDownloadRetention = nil }},
 	}
 	for _, tt := range tests {

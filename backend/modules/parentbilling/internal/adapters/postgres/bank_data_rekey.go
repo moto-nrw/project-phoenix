@@ -58,8 +58,9 @@ func bankRekeyTransaction(ctx context.Context, organizationID int64) (bun.IDB, e
 	return tx, nil
 }
 
-// No skipped locks: the cursor must never pass a concurrent writer. Both
+// No skipped locks: the cursor must never pass a concurrent writer. All
 // sources keep their own organization filter even under RLS bypass.
+// For consents, IBAN carries the single sealed text through the rewriter.
 func lockedBankRekeyRows(ctx context.Context, tx bun.IDB, organizationID int64, source string, afterID int64, limit int) ([]bankRekeyRow, error) {
 	var rows []bankRekeyRow
 	switch source {
@@ -70,6 +71,12 @@ func lockedBankRekeyRows(ctx context.Context, tx bun.IDB, organizationID int64, 
 	case "debits":
 		err := tx.NewRaw(`SELECT id, mandate_reference AS reference, iban_sealed, account_holder_sealed
    FROM parent_billing.sepa_debits WHERE organization_id = ? AND id > ? ORDER BY id LIMIT ? FOR UPDATE`, organizationID, afterID, limit).Scan(ctx, &rows)
+		return rows, err
+	case "consents":
+		err := tx.NewRaw(`SELECT consent.id, mandate.reference, consent.text_sealed AS iban_sealed
+   FROM parent_billing.sepa_mandate_consents AS consent
+   JOIN parent_billing.sepa_mandates AS mandate ON mandate.organization_id = consent.organization_id AND mandate.id = consent.mandate_id
+   WHERE consent.organization_id = ? AND consent.id > ? ORDER BY consent.id LIMIT ? FOR UPDATE OF consent`, organizationID, afterID, limit).Scan(ctx, &rows)
 		return rows, err
 	case "debit_files":
 		// The stored PAIN.008 file (ADR 0187) is one sealed value, bound to its
@@ -114,6 +121,10 @@ func updateBankRekeyRow(ctx context.Context, tx bun.IDB, organizationID int64, s
 	case "debits":
 		_, err := tx.NewRaw(`UPDATE parent_billing.sepa_debits SET iban_sealed = ?, account_holder_sealed = ?
    WHERE organization_id = ? AND id = ?`, iban, holder, organizationID, id).Exec(ctx)
+		return err
+	case "consents":
+		_, err := tx.NewRaw(`UPDATE parent_billing.sepa_mandate_consents SET text_sealed = ?
+   WHERE organization_id = ? AND id = ?`, iban, organizationID, id).Exec(ctx)
 		return err
 	case "debit_files":
 		_, err := tx.NewRaw(`UPDATE parent_billing.sepa_debit_files SET file_sealed = ?

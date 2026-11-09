@@ -19,7 +19,7 @@ import (
 // The Träger package carries the PAIN.008 file of each submitted message
 // (#6314, ADR 0187): the stored original, else regenerated from the stored
 // debits. The opened accounts of the mandates and debits come with their
-// catalog rows (ADR 0184), not from here.
+// catalog rows (ADR 0192), not from here.
 
 // returnStoreFake answers the messages as the store does: every message
 // with a submitted debit or a stored original, ordered by message ID, then

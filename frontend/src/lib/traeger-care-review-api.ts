@@ -9,6 +9,7 @@ import { traegerRequest } from "./traeger-api";
 import { type BillingFile, billingFile } from "./traeger-billing-api";
 import {
   type BackendRunDetail,
+  type CareInvoice,
   type CareRunDetail,
   detailFromBackend,
 } from "./traeger-care-billing-api";
@@ -56,30 +57,46 @@ export async function setCareRunInvoiceDate(
   );
 }
 
-/** Leaves the invoice of a contract out of the release, with a reason. */
+/** One invoice of a run: its contract and what it bills (#6346). */
+export interface CareInvoiceRef {
+  readonly contractId: string;
+  readonly service: CareInvoice["service"];
+}
+
+/**
+ * Leaves one invoice out of the release, with a reason. Only this invoice:
+ * the other invoice of the same contract (care or Mensa) stays (#6346).
+ */
 export async function excludeCareInvoice(
   runId: string,
-  contractId: string,
+  invoice: CareInvoiceRef,
   reason: string,
 ): Promise<CareRunDetail> {
   return detailFromBackend(
     await traegerRequest<BackendRunDetail>(`${runPath(runId)}/exclusions`, {
       method: "POST",
-      body: { contract_id: Number(contractId), reason },
+      body: {
+        contract_id: Number(invoice.contractId),
+        service: invoice.service,
+        reason,
+      },
     }),
   );
 }
 
-/** Takes an excluded invoice back into the release. */
+/** Takes one excluded invoice back into the release; answers the run. */
 export async function includeCareInvoice(
   runId: string,
-  contractId: string,
+  invoice: CareInvoiceRef,
 ): Promise<CareRunDetail> {
   return detailFromBackend(
-    await traegerRequest<BackendRunDetail>(
-      `${runPath(runId)}/exclusions/${encodeURIComponent(contractId)}`,
-      { method: "DELETE" },
-    ),
+    await traegerRequest<BackendRunDetail>(`${runPath(runId)}/inclusions`, {
+      method: "POST",
+      body: {
+        contract_id: Number(invoice.contractId),
+        service: invoice.service,
+      },
+    }),
   );
 }
 

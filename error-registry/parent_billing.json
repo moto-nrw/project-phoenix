@@ -567,6 +567,18 @@
       "legacy": "parent_billing.sepa_mandate_revoked"
     },
     {
+      "code": "parent_billing.online_mandate_disabled",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "parent_billing.online_mandate_disabled"
+    },
+    {
+      "code": "parent_billing.sepa_mandate_text_changed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.sepa_mandate_text_changed"
+    },
+    {
       "code": "parent_billing.direct_debit_without_mandate",
       "class": "business_rejection",
       "parameters": [],
@@ -613,6 +625,12 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "parent_billing.sepa_end_to_end_duplicate"
+    },
+    {
+      "code": "parent_billing.beleg_retention_basis_cites_statute",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.beleg_retention_basis_cites_statute"
     }
   ]
 }

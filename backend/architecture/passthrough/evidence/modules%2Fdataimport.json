@@ -79,6 +79,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (o observedPersonBatches) CreatePersons(ctx context.Context, inputs []CreatePerson) (result []Person, err error) {\n\tdefer observeCommand(ctx, \"people-directory\", \"create_persons\", time.Now(), \u0026err)\n\treturn o.PersonBatches.CreatePersons(ctx, inputs)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedPersonBatches.CreatePersons",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
       "evidence": "func (o observedPersonDirectory) CreatePerson(ctx context.Context, input CreatePerson) (result Person, err error) {\n\tdefer observeCommand(ctx, \"people-directory\", \"create_person\", time.Now(), \u0026err)\n\treturn o.PersonDirectory.CreatePerson(ctx, input)\n}",
       "form": "unclassified-evidence",
       "id": "modules/dataimport/ports/observedPersonDirectory.CreatePerson",

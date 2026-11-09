@@ -132,7 +132,8 @@ interface AuthShellProps {
    */
   readonly eyebrow?: string;
   readonly title: string;
-  readonly subtitle: string;
+  /** Satz unter dem Titel; fehlt, wenn er nichts zu tun gibt. */
+  readonly subtitle?: string;
   readonly children: ReactNode;
   readonly variant: AuthShellVariant;
   readonly brand?: ReactNode;
@@ -263,7 +264,11 @@ export function AuthShell({
               >
                 {title}
               </h1>
-              <p className="mt-3 text-sm leading-6 text-gray-600">{subtitle}</p>
+              {subtitle ? (
+                <p className="mt-3 text-sm leading-6 text-gray-600">
+                  {subtitle}
+                </p>
+              ) : null}
             </div>
             {children}
           </SectionCard>

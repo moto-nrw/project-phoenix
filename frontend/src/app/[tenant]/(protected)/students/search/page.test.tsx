@@ -1190,6 +1190,86 @@ describe("StudentSearchPage", () => {
       });
     });
 
+    // Ort vor Status (#6371): Ein eingechecktes Kind zählt „in der OGS“,
+    // genau einmal; seine Krankmeldung erhöht keinen Zähler. Ein krank
+    // gemeldetes Kind ohne Check-in bleibt krank.
+    it("counts a checked-in sick child in the OGS, not as sick", async () => {
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        data: {
+          students: [
+            {
+              ...mockStudents[0]!,
+              current_location: "Anwesend - Raum 101",
+              sick: true,
+            },
+            {
+              ...mockStudents[1]!,
+              current_location: "Schulhof",
+              excused: true,
+            },
+            { ...mockStudents[2]!, current_location: "Zuhause", sick: true },
+          ],
+        },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(
+            "3 Kinder · 2 in der OGS · 0 in der Schule · 0 zuhause · 1 krank",
+          ),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it("lists a checked-in sick child under its place, not under 'krank'", async () => {
+      const swrModule = await import("~/lib/swr");
+      mockUseSWRAuthWithStudents(swrModule, {
+        data: {
+          students: [
+            {
+              ...mockStudents[0]!,
+              current_location: "Anwesend - Raum 101",
+              sick: true,
+            },
+            { ...mockStudents[1]!, current_location: "Zuhause", sick: true },
+          ],
+        },
+        isLoading: false,
+        error: null,
+      } as ReturnType<typeof swrModule.useSWRAuth>);
+
+      render(<StudentSearchPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByTestId("filter-attendance"), {
+        target: { value: "krank" },
+      });
+      await waitFor(() => {
+        expect(screen.getByText(new RegExp(`^Anna\\b`))).toBeInTheDocument();
+        expect(
+          screen.queryByText(new RegExp(`^Max\\b`)),
+        ).not.toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByTestId("filter-attendance"), {
+        target: { value: "anwesend" },
+      });
+      await waitFor(() => {
+        expect(screen.getByText(new RegExp(`^Max\\b`))).toBeInTheDocument();
+        expect(
+          screen.queryByText(new RegExp(`^Anna\\b`)),
+        ).not.toBeInTheDocument();
+      });
+    });
+
     it("shows all students when filter is 'all'", async () => {
       render(<StudentSearchPage />);
 

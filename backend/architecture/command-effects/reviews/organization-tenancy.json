@@ -131,7 +131,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TenantExportSEPADebitFiles.SEPADebitFiles",
-      "reason": "Capability read (#6314, ADR 0187): Parent Billing opens the stored PAIN.008 originals of one Träger, or regenerates the file of a submitted message from its stored debits, in the Träger transaction the root opens; it writes no billing row. The opened IBAN and account holder of the catalog rows are the separate SEPAExportFields binding (ADR 0184). Its creditor-account read is a separate reviewed binding.",
+      "reason": "Capability read (#6314, ADR 0187): Parent Billing opens the stored PAIN.008 originals of one Träger, or regenerates the file of a submitted message from its stored debits, in the Träger transaction the root opens; it writes no billing row. The opened IBAN and account holder of the catalog rows are the separate SEPAExportFields binding (ADR 0192). Its creditor-account read is a separate reviewed binding.",
       "source_owner": "organization-tenancy",
       "target": "github.com/moto-nrw/project-phoenix/modules/parentbilling.SEPAReturn.SEPAReturn",
       "target_owner": "parent-billing"

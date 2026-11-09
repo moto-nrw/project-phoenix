@@ -118,7 +118,7 @@ func NewParentPushObjectAuthorization(db transactionruntime.Database) (func(cont
 		Runtime: ParentPortalRuntime{}, TraegerRuntime: ParentPortalRuntime{}, Schools: NewParentSchoolTraeger(organizations),
 
 		Accounts: parentPushAccounts(accounts), Relationships: parentPushRelationships(people), Students: parentPushStudents(people),
-		Billing: parentBillingPushObjects(billingcompose.NewParentDocuments()), Contracts: parentContractPushObjects(contractcompose.NewInbox()), Releases: parentReleasePushObjects(organizationcompose.NewSharedTraegerDocuments()),
+		Billing: parentBillingPushObjects(billingcompose.NewParentDocuments()), Contracts: parentContractPushObjects(contractcompose.NewInbox(nil)), Releases: parentReleasePushObjects(organizationcompose.NewSharedTraegerDocuments()),
 	})
 	return BindParentPushObjectAuthorization(gate), nil
 }

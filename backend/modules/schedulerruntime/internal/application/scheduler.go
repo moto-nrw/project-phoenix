@@ -36,7 +36,7 @@ type Scheduler struct {
 	retention                   RetentionRun
 	cleanupRuns                 ports.CleanupRunLedger
 	cleanupClock                func() time.Time
-	cleanupFailures             sync.Map // cleanupAttemptKey → time.Time of the last failed attempt
+	cleanupFailures             sync.Map // cleanupAttemptKey → cleanupFailureStreak this process last recorded
 	staffDocumentFileCleaner    ports.StaffDocumentFileCleaner
 	studentDocumentFileCleaner  ports.StudentDocumentFileCleaner
 	fileStoreCleaner            ports.FileStoreCleaner
@@ -93,13 +93,17 @@ type Scheduler struct {
 	lastSessionEnd              sync.Map // tenant_id → time.Time
 	lastDataCleanup             sync.Map // tenant_id → time.Time
 	lastSessionCleanup          sync.Map // tenant_id → time.Time
-	lastStatusFlagClear         sync.Map // tenant_id → time.Time
+	lastStatusFlagClear         sync.Map // tenant_id → time.Time of the last successful run
 	lastMaterialization         sync.Map // tenant_id → time.Time
 	lastTimetableCleanup        sync.Map // tenant_id → time.Time (WP-B14)
 	lastTimeTrackingCleanup     sync.Map // tenant_id → time.Time (Tranche 0b)
 	lastStudentChangeLogCleanup sync.Map // tenant_id → time.Time (issue #1455)
 	lastPWAUsageCleanup         sync.Map // tenant_id → time.Time (issue #2189)
 	lastStaffMessageCleanup     sync.Map // tenant_id → time.Time (issue #2598)
+
+	// statusFlagPass is the Unix second of the latest status-day boundary
+	// every school has run the status-flag task for (#6291).
+	statusFlagPass atomic.Int64
 
 	// Overdue instance tracking (WP-B9). Re-fire guard so the same instance
 	// does not emit `instance_overdue` every minute for the same planned
@@ -257,6 +261,9 @@ func schedulerCleanupJobs(deps ports.WorkerDependencies) []CleanupJob {
 	if !isNilDependency(deps.TraegerDocumentReadRetention) {
 		jobs = append(jobs, CleanupJob{Description: "Träger document read retention", Run: deps.TraegerDocumentReadRetention.DeleteExpiredTraegerDocumentReads})
 	}
+	if !isNilDependency(deps.BelegRetention) {
+		jobs = append(jobs, CleanupJob{Description: "Beleg retention", Run: deps.BelegRetention.ApplyBelegRetention})
+	}
 	if !isNilDependency(deps.SEPADebitDownloadRetention) {
 		jobs = append(jobs, CleanupJob{Description: "SEPA debit download retention", Run: deps.SEPADebitDownloadRetention.DeleteExpiredSEPADebitDownloads})
 	}
@@ -397,8 +404,8 @@ func (s *Scheduler) waitUntilNextMinute(acquired <-chan struct{}, onAcquire func
 
 // statusFlagClearHour and statusFlagClearMinute are the fixed end of the day
 // for "Am Ende des Tages" (#3729). The time used to be a school setting; it is
-// 18:00 for every school now. Midnight would not work: the clear archives the
-// flag onto calendar.TodayDate(), which is already the next day at 00:00.
+// 18:00 for every school now. The archive dates each flag on its own status
+// day, so a late run still archives onto the right day (#6291).
 const (
 	statusFlagClearHour   = 18
 	statusFlagClearMinute = 0

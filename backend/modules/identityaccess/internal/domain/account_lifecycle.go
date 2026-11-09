@@ -263,6 +263,9 @@ type GuardianInvitation struct {
 	ProfileCreatedForInvitation bool
 	RoleUpgrade                 bool
 	CreatedAt                   time.Time
+	// Email is the address the current link was issued for, normalized
+	// (#6294). The link redeems only while the guardian still has it.
+	Email string
 }
 
 func (i GuardianInvitation) IsPendingApproval() bool {

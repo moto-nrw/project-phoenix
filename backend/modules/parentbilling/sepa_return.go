@@ -5,7 +5,7 @@ import "context"
 // The PAIN.008 files of a Träger in its Rückgabe at the end of the contract
 // (#6314, #4720 Slice 3, AVV Ziff. 8.2/8.4). The Träger package of the tenant
 // export carries the mandates and debits with their opened IBAN and account
-// holder (ADR 0184). After the deactivation the Träger-Büro can no longer
+// holder (ADR 0192). After the deactivation the Träger-Büro can no longer
 // download its PAIN.008 files, so the package also carries them: the stored
 // original where moto kept it (ADR 0187), otherwise regenerated from the
 // stored submitted debits.

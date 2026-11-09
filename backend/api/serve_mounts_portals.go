@@ -25,6 +25,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	provisioningOperatorAPI "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/operator"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
@@ -138,11 +139,9 @@ func newOperatorRouter(
 		// the corresponding checkout toggle flips on).
 		OnValueSet: settingsWrites.SideEffects.Dispatch,
 	})
-	provisioningConfig := provisioningOperatorAPI.ProvisioningConfig{
-		Service:             provisioning,
-		CaregiverCapability: caregiverCapabilityViews(db, caregivers),
-		AppEnv:              viper.GetString("app_env"),
-		ErasureOrderRecords: provisioning.ErasureOrderRecords,
+	provisioningConfig, err := newProvisioningConfig(provisioning, caregiverCapabilityViews(db, caregivers))
+	if err != nil {
+		return nil, err
 	}
 	isLocalSeedRequest := func(r *http.Request) bool {
 		return apiCommon.IsLocalSeedRequest(r, viper.GetString("app_env"))
@@ -233,4 +232,15 @@ func newSessionTokenAuth() (*sessiontoken.TokenAuth, error) {
 		viper.GetDuration("auth_jwt_expiry"),
 		viper.GetDuration("auth_jwt_refresh_expiry"),
 	)
+}
+
+// newProvisioningConfig binds the operator provisioning routes to the
+// provisioning, the caregiver capability views and the audit of the Beleg
+// retention (#4720) of the same composition.
+func newProvisioningConfig(provisioning organizationtenancy.OperatorProvisioning, caregivers provisioningOperatorAPI.SchoolAccountCaregivers) (provisioningOperatorAPI.ProvisioningConfig, error) {
+	audit, err := organizationCompose.BelegRetentionAudit(provisioning.Provisioning)
+	return provisioningOperatorAPI.ProvisioningConfig{
+		Service: provisioning, CaregiverCapability: caregivers, AppEnv: viper.GetString("app_env"), BelegRetentionAudit: audit,
+		ErasureOrderRecords: provisioning.ErasureOrderRecords,
+	}, err
 }

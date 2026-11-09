@@ -31,7 +31,7 @@ func TestCallerStaffPreservesPostgresFailure(t *testing.T) {
 				_, err = caller.StaffID(txCtx)
 				return err
 			})
-			require.ErrorContains(t, err, "canceling statement due to lock timeout")
+			require.Equal(t, "55P03", testpkg.PostgresSQLState(err))
 		})
 	}
 }

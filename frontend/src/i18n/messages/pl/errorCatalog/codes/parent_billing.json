@@ -100,5 +100,8 @@
   "sepa_import_file_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "sepa_import_file_too_large": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "sepa_import_mapping_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
-  "sepa_import_changed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+  "sepa_import_changed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "beleg_retention_basis_cites_statute": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "online_mandate_disabled": "Twój organ prowadzący nie przyjmuje teraz upoważnienia do polecenia zapłaty w aplikacji.",
+  "sepa_mandate_text_changed": "Treść upoważnienia zmieniła się. Przeczytaj ją i potwierdź ponownie."
 }

@@ -3,8 +3,8 @@
 Stand: 09.11.2026, Refs #3838, Teil von #3846.
 Grundlage: [ADR 0092](../adr/0092-mandanten-datenlebenszyklus-nutzt-einen-gemeinsamen-katalog.md),
 [ADR 0097](../adr/0097-mandantenrueckgabe-hat-einen-eigenen-leseadapter.md),
-[ADR 0184](../adr/0184-mandantenrueckgabe-oeffnet-feldverschluesselte-bankdaten.md),
-[ADR 0185](../adr/0185-mandantenrueckgabe-gibt-gesundheit-einstellungen-und-traegerpaket-zurueck.md)
+[ADR 0192](../adr/0192-mandantenrueckgabe-oeffnet-feldverschluesselte-bankdaten.md),
+[ADR 0193](../adr/0193-mandantenrueckgabe-gibt-gesundheit-einstellungen-und-traegerpaket-zurueck.md)
 und [Datenkatalog](../reference/datenkatalog.md). Öffentliche Beschreibung für
 Kunden: [Datenexport und Anbieterwechsel](https://moto-ogs.de/rechtliches/datenexport)
 und [Infrastruktur und technische Anbieter](https://moto-ogs.de/rechtliches/infrastruktur)
@@ -111,7 +111,7 @@ Sicherungen sind nicht Bestandteil dieses PostgreSQL-/Upload-Exports.
    solange deren Rekey nicht abgeschlossen ist, `BANK_DATA_LEGACY_KEYS`
    ([ADR 0183](../adr/0183-bankdaten-haben-einen-eigenen-schluesselring-und-einen-wiederholbaren-rekey.md)).
    und den Gesundheitsring `HEALTH_DATA_KEYS` derselben Installation
-   ([ADR 0185](../adr/0185-mandantenrueckgabe-gibt-gesundheit-einstellungen-und-traegerpaket-zurueck.md)).
+   ([ADR 0193](../adr/0193-mandantenrueckgabe-gibt-gesundheit-einstellungen-und-traegerpaket-zurueck.md)).
    Der Export öffnet damit IBAN und Kontoinhaber der SEPA-Mandate und
    -Lastschriften sowie die Gesundheitsangaben; ohne passende Ringe bricht er
    ab, statt Chiffrat oder eine Lücke zu übergeben, auch für Schulen ohne
@@ -192,7 +192,7 @@ scripts/dev-native.sh backend go run . tenant export \
   nennt sie unter `sepaDebitFiles` mit Herkunft und prüft jede mit Prüfsumme.
   IBAN und Kontoinhaber je Mandat und Lastschrift stehen nicht dort, sondern
   geöffnet in den Tabellen-Dateien (siehe Exportformat).
-  - **Original:** Seit Migration `1.15.833` speichert moto beim Download die
+  - **Original:** Seit Migration `1.15.871` speichert moto beim Download die
     Datei bytegenau, versiegelt mit dem Bank-Schlüssel, mit SHA-256 und dem
     Gläubigerkonto darin (`parent_billing.sepa_debit_files`); ein späterer
     Download derselben Nachricht ersetzt sie bis zur Bestätigung der
@@ -206,7 +206,7 @@ scripts/dev-native.sh backend go run . tenant export \
     (Nachrichten-ID, eingereichte Beträge, Sequenz, Einzugstag, Konto zur
     Freigabe, Gläubiger-ID). Die Erstellzeit ist dann die Bestätigung der
     Einreichung. Das Gläubigerkonto ist das bei der Einreichung gespeicherte,
-    für Nachrichten von vor `1.15.833` das heutige Standardkonto des Trägers;
+    für Nachrichten von vor `1.15.871` das heutige Standardkonto des Trägers;
     ohne Standardkonto scheitert der Export.
 - Den Wert aus `COMPLETE` beim Löschauftrag im Operator-Portal als Prüfsumme
   eintragen; so belegt der Auftrag, welche Rückgabe übergeben wurde.

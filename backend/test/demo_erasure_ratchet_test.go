@@ -237,3 +237,29 @@ func TestDemoErasureExceptionsKeepTheirBudget(t *testing.T) {
 		}
 	}
 }
+
+// demoErasureOutboxKindExceptions are the kinds of a Träger in an outbox
+// table the erasure leaves on purpose, keyed "<table> <kind>", each with its
+// reason (#6342). A row of the Träger outlives the school it is about, so
+// the erasure has to name its kind; the kinds are declared in the schema
+// (chk_email_outbox_traeger_kind, chk_push_outbox_traeger_kind), and
+// TestDemoErasureCoversEveryOutboxKind (database/migrations) reads both. A
+// new kind gets an erasure path, not an entry.
+var demoErasureOutboxKindExceptions = map[string]string{}
+
+// demoErasureOutboxKindExceptionBudget is the recorded size of
+// demoErasureOutboxKindExceptions. It only falls.
+const demoErasureOutboxKindExceptionBudget = 0
+
+func TestDemoErasureOutboxKindExceptionsKeepTheirBudget(t *testing.T) {
+	t.Parallel()
+	if len(demoErasureOutboxKindExceptions) != demoErasureOutboxKindExceptionBudget {
+		t.Fatalf("%d outbox kind exceptions, but the budget records %d; lower the budget with the register",
+			len(demoErasureOutboxKindExceptions), demoErasureOutboxKindExceptionBudget)
+	}
+	for kind, reason := range demoErasureOutboxKindExceptions {
+		if reason == "" {
+			t.Errorf("%s needs a reason", kind)
+		}
+	}
+}

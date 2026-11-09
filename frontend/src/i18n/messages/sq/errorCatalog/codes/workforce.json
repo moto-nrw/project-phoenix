@@ -42,6 +42,7 @@
   "rebooking_sick_report": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "rebooking_too_many": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "replacement_outside_origin": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "replacement_staff_absent": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "session_note_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "session_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "session_not_owned": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",

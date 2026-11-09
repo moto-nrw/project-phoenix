@@ -46,6 +46,10 @@ const (
 	// AuditResourceTraegerSetting is a setting of a Träger the operator read
 	// or changed (#5748); the resource ID is the Träger.
 	AuditResourceTraegerSetting = "traeger_setting"
+	// AuditResourceBelegRetention is the Beleg retention of a Träger the
+	// operator read or changed (#4720, ADR 0184); the resource ID is the
+	// Träger.
+	AuditResourceBelegRetention = "beleg_retention"
 )
 
 // Device vocabulary shared with Device Fleet.

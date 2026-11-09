@@ -12,7 +12,7 @@ import (
 
 // The PAIN.008 files in the Träger package of the tenant export (#6314,
 // ADR 0187). The rows of the mandates and debits, with their opened IBAN and
-// account holder, come with the catalog export (ADR 0184); this owner adds
+// account holder, come with the catalog export (ADR 0192); this owner adds
 // only the files those rows cannot carry. A submitted message
 // ships the original file moto stored at its download (ADR 0187), checked
 // against its SHA-256. A message submitted without a stored download is

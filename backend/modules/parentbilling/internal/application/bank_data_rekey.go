@@ -24,7 +24,7 @@ func NewBankDataRekey(store BankDataRekeyStore, cipher parentbilling.BankDataRew
 }
 
 func (r *BankDataRekey) Batch(ctx context.Context, organizationID int64, source string, afterID int64, limit int) (parentbilling.BankDataRekeyResult, error) {
-	if (source != "mandates" && source != "debits" && source != "debit_files") || organizationID <= 0 || afterID < 0 || limit < 1 || limit > 1000 {
+	if (source != "mandates" && source != "debits" && source != "consents" && source != "debit_files") || organizationID <= 0 || afterID < 0 || limit < 1 || limit > 1000 {
 		return parentbilling.BankDataRekeyResult{}, errors.New("bank data rekey requires organization, nonnegative cursor and batch size 1..1000")
 	}
 	if source == "debit_files" {
@@ -38,6 +38,13 @@ func (r *BankDataRekey) Batch(ctx context.Context, organizationID int64, source 
 		})
 	}
 	return r.store.RewriteBankData(ctx, organizationID, source, afterID, limit, func(reference string, iban, holder []byte) ([]byte, []byte, error) {
+		if source == "consents" {
+			text, err := r.cipher.Rewrap(iban, consentTextContext(organizationID, reference))
+			if err != nil {
+				return nil, nil, errors.New("bank data rekey: sealed consent text does not open")
+			}
+			return text, nil, nil
+		}
 		newIBAN, err := r.cipher.Rewrap(iban, ibanContext(organizationID, reference))
 		if err != nil {
 			return nil, nil, errors.New("bank data rekey: sealed IBAN does not open")

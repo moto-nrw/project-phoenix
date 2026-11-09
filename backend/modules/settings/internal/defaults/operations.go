@@ -451,7 +451,7 @@ var operations_init_abwesenheit_8Definitions = []config.Definition{
 	{
 		Key:             config.KeySickClearMode,
 		Label:           "Krankmeldung automatisch beenden",
-		Description:     "Legt fest, wann eine Krankmeldung von selbst endet. „Am Ende des Tages“ heißt: um 18 Uhr. Bei „Beim nächsten Einchecken“ bleibt sie auch nach dem Enddatum stehen, bis das Kind wieder da ist.",
+		Description:     "Legt fest, wann eine Krankmeldung von selbst endet. „Am Ende des Tages“ heißt: um 18 Uhr. Eine Meldung nach 18 Uhr endet um Mitternacht. Bei „Beim nächsten Einchecken“ bleibt sie auch nach dem Enddatum stehen, bis das Kind wieder da ist.",
 		Type:            config.FieldSelect,
 		Default:         config.ClearModeEndOfDay,
 		ReadPermission:  "config:read",
@@ -464,7 +464,7 @@ var operations_init_abwesenheit_8Definitions = []config.Definition{
 	{
 		Key:             config.KeyExcusedClearMode,
 		Label:           "Entschuldigung automatisch beenden",
-		Description:     "Legt fest, wann eine Entschuldigung von selbst endet. „Am Ende des Tages“ heißt: um 18 Uhr.",
+		Description:     "Legt fest, wann eine Entschuldigung von selbst endet. „Am Ende des Tages“ heißt: um 18 Uhr. Eine Meldung nach 18 Uhr endet um Mitternacht.",
 		Type:            config.FieldSelect,
 		Default:         config.ClearModeEndOfDay,
 		ReadPermission:  "config:read",

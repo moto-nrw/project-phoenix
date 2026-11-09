@@ -22,7 +22,7 @@ import (
 )
 
 // What the CLI root binds for a Träger package beyond the catalog export of
-// ADR 0184/0185 (ADR 0187): the PAIN.008 files Parent Billing opens with the
+// ADR 0192/0193 (ADR 0187): the PAIN.008 files Parent Billing opens with the
 // bank key in a Träger transaction of its own, the creditor account from the
 // Träger's master data for reconstructed files, and the operator audit of
 // each run.

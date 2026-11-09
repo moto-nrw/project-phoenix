@@ -63,7 +63,7 @@ func (owners TenantExportProjectedFieldsByTable) ProjectExportField(table, colum
 
 // TenantExportDependencies binds the Träger package as the CLI runs it
 // (ADR 0187): the owners that open sealed and project container values
-// (ADR 0184, ADR 0185), the stored PAIN.008 files only Parent Billing opens,
+// (ADR 0192, ADR 0193), the stored PAIN.008 files only Parent Billing opens,
 // and the operator audit of each run. A school package needs neither of
 // the last two; a Träger package refuses without them.
 type TenantExportDependencies struct {
@@ -79,7 +79,7 @@ type TenantExportDependencies struct {
 // else a file reconstructed from the stored debits, each with its origin.
 // It reads the next message only after write returned, so the export holds
 // one file in memory; an error of write stops it. The rows of the mandates
-// and debits already carry the opened account (ADR 0184); the files are
+// and debits already carry the opened account (ADR 0192); the files are
 // what those rows cannot carry. The root binds it to Parent Billing, which
 // owns the bank key.
 type TenantExportSEPADebitFiles interface {

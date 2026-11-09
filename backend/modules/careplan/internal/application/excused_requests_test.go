@@ -396,7 +396,9 @@ func TestSubmitIsIdempotentForIdenticalAndRefusesOverlap(t *testing.T) {
 	assert.ErrorIs(t, err, careplan.ErrExcusedRequestOverlap, "the same days cannot carry a pending sick and a pending excused request")
 }
 
-func TestSubmitRefusedWhenManualPartialAbsenceOwnsADay(t *testing.T) {
+// Since #5698 a manual partial absence no longer blocks a family's request:
+// the school decides that day and confirms the replacement on approval.
+func TestSubmitAcceptedWhenManualPartialAbsenceOwnsADay(t *testing.T) {
 	t.Parallel()
 	from := time.Date(2000, time.January, 1, 13, 30, 0, 0, time.UTC)
 	h := newHarness(t, &fakeCarePlan{
@@ -411,8 +413,8 @@ func TestSubmitRefusedWhenManualPartialAbsenceOwnsADay(t *testing.T) {
 
 	_, err := h.workflow.CreateRequest(context.Background(), fakeStudentID, fakeGuardian, []careplan.Date{fakeTomorrow}, "auto excusal coexists")
 	require.NoError(t, err, "an auto-derived excusal does not block a full-day request")
-	_, err = h.workflow.CreateRequest(context.Background(), fakeStudentID, fakeGuardian, []careplan.Date{fakeNextWeek}, "manual excusal conflicts")
-	assert.ErrorIs(t, err, careplan.ErrExcusedRequestStatusConflict)
+	_, err = h.workflow.CreateRequest(context.Background(), fakeStudentID, fakeGuardian, []careplan.Date{fakeNextWeek}, "manual excusal goes to the school")
+	require.NoError(t, err, "a manual partial absence is decided by the school, not refused")
 }
 
 func TestSubmitRecordsLedgerAndWakesBothAudiencesAfterCommit(t *testing.T) {

@@ -41,6 +41,9 @@ type WorkerDependencies struct {
 	// TraegerDocumentReadRetention deletes the expired reads of the shared
 	// Träger documents (#4692).
 	TraegerDocumentReadRetention TraegerDocumentReadRetention
+	// BelegRetention evaluates the Belege of every Träger daily and deletes
+	// those whose instructed period ended (#4720).
+	BelegRetention BelegRetention
 	// SEPADebitDownloadRetention expires the unsubmitted PAIN.008 downloads
 	// of every Träger (ADR 0187).
 	SEPADebitDownloadRetention SEPADebitDownloadRetention

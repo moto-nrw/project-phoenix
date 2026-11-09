@@ -80,6 +80,7 @@ var staffShiftErrorCodes = []struct {
 	code   string
 }{
 	{workforce.ErrReplacementOutsideOrigin, common.CodeWorkforceReplacementOutsideOrigin},
+	{workforce.ErrReplacementStaffAbsent, common.CodeWorkforceReplacementStaffAbsent},
 	{workforce.ErrShiftHasReplacements, common.CodeWorkforceShiftHasReplacements},
 	{workforce.ErrShiftSeriesNoOccurrences, common.CodeWorkforceShiftSeriesNoOccurrences},
 	{workforce.ErrShiftSeriesOutsidePeriod, common.CodeWorkforceShiftSeriesOutsidePeriod},

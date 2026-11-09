@@ -72,6 +72,7 @@ export function traegerCareNoticesTopic(): HelpTopic {
     notes: [
       "Fehlt ein Preis oder gibt es einen doppelten Vertrag, bleibt die bisherige Bewertung gültig. Prüfen Sie die Hinweise im Monatslauf.",
       "Das Essen steht nicht im Bescheid. Die Mensa rechnet es nach den Essen ab.",
+      "Der `Gesamtbetrag aller Bescheide` ist die Forderung vor Zahlungseingang. Zahlungen sieht moto nicht, auch nicht nach der Lastschrift. Ob eine Rate bezahlt ist, prüfen Sie in Ihrer Buchhaltung.",
       "Ermäßigungen und Anteile von Kostenträgern stehen als eigene Zeilen im Bescheid.",
     ],
     troubleshootingDetails: [

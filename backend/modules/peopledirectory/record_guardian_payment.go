@@ -9,5 +9,6 @@ func (f *GuardianPayment) Validate() error {
 	return nil
 }
 func (f *GuardianPayment) HasData() bool {
-	return (f.IBAN != nil && *f.IBAN != "") || (f.AccountHolder != nil && *f.AccountHolder != "")
+	return len(f.IBANSealed) > 0 || len(f.AccountHolderSealed) > 0 ||
+		(f.IBAN != nil && *f.IBAN != "") || (f.AccountHolder != nil && *f.AccountHolder != "")
 }

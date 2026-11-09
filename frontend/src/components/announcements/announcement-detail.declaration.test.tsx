@@ -35,7 +35,6 @@ const consent: Announcement = {
   email_audience: "portal_only",
   declaration_kind: "consent",
   declaration_signers: "any",
-  declaration_revocable: true,
   declaration_requires_password: false,
 };
 
@@ -54,7 +53,7 @@ describe("AnnouncementDetail for an Einverständnis (#3430)", () => {
     expect(screen.getByText("Stand der Antworten")).toBeInTheDocument();
     expect(screen.getByTestId("declaration-status")).toBeInTheDocument();
     expect(
-      screen.getByText("Erlaubt, auch nach der Frist"),
+      screen.getByText("Jederzeit möglich, auch nach der Frist"),
     ).toBeInTheDocument();
     expect(screen.queryByText("Art")).not.toBeInTheDocument();
     expect(screen.queryByText("Lesebestätigung")).not.toBeInTheDocument();

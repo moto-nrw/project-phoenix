@@ -100,10 +100,7 @@ func isEffectiveAbsenceStatus(status string) bool {
 }
 
 func blocksAbsenceRange(status string) bool {
-	return status == AbsenceStatusReported ||
-		status == AbsenceStatusRequested ||
-		status == AbsenceStatusQuestion ||
-		status == AbsenceStatusApproved
+	return slices.Contains(workforce.RangeBlockingAbsenceStatuses(), status)
 }
 
 func isVacationWorkflowAbsence(absence *StaffAbsence) bool {

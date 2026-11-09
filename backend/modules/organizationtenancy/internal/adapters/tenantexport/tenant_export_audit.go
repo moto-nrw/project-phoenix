@@ -16,7 +16,7 @@ import (
 // What the Träger package adds to the catalog export (ADR 0187): the
 // operator audit of each run and the PAIN.008 files of the submitted SEPA
 // messages. The rows, with their opened bank and health values, are the
-// catalog export of ADR 0184/0185.
+// catalog export of ADR 0192/0193.
 
 // exportOrganization records the attempt of a Träger package before
 // anything is read or written, then its outcome. A failed run removes its

@@ -48,27 +48,25 @@ const (
 var ErrPhotoConsentNotWithdrawn = errors.New("parent: photo consent was not withdrawn")
 
 func (s *Service) GetChildConsents(ctx context.Context, accountID, studentID int64) ([]ChildConsent, error) {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionPortalAccess)
+	var consents []ChildConsent
+	err := s.WithPermittedChild(ctx, accountID, studentID, GuardianPermissionPortalAccess, func(*Child) error {
+		if s.StudentRepo == nil {
+			return fmt.Errorf("parent: student repo not wired")
+		}
+		return nil
+	}, func(txCtx context.Context, child *Child) error {
+		student, loadErr := s.StudentRepo.FindByID(txCtx, studentID)
+		if loadErr == nil {
+			consents, loadErr = s.loadChildConsents(txCtx, student, child.HasPermission(GuardianPermissionConsentManage))
+		}
+		if loadErr != nil {
+			return fmt.Errorf("parent: get child consents: %w", loadErr)
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	if s.StudentRepo == nil {
-		return nil, fmt.Errorf("parent: student repo not wired")
-	}
-
-	var consents []ChildConsent
-	err = s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
-		student, loadErr := s.StudentRepo.FindByID(txCtx, studentID)
-		if loadErr != nil {
-			return loadErr
-		}
-		consents, loadErr = s.loadChildConsents(txCtx, student, child.HasPermission(GuardianPermissionConsentManage))
-		return loadErr
-	})
-	if err != nil {
-		return nil, fmt.Errorf("parent: get child consents: %w", err)
-	}
-
 	return consents, nil
 }
 
@@ -86,25 +84,25 @@ func (s *Service) GrantPhotoConsent(ctx context.Context, accountID, studentID in
 }
 
 func (s *Service) setPhotoConsent(ctx context.Context, accountID, studentID int64, action photoConsentAction) ([]ChildConsent, error) {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionConsentManage)
-	if err != nil {
-		return nil, err
-	}
-	if err := child.RequireCareRunning(); err != nil {
-		return nil, err
-	}
-	if s.StudentRepo == nil || s.StudentGuardianRepo == nil || s.StudentConsents == nil || s.Students == nil {
-		return nil, fmt.Errorf("parent: consent dependencies not wired")
-	}
-
 	var consents []ChildConsent
-	err = s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	err := s.WithPermittedChildForWrite(ctx, accountID, studentID, GuardianPermissionConsentManage, func(child *Child) error {
+		if err := child.RequireCareRunning(); err != nil {
+			return err
+		}
+		if s.StudentRepo == nil || s.StudentGuardianRepo == nil || s.StudentConsents == nil || s.Students == nil {
+			return fmt.Errorf("parent: consent dependencies not wired")
+		}
+		return nil
+	}, func(txCtx context.Context, child *Child) error {
 		var txErr error
 		consents, txErr = s.changePhotoConsent(txCtx, child.TenantID, accountID, studentID, action)
-		return txErr
+		if txErr != nil {
+			return fmt.Errorf("parent: set photo consent: %w", txErr)
+		}
+		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("parent: set photo consent: %w", err)
+		return nil, err
 	}
 	return consents, nil
 }

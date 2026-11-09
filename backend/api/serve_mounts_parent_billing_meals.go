@@ -28,8 +28,8 @@ func (m parentBillingCareMeals) MealAttendanceFrom(ctx context.Context, schoolID
 	return m.attendance(ctx, schoolIDs)
 }
 
-func (m parentBillingCareMeals) ReleasedMealMonths(ctx context.Context, organizationID int64, until calendar.Date) ([]parentbilling.CareMealRelease, error) {
-	months, err := m.months.ReleasedMealMonths(ctx, organizationID, until)
+func (m parentBillingCareMeals) ReleasedMealMonths(ctx context.Context, organizationID int64, from, until calendar.Date) ([]parentbilling.CareMealRelease, error) {
+	months, err := m.months.ReleasedMealMonths(ctx, organizationID, from, until)
 	if err != nil {
 		return nil, err
 	}

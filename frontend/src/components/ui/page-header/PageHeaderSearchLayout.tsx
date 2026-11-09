@@ -71,9 +71,7 @@ export function PageHeaderSearchLayout({
 >) {
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
   const [isDesktopFiltersOpen, setIsDesktopFiltersOpen] = useState(false);
-  const isDesktopFilterLayout = useViewportAtLeast(
-    desktopFiltersFrom === "xl" ? 1280 : 1024,
-  );
+  const isDesktopFilterLayout = useViewportAtLeast(desktopFiltersFrom);
   const previousDesktopFilterLayoutRef = useRef(isDesktopFilterLayout);
 
   // Only subscribe to scroll updates when the consumer opted in. The hook

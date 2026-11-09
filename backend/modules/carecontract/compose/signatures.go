@@ -9,14 +9,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/carecontract/internal/application"
 )
 
-// The signature of a contract (#4679).
-
+// SignaturePorts bind the signature of a contract (#4679).
 type SignaturePorts struct {
-	Ledger  carecontract.SignatureLedger
-	Links   carecontract.SigningLinks
-	Sender  carecontract.TraegerSigningSender
-	Post    carecontract.Post
-	Runtime carecontract.Runtime
+	Ledger   carecontract.SignatureLedger
+	Links    carecontract.SigningLinks
+	Sender   carecontract.TraegerSigningSender
+	Post     carecontract.Post
+	Runtime  carecontract.Runtime
+	Holidays carecontract.SchoolHolidays
 }
 
 // NewSigning builds the one-time mail link; it opens its own Träger

@@ -132,6 +132,13 @@ type TraegerDocumentReadRetention interface {
 	DeleteExpiredTraegerDocumentReads(ctx context.Context) (int, error)
 }
 
+// BelegRetention keeps the retention record of every Beleg of every Träger
+// and deletes the Belege whose period, instructed by their Träger, ended
+// (#4720, ADR 0184). Without an instruction it deletes nothing.
+type BelegRetention interface {
+	ApplyBelegRetention(ctx context.Context) (int, error)
+}
+
 // SEPADebitDownloadRetention deletes the unsubmitted PAIN.008 downloads of
 // every Träger 30 days after the download in the hourly cleanup (ADR 0187).
 type SEPADebitDownloadRetention interface {
