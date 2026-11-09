@@ -281,9 +281,13 @@ export default function TraegerSepaImportPage() {
               <SectionCard
                 title="Datei"
                 description={
-                  result
-                    ? `${file.name} · ${importFormatLabel(result.encoding, result.delimiter)} · ${result.headers.length} Spalten`
-                    : file.name
+                  // A long file name without spaces breaks anywhere instead
+                  // of running past the card on a phone.
+                  <span className="wrap-anywhere">
+                    {result
+                      ? `${file.name} · ${importFormatLabel(result.encoding, result.delimiter)} · ${result.headers.length} Spalten`
+                      : file.name}
+                  </span>
                 }
                 action={
                   <Button

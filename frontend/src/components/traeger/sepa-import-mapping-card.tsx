@@ -90,6 +90,8 @@ export function SepaImportMappingCard({
             items={PAYER_KEYS.map((item) => ({ ...item, disabled }))}
             value={mapping.payerKey}
             onChange={(payerKey) => onChange({ ...mapping, payerKey })}
+            fullWidth
+            wrap
           />
           <p className="mt-2 text-xs text-gray-500">
             {mapping.payerKey === "email"
