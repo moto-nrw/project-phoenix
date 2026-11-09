@@ -122,13 +122,15 @@ async function warmTourPages(
   let lastActivity = Date.now();
   // Es zählen die Routen der App, die eine Seite lädt (`/api/…`): Die baut
   // der Entwicklungsserver beim ersten Aufruf. Der Live-Kanal (SSE) bleibt
-  // offen und zählt nicht, ebenso Anfragen an andere Hosts.
+  // offen und zählt nicht, ebenso Anfragen an andere Hosts und der Versand
+  // der Browser-Logs (`/api/logs`), dessen Ende Playwright nicht meldet.
   const origin = new URL(tenantBase).origin;
   const counts = (request: Request) => {
     const url = new URL(request.url());
     return (
       url.origin === origin &&
       url.pathname.startsWith("/api/") &&
+      url.pathname !== "/api/logs" &&
       ["fetch", "xhr"].includes(request.resourceType()) &&
       request.headers().accept !== "text/event-stream"
     );
@@ -148,6 +150,9 @@ async function warmTourPages(
   page.on("requestfailed", onDone);
   try {
     for (const path of cold) {
+      // Was die vorige Seite offen ließ, bricht der Seitenwechsel ab, oft
+      // ohne Ereignis.
+      pending.clear();
       await page.goto(`${tenantBase}${path}`, {
         waitUntil: "domcontentloaded",
         timeout: NAVIGATION_TIMEOUT,
