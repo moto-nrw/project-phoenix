@@ -40,7 +40,7 @@ export const TRIGGERS_BY_TYPE: Record<BelegType, readonly string[]> = {
 
 /** Grundlagen einer Weisung (Löschkonzept Abschnitt 2). */
 export const BASIS_LABELS: Record<string, string> = {
-  booking_voucher: "Buchungsbeleg (§ 147 AO, § 257 HGB, § 14b UStG)",
+  booking_voucher: "Buchungsbeleg (AO, HGB, UStG)",
   business_letter: "Handels- oder Geschäftsbrief",
   collection_agreement: "Inkassovereinbarung",
   not_applicable: "Vorschriften nicht anwendbar",

@@ -137,9 +137,7 @@ describe("TraegerBelegRetentionSection", () => {
     expect(screen.getByText("01.01.2035")).toBeInTheDocument();
     expect(mockGetOverview).toHaveBeenCalledWith("1");
     expect(
-      screen.getByText(
-        "Buchungsbeleg (§ 147 AO, § 257 HGB, § 14b UStG): § 147 AO",
-      ),
+      screen.getByText("Buchungsbeleg (AO, HGB, UStG): § 147 AO"),
     ).toBeInTheDocument();
     expect(
       screen.getByText("08.09.2026: Bank prüft den letzten Einzug"),
