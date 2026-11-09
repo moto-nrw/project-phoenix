@@ -111,7 +111,7 @@ func renderSollstellung(mapping parentbilling.SollstellungMapping, invoices []pa
 	if mapping.HeaderRow {
 		header := make([]string, len(mapping.Columns))
 		for i, column := range mapping.Columns {
-			header[i] = column.Header
+			header[i] = sollFormulaSafe(column.Header)
 		}
 		if err := writer.Write(header); err != nil {
 			return nil, err
@@ -136,7 +136,18 @@ func renderSollstellung(mapping parentbilling.SollstellungMapping, invoices []pa
 // sollCell is the value of one column for one invoice.
 func sollCell(mapping parentbilling.SollstellungMapping, column parentbilling.SollstellungColumn, invoice parentbilling.ExportInvoice, fileNumber int64) string {
 	value := sollValue(mapping, column, invoice, fileNumber)
-	if slices.Contains(sollTextFields, column.Field) && value != "" && strings.ContainsRune("=+-@\t\r", rune(value[0])) {
+	if slices.Contains(sollTextFields, column.Field) {
+		return sollFormulaSafe(value)
+	}
+	return value
+}
+
+// sollFormulaSafe keeps a spreadsheet from reading a text as a formula: a
+// text that starts like one gets a leading apostrophe. Quoting the CSV field
+// does not stop Excel, so names, free columns and the column headers of the
+// Träger's mapping all pass here.
+func sollFormulaSafe(value string) string {
+	if value != "" && strings.ContainsRune("=+-@\t\r", rune(value[0])) {
 		return "'" + value
 	}
 	return value

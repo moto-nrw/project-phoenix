@@ -85,6 +85,22 @@ func TestSollstellungWindows1252(t *testing.T) {
 	assert.Equal(t, "Jürgen ?ukasz\r\n", string(text))
 }
 
+// A column header of the Träger's mapping that starts like a formula is
+// written as text, as every text cell is: Excel reads "=HYPERLINK(...)" in
+// a quoted CSV field as a formula too (quorum review of 1bb006b1ac).
+func TestSollstellungHeadersAreNoFormulas(t *testing.T) {
+	t.Parallel()
+	mapping := parentbilling.SollstellungMapping{Columns: []parentbilling.SollstellungColumn{
+		{Field: parentbilling.SollFieldInvoiceNumber, Header: "=HYPERLINK(\"https://example.org\")"},
+		{Field: parentbilling.SollFieldAmount, Header: "+Betrag"},
+		{Field: parentbilling.SollFieldChildName, Header: "Kind"},
+	}, Delimiter: ";", DecimalSeparator: ",", DateFormat: parentbilling.SollDateGerman, Encoding: parentbilling.SollEncodingUTF8,
+		HeaderRow: true, FileNamePattern: "s-{NR}.csv"}
+	data, err := renderSollstellung(mapping, nil, 1)
+	require.NoError(t, err)
+	assert.Equal(t, "\"'=HYPERLINK(\"\"https://example.org\"\")\";'+Betrag;Kind\r\n", string(data))
+}
+
 // A mapping names each problem at its field and keeps nothing it cannot
 // write: unknown fields, a missing file number in the name, a separator
 // that is also the decimal point, a header row without headers.
