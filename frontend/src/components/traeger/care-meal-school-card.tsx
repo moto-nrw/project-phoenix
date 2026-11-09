@@ -22,7 +22,6 @@ import {
   MEAL_MODE_LABELS,
   MEAL_STAND_LABELS,
   type MealStandStatus,
-  mealPriceText,
   mealStandStatus,
   mealStands,
 } from "./care-meal-format";
@@ -106,8 +105,10 @@ export function CareMealSchoolCard({
     (tariff) => !billedUntil || tariff.validFrom > billedUntil,
   );
 
+  // The table names every price with its mode and stand; the line under the
+  // title only says what the table cannot: no price yet, or only a planned one.
   const description = current
-    ? `${mealPriceText(current)}, seit 1. ${formatMonth(current.validFrom)}.`
+    ? ""
     : stands.length > 0
       ? `Ab 1. ${formatMonth(stands[0]?.validFrom ?? currentMonth)} geplant.`
       : "Noch kein Mensa-Preis. Ohne Preis rechnet der Monatslauf die Mensa dieser Schule nicht ab.";
@@ -115,15 +116,15 @@ export function CareMealSchoolCard({
   return (
     <SectionCard
       title={school.name}
-      titleBadge={
-        current ? (
-          <StatusBadge tone="gray" label={MEAL_MODE_LABELS[current.mode]} />
-        ) : undefined
-      }
       description={
-        billedUntil
-          ? `${description} Abgerechnet bis ${formatMonth(billedUntil)}; diese Monate behalten ihren Preis.`
-          : description
+        [
+          description,
+          billedUntil
+            ? `Abgerechnet bis ${formatMonth(billedUntil)}; diese Monate behalten ihren Preis.`
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" ") || undefined
       }
       actions={
         <div className="flex items-center gap-2">

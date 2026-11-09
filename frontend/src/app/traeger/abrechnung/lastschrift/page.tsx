@@ -97,6 +97,22 @@ export default function TraegerLastschriftPage() {
         placeholder: "Familie, Kontoinhaber oder Referenz",
       }}
       filters={filters}
+      // A choice other than the default shows as active, also on a phone
+      // where the filters sit behind one button.
+      activeFilters={
+        show === "in_force"
+          ? []
+          : [
+              {
+                id: "show",
+                label:
+                  SHOW_OPTIONS.find((option) => option.value === show)?.label ??
+                  "",
+                onRemove: () => setShow("in_force"),
+              },
+            ]
+      }
+      onClearAllFilters={() => setShow("in_force")}
     >
       {mandates ? (
         <SepaMandatesCard mandates={shown} onChanged={() => void load()} />
