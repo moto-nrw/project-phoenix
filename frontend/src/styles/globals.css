@@ -555,7 +555,12 @@
   -webkit-backdrop-filter: blur(8px);
 }
 
-.moto-content-surface:has([aria-expanded="true"]) {
+/* An open dropdown or popover lifts its surface above the next one. A card's
+   own disclosure toggle (`SectionCollapseToggle`) opens no layer: it must not
+   lift the card above a sticky save bar. */
+.moto-content-surface:has(
+    [aria-expanded="true"]:not([data-section-collapse-toggle])
+  ) {
   position: relative;
   z-index: 60;
 }
