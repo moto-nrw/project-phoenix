@@ -320,7 +320,6 @@ describe("withdrawing an Einverständnis (#6290)", () => {
           ...announcement,
           status: "published",
           delivery_mode: "declaration",
-          declaration_revocable: true,
         }}
         onClose={vi.fn()}
         onDone={vi.fn()}
@@ -338,28 +337,6 @@ describe("withdrawing an Einverständnis (#6290)", () => {
     expect(
       screen.queryByText(/wird für die Eltern nicht mehr sichtbar/),
     ).not.toBeInTheDocument();
-  });
-
-  it("promises no withdrawal the school did not allow", () => {
-    render(
-      <UnpublishAnnouncementDialog
-        announcement={{
-          ...announcement,
-          status: "published",
-          delivery_mode: "declaration",
-          declaration_revocable: false,
-        }}
-        onClose={vi.fn()}
-        onDone={vi.fn()}
-      />,
-    );
-
-    expect(
-      screen.getByText(
-        /Wer schon geantwortet hat, sieht das Einverständnis weiter\. Ändern Sie/,
-      ),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/widerrufen/)).not.toBeInTheDocument();
   });
 
   it("keeps the plain wording for a Mitteilung", () => {

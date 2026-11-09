@@ -21,7 +21,7 @@ func declarationStatusFixture() *announcementService.ParentDeclarationStatus {
 	}
 	return &announcementService.ParentDeclarationStatus{
 		Title:          "Einverständnis Zoo",
-		Settings:       announcementService.ParentDeclarationSettings{Kind: announcementService.DeclarationKindConsent, Signers: announcementService.DeclarationSignersAny, Revocable: true},
+		Settings:       announcementService.ParentDeclarationSettings{Kind: announcementService.DeclarationKindConsent, Signers: announcementService.DeclarationSignersAny},
 		CurrentVersion: &version, Versions: []announcementService.DeclarationVersion{version},
 		Summary: announcementService.DeclarationSummary{ChildrenTotal: 3, ByState: map[string]int{
 			announcementService.DeclarationStateAgreed: 1, announcementService.DeclarationStateOpen: 1, announcementService.DeclarationStateNoSigner: 1,

@@ -618,7 +618,6 @@ describe("ParentAnnouncementsPage: Einverständnisse (#3430)", () => {
     delivery_mode: "declaration",
     declaration_kind: "consent",
     declaration_signers: "any",
-    declaration_revocable: true,
     declaration_requires_password: false,
   };
 
@@ -678,10 +677,6 @@ describe("ParentAnnouncementsPage: Einverständnisse (#3430)", () => {
     expect(
       screen.queryByText("Was sollen die Eltern tun?"),
     ).not.toBeInTheDocument();
-    const revocable = screen.getByRole("checkbox", {
-      name: /Widerruf erlauben/,
-    });
-    fireEvent.click(revocable);
     fireEvent.click(
       screen.getByRole("radio", { name: /Alle sorgeberechtigten Personen/ }),
     );
@@ -715,21 +710,28 @@ describe("ParentAnnouncementsPage: Einverständnisse (#3430)", () => {
         response_deadline: null,
         declaration_kind: "consent",
         declaration_signers: "all",
-        declaration_revocable: false,
         declaration_requires_password: true,
       }),
     );
   });
 
-  it("keeps a consent revocable by default", async () => {
+  it("offers no switch against revoking: a consent is always revocable (#6303)", async () => {
     searchParams.set("art", "erklaerungen");
     searchParams.set("bearbeiten", "9");
     listState.data = [declarationDraft];
     render(<ParentAnnouncementsPage />);
 
     expect(
-      await screen.findByRole("checkbox", { name: /Widerruf erlauben/ }),
-    ).toBeChecked();
+      await screen.findByRole("checkbox", { name: /Mit Unterschrift/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("checkbox", { name: /Widerruf/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Danach können Eltern nicht mehr antworten. Eine Zustimmung widerrufen geht weiter.",
+      ),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
     fireEvent.click(
       await screen.findByRole("button", { name: "Als Entwurf speichern" }),
@@ -741,11 +743,13 @@ describe("ParentAnnouncementsPage: Einverständnisse (#3430)", () => {
         expect.objectContaining({
           declaration_kind: "consent",
           declaration_signers: "any",
-          declaration_revocable: true,
           declaration_requires_password: false,
           declaration_requires_signature: false,
         }),
       ),
+    );
+    expect(vi.mocked(updateAnnouncement).mock.calls[0]?.[1]).not.toHaveProperty(
+      "declaration_revocable",
     );
   });
 
