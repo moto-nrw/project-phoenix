@@ -265,9 +265,11 @@ export function LegalBlocksSection({
           >
             Im Formular anzeigen
           </InlineCheckbox>
-          <p className="max-w-xl text-sm leading-5 text-gray-500">
-            {helperText}
-          </p>
+          {helperText ? (
+            <p className="max-w-xl text-sm leading-5 text-gray-500">
+              {helperText}
+            </p>
+          ) : null}
           <div className="flex flex-wrap gap-2">
             {onReset ? (
               <Button
@@ -362,6 +364,7 @@ export function LegalBlocksSection({
         <div className="mt-3">
           <AttachmentEditor
             uploadAdapter={uploadAdapter}
+            sharedHints={customOnly}
             fieldPath={`legal_blocks.${index}.attachments`}
             fieldError={fieldError}
             attachments={block.attachments}
@@ -437,9 +440,16 @@ export function LegalBlocksSection({
           </h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
             {customOnly
-              ? "Hier ergänzen Sie Hinweise, PDFs und freiwillige Einwilligungen. Die festen Zustimmungen bleiben bestehen."
+              ? "Hier ergänzen Sie Hinweise, PDFs und freiwillige Einwilligungen für diesen Zeitraum. Die festen Zustimmungen bleiben bestehen."
               : "Die vier Standardblöcke starten mit den Texten aus den Einstellungen. Hier blenden Sie sie für diese Vorlage aus oder bearbeiten bewusst eine Abweichung. Eigene Zustimmungen bleiben direkt an diese Vorlage gebunden."}
           </p>
+          {customOnly ? (
+            // Said once for every entry below, not in each PDF part.
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
+              Eltern können alle PDFs öffnen und herunterladen. Höchstens{" "}
+              {MAX_ENROLLMENT_DOCUMENT_SIZE_LABEL} pro Datei.
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -540,8 +550,9 @@ export function LegalBlocksSection({
           renderBlockEditor({
             block,
             index,
+            // For a holiday period the head says once what every entry is.
             helperText: customOnly
-              ? "Eigener Hinweis oder Einwilligung für diesen Zeitraum."
+              ? ""
               : "Eigene Zustimmung für diese Vorlage. Sie erscheint als zusätzliche Checkbox im Anmeldeformular.",
             onRemove: () => removeBlock(index),
           }),
@@ -574,7 +585,9 @@ export function LegalBlocksSection({
           className="inline-flex items-center justify-center gap-2"
         >
           <Plus className="h-4 w-4" aria-hidden="true" />
-          Eigene Zustimmung hinzufügen
+          {customOnly
+            ? "Hinweis oder Einwilligung hinzufügen"
+            : "Eigene Zustimmung hinzufügen"}
         </Button>
       </div>
     </SectionCard>
