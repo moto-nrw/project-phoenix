@@ -25,7 +25,7 @@ function fixture(t) {
   const setup = (overrides = {}) => spawnSync('bash', ['-c', 'source scripts/devbox-tmpdir.sh || exit; printf "%s" "$TMPDIR"'], {
     cwd: root, env: { ...env, ...overrides }, encoding: 'utf8',
   });
-  const cleanup = (elapsed = 0, denyReferences = false, pidNamespace = null, tempdir = temp) => spawnSync(process.execPath, [
+  const cleanup = (elapsed = 0, denyReferences = false, pidNamespace = null, tempdir = temp, activeNamespace = null) => spawnSync(process.execPath, [
     '--import', `data:text/javascript,${encodeURIComponent(`
       import fs from 'node:fs';
       import { syncBuiltinESMExports } from 'node:module';
@@ -36,6 +36,13 @@ function fixture(t) {
         fs.readlinkSync = path => path === '/proc/self/ns/pid' ? ${JSON.stringify(pidNamespace)} : readlink(path);
         // An isolated procfs can expose no references to the host's tree.
         fs.readdirSync = path => path === '/proc' ? [] : readdir(path);
+        syncBuiltinESMExports();
+      }
+      if (${JSON.stringify(activeNamespace)} !== null) {
+        const readlink = fs.readlinkSync;
+        fs.readlinkSync = path => path === '/proc/' + process.pid + '/ns/pid'
+          ? 'pid:[' + ${JSON.stringify(activeNamespace)} + ']'
+          : readlink(path);
         syncBuiltinESMExports();
       }
       if (${denyReferences}) {
@@ -256,8 +263,8 @@ test('Linux bootstrap re-scopes inherited defaults and cleanup stays within that
   }
   const orphan = join(isolated, 'nix-2147483647-123');
   mkdirSync(orphan);
-  assert.equal(f.cleanup(61 * 60 * 1000).status, 0);
-  assert.ok(existsSync(orphan), 'the host must not sweep the sandbox namespace');
+  assert.equal(f.cleanup(61 * 60 * 1000, false, null, f.temp, '999999999').status, 0);
+  assert.ok(existsSync(orphan), 'the host must not sweep an active sandbox namespace');
   assert.equal(existsSync(original), false);
   const result = f.cleanup(0, false, 'pid:[999999999]', isolated);
   assert.equal(result.status, 0, result.stderr);
@@ -273,4 +280,129 @@ test('Linux cleanup retains legacy trees with an unknown PID namespace', { skip:
     assert.equal(f.cleanup(61 * 60 * 1000, false, null, tempdir).status, 0);
     assert.ok(existsSync(legacy));
   }
+});
+
+test('an unwritable common directory preserves the original TMPDIR and still loads Devbox', t => {
+  const f = fixture(t);
+  assert.equal(f.setup().status, 0);
+  chmodSync(f.namespaceRoot, 0o755);
+  copyFileSync(new URL('../.envrc', import.meta.url), join(f.root, '.envrc'));
+  const bin = join(f.root, 'bin');
+  mkdirSync(bin);
+  // Portable EROFS fixture; a real read-only bind mount is also checked locally.
+  writeFileSync(join(bin, 'chmod'), '#!/bin/sh\necho "Read-only file system" >&2\nexit 1\n', { mode: 0o755 });
+  writeFileSync(join(bin, 'devbox'), '#!/bin/sh\nprintf \'export DEVBOX_FIXTURE_LOADED=yes\\n\'\n', { mode: 0o755 });
+  const result = spawnSync('bash', ['-c', 'watch_file() { :; }; dotenv_if_exists() { :; }; source .envrc || exit; printf "%s|%s" "$DEVBOX_FIXTURE_LOADED" "${TMPDIR-unset}"'], {
+    cwd: f.root, env: { ...process.env, TMPDIR: '', PATH: `${bin}:${process.env.PATH}` }, encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, 'yes|');
+});
+
+test('already private temp directories do not require chmod', t => {
+  const f = fixture(t);
+  assert.equal(f.setup().status, 0);
+  const bin = join(f.root, 'bin');
+  mkdirSync(bin);
+  writeFileSync(join(bin, 'chmod'), '#!/bin/sh\necho "unexpected chmod" >&2\nexit 1\n', { mode: 0o755 });
+  const result = f.setup({ PATH: `${bin}:${process.env.PATH}` });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, f.temp);
+});
+
+test('.envrc keeps the managed TMPDIR inside bootstrap and preserves the shell environment', t => {
+  const f = fixture(t);
+  copyFileSync(new URL('../.envrc', import.meta.url), join(f.root, '.envrc'));
+  const bin = join(f.root, 'bin');
+  mkdirSync(bin);
+  writeFileSync(join(bin, 'devbox'), '#!/bin/sh\nprintf \'printf "%%s" "$TMPDIR" > "$FIXTURE_RESULT"; export DEVBOX_FIXTURE_LOADED=yes\\n\'\n', { mode: 0o755 });
+  const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, FIXTURE_RESULT: join(f.root, 'bootstrap-temp') };
+  delete env.TMPDIR;
+  const result = spawnSync('bash', ['-c', 'watch_file() { :; }; dotenv_if_exists() { :; }; source .envrc || exit; printf "%s|%s" "$DEVBOX_FIXTURE_LOADED" "${TMPDIR-unset}"'], {
+    cwd: f.root, env, encoding: 'utf8',
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(readFileSync(join(f.root, 'bootstrap-temp'), 'utf8'), f.temp);
+  assert.equal(result.stdout, 'yes|unset');
+});
+
+test('aged orphan PID namespaces are removed as a whole, including non-Nix leftovers', { skip: process.platform !== 'linux' }, t => {
+  const f = fixture(t);
+  assert.equal(f.setup().status, 0);
+  const abandoned = join(f.namespaceRoot, 'pid-999999999');
+  mkdirSync(join(abandoned, 'node-compile-cache'), { recursive: true, mode: 0o700 });
+  writeFileSync(join(abandoned, 'node-compile-cache/cache'), 'temporary');
+  assert.equal(f.cleanup(59 * 60 * 1000).status, 0);
+  assert.ok(existsSync(abandoned));
+  assert.equal(f.cleanup(61 * 60 * 1000).status, 0);
+  assert.equal(existsSync(abandoned), false);
+  assert.ok(existsSync(f.temp), 'the current namespace itself stays available');
+});
+
+
+test('known active namespaces and open references retain old namespace directories', { skip: process.platform !== 'linux' }, async t => {
+  const f = fixture(t);
+  assert.equal(f.setup().status, 0);
+  const isolated = join(f.namespaceRoot, 'pid-999999999');
+  mkdirSync(isolated, { mode: 0o700 });
+  assert.equal(f.cleanup(61 * 60 * 1000, false, null, f.temp, '999999999').status, 0);
+  assert.ok(existsSync(isolated), 'a visible namespace stays regardless of age');
+  const child = spawn(process.execPath, ['-e', 'process.stdout.write("ready"); process.stdin.resume()'], { cwd: isolated });
+  t.after(() => { if (child.exitCode === null) child.kill(); });
+  await new Promise(resolve => child.stdout.once('data', resolve));
+  assert.equal(f.cleanup(61 * 60 * 1000).status, 0);
+  assert.ok(existsSync(isolated), 'an open cwd retains even an unknown namespace');
+  child.stdin.end();
+  await new Promise(resolve => child.once('exit', resolve));
+  assert.equal(f.cleanup(61 * 60 * 1000).status, 0);
+  assert.equal(existsSync(isolated), false);
+});
+
+test('orphan namespace cleanup preserves recent nested changes, symlinks and insecure directories', { skip: process.platform !== 'linux' }, t => {
+  const f = fixture(t);
+  assert.equal(f.setup().status, 0);
+  const isolated = join(f.namespaceRoot, 'pid-999999999');
+  mkdirSync(isolated, { mode: 0o700 });
+  const file = join(isolated, 'cache');
+  writeFileSync(file, 'new');
+  const changed = new Date(Date.now() + 60 * 60 * 1000);
+  utimesSync(file, changed, changed);
+  const target = join(f.root, 'foreign');
+  mkdirSync(target);
+  symlinkSync(target, join(f.namespaceRoot, 'pid-999999998'));
+  const insecure = join(f.namespaceRoot, 'pid-999999997');
+  mkdirSync(insecure, { mode: 0o755 });
+  assert.equal(f.cleanup(61 * 60 * 1000).status, 0);
+  for (const path of [isolated, insecure, target, join(f.namespaceRoot, 'pid-999999998')]) assert.ok(existsSync(path), path);
+});
+
+test('read-only bind-mounted common directory still loads Devbox tools', { skip: process.platform !== 'linux' }, t => {
+  const f = fixture(t);
+  assert.equal(f.setup().status, 0);
+  copyFileSync(new URL('../.envrc', import.meta.url), join(f.root, '.envrc'));
+  const bin = join(f.root, 'bin');
+  mkdirSync(bin);
+  writeFileSync(join(bin, 'devbox'), '#!/bin/sh\nprintf \'export PATH="$FIXTURE_BIN:$PATH"\\n\'\n', { mode: 0o755 });
+  writeFileSync(join(bin, 'go'), '#!/bin/sh\nprintf "fixture-go"\n', { mode: 0o755 });
+  const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, FIXTURE_BIN: bin, FIXTURE_COMMON: join(f.root, '.git') };
+  delete env.TMPDIR;
+  const mount = `set -eu
+mount --make-rprivate /
+mount --bind "$FIXTURE_COMMON" "$FIXTURE_COMMON"
+mount -o remount,bind,ro "$FIXTURE_COMMON"`;
+  const args = ['--user', '--map-root-user', '--mount', '--fork', 'bash', '-c'];
+  const run = script => spawnSync('unshare', [...args, script], { cwd: f.root, env, encoding: 'utf8' });
+  const probe = run(mount);
+  if (probe.error || probe.status !== 0) {
+    t.skip('kernel does not permit private user/mount namespaces; portable EROFS fixture still runs');
+    return;
+  }
+  const result = run(`${mount}
+watch_file() { :; }
+dotenv_if_exists() { :; }
+source .envrc
+go
+printf '|%s' "\${TMPDIR-unset}"`);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, 'fixture-go|unset');
 });

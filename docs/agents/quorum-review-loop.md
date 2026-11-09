@@ -42,24 +42,41 @@ repository's Git common directory (`.git` in the main checkout). On Linux,
 trees go into `moto-nix-tmp/pid-<namespace-inode>`, using `/proc/self/ns/pid`.
 Worktrees in the same PID namespace share cleanup; sandboxes with a different
 PID namespace use separate directories. Cleanup accepts only its current
-namespace's path. Bootstrap re-scopes inherited default paths to the current
-namespace before invoking Devbox. Legacy trees directly under
+namespace's path for Nix-tree cleanup. Bootstrap re-scopes inherited default
+paths to the current namespace before invoking Devbox. Legacy trees directly under
 `moto-nix-tmp` are retained because their PID namespace is unknown.
 Keep the namespace on disk; Linux rejects tmpfs/ramfs and asks for an explicit,
 disk-backed `TMPDIR`. macOS keeps its existing system
 `TMPDIR`; an unset value uses the same repo-local fallback. Explicit values,
 including `/tmp`, are respected. Local dotenv overrides are loaded afterwards;
 set a custom bootstrap `TMPDIR` in the invoking environment, before direnv.
-No shell profile or machine configuration is changed.
+The managed `TMPDIR` exists only during Devbox bootstrap and cleanup. The
+calling shell gets its original value (including unset) back; other Devbox
+exports such as PATH remain loaded. This prevents normal shell commands from
+leaving unrelated caches such as `node-compile-cache` in Git metadata, without
+adding a general-purpose deletion policy.
+
+Directories already at 0700 are not chmodded. If Git metadata is read-only or
+its temp location cannot be prepared for writing, bootstrap warns and retains
+the caller's TMPDIR instead of blocking Devbox. This fallback deliberately has
+the previous temp-file behavior, including `/tmp` when TMPDIR was unset; the
+repo protection is unavailable in that sandbox. Symlinked/foreign-owned paths
+still fail closed. No shell profile or machine configuration is changed.
 
 This protects against [NixOS/nix#10404](https://github.com/NixOS/nix/issues/10404):
 a fresh Quorum worktree needs its own Devbox profile even when packages already
 exist in the shared Nix store. Keep automatic installation enabled. After
 bootstrap, Node from the installed profile runs
 [`scripts/cleanup-devbox-tmp.mjs`](../../scripts/cleanup-devbox-tmp.mjs).
-It only sweeps the repository's private default temp namespace, never
+It only sweeps the repository's private default temp directories, never
 `/tmp`, a caller's custom `TMPDIR`, symlinked directories or foreign-owned trees.
-Only `nix-<pid>-<number>` directories with a dead creator PID are candidates.
+Within the current PID namespace, only `nix-<pid>-<number>` directories with a
+dead creator PID are candidates. Whole sibling `pid-<namespace-inode>`
+directories can also be removed when every entry has unchanged mtime/ctime for
+over 60 minutes and the namespace is absent or cannot be inspected. Visible
+namespace processes or namespace handles and known open references always
+retain the directory. This also removes non-Nix leftovers from dead sandboxes;
+it does not interpret their PIDs using the host's PID view.
 Linux `/proc` or macOS `lsof` checks open descriptors, working directories and
 mapped files. Known references always retain a tree.
 
@@ -68,7 +85,8 @@ exception requires `/proc/<pid>` to be absent and **every entry** in the tree to
 have unchanged mtime and ctime for over 60 minutes. This covers hosts where
 `ptrace_scope` hides unrelated processes. It is a grace-period policy, not proof
 that inaccessible processes hold no references. Cleanup runs on the next
-successful bootstrap (or explicit `node scripts/cleanup-devbox-tmp.mjs`
+successful bootstrap (or explicit
+`(source scripts/devbox-tmpdir.sh && node scripts/cleanup-devbox-tmp.mjs)`
 invocation), including after an earlier error or interruption; it is not a background service. Concurrent sweeps tolerate
 already removed trees. Persistent Nix-store and Devbox caches remain intact.
 

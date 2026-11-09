@@ -20,13 +20,27 @@ function references(root) {
   if (process.platform === 'linux') {
     const paths = [];
     let complete = true;
+    const namespaces = new Set();
     for (const pid of readdirSync('/proc').filter(name => /^\d+$/.test(name))) {
       const proc = `/proc/${pid}`;
       try {
+        // Inspect namespace identity before user filtering or cwd inspection:
+        // an inaccessible cwd must not hide a namespace we can identify.
+        try {
+          const namespace = /^pid:\[([0-9]+)\]$/.exec(readlinkSync(`${proc}/ns/pid`));
+          if (namespace) namespaces.add(namespace[1]);
+        } catch (error) {
+          if (error.code !== 'ENOENT' && error.code !== 'ESRCH') complete = false;
+        }
         if (lstatSync(proc).uid !== uid) continue;
         paths.push(readlinkSync(`${proc}/cwd`));
         for (const fd of readdirSync(`${proc}/fd`)) {
-          try { paths.push(readlinkSync(`${proc}/fd/${fd}`)); }
+          try {
+            const reference = readlinkSync(`${proc}/fd/${fd}`);
+            paths.push(reference);
+            const namespace = /^pid:\[([0-9]+)\]$/.exec(reference);
+            if (namespace) namespaces.add(namespace[1]);
+          }
           catch (error) { if (error.code !== 'ENOENT') throw error; }
         }
         // A mapped file may remain referenced after its descriptor closes.
@@ -35,7 +49,7 @@ function references(root) {
         if (error.code !== 'ENOENT' && error.code !== 'ESRCH') complete = false;
       }
     }
-    return { paths, complete };
+    return { paths, complete, namespaces };
   }
   if (process.platform === 'darwin') {
     // macOS supplies lsof. Any diagnostic/unsupported platform fails closed.
@@ -56,6 +70,11 @@ export function unchangedForHour(path, now) {
   return !stat.isDirectory() || readdirSync(path).every(name => unchangedForHour(join(path, name), now));
 }
 
+function privateDirectory(path) {
+  const stat = lstatSync(path);
+  return stat.isDirectory() && stat.uid === uid && (stat.mode & 0o777) === 0o700 && realpathSync(path) === path;
+}
+
 function cleanup() {
   let root = namespaceRoot;
   if (process.platform === 'linux') {
@@ -64,8 +83,7 @@ function cleanup() {
     root = join(root, `pid-${namespace[1]}`);
   }
   if (resolve(process.env.TMPDIR || '/tmp') !== root) return;
-  const stat = lstatSync(root);
-  if (!stat.isDirectory() || stat.uid !== uid || (stat.mode & 0o777) !== 0o700 || realpathSync(root) !== root) return;
+  if (!privateDirectory(namespaceRoot) || !privateDirectory(root)) return;
   const candidates = readdirSync(root).flatMap(name => {
     const match = /^nix-([1-9]\d*)-\d+$/.exec(name);
     if (!match || alive(Number(match[1]))) return [];
@@ -73,8 +91,14 @@ function cleanup() {
     const stat = lstatSync(path);
     return stat.isDirectory() && stat.uid === uid ? [{ path, pid: Number(match[1]), stat }] : [];
   });
-  if (!candidates.length) return;
-  const { paths: open, complete } = references(root);
+  const abandoned = process.platform === 'linux' ? readdirSync(namespaceRoot).flatMap(name => {
+    const match = /^pid-([0-9]+)$/.exec(name);
+    const path = join(namespaceRoot, name);
+    if (!match || path === root || !privateDirectory(path)) return [];
+    return [{ path, namespace: match[1], stat: lstatSync(path) }];
+  }) : [];
+  if (!candidates.length && !abandoned.length) return;
+  const { paths: open, complete, namespaces } = references(namespaceRoot);
   const now = Date.now();
   for (const { path, pid, stat } of candidates) {
     if (open.some(reference => inside(reference.replace(/ \(deleted\)$/, ''), path))) continue;
@@ -87,6 +111,17 @@ function cleanup() {
       if (!alive(pid) && current.ino === stat.ino && current.dev === stat.dev && current.isDirectory() && current.uid === uid) {
         rmSync(path, { recursive: true });
       }
+    } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  }
+  for (const { path, namespace, stat } of abandoned) {
+    // No PID in this namespace can be interpreted using our own /proc view.
+    // The explicitly permitted fallback also covers an old, uninspectable
+    // namespace, but known namespaces and open references always win.
+    if (namespaces.has(namespace) || open.some(reference => inside(reference.replace(/ \(deleted\)$/, ''), path))) continue;
+    try {
+      if (!unchangedForHour(path, now)) continue;
+      const current = lstatSync(path);
+      if (current.ino === stat.ino && current.dev === stat.dev && privateDirectory(path)) rmSync(path, { recursive: true });
     } catch (error) { if (error.code !== 'ENOENT') throw error; }
   }
 }
