@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// The assessment of a Jahresbescheid (#6219, ADR 0180). It takes the
+// The assessment of a Jahresbescheid (#6219, ADR 0182). It takes the
 // months the monthly computation billed per contract (the drafts of each
 // month, narrowed to the schools of the run) and the effective notice of
 // each contract, and writes per contract a fee notice: one line per basis

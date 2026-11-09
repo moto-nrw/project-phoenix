@@ -17,7 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// The runs of the Jahresbescheide (#6219, ADR 0180). A run assesses the
+// The runs of the Jahresbescheide (#6219, ADR 0182). A run assesses the
 // months of a year from its first month to December: it computes every month
 // as the monthly run would (careMonthInput, buildCareMonth, narrowMonth),
 // so prices, rule chain, family counts and cost bearer shares are the same,
@@ -87,7 +87,7 @@ func (n *CareFeeNotices) ListCareNoticeRuns(ctx context.Context, organizationID 
 }
 
 // EffectiveNoticeDues answers per contract the rate of the month the
-// effective notice sets, for the SEPA collection (#4697, ADR 0180): a
+// effective notice sets, for the SEPA collection (#4697, ADR 0182): a
 // change notice replaces the notice it amends, so each contract has at most
 // one entry. The month is the first day of a month.
 func (n *CareFeeNotices) EffectiveNoticeDues(ctx context.Context, organizationID int64, month calendar.Date) ([]parentbilling.CareNoticeDue, error) {

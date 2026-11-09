@@ -241,7 +241,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0171: the constructor of the SEPA mandates of
 // modules/parentbilling/compose adds exactly 5 LOC.
 // ADR 0175: the school-read context guard adds exactly 5 LOC in settings/compose.
-// ADR 0180: the constructor of the Jahresbescheide of
+// ADR 0182: the constructor of the Jahresbescheide of
 // modules/parentbilling/compose adds exactly 7 LOC.
 const moduleComposeBudgetTotal = 13142
 
@@ -322,7 +322,7 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0167: the constructor of the payment terms (+5);
 	// ADR 0168: the Mensa of the monthly run (+7);
 	// ADR 0171: the constructor of the SEPA mandates (+5);
-	// ADR 0180: the constructor of the Jahresbescheide (+7).
+	// ADR 0182: the constructor of the Jahresbescheide (+7).
 	"modules/parentbilling/compose":               86,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.

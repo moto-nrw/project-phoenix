@@ -56,7 +56,7 @@ type careMonth struct {
 	feeNoticesBySchool map[int64][]string
 	feeNotices         []string
 	// feeNoticeHeld are the contracts of the month a notice set to nothing
-	// (ADR 0180); the run shows them so the office issues a new notice.
+	// (ADR 0182); the run shows them so the office issues a new notice.
 	feeNoticeHeld []parentbilling.CareFeeNoticeHold
 	// freeBySchool counts per school the contracts whose price list makes
 	// the month free of charge (#6196).
@@ -93,7 +93,7 @@ func firstOfMonth(day calendar.Date) calendar.Date {
 
 // feeNoticeHolds names the contracts in force in the month whose effective
 // notice took the month back to nothing: the month stays assessed, so the
-// monthly run bills it not (ADR 0180).
+// monthly run bills it not (ADR 0182).
 func feeNoticeHolds(invoiced map[int64]parentbilling.CareInvoice,
 	byContract map[int64][]parentbilling.CareContractVersion,
 ) []parentbilling.CareFeeNoticeHold {

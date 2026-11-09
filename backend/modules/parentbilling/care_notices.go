@@ -8,7 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// The Jahresbescheid of the monthly care contribution (#6219, ADR 0180,
+// The Jahresbescheid of the monthly care contribution (#6219, ADR 0182,
 // pattern Gemeinde Hardt MK-007). A notice run assesses the months of a
 // calendar year from its first month to December for the schools it names:
 // per contract one fee notice with a line per module and rule, the monthly
@@ -231,7 +231,7 @@ type CareFeeNotices interface {
 }
 
 // CareFeeNoticeHold is a contract the monthly run would bill in a month
-// that an amended Jahresbescheid set to nothing (ADR 0180): the month stays
+// that an amended Jahresbescheid set to nothing (ADR 0182): the month stays
 // assessed, so no monthly invoice bills it. A new notice of the year bills
 // it again.
 type CareFeeNoticeHold struct {
@@ -243,7 +243,7 @@ type CareFeeNoticeHold struct {
 }
 
 // CareNoticeDue is the installment of a month that the effective notice of
-// a contract sets (ADR 0180): the rate, its due date and the notice. The
+// a contract sets (ADR 0182): the rate, its due date and the notice. The
 // SEPA collection (#4697) reads it instead of resolving the change notices
 // itself.
 type CareNoticeDue struct {

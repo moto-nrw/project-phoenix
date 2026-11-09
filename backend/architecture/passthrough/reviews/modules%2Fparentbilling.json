@@ -21,9 +21,9 @@
       "reason": "ADR 0158 (#4684): lists the monthly runs of the session's Träger after refusing a missing Träger and derives the month a new run bills; the Träger transaction is the caller's."
     },
     {
-      "decision": "0180",
+      "decision": "0182",
       "id": "modules/parentbilling/internal/application/CareFeeNotices.EffectiveNoticeDues",
-      "reason": "ADR 0180 (#6219): reads the effective change level of a month for the SEPA collection (#4697) after refusing a missing Träger and a month that is not a month start, and keeps the newest notice per contract; the Träger transaction is the caller's."
+      "reason": "ADR 0182 (#6219): reads the effective change level of a month for the SEPA collection (#4697) after refusing a missing Träger and a month that is not a month start, and keeps the newest notice per contract; the Träger transaction is the caller's."
     },
     {
       "decision": "0115",

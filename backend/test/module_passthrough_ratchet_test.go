@@ -259,7 +259,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // Raised by ADR 0168: the first complete attendance day of
 // modules/studentpresence (+1).
 // Raised by ADR 0172: the document contact read of modules/organizationtenancy (+1).
-// Raised by ADR 0180: the effective notice dues read of modules/parentbilling (+1).
+// Raised by ADR 0182: the effective notice dues read of modules/parentbilling (+1).
 const modulePassthroughOwnerBudgetTotal = 1404
 
 // modulePassthroughOwnerBudgets is the register: module directory →
@@ -304,7 +304,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// Elternabrechnung. Raised by ADR 0119: the billing run list (+1).
 	// Raised by ADR 0158: the monthly run list (+1).
 	// Raised by ADR 0167: the payment terms read (+1).
-	// Raised by ADR 0180: the effective notice dues read, which validates the
+	// Raised by ADR 0182: the effective notice dues read, which validates the
 	// month and resolves the change level onto the public contract (+1).
 	"modules/parentbilling":    9,
 	"modules/peopledirectory":  205,

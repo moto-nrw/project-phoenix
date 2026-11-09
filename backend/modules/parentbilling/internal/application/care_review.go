@@ -122,7 +122,7 @@ func narrowMonth(month careMonth, schoolIDs []int64, exclusions map[int64]parent
 }
 
 // narrowFeeNotices keeps the Jahresbescheide of the run's schools that
-// assess the month (#6219) and the contracts they took back (ADR 0180).
+// assess the month (#6219) and the contracts they took back (ADR 0182).
 func narrowFeeNotices(review *reviewedMonth, month careMonth, inRun func(int64) bool) {
 	review.feeNotices = []string{}
 	for schoolID, numbers := range month.feeNoticesBySchool {

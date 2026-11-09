@@ -427,7 +427,7 @@ func (s *Store) InvoicedContracts(ctx context.Context, organizationID int64, mon
 	// A Mensa-only invoice (#4686) has no module position; it still bills
 	// its contract, so the positions join from the left for an invoice with
 	// Mensa months. A month a Jahresbescheid nobody amended assesses bills
-	// its contract too (#6219, ADR 0180): it comes from the snapshot of the
+	// its contract too (#6219, ADR 0182): it comes from the snapshot of the
 	// month with the cents the rule chain allocated, and names the notice.
 	if err := db.NewRaw(invoicedContractsSQL, organizationID, month, organizationID, month).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("read invoiced contracts: %w", err)

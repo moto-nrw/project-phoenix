@@ -15,7 +15,7 @@ import (
 	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
-// The Jahresbescheid of the monthly care (#6219, ADR 0180) through the
+// The Jahresbescheid of the monthly care (#6219, ADR 0182) through the
 // routes. The year lies far ahead like the monthly fixtures (#4681).
 
 const careNoticeRunsPath = "/traeger/care-notice-runs"

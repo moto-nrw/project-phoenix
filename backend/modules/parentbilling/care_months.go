@@ -389,7 +389,7 @@ type CareRunDetail struct {
 	// assesses for the month (#6219); no monthly invoice bills them.
 	FeeNoticeContracts int `json:"fee_notice_contracts"`
 	// FeeNoticeHeld are the contracts of FeeNoticeContracts an amended
-	// Jahresbescheid set to nothing for the month (ADR 0180).
+	// Jahresbescheid set to nothing for the month (ADR 0182).
 	FeeNoticeHeld  []CareFeeNoticeHold `json:"fee_notice_held"`
 	PreviewCount   int                 `json:"preview_count"`
 	PreviewCents   int64               `json:"preview_cents"`

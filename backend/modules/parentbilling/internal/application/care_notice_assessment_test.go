@@ -421,7 +421,7 @@ func TestCareFixedShareTakenByANoticeLeavesTheMensaToTheFamily(t *testing.T) {
 }
 
 // TestCareMonthNamesTheContractsANoticeTookBack: a month an amended notice
-// set to nothing stays assessed (ADR 0180); the monthly run names the child
+// set to nothing stays assessed (ADR 0182); the monthly run names the child
 // so the office issues a new notice. A notice month that bills something
 // is no hold, nor is a contract without a version in the month.
 func TestCareMonthNamesTheContractsANoticeTookBack(t *testing.T) {

@@ -427,7 +427,7 @@ export interface CareRunDetail extends CareRun {
   readonly costBearers: readonly CareCostBearerTotal[];
   /**
    * Children whose Jahresbescheid an amendment set to 0,00 € for the month:
-   * the month stays locked, only a new notice bills it (ADR 0180, #6219).
+   * the month stays locked, only a new notice bills it (ADR 0182, #6219).
    */
   readonly feeNoticeHeld?: readonly CareFeeNoticeHold[];
 }

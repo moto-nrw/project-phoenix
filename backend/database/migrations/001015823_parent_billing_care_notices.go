@@ -24,7 +24,7 @@ func init() {
 }
 
 // parentBillingCareNoticesUpSQL adds the Jahresbescheid of the monthly care
-// contribution (#6219, ADR 0180):
+// contribution (#6219, ADR 0182):
 //
 //   - care_notice_runs: a run that assesses the months of a calendar year
 //     from its first month to December for its schools; at most one
@@ -75,7 +75,7 @@ CREATE UNIQUE INDEX uq_care_notice_runs_calculated_year
 CREATE INDEX idx_care_notice_runs_organization
 	ON parent_billing.care_notice_runs (organization_id, billing_year DESC, id DESC);
 COMMENT ON TABLE parent_billing.care_notice_runs IS
-	'Run of the Jahresbescheide of a Träger over the months of a year (#6219, ADR 0180); at most one calculated run per year; a released run never changes.';
+	'Run of the Jahresbescheide of a Träger over the months of a year (#6219, ADR 0182); at most one calculated run per year; a released run never changes.';
 
 CREATE TABLE parent_billing.care_notices (
 	id BIGSERIAL PRIMARY KEY,
@@ -130,7 +130,7 @@ CREATE UNIQUE INDEX uq_care_notices_first ON parent_billing.care_notices (organi
 CREATE INDEX idx_care_notices_run ON parent_billing.care_notices (run_id, number_sequence);
 CREATE INDEX idx_care_notices_school ON parent_billing.care_notices (organization_id, school_id);
 COMMENT ON TABLE parent_billing.care_notices IS
-	'Issued Jahresbescheid of one care contract over months of a year with bisher/neu/Zu-/Abgang (#6219, ADR 0180); a change notice amends one notice; never changes.';
+	'Issued Jahresbescheid of one care contract over months of a year with bisher/neu/Zu-/Abgang (#6219, ADR 0182); a change notice amends one notice; never changes.';
 
 CREATE TABLE parent_billing.care_notice_months (
 	id BIGSERIAL PRIMARY KEY,
@@ -153,7 +153,7 @@ CREATE TABLE parent_billing.care_notice_months (
 CREATE INDEX idx_care_notice_months_month
 	ON parent_billing.care_notice_months (organization_id, billing_month, care_contract_id);
 COMMENT ON TABLE parent_billing.care_notice_months IS
-	'Installment of one month of a Jahresbescheid with what the month bills (#6219, ADR 0180); a month of a notice nobody amended is billed for the monthly run; never changes.';
+	'Installment of one month of a Jahresbescheid with what the month bills (#6219, ADR 0182); a month of a notice nobody amended is billed for the monthly run; never changes.';
 
 CREATE TABLE parent_billing.care_notice_run_events (
 	id BIGSERIAL PRIMARY KEY,
