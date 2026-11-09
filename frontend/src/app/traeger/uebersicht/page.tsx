@@ -275,7 +275,7 @@ function figureColumns(
         <span className="text-sm text-gray-900 tabular-nums">
           {hasAlert(alerts, school, "sick_children") ? (
             <StatusBadge
-              tone="orange"
+              tone="warning"
               size="xs"
               icon={TriangleAlert}
               label={String(school.figures.childrenSick)}
@@ -296,7 +296,7 @@ function figureColumns(
         <span className="text-sm text-gray-900 tabular-nums">
           {hasAlert(alerts, school, "staff_shortage") ? (
             <StatusBadge
-              tone="orange"
+              tone="warning"
               size="xs"
               icon={TriangleAlert}
               label={String(school.figures.staffPresent)}
@@ -329,7 +329,7 @@ function figureColumns(
           <span className="text-sm font-semibold text-gray-900 tabular-nums">
             {hasAlert(alerts, school, "staff_shortage") ? (
               <StatusBadge
-                tone="orange"
+                tone="warning"
                 size="xs"
                 icon={TriangleAlert}
                 label={formatRatio(school.figures.careRatio)}
@@ -360,7 +360,7 @@ function figureColumns(
           <span className="text-sm text-gray-900 tabular-nums">
             {hasAlert(alerts, school, "open_enrollments") ? (
               <StatusBadge
-                tone="orange"
+                tone="warning"
                 size="xs"
                 icon={TriangleAlert}
                 label={String(open)}
@@ -571,7 +571,7 @@ export default function TraegerDashboardPage() {
           titleBadge={
             affected.length > 0 ? (
               <StatusBadge
-                tone="orange"
+                tone="warning"
                 label={schoolCountLabel(affected.length)}
               />
             ) : undefined

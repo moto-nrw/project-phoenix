@@ -67,7 +67,7 @@ export function TodayNoticesCard() {
                   {notice.title}
                 </span>
                 {notice.priority === "important" && (
-                  <StatusBadge label="Wichtig" tone="orange" />
+                  <StatusBadge label="Wichtig" tone="warning" />
                 )}
                 {notice.requires_acknowledgement && !notice.acknowledged_at && (
                   <StatusBadge label="Bitte bestätigen" tone="blue" />

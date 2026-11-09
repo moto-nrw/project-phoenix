@@ -124,7 +124,7 @@ function BlockedOfferingRow({
             </span>
             {booked ? (
               <StatusBadge
-                tone="orange"
+                tone="warning"
                 label="bereits gebucht"
                 title="Diese Buchung bleibt bestehen. Sie kann hier entfernt, aber nicht erneut hinzugefügt werden."
               />

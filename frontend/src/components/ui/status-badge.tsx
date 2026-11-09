@@ -7,12 +7,20 @@
 // No leading dot: it only repeated what tint and label already say and made
 // rows of pills busier without adding meaning (#2476).
 import { isValidElement, type ReactNode } from "react";
-import type { LucideIcon } from "lucide-react";
+import { AlertTriangle, type LucideIcon } from "lucide-react";
 
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 
 export type StatusBadgeTone =
-  "blue" | "green" | "orange" | "red" | "gray" | "purple" | "cyan" | "outline";
+  | "blue"
+  | "green"
+  | "warning"
+  | "orange"
+  | "red"
+  | "gray"
+  | "purple"
+  | "cyan"
+  | "outline";
 
 /** `xs` is for dense grids (plan cells, calendar rows): 12 px, tight padding. */
 export type StatusBadgeSize = "md" | "xs";
@@ -29,6 +37,15 @@ const TONES: Record<
     bg: MOTO_COLOR_PALETTE.green.soft,
     text: MOTO_COLOR_PALETTE.green.strong,
   },
+  // LOCATION_COLORS.WARNING: "needs attention" (open, missing, pending).
+  // Yellow tint plus a warning icon, so it never reads as the orange
+  // Schulhof pill next to it (#5617).
+  warning: {
+    bg: MOTO_COLOR_PALETTE.amber.pill,
+    text: MOTO_COLOR_PALETTE.amber.pillText,
+  },
+  // LOCATION_COLORS.SCHOOLYARD hue. Not for "needs attention": that is
+  // `warning`. Only labels without a warning meaning (Feiertag, Demo).
   orange: {
     bg: MOTO_COLOR_PALETTE.orange.soft,
     text: MOTO_COLOR_PALETTE.orange.strong,
@@ -184,6 +201,7 @@ export function StatusBadge({
   return (
     <StatusPillBase
       {...props}
+      icon={props.icon ?? (tone === "warning" ? AlertTriangle : undefined)}
       backgroundColor={styles.bg}
       textColor={styles.text}
     />

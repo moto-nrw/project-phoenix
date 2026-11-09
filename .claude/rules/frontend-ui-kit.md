@@ -249,8 +249,8 @@ NEVER use a generic Tailwind color class (`text-green-500`, `bg-blue-500`, …) 
 
 `SICK` and `DANGER` are the same hex on purpose — one names the child status,
 the other the error semantic. `WARNING` is the amber "needs attention but is
-not an error" hue (pending request, unstaffed slot, unexplained absence); it
-used to be what `SICK` pointed at, so never treat amber as "sick".
+not an error" hue (pending request, unstaffed slot), never "sick". Its pill is
+`StatusBadge tone="warning"` (yellow, warning icon, #5617), not `orange`.
 
 **Two states shown together must never resolve to the same hex.** That is the
 failure this table exists to prevent: a `Record` or `switch` that maps one

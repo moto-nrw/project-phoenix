@@ -441,7 +441,7 @@ function SignatureSection({
     >
       <div ref={sectionRef} className="space-y-4">
         <div className="flex items-center gap-3">
-          <StatusBadge tone="orange" label="Offen" />
+          <StatusBadge tone="warning" label="Offen" />
           <span className="text-sm text-gray-700">
             Noch nicht unterschrieben.
           </span>

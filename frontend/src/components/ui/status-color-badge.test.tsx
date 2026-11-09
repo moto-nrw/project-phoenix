@@ -48,7 +48,7 @@ describe("StatusColorBadge", () => {
       <>
         <StatusColorBadge
           label="Keine Daten"
-          color={LOCATION_COLORS.WARNING}
+          color={LOCATION_COLORS.OTHER_ROOM}
           compact
         />
         <StatusBadge label="3 Std." tone="green" compact />
@@ -84,5 +84,40 @@ describe("StatusColorBadge", () => {
     expect(pill.textContent).toBe("Entschuldigung");
     // Kein Abstand mehr, wo der Punkt saß.
     expect(pill.className).not.toMatch(/\bgap-/);
+  });
+
+  // #5617: „Schulhof“ und „Achtung“ standen als fast gleiche Pillen in einer
+  // Liste. Die Achtung-Pille unterscheidet sich jetzt in Tönung und Symbol.
+  it("unterscheidet die Achtung-Pille von der Schulhof-Pille", () => {
+    render(
+      <>
+        <StatusColorBadge label="Schulhof" color={LOCATION_COLORS.SCHOOLYARD} />
+        <StatusColorBadge
+          label="Anfrage offen"
+          color={LOCATION_COLORS.WARNING}
+        />
+      </>,
+    );
+    const schoolyard = screen.getByText("Schulhof");
+    const warning = screen.getByText("Anfrage offen");
+    expect(warning.style.backgroundColor).not.toBe(
+      schoolyard.style.backgroundColor,
+    );
+    expect(warning.style.color).not.toBe(schoolyard.style.color);
+    expect(warning.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+    expect(schoolyard.querySelector("svg")).toBeNull();
+  });
+
+  it("zeichnet die Achtung-Pille wie StatusBadge tone=warning", () => {
+    render(
+      <>
+        <StatusColorBadge label="Fehlt" color={LOCATION_COLORS.WARNING} />
+        <StatusBadge label="Offen" tone="warning" />
+      </>,
+    );
+    const a = screen.getByText("Fehlt");
+    const b = screen.getByText("Offen");
+    expect(a.style.cssText).toBe(b.style.cssText);
+    expect(a.className).toBe(b.className);
   });
 });

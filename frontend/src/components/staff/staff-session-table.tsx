@@ -1531,7 +1531,7 @@ function HintBadges({
     pills.push({
       key: "auto-checkout",
       label: "Auto-Checkout",
-      tone: "orange",
+      tone: "warning",
     });
   }
   if (pills.length === 0 && laborHints.length === 0) {
@@ -1638,7 +1638,7 @@ function LaborHintList({ hints }: { readonly hints: readonly LaborHint[] }) {
     <>
       {hints.map((hint) => (
         <span key={hint.key} className="flex flex-col items-start gap-0.5">
-          <StatusBadge label={hint.label} tone="orange" title={hint.title} />
+          <StatusBadge label={hint.label} tone="warning" title={hint.title} />
           {hint.detail ? (
             <span className="text-moto-amber-strong text-xs">
               {hint.detail}

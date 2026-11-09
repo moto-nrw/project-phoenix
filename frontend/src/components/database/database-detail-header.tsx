@@ -59,7 +59,7 @@ export function DatabaseDetailHeader({
         <div className="mt-0.5 truncate text-sm text-gray-500">{subtitle}</div>
       </div>
       {warning ? (
-        <StatusBadge tone="orange" icon={AlertTriangle} label={warning} wrap />
+        <StatusBadge tone="warning" icon={AlertTriangle} label={warning} wrap />
       ) : null}
       {actions ? (
         <div className="flex items-center gap-2">{actions}</div>

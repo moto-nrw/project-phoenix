@@ -859,7 +859,7 @@ export function CareOfferingsEditor({
               <FeaturePill label="Wird mitgebucht" />
             ) : null}
             {missingRequiredPickupDays(offering).length > 0 ? (
-              <StatusBadge label="Gehzeiten fehlen" tone="orange" />
+              <StatusBadge label="Gehzeiten fehlen" tone="warning" />
             ) : null}
             <AvailabilityRulePill
               rule={offering.availability_rule}

@@ -71,9 +71,9 @@ const STATUS_LABELS: Record<MealBillingStatus, string> = {
   expired: "Nicht mehr abrechenbar",
 };
 
-const STATUS_TONES: Record<MealBillingStatus, "gray" | "orange" | "green"> = {
+const STATUS_TONES: Record<MealBillingStatus, "gray" | "warning" | "green"> = {
   running: "gray",
-  open: "orange",
+  open: "warning",
   released: "green",
   expired: "gray",
 };

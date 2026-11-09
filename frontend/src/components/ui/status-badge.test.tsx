@@ -75,6 +75,30 @@ describe("StatusBadge", () => {
     expect(screen.getByText(label).style.color).toBe(text);
   });
 
+  // #5617: Der Achtung-Ton darf nie wie die Schulhof-Pille aussehen. Er hat
+  // eine gelbe Tönung und ein Warnsymbol als zweites Merkmal.
+  it("renders the warning tone yellow with a warning icon", () => {
+    render(<StatusBadge label="Anfrage offen" tone="warning" />);
+    const pill = screen.getByText("Anfrage offen");
+    expect(pill.style.backgroundColor).toBe("#FEF9C3");
+    expect(pill.style.color).toBe("#713F12");
+    expect(pill.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("lets a caller replace the warning icon", () => {
+    render(
+      <StatusBadge label="Gesperrt" tone="warning" icon={CheckCircleIcon} />,
+    );
+    expect(screen.getByText("Gesperrt").querySelectorAll("svg")).toHaveLength(
+      1,
+    );
+  });
+
+  it("keeps the orange tone without an icon", () => {
+    render(<StatusBadge label="Feiertag" tone="orange" />);
+    expect(screen.getByText("Feiertag").querySelector("svg")).toBeNull();
+  });
+
   it("renders the outline tone with a frame and no tint", () => {
     render(<StatusBadge label="Entwurf" tone="outline" />);
     const pill = screen.getByText("Entwurf");

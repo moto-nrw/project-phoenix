@@ -73,9 +73,9 @@ export function SepaMandateStatusCard({
           inForce?.creditorCurrent ? (
             <StatusBadge tone="green" label="Gültig" />
           ) : inForce ? (
-            <StatusBadge tone="orange" label="Neues Mandat nötig" />
+            <StatusBadge tone="warning" label="Neues Mandat nötig" />
           ) : (
-            <StatusBadge tone="orange" label="Kein gültiges Mandat" />
+            <StatusBadge tone="warning" label="Kein gültiges Mandat" />
           )
         ) : null
       }
