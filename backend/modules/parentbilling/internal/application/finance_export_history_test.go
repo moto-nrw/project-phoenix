@@ -15,10 +15,30 @@ import (
 type historyStore struct {
 	FinanceExportStore
 	steps []parentbilling.InvoiceHistoryEntry
+	reads *[]historyRead
+}
+
+// historyRead is one InsertRunEvents call of a history read.
+type historyRead struct {
+	organization, account int64
+	action                string
+	holiday, care         map[int64]map[string]any
 }
 
 func (s historyStore) InvoiceHistory(context.Context, int64, string, int64) (string, []parentbilling.InvoiceHistoryEntry, []parentbilling.ExportProtocolEntry, error) {
 	return "RE-1", s.steps, nil, nil
+}
+
+func (s historyStore) InsertRunEvents(_ context.Context, organization, account int64, action string, holiday, care map[int64]map[string]any) error {
+	if s.reads != nil {
+		*s.reads = append(*s.reads, historyRead{organization, account, action, holiday, care})
+	}
+	return nil
+}
+
+// issuedIn is the issue step of an invoice of run.
+func issuedIn(run int64) parentbilling.InvoiceHistoryEntry {
+	return parentbilling.InvoiceHistoryEntry{Kind: parentbilling.HistoryIssued, At: time.Date(2026, 11, 1, 9, 0, 0, 0, time.UTC), RunID: run}
 }
 
 type historyPost struct {
@@ -54,22 +74,23 @@ func TestInvoiceHistorySeparatesRequestedMailFromSuccessfulSend(t *testing.T) {
 				{DeliveryID: 15, Status: parentbilling.LetterMailSent, SentAt: &accepted, Outcome: "accepted"},
 				{DeliveryID: 99, Status: parentbilling.LetterMailSent, SentAt: &accepted},
 			}}
-			store := historyStore{}
+			store := historyStore{steps: []parentbilling.InvoiceHistoryEntry{issuedIn(7)}}
 			for id := int64(11); id <= 16; id++ {
 				store.steps = append(store.steps, parentbilling.InvoiceHistoryEntry{Kind: parentbilling.HistoryMailRequested, At: requested,
 					AccountID: &account, RunID: 7, DeliveryID: id, Note: "invoice"})
 			}
 			history, err := NewFinanceExports(store, post).InvoiceHistory(context.Background(), sjrReviewer, kind, 1)
 			require.NoError(t, err)
-			require.Len(t, history.Entries, 7, "six requests, one accepted mail; no send invented for a missing outbox entry")
-			for _, entry := range history.Entries[:6] {
+			require.Len(t, history.Entries, 8, "the issue, six requests, one accepted mail; no send invented for a missing outbox entry")
+			assert.Equal(t, parentbilling.HistoryIssued, history.Entries[0].Kind)
+			for _, entry := range history.Entries[1:7] {
 				assert.Equal(t, parentbilling.HistoryMailRequested, entry.Kind)
 			}
-			assert.Equal(t, parentbilling.HistorySent, history.Entries[6].Kind)
-			assert.Equal(t, accepted, history.Entries[6].At)
-			assert.True(t, history.Entries[6].ByYou)
+			assert.Equal(t, parentbilling.HistorySent, history.Entries[7].Kind)
+			assert.Equal(t, accepted, history.Entries[7].At)
+			assert.True(t, history.Entries[7].ByYou)
 			assert.Equal(t, sjrReviewer.OrganizationID, post.organization)
-			assert.Equal(t, store.steps[0].RunID, post.run)
+			assert.Equal(t, store.steps[1].RunID, post.run)
 			if kind == parentbilling.HistoryCareInvoice {
 				assert.Equal(t, 1, post.care)
 				assert.Zero(t, post.holiday)
@@ -107,6 +128,7 @@ func TestInvoiceHistoryReadsTheMailStatesOfEveryRun(t *testing.T) {
 		8: {{DeliveryID: 22, Status: parentbilling.LetterMailSent, SentAt: &accepted}},
 	}}
 	store := historyStore{steps: []parentbilling.InvoiceHistoryEntry{
+		issuedIn(7),
 		{Kind: parentbilling.HistoryMailRequested, At: requested, RunID: 7, DeliveryID: 21, Note: "invoice"},
 		{Kind: parentbilling.HistoryMailRequested, At: requested, RunID: 8, DeliveryID: 22, Note: "cancellation"},
 	}}
@@ -119,4 +141,31 @@ func TestInvoiceHistoryReadsTheMailStatesOfEveryRun(t *testing.T) {
 		}
 	}
 	assert.ElementsMatch(t, []string{"invoice", "cancellation"}, sent)
+}
+
+// Reading an invoice's history is a read of personal billing data: it
+// lands in the trail of the invoice's run, monthly or holiday, as the
+// family view records its reads (#4693). Without recordHistoryRead no
+// event is written and this test fails.
+func TestInvoiceHistoryRecordsTheReadInTheTrailOfItsRun(t *testing.T) {
+	t.Parallel()
+	for _, kind := range []string{parentbilling.HistoryCareInvoice, parentbilling.HistoryHolidayDocument} {
+		t.Run(kind, func(t *testing.T) {
+			var reads []historyRead
+			store := historyStore{steps: []parentbilling.InvoiceHistoryEntry{issuedIn(31)}, reads: &reads}
+			_, err := NewFinanceExports(store, runPost{}).InvoiceHistory(context.Background(), sjrReviewer, kind, 404)
+			require.NoError(t, err)
+			require.Len(t, reads, 1)
+			read := reads[0]
+			assert.Equal(t, sjrReviewer.OrganizationID, read.organization)
+			assert.Equal(t, sjrReviewer.AccountID, read.account)
+			assert.Equal(t, "read", read.action)
+			trail, other := read.holiday, read.care
+			if kind == parentbilling.HistoryCareInvoice {
+				trail, other = read.care, read.holiday
+			}
+			assert.Empty(t, other, "only the trail of the invoice's own kind of run")
+			assert.Equal(t, map[int64]map[string]any{31: {"view": "invoice_history", "document_ids": []int64{404}}}, trail)
+		})
+	}
 }

@@ -39,10 +39,15 @@ type FinanceExportStore interface {
 	ExportMapping(ctx context.Context, organizationID int64, format string) (json.RawMessage, *time.Time, error)
 	SaveExportMapping(ctx context.Context, organizationID, accountID int64, format string, settings json.RawMessage) error
 	DeleteExportMapping(ctx context.Context, organizationID int64, format string) error
-	ExportFiles(ctx context.Context, organizationID int64, runKind string, runID int64) ([]parentbilling.ExportProtocolEntry, error)
-	ExportRuns(ctx context.Context, organizationID int64) ([]parentbilling.ExportRun, error)
+	// ExportFiles and ExportRuns read limit entries after offset, newest
+	// first, and count the whole list.
+	ExportFiles(ctx context.Context, organizationID int64, runKind string, runID int64, offset, limit int) (parentbilling.ExportProtocolPage, error)
+	ExportRuns(ctx context.Context, organizationID int64, offset, limit int) (parentbilling.ExportRunPage, error)
 	ExportRunContent(ctx context.Context, organizationID int64, runKind string, runID int64) (parentbilling.ExportRunContent, error)
 	InvoiceHistory(ctx context.Context, organizationID int64, kind string, id int64) (string, []parentbilling.InvoiceHistoryEntry, []parentbilling.ExportProtocolEntry, error)
+	// InsertRunEvents records an action in the trail of holiday and monthly
+	// runs, here the read of an invoice's history.
+	InsertRunEvents(ctx context.Context, organizationID, accountID int64, action string, holiday, care map[int64]map[string]any) error
 }
 
 // FinanceExports serves parentbilling.FinanceExports.
@@ -213,41 +218,57 @@ func (f *FinanceExports) SetExportFileNumberStart(ctx context.Context, reviewer 
 	return parentbilling.ExportSettings{Sollstellung: soll, FileNumbers: numbers}, nil
 }
 
-// ExportRuns lists the released runs with their exports.
-func (f *FinanceExports) ExportRuns(ctx context.Context, reviewer parentbilling.HolidayReviewer) ([]parentbilling.ExportRun, error) {
+// ExportRuns reads one page of the released runs with their exports.
+func (f *FinanceExports) ExportRuns(ctx context.Context, reviewer parentbilling.HolidayReviewer, page parentbilling.ExportPage,
+) (parentbilling.ExportRunPage, error) {
 	if err := validReviewer(reviewer); err != nil {
-		return nil, err
+		return parentbilling.ExportRunPage{}, err
 	}
-	runs, err := f.store.ExportRuns(ctx, reviewer.OrganizationID)
+	offset := max(page.Offset, 0)
+	runs, err := f.store.ExportRuns(ctx, reviewer.OrganizationID, offset, parentbilling.ExportPageSize)
 	if err != nil {
-		return nil, err
+		return parentbilling.ExportRunPage{}, err
 	}
-	for i := range runs {
-		if last := runs[i].LastSollstellung; last != nil {
+	for i := range runs.Runs {
+		if last := runs.Runs[i].LastSollstellung; last != nil {
 			last.ExportedByYou = byAccount(last.ExportedBy, reviewer.AccountID)
 		}
 	}
+	runs.NextOffset = nextOffset(offset, len(runs.Runs), runs.Total)
 	return runs, nil
 }
 
-// ExportProtocol lists the protocol, newest first; of one run when
-// runKind is set.
+// ExportProtocol reads one page of the protocol, newest first; of one run
+// when runKind is set.
 func (f *FinanceExports) ExportProtocol(ctx context.Context, reviewer parentbilling.HolidayReviewer, runKind string, runID int64,
-) ([]parentbilling.ExportProtocolEntry, error) {
+	page parentbilling.ExportPage,
+) (parentbilling.ExportProtocolPage, error) {
 	if err := validReviewer(reviewer); err != nil {
-		return nil, err
+		return parentbilling.ExportProtocolPage{}, err
 	}
 	if runKind != "" && (validRunKind(runKind) != nil || runID <= 0) {
-		return nil, parentbilling.ErrExportRunNotFound
+		return parentbilling.ExportProtocolPage{}, parentbilling.ErrExportRunNotFound
 	}
-	entries, err := f.store.ExportFiles(ctx, reviewer.OrganizationID, runKind, runID)
+	offset := max(page.Offset, 0)
+	files, err := f.store.ExportFiles(ctx, reviewer.OrganizationID, runKind, runID, offset, parentbilling.ExportPageSize)
 	if err != nil {
-		return nil, err
+		return parentbilling.ExportProtocolPage{}, err
 	}
-	for i := range entries {
-		entries[i].ExportedByYou = byAccount(entries[i].ExportedBy, reviewer.AccountID)
+	for i := range files.Files {
+		files.Files[i].ExportedByYou = byAccount(files.Files[i].ExportedBy, reviewer.AccountID)
 	}
-	return entries, nil
+	files.NextOffset = nextOffset(offset, len(files.Files), files.Total)
+	return files, nil
+}
+
+// nextOffset is the offset of the page after one of read entries, nil when
+// the list ends with it.
+func nextOffset(offset, read, total int) *int {
+	if read == 0 || offset+read >= total {
+		return nil
+	}
+	next := offset + read
+	return &next
 }
 
 // SollstellungFile renders the Sollstellung of a released run with the
@@ -314,6 +335,9 @@ func (f *FinanceExports) InvoiceHistory(ctx context.Context, reviewer parentbill
 	if err != nil {
 		return parentbilling.InvoiceHistory{}, err
 	}
+	if err := f.recordHistoryRead(ctx, reviewer, kind, id, steps); err != nil {
+		return parentbilling.InvoiceHistory{}, err
+	}
 	steps, err = f.invoiceMailHistory(ctx, reviewer.OrganizationID, kind, steps)
 	if err != nil {
 		return parentbilling.InvoiceHistory{}, err
@@ -329,6 +353,30 @@ func (f *FinanceExports) InvoiceHistory(ctx context.Context, reviewer parentbill
 	}
 	slices.SortStableFunc(steps, func(a, b parentbilling.InvoiceHistoryEntry) int { return a.At.Compare(b.At) })
 	return parentbilling.InvoiceHistory{Kind: kind, ID: id, Number: number, Entries: steps}, nil
+}
+
+// recordHistoryRead records the read of an invoice's history in the trail of
+// its run, as the family view records the read of its documents.
+func (f *FinanceExports) recordHistoryRead(ctx context.Context, reviewer parentbilling.HolidayReviewer, kind string, id int64,
+	steps []parentbilling.InvoiceHistoryEntry,
+) error {
+	runs := map[int64]map[string]any{}
+	for _, step := range steps {
+		if step.Kind == parentbilling.HistoryIssued && step.RunID > 0 {
+			runs[step.RunID] = map[string]any{"view": "invoice_history", "document_ids": []int64{id}}
+		}
+	}
+	if len(runs) == 0 {
+		return fmt.Errorf("parent billing: the history of invoice %d names no run", id)
+	}
+	holiday, care := runs, map[int64]map[string]any(nil)
+	if kind == parentbilling.HistoryCareInvoice {
+		holiday, care = nil, runs
+	}
+	if err := f.store.InsertRunEvents(ctx, reviewer.OrganizationID, reviewer.AccountID, runEventRead, holiday, care); err != nil {
+		return fmt.Errorf("parent billing: record the read of the invoice history: %w", err)
+	}
+	return nil
 }
 
 func byAccount(account *int64, reviewer int64) bool {

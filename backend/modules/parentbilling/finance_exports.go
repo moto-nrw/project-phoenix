@@ -188,6 +188,10 @@ type ExportProtocolEntry struct {
 
 // ExportRun is a released run as the export page lists it: what it holds
 // and its last export of each format.
+//
+// InvoiceCount and TotalCents count the documents a Sollstellung of the run
+// writes now: its invoices with every later Storno and credit, the same
+// rows ExportRunContent reads. A file keeps the figures of its own content.
 type ExportRun struct {
 	RunKind      string        `json:"run_kind"`
 	RunID        int64         `json:"run_id"`
@@ -199,6 +203,35 @@ type ExportRun struct {
 	// the first; Exports counts every file of the run.
 	LastSollstellung *ExportProtocolEntry `json:"last_sollstellung"`
 	Exports          int                  `json:"exports"`
+}
+
+// ExportPageSize is the number of runs or protocol entries one page of the
+// export page holds. A longer list continues on the next page; nothing is
+// cut off without a way to it.
+const ExportPageSize = 50
+
+// ExportPage names one page of a list, newest first: Offset entries of the
+// list come before it.
+type ExportPage struct {
+	Offset int
+}
+
+// ExportRunPage is one page of the released runs. Total and NotExported
+// count every run of the Träger, not only the page; NextOffset names the
+// next page, nil on the last.
+type ExportRunPage struct {
+	Runs        []ExportRun `json:"runs"`
+	Total       int         `json:"total"`
+	NotExported int         `json:"not_exported"`
+	NextOffset  *int        `json:"next_offset"`
+}
+
+// ExportProtocolPage is one page of the export protocol; Total counts every
+// entry, NextOffset names the next page, nil on the last.
+type ExportProtocolPage struct {
+	Files      []ExportProtocolEntry `json:"files"`
+	Total      int                   `json:"total"`
+	NextOffset *int                  `json:"next_offset"`
 }
 
 // ExportInvoice is an issued invoice as the Sollstellung writes it.
@@ -311,8 +344,8 @@ type FinanceExports interface {
 	SaveSollstellungMapping(ctx context.Context, reviewer HolidayReviewer, mapping SollstellungMapping) (ExportSettings, error)
 	ResetSollstellungMapping(ctx context.Context, reviewer HolidayReviewer) (ExportSettings, error)
 	SetExportFileNumberStart(ctx context.Context, reviewer HolidayReviewer, start int64) (ExportSettings, error)
-	ExportRuns(ctx context.Context, reviewer HolidayReviewer) ([]ExportRun, error)
-	ExportProtocol(ctx context.Context, reviewer HolidayReviewer, runKind string, runID int64) ([]ExportProtocolEntry, error)
+	ExportRuns(ctx context.Context, reviewer HolidayReviewer, page ExportPage) (ExportRunPage, error)
+	ExportProtocol(ctx context.Context, reviewer HolidayReviewer, runKind string, runID int64, page ExportPage) (ExportProtocolPage, error)
 	SollstellungFile(ctx context.Context, reviewer HolidayReviewer, runKind string, runID int64) (ExportedFile, error)
 	InvoiceHistory(ctx context.Context, reviewer HolidayReviewer, kind string, id int64) (InvoiceHistory, error)
 }

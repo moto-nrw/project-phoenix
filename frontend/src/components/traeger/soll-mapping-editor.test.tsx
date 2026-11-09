@@ -29,7 +29,7 @@ const settings: ExportSettings = {
 };
 
 describe("SollMappingEditor", () => {
-  it("shows the amounts error and focuses that choice", async () => {
+  it("ties the amounts error to its choice and focuses it", async () => {
     render(
       <ToastProvider>
         <SollMappingEditor
@@ -41,9 +41,12 @@ describe("SollMappingEditor", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
-    expect(
-      await screen.findByText(/Dezimalzeichen muss sich/),
-    ).toBeInTheDocument();
+    const hint = await screen.findByText(/Dezimalzeichen muss sich/);
+    const amounts = screen.getByRole("group", { name: "Beträge" });
+    expect(amounts).toHaveAttribute("aria-describedby", hint.id);
+    expect(amounts).toHaveAccessibleDescription(
+      "Das Dezimalzeichen muss sich vom Trennzeichen unterscheiden.",
+    );
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "12,50" })).toHaveFocus(),
     );

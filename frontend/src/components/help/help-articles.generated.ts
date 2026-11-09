@@ -11388,6 +11388,7 @@ export const traegerFinanceExportsTopic =
       ],
       differences: [
         "Der Reiter `Exporte` fehlt? Ihnen fehlt das Recht `Finanz-Export`.",
+        "Ein älterer Lauf oder eine ältere Datei fehlt? Die Listen zeigen zuerst die neuesten 50. Wählen Sie unter der Liste `Ältere anzeigen`.",
         "Die Karte `Dateinummern` zeigt kein Feld? Die Nummern laufen schon. Die erste Nummer lässt sich nicht mehr ändern.",
       ],
       troubleshootingDetails: [

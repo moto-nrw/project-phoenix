@@ -80,19 +80,21 @@ func TestExportFiltersKeepTheTraegerBelowRLS(t *testing.T) {
 			Scan(ctx, &held))
 		assert.Equal(t, []int64{ownInvoice}, held, "InsertExportFile links only the own Träger's debits")
 
-		files, err := store.ExportFiles(ctx, own.organization, "", 0)
+		files, err := store.ExportFiles(ctx, own.organization, "", 0, 0, parentbilling.ExportPageSize)
 		require.NoError(t, err)
-		require.Len(t, files, 1, "ExportFiles")
-		assert.Equal(t, entry.ID, files[0].ID)
-		files, err = store.ExportFiles(ctx, own.organization, parentbilling.DebitRunCare, own.run)
+		require.Len(t, files.Files, 1, "ExportFiles")
+		assert.Equal(t, 1, files.Total, "ExportFiles counts only the own files")
+		assert.Equal(t, entry.ID, files.Files[0].ID)
+		files, err = store.ExportFiles(ctx, own.organization, parentbilling.DebitRunCare, own.run, 0, parentbilling.ExportPageSize)
 		require.NoError(t, err)
-		require.Len(t, files, 1, "ExportFiles of a run")
+		require.Len(t, files.Files, 1, "ExportFiles of a run")
 
-		runs, err := store.ExportRuns(ctx, own.organization)
+		runs, err := store.ExportRuns(ctx, own.organization, 0, parentbilling.ExportPageSize)
 		require.NoError(t, err)
-		require.Len(t, runs, 1, "ExportRuns")
-		assert.Equal(t, own.run, runs[0].RunID)
-		assert.Equal(t, 1, runs[0].Exports, "the other Träger's file of the same run ID is not counted")
+		require.Len(t, runs.Runs, 1, "ExportRuns")
+		assert.Equal(t, 1, runs.Total, "ExportRuns counts only the own runs")
+		assert.Equal(t, own.run, runs.Runs[0].RunID)
+		assert.Equal(t, 1, runs.Runs[0].Exports, "the other Träger's file of the same run ID is not counted")
 
 		content, err := store.ExportRunContent(ctx, own.organization, parentbilling.DebitRunCare, own.run)
 		require.NoError(t, err)
@@ -286,8 +288,9 @@ func TestDebitExportRepeatsAndMealHistory(t *testing.T) {
 				assert.NotEqual(t, firstHash, entry.Fingerprint, "actual bytes retain their own fingerprint")
 			}
 		}
-		files, err := store.ExportFiles(ctx, scope.organization, "", 0)
+		page, err := store.ExportFiles(ctx, scope.organization, "", 0, 0, parentbilling.ExportPageSize)
 		require.NoError(t, err)
+		files := page.Files
 		require.Len(t, files, 3)
 		assert.Zero(t, files[0].RepeatOf, "changed collection is not a repeat")
 		assert.Equal(t, firstNumber, files[1].RepeatOf, "a later creation time is the same collection")

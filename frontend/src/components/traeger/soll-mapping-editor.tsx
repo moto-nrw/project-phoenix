@@ -313,6 +313,9 @@ export function SollMappingEditor({
               />
               <SegmentedControl
                 ariaLabel="Beträge"
+                ariaDescribedBy={
+                  decimalError ? "soll-decimal-error" : undefined
+                }
                 items={SOLL_DECIMALS}
                 value={draft.decimalSeparator}
                 onChange={(decimalSeparator) => set({ decimalSeparator })}

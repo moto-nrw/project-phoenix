@@ -96,17 +96,39 @@ func addCandidateMigration(root, sha, migrationDir, relativeFile string, created
 	return nil
 }
 
-// migrationCreateDataObjects inspects statically resolved SQL passed to NewRaw
-// or ExecContext. Unresolved SQL fails closed in candidate migrations.
+// migrationCreateDataObjects inspects statically resolved SQL passed to NewRaw,
+// Exec, Query or Prepare. Unresolved SQL fails closed in candidate migrations.
 func migrationCreateDataObjects(filename string, contents []byte) (map[string]struct{}, map[string]string, error) {
+	statements, err := migrationStatements(filename, contents)
+	result := make(map[string]struct{})
+	renamed := make(map[string]string)
+	var problems []error
+	if err != nil {
+		problems = append(problems, err)
+	}
+	for _, sql := range statements {
+		objects, renames, sqlErr := migrationSQLChanges(sql)
+		if sqlErr != nil {
+			problems = append(problems, fmt.Errorf("candidate migration %s: %w", filename, sqlErr))
+			continue
+		}
+		maps.Copy(result, objects)
+		maps.Copy(renamed, renames)
+	}
+	return result, renamed, errors.Join(problems...)
+}
+
+// migrationStatements resolves the SQL of every NewRaw, Exec, Query and
+// Prepare call of a migration file; a call whose SQL is not static, or a
+// schema builder, is a problem.
+func migrationStatements(filename string, contents []byte) ([]string, error) {
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, filename, contents, parser.SkipObjectResolution)
 	if err != nil {
-		return nil, nil, fmt.Errorf("parse candidate migration %s: %w", filename, err)
+		return nil, fmt.Errorf("parse candidate migration %s: %w", filename, err)
 	}
-	result := make(map[string]struct{})
-	renamed := make(map[string]string)
 	queries := analyzeMigrationQueries(file, fset)
+	var statements []string
 	var problems []error
 	ast.Inspect(file, func(node ast.Node) bool {
 		call, ok := node.(*ast.CallExpr)
@@ -121,19 +143,8 @@ func migrationCreateDataObjects(filename string, contents []byte) (map[string]st
 			problems = append(problems, fmt.Errorf("candidate migration %s: schema builder cannot be classified; use static SQL", filename))
 			return true
 		}
-		sqlArgument := 0
-		switch selector.Sel.Name {
-		case "ExecContext", "QueryContext", "QueryRowContext":
-			sqlArgument = 1
-		case "Exec", "Query", "QueryRow":
-			if queries.builder(selector.X, 0) {
-				return true
-			}
-		case "NewRaw":
-		default:
-			return true
-		}
-		if len(call.Args) <= sqlArgument {
+		sqlArgument, ok := migrationSQLArgument(queries, selector)
+		if !ok || len(call.Args) <= sqlArgument {
 			return true
 		}
 		sql, ok := queries.expression(call.Args[sqlArgument], 0)
@@ -141,16 +152,24 @@ func migrationCreateDataObjects(filename string, contents []byte) (map[string]st
 			problems = append(problems, fmt.Errorf("candidate migration %s: SQL argument cannot be resolved statically", filename))
 			return true
 		}
-		objects, renames, sqlErr := migrationSQLChanges(sql)
-		if sqlErr != nil {
-			problems = append(problems, fmt.Errorf("candidate migration %s: %w", filename, sqlErr))
-			return true
-		}
-		maps.Copy(result, objects)
-		maps.Copy(renamed, renames)
+		statements = append(statements, sql)
 		return true
 	})
-	return result, renamed, errors.Join(problems...)
+	return statements, errors.Join(problems...)
+}
+
+// migrationSQLArgument is the position of the SQL among the arguments of a
+// call that runs or prepares SQL; ok is false for any other call.
+func migrationSQLArgument(queries *migrationQueries, selector *ast.SelectorExpr) (int, bool) {
+	switch selector.Sel.Name {
+	case "ExecContext", "QueryContext", "QueryRowContext", "PrepareContext":
+		return 1, true
+	case "Exec", "Query", "QueryRow", "Prepare":
+		return 0, !queries.builder(selector.X, 0)
+	case "NewRaw":
+		return 0, true
+	}
+	return 0, false
 }
 
 // baseMigrationsMentionDataObject reports whether the base already holds the
@@ -188,7 +207,10 @@ func baseMigrationsMentionDataObject(root, sha, migrationDir, object string) (bo
 }
 
 // baseMigrationHoldsDataObject reports whether one base migration file that
-// names the object creates or renames it, or cannot be classified.
+// names the object creates or renames it, or cannot be classified. A file
+// that names the object anywhere outside the SQL the parser resolved (a
+// call it does not know, a helper, a comment) holds it too: only a file
+// whose every mention is read and creates nothing lets it go.
 func baseMigrationHoldsDataObject(root, blob, object string) (bool, error) {
 	path := blob[strings.Index(blob, ":")+1:]
 	if filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
@@ -198,11 +220,31 @@ func baseMigrationHoldsDataObject(root, blob, object string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("read base migration %s: %w", blob, err)
 	}
-	created, renamed, err := migrationCreateDataObjects(path, []byte(contents))
+	statements, err := migrationStatements(path, []byte(contents))
 	if err != nil {
 		return true, nil //nolint:nilerr // an unclassifiable base file keeps holding the object
 	}
-	_, creates := created[object]
-	_, renames := renamed[object]
-	return creates || renames, nil
+	mention := dataObjectMention(object)
+	read := 0
+	for _, sql := range statements {
+		objects, renames, sqlErr := migrationSQLChanges(sql)
+		if sqlErr != nil {
+			return true, nil //nolint:nilerr // an unclassifiable statement keeps holding the object
+		}
+		_, creates := objects[object]
+		_, renamesTo := renames[object]
+		if creates || renamesTo {
+			return true, nil
+		}
+		read += len(mention.FindAllStringIndex(sql, -1))
+	}
+	return len(mention.FindAllStringIndex(contents, -1)) > read, nil
+}
+
+// dataObjectMention matches schema.name as the base grep does: case
+// insensitive, quoted or not, with space around the dot.
+func dataObjectMention(object string) *regexp.Regexp {
+	parts := strings.SplitN(object, ".", 2)
+	return regexp.MustCompile(fmt.Sprintf(`(?i)(^|[^[:alnum:]_$])"?%s"?[[:space:]]*\.[[:space:]]*"?%s"?([^[:alnum:]_$]|$)`,
+		regexp.QuoteMeta(parts[0]), regexp.QuoteMeta(parts[1])))
 }

@@ -239,31 +239,38 @@ const exportFileListQuery = `SELECT file.*,
 			AND CASE WHEN file.format = 'pain008' AND NULLIF(file.reference, '') IS NOT NULL
 				THEN earlier.reference = file.reference
 				ELSE earlier.content_sha256 = file.content_sha256 END
-			AND earlier.file_number < file.file_number) AS repeat_of
+			AND earlier.file_number < file.file_number) AS repeat_of,
+	COUNT(*) OVER () AS total_files
 FROM parent_billing.export_files AS file
 WHERE file.organization_id = ?0 AND (?1 = '' OR (file.run_kind = ?1 AND file.run_id = ?2))
 ORDER BY file.exported_at DESC, file.id DESC
-LIMIT ?3`
+OFFSET ?3 LIMIT ?4`
 
-// MaxExportProtocolEntries bounds one read of the protocol.
-const MaxExportProtocolEntries = 500
+// exportFilePageRow is an entry of a page with the count of the protocol.
+type exportFilePageRow struct {
+	exportFileListRow `bun:",extend"`
+	TotalFiles        int `bun:"total_files"`
+}
 
-// ExportFiles reads the protocol of the Träger, newest first, of one run
-// when runKind is set.
-func (s *Store) ExportFiles(ctx context.Context, organizationID int64, runKind string, runID int64) ([]parentbilling.ExportProtocolEntry, error) {
+// ExportFiles reads limit entries of the protocol of the Träger after
+// offset, newest first, of one run when runKind is set, and counts every
+// entry.
+func (s *Store) ExportFiles(ctx context.Context, organizationID int64, runKind string, runID int64, offset, limit int,
+) (parentbilling.ExportProtocolPage, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
-		return nil, err
+		return parentbilling.ExportProtocolPage{}, err
 	}
-	var rows []exportFileListRow
-	if err := db.NewRaw(exportFileListQuery, organizationID, runKind, runID, MaxExportProtocolEntries).Scan(ctx, &rows); err != nil {
-		return nil, fmt.Errorf("read the export protocol: %w", err)
+	var rows []exportFilePageRow
+	if err := db.NewRaw(exportFileListQuery, organizationID, runKind, runID, offset, limit).Scan(ctx, &rows); err != nil {
+		return parentbilling.ExportProtocolPage{}, fmt.Errorf("read the export protocol: %w", err)
 	}
-	entries := make([]parentbilling.ExportProtocolEntry, len(rows))
+	page := parentbilling.ExportProtocolPage{Files: make([]parentbilling.ExportProtocolEntry, len(rows))}
 	for i, row := range rows {
-		entries[i] = row.entry()
+		page.Files[i] = row.entry()
+		page.Total = row.TotalFiles
 	}
-	return entries, nil
+	return page, nil
 }
 
 // MarkExportFilesSubmitted notes on every protocol entry of the PAIN.008

@@ -84,14 +84,18 @@ type FileNumberStartRequest struct {
 // Bind accepts the body; the owner validates the start.
 func (req *FileNumberStartRequest) Bind(*http.Request) error { return nil }
 
-// ExportRunsResponse is the answer of GET …/runs.
-type ExportRunsResponse struct {
-	Runs []capability.ExportRun `json:"runs"`
-}
-
-// ExportFilesResponse is the answer of GET …/files.
-type ExportFilesResponse struct {
-	Files []capability.ExportProtocolEntry `json:"files"`
+// exportPage reads ?offset= of a list; a missing one is the first page.
+func exportPage(w http.ResponseWriter, r *http.Request) (capability.ExportPage, bool) {
+	raw := r.URL.Query().Get("offset")
+	if raw == "" {
+		return capability.ExportPage{}, true
+	}
+	offset, err := strconv.Atoi(raw)
+	if err != nil || offset < 0 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("offset must be a whole number of at least 0")))
+		return capability.ExportPage{}, false
+	}
+	return capability.ExportPage{Offset: offset}, true
 }
 
 func (rs *FinanceExportResource) settings(w http.ResponseWriter, r *http.Request) {
@@ -164,15 +168,20 @@ func (rs *FinanceExportResource) runs(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	runs, err := rs.exports.ExportRuns(r.Context(), reviewer)
+	page, ok := exportPage(w, r)
+	if !ok {
+		return
+	}
+	runs, err := rs.exports.ExportRuns(r.Context(), reviewer, page)
 	if err != nil {
 		renderExportError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, ExportRunsResponse{Runs: runs}, "Export runs retrieved successfully")
+	common.Respond(w, r, http.StatusOK, runs, "Export runs retrieved successfully")
 }
 
-// files lists the protocol; ?run_kind=care-runs&run_id=… narrows it to a run.
+// files lists a page of the protocol (?offset=); ?run_kind=care-runs&run_id=…
+// narrows it to a run.
 func (rs *FinanceExportResource) files(w http.ResponseWriter, r *http.Request) {
 	reviewer, ok := reviewerOf(w, r)
 	if !ok {
@@ -189,12 +198,16 @@ func (rs *FinanceExportResource) files(w http.ResponseWriter, r *http.Request) {
 		}
 		runID = id
 	}
-	files, err := rs.exports.ExportProtocol(r.Context(), reviewer, kind, runID)
+	page, ok := exportPage(w, r)
+	if !ok {
+		return
+	}
+	files, err := rs.exports.ExportProtocol(r.Context(), reviewer, kind, runID, page)
 	if err != nil {
 		renderExportError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, ExportFilesResponse{Files: files}, "Export protocol retrieved successfully")
+	common.Respond(w, r, http.StatusOK, files, "Export protocol retrieved successfully")
 }
 
 // sollstellung answers the Sollstellung of a run; it leaves the server only

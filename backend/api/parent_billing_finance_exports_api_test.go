@@ -181,6 +181,27 @@ func TestFinanceExportsOfAReleasedRun(t *testing.T) {
 	require.NotNil(t, history.Entries[1].File)
 	assert.Equal(t, "sollstellung-110.csv", history.Entries[1].File.FileName)
 	assert.Equal(t, debit.MessageID, history.Entries[4].Note)
+	var reads int
+	require.NoError(t, f.db.NewRaw(`SELECT COUNT(*) FROM parent_billing.care_run_events
+		WHERE organization_id = ? AND run_id = ? AND action = 'read' AND actor_account_id IS NOT NULL
+			AND details->>'view' = 'invoice_history' AND details->'document_ids' = to_jsonb(ARRAY[?::bigint])`,
+		f.office.organization, run, invoice).Scan(context.Background(), &reads))
+	assert.Equal(t, 1, reads, "the read of the history is in the trail of the invoice's run")
+
+	page := decodeSchoolPortalData[struct {
+		Total       int  `json:"total"`
+		NotExported int  `json:"not_exported"`
+		NextOffset  *int `json:"next_offset"`
+	}](t, exportGet(t, f, "/runs").Body.Bytes())
+	assert.Equal(t, 1, page.Total)
+	assert.Zero(t, page.NotExported)
+	assert.Nil(t, page.NextOffset, "one run is one page")
+	assert.Empty(t, exportFiles(t, f, "?offset=3"), "no file after the last one")
+	assert.Len(t, exportFiles(t, f, "?offset=2"), 1, "the oldest file on its own page")
+	for _, offset := range []string{"-1", "x"} {
+		rec = exportGet(t, f, "/files?offset="+offset)
+		assert.Equal(t, http.StatusBadRequest, rec.Code, offset)
+	}
 }
 
 // Only the right "Finanz-Export" reads and downloads the exports; the

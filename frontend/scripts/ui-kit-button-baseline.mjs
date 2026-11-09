@@ -16,7 +16,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/ui/segmented-control.tsx",
-    lines: [143, 182, 199],
+    lines: [147, 187, 204],
     reason: "SegmentedControl: Wertauswahl, kein Knopf",
   },
   {

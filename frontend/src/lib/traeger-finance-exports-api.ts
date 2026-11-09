@@ -295,32 +295,68 @@ export async function setFileNumberStart(
   );
 }
 
-/** The released runs, newest first, with their last Sollstellung. */
-export async function fetchExportRuns(): Promise<ExportRun[]> {
-  const body = await traegerRequest<{ runs: BackendRun[] | null }>(
-    `${BASE}/runs`,
-  );
-  return (body.runs ?? []).map((run) => ({
-    runKind: run.run_kind,
-    pathKind: PATH_KINDS[run.run_kind],
-    runId: String(run.run_id),
-    label: run.label,
-    issuedOn: run.issued_on,
-    invoiceCount: run.invoice_count,
-    totalCents: run.total_cents,
-    lastSollstellung: run.last_sollstellung
-      ? entryFromBackend(run.last_sollstellung)
-      : null,
-    exports: run.exports,
-  }));
+/** One page of a list of the export page, newest first. */
+export interface FinanceExportPage<T> {
+  readonly items: readonly T[];
+  /** Entries of the whole list, not only of this page. */
+  readonly total: number;
+  /** Offset of the next page, null on the last. */
+  readonly nextOffset: number | null;
 }
 
-/** The export protocol, newest first. */
-export async function fetchExportProtocol(): Promise<ExportProtocolEntry[]> {
-  const body = await traegerRequest<{ files: BackendEntry[] | null }>(
-    `${BASE}/files`,
-  );
-  return (body.files ?? []).map(entryFromBackend);
+/** A page of runs also counts the runs without a Sollstellung. */
+export interface FinanceExportRunPage extends FinanceExportPage<ExportRun> {
+  readonly notExported: number;
+}
+
+interface BackendPage {
+  total: number;
+  next_offset: number | null;
+}
+
+function pagePath(path: string, offset: number): string {
+  return offset > 0 ? `${path}?offset=${offset}` : path;
+}
+
+/** A page of the released runs, newest first, with their last Sollstellung. */
+export async function fetchExportRuns(
+  offset = 0,
+): Promise<FinanceExportRunPage> {
+  const body = await traegerRequest<
+    BackendPage & { runs: BackendRun[] | null; not_exported: number }
+  >(pagePath(`${BASE}/runs`, offset));
+  return {
+    items: (body.runs ?? []).map((run) => ({
+      runKind: run.run_kind,
+      pathKind: PATH_KINDS[run.run_kind],
+      runId: String(run.run_id),
+      label: run.label,
+      issuedOn: run.issued_on,
+      invoiceCount: run.invoice_count,
+      totalCents: run.total_cents,
+      lastSollstellung: run.last_sollstellung
+        ? entryFromBackend(run.last_sollstellung)
+        : null,
+      exports: run.exports,
+    })),
+    total: body.total,
+    notExported: body.not_exported,
+    nextOffset: body.next_offset ?? null,
+  };
+}
+
+/** A page of the export protocol, newest first. */
+export async function fetchExportProtocol(
+  offset = 0,
+): Promise<FinanceExportPage<ExportProtocolEntry>> {
+  const body = await traegerRequest<
+    BackendPage & { files: BackendEntry[] | null }
+  >(pagePath(`${BASE}/files`, offset));
+  return {
+    items: (body.files ?? []).map(entryFromBackend),
+    total: body.total,
+    nextOffset: body.next_offset ?? null,
+  };
 }
 
 /** Downloads the Sollstellung of a run with the next file number. */

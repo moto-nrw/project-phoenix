@@ -53,22 +53,47 @@ func (r exportRunRow) run() parentbilling.ExportRun {
 	return run
 }
 
-// exportRunsQuery lists the released runs with an invoice, newest first.
+// careRunDocuments counts and sums the rows a Sollstellung of a monthly run
+// writes: its invoices and every Storno of them (careExportInvoicesQuery).
+const careRunDocuments = `SELECT COUNT(*)::int AS invoice_count, COALESCE(SUM(line.total_cents), 0)::bigint AS total_cents
+	FROM (
+		SELECT invoice.total_cents FROM parent_billing.care_invoices AS invoice
+		WHERE invoice.organization_id = ?0 AND invoice.run_id = run.id
+		UNION ALL
+		SELECT cancellation.total_cents FROM parent_billing.care_invoice_cancellations AS cancellation
+		JOIN parent_billing.care_invoices AS invoice
+			ON invoice.organization_id = cancellation.organization_id AND invoice.id = cancellation.invoice_id
+		WHERE cancellation.organization_id = ?0 AND invoice.organization_id = ?0 AND invoice.run_id = run.id
+	) AS line`
+
+// holidayRunDocuments is the same for a holiday run: its invoices, Storno
+// and credits (holidayExportInvoicesQuery).
+const holidayRunDocuments = `SELECT COUNT(*)::int AS invoice_count, COALESCE(SUM(document.total_cents), 0)::bigint AS total_cents
+	FROM parent_billing.documents AS document
+	WHERE document.organization_id = ?0 AND document.run_id = run.id`
+
+// exportRunsQuery lists one page of the released runs with a document,
+// newest first, with the count of every run and of those without a
+// Sollstellung before the page is cut.
 const exportRunsQuery = `SELECT released.run_kind, released.run_id, released.care_month, released.period_name, released.issued_on,
 	released.invoice_count, released.total_cents,
 	(SELECT COUNT(*) FROM parent_billing.export_files AS file
 		WHERE file.organization_id = ?0 AND file.run_kind = released.run_kind AND file.run_id = released.run_id) AS exports,
 	last.id AS last_id, last.file_number AS last_number, last.file_name AS last_name, last.content_sha256 AS last_sha,
 	last.invoice_count AS last_count, last.total_cents AS last_total, last.exported_by_account_id AS last_account_id,
-	last.exported_at AS last_exported_at
+	last.exported_at AS last_exported_at,
+	COUNT(*) OVER () AS total_runs, COUNT(*) FILTER (WHERE last.id IS NULL) OVER () AS not_exported
 FROM (
 	SELECT 'care' AS run_kind, run.id AS run_id, run.billing_month AS care_month, NULL::text AS period_name, run.issued_on,
-		run.document_count AS invoice_count, run.total_cents, run.released_at
+		documents.invoice_count, documents.total_cents, run.released_at
 	FROM parent_billing.care_runs AS run
-	WHERE run.organization_id = ?0 AND run.status = 'released' AND run.document_count > 0
+	CROSS JOIN LATERAL (` + careRunDocuments + `) AS documents
+	WHERE run.organization_id = ?0 AND run.status = 'released' AND documents.invoice_count > 0
 	UNION ALL
-	SELECT 'holiday', run.id, NULL::date, run.period_name, run.issued_on, run.document_count, run.total_cents, run.released_at
+	SELECT 'holiday', run.id, NULL::date, run.period_name, run.issued_on, documents.invoice_count, documents.total_cents,
+		run.released_at
 	FROM parent_billing.runs AS run
+	CROSS JOIN LATERAL (` + holidayRunDocuments + `) AS documents
 	WHERE run.organization_id = ?0 AND run.status = 'released'
 ) AS released
 LEFT JOIN LATERAL (
@@ -77,27 +102,34 @@ LEFT JOIN LATERAL (
 		AND file.format = 'sollstellung'
 	ORDER BY file.file_number DESC LIMIT 1
 ) AS last ON TRUE
-ORDER BY released.released_at DESC, released.run_id DESC
-LIMIT ?1`
+ORDER BY released.released_at DESC, released.run_id DESC, released.run_kind
+OFFSET ?1 LIMIT ?2`
 
-// MaxExportRuns bounds the runs the export page lists.
-const MaxExportRuns = 200
+// exportRunPageRow is a run of a page with the counts of the whole list.
+type exportRunPageRow struct {
+	exportRunRow `bun:",extend"`
+	TotalRuns    int `bun:"total_runs"`
+	NotExported  int `bun:"not_exported"`
+}
 
-// ExportRuns lists the released runs of the Träger with their exports.
-func (s *Store) ExportRuns(ctx context.Context, organizationID int64) ([]parentbilling.ExportRun, error) {
+// ExportRuns reads limit released runs of the Träger after offset, newest
+// first, with their exports, and counts every run and those without a
+// Sollstellung.
+func (s *Store) ExportRuns(ctx context.Context, organizationID int64, offset, limit int) (parentbilling.ExportRunPage, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
-		return nil, err
+		return parentbilling.ExportRunPage{}, err
 	}
-	var rows []exportRunRow
-	if err := db.NewRaw(exportRunsQuery, organizationID, MaxExportRuns).Scan(ctx, &rows); err != nil {
-		return nil, fmt.Errorf("read the runs to export: %w", err)
+	var rows []exportRunPageRow
+	if err := db.NewRaw(exportRunsQuery, organizationID, offset, limit).Scan(ctx, &rows); err != nil {
+		return parentbilling.ExportRunPage{}, fmt.Errorf("read the runs to export: %w", err)
 	}
-	runs := make([]parentbilling.ExportRun, len(rows))
+	page := parentbilling.ExportRunPage{Runs: make([]parentbilling.ExportRun, len(rows))}
 	for i, row := range rows {
-		runs[i] = row.run()
+		page.Runs[i] = row.run()
+		page.Total, page.NotExported = row.TotalRuns, row.NotExported
 	}
-	return runs, nil
+	return page, nil
 }
 
 type exportInvoiceRow struct {
@@ -234,8 +266,10 @@ func (s *Store) ExportRunContent(ctx context.Context, organizationID int64, runK
 		return parentbilling.ExportRunContent{}, fmt.Errorf("read the run to export: %w", err)
 	}
 	content := parentbilling.ExportRunContent{Run: head.run(), Invoices: make([]parentbilling.ExportInvoice, len(rows))}
+	content.Run.InvoiceCount, content.Run.TotalCents = len(rows), 0
 	for i, row := range rows {
 		content.Invoices[i] = row.invoice()
+		content.Run.TotalCents += row.TotalCents
 	}
 	return content, nil
 }
