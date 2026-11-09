@@ -34,7 +34,8 @@ type Notices struct {
 	// office reads the letterhead, opens the Träger transaction and writes
 	// the school's access log for the Träger-Büro; nil where only the
 	// parents portal declares.
-	office *Contracts
+	office  *Contracts
+	periods withdrawalPeriods
 }
 
 var _ carecontract.Notices = (*Notices)(nil)
@@ -46,16 +47,18 @@ type NoticePorts struct {
 	// Addressees is required for the office's decided end, unused by the
 	// parents portal.
 	Addressees carecontract.NoticeAddressees
+	// Holidays dates the withdrawal period at the contract's school (#6350).
+	Holidays carecontract.SchoolHolidays
 }
 
 // NewNotices builds the declarations. office, the contracts of the
 // Träger-Büro, may be nil for the parents portal alone.
 func NewNotices(store ContractStore, notices NoticeStore, noticePorts NoticePorts, clock Clock, office *Contracts) *Notices {
-	if store == nil || notices == nil || noticePorts.Templates == nil || noticePorts.Post == nil {
-		panic("care contract: the store, the notice store, the templates and the post are required")
+	if store == nil || notices == nil || noticePorts.Templates == nil || noticePorts.Post == nil || noticePorts.Holidays == nil {
+		panic("care contract: the store, the notice store, the templates, the post and the school holidays are required")
 	}
 	return &Notices{store: store, notices: notices, templates: noticePorts.Templates, post: noticePorts.Post,
-		addressees: noticePorts.Addressees, clock: clock, office: office}
+		addressees: noticePorts.Addressees, clock: clock, office: office, periods: withdrawalPeriods{holidays: noticePorts.Holidays}}
 }
 
 func (n *Notices) requireOffice() error {
@@ -206,7 +209,7 @@ func (n *Notices) declare(ctx context.Context, d declaration) (carecontract.Noti
 	if record.Summary.Status != carecontract.StatusActive || record.Concluded == nil {
 		return carecontract.NoticeOptions{}, carecontract.ErrContractNotEndable
 	}
-	notice, err := n.newNotice(record, state, d)
+	notice, err := n.newNotice(ctx, record, state, d)
 	if err != nil {
 		return carecontract.NoticeOptions{}, err
 	}
@@ -223,7 +226,7 @@ func (n *Notices) declare(ctx context.Context, d declaration) (carecontract.Noti
 }
 
 // newNotice checks the declaration against the contract and dates it.
-func (n *Notices) newNotice(record ContractRecord, state ports.NoticeState, d declaration) (ports.NewNotice, error) {
+func (n *Notices) newNotice(ctx context.Context, record ContractRecord, state ports.NoticeState, d declaration) (ports.NewNotice, error) {
 	received, err := n.receivedOn(record, d.input.ReceivedOn)
 	if err != nil {
 		return ports.NewNotice{}, err
@@ -248,7 +251,10 @@ func (n *Notices) newNotice(record ContractRecord, state ports.NoticeState, d de
 			return ports.NewNotice{}, err
 		}
 		notice.DispatchedOn = &dispatched
-		until := withdrawalUntil(record.Concluded, state.InformedAt)
+		until, err := n.periods.until(ctx, record.Summary.SchoolID, record.Concluded, state.InformedAt)
+		if err != nil {
+			return ports.NewNotice{}, err
+		}
 		if until == nil || dispatched.After(*until) {
 			return ports.NewNotice{}, carecontract.ErrWithdrawalClosed
 		}
@@ -401,7 +407,11 @@ func (n *Notices) options(ctx context.Context, organizationID int64, record Cont
 	}
 	ordinary, special := noticeDates(record.Version.Terms, day, state.ContractEnd)
 	options.OrdinaryEndsOn, options.SpecialEndsOn = &ordinary, special
-	if until := withdrawalUntil(record.Concluded, state.InformedAt); until != nil && (includeExpiredWithdrawal || !day.After(*until)) {
+	until, err := n.periods.until(ctx, record.Summary.SchoolID, record.Concluded, state.InformedAt)
+	if err != nil {
+		return carecontract.NoticeOptions{}, err
+	}
+	if until != nil && (includeExpiredWithdrawal || !day.After(*until)) {
 		options.WithdrawalUntil = until
 	}
 	return options, nil

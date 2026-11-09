@@ -206,3 +206,14 @@ type AcceptedText struct {
 	// proves the conditions; an optional one records a wish (#4682).
 	Required bool
 }
+
+// SchoolHolidays reads the statutory public holidays of each school's
+// federal state in [from, to], the days § 193 BGB moves the last day of a
+// withdrawal period past (#6350). School Calendar computes them; the
+// federal state is a setting of the school, so the binding reads it outside
+// the caller's Träger transaction (ADR 0175). Every school asked has an
+// entry; an unknown or unreadable federal state is an error, never an empty
+// set: a period shown too short must not pass as safe.
+type SchoolHolidays interface {
+	SchoolHolidayDates(ctx context.Context, schoolIDs []int64, from, to calendar.Date) (map[int64]map[calendar.Date]bool, error)
+}

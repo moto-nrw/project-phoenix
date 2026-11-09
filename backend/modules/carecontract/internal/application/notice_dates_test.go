@@ -1,10 +1,13 @@
 package application
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/modules/carecontract"
 	"github.com/moto-nrw/project-phoenix/modules/carecontract/internal/ports"
@@ -63,36 +66,25 @@ func TestWithdrawalPeriodFollowsTheNotice(t *testing.T) {
 	electronic := &carecontract.Concluded{Method: carecontract.MethodWithApplication, At: concludedAt}
 	paper := &carecontract.Concluded{Method: carecontract.MethodPaper, At: concludedAt}
 
-	assert.Equal(t, new(calendar.NewDate(2026, 11, 20)), withdrawalUntil(electronic, &informed))
-	assert.Equal(t, new(calendar.NewDate(2026, 11, 20)), withdrawalUntil(paper, &informed), "the PDF granted it")
-	assert.Equal(t, new(calendar.NewDate(2027, 11, 22)), withdrawalUntil(electronic, nil),
+	assert.Equal(t, new(calendar.NewDate(2026, 11, 20)), withdrawalUntil(electronic, &informed, nil))
+	assert.Equal(t, new(calendar.NewDate(2026, 11, 20)), withdrawalUntil(paper, &informed, nil), "the PDF granted it")
+	assert.Equal(t, new(calendar.NewDate(2027, 11, 22)), withdrawalUntil(electronic, nil, nil),
 		"without the notice: 20 November 2027 is a Saturday, the period ends on Monday (§ 193 BGB)")
-	assert.Nil(t, withdrawalUntil(paper, nil), "signed at the office before the notice")
-	assert.Nil(t, withdrawalUntil(nil, nil), "no conclusion, no period")
+	assert.Nil(t, withdrawalUntil(paper, nil, nil), "signed at the office before the notice")
+	assert.Nil(t, withdrawalUntil(nil, nil, nil), "no conclusion, no period")
 
 	saturday := time.Date(2026, 11, 7, 9, 0, 0, 0, time.UTC)
 	assert.Equal(t, new(calendar.NewDate(2026, 11, 23)), withdrawalUntil(
-		&carecontract.Concluded{Method: carecontract.MethodWithApplication, At: saturday}, &saturday),
+		&carecontract.Concluded{Method: carecontract.MethodWithApplication, At: saturday}, &saturday, nil),
 		"21 November 2026 is a Saturday: the period ends on Monday 23 November (§ 193 BGB)")
 	christmas := time.Date(2026, 12, 11, 9, 0, 0, 0, time.UTC)
 	assert.Equal(t, new(calendar.NewDate(2026, 12, 28)), withdrawalUntil(
-		&carecontract.Concluded{Method: carecontract.MethodWithApplication, At: christmas}, &christmas),
+		&carecontract.Concluded{Method: carecontract.MethodWithApplication, At: christmas}, &christmas,
+		map[calendar.Date]bool{calendar.NewDate(2026, 12, 25): true, calendar.NewDate(2026, 12, 26): true}),
 		"25 December (holiday), 26 December (holiday) and Sunday 27 December move it to Monday 28 December")
 	late := time.Date(2027, 11, 20, 9, 0, 0, 0, time.UTC)
-	assert.Equal(t, new(calendar.NewDate(2027, 11, 22)), withdrawalUntil(electronic, &late),
+	assert.Equal(t, new(calendar.NewDate(2027, 11, 22)), withdrawalUntil(electronic, &late, nil),
 		"a notice provided late never reaches beyond 12 months and 14 days after the conclusion")
-}
-
-// Easter and the nationwide holidays that depend on it.
-func TestNationwideHolidays(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, calendar.NewDate(2026, 4, 5), easterSunday(2026))
-	assert.Equal(t, calendar.NewDate(2027, 3, 28), easterSunday(2027))
-	for _, day := range []calendar.Date{calendar.NewDate(2026, 4, 3), calendar.NewDate(2026, 4, 6), calendar.NewDate(2026, 5, 14),
-		calendar.NewDate(2026, 5, 25), calendar.NewDate(2026, 10, 3), calendar.NewDate(2026, 12, 26)} {
-		assert.True(t, nationwideHoliday(day), day.String())
-	}
-	assert.False(t, nationwideHoliday(calendar.NewDate(2026, 6, 4)), "Fronleichnam is regional")
 }
 
 // The confirmation fills only the Träger's placeholders and refuses an
@@ -136,27 +128,146 @@ func TestConfirmationNamesTheReceiptWithItsTime(t *testing.T) {
 		templateKind(ports.NewNotice{Kind: carecontract.NoticeTermination, TerminationKind: carecontract.TerminationOrdinary}))
 }
 
-// Fronleichnam is Easter Sunday + 60 days (PTB, „Wann ist Ostern?“): Easter
-// fell on 5 April 2026 and falls on 28 March 2027, so Fronleichnam is
-// 4 June 2026 and 27 May 2027. It is a holiday only in some federal states;
-// § 193 BGB moves a deadline here only for nationwide holidays (#4682), so it
-// moves nothing, while Christi Himmelfahrt (+39) and Pfingstmontag (+50) do.
-func TestHolidaysFollowEasterIn2026And2027(t *testing.T) {
+// Statutory holidays of two federal states in 2026 as School Calendar
+// computes them: Fronleichnam (4 June) is one in Nordrhein-Westfalen, not
+// in Berlin; Karfreitag, Ostermontag and Christi Himmelfahrt are in both.
+var (
+	nrw2026 = map[calendar.Date]bool{calendar.NewDate(2026, 4, 3): true, calendar.NewDate(2026, 4, 6): true,
+		calendar.NewDate(2026, 5, 14): true, calendar.NewDate(2026, 6, 4): true}
+	berlin2026 = map[calendar.Date]bool{calendar.NewDate(2026, 4, 3): true, calendar.NewDate(2026, 4, 6): true,
+		calendar.NewDate(2026, 5, 14): true}
+)
+
+const (
+	schoolNRW    int64 = 11
+	schoolBerlin int64 = 12
+)
+
+// § 193 BGB moves the last day of the withdrawal period past the statutory
+// holidays at the contract's school, read through School Calendar (#6350).
+// Each case starts the 14 days on a fixed day.
+func TestWithdrawalPeriodMovesPastTheHolidaysAtTheSchool(t *testing.T) {
 	t.Parallel()
-	for _, year := range []struct {
-		easter, ascension, whitMonday, corpusChristi calendar.Date
+	periods := withdrawalPeriods{holidays: schoolHolidays{days: map[int64]map[calendar.Date]bool{schoolNRW: nrw2026, schoolBerlin: berlin2026}}}
+	cases := []struct {
+		name   string
+		school int64
+		start  calendar.Date
+		want   calendar.Date
 	}{
-		{calendar.NewDate(2026, 4, 5), calendar.NewDate(2026, 5, 14), calendar.NewDate(2026, 5, 25), calendar.NewDate(2026, 6, 4)},
-		{calendar.NewDate(2027, 3, 28), calendar.NewDate(2027, 5, 6), calendar.NewDate(2027, 5, 17), calendar.NewDate(2027, 5, 27)},
-	} {
-		easter := easterSunday(year.easter.Year())
-		assert.Equal(t, year.easter, easter)
-		assert.True(t, nationwideHoliday(year.ascension), year.ascension.String())
-		assert.True(t, nationwideHoliday(year.whitMonday), year.whitMonday.String())
-		assert.False(t, nationwideHoliday(year.corpusChristi), "Fronleichnam is regional: "+year.corpusChristi.String())
-		assert.Equal(t, year.corpusChristi, nextWorkingDay(year.corpusChristi), "a deadline on Fronleichnam stays")
-		assert.Equal(t, year.ascension.AddDays(1), nextWorkingDay(year.ascension), "a deadline on Christi Himmelfahrt moves to Friday")
+		{"14 days end on Fronleichnam, a holiday in Nordrhein-Westfalen: Friday", schoolNRW,
+			calendar.NewDate(2026, 5, 21), calendar.NewDate(2026, 6, 5)},
+		{"the same days at a school in Berlin, where Fronleichnam is a working day", schoolBerlin,
+			calendar.NewDate(2026, 5, 21), calendar.NewDate(2026, 6, 4)},
+		{"Karfreitag, Saturday, Sunday and Ostermontag in a row: Tuesday", schoolNRW,
+			calendar.NewDate(2026, 3, 20), calendar.NewDate(2026, 4, 7)},
+		{"Christi Himmelfahrt, a nationwide holiday: Friday", schoolBerlin,
+			calendar.NewDate(2026, 4, 30), calendar.NewDate(2026, 5, 15)},
+		{"a Saturday without a holiday: Monday", schoolNRW,
+			calendar.NewDate(2026, 11, 7), calendar.NewDate(2026, 11, 23)},
 	}
+	for _, tc := range cases {
+		at := tc.start.BerlinMidnight().Add(9 * time.Hour)
+		concluded := &carecontract.Concluded{Method: carecontract.MethodElectronic, At: at}
+		until, err := periods.until(t.Context(), tc.school, concluded, &at)
+		require.NoError(t, err, tc.name)
+		assert.Equal(t, new(tc.want), until, tc.name)
+		end, err := periods.withdrawalEnd(t.Context(), tc.school, at)
+		require.NoError(t, err, tc.name)
+		assert.Equal(t, tc.want, end, "the signature names the same day: "+tc.name)
+	}
+}
+
+// One read dates the periods of contracts at several schools, each over its
+// own school's holidays, and spans every day a period may move to.
+func TestWithdrawalPeriodsReadTheHolidaysOfEachSchoolOnce(t *testing.T) {
+	t.Parallel()
+	var reads []holidayRead
+	periods := withdrawalPeriods{holidays: schoolHolidays{
+		days: map[int64]map[calendar.Date]bool{schoolNRW: nrw2026, schoolBerlin: berlin2026}, reads: &reads}}
+	at := calendar.NewDate(2026, 5, 21).BerlinMidnight().Add(9 * time.Hour)
+	concluded := &carecontract.Concluded{Method: carecontract.MethodElectronic, At: at}
+	paper := &carecontract.Concluded{Method: carecontract.MethodPaper, At: at}
+	until, err := periods.untilEach(t.Context(), []withdrawalSubject{
+		{schoolID: schoolNRW, concluded: concluded, informedAt: &at},
+		{schoolID: schoolBerlin, concluded: concluded, informedAt: &at},
+		{schoolID: 99, concluded: paper},
+		{},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []*calendar.Date{new(calendar.NewDate(2026, 6, 5)), new(calendar.NewDate(2026, 6, 4)), nil, nil}, until)
+	assert.Equal(t, []holidayRead{{schoolIDs: []int64{schoolNRW, schoolBerlin}, from: calendar.NewDate(2026, 5, 21),
+		to: calendar.NewDate(2027, 6, 11)}}, reads,
+		"one read of the schools with a period, from the conclusion to a week after 12 months and 14 days")
+
+	reads = nil
+	until, err = periods.untilEach(t.Context(), []withdrawalSubject{{schoolID: 99, concluded: paper}})
+	require.NoError(t, err)
+	assert.Equal(t, []*calendar.Date{nil}, until)
+	assert.Empty(t, reads, "no period, no read")
+}
+
+// A period the holidays cannot date is an error, never a period that may
+// end a day too early (#6350).
+func TestWithdrawalPeriodFailsWithoutTheSchoolHolidays(t *testing.T) {
+	t.Parallel()
+	at := calendar.NewDate(2026, 5, 21).BerlinMidnight()
+	concluded := &carecontract.Concluded{Method: carecontract.MethodElectronic, At: at}
+	unavailable := errors.New("federal state is not available")
+
+	_, err := withdrawalPeriods{holidays: schoolHolidays{failure: unavailable}}.until(t.Context(), schoolNRW, concluded, &at)
+	assert.ErrorIs(t, err, unavailable)
+	_, err = withdrawalPeriods{holidays: schoolHolidays{only: true, days: map[int64]map[calendar.Date]bool{schoolBerlin: berlin2026}}}.
+		until(t.Context(), schoolNRW, concluded, &at)
+	assert.ErrorContains(t, err, "no holidays for school 11", "a school the read leaves out")
+	_, err = withdrawalPeriods{}.until(t.Context(), schoolNRW, concluded, &at)
+	assert.ErrorContains(t, err, "the school holidays are not configured")
+}
+
+// § 193 BGB moves the last day of a period to declare something, not the
+// end of a contract: an ordinary termination still ends the contract on a
+// Saturday or a holiday the terms name (#6350).
+func TestContractEndsDoNotMoveToAWorkingDay(t *testing.T) {
+	t.Parallel()
+	monthEnd := carecontract.TemplateInput{NoticeMonths: 1, NoticeTo: carecontract.NoticeMonthEnd}
+	ordinary, _ := noticeDates(monthEnd, calendar.NewDate(2026, 9, 7), nil)
+	assert.Equal(t, calendar.NewDate(2026, 10, 31), ordinary, "31 October 2026 is a Saturday and Reformationstag in several states")
+	ownEnd := calendar.NewDate(2026, 12, 26)
+	ordinary, _ = noticeDates(monthEnd, calendar.NewDate(2026, 11, 2), &ownEnd)
+	assert.Equal(t, ownEnd, ordinary, "a fixed term ending on the second Christmas holiday ends then")
+}
+
+// schoolHolidays is the School Calendar port of a test: the holidays of
+// the schools in days, none for every other school unless only is set, an
+// injected failure, and the reads it answered when reads is set.
+type schoolHolidays struct {
+	days    map[int64]map[calendar.Date]bool
+	only    bool
+	failure error
+	reads   *[]holidayRead
+}
+
+type holidayRead struct {
+	schoolIDs []int64
+	from, to  calendar.Date
+}
+
+func (h schoolHolidays) SchoolHolidayDates(_ context.Context, schoolIDs []int64, from, to calendar.Date) (map[int64]map[calendar.Date]bool, error) {
+	if h.failure != nil {
+		return nil, h.failure
+	}
+	if h.reads != nil {
+		*h.reads = append(*h.reads, holidayRead{schoolIDs: schoolIDs, from: from, to: to})
+	}
+	result := make(map[int64]map[calendar.Date]bool, len(schoolIDs))
+	for _, schoolID := range schoolIDs {
+		if days, ok := h.days[schoolID]; ok {
+			result[schoolID] = days
+		} else if !h.only {
+			result[schoolID] = map[calendar.Date]bool{}
+		}
+	}
+	return result, nil
 }
 
 // The worker's mail carries the confirmation as stored, paragraph by
