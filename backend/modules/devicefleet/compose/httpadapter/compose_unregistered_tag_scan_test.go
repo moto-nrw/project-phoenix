@@ -324,7 +324,7 @@ func TestUnregisteredTagScan_TwoTenantIsolation(t *testing.T) {
 		_, err := fleet.ResolveUnregisteredTagScan(ctxB, devicefleet.ResolveUnregisteredTagScan{ID: scanA.ID, OperatorID: operatorID})
 		return err
 	})
-	require.ErrorContains(t, err, "permission denied for table unregistered_tag_scans")
+	require.Equal(t, "42501", testpkg.PostgresSQLState(err))
 
 	require.NoError(t, testpkg.WithinAdminContext(t, base, db, func(adminCtx context.Context) error {
 		scans, err := fleet.ListUnregisteredTagScans(adminCtx, devicefleet.UnregisteredTagScanFilter{TenantIDs: []int64{tenantA, tenantB}})

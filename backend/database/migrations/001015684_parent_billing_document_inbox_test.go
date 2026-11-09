@@ -57,8 +57,7 @@ func TestTraegerPushesStayWithTheirTraeger(t *testing.T) {
 		"the request role adds a push of its Träger")
 	assert.ErrorContains(t, asRequestRole("app.current_org_id", ownOrg, insertPush(own, "notice:1")),
 		"uq_push_outbox_tenant_idempotency", "an idempotency key is one push of the Träger")
-	assert.ErrorContains(t, asRequestRole("app.current_org_id", fmt.Sprint(foreign), insertPush(own, "notice:2")),
-		"row-level security", "a foreign Träger adds no push of this Träger")
+	assert.Equal(t, "42501", testpkg.PostgresSQLState(asRequestRole("app.current_org_id", fmt.Sprint(foreign), insertPush(own, "notice:2"))), "a foreign Träger adds no push of this Träger")
 
 	var seen int
 	require.NoError(t, asRequestRole("app.current_org_id", ownOrg, countPushes(&seen)))
