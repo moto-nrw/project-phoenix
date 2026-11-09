@@ -120,6 +120,18 @@ func (s *Service) resolveDeclarationTarget(ctx context.Context, accountID, annou
 		if !declarationActionAnnouncementIsLive(a, action) {
 			return ErrAnnouncementNotFound
 		}
+		if !announcementIsLive(a) {
+			// Only the guardian's own earlier answer for this child opens a
+			// declaration the school no longer shows; anybody else learns
+			// nothing about it, not even that it exists.
+			answered, err := s.answeredDeclarationBefore(adminCtx, accountID, announcementID, studentID)
+			if err != nil {
+				return err
+			}
+			if !answered {
+				return ErrAnnouncementNotFound
+			}
+		}
 		children, err := s.AnnouncementRepo.DeclarationChildrenForAccount(adminCtx, accountID, []int64{announcementID})
 		if err != nil {
 			return fmt.Errorf("parent: declaration children: %w", err)
@@ -144,18 +156,32 @@ func (s *Service) resolveDeclarationTarget(ctx context.Context, accountID, annou
 	return target, nil
 }
 
-// declarationActionAnnouncementIsLive permits withdrawing an existing consent
-// after expiry, but never revives a withdrawn, inactive or not-yet-published
-// announcement. New agreements and refusals still require the normal live
-// announcement window.
+// declarationActionAnnouncementIsLive keeps a revocation possible whatever the
+// school did with the declaration afterwards: expired, withdrawn (unpublished)
+// or deactivated. Withdrawing a consent must stay as easy as giving it
+// (Art. 7 Abs. 3 DSGVO, #6290). Whether there is a consent to revoke is the
+// declaration policy's decision on the guardian's own history. New agreements
+// and refusals still require the live announcement window.
 func declarationActionAnnouncementIsLive(a *ParentAnnouncement, action string) bool {
-	if action != DeclarationActionRevoked {
-		return a != nil && a.IsDeclaration() && announcementIsLive(a)
-	}
-	if a == nil || !a.IsDeclaration() || !a.Active || a.PublishedAt == nil {
+	if a == nil || !a.IsDeclaration() {
 		return false
 	}
-	return !a.PublishedAt.After(time.Now())
+	return action == DeclarationActionRevoked || announcementIsLive(a)
+}
+
+// answeredDeclarationBefore reports whether the account has declared for the
+// child on this announcement before.
+func (s *Service) answeredDeclarationBefore(ctx context.Context, accountID, announcementID, studentID int64) (bool, error) {
+	history, err := s.AnnouncementRepo.ListDeclarationSubmissionsForStudents(ctx, []int64{announcementID}, []int64{studentID})
+	if err != nil {
+		return false, fmt.Errorf("parent: load declaration history: %w", err)
+	}
+	for _, sub := range history {
+		if sub.AccountID != nil && *sub.AccountID == accountID {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // authorizeDeclarationChild applies the project's guardian gate with the

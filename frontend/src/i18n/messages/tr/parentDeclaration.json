@@ -6,6 +6,8 @@
   "version": "Sürüm {version}",
   "deadline": "Son tarih {date}",
   "closed": "Süre doldu",
+  "ended": "Talep sona erdi",
+  "endedNote": "Okul bu talebi sonlandırdı. Artık yeni yanıt veremezsiniz.",
   "passwordNote": "Yanıtlamadan önce moto şifrenizi sorar.",
   "signatureNote": "Onay vermek için parmağınızla veya fareyle imzalarsınız.",
   "state": {

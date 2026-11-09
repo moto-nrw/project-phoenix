@@ -46,6 +46,14 @@ export function parentNewsTopic(): HelpTopic {
           "Bestätigen Sie im Fenster mit demselben Knopf.",
         ],
       },
+      {
+        title: "Eine Zustimmung widerrufen",
+        steps: [
+          "Öffnen Sie den Eintrag `Einverständnis` unter `Erledigt`.",
+          "Tippen Sie beim Kind auf `Zustimmung widerrufen`.",
+          "Bestätigen Sie im Fenster mit `Widerrufen`.",
+        ],
+      },
     ],
     result: "Erledigte Einträge wandern von `Offen` zu `Erledigt`.",
     notes: [
@@ -60,11 +68,13 @@ export function parentNewsTopic(): HelpTopic {
       "Fragt moto nach Ihrem Passwort? Dann möchte die Schule das vor jeder Antwort.",
       "Bei einer Umfrage steht `Antwort bis` mit dem letzten Tag.",
       "Ist die Frist vorbei, steht dort `Umfrage geschlossen`.",
+      "Steht bei einem Einverständnis `Anfrage beendet`? Dann fragt die Schule nicht mehr nach. Ihre Zustimmung können Sie trotzdem widerrufen.",
     ],
     troubleshootingDetails: [
       "moto sagt, der Elternbrief sei nicht mehr aktuell? Laden Sie die Seite neu.",
       "moto sagt, die Schule habe den Text geändert? Lesen Sie ihn noch einmal und antworten Sie neu.",
       "Fehlt `Elternbriefe` ganz? Dann nutzt Ihre OGS diese Funktion nicht.",
+      "Fehlt `Zustimmung widerrufen`? Dann erlaubt die Schule keinen Widerruf im Eltern-Portal. Wenden Sie sich an die OGS.",
     ],
     related: [
       HELP_TOPICS.parentSurveys,

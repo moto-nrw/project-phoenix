@@ -30,6 +30,9 @@ type AnnouncementFeedItem struct {
 	// Survey is set for the carrier of a parent survey (#4781).
 	Survey *SurveySummary `json:"-"`
 	Poll   bool           `json:"-"`
+	// Ended marks an answered declaration the school no longer shows
+	// (withdrawn, deactivated or expired); only a revocation remains (#6290).
+	Ended bool `json:"-"`
 }
 type AnnouncementFeedScope struct {
 	TenantIDs           []int64

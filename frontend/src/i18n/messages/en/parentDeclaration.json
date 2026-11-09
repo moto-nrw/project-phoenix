@@ -6,6 +6,8 @@
   "version": "Version {version}",
   "deadline": "Deadline {date}",
   "closed": "Deadline passed",
+  "ended": "Request ended",
+  "endedNote": "The school has ended this request. You can no longer give a new answer.",
   "passwordNote": "moto asks for your password before you answer.",
   "signatureNote": "To agree, you sign with your finger or the mouse.",
   "state": {

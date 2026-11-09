@@ -39,6 +39,10 @@ type ParentAnnouncementFeedItem struct {
 	AcknowledgedAt    *time.Time
 	ReminderSentAt    *time.Time
 	ReminderText      *string
+	// Ended marks a declaration the school no longer shows (withdrawn,
+	// deactivated or expired) that stays in the feed because the account
+	// answered it (#6290).
+	Ended bool
 }
 
 // ParentAnnouncementPollChild is one child a guardian may answer a poll for,

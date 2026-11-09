@@ -40,9 +40,23 @@ func (s *Service) attachDeclarationData(ctx context.Context, accountID int64, it
 	for _, item := range items {
 		if item.DeliveryMode == ParentAnnouncementDeliveryDeclaration {
 			item.Declaration = buildFeedDeclaration(s.Declarations, accountID, item, facts, now)
+			showEndedDeclarationAsAnswered(item)
 		}
 	}
 	return nil
+}
+
+// showEndedDeclarationAsAnswered shows an ended declaration with the frozen
+// wording the guardian answered, never a draft the school edits after
+// withdrawing it, and drops what belonged to the live publication.
+func showEndedDeclarationAsAnswered(item *AnnouncementFeedItem) {
+	if !item.Ended || item.Declaration == nil {
+		return
+	}
+	if v := item.Declaration.Version; v != nil {
+		item.Title, item.Body = v.Title, v.Body
+	}
+	item.LinkURL, item.ReminderSentAt, item.ReminderText = nil, nil, nil
 }
 
 func (s *Service) loadDeclarationFeedFacts(ctx context.Context, accountID int64, ids []int64) (*declarationFeedFacts, error) {
@@ -106,7 +120,7 @@ func buildFeedDeclaration(policy DeclarationPolicy, accountID int64, item *Annou
 	out := &AnnouncementFeedDeclaration{
 		Kind: settings.Kind, Signers: settings.Signers, Revocable: settings.Revocable,
 		RequiresPassword: settings.RequiresPassword, RequiresSignature: settings.RequiresSignature, Deadline: item.ResponseDeadline,
-		Closed: policy.Closed(rules.Deadline, now), Version: facts.versions[item.ID],
+		Closed: item.Ended || policy.Closed(rules.Deadline, now), Ended: item.Ended, Version: facts.versions[item.ID],
 		Children: []*AnnouncementFeedDeclarationChild{},
 	}
 	latest := map[int64]map[int64]*DeclarationSubmission{}
@@ -114,7 +128,16 @@ func buildFeedDeclaration(policy DeclarationPolicy, accountID int64, item *Annou
 		latest = facts.latestOnVersion(item.ID, out.Version.ID)
 	}
 	for _, c := range facts.children[item.ID] {
-		out.Children = append(out.Children, buildFeedDeclarationChild(policy, accountID, c, rules, facts.signers[c.StudentID], latest[c.StudentID], now))
+		child := buildFeedDeclarationChild(policy, accountID, c, rules, facts.signers[c.StudentID], latest[c.StudentID], now)
+		if out.Ended {
+			// An ended declaration stays for the children the guardian
+			// answered for; for the others it asks nothing any more.
+			if child.MyAction == nil {
+				continue
+			}
+			child.AllowedActions = onlyRevocation(child.AllowedActions)
+		}
+		out.Children = append(out.Children, child)
 	}
 	return out
 }
@@ -144,6 +167,17 @@ func buildFeedDeclarationChild(policy DeclarationPolicy, accountID int64, c *Dec
 	child.State = policy.ChildState(rules.Signers, rules.Deadline, eligible, actions, now)
 	child.AllowedActions = policy.AllowedActions(rules.Revocable, rules.Deadline, child.CanSubmit, actions[accountID], now)
 	return child
+}
+
+// onlyRevocation keeps the revocation of an ended declaration: it takes no
+// new answers.
+func onlyRevocation(actions []string) []string {
+	for _, action := range actions {
+		if action == DeclarationActionRevoked {
+			return []string{DeclarationActionRevoked}
+		}
+	}
+	return []string{}
 }
 
 // DeclarationProof is what the guardian's proof document shows: the versions

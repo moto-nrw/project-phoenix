@@ -5784,7 +5784,7 @@ export const parentDeclarationTopic =
       result:
         "Die Eltern sehen die Anfrage im Eltern-Portal. Den Stand je Kind sehen Sie beim Öffnen unter `Stand der Antworten`.",
       notes: [
-        "Mit `Widerruf erlauben` können Eltern eine Zustimmung später zurücknehmen, auch nach der Frist.",
+        "Mit `Widerruf erlauben` können Eltern eine Zustimmung später zurücknehmen. Das geht auch nach der Frist und nach dem Zurückziehen.",
         "Mit `Mit Unterschrift` unterschreiben Eltern ihre Zustimmung mit dem Finger oder der Maus. Ablehnen geht ohne Unterschrift. Die Unterschrift steht im Nachweis der Eltern und in `Bericht als PDF`.",
         "Mit `Passwort vor dem Antworten abfragen` geben Eltern vor jeder Antwort ihr Passwort ein.",
         "`Offene erinnern` schickt eine Erinnerung an alle, die noch nicht geantwortet haben.",
@@ -5794,6 +5794,7 @@ export const parentDeclarationTopic =
       differences: [
         "Nach dem Veröffentlichen stehen Text und Dateien fest.",
         "Ziehen Sie ein Einverständnis zurück und ändern den Text, müssen die Eltern neu antworten. Die alten Antworten bleiben im Verlauf.",
+        "Eltern, die schon geantwortet haben, sehen ein zurückgezogenes Einverständnis weiter. Dort steht `Anfrage beendet`. Neu antworten können sie nicht mehr.",
       ],
       troubleshootingDetails: [
         "Sollen Eltern nur bestätigen, dass sie etwas gelesen haben? Schreiben Sie dann einen Elternbrief mit Lesebestätigung.",
@@ -6772,6 +6773,14 @@ export const parentNewsTopic = function parentNewsTopic(): HelpTopic {
           "Bestätigen Sie im Fenster mit demselben Knopf.",
         ],
       },
+      {
+        title: "Eine Zustimmung widerrufen",
+        steps: [
+          "Öffnen Sie den Eintrag `Einverständnis` unter `Erledigt`.",
+          "Tippen Sie beim Kind auf `Zustimmung widerrufen`.",
+          "Bestätigen Sie im Fenster mit `Widerrufen`.",
+        ],
+      },
     ],
     result: "Erledigte Einträge wandern von `Offen` zu `Erledigt`.",
     notes: [
@@ -6786,11 +6795,13 @@ export const parentNewsTopic = function parentNewsTopic(): HelpTopic {
       "Fragt moto nach Ihrem Passwort? Dann möchte die Schule das vor jeder Antwort.",
       "Bei einer Umfrage steht `Antwort bis` mit dem letzten Tag.",
       "Ist die Frist vorbei, steht dort `Umfrage geschlossen`.",
+      "Steht bei einem Einverständnis `Anfrage beendet`? Dann fragt die Schule nicht mehr nach. Ihre Zustimmung können Sie trotzdem widerrufen.",
     ],
     troubleshootingDetails: [
       "moto sagt, der Elternbrief sei nicht mehr aktuell? Laden Sie die Seite neu.",
       "moto sagt, die Schule habe den Text geändert? Lesen Sie ihn noch einmal und antworten Sie neu.",
       "Fehlt `Elternbriefe` ganz? Dann nutzt Ihre OGS diese Funktion nicht.",
+      "Fehlt `Zustimmung widerrufen`? Dann erlaubt die Schule keinen Widerruf im Eltern-Portal. Wenden Sie sich an die OGS.",
     ],
     related: [
       HELP_TOPICS.parentSurveys,
