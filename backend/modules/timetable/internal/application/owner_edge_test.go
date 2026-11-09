@@ -57,6 +57,11 @@ func (s *ownerEdgeStore) UpdateTemplate(_ context.Context, _ int64, input timeta
 	return 1, domain.OperationStats{}, nil
 }
 
+func (s *ownerEdgeStore) UpdateTemplateNotes(_ context.Context, ids []int64, _ *string) (int64, domain.OperationStats, error) {
+	s.calls++
+	return int64(len(ids)), domain.OperationStats{}, nil
+}
+
 func (s *ownerEdgeStore) UpdateGroupOfferingSource(_ context.Context, _ int64, input timetable.OfferingSourceInput) (domain.OperationStats, error) {
 	s.calls++
 	s.offering = input

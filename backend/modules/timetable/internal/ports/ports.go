@@ -59,6 +59,7 @@ type Store interface {
 	UpdateGroup(context.Context, int64, timetable.GroupInput) (timetable.Group, bool, domain.OperationStats, error)
 	DeleteGroup(context.Context, int64) (domain.OperationStats, error)
 	UpdateTemplate(context.Context, int64, timetable.TemplateUpdate) (int64, domain.OperationStats, error)
+	UpdateTemplateNotes(context.Context, []int64, *string) (int64, domain.OperationStats, error)
 	ArchiveTemplate(context.Context, int64) (int64, domain.OperationStats, error)
 	UpdateGroupOfferingSource(context.Context, int64, timetable.OfferingSourceInput) (domain.OperationStats, error)
 	UpdateTemplateRosterReview(context.Context, int64, timetable.TemplateRosterReviewUpdate) (int64, domain.OperationStats, error)

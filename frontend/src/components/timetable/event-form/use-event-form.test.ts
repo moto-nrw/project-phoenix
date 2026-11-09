@@ -1223,7 +1223,7 @@ describe("useEventForm Wochennotiz-only series save (#6141)", () => {
     conflictWarnings: [],
   };
 
-  function mockApis() {
+  function mockApis(template = series) {
     vi.spyOn(plannerReferenceApi, "fetchPlannerRooms").mockResolvedValue([]);
     vi.spyOn(plannerReferenceApi, "fetchPlannerGroups").mockResolvedValue([]);
     vi.spyOn(
@@ -1232,7 +1232,7 @@ describe("useEventForm Wochennotiz-only series save (#6141)", () => {
     ).mockResolvedValue([]);
     vi.spyOn(formModel, "fetchAllStudentOptions").mockResolvedValue([]);
     vi.spyOn(staffService, "getAllStaff").mockResolvedValue([]);
-    vi.spyOn(timetableService, "getTemplate").mockResolvedValue(series);
+    vi.spyOn(timetableService, "getTemplate").mockResolvedValue(template);
     return {
       countEditedInWindow: vi
         .spyOn(timetableService, "countEditedInWindow")
@@ -1385,4 +1385,35 @@ describe("useEventForm Wochennotiz-only series save (#6141)", () => {
     expect(result.current.lostEdits).toBeNull();
     expect(onClose).toHaveBeenCalled();
   });
+
+  it(
+    "propagates a Wochennotiz-only 'Alle Termine' save across a resolved chain",
+    async () => {
+      const apis = mockApis({ ...series, resolvedFromTemplateId: "8" });
+      const { result, onClose } = renderForm({
+        initialInstance: { ...occurrence, activityGroupId: "8" },
+        initialSeries: null,
+      });
+      await act(async () => {
+        await result.current.handleInitialScopeSelect("all");
+      });
+      await waitFor(() => expect(result.current.form.seriesNotes).toBe("Alt"));
+
+      act(() => result.current.update("seriesNotes", "Neu"));
+      await act(async () => {
+        await result.current.handleSubmit(submitEvent);
+      });
+
+      expect(apis.updateTemplate).toHaveBeenCalledWith(
+        "9",
+        expect.objectContaining({
+          notes: "Neu",
+          propagate_notes_to_predecessors: true,
+        }),
+      );
+      expect(apis.countEditedInWindow).not.toHaveBeenCalled();
+      expect(apis.replanWeek).not.toHaveBeenCalled();
+      expect(onClose).toHaveBeenCalled();
+    },
+  );
 });
