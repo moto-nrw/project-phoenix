@@ -1,11 +1,12 @@
 "use client";
 
+import { BELOW_MD } from "~/lib/hooks/use-media-query";
 import { useEffect } from "react";
 
 const FLOATING_FAB_OFFSET_VAR = "--moto-floating-fab-offset";
 const FLOATING_FAB_OFFSET = "4.5rem";
 
-export const MOBILE_CREATE_FAB_MEDIA_QUERY = "(max-width: 767px)";
+export const MOBILE_CREATE_FAB_MEDIA_QUERY = BELOW_MD;
 
 interface FloatingFabOffsetOptions {
   readonly active: boolean;

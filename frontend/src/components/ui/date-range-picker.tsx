@@ -1,4 +1,5 @@
 "use client";
+import { BELOW_SM } from "~/lib/hooks/use-media-query";
 import { Z_LAYER } from "./overlay-styles";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { parseISODate } from "~/lib/date-helpers";
@@ -226,7 +227,7 @@ function RangeCalendar({
     const trigger = triggerRef.current;
     const panel = panelRef.current;
     if (!mounted || !trigger || !panel) return;
-    if (window.innerWidth < 640) {
+    if (window.matchMedia(BELOW_SM).matches) {
       setIsNarrowViewport(true);
       return;
     }
@@ -292,7 +293,7 @@ function useIsSingleMonthCalendar(): boolean {
   const [isSingleMonth, setIsSingleMonth] = useState(false);
 
   useEffect(() => {
-    const query = window.matchMedia("(max-width: 639px)");
+    const query = window.matchMedia(BELOW_SM);
     const update = () => setIsSingleMonth(query.matches);
     update();
     query.addEventListener("change", update);
