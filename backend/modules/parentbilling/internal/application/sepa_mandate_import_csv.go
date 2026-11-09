@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"regexp"
 	"strconv"
 	"strings"
 	"unicode"
@@ -59,7 +60,7 @@ func readImportTable(content []byte, delimiter string) (importTable, error) {
 	if err := table.read(reader); err != nil {
 		return importTable{}, err
 	}
-	if len(table.headers) < 2 || len(table.rows) == 0 || headersHoldAnIBAN(table.headers) {
+	if len(table.headers) < 2 || len(table.rows) == 0 || headersHoldAnIBAN(table.headers) || headersRepeat(table.headers) {
 		return importTable{}, parentbilling.ErrImportFileInvalid
 	}
 	return table, nil
@@ -94,8 +95,43 @@ func (table *importTable) read(reader *csv.Reader) error {
 // masked (ADR 0171).
 func headersHoldAnIBAN(headers []string) bool {
 	for _, header := range headers {
-		if sepa.ValidIBAN(sepa.Compact(header)) {
+		if containsIBAN(header) {
 			return true
+		}
+	}
+	return false
+}
+
+// headersRepeat tells whether two columns have the same header: a mapping
+// names a column by its header, so it could not tell them apart.
+func headersRepeat(headers []string) bool {
+	seen := map[string]bool{}
+	for _, header := range headers {
+		if header == "" {
+			continue
+		}
+		if seen[header] {
+			return true
+		}
+		seen[header] = true
+	}
+	return false
+}
+
+// ibanCandidate finds what could be an IBAN inside a compacted value.
+var ibanCandidate = regexp.MustCompile(`[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}`)
+
+// containsIBAN tells whether a value holds a valid IBAN anywhere, also
+// inside other text („Eva (DE89 3704 …)“).
+func containsIBAN(value string) bool {
+	compact := sepa.Compact(value)
+	for _, start := range ibanCandidate.FindAllStringIndex(compact, -1) {
+		for from := start[0]; from+15 <= start[1]; from++ {
+			for to := from + 15; to <= start[1] && to-from <= 34; to++ {
+				if sepa.ValidIBAN(compact[from:to]) {
+					return true
+				}
+			}
 		}
 	}
 	return false

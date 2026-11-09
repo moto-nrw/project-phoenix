@@ -53,7 +53,9 @@ func TestReadImportTableRefusesWhatIsNoCSV(t *testing.T) {
 		"nul in a cell": "a;b\nc;\x00\n",
 		// Without a header row the first mandate would come back as the
 		// headers, its IBAN unmasked.
-		"no header row": "SJR-1;01.02.2024;DE89 3704 0044 0532 0130 00;Eva\nSJR-2;01.02.2024;DE02120300000000202051;Jan\n",
+		"repeated header":      "Name;IBAN;Name\nEva;DE89370400440532013000;Mia\n",
+		"IBAN inside a header": "Mandatsreferenz;Konto DE89370400440532013000\nSJR-1;x\n",
+		"no header row":        "SJR-1;01.02.2024;DE89 3704 0044 0532 0130 00;Eva\nSJR-2;01.02.2024;DE02120300000000202051;Jan\n",
 	} {
 		_, err := readImportTable([]byte(content), "")
 		require.ErrorIs(t, err, parentbilling.ErrImportFileInvalid, name)
@@ -304,4 +306,15 @@ func TestImportCheckNeverRepeatsAnIBANInATextField(t *testing.T) {
 	assert.ElementsMatch(t, []string{"reference:invalid", "account_holder:invalid"}, problemCodes(row.row))
 	assert.Empty(t, row.row.Reference)
 	assert.Empty(t, row.row.AccountHolder)
+}
+
+func TestContainsIBANFindsAnIBANInsideText(t *testing.T) {
+	t.Parallel()
+	for _, value := range []string{"DE89 3704 0044 0532 0130 00", "Eva (DE89370400440532013000)", "M-DE89370400440532013000",
+		"Konto de89 3704 0044 0532 0130 00 Sparkasse"} {
+		assert.True(t, containsIBAN(value), value)
+	}
+	for _, value := range []string{"SJR-2026-0001", "Eva Beispiel", "DE89370400440532013001", "OGS-2024-0001"} {
+		assert.False(t, containsIBAN(value), value)
+	}
 }

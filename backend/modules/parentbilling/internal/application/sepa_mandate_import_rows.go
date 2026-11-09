@@ -96,7 +96,7 @@ func (c *importCheck) cell(cells []string, field string) string {
 // (ADR 0171).
 func (c *importCheck) textCell(row *parentbilling.SEPAMandateImportRow, cells []string, field string) (string, bool) {
 	value := c.cell(cells, field)
-	if sepa.ValidIBAN(sepa.Compact(value)) {
+	if containsIBAN(value) {
 		addProblem(row, field, parentbilling.ImportProblemInvalid)
 		return "", true
 	}

@@ -207,7 +207,7 @@ export function SepaImportPreviewCard({
           <span className="block font-mono text-sm text-gray-900 sm:whitespace-nowrap">
             {row.ibanMasked || "–"}
           </span>
-          <span className="block text-xs text-gray-500">
+          <span className="block text-xs wrap-anywhere text-gray-500">
             {row.accountHolder || "–"}
           </span>
         </span>
