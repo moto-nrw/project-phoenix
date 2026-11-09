@@ -36,7 +36,7 @@ func sharedDocumentInbox(t *testing.T) (*parentService.Portal, *bun.DB) {
 		GuardianProfileRepo: owners.NewParentGuardianProfileReads(people.GuardianProfile),
 		StudentRepo:         owners.NewParentStudentReads(people.Student),
 		Logger:              slog.Default(), CarePlanPolicy: owners.NewParentCarePlanPolicy(),
-		BillingDocuments: owners.NewParentBillingDocuments(), ContractDocuments: owners.NewParentContractDocuments(owners.NewParentContractSigningForTests(&owners.CareContractTestMails{})),
+		BillingDocuments: owners.NewParentBillingDocuments(), ContractDocuments: owners.NewParentContractDocuments(owners.NewParentContractSigningForTests(&owners.CareContractTestMails{}), owners.CareContractTestHolidays{}),
 		SharedDocuments: owners.NewParentSharedDocuments(), TraegerRuntime: owners.ParentPortalRuntime{},
 		SchoolTraeger: owners.NewParentSchoolTraeger(organizations), ParentAccounts: owners.NewParentAccounts(identity),
 	}), db

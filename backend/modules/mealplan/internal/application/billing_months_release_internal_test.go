@@ -58,7 +58,7 @@ func (s *releaseStore) InsertRelease(_ context.Context, organizationID, _ int64,
 	return month.ReleasedAt, nil
 }
 
-func (s *releaseStore) TraegerMonths(context.Context, int64, calendar.Date) ([]domain.ReleasedMealRow, error) {
+func (s *releaseStore) TraegerMonths(context.Context, int64, calendar.Date, calendar.Date) ([]domain.ReleasedMealRow, error) {
 	return nil, nil
 }
 

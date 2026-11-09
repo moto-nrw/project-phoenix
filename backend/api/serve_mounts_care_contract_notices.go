@@ -16,9 +16,9 @@ import (
 // /traeger/contract-notices behind the right "Verträge verwalten".
 func mountCareContractNoticeRoutes(root chi.Router, organizations HolidayOrganizations, settings TraegerBrandingSettings,
 	schoolSettings CareContractSchoolSettings, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, accessLog owners.DataAccessAppender,
-	addressees carecontract.NoticeAddressees, parentsURL string) {
-	contractPorts, _ := careContractPorts(organizations, settings, schoolSettings, delivery, outcomes, accessLog, parentsURL)
-	notices := careContractCompose.NewNotices(contractPorts, owners.NewCareContractNoticePorts(settings, delivery, addressees))
+	addressees carecontract.NoticeAddressees, holidays carecontract.SchoolHolidays, parentsURL string) {
+	contractPorts, _ := careContractPorts(organizations, settings, schoolSettings, delivery, outcomes, accessLog, holidays, parentsURL)
+	notices := careContractCompose.NewNotices(contractPorts, owners.NewCareContractNoticePorts(settings, delivery, addressees, holidays))
 	resource := careContractHTTP.NewNoticeResource(notices, common.RequiresPermission(identityaccess.TraegerRightContractsManage))
 	root.Mount("/traeger/contract-notices", resource.Router(ProtectedTraegerRoutes))
 }

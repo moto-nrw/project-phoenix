@@ -164,8 +164,6 @@ var seedCoverageTransient = map[string]string{
 	"parent_billing.care_run_amendments":        "the seed adds a position to the first invoice of the open run of the current month (#6197); present exactly when that run has an invoice, see parent_billing.care_invoices",
 	"parent_billing.care_invoice_corrections":   "changes a release copied onto an issued monthly invoice (#6197); the seed changes only the open run, so present only after a release of a changed run",
 	"parent_billing.care_invoice_cancellations": "the seed cancels a monthly invoice before its send once a run has more than two (#4684, ADR 0165); present only then",
-	"schedule.meal_billing_month_children":      "children of a released Mensa month (#4686); a month is released only after its end, and the seed's meal registrations start in the current week, so the month the seed releases has none until a seed of the next month",
-	"parent_billing.care_meal_positions":        "Mensa months on the monthly invoices (#4686); present once an issued invoice bills a released month with meals, which needs the children above",
 	"active.attendance_retention_marks":         "how far the nightly attendance retention deleted (#4686); written by that cleanup, so empty before it runs on a seeded stack",
 	"platform.cleanup_runs":                     "last successful nightly cleanup per school and job (#3950); empty before the Worker succeeds, populated if the seed smoke overlaps the school's cleanup time (02:00 by default) or a due catch-up run",
 	"platform.push_outbox":                      "transient delivery state that requires an honest browser/VAPID-bound push subscription, which the server-side seed cannot create",
@@ -217,6 +215,25 @@ func TestSeedCoverageRatchet(t *testing.T) {
 
 	db := testpkg.OpenPostgresSQL(dsn)
 	defer func() { _ = db.Close() }()
+
+	// A populated release must reach an issued monthly invoice with the
+	// same quantity and an explainable per-meal amount, not just fill tables.
+	var billedMeals bool
+	if err := db.QueryRow(`SELECT EXISTS (
+ SELECT 1 FROM parent_billing.care_meal_positions p
+ JOIN schedule.meal_billing_months m ON m.organization_id=p.organization_id
+ AND m.school_id=p.school_id AND m.billing_month=p.meal_month AND m.version=p.release_version
+ JOIN schedule.meal_billing_month_children c ON c.organization_id=m.organization_id
+ AND c.month_id=m.id AND c.student_id=p.student_id
+ JOIN parent_billing.care_invoices i ON i.organization_id=p.organization_id AND i.id=p.invoice_id
+ WHERE m.child_count>0 AND m.meal_count>0 AND p.mode='per_meal' AND p.quantity=c.meal_days
+ AND p.quantity>0 AND p.unit_cents>0 AND p.amount_cents=p.quantity*p.unit_cents
+ )`).Scan(&billedMeals); err != nil {
+		t.Fatalf("check seeded Mensa invoices: %v", err)
+	}
+	if !billedMeals {
+		t.Error("seed has no populated Mensa release billed with matching meal quantities and amounts")
+	}
 
 	rows, err := db.Query(tableCoverageQuery)
 	if err != nil {

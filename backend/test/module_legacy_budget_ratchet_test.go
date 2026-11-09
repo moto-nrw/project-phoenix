@@ -305,7 +305,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/guardianlinkview/compose":             8,
 	// Raised by ADR 0106: the Träger-Büro account management (+24).
 	"modules/identityaccess/compose": 1365, // raised by ADR 0077
-	"modules/mealplan/compose":       105,  // raised by ADR 0078 and ADR 0168
+	"modules/mealplan/compose":       102,  // raised by ADR 0078 and ADR 0168
 	// ADR 0097: the isolated tenant return constructor, no retained logic moved.
 	// Raised by ADR 0112: the Träger master data constructor (+13).
 	// Raised by ADR 0148: the demo school file erasure constructor (+10).

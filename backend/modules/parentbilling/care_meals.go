@@ -186,7 +186,7 @@ type CareMealRelease struct {
 // school still keeps; a month that starts before it can no longer be
 // released (the rule of the Mensa-Monatsfreigabe).
 type CareMeals interface {
-	ReleasedMealMonths(ctx context.Context, organizationID int64, until calendar.Date) ([]CareMealRelease, error)
+	ReleasedMealMonths(ctx context.Context, organizationID int64, from, until calendar.Date) ([]CareMealRelease, error)
 	MealAttendanceFrom(ctx context.Context, schoolIDs []int64) (map[int64]calendar.Date, error)
 }
 
