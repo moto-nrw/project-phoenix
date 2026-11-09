@@ -65,6 +65,7 @@ type SeedOptions struct {
 	// PresenceHistory writes the past attendance and room visits (#5031);
 	// nil seeds the past without presence, unless PresenceHistoryRoute is set.
 	PresenceHistory PresenceHistoryWriter
+	MealHistory     func(context.Context, int64, []PastMealDay) error
 	// PresenceHistoryRoute writes them through the operator route only the
 	// public demo's server mounts (APP_ENV=demo, ADR 0127) when
 	// PresenceHistory is nil.

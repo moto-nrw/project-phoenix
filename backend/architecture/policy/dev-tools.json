@@ -139,6 +139,17 @@
       "source_role": "compose",
       "target_owner": "security-runtime",
       "target_role": "public"
+    },
+    {
+      "id": "dev-tools.compose.meal-plan",
+      "description": "The dev CLI binds historical demo registrations through Meal Plan composition.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "dev-tools",
+      "source_role": "compose",
+      "target_owner": "meal-plan",
+      "target_role": "compose"
     }
   ]
 }

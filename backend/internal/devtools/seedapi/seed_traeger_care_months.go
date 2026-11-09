@@ -102,6 +102,14 @@ func seedCareRuns(client *Client, auth AuthRef, first, current calendar.Date) (i
 			return 0, err
 		}
 	}
+	previous := calendar.NewDate(current.Year(), current.Month()-1, 1)
+	if !first.IsZero() && first.Before(previous) {
+		count, err := seedCareRun(client, auth, previous, true)
+		if err != nil {
+			return released, err
+		}
+		released += count
+	}
 	if first != current {
 		if _, err := seedCareRun(client, auth, current, false); err != nil {
 			return 0, err

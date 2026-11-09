@@ -22,6 +22,7 @@ func seedCareContractChange(rt *Runtime, auth AuthRef) (bool, error) {
 			Contracts []struct {
 				ID         int64  `json:"id"`
 				PartyEmail string `json:"party_email"`
+				StudentID  *int64 `json:"student_id"`
 			} `json:"contracts"`
 		} `json:"data"`
 	}
@@ -30,14 +31,14 @@ func seedCareContractChange(rt *Runtime, auth AuthRef) (bool, error) {
 	}
 	for _, contract := range list.Data.Contracts {
 		parent, ok := seedParentByEmail(rt, contract.PartyEmail)
-		if !ok || len(parent.StudentIDs) == 0 {
+		if !ok || contract.StudentID == nil || !slices.Contains(parent.StudentIDs, *contract.StudentID) {
 			continue
 		}
 		parentAuth, err := rt.Client.adapter.LoginParent(context.Background(), parent.Email, parent.Password)
 		if err != nil {
 			return false, fmt.Errorf("sign in the parents of contract %d: %w", contract.ID, err)
 		}
-		return seedOneDayLess(rt, parentAuth, parent.StudentIDs[0])
+		return seedOneDayLess(rt, parentAuth, *contract.StudentID)
 	}
 	return false, nil
 }
