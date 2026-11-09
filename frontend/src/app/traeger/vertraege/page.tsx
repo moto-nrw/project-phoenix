@@ -586,6 +586,18 @@ export default function TraegerVertraegePage() {
           stackedLayout="row"
           stackedDetailKey="school"
           onRowClick={(contract) => router.push(contractHref(contract))}
+          // Older contracts load inside the list's surface, like every list.
+          moreAction={
+            data?.list.hasMore
+              ? {
+                  label: "Weitere Verträge laden",
+                  onClick: () => void load(contracts.length),
+                  loading: loadingMore,
+                  loadingText: "Wird geladen …",
+                  disabled: loadingMore || sending,
+                }
+              : undefined
+          }
           selection={{
             selectedKeys: selected,
             disabled: sending,
@@ -643,18 +655,6 @@ export default function TraegerVertraegePage() {
             />
           }
         />
-      ) : null}
-      {data?.list.hasMore ? (
-        <Button
-          type="button"
-          variant="outline"
-          disabled={loadingMore || sending}
-          isLoading={loadingMore}
-          loadingText="Wird geladen …"
-          onClick={() => void load(contracts.length)}
-        >
-          Weitere Verträge laden
-        </Button>
       ) : null}
       {data && selected.size > 0 ? (
         // What the ticked rows are for, and the action, stick at the bottom

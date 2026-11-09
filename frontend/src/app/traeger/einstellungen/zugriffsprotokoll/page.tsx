@@ -7,7 +7,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScrollText } from "lucide-react";
 import type { DateRange } from "react-day-picker";
-import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { DateRangePicker } from "~/components/ui/date-range-picker";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -388,6 +387,17 @@ export default function TraegerAccessLogPage() {
         isLoading={loading}
         loadingRowCount={5}
         stackedOnMobile
+        // Older entries load inside the list's surface, like every list.
+        moreAction={
+          hasMore
+            ? {
+                label: "Weitere Einträge laden",
+                onClick: () => void loadMore(),
+                loading: loadingMore,
+                loadingText: "Lädt …",
+              }
+            : undefined
+        }
         emptyState={
           <EmptyState
             icon={<ScrollText className="h-12 w-12" aria-hidden="true" />}
@@ -400,20 +410,6 @@ export default function TraegerAccessLogPage() {
           />
         }
       />
-      {hasMore ? (
-        <div className="flex justify-center">
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            isLoading={loadingMore}
-            loadingText="Lädt …"
-            onClick={() => void loadMore()}
-          >
-            Weitere Einträge laden
-          </Button>
-        </div>
-      ) : null}
     </TenantPage>
   );
 }

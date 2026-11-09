@@ -23,6 +23,15 @@ import { StatusColorBadge } from "~/components/ui/status-color-badge";
 
 type SortDirection = "asc" | "desc";
 
+/** The footer button of a list the server pages (`moreAction`). */
+export interface DataTableMoreAction {
+  readonly label: string;
+  readonly onClick: () => void;
+  readonly loading?: boolean;
+  readonly loadingText?: string;
+  readonly disabled?: boolean;
+}
+
 export interface DataTableColumn<T> {
   // The key "actions" marks the row-action column (the row's OverflowMenu).
   // It stays pinned to the right edge of the table, see PINNED_COLUMN_KEY.
@@ -152,6 +161,10 @@ interface DataTableProps<T> {
   // Changing this value resets incremental pagination to the first page.
   // Callers with externally filtered rows should pass their active filter key.
   paginationResetKey?: string | number;
+  // Rows the server still holds (lists paged by the server): one footer
+  // button in the place of `pageSize`'s button, inside the table's surface.
+  // The caller loads the next page and appends it to `rows`.
+  moreAction?: DataTableMoreAction;
   // Below md, render the same rows stacked instead of as a table. Use it when
   // a phone viewport cannot show the columns that carry the point of the list
   // (a fourth column pushed off screen is a value nobody reads). Sorting,
@@ -549,6 +562,7 @@ function StackedRows<T>({
   hasMore,
   loadMore,
   totalCount,
+  moreAction,
   layout,
   stackedTitle,
   selection,
@@ -568,6 +582,7 @@ function StackedRows<T>({
   hasMore: boolean;
   loadMore: () => void;
   totalCount: number;
+  moreAction?: DataTableMoreAction;
   layout: "lines" | "row" | "form";
   stackedTitle?: (row: T) => ReactNode;
   selection?: DataTableSelection<T>;
@@ -771,6 +786,20 @@ function StackedRows<T>({
           {`Mehr laden (${rows.length} von ${totalCount})`}
         </Button>
       )}
+      {!hasMore && moreAction && !isLoading ? (
+        <Button
+          type="button"
+          variant="surface"
+          size="md"
+          onClick={moreAction.onClick}
+          disabled={moreAction.disabled}
+          isLoading={moreAction.loading}
+          loadingText={moreAction.loadingText}
+          className="w-full"
+        >
+          {moreAction.label}
+        </Button>
+      ) : null}
     </div>
   );
 }
@@ -828,6 +857,7 @@ export function DataTable<T>({
   defaultSortDirection = "asc",
   pageSize,
   paginationResetKey,
+  moreAction,
   stackedOnMobile = false,
   stackedLayout = "lines",
   stackedTitle,
@@ -987,6 +1017,7 @@ export function DataTable<T>({
             hasMore={hasMore}
             loadMore={loadMore}
             totalCount={sortedRows.length}
+            moreAction={moreAction}
             layout={stackedLayout}
             stackedTitle={stackedTitle}
             selection={selection}
@@ -1311,6 +1342,21 @@ export function DataTable<T>({
               </Button>
             </div>
           )}
+          {!isLoading && !hasMore && moreAction ? (
+            <div className="border-t border-gray-100 px-5 py-3 text-center">
+              <Button
+                type="button"
+                variant="surface"
+                size="md"
+                onClick={moreAction.onClick}
+                disabled={moreAction.disabled}
+                isLoading={moreAction.loading}
+                loadingText={moreAction.loadingText}
+              >
+                {moreAction.label}
+              </Button>
+            </div>
+          ) : null}
         </div>
       )}
     </div>
