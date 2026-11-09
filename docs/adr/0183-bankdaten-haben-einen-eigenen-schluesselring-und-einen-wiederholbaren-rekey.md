@@ -11,7 +11,9 @@ Er ersetzt für Bankdaten die gemeinsame Schlüsselverwendung aus ADR 0171.
 
 1. Security Runtime stellt denselben AES-256-GCM-Feld-Cipher bereit, aber die
    Root bindet `BANK_DATA_KEYS` getrennt von `HEALTH_DATA_KEYS` an den
-   consumer-owned Port `parentbilling.BankDataCipher`. Fehlende, leere oder
+   consumer-owned Port `parentbilling.BankDataCipher`. Dessen Marker
+   `BankDataRing()` ist auch am owner-neutralen Root-Port erforderlich; ein
+   Health-Cipher kann daher weder Mandate noch Lastschriften versorgen. Fehlende, leere oder
    ungültige Bankkonfiguration verhindert den Start. Ringformat:
    `id:base64[,id:base64]`, je Schlüssel 32 unabhängig zufällige Bytes;
    der erste Schlüssel schreibt, alle Schlüssel lesen anhand der Schlüssel-ID.
@@ -60,32 +62,62 @@ Er ersetzt für Bankdaten die gemeinsame Schlüsselverwendung aus ADR 0171.
 
 Verantwortlich: Yannick. Keine Live-Zugriffe durch Implementierungsagenten.
 
-1. In allen SOPS-Umgebungen Staging, Produktion und Demo per SOPS eigenständige
-   Bank-Schlüssel erzeugen und `BANK_DATA_KEYS` setzen; niemals Dev-Testwerte
-   übernehmen. `BANK_DATA_LEGACY_KEYS` ausdrücklich mit dem bisherigen Ring
-   setzen. Env-Sync-Prüfung erneut ausführen. Die Übergangsausnahme im
-   Env-Inventar anschließend entfernen. Verschlüsselte Dateien niemals von
-   Hand bearbeiten. Die serving-Compose-Bindung bleibt bereits fail-fast.
-2. Kompatible Version mit beiden Leseringen ausrollen. Alte Instanzen erst
-   vollständig beenden, bevor der Job oder neue Bank-Schreibvorgänge erfolgen:
-   eine alte Version versteht neue Bankchiffrate nicht. Normaler Rollout ersetzt
-   den Prozess; während des Rekeys bleibt die neue Anwendung verfügbar.
-3. Wartungscontainer mit privilegiertem DB-DSN und ausschließlich Bankring plus
-   explizitem Legacy-Ring starten. Bestehenden `migrate`-Service mit `--entrypoint`
-   nicht verändern; für den einmaligen Aufruf die beiden Schlüssel als
-   Prozessumgebung übergeben, nicht als Shell-Literal oder Kommandozeilenwert.
-   Pro Träger `./main bank-data-rekey --organization ID --batch-size 100`
-   ausführen. Mit SIGTERM abbrechbar; abgeschlossene Batches bleiben erhalten.
-   Dieselbe Anweisung setzt den Lauf durch idempotente Wiederholung fort.
-4. Nach vollständigem Ausrollen und nachdem keine alten Schreiber mehr laufen,
-   für jeden Träger erneut vollständig laufen lassen. Bei Fehlern nicht
-   abschalten. Erfolgreicher Durchlauf mit `changed_total=0` authentifiziert den
-   gesamten vorhandenen Bestand. Auch widerrufene Mandate und vorhandene
-   Lastschriftkopien müssen darin enthalten sein.
-5. `BANK_DATA_LEGACY_KEYS` per SOPS leeren und neue Prozesse starten. Den Job
-   noch einmal ohne Legacy-Ring laufen lassen: alles lesbar, `changed_total=0`.
-   Der Bankbestand ist jetzt unabhängig von Gesundheitsdatenschlüsseln.
-   `HEALTH_DATA_KEYS` wird nicht verändert; die Gesundheitsdaten benötigen ihn.
+1. **Vor dem Merge**, nicht erst vor dem Deploy: für Staging, Produktion und
+   Demo per SOPS unabhängige Bank-Schlüssel erzeugen und `BANK_DATA_KEYS` setzen,
+   niemals Dev-Testwerte übernehmen. `BANK_DATA_LEGACY_KEYS` muss **exakt dem
+   heutigen vollständigen Wert von `HEALTH_DATA_KEYS` derselben Umgebung**
+   entsprechen, einschließlich Reihenfolge und aller Schlüssel-IDs. Im selben
+   SOPS-Commit die beiden Bank-Einträge aus `PENDING_SOPS_KEYS` in
+   `scripts/env-check.sh` streichen und Env-Sync prüfen. Verschlüsselte Dateien
+   niemals von Hand bearbeiten. Compose verlangt die Werte bereits bei `pull`.
+2. Danach mergen und die bankringfähige Version vollständig ausrollen. Alte
+   Instanzen beenden, bevor der Job oder neue Bank-Schreibvorgänge erfolgen:
+   eine alte Version versteht neue Bankchiffrate nicht. Während des Rekeys
+   bleibt die neue Anwendung verfügbar.
+3. Im jeweiligen Deployment-Verzeichnis (`~/staging`, `~/production` bzw.
+   `~/demo`, mit der von CI bereitgestellten `.env` und `docker-compose.yml`)
+   den folgenden Bash-Block ausführen. Er verarbeitet **alle Träger**, auch
+   inaktive, ohne manuell gepflegte ID-Liste. Die Abfrage filtert absichtlich
+   nicht auf Aktivität. Der separate `bank-data-rekey`-Service des Profils
+   `maintenance` nutzt dasselbe gepinnte Image wie `server`, erhält nur den
+   privilegierten `DB_DSN`, Pool-Konfiguration, `APP_ENV`, `TZ` und die beiden
+   Bankringe. Keine Health-/HTTP-Schlüssel, Ports, Mounts oder SQL-Debug-Logs.
+   Compose interpoliert die geschützte `.env`; keine Schlüssel als Shell-Literal
+   oder CLI-Wert übergeben. `run` aktiviert den Maintenance-Service ausdrücklich.
+
+   ```bash
+   (
+     set -euo pipefail
+     organization_ids=$(docker compose exec -T postgres psql -U postgres -d postgres \
+       -At -v ON_ERROR_STOP=1 -c 'SELECT id FROM platform.organizations ORDER BY id')
+     while IFS= read -r organization_id; do
+       [ -n "$organization_id" ] || continue
+       docker compose run --rm --no-deps bank-data-rekey ./main bank-data-rekey \
+         --organization "$organization_id" --batch-size 100
+     done <<< "$organization_ids"
+   )
+   ```
+
+   Mit SIGTERM abbrechbar; abgeschlossene Batches bleiben erhalten. Derselbe
+   Block setzt den Lauf durch idempotente Wiederholung ab null fort.
+4. Den Block ein zweites Mal vollständig ausführen. Nur bei fehlerfreiem Lauf
+   mit `changed_total=0` **für beide Quellen jedes Trägers** fortfahren. Auch
+   widerrufene Mandate und eingereichte Lastschriftkopien sind enthalten.
+5. `BANK_DATA_LEGACY_KEYS` per SOPS leeren, ausrollen und Prozesse neu starten.
+   Danach denselben Block ohne Legacy-Ring vollständig ausführen:
+   alles lesbar, beide Quellen je Träger `changed_total=0`.
+   `HEALTH_DATA_KEYS` unverändert lassen; Gesundheitsdaten benötigen ihn.
+   Diese komplette Reihenfolge gilt separat für Staging, Produktion und Demo.
+
+## Mutationsbelege
+
+- M4/M5: Mandate oder Lastschriften mit `healthData` statt `bankData` verdrahten:
+  der Compiler weist den fehlenden Marker `BankDataRing` zurück.
+- M8: `debits` aus der Quelleniteration in `runBankDataRekeyJob` entfernen:
+  `TestBankDataRekeyJobOpensBothSourcesWithoutLegacy` scheitert beim Öffnen der
+  Lastschriftkopie mit dem Bankring ohne Legacy. Der Test nutzt dieselbe
+  vollständige Traversierung wie die CLI und prüft beide Felder beider Tabellen
+  sowie einen zweiten vollständigen Bank-only-Lauf ohne Änderungen.
 
 ## Rotation, Abbruch und Rollback
 

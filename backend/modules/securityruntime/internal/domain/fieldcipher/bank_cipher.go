@@ -9,6 +9,9 @@ type BankCipher struct {
 	legacy *Cipher
 }
 
+// BankDataRing marks the independently configured bank ring at composition boundaries.
+func (*BankCipher) BankDataRing() {}
+
 func ParseBank(keys, legacyKeys string) (*BankCipher, error) {
 	bank, err := Parse(keys)
 	if err != nil {

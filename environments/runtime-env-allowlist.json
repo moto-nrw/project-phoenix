@@ -124,5 +124,16 @@
     "PHOENIX_AUTH_PASSWORD",
     "PHOENIX_DEMO_PASSWORD",
     "TZ"
+  ],
+  "bank-data-rekey": [
+    "APP_ENV",
+    "BANK_DATA_KEYS",
+    "BANK_DATA_LEGACY_KEYS",
+    "DB_CONN_MAX_IDLE_TIME",
+    "DB_CONN_MAX_LIFETIME",
+    "DB_DSN",
+    "DB_MAX_IDLE_CONNS",
+    "DB_MAX_OPEN_CONNS",
+    "TZ"
   ]
 }

@@ -57,6 +57,14 @@
       "target_owner": "document-rendering"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.BankDataCipher.BankDataRing",
+      "binding_digest": "5fd1c9ea6c24b87c7b22953d5bc618e1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.BankDataRing",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.BankDataRing",
+      "target_owner": "security-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.BankDataCipher.Open",
       "binding_digest": "f509ab6f1192934a77e9163d80dc36f4",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.Open",

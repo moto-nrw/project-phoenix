@@ -71,6 +71,16 @@
       "target_owner": "document-rendering"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.BankDataCipher.BankDataRing",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.BankDataCipher.BankDataRing",
+      "reason": "ADR 0183 (#6252): empty BankDataRing type marker; no runtime work, writes, locking reads or audit mutation. Health-only ciphers cannot satisfy the bank port.",
+      "source_owner": "parent-billing",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.BankDataRing",
+      "target_owner": "security-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.BankDataCipher.Open",
       "classification": "query",
       "effect": "query",

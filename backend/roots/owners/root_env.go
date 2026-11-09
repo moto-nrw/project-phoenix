@@ -40,6 +40,8 @@ type HealthDataCipher interface {
 // BankDataCipher is the root's owner-neutral bank-value port, kept nominally
 // separate from HealthDataCipher so their bindings cannot be conflated.
 type BankDataCipher interface {
+	// BankDataRing prevents health-only ciphers from satisfying this port.
+	BankDataRing()
 	Seal(plaintext, context []byte) ([]byte, error)
 	Open(sealed, context []byte) ([]byte, error)
 }

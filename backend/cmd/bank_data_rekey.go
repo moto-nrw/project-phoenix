@@ -40,8 +40,13 @@ func runBankDataRekey(cmd *cobra.Command, _ []string) error {
 	defer func() { _ = db.Close() }()
 	job := parentBillingCompose.NewBankDataRekey(cipher)
 	ctx := tenant.WithUnitOfWork(cmd.Context(), db.UnitOfWork())
+	return runBankDataRekeyJob(ctx, job, organizationID, batchSize, cmd.OutOrStdout())
+}
+
+// The production CLI and its integration test use the same complete source traversal.
+func runBankDataRekeyJob(ctx context.Context, job parentbilling.BankDataRekey, organizationID int64, batchSize int, output io.Writer) error {
 	for _, source := range []string{"mandates", "debits"} {
-		if err := runBankDataSource(ctx, job, organizationID, source, batchSize, cmd.OutOrStdout()); err != nil {
+		if err := runBankDataSource(ctx, job, organizationID, source, batchSize, output); err != nil {
 			return err
 		}
 	}
