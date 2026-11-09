@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const holidayWeekCapacityVersion = "1.15.869"
+const holidayWeekCapacityVersion = "1.15.868"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
