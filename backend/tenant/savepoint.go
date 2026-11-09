@@ -12,6 +12,11 @@ import (
 // can no longer be trusted.
 var ErrSavepointControl = errors.New("savepoint control failed")
 
+// IsSavepointControlFailure reports a savepoint-control failure anywhere in
+// err, nested savepoints included: the transaction err comes from can no
+// longer be trusted.
+func IsSavepointControlFailure(err error) bool { return errors.Is(err, ErrSavepointControl) }
+
 // ErrSavepointRollback classifies a savepoint whose rollback failed: ROLLBACK
 // TO SAVEPOINT itself, or the RELEASE after it. Such a failure also wraps
 // ErrSavepointControl. The transaction's state is unknown, so the unit is

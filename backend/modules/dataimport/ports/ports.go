@@ -172,6 +172,12 @@ type ClassListEntryBatches interface {
 	MatchClassListEntries(context.Context, []ClassListEntryFields) ([][]ClassListEntry, error)
 }
 
+// PersonBatches is the People Directory batch slice of the student chunk
+// executor (#5552).
+type PersonBatches interface {
+	CreatePersons(context.Context, []CreatePerson) ([]Person, error)
+}
+
 // AuditBatchCommand appends many events at once, all or nothing.
 type AuditBatchCommand interface {
 	AppendAll(context.Context, []any) error
