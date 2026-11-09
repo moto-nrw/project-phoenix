@@ -6,8 +6,8 @@
 #
 # Usage: scripts/test-changed.sh [--fast] [base-ref]   (Default: origin/development)
 #   --fast: nur direkt geänderte Packages plus ihre direkten Importer
-#           (Depth 1 statt transitiver Closure, ohne das Ratchet-Package
-#           ./test). Reicht vor dem Push; CI läuft die volle Closure.
+#           (Depth 1 statt transitiver Closure) und gezielt betroffene
+#           Quelltext-Ratchets aus ./test. CI läuft die volle Closure.
 set -euo pipefail
 repo_root=$(git rev-parse --show-toplevel)
 cd "$repo_root"
@@ -23,7 +23,7 @@ BASE=${1:-origin/development}
 
 affected=()
 if [ "$FAST" = true ]; then
-  echo "==> Schnellmodus: nur direkt geänderte Packages und ihre direkten Importer. CI läuft die volle Closure."
+  echo "==> Schnellmodus: geänderte Packages, direkte Importer und betroffene Quelltext-Ratchets. CI läuft die volle Closure."
   affected_output=$(scripts/backend-affected-packages.sh --direct "$BASE")
 else
   affected_output=$(scripts/backend-affected-packages.sh "$BASE")
@@ -31,6 +31,28 @@ fi
 while IFS= read -r package; do
   [ -n "$package" ] && affected+=("$package")
 done <<< "$affected_output"
+
+# Go imports do not describe repository files read by tests. Keep the full CI
+# selection unchanged; the fast loop adds only the source checks that read a
+# changed path. A full ./test selection already covers them without a second run.
+if [ "$FAST" = true ]; then
+  test_package=$(awk '$1 == "module" { print $2 "/test"; exit }' backend/go.mod)
+  if [[ "$affected_output" != './...' ]] &&
+    ! printf '%s\n' "$affected_output" | grep -qxF -e './test' -e "$test_package"; then
+    source_ratchets=$(node "$repo_root/scripts/backend-source-ratchets.mjs" "$BASE")
+    if [ -n "$source_ratchets" ]; then
+      echo "==> backend source ratchets: $source_ratchets"
+      (
+        trap cleanup_go_test_workspace EXIT
+        prepare_go_test_workspace
+        cd backend
+        # Walked/untracked/deleted inputs are not Go import dependencies. Always
+        # execute the scanners instead of trusting a cached test result.
+        go test -p "$("$repo_root/scripts/go-package-workers.sh")" -parallel 8 -tags=testhooks -count=1 ./test -run "$source_ratchets"
+      )
+    fi
+  fi
+fi
 
 if [ "${#affected[@]}" -gt 0 ]; then
   # Match the full suite's CPU/RAM/I/O budget. -parallel remains a stable

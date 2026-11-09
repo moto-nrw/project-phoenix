@@ -12827,59 +12827,6 @@
       "target_owner": "tenant-runtime"
     },
     {
-      "adr": "0067",
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.pickupScheduleService.DeleteAllStudentPickupExceptions",
-      "classification": "leaf",
-      "effect": "lock",
-      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupScheduleService.DeleteAllStudentPickupExceptions",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Capability.LockStudent (people-directory) through *modules/careplan/internal/application.pickupScheduleService.DeleteAllStudentPickupExceptions. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
-      "source_owner": "care-plan",
-      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.LockStudent",
-      "target_owner": "people-directory"
-    },
-    {
-      "adr": "0067",
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.pickupScheduleService.DeleteAllStudentPickupExceptions",
-      "classification": "leaf",
-      "effect": "lock",
-      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupScheduleService.DeleteAllStudentPickupExceptions",
-      "reason": "Guarded leaf command (lock) already reviewed as leaf for this target: care-plan reaches modules/peopledirectory.Owner.LockStudent (people-directory) through *modules/careplan/internal/application.pickupScheduleService.DeleteAllStudentPickupExceptions. Participates in the caller unit; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
-      "source_owner": "care-plan",
-      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.LockStudent",
-      "target_owner": "people-directory"
-    },
-    {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.pickupScheduleService.DeleteAllStudentPickupExceptions",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupScheduleService.DeleteAllStudentPickupExceptions",
-      "reason": "Read-only target already reviewed as query: care-plan reaches modules/peopledirectory/compose.CareStudentLock (people-directory) through *modules/careplan/internal/application.pickupScheduleService.DeleteAllStudentPickupExceptions. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
-      "source_owner": "care-plan",
-      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.CareStudentLock",
-      "target_owner": "people-directory"
-    },
-    {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.pickupScheduleService.DeleteAllStudentPickupExceptions",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupScheduleService.DeleteAllStudentPickupExceptions",
-      "reason": "Read-only target already reviewed as query: care-plan reaches tenant.CurrentTransaction (tenant-runtime) through *modules/careplan/internal/application.pickupScheduleService.DeleteAllStudentPickupExceptions. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
-      "source_owner": "care-plan",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTransaction",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "adr": "0098",
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.pickupScheduleService.DeleteAllStudentPickupExceptions",
-      "classification": "platform",
-      "effect": "scope",
-      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.PickupScheduleService.DeleteAllStudentPickupExceptions",
-      "reason": "Platform protocol participation (scope): care-plan reaches tenant.WithTenantTx (tenant-runtime) through *modules/careplan/internal/application.pickupScheduleService.DeleteAllStudentPickupExceptions. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
-      "source_owner": "care-plan",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
-      "target_owner": "tenant-runtime"
-    },
-    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.pickupScheduleService.DeleteAllStudentPickupSchedules",
       "classification": "query",
       "effect": "query",

@@ -29,6 +29,8 @@ export const TAB_LABELS: Record<string, string> = {
   vertraege: "Betreuungsverträge",
   // Grenzen der Auffälligkeiten im Dashboard (#4675); nur im Träger-Portal.
   dashboard: "Dashboard",
+  // DATEV-Buchungsstapel der Elternabrechnung (#4694); nur im Träger-Portal.
+  datev: "DATEV",
 };
 
 export function displayTabLabel(tab: SchemaTab): string {
@@ -63,6 +65,7 @@ export const categoryLabels: Record<string, string> = {
   dateien: "Dateien",
   datenbereinigung: "Automatisch löschen",
   datev_mandant: "DATEV-Mandant",
+  "datev-buchungen": "Buchungen",
   "e-mail": "E-Mail",
   einladungen: "Einladungen",
   elternmeldungen: "Meldungen von Eltern",
