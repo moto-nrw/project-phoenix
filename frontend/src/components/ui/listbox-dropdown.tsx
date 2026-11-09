@@ -167,6 +167,12 @@ interface ListboxDropdownProps<K extends string> {
   readonly id?: string;
   readonly ariaLabel?: string;
   readonly ariaLabelledBy?: string;
+  /**
+   * Name of the option list when the trigger names itself by its value (a
+   * filter chip „Alle Status“ names its list „Status“). Without it the list
+   * takes `ariaLabel` / `ariaLabelledBy` like the trigger.
+   */
+  readonly listboxAriaLabel?: string;
   readonly ariaDescribedBy?: string;
   readonly containerClassName?: string;
   readonly containerStyle?: CSSProperties;
@@ -346,6 +352,7 @@ export function ListboxDropdown<K extends string>({
   id,
   ariaLabel,
   ariaLabelledBy,
+  listboxAriaLabel,
   ariaDescribedBy,
   containerClassName = "relative",
   containerStyle,
@@ -913,12 +920,12 @@ export function ListboxDropdown<K extends string>({
       // guards with menuRef.contains, so it is unaffected.
       onPointerDown={(event) => event.stopPropagation()}
       onMouseDown={(event) => event.stopPropagation()}
-      aria-label={ariaLabel}
+      aria-label={listboxAriaLabel ?? ariaLabel}
       // Points at the field's label element, never at the trigger: a
       // combobox referenced via aria-labelledby contributes its VALUE
       // (accname step 2E), which would name the popup after the current
       // selection instead of the field.
-      aria-labelledby={ariaLabelledBy}
+      aria-labelledby={listboxAriaLabel ? undefined : ariaLabelledBy}
     >
       {options.map((option, index) => {
         // In multi mode "active" means "checked"; the single-select
@@ -1031,8 +1038,10 @@ export function ListboxDropdown<K extends string>({
         // Focus traps (Radix FocusScope in Modal/FormModal) yank DOM focus
         // back from the portaled options to this trigger; activedescendant
         // keeps the highlighted option announced in that trigger-focused mode.
+        // Only a combobox may carry aria-activedescendant (ARIA 1.2); a
+        // button trigger moves DOM focus into the list instead.
         aria-activedescendant={
-          open && focusIndex >= 0
+          triggerRole === "combobox" && open && focusIndex >= 0
             ? `${listboxId}-option-${focusIndex}`
             : undefined
         }
