@@ -6,7 +6,15 @@
 `scripts/run-go-toolchain.sh scripts/test-changed.sh --fast`. The wrapper pins
 the Devbox Go toolchain even when Quorum runs outside a Devbox shell.
 For backend changes, `--fast` selects changed packages and direct importers,
-not transitive importers or the automatically appended `./test` ratchets.
+plus affected source checks from `./test` using an anchored `-run` filter.
+The filesystem-input inventory is in
+[`scripts/backend-source-ratchets.mjs`](../../scripts/backend-source-ratchets.mjs),
+including checks without `Ratchet` in their name. Selection includes committed,
+staged, unstaged and untracked paths, both sides of renames and deleted inputs.
+Source checks use `-count=1`; ordinary package tests retain their cache and
+receive no `-run` filter. A full `./test` selection runs once, without a filter.
+The fast path does not expand transitive importers or run the full `./test`
+database suite for every backend edit. Runtime schema checks stay in that suite.
 Changes to `go.mod` or `go.sum` still select all backend packages. Frontend
 selection is unchanged. CI keeps the full affected closure, including test
 importers and ratchets; the manual full run remains available:

@@ -193,6 +193,7 @@ jobs:
               - '.github/workflows/e2e.yml'
               - '.github/workflows/lint.yml'
             backend-test-infra:
+              - 'scripts/backend-source-ratchets.mjs'
               - 'scripts/backend-affected-packages.sh'
               - 'scripts/backend-affected-packages_test.sh'
               - 'scripts/backend-lint-packages.sh'
@@ -274,6 +275,8 @@ jobs:
             # script or suite changes; the runner guard reruns when a test
             # file or a Playwright config appears or moves.
             script-tests:
+              - 'scripts/backend-source-ratchets.mjs'
+              - 'backend/test/*_test.go'
               - 'frontend/package.json'
               - 'docs/agents/operations.md'
               - 'monitoring/student-contract/**'
