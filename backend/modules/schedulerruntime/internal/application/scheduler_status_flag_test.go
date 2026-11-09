@@ -9,6 +9,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -177,14 +178,14 @@ func TestStatusFlagClearDue(t *testing.T) {
 	}
 }
 
-// TestStatusFlagArchiveWindow: after 18:00 every flag reported so far
-// belongs to an ended day; before 18:00 only the flags of earlier days, and a
+// TestStatusFlagArchiveWindow: after 18:00 only flags reported before the
+// fixed cutoff have ended; before 18:00 only flags of earlier days, and a
 // flag without a timestamp is put on the latest ended day.
 func TestStatusFlagArchiveWindow(t *testing.T) {
 	t.Parallel()
 	evening := berlinTime(2026, time.October, 25, 18, 7)
 	before, date := statusFlagArchiveWindow(evening)
-	assert.True(t, before.Equal(evening))
+	assert.True(t, before.Equal(berlinTime(2026, time.October, 25, 18, 0)))
 	assert.Equal(t, calendar.NewDate(2026, time.October, 25), date)
 
 	morning := berlinTime(2026, time.October, 26, 8, 0)
@@ -450,4 +451,77 @@ func TestRunStatusFlagClear_ArchiveFailureKeepsTheDayOpen(t *testing.T) {
 	_, present := s.lastStatusFlagClear.Load(schedulerUnitTenantID)
 	assert.False(t, present)
 	assert.Zero(t, s.statusFlagPass.Load())
+}
+
+// A school that fails before the status callback must remain due even when
+// another school commits. Covered schools need no second archive on retry.
+func TestStatusFlagClearRetriesSchoolsThatFailBeforeTheCallback(t *testing.T) {
+	t.Parallel()
+	for _, failure := range []string{"settings binding", "transaction"} {
+		t.Run(failure, func(t *testing.T) {
+			t.Parallel()
+			now := berlinTime(2026, time.November, 10, 18, 0)
+			archives := &statusFlagArchives{}
+			failing := true
+			s := unitScheduler(&unitSchedulerDependencies{
+				studentStatusDayRepo: archives,
+				settings:             &batchSettings{},
+				now:                  func() time.Time { return now },
+				minuteSnapshotLoader: func(context.Context) (*schedulerMinuteSnapshot, error) {
+					snapshots := map[int64]ports.SettingsSnapshot{31: "snapshot-31", 32: "snapshot-32"}
+					if failing && failure == "settings binding" {
+						snapshots[32] = 32
+					}
+					return &schedulerMinuteSnapshot{tenantIDs: []int64{31, 32}, settings: snapshots}, nil
+				},
+				tenantRuntime: scriptedTenantRuntime(func(ctx context.Context, id int64, fn func(context.Context, any) error) error {
+					if failing && failure == "transaction" && id == 32 {
+						return errors.New("transaction unavailable")
+					}
+					return fn(ctx, struct{}{})
+				}, nil),
+			})
+			task := &ScheduledTask{Name: "status-flag-clear"}
+
+			s.checkAndRunStatusFlagClear(context.Background(), task)
+			calls := archives.take()
+			require.Len(t, calls, 2, "only the healthy school ran")
+			for _, call := range calls {
+				assert.Equal(t, int64(31), call.tenantID)
+			}
+			assert.Zero(t, s.statusFlagPass.Load(), "the failed school keeps the pass due")
+			_, marked := s.lastStatusFlagClear.Load(int64(32))
+			assert.False(t, marked)
+
+			failing = false
+			s.minuteSnapshotLoad = nil
+			s.checkAndRunStatusFlagClear(context.Background(), task)
+			calls = archives.take()
+			require.Len(t, calls, 2, "only the failed school is retried")
+			for _, call := range calls {
+				assert.Equal(t, int64(32), call.tenantID)
+			}
+			assert.Equal(t, statusFlagBoundary(now).Unix(), s.statusFlagPass.Load())
+		})
+	}
+}
+
+func TestStatusFlagClearLateEveningRunKeepsTheFixedCutoff(t *testing.T) {
+	t.Parallel()
+	now := berlinTime(2026, time.October, 25, 19, 0)
+	archives := &statusFlagArchives{}
+	s := unitScheduler(&unitSchedulerDependencies{
+		studentStatusDayRepo: archives, settings: endOfDayModes(),
+		now: func() time.Time { return now },
+	})
+
+	s.checkAndRunStatusFlagClear(context.Background(), &ScheduledTask{Name: "status-flag-clear"})
+
+	calls := archives.take()
+	require.Len(t, calls, 2)
+	for _, call := range calls {
+		assert.True(t, call.before.Equal(berlinTime(2026, time.October, 25, 18, 0)),
+			"a report at 18:30 must remain live until midnight: cutoff %s", call.before)
+		assert.Equal(t, calendar.NewDate(2026, time.October, 25), call.date)
+	}
 }

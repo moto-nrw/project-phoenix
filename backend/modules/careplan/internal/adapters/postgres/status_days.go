@@ -376,14 +376,18 @@ func (s *statusDayStore) ClearStudentStatusDays(ctx context.Context, studentID i
 	if err := s.lockStudentDates(ctx, db, tenantID, studentID, rowDates); err != nil {
 		return carePlanCompose.RequestStoreStats{}, err
 	}
-	ids, stats, err := s.activeStatusDayIDs(ctx, studentID, status, rowDates)
+	ids, stats, err := s.standingStatusDayIDs(ctx, studentID, status, rowDates)
 	if err != nil {
 		return stats, err
 	}
+	// An end-of-day archive still stands for its day. Withdrawing it replaces
+	// that source so the day's readers no longer show it; an explicit prior
+	// withdrawal stays untouched. The same rows release their timetable slots.
 	query := withTenant(db.NewUpdate().Model((*studentStatusDayRow)(nil)).
 		ModelTableExpr(`active.student_status_days AS "student_status_day"`).Set("cleared_at = ?", clearedAt).Set("source = ?", source).
 		Where(`"student_status_day".student_id = ?`, studentID).Where(`"student_status_day".status = ?`, status).
-		Where(`"student_status_day".date IN (?)`, bun.List(rowDates)).Where(`"student_status_day".cleared_at IS NULL`), "student_status_day", tenantID)
+		Where(`"student_status_day".date IN (?)`, bun.List(rowDates)).
+		Where(`("student_status_day".cleared_at IS NULL OR "student_status_day".source = ?)`, statusSourceEndDay), "student_status_day", tenantID)
 	writeStats, err := execRequest(ctx, query, "mark student status days cleared", errors.New("student status day was already cleared"))
 	stats.Queries += writeStats.Queries
 	stats.Rows += writeStats.Rows
@@ -403,7 +407,7 @@ func (s *statusDayStore) ClearStudentStatusDays(ctx context.Context, studentID i
 	return stats, nil
 }
 
-func (s *statusDayStore) activeStatusDayIDs(ctx context.Context, studentID int64, status string, dates []calendarDate) ([]int64, carePlanCompose.RequestStoreStats, error) {
+func (s *statusDayStore) standingStatusDayIDs(ctx context.Context, studentID int64, status string, dates []calendarDate) ([]int64, carePlanCompose.RequestStoreStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, carePlanCompose.RequestStoreStats{}, err
@@ -412,12 +416,12 @@ func (s *statusDayStore) activeStatusDayIDs(ctx context.Context, studentID int64
 	query := withTenant(db.NewSelect().TableExpr(`active.student_status_days AS "student_status_day"`).
 		ColumnExpr(`"student_status_day".id`).Where(`"student_status_day".student_id = ?`, studentID).
 		Where(`"student_status_day".status = ?`, status).Where(`"student_status_day".date IN (?)`, bun.List(dates)).
-		Where(`"student_status_day".cleared_at IS NULL`), "student_status_day", tenantID)
+		Where(`("student_status_day".cleared_at IS NULL OR "student_status_day".source = ?)`, statusSourceEndDay), "student_status_day", tenantID)
 	started := time.Now()
 	err = query.Scan(ctx, &ids)
 	stats := requestStats(started, int64(len(ids)))
 	if err != nil {
-		return nil, stats, requestDBError("find active student status day ids", err)
+		return nil, stats, requestDBError("find standing student status day ids", err)
 	}
 	return ids, stats, nil
 }

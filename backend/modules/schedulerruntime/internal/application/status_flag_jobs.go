@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -46,12 +45,13 @@ func statusFlagClearDue(now, last time.Time, hasLast bool) bool {
 
 // statusFlagArchiveWindow returns, for an end_of_day run at now, the instant
 // before which a flag's status day has ended and the status day of a flag
-// without a since timestamp. After the end of the day every flag reported
-// so far belongs to an ended day; before it only the flags of earlier days.
+// without a since timestamp. After 18:00 the cutoff stays at 18:00 even
+// for a late run; later reports end at midnight. Before 18:00 only flags of
+// earlier days have ended.
 func statusFlagArchiveWindow(now time.Time) (time.Time, calendar.Date) {
 	today := calendar.DateFromTime(now)
 	if !now.Before(statusFlagEndOfDay(now)) {
-		return now, today
+		return statusFlagEndOfDay(now), today
 	}
 	return today.BerlinMidnight(), today.AddDays(-1)
 }
@@ -88,9 +88,9 @@ func (s *Scheduler) checkAndRunStatusFlagClear(ctx context.Context, task *Schedu
 }
 
 // runStatusFlagClear evaluates each school's clear modes at now, at most once
-// per school and boundary. The pass counts as done only when every school it
-// reached committed its run; a failed school, a failed commit or a pass that
-// reached no school leaves the boundary due for the next poll.
+// per school and boundary. The pass counts as done only when every intended
+// school committed its run; a failure before the callback, a failed commit
+// or a pass with no schools leaves the boundary due for the next poll.
 func (s *Scheduler) runStatusFlagClear(ctx context.Context, task *ScheduledTask, now time.Time) {
 	task.mu.Lock()
 	if task.Running {
@@ -109,13 +109,12 @@ func (s *Scheduler) runStatusFlagClear(ctx context.Context, task *ScheduledTask,
 	defer cancel()
 
 	var failed atomic.Bool
-	var reached sync.Map
-	completed := s.forEachTenantSettings(ctx, "status-flag-clear", func(tenantCtx context.Context, tenantID int64) error {
-		reached.Store(tenantID, struct{}{})
-		if last, ok := s.lastStatusFlagClear.Load(tenantID); ok {
-			if at, ok := last.(time.Time); ok && !statusFlagClearDue(now, at, true) {
-				return nil
-			}
+	var intended []int64
+	completed := s.forEachTenantSettingsSnapshot(ctx, "status-flag-clear", func(tenantCtx context.Context, tenantID int64) error {
+		last, _ := s.lastStatusFlagClear.Load(tenantID)
+		at, hasLast := last.(time.Time)
+		if !statusFlagClearDue(now, at, hasLast) {
+			return nil
 		}
 		sickMode := s.resolveStringSetting(tenantCtx, settingSickClearMode, clearModeEndOfDay)
 		excusedMode := s.resolveStringSetting(tenantCtx, settingExcusedClearMode, clearModeEndOfDay)
@@ -130,29 +129,31 @@ func (s *Scheduler) runStatusFlagClear(ctx context.Context, task *ScheduledTask,
 			failed.Store(true)
 		}
 		return nil
+	}, func(ctx context.Context) (*schedulerMinuteSnapshot, error) {
+		snapshot, err := s.getMinuteSnapshot(ctx)
+		if snapshot != nil {
+			intended = snapshot.tenantIDs
+		}
+		return snapshot, err
 	})
-	if !failed.Load() && statusFlagPassComplete(&reached, completed) {
+	if !failed.Load() && statusFlagPassComplete(intended, completed) {
 		s.statusFlagPass.Store(statusFlagBoundary(now).Unix())
 	}
 }
 
-// statusFlagPassComplete reports whether the pass reached a school and every
-// school it reached is among the committed ones.
-func statusFlagPassComplete(reached *sync.Map, completed []int64) bool {
+// statusFlagPassComplete reports whether the pass had schools to process
+// and every intended school is among the committed ones.
+func statusFlagPassComplete(intended, completed []int64) bool {
 	committed := make(map[int64]bool, len(completed))
 	for _, id := range completed {
 		committed[id] = true
 	}
-	reachedAny := false
-	all := true
-	reached.Range(func(key, _ any) bool {
-		reachedAny = true
-		if id, ok := key.(int64); !ok || !committed[id] {
-			all = false
+	for _, id := range intended {
+		if !committed[id] {
+			return false
 		}
-		return all
-	})
-	return reachedAny && all
+	}
+	return len(intended) > 0
 }
 
 // rollStatusFlag applies one flag's clear mode at now: end_of_day archives
