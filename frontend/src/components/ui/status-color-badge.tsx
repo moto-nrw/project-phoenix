@@ -35,13 +35,13 @@ export function StatusColorBadge({
   ...dataAttributes
 }: StatusPillDataAttributes & {
   readonly label: string;
-  readonly color: string;
+  readonly color: string | null | undefined;
   readonly title?: string;
   readonly size?: StatusBadgeSize;
   readonly compact?: boolean;
   readonly wrap?: boolean;
 }) {
-  if (color.toUpperCase() === LOCATION_COLORS.WARNING) {
+  if (color?.toUpperCase() === LOCATION_COLORS.WARNING) {
     return (
       <StatusBadge
         tone="warning"

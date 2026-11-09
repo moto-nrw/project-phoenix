@@ -43,6 +43,18 @@ describe("StatusColorBadge", () => {
     expect(pill.style.color).toBe(tone.textColor);
   });
 
+  it.each([null, undefined])(
+    "fällt bei fehlender Farbe neutral zurück (%s)",
+    (color) => {
+      render(<StatusColorBadge label="Keine Farbe" color={color} />);
+
+      const pill = screen.getByText("Keine Farbe");
+      const tone = getLocationBadgeTone(color);
+      expect(pill.style.backgroundColor).toBe(tone.backgroundColor);
+      expect(pill.style.color).toBe(tone.textColor);
+    },
+  );
+
   it("passt in dichte Karten wie StatusBadge compact", () => {
     render(
       <>
