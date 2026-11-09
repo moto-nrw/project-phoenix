@@ -38,6 +38,20 @@ type AccountIdentityUpdate struct {
 	Username  *string
 }
 
+// OwnPasswordChange is an account holder's change of their own password.
+// SessionFamilyID names the refresh-token family of the session the change
+// is made in: it stays signed in, while every other session of the account,
+// its open reset links and its remembered devices end with the change
+// (#6289). IPAddress and UserAgent go into the revocation's audit evidence.
+type OwnPasswordChange struct {
+	AccountID       int64
+	SessionFamilyID string
+	CurrentPassword string
+	NewPassword     string
+	IPAddress       string
+	UserAgent       string
+}
+
 // AccountAdministration administers platform accounts (#3332): the listings
 // behind the staff screens, the address and name change, activation and
 // deactivation, and the credential change an account holder makes for
@@ -68,5 +82,5 @@ type AccountAdministration interface {
 	UpdateManageableAccount(ctx context.Context, update AccountIdentityUpdate) error
 	ActivateAccount(ctx context.Context, accountID int64) error
 	DeactivateAccount(ctx context.Context, accountID int64) error
-	ChangeAccountPassword(ctx context.Context, accountID int64, currentPassword, newPassword string) error
+	ChangeAccountPassword(ctx context.Context, change OwnPasswordChange) error
 }

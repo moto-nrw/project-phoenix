@@ -33,9 +33,9 @@ type PasswordResetStore interface {
 	// were used.
 	DeleteSpentPasswordResetTokens(ctx context.Context, now time.Time) (int, domain.OperationStats, error)
 
-	// SetAccountPassword replaces the credential and clears the one-time
-	// password flag; it reports whether the account is live.
-	SetAccountPassword(ctx context.Context, accountID int64, hash string) (bool, domain.OperationStats, error)
+	// WriteAccountCredential is the one credential writer (#6289): it moves
+	// the credential generation on with every write; see the adapter.
+	WriteAccountCredential(ctx context.Context, accountID int64, write domain.CredentialWrite) (bool, domain.OperationStats, error)
 }
 
 // PasswordResetDelivery is the consumer-owned port over the Delivery

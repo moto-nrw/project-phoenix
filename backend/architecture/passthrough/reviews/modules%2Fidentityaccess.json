@@ -156,11 +156,6 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
-      "decision": "0091",
-      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.InvalidateSessionMFA",
-      "reason": "Reviewed #3841-c: reset-generation persistence and proof-carrying MFA verification; owner-edge/adapter evidence, no new forwarding debt."
-    },
-    {
       "decision": "0090",
       "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.ListActiveTrustedDevices",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."

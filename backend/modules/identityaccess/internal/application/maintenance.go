@@ -18,7 +18,7 @@ func (UnsignedSessions) IssueTokenPair(identityaccess.SessionClaims, identityacc
 	return "", "", errMaintenanceOnly
 }
 
-func (UnsignedSessions) IssueMFAEnrollmentToken(int64, int64, string, time.Duration) (string, error) {
+func (UnsignedSessions) IssueMFAEnrollmentToken(int64, int64, string, time.Duration, int64) (string, error) {
 	return "", errMaintenanceOnly
 }
 

@@ -75,7 +75,7 @@ func TestMFACodeOutboxCommitsWithChallengeBeforeSynchronousDelivery(t *testing.T
 				if operator {
 					return module.OperatorMFA.StartOperatorMFAChallenge(ctx, identityID, net.ParseIP("203.0.113.77"))
 				}
-				return module.MFA.StartMFAChallenge(ctx, identityID, testpkg.Tenant(t), identityaccess.MFAChallengeScopeTenant, net.ParseIP("203.0.113.77"))
+				return module.MFA.StartMFAChallenge(ctx, identityID, testpkg.Tenant(t), identityaccess.MFAChallengeScopeTenant, net.ParseIP("203.0.113.77"), 0)
 			}
 			_, err = db.NewRaw(`ALTER TABLE platform.email_outbox ADD CONSTRAINT reject_mfa_test_enqueue CHECK (payload->>'Type' NOT IN ('mfa_email_code', 'operator_mfa_email_code'))`).Exec(ctx)
 			require.NoError(t, err)

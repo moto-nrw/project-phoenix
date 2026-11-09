@@ -192,99 +192,6 @@ func (f *AccountMFAFlows) HasEnrollment(ctx context.Context, accountID int64) (b
 
 // ===== Challenge and verification =====
 
-// StartChallenge mails a fresh code for one portal and returns the challenge
-// JWT that names its row. The row is stored consumed and only activated once
-// the transport accepted the message, so a failed send leaves no redeemable
-// code behind.
-func (f *AccountMFAFlows) StartChallenge(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP) (string, error) {
-	if !domain.AccountMFAChallengeScope(scope) {
-		return "", identityaccess.ErrMFAUnsupportedScope
-	}
-	account, found, err := f.records.FindAccountIdentity(ctx, accountID)
-	if err != nil {
-		return "", fmt.Errorf("look up account: %w", err)
-	}
-	if !found {
-		return "", fmt.Errorf("look up account: %w", domain.ErrAccountNotFound)
-	}
-	if domain.MFALocked(account.MFALockedUntil, f.now()) {
-		return "", identityaccess.ErrMFALocked
-	}
-
-	if err := f.requireChallengeRateLimit(ctx, accountID); err != nil {
-		return "", err
-	}
-	plainCode, codeHash, err := newMFAEmailCode(f.codes)
-	if err != nil {
-		return "", err
-	}
-	// The portal and the school travel with the row, not only with the JWT:
-	// the enrollment-confirm and passkey-registration paths look a code up
-	// by account, and only these columns keep that lookup inside its portal.
-	createdAt := f.now()
-	enabled, days := f.challengeDeviceHint(ctx, tenantID, scope)
-	challenge, send, err := f.enqueueChallenge(ctx, domain.AccountMFAChallenge{
-		AccountID: accountID, Scope: scope, TenantID: tenantID, CodeHash: codeHash,
-		ExpiresAt: createdAt.Add(domain.MFAChallengeTTL), ConsumedAt: &createdAt, IPAddress: ip,
-		CreatedAt: createdAt, UpdatedAt: createdAt,
-	}, domain.MFACodeMailFor(
-		account.Email, "", account.ID, false, plainCode, domain.MFAChallengeTTL, ip, enabled, days,
-	))
-	if err != nil {
-		return "", fmt.Errorf("prepare email challenge: %w", err)
-	}
-	if err := send(f.runtime.Detach(ctx)); err != nil {
-		f.logger.Warn("mfa challenge delivery failed",
-			slog.Int64("account_id", account.ID),
-			slog.String("error", err.Error()),
-		)
-		return "", identityaccess.ErrMFAStatusUnavailable
-	}
-	if err := f.activateDeliveredChallenge(ctx, challenge); err != nil {
-		f.logger.Error("failed to activate delivered mfa challenge",
-			slog.Int64("challenge_id", challenge.ID),
-			slog.String("error", err.Error()),
-		)
-		return "", identityaccess.ErrMFAStatusUnavailable
-	}
-
-	token, err := f.codec.IssueChallengeToken(domain.MFAChallengeClaims{
-		AccountID: accountID, Scope: scope, TenantID: tenantID, ChallengeID: challenge.ID,
-	}, domain.MFAChallengeTTL)
-	if err != nil {
-		return "", fmt.Errorf("mint challenge jwt: %w", err)
-	}
-	return token, nil
-}
-
-// challengeOwner pins a challenge to the identity the caller already
-// authenticated out of band.
-type challengeOwner struct {
-	accountID int64
-	tenantID  int64
-}
-
-// ResendChallengeForScope is the variant every portal resend endpoint uses:
-// no surface may re-drive a foreign portal's challenge and burn its budget.
-func (f *AccountMFAFlows) ResendChallengeForScope(ctx context.Context, challengeToken string, ip net.IP, expectedScope string) (string, error) {
-	claims, err := f.codec.ParseChallengeToken(challengeToken)
-	if err != nil {
-		return "", identityaccess.ErrMFAChallengeTokenInvalid
-	}
-	if claims.Scope != expectedScope {
-		return "", identityaccess.ErrMFAUnsupportedScope
-	}
-	return f.resend(ctx, claims, ip)
-}
-
-// resend has no cooldown of its own: the sliding window inside StartChallenge
-// remains the abuse defense. It returns the renewed JWT so the frontend can
-// replace its in-flight token — otherwise the fresh code becomes
-// unverifiable the moment the original token expires.
-func (f *AccountMFAFlows) resend(ctx context.Context, claims domain.MFAChallengeClaims, ip net.IP) (string, error) {
-	return f.StartChallenge(ctx, claims.AccountID, claims.TenantID, claims.Scope, ip)
-}
-
 // securitySettingsFailure keeps diagnostics in logs and the established MFA
 // unavailable identity on the wire.
 func (f *AccountMFAFlows) securitySettingsFailure(setting string, err error) error {
@@ -622,11 +529,14 @@ func withoutSchoolLedger(ctx context.Context) bool {
 	return marked
 }
 
-func (f *AccountMFAFlows) enqueueChallenge(ctx context.Context, input domain.AccountMFAChallenge, message domain.MFACodeMail) (domain.AccountMFAChallenge, func(context.Context) error, error) {
+func (f *AccountMFAFlows) enqueueChallenge(ctx context.Context, input domain.AccountMFAChallenge, message domain.MFACodeMail, credentialGeneration *int64) (domain.AccountMFAChallenge, func(context.Context) error, error) {
 	var challenge domain.AccountMFAChallenge
 	var send func(context.Context) error
 	err := f.runtime.WithAdminTx(f.runtime.Detach(ctx), func(txCtx context.Context) error {
 		if err := f.records.LockAccountForOverrideWrite(txCtx, input.AccountID); err != nil {
+			return err
+		}
+		if err := f.requireCredentialGeneration(txCtx, input.AccountID, credentialGeneration); err != nil {
 			return err
 		}
 		if err := f.requireChallengeRateLimit(txCtx, input.AccountID); err != nil {

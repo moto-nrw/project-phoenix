@@ -61,7 +61,7 @@ func TestMFAService_VerifyCodeForAccount_WrongCode_RecordsFailureAndReturnsInval
 
 	// Seed an active challenge via the public StartChallenge path so we
 	// have a real CodeHash to mismatch against.
-	_, err := svc.StartMFAChallenge(context.Background(), accID, 0, identityaccess.MFAChallengeScopeTenant, net.ParseIP("127.0.0.1"))
+	_, err := svc.StartMFAChallenge(context.Background(), accID, 0, identityaccess.MFAChallengeScopeTenant, net.ParseIP("127.0.0.1"), 0)
 	require.NoError(t, err)
 
 	_, err = svc.VerifyMFACodeForAccount(context.Background(), accID, 0, "000000", identityaccess.MFAChallengeScopeTenant)
@@ -93,7 +93,7 @@ func TestMFAService_ResendChallenge_HappyPath(t *testing.T) {
 
 	// Mint a real challenge token via StartChallenge so ResendChallenge
 	// can parse it back out.
-	token, err := svc.StartMFAChallenge(context.Background(), accID, 0, identityaccess.MFAChallengeScopeTenant, net.ParseIP("127.0.0.1"))
+	token, err := svc.StartMFAChallenge(context.Background(), accID, 0, identityaccess.MFAChallengeScopeTenant, net.ParseIP("127.0.0.1"), 0)
 	require.NoError(t, err)
 	require.NotEmpty(t, token)
 
