@@ -329,6 +329,9 @@ export const traegerKeys = {
   period: (id: string) =>
     `traeger-holiday-period-detail-${encodeURIComponent(id)}`,
   settings: () => "traeger-settings-schema",
+  // Schließtage und Feiertage eines Jahres (#4702), keine Personendaten.
+  closingDays: (from: string, to: string) =>
+    `traeger-closing-days-${from}-${to}`,
   billingRuns: () => "traeger-billing-run-list",
   // Geteilte Dokumente (#4692): Titel, Dateiname und Freigaben, keine Inhalte.
   documents: () => "traeger-document-list",

@@ -120,6 +120,28 @@ describe("ClosingDaysEditor", () => {
     });
   });
 
+  it("zeigt Schließtage des Trägers nur lesend mit „Vom Träger“ (#4702)", async () => {
+    mockList.mockResolvedValue([
+      makeClosingDay({ id: "3", reason: "Pädagogischer Tag" }),
+      makeClosingDay({ id: "3", reason: "Brückentag", traeger: true }),
+    ]);
+    render(<ClosingDaysEditor />);
+
+    const table = await screen.findByRole("table");
+    expect(within(table).getByText("Vom Träger")).toBeInTheDocument();
+    expect(
+      within(table).getByRole("button", {
+        name: "Aktionen für Pädagogischer Tag",
+      }),
+    ).toBeInTheDocument();
+    // Gleiche ID aus zwei Tabellen: beide Zeilen stehen da, nur die eigene
+    // hat Aktionen.
+    expect(within(table).getByText("Brückentag")).toBeInTheDocument();
+    expect(
+      within(table).queryByRole("button", { name: "Aktionen für Brückentag" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("sagt die Termine eines Schließtags nach Bestätigung ab (#3594)", async () => {
     mockList.mockResolvedValue([
       makeClosingDay({

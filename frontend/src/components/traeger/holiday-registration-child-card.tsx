@@ -314,16 +314,34 @@ function RebookingEditor({
               key={first.id ?? range}
               className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between"
             >
-              <span className="text-sm text-gray-900">{label}</span>
+              <span className="text-sm text-gray-900">
+                {label}
+                {group
+                  .filter((week) => week.noCareDays?.length)
+                  .map((week) => (
+                    <span
+                      key={week.id ?? week.startsOn}
+                      className="block text-xs text-gray-600"
+                    >
+                      {parallel ? `${schoolOf(week)}: ` : ""}Keine neue Buchung,
+                      weil am {formatDate(week.noCareDays![0]!.date)} keine
+                      Betreuung ist ({week.noCareDays![0]!.name}).
+                    </span>
+                  ))}
+              </span>
               <CustomSelect
                 value={weekGroupBooking(draft, group)}
                 wrapLabels={parallel}
                 options={[
                   { value: "", label: "Nicht angemeldet" },
                   ...group.flatMap((week) =>
-                    // An archived time model takes no new booking (#5994);
-                    // the one a week is booked on stays selectable.
-                    week.timeModels
+                    // A week with a day without care at its host school
+                    // takes no new booking (#4702); a booked one stays.
+                    (week.noCareDays?.length &&
+                    !(week.id !== undefined && draft[week.id])
+                      ? []
+                      : week.timeModels
+                    )
                       .filter(
                         (model) =>
                           !model.archived ||
