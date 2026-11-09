@@ -16,6 +16,7 @@ import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
+import { ParentSepaMandateEntry } from "~/components/parent/parent-sepa-mandate-entry";
 import { ParentSection } from "~/components/parent/shell/parent-section";
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
@@ -338,6 +339,11 @@ function ContractNoticeRow({
               ? t("familyChildren")
               : familyText("title")}
           </ButtonLink>
+          <ParentSepaMandateEntry
+            organizationId={document.organization_id}
+            contractId={document.id}
+            status={document.sepa_mandate}
+          />
           {document.can_end_contract ? (
             <>
               <ButtonLink href={href} variant="outline" size="md">

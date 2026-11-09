@@ -96,52 +96,36 @@ func (s *Service) GetRequestSharing(
 	return state, nil
 }
 
+// SetRequestSharing changes who sees an open request. Changing it is an edit
+// of the request, so it needs the permission that submitting the request
+// needs: a guardian whose submit permission the school withdrew can no longer
+// widen or narrow who sees the request. The configuration and the request
+// type are checked before any unit starts; the child check and the change run
+// in one transaction (ADR 0161, #5862).
 func (s *Service) SetRequestSharing(
 	ctx context.Context, accountID, studentID int64, requestType string, requestID int64,
 	recipientGuardianProfileIDs []int64,
 ) (*RequestSharingState, error) {
-	return s.changeRequestSharing(ctx, accountID, studentID, requestType, requestID, recipientGuardianProfileIDs, true)
-}
-
-func (s *Service) changeRequestSharing(
-	ctx context.Context, accountID, studentID int64, requestType string, requestID int64,
-	recipientProfileIDs []int64, write bool,
-) (*RequestSharingState, error) {
 	if !s.requestSharingConfigured() {
 		return nil, errors.New("parent: request sharing service is not configured")
-	}
-	child, err := s.resolveRequestSharingChild(ctx, accountID, studentID, requestType, write)
-	if err != nil {
-		return nil, err
-	}
-	var state *RequestSharingState
-	err = s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
-		var changeErr error
-		state, changeErr = s.changeRequestSharingInTx(txCtx, accountID, studentID, requestType, requestID, recipientProfileIDs, write)
-		return changeErr
-	})
-	if err != nil {
-		return nil, fmt.Errorf("parent: change request sharing: %w", err)
-	}
-	return state, nil
-}
-
-// resolveRequestSharingChild resolves the child for a sharing read or change.
-// Reading who sees a request needs only parent_portal.access. Changing it is
-// an edit of the open request, so it needs the permission that submitting the
-// request needs: a guardian whose submit permission the school withdrew can no
-// longer widen or narrow who sees the request.
-func (s *Service) resolveRequestSharingChild(
-	ctx context.Context, accountID, studentID int64, requestType string, write bool,
-) (*Child, error) {
-	if !write {
-		return s.resolveOwnedChild(ctx, accountID, studentID)
 	}
 	permission, ok := requestSubmitPermission(requestType)
 	if !ok {
 		return nil, ErrRequestSharingInvalid
 	}
-	return s.resolvePermittedChild(ctx, accountID, studentID, permission)
+	var state *RequestSharingState
+	err := s.Children.WithPermittedChildForWrite(ctx, accountID, studentID, permission, nil, func(txCtx context.Context, _ *Child) error {
+		var changeErr error
+		state, changeErr = s.changeRequestSharingInTx(txCtx, accountID, studentID, requestType, requestID, recipientGuardianProfileIDs, true)
+		if changeErr != nil {
+			return fmt.Errorf("parent: change request sharing: %w", changeErr)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return state, nil
 }
 
 // requestSubmitPermission names the permission each shareable request type's

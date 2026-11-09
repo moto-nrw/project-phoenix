@@ -1,4 +1,5 @@
 import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
+import { setViewportWidth } from "~/test/helpers/viewport";
 import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
 restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
 import {
@@ -858,11 +859,7 @@ describe("TimeTrackingPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Reset window.innerWidth to desktop by default
-    Object.defineProperty(window, "innerWidth", {
-      writable: true,
-      configurable: true,
-      value: 1024,
-    });
+    setViewportWidth(1024);
   });
 
   // ── Loading / Auth ──────────────────────────────────────────────────────
@@ -1312,11 +1309,7 @@ describe("TimeTrackingPage", () => {
     });
 
     it("uses a bottom sheet for break duration on mobile", async () => {
-      Object.defineProperty(window, "innerWidth", {
-        writable: true,
-        configurable: true,
-        value: 390,
-      });
+      setViewportWidth(390);
       setupDefaultMocks({ currentSession: mockActiveSession });
       render(<TimeTrackingPage />);
       fireEvent.click(screen.getByLabelText("Pause starten"));
@@ -1757,7 +1750,7 @@ describe("TimeTrackingPage", () => {
 
     it("shows Kein Eintrag for past days without session", () => {
       // Mobile mode to see "Kein Eintrag" text
-      Object.defineProperty(window, "innerWidth", { value: 500 });
+      setViewportWidth(500);
       setupDefaultMocks();
       render(<TimeTrackingPage />);
       // There should be at least one day with no session
@@ -2558,11 +2551,7 @@ describe("TimeTrackingPage", () => {
 
   describe("mobile layout", () => {
     beforeEach(() => {
-      Object.defineProperty(window, "innerWidth", {
-        writable: true,
-        configurable: true,
-        value: 375,
-      });
+      setViewportWidth(375);
     });
 
     it("renders mobile card layout on small screens", () => {
@@ -5022,11 +5011,7 @@ describe("TimeTrackingPage", () => {
 
   describe("mobile layout - detailed branches", () => {
     beforeEach(() => {
-      Object.defineProperty(window, "innerWidth", {
-        writable: true,
-        configurable: true,
-        value: 375,
-      });
+      setViewportWidth(375);
     });
 
     it("shows mobile card view with session data on small screens", () => {
@@ -5400,11 +5385,7 @@ describe("TimeTrackingPage", () => {
 
   describe("session + absence combination in mobile", () => {
     beforeEach(() => {
-      Object.defineProperty(window, "innerWidth", {
-        writable: true,
-        configurable: true,
-        value: 375,
-      });
+      setViewportWidth(375);
     });
 
     it("shows absence badge alongside session data on mobile", () => {

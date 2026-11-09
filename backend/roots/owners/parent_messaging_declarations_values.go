@@ -9,7 +9,6 @@ func parentMessagingFromOwnerAnnouncementDeclarationSettings(v communication.Por
 	return parentportal.AnnouncementDeclarationSettings{
 		Kind:              v.Kind,
 		Signers:           v.Signers,
-		Revocable:         v.Revocable,
 		RequiresPassword:  v.RequiresPassword,
 		RequiresSignature: v.RequiresSignature,
 	}
@@ -19,7 +18,6 @@ func parentMessagingFromOwnerAnnouncementFeedDeclaration(v communication.PortalA
 	return parentportal.AnnouncementFeedDeclaration{
 		Kind:              v.Kind,
 		Signers:           v.Signers,
-		Revocable:         v.Revocable,
 		RequiresPassword:  v.RequiresPassword,
 		RequiresSignature: v.RequiresSignature,
 		Deadline:          v.Deadline,

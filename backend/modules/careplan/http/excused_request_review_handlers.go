@@ -20,6 +20,9 @@ type DecideExcusedRequestBody struct {
 	// ExpectedVersion is the expected_version the list emitted for this row.
 	// Empty is accepted (old clients) and skips the check.
 	ExpectedVersion string `json:"expected_version"`
+	// ReplacePartialAbsences confirms replacing the partial absences on the
+	// requested days with the approved full-day status (#5698).
+	ReplacePartialAbsences bool `json:"replace_partial_absences"`
 }
 
 var excusedDecideErrorRenderer = common.RulesRenderer(parentRequestRules(
@@ -61,12 +64,13 @@ func (rs *Resource) decideExcusedAbsenceRequest(w http.ResponseWriter, r *http.R
 
 	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	item, err := rs.ExcusedRequestService.Decide(r.Context(), excusedrequests.DecideInput{
-		RequestID:       requestID,
-		Approve:         *body.Approve,
-		Reason:          body.Reason,
-		ExpectedVersion: body.ExpectedVersion,
-		ReviewedBy:      int64(claims.ID),
-		ReasonRequired:  rs.staffReasonRequired(r),
+		RequestID:              requestID,
+		Approve:                *body.Approve,
+		Reason:                 body.Reason,
+		ExpectedVersion:        body.ExpectedVersion,
+		ReviewedBy:             int64(claims.ID),
+		ReasonRequired:         rs.staffReasonRequired(r),
+		ReplacePartialAbsences: body.ReplacePartialAbsences,
 	})
 	if err != nil {
 		tenant.MarkRollback(r.Context())

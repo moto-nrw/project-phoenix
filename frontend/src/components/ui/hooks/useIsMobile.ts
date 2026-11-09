@@ -1,18 +1,10 @@
-import { useState, useEffect } from "react";
+import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
 
 /**
- * Custom hook to detect mobile viewport (< 768px)
- * Uses globalThis for ES2020 compliance
+ * Below Tailwind's `md` (48rem): the exact counterpart of `md:` classes,
+ * also at fractional widths and with a larger browser font. `false` until the
+ * first effect, so server and client render the desktop variant first.
  */
 export function useIsMobile(): boolean {
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    const checkMobile = () => setIsMobile(globalThis.innerWidth < 768);
-    checkMobile();
-    globalThis.addEventListener("resize", checkMobile);
-    return () => globalThis.removeEventListener("resize", checkMobile);
-  }, []);
-
-  return isMobile;
+  return useMediaQuery(BELOW_MD);
 }

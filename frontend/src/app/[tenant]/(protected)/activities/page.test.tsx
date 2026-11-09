@@ -5,6 +5,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import { BELOW_MD } from "~/lib/hooks/use-media-query";
 import { afterEach, describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
@@ -364,7 +365,7 @@ describe("ActivitiesPage", () => {
   it("publishes stack clearance while the mobile create FAB is visible", () => {
     const { unmount } = render(<ActivitiesPage />);
 
-    expect(window.matchMedia).toHaveBeenCalledWith("(max-width: 767px)");
+    expect(window.matchMedia).toHaveBeenCalledWith(BELOW_MD);
     expect(
       document.documentElement.style.getPropertyValue(
         "--moto-floating-fab-offset",

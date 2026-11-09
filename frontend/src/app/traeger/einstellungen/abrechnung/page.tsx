@@ -17,6 +17,7 @@ import { NumberRangeCard } from "~/components/traeger/number-range-card";
 import { SepaCreditorCard } from "~/components/traeger/sepa-creditor-card";
 import { TraegerBankAccountsCard } from "~/components/traeger/traeger-bank-accounts-card";
 import { useTraegerMasterData } from "~/components/traeger/use-traeger-master-data";
+import { useTraegerSettingsSchema } from "~/components/traeger/use-traeger-resources";
 import { Alert } from "~/components/ui/alert";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useApiLoadError } from "~/contexts/ToastContext";
@@ -42,6 +43,9 @@ import { type SepaCreditor, fetchSepaCreditor } from "~/lib/traeger-sepa-api";
 const logger = createLogger({ component: "TraegerAbrechnungsvorgabenPage" });
 
 const BILLING_RIGHT = "traeger_billing:manage";
+
+/** The Träger's switch of the SEPA mandate in the parents portal (#4696). */
+const ONLINE_MANDATE_KEY = "parent_billing.online_mandate";
 const SETTINGS_RIGHT = "traeger_settings:manage";
 
 const INFO = "Hier stehen die Vorgaben für Ihre Abrechnung.";
@@ -125,11 +129,19 @@ export default function TraegerAbrechnungsvorgabenPage() {
   const canEditBank = hasPermission(session ?? null, SETTINGS_RIGHT);
   const master = useTraegerMasterData("die Bankverbindungen");
   const billing = useBillingDefaults(canBill);
+  const settings = useTraegerSettingsSchema();
+  const onlineMandate = settings.data?.tabs
+    .flatMap((tab) => tab.categories)
+    .flatMap((category) => category.items)
+    .find((item) => item.key === ONLINE_MANDATE_KEY)?.value;
   const error = metadataLoadError(
-    master.error ?? (canBill ? billing.error : null) ?? null,
+    master.error ??
+      (canBill ? (billing.error ?? settings.loadError) : null) ??
+      null,
     master.loaded || (canBill && billing.data !== null),
     master.failure,
     canBill ? billing.failure : undefined,
+    canBill ? settings.error : undefined,
   );
 
   return (
@@ -171,6 +183,9 @@ export default function TraegerAbrechnungsvorgabenPage() {
           />
           <SepaCreditorCard
             creditor={billing.data.creditor}
+            onlineMandate={
+              typeof onlineMandate === "boolean" ? onlineMandate : null
+            }
             onChanged={billing.load}
           />
           <NumberRangeCard

@@ -171,6 +171,13 @@ func (n *Notices) tellEnd(ctx context.Context, reviewer carecontract.Reviewer, r
 		return err
 	}
 	details["notice_sent"] = address != ""
+	if address == "" {
+		reason := carecontract.EndNoticeNoPermittedAddress
+		if state.StudentID == nil {
+			reason = carecontract.EndNoticeMissingStudent
+		}
+		details["notice_not_sent_reason"] = reason
+	}
 	if address != "" {
 		outboxID, err := n.post.EnqueueNoticeMail(ctx, carecontract.NoticeMail{
 			OrganizationID: org, ContractID: record.Summary.ID, Recipient: address,

@@ -2,9 +2,10 @@
 
 // Rechnungen und Beträge je Familie (#4691): je Familie die Zahl der
 // Rechnungen, wer zahlt und die Summen ausgestellt, storniert,
-// gutgeschrieben und offen. Eine Familie sind alle Schreiben an dieselbe
-// E-Mail-Adresse. moto gleicht keine Zahlungseingänge ab: offen ist, was
-// die Rechnungen nach Storno und Gutschrift noch verlangen. Nur die Rolle
+// gutgeschrieben und die offene Forderung. Eine Familie sind alle Schreiben
+// an dieselbe E-Mail-Adresse. moto gleicht keine Zahlungseingänge ab
+// (#6348): offen ist, was die Rechnungen nach Storno und Gutschrift noch
+// verlangen, nie ein geprüfter Zahlungsrückstand. Nur die Rolle
 // mit dem Recht „Abrechnung“ sieht die Seite. Ein Klick öffnet die Familie.
 
 import { useRouter } from "next/navigation";
@@ -47,8 +48,8 @@ const logger = createLogger({ component: "TraegerBillingFamiliesPage" });
 type OpenFilter = "" | "offen" | "ausgeglichen";
 
 const OPEN_FILTER_LABELS: Record<Exclude<OpenFilter, "">, string> = {
-  offen: "Mit offenem Betrag",
-  ausgeglichen: "Ohne offenen Betrag",
+  offen: "Mit offener Forderung",
+  ausgeglichen: "Ohne offene Forderung",
 };
 
 function euroCell(cents: number) {
@@ -146,7 +147,7 @@ const COLUMNS: DataTableColumn<BillingFamily>[] = [
   },
   {
     key: "open",
-    header: "Offen",
+    header: "Offene Forderung",
     align: "right",
     sortValue: (family) => family.openCents,
     render: (family) =>
@@ -205,7 +206,7 @@ export default function TraegerBillingFamiliesPage() {
   const filters: FilterConfig[] = [
     {
       id: "open",
-      label: "Offener Betrag",
+      label: "Offene Forderung",
       type: "dropdown",
       value: openFilter,
       onChange: (value) => setOpenFilter(value as OpenFilter),
@@ -233,7 +234,7 @@ export default function TraegerBillingFamiliesPage() {
   return (
     <TenantPage
       title="Abrechnung"
-      info="Hier sehen Sie je Familie alle Rechnungen, Stornos und Gutschriften. Eine Familie sind alle Schreiben an dieselbe E-Mail-Adresse. Offen ist, was die Rechnungen nach Storno und Gutschrift noch verlangen. Ob eine Familie schon gezahlt hat, prüft moto nicht."
+      info="Hier sehen Sie je Familie alle Rechnungen, Stornos und Gutschriften. Eine Familie sind alle Schreiben an dieselbe E-Mail-Adresse. Die offene Forderung ist, was die Rechnungen nach Storno und Gutschrift noch verlangen. Zahlungen sieht moto nicht. Ob eine Familie schon gezahlt hat, prüfen Sie in Ihrer Buchhaltung."
       tabs={billingTabs("familien")}
       stats={
         families && families.length > 0 ? (
@@ -243,7 +244,7 @@ export default function TraegerBillingFamiliesPage() {
                 value: families.length,
                 label: families.length === 1 ? "Familie" : "Familien",
               },
-              { value: withOpen ?? 0, label: "mit offenem Betrag" },
+              { value: withOpen ?? 0, label: "mit offener Forderung" },
             ]}
           />
         ) : null

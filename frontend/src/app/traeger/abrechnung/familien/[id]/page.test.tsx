@@ -169,7 +169,7 @@ describe("TraegerBillingFamilyPage", () => {
     expect(invoice.getByText("Betrag")).toBeInTheDocument();
     expect(invoice.getByText("120,00 €")).toBeInTheDocument();
     expect(invoice.getByText("Teilgutschrift")).toBeInTheDocument();
-    expect(invoice.getByText("Offen")).toBeInTheDocument();
+    expect(invoice.getByText("Offene Forderung")).toBeInTheDocument();
     expect(invoice.getByText("115,00 €")).toBeInTheDocument();
 
     const cancelled = within(

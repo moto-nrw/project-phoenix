@@ -471,7 +471,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (p declarationPolicyBinding) AllowedActions(revocable bool, deadline *time.Time, canSubmit bool, latest string, now time.Time) []string {\n\tresult0 := p.callbacks.AllowedActions(revocable, deadline, canSubmit, latest, now)\n\treturn result0\n}",
+      "evidence": "func (p declarationPolicyBinding) AllowedActions(deadline *time.Time, canSubmit bool, latest string, now time.Time) []string {\n\tresult0 := p.callbacks.AllowedActions(deadline, canSubmit, latest, now)\n\treturn result0\n}",
       "form": "unchanged-forward-evidence",
       "id": "workflows/parentportal/declarationPolicyBinding.AllowedActions",
       "owner": "workflows/parentportal"
@@ -723,9 +723,37 @@
     },
     {
       "build": "production",
+      "evidence": "func (s *Service) GrantSEPAMandate(ctx context.Context, accountID, organizationID, contractID int64, input SEPAMandateInput) (SEPAMandateView, error) {\n\tvar view SEPAMandateView\n\terr := s.sepaMandate(ctx, accountID, organizationID, contractID, GuardianPermissionEnrollmentSubmit, func(txCtx context.Context, reader SEPAMandateReader, _ bool) error {\n\t\tvar err error\n\t\tview, err = s.SEPAMandates.GrantSEPAMandate(txCtx, organizationID, reader, input)\n\t\tview.CanManage = view.Enabled\n\t\treturn err\n\t})\n\treturn view, err\n}",
+      "form": "unclassified-evidence",
+      "id": "workflows/parentportal/internal/care/Service.GrantSEPAMandate",
+      "owner": "workflows/parentportal"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) PreviewSEPAMandate(ctx context.Context, accountID, organizationID, contractID int64, input SEPAMandateInput) (SEPAMandateText, error) {\n\tvar text SEPAMandateText\n\terr := s.sepaMandate(ctx, accountID, organizationID, contractID, GuardianPermissionEnrollmentSubmit, func(txCtx context.Context, reader SEPAMandateReader, _ bool) error {\n\t\tvar err error\n\t\ttext, err = s.SEPAMandates.PreviewSEPAMandate(txCtx, organizationID, reader, input)\n\t\treturn err\n\t})\n\treturn text, err\n}",
+      "form": "unclassified-evidence",
+      "id": "workflows/parentportal/internal/care/Service.PreviewSEPAMandate",
+      "owner": "workflows/parentportal"
+    },
+    {
+      "build": "production",
       "evidence": "func (s *Service) RequireCareRunningForUpdate(ctx context.Context, studentID int64) error {\n\tstudent, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID)\n\tif err != nil {\n\t\treturn err\n\t}\n\tif student.CareEndedOn(s.todayDate()) {\n\t\treturn ErrChildCareEnded\n\t}\n\treturn nil\n}",
       "form": "unclassified-evidence",
       "id": "workflows/parentportal/internal/care/Service.RequireCareRunningForUpdate",
+      "owner": "workflows/parentportal"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) RevokeSEPAMandate(ctx context.Context, accountID, organizationID, contractID int64) (SEPAMandateView, error) {\n\tvar view SEPAMandateView\n\terr := s.sepaMandate(ctx, accountID, organizationID, contractID, GuardianPermissionEnrollmentSubmit, func(txCtx context.Context, reader SEPAMandateReader, _ bool) error {\n\t\tvar err error\n\t\tview, err = s.SEPAMandates.RevokeSEPAMandate(txCtx, organizationID, reader)\n\t\tview.CanManage = view.Enabled\n\t\treturn err\n\t})\n\treturn view, err\n}",
+      "form": "unclassified-evidence",
+      "id": "workflows/parentportal/internal/care/Service.RevokeSEPAMandate",
+      "owner": "workflows/parentportal"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) SEPAMandate(ctx context.Context, accountID, organizationID, contractID int64) (SEPAMandateView, error) {\n\tvar view SEPAMandateView\n\terr := s.sepaMandate(ctx, accountID, organizationID, contractID, GuardianPermissionEnrollmentsView, func(txCtx context.Context, reader SEPAMandateReader, canManage bool) error {\n\t\tvar err error\n\t\tview, err = s.SEPAMandates.SEPAMandate(txCtx, organizationID, reader)\n\t\tview.CanManage = canManage \u0026\u0026 view.Enabled\n\t\treturn err\n\t})\n\treturn view, err\n}",
+      "form": "unclassified-evidence",
+      "id": "workflows/parentportal/internal/care/Service.SEPAMandate",
       "owner": "workflows/parentportal"
     },
     {
@@ -866,6 +894,13 @@
       "evidence": "func (s studentRecords[C, P]) SetStudentPhotoConsent(ctx context.Context, photo StudentPhotoState) error {\n\treturn s.people.SetStudentPhotoConsent(ctx, portalRecord(photo, s.rows.Photo))\n}",
       "form": "unclassified-evidence",
       "id": "workflows/parentportal/internal/care/studentRecords[C, P].SetStudentPhotoConsent",
+      "owner": "workflows/parentportal"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a *AnnouncementAttachments[A, C]) OpenGuardianAttachment(ctx context.Context, accountID, announcementID, attachmentID int64) (C, error) {\n\tvar none C\n\ttenantID, err := a.withinAnnouncementTenant(ctx, accountID, announcementID, func(txCtx context.Context, tenantID int64) error {\n\t\t_, findErr := a.files.FindAnnouncementAttachmentInTenant(txCtx, tenantID, announcementID, attachmentID)\n\t\treturn findErr\n\t})\n\tif err != nil {\n\t\treturn none, err\n\t}\n\treturn a.handOut(ctx, func(ctx context.Context) (int64, error) {\n\t\treturn a.announcementTenant(ctx, accountID, announcementID)\n\t}, tenantID, announcementID, attachmentID)\n}",
+      "form": "unclassified-evidence",
+      "id": "workflows/parentportal/internal/messaging/AnnouncementAttachments[A, C].OpenGuardianAttachment",
       "owner": "workflows/parentportal"
     },
     {

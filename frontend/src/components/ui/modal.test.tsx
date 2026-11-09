@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { BELOW_SM } from "~/lib/hooks/use-media-query";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { Modal, ConfirmationModal } from "./modal";
@@ -1037,7 +1038,7 @@ describe("ConfirmationModal", () => {
     const matchMedia = vi.spyOn(window, "matchMedia").mockImplementation(
       (query) =>
         ({
-          matches: query === "(max-width: 639px)",
+          matches: query === BELOW_SM,
           media: query,
           onchange: null,
           addEventListener: vi.fn(),

@@ -16,7 +16,10 @@ test('daily backup LogQL detects silence and failures without trusting legacy ba
   const started = docker('run', '-d', '--name', name, '--network', 'none',
     'grafana/loki:3.4.3', '-config.file=/etc/loki/local-config.yaml',
     '-ingester.min-ready-duration=0s', '-querier.query-ingesters-within=0',
-    '-querier.split-queries-by-interval=0', '-querier.cache-results=false');
+    '-querier.split-queries-by-interval=0', '-querier.cache-results=false',
+    // Keep the 27 h fixture queryable with the production 26 h alert window.
+    // Like nightly-cleanup-alerts, override only the isolated test's chunk age.
+    '-ingester.max-chunk-age=60h');
   assert.equal(started.status, 0, started.stderr);
   const request = (path, payload) => docker('exec', name, '/busybox/wget', '-qO-',
     ...(payload ? ['--header=Content-Type: application/json', `--post-data=${JSON.stringify(payload)}`] : []),
@@ -35,27 +38,29 @@ test('daily backup LogQL detects silence and failures without trusting legacy ba
     ] });
     assert.equal(result.status, 0, 'synthetic log ingestion failed');
   };
-  const query = index => {
-    const result = request(`/loki/api/v1/query?query=${encodeURIComponent(expressions[index])}&time=${stamp(now)}`);
+  const query = (expression, at = now) => {
+    const result = request(`/loki/api/v1/query?query=${encodeURIComponent(expression)}&time=${stamp(at)}`);
     assert.equal(result.status, 0, 'LogQL query failed');
     const body = JSON.parse(result.stdout);
     assert.equal(body.status, 'success');
     return body.data.result.map(series => Number(series.value[1]));
   };
   const hour = 3600000;
-  assert.deepEqual(query(0), [1]); // Includes a stream that has never existed.
-  assert.deepEqual(query(1), []);
+  assert.deepEqual(query(expressions[0]), [1]); // Includes a stream that has never existed.
+  assert.deepEqual(query(expressions[1]), []);
   push('backup', now - 1000, 'Backup complete');
   push('daily-backup', now - 1000, 'backup_result=ok step=complete', 'staging');
   push('daily-backup', now - 27 * hour, 'backup_result=ok step=complete');
-  assert.deepEqual(query(0), [1]); // Legacy, wrong env, expired success cannot mask silence.
+  assert.deepEqual(query('sum(count_over_time({env="prod", service="daily-backup"} |~ "^backup_result=ok step=complete$" [2h]))', now - 26 * hour),
+    [1], 'the 27-hour-old success must be queryable before checking its expiry');
+  assert.deepEqual(query(expressions[0]), [1]); // Legacy, wrong env, expired success cannot mask silence.
   push('daily-backup', now - 60000, 'backup_result=ok step=complete');
-  assert.deepEqual(query(0), []);
+  assert.deepEqual(query(expressions[0]), []);
   push('daily-backup', now - 1000, 'backup_result=failed step=upload');
   const unit = readFileSync(new URL('./systemd/moto-backup-failure@.service', import.meta.url), 'utf8');
   const failure = unit.match(/backup_result=failed[^\n]+/)[0];
   push('daily-backup', now - 500, failure);
-  assert.deepEqual(query(1), [2]); // Both the script and systemd fallback reach the rule.
+  assert.deepEqual(query(expressions[1]), [2]); // Both the script and systemd fallback reach the rule.
   push('daily-backup', now - 100, 'backup_result=ok step=complete');
-  assert.deepEqual(query(1), [2]); // A later success does not erase a recent failure.
+  assert.deepEqual(query(expressions[1]), [2]); // A later success does not erase a recent failure.
 });

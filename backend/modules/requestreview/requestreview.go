@@ -131,6 +131,10 @@ type Item struct {
 	// CurrentStatusByDate is what each requested day looks like today
 	// (present, sick, excused, class_trip). Absence requests only.
 	CurrentStatusByDate map[string]string `json:"current_status_by_date,omitempty"`
+	// PartialAbsenceFromByDate names the requested days a staff-entered
+	// partial absence holds, date -> "HH:MM" (#5698). Absence requests only;
+	// approving them replaces those entries after an explicit confirmation.
+	PartialAbsenceFromByDate map[string]string `json:"partial_absence_from_by_date,omitempty"`
 	// CanCorrect marks a decided request whose decision staff can still
 	// rewrite. History rows only; false where the type keeps no pre-decision
 	// state to revert to, and for rows that were never really decided

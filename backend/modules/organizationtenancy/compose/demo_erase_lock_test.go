@@ -141,6 +141,7 @@ var snapshotRows = map[string]string{
 	"audit.guardian_changes":           `FROM audit.guardian_changes AS r WHERE r.tenant_id = ?1`,
 	"platform.email_outbox":            `FROM platform.email_outbox AS r WHERE r.tenant_id = ?1`,
 	"platform.email_delivery":          `FROM platform.email_delivery AS r WHERE r.tenant_id = ?1`,
+	"platform.push_outbox":             `FROM platform.push_outbox AS r WHERE r.tenant_id = ?1 OR r.organization_id = (SELECT organization_id FROM platform.schools WHERE id = ?1)`,
 	"platform.realtime_notifications":  `FROM platform.realtime_notifications AS r WHERE r.tenant_id = ?1`,
 	"iot.push_subscriptions":           `FROM iot.push_subscriptions AS r WHERE r.account_id IN (?0) OR r.tenant_id = ?1`,
 	"auth.account_avatar_file_cleanup": `FROM auth.account_avatar_file_cleanup AS r`,
@@ -592,7 +593,7 @@ func (o demoOrder) requireFullyErased(t *testing.T) {
 	}
 	snapshot := o.snapshot(t)
 	for _, table := range []string{"users.profiles", "auth.tokens", "auth.account_roles", "auth.account_tenants",
-		"iot.push_subscriptions", "platform.email_outbox", "platform.realtime_notifications", "enrollment.request_reads"} {
+		"iot.push_subscriptions", "platform.email_outbox", "platform.push_outbox", "platform.realtime_notifications", "enrollment.request_reads"} {
 		assert.Equal(t, "[]", snapshot[table], "%s keeps nothing of the visitor", table)
 	}
 }

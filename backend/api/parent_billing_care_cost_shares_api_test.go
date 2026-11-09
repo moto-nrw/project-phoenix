@@ -162,7 +162,7 @@ func TestCareCostSharesSplitTheContributionAndStayOnTheIssuedInvoice(t *testing.
 		careRunPath(run.ID, "/cost-shares/"+strconv.FormatInt(youthOffice, 10)+"/export?format=csv"), nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	csv := rec.Body.String()
-	assert.Contains(t, csv, "Rechnungsnummer;Schule;Kind;Art;Monatsbeitrag in Euro;Anteil;Übernommener Betrag in Euro;Status")
+	assert.Contains(t, csv, "Rechnungsnummer;Schule;Kind;Art;Berechnungsgrundlage in Euro;Anteil;Übernommener Betrag in Euro;Status")
 	assert.Contains(t, csv, miaNumber+";")
 	assert.Contains(t, csv, "Jugendamt;77,50;100 %;77,50;Ausgestellt")
 	assert.NotContains(t, csv, "Lea", "the list names only the children of its cost bearer")

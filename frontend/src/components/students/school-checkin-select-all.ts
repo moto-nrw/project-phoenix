@@ -1,4 +1,5 @@
 import type { Student } from "~/lib/student-helpers";
+import { countedDayStatus } from "~/lib/location-helper";
 import {
   getDayPlanningNotComingLabel,
   hasActualAttendance,
@@ -8,10 +9,11 @@ import {
  * Whether „Alle auswählen“ in the check-in mode leaves a child out (#4762):
  * sick, excused (class trip included) or not expected today. Checking such a
  * child in by one tap on „Alle“ would book a child who is not there. A child
- * that came anyway is present, so the not-expected rule no longer applies.
+ * that came anyway is present, so neither its status (place before status,
+ * #6371) nor the not-expected rule applies.
  */
 export function isLeftOutOfSelectAll(student: Student): boolean {
-  if (student.sick || student.excused || student.class_trip) return true;
+  if (countedDayStatus(student) !== null) return true;
   if (getDayPlanningNotComingLabel(student) !== null) return true;
   return (
     (student.arrival_is_exception ?? false) &&

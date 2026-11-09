@@ -62,3 +62,37 @@ func TestBillingMonthFiltersKeepTheSchoolBelowRLS(t *testing.T) {
 	_, err = storeOf(own).InsertRelease(ctx, organization, account, domain.StoredBillingMonth{Month: march})
 	assert.ErrorIs(t, err, mealplan.ErrBillingMonthReleased, "a month is released once per school")
 }
+
+// Both bounds apply before the billing owner sees children, including empty
+// releases. The Träger transaction is administrative, below school RLS.
+func TestTraegerMealMonthsReadsOnlyTheRequestedWindow(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := context.Background()
+	unique := testpkg.UniqueTestTenantID(t)
+	organization := testpkg.CreateTestOrganization(t, db, &testpkg.Organization{Name: "Mensa-Fenster", Slug: fmt.Sprintf("mensa-window-%d", unique)}).ID
+	school := testpkg.CreateTestSchoolInOrganization(t, db, organization, "Mensa-Fenster")
+	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("mensa-window-%d@example.org", unique)).ID
+	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback() }()
+	store := NewBillingMonthStore(func(context.Context) (bun.IDB, int64, error) { return tx, school, nil },
+		func(context.Context, int64) (bun.IDB, error) { return tx, nil })
+	from, until := calendar.NewDate(2025, 5, 1), calendar.NewDate(2026, 4, 30)
+	for _, month := range []calendar.Date{calendar.NewDate(2025, 4, 1), from, calendar.NewDate(2026, 4, 1), calendar.NewDate(2026, 5, 1)} {
+		_, err := store.InsertRelease(ctx, organization, account, domain.StoredBillingMonth{Month: month,
+			ChildCount: 1, MealCount: 2, Children: []domain.BillingChild{{StudentID: school, FirstName: "Mia", LastName: "Beispiel", RegisteredDays: 2, MealDays: 2}}})
+		require.NoError(t, err)
+	}
+	_, err = tx.NewRaw(`SELECT set_config('app.current_org_id', ?, true), set_config('app.current_tenant_id', '', true)`, fmt.Sprint(organization)).Exec(ctx)
+	require.NoError(t, err)
+	rows, err := store.TraegerMonths(ctx, organization, from, until)
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+	assert.Equal(t, from, rows[0].Month)
+	assert.Equal(t, calendar.NewDate(2026, 4, 1), rows[1].Month)
+	for _, row := range rows {
+		require.NotNil(t, row.Child)
+		assert.Equal(t, school, row.Child.StudentID)
+	}
+}

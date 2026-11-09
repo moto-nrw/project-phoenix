@@ -288,3 +288,90 @@ func TestDecidedEndTellsNoParentWhoseRightWasRevoked(t *testing.T) {
 		AND action = 'reject_reason'`, f.contract).Scan(context.Background(), &sent))
 	assert.Equal(t, "false", sent, "the trail records that the parents got no notice")
 }
+
+// Both missing-student and revoked-right outcomes survive a reload and retry.
+func TestEndNoticeRecordsWhyNoMailWentOut(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupTestDB(t)
+	for _, missingStudent := range []bool{true, false} {
+		for _, decision := range []string{carecontract.EndDecisionSet, carecontract.EndDecisionReinterpreted} {
+			t.Run(fmt.Sprintf("missing_student=%t/%s", missingStudent, decision), func(t *testing.T) {
+				f := newNoticeFixture(t, "Träger Versandgrund", noticeToday)
+				_, err := f.parentDeclare(extraordinary)
+				require.NoError(t, err)
+				want := "no_permitted_address"
+				if missingStudent {
+					_, err = f.db.NewUpdate().Table("care_contract.contracts").Set("student_id = NULL").Where("id = ?", f.contract).Exec(f.ctx)
+					require.NoError(t, err)
+					want = "missing_student"
+				} else {
+					f.addressees.set()
+				}
+				decide := func() (carecontract.NoticeOptions, error) {
+					if decision == carecontract.EndDecisionSet {
+						return f.notices.SetNoticeEnd(f.ctx, f.reviewer, f.contract, calendar.NewDate(2026, 12, 31))
+					}
+					return f.notices.RejectNoticeReason(f.ctx, f.reviewer, f.contract, calendar.Date(""))
+				}
+				options, err := decide()
+				require.NoError(t, err)
+				check := func(options carecontract.NoticeOptions) {
+					t.Helper()
+					require.NotNil(t, options.Notice)
+					assert.Equal(t, want, options.Notice.EndNoticeNotSentReason)
+					assert.False(t, options.Notice.EndNoticeSent)
+					assert.Equal(t, decision, options.Notice.EndDecision)
+					assert.NotEmpty(t, options.Notice.EndNoticeText)
+				}
+				check(options)
+				// Later student assignment must not rewrite the historical reason.
+				if missingStudent {
+					_, err = f.db.NewUpdate().Table("care_contract.contracts").Set("student_id = ?", testpkg.UniqueTestTenantID(t)).Where("id = ?", f.contract).Exec(f.ctx)
+					require.NoError(t, err)
+				}
+				reloaded, err := f.notices.NoticeOptions(f.ctx, f.reviewer, f.contract, calendar.Date(""))
+				require.NoError(t, err)
+				check(reloaded)
+				_, err = decide()
+				assert.ErrorIs(t, err, carecontract.ErrNoticeEndNotOpen)
+				assert.Equal(t, 1, f.decisionCount(t))
+				assert.Empty(t, f.endMails())
+			})
+		}
+	}
+}
+
+// The reason must come from this organization's decision even without RLS.
+func TestEndNoticeReasonIgnoresAnotherTraegerBeneathRLS(t *testing.T) {
+	t.Parallel()
+	f := newNoticeFixture(t, "Träger Versandgrund A", noticeToday)
+	_, err := f.parentDeclare(extraordinary)
+	require.NoError(t, err)
+	f.addressees.set()
+	_, err = f.notices.SetNoticeEnd(f.ctx, f.reviewer, f.contract, calendar.NewDate(2026, 12, 31))
+	require.NoError(t, err)
+	other := testpkg.CreateTestOrganization(t, f.db, &testpkg.Organization{
+		Name: "Träger Versandgrund B", Slug: fmt.Sprintf("traeger-versandgrund-b-%d", testpkg.UniqueTestTenantID(t)),
+	}).ID
+	testpkg.OwnTraegerCareContracts(t, f.db, other)
+	var noticeID int64
+	require.NoError(t, f.db.NewRaw(`SELECT id FROM care_contract.contract_notices WHERE contract_id = ?`, f.contract).Scan(f.ctx, &noticeID))
+	// A foreign trail entry referring to the same IDs must not be trusted.
+	details, err := json.Marshal(map[string]any{"notice_id": noticeID, "notice_not_sent_reason": "missing_student"})
+	require.NoError(t, err)
+	_, err = f.db.NewRaw(`INSERT INTO care_contract.contract_events (organization_id, contract_id, action, details)
+		VALUES (?, ?, 'set_end', ?::jsonb)`, other, f.contract, string(details)).Exec(f.ctx)
+	require.NoError(t, err)
+	require.NoError(t, testpkg.WithinTraeger(f.ctx, f.org, func(txCtx context.Context) error {
+		if err := testpkg.WithoutRequestRole(txCtx); err != nil {
+			return err
+		}
+		state, err := f.notices.notices.NoticeState(txCtx, f.org, f.contract)
+		if err != nil {
+			return err
+		}
+		require.NotNil(t, state.Notice)
+		assert.Equal(t, carecontract.EndNoticeNoPermittedAddress, state.Notice.EndNoticeNotSentReason)
+		return nil
+	}))
+}

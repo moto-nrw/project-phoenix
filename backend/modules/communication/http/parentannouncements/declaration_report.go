@@ -125,21 +125,19 @@ func declarationReport(s *announcementService.ParentDeclarationStatus) ReportDoc
 }
 
 func declarationSettingsCard(s *announcementService.ParentDeclarationStatus) ReportCard {
-	revocable, askPassword, askSignature := "Nicht erlaubt", "Nein", "Nein"
+	askPassword, askSignature := "Nein", "Nein"
 	method := announcementService.DeclarationMethodSimpleElectronic
 	if s.Settings.RequiresSignature {
 		askSignature = "Ja, beim Zustimmen"
 		method = announcementService.DeclarationMethodSimpleElectronicSignature
-	}
-	if s.Settings.Revocable {
-		revocable = "Erlaubt, auch nach der Frist"
 	}
 	if s.Settings.RequiresPassword {
 		askPassword = "Ja"
 	}
 	return ReportCard{Title: "Einstellungen", Fields: []ReportField{
 		{Label: "Wer muss antworten", Value: declarationSignersLabel(s.Settings.Signers)},
-		{Label: "Widerruf", Value: revocable},
+		// A consent is always revocable (Art. 7 Abs. 3 DSGVO, #6303).
+		{Label: "Widerruf", Value: "Jederzeit möglich, auch nach der Frist"},
 		{Label: "Passwort vor dem Antworten", Value: askPassword},
 		{Label: "Unterschrift", Value: askSignature},
 		{Label: "Frist", Value: reportDeadline(s.Deadline)},
