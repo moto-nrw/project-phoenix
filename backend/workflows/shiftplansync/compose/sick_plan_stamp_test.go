@@ -28,7 +28,6 @@ package compose_test
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"testing"
 	"time"
 
@@ -404,9 +403,11 @@ func (e *sickCascadeEnv) awaitDayLockWaiter(t *testing.T, date calendar.Date, do
 
 // awaitLockWaiter blocks until a transaction whose statement contains needle
 // waits for a lock of waitEvent ("advisory", "transactionid"), or until done
-// delivers first, at most three seconds.
+// delivers first, at most three seconds. It polls on a private pool, so the
+// poll never competes with the waiting transactions for the shared one.
 func (e *sickCascadeEnv) awaitLockWaiter(t *testing.T, needle, waitEvent string, done <-chan error) (bool, error) {
 	t.Helper()
+	poller := testpkg.SetupClosableTestDB(t)
 	for deadline := time.Now().Add(3 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
 		select {
 		case err := <-done:
@@ -414,7 +415,7 @@ func (e *sickCascadeEnv) awaitLockWaiter(t *testing.T, needle, waitEvent string,
 		default:
 		}
 		var waiting int
-		require.NoError(t, e.db.NewRaw(`SELECT count(*) FROM pg_stat_activity
+		require.NoError(t, poller.NewRaw(`SELECT count(*) FROM pg_stat_activity
 			WHERE datname = current_database() AND wait_event_type = 'Lock' AND wait_event = ?
 			  AND query LIKE '%' || ? || '%'`, waitEvent, needle).Scan(context.Background(), &waiting))
 		if waiting > 0 {
@@ -562,10 +563,9 @@ func TestSickReport_SeriesRosterChangeWaitsForConcurrentReport(t *testing.T) {
 }
 
 // I9: a materialization stamps week two for report S and holds its day locks
-// while a bridging report merges S into P. The merge waits for the
-// materialization (the staff row lock the absence write takes conflicts with
-// the key share the materialized rows hold), then moves the materialized
-// stamp to P instead of leaving it on the deleted S.
+// while a bridging report merges S into P. The merge takes its days before
+// Workforce's locks, waits for the materialization, then moves the
+// materialized stamp to P instead of leaving it on the deleted S.
 func TestSickReport_MergeMovesStampsOfConcurrentMaterialization(t *testing.T) {
 	t.Parallel()
 
@@ -602,7 +602,7 @@ func TestSickReport_MergeMovesStampsOfConcurrentMaterialization(t *testing.T) {
 			return err
 		})
 	}()
-	if returned, err := e.awaitLockWaiter(t, strconv.FormatInt(e.tenantID, 10), "transactionid", mergeDone); returned {
+	if returned, err := e.awaitDayLockWaiter(t, stampWeekTwo, mergeDone); returned {
 		close(release)
 		require.NoError(t, <-materializationDone)
 		require.FailNow(t, "merge did not wait for the materialization", "returned early: %v", err)
