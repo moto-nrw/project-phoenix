@@ -96,6 +96,29 @@ describe("TraegerAbrechnungPage", () => {
     );
   });
 
+  it("opens the run in preview instead of starting a second one", async () => {
+    api.fetchBillingRuns.mockResolvedValue([
+      { ...RELEASED, id: "14", status: "calculated", releasedAt: null },
+    ]);
+    renderPage();
+    await screen.findAllByText("Herbstferien 2026");
+
+    fireEvent.click(screen.getByRole("button", { name: /Lauf starten/ }));
+    expect(
+      await screen.findByText(
+        /Für diesen Ferienzeitraum ist schon ein Lauf in der Vorschau/,
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Offenen Lauf öffnen" }),
+    );
+
+    await waitFor(() =>
+      expect(mockPush).toHaveBeenCalledWith("/abrechnung/14"),
+    );
+    expect(api.startBillingRun).not.toHaveBeenCalled();
+  });
+
   it("states that a run needs a published period", async () => {
     api.fetchBillingPeriods.mockResolvedValue([]);
     renderPage();

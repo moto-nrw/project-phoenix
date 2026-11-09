@@ -248,6 +248,17 @@ function DebitHintsCard({
     (hint) => hint.item.payment?.debitGap === "creditor_missing",
   );
   const shown = expanded ? hints : hints.slice(0, DEBIT_HINTS_SHOWN);
+  // A debit that comes too early is fixed once for the whole run, by a later
+  // date: the card says it once and carries the one way there.
+  const tooSoon = dueDatesHref
+    ? hints.filter((hint) => hint.dueTooSoon).length
+    : 0;
+  const tooSoonText =
+    tooSoon === 0
+      ? ""
+      : tooSoon === hints.length
+        ? "Bei diesen Familien kommt die Abbuchung früher als Ihre Vorabankündigung erlaubt. Legen Sie für den Lauf eine spätere Fälligkeit fest."
+        : `Bei ${tooSoon === 1 ? "1 Familie" : `${tooSoon} Familien`} kommt sie früher als Ihre Vorabankündigung erlaubt. Legen Sie für den Lauf eine spätere Fälligkeit fest.`;
   return (
     <SectionCard
       title="Lastschrift"
@@ -259,7 +270,9 @@ function DebitHintsCard({
       description={
         creditorMissing
           ? "Ohne Gläubiger-ID buchen Sie bei keiner Familie ab. Tragen Sie sie unter Einstellungen → Abrechnungsvorgaben ein."
-          : "Bei diesen Familien klappt die Abbuchung so nicht. Klären Sie das vor der Freigabe."
+          : tooSoon === hints.length
+            ? tooSoonText
+            : `Bei diesen Familien klappt die Abbuchung so nicht. Klären Sie das vor der Freigabe.${tooSoonText ? ` ${tooSoonText}` : ""}`
       }
       actions={
         creditorMissing ? (
@@ -269,6 +282,14 @@ function DebitHintsCard({
             size="md"
           >
             Gläubiger-ID eintragen
+          </ButtonLink>
+        ) : tooSoon > 0 && dueDatesHref ? (
+          <ButtonLink
+            href={traegerPath(dueDatesHref)}
+            variant="outline"
+            size="md"
+          >
+            Fälligkeiten ändern
           </ButtonLink>
         ) : null
       }
@@ -289,19 +310,14 @@ function DebitHintsCard({
                   {formatEuro(item.totalCents)}
                 </span>
               </p>
-              <p className="mt-0.5 text-sm text-gray-700">{text}</p>
+              <p className="mt-0.5 text-sm text-gray-700">
+                {dueTooSoon && dueDatesHref && item.payment
+                  ? `Abbuchung am ${formatDate(item.payment.dueOn)}.`
+                  : text}
+              </p>
             </div>
             <div className="flex w-full flex-col gap-2 min-[480px]:w-auto min-[480px]:flex-row sm:justify-end">
-              {dueTooSoon && dueDatesHref ? (
-                <ButtonLink
-                  href={traegerPath(dueDatesHref)}
-                  variant="surface"
-                  size="compact"
-                  aria-label={`Fälligkeit ändern: ${item.family}`}
-                >
-                  Fälligkeit ändern
-                </ButtonLink>
-              ) : (
+              {dueTooSoon && dueDatesHref ? null : (
                 <ButtonLink
                   href={traegerPath(item.href)}
                   variant="surface"

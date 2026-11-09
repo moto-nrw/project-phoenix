@@ -35,6 +35,7 @@ import {
 import { HolidayRegistrationHistory } from "~/components/traeger/holiday-registration-history";
 import { HolidayRegistrationProofCard } from "~/components/traeger/holiday-registration-proof-card";
 import { HolidayRegistrationStatusCard } from "~/components/traeger/holiday-registration-status-card";
+import { useHolidayPeriodBillingHref } from "~/components/traeger/use-holiday-period-billing-href";
 import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
 import { metadataLoadError } from "~/components/traeger/metadata-load-error";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
@@ -151,6 +152,8 @@ export default function TraegerHolidayRegistrationPage() {
     loadError: periodError,
     error: periodFailure,
   } = useTraegerHolidayPeriod(periodId);
+  // The way to the invoice of this period (#5688), for the billing right only.
+  const billingHref = useHolidayPeriodBillingHref(period);
   const [registration, setRegistration] =
     useState<HolidayRegistrationDetail | null>(null);
   const [contribution, setContribution] = useState<HolidayContribution | null>(
@@ -399,6 +402,7 @@ export default function TraegerHolidayRegistrationPage() {
             onReload={load}
             onDebtorNumberChanged={load}
             canManageBillingSettings={canManageBillingSettings}
+            billingHref={billingHref}
           />
           {contribution?.siblings?.length ? (
             <SectionCard

@@ -11,7 +11,7 @@
 // fest.
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
@@ -55,7 +55,7 @@ function statusText(registration: HolidayRegistrationDetail): string {
       : "Die Anmeldung ist eingegangen und noch nicht bestätigt.";
   const frozen = registration.frozen
     ? " Sie ist eingefroren. Stornieren und Umbuchen gehen erst nach „Wieder öffnen“."
-    : " Nach dem Anmeldeschluss wird sie von selbst eingefroren.";
+    : " Nach dem Anmeldeschluss wird sie von selbst eingefroren. Eingefroren gehen Stornieren und Umbuchen erst nach „Wieder öffnen“.";
   return confirmed + frozen;
 }
 
@@ -353,6 +353,7 @@ export function HolidayRegistrationStatusCard({
   onReload,
   onDebtorNumberChanged,
   canManageBillingSettings = false,
+  billingHref = null,
 }: Readonly<{
   periodId: string;
   registration: HolidayRegistrationDetail;
@@ -381,6 +382,8 @@ export function HolidayRegistrationStatusCard({
   onDebtorNumberChanged: () => Promise<unknown>;
   /** Das Recht „Abrechnung“ öffnet die Beitragsregeln. */
   canManageBillingSettings?: boolean;
+  /** Where the invoice of the period stands; null without the right. */
+  billingHref?: string | null;
 }>) {
   const [running, setRunning] = useState<
     HolidayRegistrationAction | "confirm" | "cancel" | null
@@ -605,6 +608,14 @@ export function HolidayRegistrationStatusCard({
             ) : null}
           </form>
         ) : null}
+        {invoiced && billingHref ? (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <p>Die Rechnung dieser Anmeldung steht in der Abrechnung.</p>
+            <ButtonLink href={billingHref} variant="outline" size="compact">
+              Zur Abrechnung
+            </ButtonLink>
+          </div>
+        ) : null}
         {showsDebtorNumber ? (
           <DebtorNumberField
             periodId={periodId}
@@ -660,10 +671,28 @@ export function HolidayRegistrationStatusCard({
             berechnet den Ferienbeitrag der Geschwister neu.
           </p>
         ) : null}
+        {contribution?.siblings?.length && contribution.siblingsInvoiced ? (
+          <p className="mt-2 text-sm text-gray-700">
+            Eine Rechnung der Geschwister behält ihren Betrag. Ihre Anmeldung
+            zeigt dann „Rechnung prüfen“.
+          </p>
+        ) : null}
         {invoiced ? (
           <p className="mt-2 text-sm text-gray-700">
             Für diese Anmeldung gibt es schon eine Rechnung. Sie bleibt
-            bestehen. Stornieren Sie sie bei Bedarf in der Abrechnung.
+            bestehen. Soll die Familie nicht zahlen, stornieren Sie die Rechnung
+            danach in der Abrechnung.
+            {billingHref ? (
+              <>
+                {" "}
+                <NavigationLink
+                  href={billingHref}
+                  className="font-medium text-gray-900 underline"
+                >
+                  Zur Abrechnung
+                </NavigationLink>
+              </>
+            ) : null}
           </p>
         ) : null}
       </ConfirmationModal>

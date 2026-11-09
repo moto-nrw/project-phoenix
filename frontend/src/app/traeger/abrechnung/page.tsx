@@ -280,6 +280,17 @@ function BillingRunsPage() {
             isOpen={starting}
             periods={data.periods}
             initialPeriodId={periodFilter}
+            openRunIds={
+              new Map(
+                data.runs
+                  .filter((run) => run.status === "calculated")
+                  .map((run) => [run.holidayPeriodId, run.id]),
+              )
+            }
+            onOpenRun={(runId) => {
+              setStarting(false);
+              router.push(traegerPath(`/traeger/abrechnung/${runId}`));
+            }}
             onClose={() => setStarting(false)}
             onStarted={(run) => {
               setStarting(false);

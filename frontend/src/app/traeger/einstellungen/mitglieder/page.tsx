@@ -132,6 +132,14 @@ export default function TraegerAccountsPage() {
     }
   };
 
+  // The Träger-Büro keeps at least one Leitung; the server refuses to remove
+  // the last one, so its row does not offer it.
+  const leaders = buero.members.filter((member) =>
+    member.roles.includes("leadership"),
+  ).length;
+  const isLastLeader = (member: TraegerMember) =>
+    leaders === 1 && member.roles.includes("leadership");
+
   const memberColumns: DataTableColumn<TraegerMember>[] = [
     {
       key: "email",
@@ -150,7 +158,16 @@ export default function TraegerAccountsPage() {
     {
       key: "roles",
       header: "Rolle",
-      render: (member) => roleNames(member.roles),
+      render: (member) => (
+        <>
+          {roleNames(member.roles)}
+          {isLastLeader(member) ? (
+            <span className="block text-sm text-gray-600">
+              Einzige Leitung, bleibt im Träger-Büro
+            </span>
+          ) : null}
+        </>
+      ),
       stacked: "field",
     },
     {
@@ -162,11 +179,15 @@ export default function TraegerAccountsPage() {
           triggerSize="sm"
           items={[
             { label: "Rollen ändern", onClick: () => setEditing(member) },
-            {
-              label: "Aus dem Träger-Büro entfernen",
-              destructive: true,
-              onClick: () => setPending({ kind: "remove", member }),
-            },
+            ...(isLastLeader(member)
+              ? []
+              : [
+                  {
+                    label: "Aus dem Träger-Büro entfernen",
+                    destructive: true,
+                    onClick: () => setPending({ kind: "remove", member }),
+                  },
+                ]),
           ]}
         />
       ),

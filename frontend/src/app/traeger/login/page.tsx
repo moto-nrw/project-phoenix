@@ -34,6 +34,7 @@ import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
 import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 import { traegerLogin, type TraegerChoice } from "~/lib/traeger-api";
+import { TRAEGER_FORGOT_PASSWORD_PARAM } from "~/lib/traeger-login-params";
 import { traegerPath } from "~/lib/traeger-url";
 
 const logger = createLogger({ component: "TraegerLoginPage" });
@@ -129,6 +130,20 @@ function LoginForm() {
     }
     if (!deliberate) setSessionExpired(true);
     clearSessionErrorFromUrl();
+  }, [searchParams]);
+
+  // A reset link without token leads here to ask for a new link: the dialog
+  // opens at once, and the address forgets the request.
+  useEffect(() => {
+    if (searchParams.get(TRAEGER_FORGOT_PASSWORD_PARAM) !== "1") return;
+    setIsResetModalOpen(true);
+    const url = new URL(window.location.href);
+    url.searchParams.delete(TRAEGER_FORGOT_PASSWORD_PARAM);
+    window.history.replaceState(
+      {},
+      "",
+      `${url.pathname}${url.search}${url.hash}`,
+    );
   }, [searchParams]);
 
   const isSubmitting = isLoading || awaitingRedirect;

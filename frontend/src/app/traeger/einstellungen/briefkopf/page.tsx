@@ -145,6 +145,7 @@ export default function TraegerBriefkopfPage() {
               audience="traeger"
               headingLevel={2}
               autosaveNote
+              confirmTextReset
             />
           ))}
 

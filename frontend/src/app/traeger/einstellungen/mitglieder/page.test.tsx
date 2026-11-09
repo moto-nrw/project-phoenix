@@ -276,7 +276,31 @@ describe("TraegerAccountsPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("does not offer removing the only Leitung and says why", async () => {
+    renderPage();
+
+    expect(
+      (await screen.findAllByText("Einzige Leitung, bleibt im Träger-Büro"))[0],
+    ).toBeInTheDocument();
+    await openMenu("leitung@traeger.example");
+    expect(
+      await screen.findByRole("menuitem", { name: "Rollen ändern" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Aus dem Träger-Büro entfernen" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows why the last person with Leitung cannot leave", async () => {
+    // The list on screen still shows a second Leitung, who lost the role
+    // meanwhile: the server refuses and the dialog says why.
+    api.fetchTraegerBuero.mockResolvedValue({
+      ...BUERO,
+      members: [
+        BUERO.members[0]!,
+        { ...BUERO.members[1]!, roles: ["leadership", "billing"] },
+      ],
+    });
     api.removeTraegerMember.mockRejectedValue(
       new ApiError("conflict", 409, { code: "traeger.last_administrator" }),
     );

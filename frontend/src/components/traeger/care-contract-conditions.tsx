@@ -188,7 +188,7 @@ export function CareContractConditions({
       <ConfirmationModal
         isOpen={pendingKey !== null}
         title="Änderungen verwerfen?"
-        confirmText="Verwerfen"
+        confirmText="Änderungen verwerfen"
         cancelText="Weiter bearbeiten"
         confirmVariant="danger"
         onClose={() => setPendingKey(null)}
@@ -277,8 +277,9 @@ function ConditionsForm({
           }}
           onSave={() => formRef.current?.requestSubmit()}
           saving={saving}
+          cancelDisabled={!dirty}
           saveLabel="Bedingungen speichern"
-          cancelLabel="Zurücksetzen"
+          cancelLabel="Änderungen verwerfen"
         />
       }
     >

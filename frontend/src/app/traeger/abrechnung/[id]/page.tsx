@@ -28,7 +28,10 @@ import {
   ReleaseOpenPoints,
   familiesLabel,
 } from "~/components/traeger/release-open-points";
-import { BillingCostTakeoverCard } from "~/components/traeger/billing-cost-takeover-card";
+import {
+  BillingCostTakeoverCard,
+  runCostTakeovers,
+} from "~/components/traeger/billing-cost-takeover-card";
 import { BillingRunOverviewCard } from "~/components/traeger/billing-run-overview-card";
 import { BillingLettersCard } from "~/components/traeger/billing-letters-card";
 import { BillingMailCard } from "~/components/traeger/billing-mail-card";
@@ -46,7 +49,6 @@ import { Button, ButtonLink } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import NavigationLink from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { runDocumentKindLabel } from "~/components/traeger/run-document-kind";
@@ -236,6 +238,17 @@ export default function TraegerBillingRunPage() {
       : null,
   ].filter((point): point is string => point !== null);
   const releaseWarns = paymentTextGaps > 0 || openPoints.length > 0;
+  // The run sum is what the families pay; cost bearers pay their share
+  // apart, so the summary names both.
+  const takeoverCents = run
+    ? runCostTakeovers(run).reduce((sum, takeover) => sum + takeover.cents, 0)
+    : 0;
+  const sumLabel = [
+    corrections.length > 0 ? "Summe nach Storno und Gutschrift" : "Summe",
+    takeoverCents > 0 ? "für Familien" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <TenantPage
@@ -251,15 +264,16 @@ export default function TraegerBillingRunPage() {
               tone={BILLING_RUN_STATUS_TONES[run.status]}
             />
             {canOpenPeriod ? (
-              <NavigationLink
+              <ButtonLink
                 href={traegerPath(
                   `/traeger/ferien/${encodeURIComponent(run.holidayPeriodId)}`,
                 )}
-                className="inline-flex items-center gap-1.5 font-medium text-gray-900 underline-offset-2 hover:underline"
+                variant="outline"
+                size="compact"
               >
                 <MotoConceptIcon concept={holidayWeeksConcept} size={16} />
                 Zum Ferienzeitraum
-              </NavigationLink>
+              </ButtonLink>
             ) : null}
           </HolidayHeadFacts>
         ) : null
@@ -310,6 +324,9 @@ export default function TraegerBillingRunPage() {
                 {run.previewCount === 1
                   ? `1 Rechnung über ${formatEuro(run.previewCents)} bekommt ihre Nummer. Danach lässt sie sich nicht mehr ändern.`
                   : `${run.previewCount} Rechnungen über ${formatEuro(run.previewCents)} bekommen ihre Nummer. Danach lassen sie sich nicht mehr ändern.`}
+                {takeoverCents > 0
+                  ? ` Kostenträger übernehmen zusätzlich ${formatEuro(takeoverCents)}.`
+                  : ""}
               </p>
               {paymentTextGaps > 0 ? (
                 <Alert
@@ -348,17 +365,19 @@ export default function TraegerBillingRunPage() {
                 {formatDateRange(run.serviceFrom, run.serviceUntil)}
               </DataField>
               <DataField label="Rechnungen">{run.previewCount}</DataField>
-              <DataField
-                label={
-                  corrections.length > 0
-                    ? "Summe nach Storno und Gutschrift"
-                    : "Summe"
-                }
-              >
+              <DataField label={sumLabel}>
                 <span className="tabular-nums">
                   {formatEuro(run.previewCents)}
                 </span>
               </DataField>
+              {takeoverCents > 0 ? (
+                <DataField label="Kostenübernahme">
+                  <span className="tabular-nums">
+                    {formatEuro(takeoverCents)}
+                  </span>{" "}
+                  zahlen Kostenträger
+                </DataField>
+              ) : null}
               {corrections.length > 0 ? (
                 <DataField label="Storno und Gutschrift">
                   {corrections.length === 1

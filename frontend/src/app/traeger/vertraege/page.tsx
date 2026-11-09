@@ -578,7 +578,28 @@ export default function TraegerVertraegePage() {
                 candidates.length,
                 data.modes.length > 0 &&
                   data.modes.every((school) => school.mode === "bei_annahme"),
+                [
+                  search.trim() ? `„${search.trim()}“` : "",
+                  ...activeFilters.map((filter) => filter.label),
+                ].filter(Boolean),
               )}
+              action={
+                total > 0 &&
+                (search.trim() !== "" || activeFilters.length > 0) ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    onClick={() => {
+                      setSearch("");
+                      setStatus("all");
+                      setSchoolId("");
+                    }}
+                  >
+                    Filter zurücksetzen
+                  </Button>
+                ) : undefined
+              }
             />
           }
         />
@@ -642,8 +663,15 @@ function emptyText(
   contracts: number,
   candidates: number,
   allOnAcceptance: boolean,
+  active: readonly string[],
 ): { title: string; description?: string } {
-  if (contracts > 0) return { title: "Kein Vertrag passt zu Ihrer Suche." };
+  if (contracts > 0) {
+    return {
+      title: "Kein Vertrag passt zu Ihrer Suche.",
+      description:
+        active.length > 0 ? `Aktiv: ${active.join(", ")}.` : undefined,
+    };
+  }
   if (allOnAcceptance) {
     return {
       title: "Noch kein Vertrag.",

@@ -25,6 +25,16 @@ interface RunStartOption {
 }
 
 /**
+ * Choices that cannot start a run now because one of their runs is still a
+ * preview: the dialog says so and opens that run instead.
+ */
+interface BlockedChoices {
+  readonly values: readonly string[];
+  readonly hint: string;
+  readonly onOpen: (value: string) => void;
+}
+
+/**
  * The dialog that starts a run: one choice from a list, a line that says
  * what the run bills, and the start. `onStart` starts the run; a refusal
  * shows at the top of the form.
@@ -37,6 +47,7 @@ function RunStartModal({
   initialValue,
   hint,
   object,
+  blocked,
   onClose,
   onStart,
 }: Readonly<{
@@ -51,11 +62,15 @@ function RunStartModal({
     readonly missing: string;
   };
   options: readonly RunStartOption[];
-  /** Preselected when it is one of the options, else the first option. */
+  /**
+   * Preselected when it is one of the options, else the first option that
+   * can start, else the first option.
+   */
   initialValue?: string;
   hint: string;
   /** The run in the error text, e.g. „der Lauf“. */
   object: string;
+  blocked?: BlockedChoices;
   onClose: () => void;
   onStart: (value: string) => Promise<void>;
 }>) {
@@ -67,16 +82,19 @@ function RunStartModal({
 
   // The options are built on every render; their values decide the choice.
   const optionValues = options.map((option) => option.value).join("\n");
+  const blockedValues = (blocked?.values ?? []).join("\n");
   useEffect(() => {
     if (!isOpen) return;
     const values = optionValues ? optionValues.split("\n") : [];
+    const taken = new Set(blockedValues ? blockedValues.split("\n") : []);
     setValue(
       initialValue && values.includes(initialValue)
         ? initialValue
-        : (values[0] ?? ""),
+        : (values.find((option) => !taken.has(option)) ?? values[0] ?? ""),
     );
     clearErrors();
-  }, [isOpen, optionValues, initialValue, clearErrors]);
+  }, [isOpen, optionValues, blockedValues, initialValue, clearErrors]);
+  const isBlocked = !!value && !!blocked?.values.includes(value);
 
   const submit = async () => {
     formErrors.clear();
@@ -113,9 +131,13 @@ function RunStartModal({
       footer={
         <EditActions
           onCancel={onClose}
-          onSave={() => formRef.current?.requestSubmit()}
+          onSave={() =>
+            isBlocked
+              ? blocked?.onOpen(value)
+              : formRef.current?.requestSubmit()
+          }
           saving={saving}
-          saveLabel="Lauf starten"
+          saveLabel={isBlocked ? "Offenen Lauf öffnen" : title}
         />
       }
     >
@@ -136,9 +158,15 @@ function RunStartModal({
           placeholder={field.placeholder}
           value={value}
           options={options}
-          onChange={setValue}
+          onChange={(next) => {
+            setValue(next);
+            formErrors.clear();
+          }}
+          wrapLabels
         />
-        <p className="text-sm text-gray-600">{hint}</p>
+        <p className="text-sm text-gray-600">
+          {isBlocked && blocked ? blocked.hint : hint}
+        </p>
       </form>
     </FormModal>
   );
@@ -148,6 +176,8 @@ export function BillingRunStartModal({
   isOpen,
   periods,
   initialPeriodId,
+  openRunIds,
+  onOpenRun,
   onClose,
   onStarted,
 }: Readonly<{
@@ -155,9 +185,13 @@ export function BillingRunStartModal({
   periods: readonly BillingPeriod[];
   /** Vorgewählt, wenn die Liste auf diesen Zeitraum gefiltert ist (#5688). */
   initialPeriodId?: string;
+  /** The run still in preview per holiday period: no second one starts. */
+  openRunIds?: ReadonlyMap<string, string>;
+  onOpenRun?: (runId: string) => void;
   onClose: () => void;
   onStarted: (run: BillingRun) => void;
 }>) {
+  const open = openRunIds ?? new Map<string, string>();
   return (
     <RunStartModal
       isOpen={isOpen}
@@ -171,9 +205,21 @@ export function BillingRunStartModal({
       }}
       options={periods.map((period) => ({
         value: period.id,
-        label: `${period.name} (${formatDateRange(period.startsOn, period.endsOn)})`,
+        label: `${period.name} (${formatDateRange(period.startsOn, period.endsOn)})${open.has(period.id) ? " · Vorschau offen" : ""}`,
       }))}
       initialValue={initialPeriodId}
+      blocked={
+        onOpenRun
+          ? {
+              values: [...open.keys()],
+              hint: "Für diesen Ferienzeitraum ist schon ein Lauf in der Vorschau. Öffnen Sie ihn, statt einen neuen zu starten.",
+              onOpen: (periodId) => {
+                const runId = open.get(periodId);
+                if (runId) onOpenRun(runId);
+              },
+            }
+          : undefined
+      }
       hint="Der Lauf rechnet alle bestätigten Anmeldungen ab, die noch keine Rechnung haben. Sie prüfen zuerst die Vorschau."
       object="der Lauf"
       onClose={onClose}

@@ -255,6 +255,16 @@ describe("TraegerLoginPage", () => {
     expect(mockLogin).not.toHaveBeenCalled();
   });
 
+  it("opens the reset dialog when a reset link without token leads here", async () => {
+    mockSearchParamsGet.mockImplementation((key: string) =>
+      key === "passwort-vergessen" ? "1" : null,
+    );
+    render(<TraegerLoginPage />);
+
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog.querySelector("#reset-email")).not.toBeNull();
+  });
+
   it("keeps a refused password in the form instead of redirecting", async () => {
     const assign = vi
       .spyOn(window.location, "assign")

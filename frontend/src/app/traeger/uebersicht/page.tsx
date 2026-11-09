@@ -722,7 +722,11 @@ export default function TraegerDashboardPage() {
         />
       ) : null}
       <DataTable
-        heading={{ title: "Zahlen je Schule", count: rows.length, level: 2 }}
+        heading={{
+          title: "Zahlen je Schule",
+          count: loading ? undefined : rows.length,
+          level: 2,
+        }}
         columns={columns}
         rows={rows}
         getRowKey={(school) => school.id}
@@ -743,7 +747,17 @@ export default function TraegerDashboardPage() {
             <EmptyState
               icon={<School className="h-12 w-12" aria-hidden="true" />}
               title="Keine Schule passt zu Ihrer Suche."
-              description="Prüfen Sie den Namen oder suchen Sie nach dem Ort."
+              description={`Gesucht: „${search.trim()}“. Prüfen Sie den Namen oder suchen Sie nach dem Ort.`}
+              action={
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  onClick={() => setSearch("")}
+                >
+                  Suche zurücksetzen
+                </Button>
+              }
             />
           )
         }
