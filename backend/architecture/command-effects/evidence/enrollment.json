@@ -1593,6 +1593,62 @@
       "target_owner": "security-runtime"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidaySchoolCalendar.HolidayNoCareDays",
+      "binding_digest": "5736b84408397bd66139d8fe3475cd6a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsSnapshot.String",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidaySchoolCalendar.HolidayNoCareDays",
+      "binding_digest": "a6e93cd60dc4d446bc0d1463c684926d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListClosingDays",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidaySchoolCalendar.HolidayNoCareDays",
+      "binding_digest": "9fbfd1fd3d7ce1155993d611ff3d4206",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListHolidays",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidaySchoolCalendar.HolidayNoCareDays",
+      "binding_digest": "498631d2f109b5fcc073e14bc02aba27",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ValidHolidayRegion",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidaySchoolCalendar.HolidayNoCareDays",
+      "binding_digest": "5af295d0673257a27548c12343f9fcf4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveManyForTenants",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidaySchoolCalendar.HolidayNoCareDays",
+      "binding_digest": "f625e4d653ad4369d4f1c871ce46e39f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.NewTenantID",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidaySchoolCalendar.HolidayNoCareDays",
+      "binding_digest": "b65e900c770a8f90e427f5ed9e255a7f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.holidaySchoolNames.HolidaySchoolNames",
       "binding_digest": "a3efd0300622dc339703652e1725b8cd",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolNames.HolidaySchoolNames",

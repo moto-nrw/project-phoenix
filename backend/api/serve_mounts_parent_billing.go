@@ -226,7 +226,7 @@ func (c parentBillingCareContracts) Recipients(ctx context.Context, organization
 // Träger.
 func NewBillingRunHTTP(settings TraegerBrandingSettings, delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, healthData enrollmentOwner.HolidayHealthCipher) (*parentBillingHTTP.BillingRunResource, *parentBillingHTTP.DocumentKindResource) {
 	registrations := parentBillingBillingRegistrations{
-		periods: enrollmentCompose.NewHolidayPeriods(nil), review: enrollmentCompose.NewHolidayRegistrationReview(healthData),
+		periods: enrollmentCompose.NewHolidayPeriods(nil, nil), review: enrollmentCompose.NewHolidayRegistrationReview(healthData, nil),
 	}
 	requireBilling := common.RequiresPermission(identityaccess.TraegerRightBillingManage)
 	runs, kinds := parentBillingCompose.NewBillingRuns(registrations, parentBillingSettings{settings: settings}, newParentBillingLetterheads(settings))
@@ -537,8 +537,8 @@ func (b parentBillingLetterheads) DocumentTemplate(ctx context.Context, organiza
 // to the Träger's switch for the debtor number (#5621).
 func NewParentBillingHTTP(organizations HolidayOrganizations, settings TraegerBrandingSettings, delivery deliveryRuntime.Capability, healthData enrollmentOwner.HolidayHealthCipher, logger *slog.Logger) (*parentBillingHTTP.RuleResource, *parentBillingHTTP.HolidayResource) {
 	registrations := parentBillingHolidayRegistrations{
-		links:  newHolidayRegistrations(organizations, delivery, healthData, logger.With("service", "parent-billing-holiday-registrations")),
-		review: enrollmentCompose.NewHolidayRegistrationReview(healthData),
+		links:  newHolidayRegistrations(organizations, delivery, healthData, nil, logger.With("service", "parent-billing-holiday-registrations")),
+		review: enrollmentCompose.NewHolidayRegistrationReview(healthData, nil),
 	}
 	rules := parentBillingHTTP.NewRuleResource(parentBillingCompose.NewContributionRules(),
 		common.RequiresPermission(identityaccess.TraegerRightBillingManage))

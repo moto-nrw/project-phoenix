@@ -65,6 +65,10 @@ type HolidayRegistrationDependencies struct {
 	Mail          enrollment.TraegerMailOutbox
 	// Health seals the health information of a registration (#4722).
 	Health enrollment.HolidayHealthCipher
+	// Calendar names the host schools' days without care (#4702). The
+	// offer marks them when it is bound; a registration is refused without
+	// it, so no week with such a day is ever booked.
+	Calendar enrollment.HolidaySchoolCalendar
 	// Today is the calendar day the registration window is checked against.
 	Today func() calendar.Date
 	// Random fills the token of an uploaded proof and Fingerprint names it
@@ -130,6 +134,9 @@ func (h *HolidayRegistrations) HolidayRegistrationOffer(ctx context.Context, lin
 	}
 	form, err := foundHolidayForm(link.PeriodID)(h.deps.Forms.CurrentHolidayPeriodForm(ctx, link.OrganizationID, link.PeriodID))
 	if err != nil {
+		return enrollment.HolidayRegistrationOffer{}, err
+	}
+	if period, err = withHolidayNoCareDays(ctx, h.deps.Calendar, period); err != nil {
 		return enrollment.HolidayRegistrationOffer{}, err
 	}
 	today := h.deps.Today()
@@ -241,6 +248,9 @@ func (h *HolidayRegistrations) SubmitHolidayRegistration(ctx context.Context, li
 	if err := validateHolidayRegistration(input, period, form, answers, link.Traeger.Schools, today); err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, err
 	}
+	if err := h.refuseWeeksWithoutCare(ctx, period, input.Children); err != nil {
+		return enrollment.HolidayRegistrationReceipt{}, err
+	}
 	if !holidayRegistrationHasHealth(input, form, answers) {
 		input.HealthConsent = false
 	}
@@ -264,6 +274,21 @@ func (h *HolidayRegistrations) SubmitHolidayRegistration(ctx context.Context, li
 		return enrollment.HolidayRegistrationReceipt{}, err
 	}
 	return receipt, nil
+}
+
+// refuseWeeksWithoutCare refuses a booking of a week in which the host school
+// gives no care on a day (#4702).
+func (h *HolidayRegistrations) refuseWeeksWithoutCare(ctx context.Context, period enrollment.HolidayPeriod, children []enrollment.HolidayChildInput) error {
+	marked, err := markHolidayNoCareDays(ctx, h.deps.Calendar, period)
+	if err != nil {
+		return err
+	}
+	for _, child := range children {
+		if err := refuseHolidayBookingsWithoutCare(child.Bookings, marked, nil); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (h *HolidayRegistrations) enqueueReceipt(ctx context.Context, link enrollment.HolidayRegistrationLink, period enrollment.HolidayPeriod,

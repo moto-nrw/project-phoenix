@@ -3567,6 +3567,38 @@
       "source_owner": "school-calendar",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.SynchronousService.NotifySynchronously",
       "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.traegerCalendarSchools.TraegerSchools",
+      "binding_digest": "78f106a848aae395633288694654cdb8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/traegercalendar.Schools.TraegerSchools",
+      "source_owner": "school-calendar",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsSnapshot.String",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.traegerCalendarSchools.TraegerSchools",
+      "binding_digest": "4f9d820a9f13eb2ac9f6b65a2ce101a4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/traegercalendar.Schools.TraegerSchools",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListSchoolsByOrganization",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.traegerCalendarSchools.TraegerSchools",
+      "binding_digest": "f685af972b223bcaea9b191cbe71bc16",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/traegercalendar.Schools.TraegerSchools",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.traegerCalendarSchools.TraegerSchools",
+      "binding_digest": "d66b3454bbfaf13aac778870c100a5e2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/traegercalendar.Schools.TraegerSchools",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveManyForTenants",
+      "target_owner": "settings-platform"
     }
   ]
 }

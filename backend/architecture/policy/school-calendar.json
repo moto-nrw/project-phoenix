@@ -64,6 +64,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/schoolcalendar/traegercalendar",
+      "owner": "school-calendar",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/schoolcalendar/portal/compose",
       "owner": "school-calendar",
       "role": "compose",
@@ -123,6 +130,10 @@
     },
     {
       "name": "schedule.dateframes",
+      "write_owner": "school-calendar"
+    },
+    {
+      "name": "schedule.traeger_closing_days",
       "write_owner": "school-calendar"
     }
   ],

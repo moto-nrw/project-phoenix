@@ -258,6 +258,16 @@ func (s *Store) ListClosingDays(ctx context.Context, filter schoolcalendar.Closi
 	for _, row := range rows {
 		result = append(result, closingDayToDomain(row))
 	}
+	// A filter by ID names the school's own rows, which it may change; the
+	// Träger's closing days of the school join every window read (#4702).
+	if filter.IDs == nil {
+		traeger, err := schoolTraegerClosingDays(ctx, db, tenantID, filter.OverlappingFrom, filter.OverlappingTo)
+		stats.Queries++
+		if err != nil {
+			return nil, stats, err
+		}
+		result = mergeClosingDays(result, traeger)
+	}
 	stats.Rows = int64(len(result))
 	return result, stats, nil
 }
@@ -268,11 +278,16 @@ type careCalendarRangeRow struct {
 	EndDate   calendarDate `bun:"end_date,type:date"`
 }
 
-// careCalendarRangesSQL lists the closing days and the active holiday
-// periods of the tenant overlapping the window in one statement (#5994).
+// careCalendarRangesSQL lists the closing days, those the Träger planned for
+// the school included (#4702), and the active holiday periods of the tenant
+// overlapping the window in one statement (#5994).
 const careCalendarRangesSQL = `SELECT 'closing' AS kind, closing_day.start_date::text AS start_date, closing_day.end_date::text AS end_date
 	FROM schedule.closing_days AS closing_day
 	WHERE closing_day.tenant_id = ? AND closing_day.start_date <= ? AND closing_day.end_date >= ?
+	UNION ALL
+	SELECT 'closing', traeger_day.start_date::text, traeger_day.end_date::text
+	FROM schedule.traeger_closing_days AS traeger_day
+	WHERE ? = ANY (traeger_day.school_ids) AND traeger_day.start_date <= ? AND traeger_day.end_date >= ?
 	UNION ALL
 	SELECT 'holiday', calendar_period.start_date::text, calendar_period.end_date::text
 	FROM schedule.calendar_periods AS calendar_period
@@ -291,6 +306,7 @@ func (s *Store) ListCareCalendarRanges(ctx context.Context, from, to string) ([]
 	started := time.Now()
 	var rows []careCalendarRangeRow
 	err = db.NewRaw(careCalendarRangesSQL, tenantID, calendarDate(to), calendarDate(from),
+		tenantID, calendarDate(to), calendarDate(from),
 		tenantID, schoolcalendar.PeriodTypeHoliday, calendarDate(to), calendarDate(from)).Scan(ctx, &rows)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {

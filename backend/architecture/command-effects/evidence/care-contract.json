@@ -338,7 +338,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractSchoolHolidays.SchoolHolidayDates",
-      "binding_digest": "a4a80d3a318772b46c954fdf73786055",
+      "binding_digest": "baeb7198d6caf18e9852eda6371c158e",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolHolidays.SchoolHolidayDates",
       "source_owner": "care-contract",
       "target": "*github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsSnapshot.String",
@@ -346,7 +346,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractSchoolHolidays.SchoolHolidayDates",
-      "binding_digest": "3a867a54d9fdd98db06b1815731ceb13",
+      "binding_digest": "959ba5808cf7be8261a9f7fe6550ca84",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolHolidays.SchoolHolidayDates",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.HolidayDates",
@@ -354,7 +354,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractSchoolHolidays.SchoolHolidayDates",
-      "binding_digest": "13cf2a6c058e05c33a3a0953d972d24e",
+      "binding_digest": "bd8f7a2d85c04959428907ab40c83165",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolHolidays.SchoolHolidayDates",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ValidHolidayRegion",
@@ -362,7 +362,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractSchoolHolidays.SchoolHolidayDates",
-      "binding_digest": "0c0a0aa0c45491def9e793d8c5baf908",
+      "binding_digest": "af9c9cbd26660ca391886339d52b2a4f",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolHolidays.SchoolHolidayDates",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidayQuery.HolidayDates",
@@ -370,7 +370,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractSchoolHolidays.SchoolHolidayDates",
-      "binding_digest": "ea888d7c18084d4fe497694a661aa587",
+      "binding_digest": "a3c3b49745bad8a58c1d0fa527fc5940",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolHolidays.SchoolHolidayDates",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidayQuery.ValidHolidayRegion",
@@ -378,7 +378,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.careContractSchoolHolidays.SchoolHolidayDates",
-      "binding_digest": "1b155057644616954f200b0e1d13b963",
+      "binding_digest": "9fc5d03fec022cea0a7c1fd6416604f8",
       "port": "github.com/moto-nrw/project-phoenix/modules/carecontract.SchoolHolidays.SchoolHolidayDates",
       "source_owner": "care-contract",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveManyForTenants",

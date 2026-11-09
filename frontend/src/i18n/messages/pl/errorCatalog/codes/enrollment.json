@@ -80,6 +80,7 @@
   "guardian_email_required": "Wpisz adres e-mail.",
   "guardian_name_required": "Wpisz imię i nazwisko.",
   "guardian_phone_required": "Wpisz numer telefonu.",
+  "holiday_week_no_care_day": "W dniu {date} nie ma opieki ({name}). Tego tygodnia nie można zarezerwować.",
   "invalid_email": "Wpisz prawidłowy adres e-mail.",
   "invalid_phone": "Wpisz prawidłowy numer telefonu.",
   "late_invite_invalid": "Ten link jest nieprawidłowy, wygasł lub został już użyty. Skontaktuj się ze szkołą.",

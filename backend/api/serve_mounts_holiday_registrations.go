@@ -16,6 +16,7 @@ import (
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/traegercalendar"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
@@ -32,11 +33,13 @@ func mountTraegerRoutes(root chi.Router, limiters authRateLimiters, identity Tra
 	persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerSettings, schoolSettings TraegerSchoolSettings, attendanceMarks owners.MealAttendanceMarks,
 	delivery deliveryRuntime.Capability, outcomes deliveryRuntime.EmailOutcomes, keys TurnstileKeys,
 	healthData enrollmentOwner.HolidayHealthCipher, bankData parentbilling.BankDataCipher, statistics studentpresence.StatisticsReports, changes careplan.OfferingChangeCapability, contractHolidays carecontract.SchoolHolidays,
+	holidayCalendar enrollmentOwner.HolidaySchoolCalendar, calendarSchools traegercalendar.Schools,
 	parentsURL string, logger *slog.Logger) error {
-	if err := mountTraegerPortalRoutes(root, limiters, identity, organizations, persons, staff, audit, settings, healthData); err != nil {
+	if err := mountTraegerPortalRoutes(root, limiters, identity, organizations, persons, staff, audit, settings, healthData, holidayCalendar); err != nil {
 		return err
 	}
-	root.Mount("/traeger/holiday-registrations", NewHolidayRegistrationHTTP(organizations, delivery, keys, "", healthData, logger).Router())
+	root.Mount("/traeger/holiday-registrations", NewHolidayRegistrationHTTP(organizations, delivery, keys, "", healthData, holidayCalendar, logger).Router())
+	mountTraegerClosingDayRoutes(root, calendarSchools)
 	mountParentBillingRoutes(root, organizations, settings, schoolSettings, attendanceMarks, delivery, outcomes, healthData, bankData, logger)
 	mountCareContractRoutes(root, organizations, settings, schoolSettings, delivery, outcomes, audit.Log,
 		owners.NewCareContractNoticeAddressees(persons, identity), contractHolidays, parentsURL)
@@ -65,8 +68,8 @@ type HolidayOrganizations interface {
 // Organisation & Tenancy, Delivery and Turnstile; healthData seals the health
 // information (#4722). An empty verifyURL uses Turnstile's endpoint; tests
 // point it at a local provider.
-func NewHolidayRegistrationHTTP(organizations HolidayOrganizations, delivery deliveryRuntime.Capability, keys TurnstileKeys, verifyURL string, healthData enrollmentOwner.HolidayHealthCipher, logger *slog.Logger) *enrollmentAPI.HolidayRegistrationResource {
-	registrations := newHolidayRegistrations(organizations, delivery, healthData, logger.With("service", "holiday-registrations"))
+func NewHolidayRegistrationHTTP(organizations HolidayOrganizations, delivery deliveryRuntime.Capability, keys TurnstileKeys, verifyURL string, healthData enrollmentOwner.HolidayHealthCipher, schoolCalendar enrollmentOwner.HolidaySchoolCalendar, logger *slog.Logger) *enrollmentAPI.HolidayRegistrationResource {
+	registrations := newHolidayRegistrations(organizations, delivery, healthData, schoolCalendar, logger.With("service", "holiday-registrations"))
 	captcha := enrollmentCompose.NewCaptcha(holidayCaptchaSettings(keys), verifyURL, logger.With("service", "holiday-registration-captcha"))
 	return enrollmentAPI.NewHolidayRegistrationResource(registrations, holidayProofUnits{registrations: registrations}, captcha)
 }
@@ -137,16 +140,16 @@ type parentHolidayRegistrationLinks struct {
 // newParentHolidayRegistrationLinks binds the parents portal to Enrollment's
 // link resolution over the same Träger directory as the public link.
 func newParentHolidayRegistrationLinks(organizations HolidayOrganizations, delivery deliveryRuntime.Capability, healthData enrollmentOwner.HolidayHealthCipher, logger *slog.Logger) parentAPI.HolidayRegistrationLinks {
-	return parentHolidayRegistrationLinks{registrations: newHolidayRegistrations(organizations, delivery, healthData, logger.With("service", "parent-holiday-registrations"))}
+	return parentHolidayRegistrationLinks{registrations: newHolidayRegistrations(organizations, delivery, healthData, nil, logger.With("service", "parent-holiday-registrations"))}
 }
 
 // newHolidayRegistrations binds Enrollment's holiday registrations to the
 // Träger directory, the Träger's mail and Security Runtime's entropy and
 // fingerprint for the tokens of uploaded proofs (#5238), and the health
 // information to the root's cipher (#4722).
-func newHolidayRegistrations(organizations HolidayOrganizations, delivery deliveryRuntime.Capability, healthData enrollmentOwner.HolidayHealthCipher, logger *slog.Logger) enrollmentOwner.HolidayRegistrations {
+func newHolidayRegistrations(organizations HolidayOrganizations, delivery deliveryRuntime.Capability, healthData enrollmentOwner.HolidayHealthCipher, schoolCalendar enrollmentOwner.HolidaySchoolCalendar, logger *slog.Logger) enrollmentOwner.HolidayRegistrations {
 	return enrollmentCompose.NewHolidayRegistrations(holidayTraegerDirectory{organizations: organizations},
-		holidayTraegerMail{delivery: delivery}, healthData, securityruntime.FillRandom, securityruntime.Fingerprint, logger)
+		holidayTraegerMail{delivery: delivery}, healthData, schoolCalendar, securityruntime.FillRandom, securityruntime.Fingerprint, logger)
 }
 
 func (l parentHolidayRegistrationLinks) ResolveHolidayRegistrationSchools(ctx context.Context, token string) (int64, []int64, error) {
