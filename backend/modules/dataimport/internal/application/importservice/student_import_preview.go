@@ -3,6 +3,7 @@ package importpkg
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"unicode/utf8"
 
@@ -15,13 +16,15 @@ import (
 // uses this read model, but consumes names before preceding writes can stale it.
 // Failed bulk reads roll back before the original row-by-row path runs, so an
 // optimization cannot turn one lookup failure into errors on unrelated rows.
-func (c *StudentImportConfig) PreviewConfig(ctx context.Context, rows []importModels.StudentImportRow) ports.ImportConfig[importModels.StudentImportRow] {
+//
+// A failed savepoint statement of the bulk read ends the preview (E19): its
+// transaction can no longer be trusted, so no row falls back onto it.
+func (c *StudentImportConfig) PreviewConfig(ctx context.Context, rows []importModels.StudentImportRow) (ports.ImportConfig[importModels.StudentImportRow], error) {
 	view, err := c.previewConfig(ctx, rows)
 	if err != nil {
-		// The preview keeps its fallback (its contract is unchanged).
-		return c
+		return nil, fmt.Errorf("%w: read preview matches: %v", errSavepointLost, err)
 	}
-	return view
+	return view, nil
 }
 
 // previewConfig is PreviewConfig that returns a failed savepoint statement of

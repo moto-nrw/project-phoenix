@@ -387,9 +387,11 @@ func TestStudentCardRowsFormNoNewDeadlockPair(t *testing.T) {
 			t.Cleanup(func() { _ = other.Rollback() })
 			_, err = other.ExecContext(ctx, childQuotaLock, testpkg.Tenant(t))
 			require.NoError(t, err)
+			var holder int
+			require.NoError(t, other.QueryRowContext(ctx, `SELECT pg_backend_pid()`).Scan(&holder))
 
 			done := uploadStudents(t, module, db, actor, rows, "pair.csv")
-			waitForLockWaiters(t, db) // this upload waits for the quota
+			waitForBlockedBy(t, db, holder) // this upload waits for the quota the other holds
 
 			// The other upload's next child wears the card of row 8.
 			insertCtx, insertCancel := context.WithTimeout(ctx, 3*time.Second)
@@ -412,4 +414,16 @@ func TestStudentCardRowsFormNoNewDeadlockPair(t *testing.T) {
 			}
 		})
 	}
+}
+
+// waitForBlockedBy waits, at most 10 s, until a session waits for a lock the
+// session holder holds; waiters of other tests on the same clone do not count.
+func waitForBlockedBy(t *testing.T, db *bun.DB, holder int) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		var waiting int
+		err := db.NewRaw(`SELECT count(*) FROM pg_stat_activity
+			WHERE datname = current_database() AND ?::int = ANY(pg_blocking_pids(pid))`, holder).Scan(context.Background(), &waiting)
+		return err == nil && waiting > 0
+	}, 10*time.Second, 5*time.Millisecond, "no session waits for the holder")
 }

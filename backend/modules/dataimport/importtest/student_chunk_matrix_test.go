@@ -35,11 +35,13 @@ import (
 // without it.
 //
 // Part 2: the whole cross of main error × cleanup point × cleanup error for
-// one statement of each equivalence class. The executor reads two things of
-// a failing statement only: whether it ran in the bounded call, and which
-// savepoints enclose it, which fixes the cleanup statements after it. Its
-// SQL enters no decision. The classes are those two properties; the first
-// statement of each class in the recording stands for it.
+// the first and the last statement of each equivalence class, and for every
+// other statement the main errors 40P01, 57014 and one without SQLSTATE ×
+// every cleanup error at the first cleanup point (a ROLLBACK TO SAVEPOINT in
+// every class). The executor reads two things of a failing statement only:
+// whether it ran in the bounded call, and which savepoints enclose it, which
+// fixes the cleanup statements after it. Its SQL enters no decision. The
+// classes are those two properties.
 
 const matrixRows = 6
 
@@ -466,18 +468,27 @@ func TestStudentBatchCommandFaultMatrix(t *testing.T) {
 	})
 
 	// Part 2: main error × cleanup point × cleanup error, per class.
-	represented := map[string]bool{}
+	members := map[string][]int{} // class and owner group -> statement positions
+	for i, statement := range statements {
+		class := string(statement.class) + " " + statement.group
+		members[class] = append(members[class], i)
+	}
+	represented := map[int]bool{}
+	for class, positions := range members {
+		first, last := positions[0], positions[len(positions)-1]
+		represented[first], represented[last] = true, true
+		t.Logf("%s: %d statements, the whole cross for the first and the last", class, len(positions))
+	}
+	minimalMain := []error{injectedSQLState("40P01"), injectedSQLState("57014"), errors.New("injected failure without SQLSTATE")}
 	cases := 0
 	t.Run("cleanup", func(t *testing.T) {
-		for _, statement := range statements {
-			class := string(statement.class) + " " + statement.group
-			if represented[class] {
-				continue
+		for i, statement := range statements {
+			mains, points := matrixFailures, cleanupPoints[statement.class]
+			if !represented[i] {
+				mains, points = minimalMain, points[:1]
 			}
-			represented[class] = true
-			t.Logf("%s stands for its class", class)
-			for _, err := range matrixFailures {
-				for _, point := range cleanupPoints[statement.class] {
+			for _, err := range mains {
+				for _, point := range points {
 					for _, err2 := range matrixFailures {
 						cases++
 						t.Run(fmt.Sprintf("%s %s × %v, cleanup %d × %v", statement.class, statement.kind, err, point, err2), func(t *testing.T) {
@@ -518,7 +529,7 @@ func TestStudentBatchCommandFaultMatrix(t *testing.T) {
 			}
 		}
 	})
-	t.Logf("%d statements in %d classes; %d main-error cases, %d cleanup cases", len(statements), len(represented), len(statements)*len(matrixFailures), cases)
+	t.Logf("%d statements in %d classes; %d main-error cases, %d cleanup cases", len(statements), len(members), len(statements)*len(matrixFailures), cases)
 }
 
 func countKind(statements []string, prefix string) int {
