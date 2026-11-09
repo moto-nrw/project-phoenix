@@ -3516,9 +3516,16 @@
     },
     {
       "build": "production",
-      "evidence": "func (r StudentStatusDayRepository) ArchiveEndOfDayStatusFlag(ctx context.Context, flagColumn, sinceColumn string, date absencerecords.Date, fallback time.Time) (int64, error) {\n\tarchive, err := careplan.EndOfDayStatusFlagArchive(flagColumn, sinceColumn, careplan.Date(date), fallback)\n\tif err != nil {\n\t\treturn 0, err\n\t}\n\treturn r.Capability.ArchiveStudentStatusFlags(ctx, archive)\n}",
+      "evidence": "func (r StudentStatusDayRepository) ArchiveEndOfDayStatusFlag(ctx context.Context, flagColumn, sinceColumn string, before time.Time, date absencerecords.Date, at time.Time) (int64, error) {\n\tarchive, err := careplan.EndOfDayStatusFlagArchive(flagColumn, sinceColumn, before, careplan.Date(date), at)\n\tif err != nil {\n\t\treturn 0, err\n\t}\n\treturn r.Capability.ArchiveStudentStatusFlags(ctx, archive)\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/StudentStatusDayRepository.ArchiveEndOfDayStatusFlag",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r StudentStatusDayRepository) CarryStatusFlag(ctx context.Context, flagColumn, sinceColumn string, date absencerecords.Date, at time.Time) (int64, error) {\n\tcarry, err := careplan.StatusFlagCarry(flagColumn, sinceColumn, careplan.Date(date), at)\n\tif err != nil {\n\t\treturn 0, err\n\t}\n\treturn r.Capability.ArchiveStudentStatusFlags(ctx, carry)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/StudentStatusDayRepository.CarryStatusFlag",
       "owner": "roots"
     },
     {

@@ -52,6 +52,20 @@ type StatusDaySummary struct {
 	Status    string
 }
 
+// StatusFlagArchive closes the status days a live sick or excused flag
+// stands for. A flag belongs to the status day of its since timestamp
+// (Berlin calendar day).
+//
+// Without Carry the archive covers the flags reported before Before: each
+// flag's status day keeps a standing row (an existing row keeps its status
+// and source; a day without a row gets an end-of-day row), and the flag is
+// cleared. Date is the status day of a flag without a since timestamp.
+//
+// With Carry the flags reported before Before stay set and stand for Date as
+// well: Date gets an active row with the source of the flag's latest earlier
+// day, or Source when there is none. A day that already has a row keeps it.
+//
+// A zero Before takes every flag.
 type StatusFlagArchive struct {
 	FlagColumn       string
 	SinceColumn      string
@@ -59,6 +73,8 @@ type StatusFlagArchive struct {
 	Date             Date
 	ReportedFallback time.Time
 	Source           string
+	Before           time.Time
+	Carry            bool
 }
 
 // CarePlanDeletionCounts is one owner-local read window of the deletion preview.
