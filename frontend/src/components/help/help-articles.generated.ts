@@ -3602,7 +3602,7 @@ export const inviteGuardiansTopic = function inviteGuardiansTopic(): HelpTopic {
     result:
       "Die Person bekommt eine E-Mail mit einem Link. Bei der Person sehen Sie, ob die Mail angekommen ist. Sobald sie ihr Passwort festlegt, sieht sie ihr Kind im Elternportal.",
     notes: [
-      "Hinter dem Namen steht, wie weit die Person ist: `Kein Konto`, `Einladung offen` oder `Konto aktiv`.",
+      "Hinter dem Namen steht, wie weit die Person ist: `Kein Konto`, `Einladung offen`, `Link gilt nicht mehr` oder `Konto aktiv`.",
       "Bei `Einladung offen` heißt der Knopf `Erneut einladen`. Damit geht die E-Mail noch einmal raus.",
       "Eine Person mit mehreren Kindern laden Sie nur einmal ein. Sie sieht danach alle ihre Kinder.",
     ],
@@ -3614,6 +3614,7 @@ export const inviteGuardiansTopic = function inviteGuardiansTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "`Einladen` bewirkt nichts? Dann fehlt die `E-Mail`. Tragen Sie sie über `Bearbeiten` nach.",
+      "Bei der Person steht `Link gilt nicht mehr`? Zum Beispiel wurde die `E-Mail` nach der Einladung geändert. Wählen Sie `Einladung neu senden`. Der neue Link geht an die Adresse, die jetzt eingetragen ist.",
       "Bei der Person steht `Adresse prüfen` oder `Verzögert`, und `Erneut einladen` fehlt? Der Hinweis dort sagt, was zu tun ist. Mehr dazu unter `Wenn eine E-Mail nicht ankommt`.",
       "Die Person ist schon bei einem anderen Kind eingetragen? Wählen Sie `Vorhandene/n suchen` statt `+ Hinzufügen`. Sonst entstehen zwei Einträge für dieselbe Person.",
       "Fehlt `Elternzugänge` in der Seitenleiste? Der Bereich ist der Leitung vorbehalten.",
@@ -5362,6 +5363,7 @@ export const parentAccountProblemTopic =
       notes: ["Ein Einladungslink lässt sich nur einmal benutzen."],
       differences: [
         "`Diese Einladung ist abgelaufen oder wurde bereits verwendet.` Fragen Sie nach einer neuen.",
+        "`Dieser Link gilt nicht mehr.` Fragen Sie die Schule nach einer neuen Einladung.",
         "`Für diese E-Mail existiert bereits ein Konto.` Melden Sie sich direkt an.",
         "`Das Passwort erfüllt noch nicht alle Sicherheitsanforderungen.` Prüfen Sie die Liste unter dem Feld.",
       ],

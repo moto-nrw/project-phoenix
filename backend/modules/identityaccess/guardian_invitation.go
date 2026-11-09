@@ -3,6 +3,7 @@ package identityaccess
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 )
 
@@ -10,6 +11,11 @@ import (
 // in a state nothing may commit on top of: the acceptance gives up its
 // writes instead of committing half of them.
 var ErrTransactionUnusable = errors.New("transaction state is unusable")
+
+// ErrGuardianInvitationAddressChanged refuses a guardian link whose address
+// is no longer the guardian's (#6294): the profile address changed after the
+// link was mailed. Only a new link to the address on file creates an account.
+var ErrGuardianInvitationAddressChanged = errors.New("the guardian's address changed after the invitation was issued")
 
 // Guardian invitation approval states reported by the owner capability.
 const (
@@ -56,6 +62,15 @@ type GuardianInvitation struct {
 	ProfileCreatedForInvitation bool
 	RoleUpgrade                 bool
 	CreatedAt                   time.Time
+	// Email is the address the current link was issued for, normalized
+	// (#6294).
+	Email string
+}
+
+// AddressedTo reports whether the invitation's link was issued for the
+// address. A link without an address belongs to nobody (#6294).
+func (i GuardianInvitation) AddressedTo(email string) bool {
+	return i.Email != "" && i.Email == strings.ToLower(strings.TrimSpace(email))
 }
 
 // ApprovalAllowsRedemption reports whether the invitation's approval state
@@ -138,7 +153,9 @@ type GuardianInvitationReads interface {
 	// ListGuardianInvitations returns every invitation of the contact.
 	ListGuardianInvitations(ctx context.Context, guardianProfileID int64) ([]GuardianInvitation, error)
 	// ListOpenGuardianInvitations returns the invitations of those contacts
-	// that are redeemable or awaiting a staff decision.
+	// that are redeemable or awaiting a staff decision, and the legacy links
+	// that ended without a recorded recipient (Email ""), which nobody can
+	// redeem: the guardian list shows them as dead links (#6294).
 	ListOpenGuardianInvitations(ctx context.Context, guardianProfileIDs []int64) ([]GuardianInvitation, error)
 	// ListRedeemableGuardianInvitations returns the invitations of the school
 	// in context whose link can still be spent.

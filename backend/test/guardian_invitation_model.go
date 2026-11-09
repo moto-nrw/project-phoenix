@@ -39,6 +39,9 @@ type GuardianInvitation struct {
 	// already a restricted contact and the inviter confirmed the upgrade
 	// (#2172). Direct-mode invites apply the upgrade immediately instead.
 	RoleUpgrade bool `bun:"role_upgrade,notnull,default:false" json:"role_upgrade"`
+	// Email is the normalized address the link was issued for (#6294). The
+	// fixture fills it from the profile when a test leaves it empty.
+	Email string `bun:"email,nullzero" json:"email,omitempty"`
 
 	// Relations (not stored in database)
 }

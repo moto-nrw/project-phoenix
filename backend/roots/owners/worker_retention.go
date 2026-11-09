@@ -108,9 +108,14 @@ func openGuardianInvitations(identity interface {
 		if err != nil {
 			return nil, err
 		}
+		// The list also carries legacy links that ran out without a recorded
+		// recipient (#6294); only a link that has not run out keeps a contact.
+		now := time.Now()
 		invited := make(map[int64]bool, len(invitations))
 		for _, invitation := range invitations {
-			invited[invitation.GuardianProfileID] = true
+			if invitation.ExpiresAt.After(now) {
+				invited[invitation.GuardianProfileID] = true
+			}
 		}
 		return invited, nil
 	}

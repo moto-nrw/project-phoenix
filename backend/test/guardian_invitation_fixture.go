@@ -29,6 +29,12 @@ func InsertTestGuardianInvitation(t *testing.T, db *bun.DB, invitation *Guardian
 	if invitation.ApprovalStatus == "" {
 		invitation.ApprovalStatus = "not_required"
 	}
+	if invitation.Email == "" {
+		// A link names the address it was mailed to (#6294); a fixture
+		// stands for one mailed to the address the profile has.
+		require.NoError(t, db.NewRaw(`SELECT COALESCE(LOWER(BTRIM(email, E' \t\r\n')), '') FROM users.guardian_profiles WHERE id = ?`,
+			invitation.GuardianProfileID).Scan(context.Background(), &invitation.Email), "read the address of guardian profile %d", invitation.GuardianProfileID)
+	}
 	raw := invitation.Token
 	invitation.Token = TokenHash(t, db, raw)
 	_, err := db.NewInsert().
