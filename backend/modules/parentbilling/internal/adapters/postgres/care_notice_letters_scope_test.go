@@ -140,7 +140,7 @@ func TestCareNoticeLetterFiltersKeepTheTraegerBelowRLS(t *testing.T) {
 	require.ErrorIs(t, err, rollback)
 }
 
-// An original and a send never change, for any role (1.15.855).
+// An original and a send never change, for any role (1.15.867).
 func TestCareNoticeLettersNeverChange(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

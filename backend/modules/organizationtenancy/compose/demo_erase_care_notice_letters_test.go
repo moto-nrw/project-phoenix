@@ -40,7 +40,7 @@ func careNoticeLetterCopies(t *testing.T, db *bun.DB, schoolID int64) (letter, m
 }
 
 // The originals of a retired demo school's Jahresbescheide go with the
-// visitor (1.15.855): the original and its send by cascade with the notice,
+// visitor (1.15.867): the original and its send by cascade with the notice,
 // the mail with the family's address and PDF and the inbox push before it. A school of the same Träger that is still open keeps
 // all of them.
 func TestDemoSchoolQueueErasesTheNoticeLettersOfTheRetiredSchool(t *testing.T) {
