@@ -191,19 +191,14 @@ export function termDueDates(
   return uniform;
 }
 
-/**
- * The hint under the direct debit date: how many families the current day
- * debits sooner than the pre-notification allows, and the rule (#4695).
- */
-export function tooEarlyHint(
-  hints: readonly DebitHint[],
+/** The sentence of a debit that comes too early: how many families, which
+ * day, and the rule (#4695). */
+function tooEarlyText(
+  count: number,
+  day: string,
   prenotificationDays: number | null,
-  /** The run's invoice date, when it is set: the hint names the first day. */
   issuedOn?: string | null,
-): string | undefined {
-  const early = hints.filter((hint) => hint.dueTooSoon);
-  if (early.length === 0) return undefined;
-  const day = sharedDueDay(early);
+): string {
   const when = day ? `der ${formatDate(day)}` : "die Abbuchung";
   const span =
     prenotificationDays === null
@@ -217,5 +212,54 @@ export function tooEarlyHint(
       : issuedOn
         ? `Abbuchung frühestens am ${formatDate(earliestDebitDay(issuedOn, prenotificationDays))}, ${span} nach dem Rechnungsdatum.`
         : `Abbuchung frühestens ${span} nach dem Rechnungsdatum.`;
-  return `Für ${familiesLabel(early.length)} ist ${when} zu früh. ${rule}`;
+  return `Für ${familiesLabel(count)} ist ${when} zu früh. ${rule}`;
+}
+
+/**
+ * The hint under the direct debit date: how many families the current day
+ * debits sooner than the pre-notification allows, and the rule (#4695).
+ */
+export function tooEarlyHint(
+  hints: readonly DebitHint[],
+  prenotificationDays: number | null,
+  /** The run's invoice date, when it is set: the hint names the first day. */
+  issuedOn?: string | null,
+): string | undefined {
+  const early = hints.filter((hint) => hint.dueTooSoon);
+  if (early.length === 0) return undefined;
+  return tooEarlyText(
+    early.length,
+    sharedDueDay(early),
+    prenotificationDays,
+    issuedOn,
+  );
+}
+
+/**
+ * The same check for a day that is not saved yet, as the office types it:
+ * the debits that follow the run's day (not a family's own pay day) come too
+ * early when the day lies before the first day the pre-notification allows
+ * (`notice_short` in the backend). Needs the invoice date to know that day.
+ */
+export function draftTooEarlyHint(
+  items: readonly DebitItem[],
+  day: string,
+  prenotificationDays: number | null,
+  issuedOn?: string | null,
+): string | undefined {
+  if (day === "" || prenotificationDays === null || !issuedOn) return undefined;
+  if (day >= earliestDebitDay(issuedOn, prenotificationDays)) return undefined;
+  const count = items.filter((item) => {
+    const payment = item.payment;
+    return (
+      !item.excluded &&
+      item.totalCents > 0 &&
+      payment?.method === "direct_debit" &&
+      !payment.debitGap &&
+      Boolean(payment.mandate) &&
+      payment.dueSource !== "family"
+    );
+  }).length;
+  if (count === 0) return undefined;
+  return tooEarlyText(count, day, prenotificationDays, issuedOn);
 }

@@ -5,7 +5,8 @@
 // Leistung ab dem Rechnungsdatum; eine Familie mit eigenem Zahltag behält
 // ihren Tag. Nach der Freigabe ändern sich die Daten nicht mehr.
 
-import { useRef, useState } from "react";
+import { Fragment, useRef, useState } from "react";
+import { Alert } from "~/components/ui/alert";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
@@ -23,6 +24,7 @@ import { PAYMENT_METHOD_LABELS } from "./billing-payment-format";
 import {
   type DebitItem,
   debitHints,
+  draftTooEarlyHint,
   termDueDates,
   tooEarlyHint,
 } from "./care-debit-hints";
@@ -66,25 +68,25 @@ export function RunDueDatesForm({
   const [draft, setDraft] = useState<Draft>(() => draftOf(dueDates));
   const saved = draftOf(dueDates);
   const termDates = termDueDates(debitItems);
-  const earlyHint = tooEarlyHint(
-    debitHints(debitItems),
-    prenotificationDays,
-    issuedOn,
-  );
-  // Under each field: the day that applies while it is empty, and for the
-  // direct debit the families it reaches too early, as long as the saved day
-  // stands (another day is checked once it is saved).
+  // The direct debits that come too early: while the saved day stands, the
+  // families the preview found; for a new day, checked as it is typed
+  // (needs the invoice date; without one the check follows on saving).
+  const earlyHint =
+    draft.direct_debit === saved.direct_debit
+      ? tooEarlyHint(debitHints(debitItems), prenotificationDays, issuedOn)
+      : draftTooEarlyHint(
+          debitItems,
+          draft.direct_debit,
+          prenotificationDays,
+          issuedOn,
+        );
+  const earlyHintId = `run-due-${kind}-direct_debit-early`;
+  // Under each field: the day that applies while it is empty.
   const hintFor = (method: PaymentMethod): string | undefined => {
     const term = termDates[method];
-    const parts = [
-      draft[method] === "" && term
-        ? `Ohne Datum gilt der ${formatDate(term)}.`
-        : null,
-      method === "direct_debit" && draft[method] === saved[method]
-        ? earlyHint
-        : null,
-    ].filter(Boolean);
-    return parts.length > 0 ? parts.join(" ") : undefined;
+    return draft[method] === "" && term
+      ? `Ohne Datum gilt der ${formatDate(term)}.`
+      : undefined;
   };
   const [saving, setSaving] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
@@ -128,20 +130,28 @@ export function RunDueDatesForm({
           void submit();
         }}
       >
-        {PAYMENT_METHODS.map((method) => (
-          <ISODatePicker
-            key={method}
-            id={`run-due-${kind}-${method}`}
-            name={method}
-            label={`${PAYMENT_METHOD_LABELS[method]} fällig am`}
-            value={draft[method]}
-            hint={hintFor(method)}
-            error={formErrors.fieldError(method) ?? undefined}
-            onChange={(value) =>
-              setDraft((current) => ({ ...current, [method]: value }))
-            }
-          />
-        ))}
+        {PAYMENT_METHODS.map((method) => {
+          const early = method === "direct_debit" ? earlyHint : undefined;
+          return (
+            <Fragment key={method}>
+              <ISODatePicker
+                id={`run-due-${kind}-${method}`}
+                name={method}
+                label={`${PAYMENT_METHOD_LABELS[method]} fällig am`}
+                value={draft[method]}
+                hint={hintFor(method)}
+                ariaDescribedBy={early ? earlyHintId : undefined}
+                error={formErrors.fieldError(method) ?? undefined}
+                onChange={(value) =>
+                  setDraft((current) => ({ ...current, [method]: value }))
+                }
+              />
+              {early ? (
+                <Alert id={earlyHintId} type="warning" message={early} />
+              ) : null}
+            </Fragment>
+          );
+        })}
         <p className="text-sm text-gray-600">
           Familien mit eigenem Zahltag behalten ihren Tag.
         </p>

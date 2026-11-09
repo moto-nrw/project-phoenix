@@ -8,6 +8,7 @@ import {
 } from "./care-run-review";
 import {
   debitOpenPoints,
+  draftTooEarlyHint,
   earliestDebitDay,
   termDueDates,
   tooEarlyHint,
@@ -262,6 +263,58 @@ describe("due date hints (#4695)", () => {
     expect(debitOpenPoints(hints, "2027-01-05")).toEqual([
       "1 Familie: Abbuchung am 04.01.2027 ist zu früh, frühestens am 05.01.2027.",
     ]);
+  });
+});
+
+describe("due date typed in the form (#4695)", () => {
+  const mandate = {
+    reference: "SJR-1",
+    signedOn: "2026-09-01",
+    creditorId: "DE98ZZZ09999999999",
+    ibanMasked: "DE•• 30 00",
+    sequenceType: "RCUR" as const,
+    noticeShort: false,
+  };
+  const items = careDebitItems([
+    invoice({
+      method: "direct_debit",
+      dueOn: "2027-01-10",
+      dueSource: "term",
+      mandate,
+    }),
+    invoice({
+      method: "direct_debit",
+      dueOn: "2027-01-10",
+      dueSource: "run",
+      mandate,
+    }),
+    // Its own pay day stays, and a transfer is no debit.
+    invoice({
+      method: "direct_debit",
+      dueOn: "2027-01-02",
+      dueSource: "family",
+      mandate,
+    }),
+    invoice({ method: "transfer", dueOn: "2027-01-02", dueSource: "term" }),
+  ]);
+
+  // Issued 31.12.2026 with 5 days of pre-notification: the 05.01.2027 is
+  // the first allowed day.
+  it("warns while the typed day comes before the first allowed day", () => {
+    expect(draftTooEarlyHint(items, "2027-01-03", 5, "2026-12-31")).toBe(
+      "Für 2 Familien ist der 03.01.2027 zu früh. Abbuchung frühestens am 05.01.2027, 5 Tage nach dem Rechnungsdatum.",
+    );
+  });
+
+  it("says nothing for an allowed day, an empty field or an unknown invoice date", () => {
+    expect(
+      draftTooEarlyHint(items, "2027-01-05", 5, "2026-12-31"),
+    ).toBeUndefined();
+    expect(draftTooEarlyHint(items, "", 5, "2026-12-31")).toBeUndefined();
+    expect(draftTooEarlyHint(items, "2027-01-03", 5, null)).toBeUndefined();
+    expect(
+      draftTooEarlyHint(items, "2027-01-03", null, "2026-12-31"),
+    ).toBeUndefined();
   });
 });
 
