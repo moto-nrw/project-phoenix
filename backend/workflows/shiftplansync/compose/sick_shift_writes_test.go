@@ -215,6 +215,7 @@ func TestSickReport_EditedShiftTakesSickStateOfItsNewDay(t *testing.T) {
 	require.NoError(t, err)
 
 	assertSickCancelled(t, e.editShift(t, healthy, stampWeekTwo, "16:00", "17:00"), absenceID, "edited onto the sick day")
+	assertSickCancelled(t, e.editShift(t, healthy, stampWeekTwo, "16:00", "17:00"), absenceID, "identical retry keeps the stamp")
 
 	toHealthy := e.editShift(t, e.reloadShift(t, sickBefore.ID), stampWeekThree, "08:00", "10:00")
 	assertPlanned(t, toHealthy, "edited away from the sick day")

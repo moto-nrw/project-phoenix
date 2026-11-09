@@ -54,16 +54,38 @@ func (s *staffShiftService) sickAbsenceOn(ctx context.Context, staffID int64, da
 // applyEditedSickState gives a shift whose edit changes its day the sick
 // state of the new day, like a move. A shift the cascade cancelled leaves
 // that state behind first, so it is planned again on a healthy day. A
-// planner's own cancellation stays. An edit on the same day keeps the row's
-// state.
+// planner's own cancellation stays. An edit on the same day takes ownership
+// of the shift; an edit that changes nothing, such as a retried request,
+// keeps the sick report's stamp.
 func (s *staffShiftService) applyEditedSickState(ctx context.Context, shift, existing *workforce.ShiftRecord) error {
-	if shift.Date == existing.Date || shift.OriginShiftID != nil {
+	if shift.OriginShiftID != nil {
+		return nil
+	}
+	if shift.Date == existing.Date {
+		if existing.SickAbsenceID != nil && editChangesNothing(shift, existing) {
+			shift.SickAbsenceID = existing.SickAbsenceID
+		}
 		return nil
 	}
 	if existing.SickAbsenceID != nil {
 		releaseSickState(shift)
 	}
 	return s.applySickStateOfDay(ctx, shift)
+}
+
+// editChangesNothing reports whether an edit writes the stored values again.
+func editChangesNothing(shift, existing *workforce.ShiftRecord) bool {
+	return !staffShiftMoveChanged(existing, shift) &&
+		shift.Notes == existing.Notes &&
+		shift.Cancelled == existing.Cancelled &&
+		sameOptionalText(shift.ChangeReason, existing.ChangeReason)
+}
+
+func sameOptionalText(a, b *string) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
 }
 
 // releaseSickState undoes applySickReport: the shift is planned again and
