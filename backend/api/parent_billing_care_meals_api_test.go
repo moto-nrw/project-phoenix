@@ -338,7 +338,7 @@ func TestCareMealExcludedChildGetsNoMensaPosition(t *testing.T) {
 
 	run := f.startRun(t, careMonth)
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/exclusions"),
-		map[string]any{"contract_id": mia, "reason": "Rückfrage"})
+		map[string]any{"contract_id": mia, "service": "care", "reason": "Rückfrage"})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	reviewed := f.run(t, run.ID)
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(run.ID, "/release"), careRelease(reviewed))
@@ -688,4 +688,100 @@ func TestCareCostSharesTakeTheMensaByTheirScope(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), released.Invoices[0].Number+";")
 	assert.Contains(t, rec.Body.String(), ";9,60;100 % für die Mensa;9,60;Ausgestellt")
+}
+
+// careExclusionRun is a run as the review of single invoices needs it
+// (#6346): each invoice with its service and exclusion, the sums and the
+// fingerprint.
+type careExclusionRun struct {
+	Invoices []struct {
+		ContractID int64  `json:"contract_id"`
+		Service    string `json:"service"`
+		TotalCents int64  `json:"total_cents"`
+		Exclusion  *struct {
+			Reason string `json:"reason"`
+		} `json:"exclusion"`
+	} `json:"invoices"`
+	PreviewCount  int    `json:"preview_count"`
+	PreviewCents  int64  `json:"preview_cents"`
+	ExcludedCount int    `json:"excluded_count"`
+	ExcludedCents int64  `json:"excluded_cents"`
+	Fingerprint   string `json:"fingerprint"`
+}
+
+// excludedServices names the services of the excluded invoices.
+func (run careExclusionRun) excludedServices() []string {
+	services := []string{}
+	for _, invoice := range run.Invoices {
+		if invoice.Exclusion != nil {
+			services = append(services, invoice.Service)
+		}
+	}
+	return services
+}
+
+func decodeExclusionRun(t *testing.T, rec *httptest.ResponseRecorder) careExclusionRun {
+	t.Helper()
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	return decodeSchoolPortalData[careExclusionRun](t, rec.Body.Bytes())
+}
+
+// Mia's care (77,50 €) and her Mensa on an invoice of its own (9,60 €) are
+// two invoices of one contract. Excluding one of them leaves out that one
+// only (#6346, decision A): in the preview and its sums, after a reload, in
+// the release and in the next run. Before #6346 the exclusion held back the
+// whole contract, so the care invoice left the preview with the Mensa.
+func TestCareMealExclusionLeavesOutOnlyTheChosenInvoice(t *testing.T) {
+	t.Parallel()
+	f := newCareBillingFixture(t, "Träger Mensa Ausschluss je Rechnung")
+	runID, preview := mealPaymentRun(t, f, map[string]any{"payment_method": "transfer", "due_days": 14, "bundle_with": ""})
+	require.Len(t, preview.Invoices, 2, "the care and the Mensa of Mia")
+	mia := preview.Invoices[0].ContractID
+	exclude := func(service, reason string) *httptest.ResponseRecorder {
+		return traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(runID, "/exclusions"),
+			map[string]any{"contract_id": mia, "service": service, "reason": reason})
+	}
+	include := func(service string) *httptest.ResponseRecorder {
+		return traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(runID, "/inclusions"),
+			map[string]any{"contract_id": mia, "service": service})
+	}
+	read := func() careExclusionRun {
+		return decodeExclusionRun(t, traegerJSON(t, f.traeger, f.office.token, http.MethodGet, careRunPath(runID, ""), nil))
+	}
+
+	excluded := decodeExclusionRun(t, exclude("meal", "Essenszahl wird geprüft"))
+	assert.Equal(t, []string{"meal"}, excluded.excludedServices(), "only the Mensa invoice is excluded")
+	assert.Equal(t, 1, excluded.PreviewCount, "the care invoice stays in the release")
+	assert.Equal(t, int64(7750), excluded.PreviewCents)
+	assert.Equal(t, 1, excluded.ExcludedCount)
+	assert.Equal(t, int64(960), excluded.ExcludedCents)
+	assert.Equal(t, excluded, read(), "a reload shows the same scope")
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(runID, "/release"),
+		map[string]any{"document_count": preview.PreviewCount, "total_cents": preview.PreviewCents, "fingerprint": preview.Fingerprint})
+	assert.Equal(t, http.StatusConflict, rec.Code, "a release of the state before the exclusion: %s", rec.Body.String())
+
+	rec = include("care")
+	assert.Equal(t, http.StatusConflict, rec.Code, "the care invoice is not excluded: %s", rec.Body.String())
+	returned := decodeExclusionRun(t, include("meal"))
+	assert.Empty(t, returned.excludedServices())
+	assert.Equal(t, int64(7750+960), returned.PreviewCents)
+	assert.Equal(t, preview.Fingerprint, returned.Fingerprint, "the return restores the reviewed state")
+
+	excluded = decodeExclusionRun(t, exclude("care", "Kündigung wird geprüft"))
+	assert.Equal(t, []string{"care"}, excluded.excludedServices(), "only the care invoice is excluded")
+	assert.Equal(t, 1, excluded.PreviewCount)
+	assert.Equal(t, int64(960), excluded.PreviewCents, "the Mensa invoice stays in the release")
+	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, careRunPath(runID, "/release"),
+		map[string]any{"document_count": excluded.PreviewCount, "total_cents": excluded.PreviewCents, "fingerprint": excluded.Fingerprint})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var issued []string
+	require.NoError(t, f.db.NewRaw(`SELECT service FROM parent_billing.care_invoices WHERE run_id = ? ORDER BY service`, runID).
+		Scan(context.Background(), &issued))
+	assert.Equal(t, []string{"meal"}, issued, "the release issues the Mensa invoice and not the excluded care invoice")
+
+	next := f.startRun(t, careMonth)
+	again := decodeExclusionRun(t, traegerJSON(t, f.traeger, f.office.token, http.MethodGet, careRunPath(next.ID, ""), nil))
+	require.Len(t, again.Invoices, 1, "the next run of the month bills the excluded invoice only")
+	assert.Equal(t, "care", again.Invoices[0].Service)
+	assert.Equal(t, int64(7750), again.Invoices[0].TotalCents)
 }

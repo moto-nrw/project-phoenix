@@ -27,7 +27,8 @@ func seedCareReviewScope(t *testing.T, ctx context.Context, tx bun.IDB, scope ca
 		VALUES (?, ?, ?, DATE '2029-10-01')`, scope.organization, scope.open, scope.school)
 	require.NoError(t, err)
 	_, err = tx.ExecContext(ctx, `INSERT INTO parent_billing.care_run_events (organization_id, run_id, action, details)
-		VALUES (?, ?, 'exclude', jsonb_build_object('contract_ids', jsonb_build_array(?::bigint), 'reason', 'Prüfung'))`,
+		VALUES (?, ?, 'exclude', jsonb_build_object('contract_ids', jsonb_build_array(?::bigint),
+			'services', jsonb_build_array('care'), 'reason', 'Prüfung'))`,
 		scope.organization, scope.open, scope.contract)
 	require.NoError(t, err)
 }
@@ -64,7 +65,7 @@ func TestCareReviewFiltersKeepTheTraegerBelowRLS(t *testing.T) {
 		assert.Empty(t, exclusions, "CareRunExclusions of another Träger's run")
 		exclusions, err = store.CareRunExclusions(ctx, own.organization, own.open)
 		require.NoError(t, err)
-		assert.Equal(t, "Prüfung", exclusions[own.contract].Reason)
+		assert.Equal(t, "Prüfung", exclusions[parentbilling.CareInvoiceKey{ContractID: own.contract, Service: parentbilling.ServiceCare}].Reason)
 
 		date := calendar.NewDate(2029, 10, 30)
 		assert.ErrorIs(t, store.SetCareRunInvoiceDate(ctx, own.organization, other.open, &date), parentbilling.ErrBillingRunReleased,
@@ -112,14 +113,66 @@ func TestCareReviewReplaysExclusionsInWriteOrder(t *testing.T) {
 			_, err := tx.ExecContext(ctx, `INSERT INTO parent_billing.care_run_events
 				(organization_id, run_id, action, occurred_at, details)
 				VALUES (?, ?, ?, ?::timestamptz,
-				jsonb_build_object('contract_ids', jsonb_build_array(?::bigint), 'reason', ?::text))`,
+				jsonb_build_object('contract_ids', jsonb_build_array(?::bigint), 'services', jsonb_build_array('care'), 'reason', ?::text))`,
 				scope.organization, scope.open, event.action, event.timestamp, scope.contract, event.reason)
 			require.NoError(t, err)
 		}
 		exclusions, err := store.CareRunExclusions(ctx, scope.organization, scope.open)
 		require.NoError(t, err)
-		assert.Equal(t, "Erneute Prüfung", exclusions[scope.contract].Reason,
+		assert.Equal(t, "Erneute Prüfung", exclusions[parentbilling.CareInvoiceKey{ContractID: scope.contract, Service: parentbilling.ServiceCare}].Reason,
 			"a successful exclusion after an inclusion stays in force even if its transaction started earlier")
+		return rollback
+	})
+	require.ErrorIs(t, err, rollback)
+}
+
+// An exclusion names one invoice of its contract (#6346): the Mensa invoice
+// of its own stays out while the care invoice is taken back, and an entry of
+// before (migration 1.15.853: both services) covers both invoices until each
+// is returned on its own. An entry without a known service names none.
+func TestCareRunExclusionsAreKeptPerInvoice(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	scope := newCareScope(t, db, "Träger Ausschluss je Rechnung")
+	store := NewStore()
+	rollback := errors.New("roll the review rows back")
+	care := parentbilling.CareInvoiceKey{ContractID: 0, Service: parentbilling.ServiceCare}
+	meal := parentbilling.CareInvoiceKey{ContractID: 0, Service: parentbilling.ServiceMeal}
+	ctx := testpkg.ContextWithTenantRuntime(context.Background(), testpkg.TenantRuntime(t, db))
+	err := testpkg.WithinTraeger(ctx, scope.organization, func(ctx context.Context) error {
+		require.NoError(t, testpkg.WithoutRequestRole(ctx))
+		tx, err := traegerDB(ctx, scope.organization)
+		require.NoError(t, err)
+		scope = seedCareScope(t, ctx, tx, scope, "Träger Ausschluss je Rechnung")
+		care.ContractID, meal.ContractID = scope.contract, scope.contract
+		event := func(action, services, reason string) {
+			t.Helper()
+			_, err := tx.ExecContext(ctx, `INSERT INTO parent_billing.care_run_events (organization_id, run_id, action, details)
+				VALUES (?, ?, ?, jsonb_build_object('contract_ids', jsonb_build_array(?::bigint), 'services', ?::jsonb, 'reason', ?::text))`,
+				scope.organization, scope.open, action, scope.contract, services, reason)
+			require.NoError(t, err)
+		}
+		read := func() map[parentbilling.CareInvoiceKey]parentbilling.CareExclusion {
+			t.Helper()
+			exclusions, err := store.CareRunExclusions(ctx, scope.organization, scope.open)
+			require.NoError(t, err)
+			return exclusions
+		}
+
+		event("exclude", `["meal"]`, "Mensa wird geprüft")
+		exclusions := read()
+		assert.Equal(t, "Mensa wird geprüft", exclusions[meal].Reason)
+		assert.NotContains(t, exclusions, care, "excluding the Mensa invoice keeps the care invoice")
+
+		event("exclude", `["care", "meal"]`, "Bestand")
+		event("include", `["care"]`, "")
+		exclusions = read()
+		assert.NotContains(t, exclusions, care, "the return of the care invoice")
+		assert.Equal(t, "Bestand", exclusions[meal].Reason, "the Mensa invoice stays out after the care returned")
+
+		event("include", `["meal"]`, "")
+		event("exclude", `["holiday"]`, "keine Rechnung des Laufs")
+		assert.Empty(t, read(), "every invoice returned, and an unknown service names none")
 		return rollback
 	})
 	require.ErrorIs(t, err, rollback)
