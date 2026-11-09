@@ -530,7 +530,7 @@ export const absencesTopic = function absencesTopic(): HelpTopic {
       "Die Krankmeldung oder Entschuldigung ist gespeichert. Das Kind erscheint am gewählten Tag mit dem passenden Status.",
     notes: [
       "Die heutige Meldung aufheben ändert geplante Tage in der Zukunft nicht.",
-      "Kommt das Kind trotzdem und wird angemeldet, zählt es als anwesend. Die Meldung steht dann nur als Hinweis neben seinem Ort.",
+      "Kommt das Kind trotzdem und wird angemeldet, zählt es als anwesend. Die Meldung bleibt als Hinweis beim Kind sichtbar.",
     ],
     differences: [
       "Fehlen `Krank melden` und `Entschuldigen`? Fragen Sie Ihre Leitung, ob Ihre Rolle Abwesenheiten bearbeiten darf.",
