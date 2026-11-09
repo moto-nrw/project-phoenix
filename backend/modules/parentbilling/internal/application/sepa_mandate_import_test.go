@@ -51,6 +51,9 @@ func TestReadImportTableRefusesWhatIsNoCSV(t *testing.T) {
 		"one column":    "Mandatsreferenz\nSJR-1\n",
 		"empty":         "  \n",
 		"nul in a cell": "a;b\nc;\x00\n",
+		// Without a header row the first mandate would come back as the
+		// headers, its IBAN unmasked.
+		"no header row": "SJR-1;01.02.2024;DE89 3704 0044 0532 0130 00;Eva\nSJR-2;01.02.2024;DE02120300000000202051;Jan\n",
 	} {
 		_, err := readImportTable([]byte(content), "")
 		require.ErrorIs(t, err, parentbilling.ErrImportFileInvalid, name)

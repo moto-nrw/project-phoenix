@@ -15,6 +15,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/sepa"
 )
 
 // Reading the CSV file of a mandate import (#6198): the encoding (UTF-8,
@@ -58,7 +59,7 @@ func readImportTable(content []byte, delimiter string) (importTable, error) {
 	if err := table.read(reader); err != nil {
 		return importTable{}, err
 	}
-	if len(table.headers) < 2 || len(table.rows) == 0 {
+	if len(table.headers) < 2 || len(table.rows) == 0 || headersHoldAnIBAN(table.headers) {
 		return importTable{}, parentbilling.ErrImportFileInvalid
 	}
 	return table, nil
@@ -86,6 +87,18 @@ func (table *importTable) read(reader *csv.Reader) error {
 			table.rows, table.lines = append(table.rows, trimCells(record)), append(table.lines, line)
 		}
 	}
+}
+
+// headersHoldAnIBAN tells whether the first row is a mandate rather than
+// headers: the answer repeats the headers, and an IBAN may leave moto only
+// masked (ADR 0171).
+func headersHoldAnIBAN(headers []string) bool {
+	for _, header := range headers {
+		if sepa.ValidIBAN(sepa.Compact(header)) {
+			return true
+		}
+	}
+	return false
 }
 
 // decodeImportText answers the file as text: UTF-8 when it is valid UTF-8,

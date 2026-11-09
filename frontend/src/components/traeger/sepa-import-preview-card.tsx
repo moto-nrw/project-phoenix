@@ -50,8 +50,8 @@ function SequenceCell({
   if (row.status === "clarify" || answer !== undefined) {
     return (
       <span className="block w-full">
-        {/* On a phone the question stands above the full-width choice. */}
-        <span className="mb-1.5 block text-sm text-gray-600 sm:hidden">
+        {/* While the table is stacked (below md) the question stands above the full-width choice. */}
+        <span className="mb-1.5 block text-sm text-gray-600 md:hidden">
           Schon abgebucht?
         </span>
         <SegmentedControl
