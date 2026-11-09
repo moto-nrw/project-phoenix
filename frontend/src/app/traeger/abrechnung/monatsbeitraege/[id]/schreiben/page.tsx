@@ -137,7 +137,7 @@ export default function TraegerCareRunLettersPage() {
         error: err instanceof Error ? err.message : String(err),
       });
       await showLettersError(err, {
-        object: "die Schreiben",
+        object: "die Liste der Schreiben",
         retry: () => void loadLetters(),
       });
     }
@@ -163,7 +163,7 @@ export default function TraegerCareRunLettersPage() {
       logger.error("traeger_care_letters_mail_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      void actionErrors.show(err, { object: "die Schreiben" });
+      void actionErrors.show(err, { object: "das Senden der Schreiben" });
     } finally {
       setSendingAll(false);
       void loadLetters();
@@ -198,7 +198,7 @@ export default function TraegerCareRunLettersPage() {
       logger.error("traeger_care_letters_print_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      void actionErrors.show(err, { object: "die Schreiben" });
+      void actionErrors.show(err, { object: "die Druckfassung der Schreiben" });
     } finally {
       setPrinting(null);
     }

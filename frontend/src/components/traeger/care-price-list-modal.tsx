@@ -227,7 +227,7 @@ export function CarePriceListModal({
       logger.error("care_price_list_save_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      void formErrors.show(err, { object: "die Preise" });
+      void formErrors.show(err, { object: "die Preisliste" });
     } finally {
       setSaving(false);
     }

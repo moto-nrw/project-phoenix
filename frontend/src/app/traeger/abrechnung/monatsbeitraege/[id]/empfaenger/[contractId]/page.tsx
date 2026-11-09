@@ -73,7 +73,7 @@ export default function TraegerFamilyBillingPage() {
         error: err instanceof Error ? err.message : String(err),
       });
       await showLoadError(err, {
-        object: "Empfänger und Zahlung",
+        object: "die Angabe zu Empfänger und Zahlung",
         retry: () => void load(),
       });
     }

@@ -85,7 +85,7 @@ export function HolidayPeriodPublishCard({
         error: err instanceof Error ? err.message : String(err),
       });
       setConfirming(false);
-      void errorDisplay.show(err, { object: "den Ferienzeitraum" });
+      void errorDisplay.show(err, { object: "die Veröffentlichung" });
     } finally {
       setPublishing(false);
     }

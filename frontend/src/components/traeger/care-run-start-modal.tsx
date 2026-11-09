@@ -82,7 +82,7 @@ export function CareRunStartModal({
           error: err instanceof Error ? err.message : String(err),
         });
         setSchools([]);
-        void showFormError(err, { object: "die Schulen" });
+        void showFormError(err, { object: "die Liste der Schulen" });
       }
     },
     [showFormError],

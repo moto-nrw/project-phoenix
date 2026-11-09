@@ -80,7 +80,7 @@ export function useSepaMandates(enabled: boolean, contractId?: string) {
         error: err instanceof Error ? err.message : String(err),
       });
       await showLoadError(err, {
-        object: "die Mandate",
+        object: "die Liste der Mandate",
         retry: () => void load(),
       });
     }
@@ -184,7 +184,7 @@ function HistoryModal({
         });
         if (!current) return;
         setEvents([]);
-        void show(err, { object: "den Verlauf" });
+        void show(err, { object: "die Liste der Änderungen" });
       });
     // The people of the Träger-Büro name the accounts; a role that may not
     // read them sees the account number instead.

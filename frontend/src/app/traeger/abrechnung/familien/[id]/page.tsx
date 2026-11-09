@@ -150,7 +150,7 @@ const COLUMNS: DataTableColumn<BillingFamilyDocument>[] = [
   },
   {
     key: "open",
-    header: "Offen",
+    header: "Berechnet",
     align: "right",
     sortValue: (document) => document.openCents,
     render: (document) =>
@@ -212,7 +212,7 @@ export default function TraegerBillingFamilyPage() {
                 value: family.invoiceCount,
                 label: family.invoiceCount === 1 ? "Rechnung" : "Rechnungen",
               },
-              { value: family.openInvoiceCount, label: "offen" },
+              { value: family.openInvoiceCount, label: "ausgestellt" },
               {
                 value: family.documentCount - family.invoiceCount,
                 label:

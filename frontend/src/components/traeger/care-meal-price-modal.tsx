@@ -105,7 +105,7 @@ export function CareMealPriceModal({
       logger.error("care_meal_price_save_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      void formErrors.show(err, { object: "den Mensa-Preis" });
+      void formErrors.show(err, { object: "die Preisangabe für die Mensa" });
     } finally {
       setSaving(false);
     }

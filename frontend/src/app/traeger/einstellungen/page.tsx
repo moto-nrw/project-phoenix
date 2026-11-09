@@ -121,7 +121,10 @@ function TraegerSettingsContent() {
   const activeTab = contactActive
     ? null
     : (tabs.find((tab) => tab.key === selectedTab) ?? tabs[0] ?? null);
-  const contact = useTraegerMasterData("die Kontaktdaten", contactActive);
+  const contact = useTraegerMasterData(
+    "die Angabe der Kontaktdaten",
+    contactActive,
+  );
   // Ein fehlgeschlagenes Nachladen lässt die Kontaktkarte stehen, außer bei einer Ablehnung.
   const contactError = contactActive
     ? metadataLoadError(contact.error, contact.loaded, contact.failure)

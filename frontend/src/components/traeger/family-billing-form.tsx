@@ -228,7 +228,9 @@ export function FamilyBillingForm({
       logger.error("family_billing_save_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      void formErrors.show(err, { object: "Empfänger und Zahlung" });
+      void formErrors.show(err, {
+        object: "die Angabe zu Empfänger und Zahlung",
+      });
     } finally {
       setSaving(false);
     }

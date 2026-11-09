@@ -166,7 +166,7 @@ export function HolidayPeriodForm({
       logger.error("holiday_period_save_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      void errorPath.show(err, { object: "den Ferienzeitraum" });
+      void errorPath.show(err, { object: "die Planung des Ferienzeitraums" });
     } finally {
       setSaving(false);
     }

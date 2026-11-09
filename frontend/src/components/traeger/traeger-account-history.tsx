@@ -136,7 +136,7 @@ export function TraegerAccountHistory({
         error: err instanceof Error ? err.message : String(err),
       });
       await showLoadError(err, {
-        object: "den Verlauf",
+        object: "die Liste der Änderungen",
         retry: () => void load(),
       });
     } finally {

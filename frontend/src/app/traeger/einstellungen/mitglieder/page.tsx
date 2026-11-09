@@ -76,7 +76,7 @@ export default function TraegerAccountsPage() {
         error: err instanceof Error ? err.message : String(err),
       });
       await showLoadError(err, {
-        object: "die Personen des Träger-Büros",
+        object: "die Liste der Personen",
         retry: () => void load(),
       });
     } finally {

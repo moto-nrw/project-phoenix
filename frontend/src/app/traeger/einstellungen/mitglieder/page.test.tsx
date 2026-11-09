@@ -364,7 +364,7 @@ describe("TraegerAccountsPage", () => {
     // Anker: die Seite zeigt den Ladefehler statt der Personen.
     expect(
       await screen.findByText(
-        catalogText("traeger.no_membership", "die Personen des Träger-Büros"),
+        catalogText("traeger.no_membership", "die Liste der Personen"),
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText("Verlauf")).not.toBeInTheDocument();

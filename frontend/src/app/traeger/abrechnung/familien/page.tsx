@@ -14,11 +14,12 @@ import {
   sumAmounts,
 } from "~/components/traeger/billing-amount-cards";
 import {
-  PAYMENT_TONES,
+  billingAreaTitle,
   billingTabs,
   familyMatches,
   familyName,
   familySortName,
+  PAYMENT_TONES,
   paymentLabel,
 } from "~/components/traeger/billing-family-format";
 import { paymentMethodsText } from "~/components/traeger/billing-payment-format";
@@ -30,6 +31,7 @@ import type {
   ActiveFilter,
   FilterConfig,
 } from "~/components/ui/page-header/types";
+import { SectionLabel } from "~/components/ui/section-label";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import { Button } from "~/components/ui/button";
@@ -47,40 +49,71 @@ const logger = createLogger({ component: "TraegerBillingFamiliesPage" });
 type OpenFilter = "" | "offen" | "ausgeglichen";
 
 const OPEN_FILTER_LABELS: Record<Exclude<OpenFilter, "">, string> = {
-  offen: "Mit offenem Betrag",
-  ausgeglichen: "Ohne offenen Betrag",
+  offen: "Mit berechnetem Betrag",
+  ausgeglichen: "Nichts berechnet",
 };
 
-function euroCell(cents: number) {
-  return cents === 0 ? (
-    <span className="text-gray-500 tabular-nums">{formatEuro(0)}</span>
-  ) : (
-    <span className="tabular-nums">{formatEuro(cents)}</span>
-  );
+/**
+ * The parts behind the charged sum, only when storno or credit changed it:
+ * „120,00 € ausgestellt · 5,00 € gutgeschrieben“.
+ */
+function amountBreakdown(family: BillingFamily): string | null {
+  if (family.cancelledCents === 0 && family.creditedCents === 0) return null;
+  return [
+    `${formatEuro(family.issuedCents)} ausgestellt`,
+    family.cancelledCents > 0
+      ? `${formatEuro(family.cancelledCents)} storniert`
+      : null,
+    family.creditedCents > 0
+      ? `${formatEuro(family.creditedCents)} gutgeschrieben`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }
 
+// Four columns, so the charged sum stands next to the family on a laptop and
+// a tablet without scrolling sideways. Who pays shows only where it is not
+// the family itself; the parts of the sum stand under it when they differ.
 const COLUMNS: DataTableColumn<BillingFamily>[] = [
   {
     key: "family",
     header: "Familie",
     sortValue: familySortName,
-    render: (family) => (
-      <span className="flex min-w-0 items-center gap-3">
-        <MotoConceptIcon
-          concept={parentsConcept}
-          size={18}
-          className="hidden shrink-0 sm:block"
-        />
-        <span className="min-w-0">
-          <span className="block font-medium text-gray-900">
-            {familyName(family)}
-          </span>
-          <span className="block truncate text-sm text-gray-500">
-            {family.recipientEmail}
+    render: (family) => {
+      const otherPayers = family.payments.filter(
+        (payment) => payment.kind !== "family",
+      );
+      return (
+        <span className="flex min-w-0 items-start gap-3">
+          <MotoConceptIcon
+            concept={parentsConcept}
+            size={18}
+            className="mt-0.5 hidden shrink-0 sm:block"
+          />
+          <span className="min-w-0">
+            <span className="block font-medium text-gray-900">
+              {familyName(family)}
+            </span>
+            <span className="block truncate text-sm text-gray-500">
+              {family.recipientEmail}
+            </span>
+            {otherPayers.length > 0 ? (
+              <span className="mt-1 flex max-w-64 min-w-0 flex-wrap gap-1.5">
+                {otherPayers.map((payment) => (
+                  <StatusBadge
+                    key={`${payment.kind}-${payment.costBearerName}`}
+                    label={paymentLabel(payment)}
+                    tone={PAYMENT_TONES[payment.kind]}
+                    truncate
+                  />
+                ))}
+              </span>
+            ) : null}
           </span>
         </span>
-      </span>
-    ),
+      );
+    },
     stacked: "title",
   },
   {
@@ -89,27 +122,8 @@ const COLUMNS: DataTableColumn<BillingFamily>[] = [
     sortValue: (family) => family.debtorNumbers[0] ?? null,
     render: (family) =>
       family.debtorNumbers.length > 0 ? (
-        <span className="font-mono text-sm">
+        <span className="font-mono text-sm whitespace-nowrap">
           {family.debtorNumbers.join(", ")}
-        </span>
-      ) : (
-        "–"
-      ),
-  },
-  {
-    key: "payment",
-    header: "Wer zahlt",
-    render: (family) =>
-      family.payments.length > 0 ? (
-        <span className="flex max-w-52 min-w-0 flex-wrap gap-1.5">
-          {family.payments.map((payment) => (
-            <StatusBadge
-              key={`${payment.kind}-${payment.costBearerName}`}
-              label={paymentLabel(payment)}
-              tone={PAYMENT_TONES[payment.kind]}
-              truncate
-            />
-          ))}
         </span>
       ) : (
         "–"
@@ -121,42 +135,27 @@ const COLUMNS: DataTableColumn<BillingFamily>[] = [
     render: (family) => paymentMethodsText(family.paymentMethods) ?? "–",
   },
   {
-    key: "issued",
-    header: "Ausgestellt",
-    align: "right",
-    sortValue: (family) => family.issuedCents,
-    render: (family) => euroCell(family.issuedCents),
-    stacked: "hidden",
-  },
-  {
-    key: "cancelled",
-    header: "Storniert",
-    align: "right",
-    sortValue: (family) => family.cancelledCents,
-    render: (family) => euroCell(family.cancelledCents),
-    stacked: "hidden",
-  },
-  {
-    key: "credited",
-    header: "Gutgeschrieben",
-    align: "right",
-    sortValue: (family) => family.creditedCents,
-    render: (family) => euroCell(family.creditedCents),
-    stacked: "hidden",
-  },
-  {
     key: "open",
-    header: "Offen",
+    header: "Berechnet",
     align: "right",
     sortValue: (family) => family.openCents,
-    render: (family) =>
-      family.openCents > 0 ? (
-        <span className="font-semibold text-gray-900 tabular-nums">
-          {formatEuro(family.openCents)}
+    render: (family) => {
+      const breakdown = amountBreakdown(family);
+      return (
+        <span className="block">
+          <span
+            className={`block tabular-nums ${family.openCents > 0 ? "font-semibold text-gray-900" : "text-gray-500"}`}
+          >
+            {formatEuro(family.openCents)}
+          </span>
+          {breakdown ? (
+            <span className="block text-xs text-gray-500 tabular-nums">
+              {breakdown}
+            </span>
+          ) : null}
         </span>
-      ) : (
-        <span className="text-gray-500 tabular-nums">{formatEuro(0)}</span>
-      ),
+      );
+    },
     stacked: "meta",
   },
 ];
@@ -184,7 +183,7 @@ export default function TraegerBillingFamiliesPage() {
         error: err instanceof Error ? err.message : String(err),
       });
       await showLoadError(err, {
-        object: "die Familien",
+        object: "die Liste der Familien",
         retry: () => void load(),
       });
     }
@@ -205,7 +204,7 @@ export default function TraegerBillingFamiliesPage() {
   const filters: FilterConfig[] = [
     {
       id: "open",
-      label: "Offener Betrag",
+      label: "Berechneter Betrag",
       type: "dropdown",
       value: openFilter,
       onChange: (value) => setOpenFilter(value as OpenFilter),
@@ -232,8 +231,8 @@ export default function TraegerBillingFamiliesPage() {
 
   return (
     <TenantPage
-      title="Abrechnung"
-      info="Hier sehen Sie je Familie alle Rechnungen, Stornos und Gutschriften. Eine Familie sind alle Schreiben an dieselbe E-Mail-Adresse. Offen ist, was die Rechnungen nach Storno und Gutschrift noch verlangen. Ob eine Familie schon gezahlt hat, prüft moto nicht."
+      title={billingAreaTitle("familien")}
+      info="Hier sehen Sie je Familie alle Rechnungen, Stornos und Gutschriften. Eine Familie sind alle Schreiben an dieselbe E-Mail-Adresse. Berechnet ist, was die Rechnungen nach Storno und Gutschrift verlangen. Ob eine Familie schon gezahlt hat, sieht moto nicht."
       tabs={billingTabs("familien")}
       stats={
         families && families.length > 0 ? (
@@ -243,7 +242,7 @@ export default function TraegerBillingFamiliesPage() {
                 value: families.length,
                 label: families.length === 1 ? "Familie" : "Familien",
               },
-              { value: withOpen ?? 0, label: "mit offenem Betrag" },
+              { value: withOpen ?? 0, label: "mit berechnetem Betrag" },
             ]}
           />
         ) : null
@@ -262,7 +261,17 @@ export default function TraegerBillingFamiliesPage() {
     >
       {families ? (
         <>
-          <BillingAmountCards amounts={sumAmounts(shown)} />
+          {/* Die Summen folgen Suche und Filter; die Zeile sagt, für wen. */}
+          {filtered && shown.length === 0 ? null : (
+            <div className="space-y-2">
+              <SectionLabel as="p">
+                {filtered
+                  ? `Summen der ${shown.length} gefundenen ${shown.length === 1 ? "Familie" : "Familien"}`
+                  : "Summen aller Familien"}
+              </SectionLabel>
+              <BillingAmountCards amounts={sumAmounts(shown)} />
+            </div>
+          )}
           <DataTable
             columns={COLUMNS}
             rows={shown}

@@ -525,7 +525,10 @@ describe("TraegerAbrechnungsvorgabenPage", () => {
 
     expect(
       await screen.findByText(
-        catalogText("general.unavailable", "die Abrechnungsvorgaben"),
+        catalogText(
+          "general.unavailable",
+          "die Übersicht der Abrechnungsvorgaben",
+        ),
       ),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
@@ -558,7 +561,7 @@ describe("TraegerAbrechnungsvorgabenPage", () => {
 
     expect(
       await screen.findByText(
-        catalogText("general.unavailable", "die Bankverbindungen"),
+        catalogText("general.unavailable", "die Liste der Bankverbindungen"),
       ),
     ).toBeInTheDocument();
     expect(screen.getAllByText("Elternbeiträge")[0]).toBeInTheDocument();

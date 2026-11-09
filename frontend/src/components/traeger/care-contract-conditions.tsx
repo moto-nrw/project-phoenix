@@ -203,7 +203,9 @@ function ConditionsForm({
       logger.error("care_contract_conditions_save_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      void formErrors.show(err, { object: "die Vertragsbedingungen" });
+      void formErrors.show(err, {
+        object: "die Änderung der Vertragsbedingungen",
+      });
     } finally {
       setSaving(false);
     }

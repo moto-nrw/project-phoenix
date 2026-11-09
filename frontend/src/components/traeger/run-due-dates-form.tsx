@@ -67,7 +67,7 @@ export function RunDueDatesForm({
       logger.error("run_due_dates_save_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      void formErrors.show(err, { object: "die Fälligkeiten" });
+      void formErrors.show(err, { object: "die Änderung der Fälligkeiten" });
     } finally {
       setSaving(false);
     }

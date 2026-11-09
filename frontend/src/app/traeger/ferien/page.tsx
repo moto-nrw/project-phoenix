@@ -36,14 +36,17 @@ const COLUMNS: DataTableColumn<HolidayPeriod>[] = [
     render: (period) =>
       formatDateRange(period.registrationOpensOn, period.registrationClosesOn),
     sortValue: (period) => period.registrationOpensOn,
-    stacked: "meta",
+    stacked: "hidden",
   },
   {
+    // On a phone the line under the name: the care weeks, then the
+    // registration window with its own label (only the status is meta).
     key: "weeks",
     header: "Wochen",
     render: (period) => formatWeeks(period),
+    stackedRender: (period) =>
+      `${formatWeeks(period)} · Anmeldung ${formatDateRange(period.registrationOpensOn, period.registrationClosesOn)}`,
     sortValue: (period) => period.weeks[0]?.startsOn ?? null,
-    stacked: "meta",
   },
   {
     key: "status",
@@ -103,6 +106,7 @@ export default function TraegerHolidayPeriodsPage() {
         loadingRowCount={3}
         stackedOnMobile
         stackedLayout="row"
+        stackedDetailKey="weeks"
         onRowClick={(period) =>
           router.push(traegerPath(`/traeger/ferien/${period.id}`))
         }

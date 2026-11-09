@@ -169,7 +169,7 @@ export function RecordNoticeModal({
       logger.error("traeger_care_contract_notice_record_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      void formErrors.show(err, { object: "die Erklärung" });
+      void formErrors.show(err, { object: "die Kündigung" });
     } finally {
       savingRef.current = false;
       setSaving(false);

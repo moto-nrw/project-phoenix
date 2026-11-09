@@ -54,7 +54,7 @@ function useDocumentKinds(enabled: boolean) {
         error: err instanceof Error ? err.message : String(err),
       });
       await showLoadError(err, {
-        object: "die Dokumentarten",
+        object: "die Liste der Dokumentarten",
         retry: () => void load(),
       });
     }

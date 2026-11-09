@@ -155,7 +155,7 @@ export default function TraegerCareRunPage() {
         error: err instanceof Error ? err.message : String(err),
       });
       await showLettersError(err, {
-        object: "die Schreiben",
+        object: "die Liste der Schreiben",
         retry: () => void loadLetters(),
       });
     }

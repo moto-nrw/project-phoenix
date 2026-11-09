@@ -96,7 +96,7 @@ function useBillingDefaults(enabled: boolean) {
         error: err instanceof Error ? err.message : String(err),
       });
       await showLoadError(err, {
-        object: "die Abrechnungsvorgaben",
+        object: "die Übersicht der Abrechnungsvorgaben",
         retry: () => void load(),
       });
     }
@@ -123,7 +123,7 @@ export default function TraegerAbrechnungsvorgabenPage() {
   const { data: session } = useSession();
   const canBill = hasPermission(session ?? null, BILLING_RIGHT);
   const canEditBank = hasPermission(session ?? null, SETTINGS_RIGHT);
-  const master = useTraegerMasterData("die Bankverbindungen");
+  const master = useTraegerMasterData("die Liste der Bankverbindungen");
   const billing = useBillingDefaults(canBill);
   const error = metadataLoadError(
     master.error ?? (canBill ? billing.error : null) ?? null,

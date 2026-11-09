@@ -92,6 +92,22 @@ function contractHref(contract: CareContractSummary): string {
   return traegerPath(`/traeger/vertraege/${contract.id}`);
 }
 
+/** The date beside a contract's status, in words: „gekündigt zum 31.12.2026“. */
+function statusDateNote(contract: CareContractSummary): string | null {
+  if (contract.status === "gekuendigt") {
+    return contract.endsOn
+      ? `gekündigt zum ${formatDate(contract.endsOn)}`
+      : "gekündigt, Ende offen";
+  }
+  if (contract.status === "widerrufen") return null;
+  if (contract.concluded) {
+    return `gilt seit ${formatBerlinDate(contract.concluded.at)}`;
+  }
+  if (contract.sentAt)
+    return `versendet am ${formatBerlinDate(contract.sentAt)}`;
+  return null;
+}
+
 const COLUMNS: DataTableColumn<CareContractSummary>[] = [
   {
     key: "child",
@@ -121,11 +137,17 @@ const COLUMNS: DataTableColumn<CareContractSummary>[] = [
     stacked: "title",
   },
   {
+    // On a phone the line under the child: the school and, where it
+    // matters, the date beside the status (only the badge is meta there).
     key: "school",
     header: "Betreuungsort",
     render: (contract) => contract.schoolName,
     sortValue: (contract) => contract.schoolName,
-    stacked: "hidden",
+    stackedLabel: false,
+    stackedRender: (contract) =>
+      [contract.schoolName, statusDateNote(contract)]
+        .filter(Boolean)
+        .join(" · "),
   },
   {
     key: "party",
@@ -273,7 +295,7 @@ export default function TraegerVertraegePage() {
           error: err instanceof Error ? err.message : String(err),
         });
         await showLoadError(err, {
-          object: "die Verträge",
+          object: "die Liste der Verträge",
           retry: () => void load(offset),
         });
       } finally {
@@ -335,7 +357,7 @@ export default function TraegerVertraegePage() {
       logger.error("traeger_care_contracts_send_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      void actionError.show(err, { object: "die Verträge" });
+      void actionError.show(err, { object: "das Senden der Entwürfe" });
       setSelected(new Set());
       await load();
     } finally {
@@ -543,6 +565,7 @@ export default function TraegerVertraegePage() {
           getRowKey={(contract) => contract.id}
           stackedOnMobile
           stackedLayout="row"
+          stackedDetailKey="school"
           onRowClick={(contract) => router.push(contractHref(contract))}
           selection={{
             selectedKeys: selected,

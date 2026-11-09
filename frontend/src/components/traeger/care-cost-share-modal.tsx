@@ -241,7 +241,7 @@ export function CareCostShareModal({
       logger.error("care_cost_share_save_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      void formErrors.show(err, { object: "den Kostenträger-Anteil" });
+      void formErrors.show(err, { object: "die Kostenübernahme" });
     } finally {
       setSaving(false);
     }

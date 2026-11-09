@@ -34,7 +34,7 @@ export function useTraegerSchoolsAlerts() {
   const alerts = useConfirmedResource(
     response,
     guard,
-    "die Zahlen der Schulen",
+    "die Übersicht der Schulzahlen",
   );
   const confirmed = alerts.data !== null;
   return {

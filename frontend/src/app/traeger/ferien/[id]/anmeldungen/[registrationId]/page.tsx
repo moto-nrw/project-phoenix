@@ -283,7 +283,7 @@ export default function TraegerHolidayRegistrationPage() {
         error: err instanceof Error ? err.message : String(err),
       });
       setConfirmingSplit(false);
-      void splitErrors.show(err, { object: "die Geschwister" });
+      void splitErrors.show(err, { object: "die Geschwistergruppe" });
     } finally {
       setSplitting(false);
     }

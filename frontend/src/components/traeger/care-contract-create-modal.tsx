@@ -166,7 +166,7 @@ export function CareContractCreateModal({
       logger.error("care_contract_create_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      void formErrors.show(err, { object: "die Verträge" });
+      void formErrors.show(err, { object: "das Erstellen der Entwürfe" });
     } finally {
       setSaving(false);
     }

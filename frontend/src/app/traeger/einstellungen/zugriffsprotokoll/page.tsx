@@ -249,7 +249,9 @@ export default function TraegerAccessLogPage() {
       logger.error("traeger_access_log_load_more_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      await showActionError(err, { object: "die weiteren Einträge" });
+      await showActionError(err, {
+        object: "die nächste Seite des Protokolls",
+      });
     } finally {
       if (generation === listGeneration.current) setLoadingMore(false);
     }

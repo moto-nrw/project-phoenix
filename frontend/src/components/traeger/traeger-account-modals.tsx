@@ -199,7 +199,7 @@ export function ChangeTraegerRolesModal({
       logger.error("traeger_roles_change_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      void formErrors.show(err, { object: "die Rollen" });
+      void formErrors.show(err, { object: "die Rollenvergabe" });
     } finally {
       setSaving(false);
     }

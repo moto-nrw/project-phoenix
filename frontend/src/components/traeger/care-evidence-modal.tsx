@@ -134,7 +134,7 @@ export function CareEvidenceModal({
       logger.error("care_evidence_save_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      void formErrors.show(err, { object: "den Nachweis" });
+      void formErrors.show(err, { object: "die Angabe zum Nachweis" });
     } finally {
       setSaving(false);
     }

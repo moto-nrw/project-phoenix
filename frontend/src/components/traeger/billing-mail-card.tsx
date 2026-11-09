@@ -132,7 +132,7 @@ export function BillingMailCard({ runId }: Readonly<{ runId: string }>) {
       logger.error("traeger_letters_print_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      void actionErrors.show(err, { object: "die Schreiben" });
+      void actionErrors.show(err, { object: "das Senden der Schreiben" });
     } finally {
       setPrinting(false);
     }

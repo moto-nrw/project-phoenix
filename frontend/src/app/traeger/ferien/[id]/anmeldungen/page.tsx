@@ -400,7 +400,7 @@ export default function TraegerHolidayRegistrationsPage() {
         error: err instanceof Error ? err.message : String(err),
       });
       await showLoadError(err, {
-        object: "die Ferienanmeldungen",
+        object: "die Liste der Anmeldungen",
         retry: () => void load(),
       });
     } finally {
@@ -445,7 +445,7 @@ export default function TraegerHolidayRegistrationsPage() {
       logger.error("traeger_holiday_siblings_merge_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      await showActionError(err, { object: "die Geschwister" });
+      await showActionError(err, { object: "die Geschwistergruppe" });
     } finally {
       setMerging(false);
     }
