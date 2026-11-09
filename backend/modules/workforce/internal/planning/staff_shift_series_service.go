@@ -110,6 +110,9 @@ type staffShiftSeriesService struct {
 	// nonWorkingDays is the School Calendar read behind the holiday, Ferien
 	// and closing-day skips (#3820). Nil skips none.
 	nonWorkingDays SeriesNonWorkingDayReader
+	// sickReports cancels the occurrences on a staff member's full sick days
+	// (#6302). Nil plans every occurrence.
+	sickReports SeriesSickReportReader
 }
 
 // NewStaffShiftSeriesService creates a new staff shift series service.
@@ -291,7 +294,9 @@ type seriesMaterialization struct {
 // Dates with an exception are skipped; so are statutory holidays, and Ferien
 // and closing days unless the series includes them (#3820). Dates where the
 // generated shift would overlap ANY existing shift of the staff member
-// (standalone, detached, or other series) are skipped and reported.
+// (standalone, detached, or other series) are skipped and reported. An
+// occurrence on a full sick day of the staff member is created in the sick
+// cascade's state (#6302).
 func (s *staffShiftSeriesService) materializeSeries(ctx context.Context, series *StaffShiftSeries, period *SeriesPeriod) (seriesMaterialization, error) {
 	var result seriesMaterialization
 	from, to := seriesWindow(series, period, s.todayDate())
@@ -318,6 +323,10 @@ func (s *staffShiftSeriesService) materializeSeries(ctx context.Context, series 
 	if err != nil {
 		return result, err
 	}
+	sickDays, err := s.sickDaysOf(ctx, series.StaffID, from, to)
+	if err != nil {
+		return result, err
+	}
 
 	var candidates []*workforce.ShiftRecord
 	for d := from; !d.After(to); d = d.AddDays(1) {
@@ -332,6 +341,9 @@ func (s *staffShiftSeriesService) materializeSeries(ctx context.Context, series 
 		if overlapsActiveShift(candidate, existingByDate[d]) {
 			result.skipped = append(result.skipped, d)
 			continue
+		}
+		if absenceID, sick := sickDays[d]; sick {
+			applySickReport(candidate, absenceID)
 		}
 		candidates = append(candidates, candidate)
 	}
