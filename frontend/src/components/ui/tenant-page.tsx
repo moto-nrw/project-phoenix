@@ -812,13 +812,22 @@ function TenantPageTabs({
   // ganz hinausgescrollter Reiter wäre unsichtbar, ohne dass etwas auf ihn
   // zeigt.
   const [canScrollRight, setCanScrollRight] = useState(false);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
 
   const updateScrollHint = useCallback(() => {
     const tablist = tablistRef.current;
     if (!tablist) return;
+    // The band's inner padding scrolls with it: a rest no wider than the
+    // padding hides no tab. Without this, the centred last tab sat under the
+    // fade although nothing followed it.
+    const style = getComputedStyle(tablist);
+    const padStart = Number.parseFloat(style.paddingLeft) || 0;
+    const padEnd = Number.parseFloat(style.paddingRight) || 0;
     setCanScrollRight(
-      tablist.scrollWidth - tablist.clientWidth - tablist.scrollLeft > 1,
+      tablist.scrollWidth - tablist.clientWidth - tablist.scrollLeft >
+        padEnd + 1,
     );
+    setCanScrollLeft(tablist.scrollLeft > padStart + 1);
   }, []);
 
   const measure = useCallback(() => {
@@ -1133,6 +1142,14 @@ function TenantPageTabs({
           <div
             aria-hidden
             className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-white to-transparent sm:hidden"
+          />
+        )}
+        {/* Reiter, die links hinausgescrollt sind, kündigt derselbe Verlauf
+            an der linken Kante an. */}
+        {canScrollLeft && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-white to-transparent sm:hidden"
           />
         )}
 
