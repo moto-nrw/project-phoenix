@@ -578,6 +578,9 @@ export default function TraegerZeitvergleichPage() {
           getRowKey={(child) => `${child.schoolId}-${child.studentId}`}
           defaultSortKey="extra"
           defaultSortDirection="desc"
+          // The longest overruns first, 25 at a time: the list grows with
+          // the Träger, „Mehr anzeigen“ brings the next ones.
+          pageSize={25}
           isLoading={!evaluation && !pageLoad.error}
           loadingRowCount={3}
           stackedOnMobile
