@@ -128,7 +128,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Blacksmith Docker builder
-        uses: useblacksmith/setup-docker-builder@19215110ab936351210feebdfa5b440b4493e184 # v2.2.0
+        uses: useblacksmith/setup-docker-builder@06dd9c83a5d541274d2e3ac67625560979275267 # v2.3.0
         with:
           # Required since v2. Scopes the sticky-disk layer cache to this
           # Dockerfile; must differ from the frontend job to avoid cache thrash.
@@ -197,7 +197,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Blacksmith Docker builder
-        uses: useblacksmith/setup-docker-builder@19215110ab936351210feebdfa5b440b4493e184 # v2.2.0
+        uses: useblacksmith/setup-docker-builder@06dd9c83a5d541274d2e3ac67625560979275267 # v2.3.0
         with:
           # Required since v2. Scopes the sticky-disk layer cache to this
           # Dockerfile; must differ from the backend job to avoid cache thrash.
