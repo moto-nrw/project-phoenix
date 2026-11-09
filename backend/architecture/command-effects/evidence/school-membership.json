@@ -633,6 +633,22 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/application.Service.CreateClassListEntries",
+      "binding_digest": "e39094888a32388601f94373dd3733c6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.ClassListEntryBatches.CreateClassListEntries",
+      "source_owner": "school-membership",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/application.Service.MatchClassListEntries",
+      "binding_digest": "e39094888a32388601f94373dd3733c6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.ClassListEntryBatches.MatchClassListEntries",
+      "source_owner": "school-membership",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.classListEntryStudents.IsEnrolledStudent",
       "binding_digest": "de5098724a3a90efe4b7144d58726cdc",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.ClassListEntryStudents.IsEnrolledStudent",
@@ -1569,6 +1585,14 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/postgres.Store.CreateClassListEntries",
+      "binding_digest": "e39094888a32388601f94373dd3733c6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/ports.Store.CreateClassListEntries",
+      "source_owner": "school-membership",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/postgres.Store.CreateClassListEntry",
       "binding_digest": "e39094888a32388601f94373dd3733c6",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/ports.Store.CreateClassListEntry",
@@ -1844,6 +1868,14 @@
       "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/postgres.Store.MarkNextRetiredStaffErased",
       "binding_digest": "e39094888a32388601f94373dd3733c6",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/ports.Store.MarkNextRetiredStaffErased",
+      "source_owner": "school-membership",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/postgres.Store.MatchClassListEntries",
+      "binding_digest": "e39094888a32388601f94373dd3733c6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/ports.Store.MatchClassListEntries",
       "source_owner": "school-membership",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
       "target_owner": "tenant-runtime"

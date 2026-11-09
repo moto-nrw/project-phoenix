@@ -19,6 +19,10 @@ type appendStore interface {
 	Append(context.Context, any) error
 }
 
+type appendAllStore interface {
+	AppendAll(context.Context, []any) error
+}
+
 type appendOnceStore interface {
 	AppendOnce(context.Context, any) (bool, error)
 }
@@ -64,4 +68,30 @@ func (c *Command) AppendOnce(ctx context.Context, event any) (bool, error) {
 	}
 	c.observe(AppendObservation{EventType: fmt.Sprintf("%T", event), Duration: time.Since(started), Rows: rows, Err: err})
 	return inserted, err
+}
+
+// AppendAll appends every event in one statement where the store can, and one
+// by one otherwise (#5552, ADR 0067 addendum of 2026-11-08: Audit AppendAll
+// is a leaf). It is all or nothing: the store fails the whole call, and the
+// caller's transaction or savepoint rolls back what was written.
+func (c *Command) AppendAll(ctx context.Context, events []any) error {
+	store, ok := c.store.(appendAllStore)
+	if !ok {
+		for _, event := range events {
+			if err := c.Append(ctx, event); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	started := time.Now()
+	err := store.AppendAll(ctx, events)
+	rows := len(events)
+	if err != nil {
+		rows = 0
+	}
+	for _, event := range events {
+		c.observe(AppendObservation{EventType: fmt.Sprintf("%T", event), Duration: time.Since(started), Rows: min(rows, 1), Err: err})
+	}
+	return err
 }

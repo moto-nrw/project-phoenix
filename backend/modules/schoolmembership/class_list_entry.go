@@ -192,3 +192,19 @@ func ClassifyClassListEntryFailure(err error) ClassListEntryFailure {
 		return ClassListEntryFailureInternal
 	}
 }
+
+// ClassListEntryBatches creates and matches the class-list entries of many
+// import rows at once (#5552, ADR 0067 addendum of 2026-11-08, step 4). It is
+// a leaf command (#4538) and stays outside Capability and Owner; the data
+// import binds it on its own.
+type ClassListEntryBatches interface {
+	// CreateClassListEntries validates and creates every entry or none, with
+	// the columns CreateClassListEntry writes. The result is index-aligned
+	// with the input; a name already taken fails the whole call with
+	// ErrClassListEntryDuplicate.
+	CreateClassListEntries(context.Context, []CreateClassListEntry) ([]ClassListEntry, error)
+	// MatchClassListEntries returns, per input, exactly the entries
+	// ListClassListEntries returns for its first name, last name and class,
+	// in the same order. All three fields are required.
+	MatchClassListEntries(context.Context, []ClassListEntryFields) ([][]ClassListEntry, error)
+}
