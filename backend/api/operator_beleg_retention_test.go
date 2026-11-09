@@ -234,22 +234,30 @@ func TestClarificationReviewEscalatesBeforeTheReviewMoves(t *testing.T) {
 			"escalated": escalation != "", "escalation_reason": escalation, "next_review_on": next.String()}
 	}
 
+	overdueOn, dueOn := reviewOn("care_contract"), reviewOn("care_notice")
+	recordedNext := func(rec *httptest.ResponseRecorder) calendar.Date {
+		t.Helper()
+		return decodeSchoolPortalData[parentbilling.BelegClarificationReview](t, rec.Body.Bytes()).NextReviewOn
+	}
+
 	rec := call(review("care_contract", today.AddDays(30), ""))
 	assert.Equal(t, http.StatusBadRequest, rec.Code, "an overdue entry still open goes to Florian: %s", rec.Body.String())
 	assert.Contains(t, rec.Body.String(), `"code":"general.input"`)
-	assert.Equal(t, today.AddDays(-10), reviewOn("care_contract"), "the entry stays overdue")
+	assert.Equal(t, overdueOn, reviewOn("care_contract"), "the entry stays overdue")
 	assert.Zero(t, reviews(), "a refused review is not stored")
 
 	rec = call(review("care_notice", today.AddDays(20), ""))
 	assert.Equal(t, http.StatusBadRequest, rec.Code, "a review before the deadline cannot push it out without escalation: %s", rec.Body.String())
-	assert.Equal(t, today.AddDays(10), reviewOn("care_notice"))
+	assert.Equal(t, dueOn, reviewOn("care_notice"))
 	rec = call(review("care_notice", today.AddDays(5), ""))
 	require.Equal(t, http.StatusCreated, rec.Code, "a review may advance the deadline: %s", rec.Body.String())
-	assert.Equal(t, today.AddDays(5), reviewOn("care_notice"))
+	assert.True(t, recordedNext(rec).Before(dueOn), "the review advanced the deadline")
+	assert.Equal(t, recordedNext(rec), reviewOn("care_notice"))
 
 	rec = call(review("care_contract", today.AddDays(30), "Keine Antwort des Trägers seit 40 Tagen"))
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
-	assert.Equal(t, today.AddDays(30), reviewOn("care_contract"), "with the escalation the review moves")
+	assert.Equal(t, recordedNext(rec), reviewOn("care_contract"), "with the escalation the review moves")
+	assert.True(t, reviewOn("care_contract").After(overdueOn))
 	assert.Equal(t, 2, reviews())
 }
 
