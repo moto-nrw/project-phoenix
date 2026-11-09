@@ -465,7 +465,8 @@ time (one indexed statement in its own administrative transaction, budget
 revocation holds on every instance at once.
 
 Logout, the session cap, revocations and a tenant switch's retirement (after
-its grace) therefore end the access tokens of that family immediately; a
+its grace) therefore end the access tokens of that family immediately (the cap
+deletes every row of an evicted family, rotated predecessors included, #6289); a
 cookie a late response writes back opens nothing. Logout takes the account
 lock refresh takes first, so a rotation committing during logout is revoked
 with its family, and a switch mints nothing out of a family that is gone.
@@ -888,7 +889,11 @@ unverified; their next refresh refuses privileged access and requires login.
 Completed email/passkey exchanges and valid school-bound trusted devices
 produce `auth.tokens.mfa_verified`; rotation and bounded hand-off recovery
 preserve it. MFA reset clears proof across existing sessions. Password reset
-issues no session.
+issues no session. An account's own password change (`POST /auth/password`,
+#6289) commits with the new hash: every other session family of the account
+at every school and portal ends, its reset links are spent and its remembered
+devices revoked; only the family of the access token the change is made with
+stays signed in. The caterer's own change ends its current session too.
 
 Refresh-session, invitation, password-reset and e-mail-change tokens are
 stored only as hex SHA-256; migration 1.15.521 hashed existing rows and its
