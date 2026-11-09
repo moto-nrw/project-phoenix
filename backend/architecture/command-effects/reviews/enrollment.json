@@ -2002,6 +2002,16 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.Cipher.Open",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Open",
+      "reason": "#3838 / #6328: the tenant-export CLI binds Security Runtime's health ring (HEALTH_DATA_KEYS) directly to Enrollment's export opener. Pure in-memory authenticated decryption bound to the row context; no database access, write, locking read or audit mutation.",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.Cipher.Open",
+      "target_owner": "security-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.HealthDataCipher.Open",
       "classification": "query",
       "effect": "query",
@@ -2009,6 +2019,16 @@
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/securityruntime/internal/domain/fieldcipher.Cipher.Open. ADR 0084 and ADR 0116 addenda (#4722): Enrollment seals and opens the holiday health information with Security Runtime's field cipher, a pure computation over the root's key ring.",
       "source_owner": "enrollment",
       "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.Cipher.Open",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.Cipher.Seal",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Seal",
+      "reason": "#3838 / #6328: same health ring binding as Open; the export opener never seals, the method exists on the bound cipher. Pure in-memory encryption; no database access, write, locking read or audit mutation.",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.Cipher.Seal",
       "target_owner": "security-runtime"
     },
     {

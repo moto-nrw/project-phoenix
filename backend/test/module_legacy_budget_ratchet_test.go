@@ -253,7 +253,11 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0188: the guardian bank backfill/rekey constructor of
 // modules/peopledirectory/compose (+6), the staff bank cipher dependency and
 // backfill/rekey constructor of modules/workforce/compose (+7).
-const moduleComposeBudgetTotal = 13188
+// ADR 0192: the export opener of the sealed bank data of
+// modules/parentbilling/compose adds exactly 5 LOC.
+// ADR 0193: the export openers of health information (+5) and setting
+// values (+3).
+const moduleComposeBudgetTotal = 13201
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -298,7 +302,8 @@ var moduleComposeBudgets = map[string]int{
 	// modules/securityruntime/compose.
 	// ADR 0153: the contract applications constructor (+5).
 	// ADR 0154: the booked children constructor (+6).
-	"modules/enrollment/compose":                   602,
+	// ADR 0193: the export opener of the holiday health information (+5).
+	"modules/enrollment/compose":                   607,
 	"modules/exporttransfer/compose":               149,
 	"modules/facilities/compose":                   184,
 	"modules/facilities/compose/repositoryadapter": 11,
@@ -338,7 +343,8 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0181: the constructor of the SEPA direct debit file (+5);
 	// ADR 0183: rekey constructor (+5);
 	// ADR 0184: the Beleg retention constructor (+6).
-	"modules/parentbilling/compose":               102,
+	// ADR 0192: the export opener of the sealed bank data (+5).
+	"modules/parentbilling/compose":               107,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	// ADR 0188: the guardian bank backfill/rekey constructor (+6).
@@ -361,7 +367,8 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0154: the group names constructor (+13).
 	"modules/schoolstructure/compose": 606,
 	// Raised by ADR 0107 and ADR 0175: the Träger settings and school-read context guard.
-	"modules/settings/compose":             320,
+	// ADR 0193: the export projection of setting values (+3).
+	"modules/settings/compose":             323,
 	"modules/studentdirectoryview/compose": 9,
 	// Raised by ADR 0125: the dev-tools presence history constructor (+7).
 	// ADR 0151: the school figure constructor (+13).

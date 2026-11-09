@@ -1473,11 +1473,27 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.Cipher.Open",
+      "binding_digest": "f9ed55d97ea06c7ce2dd2e9041a5de6b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Open",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.Cipher.Open",
+      "target_owner": "security-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.HealthDataCipher.Open",
       "binding_digest": "f9ed55d97ea06c7ce2dd2e9041a5de6b",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Open",
       "source_owner": "enrollment",
       "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.Cipher.Open",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.Cipher.Seal",
+      "binding_digest": "d4d924ed8d1ab6110adbd13e744575df",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayHealthCipher.Seal",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.Cipher.Seal",
       "target_owner": "security-runtime"
     },
     {
