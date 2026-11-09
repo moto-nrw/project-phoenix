@@ -28,7 +28,7 @@ func testServiceConfig() owners.ServiceConfig {
 		TenantDomain:     "localhost",
 		OperatorHostname: "operator.localhost:3000",
 		HealthDataKeys:   testpkg.TestHealthDataKeys,
-		BankDataKeys:     testpkg.NewTestHealthDataKeys(),
+		BankDataKeys:     testpkg.TestBankDataKeys,
 	}
 }
 

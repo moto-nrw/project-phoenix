@@ -29,9 +29,10 @@ exit_code=0
 # Keys that only exist in local dev (.env.example), not in deployed environments
 DEV_ONLY_KEYS="COMPOSE_BAKE COMPOSE_DOCKER_CLI_BUILD DB_DEBUG DOCKER_BUILDKIT FRONTEND_HOST_PORT MAILPIT_HOST_PORT MAILPIT_SMTP_HOST_PORT POSTGRES_HOST_PORT SERVER_HOST_PORT TEST_DB_DSN TEST_DB_PORT"
 
-# Keys the deployed environments gain in #5935, a human step. Until then the
-# stack must deploy without them (see PENDING_SOPS_VALUES in check-runtime-env.py).
-# #5935 removes them here.
+# Inventory-only SOPS additions requiring a human step. #5935's mail-provider
+# keys remain runtime-optional (PENDING_SOPS_VALUES in check-runtime-env.py).
+# #6252's bank keys must be provisioned before deployment: BANK_DATA_KEYS stays
+# fail-fast in Compose and in startup validation despite this inventory deferral.
 PENDING_SOPS_KEYS="BANK_DATA_KEYS BANK_DATA_LEGACY_KEYS EMAIL_FALLBACK_FROM_ADDRESS EMAIL_FALLBACK_SMTP_HOST EMAIL_FALLBACK_SMTP_PASSWORD EMAIL_FALLBACK_SMTP_PORT EMAIL_FALLBACK_SMTP_USER EMAIL_FROM_NOTICES_ADDRESS EMAIL_FROM_SECURITY_ADDRESS EMAIL_PROVIDER EMAIL_WEBHOOK_SECRETS LETTERMINT_TEAM_API_TOKEN LETTERMINT_WEBHOOK_ID"
 pending_keys=$(printf '%s\n' $PENDING_SOPS_KEYS)
 

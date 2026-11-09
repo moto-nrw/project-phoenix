@@ -40,12 +40,12 @@ func (c *BankCipher) Open(sealed, aad []byte) ([]byte, error) {
 func (c *BankCipher) Rewrap(sealed, aad []byte) ([]byte, error) {
 	_, err := c.Cipher.Open(sealed, aad)
 	id, _, _ := splitSealedField(sealed)
-	if err == nil && id == c.Cipher.activeID {
+	if err == nil && id == c.activeID {
 		return sealed, nil
 	}
 	plain, err := c.Open(sealed, aad)
 	if err != nil {
 		return nil, ErrOpen
 	}
-	return c.Cipher.Seal(plain, aad)
+	return c.Seal(plain, aad)
 }
