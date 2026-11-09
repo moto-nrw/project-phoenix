@@ -14,5 +14,9 @@
   "pendingBadge": "Kontrol ediliyor",
   "pending": "{date} tarihli cevabınız: {count, plural, one {1 çocuk} other {# çocuk}}. Kurum kontrol ediyor.",
   "noRight": "Sayıyı bu çocuk için kayıt gönderebilen ebeveynler girer.",
-  "onlyNumber": "Sadece sayıyı kaydediyoruz. Diğer çocukların adlarına ihtiyacımız yok."
+  "onlyNumber": "Sadece sayıyı kaydediyoruz. Diğer çocukların adlarına ihtiyacımız yok.",
+  "enrollmentPending": "{date} tarihli bilginiz: {count, plural, one {1 çocuk} other {# çocuk}}. Kurum, sözleşmeniz geldiğinde bunu kontrol eder.",
+  "enrollmentSaved": "Kaydedildi. Sayı bakım sözleşmenize aktarılacak.",
+  "enrollmentClosed": "Çocuğunuz kabul edildi. Sayıyı artık bakım sözleşmenizde değiştirebilirsiniz.",
+  "linkHint": "İmzalayana kadar sayıyı burada değiştirebilirsiniz."
 }

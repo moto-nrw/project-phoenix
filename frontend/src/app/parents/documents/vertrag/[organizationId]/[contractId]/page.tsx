@@ -34,8 +34,7 @@ export default function ParentContractSigningPage({
       />
       {family === "1" ? (
         <ParentFamilyChildrenCard
-          organizationId={organizationId}
-          contractId={contractId}
+          source={{ kind: "inbox", organizationId, contractId }}
         />
       ) : (
         <ContractSigningView
