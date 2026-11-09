@@ -476,15 +476,15 @@ describe("RejectReasonModal", () => {
   it.each([
     [
       "missing_student",
-      "Für dieses Kind fehlt die Zuordnung zur Schülerliste.",
+      "Der Vertrag ist mit keinem Kind aus den „Kinderdaten“ der Schule verknüpft.",
     ],
     [
       "no_permitted_address",
-      "Keine Vertragsadresse gehört zu einer Bezugsperson mit dem nötigen Recht.",
+      "Keine Adresse des Vertrags gehört noch einer Bezugsperson, die für das Kind handeln darf.",
     ],
     [
       undefined,
-      "Eine berechtigte Empfängeradresse konnte nicht ermittelt werden.",
+      "moto hat keine Adresse gefunden, an die die Mitteilung gehen darf.",
     ],
   ] as const)("explains the unsent notice: %s", async (reason, explanation) => {
     mocks.fetchContractNoticeOptions.mockResolvedValue({
@@ -517,20 +517,27 @@ describe("RejectReasonModal", () => {
     );
     expect(
       await screen.findByText(
-        /Die Mitteilung zum Vertragsende ging nicht raus/,
+        "Die Mitteilung zum Vertragsende ging nicht raus",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByText(new RegExp(explanation))).toBeInTheDocument();
     expect(
       screen.getByText(
-        /Teilen Sie den Eltern das Vertragsende selbst mit, zum Beispiel per Brief/,
+        `${explanation} Schicken Sie den Eltern die Mitteilung unten per Brief.`,
       ),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("figure", {
+        name: "Mitteilung zum Vertragsende (nicht verschickt)",
+      }),
+    ).toHaveTextContent("Der Vertrag endet am 31.12.2026.");
+    expect(
+      screen.queryByRole("figure", {
+        name: "Mitteilung zum Vertragsende, wie sie verschickt wurde",
+      }),
+    ).not.toBeInTheDocument();
     if (reason !== "no_permitted_address") {
       expect(
-        screen.queryByText(
-          /Keine Vertragsadresse gehört|Keine Adresse des Vertrags gehört/,
-        ),
+        screen.queryByText(/Keine Adresse des Vertrags gehört/),
       ).not.toBeInTheDocument();
     }
   });

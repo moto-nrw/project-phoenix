@@ -17,13 +17,14 @@ export type NoticeKind = "kuendigung" | "widerruf";
 export type TerminationKind =
   "ordentlich" | "sonderkuendigung" | "ausserordentlich";
 
+/** Why the notice of a decided end was not mailed, recorded at decision time. */
+type EndNoticeNotSentReason = "missing_student" | "no_permitted_address";
+
 /**
  * How the Träger-Büro decided the end of an extraordinary termination: it
  * set the last day, or it did not accept the reason and the declaration
  * holds as an ordinary termination (Umdeutung, § 140 BGB).
  */
-type EndNoticeNotSentReason = "missing_student" | "no_permitted_address";
-
 type EndDecision = "festgelegt" | "umgedeutet";
 
 /** A declaration as recorded, with its confirmation as sent. */
