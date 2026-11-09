@@ -24,6 +24,8 @@ import {
   matchesImportFilter,
 } from "./sepa-import-format";
 
+const IMPORT_PAGE_SIZE = 50;
+
 type Answers = Readonly<Record<number, MandateSequence>>;
 
 const ANSWER_ITEMS: { value: MandateSequence; label: string }[] = [
@@ -283,6 +285,10 @@ export function SepaImportPreviewCard({
         stackedOnMobile
         stackedLayout="lines"
         dense
+        // A file may hold 5.000 rows: show them in pages; the counts and the
+        // import still cover every row.
+        pageSize={IMPORT_PAGE_SIZE}
+        paginationResetKey={filter}
         emptyState={
           <EmptyState
             variant="compact"
