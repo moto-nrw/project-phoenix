@@ -653,6 +653,13 @@ func (s *OperatorAuthentication) rejectOperatorLineage(txCtx context.Context, se
 }
 
 func (s *OperatorAuthentication) rotateOperatorRefresh(txCtx context.Context, operatorID int64, refreshTokenValue string, proof domain.RecoveryProof) (accessToken, refreshToken string, recovered, rejectAfterCommit bool, err error) {
+	// The operator row first, then the session: the order every command
+	// that ends the operator's sessions (deactivation, password change)
+	// takes, so a rotation either commits before such a command reads the
+	// sessions or reads the operator after it committed (#6289).
+	if _, err := s.operators.findOperatorForUpdate(txCtx, operatorID); err != nil && !errors.Is(err, identityaccess.ErrOperatorNotFound) {
+		return accessToken, refreshToken, recovered, rejectAfterCommit, fmt.Errorf("failed to lock operator: %w", err)
+	}
 	session, err := s.operators.findOperatorSessionForUpdate(txCtx, refreshTokenValue)
 	if errors.Is(err, identityaccess.ErrOperatorSessionNotFound) {
 		return accessToken, refreshToken, recovered, rejectAfterCommit, identityaccess.ErrOperatorRefreshTokenInvalid
@@ -696,10 +703,11 @@ func (s *OperatorAuthentication) rotateOperatorRefresh(txCtx context.Context, op
 	return accessToken, refreshToken, recovered, rejectAfterCommit, err
 }
 
-// activeOperator re-reads the operator inside a session transaction and
-// refuses a missing or deactivated one.
+// activeOperator locks the operator inside a session transaction and
+// refuses a missing or deactivated one. The lock orders a mint behind a
+// deactivation that ends the operator's sessions (#6289).
 func (s *OperatorAuthentication) activeOperator(txCtx context.Context, operatorID int64) (domain.Operator, error) {
-	operator, err := s.operators.findOperatorByID(txCtx, operatorID)
+	operator, err := s.operators.findOperatorForUpdate(txCtx, operatorID)
 	if errors.Is(err, identityaccess.ErrOperatorNotFound) {
 		return domain.Operator{}, identityaccess.ErrOperatorNotFound
 	}
