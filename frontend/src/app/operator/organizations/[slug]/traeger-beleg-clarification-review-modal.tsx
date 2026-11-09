@@ -37,7 +37,7 @@ function shiftDays(day: string, days: number): string {
  * oder die Prüfung es nach hinten schiebt (Löschkonzept Abschnitt 3); das
  * Backend lehnt die Prüfung sonst mit 400 ab.
  */
-export function escalationRequired(
+function escalationRequired(
   reviewOn: string,
   nextReviewOn: string,
   today: string,
