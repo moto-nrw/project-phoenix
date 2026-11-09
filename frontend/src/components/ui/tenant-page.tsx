@@ -709,6 +709,9 @@ function TenantPageView({
               // Titel-/Statuszeile, die ihr Text füllt.
               "max-sm:contents",
               "max-sm:[&>*:not([data-icon-only])]:order-last max-sm:[&>*:not([data-icon-only])]:basis-full",
+              // A menu behind a text button („Herunterladen ⌄“) sits in a
+              // wrapper: the row is full, so its button fills it too.
+              "max-sm:[&>div:not([data-icon-only])>button]:w-full",
               CONTROL_HEIGHT,
             )}
           >

@@ -159,6 +159,9 @@ interface DataTableProps<T> {
   // another N per click. Use on tables whose row count is unbounded
   // (persons, accounts) — leave undefined on bounded views (orgs, devices).
   pageSize?: number;
+  // What `pageSize`'s button loads, in the plural („Kinder“): the button
+  // then reads „Weitere Kinder laden (25 von 114)“ instead of „Mehr laden“.
+  pageNoun?: string;
   // Changing this value resets incremental pagination to the first page.
   // Callers with externally filtered rows should pass their active filter key.
   paginationResetKey?: string | number;
@@ -554,6 +557,13 @@ function SurfaceHeading({ heading }: Readonly<{ heading: DataTableHeading }>) {
  * The phone layout of DataTable: the same sorted, paged rows rendered stacked
  * inside one surface. Enabled per call site via `stackedOnMobile`.
  */
+/** The label of `pageSize`'s button, with the rows' noun when given. */
+function loadMoreLabel(shown: number, total: number, noun?: string): string {
+  return noun
+    ? `Weitere ${noun} laden (${shown} von ${total})`
+    : `Mehr laden (${shown} von ${total})`;
+}
+
 function StackedRows<T>({
   columns,
   rows,
@@ -567,6 +577,7 @@ function StackedRows<T>({
   hasMore,
   loadMore,
   totalCount,
+  pageNoun,
   moreAction,
   layout,
   stackedTitle,
@@ -587,6 +598,7 @@ function StackedRows<T>({
   hasMore: boolean;
   loadMore: () => void;
   totalCount: number;
+  pageNoun?: string;
   moreAction?: DataTableMoreAction;
   layout: "lines" | "row" | "form";
   stackedTitle?: (row: T) => ReactNode;
@@ -788,7 +800,7 @@ function StackedRows<T>({
           onClick={loadMore}
           className="w-full"
         >
-          {`Mehr laden (${rows.length} von ${totalCount})`}
+          {loadMoreLabel(rows.length, totalCount, pageNoun)}
         </Button>
       )}
       {!hasMore && moreAction && !isLoading ? (
@@ -861,6 +873,7 @@ export function DataTable<T>({
   defaultSortKey,
   defaultSortDirection = "asc",
   pageSize,
+  pageNoun,
   paginationResetKey,
   moreAction,
   stackedOnMobile = false,
@@ -1049,6 +1062,7 @@ export function DataTable<T>({
             hasMore={hasMore}
             loadMore={loadMore}
             totalCount={sortedRows.length}
+            pageNoun={pageNoun}
             moreAction={moreAction}
             layout={stackedLayout}
             stackedTitle={stackedTitle}
@@ -1388,7 +1402,7 @@ export function DataTable<T>({
                 size="md"
                 onClick={loadMore}
               >
-                {`Mehr laden (${visibleRows.length} von ${sortedRows.length})`}
+                {loadMoreLabel(visibleRows.length, sortedRows.length, pageNoun)}
               </Button>
             </div>
           )}

@@ -205,6 +205,26 @@ describe("DataTable pagination", () => {
     ).toBeInTheDocument();
   });
 
+  it("names the rows on the load-more button when a noun is given", () => {
+    render(
+      <DataTable
+        columns={columns}
+        rows={manyRows}
+        getRowKey={(row) => row.id}
+        pageSize={5}
+        pageNoun="Kinder"
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weitere Kinder laden (5 von 12)" }),
+    );
+    expect(screen.getByText("Row 06")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Weitere Kinder laden (10 von 12)" }),
+    ).toBeInTheDocument();
+  });
+
   it("reveals another pageSize chunk when 'Mehr laden' is clicked", () => {
     render(
       <DataTable

@@ -6,6 +6,12 @@ interface WizardStepperProps {
   readonly steps: readonly string[];
   readonly current: number;
   readonly className?: string;
+  /**
+   * Names every step under its bar instead of „Schritt 1 von 3“ and the
+   * current name: for a process the person reads ahead (a billing run),
+   * not for a dialog that walks through it.
+   */
+  readonly labeled?: boolean;
 }
 
 const ACTIVE = LOCATION_COLORS.GROUP_ROOM;
@@ -16,6 +22,7 @@ export function WizardStepper({
   steps,
   current,
   className = "",
+  labeled = false,
 }: Readonly<WizardStepperProps>) {
   const total = steps.length;
   const clampedCurrent = Math.max(0, Math.min(current, total - 1));
@@ -44,14 +51,31 @@ export function WizardStepper({
           );
         })}
       </div>
-      <div className="flex items-center justify-between text-xs">
-        <span className="font-medium" style={{ color: ACTIVE_TEXT }}>
-          Schritt {clampedCurrent + 1} von {total}
-        </span>
-        {/* The name of the current step is read, not decoration: it keeps
-            the contrast of body text (WCAG 1.4.3). */}
-        <span className="text-gray-600">{steps[clampedCurrent]}</span>
-      </div>
+      {labeled ? (
+        // One name under each bar; on a phone one step per line.
+        <ol className="flex gap-2 text-sm max-sm:flex-col max-sm:gap-1">
+          {steps.map((label, index) => (
+            <li
+              key={label}
+              className={`min-w-0 flex-1 ${index === clampedCurrent ? "font-medium" : "text-gray-600"}`}
+              style={
+                index === clampedCurrent ? { color: ACTIVE_TEXT } : undefined
+              }
+            >
+              {index + 1}. {label}
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <div className="flex items-center justify-between text-xs">
+          <span className="font-medium" style={{ color: ACTIVE_TEXT }}>
+            Schritt {clampedCurrent + 1} von {total}
+          </span>
+          {/* The name of the current step is read, not decoration: it keeps
+              the contrast of body text (WCAG 1.4.3). */}
+          <span className="text-gray-600">{steps[clampedCurrent]}</span>
+        </div>
+      )}
     </div>
   );
 }
