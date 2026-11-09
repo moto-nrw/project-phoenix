@@ -4,15 +4,22 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/delivery/objects"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/erasureledger"
+	parentBillingCompose "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	securityRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/securityruntime/compose"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	studentDirectoryViewCompose "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 	transactionCompose "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 func init() { RootCmd.AddCommand(newTenantCommand()) }
@@ -90,7 +97,7 @@ func tenantCommand(run func(*cobra.Command, organizationtenancy.TenantExportOpti
 	parent := &cobra.Command{Use: "tenant", Short: "Internal tenant data lifecycle procedures"}
 	options := organizationtenancy.TenantExportOptions{}
 	export := &cobra.Command{
-		Use: "export", Short: "Return one school's data to a new private local directory", Args: cobra.NoArgs,
+		Use: "export", Short: "Return one school's or one Träger's data to a new private local directory", Args: cobra.NoArgs,
 		SilenceErrors: true, SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if cmd.Flags().Changed("person") && options.Person == "" {
@@ -100,25 +107,32 @@ func tenantCommand(run func(*cobra.Command, organizationtenancy.TenantExportOpti
 		},
 	}
 	export.Flags().Int64Var(&options.SchoolID, "school", 0, "Authorized school ID")
+	export.Flags().Int64Var(&options.OrganizationID, "organization", 0, "Authorized Träger ID: the Träger package, without the data its schools hold")
 	export.Flags().StringVar(&options.Output, "out", "", "New private output directory")
 	export.Flags().StringVar(&options.Uploads, "uploads", "", "Complete stable uploads root")
 	export.Flags().StringVar(&options.Person, "person", "", "Internal review only: kind:<profile ID>, guardian:<profile ID>, staff:<school membership ID>")
+	export.MarkFlagsMutuallyExclusive("school", "organization")
+	export.MarkFlagsMutuallyExclusive("organization", "person")
 	parent.AddCommand(export)
 	return parent
 }
 
 func runTenantExport(cmd *cobra.Command, options organizationtenancy.TenantExportOptions) error {
-	if options.SchoolID <= 0 || options.Output == "" || options.Uploads == "" {
-		return errors.New("tenant export: --school, --out and --uploads are required")
+	if (options.SchoolID <= 0 && options.OrganizationID <= 0) || options.Output == "" || options.Uploads == "" {
+		return errors.New("tenant export: --school or --organization, --out and --uploads are required")
 	}
 	db, err := transactionCompose.OpenDatabase()
 	if err != nil {
 		return errors.New("tenant export: database unavailable")
 	}
 	defer func() { _ = db.Close() }()
+	sealed, err := tenantExportSealedFields()
+	if err != nil {
+		return err
+	}
 	exporter, err := organizationCompose.NewTenantExporter(db.Pool(), organizationtenancy.ExportFingerprints{
 		Bytes: securityruntime.Fingerprint, Reader: securityruntime.ReaderFingerprint,
-	})
+	}, sealed, tenantExportProjectedFields())
 	if err != nil {
 		return err
 	}
@@ -131,4 +145,47 @@ func runTenantExport(cmd *cobra.Command, options organizationtenancy.TenantExpor
 	}
 	_, err = fmt.Fprintln(cmd.OutOrStdout(), message)
 	return err
+}
+
+// tenantExportSealedFields binds each field-sealed table to the owner that
+// sealed it (#3838): the return carries IBAN, account holder and health
+// information as entered, not their ciphertext. Without either key ring of
+// the source installation the export refuses (ADR 0192, ADR 0193).
+func tenantExportSealedFields() (organizationtenancy.TenantExportSealedFieldsByTable, error) {
+	bankData, err := securityRuntimeCompose.NewBankDataCipher(viper.GetString("bank_data_keys"), viper.GetString("bank_data_legacy_keys"))
+	if err != nil {
+		return nil, errors.New("tenant export: BANK_DATA_KEYS / BANK_DATA_LEGACY_KEYS configuration invalid")
+	}
+	healthKeys := strings.TrimSpace(viper.GetString("health_data_keys"))
+	if healthKeys == "" {
+		return nil, errors.New("tenant export: HEALTH_DATA_KEYS is required to open the health information")
+	}
+	healthData, err := securityRuntimeCompose.NewFieldCipher(healthKeys)
+	if err != nil {
+		return nil, errors.New("tenant export: HEALTH_DATA_KEYS configuration invalid")
+	}
+	sepa := parentBillingCompose.NewSEPAExportFields(bankData)
+	holiday := enrollmentCompose.NewHolidayHealthExportFields(healthData)
+	return organizationtenancy.TenantExportSealedFieldsByTable{
+		"parent_billing.sepa_mandates":             sepa,
+		"parent_billing.sepa_debits":               sepa,
+		"users.student_care_profiles":              studentDirectoryViewCompose.NewReader(healthData),
+		"enrollment.holiday_registrations":         holiday,
+		"enrollment.holiday_registration_children": holiday,
+		"enrollment.holiday_guests":                holiday,
+	}, nil
+}
+
+// tenantExportProjectedFields binds each untyped container to the owner that
+// knows its secrets (#3838, ADR 0193): settings keep their non-secret values,
+// a school keeps its branding images; nothing of a container leaves raw.
+func tenantExportProjectedFields() organizationtenancy.TenantExportProjectedFieldsByTable {
+	settingValues := settingsCompose.NewExportFields()
+	return organizationtenancy.TenantExportProjectedFieldsByTable{
+		"config.setting_values":         settingValues,
+		"config.setting_audit":          settingValues,
+		"config.traeger_setting_values": settingValues,
+		"config.traeger_setting_audit":  settingValues,
+		"platform.schools":              organizationtenancy.SchoolSettingsExportFields{},
+	}
 }

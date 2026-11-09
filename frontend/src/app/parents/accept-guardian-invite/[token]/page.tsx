@@ -150,7 +150,9 @@ export default async function AcceptGuardianInvitePage({ params }: PageProps) {
     <AuthShell
       eyebrow={t("eyebrow")}
       title={t("title")}
-      subtitle={t("subtitle", { school: schoolName })}
+      // A link that no longer works asks for no confirmation or password;
+      // the error below says what to do instead (#6294).
+      subtitle={failure ? undefined : t("subtitle", { school: schoolName })}
       variant="parents"
       brand={
         <SchoolBrandMark

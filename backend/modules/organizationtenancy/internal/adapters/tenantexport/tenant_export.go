@@ -18,10 +18,12 @@ import (
 type tenantExporter struct {
 	db           *bun.DB
 	fingerprints organizationtenancy.ExportFingerprints
+	sealed       organizationtenancy.TenantExportSealedFields
+	projected    organizationtenancy.TenantExportProjectedFields
 }
 
-func NewTenantExporter(db *bun.DB, fingerprints organizationtenancy.ExportFingerprints) organizationtenancy.TenantExporter {
-	return &tenantExporter{db: db, fingerprints: fingerprints}
+func NewTenantExporter(db *bun.DB, fingerprints organizationtenancy.ExportFingerprints, sealed organizationtenancy.TenantExportSealedFields, projected organizationtenancy.TenantExportProjectedFields) organizationtenancy.TenantExporter {
+	return &tenantExporter{db: db, fingerprints: fingerprints, sealed: sealed, projected: projected}
 }
 
 type exportRun struct {
@@ -33,6 +35,8 @@ type exportRun struct {
 	models       []organizationtenancy.ExportModelTable
 	references   map[string]bool
 	fingerprints organizationtenancy.ExportFingerprints
+	sealed       organizationtenancy.TenantExportSealedFields
+	projected    organizationtenancy.TenantExportProjectedFields
 	person       *personSelection
 }
 
@@ -85,8 +89,14 @@ func validateExportOptions(options organizationtenancy.TenantExportOptions) (org
 			return options, err
 		}
 	}
-	if options.SchoolID <= 0 || options.Output == "" || options.Uploads == "" {
-		return options, errors.New("tenant export: school, new output directory and uploads root are required")
+	if (options.SchoolID > 0) == (options.OrganizationID > 0) || options.SchoolID < 0 || options.OrganizationID < 0 {
+		return options, errors.New("tenant export: exactly one school or Träger is required")
+	}
+	if options.Person != "" && options.OrganizationID > 0 {
+		return options, errors.New("tenant export: a person review needs the school that holds the person")
+	}
+	if options.Output == "" || options.Uploads == "" {
+		return options, errors.New("tenant export: new output directory and uploads root are required")
 	}
 	uploads, err := filepath.EvalSymlinks(options.Uploads)
 	if err != nil {
@@ -116,7 +126,7 @@ func (e *tenantExporter) start(ctx context.Context, options organizationtenancy.
 	if err != nil {
 		return nil, errors.New("tenant export: catalog unavailable")
 	}
-	r := &exportRun{options: options, references: make(map[string]bool), fingerprints: e.fingerprints}
+	r := &exportRun{options: options, references: make(map[string]bool), fingerprints: e.fingerprints, sealed: e.sealed, projected: e.projected}
 	if err = json.Unmarshal(source, &r.catalog); err != nil {
 		return nil, errors.New("tenant export: invalid catalog")
 	}
@@ -144,9 +154,8 @@ func (r *exportRun) prepare(ctx context.Context) error {
 		AND current_user = 'phoenix_tenant_export'`).Scan(ctx, &safe); err != nil || !safe {
 		return errors.New("tenant export: unsafe snapshot configuration")
 	}
-	var exists bool
-	if err := r.tx.NewRaw(`SELECT EXISTS (SELECT 1 FROM platform.schools WHERE id = ?)`, r.options.SchoolID).Scan(ctx, &exists); err != nil || !exists {
-		return errors.New("tenant export: school unavailable")
+	if err := r.requireSubject(ctx); err != nil {
+		return err
 	}
 	var started time.Time
 	if err := r.tx.NewRaw("SELECT transaction_timestamp()").Scan(ctx, &started); err != nil {
@@ -159,7 +168,9 @@ func (r *exportRun) prepare(ctx context.Context) error {
 func (r *exportRun) exportTables(ctx context.Context) error {
 	for _, table := range r.catalog.Tables {
 		entry := organizationtenancy.ExportTable{Name: table.Name, Classification: table.Export, Reason: table.ExportReason, ExcludedColumns: table.ExcludeSecretColumns}
-		if table.Export == "include" {
+		if table.Export == "include" && r.inSchoolPackages(table) {
+			entry.Classification, entry.Reason = "schoolPackage", "Held by a school; returned in the package of each school of the Träger."
+		} else if table.Export == "include" {
 			model, err := r.tableModel(ctx, table)
 			if err != nil {
 				return err

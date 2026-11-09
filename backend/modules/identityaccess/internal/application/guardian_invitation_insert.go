@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
 
@@ -13,6 +12,12 @@ func (l *AccountLifecycle) insertStudentInvitation(ctx context.Context, req doma
 	studentID := req.StudentID
 	var invitation domain.GuardianInvitation
 	err := l.runtime.RunInTx(ctx, func(txCtx context.Context) error {
+		// Account before profile, as acceptance locks them (40P01 otherwise);
+		// the address is checked again under the profile lock.
+		if _, _, _, lockErr := l.logins.LockLoginAccountByEmail(txCtx, profile.Email); lockErr != nil {
+			return failed(opGuardianInviteToStudent, lockErr)
+		}
+		readAddress := domain.GuardianInvitationAddress(profile.Email)
 		var locked bool
 		var lockErr error
 		profile, locked, lockErr = l.guardians.LockGuardianProfile(txCtx, profile.ID)
@@ -22,17 +27,15 @@ func (l *AccountLifecycle) insertStudentInvitation(ctx context.Context, req doma
 		if !locked {
 			return failed(opGuardianInviteToStudent, fmt.Errorf("guardian profile not found"))
 		}
-		if _, _, _, lockErr := l.logins.LockLoginAccountByEmail(txCtx, profile.Email); lockErr != nil {
-			return failed(opGuardianInviteToStudent, lockErr)
+		if domain.GuardianInvitationAddress(profile.Email) != readAddress {
+			return failed(opGuardianInviteToStudent, domain.ErrGuardianInvitationAddressChanged)
 		}
 		expiry, err := l.delivery.InvitationExpiry(txCtx)
 		if err != nil {
 			return failed(opGuardianInviteToStudent, err)
 		}
-		var insertErr error
-		invitation, insertErr = l.invitations.InsertGuardianInvitation(txCtx, domain.GuardianInvitation{
+		draft := domain.GuardianInvitation{
 			TenantID:                    tenantID,
-			Token:                       uuid.Must(uuid.NewV4()).String(),
 			GuardianProfileID:           profile.ID,
 			CreatedBy:                   req.CreatedBy,
 			ExpiresAt:                   time.Now().Add(expiry),
@@ -41,7 +44,10 @@ func (l *AccountLifecycle) insertStudentInvitation(ctx context.Context, req doma
 			ApprovalStatus:              approvalStatus,
 			ProfileCreatedForInvitation: profileCreated,
 			RoleUpgrade:                 roleUpgrade,
-		})
+		}
+		issueGuardianInvitationLink(&draft, profile)
+		var insertErr error
+		invitation, insertErr = l.invitations.InsertGuardianInvitation(txCtx, draft)
 		if insertErr != nil {
 			return failed(opGuardianInviteToStudent, insertErr)
 		}
