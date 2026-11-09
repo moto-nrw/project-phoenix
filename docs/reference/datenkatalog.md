@@ -159,12 +159,12 @@ freigegebene verdächtige Namen, etwa Postleitzahl oder Inhaltsprüfsumme.
 zu: Die Rückgabe enthält den geöffneten Wert statt des Chiffrats, das ohne den
 Schlüssel der Installation nutzlos ist. Der Besitzer der Tabelle öffnet ihn
 über `TenantExportSealedFields` (#3838): IBAN und Kontoinhaber der
-SEPA-Mandate und -Lastschriften (Bankring, ADR 0184) sowie die
+SEPA-Mandate und -Lastschriften (Bankring, ADR 0192) sowie die
 Gesundheitsangaben der Betreuungsprofile, Ferienanmeldungen, -kinder und
--gäste (Gesundheitsring, ADR 0191, #6328). Die Ferienwerte stehen als der
+-gäste (Gesundheitsring, ADR 0193, #6328). Die Ferienwerte stehen als der
 JSON-Text, den sie halten.
 `projectedColumns` ordnet einem ausgeschlossenen, untypisierten Container eine
-neue Spalte mit seiner geprüften Projektion zu (ADR 0191). Der Besitzer
+neue Spalte mit seiner geprüften Projektion zu (ADR 0193). Der Besitzer
 entscheidet über `TenantExportProjectedFields`, was Kundendaten ist: Settings
 geben den Wert einer registrierten, nicht geheimen Definition zurück und `null`
 für `password`-Definitionen und unbekannte Schlüssel; `platform.schools.settings`

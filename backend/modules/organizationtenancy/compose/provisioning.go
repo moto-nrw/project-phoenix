@@ -2,6 +2,7 @@ package compose
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
@@ -82,6 +83,16 @@ func NewProvisioning(dependencies ProvisioningDependencies, dashboard organizati
 		Presence: dependencies.Presence, Categories: dependencies.Categories, Settings: dependencies.Settings,
 		Audit: dependencies.Audit, Secrets: dependencies.Secrets, Logger: dependencies.Logger,
 	})
+}
+
+// BelegRetentionAudit answers the operator audit of the Beleg retention
+// (#4720, ADR 0184) of the provisioning NewProvisioning composed; it records
+// on the same audit and transaction as every provisioning write.
+func BelegRetentionAudit(provisioning organizationtenancy.Provisioning) (organizationtenancy.BelegRetentionChangeAudit, error) {
+	if audit, ok := provisioning.(*application.Provisioning); ok {
+		return audit, nil
+	}
+	return nil, fmt.Errorf("organization tenancy: the Beleg retention audit needs the composed provisioning, got %T", provisioning)
 }
 
 func OperatorDatabase() func(context.Context) (bun.IDB, error) {

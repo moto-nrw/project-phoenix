@@ -634,6 +634,27 @@
       "target_owner": "settings-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.retainedContracts.ContractRetentionFacts",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.RetainedContracts.ContractRetentionFacts",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/carecontract.ContractRetention.RetentionFacts: the conclusion day, the end and its day of each contract past its draft, read in the administrative transaction of the hourly Beleg retention or of the Operator portal; no party, child or bank data (#4720, ADR 0184).",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/carecontract.ContractRetention.RetentionFacts",
+      "target_owner": "care-contract"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.retainedContracts.DeleteEndedContracts",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.RetainedContracts.DeleteEndedContracts",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target modules/carecontract.ContractRetention.DeleteEndedContracts: joins the administrative transaction of the hourly Beleg retention and deletes only the given contracts of the Träger that ended by the evaluation day and whose event (end or conclusion), read as it stands at the delete, lies on or before the last day the current Weisung allows, with their trail; Care Contract keeps the guard against drafts and contracts in force. Before the call the Elternabrechnung holds the retention lock of the Träger and has locked the due contract rows (parent_billing.due_retained_contracts), so no mandate or debit can be added to them, and lists only contracts without mandate, debit or suspension (#4720, ADR 0184). The target takes no further lock, no re-read under foreign locks, no after-commit step.",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/carecontract.ContractRetention.DeleteEndedContracts",
+      "target_owner": "care-contract"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/parentbilling.CareContracts.Recipients",
       "classification": "query",
       "effect": "query",

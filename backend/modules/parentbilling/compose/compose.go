@@ -95,6 +95,12 @@ func NewSEPADebits(letterheads parentbilling.BillingLetterheads, cipher parentbi
 	return application.NewSEPADebits(postgres.NewStore(), letterheads, cipher, calendar.TodayDate, calendar.Now)
 }
 
+// NewBelegRetention builds the retention of the Belege of every Träger
+// (#4720, ADR 0184) over the contracts the root binds; nil today: Berlin day.
+func NewBelegRetention(contracts parentbilling.RetainedContracts, today func() calendar.Date) parentbilling.BelegRetention {
+	return application.NewBelegRetention(postgres.NewStore(), contracts, today)
+}
+
 // NewParentSEPAMandates builds the SEPA mandate the parents give in the parents portal (#4696) over the contract parties, the bank-data cipher and the Träger's online mandate setting the root binds.
 func NewParentSEPAMandates(contracts parentbilling.ContractParties, cipher parentbilling.BankDataCipher, terms parentbilling.OnlineMandateSettings, sums parentbilling.ContentFingerprints) parentbilling.ParentSEPAMandates {
 	return application.NewParentMandates(postgres.NewStore(), contracts, cipher, terms, sums, calendar.TodayDate)

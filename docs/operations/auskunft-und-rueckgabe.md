@@ -3,8 +3,8 @@
 Stand: 09.11.2026, Refs #3838, Teil von #3846.
 Grundlage: [ADR 0092](../adr/0092-mandanten-datenlebenszyklus-nutzt-einen-gemeinsamen-katalog.md),
 [ADR 0097](../adr/0097-mandantenrueckgabe-hat-einen-eigenen-leseadapter.md),
-[ADR 0184](../adr/0184-mandantenrueckgabe-oeffnet-feldverschluesselte-bankdaten.md),
-[ADR 0191](../adr/0191-mandantenrueckgabe-gibt-gesundheit-einstellungen-und-traegerpaket-zurueck.md)
+[ADR 0192](../adr/0192-mandantenrueckgabe-oeffnet-feldverschluesselte-bankdaten.md),
+[ADR 0193](../adr/0193-mandantenrueckgabe-gibt-gesundheit-einstellungen-und-traegerpaket-zurueck.md)
 und [Datenkatalog](../reference/datenkatalog.md). Öffentliche Beschreibung für
 Kunden: [Datenexport und Anbieterwechsel](https://moto-ogs.de/rechtliches/datenexport)
 und [Infrastruktur und technische Anbieter](https://moto-ogs.de/rechtliches/infrastruktur)
@@ -111,7 +111,7 @@ Sicherungen sind nicht Bestandteil dieses PostgreSQL-/Upload-Exports.
    solange deren Rekey nicht abgeschlossen ist, `BANK_DATA_LEGACY_KEYS`
    ([ADR 0183](../adr/0183-bankdaten-haben-einen-eigenen-schluesselring-und-einen-wiederholbaren-rekey.md)).
    und den Gesundheitsring `HEALTH_DATA_KEYS` derselben Installation
-   ([ADR 0191](../adr/0191-mandantenrueckgabe-gibt-gesundheit-einstellungen-und-traegerpaket-zurueck.md)).
+   ([ADR 0193](../adr/0193-mandantenrueckgabe-gibt-gesundheit-einstellungen-und-traegerpaket-zurueck.md)).
    Der Export öffnet damit IBAN und Kontoinhaber der SEPA-Mandate und
    -Lastschriften sowie die Gesundheitsangaben; ohne passende Ringe bricht er
    ab, statt Chiffrat oder eine Lücke zu übergeben, auch für Schulen ohne

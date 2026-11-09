@@ -5,12 +5,12 @@ status: proposed
 # Mandantenrückgabe gibt Gesundheitsangaben, Einstellungen und ein Trägerpaket zurück
 
 **Status: Vorgeschlagen.** Vorschlag vom 09.11.2026 zu #3838 und #6328,
-setzt [ADR 0184](0184-mandantenrueckgabe-oeffnet-feldverschluesselte-bankdaten.md)
+setzt [ADR 0192](0192-mandantenrueckgabe-oeffnet-feldverschluesselte-bankdaten.md)
 fort und ergänzt [ADR 0097](0097-mandantenrueckgabe-hat-einen-eigenen-leseadapter.md).
 
 ## Kontext
 
-Nach ADR 0184 blieben drei Lücken im Rückgabepaket von `tenant export`:
+Nach ADR 0192 blieben drei Lücken im Rückgabepaket von `tenant export`:
 
 - Gesundheitsangaben (`health_data`, Gesundheitsring `HEALTH_DATA_KEYS`) der
   Betreuungsprofile und der Ferienanmeldungen gingen als Chiffrat raus.
