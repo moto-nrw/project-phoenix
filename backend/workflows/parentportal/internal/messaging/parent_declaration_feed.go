@@ -46,6 +46,20 @@ func (s *Service) attachDeclarationData(ctx context.Context, accountID int64, it
 	return nil
 }
 
+// withoutEmptyEndedDeclarations drops an ended declaration that kept no child:
+// the guardian answered only an older version, or the child left the school.
+// It would be an empty card about wording the guardian never answered.
+func withoutEmptyEndedDeclarations(items []*AnnouncementFeedItem) []*AnnouncementFeedItem {
+	out := items[:0]
+	for _, item := range items {
+		if item.Ended && (item.Declaration == nil || len(item.Declaration.Children) == 0) {
+			continue
+		}
+		out = append(out, item)
+	}
+	return out
+}
+
 // showEndedDeclarationAsAnswered shows an ended declaration with the frozen
 // wording the guardian answered, never a draft the school edits after
 // withdrawing it, and drops what belonged to the live publication.

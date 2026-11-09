@@ -144,13 +144,14 @@ func (s *Service) resolveDeclarationTarget(ctx context.Context, accountID, annou
 	return target, nil
 }
 
-// declarationActionAnnouncementIsLive keeps a revocation possible whatever the
+// declarationAdmitsAction reports whether the announcement, as the school
+// left it, takes this action at all. It keeps a revocation possible whatever the
 // school did with the declaration afterwards: expired, withdrawn (unpublished)
 // or deactivated. Withdrawing a consent must stay as easy as giving it
 // (Art. 7 Abs. 3 DSGVO, #6290). Whether there is a consent to revoke is the
 // declaration policy's decision on the guardian's own history. New agreements
 // and refusals still require the live announcement window.
-func declarationActionAnnouncementIsLive(a *ParentAnnouncement, action string) bool {
+func declarationAdmitsAction(a *ParentAnnouncement, action string) bool {
 	if a == nil || !a.IsDeclaration() {
 		return false
 	}
@@ -163,7 +164,7 @@ func declarationActionAnnouncementIsLive(a *ParentAnnouncement, action string) b
 // the child before. Anybody else learns nothing about it, not even that it
 // exists.
 func (s *Service) requireDeclarationOpenFor(ctx context.Context, a *ParentAnnouncement, accountID, studentID int64, action string) error {
-	if !declarationActionAnnouncementIsLive(a, action) {
+	if !declarationAdmitsAction(a, action) {
 		return ErrAnnouncementNotFound
 	}
 	if announcementIsLive(a) {
@@ -290,7 +291,7 @@ func (s *Service) lockedDeclarationVersion(ctx context.Context, tenantID, announ
 	if err != nil {
 		return declarationRules{}, nil, false, fmt.Errorf("parent: reload declaration: %w", err)
 	}
-	if !declarationActionAnnouncementIsLive(a, in.Action) {
+	if !declarationAdmitsAction(a, in.Action) {
 		return declarationRules{}, nil, false, ErrAnnouncementNotFound
 	}
 	version, err := s.AnnouncementRepo.LatestDeclarationVersion(ctx, tenantID, announcementID)

@@ -219,4 +219,77 @@ func TestDeclaration_EndedDeclarationShowsOnlyAnsweredChildren(t *testing.T) {
 	s.requireEndedWithRevocation(t)
 	assert.Equal(t, s.chain.StudentID, s.feedItem(t, s.chain.AccountID).Declaration.Children[0].StudentID,
 		"an ended declaration asks nothing for the child nobody answered for")
+	_, _, err = s.svc.SubmitDeclaration(s.ctx, s.chain.AccountID, s.announcement.ID, parentportal.DeclarationInput{
+		StudentID: sibling.ID, VersionID: s.version.ID, Action: parentportal.DeclarationActionRevoked,
+	}, nil)
+	require.ErrorIs(t, err, parentportal.ErrAnnouncementNotFound, "an own answer for one child opens nothing for another")
+}
+
+func TestDeclaration_EndedDeclarationAnsweredOnlyOnAnOlderVersionLeavesTheFeed(t *testing.T) {
+	t.Parallel()
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, true, false), nil)
+	_, _, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionAgreed)
+	require.NoError(t, err)
+
+	// Staff correct the text: a second version asks everybody again, then
+	// they withdraw it before this guardian answers it.
+	s.unpublishDeclaration(t)
+	freezeTestVersion(t, s.seedCtx, s.repo, s.announcement, 2)
+
+	assert.Nil(t, s.feedItem(t, s.chain.AccountID), "no empty card about wording the guardian never answered")
+	_, _, err = s.submit(s.chain.AccountID, parentportal.DeclarationActionRevoked)
+	require.ErrorIs(t, err, parentportal.ErrDeclarationVersionChanged)
+	assert.Len(t, s.history(t), 1)
+}
+
+func TestDeclaration_EndedDeclarationOffersNoRevocationWithoutARevocableConsent(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		revocable bool
+		answer    string
+	}{
+		"consent the school made final": {revocable: false, answer: parentportal.DeclarationActionAgreed},
+		"refusal":                       {revocable: true, answer: parentportal.DeclarationActionDeclined},
+	} {
+		t.Run(name, func(t *testing.T) {
+			s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, tc.revocable, false), nil)
+			_, _, err := s.submit(s.chain.AccountID, tc.answer)
+			require.NoError(t, err)
+
+			s.unpublishDeclaration(t)
+
+			item := s.feedItem(t, s.chain.AccountID)
+			require.NotNil(t, item, "the answer stays findable with its proof")
+			require.Len(t, item.Declaration.Children, 1)
+			assert.Empty(t, item.Declaration.Children[0].AllowedActions)
+			_, _, err = s.submit(s.chain.AccountID, parentportal.DeclarationActionRevoked)
+			require.ErrorIs(t, err, parentportal.ErrDeclarationActionNotAllowed)
+			assert.Len(t, s.history(t), 1)
+		})
+	}
+}
+
+func TestDeclaration_WithdrawnDeclarationRevocationStillAsksForThePassword(t *testing.T) {
+	t.Parallel()
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, true, true), nil)
+	const secret = "richtig"
+	confirm := func(_ context.Context, given string) error {
+		if given != secret {
+			return parentportal.ErrDeclarationPasswordIncorrect
+		}
+		return nil
+	}
+	submit := func(action, password string) error {
+		_, _, err := s.svc.SubmitDeclaration(s.ctx, s.chain.AccountID, s.announcement.ID, parentportal.DeclarationInput{
+			StudentID: s.chain.StudentID, VersionID: s.version.ID, Action: action, Password: password,
+		}, confirm)
+		return err
+	}
+	require.NoError(t, submit(parentportal.DeclarationActionAgreed, secret))
+
+	s.unpublishDeclaration(t)
+
+	require.ErrorIs(t, submit(parentportal.DeclarationActionRevoked, ""), parentportal.ErrDeclarationPasswordRequired)
+	require.NoError(t, submit(parentportal.DeclarationActionRevoked, secret))
+	assert.Len(t, s.history(t), 2)
 }

@@ -1237,7 +1237,8 @@ export interface ParentDeclaration {
   readonly deadline: string | null;
   readonly closed: boolean;
   /**
-   * The school no longer shows this Einverständnis (withdrawn or expired).
+   * The school no longer shows this Einverständnis (withdrawn, deactivated
+   * or expired).
    * It stays in the feed because this guardian answered it; only revoking an
    * own consent remains (#6290).
    */

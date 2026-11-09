@@ -68,7 +68,7 @@ export function parentNewsTopic(): HelpTopic {
       "Fragt moto nach Ihrem Passwort? Dann möchte die Schule das vor jeder Antwort.",
       "Bei einer Umfrage steht `Antwort bis` mit dem letzten Tag.",
       "Ist die Frist vorbei, steht dort `Umfrage geschlossen`.",
-      "Steht bei einem Einverständnis `Anfrage beendet`? Dann fragt die Schule nicht mehr nach. Ihre Zustimmung können Sie trotzdem widerrufen.",
+      "Steht bei einem Einverständnis `Einverständnis beendet`? Dann fragt die Schule nicht mehr nach. Eine Zustimmung können Sie dort weiter widerrufen, wenn die Schule das erlaubt.",
     ],
     troubleshootingDetails: [
       "moto sagt, der Elternbrief sei nicht mehr aktuell? Laden Sie die Seite neu.",

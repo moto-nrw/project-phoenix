@@ -6,8 +6,8 @@
   "version": "Versioni {version}",
   "deadline": "Afati deri më {date}",
   "closed": "Afati ka kaluar",
-  "ended": "Kërkesa përfundoi",
-  "endedNote": "Shkolla e ka përfunduar këtë kërkesë. Nuk mund të jepni më përgjigje të re.",
+  "ended": "Pëlqimi përfundoi",
+  "endedNote": "Shkolla e ka përfunduar këtë kërkesë për pëlqim. Nuk mund të jepni më përgjigje të re.",
   "passwordNote": "Para se të përgjigjeni, moto ju kërkon fjalëkalimin.",
   "signatureNote": "Për të dhënë pëlqimin, nënshkruani me gisht ose me mi.",
   "state": {

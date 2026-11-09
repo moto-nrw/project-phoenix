@@ -785,10 +785,10 @@ describe("an Einverständnis the school ended (#6290)", () => {
     expect(isOutstandingAnnouncement(ended({ read: false }))).toBe(false);
   });
 
-  it("says on the card that the school ended the request", () => {
+  it("says on the card that the school ended it", () => {
     render(<NewsCard item={ended()} onOpen={vi.fn()} />);
     expect(screen.getByText("Zugestimmt")).toBeInTheDocument();
-    expect(screen.getByText("Anfrage beendet")).toBeInTheDocument();
+    expect(screen.getByText("Einverständnis beendet")).toBeInTheDocument();
   });
 
   it("keeps the withdrawal and offers no new answer", async () => {
@@ -807,7 +807,7 @@ describe("an Einverständnis the school ended (#6290)", () => {
 
     expect(
       screen.getByText(
-        "Die Schule hat diese Anfrage beendet. Sie können nicht mehr neu antworten.",
+        "Die Schule hat dieses Einverständnis beendet. Sie können nicht mehr neu antworten.",
       ),
     ).toBeInTheDocument();
     expect(
