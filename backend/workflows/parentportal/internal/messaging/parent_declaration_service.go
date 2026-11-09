@@ -117,20 +117,8 @@ func (s *Service) resolveDeclarationTarget(ctx context.Context, accountID, annou
 		if err != nil {
 			return fmt.Errorf("parent: load declaration: %w", err)
 		}
-		if !declarationActionAnnouncementIsLive(a, action) {
-			return ErrAnnouncementNotFound
-		}
-		if !announcementIsLive(a) {
-			// Only the guardian's own earlier answer for this child opens a
-			// declaration the school no longer shows; anybody else learns
-			// nothing about it, not even that it exists.
-			answered, err := s.answeredDeclarationBefore(adminCtx, accountID, announcementID, studentID)
-			if err != nil {
-				return err
-			}
-			if !answered {
-				return ErrAnnouncementNotFound
-			}
+		if err := s.requireDeclarationOpenFor(adminCtx, a, accountID, studentID, action); err != nil {
+			return err
 		}
 		children, err := s.AnnouncementRepo.DeclarationChildrenForAccount(adminCtx, accountID, []int64{announcementID})
 		if err != nil {
@@ -167,6 +155,28 @@ func declarationActionAnnouncementIsLive(a *ParentAnnouncement, action string) b
 		return false
 	}
 	return action == DeclarationActionRevoked || announcementIsLive(a)
+}
+
+// requireDeclarationOpenFor answers 404 unless the declaration takes this
+// action. A live declaration takes every action; one the school no longer
+// shows takes only a revocation, and only from a guardian who answered for
+// the child before. Anybody else learns nothing about it, not even that it
+// exists.
+func (s *Service) requireDeclarationOpenFor(ctx context.Context, a *ParentAnnouncement, accountID, studentID int64, action string) error {
+	if !declarationActionAnnouncementIsLive(a, action) {
+		return ErrAnnouncementNotFound
+	}
+	if announcementIsLive(a) {
+		return nil
+	}
+	answered, err := s.answeredDeclarationBefore(ctx, accountID, a.ID, studentID)
+	if err != nil {
+		return err
+	}
+	if !answered {
+		return ErrAnnouncementNotFound
+	}
+	return nil
 }
 
 // answeredDeclarationBefore reports whether the account has declared for the
