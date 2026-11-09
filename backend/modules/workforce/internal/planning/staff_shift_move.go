@@ -123,6 +123,11 @@ func (s *staffShiftService) reloadLockedMoveSource(ctx context.Context, input Mo
 		return nil, false, fmt.Errorf("%w: source staff no longer owns shift", ErrShiftConflict)
 	}
 	if existing.Cancelled {
+		// A move onto a sick day cancels the row (#6302); its exact retry
+		// returns the stored row like any other applied move.
+		if existing.SickAbsenceID != nil && moveSlotMatches(existing, input) {
+			return existing, true, nil
+		}
 		return nil, false, fmt.Errorf("%w: cancelled shifts cannot be moved", ErrShiftInvalid)
 	}
 	return existing, false, nil
@@ -292,13 +297,17 @@ func (s *staffShiftService) findShiftForMove(ctx context.Context, id int64) (*wo
 }
 
 func moveAlreadyApplied(shift *workforce.ShiftRecord, input MoveShiftInput) bool {
+	return moveSlotMatches(shift, input) && shift.SeriesID == nil
+}
+
+// moveSlotMatches reports whether the shift already holds the requested slot.
+func moveSlotMatches(shift *workforce.ShiftRecord, input MoveShiftInput) bool {
 	return shift.StaffID == input.TargetStaffID &&
 		shift.Date == input.Date &&
 		calendar.SameClockTime(shift.StartTime, input.StartTime) &&
 		calendar.SameClockTime(shift.EndTime, input.EndTime) &&
 		shift.BreakMinutes == input.BreakMinutes &&
-		sameShiftTypeID(shift.ShiftTypeID, input.ShiftTypeID) &&
-		shift.SeriesID == nil
+		sameShiftTypeID(shift.ShiftTypeID, input.ShiftTypeID)
 }
 
 func (s *staffShiftService) validateMovedOrigin(ctx context.Context, existing, moved *workforce.ShiftRecord) error {

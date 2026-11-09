@@ -142,6 +142,22 @@ func TestSickReport_MovedShiftTakesSickStateOfItsNewDay(t *testing.T) {
 	assertPlanned(t, e.moveShift(t, e.reloadShift(t, restored.ID), e.subject.ID, stampWeekTwo, "13:30", "15:00"), "time change on the same day")
 }
 
+// W2: a move onto a sick day cancels the row; repeating the identical
+// request (a lost response) returns the stored row instead of failing.
+func TestSickReport_MoveOntoSickDayStaysIdempotent(t *testing.T) {
+	t.Parallel()
+
+	e := buildSickCascadeEnv(t)
+	absenceID := e.createSickAbsence(t, stampWeekTwo, stampWeekTwo)
+	own := e.mustPlanShift(t, e.subject.ID, stampWeekOne, "08:00", "10:00")
+	colleagues := e.mustPlanShift(t, e.admin.ID, stampWeekTwo, "13:00", "15:00")
+
+	for _, attempt := range []string{"first", "retry"} {
+		assertSickCancelled(t, e.moveShift(t, own, e.subject.ID, stampWeekTwo, "08:00", "10:00"), absenceID, attempt+" same-person move")
+		assertSickCancelled(t, e.moveShift(t, colleagues, e.subject.ID, stampWeekTwo, "13:00", "15:00"), absenceID, attempt+" cross-person move")
+	}
+}
+
 // W3: a sick person cannot cover a gap; a healthy day can.
 func TestSickReport_SickPersonCannotCoverAShift(t *testing.T) {
 	t.Parallel()
